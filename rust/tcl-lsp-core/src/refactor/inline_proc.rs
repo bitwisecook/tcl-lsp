@@ -114,7 +114,7 @@ pub fn inline_proc(
         &namespace,
         head,
         head_off,
-        Some(registry),
+        crate::definition::CallResolution::document_only().with_registry(registry),
     )?;
     let title = format!("Inline proc '{}'", proc_def.name);
     let (call_start, call_end) = command_span_offsets(source, &call);

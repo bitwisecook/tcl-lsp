@@ -145,6 +145,81 @@
 use crate::source_graph::{RunOrder, RunPoint};
 use tcl_syntax::glob::string_match;
 
+/// What is known about "had `source_ns` exported this name when the import
+/// ran?" — three-valued, because *absence of an export record* is only
+/// evidence where the export records themselves are visible.
+///
+/// The distinction the single-document tier could not draw before issue #1116
+/// item 1: it saw one file, so "no export here" and "the export is in another
+/// file" were the same observation. Both consumers of a verdict abstain, but
+/// in opposite directions, because the questions are opposite:
+///
+/// | verdict | "what does this call reach?" | "did `-force` delete the local command?" |
+/// |---|---|---|
+/// | [`Exported`](Self::Exported) | the import installed — resolve through it | yes |
+/// | [`NotExported`](Self::NotExported) | it installed nothing — do not | no |
+/// | [`Unknown`](Self::Unknown) | do not resolve (no evidence to resolve *on*) | yes — answering with a command the import may have deleted is worse than answering nothing |
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ExportVerdict {
+    /// A `namespace export` covering the name had run at the import site.
+    Exported,
+    /// The exporting namespace's export list is visible **and** nothing in it
+    /// covers the name at that point — a fact, not a gap.
+    NotExported,
+    /// Nothing can be said: the namespace's exports are somewhere this
+    /// answerer cannot see (another file, an installed package, a document
+    /// outside the workspace).
+    Unknown,
+}
+
+/// Whole-program export knowledge, as the *single-document* tier needs it.
+///
+/// # Why the in-document tier needs an oracle at all (issue #1116 item 1)
+///
+/// `namespace import -force` deletes the importing namespace's own command of
+/// that name — but only for names the source namespace actually exports. A
+/// document can hold the source namespace's procs, its importing namespace,
+/// the `-force` import and the call, and still not hold the one `namespace
+/// export` that decides the question. Two whole programs whose *single
+/// document* is byte-identical then disagree (tclsh 8.6.16 / 9.0.4, verbatim):
+///
+/// ```text
+/// # shared_main.tcl — identical in both programs
+/// namespace eval ::src { proc helper {} {return SRC}
+///                        proc other {} {return OTHER}
+///                        namespace export other }
+/// namespace eval ::app { proc helper {} {return LOCAL} }
+/// namespace eval ::app { namespace import -force ::src::* }
+/// namespace eval ::app { puts [helper] }
+///
+/// with `namespace eval ::src {namespace export helper}` sourced first:
+///     call -> SRC     origin -> ::src::helper
+/// without it:
+///     call -> LOCAL   origin -> ::app::helper
+/// ```
+///
+/// No rule reading only that document can separate those, so the decision has
+/// to import whole-program evidence. The oracle is that evidence and nothing
+/// else: it answers one question, at one point in the timeline, and is free to
+/// answer [`ExportVerdict::Unknown`].
+///
+/// Optional everywhere it is threaded — a caller with no workspace index (a
+/// single-document unit test, the `tcl` CLI, an unindexed buffer) supplies
+/// none and keeps the document-only rule, which is this trait's whole reason
+/// for returning a verdict rather than a `bool`.
+///
+/// Implemented by `crate::workspace_index::NamespaceExportSnapshot`.
+pub trait NamespaceExportOracle {
+    /// Had `source_ns` exported `name` by the time the `namespace import` at
+    /// `import_site` ran, as the whole program sees it?
+    ///
+    /// `import_site` carries the importing document's real URI, so the
+    /// implementation can rank the workspace's export events against it with
+    /// the `source`-graph run order — an export the graph proves runs *after*
+    /// this import is not retroactive, exactly as within one document.
+    fn exported_at(&self, source_ns: &str, name: &str, import_site: RunPoint<'_>) -> ExportVerdict;
+}
+
 /// One `namespace export` event as either tier sees it.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct ExportEvent<'a> {

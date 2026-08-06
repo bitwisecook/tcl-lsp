@@ -66,9 +66,12 @@ pub fn prepare(
     // namespace-blind name scan that could seed the hierarchy from a same-named
     // class in another namespace.
     let cursor_off = crate::definition::byte_offset_at(&line_index, source, line, character);
-    if let Some((_, class_def)) =
-        crate::definition::resolve_class_target_at(analysis, cursor_off, &word)
-    {
+    if let Some((_, class_def)) = crate::definition::resolve_class_target_at(
+        analysis,
+        crate::definition::CallResolution::document_only(),
+        cursor_off,
+        &word,
+    ) {
         return vec![item_for(class_def, source, &line_index)];
     }
     Vec::new()

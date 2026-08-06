@@ -244,7 +244,7 @@ pub(crate) fn caller_frame_bindings(
     analysis: &AnalysisResult,
     source: &str,
     dialect: &str,
-    registry: Option<&tcl_registry::CommandRegistry>,
+    resolution: crate::definition::CallResolution<'_>,
     cursor_off: u32,
     name: &str,
 ) -> Vec<CallerFrameBinding> {
@@ -265,7 +265,7 @@ pub(crate) fn caller_frame_bindings(
         analysis,
         source,
         dialect,
-        registry,
+        resolution,
         namespace: crate::definition::namespace_context_at(
             &analysis.global_scope,
             cursor_off,
@@ -284,7 +284,10 @@ struct BindingScan<'a> {
     analysis: &'a AnalysisResult,
     source: &'a str,
     dialect: &'a str,
-    registry: Option<&'a tcl_registry::CommandRegistry>,
+    /// The whole-program context every [`crate::definition::resolve_called_proc`]
+    /// in this scan is answered in — the builtin gate and, when the host has a
+    /// workspace index, the export oracle (issue #1116 item 1).
+    resolution: crate::definition::CallResolution<'a>,
     namespace: String,
     name: &'a str,
 }
@@ -354,7 +357,7 @@ fn bindings_from_call(
         &ctx.namespace,
         head_text,
         head.span.start(),
-        ctx.registry,
+        ctx.resolution,
     ) else {
         return;
     };
@@ -426,11 +429,11 @@ pub(crate) fn caller_frame_reference_spans(
     analysis: &AnalysisResult,
     source: &str,
     dialect: &str,
-    registry: Option<&tcl_registry::CommandRegistry>,
+    resolution: crate::definition::CallResolution<'_>,
     cursor_off: u32,
     name: &str,
 ) -> Vec<Span> {
-    let bindings = caller_frame_bindings(analysis, source, dialect, registry, cursor_off, name);
+    let bindings = caller_frame_bindings(analysis, source, dialect, resolution, cursor_off, name);
     if bindings.is_empty() {
         return Vec::new();
     }
@@ -545,11 +548,11 @@ pub(crate) fn binding_at_offset(
     analysis: &AnalysisResult,
     source: &str,
     dialect: &str,
-    registry: Option<&tcl_registry::CommandRegistry>,
+    resolution: crate::definition::CallResolution<'_>,
     cursor_off: u32,
     word: &str,
 ) -> Option<CallerFrameBinding> {
-    caller_frame_bindings(analysis, source, dialect, registry, cursor_off, word)
+    caller_frame_bindings(analysis, source, dialect, resolution, cursor_off, word)
         .into_iter()
         .filter(|b| b.param.is_some())
         .find(|b| cursor_off >= b.arg_span.start() && cursor_off <= b.arg_span.end())

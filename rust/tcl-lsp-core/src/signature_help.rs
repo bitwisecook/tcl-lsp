@@ -117,9 +117,17 @@ pub fn signature_help(
         cursor_off,
         &analysis.namespace_overrides,
     );
-    if let Some(proc_def) =
-        lookup_proc(analysis, source, &namespace, &command, cursor_off, registry)
-    {
+    if let Some(proc_def) = lookup_proc(
+        analysis,
+        source,
+        &namespace,
+        &command,
+        cursor_off,
+        crate::definition::CallResolution {
+            registry,
+            program: None,
+        },
+    ) {
         return Some(proc_signature_help(proc_def, active_param));
     }
     let registry = registry?;
@@ -320,11 +328,11 @@ fn lookup_proc<'a>(
     namespace: &str,
     name: &str,
     call_off: u32,
-    registry: Option<&CommandRegistry>,
+    ctx: crate::definition::CallResolution<'_>,
 ) -> Option<&'a ProcDef> {
-    if let Some(proc_def) = crate::definition::resolve_called_proc(
-        analysis, source, namespace, name, call_off, registry,
-    ) {
+    if let Some(proc_def) =
+        crate::definition::resolve_called_proc(analysis, source, namespace, name, call_off, ctx)
+    {
         return Some(proc_def);
     }
     // Alias resolution.  When the cursor's command isn't a visible proc, check
@@ -337,7 +345,7 @@ fn lookup_proc<'a>(
         namespace,
         &resolved_target,
         call_off,
-        registry,
+        ctx,
     )
 }
 

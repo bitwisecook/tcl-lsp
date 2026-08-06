@@ -250,18 +250,25 @@ pub fn prepare_rename(
     // (which could seed the rename with an arbitrary same-named proc).
     let (word, _start, _end) = find_word_span_at_position(source, line, character)?;
     let word_off = crate::definition::byte_offset_at(&line_index, source, line, character);
-    if let Some((_, proc_def)) =
-        crate::definition::resolve_proc_target_at(analysis, source, word_off, &word, None)
-    {
+    if let Some((_, proc_def)) = crate::definition::resolve_proc_target_at(
+        analysis,
+        source,
+        word_off,
+        &word,
+        crate::definition::CallResolution::document_only(),
+    ) {
         return Some(PrepareRename {
             range: span_to_range(source, &line_index, proc_def.name_span),
             placeholder: proc_def.name.clone(),
         });
     }
     // Class?  Same resolution shape against `all_classes`.
-    if let Some((_, class_def)) =
-        crate::definition::resolve_class_target_at(analysis, word_off, &word)
-    {
+    if let Some((_, class_def)) = crate::definition::resolve_class_target_at(
+        analysis,
+        crate::definition::CallResolution::document_only(),
+        word_off,
+        &word,
+    ) {
         return Some(PrepareRename {
             range: span_to_range(source, &line_index, class_def.name_span),
             placeholder: class_def.name.clone(),
@@ -1251,8 +1258,16 @@ fn rename_proc(
     // rename from a bareword call site pick an arbitrary same-named proc in
     // another namespace and rewrite the wrong definition (matches
     // `references::references`).
-    let (qname, proc_def) =
-        crate::definition::resolve_proc_target_at(analysis, source, cursor_off, word, registry)?;
+    let (qname, proc_def) = crate::definition::resolve_proc_target_at(
+        analysis,
+        source,
+        cursor_off,
+        word,
+        crate::definition::CallResolution {
+            registry,
+            program: None,
+        },
+    )?;
     if let Some(registry) = registry
         && is_builtin_command_name(new_name, registry)
     {
@@ -1339,8 +1354,12 @@ fn rename_class(
     // Declaration under the cursor, else namespace-aware resolution — never a
     // namespace-blind `c.name == word` scan (which from a call site could
     // rename the wrong same-named class in another namespace).
-    let (qname, class_def) =
-        crate::definition::resolve_class_target_at(analysis, cursor_off, word)?;
+    let (qname, class_def) = crate::definition::resolve_class_target_at(
+        analysis,
+        crate::definition::CallResolution::document_only(),
+        cursor_off,
+        word,
+    )?;
     if let Some(registry) = registry
         && is_builtin_command_name(new_name, registry)
     {

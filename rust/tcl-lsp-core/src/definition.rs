@@ -116,7 +116,96 @@ use tcl_compiler::analyser::indirection;
 use tcl_lexer::{LineIndex, Utf16Col};
 
 use crate::hover::{find_var_at_position, find_word_span_at_position};
+use crate::namespace_import::{ExportVerdict, NamespaceExportOracle};
 use crate::source_graph::{RunOrder, RunPoint};
+
+/// Whole-program export knowledge, paired with the URI of the document being
+/// resolved.
+///
+/// The two travel together because neither is usable alone: the oracle ranks
+/// the workspace's `namespace export` events against the *importing* statement,
+/// and that statement is a byte offset in a named document. Handed the wrong
+/// URI — or the placeholder one the document-only tier uses — an export
+/// written **after** the import in this very file becomes unrankable, which
+/// [`crate::namespace_import::exported_at_import_site`] reads as "in effect",
+/// silently reversing issue #1027's Direction B. Pairing them structurally
+/// makes that unrepresentable.
+#[derive(Clone, Copy)]
+pub struct ProgramExports<'a> {
+    /// The document being resolved, spelled as the workspace index knows it.
+    pub uri: &'a str,
+    /// The workspace's export records — typically
+    /// `crate::workspace_index::WorkspaceIndex::export_snapshot`.
+    pub oracle: &'a dyn NamespaceExportOracle,
+}
+
+/// Everything a call-site resolution consults **besides the document in front
+/// of it** — the context [`resolve_called_proc`] and its helpers carry.
+///
+/// Two facts, both optional, both meaning "keep the document-only answer" when
+/// absent:
+///
+/// * [`registry`](Self::registry) — the dialect's command registry, the
+///   builtin gate. A caller without one keeps the lenient behaviour; there is
+///   no builtin to protect.
+/// * [`program`](Self::program) — the whole-program export oracle. A caller
+///   without one (a single-document unit test, the `tcl` CLI, a buffer the
+///   workspace has not indexed) gets exactly the behaviour this tier had
+///   before issue #1116 item 1: an in-document export record decides, and its
+///   absence is read as evidence only where this document holds *some* export
+///   for the namespace.
+///
+/// One context rather than two more parameters at each of the fourteen
+/// [`resolve_called_proc`] call sites, and rather than a global: the facts are
+/// per-request, and a global would make a single-document unit test and a
+/// live server disagree about what "no workspace" means.
+#[derive(Clone, Copy, Default)]
+pub struct CallResolution<'a> {
+    /// The dialect's command registry, when the caller has one.
+    pub registry: Option<&'a tcl_registry::CommandRegistry>,
+    /// Whole-program export knowledge, when the caller has a workspace index.
+    pub program: Option<ProgramExports<'a>>,
+}
+
+impl<'a> CallResolution<'a> {
+    /// The document-only context: no registry, no oracle.
+    #[must_use]
+    pub const fn document_only() -> Self {
+        Self {
+            registry: None,
+            program: None,
+        }
+    }
+
+    /// This context with `registry` installed — how the providers add the
+    /// builtin gate to whatever whole-program view their caller handed them.
+    #[must_use]
+    pub const fn with_registry(self, registry: &'a tcl_registry::CommandRegistry) -> Self {
+        Self {
+            registry: Some(registry),
+            ..self
+        }
+    }
+
+    /// This context with whole-program export knowledge installed.
+    #[must_use]
+    pub const fn in_program(self, program: ProgramExports<'a>) -> Self {
+        Self {
+            program: Some(program),
+            ..self
+        }
+    }
+
+    /// The URI to stamp on this document's own run points — the real one when
+    /// a workspace view is attached, else the placeholder
+    /// [`IN_DOCUMENT_URI`].
+    const fn uri(self) -> &'a str {
+        match self.program {
+            Some(p) => p.uri,
+            None => IN_DOCUMENT_URI,
+        }
+    }
+}
 
 /// LSP `Range` analogue — line/character pairs in UTF-16 code
 /// units per the LSP spec.
@@ -153,6 +242,11 @@ pub(crate) fn utf16_len(text: &str) -> u32 {
 /// Returns an empty vector when no recognisable symbol is at
 /// the position or when the symbol's definition isn't in the
 /// current document.
+///
+/// Document-only: equivalent to [`definition_with`] with no whole-program
+/// view. A host that has a workspace index should call that instead — a
+/// `namespace import -force` whose export lives in another file is invisible
+/// here (see [`NamespaceExportOracle`]).
 #[must_use]
 pub fn definition(
     source: &str,
@@ -160,6 +254,25 @@ pub fn definition(
     character: u32,
     analysis: &AnalysisResult,
 ) -> Vec<LspRange> {
+    definition_with(source, line, character, analysis, None)
+}
+
+/// [`definition`] with the caller's whole-program export view attached.
+///
+/// `program` is `None` for a host with no workspace index (a single-document
+/// test, the `tcl` CLI), which reproduces [`definition`] exactly.
+#[must_use]
+pub fn definition_with(
+    source: &str,
+    line: u32,
+    character: u32,
+    analysis: &AnalysisResult,
+    program: Option<ProgramExports<'_>>,
+) -> Vec<LspRange> {
+    let view = CallResolution {
+        registry: None,
+        program,
+    };
     let line_index = LineIndex::new(source);
 
     let decl_byte_offset = byte_offset_at(&line_index, source, line, character);
@@ -214,7 +327,7 @@ pub fn definition(
                 "::",
                 target,
                 cursor_offset,
-                Some(tcl_registry::registry_for_dialect(&analysis.dialect)),
+                view.with_registry(tcl_registry::registry_for_dialect(&analysis.dialect)),
             )
         {
             return vec![span_to_range(source, &line_index, proc_def.name_span)];
@@ -277,7 +390,7 @@ pub fn definition(
     // alias written *after* this call site does not apply and the ordinary
     // resolution below still wins (tclsh: a `hello` before `rename greet
     // hello` is `invalid command name "hello"`).
-    if let Some(span) = indirect_definition_target(analysis, source, cursor_offset, &word) {
+    if let Some(span) = indirect_definition_target(analysis, view, source, cursor_offset, &word) {
         return vec![span_to_range(source, &line_index, span)];
     }
     // `Factory::make` — [incr Tcl]'s colon-qualified class-proc dispatch
@@ -304,7 +417,7 @@ pub fn definition(
             &namespace,
             &word,
             cursor_offset,
-            Some(tcl_registry::registry_for_dialect(&analysis.dialect)),
+            view.with_registry(tcl_registry::registry_for_dialect(&analysis.dialect)),
         )
     {
         // A proc redefined later in the document is two definitions sharing
@@ -352,6 +465,7 @@ pub fn definition(
 /// review, P2).
 fn indirect_definition_target(
     analysis: &AnalysisResult,
+    ctx: CallResolution<'_>,
     source: &str,
     cursor_off: u32,
     word: &str,
@@ -364,7 +478,7 @@ fn indirect_definition_target(
         "::",
         &hop.target,
         cursor_off,
-        Some(registry),
+        ctx.with_registry(registry),
     ) {
         let captured = analysis
             .proc_def_in_effect_at(&proc_def.qualified_name, hop.resolve_at)
@@ -515,7 +629,7 @@ fn caller_frame_definition(
         analysis,
         source,
         "",
-        Some(tcl_registry::registry_for_dialect("")),
+        CallResolution::document_only().with_registry(tcl_registry::registry_for_dialect("")),
         cursor_off,
         name,
     );
@@ -2797,11 +2911,12 @@ pub fn itcl_class_proc_target_at(
 /// (`tcl_lsp_core::workspace_index::WorkspaceIndex::resolve_wildcard_import`).
 fn proc_visible_via_wildcard_import<'a>(
     analysis: &'a AnalysisResult,
+    ctx: CallResolution<'_>,
     namespace: &str,
     word: &str,
     call_off: u32,
 ) -> Option<&'a tcl_compiler::analyser::ProcDef> {
-    let source_ns = wildcard_import_source_namespace(analysis, namespace, word, call_off)?;
+    let source_ns = wildcard_import_source_namespace(analysis, ctx, namespace, word, call_off)?;
     analysis
         .all_procs
         .get(&tcl_syntax::naming::qualify(&source_ns, word))
@@ -2830,6 +2945,7 @@ fn proc_visible_via_wildcard_import<'a>(
 /// resolver takes it from there.
 fn forced_import_shadows(
     analysis: &AnalysisResult,
+    ctx: CallResolution<'_>,
     namespace: &str,
     word: &str,
     call_off: u32,
@@ -2843,6 +2959,7 @@ fn forced_import_shadows(
         .map_or(&[][..], Vec::as_slice);
     import_hop(
         analysis,
+        ctx,
         namespace,
         path,
         word,
@@ -2865,6 +2982,7 @@ fn forced_import_shadows(
 #[must_use]
 pub fn forced_import_shadows_call(
     analysis: &AnalysisResult,
+    ctx: CallResolution<'_>,
     word: &str,
     resolution_candidates: &[String],
     call_off: u32,
@@ -2874,6 +2992,7 @@ pub fn forced_import_shadows_call(
     }
     live_import_over_candidates(
         analysis,
+        ctx,
         resolution_candidates.iter().map(String::as_str),
         word,
         call_off,
@@ -2887,54 +3006,102 @@ pub fn forced_import_shadows_call(
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum ImportQuery {
     /// "Which namespace does this call really reach?" Every import counts,
-    /// and the export gate is strict: a name the source did not export
-    /// installs nothing, so it must not resolve.
+    /// and the export gate is strict: only a proven export
+    /// ([`ExportVerdict::Exported`]) installs, because an unproven one gives
+    /// nothing to resolve *to*.
     Resolve,
     /// "Has a `namespace import -force` taken this name away from the
     /// importing namespace's own command table?" ([`forced_import_shadows`])
-    /// Only forced imports count, and the export gate abstains for a source
-    /// namespace whose export list this document cannot see
-    /// ([`namespace_exports_observable`]): `namespace import -force ::Lib::*`
-    /// deletes the local command whether or not `::Lib`'s export declaration
-    /// happens to live in *this* file, and answering with the deleted
-    /// definition would be worse than abstaining. The same "absence of an
-    /// export is evidence only where the exports are visible too" rule
-    /// `WorkspaceIndex::live_command_links` applies cross-document, over the
-    /// whole workspace's export records rather than one file's.
+    /// Only forced imports count, and the export gate abstains the other way:
+    /// everything but a proven [`ExportVerdict::NotExported`] counts as having
+    /// installed. `namespace import -force ::Lib::*` deletes the local command
+    /// whether or not anything here can see `::Lib`'s export declaration, and
+    /// answering with the deleted definition would be worse than abstaining.
+    /// The same "absence of an export is evidence only where the exports are
+    /// visible too" rule `WorkspaceIndex::live_command_links` applies
+    /// cross-document.
     ForcedShadow,
 }
 
-/// Whether this document can see `source_ns`'s **export list** — the only
-/// evidence that makes "`source_ns` did not export this name" a fact rather
-/// than a gap.
+impl ImportQuery {
+    /// Whether an import whose export gate returned `verdict` counts as having
+    /// installed, for this question.
+    ///
+    /// The two arms are the two abstention directions in one place, so neither
+    /// can drift: [`Resolve`](Self::Resolve) needs proof to answer,
+    /// [`ForcedShadow`](Self::ForcedShadow) needs proof to *stop* answering.
+    fn installs(self, verdict: ExportVerdict) -> bool {
+        match self {
+            ImportQuery::Resolve => verdict == ExportVerdict::Exported,
+            ImportQuery::ForcedShadow => verdict != ExportVerdict::NotExported,
+        }
+    }
+}
+
+/// Whether `source_ns` had exported `word` when the import at `import_at` ran,
+/// as everything available to this resolution can tell — the single decision
+/// both [`ImportQuery`] arms read, differing only in which way they abstain.
 ///
-/// The in-document twin of `WorkspaceIndex::observable_namespaces`, and the
-/// discriminator [`ImportQuery::ForcedShadow`] needs between "this namespace
-/// did not export the name" (a fact) and "this namespace's exports are in
-/// another file" (no information).
+/// Three sources of evidence, in order of authority:
 ///
-/// # Why exports, not definitions (issue #1116 item 1)
+/// 1. **This document's own export records.** A covering export that had run
+///    at the import is proof, and it is proof even when the workspace index is
+///    stale relative to the buffer being edited — which is why it is consulted
+///    first rather than left to the oracle.
+/// 2. **The whole-program oracle**, when one is attached. It sees every
+///    indexed file's exports, ranks them against this import with the `source`
+///    graph's run order, and may itself answer
+///    [`ExportVerdict::Unknown`].
+/// 3. **The document-only fallback**, when no oracle is attached: absence of
+///    an export is evidence exactly where this document holds *some* export
+///    record for `source_ns`, and no information otherwise.
 ///
-/// This used to answer "does this document hold a proc, a class, **or** an
-/// export of `source_ns`", mirroring the workspace-wide
-/// `observable_namespaces`. Cross-document that is right — the index really
-/// does hold every file. In *one* document it is not: a namespace can be
-/// perfectly visible here (its procs are in this file) while its `namespace
-/// export` sits in another, and then a `namespace import -force ::src::*`
-/// really did delete the local command that single-file go-to-definition went
-/// on answering with.
+/// # Why an oracle at all (issue #1116 item 1)
+///
+/// Step 3 is the whole problem. It is the in-document twin of
+/// `WorkspaceIndex::observable_namespaces`, and cross-document that framing is
+/// right — the index really does hold every file. In *one* document it is not:
+/// a namespace can be partly visible here (its procs, and some of its exports)
+/// while the one `namespace export` that covers this name sits in another
+/// file. The false-positive and the true-negative then have **byte-identical**
+/// single-document inputs and opposite correct answers (transcript on
+/// [`NamespaceExportOracle`]), so no rule reading only this document can
+/// separate them — hence the oracle, and hence its optionality: a caller with
+/// no workspace keeps step 3 exactly as it was.
+fn export_verdict(
+    analysis: &AnalysisResult,
+    ctx: CallResolution<'_>,
+    source_ns: &str,
+    word: &str,
+    import_at: u32,
+) -> ExportVerdict {
+    if exported_at_import(analysis, ctx, source_ns, word, import_at) {
+        return ExportVerdict::Exported;
+    }
+    if let Some(program) = ctx.program {
+        return program.oracle.exported_at(
+            source_ns,
+            word,
+            in_document_point(analysis, ctx, import_at),
+        );
+    }
+    if namespace_exports_observable(analysis, source_ns) {
+        ExportVerdict::NotExported
+    } else {
+        ExportVerdict::Unknown
+    }
+}
+
+/// Whether this document holds *any* `namespace export` record for
+/// `source_ns` — the document-only fallback [`export_verdict`] step 3 uses
+/// when no whole-program oracle is attached.
 ///
 /// The proposition being asserted is about the export list, so the evidence
-/// has to be the export list. A document that declares no export at all for
-/// `source_ns` knows nothing about what it exports, and
-/// [`ImportQuery::ForcedShadow`] abstains toward the shadow having fired
-/// (answering with a command the import deleted is worse than answering
-/// nothing and letting the cross-document resolver take over).
-///
-/// **Residual**: a document holding *some* of `source_ns`'s exports but not
-/// the one that covers this name still reads the gap as a fact. Narrowing
-/// that further needs the workspace index's whole-program view, which is
-/// exactly what the cross-document tier already applies.
+/// has to be the export list: a document that declares no export at all for
+/// `source_ns` knows nothing about what it exports. Its **residual** — a
+/// document holding some of `source_ns`'s exports but not the covering one
+/// still reads the gap as a fact — is precisely what the oracle removes when
+/// one is available, and what remains, deliberately, when one is not.
 fn namespace_exports_observable(analysis: &AnalysisResult, source_ns: &str) -> bool {
     let bare = source_ns.trim_start_matches("::");
     analysis
@@ -2979,6 +3146,7 @@ fn namespace_exports_observable(analysis: &AnalysisResult, source_ns: &str) -> b
 /// deleting an imported command deletes the commands imported *from* it).
 fn wildcard_import_source_namespace(
     analysis: &AnalysisResult,
+    ctx: CallResolution<'_>,
     namespace: &str,
     word: &str,
     call_off: u32,
@@ -3003,6 +3171,7 @@ fn wildcard_import_source_namespace(
         };
         let hop = import_hop(
             analysis,
+            ctx,
             &current,
             path,
             word,
@@ -3028,6 +3197,7 @@ fn wildcard_import_source_namespace(
 /// `path` entries) at `call_off`.
 fn import_hop<S: AsRef<str>>(
     analysis: &AnalysisResult,
+    ctx: CallResolution<'_>,
     namespace: &str,
     path: &[S],
     word: &str,
@@ -3037,6 +3207,7 @@ fn import_hop<S: AsRef<str>>(
     let candidates = tcl_syntax::naming::command_resolution_candidates(namespace, path, word);
     live_import_over_candidates(
         analysis,
+        ctx,
         candidates.iter().map(String::as_str),
         word,
         call_off,
@@ -3049,6 +3220,7 @@ fn import_hop<S: AsRef<str>>(
 /// resolution order.
 fn live_import_over_candidates<'c>(
     analysis: &AnalysisResult,
+    ctx: CallResolution<'_>,
     candidates: impl Iterator<Item = &'c str>,
     word: &str,
     call_off: u32,
@@ -3062,7 +3234,7 @@ fn live_import_over_candidates<'c>(
             continue;
         }
         let candidate_ns = if prefix.is_empty() { "::" } else { prefix };
-        if let Some(hop) = live_import_at(analysis, candidate_ns, word, call_off, query) {
+        if let Some(hop) = live_import_at(analysis, ctx, candidate_ns, word, call_off, query) {
             return Some(hop);
         }
     }
@@ -3174,13 +3346,14 @@ fn forget_covers(forget_source: Option<&str>, source_ns: &str) -> bool {
 /// lifecycle, are judged from the call.
 fn live_import_at(
     analysis: &AnalysisResult,
+    ctx: CallResolution<'_>,
     importing_ns: &str,
     word: &str,
     call_off: u32,
     query: ImportQuery,
 ) -> Option<String> {
     use crate::namespace_import::{AliasEvent, AliasEventKind};
-    let events = slot_events(analysis, importing_ns, word, query);
+    let events = slot_events(analysis, ctx, importing_ns, word, query);
     // Which imports actually install something: an unforced import onto a
     // slot the namespace already holds (a local declaration, or a live alias
     // from a *different* source) raises `already exists` and binds nothing.
@@ -3243,9 +3416,9 @@ fn live_import_at(
     // *against* (`ran_after(removal, install)` asks whether the removal had run
     // at the install), and a removal is never that point. Computing one per
     // removal would be a body scan that decides nothing.
-    let install_point = |at: u32| in_document_point(analysis, at);
+    let install_point = |at: u32| in_document_point(analysis, ctx, at);
     let removal_point = |at: u32| RunPoint {
-        uri: IN_DOCUMENT_URI,
+        uri: ctx.uri(),
         at,
         enclosing_body: None,
     };
@@ -3282,12 +3455,13 @@ fn live_import_at(
     crate::namespace_import::alias_live_at(
         &mut log,
         &RunOrder::default(),
-        Some(in_document_point(analysis, call_off)),
+        Some(in_document_point(analysis, ctx, call_off)),
     )
     .then(|| source_ns.to_owned())
 }
 
-/// The document key every in-document import event carries.
+/// The document key every in-document import event carries **when no
+/// workspace view is attached**.
 ///
 /// This tier holds exactly one document, so the *identity* of the key is
 /// irrelevant — what matters is that every point shares it, which is what makes
@@ -3299,15 +3473,23 @@ fn live_import_at(
 /// needs no `source` graph — every point shares [`IN_DOCUMENT_URI`], so
 /// [`crate::source_graph::RunOrder`] answers from the single-document rule
 /// alone and never looks at an edge. Building it allocates nothing.
+/// With a [`ProgramExports`] view attached the points carry the document's
+/// **real** URI instead, so the workspace's own order can rank a foreign
+/// export against them — and, just as importantly, can rank *this* document's
+/// exports against them by offset rather than shrugging.
 const IN_DOCUMENT_URI: &str = "";
 
 /// An offset in the document being analysed, as a
 /// [`crate::source_graph::RunPoint`] — with the enclosing definition body the
 /// load-order rule needs, which is the only thing
 /// [`indirection::in_effect`] reads out of the analysis.
-fn in_document_point(analysis: &AnalysisResult, at: u32) -> RunPoint<'static> {
+fn in_document_point<'a>(
+    analysis: &AnalysisResult,
+    ctx: CallResolution<'a>,
+    at: u32,
+) -> RunPoint<'a> {
     RunPoint {
-        uri: IN_DOCUMENT_URI,
+        uri: ctx.uri(),
         at,
         enclosing_body: analysis.innermost_definition_body_span(at),
     }
@@ -3352,6 +3534,7 @@ fn in_document_point(analysis: &AnalysisResult, at: u32) -> RunPoint<'static> {
 /// same rule, stated over the facts each tier holds.
 fn slot_events<'a>(
     analysis: &'a AnalysisResult,
+    ctx: CallResolution<'_>,
     importing_ns: &str,
     word: &str,
     query: ImportQuery,
@@ -3387,9 +3570,7 @@ fn slot_events<'a>(
             continue;
         }
         let at = imp.range.start();
-        if !exported_at_import(analysis, source_ns, word, at)
-            && (query == ImportQuery::Resolve || namespace_exports_observable(analysis, source_ns))
-        {
+        if !query.installs(export_verdict(analysis, ctx, source_ns, word, at)) {
             continue;
         }
         events.push(SlotEvent::Import {
@@ -3460,6 +3641,7 @@ fn slot_events<'a>(
 /// identical records — one decision, not two.
 pub(crate) fn exported_at_import(
     analysis: &AnalysisResult,
+    ctx: CallResolution<'_>,
     source_ns: &str,
     word: &str,
     import_at: u32,
@@ -3477,7 +3659,7 @@ pub(crate) fn exported_at_import(
             // body-local export the tombstone cannot be proven to follow
             // keeps the name exported.
             at: RunPoint {
-                uri: IN_DOCUMENT_URI,
+                uri: ctx.uri(),
                 at: e.range.start(),
                 enclosing_body: None,
             },
@@ -3486,7 +3668,7 @@ pub(crate) fn exported_at_import(
         &mut events,
         word,
         &RunOrder::default(),
-        in_document_point(analysis, import_at),
+        in_document_point(analysis, ctx, import_at),
     )
 }
 
@@ -3498,11 +3680,12 @@ pub(crate) fn exported_at_import(
 /// compares against the definition it is gathering references for.
 pub(crate) fn import_chain_target(
     analysis: &AnalysisResult,
+    ctx: CallResolution<'_>,
     namespace: &str,
     word: &str,
     call_off: u32,
 ) -> Option<String> {
-    wildcard_import_source_namespace(analysis, namespace, word, call_off)
+    wildcard_import_source_namespace(analysis, ctx, namespace, word, call_off)
 }
 
 /// Resolve a call `word` written in `namespace` to the proc it denotes:
@@ -3527,18 +3710,22 @@ pub(crate) fn import_chain_target(
 /// already applies to a *deletion* recorded inside a body — reused here
 /// rather than re-derived, so both agree on what "load-time" means.
 ///
-/// `registry`, when `Some`, supplies the builtin gate; `None` skips the gate
-/// (callers without a registry keep the lenient behaviour, including the
-/// nested-shadow one — there is no builtin to protect).
+/// `ctx` carries everything outside the document: its
+/// [`CallResolution::registry`], when `Some`, supplies the builtin gate
+/// (`None` skips it — callers without a registry keep the lenient behaviour,
+/// including the nested-shadow one, since there is no builtin to protect), and
+/// its [`CallResolution::program`], when `Some`, supplies the whole-program
+/// export oracle the `-force` shadow needs (issue #1116 item 1). Both absent
+/// is the document-only behaviour this resolver has always had.
 pub(crate) fn resolve_called_proc<'a>(
     analysis: &'a AnalysisResult,
     source: &str,
     namespace: &str,
     word: &str,
     call_off: u32,
-    registry: Option<&tcl_registry::CommandRegistry>,
+    ctx: CallResolution<'_>,
 ) -> Option<&'a tcl_compiler::analyser::ProcDef> {
-    let has_builtin = registry.is_some_and(|r| r.get(word).is_some());
+    let has_builtin = ctx.registry.is_some_and(|r| r.get(word).is_some());
     // A `namespace import -force` *replaces* a same-named command the
     // importing namespace already holds, so from its own position onward the
     // local definition is no longer what a bare call reaches (oracle on
@@ -3547,7 +3734,7 @@ pub(crate) fn resolve_called_proc<'a>(
     // import's source lives in another file, where answering with the local
     // definition would be the wrong answer and the cross-document resolver is
     // the one that can answer.
-    let forced_shadow = forced_import_shadows(analysis, namespace, word, call_off);
+    let forced_shadow = forced_import_shadows(analysis, ctx, namespace, word, call_off);
     if !forced_shadow && let Some(proc_def) = proc_visible_from_namespace(analysis, namespace, word)
     {
         let nested_shadow = has_builtin
@@ -3563,7 +3750,9 @@ pub(crate) fn resolve_called_proc<'a>(
     // priority tier (same nested-shadow gate) so an unconditional
     // top-level import still outranks a same-named builtin, matching how
     // an equivalent top-level `proc` redefinition already would.
-    if let Some(proc_def) = proc_visible_via_wildcard_import(analysis, namespace, word, call_off) {
+    if let Some(proc_def) =
+        proc_visible_via_wildcard_import(analysis, ctx, namespace, word, call_off)
+    {
         let nested_shadow = has_builtin
             && analysis.offset_is_inside_any_definition_body(proc_def.name_span.start());
         if !nested_shadow {
@@ -3582,7 +3771,14 @@ pub(crate) fn resolve_called_proc<'a>(
     let hit = fallback_proc_by_simple_name(analysis, source, word)?;
     // …and the lenient tail match must not smuggle back in the one answer the
     // import gate has just refused (issue #1104 item 2).
-    if only_route_is_a_dead_import(analysis, namespace, word, call_off, &hit.qualified_name) {
+    if only_route_is_a_dead_import(
+        analysis,
+        ctx,
+        namespace,
+        word,
+        call_off,
+        &hit.qualified_name,
+    ) {
         return None;
     }
     Some(hit)
@@ -3626,6 +3822,7 @@ pub(crate) fn resolve_called_proc<'a>(
 /// one whose import *does* resolve (which never reaches the fallback anyway).
 fn only_route_is_a_dead_import(
     analysis: &AnalysisResult,
+    ctx: CallResolution<'_>,
     namespace: &str,
     word: &str,
     call_off: u32,
@@ -3670,7 +3867,7 @@ fn only_route_is_a_dead_import(
             })
     });
     covered
-        && wildcard_import_source_namespace(analysis, namespace, word, call_off)
+        && wildcard_import_source_namespace(analysis, ctx, namespace, word, call_off)
             .is_none_or(|live| !same_namespace(&live, target_ns))
 }
 
@@ -3698,7 +3895,7 @@ pub(crate) fn resolve_proc_target_at<'a>(
     source: &str,
     cursor_off: u32,
     word: &str,
-    registry: Option<&tcl_registry::CommandRegistry>,
+    ctx: CallResolution<'_>,
 ) -> Option<(&'a String, &'a tcl_compiler::analyser::ProcDef)> {
     if let Some(hit) = analysis
         .all_procs
@@ -3749,7 +3946,7 @@ pub(crate) fn resolve_proc_target_at<'a>(
         cursor_off,
         &analysis.namespace_overrides,
     );
-    let proc_def = resolve_called_proc(analysis, source, &ns, word, cursor_off, registry)?;
+    let proc_def = resolve_called_proc(analysis, source, &ns, word, cursor_off, ctx)?;
     analysis.all_procs.get_key_value(&proc_def.qualified_name)
 }
 
@@ -3762,6 +3959,7 @@ pub(crate) fn resolve_proc_target_at<'a>(
 /// key equals `ClassDef::qualified_name`.
 pub(crate) fn resolve_class_target_at<'a>(
     analysis: &'a AnalysisResult,
+    ctx: CallResolution<'_>,
     cursor_off: u32,
     word: &str,
 ) -> Option<(&'a String, &'a tcl_compiler::analyser::ClassDef)> {
@@ -3799,7 +3997,7 @@ pub(crate) fn resolve_class_target_at<'a>(
     // callable bare — see [`proc_visible_via_wildcard_import`] for the full
     // rationale (issue #923 idx 18); classes never consult `namespace path`,
     // matching `bareword_resolution_candidates` above.
-    let source_ns = wildcard_import_source_namespace(analysis, &ns, word, cursor_off)?;
+    let source_ns = wildcard_import_source_namespace(analysis, ctx, &ns, word, cursor_off)?;
     analysis
         .all_classes
         .get_key_value(&tcl_syntax::naming::qualify(&source_ns, word))

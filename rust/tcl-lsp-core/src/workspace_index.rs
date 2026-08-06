@@ -76,6 +76,7 @@
 use std::collections::HashSet;
 use std::sync::Arc;
 
+use crate::namespace_import::ExportVerdict;
 use crate::source_graph::RunPoint;
 use crate::workspace_symbols::{
     IndexedWorkspaceSymbol, WorkspaceSymbolKind, matches_query, namespace_of,
@@ -1515,6 +1516,9 @@ pub struct WorkspaceIndex {
     /// without link-following — see
     /// [`WorkspaceIndex::invocations_by_settled_target`].
     settled_invocations: [Derived<SettledTargets>; 2],
+    /// The whole-program export oracle the single-document tier borrows — see
+    /// [`WorkspaceIndex::export_snapshot`].
+    export_snapshot: Derived<NamespaceExportSnapshot>,
     /// The `source`-path → document-URI resolver, when the host has installed
     /// one — see [`WorkspaceIndex::set_source_resolver`].
     source_resolver: Option<SourceResolver>,
@@ -1727,6 +1731,47 @@ impl WorkspaceIndex {
         })
     }
 
+    /// The whole-program export oracle the *single-document* tier consults
+    /// when deciding whether a `namespace import -force` really deleted the
+    /// importing namespace's own command (issue #1116 item 1).
+    ///
+    /// One document cannot answer that on its own: the `namespace export` that
+    /// decides it may live in another file, and two programs whose single
+    /// document is byte-identical then disagree — the transcript is on
+    /// [`crate::namespace_import::NamespaceExportOracle`]. This is the
+    /// whole-program evidence that closes the gap, and nothing more: it
+    /// answers one question and may answer
+    /// [`ExportVerdict::Unknown`].
+    ///
+    /// A [`Derived`] view, so it is built at most once per
+    /// [`Self::generation`]; the returned `Arc` is owned, so a caller may hold
+    /// it after releasing the index lock (which is how the server hands it to
+    /// its blocking providers).
+    #[must_use]
+    pub fn export_snapshot(&self) -> Arc<NamespaceExportSnapshot> {
+        self.export_snapshot.get_or_build(|| {
+            let mut exports_by_ns: std::collections::HashMap<
+                String,
+                Vec<WorkspaceNamespaceExport>,
+            > = std::collections::HashMap::new();
+            for exp in self.namespace_exports() {
+                exports_by_ns
+                    .entry(exp.ns.trim_start_matches("::").to_owned())
+                    .or_default()
+                    .push(exp.clone());
+            }
+            NamespaceExportSnapshot {
+                exports_by_ns,
+                observable: self
+                    .observable_namespaces()
+                    .into_iter()
+                    .map(str::to_owned)
+                    .collect(),
+                order: self.run_order(),
+            }
+        })
+    }
+
     /// Install the host's literal-`source`-path → document-URI resolver, so
     /// the index can build the [`crate::source_graph::RunOrder`] the
     /// import-lifecycle gates rank cross-document events with (issue #1104
@@ -1759,6 +1804,8 @@ impl WorkspaceIndex {
     pub fn set_source_resolver(&mut self, resolve: SourceResolver) {
         self.source_resolver = Some(resolve);
         self.run_order = Derived::default();
+        // The export snapshot captures the order, so it goes with it.
+        self.export_snapshot = Derived::default();
     }
 
     /// The `source`-graph load order over this workspace's documents, built at
@@ -1798,6 +1845,7 @@ impl WorkspaceIndex {
         self.defined_names = <[Derived<HashSet<String>>; 2]>::default();
         self.command_link_map = Derived::default();
         self.settled_invocations = <[Derived<SettledTargets>; 2]>::default();
+        self.export_snapshot = Derived::default();
         self.run_order = Derived::default();
     }
 
@@ -4047,24 +4095,81 @@ impl<'a> WildcardImportIndex<'a> {
     /// function abstains toward continuing to resolve.
     fn exports_name_at(&self, ns: &str, name: &str, site: ImportSite<'_>) -> bool {
         self.exports_by_ns.get(ns).is_some_and(|exports| {
-            let mut events = exports
-                .iter()
-                .map(|e| crate::namespace_import::ExportEvent {
-                    pattern: e.pattern.as_str(),
-                    clears: e.clears,
-                    at: RunPoint {
-                        uri: e.uri.as_str(),
-                        at: e.at,
-                        enclosing_body: None,
-                    },
-                });
-            crate::namespace_import::exported_at_import_site(
-                &mut events,
-                name,
-                &self.order,
-                site.point(),
-            )
+            exported_at_site(exports.iter().copied(), name, &self.order, site.point())
         })
+    }
+}
+
+/// [`crate::namespace_import::exported_at_import_site`] over a namespace's
+/// indexed export rows — the one place `WorkspaceNamespaceExport` is turned
+/// into an [`crate::namespace_import::ExportEvent`].
+///
+/// Shared by the per-call wildcard walk ([`WildcardImportIndex::exports_name_at`])
+/// and the standalone [`NamespaceExportSnapshot`] the single-document tier
+/// borrows, so the two cannot answer the same question differently.
+fn exported_at_site<'e>(
+    exports: impl Iterator<Item = &'e WorkspaceNamespaceExport>,
+    name: &str,
+    order: &crate::source_graph::RunOrder,
+    site: RunPoint<'_>,
+) -> bool {
+    let mut events = exports.map(|e| crate::namespace_import::ExportEvent {
+        pattern: e.pattern.as_str(),
+        clears: e.clears,
+        at: RunPoint {
+            uri: e.uri.as_str(),
+            at: e.at,
+            enclosing_body: None,
+        },
+    });
+    crate::namespace_import::exported_at_import_site(&mut events, name, order, site)
+}
+
+/// The workspace's `namespace export` records, plus the run order and the
+/// observable-namespace set needed to read them — an **owned**, self-contained
+/// [`crate::namespace_import::NamespaceExportOracle`] the single-document tier
+/// can borrow (issue #1116 item 1).
+///
+/// Owned rather than a view borrowing [`WorkspaceIndex`] because the servers's
+/// pure-CPU providers run on a blocking worker with the index lock released:
+/// the snapshot is taken under the lock and moved into the worker. It is a
+/// [`Derived`] view, so a whole generation's requests share one build.
+///
+/// It holds *only* what the export question needs. Everything else about an
+/// import — the conflict rule, the alias lifecycle, chain following — stays
+/// where it already is; this is not a second cross-document resolver.
+#[derive(Debug, Default)]
+pub struct NamespaceExportSnapshot {
+    /// Export rows by exporting namespace, `::`-stripped so the two spellings
+    /// an import pattern and an export record may carry still meet.
+    exports_by_ns: std::collections::HashMap<String, Vec<WorkspaceNamespaceExport>>,
+    /// The `::`-stripped namespaces the workspace can say anything about — the
+    /// discriminator between [`ExportVerdict::NotExported`] and
+    /// [`ExportVerdict::Unknown`], and the same set
+    /// [`WorkspaceIndex::live_command_links`] gates its own abstention on.
+    observable: HashSet<String>,
+    /// The `source`-graph load order, so an export the graph proves runs
+    /// *after* the import is not retroactive.
+    order: Arc<crate::source_graph::RunOrder>,
+}
+
+impl crate::namespace_import::NamespaceExportOracle for NamespaceExportSnapshot {
+    fn exported_at(&self, source_ns: &str, name: &str, import_site: RunPoint<'_>) -> ExportVerdict {
+        let ns = source_ns.trim_start_matches("::");
+        if !self.observable.contains(ns) {
+            // The namespace lives somewhere the workspace cannot see — an
+            // installed package, a file outside the project. Silence is not
+            // evidence, exactly as in `live_command_links`.
+            return ExportVerdict::Unknown;
+        }
+        let exported = self.exports_by_ns.get(ns).is_some_and(|exports| {
+            exported_at_site(exports.iter(), name, &self.order, import_site)
+        });
+        if exported {
+            ExportVerdict::Exported
+        } else {
+            ExportVerdict::NotExported
+        }
     }
 }
 

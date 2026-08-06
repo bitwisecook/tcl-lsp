@@ -346,8 +346,14 @@ fn invocation_references_via_wildcard_import(
         inv.range.start(),
         &analysis.namespace_overrides,
     );
-    crate::definition::import_chain_target(analysis, &call_ns, def_name, inv.range.start())
-        .is_some_and(|source_ns| source_ns.trim_start_matches("::") == target_ns)
+    crate::definition::import_chain_target(
+        analysis,
+        crate::definition::CallResolution::document_only(),
+        &call_ns,
+        def_name,
+        inv.range.start(),
+    )
+    .is_some_and(|source_ns| source_ns.trim_start_matches("::") == target_ns)
 }
 
 #[must_use]
@@ -706,7 +712,8 @@ fn caller_frame_references(
         analysis,
         source,
         dialect,
-        Some(tcl_registry::registry_for_dialect(dialect)),
+        crate::definition::CallResolution::document_only()
+            .with_registry(tcl_registry::registry_for_dialect(dialect)),
         byte_offset,
         name,
     );
@@ -726,7 +733,8 @@ fn caller_frame_references(
         analysis,
         source,
         dialect,
-        Some(tcl_registry::registry_for_dialect(dialect)),
+        crate::definition::CallResolution::document_only()
+            .with_registry(tcl_registry::registry_for_dialect(dialect)),
         byte_offset,
         name,
     )
@@ -781,7 +789,8 @@ fn variable_references(ctx: &RefCtx<'_>) -> Option<Vec<LspRange>> {
         analysis,
         source,
         dialect,
-        Some(tcl_registry::registry_for_dialect(dialect)),
+        crate::definition::CallResolution::document_only()
+            .with_registry(tcl_registry::registry_for_dialect(dialect)),
         byte_offset,
         &find_word_span_at_position(source, line, character)
             .map(|(w, _, _)| w)
@@ -868,8 +877,12 @@ fn class_references(ctx: &RefCtx<'_>, word: &str) -> Option<Vec<LspRange>> {
     // Declaration under the cursor, else namespace-aware resolution — never a
     // namespace-blind `c.name == word` scan (which from a call site could
     // surface an unrelated same-named class's reference set).
-    let (qname, class_def) =
-        crate::definition::resolve_class_target_at(analysis, cursor_off, word)?;
+    let (qname, class_def) = crate::definition::resolve_class_target_at(
+        analysis,
+        crate::definition::CallResolution::document_only(),
+        cursor_off,
+        word,
+    )?;
     let mut out = Vec::new();
     if include_declaration {
         out.push(span_to_range(source, line_index, class_def.name_span));
@@ -905,8 +918,13 @@ fn proc_references(ctx: &RefCtx<'_>, word: &str) -> Option<Vec<LspRange>> {
     // Declaration under the cursor, else C Tcl's namespace-aware call-site
     // resolution — never a namespace-blind `p.name == word` scan (which from a
     // call site could surface an unrelated same-named proc's reference set).
-    let (qname, proc_def) =
-        crate::definition::resolve_proc_target_at(analysis, source, cursor_off, word, None)?;
+    let (qname, proc_def) = crate::definition::resolve_proc_target_at(
+        analysis,
+        source,
+        cursor_off,
+        word,
+        crate::definition::CallResolution::document_only(),
+    )?;
     let mut out = Vec::new();
     if include_declaration {
         out.push(span_to_range(source, line_index, proc_def.name_span));
@@ -3287,7 +3305,12 @@ pub fn document_highlights(
         // Declaration-span hit, else the namespace-aware candidate
         // resolution — never a namespace-blind `c.name == word` first-hit
         // scan (the M1 wrong-symbol drift class).
-        let class_match = crate::definition::resolve_class_target_at(analysis, cursor_off, &word);
+        let class_match = crate::definition::resolve_class_target_at(
+            analysis,
+            crate::definition::CallResolution::document_only(),
+            cursor_off,
+            &word,
+        );
         if let Some((qname, class_def)) = class_match {
             let mut out = Vec::new();
             // Non-variable symbols (procs / classes / methods) highlight as
@@ -3309,9 +3332,13 @@ pub fn document_highlights(
 
     {
         let cursor_off = crate::definition::byte_offset_at(&line_index, source, line, character);
-        if let Some((qname, proc_def)) =
-            crate::definition::resolve_proc_target_at(analysis, source, cursor_off, &word, None)
-        {
+        if let Some((qname, proc_def)) = crate::definition::resolve_proc_target_at(
+            analysis,
+            source,
+            cursor_off,
+            &word,
+            crate::definition::CallResolution::document_only(),
+        ) {
             let mut out = Vec::new();
             out.push((
                 span_to_range(source, &line_index, proc_def.name_span),

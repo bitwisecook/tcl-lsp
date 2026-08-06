@@ -822,7 +822,7 @@ fn head_is_unresolved(
         &namespace,
         &invocation.name,
         head_off,
-        Some(registry),
+        crate::definition::CallResolution::document_only().with_registry(registry),
     )
     .is_none()
 }

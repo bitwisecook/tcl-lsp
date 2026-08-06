@@ -129,8 +129,13 @@ pub fn prepare(
     // (mirrors `references::proc_references` / `rename::rename_proc`) —
     // never a namespace-blind `p.name == word` first-`HashMap`-hit scan.
     let cursor_off = crate::definition::byte_offset_at(&line_index, source, line, character);
-    let proc_match =
-        crate::definition::resolve_proc_target_at(analysis, source, cursor_off, &word, None);
+    let proc_match = crate::definition::resolve_proc_target_at(
+        analysis,
+        source,
+        cursor_off,
+        &word,
+        crate::definition::CallResolution::document_only(),
+    );
     if let Some((qname, proc_def)) = proc_match {
         return vec![item_for_proc(source, proc_def, qname, &line_index)];
     }
@@ -248,7 +253,13 @@ fn find_proc_for_item<'a>(
         item.selection_range.start_line,
         item.selection_range.start_character,
     );
-    crate::definition::resolve_proc_target_at(analysis, source, cursor_off, &item.name, None)
+    crate::definition::resolve_proc_target_at(
+        analysis,
+        source,
+        cursor_off,
+        &item.name,
+        crate::definition::CallResolution::document_only(),
+    )
 }
 
 /// Build a [`CallHierarchyItem`] for a class method.
@@ -641,7 +652,7 @@ fn unresolved_method_outgoing_calls(
             class_ns,
             &head,
             span.start(),
-            None,
+            crate::definition::CallResolution::document_only(),
         )
         .is_some()
         {
@@ -1081,7 +1092,7 @@ fn method_outgoing_calls(
             class_ns,
             &head,
             span.start(),
-            None,
+            crate::definition::CallResolution::document_only(),
         ) {
             let qname = &proc_def.qualified_name;
             let entry = by_target
