@@ -821,20 +821,9 @@ impl Analyser {
             // any arity check (it is introspected, not called).
             self.record_command_name_invocations(cmd_name, args, arg_tokens, scope_path);
 
-            // Record `ArgRole::NamespaceName` arguments (`namespace children
-            // ::tomato`, `namespace exists ns`, `namespace eval NS { … }`) as
-            // namespace occurrences, so a namespace name is a navigable
-            // symbol for go-to-definition / hover / find-references rather
-            // than an inert word (issue #1088).
-            self.record_namespace_name_references(cmd_name, args, arg_tokens, scope_path);
-
-            // Record every *computed* variable-name argument (`set $n 2`,
-            // `variable $n`) with what the dominating-constant lattice
-            // proves about its value, so a post-analysis consumer can ask
-            // which cells the word can actually name (issue #1262).
-            self.record_dynamic_variable_name_sites(
-                cmd_name, args, arg_tokens, arg_single, scope_path,
-            );
+            // The occurrence tables the registry's *argument roles* produce —
+            // namespace names and computed variable names.
+            self.record_arg_role_facts(cmd_name, args, arg_tokens, arg_single, scope_path);
 
             // Run the per-command syntactic checks on commands nested inside
             // ``[…]`` substitutions (bare-`Cmd` args *and* braced-expr args)
@@ -2229,6 +2218,28 @@ impl Analyser {
         }
     }
 
+    /// The per-command occurrence tables the registry's **argument roles**
+    /// produce, recorded together because they are the same walk over the same
+    /// role query:
+    ///
+    /// * [`tcl_registry::ArgRole::NamespaceName`] words → `namespace_refs`, so
+    ///   a namespace name is a navigable symbol rather than an inert word
+    ///   (issue #1088);
+    /// * computed [`tcl_registry::ArgRole::VarWrite`] /
+    ///   [`tcl_registry::ArgRole::VarRead`] words → `dynamic_variable_names`,
+    ///   with what the constant lattice proves about the value (issue #1262).
+    fn record_arg_role_facts(
+        &mut self,
+        cmd_name: &str,
+        args: &[String],
+        arg_tokens: &[Token],
+        arg_single: &[bool],
+        scope_path: &[usize],
+    ) {
+        self.record_namespace_name_references(cmd_name, args, arg_tokens, scope_path);
+        self.record_dynamic_variable_name_sites(cmd_name, args, arg_tokens, arg_single, scope_path);
+    }
+
     /// Record each [`tcl_registry::arg_role::ArgRole::NamespaceName`]
     /// argument as a [`NamespaceRef`](super::types::NamespaceRef): a word
     /// naming a namespace, which navigation must reach (issue #1088).
@@ -2361,13 +2372,13 @@ impl Analyser {
                 }
                 let is_single = arg_single.get(idx).copied().unwrap_or(false);
                 let resolved = self.resolve_dynamic_word(word, Some(*tok), is_single, scope_path);
-                self.result.dynamic_variable_names.push(
-                    super::types::DynamicVariableNameSite {
+                self.result
+                    .dynamic_variable_names
+                    .push(super::types::DynamicVariableNameSite {
                         span: tok.span,
                         resolved,
                         writes,
-                    },
-                );
+                    });
             }
         }
     }

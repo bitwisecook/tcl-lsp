@@ -648,7 +648,11 @@ fn package_prefer_state_is_ordered_against_the_require() {
     let src = "package prefer latest\npackage require w\n";
     let analysis = analyse(src);
     assert_eq!(
-        crate::package_resolver::package_prefer_at(&analysis, at(src, "package require"), PackagePrefer::Stable),
+        crate::package_resolver::package_prefer_at(
+            &analysis,
+            at(src, "package require"),
+            PackagePrefer::Stable
+        ),
         PackagePrefer::Latest,
     );
 
@@ -656,7 +660,11 @@ fn package_prefer_state_is_ordered_against_the_require() {
     let src = "package require w\npackage prefer latest\n";
     let analysis = analyse(src);
     assert_eq!(
-        crate::package_resolver::package_prefer_at(&analysis, at(src, "package require"), PackagePrefer::Stable),
+        crate::package_resolver::package_prefer_at(
+            &analysis,
+            at(src, "package require"),
+            PackagePrefer::Stable
+        ),
         PackagePrefer::Stable,
     );
 
@@ -666,7 +674,11 @@ fn package_prefer_state_is_ordered_against_the_require() {
     let src = "proc load {} {\n    package require w\n}\npackage prefer latest\n";
     let analysis = analyse(src);
     assert_eq!(
-        crate::package_resolver::package_prefer_at(&analysis, at(src, "    package require"), PackagePrefer::Stable),
+        crate::package_resolver::package_prefer_at(
+            &analysis,
+            at(src, "    package require"),
+            PackagePrefer::Stable
+        ),
         PackagePrefer::Latest,
     );
 
@@ -674,7 +686,11 @@ fn package_prefer_state_is_ordered_against_the_require() {
     let src = "if {$::tcl_platform(platform) eq \"unix\"} {\n    package prefer latest\n}\npackage require w\n";
     let analysis = analyse(src);
     assert_eq!(
-        crate::package_resolver::package_prefer_at(&analysis, at(src, "package require"), PackagePrefer::Stable),
+        crate::package_resolver::package_prefer_at(
+            &analysis,
+            at(src, "package require"),
+            PackagePrefer::Stable
+        ),
         PackagePrefer::Stable,
     );
 
@@ -687,7 +703,11 @@ fn package_prefer_state_is_ordered_against_the_require() {
     ] {
         let analysis = analyse(src);
         assert_eq!(
-            crate::package_resolver::package_prefer_at(&analysis, at(src, "package require"), PackagePrefer::Stable),
+            crate::package_resolver::package_prefer_at(
+                &analysis,
+                at(src, "package require"),
+                PackagePrefer::Stable
+            ),
             PackagePrefer::Stable,
             "{src}",
         );
