@@ -61,7 +61,7 @@ const SIDE_EFFECTS: &[SideEffect] = &[SideEffect {
 
 /// The core Tcl 9.0+ `oo::Helpers::classvariable` — no package needed.
 ///
-/// TIP 478 ("Add Expected Class Level Behaviors to oo::class") introduced
+/// TIP 478 ("Add Expected Class Level Behaviors to `oo::class`") introduced
 /// `classvariable`; its `Tcl-Version` metadata targeted 8.7, a branch that
 /// was never cut as a stable release, and the feature landed when 8.7's
 /// work was folded into 9.0. Per-version fetch of classvariable.n: absent
