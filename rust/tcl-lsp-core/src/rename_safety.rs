@@ -703,11 +703,22 @@ fn slice(source: &str, span: Span) -> Option<&str> {
 /// really does reach the cell through `ns::bump v`).
 ///
 /// Abstain-toward-refuse is unchanged — the predicate answers "could spell it"
-/// for everything it cannot rule out, and a lone `$n` is a bare wildcard that
-/// rules nothing out.  The residual is a *value*-set fact this text-level
-/// bound cannot see: a `$n` whose dominating constant provably differs from
-/// the cell's tail still refuses, because no per-site constant-value record
-/// survives analysis for a post-analysis consumer to read.
+/// for everything it cannot rule out.
+///
+/// # Per-site value provenance (issue #1262)
+///
+/// A lone `$n` is a bare wildcard, so the text bound alone rules nothing out.
+/// The *value* set can: the analyser resolves each computed name word through
+/// the constant lattice that **dominates** it and carries the answer out on
+/// [`AnalysisResult::dynamic_variable_names`](tcl_compiler::analyser::AnalysisResult::dynamic_variable_names),
+/// so `namespace eval ::ns { variable v 1; proc p {} { set n other; set $n 2 } }`
+/// no longer refuses a rename of `::ns::v` — that `$n` is provably `other`.
+///
+/// Narrowing only ([`site_resolution_rules_out`]): a site whose resolution is
+/// branch-dependent or parameter-fed, and a site the walk never reached, keep
+/// refusing exactly as before.  The residual is everything the dominating
+/// -constant lattice does not track — a value from a `[…]` substitution, a
+/// caller-supplied parameter, an `upvar`-aliased name.
 #[must_use]
 pub fn namespace_variable_rename_hazard(
     source: &str,
@@ -743,10 +754,19 @@ pub fn namespace_variable_rename_hazard(
                 if !tcl_compiler::dynamic_names::dynamic_variable_word_can_spell(word, cell) {
                     continue;
                 }
-                if let Some(tok) = cmd.argv.get(idx + 1) {
-                    hazard = Some(tok.span);
-                    return;
+                let Some(tok) = cmd.argv.get(idx + 1) else {
+                    continue;
+                };
+                // …and neither is one whose *value* the analyser proved:
+                // `set n other; set $n 2` names `other` at that site, never
+                // this cell, however wildcard the text is (issue #1262).
+                // Narrowing only — a site with no recorded resolution, or one
+                // the analyser's walk never reached, keeps refusing.
+                if site_resolution_rules_out(analysis, tok.span, cell) {
+                    continue;
                 }
+                hazard = Some(tok.span);
+                return;
             }
         }
     };
@@ -763,6 +783,31 @@ pub fn namespace_variable_rename_hazard(
         line_index,
         Some(span),
     ))
+}
+
+/// Whether the analyser's per-site provenance proves the dynamic name word at
+/// `span` cannot spell `cell` (issue #1262).
+///
+/// The word's *text* bounds the names it can produce, but a bare `$n` is a
+/// lone wildcard and bounds nothing.  The analyser knows more while it walks:
+/// `Scope::lookup_dominating_const_string` resolves that `$n` to the constant
+/// that dominates the site, and
+/// [`AnalysisResult::dynamic_variable_names`](tcl_compiler::analyser::AnalysisResult::dynamic_variable_names)
+/// carries the answer out.  A resolved site is re-asked the same textual
+/// question with the substitution replaced by its value, so one rule decides
+/// "can this word spell this cell" for both.
+///
+/// One-directional by construction: `false` for a site with no row, and for a
+/// row whose resolution is `None` (branch-dependent, parameter-fed, or a `[…]`
+/// substitution).  A gate that only skips on `true` therefore never accepts
+/// more than the text-only bound did.
+fn site_resolution_rules_out(analysis: &AnalysisResult, span: Span, cell: &str) -> bool {
+    analysis.dynamic_variable_names.iter().any(|site| {
+        site.span == span
+            && site.resolved.as_deref().is_some_and(|resolved| {
+                !tcl_compiler::dynamic_names::dynamic_variable_word_can_spell(resolved, cell)
+            })
+    })
 }
 
 /// Refuse a **variable** rename whose target's name can only be written
@@ -1119,6 +1164,98 @@ mod tests {
                    }\n";
         let reason = var_hazard(src, "::ns::v").expect("`variable $n` really does reach the cell");
         assert!(reason.contains("computed at run time"), "{reason}");
+    }
+
+    // Issue #1262 — per-site *value* provenance.  The text bound cannot see
+    // what a lone `$n` holds; the analyser's dominating-constant lattice can,
+    // and now carries the answer out on `dynamic_variable_names`.
+
+    /// TN, the issue's own shape: a `$n` whose dominating constant is
+    /// provably a different name no longer refuses.
+    ///
+    /// tclsh-proof (8.6.14): `namespace eval ::ns {variable v 1; proc p {}
+    /// {set n other; set $n 2}}; ::ns::p; info exists ::ns::v` -> 1 and
+    /// `set ::ns::v` -> 1 — the write landed on `other`, never on `v`.
+    #[test]
+    fn tn_a_dominating_constant_name_no_longer_refuses() {
+        let src = "namespace eval ::ns {\n\
+                   \x20   variable v 1\n\
+                   \x20   proc p {} { set n other ; set $n 2 }\n\
+                   }\n";
+        assert_eq!(
+            var_hazard(src, "::ns::v"),
+            None,
+            "`$n` is provably `other` at that site",
+        );
+    }
+
+    /// TP control: the same shape whose constant **is** the cell's tail still
+    /// refuses — the provenance narrows, it does not disable.
+    #[test]
+    fn tp_a_dominating_constant_naming_the_cell_still_refuses() {
+        let src = "namespace eval ::ns {\n\
+                   \x20   variable v 1\n\
+                   \x20   proc p {} { set n v ; set $n 2 }\n\
+                   }\n";
+        let reason = var_hazard(src, "::ns::v").expect("`$n` is provably `v` at that site");
+        assert!(reason.contains("computed at run time"), "{reason}");
+    }
+
+    /// TP: a **branch-dependent** binding dominates nothing, so the site
+    /// resolves to `None` and the refusal stands.
+    ///
+    /// tclsh-proof (8.6.14): `namespace eval ::ns {variable v 1; proc p {c}
+    /// {set n other; if {$c} {set n v}; variable v; set $n 2}}; ::ns::p 1`
+    /// leaves `set ::ns::v` -> 2 — the conditional branch really does reach
+    /// the cell.
+    #[test]
+    fn tp_a_branch_dependent_constant_still_refuses() {
+        let src = "namespace eval ::ns {\n\
+                   \x20   variable v 1\n\
+                   \x20   proc p {c} { set n other ; if {$c} { set n v } ; variable v ; set $n 2 }\n\
+                   }\n";
+        let reason = var_hazard(src, "::ns::v").expect("a branch-dependent value proves nothing");
+        assert!(reason.contains("computed at run time"), "{reason}");
+    }
+
+    /// TP: a parameter-fed name proves nothing either — the caller chooses it.
+    #[test]
+    fn tp_a_parameter_fed_name_still_refuses() {
+        let src = "namespace eval ::ns {\n\
+                   \x20   variable v 1\n\
+                   \x20   proc p {n} { set $n 2 }\n\
+                   }\n";
+        let reason = var_hazard(src, "::ns::v").expect("a parameter proves nothing");
+        assert!(reason.contains("computed at run time"), "{reason}");
+    }
+
+    /// The provenance table itself: a resolvable site carries its value, an
+    /// unresolvable one carries `None`, and a **braced** name word — which
+    /// substitutes nothing — is not a dynamic site at all.
+    ///
+    /// tclsh-proof (8.6.14): `set {$n} v; info exists {$n}` -> 1 while
+    /// `info exists n` -> 0.
+    #[test]
+    fn the_provenance_table_records_each_site_once() {
+        let analysis = analyse(
+            "proc a {} { set n other ; set $n 2 }\n\
+             proc b {p} { set $p 2 }\n\
+             proc c {} { set {$n} 2 }\n",
+        );
+        let resolutions: Vec<Option<&str>> = analysis
+            .dynamic_variable_names
+            .iter()
+            .map(|s| s.resolved.as_deref())
+            .collect();
+        assert_eq!(
+            resolutions,
+            [Some("other"), None],
+            "one row per computed name word; a braced literal name is not one",
+        );
+        assert!(
+            analysis.dynamic_variable_names.iter().all(|s| s.writes),
+            "both sites are `set` targets",
+        );
     }
 
     // Issue #1121 review — a moved member's declaration site is the

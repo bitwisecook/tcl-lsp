@@ -433,12 +433,20 @@ impl Lowerer<'_> {
             return Self::barrier(seg, "foreach with dynamic body");
         }
 
+        // The value word's brace-quoting is a fact only the tokens carry:
+        // `foreach n {a $b c}` iterates the three literal elements `a`,
+        // `$b`, `c` and reads nothing (tclsh 8.6.14), while `foreach n
+        // "a $b c"` substitutes. Both lower to the same `list_arg` text,
+        // so the flag is what downstream read-harvesting gates on
+        // (issue #1260).
+        let cmd_tokens = Self::cmd_tokens(seg);
         let mut iterators = Vec::new();
         for i in (0..body_idx).step_by(2) {
             let var_names = parse_param_names(&args[i]);
             iterators.push(ForeachIterator {
                 vars: var_names,
                 list_arg: args[i + 1].clone(),
+                list_braced: cmd_tokens.arg_is_braced_literal(i + 1),
             });
         }
 
@@ -477,7 +485,7 @@ impl Lowerer<'_> {
             raw_args: args.to_vec(),
             is_dict_iteration: false,
             is_array_iteration: false,
-            raw_tokens: Some(Self::cmd_tokens(seg)),
+            raw_tokens: Some(cmd_tokens),
         }
     }
 
@@ -561,9 +569,11 @@ impl Lowerer<'_> {
         // dataflow doesn't care: the lattice-propagation matters,
         // not the literal value.  See the type-level doc-comment
         // above for the runtime-semantics caveat.
+        let cmd_tokens = Self::cmd_tokens(seg);
         let iterators = vec![ForeachIterator {
             vars: parse_param_names(&args[0]),
             list_arg: args[1].clone(),
+            list_braced: cmd_tokens.arg_is_braced_literal(1),
         }];
 
         let body = self.lower_body_from_tok(&args[2], body_tok, namespace);
@@ -577,7 +587,7 @@ impl Lowerer<'_> {
             raw_args: args.to_vec(),
             is_dict_iteration: false,
             is_array_iteration: false,
-            raw_tokens: Some(Self::cmd_tokens(seg)),
+            raw_tokens: Some(cmd_tokens),
         }
     }
 
@@ -980,6 +990,10 @@ impl Lowerer<'_> {
                     iterators: vec![ForeachIterator {
                         vars: var_names,
                         list_arg: sub_args[1].clone(),
+                        // `dict for {k v} {a $b} …` iterates the literal
+                        // dictionary; the value word is `args[2]` in the
+                        // full argument list (issue #1260).
+                        list_braced: Self::cmd_tokens(seg).arg_is_braced_literal(2),
                     }],
                     body,
                     body_span: body_tok.map_or(seg.span, |t| t.span),

@@ -648,7 +648,11 @@ fn package_prefer_state_is_ordered_against_the_require() {
     let src = "package prefer latest\npackage require w\n";
     let analysis = analyse(src);
     assert_eq!(
-        crate::package_resolver::package_prefer_at(&analysis, at(src, "package require")),
+        crate::package_resolver::package_prefer_at(
+            &analysis,
+            at(src, "package require"),
+            PackagePrefer::Stable
+        ),
         PackagePrefer::Latest,
     );
 
@@ -656,7 +660,11 @@ fn package_prefer_state_is_ordered_against_the_require() {
     let src = "package require w\npackage prefer latest\n";
     let analysis = analyse(src);
     assert_eq!(
-        crate::package_resolver::package_prefer_at(&analysis, at(src, "package require")),
+        crate::package_resolver::package_prefer_at(
+            &analysis,
+            at(src, "package require"),
+            PackagePrefer::Stable
+        ),
         PackagePrefer::Stable,
     );
 
@@ -666,7 +674,11 @@ fn package_prefer_state_is_ordered_against_the_require() {
     let src = "proc load {} {\n    package require w\n}\npackage prefer latest\n";
     let analysis = analyse(src);
     assert_eq!(
-        crate::package_resolver::package_prefer_at(&analysis, at(src, "    package require")),
+        crate::package_resolver::package_prefer_at(
+            &analysis,
+            at(src, "    package require"),
+            PackagePrefer::Stable
+        ),
         PackagePrefer::Latest,
     );
 
@@ -674,7 +686,11 @@ fn package_prefer_state_is_ordered_against_the_require() {
     let src = "if {$::tcl_platform(platform) eq \"unix\"} {\n    package prefer latest\n}\npackage require w\n";
     let analysis = analyse(src);
     assert_eq!(
-        crate::package_resolver::package_prefer_at(&analysis, at(src, "package require")),
+        crate::package_resolver::package_prefer_at(
+            &analysis,
+            at(src, "package require"),
+            PackagePrefer::Stable
+        ),
         PackagePrefer::Stable,
     );
 
@@ -687,11 +703,60 @@ fn package_prefer_state_is_ordered_against_the_require() {
     ] {
         let analysis = analyse(src);
         assert_eq!(
-            crate::package_resolver::package_prefer_at(&analysis, at(src, "package require")),
+            crate::package_resolver::package_prefer_at(
+                &analysis,
+                at(src, "package require"),
+                PackagePrefer::Stable
+            ),
             PackagePrefer::Stable,
             "{src}",
         );
     }
+}
+
+/// Issue #1253 item 2 — the interpreter's **starting** mode is an input, not
+/// a constant.  `TCL_PKG_PREFER_LATEST` in the environment (and, on 9.0+, an
+/// unstable build of Tcl itself) makes `latest` the default, which no reading
+/// of the source tree can discover; the workspace setting carries it.
+///
+/// The latch is monotone, so a `latest` default is the answer at every
+/// position — including above a raise, and including a document whose only
+/// `package prefer` is a conditional one the gate otherwise ignores.
+#[test]
+fn a_latest_default_holds_at_every_position() {
+    use tcl_compiler::analyser::Analyser;
+    let analyse = |src: &str| Analyser::new().analyse(src, "tcl");
+    let at = |src: &str, needle: &str| {
+        u32::try_from(src.find(needle).expect("needle")).expect("offset fits")
+    };
+    for src in [
+        "package require w\npackage prefer latest\n",
+        "package prefer stable\npackage require w\n",
+        "if {$::c} {\n    package prefer latest\n}\npackage require w\n",
+    ] {
+        let analysis = analyse(src);
+        assert_eq!(
+            crate::package_resolver::package_prefer_at(
+                &analysis,
+                at(src, "package require"),
+                PackagePrefer::Latest,
+            ),
+            PackagePrefer::Latest,
+            "{src}",
+        );
+    }
+    // TN control: the same documents answer `Stable` under the ordinary
+    // default — the parameter is the only thing that changed.
+    let src = "package require w\npackage prefer latest\n";
+    let analysis = analyse(src);
+    assert_eq!(
+        crate::package_resolver::package_prefer_at(
+            &analysis,
+            at(src, "package require"),
+            PackagePrefer::Stable,
+        ),
+        PackagePrefer::Stable,
+    );
 }
 
 /// Two providers whose versions compare **equal** both contribute their files

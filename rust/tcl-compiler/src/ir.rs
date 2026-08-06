@@ -282,6 +282,19 @@ pub struct ForeachIterator {
     pub vars: Vec<String>,
     /// Source text of the list argument.
     pub list_arg: String,
+    /// Whether the *list* word was a brace-string literal
+    /// (`foreach n {a $b c} …`). Braces suppress substitution, so a
+    /// `$b` inside such a word is a literal three-character list
+    /// element, not a read of `b` — tclsh 8.6.14: `foreach n {a $b c}
+    /// {puts $n}` prints `a`, `$b`, `c` with `b` undefined throughout.
+    ///
+    /// [`list_arg`](Self::list_arg) stores the word's *content* (braces
+    /// already stripped), which cannot tell `{$b}` from `$b`; this flag
+    /// is the same distinction [`Statement::AssignConst::braced`],
+    /// [`Statement::Return::braced`] and
+    /// [`CommandTokens::arg_is_braced_literal`] carry for their own
+    /// words (issue #1260).
+    pub list_braced: bool,
 }
 
 /// An IR statement — the building block of the compiler pipeline.
@@ -1413,6 +1426,7 @@ mod tests {
             iterators: vec![ForeachIterator {
                 vars: vec!["k".into(), "v".into()],
                 list_arg: "$dict".into(),
+                list_braced: false,
             }],
             body: Script::new(),
             body_span: Span::new(25, 28),

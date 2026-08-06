@@ -221,6 +221,17 @@ pub fn settings_from_ini(content: &str, layer: Layer) -> Value {
         }
     }
 
+    // [packages]: `preferLatest` → the interpreter's starting `package prefer`
+    // mode (issue #1253).  A config-file key rather than an inference: the
+    // real inputs — `TCL_PKG_PREFER_LATEST` in the environment, or an unstable
+    // 9.0+ build of Tcl — belong to the interpreter the user runs, not to the
+    // server's own process or to the source tree.
+    if let Some(b) = section_value(&sections, "packages", "preferLatest").and_then(parse_bool) {
+        let mut packages = Map::new();
+        packages.insert("preferLatest".to_owned(), Value::Bool(b));
+        out.insert("packages".to_owned(), Value::Object(packages));
+    }
+
     // [features]: every key → bool.
     if let Some(section) = sections.iter().find(|s| s.name == "features") {
         let mut feat = Map::new();
