@@ -121,6 +121,40 @@ impl<'a> HeadIdentity<'a> {
     }
 }
 
+/// A command head in its two forms — the spelling the source wrote, and the
+/// registry name that spelling effectively resolves to.
+///
+/// The two are the same for almost every head, and differ once the document
+/// rebinds a name.  Which of the two a test must read is a real distinction,
+/// not a convenience:
+///
+/// * a **global command** lookup reads [`Self::resolved`], so `::snit::type`,
+///   a proven alias of it, and the bare spelling all answer alike (and a
+///   rebound spelling answers nothing);
+/// * a **lexical** test reads [`Self::written`] — a class-body member
+///   sub-keyword (`method`, `constructor`) or a `$var` head is not a command
+///   binding at all, so a top-level `rename method …` says nothing about the
+///   word inside an `oo::define`.
+#[derive(Debug, Clone, Copy)]
+pub struct HeadWords<'a> {
+    /// The head exactly as the source spells it.
+    pub written: &'a str,
+    /// The registry name the spelling resolves to — empty when the head was
+    /// provably rebound, which every registry query then answers "unknown" for.
+    pub resolved: &'a str,
+}
+
+impl<'a> HeadWords<'a> {
+    /// A head with nothing proven about it: written and resolved alike.
+    #[must_use]
+    pub fn plain(written: &'a str) -> Self {
+        Self {
+            written,
+            resolved: written,
+        }
+    }
+}
+
 /// One binding fact about one head spelling.
 #[derive(Debug, Clone)]
 struct HeadFact {
@@ -206,6 +240,31 @@ impl HeadIdentityMap {
             .target
             .as_deref()
             .map_or(HeadIdentity::Rebound, HeadIdentity::Command)
+    }
+
+    /// `head` in both its forms, resolved at byte offset `at`.
+    #[must_use]
+    pub fn head_words<'a>(&'a self, head: &'a str, at: u32) -> HeadWords<'a> {
+        if self.facts.is_empty() {
+            return HeadWords::plain(head);
+        }
+        HeadWords {
+            written: head,
+            resolved: self.resolve(head, at).spec_name(),
+        }
+    }
+
+    /// `head` in both its forms, resolved without a position — see
+    /// [`Self::resolve_unpositioned`].
+    #[must_use]
+    pub fn head_words_unpositioned<'a>(&'a self, head: &'a str) -> HeadWords<'a> {
+        if self.facts.is_empty() {
+            return HeadWords::plain(head);
+        }
+        HeadWords {
+            written: head,
+            resolved: self.resolve_unpositioned(head).spec_name(),
+        }
     }
 
     /// Whether an *earlier* fact already gives `head` a registry identity at

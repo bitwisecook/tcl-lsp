@@ -374,15 +374,8 @@ fn resolve_head<'a>(
     identities: &'a tcl_compiler::head_identity::HeadIdentityMap,
     cmd: &'a tcl_compiler::segmenter::SegmentedCommand,
 ) -> HeadWords<'a> {
-    let written = cmd.name();
-    if identities.is_empty() {
-        return HeadWords::plain(written);
-    }
     let at = cmd.argv.first().map_or(0, |t| t.span.start());
-    HeadWords {
-        written,
-        resolved: identities.resolve(written, at).spec_name(),
-    }
+    identities.head_words(cmd.name(), at)
 }
 
 fn collect_body_folds(

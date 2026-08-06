@@ -91,40 +91,7 @@ pub fn outer_definition_grammar(
     Some(grammar)
 }
 
-/// A command head in its two forms — the spelling the source wrote, and the
-/// registry name that spelling effectively resolves to.
-///
-/// The two are the same for almost every head, and differ once the document
-/// rebinds a name (`namespace import`, `interp alias`, `rename`, a built-in
-/// shadowing `proc` — see [`tcl_compiler::head_identity`]).  Which of the two a
-/// test must read is a real distinction, not a convenience:
-///
-/// * a **global command** lookup reads [`Self::resolved`], so `::snit::type`,
-///   a proven alias of it, and the bare spelling all answer alike (and a
-///   rebound spelling answers nothing);
-/// * a **lexical keyword** test reads [`Self::written`], because a member
-///   sub-keyword (`method`, `constructor`) exists only inside a definition
-///   body and is not a command binding at all — a top-level
-///   `rename method …` says nothing about the word inside an `oo::define`.
-#[derive(Debug, Clone, Copy)]
-pub struct HeadWords<'a> {
-    /// The head exactly as the source spells it.
-    pub written: &'a str,
-    /// The registry name the spelling resolves to — empty when the head was
-    /// provably rebound, which every registry query then answers "unknown" for.
-    pub resolved: &'a str,
-}
-
-impl<'a> HeadWords<'a> {
-    /// A head with nothing proven about it: written and resolved alike.
-    #[must_use]
-    pub fn plain(written: &'a str) -> Self {
-        Self {
-            written,
-            resolved: written,
-        }
-    }
-}
+pub use tcl_compiler::head_identity::HeadWords;
 
 /// The grammar the recursion into `head`'s body arguments should carry,
 /// given the enclosing grammar `cur` (`None` = not in a definition body).
