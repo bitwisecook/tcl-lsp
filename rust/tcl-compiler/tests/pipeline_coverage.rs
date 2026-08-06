@@ -515,6 +515,7 @@ mod defs_from_ir_script_arms {
             iterators: vec![ForeachIterator {
                 vars: vec!["k".into(), "v".into()],
                 list_arg: "$d".into(),
+                list_braced: false,
             }],
             body: Script::from_statements(vec![assign("acc")]),
             body_span: Span::new(10, 19),

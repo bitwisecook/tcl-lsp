@@ -364,7 +364,15 @@ fn rewrite_binding_scope(stmt: &Statement, rename: &HashMap<String, String>) -> 
                 .iter()
                 .map(|it| crate::ir::ForeachIterator {
                     vars: it.vars.iter().map(|v| rename_local(v, rename)).collect(),
-                    list_arg: rewrite_value_string(&it.list_arg, rename),
+                    // A brace-quoted value word substitutes nothing, so a
+                    // `$v` inside it is literal text and must survive
+                    // inlining unrewritten (issue #1260).
+                    list_arg: if it.list_braced {
+                        it.list_arg.clone()
+                    } else {
+                        rewrite_value_string(&it.list_arg, rename)
+                    },
+                    list_braced: it.list_braced,
                 })
                 .collect(),
             body: rewrite_script(body, rename),

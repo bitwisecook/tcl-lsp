@@ -390,6 +390,37 @@ impl CfgBuilder {
             (false, false) => "foreach",
         };
 
+        // Per-word token metadata for the synthetic argv below.  The only
+        // fact it carries is each value word's **brace-quoting**: `foreach n
+        // {a $b c} …` iterates the three literal elements `a`, `$b`, `c` and
+        // reads nothing, while `foreach n "a $b c" …` substitutes `$b`
+        // (tclsh 8.6.14 — the braced loop prints `a`, `$b`, `c` with `b`
+        // undefined throughout).  Both lower to the same `list_arg` *text*,
+        // so without this the read harvest saw a substitution in the braced
+        // word and drew a false `W210` (issue #1260).
+        //
+        // Every span is the whole-command span: the iterator carries no
+        // per-word span, and the command span is exactly what the span-less
+        // consumers (`shimmer::use_site`'s `fallback_span`) already used.
+        let mut argv_kinds = vec![tcl_lexer::TokenType::Esc];
+        argv_kinds.extend(iterators.iter().map(|it| {
+            if it.list_braced {
+                tcl_lexer::TokenType::Str
+            } else {
+                tcl_lexer::TokenType::Esc
+            }
+        }));
+        let mut argv_texts = vec![fe_cmd.to_owned()];
+        argv_texts.extend(list_args.iter().cloned());
+        let header_tokens = crate::ir::CommandTokens {
+            argv: vec![*span; iterators.len() + 1],
+            argv_texts,
+            argv_kinds,
+            single_token_word: vec![true; iterators.len() + 1],
+            all_tokens: Vec::new(),
+            expand_word: None,
+        };
+
         // Synthetic def node for iteration variables (placed at the header for
         // the normal shape, or at the top of the body when rotated).
         let var_def = Statement::Call {
@@ -401,7 +432,7 @@ impl CfgBuilder {
             reads: vec![],
             reads_own_defs: false,
             safe_on_uninit: false,
-            tokens: None,
+            tokens: Some(header_tokens),
             foreach_groups: Some(group_sizes),
         };
 
@@ -1039,6 +1070,7 @@ mod tests {
             iterators: vec![ForeachIterator {
                 vars: vec!["x".into()],
                 list_arg: "$list".into(),
+                list_braced: false,
             }],
             body: Script::new(),
             body_span: Span::new(20, 25),

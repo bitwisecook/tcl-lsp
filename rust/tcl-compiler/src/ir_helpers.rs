@@ -777,6 +777,7 @@ mod tests {
             iterators: vec![ForeachIterator {
                 vars: vec!["k".into(), "v".into()],
                 list_arg: "$d".into(),
+                list_braced: false,
             }],
             body: Script::new(),
             body_span: Span::new(20, 25),
