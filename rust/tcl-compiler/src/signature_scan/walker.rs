@@ -121,6 +121,7 @@ pub(super) fn scan(
                 rename_safe: true,
                 existence_probe: false,
                 is_mathfunc_call: false,
+                ensemble_dispatch: None,
             });
         // Record command-prefix callback heads (`lsort -command cb`, `trace
         // add … cb`, …) as their own invocations so background-scanned files
@@ -278,6 +279,7 @@ fn record_command_prefix_invocations(cmd: &SegmentedCommand, head: &str, ctx: &m
                 rename_safe: true,
                 existence_probe: false,
                 is_mathfunc_call: false,
+                ensemble_dispatch: None,
             });
     }
 }

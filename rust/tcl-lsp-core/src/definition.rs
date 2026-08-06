@@ -1746,7 +1746,7 @@ pub(crate) fn ensemble_subcommand_target<'a>(
         .into_iter()
         .find_map(|cand| analysis.ensemble_subcommand_targets.get(&cand))
         .and_then(|subs| subs.get(sub))
-        .map(String::as_str)
+        .map(|entry| entry.target.as_str())
 }
 
 /// The proc whose **own declaration name token** covers `cursor_off`.

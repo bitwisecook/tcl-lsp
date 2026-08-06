@@ -1144,7 +1144,13 @@ pub struct ItemBodyKey<'db> {
     ///   bodies whose creation calls it decides.
     #[returns(ref)]
     pub body_env: (
-        Vec<(String, Vec<(String, String)>)>,
+        Vec<(
+            String,
+            Vec<(
+                String,
+                tcl_compiler::analyser::types::EnsembleSubcommandTarget,
+            )>,
+        )>,
         Option<(bool, Vec<String>, Vec<String>)>,
         Option<Arc<tcl_compiler::analyser::ClassFactoryIndex>>,
     ),

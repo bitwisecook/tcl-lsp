@@ -3493,6 +3493,12 @@ impl Analyser {
     /// (issue #923 idx 106) — a distinct field from `ensemble_command_maps`
     /// above, serving navigation rather than the safe-interpreter gate.
     ///
+    /// The navigation entry is tagged
+    /// [`EnsembleSubcommandProvenance::Map`](crate::signature_scan::types::EnsembleSubcommandProvenance::Map)
+    /// (issue #1281): a `-map` key is an arbitrary name, so a consumer that
+    /// *rewrites* the subcommand word — rename — must leave it alone, unlike
+    /// the `-subcommands` sibling below whose entry is the target's own tail.
+    ///
     /// A `-map` target is a command name **or a command prefix** in real
     /// Tcl (tclsh 8.6.14-verified: `-map {go {string length}}` dispatches
     /// `myens go hello` to `string length hello`) — the command actually
@@ -3579,7 +3585,14 @@ impl Analyser {
                     .ensemble_subcommand_targets
                     .entry(key.to_owned())
                     .or_default()
-                    .insert(sub.clone(), resolved.clone());
+                    .insert(
+                        sub.clone(),
+                        super::types::EnsembleSubcommandTarget {
+                            target: resolved.clone(),
+                            provenance:
+                                crate::signature_scan::types::EnsembleSubcommandProvenance::Map,
+                        },
+                    );
                 self.ensemble_record_offsets
                     .insert(key.to_owned(), tok.span.start());
             }
@@ -3593,6 +3606,12 @@ impl Analyser {
     /// [`AnalysisResult::ensemble_subcommand_targets`] — the `-subcommands`
     /// sibling of [`Self::record_ensemble_map_targets`]'s issue #923 idx 106
     /// fix (same one-directional-only gap, same fix shape).
+    ///
+    /// Tagged
+    /// [`EnsembleSubcommandProvenance::Subcommands`](crate::signature_scan::types::EnsembleSubcommandProvenance::Subcommands)
+    /// (issue #1281): here the subcommand word *is* the target's tail — the
+    /// ensemble derives `<ns>::<name>` from it — so renaming the target must
+    /// rewrite the entry and the dispatch word with it.
     fn record_ensemble_subcommands(
         &mut self,
         list_text: &str,
@@ -3610,7 +3629,14 @@ impl Analyser {
                     .ensemble_subcommand_targets
                     .entry(key.to_owned())
                     .or_default()
-                    .insert(elem.clone(), resolved.clone());
+                    .insert(
+                        elem.clone(),
+                        super::types::EnsembleSubcommandTarget {
+                            target: resolved.clone(),
+                            provenance: crate::signature_scan::types::
+                                EnsembleSubcommandProvenance::Subcommands,
+                        },
+                    );
                 self.ensemble_record_offsets
                     .insert(key.to_owned(), tok.span.start());
             }
@@ -9855,6 +9881,111 @@ mod tests {
             !resolved.contains(&"::myens::foo"),
             "must not record a spurious command reference from splitting \
              the dynamic expression's own text: {resolved:?}",
+        );
+    }
+
+    #[test]
+    fn ensemble_subcommand_targets_record_which_option_declared_them() {
+        // Issue #1281: the two options bind the subcommand word to its
+        // target in opposite ways, so the recorded fact has to say which one
+        // wrote it. Oracle (tclsh 8.6.14 / 9.0.4, identical): with `-map
+        // {show ::app::widget::Show}` the call `::app::widget Show` is
+        // `unknown or ambiguous subcommand "Show": must be show` — the key is
+        // arbitrary; with `-subcommands {alpha}` the ensemble derives
+        // `::app::widget::alpha` from the entry, and a `-subcommands {alpha}`
+        // whose proc is named `beta` is `invalid command name "alpha"`.
+        use crate::signature_scan::types::EnsembleSubcommandProvenance;
+
+        let mut a = Analyser::new();
+        let map_src = "namespace eval ::app::widget {}\n\
+                       proc ::app::widget::Show {} {}\n\
+                       namespace ensemble create -command ::app::widget \
+                       -map {show ::app::widget::Show}\n";
+        let r = a.analyse(map_src, "tcl8.6");
+        let entry = r
+            .ensemble_subcommand_targets
+            .get("::app::widget")
+            .and_then(|subs| subs.get("show"))
+            .expect("the literal -map pair is recorded");
+        assert_eq!(entry.target, "::app::widget::Show");
+        assert_eq!(
+            entry.provenance,
+            EnsembleSubcommandProvenance::Map,
+            "a -map pair must be tagged as such",
+        );
+
+        let mut a = Analyser::new();
+        let sub_src = "namespace eval ::app::widget {\n    \
+                       proc alpha {} {}\n    \
+                       namespace ensemble create -command ::app::widget \
+                       -subcommands {alpha}\n\
+                       }\n";
+        let r = a.analyse(sub_src, "tcl8.6");
+        let entry = r
+            .ensemble_subcommand_targets
+            .get("::app::widget")
+            .and_then(|subs| subs.get("alpha"))
+            .expect("the literal -subcommands entry is recorded");
+        assert_eq!(entry.target, "::app::widget::alpha");
+        assert_eq!(
+            entry.provenance,
+            EnsembleSubcommandProvenance::Subcommands,
+            "a -subcommands entry must be tagged as such",
+        );
+    }
+
+    #[test]
+    fn ensemble_dispatch_call_sites_carry_their_mapping_provenance() {
+        // The dispatch word's own invocation record carries the provenance
+        // (issue #1281), because only the recording site knows *this span* is
+        // a subcommand word: a `-map {Show ::app::widget::Show}` whose key
+        // happens to equal the target's tail is textually indistinguishable
+        // from an ordinary bare call to the target, so a consumer that
+        // re-derived the fact by name would gate the wrong spans.
+        use crate::signature_scan::types::EnsembleSubcommandProvenance;
+
+        let mut a = Analyser::new();
+        let map_src = "namespace eval ::app::widget {}\n\
+                       proc ::app::widget::Show {} {}\n\
+                       namespace ensemble create -command ::app::widget \
+                       -map {show ::app::widget::Show}\n\
+                       ::app::widget show\n";
+        let r = a.analyse(map_src, "tcl8.6");
+        let tagged: Vec<(&str, Option<EnsembleSubcommandProvenance>)> = r
+            .command_invocations
+            .iter()
+            .filter(|i| i.resolved_qualified_name.as_deref() == Some("::app::widget::Show"))
+            .map(|i| (i.name.as_str(), i.ensemble_dispatch))
+            .collect();
+        assert!(
+            tagged.contains(&("show", Some(EnsembleSubcommandProvenance::Map))),
+            "the dispatch word is tagged with the -map provenance: {tagged:?}",
+        );
+        assert!(
+            tagged
+                .iter()
+                .any(|(name, prov)| *name == "::app::widget::Show" && prov.is_none()),
+            "the -map *value* is an ordinary reference, not a dispatch word — \
+             it carries the target's own name and rename must rewrite it: {tagged:?}",
+        );
+
+        let mut a = Analyser::new();
+        let sub_src = "namespace eval ::app::widget {\n    \
+                       proc alpha {} {}\n    \
+                       namespace ensemble create -command ::app::widget \
+                       -subcommands {alpha}\n\
+                       }\n\
+                       ::app::widget alpha\n";
+        let r = a.analyse(sub_src, "tcl8.6");
+        let tagged: Vec<(&str, Option<EnsembleSubcommandProvenance>)> = r
+            .command_invocations
+            .iter()
+            .filter(|i| i.resolved_qualified_name.as_deref() == Some("::app::widget::alpha"))
+            .map(|i| (i.name.as_str(), i.ensemble_dispatch))
+            .collect();
+        assert!(
+            tagged.contains(&("alpha", Some(EnsembleSubcommandProvenance::Subcommands))),
+            "the dispatch word is tagged with the -subcommands provenance: {tagged:?}",
         );
     }
 

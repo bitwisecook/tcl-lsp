@@ -455,6 +455,16 @@ pub struct WorkspaceInvocation {
     /// the rename providers must abstain for the whole symbol rather than
     /// leave the site dispatching the old name (issue #945 fault 1).
     pub rename_safe: bool,
+    /// `Some(provenance)` when this site is the **subcommand word** of an
+    /// `<ensemble> <sub> …` dispatch, mirroring
+    /// [`tcl_compiler::signature_scan::types::SignatureCommandInvocation::ensemble_dispatch`]
+    /// (issue #1281) so the cross-document rename path applies the same gate
+    /// the in-document one does: a `-map` key is an arbitrary name, so it
+    /// must survive a rename of its target unchanged; a `-subcommands` entry
+    /// is the target's tail and must follow it.  References report the site
+    /// either way.
+    pub ensemble_dispatch:
+        Option<tcl_compiler::signature_scan::types::EnsembleSubcommandProvenance>,
     /// Span of the innermost proc/class **body** containing this call site,
     /// within [`Self::uri`]; `None` when the call sits at load level.
     ///
@@ -1179,6 +1189,7 @@ impl DocumentRecords {
                 range: inv.range,
                 indirect: inv.indirect,
                 rename_safe: inv.rename_safe,
+                ensemble_dispatch: inv.ensemble_dispatch,
                 enclosing_body,
             });
         }

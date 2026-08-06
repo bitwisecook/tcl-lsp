@@ -809,6 +809,7 @@ impl Analyser {
                     rename_safe: true,
                     existence_probe: false,
                     is_mathfunc_call: false,
+                    ensemble_dispatch: None,
                 },
             );
 
@@ -970,6 +971,7 @@ impl Analyser {
                 rename_safe: true,
                 existence_probe: false,
                 is_mathfunc_call: false,
+                ensemble_dispatch: None,
             },
         );
     }
@@ -2119,6 +2121,7 @@ impl Analyser {
                     rename_safe: true,
                     existence_probe: false,
                     is_mathfunc_call: false,
+                    ensemble_dispatch: None,
                 },
             );
         }
@@ -2168,6 +2171,45 @@ impl Analyser {
                 rename_safe: true,
                 existence_probe,
                 is_mathfunc_call: false,
+                ensemble_dispatch: None,
+            },
+        );
+    }
+
+    /// [`Self::push_command_reference`] for the **subcommand word** of an
+    /// `<ensemble> <sub> …` dispatch: an existence-probed reference to the
+    /// mapped target that also carries the mapping's provenance
+    /// ([`crate::signature_scan::types::SignatureCommandInvocation::ensemble_dispatch`],
+    /// issue #1281), so rename can tell a `-map` key — an arbitrary name it
+    /// must leave alone — from a `-subcommands` entry, which is the target's
+    /// own tail and has to move with it.
+    ///
+    /// A dedicated method rather than another parameter on
+    /// [`Self::push_command_reference_with_policy`]: every dispatch word is
+    /// existence-probed for the same reason (`make` is never independently
+    /// callable — issue #945 fault 9), so the two facts always travel
+    /// together and callers cannot pair them wrongly.
+    pub(in crate::analyser) fn push_ensemble_dispatch_reference(
+        &mut self,
+        written: String,
+        span: Span,
+        entry: &super::types::EnsembleSubcommandTarget,
+        argc: Option<usize>,
+    ) {
+        self.result.command_invocations.push(
+            crate::signature_scan::types::SignatureCommandInvocation {
+                name: written,
+                range: span,
+                resolved_qualified_name: Some(entry.target.clone()),
+                resolution_candidates: Vec::new(),
+                argc,
+                callback_arity: None,
+                callback_baked_args: 0,
+                indirect: false,
+                rename_safe: true,
+                existence_probe: true,
+                is_mathfunc_call: false,
+                ensemble_dispatch: Some(entry.provenance),
             },
         );
     }
@@ -2199,6 +2241,7 @@ impl Analyser {
                 rename_safe: true,
                 existence_probe: false,
                 is_mathfunc_call: true,
+                ensemble_dispatch: None,
             },
         );
     }
@@ -2495,14 +2538,14 @@ impl Analyser {
         span: Span,
         argc: Option<usize>,
     ) {
-        if let Some(target) = self
+        if let Some(entry) = self
             .result
             .ensemble_subcommand_targets
             .get(resolved_cmd)
             .and_then(|subs| subs.get(sub))
             .cloned()
         {
-            self.push_command_reference_with_policy(sub.to_owned(), span, target, argc, true);
+            self.push_ensemble_dispatch_reference(sub.to_owned(), span, &entry, argc);
             return;
         }
         // Nothing deferred yet means nothing can *become* visible before
@@ -2533,7 +2576,7 @@ impl Analyser {
     pub(super) fn flush_pending_ensemble_subcommand_invocations(&mut self) {
         let pending = std::mem::take(&mut self.pending_ensemble_subcommands);
         for cand in pending {
-            let Some(target) = self
+            let Some(entry) = self
                 .result
                 .ensemble_subcommand_targets
                 .get(&cand.ensemble)
@@ -2548,7 +2591,7 @@ impl Analyser {
             if declared_at >= cand.span.start() {
                 continue;
             }
-            self.push_command_reference_with_policy(cand.sub, cand.span, target, cand.argc, true);
+            self.push_ensemble_dispatch_reference(cand.sub, cand.span, &entry, cand.argc);
         }
     }
 
@@ -3231,6 +3274,7 @@ impl Analyser {
                     rename_safe: true,
                     existence_probe: false,
                     is_mathfunc_call: false,
+                    ensemble_dispatch: None,
                 },
             );
         }
@@ -3282,6 +3326,7 @@ impl Analyser {
                     rename_safe: true,
                     existence_probe: false,
                     is_mathfunc_call: false,
+                    ensemble_dispatch: None,
                 },
             );
         }

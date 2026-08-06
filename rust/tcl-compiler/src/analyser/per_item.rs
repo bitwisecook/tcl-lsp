@@ -209,8 +209,13 @@ pub struct DeferredBody {
     /// [`Analyser::fill_deferred_bodies`]; empty at construction.  The
     /// isolated pass seeds its own result map from this, so an
     /// `<ensemble> <sub> …` call inside the body records the same
-    /// existence-probed subcommand invocation the whole-file walk does.
-    pub ensemble_targets: Vec<(String, Vec<(String, String)>)>,
+    /// existence-probed subcommand invocation the whole-file walk does —
+    /// provenance included, so the body's dispatch words carry the same
+    /// `-map`/`-subcommands` tag rename gates on (issue #1281).
+    pub ensemble_targets: Vec<(
+        String,
+        Vec<(String, super::types::EnsembleSubcommandTarget)>,
+    )>,
     /// Mirrors [`super::types::Scope::oo_defining_class`] for the isolated
     /// rebuild: the fully-qualified defining class when this is an
     /// instance-side `TclOO` method body of a statically-named class,
@@ -583,12 +588,17 @@ impl Analyser {
         // unrelated ensemble edit re-keys no body. Canonically sorted so
         // the snapshot can key `tcl-lsp-db`'s `ItemBodyKey`.
         if !self.result.ensemble_subcommand_targets.is_empty() {
-            let mut all: Vec<(&String, &std::collections::HashMap<String, String>)> =
-                self.result.ensemble_subcommand_targets.iter().collect();
+            let mut all: Vec<(
+                &String,
+                &std::collections::HashMap<String, super::types::EnsembleSubcommandTarget>,
+            )> = self.result.ensemble_subcommand_targets.iter().collect();
             all.sort_by_key(|(k, _)| *k);
             for db in &mut deferred {
                 let body_start = db.body_tok.span.start();
-                let visible: Vec<(String, Vec<(String, String)>)> = all
+                let visible: Vec<(
+                    String,
+                    Vec<(String, super::types::EnsembleSubcommandTarget)>,
+                )> = all
                     .iter()
                     .filter(|(k, _)| {
                         self.ensemble_record_offsets
@@ -597,7 +607,7 @@ impl Analyser {
                             && db.body_text.contains(crate::naming::key_tail(k))
                     })
                     .map(|(k, subs)| {
-                        let mut inner: Vec<(String, String)> =
+                        let mut inner: Vec<(String, super::types::EnsembleSubcommandTarget)> =
                             subs.iter().map(|(s, t)| (s.clone(), t.clone())).collect();
                         inner.sort();
                         ((*k).clone(), inner)
@@ -1760,8 +1770,8 @@ fn rebase_result_names(r: &mut AnalysisResult, fix: &impl Fn(&mut String)) {
     fix_string_keys(&mut r.rename_offsets, fix);
     fix_string_keys(&mut r.ensemble_subcommand_targets, fix);
     for subs in r.ensemble_subcommand_targets.values_mut() {
-        for target in subs.values_mut() {
-            fix(target);
+        for entry in subs.values_mut() {
+            fix(&mut entry.target);
         }
     }
     for imp in &mut r.namespace_imports {
