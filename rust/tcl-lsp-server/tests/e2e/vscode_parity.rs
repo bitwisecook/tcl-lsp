@@ -428,12 +428,26 @@ fn test_optimiser_code_override_does_not_leak() {
     // rebuilding the override map authoritatively reverts to the profile.
     let mut lsp = Lsp::tcl();
     let clean = "set x 10\nset y 20\nset sum [expr {$x + $y}]\n";
-    lsp.apply_configuration(json!({ "optimiser": { "O100": true } }));
+    let uri = unique_uri("tcl");
+    // Both applies need the effective-config barrier, for different reasons.
+    // The override must be observed as *on* first, or the "does not leak"
+    // assertion below can pass vacuously against a config that never took.
+    lsp.apply_configuration_settle(json!({ "optimiser": { "O100": true } }), &uri, |c| {
+        c.get("optimiser").and_then(|o| o.get("O100")) == Some(&Value::Bool(true))
+    });
     // (Python enters and immediately exits the config_session, restoring the
     // profile; here each test owns its server, so re-assert the default profile
-    // to mirror the restore.)
-    lsp.apply_configuration(json!({ "optimiser": { "enabled": true } }));
-    let uri = unique_uri("tcl");
+    // to mirror the restore.)  `open_ready` is a plain request sequence with
+    // nothing to block on, so it can race ahead of the async
+    // didChangeConfiguration apply and analyse under the stale override. The
+    // barrier is the effective config itself: analysis reads the same resolved
+    // config `getEffectiveConfig` reports, so once that reports the override
+    // gone, a later open cannot observe it.
+    lsp.apply_configuration_settle(json!({ "optimiser": { "enabled": true } }), &uri, |c| {
+        let opt = c.get("optimiser");
+        opt.and_then(|o| o.get("enabled")) == Some(&Value::Bool(true))
+            && opt.and_then(|o| o.get("O100")) != Some(&Value::Bool(true))
+    });
     assert!(!codes(&lsp.open_ready(&uri, clean)).contains(&"O100".to_owned()));
 }
 
