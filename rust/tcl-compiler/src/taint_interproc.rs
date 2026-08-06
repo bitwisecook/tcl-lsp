@@ -261,6 +261,37 @@ fn word_uses_from_versions(
     uses
 }
 
+/// Whether `fu`'s return taint is a **constant** — the same value whatever
+/// taint map [`collect_return_taint`] is handed — so the whole summary can be
+/// produced without running the dataflow at all (issue #1187).
+///
+/// [`collect_return_taint`] joins `word_taint` over the value word of every
+/// executable block's `Return` terminator, and `word_taint` reads the taint map
+/// only through `var_taint`, which is reachable only from its three
+/// substitution branches: a pure `$var` reference, a `[cmd …]` substitution, and
+/// the interpolated-word scan.  All three require the word to contain a `$` or a
+/// `[`; a word with neither falls through to `TaintLattice::clean()` without
+/// consulting the map.  So a function whose executable returns are all
+/// value-less or all substitution-free returns `clean` unconditionally, and
+/// every `(parameter, basis)` scenario — plus the clean base — is `clean` too.
+///
+/// This is the cheap end of the pruning ladder and by far the most common case
+/// in real Tcl: a procedure that returns nothing, a literal, or a braced
+/// constant does no work here at all instead of `1 + 15P` whole-CFG solves.
+fn return_taint_is_constant(fu: &FunctionUnit) -> bool {
+    fu.sccp.executable_blocks.iter().all(|bn| {
+        let Some(block) = fu.cfg.blocks.get(bn) else {
+            return true;
+        };
+        match &block.terminator {
+            Some(Terminator::Return {
+                value: Some(value), ..
+            }) => !value.contains('$') && !value.contains('['),
+            _ => true,
+        }
+    })
+}
+
 /// Join the taint of every executable block's return value.
 fn collect_return_taint(
     fu: &FunctionUnit,
@@ -351,6 +382,35 @@ pub type InferProcSummaryFn<'a> = dyn FnMut(
 /// Exposed (with [`InferProcSummaryFn`]) so the LSP db can both (a) re-run the
 /// real inference inside its memoised `proc_summary_cascade` query and (b) keep
 /// the debug fixpoint guard validating against the *genuine* result.
+///
+/// # Cost
+///
+/// The summary is a transfer function: a clean base plus, for each parameter, a
+/// return taint per [`BASIS_ORDER`] entry.  Computed naively that is
+/// `1 + BASIS_ORDER.len() * params.len()` — `1 + 15P` — complete dataflow
+/// solves over the procedure's CFG, and this is the dominant cost of the whole
+/// interprocedural taint pass (about 80% of `run_all_checks` on tcllib's
+/// `practcl.tcl`).
+///
+/// Two prunes cut that down (issue #1187).  Both are **proofs that the solve
+/// would return a value already in hand**, not approximations, so every summary
+/// stays bit-identical to the unpruned one — which is what lets the debug
+/// fixpoint guard and the `compiler_check` corpus differential keep validating
+/// this function unchanged:
+///
+/// 1. [`return_taint_is_constant`] — the return taint cannot depend on the
+///    taint map, so the whole summary is the clean one: **0** solves instead of
+///    `1 + 15P`.
+/// 2. An un-interned parameter — seeding a name the body never reads leaves the
+///    initial taint map bit-identical to the base run's, so the scenario *is*
+///    `return_base`: **0** solves instead of 15, per such parameter.
+///
+/// What remains is `1 + 15 × (parameters that are actually read, in a procedure
+/// whose return value is substitution-bearing)`.  Collapsing that last `15×`
+/// needs a genuinely different representation — one multi-colour symbolic
+/// traversal carrying a per-`(parameter, basis)` dependency bitset — which
+/// changes what the solver computes rather than skipping work it can prove
+/// redundant, so it is not attempted here.
 #[must_use]
 // Both lints are forced by the public callback contract and the shared
 // `TaintCtx` type, not code smell:
@@ -372,12 +432,31 @@ pub fn infer_proc_summary(
     known: &HashSet<String>,
     summaries: &HashMap<String, ProcTaintSummary>,
 ) -> ProcTaintSummary {
+    // Prune 1 — the return taint does not depend on the taint map at all, so
+    // neither the clean base nor any of the `15P` seeded scenarios needs a
+    // solve.  Every scenario is `clean`, which is exactly what
+    // `ProcTaintSummary::untainted` builds.
+    if return_taint_is_constant(fu) {
+        return ProcTaintSummary::untainted(qname, params);
+    }
+
     let base_taints = run_propagation(fu, registry, interproc, dialect, None, summaries);
     let ctx = return_ctx(fu, registry, interproc, dialect, known, summaries);
     let return_base = collect_return_taint(fu, &base_taints, ctx);
 
     let mut by_param_basis: Vec<(String, Vec<TaintLattice>)> = Vec::with_capacity(params.len());
     for param in params {
+        // Prune 2 — a parameter the body never reads is not interned in the
+        // SSA, and `seed_entry_taints` skips an un-interned name.  Seeding it
+        // therefore produces a *bit-identical* initial map to the clean base
+        // run, hence a bit-identical fixpoint and a bit-identical return taint.
+        // Rather than run 15 solves to rediscover `return_base` 15 times, take
+        // it directly.  (This is a proof, not an approximation: the two runs
+        // differ in no input.)
+        if fu.ssa.var_symbol(param).is_none() {
+            by_param_basis.push((param.clone(), vec![return_base; BASIS_ORDER.len()]));
+            continue;
+        }
         let mut scenario_values: Vec<TaintLattice> = Vec::with_capacity(BASIS_ORDER.len());
         for basis in BASIS_ORDER {
             let mut seed: HashMap<String, TaintLattice> = HashMap::new();
@@ -710,6 +789,17 @@ pub fn converge_summaries_with(
 
     // `callers[Q]` = procedures that directly call `Q`; when `Q`'s summary changes
     // its callers are re-queued. Without a call graph, re-queue everything.
+    //
+    // Two sources, unioned (issue #1187).  `InterproceduralAnalysis::direct_calls`
+    // is the declared call graph, but it misses a callee reached through a
+    // command substitution the analyser recorded as a plain value —
+    // `symbolNodeOf` in `set n [$t get [symbolNodeOf …] …]`, or a self-call
+    // inside `[expr {[fib …]}]`.  [`resolved_callees`] scans the very CFG
+    // statements the inference resolves calls from, so it supplies exactly the
+    // edges `direct_calls` drops there.  A missed edge is not a wrong answer —
+    // the completion sweep below still reaches the true least fixpoint — but it
+    // costs a whole extra round-robin round to discover, which is the expensive
+    // thing this solve does.
     let callers: Option<HashMap<&str, Vec<&str>>> = interproc.map(|ia| {
         let mut map: HashMap<&str, Vec<&str>> = HashMap::new();
         for (caller, summary) in &ia.procedures {
@@ -1003,6 +1093,162 @@ mod tests {
         let _ = solve_interprocedural_taints(&cu, &reg, None);
         // The full taint pass over the same source must also complete cleanly.
         let _ = warnings(src);
+    }
+
+    /// Build the whole-module summary map the way the solver does, so a test
+    /// can compare summaries rather than only the diagnostics they produce.
+    fn summaries_for(src: &str) -> HashMap<String, ProcTaintSummary> {
+        let reg = CommandRegistry::build_default();
+        let cu = CompilationUnit::build_for(src, &reg, false).with_interprocedural(&reg, None);
+        let interproc = cu.interproc.as_ref();
+        converge_summaries_with(
+            &cu,
+            &reg,
+            interproc,
+            None,
+            &mut |qname, params, fu, known, summaries| {
+                infer_proc_summary(qname, params, fu, &reg, interproc, None, known, summaries)
+            },
+        )
+    }
+
+    /// The unpruned reference: re-derive one procedure's summary the way
+    /// `infer_proc_summary` did before issue #1187, by seeding every
+    /// `(parameter, basis)` pair with a full dataflow solve.  A test can then
+    /// assert the pruned result is bit-identical rather than merely plausible.
+    fn summary_without_prunes(src: &str, target: &str) -> ProcTaintSummary {
+        let reg = CommandRegistry::build_default();
+        let cu = CompilationUnit::build_for(src, &reg, false).with_interprocedural(&reg, None);
+        let interproc = cu.interproc.as_ref();
+        let summaries = summaries_for(src);
+        let known: HashSet<String> = summaries.keys().cloned().collect();
+        let proc = &cu.ir_module.procedures[target];
+        let fu = &cu.procedures[target];
+
+        let base = run_propagation(fu, &reg, interproc, None, None, &summaries);
+        let ctx = return_ctx(fu, &reg, interproc, None, &known, &summaries);
+        let return_base = collect_return_taint(fu, &base, ctx);
+        let mut by_param_basis = Vec::new();
+        for param in &proc.params {
+            let mut values = Vec::new();
+            for basis in BASIS_ORDER {
+                let mut seed = HashMap::new();
+                seed.insert(param.clone(), basis_lattice(basis));
+                let seeded = run_propagation(fu, &reg, interproc, None, Some(&seed), &summaries);
+                values.push(collect_return_taint(fu, &seeded, ctx));
+            }
+            by_param_basis.push((param.clone(), values));
+        }
+        ProcTaintSummary {
+            qualified_name: target.to_owned(),
+            params: proc.params.clone(),
+            arity: crate::interprocedural::arity_from_names(&proc.params),
+            return_base,
+            return_by_param_basis: by_param_basis,
+        }
+    }
+
+    /// Assert every summary the solver produces for `src` is bit-identical to
+    /// the unpruned computation — the acceptance bar for #1187.
+    fn prunes_are_bit_identical(src: &str) {
+        let pruned = summaries_for(src);
+        assert!(!pruned.is_empty(), "fixture defines no procedures");
+        for (qname, summary) in &pruned {
+            let reference = summary_without_prunes(src, qname);
+            assert_eq!(
+                *summary, reference,
+                "pruned summary for `{qname}` differs from the unpruned solve"
+            );
+        }
+    }
+
+    #[test]
+    fn prune_keeps_summaries_bit_identical_across_the_matrix() {
+        // TP — direct and transitive passthrough, several parameters, and a
+        // basis-bearing (sanitised) path, so the pruned and unpruned solves
+        // must agree on non-trivial colour values, not just on `clean`.
+        prunes_are_bit_identical("proc id {v} { return $v }\n");
+        prunes_are_bit_identical("proc pick {a b c} { return $b }\n");
+        prunes_are_bit_identical(
+            "proc inner {v} { return $v }\nproc outer {v} { return [inner $v] }\n",
+        );
+        prunes_are_bit_identical("proc norm {p} { return [file normalize $p] }\n");
+        prunes_are_bit_identical("proc joined {a b} { return \"$a/$b\" }\n");
+        // `args` — the variadic binding the summary applier special-cases.
+        prunes_are_bit_identical("proc varargs {a args} { return $args }\n");
+        // FP — a sanitised value, and parameters that never reach the return.
+        prunes_are_bit_identical("proc clean {v} { return [string length $v] }\n");
+        prunes_are_bit_identical("proc unused {a b} { return literal }\n");
+        prunes_are_bit_identical("proc partly {a b} { set t $a\n return $t }\n");
+        // TN — no return value at all, and a dynamic/unresolved call.
+        prunes_are_bit_identical("proc silent {v} { puts $v }\n");
+        prunes_are_bit_identical("proc dynamic {v} { return [$v run] }\n");
+        // FN — a callee reached only through a nested command substitution,
+        // and mutual recursion (an SCC the worklist must settle).
+        prunes_are_bit_identical(
+            "proc leaf {v} { return $v }\nproc nest {t v} { return [lindex [leaf $v] 0] }\n",
+        );
+        prunes_are_bit_identical(
+            "proc ping {n} { if {$n < 1} { return $n }\n return [pong $n] }\n\
+             proc pong {n} { return [ping $n] }\n",
+        );
+    }
+
+    #[test]
+    fn constant_return_prune_yields_the_untainted_summary() {
+        // A procedure whose every executable return value is substitution-free
+        // cannot carry taint out, so the whole summary is the clean one — with
+        // no dataflow solve run at all.
+        let summaries = summaries_for("proc lit {a b} { return ok }\n");
+        let s = summaries.get("::lit").expect("::lit summarised");
+        assert_eq!(*s, ProcTaintSummary::untainted("::lit", &s.params));
+        assert_eq!(s.params, vec!["a".to_owned(), "b".to_owned()]);
+    }
+
+    #[test]
+    fn unread_parameter_scenarios_equal_the_base_return() {
+        // `b` is never read, so seeding it cannot change the return: every one
+        // of its 15 basis scenarios is exactly `return_base`.
+        let summaries = summaries_for("proc half {a b} { return [string cat $a x] }\n");
+        let s = summaries.get("::half").expect("::half summarised");
+        let (name, values) = s
+            .return_by_param_basis
+            .iter()
+            .find(|(p, _)| p == "b")
+            .expect("parameter b recorded");
+        assert_eq!(name, "b");
+        assert_eq!(values.len(), BASIS_ORDER.len());
+        assert!(
+            values.iter().all(|v| *v == s.return_base),
+            "unread parameter must reproduce the base return, got {values:?}"
+        );
+    }
+
+    #[test]
+    fn pruning_preserves_cross_proc_taint_diagnostics() {
+        // The end-to-end guarantee: the diagnostics a user sees are unchanged.
+        // A passthrough that must still warn…
+        let w = warnings("proc id {v} { return $v }\nset x [gets stdin]\neval [id $x]\n");
+        assert!(
+            w.iter()
+                .any(|w| w.code == DiagCode::T100 && w.sink_command == "eval"),
+            "passthrough taint must survive the prunes: {w:?}"
+        );
+        // …and a procedure the constant-return prune skips *entirely* (zero
+        // solves) must still produce exactly what the unpruned solver did.
+        // The sink check reports `$x` here because the tainted variable is
+        // written literally inside `eval`'s word, independently of what `lit`'s
+        // summary says — behaviour this change does not touch, pinned so a
+        // future prune cannot quietly move it.
+        let src = "proc lit {v} { return safe }\nset x [gets stdin]\neval [lit $x]\n";
+        let w = warnings(src);
+        assert_eq!(w.len(), 1, "{w:?}");
+        assert_eq!(w[0].code, DiagCode::T100);
+        assert_eq!(w[0].variable, "x");
+        // The summary itself is the clean one — the prune's actual claim.
+        let summaries = summaries_for(src);
+        let lit = summaries.get("::lit").expect("::lit summarised");
+        assert_eq!(*lit, ProcTaintSummary::untainted("::lit", &lit.params));
     }
 
     #[test]
