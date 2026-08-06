@@ -2894,6 +2894,72 @@ mod tests {
         );
     }
 
+    /// Issue #1019 / issue #923 audit idx 24: the *other* half of the rule
+    /// the two tests above pin. A level-**1** effect stops at the wrapper's
+    /// own frame, but a level that lands past the callee's caller reaches
+    /// this proc's caller through an ordinary call, so the wrapper really
+    /// does become a caller-frame writer.
+    ///
+    /// Oracle, byte-identical on tclsh 9.0.4 and 8.6.16:
+    ///
+    /// ```tcl
+    /// proc setUp2 {var} { uplevel 2 [list set $var 99] }
+    /// proc middle {}    { setUp2 answer }
+    /// proc outer  {}    { middle ; return $answer }
+    /// puts [outer]        ;# -> 99
+    /// ```
+    #[test]
+    fn detect_upvar_procs_propagates_a_beyond_caller_effect_one_plain_hop() {
+        let module = lower_module(
+            "proc setUp2 {var} {\n             uplevel 2 [list set $var 99]\n             }\n             proc middle {} {\n             setUp2 answer\n             }",
+        );
+        let upvar_procs = detect_upvar_procs(&module);
+        let middle = upvar_procs
+            .get("middle")
+            .expect("a plain call to a beyond-caller writer registers the wrapper");
+        assert!(
+            middle.caller_frame_opaque_writes,
+            "setUp2's `uplevel 2` lands in middle's caller: {middle:?}"
+        );
+        assert!(
+            middle.caller_frame_opaque_reads,
+            "the same script may read there too: {middle:?}"
+        );
+    }
+
+    /// TN — `uplevel #0` (global) and `uplevel 0` (the callee's own frame)
+    /// reach no caller at all, so neither is a beyond-caller effect and
+    /// neither makes a plain-call wrapper one.
+    #[test]
+    fn detect_upvar_procs_does_not_propagate_a_global_or_own_frame_level() {
+        for level in ["#0", "0"] {
+            let module = lower_module(&format!(
+                "proc setSomewhere {{var}} {{\n                 uplevel {level} [list set $var 99]\n                 }}\n                 proc wrapper {{}} {{\n                 setSomewhere answer\n                 }}"
+            ));
+            let upvar_procs = detect_upvar_procs(&module);
+            assert!(
+                !upvar_procs.contains_key("wrapper"),
+                "`uplevel {level}` never touches a caller frame: {upvar_procs:?}"
+            );
+        }
+    }
+
+    /// The published summaries carry no composition bookkeeping — they are
+    /// folded into every procedure's `function_lattice` memo key, so only
+    /// what a call site actually reads may travel in them.
+    #[test]
+    fn detect_upvar_procs_publishes_no_plain_call_bookkeeping() {
+        let module = lower_module(
+            "proc setUp2 {var} {\n             uplevel 2 [list set $var 99]\n             }\n             proc middle {} {\n             setUp2 answer\n             }",
+        );
+        for (name, info) in detect_upvar_procs(&module) {
+            assert!(
+                info.plain_calls.is_empty(),
+                "{name} published composition input: {info:?}"
+            );
+        }
+    }
+
     #[test]
     fn prepare_cfg_context_registers_params_for_all_procs() {
         let module = lower_module("proc ::ns::p {a b} { upvar 1 $a x }\nproc q {c} {}");
