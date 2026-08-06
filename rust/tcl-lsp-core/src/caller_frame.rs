@@ -87,14 +87,24 @@
 //! cell, which the analyser's `handle_upvar_command` now defines and links
 //! directly.
 //!
+//! # Methods reached by `my` dispatch (issue #923 audit idx 22)
+//!
+//! A callee reached through `my <method>` is a method the *call* never
+//! names — but the **method-resolution order** does, mixins included, and
+//! issues #1177 / #1164 have since landed that walk.
+//! [`bindings_from_self_dispatch`] therefore resolves the callee through
+//! [`crate::oo_dispatch::method_dispatch_provider`] — the single walk
+//! hover, go-to-definition, and find-references already share — and reads
+//! its frame effects from the resolved body.  That is the audit's real
+//! corpus shape: `SpiceGenTcl`'s `Utility::NameProcess` mixed into a class
+//! and invoked as `my NameProcess …`.
+//!
 //! # What it deliberately does not answer
 //!
-//! A callee reached through `my` / `next` / object dispatch is a method the
-//! call never names statically, so its literal targets cannot be resolved
-//! here yet — those reads keep the abstaining answer rather than a wrong
-//! one (the compiler-side dispatch widening of issue #1177 keeps the
-//! diagnostics honest in the meantime; per-callee method resolution
-//! composes with issue #1164's MRO work).
+//! `next` / `nextto` dispatch to whatever follows *this* implementation in
+//! the MRO, which the call site does not name, so those reads keep the
+//! abstaining answer rather than a wrong one (the compiler-side dispatch
+//! widening of issue #1177 keeps the diagnostics honest for them).
 
 use tcl_compiler::analyser::AnalysisResult;
 use tcl_compiler::analyser::types::ProcArgTrait;
@@ -254,7 +264,14 @@ pub(crate) fn caller_frame_bindings(
     // is the expensive part.  A document with no call-by-name procedure at all
     // — the overwhelming majority — can answer from the already-computed
     // per-proc facts without touching the source.
-    if name.is_empty() || !document_has_call_by_name_proc(analysis) {
+    // …and a document with no call-by-name procedure can still bind a
+    // caller-frame name through a **method** reached by `my` dispatch (issue
+    // #923 audit idx 22's real corpus shape), but only when the cursor is
+    // inside a class body — which is the cheap way to ask.
+    if name.is_empty()
+        || (!document_has_call_by_name_proc(analysis)
+            && crate::definition::enclosing_class_at(analysis, cursor_off).is_none())
+    {
         return out;
     }
     let (start, end) = enclosing_frame_region(&analysis.global_scope, cursor_off, source);
@@ -359,6 +376,7 @@ fn bindings_from_call(
         head.span.start(),
         ctx.resolution,
     ) else {
+        bindings_from_self_dispatch(ctx, cmd, out);
         return;
     };
     if proc_def.caller_frame_params.is_empty() && proc_def.caller_frame_literals.is_empty() {
@@ -414,6 +432,145 @@ fn bindings_from_call(
             read_only: !writes,
         });
     }
+}
+
+/// The bindings a **`TclOO` self-dispatch** call site contributes —
+/// `my NameProcess …`, the shape issue #923 audit idx 22 was actually mined
+/// from (`SpiceGenTcl`'s `Utility::NameProcess`, mixed into the class and
+/// invoked from its constructor).
+///
+/// tclsh 9.0.4 / 8.6.16, identical — the mixin's `upvar name name` really
+/// does create the *constructor's* `name`, which the constructor's own text
+/// never assigns:
+///
+/// ```text
+/// oo::class create Utility { method NameProcess {arguments object} {
+///     upvar name name; set name $object } }
+/// oo::class create Widget { mixin Utility
+///     constructor {arguments} { my NameProcess $arguments [self object]
+///         puts "name=$name" } }
+/// Widget new {-base 1}      → name=::oo::Obj24 …
+/// ```
+///
+/// The callee is a method the call never names statically, which is why
+/// this was deferred when `caller_frame.rs` landed.  It no longer is: the
+/// method-resolution-order walk (issues #1177 / #1164) resolves `my m`
+/// through mixins and superclasses, and
+/// [`crate::oo_dispatch::method_dispatch_provider`] is the *one* walk hover,
+/// go-to-definition, and find-references already share — so keying the
+/// frame-effect question on it cannot disagree with the answer those three
+/// give for the very same cursor.
+///
+/// The frame facts themselves are recomputed from the resolved method's
+/// body text through the same `param_traits` scans the analyser runs for a
+/// `proc` — a pure function of `(body, params, registry, dialect config)`
+/// — rather than cached on every `MethodDef`: this runs only on a
+/// navigation query that already failed the ordinary scope-chain lookup,
+/// for the `my`-headed calls of one frame.
+///
+/// `next` is deliberately excluded: it dispatches to whatever follows *this*
+/// implementation in the MRO, which the call site does not name, so it keeps
+/// the abstaining answer.
+fn bindings_from_self_dispatch(
+    ctx: &BindingScan<'_>,
+    cmd: &tcl_compiler::segmenter::SegmentedCommand,
+    out: &mut Vec<CallerFrameBinding>,
+) {
+    use tcl_compiler::analyser::param_traits::{
+        caller_frame_literal_targets, caller_frame_upvar_params, infer_param_traits_with_config,
+    };
+
+    let (Some(head), Some(head_text)) = (cmd.argv.first(), cmd.texts.first()) else {
+        return;
+    };
+    if !crate::definition::is_self_dispatch_keyword(head_text) {
+        return;
+    }
+    let (Some(registry), Some(method)) = (
+        ctx.registry,
+        cmd.texts.get(1).filter(|w| is_plain_var_name(w)),
+    ) else {
+        return;
+    };
+    let Some(class_q) = crate::definition::enclosing_class_at(ctx.analysis, head.span.start())
+    else {
+        return;
+    };
+    let Some((provider_q, md)) = crate::oo_dispatch::method_dispatch_provider(
+        ctx.analysis,
+        class_q,
+        method,
+        false,
+        crate::definition::MethodBucket::Instance,
+    ) else {
+        return;
+    };
+    let Some(body) = method_body_text(ctx.source, md.body_span) else {
+        return;
+    };
+    let config = tcl_lexer::LexerConfig::for_dialect(ctx.dialect);
+    let callee = format!("{provider_q}::{method}");
+    if let Some(written) = caller_frame_literal_targets(body, registry, config).get(ctx.name) {
+        out.push(CallerFrameBinding {
+            callee: callee.clone(),
+            param: None,
+            arg_span: head.span,
+            call_span: head.span,
+            read_only: !written,
+        });
+    }
+    let param_names: Vec<&str> = md.params.iter().map(|p| p.name.as_str()).collect();
+    if param_names.is_empty() {
+        return;
+    }
+    let caller_frame_params = caller_frame_upvar_params(&param_names, body, registry, config);
+    if caller_frame_params.is_empty() {
+        return;
+    }
+    let traits = infer_param_traits_with_config(&param_names, body, registry, None, config);
+    for (i, param) in param_names.iter().enumerate() {
+        // `my <method> <arg>…` — the actual arguments start one word later
+        // than a plain call's, because the method name is itself a word.
+        let (Some(arg_tok), Some(arg_text)) = (cmd.argv.get(i + 2), cmd.texts.get(i + 2)) else {
+            break;
+        };
+        if arg_text != ctx.name || !is_plain_var_name(arg_text) {
+            continue;
+        }
+        // Same two-fact rule as the plain-proc path: the trait says the
+        // value is used as a variable name, `caller_frame_params` says the
+        // alias lands one frame up (`upvar 1`, not `0` / `#0` / `2`).
+        if !caller_frame_params.contains(*param) {
+            continue;
+        }
+        let Some(traits) = traits.get(*param) else {
+            continue;
+        };
+        let writes = traits.contains(&ProcArgTrait::VarWrite);
+        let reads = traits.contains(&ProcArgTrait::VarRead);
+        if !writes && !reads {
+            continue;
+        }
+        out.push(CallerFrameBinding {
+            callee: callee.clone(),
+            param: Some((*param).to_string()),
+            arg_span: arg_tok.span,
+            call_span: head.span,
+            read_only: !writes,
+        });
+    }
+}
+
+/// A method body's *script* text, with the brace delimiters its recorded
+/// span may still carry stripped — the same correction
+/// [`enclosing_frame_region`] applies, and for the same reason: left in,
+/// every scan below reads the whole body as one braced word and finds no
+/// commands in it at all.
+fn method_body_text(source: &str, body_span: Span) -> Option<&str> {
+    let body = source.get(body_span.start() as usize..body_span.end() as usize)?;
+    let body = body.strip_prefix('{').unwrap_or(body);
+    let body = body.strip_suffix('}').unwrap_or(body);
+    (!body.trim().is_empty()).then_some(body)
 }
 
 /// Every span in the enclosing frame that refers to the caller-frame variable
@@ -979,6 +1136,104 @@ proc build {} {
                 "`upvar {level}` does not bind the caller's frame: {bindings:?}"
             );
         }
+    }
+
+    // -- `my <method>` dispatch, through a mixin (issue #923 audit idx 22) --
+
+    /// The `SpiceGenTcl` shape the audit actually reported: the callee is a
+    /// method of a **mixin**, reached by `my NameProcess …` from a
+    /// constructor that never assigns `name` itself.
+    ///
+    /// tclsh 9.0.4 / 8.6.16, identical: `Widget new {-base 1}` prints
+    /// `name=::oo::Obj24 params=-base 1` — the mixin's `upvar name name`
+    /// creates the constructor's `name`.
+    const MIXIN_SRC: &str = "\
+oo::class create Utility {
+    method NameProcess {arguments object} {
+        upvar name name
+        set name $object
+    }
+}
+oo::class create Widget {
+    mixin Utility
+    constructor {arguments} {
+        my NameProcess $arguments [self object]
+        puts \"name=$name\"
+    }
+}
+";
+
+    #[test]
+    fn a_mixin_method_reached_by_my_dispatch_binds_its_literal_target() {
+        let analysis = analyse(MIXIN_SRC);
+        let read = offset_of(MIXIN_SRC, "$name\"") + 1;
+        let bindings =
+            caller_frame_bindings(&analysis, MIXIN_SRC, "tcl9.0", Some(reg()), read, "name");
+        assert_eq!(bindings.len(), 1, "{bindings:?}");
+        assert!(
+            bindings[0].callee.contains("NameProcess"),
+            "the card must name the resolved method: {bindings:?}"
+        );
+        assert!(!bindings[0].read_only, "the method writes through the alias");
+        // The binding span is the dispatch head — the point where the
+        // variable comes to exist in this frame.
+        assert_eq!(&MIXIN_SRC[bindings[0].arg_span.as_range()], "my");
+    }
+
+    /// TP control — the abstention is per-name: a name the resolved method
+    /// never binds gets no binding, so the read keeps abstaining.
+    #[test]
+    fn a_mixin_method_binds_only_the_name_its_upvar_spells() {
+        let analysis = analyse(MIXIN_SRC);
+        let read = offset_of(MIXIN_SRC, "$name\"") + 1;
+        assert!(
+            caller_frame_bindings(&analysis, MIXIN_SRC, "tcl9.0", Some(reg()), read, "other")
+                .is_empty()
+        );
+    }
+
+    /// TN — a method with no caller-frame `upvar` binds nothing, exactly
+    /// like the plain-proc control.  tclsh 9.0.4: the constructor's `$name`
+    /// really does raise `can't read "name"`.
+    #[test]
+    fn a_mixin_method_without_an_upvar_binds_nothing() {
+        let src = "\
+oo::class create Utility {
+    method NameProcess {arguments object} { set name $object }
+}
+oo::class create Widget {
+    mixin Utility
+    constructor {arguments} { my NameProcess $arguments [self object]
+        puts \"name=$name\" }
+}
+";
+        let analysis = analyse(src);
+        let read = offset_of(src, "$name\"") + 1;
+        assert!(
+            caller_frame_bindings(&analysis, src, "tcl9.0", Some(reg()), read, "name").is_empty()
+        );
+    }
+
+    /// TN — `next` names no callee statically (it dispatches to whatever
+    /// follows *this* implementation in the MRO), so it stays abstaining
+    /// even when a superclass method would bind the name.
+    #[test]
+    fn a_next_dispatch_binds_nothing() {
+        let src = "\
+oo::class create Base {
+    method init {} { upvar name name; set name B }
+}
+oo::class create Derived {
+    superclass Base
+    method init {} { next
+        puts \"name=$name\" }
+}
+";
+        let analysis = analyse(src);
+        let read = offset_of(src, "$name\"") + 1;
+        assert!(
+            caller_frame_bindings(&analysis, src, "tcl9.0", Some(reg()), read, "name").is_empty()
+        );
     }
 
     /// TN — a `::`-qualified target names a fixed global/namespace cell,

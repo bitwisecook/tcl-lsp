@@ -136,7 +136,7 @@ pub(in crate::analyser) mod widget_command;
 /// head.  No command name appears here.
 struct UnitCommandResolver<'a> {
     registry: &'a tcl_registry::CommandRegistry,
-    profile: tcl_dialect::DialectProfile,
+    profile: &'static tcl_dialect::DialectProfile,
     /// Every spelling under which this document's own definitions —
     /// procedures, classes, `interp alias` / `rename` targets, declared
     /// stubs, and created object-instance commands — can be called.
@@ -152,7 +152,8 @@ impl UnitCommandResolver<'_> {
         if self.defined.contains(bare) {
             return true;
         }
-        self.profile.resolve_command(self.registry, command).is_some()
+        tcl_registry::ProfileQueries::resolve_command(self.profile, self.registry, command)
+            .is_some()
     }
 }
 
