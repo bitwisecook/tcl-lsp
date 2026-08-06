@@ -282,12 +282,22 @@ fn a_plain_cross_file_proc_call_still_draws_w123_by_default() {
     let lib = unique_uri("tcl");
     lsp.open_ready(&lib, "proc renderReport {a b} { return [list $a $b] }\n");
     let caller = unique_uri("tcl");
-    let diags = lsp.open_ready(&caller, "renderReport 1 2\n");
+    // The second call is the settle marker: nothing anywhere defines it, so a
+    // batch carrying its W123 is a deep-pass batch with the refinements run.
+    lsp.open_ready(&caller, "renderReport 1 2\nnoSuchCommandAnywhere 1\n");
+    let diags = lsp.await_diagnostics_settled(&caller, Duration::from_secs(20), |d| {
+        w123_names(d).iter().any(|n| n == "noSuchCommandAnywhere")
+    });
     assert!(
         w123_names(&diags).iter().any(|n| n == "renderReport"),
         "the project tier is opt-in; without it a cross-file bareword call is \
          still unknown, got: {:?}",
         w123_names(&diags),
+    );
+    let at_call = action_titles(&lsp.code_actions(&caller, caret(0, 4), json!([])));
+    assert!(
+        has_replace_fix(&at_call),
+        "…and the quick-fix is offered because the diagnostic is: {at_call:?}",
     );
 }
 
