@@ -52,20 +52,22 @@ suite("Shimmer precision (S100 deep review)", () => {
 
   async function s100Diagnostics(): Promise<vscode.Diagnostic[]> {
     await activate(docUri);
-    const diags = await waitForDiagnostics(docUri, {
+    // The settle signal for this file: once *some* S100 has landed, the deep
+    // shimmer pass has run, so the absence of another S100 on the same publish
+    // is meaningful rather than "not analysed yet".  That matters most for the
+    // false-case tests below (lines 13/42/49), whose assertions are negative —
+    // an empty or S100-free set satisfies every `!linesWithCode(...).includes(N)`
+    // trivially.
+    //
+    // `waitForDiagnostics` rejects on timeout, so an unsettled analysis fails
+    // here with the helper's diagnostic (what was awaited, how long, what was
+    // last published) rather than returning a partial set for those negative
+    // assertions to pass vacuously against.  This function used to re-assert
+    // the predicate afterwards because the helper resolved leniently instead;
+    // that check is now unreachable by construction (issue #1274).
+    return waitForDiagnostics(docUri, {
       predicate: (d) => d.some((x) => codeOf(x) === "S100"),
     });
-    // `waitForDiagnostics` resolves (does NOT throw) on timeout, returning the
-    // current set.  Assert the "analysis ran" settle signal here, once, so a
-    // timeout fails loudly in the shared helper instead of letting the
-    // false-case tests below (lines 13/42/49) pass vacuously against a set that
-    // never received the deep shimmer pass — an empty/S100-free set trivially
-    // satisfies every `!linesWithCode(...).includes(N)` assertion.
-    assert.ok(
-      diags.some((d) => codeOf(d) === "S100"),
-      `shimmer analysis did not settle (no S100 published); got [${linesWithCode(diags, "S100")}]`,
-    );
-    return diags;
   }
 
   test("committed dict shimmered by lindex fires S100 with a tight span (true case)", async () => {
@@ -153,15 +155,13 @@ suite("Shimmer pure-literal suppression (issue #940)", () => {
     await activate(docUri);
     // The committed-dict case on line 12 is the "analysis ran" settle signal:
     // once its S100 lands, the absence of S100/S101 on the pure-literal lines
-    // is meaningful rather than a not-yet-analysed empty set.
-    const diags = await waitForDiagnostics(docUri, {
+    // is meaningful rather than a not-yet-analysed empty set.  The wait rejects
+    // if it never lands (issue #1274), so the follow-up assertion this function
+    // used to carry — guarding against the helper's old lenient timeout — is
+    // now unreachable.
+    return waitForDiagnostics(docUri, {
       predicate: (d) => d.some((x) => codeOf(x) === "S100" && x.range.start.line === 12),
     });
-    assert.ok(
-      linesWithCode(diags, "S100").includes(12),
-      `shimmer analysis did not settle (no committed-case S100); got [${linesWithCode(diags, "S100")}]`,
-    );
-    return diags;
   }
 
   test("braced list, empty {}, scalar, and dict literals do not shimmer", async () => {
