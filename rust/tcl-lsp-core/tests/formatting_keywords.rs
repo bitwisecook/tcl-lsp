@@ -26,6 +26,7 @@
 
 use tcl_lsp_core::formatting::config::{BooleanForm, FormatterConfig};
 use tcl_lsp_core::formatting::engine::format_tcl;
+use tcl_registry::prelude::DialectSet;
 
 fn fmt(src: &str, config: &FormatterConfig) -> String {
     let registry = tcl_registry::registry_for_dialect("tcl8.6");
@@ -254,6 +255,109 @@ fn boolean_option_rewriting_is_idempotent() {
 }
 
 #[test]
+fn the_declared_role_reaches_the_whole_boolean_option_surface() {
+    // A representative spread of the declared boolean options, across the
+    // families that carry them. None of these was reachable by the old
+    // closed-value-set inference: every one declares an *open* value, because
+    // Tcl accepts unique prefixes there and a closed set would reject them.
+    //
+    // tclsh-proof (8.6.14) for the channel and clock cases:
+    //   set c [open /dev/null r]
+    //   chan configure $c -blocking yes ; chan configure $c -blocking  ;# 1
+    //   chan configure $c -blocking off ; chan configure $c -blocking  ;# 0
+    //   clock format 0 -gmt yes -format %Y                             ;# 1970
+    for (src, want) in [
+        // Channels: `fconfigure` and its `chan configure` spelling.
+        ("chan configure $c -blocking no\n", "-blocking false"),
+        // Interpreters.
+        ("interp debug {} -frame yes\n", "-frame true"),
+        // Namespaces.
+        (
+            "namespace ensemble create -prefixes no\n",
+            "-prefixes false",
+        ),
+        // Tk geometry and fonts.
+        ("pack configure .w -expand yes\n", "-expand true"),
+        ("font configure f -underline yes\n", "-underline true"),
+        // tcltest — the two options the pre-#1256 inference could see, still
+        // rewritten now that the fact is declared rather than inferred.
+        ("tcltest::configure -singleproc yes\n", "-singleproc true"),
+        (
+            "tcltest::configure -limitconstraints yes\n",
+            "-limitconstraints true",
+        ),
+    ] {
+        let out = default_fmt(src);
+        assert!(out.contains(want), "{src} -> {out}");
+    }
+}
+
+#[test]
+fn an_irules_document_gets_the_same_rewrite() {
+    // No iRules-specific option declares the boolean role today (TMM's own
+    // commands take positional arguments, not `-option value` pairs), but an
+    // iRule is Tcl: the core boolean options it can call are rewritten under
+    // the vendor dialect exactly as under a core one, with no core version
+    // range to widen over.
+    let registry = tcl_registry::registry_for_dialect("f5-irules");
+    let config = FormatterConfig {
+        dialect: Some("f5-irules".to_owned()),
+        target_range: tcl_registry::version_range::forward_range("f5-irules"),
+        ..FormatterConfig::default()
+    };
+    let out = format_tcl("clock format $t -gmt yes\n", &config, registry);
+    assert!(out.contains("-gmt true"), "{out}");
+}
+
+#[test]
+fn an_abbreviated_boolean_word_resolves_through_the_boolean_table() {
+    // The spelling is recognised by the built-in boolean table, which
+    // reproduces `Tcl_GetBoolean` — including prefixes.
+    //
+    // tclsh-proof (8.6.14):
+    //   chan configure $c -blocking tru ; chan configure $c -blocking  ;# 1
+    //   string is boolean tru                                          ;# 1
+    //   clock format 0 -gmt tru -format %Y                             ;# 1970
+    for (src, want) in [
+        ("fconfigure $c -blocking tru\n", "-blocking true"),
+        ("fconfigure $c -blocking f\n", "-blocking false"),
+        ("fconfigure $c -blocking ye\n", "-blocking true"),
+        ("fconfigure $c -blocking of\n", "-blocking false"),
+        // Both halves at once: an abbreviated option word and an abbreviated
+        // boolean value.
+        ("fconfigure $c -bl tru\n", "-blocking true"),
+    ] {
+        let out = default_fmt(src);
+        assert!(out.contains(want), "{src} -> {out}");
+    }
+    // `o` is the one boolean prefix Tcl rejects as ambiguous, so it is not a
+    // boolean word at all and keeps its bytes.
+    //
+    // tclsh-proof (8.6.14): `string is boolean o` -> 0.
+    assert!(default_fmt("fconfigure $c -blocking o\n").contains("-blocking o"));
+}
+
+#[test]
+fn the_boolean_rewrite_can_be_turned_off_on_its_own() {
+    // TN: `preserve` stops the boolean rewrite while abbreviation expansion
+    // carries on — the two settings are independent.
+    let config = FormatterConfig {
+        boolean_form: BooleanForm::Preserve,
+        ..FormatterConfig::default()
+    };
+    let out = fmt("fconfigure $c -bl yes\n", &config);
+    assert!(out.contains("-blocking yes"), "{out}");
+    // And with both off, the bytes are untouched.
+    let config = FormatterConfig {
+        boolean_form: BooleanForm::Preserve,
+        expand_abbreviations: false,
+        ..FormatterConfig::default()
+    };
+    let out = fmt("fconfigure $c -bl yes\n", &config);
+    assert!(out.contains("-bl yes"), "{out}");
+}
+
+#[test]
 fn a_dynamic_boolean_option_value_abstains() {
     // FP guard: the value is a substitution, so there are no bytes to
     // canonicalise.
@@ -347,6 +451,60 @@ fn an_option_prefix_is_checked_over_the_range_too() {
     // The same rule applies to option words, not just subcommands.
     let out = fmt_over_range("lsearch -noc $x $p\n", "tcl8.6");
     assert!(out.contains("lsearch -nocase $x $p"), "{out}");
+}
+
+/// Format `src` against `dialect`'s registry with an explicit range — what a
+/// document that must keep working on more than one release declares.
+fn fmt_in_range(src: &str, dialect: &str, range: DialectSet) -> String {
+    let registry = tcl_registry::registry_for_dialect(dialect);
+    let config = FormatterConfig {
+        dialect: Some(dialect.to_owned()),
+        target_range: range,
+        ..FormatterConfig::default()
+    };
+    format_tcl(src, &config, registry)
+}
+
+#[test]
+fn a_boolean_option_a_release_in_the_range_lacks_is_not_normalised() {
+    // `clock scan -validate` is Tcl 9.0+ (TIP 688). Under 9.0 the value is a
+    // declared boolean and normalises — but a document that must also run on
+    // 8.6 has no such option there, so nothing in the range vouches for what
+    // an interpreter does with those bytes and they are left alone.
+    //
+    // tclsh-proof (8.6.14):
+    //   clock scan 2026-01-01 -format %Y-%m-%d -validate yes
+    //     -> bad option "-validate", must be -base, -format, -gmt, -locale
+    //        or -timezone
+    let src = "clock scan $s -format %Y -validate yes\n";
+    let out = fmt_in_range(src, "tcl9.0", DialectSet::TCL86 | DialectSet::TCL90);
+    assert!(out.contains("-validate yes"), "{out}");
+    // TP control: with the range confined to the releases that have it, the
+    // same value normalises.
+    let out = fmt_in_range(
+        src,
+        "tcl9.0",
+        tcl_registry::version_range::forward_range("tcl9.0"),
+    );
+    assert!(out.contains("-validate true"), "{out}");
+}
+
+#[test]
+fn a_boolean_option_present_across_the_range_still_normalises() {
+    // TN: `-gmt` is a boolean on `clock scan` in every release, so the range
+    // check costs the ordinary rewrite nothing.
+    //
+    // tclsh-proof (8.6.14): `clock format 0 -gmt yes -format %Y` -> 1970.
+    let out = fmt_in_range(
+        "clock scan $s -gmt yes\n",
+        "tcl9.0",
+        DialectSet::TCL86 | DialectSet::TCL90,
+    );
+    assert!(out.contains("-gmt true"), "{out}");
+    for dialect in ["tcl8.5", "tcl8.6", "tcl9.0"] {
+        let out = fmt_over_range("fconfigure $c -blocking tru\n", dialect);
+        assert!(out.contains("-blocking true"), "{dialect} -> {out}");
+    }
 }
 
 #[test]
