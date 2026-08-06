@@ -25,8 +25,8 @@
 // the shape Tk's own library/fontchooser.tcl writes.  Oracle, tclsh 8.6.16 and
 // 9.0.4:
 //
-//     TRACED: ::demo::S size write
 //     info: {write {::namespace inscope ::demo Tracer}}
+//     TRACED: ::demo::S size write
 //     final S(size)=99
 //
 // The handler really is dispatched through the wrapped `[list …]` prefix, and
