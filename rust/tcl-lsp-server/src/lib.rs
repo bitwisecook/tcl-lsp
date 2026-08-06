@@ -5666,6 +5666,17 @@ impl Backend {
         }
     }
 
+    /// The workspace's `namespace export` records, as the whole-program
+    /// oracle the single-document providers consult (issue #1116 item 1).
+    ///
+    /// Taken under the index lock and returned owned, so it can be moved into
+    /// the `spawn_blocking` worker that runs the provider with the lock
+    /// released. It is a derived view of the index, built at most once per
+    /// index generation, so calling this per request costs an `Arc` clone.
+    async fn export_snapshot(&self) -> Arc<core_workspace_index::NamespaceExportSnapshot> {
+        self.workspace_index.read().await.export_snapshot()
+    }
+
     /// Shared helper for the goto-definition family — runs the
     /// pure-CPU `tcl_lsp_core::definition::definition` provider
     /// off the LSP event loop and returns the matched ranges.
@@ -5698,8 +5709,24 @@ impl Backend {
         }
         let text = doc.text.clone();
         let analysis_worker = Arc::clone(&analysis);
+        // The whole-program export view the in-document tier needs to decide
+        // whether a `namespace import -force` really deleted this file's own
+        // command of the name (issue #1116 item 1).  Snapshotted under the
+        // index lock and moved into the worker, which runs with the lock
+        // released.
+        let exports = self.export_snapshot().await;
+        let uri_key = uri.as_str().to_owned();
         let in_doc = tokio::task::spawn_blocking(move || {
-            core_definition::definition(&text, pos.line, pos.character, &analysis_worker)
+            core_definition::definition_with(
+                &text,
+                pos.line,
+                pos.character,
+                &analysis_worker,
+                Some(core_definition::ProgramExports {
+                    uri: &uri_key,
+                    oracle: exports.as_ref(),
+                }),
+            )
         })
         .await
         .map_err(|err| jsonrpc::Error {
@@ -6676,8 +6703,15 @@ impl Backend {
             // which the wildcard-import tier below resolves (issue #1103).
             // Applied here because this is a separate resolver from
             // `resolve_called_proc`, which already applies the same rule.
+            let exports = index.export_snapshot();
             let forced_shadow = core_definition::forced_import_shadows_call(
                 analysis,
+                core_definition::CallResolution::document_only().in_program(
+                    core_definition::ProgramExports {
+                        uri: uri.as_str(),
+                        oracle: exports.as_ref(),
+                    },
+                ),
                 &inv.name,
                 &inv.resolution_candidates,
                 offset_u32,
@@ -14938,14 +14972,20 @@ impl LanguageServer for Backend {
         }
         let text = doc.text.clone();
         let analysis_worker = Arc::clone(&analysis);
+        let exports = self.export_snapshot().await;
+        let uri_key = uri.as_str().to_owned();
         let result = tokio::task::spawn_blocking(move || {
-            core_hover::hover_with_profile(
+            core_hover::hover_in_program(
                 &text,
                 pos.line,
                 pos.character,
                 &analysis_worker,
                 Some(registry),
                 hover_profile,
+                Some(core_definition::ProgramExports {
+                    uri: &uri_key,
+                    oracle: exports.as_ref(),
+                }),
             )
         })
         .await

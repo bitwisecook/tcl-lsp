@@ -983,3 +983,120 @@ fn a_computed_source_path_keeps_the_pre_graph_abstention_end_to_end() {
     );
     assert_eq!(locs[0].uri, mod_uri);
 }
+
+// Issue #1116 item 1 — the in-document `-force` shadow needs whole-program
+// export knowledge.
+//
+// `PARTLY_OBSERVABLE_MAIN` below is one document, byte-for-byte identical in
+// both tests of this pair. `::src` is *partly* observable in it: its procs and
+// one of its exports (`other`) are right there, while whether it also exports
+// `helper` is decided in another file. Oracle (tclsh 8.6.16 and 9.0.4,
+// byte-identical), loading this document with and without a sibling file
+// holding `namespace eval ::src {namespace export helper}`:
+//
+//   with it:     call -> SRC     origin -> ::src::helper
+//   without it:  call -> LOCAL   origin -> ::app::helper
+//
+// No rule reading only this document can separate those, which is why the
+// single-document resolver now takes a whole-program export oracle.
+//
+//  line 0  namespace eval src {
+//  line 1      proc helper {a b} { return SRC }
+//  line 2      proc other {} { return O }
+//  line 3      namespace export other
+//  line 4  }
+//  line 5  namespace eval app {
+//  line 6      proc helper {} { return LOCAL }
+//  line 7  }
+//  line 8  namespace eval app {
+//  line 9      namespace import -force ::src::*
+//  line 10 }
+//  line 11 namespace eval app {
+//  line 12     helper
+//  line 13 }
+const PARTLY_OBSERVABLE_MAIN: &str = "namespace eval src {\n    proc helper {a b} { return SRC }\n    proc other {} { return O }\n    namespace export other\n}\nnamespace eval app {\n    proc helper {} { return LOCAL }\n}\nnamespace eval app {\n    namespace import -force ::src::*\n}\nnamespace eval app {\n    helper\n}\n";
+
+#[test]
+fn a_forced_import_shadows_when_another_file_exports_the_name_end_to_end() {
+    // TP (CRITICAL) — with `::src`'s `namespace export helper` in a sibling
+    // file the `-force` import really did delete `::app::helper`, so the call
+    // reaches `::src::helper` (line 1), not the local one (line 6).
+    let mut lsp = Lsp::tcl();
+    let exports_uri = unique_uri("tcl");
+    lsp.open_ready(
+        &exports_uri,
+        "namespace eval src {\n    namespace export helper\n}\n",
+    );
+    let main_uri = unique_uri("tcl");
+    lsp.open_ready(&main_uri, PARTLY_OBSERVABLE_MAIN);
+    let locs = locations(&lsp.definition(&main_uri, 12, 4));
+    assert_eq!(locs.len(), 1, "{locs:?}");
+    assert_eq!(locs[0].uri, main_uri);
+    assert_eq!(
+        start_line(&locs[0]),
+        1,
+        "the `-force` import replaced the local `helper`: {locs:?}"
+    );
+    // Hover reads the same resolution, so it must name the same proc — the
+    // parameter lists differ precisely so the two are distinguishable.
+    let hover = hover_text(&lsp.hover(&main_uri, 12, 4));
+    assert!(
+        hover.contains('a') && hover.contains('b'),
+        "hover must describe `::src::helper {{a b}}`: {hover:?}"
+    );
+}
+
+#[test]
+fn a_forced_import_of_an_unexported_name_keeps_the_local_end_to_end() {
+    // TN, byte-identical `main.tcl` — nothing in the program exports
+    // `helper`, so the `-force` import binds only `other` and the local
+    // definition (line 6) survives. The pinned true negative: this is the
+    // case the document-only rule got right and must keep getting right.
+    let mut lsp = Lsp::tcl();
+    let unrelated_uri = unique_uri("tcl");
+    lsp.open_ready(
+        &unrelated_uri,
+        "namespace eval other {\n    proc q {} { return Q }\n}\n",
+    );
+    let main_uri = unique_uri("tcl");
+    lsp.open_ready(&main_uri, PARTLY_OBSERVABLE_MAIN);
+    let locs = locations(&lsp.definition(&main_uri, 12, 4));
+    assert_eq!(locs.len(), 1, "{locs:?}");
+    assert_eq!(locs[0].uri, main_uri);
+    assert_eq!(
+        start_line(&locs[0]),
+        6,
+        "an import that binds nothing leaves the local definition: {locs:?}"
+    );
+    let hover = hover_text(&lsp.hover(&main_uri, 12, 4));
+    assert!(
+        !hover.contains("a b"),
+        "hover must describe the local `helper {{}}`: {hover:?}"
+    );
+}
+
+#[test]
+fn a_forced_import_from_a_wholly_foreign_namespace_shadows_end_to_end() {
+    // TP — the third oracle shape: `::src`'s proc *and* its export are in
+    // another file, so this document holds only the `-force` import and the
+    // local proc it deletes. Oracle: SRC / `::src::helper`. Go-to-definition
+    // must leave this file rather than answer the deleted local definition.
+    let mut lsp = Lsp::tcl();
+    let lib_uri = unique_uri("tcl");
+    lsp.open_ready(
+        &lib_uri,
+        "namespace eval src {\n    proc helper {} { return SRC }\n    namespace export helper\n}\n",
+    );
+    let main_uri = unique_uri("tcl");
+    lsp.open_ready(
+        &main_uri,
+        "namespace eval app {\n    proc helper {} { return LOCAL }\n}\nnamespace eval app {\n    namespace import -force ::src::*\n}\nnamespace eval app {\n    helper\n}\n",
+    );
+    let locs = locations(&lsp.definition(&main_uri, 7, 4));
+    assert_eq!(locs.len(), 1, "{locs:?}");
+    assert_eq!(
+        locs[0].uri, lib_uri,
+        "the deleted local definition must not be the answer: {locs:?}"
+    );
+    assert_eq!(start_line(&locs[0]), 1);
+}

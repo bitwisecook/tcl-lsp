@@ -613,8 +613,14 @@ oo::class create chart {
     fn call_site_argument_binds_the_caller_frame_variable() {
         let analysis = analyse(IDX58);
         let read = offset_of(IDX58, "$dataset") + 1;
-        let bindings =
-            caller_frame_bindings(&analysis, IDX58, "tcl9.0", Some(reg()), read, "dataset");
+        let bindings = caller_frame_bindings(
+            &analysis,
+            IDX58,
+            "tcl9.0",
+            crate::definition::CallResolution::document_only().with_registry(reg()),
+            read,
+            "dataset",
+        );
         assert_eq!(bindings.len(), 1, "one binding call site: {bindings:?}");
         assert_eq!(bindings[0].param.as_deref(), Some("dts"));
         assert!(!bindings[0].read_only);
@@ -633,7 +639,15 @@ oo::class create chart {
         let analysis = analyse(src);
         let read = offset_of(src, "$thing") + 1;
         assert!(
-            caller_frame_bindings(&analysis, src, "tcl9.0", Some(reg()), read, "thing").is_empty()
+            caller_frame_bindings(
+                &analysis,
+                src,
+                "tcl9.0",
+                crate::definition::CallResolution::document_only().with_registry(reg()),
+                read,
+                "thing"
+            )
+            .is_empty()
         );
     }
 
@@ -646,7 +660,15 @@ oo::class create chart {
         let analysis = analyse(src);
         let read = offset_of(src, "$thing") + 1;
         assert!(
-            caller_frame_bindings(&analysis, src, "tcl9.0", Some(reg()), read, "thing").is_empty()
+            caller_frame_bindings(
+                &analysis,
+                src,
+                "tcl9.0",
+                crate::definition::CallResolution::document_only().with_registry(reg()),
+                read,
+                "thing"
+            )
+            .is_empty()
         );
     }
 
@@ -660,7 +682,15 @@ oo::class create chart {
         let analysis = analyse(src);
         let read = offset_of(src, "$shared") + 1;
         assert!(
-            caller_frame_bindings(&analysis, src, "tcl9.0", Some(reg()), read, "shared").is_empty()
+            caller_frame_bindings(
+                &analysis,
+                src,
+                "tcl9.0",
+                crate::definition::CallResolution::document_only().with_registry(reg()),
+                read,
+                "shared"
+            )
+            .is_empty()
         );
     }
 
@@ -670,8 +700,14 @@ oo::class create chart {
     fn reference_spans_cover_the_call_site_word_and_the_reads() {
         let analysis = analyse(IDX58);
         let read = offset_of(IDX58, "$dataset") + 1;
-        let spans =
-            caller_frame_reference_spans(&analysis, IDX58, "tcl9.0", Some(reg()), read, "dataset");
+        let spans = caller_frame_reference_spans(
+            &analysis,
+            IDX58,
+            "tcl9.0",
+            crate::definition::CallResolution::document_only().with_registry(reg()),
+            read,
+            "dataset",
+        );
         assert_eq!(spans.len(), 2, "call-site word + one read: {spans:?}");
         for span in &spans {
             assert_eq!(&IDX58[span.as_range()], "dataset");
@@ -704,8 +740,14 @@ oo::class create chart {
             );
             let analysis = analyse(&src);
             let read = offset_of(&src, "$shared") + 1;
-            let bindings =
-                caller_frame_bindings(&analysis, &src, "tcl9.0", Some(reg()), read, "shared");
+            let bindings = caller_frame_bindings(
+                &analysis,
+                &src,
+                "tcl9.0",
+                crate::definition::CallResolution::document_only().with_registry(reg()),
+                read,
+                "shared",
+            );
             assert!(
                 bindings.is_empty(),
                 "`upvar {level}` does not bind the caller's frame, so navigation \
@@ -721,8 +763,14 @@ oo::class create chart {
             );
             let analysis = analyse(&src);
             let read = offset_of(&src, "$shared") + 1;
-            let bindings =
-                caller_frame_bindings(&analysis, &src, "tcl9.0", Some(reg()), read, "shared");
+            let bindings = caller_frame_bindings(
+                &analysis,
+                &src,
+                "tcl9.0",
+                crate::definition::CallResolution::document_only().with_registry(reg()),
+                read,
+                "shared",
+            );
             assert_eq!(
                 bindings.len(),
                 1,
@@ -742,7 +790,15 @@ oo::class create chart {
         let analysis = analyse(src);
         let read = offset_of(src, "puts $shared") + 6;
         assert!(
-            caller_frame_bindings(&analysis, src, "tcl9.0", Some(reg()), read, "shared").is_empty()
+            caller_frame_bindings(
+                &analysis,
+                src,
+                "tcl9.0",
+                crate::definition::CallResolution::document_only().with_registry(reg()),
+                read,
+                "shared"
+            )
+            .is_empty()
         );
     }
 
@@ -769,8 +825,14 @@ oo::class create chart {
             let src = format!("{SETDEF}proc caller {{ok}} {{\n {body}\n}}\n");
             let analysis = analyse(&src);
             let read = offset_of(&src, "puts $shared") + 6;
-            let bindings =
-                caller_frame_bindings(&analysis, &src, "tcl9.0", Some(reg()), read, "shared");
+            let bindings = caller_frame_bindings(
+                &analysis,
+                &src,
+                "tcl9.0",
+                crate::definition::CallResolution::document_only().with_registry(reg()),
+                read,
+                "shared",
+            );
             assert_eq!(
                 bindings.len(),
                 1,
@@ -798,8 +860,14 @@ oo::class create chart {
             let src = format!("{SETDEF}proc caller {{}} {{\n {body}\n}}\n");
             let analysis = analyse(&src);
             let read = offset_of(&src, "puts $shared") + 6;
-            let bindings =
-                caller_frame_bindings(&analysis, &src, "tcl9.0", Some(reg()), read, "shared");
+            let bindings = caller_frame_bindings(
+                &analysis,
+                &src,
+                "tcl9.0",
+                crate::definition::CallResolution::document_only().with_registry(reg()),
+                read,
+                "shared",
+            );
             assert!(
                 bindings.is_empty(),
                 "a fresh-frame body's binding must not leak out — {body:?}: {bindings:?}"
@@ -835,7 +903,7 @@ oo::class create chart {
                 &analysis,
                 &src,
                 "tcl9.0",
-                Some(reg()),
+                crate::definition::CallResolution::document_only().with_registry(reg()),
                 call,
                 "shared",
             );
@@ -869,7 +937,14 @@ proc build {} {
     fn a_literal_upvar_target_binds_at_the_call_head() {
         let analysis = analyse(IDX22);
         let read = offset_of(IDX22, "$name") + 1;
-        let bindings = caller_frame_bindings(&analysis, IDX22, "tcl9.0", Some(reg()), read, "name");
+        let bindings = caller_frame_bindings(
+            &analysis,
+            IDX22,
+            "tcl9.0",
+            crate::definition::CallResolution::document_only().with_registry(reg()),
+            read,
+            "name",
+        );
         assert_eq!(bindings.len(), 1, "one binding call site: {bindings:?}");
         assert_eq!(bindings[0].param, None, "no call-site word carries it");
         assert!(!bindings[0].read_only, "the alias is written through");
@@ -891,8 +966,14 @@ proc build {} {
             );
             let analysis = analyse(&src);
             let read = offset_of(&src, "$name") + 1;
-            let bindings =
-                caller_frame_bindings(&analysis, &src, "tcl9.0", Some(reg()), read, "name");
+            let bindings = caller_frame_bindings(
+                &analysis,
+                &src,
+                "tcl9.0",
+                crate::definition::CallResolution::document_only().with_registry(reg()),
+                read,
+                "name",
+            );
             assert!(
                 bindings.is_empty(),
                 "`upvar {level}` does not bind the caller's frame: {bindings:?}"
@@ -910,8 +991,15 @@ proc build {} {
         let analysis = analyse(src);
         let read = offset_of(src, "$FocusGrab") + 1;
         assert!(
-            caller_frame_bindings(&analysis, src, "tcl9.0", Some(reg()), read, "FocusGrab")
-                .is_empty()
+            caller_frame_bindings(
+                &analysis,
+                src,
+                "tcl9.0",
+                crate::definition::CallResolution::document_only().with_registry(reg()),
+                read,
+                "FocusGrab"
+            )
+            .is_empty()
         );
     }
 
@@ -924,7 +1012,14 @@ proc build {} {
                    proc build {} { set name N0\n peekname }\n";
         let analysis = analyse(src);
         let call = offset_of(src, "peekname }");
-        let bindings = caller_frame_bindings(&analysis, src, "tcl9.0", Some(reg()), call, "name");
+        let bindings = caller_frame_bindings(
+            &analysis,
+            src,
+            "tcl9.0",
+            crate::definition::CallResolution::document_only().with_registry(reg()),
+            call,
+            "name",
+        );
         assert_eq!(bindings.len(), 1, "{bindings:?}");
         assert!(bindings[0].read_only, "{bindings:?}");
     }
@@ -952,8 +1047,14 @@ proc build {} {
                    proc caller {} {\n setdef shared\n # mentions $shared but inertly\n }\n";
         let analysis = analyse(src);
         let call = offset_of(src, "setdef shared") + 7;
-        let spans =
-            caller_frame_reference_spans(&analysis, src, "tcl9.0", Some(reg()), call, "shared");
+        let spans = caller_frame_reference_spans(
+            &analysis,
+            src,
+            "tcl9.0",
+            crate::definition::CallResolution::document_only().with_registry(reg()),
+            call,
+            "shared",
+        );
         assert_eq!(spans.len(), 1, "only the call-site word: {spans:?}");
     }
 }
