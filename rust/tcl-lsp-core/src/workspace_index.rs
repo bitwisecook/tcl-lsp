@@ -4493,7 +4493,11 @@ mod tests {
             .filter(|s| s.kind == WorkspaceSymbolKind::Method)
             .map(|s| s.name)
             .collect();
-        assert_eq!(names, ["new"], "the picker must not show the pre-rename name");
+        assert_eq!(
+            names,
+            ["new"],
+            "the picker must not show the pre-rename name"
+        );
     }
 
     /// TN, issue #1263: a cross-file `deletemethod` removes the member from
