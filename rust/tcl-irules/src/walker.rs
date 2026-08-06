@@ -110,37 +110,79 @@ pub fn extract_irules_object_references(
 ) -> Vec<IrulesObjectReference> {
     let mut out = Vec::new();
     let mut scope = BindingScope::default();
-    walk(
+    // The document's statically proven command-identity facts
+    // ([`tcl_compiler::head_identity`]), computed once for the whole rule: a
+    // reference-bearing command reached through a proven `interp alias` /
+    // `rename` is still a reference, and a spelling whose binding was provably
+    // taken over is not (issue #1275).  Empty — and lookup-free — unless the
+    // rule binds something.
+    let identities = tcl_compiler::head_identity::command_head_identities_with_config(
         source,
-        source,
-        0,
+        LexerConfig::for_dialect("f5-irules"),
+        registry,
+    );
+    let ctx = WalkCtx {
+        full: source,
         rule_module,
         registry,
-        &mut scope,
-        &mut out,
-        0,
-    );
+        identities: &identities,
+    };
+    walk(&ctx, source, 0, &mut scope, &mut out, 0);
     out.sort_by(|a, b| {
         (a.range.start(), a.range.end(), &a.name).cmp(&(b.range.start(), b.range.end(), &b.name))
     });
     out
 }
 
-/// Segment `slice` (a substring of `full` starting at byte `base`) and collect
-/// references, recursing into body / expr / command-substitution arguments with
-/// child scopes. Token spans are absolute into `full`. `depth` is this call's
-/// nesting level — see [`MAX_WALK_DEPTH`].
-#[allow(clippy::too_many_arguments)] // one context threaded through a recursive walk
+/// Everything the object-reference walk needs that does not change as it
+/// recurses into nested bodies, lambdas, and `[…]` substitutions.
+struct WalkCtx<'a> {
+    /// The whole rule, so a nested slice's token spans stay absolute.
+    full: &'a str,
+    /// `"ltm"` / `"gtm"`, selecting the pool-kind family.
+    rule_module: Option<&'a str>,
+    /// The dialect registry the argument roles and clause-list shape come from.
+    registry: &'a CommandRegistry,
+    /// The rule's statically proven command-identity facts, so every head is
+    /// resolved to the command it *is* rather than the one it is spelled as
+    /// (issue #1275).
+    identities: &'a tcl_compiler::head_identity::HeadIdentityMap,
+}
+
+/// One segmented command's *effective* head — the registry name its spelling
+/// resolves to at its own byte offset, or the spelling itself when the rule
+/// binds nothing.  Empty for a head whose binding was provably taken over,
+/// which every table and registry lookup then answers "unknown" for.
+fn resolve_head<'a>(
+    identities: &'a tcl_compiler::head_identity::HeadIdentityMap,
+    cmd: &'a SegmentedCommand,
+) -> &'a str {
+    let written = cmd.name();
+    if identities.is_empty() {
+        return written;
+    }
+    let at = cmd.argv.first().map_or(0, |t| t.span.start());
+    identities.resolve(written, at).spec_name()
+}
+
+/// Segment `slice` (a substring of the rule starting at byte `base`) and
+/// collect references, recursing into body / expr / command-substitution
+/// arguments with child scopes. Token spans are absolute into `ctx.full`.
+/// `depth` is this call's nesting level — see [`MAX_WALK_DEPTH`].
 fn walk(
-    full: &str,
+    ctx: &WalkCtx<'_>,
     slice: &str,
     base: u32,
-    rule_module: Option<&str>,
-    registry: &CommandRegistry,
     scope: &mut BindingScope,
     out: &mut Vec<IrulesObjectReference>,
     depth: u32,
 ) {
+    let WalkCtx {
+        full,
+        rule_module,
+        registry,
+        identities,
+    } = *ctx;
     // Native-stack safety net — see `MAX_WALK_DEPTH`'s doc comment (issue
     // #996). Past the cap, stop descending — the references collected up
     // to this nesting level still stand.
@@ -155,10 +197,17 @@ fn walk(
         segment_commands_with_offset_and_config(slice, base, LexerConfig::for_dialect("f5-irules"))
     {
         let args: Vec<&str> = cmd.args().iter().map(String::as_str).collect();
+        // The head's *effective command identity*, resolved exactly as the
+        // semantic-token walk resolves it (issue #1275).  Every table and
+        // registry lookup below reads it, so `::pool`, a proven
+        // `interp alias {} p {} pool`, and a `rename pool p` all find the same
+        // object-reference argument, while a `pool` whose binding was provably
+        // taken over by a user `proc` finds none.
+        let head = resolve_head(identities, &cmd);
 
         // Resolve declared references *before* mutating the binding table, so a
         // same-command `set` re-bind doesn't leak into this call's refs.
-        for (argument_index, kinds) in resolve_object_ref_args(cmd.name(), &args, rule_module) {
+        for (argument_index, kinds) in resolve_object_ref_args(head, &args, rule_module) {
             if let Some((name, range)) = resolve_arg_value(full, &cmd, argument_index, scope) {
                 out.push(IrulesObjectReference {
                     name,
@@ -169,9 +218,9 @@ fn walk(
                 });
             }
         }
-        record_set_binding(full, &cmd, scope);
+        record_set_binding(full, head, &cmd, scope);
 
-        let body_indices = registry.arg_indices_for_role(cmd.name(), &args, ArgRole::Body);
+        let body_indices = registry.arg_indices_for_role(head, &args, ArgRole::Body);
         let mut recursed: HashSet<(u32, u32)> = HashSet::new();
         for body_idx in body_indices {
             let word_index = body_idx + 1;
@@ -180,7 +229,7 @@ fn walk(
                 && !inner_is_empty(full, tok)
             {
                 let mut child = scope.child();
-                recurse_token(full, tok, rule_module, registry, &mut child, out, depth + 1);
+                recurse_token(ctx, tok, &mut child, out, depth + 1);
                 if matches!(tok.kind, TokenType::Cmd) {
                     recursed.insert((tok.span.start(), tok.span.end()));
                 }
@@ -190,7 +239,7 @@ fn walk(
         // EXPR-role words (`if`/`while`/`expr` conditions) are braced/quoted
         // words whose `[…]` substitutions aren't separate `Cmd` tokens; recurse
         // into the expression text so refs nested in a condition are found.
-        let expr_indices = registry.arg_indices_for_role(cmd.name(), &args, ArgRole::Expr);
+        let expr_indices = registry.arg_indices_for_role(head, &args, ArgRole::Expr);
         for expr_idx in expr_indices {
             let word_index = expr_idx + 1;
             if let Some(tok) = cmd.argv.get(word_index)
@@ -198,7 +247,7 @@ fn walk(
                 && !inner_is_empty(full, tok)
             {
                 let mut child = scope.child();
-                recurse_token(full, tok, rule_module, registry, &mut child, out, depth + 1);
+                recurse_token(ctx, tok, &mut child, out, depth + 1);
             }
         }
 
@@ -215,7 +264,7 @@ fn walk(
         // a *fresh* call frame: it does not inherit the caller's `set`-bound
         // constants, only whatever its own actual arguments bind to its own
         // params (`lambda_frame_scope` builds exactly that).
-        for lambda_idx in registry.arg_indices_for_role(cmd.name(), &args, ArgRole::LambdaLiteral) {
+        for lambda_idx in registry.arg_indices_for_role(head, &args, ArgRole::LambdaLiteral) {
             let word_index = lambda_idx + 1;
             if let Some(tok) = cmd.argv.get(word_index)
                 && matches!(tok.kind, TokenType::Str)
@@ -227,16 +276,7 @@ fn walk(
                     && !inner.trim().is_empty()
                 {
                     let mut child = lambda_frame_scope(full, &cmd, lambda_idx, elems, scope);
-                    walk(
-                        full,
-                        inner,
-                        body_span.start(),
-                        rule_module,
-                        registry,
-                        &mut child,
-                        out,
-                        depth + 1,
-                    );
+                    walk(ctx, inner, body_span.start(), &mut child, out, depth + 1);
                 }
             }
         }
@@ -250,21 +290,13 @@ fn walk(
         // pool looked unreferenced, which is what `bigip-cleanup` decides
         // deletions from.  The clause-list shape is registry data
         // (`CommandSpec::case_list`), the same entry the token walker reads.
-        if let Some(spec) = registry.get(cmd.name()).and_then(|s| s.case_list)
+        if let Some(spec) = registry.get(head).and_then(|s| s.case_list)
             && let Some(tok) = case_list_word(&cmd, &args, spec)
             && !inner_is_empty(full, &tok)
         {
             for body in case_list_body_tokens(full, &tok, spec) {
                 let mut child = scope.child();
-                recurse_token(
-                    full,
-                    &body,
-                    rule_module,
-                    registry,
-                    &mut child,
-                    out,
-                    depth + 1,
-                );
+                recurse_token(ctx, &body, &mut child, out, depth + 1);
             }
         }
 
@@ -279,7 +311,7 @@ fn walk(
             }
             recursed.insert(key);
             let mut child = scope.child();
-            recurse_token(full, tok, rule_module, registry, &mut child, out, depth + 1);
+            recurse_token(ctx, tok, &mut child, out, depth + 1);
         }
     }
 }
@@ -392,28 +424,24 @@ fn inner_is_empty(full: &str, tok: &Token) -> bool {
 
 /// Recurse into a token's inner content (offset-adjusted to absolute spans).
 fn recurse_token(
-    full: &str,
+    ctx: &WalkCtx<'_>,
     tok: &Token,
-    rule_module: Option<&str>,
-    registry: &CommandRegistry,
     scope: &mut BindingScope,
     out: &mut Vec<IrulesObjectReference>,
     depth: u32,
 ) {
-    let (start, end) = content_range(full, tok);
+    let (start, end) = content_range(ctx.full, tok);
     if start >= end {
         return;
     }
-    let inner = &full[start..end];
+    let inner = &ctx.full[start..end];
     if inner.trim().is_empty() {
         return;
     }
     walk(
-        full,
+        ctx,
         inner,
         u32::try_from(start).unwrap_or(0),
-        rule_module,
-        registry,
         scope,
         out,
         depth,
@@ -513,8 +541,16 @@ fn resolve_arg_value(
 
 /// Record a `set <var> <literal>` constant binding, or widen on a non-literal
 /// RHS.
-fn record_set_binding(full: &str, cmd: &SegmentedCommand, scope: &mut BindingScope) {
-    if cmd.name() != "set" || cmd.args().len() < 2 {
+fn record_set_binding(
+    full: &str,
+    resolved_head: &str,
+    cmd: &SegmentedCommand,
+    scope: &mut BindingScope,
+) {
+    // The head is the *resolved* one, so `::set` and a proven alias / rename of
+    // it propagate constants exactly as the bare spelling does, and a `set`
+    // whose binding was provably taken over propagates none (issue #1275).
+    if resolved_head != "set" || cmd.args().len() < 2 {
         return;
     }
     let var = &cmd.args()[0];
@@ -559,6 +595,98 @@ mod tests {
         assert!(by_name.contains(&("class".to_owned(), "/Common/host_dg".to_owned())));
         assert!(by_name.contains(&("snatpool".to_owned(), "/Common/sp1".to_owned())));
         assert!(by_name.contains(&("pool".to_owned(), "/Common/web_pool".to_owned())));
+    }
+
+    /// Issue #1275 — the object-reference walk must resolve a command head's
+    /// *effective identity*, not its written spelling.
+    ///
+    /// This is not cosmetic for iRules: the reference graph is what
+    /// `bigip-cleanup` decides deletions from, so a pool reached only through
+    /// an aliased or renamed `pool` command must still count as referenced.
+    ///
+    /// tclsh oracle (8.6.16 and 9.0.4, byte-identical): `interp alias {} p {}
+    /// pool` makes `p` run `pool`; `rename pool p` moves it and leaves `pool`
+    /// gone; a top-level `proc pool …` takes the name over.
+    fn ref_names(source: &str) -> Vec<String> {
+        refs(source).into_iter().map(|r| r.name).collect()
+    }
+
+    /// A `when` body invoking `caller /Common/web_pool`, after `prelude`.
+    fn pool_rule(prelude: &str, caller: &str) -> String {
+        format!("{prelude}when HTTP_REQUEST {{\n    {caller} /Common/web_pool\n}}\n")
+    }
+
+    #[test]
+    fn object_refs_follow_an_aliased_command() {
+        assert_eq!(
+            ref_names(&pool_rule("interp alias {} p {} pool\n", "p")),
+            vec!["/Common/web_pool".to_owned()],
+        );
+        // The `::`-qualified spelling of the alias classifies alike.
+        assert_eq!(
+            ref_names(&pool_rule("interp alias {} p {} pool\n", "::p")),
+            vec!["/Common/web_pool".to_owned()],
+        );
+        // Guard: an unbound `p` names no BIG-IP object.
+        assert!(ref_names(&pool_rule("set y 1\n", "p")).is_empty());
+    }
+
+    #[test]
+    fn object_refs_follow_a_renamed_command() {
+        assert_eq!(
+            ref_names(&pool_rule("rename pool p\n", "p")),
+            vec!["/Common/web_pool".to_owned()],
+        );
+        // The old spelling is gone from the rename onwards.
+        assert!(
+            ref_names(&pool_rule("rename pool p\n", "pool")).is_empty(),
+            "a renamed-away `pool` must not keep the object-reference grammar"
+        );
+    }
+
+    #[test]
+    fn object_refs_abstain_for_a_command_shadowed_by_a_user_proc() {
+        assert!(
+            ref_names(&pool_rule("proc pool {args} { return 1 }\n", "pool")).is_empty(),
+            "a user `proc pool` takes the name over; its argument is not a pool name"
+        );
+        // Guard: the unshadowed command still resolves the reference.
+        assert_eq!(
+            ref_names(&pool_rule("set y 1\n", "pool")),
+            vec!["/Common/web_pool".to_owned()],
+        );
+    }
+
+    #[test]
+    fn object_refs_abstain_for_a_dynamic_binding() {
+        assert!(
+            ref_names(&pool_rule("rename $old p\n", "p")).is_empty(),
+            "a dynamic rename must not make `p` an object-reference command"
+        );
+        assert_eq!(
+            ref_names(&pool_rule("rename $old p\n", "pool")),
+            vec!["/Common/web_pool".to_owned()],
+            "a dynamic rename must not take `pool`'s grammar away either"
+        );
+    }
+
+    /// The `set`-constant propagation reads the resolved head too, so a pool
+    /// name bound through an aliased `set` still resolves.
+    #[test]
+    fn constant_propagation_follows_an_aliased_set() {
+        let source = "interp alias {} assign {} set\n\
+                      when HTTP_REQUEST {\n\
+                      assign p /Common/web_pool\n\
+                      pool $p\n\
+                      }\n";
+        assert_eq!(ref_names(source), vec!["/Common/web_pool".to_owned()]);
+        // Guard: without the alias, `assign` binds nothing and `$p` is unknown.
+        let source = "set y 1\n\
+                      when HTTP_REQUEST {\n\
+                      assign p /Common/web_pool\n\
+                      pool $p\n\
+                      }\n";
+        assert!(ref_names(source).is_empty());
     }
 
     /// Regression coverage for issue #996: `walk`/`recurse_token`'s mutual
