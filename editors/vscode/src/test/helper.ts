@@ -412,12 +412,21 @@ function isCancellation(error: unknown): boolean {
  *
  * Provider pulls have no completion event of their own — you ask, you get
  * whatever the server knows *now*.  What they do have is a signal for the
- * thing that actually changes the answer: the server re-analysing the
+ * thing that usually changes the answer: the server re-analysing the
  * document, which it announces by publishing diagnostics.  So this waits on
- * ``onDidChangeDiagnostics`` for *uri*, re-pulls on every publish, and keeps a
- * slow interval re-pull purely as a missed-event backstop — the same shape as
- * [`waitForDiagnostics`], and unlike [`pollUntil`], where the interval *is*
- * the mechanism.
+ * ``onDidChangeDiagnostics`` for *uri* and re-pulls on every publish.
+ *
+ * # Why the backstop here is tight, not slow
+ *
+ * Unlike [`waitForDiagnostics`], where the event *is* the thing being awaited
+ * and the interval is a pure missed-event net, a provider's readiness only
+ * *correlates* with the publish: the server can finish the work that changes
+ * this answer without publishing anything new.  So the interval is load-bearing
+ * here, and it stays at the 50ms cadence of the polling this replaced — the
+ * conversion must only ever be able to return *sooner* (when the publish wakes
+ * it), never later.  Widening it to the 500ms default would make the common
+ * case — analysis already done, the provider just needs asking again — ten
+ * times slower than the code it replaced.
  */
 export async function waitForProviderResult<T>(
   uri: vscode.Uri,
@@ -440,7 +449,7 @@ export async function waitForProviderResult<T>(
     probe: pull,
     predicate,
     timeout: opts?.timeout ?? 10_000,
-    backstopInterval: opts?.backstopInterval,
+    backstopInterval: opts?.backstopInterval ?? 50,
     describe: opts?.describe,
     retryProbeErrors: isCancellation,
   });
