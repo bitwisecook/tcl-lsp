@@ -32,6 +32,7 @@ import {
   getServerLogSize,
   waitForDeepDiagnostics,
   waitForDiagnostics,
+  waitForProviderResult,
 } from "./helper";
 
 function codeOf(d: vscode.Diagnostic): string {
@@ -122,19 +123,40 @@ suite("Issue #1019 idx 28 — cross-file mixin hover", () => {
   const deviceUri = getDocUri("issue1019Idx28Device.tcl");
   const libUri = getDocUri("issue1019Idx28Lib.tcl");
 
-  test("hover on `my <method>` names the provider in the sibling file", async () => {
-    await activate(libUri);
-    await activate(deviceUri);
-    // Cursor on `ArgsPreprocess` in the `my` dispatch (line 4).
-    const hovers = (await vscode.commands.executeCommand(
-      "vscode.executeHoverProvider",
-      deviceUri,
-      new vscode.Position(4, 20),
-    )) as vscode.Hover[];
-    const text = (hovers ?? [])
+  // Cursor on `ArgsPreprocess` in the `my` dispatch (line 4).
+  const dispatchPos = new vscode.Position(4, 20);
+
+  function hoverText(hovers: vscode.Hover[] | undefined): string {
+    return (hovers ?? [])
       .flatMap((h) => h.contents)
       .map((c) => (typeof c === "string" ? c : (c as vscode.MarkdownString).value))
       .join("\n");
+  }
+
+  test("hover on `my <method>` names the provider in the sibling file", async () => {
+    await activate(libUri);
+    await activate(deviceUri);
+    // Naming the provider needs the *sibling* file, so the answer only becomes
+    // correct once the workspace scan has surfaced it.  Sampling the provider
+    // once races that scan: the request is served from whatever the workspace
+    // knows at that instant, and an empty hover reads as a failure rather than
+    // as "not indexed yet".  Wait on the answer instead — the good case
+    // returns on the first probe, the bad case is bounded by the timeout.
+    const hovers = await waitForProviderResult<vscode.Hover[]>(
+      deviceUri,
+      () =>
+        vscode.commands.executeCommand(
+          "vscode.executeHoverProvider",
+          deviceUri,
+          dispatchPos,
+        ) as Thenable<vscode.Hover[]>,
+      (hs) => hoverText(hs).includes("::Idx28::Utility"),
+      {
+        label: "cross-file mixin hover naming ::Idx28::Utility",
+        describe: (hs) => hoverText(hs) || "<no hover>",
+      },
+    );
+    const text = hoverText(hovers);
     assert.ok(text.includes("ArgsPreprocess"), `hover must name the method, got: ${text}`);
     assert.ok(
       text.includes("::Idx28::Utility"),
@@ -145,11 +167,21 @@ suite("Issue #1019 idx 28 — cross-file mixin hover", () => {
   test("hover and go-to-definition agree about the provider", async () => {
     await activate(libUri);
     await activate(deviceUri);
-    const locations = (await vscode.commands.executeCommand(
-      "vscode.executeDefinitionProvider",
+    // Same cross-file scan dependency as the hover above.
+    const locations = await waitForProviderResult<vscode.Location[]>(
       deviceUri,
-      new vscode.Position(4, 20),
-    )) as vscode.Location[];
+      () =>
+        vscode.commands.executeCommand(
+          "vscode.executeDefinitionProvider",
+          deviceUri,
+          dispatchPos,
+        ) as Thenable<vscode.Location[]>,
+      (ls) => (ls ?? []).length > 0,
+      {
+        label: "cross-file definition for `my ArgsPreprocess`",
+        describe: (ls) => `${(ls ?? []).length} location(s)`,
+      },
+    );
     assert.ok(locations && locations.length > 0, "definition must resolve cross-file");
     assert.strictEqual(
       locations[0].uri.toString(),
