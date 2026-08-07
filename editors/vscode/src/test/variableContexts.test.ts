@@ -25,6 +25,7 @@ import {
   waitForDeepDiagnostics,
   getServerLogSize,
   pollUntil,
+  scaledTimeout,
 } from "./helper";
 
 function labelOf(item: vscode.CompletionItem): string {
@@ -204,7 +205,7 @@ suite("Variable Completion: command contexts", () => {
   }
 
   suiteSetup(async function () {
-    this.timeout(30_000);
+    this.timeout(scaledTimeout(30_000));
     doc = await activate(docUri);
     for (let i = 0; i < PROBES.length; i++) {
       const p = PROBES[i];

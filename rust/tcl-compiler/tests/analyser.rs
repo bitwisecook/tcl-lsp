@@ -5678,6 +5678,123 @@ mod class_factories {
             r.all_procs.keys().collect::<Vec<_>>()
         );
     }
+
+    // -- the chained factory index (issue #1296) -------------------------
+    //
+    // The workspace index is published by the host as a *fixpoint*, because a
+    // metaclass manufactured by another file's metaclass is only provable once
+    // the manufacturing one is already in the index.  The salsa-layer loop is
+    // covered by `tcl-lsp-db`'s `class_factory_fixpoint` suite; what belongs
+    // here is the analyser half of the same fact — that a round handed the
+    // deeper index really does prove the next link, and that the surfaces the
+    // language allows around it behave.
+    //
+    // Ground truth, byte-identical on tclsh 8.6.16 and 9.0.4, for the chain
+    // below sourced as one script:
+    //
+    //   info object isa class ::MC::MetaB      -> 1
+    //   info class superclasses ::MC::MetaB    -> ::oo::class
+    //   info object isa class ::MC::Widget     -> 1
+    //   info class methods ::MC::Widget        -> go
+    //   [::MC::Widget new] go                  -> went
+
+    const CHAIN_META_A: &str =
+        "namespace eval ::MC {}\noo::class create ::MC::MetaA { superclass oo::class }\n";
+    const CHAIN_META_B: &str = "::MC::MetaA create ::MC::MetaB { superclass oo::class }\n";
+    const CHAIN_WIDGET: &str = "::MC::MetaB create ::MC::Widget { method go {} { return went } }\n";
+
+    #[test]
+    fn a_second_link_metaclass_publishes_a_factory_once_the_first_is_indexed() {
+        // TP, the analyser half of #1296. Round 1's index (`MetaA` alone,
+        // provable with no index at all) is exactly what lets the file holding
+        // `MetaA create MetaB` publish `MetaB` — so the host's next round has
+        // something new to merge. Without the index the same file publishes
+        // nothing, which is the FN the ticket is about.
+        let round1 = factories_of(CHAIN_META_A);
+        assert_eq!(round1.keys().collect::<Vec<_>>(), ["::MC::MetaA"]);
+
+        let bare = Analyser::new()
+            .analyse(CHAIN_META_B, "tcl9.0")
+            .class_factories();
+        assert!(
+            bare.is_empty(),
+            "with no oracle the middle link proves nothing: {:?}",
+            bare.keys().collect::<Vec<_>>()
+        );
+
+        let round2 = analysis_with_factories(CHAIN_META_B, &round1).class_factories();
+        assert_eq!(
+            round2.keys().collect::<Vec<_>>(),
+            ["::MC::MetaB"],
+            "handed the first link, the file proves the second"
+        );
+        assert_eq!(round2["::MC::MetaB"].root_metaclass, "oo::class");
+    }
+
+    #[test]
+    fn the_third_link_records_the_class_and_its_members() {
+        // TP. With both metaclasses in the index the consuming file records a
+        // real class with a real method — the fact go-to-definition on `$w go`
+        // needs, and the one that came back empty before the fixpoint.
+        let mut index = (*factories_of(CHAIN_META_A)).clone();
+        for (name, factory) in
+            analysis_with_factories(CHAIN_META_B, &factories_of(CHAIN_META_A)).class_factories()
+        {
+            index.insert(name, factory);
+        }
+        let index = std::sync::Arc::new(index);
+        let r = analysis_with_factories(CHAIN_WIDGET, &index);
+        let cd = r
+            .all_classes
+            .get("::MC::Widget")
+            .unwrap_or_else(|| panic!("::MC::Widget: {:?}", r.all_classes.keys()));
+        assert_eq!(cd.methods.keys().collect::<Vec<_>>(), ["go"], "{cd:?}");
+        assert!(!cd.inheritance_unknown, "{cd:?}");
+    }
+
+    #[test]
+    fn oo_define_after_the_fact_extends_a_chained_factory_made_class() {
+        // The `oo::define` surface: a class manufactured by a second-link
+        // metaclass takes later `oo::define` members like any other class.
+        //
+        // Oracle (tclsh 9.0.4 / 8.6.16): `info class methods ::MC::Widget`
+        // -> `go later` after the `oo::define`.
+        let index = chained_index();
+        let src = concat!(
+            "::MC::MetaB create ::MC::Widget { method go {} { return went } }\n",
+            "oo::define ::MC::Widget { method later {} { return l } }\n",
+        );
+        let r = analysis_with_factories(src, &index);
+        let cd = &r.all_classes["::MC::Widget"];
+        let mut methods: Vec<&str> = cd.methods.keys().map(String::as_str).collect();
+        methods.sort_unstable();
+        assert_eq!(methods, ["go", "later"], "{cd:?}");
+    }
+
+    #[test]
+    fn an_unproved_second_link_still_abstains() {
+        // TN. Handed an index that names only `MetaA`, a file writing
+        // `::MC::MetaB create …` has no proof `::MC::MetaB` manufactures
+        // anything — it could be `interp create` for all the walk knows — so it
+        // must record nothing rather than guessing the deeper link.
+        let r = analysis_with_factories(CHAIN_WIDGET, &factories_of(CHAIN_META_A));
+        assert!(
+            r.all_classes.is_empty(),
+            "no guess from a partially-published index: {:?}",
+            r.all_classes.keys().collect::<Vec<_>>()
+        );
+    }
+
+    /// The index a two-round publish produces for the ticket's chain:
+    /// `MetaA` proved with no oracle, `MetaB` proved with `MetaA` published.
+    fn chained_index() -> std::sync::Arc<tcl_compiler::analyser::ClassFactoryIndex> {
+        let first = factories_of(CHAIN_META_A);
+        let mut index = (*first).clone();
+        for (name, factory) in analysis_with_factories(CHAIN_META_B, &first).class_factories() {
+            index.insert(name, factory);
+        }
+        std::sync::Arc::new(index)
+    }
 }
 
 // ===========================================================================

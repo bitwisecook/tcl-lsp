@@ -163,7 +163,16 @@ latter.
    strategies disagree about whether a class exists. It travels on
    `analyse_proc_body_isolated` and is part of `ItemBodyKey::body_env` so
    salsa cannot serve a stale verdict.
-14. **Re-dispatch must be idempotent per source site.** The ordinary body
+14. **The workspace index is a fixpoint, not one pass.** The query that
+   collects a file's factories reads the very index the host publishes from
+   it, so a metaclass manufactured by another file's metaclass is provable
+   only on a round whose index already names its maker. One publish is
+   therefore one link deep. The host iterates until a round moves nothing
+   (issue #1296); termination holds because a round writes only what some
+   file proved, a declaration cycle proves neither of its halves, and the
+   loop is capped regardless. A workspace with no metaclass settles in one
+   round that writes nothing.
+15. **Re-dispatch must be idempotent per source site.** The ordinary body
    walk already covered the first element, so a site is visited twice under
    the loop variable's own key. One source site can never declare the same
    member twice, so `(objdefine_offset, member name)` is an exact
@@ -256,6 +265,22 @@ latter.
    `project_class_factories` carry its qualified name? does the call's name
    resolve to that exact qualified name under the enclosing namespace? Each
    "no" is a deliberate abstention, not a bug.
+10. Chain **depth** across files is not a reason for a "no" at step 9. A
+    metaclass that is itself manufactured by a *third* file's metaclass is
+    proved one link per publish round, so the host iterates the publish to a
+    fixpoint (issue #1296). If `project_class_factories` is missing a
+    qualified name you can see being created, the question is whether some
+    file *proved* it, not how deep it sits — a round adds an entry only on
+    proof, never on a guess. Before the fixpoint landed this presented as a
+    three-level cross-file chain resolving to nothing from a call site while
+    `documentSymbol` on the declaring file reported the class correctly,
+    which is the partial-resolution shape that makes it easy to miss.
+11. If the class resolves but a *handle* bound from it does not, the
+    construction form is the thing to look at, not the factory. A handle
+    bound by calling the class command itself — dispatched through the
+    metaclass's `unknown` method, as every Tk megawidget is
+    (`::tk::IconList .il`) — is a separate, open gap: issue #1303. `create`
+    and `new` on the same class bind the handle correctly.
 
 ## Test anchors
 
@@ -267,7 +292,22 @@ latter.
   `a_dynamic_metaclass_name_still_abstains`,
   `a_metaclass_defined_in_another_file_abstains_rather_than_guessing`,
   `a_workspace_metaclass_is_not_reached_by_a_same_tailed_bare_name`,
-  `a_local_metaclass_shadows_the_workspace_one`
+  `a_local_metaclass_shadows_the_workspace_one`, and — for the chained case
+  (issue #1296) —
+  `a_second_link_metaclass_publishes_a_factory_once_the_first_is_indexed`,
+  `the_third_link_records_the_class_and_its_members`,
+  `oo_define_after_the_fact_extends_a_chained_factory_made_class`,
+  `an_unproved_second_link_still_abstains`
+- `rust/tcl-lsp-db/tests/class_factory_fixpoint.rs` — the publish loop itself:
+  `a_cross_file_three_level_chain_converges_and_records_the_class`,
+  `a_single_publish_is_one_link_deep` (the regression, asserted directly),
+  `a_chain_deeper_than_three_still_converges`,
+  `a_cycle_terminates_and_proves_nothing`,
+  `a_workspace_with_no_metaclass_costs_no_extra_round`
+- `rust/tcl-lsp-server/tests/e2e/issue1296_metaclass_chain.rs` — the ticket
+  end to end, plus the five-level, edit-path, and abstention cases
+- `editors/vscode/src/test/issue1296MetaclassChain.test.ts` — the same
+  through a real VS Code session
 - `rust/tcl-lsp-server/src/lib.rs` —
   `a_cross_file_metaclass_resolves_after_the_workspace_scan`,
   `a_dynamic_metaclass_head_abstains_even_with_the_scan_index`,

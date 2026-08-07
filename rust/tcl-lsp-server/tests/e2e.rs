@@ -69,6 +69,8 @@ mod issue1137_call_site_resolution;
 mod issue1214_uri_canonicalisation;
 #[path = "e2e/issue1281_ensemble_rename.rs"]
 mod issue1281_ensemble_rename;
+#[path = "e2e/issue1296_metaclass_chain.rs"]
+mod issue1296_metaclass_chain;
 #[path = "e2e/issue923_class_refs.rs"]
 mod issue923_class_refs;
 #[path = "e2e/issue923_crossdoc.rs"]

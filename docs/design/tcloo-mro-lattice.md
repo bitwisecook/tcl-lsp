@@ -259,10 +259,47 @@ superclasses` on tclsh 8.6.14 and 9.0.4.
   spec actually reads those tokens (a `retraction` member — `deletemethod` /
   `renamemethod`) collapses the injection to unknown rather than being
   applied against a substituted span.
-- A metaclass that is itself manufactured by a *third* file's metaclass
-  resolves only once the host's next sync round has published it.  The sync
-  is compare-then-set, so it stops as soon as the index stops moving; what
-  never happens is a round that adds an entry no file proved.
+**Chained metaclasses — why the publish is a fixpoint.**  `item_tree` reads
+`SourceFile::workspace_class_factories`, and `project_class_factories` is
+built out of `item_tree`, so the merge is a function of the very input the
+host computes from it.  One publish is therefore exactly **one link of the
+metaclass chain deep**: `MetaA` is provable with no index at all, but the
+file holding `MetaA create MetaB` proves `MetaB` only on a round whose
+published index already names `MetaA`.  `sync_workspace_class_factories`
+consequently *iterates* — recompute, compare-then-set, repeat — and stops as
+soon as a round moves nothing (issue #1296).  Publishing once left every
+class the deeper metaclass manufactures unknown, which presented as a
+three-level cross-file chain resolving to nothing from a call site.
+
+The loop is bounded, not merely expected to converge:
+
+- A round adds an entry only when some file **proved** it — never a guess —
+  so the normal case is monotone growth over a set bounded by the project's
+  literal creation calls.  Only statically resolved qualified names can enter
+  it, so a computed creation (`oo::class create ${ns}::class …`, tcllib's
+  `oo::dialect`) or a computed `oo::define` contributes nothing to any round
+  and cannot make the sequence oscillate.
+- A cyclic declaration (`A` made by `B` made by `A`) proves neither link, so
+  it settles empty on the first round.
+- `CLASS_FACTORY_SYNC_ROUNDS` caps the loop regardless.  Hitting the cap logs
+  and publishes what has been proved so far, which is still a sound — if
+  possibly incomplete — index.
+- A round a concurrent edit cancelled published nothing and learned nothing,
+  so it is retried rather than mistaken for the fixpoint; the cap bounds that
+  too.
+- A workspace with **no** metaclass computes an empty index, stored as
+  `None`, so it settles in one round that writes nothing and invalidates
+  nothing — the common case pays for none of this.
+
+Two supporting behaviours keep the extra rounds off the user's critical
+path.  A `SourceFile` created for an arriving document is **seeded** with the
+oracle the rest of the project already carries, so its *first* published
+analysis already reflects the workspace's metaclasses instead of publishing a
+class-less result for a later round to repair.  And each round's invalidated
+peers are rescheduled **as that round lands**, so the confirming round — the
+slowest one, since it recomputes every item tree through the input the
+previous round moved — never sits in front of a republish an earlier round
+already earned.
 
 **Per-item parity.**  The oracle travels with a deferred proc/method body
 (`analyse_proc_body_isolated`, keyed into `ItemBodyKey::body_env`), so a

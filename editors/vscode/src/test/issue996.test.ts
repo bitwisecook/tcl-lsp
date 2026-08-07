@@ -32,7 +32,7 @@
 import * as assert from "assert";
 import * as vscode from "vscode";
 import { LanguageClient } from "vscode-languageclient/node";
-import { getDocUri, activate, waitForDiagnostics } from "./helper";
+import { getDocUri, activate, waitForDiagnostics, scaledTimeout } from "./helper";
 
 interface TclLspApi {
   getClient(): LanguageClient;
@@ -72,7 +72,7 @@ suite("Issue #996 deep nesting survival", () => {
   });
 
   test("formatting the deeply nested document returns edits, not a hang", async function () {
-    this.timeout(30_000);
+    this.timeout(scaledTimeout(30_000));
     await activate(docUri);
     const edits = (await vscode.commands.executeCommand(
       "vscode.executeFormatDocumentProvider",
@@ -83,7 +83,7 @@ suite("Issue #996 deep nesting survival", () => {
   });
 
   test("tcl-lsp.minifyDocument on the deeply nested document returns a result", async function () {
-    this.timeout(30_000);
+    this.timeout(scaledTimeout(30_000));
     await activate(docUri);
     const result = (await execLspCommand(
       "tcl-lsp.minifyDocument",
