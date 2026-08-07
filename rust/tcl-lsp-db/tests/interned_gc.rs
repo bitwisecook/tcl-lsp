@@ -47,11 +47,11 @@
 //! would be tuned to the machine it was written on and would fail on a bigger
 //! one.
 //!
-//! Reuse counts remove the dependence from the *assertion*, but not from the
-//! number of revisions needed to observe one, and assuming a fixed edit count
-//! sufficed was a real flake: a slot is only reclaimable once its **own**
-//! shard's LRU tail holds a stale entry, so the sparser ingredients need more
-//! interns before any shard accumulates enough. Measured on one machine by
+//! Reuse counts looked like the fix, and were not. They remove the shard
+//! dependence from the *assertion* but not from whether an event ever fires:
+//! a slot is only reclaimable once its **own** shard's LRU tail holds a stale
+//! entry, so a small working set spread across a wide machine's shards can be
+//! perfectly healthy and still never produce a single reuse. Measured by
 //! varying the visible CPU count, all else equal:
 //!
 //! | cores | shards | `TaintSummaryKey` reuses | `SummaryDepsKey` reuses |
@@ -59,24 +59,32 @@
 //! |     1 |      4 |                       32 |                     119 |
 //! |     2 |      8 |                       28 |                      39 |
 //! |     4 |     16 |                       22 |                      34 |
-//! |    CI |    32+ |                    **0** |                   **1** |
+//! |    CI |    32+ |                        0 |                       1 |
 //!
-//! So the session drives revisions **until the collector is observed for every
-//! ingredient**, bounded by [`edit_cap`], instead of a fixed count: it stops as
-//! soon as the invariant is demonstrated (24 edits on a small machine) and
-//! keeps going where sharding makes that take longer. The bound is what turns
-//! "we did not look long enough" into a real failure.
+//! Asserting on those zeroes was a false alarm, not a leak: the two summary
+//! ingredients hold a *bounded* set of slots whether or not the collector
+//! runs (24 and 32 respectively, unchanged from 24 edits to 96, under both
+//! `LOW` and `HIGH` durability), so they can never demonstrate the leak the
+//! test exists to catch.
+//!
+//! What the leak actually looks like is **slots tracking the edit count**, so
+//! that is what is asserted: drive a short session and a session four times
+//! longer, and require the live slot count not to scale with it
+//! ([`SLOT_GROWTH_BOUND`]). That is machine-independent — it compares two runs
+//! on the same machine — and strictly closer to the invariant. Reuse counts
+//! stay in the failure report as a diagnostic.
 //!
 //! # The two behavioural tests
 //!
-//! [`interned_slots_are_reclaimed_across_an_edit_session`] drives a typing
-//! session through the production queries and asserts every one of the six
-//! ingredients is being reclaimed.
+//! [`interned_slots_stay_bounded_across_an_edit_session`] drives a short typing
+//! session and one four times longer through the production queries, and
+//! asserts the live slot count of every one of the six ingredients does not
+//! scale with the session.
 //!
-//! [`raising_input_durability_disables_the_collector`] drives the *same*
-//! session with `SourceFile` and `AnalyserConfig` marked `Durability::HIGH` and
-//! asserts the collector goes completely silent while slot counts grow with the
-//! edit count. It is the break-the-invariant experiment, kept in the suite
+//! [`raising_input_durability_disables_the_collector`] drives the *same* two
+//! sessions with `SourceFile` and `AnalyserConfig` marked `Durability::HIGH`
+//! and asserts the collector goes completely silent, and that the slot counts
+//! then *do* break the bound the first test applies. It is the break-the-invariant experiment, kept in the suite
 //! rather than performed once and discarded: it is what proves the first test
 //! is not vacuous, and it pins the durability sensitivity that makes the rule
 //! necessary. If it ever fails because reuse *did* happen at `HIGH`, salsa's
@@ -120,35 +128,33 @@ const BODY_KEYED_INTERNED: [&str; 4] = ["ItemBodyKey", "FnLatticeKey", "ProcBody
 /// one edit produces `WORKERS` cold interns of each body-keyed ingredient.
 const WORKERS: u32 = 4;
 
-/// Edits every session drives before it may stop. Well above salsa's
-/// `DEFAULT_REVISIONS` staleness window (3), and `WORKERS * EDITS` cold interns
-/// is enough for the collector to reach steady state on a small machine while
-/// keeping the run around three seconds in a debug build.
-///
-/// A floor, not a budget: [`drive_until_collected`] keeps going past it while
-/// any ingredient has yet to show a reuse. The control session, which must
-/// observe *no* reuse, always runs exactly this many.
-const EDITS: u32 = 24;
+/// The short session. Well above salsa's `DEFAULT_REVISIONS` staleness window
+/// (3), so the collector has had every chance to run by the end of it.
+const SHORT_SESSION: u32 = 24;
 
-/// Salsa's interned-table shard count — `(available_parallelism() * 4)`
-/// rounded up to a power of two (`salsa::table::memo` sharding).  Read here
-/// only to scale [`edit_cap`]; nothing asserts on it.
-fn interned_shards() -> u32 {
-    let cpus = std::thread::available_parallelism().map_or(1, std::num::NonZero::get);
-    u32::try_from(cpus.saturating_mul(4).next_power_of_two()).unwrap_or(u32::MAX)
-}
+/// The long session — four times the short one. The invariant is measured as
+/// the ratio between the two.
+const LONG_SESSION: u32 = SHORT_SESSION * 4;
 
-/// The most edits [`drive_until_collected`] will drive before giving up and
-/// letting the assertion fail.
+/// How much the live slot count may grow when the session grows fourfold.
 ///
-/// Scaled by the shard count because that is what sets how many interns are
-/// needed before a shard accumulates a reclaimable slot (see the module docs'
-/// table).  Generous — roughly 40 interns per shard for the sparsest
-/// ingredient — so reaching it means the collector genuinely is not running,
-/// not that the machine is merely wide.
-fn edit_cap() -> u32 {
-    (interned_shards() * 40).max(EDITS)
-}
+/// A healthy working set is bounded by the *program*, not by how long the user
+/// has been typing, so it barely moves; a leak grows with the edit count.
+/// Measured on this corpus, slots after 24 -> 96 edits:
+///
+/// | ingredient | healthy (`LOW`) | leaking (`HIGH`) |
+/// |---|---|---|
+/// | `ItemBodyKey`     | 54 -> 64 (1.19x) | 116 -> 404 (3.48x) |
+/// | `FnLatticeKey`    | 50 -> 63 (1.26x) | 116 -> 404 (3.48x) |
+/// | `TaintSummaryKey` | 23 -> 23 (1.00x) |  24 ->  24 (1.00x) |
+/// | `SummaryDepsKey`  | 31 -> 31 (1.00x) |  32 ->  32 (1.00x) |
+///
+/// `2` sits with a wide margin either side. The two summary ingredients are
+/// bounded under *both* conditions — their keys are the interprocedural
+/// projections, whose set the corpus fixes — so they carry the invariant
+/// trivially and the four body-keyed ones are what discriminates.
+/// `raising_input_durability_disables_the_collector` asserts exactly that.
+const SLOT_GROWTH_BOUND: usize = 2;
 
 /// The corpus at revision `edit` — a small Tcl module shaped so every one of the
 /// six ingredients is actually re-keyed as the session runs:
@@ -224,7 +230,7 @@ struct Session {
     slots: BTreeMap<String, usize>,
     reuses: BTreeMap<String, usize>,
     /// Revisions actually driven — variable, since
-    /// [`drive_until_collected`] stops as soon as the invariant is shown.
+    /// Recorded so a failure report says how long the session was.
     edits: u32,
 }
 
@@ -256,13 +262,7 @@ impl Session {
     /// [`Self::summary`] with the session length, which a failure needs in
     /// order to be actionable now that the length is not a constant.
     fn report(&self) -> String {
-        format!(
-            "{} (over {} edits, cap {}, {} interned shards)",
-            self.summary(),
-            self.edits,
-            edit_cap(),
-            interned_shards(),
-        )
+        format!("{} (over {} edits)", self.summary(), self.edits)
     }
 }
 
@@ -292,29 +292,10 @@ fn make_inputs(db: &TclDatabase, durability: InputDurability) -> (SourceFile, An
     }
 }
 
-/// Drive revisions of [`corpus`] until every tracked ingredient has shown the
-/// collector at work, or [`edit_cap`] revisions have run.
-///
-/// Always drives at least [`EDITS`], so a session that stops early has still
-/// cleared salsa's staleness window several times over.  Returns whatever it
-/// measured; the caller asserts, so the failure message carries the real
-/// numbers and the edit count that produced them.
-fn drive_until_collected() -> Session {
-    drive_edit_session(InputDurability::Default, edit_cap(), true)
-}
-
 /// Drive exactly `max_edits` revisions of [`corpus`] through the two production
 /// diagnostic queries, recording interned slot reuse as it goes.
 ///
-/// With `stop_when_collected`, returns as soon as every ingredient in
-/// [`PER_REVISION_INTERNED`] has been reused at least once **and** at least
-/// [`EDITS`] revisions have run.  The control session passes `false`: it
-/// expects no reuse at all, so stopping on one would be nonsense.
-fn drive_edit_session(
-    durability: InputDurability,
-    max_edits: u32,
-    stop_when_collected: bool,
-) -> Session {
+fn drive_edit_session(durability: InputDurability, max_edits: u32) -> Session {
     let reuse_log: Arc<Mutex<Vec<String>>> = Arc::default();
     let sink = Arc::clone(&reuse_log);
     let mut db = TclDatabase::with_interned_reuse_logger(move |key| {
@@ -340,9 +321,6 @@ fn drive_edit_session(
         let _ = file_analysis_incremental(&db, file, config);
         let _ = compiler_check_diagnostics(&db, file, config);
         edits_driven = edit;
-        if stop_when_collected && edit >= EDITS && all_collected(&reuse_log) {
-            break;
-        }
     }
 
     let slots = <dyn salsa::Database>::memory_usage(&db)
@@ -364,59 +342,67 @@ fn drive_edit_session(
     }
 }
 
-/// Whether every tracked ingredient has appeared in the reuse log at least
-/// once — the stopping condition for [`drive_until_collected`].
-fn all_collected(reuse_log: &Arc<Mutex<Vec<String>>>) -> bool {
-    let log = reuse_log.lock().expect("reuse log");
-    PER_REVISION_INTERNED.iter().all(|name| {
-        log.iter()
-            .any(|key| key.split('(').next().unwrap_or(key) == *name)
-    })
-}
-
 #[test]
-fn interned_slots_are_reclaimed_across_an_edit_session() {
-    let session = drive_until_collected();
+fn interned_slots_stay_bounded_across_an_edit_session() {
+    let short = drive_edit_session(InputDurability::Default, SHORT_SESSION);
+    let long = drive_edit_session(InputDurability::Default, LONG_SESSION);
 
     for name in PER_REVISION_INTERNED {
         assert!(
-            session.slots(name) > 0,
+            short.slots(name) > 0,
             "`{name}` was never interned during the session, so this test proves nothing about \
              it — either the ingredient was renamed, or the corpus no longer reaches its query \
-             path (see the `corpus` doc comment). Measured: {}",
-            session.report()
+             path (see the `corpus` doc comment). Measured: short {}",
+            short.report()
         );
+        let bound = short.slots(name) * SLOT_GROWTH_BOUND;
         assert!(
-            session.reuses(name) > 0,
-            "salsa's interned garbage collector never reclaimed a `{name}` slot, even after \
-             driving revisions up to the shard-scaled cap, so every keystroke's key is retained \
-             for the session — a KB-per-keystroke leak of the issue #1035 class. The two ways to \
-             cause this are documented in the crate docs' \"The interned garbage collector is \
-             load-bearing\" section: an input raised above `Durability::LOW` (see \
+            long.slots(name) <= bound,
+            "`{name}` retained {} slots after {LONG_SESSION} edits against {} after \
+             {SHORT_SESSION} — {}x the session holding more than {SLOT_GROWTH_BOUND}x the \
+             slots, so the working set is tracking how long the user has been typing rather \
+             than the program. That is the issue #1035 leak shape. The two causes are \
+             documented in the crate docs' \"The interned garbage collector is load-bearing\" \
+             section: an input raised above `Durability::LOW` (see \
              `raising_input_durability_disables_the_collector`, which reproduces exactly this \
-             reading), or a slot interned outside a tracked query. If the collector *is* running \
-             and this machine simply needs longer, `edit_cap` is the bound to revisit — but \
-             check the two causes first. Measured: {}",
-            session.report()
+             reading), or a slot interned outside a tracked query. Measured: short {} | long {}",
+            long.slots(name),
+            short.slots(name),
+            LONG_SESSION / SHORT_SESSION,
+            short.report(),
+            long.report(),
         );
     }
 }
 
 #[test]
 fn raising_input_durability_disables_the_collector() {
-    // Fixed length, and no early stop: this session must observe *no* reuse,
-    // so there is nothing to stop on.
-    let session = drive_edit_session(InputDurability::RaisedToHigh, EDITS, false);
+    let session = drive_edit_session(InputDurability::RaisedToHigh, SHORT_SESSION);
+    let long = drive_edit_session(InputDurability::RaisedToHigh, LONG_SESSION);
 
     for name in BODY_KEYED_INTERNED {
         let slots = session.slots(name);
         assert!(
-            slots >= EDITS as usize,
-            "the control session retained only {slots} `{name}` slots across {EDITS} edits, so \
-             the corpus is no longer re-keying it once per edit and \
-             `interned_slots_are_reclaimed_across_an_edit_session` is measuring nothing. Fix the \
+            slots >= SHORT_SESSION as usize,
+            "the control session retained only {slots} `{name}` slots across {SHORT_SESSION} \
+             edits, so the corpus is no longer re-keying it once per edit and \
+             `interned_slots_stay_bounded_across_an_edit_session` is measuring nothing. Fix the \
              corpus (see its doc comment), not this bound. Measured: {}",
             session.report()
+        );
+        // …and the leak really does trip the bound the primary test applies,
+        // so that assertion cannot pass vacuously.
+        assert!(
+            long.slots(name) > slots * SLOT_GROWTH_BOUND,
+            "with the collector disabled, `{name}` grew only {} -> {} across \
+             {SHORT_SESSION} -> {LONG_SESSION} edits, which does not exceed the \
+             {SLOT_GROWTH_BOUND}x bound `interned_slots_stay_bounded_across_an_edit_session` \
+             applies — so that test would pass even with the leak restored and is no longer a \
+             guard. Measured: short {} | long {}",
+            slots,
+            long.slots(name),
+            session.report(),
+            long.report(),
         );
     }
 

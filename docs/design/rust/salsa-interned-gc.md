@@ -113,8 +113,8 @@ All three tests live in `rust/tcl-lsp-db/tests/interned_gc.rs`.
 | Guardrail | Kind | What it catches |
 |---|---|---|
 | `memoised_compilation_unit` is `pub(crate)` | compile-time | any caller outside `tcl-lsp-db` interning body keys from untracked code |
-| `interned_slots_are_reclaimed_across_an_edit_session` | test-time | the collector no longer reclaiming any one of the six ingredients, from any cause — a durability bump inside the crate's own graph, an untracked intern on the edit path, or a salsa upgrade that changes the policy |
-| `raising_input_durability_disables_the_collector` | test-time | the first test going vacuous, and any change to salsa's "`LOW` only" collection policy that would make the durability rule stop mattering |
+| `interned_slots_stay_bounded_across_an_edit_session` | test-time | the live interned working set tracking the edit count instead of the program, from any cause — a durability bump inside the crate's own graph, an untracked intern on the edit path, or a salsa upgrade that changes the policy |
+| `raising_input_durability_disables_the_collector` | test-time | the first test going vacuous — it asserts the leaking session really does break that test's bound — and any change to salsa's "`LOW` only" collection policy that would make the durability rule stop mattering |
 | `no_input_durability_is_raised` | test-time | a `with_durability` / builder-`durability` call site in `tcl-lsp-db` or `tcl-lsp-server`, i.e. the hazard-1 shape written where the behavioural tests cannot see it |
 | `edit_session_memory_growth_plateaus` (`rust/tcl-lsp-db/tests/memory_growth.rs`) | test-time | the aggregate retained-bytes plateau (the #1035 regression class), of which this invariant is one contributor |
 | Doc comments at the six struct definitions and the three inputs | doc-only | a reviewer reaching the definition site with no context |
