@@ -32,7 +32,7 @@
 use crate::common::helpers::*;
 use crate::common::{Lsp, unique_uri};
 
-use serde_json::Value;
+use serde_json::{Value, json};
 
 /// The set of `newText` values for edits applied to `uri`.
 fn texts(
@@ -807,5 +807,88 @@ fn rename_rewrites_bare_calls_to_a_proc_installed_into_oo_helpers() {
     assert!(
         replacements.contains(&"renamedClassvar"),
         "expected the short replacement at the bare call site; got {replacements:?}"
+    );
+}
+
+/// Issue #1298, end to end: `workspace/didRenameFiles` is the *sole* cleanup a
+/// renamed-away path gets — an editor that renames a file from its explorer
+/// sends it on its own, with no `didChangeWatchedFiles` alongside — and it is
+/// the one path that used to skip the M9 source-rehoming record.
+///
+/// The behaviour that record exists to serve is asserted here rather than the
+/// record itself (the map is server-internal; `lib.rs`'s unit tests assert it
+/// directly): a file `source`d from inside `namespace eval ::ns` resolves as
+/// `::ns::rehomed_marker`, and after the file is renamed the very same
+/// navigation request must resolve to the new path — never to the dead one —
+/// which is only true if the retirement forgot the old path *and* the
+/// reconciliation still converges on the new one.
+#[test]
+fn did_rename_files_retires_the_old_path_and_keeps_source_rehoming() {
+    use std::time::{Duration, Instant};
+
+    let root = std::env::temp_dir().join(format!(
+        "tcl-lsp-e2e-rename-sourced-{}-{}",
+        std::process::id(),
+        line!()
+    ));
+    std::fs::create_dir_all(&root).expect("mk workspace root");
+    let old_path = root.join("sourced_old.tcl");
+    let new_path = root.join("sourced_new.tcl");
+    let main_path = root.join("rename_main.tcl");
+    std::fs::write(&old_path, "proc rehomed_marker {} { return 1 }\n").expect("write sourced file");
+    let before = "namespace eval ::ns {\n    source sourced_old.tcl\n}\n::ns::rehomed_marker\n";
+    std::fs::write(&main_path, before).expect("write main");
+
+    let uri_of = |p: &std::path::Path| format!("file://{}", p.to_string_lossy());
+    let (old_uri, new_uri, main_uri) = (uri_of(&old_path), uri_of(&new_path), uri_of(&main_path));
+
+    let mut lsp = Lsp::at_workspace_root(&root);
+    lsp.open_ready(&main_uri, before);
+
+    // The call on line 3 is a `references`/`definition` entry point — one of the
+    // ~ten request paths that reconcile source-site views on the way in.
+    let definition_uris = |lsp: &mut Lsp| -> Vec<String> {
+        locations(&lsp.definition(&main_uri, 3, 6))
+            .into_iter()
+            .map(|loc| loc.uri)
+            .collect()
+    };
+    let settle = |lsp: &mut Lsp, want: &str, what: &str| {
+        let deadline = Instant::now() + Duration::from_secs(30);
+        loop {
+            let got = definition_uris(lsp);
+            if got == vec![want.to_owned()] {
+                return;
+            }
+            assert!(
+                Instant::now() < deadline,
+                "{what}: expected the qualified call to resolve to {want}, got {got:?}"
+            );
+            std::thread::sleep(Duration::from_millis(100));
+        }
+    };
+    settle(
+        &mut lsp,
+        &old_uri,
+        "precondition: the sourced file is re-homed under ::ns",
+    );
+
+    // Rename on disk and apply the `willRenameFiles` edit to the open buffer,
+    // exactly as an editor does…
+    std::fs::rename(&old_path, &new_path).expect("rename on disk");
+    let after = "namespace eval ::ns {\n    source sourced_new.tcl\n}\n::ns::rehomed_marker\n";
+    std::fs::write(&main_path, after).expect("rewrite main");
+    lsp.settle_analysis(&main_uri, 2, after);
+    // …then the rename notification, and *only* that: the racing watched-file
+    // event is what masks a missing retirement, so this test must not send one.
+    lsp.notify(
+        "workspace/didRenameFiles",
+        json!({ "files": [ { "oldUri": old_uri, "newUri": new_uri } ] }),
+    );
+
+    settle(
+        &mut lsp,
+        &new_uri,
+        "after the rename the re-homed definition must follow the file",
     );
 }
