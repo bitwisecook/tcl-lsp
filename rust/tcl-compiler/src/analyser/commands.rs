@@ -1269,6 +1269,10 @@ impl Analyser {
                 self.handle_package_provide(cmd_tok, args);
                 false
             }
+            Hook::PackageIfneeded => {
+                self.handle_package_ifneeded(cmd_tok, args);
+                false
+            }
             Hook::PackagePrefer => {
                 self.handle_package_prefer(cmd_tok, args);
                 false

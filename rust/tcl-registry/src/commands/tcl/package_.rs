@@ -111,6 +111,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         // it as part of the enclosing `package ifneeded` call's own scope.
         arg_roles: &[(2, ArgRole::Body)],
         body_kind: BodyKind::Structural,
+        analyser_hook: Some(crate::hooks::AnalyserHookId::PackageIfneeded),
         // Registering a load script names *this* file as the thing that
         // supplies `package`, so the commands it defines are public API a
         // `package require` in some other file reaches — the same

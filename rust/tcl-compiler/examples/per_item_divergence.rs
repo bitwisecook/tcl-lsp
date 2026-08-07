@@ -166,6 +166,9 @@ fn main() {
             if want.package_requires != got.package_requires {
                 fields.push("package_requires");
             }
+            if want.package_ifneededs != got.package_ifneededs {
+                fields.push("package_ifneededs");
+            }
             if want.package_provides != got.package_provides {
                 fields.push("package_provides");
             }

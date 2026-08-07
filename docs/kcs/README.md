@@ -137,6 +137,11 @@ a design doc. Put it under [`../design/`](../design/README.md) instead.
 - [kcs-qa-how-are-command-names-resolved.md](kcs-qa-how-are-command-names-resolved.md)
   — which definition a bare, relative, or absolute command name
   dispatches to, and the one shared algorithm every backend conforms to.
+- [kcs-qa-when-does-a-cross-file-namespace-import-count.md](kcs-qa-when-does-a-cross-file-namespace-import-count.md)
+  — when a `namespace export` / `import` / `forget` written in another
+  file counts, the two things that prove a run order (`source` exactly,
+  `package require` one-sidedly), and the cases where the server stays
+  silent instead of guessing.
 - [kcs-qa-where-can-i-call-my-next-self-and-link.md](kcs-qa-where-can-i-call-my-next-self-and-link.md)
   — why `link`, `my`, `next`, `nextto`, `self`, and `classvariable` are
   unknown commands outside a `TclOO` method body, which bodies count

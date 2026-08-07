@@ -84,10 +84,12 @@ surface.
   — the proposal for the cross-file resolution lattice: settling a call to its
   defining proc/class across the workspace index, sound by abstention.
 - [import-order-source-graph.md](import-order-source-graph.md) — the load
-  order derived from the `source` graph (`tcl_lsp_core::source_graph::RunOrder`):
-  the relation both wildcard-import tiers rank cross-document lifecycle events
-  with, which abstentions it lifted, where it deliberately still abstains, and
-  what a `package require`-derived second phase would additionally need.
+  order derived from the `source` **and `package require`** graphs
+  (`tcl_lsp_core::source_graph::RunOrder`): the relation both wildcard-import
+  tiers rank cross-document lifecycle events with, which abstentions it lifted,
+  where it deliberately still abstains, and — §7 — the one-sided edge a
+  `package require` contributes, its three abstentions, and its measured reach
+  on tcllib.
 - [name-resolution-tcl-version-and-c-source.md](name-resolution-tcl-version-and-c-source.md)
   — the version-sensitive resolution semantics (8.4→9.1), each fact pinned to a
   stable C-Tcl source permalink (`tclNamesp.c` / `tclVar.c`).

@@ -232,6 +232,7 @@ pub fn describe_analysis_divergence(
     vec_field!(parts, got, want, command_invocations);
     vec_field!(parts, got, want, package_requires);
     vec_field!(parts, got, want, package_provides);
+    vec_field!(parts, got, want, package_ifneededs);
     scalar_field!(parts, got, want, has_dynamic_providers);
     vec_field!(parts, got, want, source_targets);
     map_field!(parts, got, want, command_aliases);

@@ -153,6 +153,10 @@ fn analyser_hook_stamps_match_the_former_guard_list() {
         // handle_package_command matched `args[0]` require / provide.
         ("package", "require", H::PackageRequire),
         ("package", "provide", H::PackageProvide),
+        // `package ifneeded` registers an arbitrary load script; the
+        // package-derived load order reads its presence as "the
+        // statements this require runs are not static" (issue #1279).
+        ("package", "ifneeded", H::PackageIfneeded),
         // Post-dates the former guard list: `package prefer latest` raises
         // the interpreter's selection mode, which provider selection reads
         // at the require's own offset (issue #1126).

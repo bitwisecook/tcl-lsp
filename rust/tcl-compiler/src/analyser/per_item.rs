@@ -852,6 +852,7 @@ impl Analyser {
             .extend(r.command_invocations);
         self.result.package_requires.extend(r.package_requires);
         self.result.package_provides.extend(r.package_provides);
+        self.result.package_ifneededs.extend(r.package_ifneededs);
         self.result
             .package_prefer_latest
             .extend(r.package_prefer_latest);
@@ -1507,6 +1508,9 @@ fn rebase_fragment(frag: &mut BodyFragment, d: u32, line_delta: i32) {
         x.range = shift(x.range, d);
     }
     for x in &mut r.package_provides {
+        x.range = shift(x.range, d);
+    }
+    for x in &mut r.package_ifneededs {
         x.range = shift(x.range, d);
     }
     for x in &mut r.package_prefer_latest {

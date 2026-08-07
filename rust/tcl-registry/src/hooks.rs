@@ -392,6 +392,16 @@ pub enum AnalyserHookId {
     /// `package provide name ?version?` — records the provided
     /// package (stamped on `package`'s `provide` subcommand).
     PackageProvide,
+    /// `package ifneeded name version ?script?` — records that this
+    /// document registers a *load script* for the named package
+    /// (stamped on `package`'s `ifneeded` subcommand).
+    ///
+    /// The script body is arbitrary and runs later, in the global
+    /// namespace, when some `package require` needs it — so its
+    /// presence is what tells a package-derived load order that the
+    /// mapping from require-site to the statements that actually run
+    /// is *not* static (issue #1279).
+    PackageIfneeded,
     /// `package prefer ?latest|stable?` — records the interpreter's
     /// version-selection mode change (stamped on `package`'s `prefer`
     /// subcommand), which decides whether a later `package require`

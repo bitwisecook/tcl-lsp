@@ -1705,6 +1705,13 @@ pub struct AnalysisResult {
     pub package_requires: Vec<SignaturePackageRequire>,
     /// Package provide records (``package provide NAME ?VERSION?``).
     pub package_provides: Vec<PackageProvide>,
+    /// ``package ifneeded NAME VERSION ?SCRIPT?`` records — the load
+    /// scripts this document registers, in source order (issue
+    /// #1279).  Only the *name* end matters to consumers: an
+    /// `ifneeded` body is an arbitrary script evaluated later in the
+    /// global namespace, so its presence marks the package's loading
+    /// as not statically known.
+    pub package_ifneededs: Vec<PackageIfneeded>,
     /// ``package prefer latest`` records — the interpreter-global
     /// version-selection mode raises, in source order (issue #1126
     /// item 1).  See [`SignaturePackagePrefer`] for why only the
@@ -2192,6 +2199,39 @@ pub struct PackageProvide {
     pub name: String,
     /// Version string when present.
     pub version: Option<String>,
+    /// Span of the originating ``package`` token.
+    pub range: Span,
+    /// ``true`` when the call is inside a guarded branch (an
+    /// ``if``/``elseif``/``else`` body, a ``catch`` script, or a
+    /// ``try``/``on``/``trap``/``finally`` clause), matching
+    /// [`SignaturePackageRequire::conditional`].
+    ///
+    /// The shim idiom makes this load-bearing: tcllib's
+    /// ``doctools2idx/import_json.tcl`` writes ``package provide dict 1``
+    /// inside ``if {[package vcompare …] < 0} { if {[catch {package
+    /// require dict}]} { … } }`` — a fake ``dict`` package supplied only
+    /// on an old interpreter.  Reading that as "this document provides
+    /// ``dict``" would name the wrong file as a package's provider on
+    /// every other interpreter.
+    pub conditional: bool,
+}
+
+/// `package ifneeded NAME VERSION ?SCRIPT?` record.
+///
+/// The script argument is deliberately **not** kept.  It is evaluated later,
+/// in the global namespace, by whichever `package require` first needs this
+/// version, and it may do anything at all — `source` one file, `load` a shared
+/// library, branch on the platform, or provide the package inline.  A consumer
+/// asking "which statements does a `package require NAME` run?" therefore
+/// cannot answer it from here; what this record supplies is the *fact that the
+/// question is open*, which is exactly the abstention a package-derived load
+/// order needs (issue #1279, uncertainty 3).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PackageIfneeded {
+    /// Package the load script is registered for.
+    pub name: String,
+    /// Version the script is registered for.
+    pub version: String,
     /// Span of the originating ``package`` token.
     pub range: Span,
 }

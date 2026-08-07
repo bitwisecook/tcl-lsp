@@ -509,7 +509,7 @@ pub fn alias_live_at(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::source_graph::SourceEdge;
+    use crate::source_graph::RunEdge;
 
     /// The document every ordered event in these tests lives in — the
     /// single-document case both tiers spend almost all their time in.
@@ -803,17 +803,19 @@ mod tests {
     /// sequences them: `app.tcl` sources `exp.tcl` and then `imp.tcl`.
     fn sourced_order() -> RunOrder {
         RunOrder::build(&[
-            SourceEdge {
+            RunEdge {
                 parent: "file:///app.tcl".to_owned(),
                 child: "file:///exp.tcl".to_owned(),
                 at: 10,
                 enclosing_body: None,
+                kind: crate::source_graph::RunEdgeKind::Source,
             },
-            SourceEdge {
+            RunEdge {
                 parent: "file:///app.tcl".to_owned(),
                 child: DOC.to_owned(),
                 at: 20,
                 enclosing_body: None,
+                kind: crate::source_graph::RunEdgeKind::Source,
             },
         ])
     }
@@ -844,17 +846,19 @@ mod tests {
     fn an_export_in_a_later_sourced_file_is_not_retroactive() {
         // Reverse the order: imp.tcl at 10, exp.tcl at 20.
         let order = RunOrder::build(&[
-            SourceEdge {
+            RunEdge {
                 parent: "file:///app.tcl".to_owned(),
                 child: DOC.to_owned(),
                 at: 10,
                 enclosing_body: None,
+                kind: crate::source_graph::RunEdgeKind::Source,
             },
-            SourceEdge {
+            RunEdge {
                 parent: "file:///app.tcl".to_owned(),
                 child: "file:///exp.tcl".to_owned(),
                 at: 20,
                 enclosing_body: None,
+                kind: crate::source_graph::RunEdgeKind::Source,
             },
         ]);
         let mut evs = [ExportEvent {
@@ -871,23 +875,26 @@ mod tests {
     #[test]
     fn a_clear_in_a_later_sourced_file_revokes_an_earlier_export() {
         let order = RunOrder::build(&[
-            SourceEdge {
+            RunEdge {
                 parent: "file:///app.tcl".to_owned(),
                 child: "file:///exp.tcl".to_owned(),
                 at: 10,
                 enclosing_body: None,
+                kind: crate::source_graph::RunEdgeKind::Source,
             },
-            SourceEdge {
+            RunEdge {
                 parent: "file:///app.tcl".to_owned(),
                 child: "file:///clr.tcl".to_owned(),
                 at: 20,
                 enclosing_body: None,
+                kind: crate::source_graph::RunEdgeKind::Source,
             },
-            SourceEdge {
+            RunEdge {
                 parent: "file:///app.tcl".to_owned(),
                 child: DOC.to_owned(),
                 at: 30,
                 enclosing_body: None,
+                kind: crate::source_graph::RunEdgeKind::Source,
             },
         ]);
         let evs = [
@@ -911,23 +918,26 @@ mod tests {
         // …and with the import sourced *between* the two, the snapshot it took
         // still holds — the `-clear` had not run yet.
         let order = RunOrder::build(&[
-            SourceEdge {
+            RunEdge {
                 parent: "file:///app.tcl".to_owned(),
                 child: "file:///exp.tcl".to_owned(),
                 at: 10,
                 enclosing_body: None,
+                kind: crate::source_graph::RunEdgeKind::Source,
             },
-            SourceEdge {
+            RunEdge {
                 parent: "file:///app.tcl".to_owned(),
                 child: DOC.to_owned(),
                 at: 20,
                 enclosing_body: None,
+                kind: crate::source_graph::RunEdgeKind::Source,
             },
-            SourceEdge {
+            RunEdge {
                 parent: "file:///app.tcl".to_owned(),
                 child: "file:///clr.tcl".to_owned(),
                 at: 30,
                 enclosing_body: None,
+                kind: crate::source_graph::RunEdgeKind::Source,
             },
         ]);
         assert!(exported_at_import_site(
@@ -1112,11 +1122,12 @@ mod tests {
     /// `source` revokes it.
     #[test]
     fn a_forget_after_the_source_statement_revokes_the_sourced_install() {
-        let order = RunOrder::build(&[SourceEdge {
+        let order = RunOrder::build(&[RunEdge {
             parent: "file:///app.tcl".to_owned(),
             child: "file:///lib.tcl".to_owned(),
             at: 10,
             enclosing_body: None,
+            kind: crate::source_graph::RunEdgeKind::Source,
         }]);
         let install_in_lib = AliasEvent {
             kind: AliasEventKind::Install,
