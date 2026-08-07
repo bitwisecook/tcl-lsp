@@ -79,6 +79,29 @@ constant-length inserts), the check list and its order, and every byte
 machine. Run the whole sweep on one host, or the bar graph compares hardware
 instead of releases. `summary.md` records the host it ran on for this reason.
 
+### CI results are not a substitute for macOS results
+
+Worse than a constant factor: the two platforms take **different code
+paths**. Measured on the same corpus, same four documents, same 6 requests,
+same 25 locations returned:
+
+| check | Linux (CI) | macOS (arm64) |
+|---|--:|--:|
+| `nav.references` | 0.38 s / **0.0 CPU s** | 9.97 s / **9.9 CPU s** |
+| `lens.resolve` | 0.21 s / 0.0 CPU s | 9.80 s / 9.8 CPU s |
+| `nav.after_rename` | 0.15 s / 0.0 CPU s | 9.79 s / 9.8 CPU s |
+
+Identical answers, ~10 CPU-seconds each on macOS and effectively none on
+Linux. The #1297 blowup (`RunOrder::alternatives` losing its fast path) does
+not trigger on the Linux runner. `nav.hover` differs in *result* too — 6
+items on Linux, 0 on macOS — so this is not only a performance divergence.
+
+Consequence: **the CI job cannot catch a #1297-class regression**, and the
+release-notes graphs, if generated on a Linux runner, will not show the
+behaviour macOS users get. Until that is understood, treat CI as a trend
+line for the checks it does exercise, and run the sweep on macOS before
+trusting a release figure. This is tracked on #1297.
+
 Two design points worth knowing:
 
 - **Typing-storm texts never repeat and never grow.** Each keystroke produces
