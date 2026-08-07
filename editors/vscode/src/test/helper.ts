@@ -27,7 +27,14 @@ import {
   type TimeoutDiagnostic,
 } from "./signal";
 
-export { awaitSignal, bounded, loadFactor, scaledTimeout, sleep } from "./signal";
+export {
+  awaitSignal,
+  bounded,
+  DIAGNOSTIC_BUDGET_MS,
+  loadFactor,
+  scaledTimeout,
+  sleep,
+} from "./signal";
 
 /**
  * Resolve a fixture file name to a URI.
