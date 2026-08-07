@@ -12044,6 +12044,88 @@ async fn log_range_convergence_settled(
         .await;
 }
 
+/// The dialect-specific code actions, appended to the generic Tcl set.
+///
+/// BIG-IP `.conf`/`.scf` gets the rename-partition / rename-object /
+/// extract-rule actions: the generic Tcl code-action path yields nothing
+/// useful on a non-Tcl config, so these extend rather than replace it —
+/// mirroring the references / document-links BIG-IP routing.  iRules
+/// additionally gets the `# Profiles:` header source action.
+fn push_dialect_code_actions(
+    actions: &mut Vec<core_code_actions::CodeAction>,
+    source: &str,
+    range: core_definition::LspRange,
+    uri_str: &str,
+    dialect: &str,
+    analysis: &tcl_compiler::analyser::AnalysisResult,
+    registry: &tcl_registry::CommandRegistry,
+) {
+    if Backend::is_bigip_dialect(dialect) {
+        actions.extend(core_code_actions::bigip_code_actions(
+            source, range, uri_str,
+        ));
+    }
+    if dialect == "f5-irules"
+        && let Some(a) = core_code_actions::profiles_action(source, analysis, registry)
+    {
+        actions.push(a);
+    }
+}
+
+/// The context-diagnostic actions, plus the fuzzy `package require`
+/// suggestion.
+///
+/// That suggestion needs both the analysis — to prove the cursor is on an
+/// unresolved *command head* rather than on a comment, a string, or a data
+/// word — and the request's own diagnostics, since the editor may be showing a
+/// W123 this analysis has not re-emitted.  Passing neither is what let it fire
+/// anywhere an identifier-shaped word appeared (issue #1191).
+fn push_context_code_actions(
+    actions: &mut Vec<core_code_actions::CodeAction>,
+    source: &str,
+    range: core_definition::LspRange,
+    registry: &tcl_registry::CommandRegistry,
+    program: core_definition::ProgramExports<'_>,
+    analysis: &tcl_compiler::analyser::AnalysisResult,
+    context_diags: &[core_code_actions::ContextDiagnostic],
+) {
+    actions.extend(core_code_actions::package_require_actions_in_program(
+        source,
+        range,
+        core_definition::CallResolution {
+            registry: Some(registry),
+            program: Some(program),
+        },
+        Some(analysis),
+        context_diags,
+    ));
+    actions.extend(core_code_actions::context_diagnostic_actions(
+        source,
+        context_diags,
+    ));
+}
+
+/// The compiler-check quick-fixes: the iRules control-flow fixes (IRULE5002
+/// unguarded drop / IRULE5004 `DNS::return`) plus the shimmer-family
+/// noqa-suppress action (S100/S101/S102/S110).
+///
+/// Every dialect's checks are lowered here, not just iRules' — a plain-Tcl
+/// document's checks simply carry no IRULE-family fixes.
+fn push_check_code_actions(
+    actions: &mut Vec<core_code_actions::CodeAction>,
+    source: &str,
+    range: core_definition::LspRange,
+    checks: &tcl_lsp_db::CompilerDiagnostics,
+    disabled_codes: &std::collections::HashSet<String>,
+) {
+    actions.extend(core_code_actions::check_diagnostic_actions(
+        source,
+        range,
+        &checks.checks,
+        disabled_codes,
+    ));
+}
+
 impl LanguageServer for Backend {
     async fn initialize(&self, params: InitializeParams) -> jsonrpc::Result<InitializeResult> {
         self.apply_workspace_folders(&params).await;
@@ -14566,9 +14648,8 @@ impl LanguageServer for Backend {
                 uri: &uri_key,
                 oracle: exports.as_ref(),
             };
-            // Both views are needed here: `program` decides what an inlined
-            // call reaches (#1116 item 1), `published` decides which
-            // diagnostics this document is actually showing (#1019 idx 80).
+            // `program` decides what an inlined call reaches (#1116 item 1);
+            // `published` decides what this document shows (#1019 idx 80).
             let mut actions = core_code_actions::code_actions_in_program(
                 &doc.text,
                 range,
@@ -14576,47 +14657,24 @@ impl LanguageServer for Backend {
                 &published,
                 Some(program),
             );
-            // The fuzzy package-suggestion path needs both the analysis (to
-            // prove the cursor is on an unresolved *command head* rather than
-            // on a comment, a string, or a data word) and the request's own
-            // diagnostics (the editor may be showing a W123 this analysis has
-            // not re-emitted).  Passing neither is what let it fire anywhere
-            // an identifier-shaped word appeared — issue #1191.
-            actions.extend(core_code_actions::package_require_actions_in_program(
+            push_context_code_actions(
+                &mut actions,
                 &doc.text,
                 range,
-                core_definition::CallResolution {
-                    registry: Some(registry),
-                    program: Some(program),
-                },
-                Some(&analysis),
+                registry,
+                program,
+                &analysis,
                 &context_diags,
-            ));
-            actions.extend(core_code_actions::context_diagnostic_actions(
+            );
+            push_dialect_code_actions(
+                &mut actions,
                 &doc.text,
-                &context_diags,
-            ));
-            // BIG-IP `.conf`/`.scf`: the dialect-specific rename-partition /
-            // rename-object / extract-rule actions (`tcl-lsp-core::bigip_code_actions`).
-            // The generic Tcl code-action path above yields nothing useful on a
-            // non-Tcl config, so extend rather than replace — mirroring the
-            // references / document-links BIG-IP routing.
-            if Backend::is_bigip_dialect(&dialect) {
-                actions.extend(core_code_actions::bigip_code_actions(
-                    &doc.text, range, &uri_str,
-                ));
-            }
-            // iRules-only: the `# Profiles:` header source action.
-            if dialect == "f5-irules"
-                && let Some(a) = core_code_actions::profiles_action(&doc.text, &analysis, registry)
-            {
-                actions.push(a);
-            }
-            // Compiler-check quick-fixes: the iRules control-flow fixes
-            // (IRULE5002 unguarded drop / IRULE5004 DNS::return) plus the
-            // shimmer-family noqa-suppress action (S100/S101/S102/S110) —
-            // every dialect's checks are lowered here, not just iRules'; a
-            // plain-Tcl document's checks simply carry no IRULE-family fixes.
+                range,
+                &uri_str,
+                &dialect,
+                &analysis,
+                registry,
+            );
             let checks = tcl_lsp_db::compiler_check_diagnostics_uncached(
                 &doc.text,
                 registry,
@@ -14624,12 +14682,7 @@ impl LanguageServer for Backend {
                 generic_patterns.as_deref(),
                 evidence.as_deref(),
             );
-            actions.extend(core_code_actions::check_diagnostic_actions(
-                &doc.text,
-                range,
-                &checks.checks,
-                &disabled_codes,
-            ));
+            push_check_code_actions(&mut actions, &doc.text, range, &checks, &disabled_codes);
             actions
         })
         .await
