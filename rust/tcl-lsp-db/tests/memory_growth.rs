@@ -169,6 +169,12 @@ fn edit_session_memory_growth_plateaus() {
     // proc body via the analyser, not a brace scan" approach
     // `examples/edit_memory.rs` uses, so the edit lands inside a real body
     // and re-keys the same body-scoped interned structs an editor would.
+    //
+    // `body_span.start()` is the offset *of* the opening `{`, so the insert
+    // point is one past it. Inserting at `start()` itself lands between the
+    // parameter list and the brace, which leaves every proc body unedited
+    // (merely shifted) — and the body-keyed interned structs are
+    // offset-invariant, so such a session re-keys nothing and measures nothing.
     let edit_pos = Analyser::new()
         .analyse(SRC, dialect)
         .all_procs
@@ -176,7 +182,7 @@ fn edit_session_memory_growth_plateaus() {
         .map(|p| p.body_span)
         .filter(|s| s.end() > s.start())
         .max_by_key(|s| s.end() - s.start())
-        .map_or(SRC.len() / 2, |s| s.start() as usize);
+        .map_or(SRC.len() / 2, |s| s.start() as usize + 1);
 
     let mut db = TclDatabase::default();
     let file = SourceFile::new(&db, SRC.to_owned(), dialect.to_owned(), None);

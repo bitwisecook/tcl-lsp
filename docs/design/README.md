@@ -294,6 +294,11 @@ chunk-by-chunk dispatch story lives in
   per-item walk with cascade invalidation: the incremental analysis design.
 - [rust/incremental-analysis-experiments.md](rust/incremental-analysis-experiments.md)
   — experiments, discoveries, and the reasoning behind the incremental plan.
+- [rust/salsa-interned-gc.md](rust/salsa-interned-gc.md) — the salsa
+  interned garbage collector that keeps the per-keystroke interned keys in
+  `tcl-lsp-db` bounded: how it works, the two ways to disable it by accident
+  (a `Durability` bump on an input, interning outside a tracked query), and
+  the guardrails that pin it.
 - [rust/lsp-performance.md](rust/lsp-performance.md) — native LSP
   performance: results, optimisations, and how to measure.
 - [rust/s110-byte-array-corruption-port.md](rust/s110-byte-array-corruption-port.md)
