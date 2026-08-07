@@ -20,12 +20,19 @@
 // opposed to `[ClassName new]`) resolves no members — `obj method` gives no
 // diagnostics or semantic-token classification where the handle form does.
 //
-// Fixture layout (0-based lines), `issue1312NamedObject.tcl`:
-//   4  oo::class create C { … }
+// Fixture layout (0-based lines), `issue1312NamedObject.tcl`. The class and
+// instance names are deliberately unique to this fixture, not the generic
+// `C`/`obj` — this workspace has ~800 sibling fixtures, and a name colliding
+// with another file's own class/instance of the same name trips the
+// project-wide index's (correct) cross-file ambiguity-abstention, silently
+// masking the exact behaviour this test exists to check. Reproduced: `C`
+// collides with `methodParam.tcl` / `issue945Tcloo.tcl`, and with it
+// colliding the enriched tier never converges — not a timing flake.
+//   4  oo::class create Issue1312Class { … }
 //   5      method mrun {} { … }
-//   7  C create obj
-//   8  obj mrun          <- the dispatch site: `mrun` must colour as `method`
-//   9  obj nosuchmethod  <- W308 must fire here
+//   7  Issue1312Class create issue1312Obj
+//   8  issue1312Obj mrun          <- the dispatch site: `mrun` must colour as `method`
+//   9  issue1312Obj nosuchmethod  <- W308 must fire here
 
 import * as assert from "assert";
 import * as vscode from "vscode";
@@ -65,7 +72,7 @@ function decodeTokens(
 suite("Issue #1312 named-object dispatch", () => {
   const docUri = getDocUri("issue1312NamedObject.tcl");
 
-  test("`C create obj; obj nosuchmethod` draws W308 like the handle form", async () => {
+  test("`Class create name; name nosuchmethod` draws W308 like the handle form", async () => {
     await activate(docUri);
     const diags = await waitForDiagnostics(docUri, {
       predicate: (d) => d.some((x) => codeOf(x) === "W308"),
@@ -83,16 +90,23 @@ suite("Issue #1312 named-object dispatch", () => {
     // converge-later contract the "issue #829" tests in
     // `semanticTokens.test.ts` poll for. The coarse tier carries no class
     // information at all, so it always colours a bareword dispatch as
-    // `string`; only the enriched tier resolves `obj`'s class through
+    // `string`; only the enriched tier resolves the instance's class through
     // `NamedInstanceMap` and marks `mrun` as `method`. Poll rather than
     // asserting on a single request so this doesn't flake under CI load.
     //
     // Both bounds are load-scaled together (matching the #829 pattern in
     // `semanticTokens.test.ts`) with headroom between them: a fixed mocha
     // timeout with no slack over `pollUntil`'s own internal bound fires
-    // before `pollUntil` gets to report *why* it timed out — observed on
-    // CI/under load immediately after a neighbouring heavy test, where a
-    // fixed 20s outer bound raced a 15s inner one and lost.
+    // before `pollUntil` gets to report *why* it timed out.
+    //
+    // This convergence is genuinely load-sensitive, not just slow-on-a-busy-
+    // host: it depends on `project_named_instance_index`/`project_class_index`
+    // (project-wide, salsa-tracked aggregates over every workspace file), so
+    // it is only as fast as those settle. It does *not* self-heal from a
+    // fixture-name collision, though — a class or instance name shared with
+    // another file in this large fixture directory is (correctly) dropped as
+    // ambiguous and never resolves, however long this polls. Confirmed by
+    // reproduction with the original `C`/`obj` names, see the fixture header.
     this.timeout(scaledTimeout(30_000));
     const doc = await activate(docUri);
     const legend = (await vscode.commands.executeCommand(
