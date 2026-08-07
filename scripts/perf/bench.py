@@ -664,6 +664,9 @@ def host_info() -> dict:
 
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__)
+    # Resolved to an absolute path below: the client spawns the server with
+    # its cwd set to the staged corpus, so a relative path here would be
+    # looked up in the wrong directory and fail with a bare ENOENT.
     ap.add_argument("--server", required=True, type=Path)
     ap.add_argument("--version", required=True, help="e.g. 2.1.14")
     ap.add_argument("--manifest", type=Path, default=HERE / "MANIFEST.toml")
@@ -676,7 +679,19 @@ def main() -> int:
         default=None,
         help="scratch dir for the staged corpus copy",
     )
+    # Off by default so a local exploratory run still writes its results when
+    # a check times out — a timed-out check is data, and discarding the whole
+    # run because of one would lose the timeline that explains it. CI opts in.
+    ap.add_argument(
+        "--fail-on-failed-check",
+        action="store_true",
+        help="exit non-zero if any check timed out or errored",
+    )
     args = ap.parse_args()
+    args.server = args.server.resolve()
+    if not args.server.is_file():
+        print(f"no server binary at {args.server}", file=sys.stderr)
+        return 2
 
     with args.manifest.open("rb") as fh:
         manifest = tomllib.load(fh)
@@ -748,7 +763,7 @@ def main() -> int:
         + (f" ({', '.join(failed)})" if failed else "")
     )
     print(f"   wrote {dest}")
-    return 0
+    return 1 if (failed and args.fail_on_failed_check) else 0
 
 
 if __name__ == "__main__":

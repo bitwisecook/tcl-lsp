@@ -1,0 +1,160 @@
+name: Performance
+
+# Release-performance monitoring: runs the deterministic benchmark suite
+# (`scripts/perf/`) against the server built from this ref, publishes the
+# graphs and the raw result JSON as artefacts, and writes the summary table
+# into the job summary.
+#
+# Deliberately a separate workflow from `ci.yml`: it is slower than the
+# gates, it is the only job that needs network access to third-party repos
+# (the pinned corpus), and it should be re-runnable on its own from the
+# Actions tab without dragging the whole release graph along.
+#
+# NOT GATING YET. The suite reports and warns; it does not fail the build on
+# a slow check. Wall time on a shared runner is not comparable to the
+# maintainer laptop the committed `results/` were measured on, so a
+# threshold would be arbitrary until this job has established its own
+# baseline over a few runs. `bench.py --fail-on-failed-check` is wired and
+# commented out below — flip it on once the baseline exists.
+
+on:
+  push:
+    branches: [main, rust]
+  pull_request:
+    branches: [main, rust]
+    paths:
+      # Only the things that can move the numbers, plus the harness itself.
+      # A docs-only PR should not spend ten minutes cloning tcllib.
+      - "rust/**"
+      - "Cargo.toml"
+      - "Cargo.lock"
+      - "scripts/perf/**"
+      - ".github/workflows/perf.yml"
+  schedule:
+    # Nightly on the default line, so the trend keeps accumulating even
+    # through weeks where nothing touches `rust/`.
+    - cron: "17 4 * * *"
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  benchmark:
+    runs-on: ubuntu-26.04
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        with:
+          fetch-depth: 1
+
+      - name: Set up Rust
+        uses: actions-rust-lang/setup-rust-toolchain@46268bd060767258de96ed93c1251119784f2ab6 # v1.16.1
+        with:
+          toolchain: stable
+          cache-key: perf-benchmark
+
+      - name: Build tcl-lsp-server (release)
+        run: cargo build -p tcl-lsp-server --release
+
+      # tomllib, so 3.11+. The runner image ships 3.12; assert rather than
+      # assume, because the failure mode otherwise is a confusing ImportError
+      # deep inside the harness.
+      - name: Check Python version
+        run: |
+          python3 -c 'import sys; assert sys.version_info >= (3, 11), sys.version' \
+            && python3 --version
+
+      # The corpus is third-party source pinned to exact commits. Cached on
+      # the manifest hash: a pin change is a new cache key, which is exactly
+      # when the corpus must be re-fetched.
+      - name: Cache pinned corpus
+        id: corpus-cache
+        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+        with:
+          path: scripts/perf/corpus
+          key: perf-corpus-small-${{ hashFiles('scripts/perf/MANIFEST.toml') }}
+
+      - name: Fetch corpus
+        working-directory: scripts/perf
+        run: python3 fetch_corpus.py --scope small
+
+      # Belt and braces: a cache restore could in principle hand back a tree
+      # that no longer matches the pins. Verify offline before measuring, so
+      # a drifted corpus is a loud failure rather than a silently
+      # incomparable data point.
+      - name: Verify corpus pins
+        working-directory: scripts/perf
+        run: python3 fetch_corpus.py --scope small --verify-only
+
+      # The label is the ref, not a release version: these are trend points,
+      # not release records, and they are never committed to `results/`.
+      # `report.py` sorts semantically and a non-numeric label sorts ahead of
+      # the numbered releases, so the current ref reads as the first row and
+      # the first series in every legend.
+      - name: Run the benchmark suite
+        working-directory: scripts/perf
+        run: |
+          python3 bench.py \
+            --server ../../target/release/tcl-lsp-server \
+            --version "ci-${GITHUB_SHA:0:12}" \
+            --scope small \
+            --out ci-results
+          # Once a runner baseline exists, add: --fail-on-failed-check
+
+      # Rendered against the committed release results as well as this run,
+      # so the graph shows where the current ref sits in the trend rather
+      # than as a lone line with nothing to compare against.
+      - name: Render graphs against the release history
+        working-directory: scripts/perf
+        run: |
+          cp results/*.json ci-results/
+          python3 report.py --results ci-results --out ci-graphs
+
+      - name: Job summary
+        working-directory: scripts/perf
+        run: |
+          {
+            echo "### Benchmark — \`${GITHUB_REF_NAME}\` @ \`${GITHUB_SHA:0:12}\`"
+            echo
+            echo "Runner: \`${RUNNER_OS}\` \`$(nproc)\` cores. **Wall times are not"
+            echo "comparable to the committed laptop results** — compare CI runs"
+            echo "to other CI runs."
+            echo
+            cat ci-graphs/summary.md
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      # Warnings, not failures — see the header. Surfaces the two things that
+      # would matter once this gates: a check that did not complete, and one
+      # that took absurdly long even allowing for a slow shared runner.
+      - name: Flag failed or very slow checks
+        working-directory: scripts/perf
+        run: |
+          python3 - <<'PY'
+          import json, pathlib
+          SLOW_S = 20.0
+          for f in sorted(pathlib.Path("ci-results").glob("ci-*.json")):
+              data = json.loads(f.read_text())
+              for c in data["checks"]:
+                  if not c["ok"]:
+                      print(f"::warning title=Benchmark check failed::"
+                            f"{c['id']} ({c['label']}) did not complete: {c['note']}")
+                  elif c["wall_s"] >= SLOW_S:
+                      print(f"::warning title=Benchmark check slow::"
+                            f"{c['id']} ({c['label']}) took {c['wall_s']:.1f}s")
+          PY
+
+      - name: Upload benchmark results and graphs
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: perf-${{ github.run_id }}
+          path: |
+            scripts/perf/ci-results
+            scripts/perf/ci-graphs
+          if-no-files-found: error
+          retention-days: 30
