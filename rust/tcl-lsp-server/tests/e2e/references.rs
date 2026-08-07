@@ -541,6 +541,74 @@ fn references_from_an_alias_call_site_offer_the_targets_sites() {
     );
 }
 
+/// idx 89 (differential-audit): the query direction that was still wrong
+/// after go-to-definition was fixed — from the SHADOWED original proc's own
+/// declaration.
+///
+/// Oracle, byte-identical on tclsh 9.0.4 and 8.6.16: the script prints
+/// `classic tk::spinbox: .sb`, so `::ttk::spinbox`'s own body never runs
+/// from the alias onward and the call is not one of its references.
+#[test]
+fn references_from_a_shadowed_original_exclude_the_redirected_call() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    lsp.open_ready(&uri, ALIAS_SHADOW_SRC);
+    // Line 2: cursor on the shadowed `::ttk::spinbox` declaration.
+    let lines = start_lines(&lsp.references(&uri, 2, 12, true));
+    assert_eq!(
+        lines,
+        [2].into_iter().collect::<std::collections::BTreeSet<i64>>(),
+        "only its own declaration — the alias took the name over: {lines:?}"
+    );
+}
+
+/// The symmetric direction of the same document stays whole: the alias
+/// target's reference set still contains the redirected call site.
+#[test]
+fn references_from_the_alias_target_still_reach_the_redirected_call() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    lsp.open_ready(&uri, ALIAS_SHADOW_SRC);
+    // Line 3: cursor on the `::tk::spinbox` declaration.
+    let lines = start_lines(&lsp.references(&uri, 3, 12, true));
+    assert!(lines.contains(&3), "decl missing: {lines:?}");
+    assert!(lines.contains(&4), "alias target word missing: {lines:?}");
+    assert!(lines.contains(&5), "redirected call missing: {lines:?}");
+}
+
+/// A punctuation-named alias — the corpus shape (`interp alias {} = {} expr`)
+/// the identifier-named tests above never exercise.
+///
+/// tclsh 9.0.4 / 8.6.16: `interp alias {} @ {} tally` then `@` really runs
+/// `tally`'s body.
+#[test]
+fn references_include_call_sites_spelled_through_a_punctuation_alias() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    lsp.open_ready(
+        &uri,
+        "proc tally {} { return 1 }\ninterp alias {} @ {} tally\nputs [@]\n",
+    );
+    let lines = start_lines(&lsp.references(&uri, 0, 6, true));
+    assert!(lines.contains(&0), "decl missing: {lines:?}");
+    assert!(
+        lines.contains(&2),
+        "the punctuation alias's call site must be reported: {lines:?}"
+    );
+}
+
+/// The idx 89 document, shared by the tests above.  Line 2 declares the proc
+/// the alias on line 4 displaces; line 5 is the call that really runs
+/// `::tk::spinbox`.
+const ALIAS_SHADOW_SRC: &str = concat!(
+    "namespace eval ::ttk {}\n",
+    "namespace eval ::tk {}\n",
+    "proc ::ttk::spinbox {w args} { puts \"themed ttk::spinbox: $w $args\" }\n",
+    "proc ::tk::spinbox {w args} { puts \"classic tk::spinbox: $w $args\" }\n",
+    "interp alias {} ::ttk::spinbox {} ::tk::spinbox\n",
+    "::ttk::spinbox .sb -from 0 -to 100\n",
+);
+
 /// idx 92 (differential-audit main audit wave): the `[namespace code [list
 /// ProcName]]` callback wrapper Tk's own `library/fontchooser.tcl` uses ten
 /// times. tclsh 9.0.4 and 8.6.16 both report the installed trace as

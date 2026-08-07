@@ -55,6 +55,15 @@ updates every namespace's call sites together. For the full contract,
 see
 [resolution soundness](../../design/resolution-soundness-945.md).
 
+Rename follows the **command table**, not the spelling. A proc whose name
+an `interp alias` has taken over is dead under that name, so renaming it
+rewrites its header only: after `interp alias {} ::ttk::spinbox {}
+::tk::spinbox`, a `::ttk::spinbox` call runs `::tk::spinbox`'s body, and
+rewriting that call too would silently switch which body it invokes.
+Renaming the alias's *target* rewrites the target's header and the alias's
+own target word, and leaves the call site alone — it spells the alias's
+name, which does not change.
+
 Renaming a `TclOO` method rewrites the declaration plus every `my method`
 dispatch site (however deeply nested in `[…]` substitutions or same-frame
 control-flow / `eval` bodies — see [Find References](kcs-feature-references.md)),

@@ -41,7 +41,7 @@ use crate::ir_helpers::defs_from_ir_script;
 use crate::naming::normalise_var_name;
 
 use self::global_write_info::GlobalWriteInfo;
-use self::upvar_info::{UpvarInfo, collect_upvar_targets};
+use self::upvar_info::{FrameReach, UpvarInfo, collect_upvar_targets};
 
 /// Choose the [`CommandTokens`] for a "frozen" `while`/`for` runtime call.
 ///
@@ -1616,6 +1616,36 @@ pub fn detect_upvar_procs(module: &Module) -> HashMap<String, UpvarInfo> {
                 info.caller_frame_opaque_reads = true;
             }
         }
+        // The second one-hop composition: an **ordinary** call to a proc that
+        // reaches past its own caller lands in *this* proc's caller (issue
+        // #1019 / issue #923 idx 24).  Oracle, identical on tclsh 9.0.4 and
+        // 8.6.16: `proc setUp2 {var} {uplevel 2 [list set $var 99]}` /
+        // `proc middle {} {setUp2 answer}` / `proc outer {} {middle; return
+        // $answer}` — `outer` returns `99`, so `answer` really is assigned in
+        // a frame `middle` never names.  A level-**1** effect is emphatically
+        // not transitive this way (`detect_upvar_procs_does_not_propagate_
+        // through_a_plain_call_wrapper` pins the tclsh transcript), which is
+        // why only a `FrameReach::PastTheCaller` summary travels here.
+        //
+        // One hop, against the own-body summaries, for the same reason the
+        // forwarded-call composition above takes exactly one: it terminates
+        // by construction on any call graph, recursive or not.  A `uplevel 3`
+        // two plain calls out is left to the opaque-widening path.
+        for callee in &own_info.plain_calls {
+            if by_name
+                .get(callee.as_str())
+                .is_some_and(|(callee_info, _)| {
+                    callee_info.frame_reach == FrameReach::PastTheCaller
+                })
+            {
+                info.caller_frame_opaque_writes = true;
+                info.caller_frame_opaque_reads = true;
+            }
+        }
+        // Composition input, not a caller-side effect — dropped so the
+        // published summaries (which are folded into every procedure's
+        // `function_lattice` memo key) carry only what a call site reads.
+        info.plain_calls.clear();
         composed.push((qname, info));
     }
 
@@ -2864,6 +2894,72 @@ mod tests {
             !upvar_procs.contains_key("unrelated_wrapper"),
             "unrelated_wrapper passes literal args, not its own params — must not propagate",
         );
+    }
+
+    /// Issue #1019 / issue #923 audit idx 24: the *other* half of the rule
+    /// the two tests above pin. A level-**1** effect stops at the wrapper's
+    /// own frame, but a level that lands past the callee's caller reaches
+    /// this proc's caller through an ordinary call, so the wrapper really
+    /// does become a caller-frame writer.
+    ///
+    /// Oracle, byte-identical on tclsh 9.0.4 and 8.6.16:
+    ///
+    /// ```tcl
+    /// proc setUp2 {var} { uplevel 2 [list set $var 99] }
+    /// proc middle {}    { setUp2 answer }
+    /// proc outer  {}    { middle ; return $answer }
+    /// puts [outer]        ;# -> 99
+    /// ```
+    #[test]
+    fn detect_upvar_procs_propagates_a_beyond_caller_effect_one_plain_hop() {
+        let module = lower_module(
+            "proc setUp2 {var} {\n             uplevel 2 [list set $var 99]\n             }\n             proc middle {} {\n             setUp2 answer\n             }",
+        );
+        let upvar_procs = detect_upvar_procs(&module);
+        let middle = upvar_procs
+            .get("middle")
+            .expect("a plain call to a beyond-caller writer registers the wrapper");
+        assert!(
+            middle.caller_frame_opaque_writes,
+            "setUp2's `uplevel 2` lands in middle's caller: {middle:?}"
+        );
+        assert!(
+            middle.caller_frame_opaque_reads,
+            "the same script may read there too: {middle:?}"
+        );
+    }
+
+    /// TN — `uplevel #0` (global) and `uplevel 0` (the callee's own frame)
+    /// reach no caller at all, so neither is a beyond-caller effect and
+    /// neither makes a plain-call wrapper one.
+    #[test]
+    fn detect_upvar_procs_does_not_propagate_a_global_or_own_frame_level() {
+        for level in ["#0", "0"] {
+            let module = lower_module(&format!(
+                "proc setSomewhere {{var}} {{\n                 uplevel {level} [list set $var 99]\n                 }}\n                 proc wrapper {{}} {{\n                 setSomewhere answer\n                 }}"
+            ));
+            let upvar_procs = detect_upvar_procs(&module);
+            assert!(
+                !upvar_procs.contains_key("wrapper"),
+                "`uplevel {level}` never touches a caller frame: {upvar_procs:?}"
+            );
+        }
+    }
+
+    /// The published summaries carry no composition bookkeeping — they are
+    /// folded into every procedure's `function_lattice` memo key, so only
+    /// what a call site actually reads may travel in them.
+    #[test]
+    fn detect_upvar_procs_publishes_no_plain_call_bookkeeping() {
+        let module = lower_module(
+            "proc setUp2 {var} {\n             uplevel 2 [list set $var 99]\n             }\n             proc middle {} {\n             setUp2 answer\n             }",
+        );
+        for (name, info) in detect_upvar_procs(&module) {
+            assert!(
+                info.plain_calls.is_empty(),
+                "{name} published composition input: {info:?}"
+            );
+        }
     }
 
     #[test]

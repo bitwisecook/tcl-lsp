@@ -670,6 +670,72 @@ fn rename_does_not_rewrite_call_sites_that_go_through_an_alias() {
     );
 }
 
+/// idx 89 (differential-audit): renaming the proc an `interp alias` has
+/// displaced must rewrite **only** its own header.
+///
+/// Oracle, byte-identical on tclsh 9.0.4 and 8.6.16. The document prints
+/// `classic tk::spinbox: .sb -from 0 -to 100`. Rewriting the header *and*
+/// the call site to `::ttk::newname` — the edit set this produced before the
+/// fix — changes that to `themed ttk::spinbox: .sb -from 0 -to 100`: the
+/// dead proc becomes live again under the new name and the untouched alias
+/// stops being consulted. Rewriting the header alone keeps the original
+/// output. A rename that silently changes which body runs is the worst
+/// answer available, so this is asserted as an exact edit set, not a
+/// containment.
+#[test]
+fn rename_of_an_alias_shadowed_proc_leaves_the_redirected_call_alone() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    lsp.open_ready(&uri, ALIAS_SHADOW_SRC);
+    // Line 2: cursor on the shadowed `::ttk::spinbox` declaration.
+    let result = lsp.rename(&uri, 2, 12, "newname");
+    let edits = rename_edits(&result);
+    let for_uri = edits.get(&uri).cloned().unwrap_or_default();
+    let lines: Vec<i64> = for_uri
+        .iter()
+        .filter_map(|e| e["range"]["start"]["line"].as_i64())
+        .collect();
+    assert_eq!(
+        lines,
+        vec![2],
+        "only the displaced header may be rewritten: {for_uri:?}"
+    );
+}
+
+/// The symmetric direction: renaming the alias's *target* rewrites its
+/// declaration and the alias's own target word, and leaves the call site
+/// (which spells the alias's name) untouched.
+#[test]
+fn rename_of_the_alias_target_rewrites_the_declaration_and_the_alias_word() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    lsp.open_ready(&uri, ALIAS_SHADOW_SRC);
+    // Line 3: cursor on the `::tk::spinbox` declaration.
+    let result = lsp.rename(&uri, 3, 12, "classicbox");
+    let edits = rename_edits(&result);
+    let for_uri = edits.get(&uri).cloned().unwrap_or_default();
+    let mut lines: Vec<i64> = for_uri
+        .iter()
+        .filter_map(|e| e["range"]["start"]["line"].as_i64())
+        .collect();
+    lines.sort_unstable();
+    assert_eq!(
+        lines,
+        vec![3, 4],
+        "declaration plus the alias's target word: {for_uri:?}"
+    );
+}
+
+/// The idx 89 document, shared by the two tests above.
+const ALIAS_SHADOW_SRC: &str = concat!(
+    "namespace eval ::ttk {}\n",
+    "namespace eval ::tk {}\n",
+    "proc ::ttk::spinbox {w args} { puts \"themed ttk::spinbox: $w $args\" }\n",
+    "proc ::tk::spinbox {w args} { puts \"classic tk::spinbox: $w $args\" }\n",
+    "interp alias {} ::ttk::spinbox {} ::tk::spinbox\n",
+    "::ttk::spinbox .sb -from 0 -to 100\n",
+);
+
 /// idx 45 (differential-audit main audit wave): rename issued from the
 /// declaration a later same-named `proc` displaced must still reach every
 /// call site — the displaced header declares the same command, so a partial

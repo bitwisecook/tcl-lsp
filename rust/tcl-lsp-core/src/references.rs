@@ -473,7 +473,78 @@ pub(crate) fn invocation_references_named(
     false
 }
 
+/// Whether the definition declared at `decl_off` under the name
+/// `def_qualified` has been **displaced from that name** by a `rename` /
+/// `interp alias` by the time the call at `call_off` runs — so a call
+/// spelling that name does not reach this definition at all.
+///
+/// The mirror of the forward hop go-to-definition takes
+/// (`definition::indirect_definition_target`): that one asks "where
+/// does this call site really land?", this one asks "is *this* declaration
+/// still what the name holds?". Both read the one indirection walk, so the
+/// two directions of navigation cannot disagree about the same document
+/// (issue #923 idx 89).
+///
+/// Oracle (tclsh 8.6.16 and 9.0.4, byte-identical):
+///
+/// ```tcl
+/// proc ::ttk::spinbox {w args} { puts "themed ttk::spinbox: $w $args" }
+/// proc ::tk::spinbox  {w args} { puts "classic tk::spinbox: $w $args" }
+/// interp alias {} ::ttk::spinbox {} ::tk::spinbox
+/// ::ttk::spinbox .sb          ;# -> classic tk::spinbox: .sb
+/// ```
+///
+/// The `::ttk::spinbox` proc body is unreachable under that name from the
+/// alias onward, so the call is not one of its references — and renaming it
+/// must not rewrite that word. Rewriting it (which is what the edit set did
+/// before this gate) turns the same script into `themed ttk::spinbox: .sb`:
+/// a rename that silently changes which body runs.
+///
+/// # Two ordering facts, both required
+///
+/// 1. **The binding must outrank the declaration.** A `proc` written *after*
+///    an `interp alias` on the same name replaces the alias — oracle:
+///    `interp alias {} greet {} target` then `proc greet {…}` then `greet`
+///    prints `greet body`, not `target body`. So a binding established
+///    before `decl_off` displaces nothing.
+/// 2. **The binding must be unconditional at the call.** A mutation written
+///    at top level has certainly run by the time anything else does; one
+///    written inside the *same* body as the call is in genuine statement
+///    order. A mutation sitting in some *other* proc's body only runs if
+///    that proc is ever called, which is not statically decidable — there
+///    the call site may still reach this declaration, so it stays in the
+///    reference set (and so in the rename edit set) rather than being
+///    silently dropped from an edit the user cannot inspect.
+#[must_use]
+fn definition_displaced_from_its_name(
+    analysis: &AnalysisResult,
+    def_qualified: &str,
+    decl_off: u32,
+    call_off: u32,
+) -> bool {
+    let canonical = tcl_syntax::naming::normalise_qualified_name(def_qualified);
+    let Some(hop) = tcl_compiler::analyser::indirection::walk(
+        analysis,
+        &canonical,
+        call_off,
+        &tcl_syntax::naming::normalise_qualified_name,
+    ) else {
+        return false;
+    };
+    if hop.target == canonical || hop.established < decl_off {
+        return false;
+    }
+    match analysis.innermost_definition_body_span(hop.established) {
+        None => true,
+        Some(body) => body.start() <= call_off && call_off < body.end(),
+    }
+}
+
 /// [`invocation_references_named`] specialised for a [`ProcDef`](tcl_compiler::analyser::ProcDef).
+///
+/// Gated by [`definition_displaced_from_its_name`]: a call written after an
+/// `interp alias` / `rename` that took this proc's own name over reaches the
+/// binding's target, not this proc (issue #923 idx 89).
 #[must_use]
 pub(crate) fn invocation_references_proc(
     analysis: &AnalysisResult,
@@ -481,6 +552,14 @@ pub(crate) fn invocation_references_proc(
     qname: &str,
     proc_def: &tcl_compiler::analyser::ProcDef,
 ) -> bool {
+    if definition_displaced_from_its_name(
+        analysis,
+        &proc_def.qualified_name,
+        proc_def.name_span.start(),
+        inv.range.start(),
+    ) {
+        return false;
+    }
     invocation_references_named(
         analysis,
         inv,
@@ -491,6 +570,10 @@ pub(crate) fn invocation_references_proc(
 }
 
 /// [`invocation_references_named`] specialised for a [`ClassDef`](tcl_compiler::analyser::ClassDef).
+///
+/// Same command-table gate as [`invocation_references_proc`] — a class
+/// command's name is an ordinary command-table slot and an `interp alias`
+/// takes it over just as thoroughly.
 #[must_use]
 pub(crate) fn invocation_references_class(
     analysis: &AnalysisResult,
@@ -498,6 +581,14 @@ pub(crate) fn invocation_references_class(
     qname: &str,
     class_def: &tcl_compiler::analyser::ClassDef,
 ) -> bool {
+    if definition_displaced_from_its_name(
+        analysis,
+        &class_def.qualified_name,
+        class_def.name_span.start(),
+        inv.range.start(),
+    ) {
+        return false;
+    }
     invocation_references_named(
         analysis,
         inv,

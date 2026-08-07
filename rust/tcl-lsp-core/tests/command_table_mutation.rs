@@ -291,6 +291,120 @@ fn tp_references_on_an_alias_target_reach_the_shadowing_call_site() {
     );
 }
 
+/// The other query direction of the same document — the one that was still
+/// wrong after the go-to-definition half of idx 89 landed.
+///
+/// Oracle (tclsh 9.0.4 and 8.6.16, byte-identical): the script prints
+/// `classic tk::spinbox: .sb -from 0 -to 100`, so `::ttk::spinbox`'s own
+/// body never runs and the call on the last line is not one of its
+/// references.
+#[test]
+fn tn_references_from_the_shadowed_original_exclude_the_redirected_call() {
+    let src = ALIAS_SHADOW_SRC;
+    assert_eq!(
+        refs(src)(2, 12),
+        vec![2],
+        "only the shadowed declaration itself — the alias took the name over"
+    );
+}
+
+/// The code lens on the shadowed proc must agree with Find All References:
+/// zero call sites, not one.  A separate assertion because `references()`
+/// dedupes by range while the lens counts `proc_reference_spans` raw.
+#[test]
+fn tn_lens_count_on_the_shadowed_original_is_zero() {
+    assert_eq!(lens_count(ALIAS_SHADOW_SRC, "::ttk::spinbox"), 0);
+    assert_eq!(
+        lens_count(ALIAS_SHADOW_SRC, "::tk::spinbox"),
+        2,
+        "the alias target word and the redirected call site"
+    );
+}
+
+/// Renaming the shadowed original must rewrite **only** its declaration.
+///
+/// Oracle: rewriting the call site too (what the edit set did before the
+/// gate) turns `classic tk::spinbox: .sb` into `themed ttk::spinbox: .sb`
+/// under both interpreters — the dead proc becomes live again under the new
+/// name and the alias stops being consulted. Renaming just the header keeps
+/// the original output.
+#[test]
+fn tn_rename_of_the_shadowed_original_does_not_touch_the_call_site() {
+    let src = ALIAS_SHADOW_SRC;
+    let analysis = analyse(src);
+    let edits = tcl_lsp_core::rename::rename(src, "tcl9.0", 2, 12, "newname", &analysis, None);
+    assert_eq!(
+        edits.iter().map(|e| e.range.start_line).collect::<Vec<_>>(),
+        vec![2],
+        "only the shadowed declaration is rewritten: {edits:?}"
+    );
+}
+
+/// The symmetric direction stays whole: renaming the alias *target* rewrites
+/// its declaration and the alias's own target word, and leaves the call
+/// site's spelling (the alias's name) alone.
+#[test]
+fn tp_rename_of_the_alias_target_rewrites_the_declaration_and_alias_word() {
+    let src = ALIAS_SHADOW_SRC;
+    let analysis = analyse(src);
+    let edits = tcl_lsp_core::rename::rename(src, "tcl9.0", 3, 12, "classicbox", &analysis, None);
+    assert_eq!(
+        edits.iter().map(|e| e.range.start_line).collect::<Vec<_>>(),
+        vec![3, 4],
+        "declaration plus the alias's target word: {edits:?}"
+    );
+}
+
+/// A `proc` written *after* an `interp alias` on the same name replaces the
+/// alias, so the gate must not fire there.
+///
+/// Oracle (9.0.4 / 8.6.16): `proc target …; interp alias {} greet {} target;
+/// proc greet …; greet` prints `greet body`.
+#[test]
+fn tn_a_proc_declared_after_the_alias_keeps_its_own_call_sites() {
+    let src = concat!(
+        "proc target {} { puts \"target body\" }\n",
+        "interp alias {} greet {} target\n",
+        "proc greet {} { puts \"greet body\" }\n",
+        "greet\n",
+    );
+    assert_eq!(
+        refs(src)(2, 6),
+        vec![2, 3],
+        "the later proc owns the name again, so the call is its reference"
+    );
+}
+
+/// A mutation sitting in *another* proc's body may or may not ever run, so
+/// the call site is not silently dropped from the reference (and rename)
+/// set — abstaining toward keeping the edit whole.
+#[test]
+fn tn_an_alias_installed_in_another_body_does_not_drop_the_call_site() {
+    let src = concat!(
+        "proc target {} { }\n",
+        "proc greet {} { }\n",
+        "proc install {} { interp alias {} greet {} target }\n",
+        "greet\n",
+    );
+    assert_eq!(
+        refs(src)(1, 6),
+        vec![1, 3],
+        "a conditional alias does not prove the call misses `greet`"
+    );
+}
+
+/// The idx 89 document, shared by the tests above so they all speak about
+/// exactly the same program (`f8/alias_shadow.tcl`, run under both
+/// interpreters).
+const ALIAS_SHADOW_SRC: &str = concat!(
+    "namespace eval ::ttk {}\n",
+    "namespace eval ::tk {}\n",
+    "proc ::ttk::spinbox {w args} { puts \"themed ttk::spinbox: $w $args\" }\n",
+    "proc ::tk::spinbox {w args} { puts \"classic tk::spinbox: $w $args\" }\n",
+    "interp alias {} ::ttk::spinbox {} ::tk::spinbox\n",
+    "::ttk::spinbox .sb -from 0 -to 100\n",
+);
+
 // proc self-redefinition (issue #923 idx 45)
 
 #[test]
