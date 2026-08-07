@@ -67,7 +67,12 @@
 //! dialect where a user has to reach for it. Both twins are derived from
 //! their bare originals, so the package gating (`required_package`,
 //! `tcllib_package`) carries across unchanged and the qualified/bare pair
-//! answer alike per dialect.
+//! answer alike per dialect. `mymethod` and `classvariable` are the other
+//! two such members and get the identical treatment — `ooutil.tcl:18` and
+//! `ooutil.tcl:27` define `proc ::oo::Helpers::mymethod` and
+//! `proc ::oo::Helpers::classvariable` respectively — while `callback`
+//! (9.0 alias of `mymethod`) has a single core entry, because no Tcllib
+//! package provides that spelling (issue #923 audit, `ticklecharts` idx 51).
 use crate::prelude::*;
 
 /// The bare specs whose `oo::Helpers::…` spelling is also a real,
@@ -75,11 +80,18 @@ use crate::prelude::*;
 ///
 /// Derived from the bare spec rather than retyped, so hover text, arity,
 /// dialect gating, **package gating**, and options cannot drift between the
-/// two spellings. `link` appears twice for the same reason it does in the
-/// bare table — a 9.0 core entry and an 8.6/8.7 `ooutil` one; the registry
-/// keys duplicates by name and picks per dialect (`best_visible`).
+/// two spellings. `link` and `mymethod` each appear twice for the same
+/// reason they do in the bare table — a 9.0 core entry and an 8.6/8.7
+/// `ooutil` one; the registry keys duplicates by name and picks per dialect
+/// (`best_visible`).
 fn family() -> Vec<(&'static str, CommandSpec)> {
     vec![
+        ("oo::Helpers::callback", super::oo_callback::spec()),
+        ("oo::Helpers::mymethod", super::oo_callback::mymethod_spec()),
+        (
+            "oo::Helpers::mymethod",
+            super::oo_callback::mymethod_spec_ooutil_86(),
+        ),
         ("oo::Helpers::link", super::oo_link::spec()),
         ("oo::Helpers::link", super::oo_link::spec_ooutil_86()),
         ("oo::Helpers::next", super::oo_next::spec()),
@@ -88,6 +100,10 @@ fn family() -> Vec<(&'static str, CommandSpec)> {
         (
             "oo::Helpers::classvariable",
             super::oo_classvariable::spec(),
+        ),
+        (
+            "oo::Helpers::classvariable",
+            super::oo_classvariable::spec_ooutil_86(),
         ),
     ]
 }
@@ -138,10 +154,10 @@ mod tests {
     use super::*;
 
     /// tclsh 9.0.4: `info commands ::oo::Helpers::*` lists exactly
-    /// `callback classvariable link mymethod next nextto self`. Of those,
-    /// the registry models the five with bare specs; `my` is **not** among
-    /// them (it is `::oo::ObjN::my`), so it must never gain a qualified
-    /// `oo::Helpers::my` spelling here.
+    /// `callback classvariable link mymethod next nextto self` — all seven
+    /// of which the registry now models with bare specs. `my` is **not**
+    /// among them (it is `::oo::ObjN::my`), so it must never gain a
+    /// qualified `oo::Helpers::my` spelling here.
     #[test]
     fn my_is_not_an_oo_helpers_member() {
         assert!(
@@ -173,10 +189,10 @@ mod tests {
     }
 
     /// Each qualified spec inherits its bare twin's dialect **and package**
-    /// gate, so `classvariable` stays 9.0-only, `next` / `nextto` / `self`
-    /// stay 8.6+, and `link` keeps both of its entries — 9.0 core plus the
-    /// 8.6/8.7 `ooutil` one — matching `info commands ::oo::Helpers::*` on
-    /// both interpreters.
+    /// gate, so `next` / `nextto` / `self` stay 8.6+, `callback` stays
+    /// 9.0-only, and `link` / `mymethod` / `classvariable` each keep both
+    /// of their entries — 9.0 core plus the 8.6/8.7 `ooutil` one —
+    /// matching `info commands ::oo::Helpers::*` on both interpreters.
     ///
     /// Compared pairwise against `family()`'s own order rather than by
     /// name lookup, so the two `link` rows cannot alias onto each other.

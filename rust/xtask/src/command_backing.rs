@@ -232,6 +232,10 @@ const NOT_REQUIRED: &[(&str, &str)] = &[
 /// unbacked, just invisible to the check before that fix.
 const KNOWN_UNBACKED: &[(&str, &str)] = &[
     (
+        "callback",
+        "TclOO oo::Helpers::callback (issue #923 idx 51) — builds a command prefix that re-enters a method of the current object; needs a live method frame, no runtime handler (same situation as `link`)",
+    ),
+    (
         "divmod",
         "TIP 745 (Tcl 9.1) combined quotient/remainder list command; not yet implemented in runtime/rust",
     ),
@@ -250,6 +254,10 @@ const KNOWN_UNBACKED: &[(&str, &str)] = &[
     (
         "modf",
         "TIP 745 (Tcl 9.1) integer/fractional split; not yet implemented in runtime/rust",
+    ),
+    (
+        "mymethod",
+        "TclOO oo::Helpers::mymethod (issue #923 idx 51) — `callback` under its Tcllib-compatibility name; same missing runtime handler",
     ),
     (
         "remquo",

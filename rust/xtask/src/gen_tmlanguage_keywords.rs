@@ -86,9 +86,14 @@
 //!   them correctly (it knows whether it is inside a method body); a static
 //!   grammar cannot, so they are deliberately excluded here, matching
 //!   [`crate::gen_zed_queries`]'s equivalent judgement call for its `my`-style
-//!   words. The same reasoning excludes the `TclOO` method-body helpers
-//!   (`callback`, `mymethod`, `link`) — never included in any of the three
-//!   hand lists to begin with.
+//!   words. The same reasoning covers the `TclOO` method-body helpers
+//!   `callback` and `mymethod` (registry-modelled since issue #923's
+//!   `ticklecharts` idx 51): `proc callback {…}` is ordinary, common Tcl, and
+//!   a context-free regex cannot tell that definition — or any call of it —
+//!   from the 9.0 helper, so both bare words join the exclusion list. Their
+//!   **qualified** `oo::Helpers::…` spellings stay in, on the same
+//!   namespace-qualified/no-collision-risk criterion [`STATIC_OTHER_WORDS`]
+//!   applies to `itcl::class`.
 //!
 //! ## Control vs. "other" keyword bucket
 //!
@@ -131,7 +136,8 @@ const STATIC_OTHER_WORDS: &[&str] = &["itcl::class"];
 
 /// Registry `LANGUAGE_KEYWORD` commands deliberately excluded — too generic /
 /// collision-prone for a context-free grammar (see module docs).
-const CONTEXT_SENSITIVE_EXCLUDE: &[&str] = &["my", "next", "nextto", "self"];
+const CONTEXT_SENSITIVE_EXCLUDE: &[&str] =
+    &["callback", "my", "mymethod", "next", "nextto", "self"];
 
 /// The human-curated control/other split for registry-sourced keywords —
 /// mainstream branch/loop/jump/exception-style words go to [`Buckets::control`];

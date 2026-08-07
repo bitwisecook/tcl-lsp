@@ -16,9 +16,9 @@ or an explicit *not required* classification.
 | handler (native) | 177 |
 | stdlib | 11 |
 | not-required | 54 |
-| known-gap (`RUST_ISSUE_007`) | 37 |
+| known-gap (`RUST_ISSUE_007`) | 41 |
 | **UNCLASSIFIED** | 0 |
-| **total** | 384 |
+| **total** | 388 |
 
 | command | backing | note |
 | --- | --- | --- |
@@ -164,6 +164,7 @@ or an explicit *not required* classification.
 | `bgerror` | not-required | background-error hook; no default definition even in bare tclsh 9 (user/Tk-provided) and there is no WASM event loop |
 | `binary` | handler |  |
 | `break` | handler |  |
+| `callback` | known-gap | TclOO oo::Helpers::callback (issue #923 idx 51) — builds a command prefix that re-enters a method of the current object; needs a live method frame, no runtime handler (same situation as `link`) |
 | `catch` | handler |  |
 | `cd` | handler |  |
 | `chan` | handler |  |
@@ -237,13 +238,16 @@ or an explicit *not required* classification.
 | `memory` | not-required | TCL_MEM_DEBUG-only heap-debug command |
 | `modf` | known-gap | TIP 745 (Tcl 9.1) integer/fractional split; not yet implemented in runtime/rust |
 | `my` | handler (native) | per-object command created by TclOO method dispatch (oo_register_my) |
+| `mymethod` | known-gap | TclOO oo::Helpers::mymethod (issue #923 idx 51) — `callback` under its Tcllib-compatibility name; same missing runtime handler |
 | `namespace` | handler |  |
 | `ne` | not-required | `expr` operator/function; evaluated inside `expr`, not a standalone runtime command |
 | `next` | handler |  |
 | `nextto` | handler |  |
 | `ni` | not-required | `expr` operator/function; evaluated inside `expr`, not a standalone runtime command |
+| `oo::Helpers::callback` | known-gap | qualified `::oo::Helpers::*` spelling (issue #1026): runtime/rust registers only the bare, method-context name its dispatch installs, so a direct qualified call is `invalid command name` |
 | `oo::Helpers::classvariable` | known-gap | qualified `::oo::Helpers::*` spelling (issue #1026): runtime/rust registers only the bare, method-context name its dispatch installs, so a direct qualified call is `invalid command name` |
 | `oo::Helpers::link` | known-gap | qualified `::oo::Helpers::*` spelling (issue #1026): runtime/rust registers only the bare, method-context name its dispatch installs, so a direct qualified call is `invalid command name` |
+| `oo::Helpers::mymethod` | known-gap | qualified `::oo::Helpers::*` spelling (issue #1026): runtime/rust registers only the bare, method-context name its dispatch installs, so a direct qualified call is `invalid command name` |
 | `oo::Helpers::next` | known-gap | qualified `::oo::Helpers::*` spelling (issue #1026): runtime/rust registers only the bare, method-context name its dispatch installs, so a direct qualified call is `invalid command name` |
 | `oo::Helpers::nextto` | known-gap | qualified `::oo::Helpers::*` spelling (issue #1026): runtime/rust registers only the bare, method-context name its dispatch installs, so a direct qualified call is `invalid command name` |
 | `oo::Helpers::self` | known-gap | qualified `::oo::Helpers::*` spelling (issue #1026): runtime/rust registers only the bare, method-context name its dispatch installs, so a direct qualified call is `invalid command name` |
