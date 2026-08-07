@@ -16,12 +16,13 @@
 #
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
-# `tcl-fuzz` — differential fuzzer for the native Tcl VM.
+# `tcl-fuzz` — differential fuzzer for the native Tcl VM and related backends.
 #
 # Generates structurally-valid Tcl over the VM's supported surface (variables,
 # expr, string/list/dict ops, control flow, procs, arrays — no I/O), runs each
-# script through both the native `tclvm` and a reference `tclsh`, and flags any
-# divergence in stdout / exit status as a finding. The campaign runner +
+# script through a pair of backend engines — `tclvm`, a reference `tclsh`, or
+# `runtime/rust`'s interpreter — and flags any divergence in stdout / exit
+# status (and, opt-in, error message text) as a finding. The campaign runner +
 # generator + findings registry drive the differential fuzzer.
 #
 # Both backends run as subprocesses with a wall-clock timeout, so a generated
@@ -30,7 +31,7 @@
 [package]
 name = "tcl-fuzz"
 publish.workspace = true
-description = "Differential fuzzer for the native Tcl bytecode VM (tclvm vs tclsh)"
+description = "Differential fuzzer for the native Tcl backends (tclvm / tclsh / runtime-rust)"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true

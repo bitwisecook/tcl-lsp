@@ -37,7 +37,11 @@ pub enum Category {
     StdoutMismatch,
     /// Error status differed.
     StatusMismatch,
-    /// The subject (`tclvm`) hung.
+    /// Both engines errored, but their error message text differed (only
+    /// recorded when error-text comparison is enabled — see
+    /// `harness::compare_outcomes`).
+    ErrorTextMismatch,
+    /// The subject hung.
     Timeout,
 }
 
@@ -48,6 +52,7 @@ impl Category {
         match v {
             Verdict::StdoutMismatch => Some(Self::StdoutMismatch),
             Verdict::StatusMismatch => Some(Self::StatusMismatch),
+            Verdict::ErrorTextMismatch => Some(Self::ErrorTextMismatch),
             Verdict::Timeout => Some(Self::Timeout),
             Verdict::Match | Verdict::Skipped => None,
         }
@@ -63,14 +68,22 @@ pub struct Finding {
     pub category: Category,
     /// The generated script.
     pub script: String,
-    /// Reference (`tclsh`) stdout, when it ran.
+    /// Reference engine's stdout, when it ran.
     pub reference_stdout: String,
-    /// Subject (`tclvm`) stdout, when it ran.
+    /// Subject engine's stdout, when it ran.
     pub subject_stdout: String,
     /// Reference error status.
     pub reference_errored: bool,
     /// Subject error status.
     pub subject_errored: bool,
+    /// Reference engine's stderr, when it ran. Always captured (independent of
+    /// whether error-text comparison drove this finding's category), so a
+    /// triager always has both engines' error text to hand.
+    #[serde(default)]
+    pub reference_stderr: String,
+    /// Subject engine's stderr, when it ran.
+    #[serde(default)]
+    pub subject_stderr: String,
 }
 
 impl Finding {
@@ -83,8 +96,8 @@ impl Finding {
         reference: &Outcome,
         subject: &Outcome,
     ) -> Self {
-        let (reference_stdout, reference_errored) = unpack(reference);
-        let (subject_stdout, subject_errored) = unpack(subject);
+        let (reference_stdout, reference_stderr, reference_errored) = unpack(reference);
+        let (subject_stdout, subject_stderr, subject_errored) = unpack(subject);
         Self {
             seed,
             category,
@@ -93,15 +106,21 @@ impl Finding {
             subject_stdout,
             reference_errored,
             subject_errored,
+            reference_stderr,
+            subject_stderr,
         }
     }
 }
 
-fn unpack(o: &Outcome) -> (String, bool) {
+fn unpack(o: &Outcome) -> (String, String, bool) {
     match o {
-        Outcome::Ran { stdout, errored } => (stdout.clone(), *errored),
-        Outcome::Timeout => ("<timeout>".to_owned(), true),
-        Outcome::Unavailable(m) => (format!("<unavailable: {m}>"), true),
+        Outcome::Ran {
+            stdout,
+            stderr,
+            errored,
+        } => (stdout.clone(), stderr.clone(), *errored),
+        Outcome::Timeout => ("<timeout>".to_owned(), String::new(), true),
+        Outcome::Unavailable(m) => (format!("<unavailable: {m}>"), String::new(), true),
     }
 }
 
@@ -191,10 +210,12 @@ mod tests {
             "puts 1",
             &Outcome::Ran {
                 stdout: "1\n".into(),
+                stderr: String::new(),
                 errored: false,
             },
             &Outcome::Ran {
                 stdout: "2\n".into(),
+                stderr: String::new(),
                 errored: false,
             },
         );
