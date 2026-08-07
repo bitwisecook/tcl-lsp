@@ -112,8 +112,13 @@ export const DEFAULT_BACKSTOP_INTERVAL_MS = 500;
 const MAX_EXTENSIONS = 3;
 
 /** Ceiling on the measured factor, so a pathological reading cannot turn a
- *  bound into an eternity. */
-const MAX_LOAD_FACTOR = 8;
+ *  bound into an eternity. Exported so a caller asserting an upper bound on a
+ *  load-scaled wait *after the fact* (e.g. a test's ceiling check) can use
+ *  this guaranteed worst case rather than a fresh [`loadFactor`] measurement —
+ *  load fluctuates, so re-measuring after the wait already ran asserts
+ *  against the wrong sample and is exactly the kind of gap that produces a
+ *  flaky ceiling (see `waitDiscipline.test.ts`'s `boundCeiling`). */
+export const MAX_LOAD_FACTOR = 8;
 
 /** Promisified setTimeout. */
 export function sleep(ms: number): Promise<void> {

@@ -32,6 +32,7 @@ export {
   bounded,
   DIAGNOSTIC_BUDGET_MS,
   loadFactor,
+  MAX_LOAD_FACTOR,
   scaledTimeout,
   sleep,
 } from "./signal";

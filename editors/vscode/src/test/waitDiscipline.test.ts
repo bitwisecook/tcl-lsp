@@ -26,6 +26,7 @@ import {
   DIAGNOSTIC_BUDGET_MS,
   getDocUri,
   loadFactor,
+  MAX_LOAD_FACTOR,
   type ProbeOutcome,
   scaledTimeout,
   waitForDiagnostics,
@@ -367,16 +368,24 @@ suite("Wait discipline (issue #1274)", () => {
       // the failure still arrives — it just arrives later than the bound.
       //
       // That budget is *load-scaled* (`scaledTimeout(DIAGNOSTIC_BUDGET_MS)`),
-      // so this ceiling has to scale with it. A fixed addend asserts a
-      // constant against a moving cap: on a busy machine the budget stretches
-      // past it and the test fails for being slow rather than for being
-      // unbounded, which is the opposite of what it is checking. Observed on
-      // CI with two runs sharing a runner — 24 201 ms against a fixed
-      // 22 400 ms ceiling — while the same job passed in the other run.
-      // Reading the budget from its own definition also stops the two
-      // drifting apart again.
+      // so this ceiling has to scale with it — but it must use the
+      // *guaranteed worst case* (`MAX_LOAD_FACTOR`), not a fresh `loadFactor()`
+      // reading taken here, after the diagnose has already run. Load
+      // fluctuates: a `scaledTimeout(DIAGNOSTIC_BUDGET_MS)` computed at this
+      // point can read a *lower* factor than was in effect while the actual
+      // diagnose ran (the 1s `LOAD_FACTOR_TTL_MS` cache elapses within a
+      // multi-second diagnose), asserting a smaller ceiling than the
+      // documented contract actually allows. Observed on CI: a diagnose that
+      // took ~32.7s (a real, legitimate ~2.2x scaling) failing against a
+      // ceiling computed moments later from a ~1.6x reading — the diagnose
+      // itself was within contract, only this ceiling's own measurement was
+      // stale. `MAX_LOAD_FACTOR` is the fixed upper bound `diagnose()` itself
+      // is capped by (see `signal.ts`), so asserting against it is racy in
+      // one direction only: it can under-fail (miss a real regression that
+      // stays within the max) but never flake on legitimate load.
       const ceiling =
-        boundCeiling(base) + (label === "hangs" ? scaledTimeout(DIAGNOSTIC_BUDGET_MS) + 2_000 : 0);
+        boundCeiling(base) +
+        (label === "hangs" ? MAX_LOAD_FACTOR * DIAGNOSTIC_BUDGET_MS + 2_000 : 0);
       assert.ok(
         Date.now() - started < ceiling,
         `a ${label} probe must not make the failure unbounded; took ${Date.now() - started}ms`,

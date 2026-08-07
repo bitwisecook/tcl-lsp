@@ -29,7 +29,7 @@
 
 import * as assert from "assert";
 import * as vscode from "vscode";
-import { getDocUri, activate, waitForDiagnostics } from "./helper";
+import { getDocUri, activate, waitForDiagnostics, pollUntil, scaledTimeout } from "./helper";
 
 function codeOf(d: vscode.Diagnostic): string {
   return typeof d.code === "object" && d.code !== null ? String(d.code.value) : String(d.code);
@@ -75,24 +75,54 @@ suite("Issue #1312 named-object dispatch", () => {
     assert.strictEqual(w308[0].range.start.line, 9, "anchored on `obj nosuchmethod`");
   });
 
-  test("the named-object dispatch site colours its method word as `method`", async () => {
+  test("the named-object dispatch site colours its method word as `method`", async function () {
+    // `semanticTokens/full` can serve a cheap, analysis-free coarse tier
+    // synchronously (`SEMANTIC_TOKENS_FAST_PATH_BUDGET`) while the enriched
+    // (object-class-aware) tier keeps computing in the background and
+    // arrives via `workspace/semanticTokens/refresh` — the same
+    // converge-later contract the "issue #829" tests in
+    // `semanticTokens.test.ts` poll for. The coarse tier carries no class
+    // information at all, so it always colours a bareword dispatch as
+    // `string`; only the enriched tier resolves `obj`'s class through
+    // `NamedInstanceMap` and marks `mrun` as `method`. Poll rather than
+    // asserting on a single request so this doesn't flake under CI load.
+    //
+    // Both bounds are load-scaled together (matching the #829 pattern in
+    // `semanticTokens.test.ts`) with headroom between them: a fixed mocha
+    // timeout with no slack over `pollUntil`'s own internal bound fires
+    // before `pollUntil` gets to report *why* it timed out — observed on
+    // CI/under load immediately after a neighbouring heavy test, where a
+    // fixed 20s outer bound raced a 15s inner one and lost.
+    this.timeout(scaledTimeout(30_000));
     const doc = await activate(docUri);
     const legend = (await vscode.commands.executeCommand(
       "vscode.provideDocumentSemanticTokensLegend",
       docUri,
     )) as vscode.SemanticTokensLegend;
-    const tokens = (await vscode.commands.executeCommand(
-      "vscode.provideDocumentSemanticTokens",
-      docUri,
-    )) as vscode.SemanticTokens;
-    const toks = decodeTokens(tokens, legend);
     const lines = doc.getText().split("\n");
     const covered = (t: DecodedToken): string =>
       lines[t.line]?.slice(t.char, t.char + t.length) ?? "";
-    const dump = JSON.stringify(toks.map((t) => [t.line, t.char, covered(t), t.type]));
+
+    const toks = await pollUntil(
+      async () => {
+        const tokens = (await vscode.commands.executeCommand(
+          "vscode.provideDocumentSemanticTokens",
+          docUri,
+        )) as vscode.SemanticTokens;
+        return decodeTokens(tokens, legend);
+      },
+      (decoded) =>
+        decoded.some((t) => t.line === 8 && covered(t) === "mrun" && t.type === "method"),
+      {
+        timeout: scaledTimeout(20_000),
+        interval: 250,
+        label: "enriched named-object method classification",
+      },
+    );
     // Line 8 is `obj mrun` — the dispatch site, not the declaration on
     // line 5. Only the dispatch classification was broken by issue #1312.
     const dispatched = toks.find((t) => t.line === 8 && covered(t) === "mrun");
+    const dump = JSON.stringify(toks.map((t) => [t.line, t.char, covered(t), t.type]));
     assert.ok(dispatched, `the dispatched \`mrun\` must colour as a method: ${dump}`);
     assert.strictEqual(dispatched?.type, "method");
   });
