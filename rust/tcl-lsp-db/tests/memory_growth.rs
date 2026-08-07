@@ -52,7 +52,7 @@
 //!
 //! ## Shape of the assertion
 //!
-//! Runs a small, CI-fast number of synthetic edits (`EDITS`, each a
+//! Runs a small, CI-fast number of synthetic edits (see `edits`, each a
 //! distinct, constant-length inserted statement — never a repeat, so
 //! nothing can hide behind salsa's identical-input early cutoff) split into
 //! four equal quartiles. The first quartile is warm-up (lazily-populated
@@ -149,17 +149,58 @@ fn build_config(db: &TclDatabase) -> AnalyserConfig {
     )
 }
 
-/// Total edits driven through the database. Kept small enough to stay
-/// CI-fast (well under a second in a debug build) while still giving four
-/// distinct quartiles wide enough to average out per-edit noise.
-const EDITS: u32 = 80;
-const QUARTILE: u32 = EDITS / 4;
+/// Baseline edits driven through the database, on the narrowest machine.
+/// Small enough to stay CI-fast while still giving four distinct quartiles
+/// wide enough to average out per-edit noise.
+const BASE_EDITS: u32 = 80;
 
-/// Resident-set budget for the late half of the session, in KiB.
-/// Deliberately loose (measured late-window growth over 10 runs was
-/// 0-32 KiB) because RSS is coarse and platform-dependent; it still
-/// catches any leak above roughly 200 KiB per edit.
-const LATE_RSS_BUDGET_KIB: u64 = 8 * 1024;
+/// Salsa's interned-table shard count — `(available_parallelism() * 4)`
+/// rounded up to a power of two.  The reference width this file's baseline
+/// was measured at is 16 shards (a 4-core machine).
+fn interned_shards() -> u32 {
+    let cpus = std::thread::available_parallelism().map_or(1, std::num::NonZero::get);
+    u32::try_from(cpus.saturating_mul(4).next_power_of_two()).unwrap_or(u32::MAX)
+}
+
+/// Total edits driven through the database, scaled by the interned-table
+/// shard count.
+///
+/// The plateau this test asserts is reached when salsa's interned collector
+/// starts recycling slots instead of allocating new ones, and a slot only
+/// becomes reclaimable once its **own** shard's LRU tail holds a stale entry.
+/// So a wider machine needs proportionally more revisions to reach the same
+/// steady state, and a fixed count is a machine-dependent test.  Measured, all
+/// else equal:
+///
+/// | shards | q1 | q2 | q3 | q4 | late window |
+/// |-------:|---:|---:|---:|---:|------------:|
+/// |     16 | 7680 | 3232 |  792 | 1016 |  1808 (plateaued) |
+/// |    32+ | 10632 | 8440 | 6024 | 4672 | 10696 (still falling) |
+///
+/// Both rows are the *same* healthy behaviour seen at different points on the
+/// curve; only the second had not yet arrived.  Scaling the session length
+/// keeps the assertion measuring the steady state rather than the warm-up.
+fn edits() -> u32 {
+    (interned_shards() * (BASE_EDITS / 16)).max(BASE_EDITS)
+}
+
+/// One quarter of [`edits`], the checkpoint interval.
+fn quartile() -> u32 {
+    edits() / 4
+}
+
+/// Resident-set budget for the late half of a *baseline-length* session, in
+/// KiB.  Deliberately loose (measured late-window growth over 10 runs was
+/// 0-32 KiB) because RSS is coarse and platform-dependent; it still catches
+/// any leak above roughly 200 KiB per edit.
+const BASE_LATE_RSS_BUDGET_KIB: u64 = 8 * 1024;
+
+/// [`BASE_LATE_RSS_BUDGET_KIB`] scaled by the session length, so a wider
+/// machine — which drives proportionally more edits, see [`edits`] — is held
+/// to the same *per-edit* bound rather than a stricter absolute one.
+fn late_rss_budget_kib() -> u64 {
+    BASE_LATE_RSS_BUDGET_KIB * u64::from(edits()) / u64::from(BASE_EDITS)
+}
 
 #[test]
 fn edit_session_memory_growth_plateaus() {
@@ -196,7 +237,9 @@ fn edit_session_memory_growth_plateaus() {
     let mut rss: Vec<Option<u64>> = vec![rss_kib()];
     let mut checkpoints: Vec<u64> = vec![total_salsa_retained_bytes(&db)];
 
-    for i in 1..=EDITS {
+    let edits = edits();
+    let quartile = quartile();
+    for i in 1..=edits {
         // A distinct, constant-length statement every edit — the buffer
         // never repeats (so nothing can hide behind salsa's early cutoff
         // on an unchanged value) but never grows in length either, so
@@ -208,7 +251,7 @@ fn edit_session_memory_growth_plateaus() {
         let _ = file_analysis_incremental(&db, file, config);
         let _ = compiler_check_diagnostics(&db, file, config);
 
-        if i % QUARTILE == 0 {
+        if i % quartile == 0 {
             checkpoints.push(total_salsa_retained_bytes(&db));
             rss.push(rss_kib());
         }
@@ -240,13 +283,13 @@ fn edit_session_memory_growth_plateaus() {
     // catching any leak above roughly 100 bytes per edit — three orders of
     // magnitude under #1035's own ~500 KiB per edit.
     let late_window = q3 + q4;
-    let late_edits = u64::from(QUARTILE) * 2;
+    let late_edits = u64::from(quartile) * 2;
     // A quarter of warm-up, with a small absolute floor so a healthy zero
     // steady state cannot make the assertion spuriously strict.
     let late_budget = (q1 / 4).max(4 * 1024);
     assert!(
         late_window <= late_budget,
-        "salsa-retained-bytes growth did not plateau across the {EDITS}-edit session \
+        "salsa-retained-bytes growth did not plateau across the {edits}-edit session \
          (issue #1035 regression class): quartile growth q1={q1} q2={q2} q3={q3} q4={q4} \
          bytes; the late window (q3+q4 = {late_window} bytes over {late_edits} edits, \
          {} bytes/edit) must be at most {late_budget} — a quarter of the q1 warm-up, \
@@ -262,10 +305,11 @@ fn edit_session_memory_growth_plateaus() {
     // 8 MiB still catches any leak above ~200 KiB per edit.
     if let (Some(mid), Some(end)) = (rss[3], rss[4]) {
         let late_rss = end.saturating_sub(mid);
+        let budget = late_rss_budget_kib();
         assert!(
-            late_rss <= LATE_RSS_BUDGET_KIB,
+            late_rss <= budget,
             "resident set kept growing through the late half of the session: \
-             {late_rss} KiB over {late_edits} edits, budget {LATE_RSS_BUDGET_KIB} KiB; \
+             {late_rss} KiB over {late_edits} edits, budget {budget} KiB; \
              per-quartile RSS (KiB) = {rss:?}"
         );
     }
