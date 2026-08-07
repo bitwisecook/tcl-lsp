@@ -326,6 +326,7 @@ fn code_actions_offer_the_reached_body_for_inlining() {
             Some(analysis),
             &analysis.diagnostics,
             Some(program(exports)),
+            tcl_lsp_core::formatting::DocstringStyle::Preceding,
         )
         .into_iter()
         .filter(|a| a.title.starts_with("Inline proc"))
@@ -476,7 +477,8 @@ fn the_legacy_entry_points_still_equal_the_document_only_program_view() {
             cursor,
             Some(&analysis),
             &analysis.diagnostics,
-            None
+            None,
+            tcl_lsp_core::formatting::DocstringStyle::Preceding
         )
         .into_iter()
         .map(|a| a.title)

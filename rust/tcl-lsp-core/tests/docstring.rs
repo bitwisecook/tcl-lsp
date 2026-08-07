@@ -56,8 +56,9 @@
 
 use tcl_compiler::analyser::utils::extract_body_docstring;
 use tcl_compiler::analyser::{Analyser, AnalysisResult};
-use tcl_lsp_core::code_actions::{ActionKind, CodeAction, code_actions};
+use tcl_lsp_core::code_actions::{ActionKind, CodeAction, code_actions, code_actions_in_program};
 use tcl_lsp_core::definition::LspRange;
+use tcl_lsp_core::formatting::DocstringStyle;
 use tcl_lsp_core::hover::hover;
 
 // ---------------------------------------------------------------------------
@@ -586,6 +587,144 @@ fn generate_stub_absent_when_cursor_off_declaration_line() {
         find(&actions, "Generate docstring for 'qux'").is_none(),
         "off-declaration-line cursor must not offer the stub; got {:?}",
         actions.iter().map(|a| &a.title).collect::<Vec<_>>(),
+    );
+}
+
+// ===========================================================================
+// `DocstringStyle` placement (#1314) — code_actions_in_program's
+// docstring_style parameter, the resolved `tclLsp.formatting.docstringStyle`
+// setting's actual consumer.
+// ===========================================================================
+
+#[test]
+fn docstring_style_none_offers_no_action() {
+    // FN-shape: `None` — "do not generate or reformat docstrings", the
+    // documented default — suppresses the source action entirely, even for
+    // an undocumented proc with the cursor on its declaration line.
+    let src = "proc greet {name} { puts $name }\n";
+    let analysis = analyse(src);
+    let actions = code_actions_in_program(
+        src,
+        cursor(0, 0),
+        Some(&analysis),
+        &analysis.diagnostics,
+        None,
+        DocstringStyle::None,
+    );
+    assert!(
+        find(&actions, "Generate docstring for 'greet'").is_none(),
+        "DocstringStyle::None must suppress the generate action; got {:?}",
+        actions.iter().map(|a| &a.title).collect::<Vec<_>>(),
+    );
+}
+
+#[test]
+fn docstring_style_preceding_matches_plain_code_actions_default() {
+    // TP-shape: passing `Preceding` explicitly through
+    // `code_actions_in_program` reproduces exactly what the plain
+    // `code_actions()` entry point has always done (its only placement).
+    let src = "proc greet {name} { puts $name }\n";
+    let analysis = analyse(src);
+    let explicit = code_actions_in_program(
+        src,
+        cursor(0, 0),
+        Some(&analysis),
+        &analysis.diagnostics,
+        None,
+        DocstringStyle::Preceding,
+    );
+    let default = code_actions(src, cursor(0, 0), Some(&analysis), &analysis.diagnostics);
+    let explicit_edit = &find(&explicit, "Generate docstring for 'greet'")
+        .expect("explicit Preceding action")
+        .edits[0];
+    let default_edit = &find(&default, "Generate docstring for 'greet'")
+        .expect("default action")
+        .edits[0];
+    assert_eq!(explicit_edit, default_edit);
+    // Preceding lands on the declaration line itself, column 0.
+    assert_eq!(explicit_edit.range.start_line, 0);
+    assert_eq!(explicit_edit.range.start_character, 0);
+}
+
+#[test]
+fn docstring_style_body_inserts_after_the_opening_brace_not_on_decl_line() {
+    // TP-shape: `Body` placement inserts inside the proc body — not on the
+    // declaration line the way `Preceding` does.
+    let src = "proc greet {name} {\n    puts $name\n}\n";
+    let analysis = analyse(src);
+    let actions = code_actions_in_program(
+        src,
+        cursor(0, 0),
+        Some(&analysis),
+        &analysis.diagnostics,
+        None,
+        DocstringStyle::Body,
+    );
+    let edit = &find(&actions, "Generate docstring for 'greet'")
+        .expect("a Body-placement generate action")
+        .edits[0];
+    // The opening brace is on line 0; the insertion point is just after it,
+    // not at column 0 of line 0 (which is what Preceding would use).
+    assert_eq!(edit.range.start_line, 0);
+    assert!(
+        edit.range.start_character > 0,
+        "Body placement must not land at column 0 of the decl line: {edit:?}",
+    );
+    assert!(
+        edit.new_text.contains("@brief TODO: describe greet"),
+        "stub content unaffected by placement: {:?}",
+        edit.new_text,
+    );
+}
+
+#[test]
+fn docstring_style_body_matches_the_bodys_existing_indent() {
+    // TP-shape: the inserted stub's comment lines pick up the same
+    // indentation as the body's existing (2-space) content, not the
+    // formatter's 4-space default.
+    let src = "proc greet {name} {\n  puts $name\n}\n";
+    let analysis = analyse(src);
+    let actions = code_actions_in_program(
+        src,
+        cursor(0, 0),
+        Some(&analysis),
+        &analysis.diagnostics,
+        None,
+        DocstringStyle::Body,
+    );
+    let edit = &find(&actions, "Generate docstring for 'greet'")
+        .expect("a Body-placement generate action")
+        .edits[0];
+    assert!(
+        edit.new_text.contains("\n  # @brief"),
+        "stub should be indented to match the body's 2-space content: {:?}",
+        edit.new_text,
+    );
+}
+
+#[test]
+fn docstring_style_body_falls_back_to_four_spaces_for_a_single_line_proc() {
+    // FN-shape: a single-line body has no other line to read an indent
+    // from, so the fallback (four spaces, the formatter's default indent
+    // size) applies, and the edit still splices in cleanly around the
+    // existing body text.
+    let src = "proc greet {name} { puts $name }\n";
+    let analysis = analyse(src);
+    let actions = code_actions_in_program(
+        src,
+        cursor(0, 0),
+        Some(&analysis),
+        &analysis.diagnostics,
+        None,
+        DocstringStyle::Body,
+    );
+    let edit = &find(&actions, "Generate docstring for 'greet'")
+        .expect("a Body-placement generate action")
+        .edits[0];
+    assert!(
+        edit.new_text.contains("\n    # @brief"),
+        "fallback four-space indent expected: {:?}",
+        edit.new_text,
     );
 }
 

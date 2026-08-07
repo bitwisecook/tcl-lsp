@@ -10071,6 +10071,29 @@ impl Backend {
         let optimiser_profile = self.optimiser_profile.lock().await.name();
         let library_paths = self.editor_library_paths.lock().await.clone();
         let line_length = *self.line_length.lock().await;
+        // `tclLsp.formatting.docstringStyle` (#1314) — same per-URI fold as
+        // `resolved_docstring_style`, but a folder-only query (no readable
+        // document) has no `Uri` to resolve *through*, so it reads the
+        // process-global settings object directly, matching the `dialect`
+        // fallback above. This is also the settle signal a test polls after
+        // `Lsp::with_config({"formatting": {"docstringStyle": …}})`.
+        let docstring_style = match &parsed_uri {
+            Some(uri) => self.resolved_docstring_style(uri).await,
+            None => self
+                .formatting_settings
+                .lock()
+                .await
+                .get("docstringStyle")
+                .and_then(serde_json::Value::as_str)
+                .map_or(core_formatting::DocstringStyle::None, |s| {
+                    core_formatting::DocstringStyle::parse(s)
+                }),
+        };
+        let docstring_style_str = match docstring_style {
+            core_formatting::DocstringStyle::Preceding => "preceding",
+            core_formatting::DocstringStyle::Body => "body",
+            core_formatting::DocstringStyle::None => "none",
+        };
         // Report the *per-folder* analyser settings (the same resolver the
         // feature/diagnostics paths use), not the process-global ones: in a
         // multi-root workspace a folder may override the disabled-codes set /
@@ -10109,6 +10132,7 @@ impl Backend {
             "optimiser_profile": optimiser_profile,
             "library_paths": library_paths,
             "line_length": line_length,
+            "docstring_style": docstring_style_str,
             "non_ascii_mode": non_ascii_mode_str(mode),
             "disabled_diagnostics": disabled_sorted,
         })))
@@ -11135,6 +11159,22 @@ impl Backend {
             Some(v) => v,
             None => self.formatting_settings.lock().await.clone(),
         }
+    }
+
+    /// The resolved `tclLsp.formatting.docstringStyle` setting for `uri`
+    /// (#1314) — a folder override wins, else the process-global value,
+    /// same precedence as [`Self::resolved_formatting`] (whose object this
+    /// reads the key from). Falls back to
+    /// [`core_formatting::DocstringStyle::None`] — the documented default —
+    /// when the key is absent or not a string.
+    async fn resolved_docstring_style(&self, uri: &Uri) -> core_formatting::DocstringStyle {
+        self.resolved_formatting(uri)
+            .await
+            .get("docstringStyle")
+            .and_then(serde_json::Value::as_str)
+            .map_or(core_formatting::DocstringStyle::None, |s| {
+                core_formatting::DocstringStyle::parse(s)
+            })
     }
 
     /// The line ending any server-composed edit for `uri` should insert: the
@@ -15269,6 +15309,11 @@ impl LanguageServer for Backend {
         // The inline-proc refactor substitutes the reached proc's body, so
         // it needs the same export view definition uses (issue #1116 item 1).
         let exports = self.export_snapshot().await;
+        // `tclLsp.formatting.docstringStyle` (#1314) — resolved the same way
+        // as every other folder-overridable formatting setting, then handed
+        // to the docstring source action so it actually governs where (or
+        // whether) a generated stub is inserted.
+        let docstring_style = self.resolved_docstring_style(&uri).await;
         let uri_key = uri.as_str().to_owned();
         let actions = tokio::task::spawn_blocking(move || {
             let program = core_definition::ProgramExports {
@@ -15283,6 +15328,7 @@ impl LanguageServer for Backend {
                 Some(&analysis),
                 &published,
                 Some(program),
+                docstring_style,
             );
             push_context_code_actions(
                 &mut actions,
@@ -16508,11 +16554,15 @@ fn apply_keyword_formatting(
     }
 }
 
-/// Read the `docstring*` `tclLsp.formatting.*` settings into `cfg`. Kept for
-/// config compatibility (round-tripped into the config) even though the docstring
-/// rewriter that would consume them is not yet implemented. Split out of
-/// [`apply_formatting_object`] to keep each per-key block under the
-/// `too_many_lines` lint.
+/// Read the `docstring*` `tclLsp.formatting.*` settings into `cfg`.
+/// `docstringTagStyle` / `docstringDecoration*` are consumed by
+/// `generate_stub_for_proc` (the docstring-stub content); `docstringStyle`
+/// (placement) is round-tripped here for config-consumer parity, but the
+/// `code_action` handler resolves it independently via
+/// [`Backend::resolved_docstring_style`], which is the actual consumer
+/// (#1314) — code actions run off the resolved settings object directly
+/// rather than this `FormatterConfig`. Split out of [`apply_formatting_object`]
+/// to keep each per-key block under the `too_many_lines` lint.
 fn apply_docstring_formatting(
     obj: &serde_json::Map<String, serde_json::Value>,
     cfg: &mut core_formatting::FormatterConfig,
@@ -16521,11 +16571,7 @@ fn apply_docstring_formatting(
         .get("docstringStyle")
         .and_then(serde_json::Value::as_str)
     {
-        cfg.docstring_style = match s.to_ascii_lowercase().as_str() {
-            "preceding" => core_formatting::DocstringStyle::Preceding,
-            "body" => core_formatting::DocstringStyle::Body,
-            _ => core_formatting::DocstringStyle::None,
-        };
+        cfg.docstring_style = core_formatting::DocstringStyle::parse(s);
     }
     if let Some(s) = obj
         .get("docstringTagStyle")
@@ -20646,8 +20692,10 @@ mod tests {
 
     #[test]
     fn formatter_config_round_trips_docstring_settings() {
-        // The docstring knobs are carried for config compatibility (not yet
-        // consumed by the engine); a settings object still flows them into the config.
+        // The docstring knobs are carried for config-consumer parity on
+        // `FormatterConfig` (`docstringStyle`'s real consumer is the
+        // `code_action` handler via `resolved_docstring_style`, tested
+        // below); a settings object still flows them into this config too.
         let opts = tower_lsp_server::ls_types::FormattingOptions::default();
         let cfg = formatter_config_from(
             &serde_json::json!({
@@ -20704,6 +20752,34 @@ mod tests {
         assert_eq!(cfg.max_line_length, 70);
         // tab_size 0 → unwrap_or(cfg.indent_size=8).max(1) = 8.
         assert_eq!(cfg.indent_size, 8);
+    }
+
+    #[tokio::test]
+    async fn resolved_docstring_style_defaults_to_none() {
+        // No `docstringStyle` configured at all — falls back to the
+        // documented default, matching `FormatterConfig::default()` and
+        // every editor catalogue's declared default (#1314).
+        let backend = test_backend();
+        let uri = Uri::from_str("file:///f.tcl").unwrap();
+        assert_eq!(
+            backend.resolved_docstring_style(&uri).await,
+            core_formatting::DocstringStyle::None
+        );
+    }
+
+    #[tokio::test]
+    async fn resolved_docstring_style_reads_the_global_config() {
+        let backend = test_backend();
+        let uri = Uri::from_str("file:///f.tcl").unwrap();
+        backend
+            .apply_global_config(&serde_json::json!({
+                "formatting": { "docstringStyle": "body" }
+            }))
+            .await;
+        assert_eq!(
+            backend.resolved_docstring_style(&uri).await,
+            core_formatting::DocstringStyle::Body
+        );
     }
 
     #[test]

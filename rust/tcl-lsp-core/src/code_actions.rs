@@ -310,6 +310,13 @@ fn push_brace_expr_refactors(
 /// `Pi()` call whose diagnostic it had already suppressed (issue #923 idx 80).
 /// A host with no workspace knowledge passes `&analysis.diagnostics`, which is
 /// then the same set by definition.
+///
+/// The "Generate docstring" source action is offered at the
+/// [`crate::formatting::DocstringStyle::Preceding`] placement — the only
+/// placement this entry point can offer, since it has no client config to
+/// resolve a `tclLsp.formatting.docstringStyle` setting from. A host that
+/// resolves the setting (the LSP server's `code_action` handler) should call
+/// [`code_actions_in_program`] directly with the resolved style instead.
 #[must_use]
 pub fn code_actions(
     source: &str,
@@ -317,7 +324,14 @@ pub fn code_actions(
     analysis: Option<&AnalysisResult>,
     diagnostics: &[tcl_compiler::analyser::Diagnostic],
 ) -> Vec<CodeAction> {
-    code_actions_in_program(source, range, analysis, diagnostics, None)
+    code_actions_in_program(
+        source,
+        range,
+        analysis,
+        diagnostics,
+        None,
+        crate::formatting::DocstringStyle::Preceding,
+    )
 }
 
 /// [`code_actions`] with the caller's whole-program export view attached —
@@ -333,6 +347,11 @@ pub fn code_actions(
 /// the two arguments answer different questions — `program` decides what a call
 /// *reaches*, `diagnostics` decides what the document is *showing* — so a host
 /// with a workspace index needs to supply both.
+///
+/// `docstring_style` is the resolved `tclLsp.formatting.docstringStyle`
+/// setting (#1314): it decides where the "Generate docstring" source action
+/// inserts a new stub (`Preceding` / `Body`), or suppresses the action
+/// entirely (`None`).
 #[must_use]
 pub fn code_actions_in_program(
     source: &str,
@@ -340,6 +359,7 @@ pub fn code_actions_in_program(
     analysis: Option<&AnalysisResult>,
     diagnostics: &[tcl_compiler::analyser::Diagnostic],
     program: Option<crate::definition::ProgramExports<'_>>,
+    docstring_style: crate::formatting::DocstringStyle,
 ) -> Vec<CodeAction> {
     let Some(analysis) = analysis else {
         return Vec::new();
@@ -395,7 +415,13 @@ pub fn code_actions_in_program(
     ));
     actions.extend(ip_conversion_actions(source, range, &line_index));
     actions.extend(expr_rewrite_actions(source, range, &line_index));
-    actions.extend(docstring_actions(source, range, analysis, &line_index));
+    actions.extend(docstring_actions(
+        source,
+        range,
+        analysis,
+        &line_index,
+        docstring_style,
+    ));
     actions.extend(extract_inline_actions(
         source,
         range,
@@ -1467,7 +1493,13 @@ fn docstring_actions(
     range: LspRange,
     analysis: &AnalysisResult,
     line_index: &LineIndex,
+    docstring_style: crate::formatting::DocstringStyle,
 ) -> Vec<CodeAction> {
+    // `None` — "do not generate or reformat docstrings" — offers no action
+    // at all, matching the setting's documented (and default) meaning.
+    if docstring_style == crate::formatting::DocstringStyle::None {
+        return Vec::new();
+    }
     let mut out = Vec::new();
     for proc_def in analysis.all_procs.values() {
         let decl = line_index.position_at_utf16(proc_def.name_span.start(), source);
@@ -1478,31 +1510,29 @@ fn docstring_actions(
         if !proc_def.doc.is_empty() {
             continue;
         }
+        let edit = match docstring_style {
+            crate::formatting::DocstringStyle::Body => {
+                body_docstring_edit(source, line_index, proc_def)
+            }
+            // `Preceding` (and unreachable `None`, filtered above).
+            _ => preceding_docstring_edit(decl.line),
+        };
         // The DOXYGEN stub (`# @brief TODO: describe <proc>` + one `# @param`
-        // line per parameter) is rendered by the shared docstring generator;
-        // the code action inserts it as a block, so add the trailing newline
-        // that separates it from the `proc` line below.
-        let doc = format!(
-            "{}\n",
-            crate::formatting::generate_stub_for_proc(
-                proc_def,
-                crate::formatting::DocstringTagStyle::Doxygen,
-                false,
-                '.',
-                70,
-                "",
-            )
+        // line per parameter) is rendered by the shared docstring generator.
+        let indent = edit.indent;
+        let doc = crate::formatting::generate_stub_for_proc(
+            proc_def,
+            crate::formatting::DocstringTagStyle::Doxygen,
+            false,
+            '.',
+            70,
+            &indent,
         );
         out.push(CodeAction {
             title: format!("Generate docstring for '{}'", proc_def.name),
             edits: vec![crate::rename::TextEdit {
-                range: LspRange {
-                    start_line: decl.line,
-                    start_character: 0,
-                    end_line: decl.line,
-                    end_character: 0,
-                },
-                new_text: doc,
+                range: edit.range,
+                new_text: format!("{}{doc}{}", edit.prefix, edit.suffix),
             }],
             kind: ActionKind::Source,
             command: None,
@@ -1511,6 +1541,86 @@ fn docstring_actions(
         });
     }
     out
+}
+
+/// Where + how to insert a generated docstring stub, and the indent its
+/// lines should carry.
+struct DocstringInsertion {
+    range: LspRange,
+    /// Text emitted before the rendered stub (e.g. nothing, or a leading
+    /// newline when inserting mid-line).
+    prefix: String,
+    /// Text emitted after the rendered stub — a newline separating it from
+    /// what follows, omitted when the insertion point is already followed
+    /// by one (so `Body` placement never leaves a spurious blank line).
+    suffix: String,
+    indent: String,
+}
+
+/// [`crate::formatting::DocstringStyle::Preceding`]: insert a zero-indent
+/// comment block on its own line directly above the `proc` declaration.
+fn preceding_docstring_edit(decl_line: u32) -> DocstringInsertion {
+    DocstringInsertion {
+        range: LspRange {
+            start_line: decl_line,
+            start_character: 0,
+            end_line: decl_line,
+            end_character: 0,
+        },
+        prefix: String::new(),
+        suffix: "\n".to_owned(),
+        indent: String::new(),
+    }
+}
+
+/// [`crate::formatting::DocstringStyle::Body`]: insert the comment block as
+/// the first line inside the `proc` body, indented to match the body's
+/// existing content (or four spaces — the formatter's default indent size —
+/// when the body has no other indented line to match, e.g. an empty or
+/// single-line proc).
+fn body_docstring_edit(
+    source: &str,
+    line_index: &LineIndex,
+    proc_def: &tcl_compiler::analyser::ProcDef,
+) -> DocstringInsertion {
+    let body_start = proc_def.body_span.start();
+    let body_start_idx = body_start as usize;
+    let body_end_idx = (proc_def.body_span.end() as usize).min(source.len());
+    let body_text = source.get(body_start_idx..body_end_idx).unwrap_or("");
+    // The opening `{` sits at `body_start`; the rest of that line is body
+    // text too (a K&R `proc … {` puts nothing else there, but a
+    // single-line proc does), so skip it and read the indent off the first
+    // genuinely-new line instead.
+    let indent = body_text
+        .lines()
+        .skip(1)
+        .map(str::trim_start)
+        .zip(body_text.lines().skip(1))
+        .find(|(trimmed, _)| !trimmed.is_empty())
+        .map_or_else(
+            || "    ".to_owned(),
+            |(trimmed, line)| line[..line.len() - trimmed.len()].to_owned(),
+        );
+    // The body already starts with its own newline (the common multi-line
+    // shape) — reuse it rather than inserting a second one, which would
+    // leave a blank line between the stub and the body's first statement.
+    let suffix = if body_text.starts_with('\n') {
+        String::new()
+    } else {
+        "\n".to_owned()
+    };
+    let pos = line_index.position_at_utf16(body_start, source);
+    DocstringInsertion {
+        range: LspRange {
+            start_line: pos.line,
+            start_character: pos.character.get(),
+            end_line: pos.line,
+            end_character: pos.character.get(),
+        },
+        prefix: "\n".to_owned(),
+        suffix,
+        indent,
+    }
 }
 
 fn extract_inline_actions(

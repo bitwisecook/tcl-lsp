@@ -1637,6 +1637,20 @@ fn config_reflected(requested: &Value, effective: &Value) -> bool {
         "libraryPaths" => effective
             .get("library_paths")
             .is_some_and(|got| got == want),
+        // Nested formatting settings; only `docstringStyle` has a settle
+        // signal (`getEffectiveConfig`'s `docstring_style`) today.
+        "formatting" => want.as_object().is_none_or(|fmt| {
+            fmt.iter().all(|(k, v)| {
+                let flat = match k.as_str() {
+                    "docstringStyle" => "docstring_style",
+                    other => panic!(
+                        "config_reflected: no settle mapping for `formatting.{other}` \
+                         — add one (see getEffectiveConfig) so the config is a real barrier"
+                    ),
+                };
+                effective.get(flat).is_some_and(|got| got == v)
+            })
+        }),
         "dialect" => effective.get("dialect").is_some_and(|got| got == want),
         "lineLength" => effective.get("line_length").is_some_and(|got| got == want),
         other => panic!(
