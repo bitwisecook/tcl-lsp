@@ -81,6 +81,17 @@ pub enum TargetAbi {
     KernelXdp,
     /// Linux `BPF_PROG_TYPE_SOCKET_FILTER` (`struct __sk_buff` context).
     KernelSocketFilter,
+    /// Linux `BPF_PROG_TYPE_SCHED_CLS` (`struct __sk_buff` context — the same
+    /// layout as [`Self::KernelSocketFilter`]; ingress vs egress is an attach
+    /// direction, not a codegen ABI difference, so both `ProgType::TcIngress`
+    /// and `ProgType::TcEgress` target this one ABI).
+    KernelTc,
+    /// Linux `BPF_PROG_TYPE_CGROUP_SOCK_ADDR` (`struct bpf_sock_addr`
+    /// context — no packet body, so no `data`/`data_end` prologue applies;
+    /// `connect4` vs `bind4` is an attach point, not a codegen ABI
+    /// difference, so both `ProgType::CgroupInet4Connect` and
+    /// `ProgType::CgroupInet4Bind` target this one ABI).
+    KernelCgroupSockAddr,
 }
 
 impl TargetAbi {
@@ -91,6 +102,8 @@ impl TargetAbi {
             Self::RbpfFixedMbuff => "rbpf",
             Self::KernelXdp => "kernel-xdp",
             Self::KernelSocketFilter => "kernel-socket",
+            Self::KernelTc => "kernel-tc",
+            Self::KernelCgroupSockAddr => "kernel-cgroup-sockaddr",
         }
     }
 
@@ -102,7 +115,11 @@ impl TargetAbi {
     }
 
     /// The context layout: `data` / `data_end` field offsets and the load width
-    /// used to read them.
+    /// used to read them. Meaningless for [`Self::KernelCgroupSockAddr`] (no
+    /// packet body — `lower.rs` rejects `setbuf` for the cgroup sock-addr
+    /// program types, so a program targeting it never reaches the prologue
+    /// this describes; the values are a documented placeholder, not a real
+    /// offset pair).
     const fn ctx_layout(self) -> CtxLayout {
         match self {
             // The rbpf metadata buffer holds two 64-bit pointers.
@@ -117,10 +134,17 @@ impl TargetAbi {
                 data_end_off: 4,
                 load_size: SZ_W,
             },
-            // `struct __sk_buff`: `data` at byte 76, `data_end` at byte 80.
-            Self::KernelSocketFilter => CtxLayout {
+            // `struct __sk_buff`: `data` at byte 76, `data_end` at byte 80 —
+            // shared by the socket filter and TC (SCHED_CLS), which both
+            // receive `__sk_buff`.
+            Self::KernelSocketFilter | Self::KernelTc => CtxLayout {
                 data_off: 76,
                 data_end_off: 80,
+                load_size: SZ_W,
+            },
+            Self::KernelCgroupSockAddr => CtxLayout {
+                data_off: 0,
+                data_end_off: 0,
                 load_size: SZ_W,
             },
         }
@@ -387,22 +411,29 @@ fn validate_target(prog: &BpfProgram, target_abi: TargetAbi) -> Result<(), BpfEr
     if !target_abi.is_kernel() {
         return Ok(());
     }
-    let expected = match target_abi {
-        TargetAbi::KernelXdp => ProgType::Xdp,
-        TargetAbi::KernelSocketFilter => ProgType::SocketFilter,
+    // `KernelTc`/`KernelCgroupSockAddr` each accept either of their two
+    // `ProgType` variants — ingress/egress and connect4/bind4 are attach
+    // points, not distinct codegen ABIs (see `TargetAbi`'s doc).
+    let (compatible, accepted) = match target_abi {
+        TargetAbi::KernelXdp => (prog.prog_type == ProgType::Xdp, "when XDP"),
+        TargetAbi::KernelSocketFilter => (
+            prog.prog_type == ProgType::SocketFilter,
+            "when SOCKET_FILTER",
+        ),
+        TargetAbi::KernelTc => (prog.prog_type.is_tc(), "when TC_INGRESS or when TC_EGRESS"),
+        TargetAbi::KernelCgroupSockAddr => (
+            prog.prog_type.is_cgroup_sock_addr(),
+            "when CGROUP_CONNECT4 or when CGROUP_BIND4",
+        ),
         TargetAbi::RbpfFixedMbuff => return Ok(()),
     };
-    if prog.prog_type != expected {
+    if !compatible {
         return Err(BpfError::new(
             BpfDiag::OutOfSubset,
             Span::empty(0),
             format!(
-                "the `{}` target only accepts `{}` programs",
+                "the `{}` target only accepts `{accepted}` programs",
                 target_abi.as_str(),
-                match expected {
-                    ProgType::Xdp => "when XDP",
-                    ProgType::SocketFilter => "when SOCKET_FILTER",
-                }
             ),
         ));
     }

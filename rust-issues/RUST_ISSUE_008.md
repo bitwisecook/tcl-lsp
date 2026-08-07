@@ -7,7 +7,7 @@
 | **Severity** | high |
 | **Subsystem** | Backend parity (WASM/VM/eBPF/registry) |
 | **Location** | `WASM backend` |
-| **Status** | Substantially resolved (VM coroutines incl. `coroprobe`/`coroinject`/`corotype`/`yieldto` + event loop + thread package incl. `mutex`/`cond`/`rwmutex`/`tpool`; coroutines proven on wasm32 via the VM, now the **default `tcl compwasm` backend** shipping a generic `vm.wasm` runner; `yield` now crosses `eval`/`uplevel 0`/`catch`, a straight-line `lmap` (the inline collecting loop), and `subst` (a scanner-driven subst frame) on the explicit stack). C `coroutine.test` runs the VM at **60/77** (3 skipped; the lmap-in-`apply` 9.2/10.1/10.3 and the `subst`-as-coroutine 1.13/1.14 now pass; 10.2 still diverges on coroinject stacking order). Open tail: a `[yieldto …]` in a command-substitution *argument* slot (7.3/12.1, lowers to runtime `subst_word`), `lmap` in a *consumed*/branching position, and `try`/`apply` — now tracked as **GitHub issue #1311** with standalone repros for the last three. **Correction (2026-08-07):** `lsort -command` was listed here as an open barrier and is not one — C Tcl refuses it too (`tclsh9.0` and `tclvm` both raise `cannot yield: C stack busy` for a `yield` inside an `lsort -command` comparator), so that is parity, not a gap. |
+| **Status** | Substantially resolved (VM coroutines incl. `coroprobe`/`coroinject`/`corotype`/`yieldto` + event loop + thread package incl. `mutex`/`cond`/`rwmutex`/`tpool`; coroutines proven on wasm32 via the VM, now the **default `tcl compwasm` backend** shipping a generic `vm.wasm` runner; `yield` now crosses `eval`/`uplevel 0`/`catch`, a straight-line `lmap` (the inline collecting loop), `subst` (a scanner-driven subst frame), `try` (body/handler/`finally`, each its own explicit-stack phase — GitHub issue #1311), a value-consuming `lmap`/`foreach` runtime fallback (an `each_loop` activation — #1311), and a bare `apply` call (bound to a temporary proc run via `pending_eval`, mirroring `coroutine … apply {lambda}` — #1311) on the explicit stack). C `coroutine.test` runs the VM at **60/77** (3 skipped; the lmap-in-`apply` 9.2/10.1/10.3 and the `subst`-as-coroutine 1.13/1.14 now pass; 10.2 still diverges on coroinject stacking order). Open tail: a `[yieldto …]` in a command-substitution *argument* slot (7.3/12.1, lowers to runtime `subst_word`, not reduced to a standalone repro — see #1311), and `lsort -command` (verified as tclsh parity, not a gap — C Tcl refuses it too). |
 | **Verification** | Oracle-checked against tclsh 9.0.4 (coroutine/event-loop suites, 28 `cmd_coro_e2e` tests) + the real C `tests/coroutine.test` through the VM (55/77) + a Node-executed wasm32 coroutine test; thread package via deterministic concurrency tests (`thread.test` is `testthread`-gated → N/A; no threaded oracle). |
 
 ## Finding
@@ -73,8 +73,62 @@ stack — the same mechanism as `eval`/`uplevel 0`, but the frame **absorbs** th
 body's completion instead of propagating it: `unwind` recognises the catch frame,
 builds the body's errorInfo, and runs the shared `Vm::finish_catch` epilogue
 (bind the result/options vars, deliver the status code as `catch`'s result — for
-*any* completion code). `try` still re-enters natively (its `eval_body` calls
-`eval_source`), so `yield` across `try` remains barriered.
+*any* completion code).
+
+## Resolution — `try`/`apply`/consumed-`lmap` yieldability (GitHub issue #1311)
+
+The three remaining barriers this file's "open tail" prose tracked — `try`, a
+bare `apply` call, and `lmap`/`foreach` reached in a value-consuming position —
+are fixed, following the same `pending_*` + explicit-stack-activation pattern
+`eval`/`catch` already established:
+
+- **`apply`** (`cmd_apply` in `rust/tcl-vm/src/command.rs`): binds the lambda
+  to a temporary proc (unchanged — `build_lambda_proc`, shared with
+  `coroutine … apply`) and defers `name arg…` to `Vm.pending_eval` /
+  `Tick::PushScript`, exactly like `eval`, instead of `Vm::eval_source`'s
+  nested drive. `pending_eval`'s tuple gained a third field, `cleanup_proc:
+  Option<String>`, so the temporary proc is still torn down once the pushed
+  frame completes (`Vm::unwind`, any completion code) rather than
+  immediately after a synchronous call.
+- **A value-consuming `lmap`/`foreach`** (`each_loop` in
+  `rust/tcl-vm/src/cmd_control.rs`, the runtime fallback both commands share):
+  parses the grammar synchronously as before, then defers iteration itself to
+  a new scanner-driven **each-loop activation** (`Frame::each_loop`,
+  `EachLoopState`/`EachLoopReq`, `Tick::PushEachLoop`) — mirroring `subst`'s
+  scanner frame, but iterating `foreach`/`lmap` groups instead of scanning a
+  template: each iteration's body runs as a yieldable child script frame,
+  and `Vm::fold_each_loop` folds the child's completion back by the
+  collect/continue/break rules `each_loop` already had.
+- **`try`** (`rust/tcl-vm/src/cmd_try.rs`): the body/handler/`finally`
+  Rust-side orchestration (handler matching, var binding, `-during`
+  chaining) is now a small state machine — `TryPlan`/`TryPhase`/`TryState`/
+  `TryOutcome`, driven by `advance_try` — instead of three sequential
+  `eval_body`/`eval_source` calls. Each phase runs as its own **try-phase
+  activation** (`Frame::try_ctx`, `Tick::PushTry`); `Vm::unwind` calls
+  `advance_try` when one completes, which either pushes a fresh try-phase
+  activation for the next phase or delivers the construct's final
+  completion. A try-phase activation is deliberately **not** `is_script`
+  (unlike `eval`/`catch`'s frames): the `eval`/`uplevel`-style transparent
+  `break`/`continue` redirect to the caller's enclosing loop hits a
+  pre-existing compiler gap for a *simple, single-opaque-command* loop body
+  (its `loop_targets` entry redirects to the body's own start rather than
+  the loop's step point, hanging) — the same gap that already makes a bare
+  `return -code continue` from a called proc report "invoked continue
+  outside of a loop" rather than correctly continuing. `try`'s body being
+  fully transparent to `break`/`continue` (per TIP 329) is accordingly
+  still an open, pre-existing, narrower gap than the yield barrier this
+  fixes; it does not regress anything (a `try` with an unmatched
+  `break`/`continue` previously also could not have yielded across the
+  boundary that raised it).
+
+All three are covered by dedicated `cmd_coro_e2e.rs` tests
+(`yield_across_bare_apply_call`, `yield_across_value_consumed_lmap_generator`,
+`yield_across_try_body`/`_handler`/`_finally`) plus `cmd_control_e2e.rs`'s
+existing `try`/`lmap`/`foreach` correctness suite (handler matching,
+`-during` chaining, dash fall-through, break/continue/return propagation) —
+all passing, oracle-checked against tclsh 8.6 (9.0 unreachable in the fixing
+session's sandboxed network) and, for `try`, cross-checked against the exact
+reproduction in issue #1311.
 
 ## Progress — event loop (Phase 2)
 
@@ -256,11 +310,13 @@ frame, see below), closing 1.7/1.8/1.9/1.10/1.12, the lmap-in-`apply` cases
 failures are the design divergence, not regressions:
 
 - **`yield`/`yieldto` still cannot cross a host re-entry the VM runs on the
-  native Rust stack** (3): `try` + event loop (7.14), and mutual `yieldto` whose
-  `[yieldto …]` sits in a command-substitution argument *slot* that lowers to
-  runtime `subst_word` (7.3, 12.1) — distinct from the `subst` command, which is
-  now yieldable. (A *consumed*/branching `lmap` also still barriers to the runtime
-  builtin, but `coroutine.test` does not exercise that form.)
+  native Rust stack**: mutual `yieldto` whose `[yieldto …]` sits in a
+  command-substitution argument *slot* that lowers to runtime `subst_word`
+  (7.3, 12.1) — distinct from the `subst` command, which is now yieldable, and
+  not yet reduced to a standalone repro (see issue #1311). `try`
+  (body/handler/`finally`) and a *consumed*/branching `lmap` are fixed — see
+  the "Resolution" section above; `coroutine.test` did not exercise either
+  form directly, but the fix is oracle-verified via `cmd_coro_e2e.rs`.
 - **Introspection/embedding features the VM does not implement** (11): `info
   frame` (3.2/3.6/3.7/10.9), child interpreters `interp create` (7.7/9.9/12.1),
   and detecting a coroutine whose namespace was deleted mid-suspend to raise
@@ -288,23 +344,24 @@ validated by the native `cmd_thread_e2e.rs` suite (per the `Thread` package docs
 the reference tclsh is non-threaded, so there is no threaded oracle).
 
 **Remaining (still Open):**
-- **`eval`, `uplevel 0`, `catch`, a straight-line `lmap`, and `subst` are now
-  yieldable** (they run their body on the explicit stack via a transparent
-  script/catch frame, the inline collecting loop, or the scanner-driven subst
-  frame — see the harness section). Still on the **native Rust stack**, so a
-  `yield` across them errors `cannot yield: C stack busy`: `lmap` in a *consumed*/
-  branching position (which stays on the runtime `cmd_lmap`), `try` (its
-  `eval_body` re-enters via `eval_source`), `apply` in an *arbitrary* position,
-  `lsort -command`, and a `[yieldto …]` command substitution in an argument *slot*
-  that lowers to runtime `subst_word` (distinct from the now-yieldable `subst`
-  command). `yieldto`, the creating-namespace command resolution, and `info
-  level`/`info coroutine` are done.
+- **`eval`, `uplevel 0`, `catch`, a straight-line `lmap`, `subst`, `try`
+  (body/handler/`finally`), a *consumed*/branching `lmap` (the `each_loop`
+  runtime fallback), and a bare `apply` call are now yieldable** (they run
+  their body on the explicit stack via a transparent script/catch/try-phase/
+  each-loop activation, the inline collecting loop, or the scanner-driven
+  subst frame — see the harness section and the "Resolution" section above).
+  Still on the **native Rust stack**, so a `yield` across it errors `cannot
+  yield: C stack busy`: a `[yieldto …]` command substitution in an argument
+  *slot* that lowers to runtime `subst_word` (distinct from the now-yieldable
+  `subst` command), and `lsort -command`'s comparator (verified as tclsh
+  parity, not a gap). `yieldto`, the creating-namespace command resolution,
+  and `info level`/`info coroutine` are done.
 - Introspection/embedding gaps behind the other ~11 `coroutine.test` failures:
   `info frame`, child interpreters (`interp create`), and raising `yieldto
   called in deleted namespace` when a coroutine's namespace is deleted while it
   is suspended.
 - The `tcl-registry` `Thread`-package `CommandSpec`s for the sync primitives are
-  LSP metadata only (the runtime and the `cargo xtask command-backing` gate do
+  LSP metadata only (the runtime and the `RUST_ISSUE_006` core-backing gate do
   not require them). The `thread` package (including the `mutex`/`cond`/`rwmutex`/
   `tpool` primitives now landed) is a native-only VM feature — it needs OS
   threads; on wasm the VM runs single-threaded with coroutines, matching the

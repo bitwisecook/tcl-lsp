@@ -103,8 +103,13 @@ fn check_prologue(obj: &EbpfObject, errors: &mut Vec<VerifyError>) {
     }
     let (data_off, data_end_off) = match obj.target_abi {
         TargetAbi::KernelXdp => (0i16, 4i16),
-        TargetAbi::KernelSocketFilter => (76, 80),
-        TargetAbi::RbpfFixedMbuff => return,
+        // TC (SCHED_CLS) shares `__sk_buff` with the socket filter.
+        TargetAbi::KernelSocketFilter | TargetAbi::KernelTc => (76, 80),
+        // Unreachable in practice: a cgroup sock-addr program can never set
+        // `uses_packet` (`lower.rs` rejects `setbuf` for that program-type
+        // family, so no instruction ever loads through r6 from it), but the
+        // match must stay exhaustive.
+        TargetAbi::KernelCgroupSockAddr | TargetAbi::RbpfFixedMbuff => return,
     };
     let ok = insns.len() >= 2
         && insns[0].op & CLASS_MASK == LDX

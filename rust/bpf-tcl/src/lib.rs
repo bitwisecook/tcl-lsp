@@ -68,7 +68,7 @@ fn usage() {
     eprintln!(
         "usage:\n  \
          bpf-tcl check   <file.bpftcl>\n  \
-         bpf-tcl compile <file.bpftcl> [--target rbpf|kernel-xdp|kernel-socket] [--emit asm|hex|raw|elf] [--program N] [-o OUT]\n  \
+         bpf-tcl compile <file.bpftcl> [--target rbpf|kernel-xdp|kernel-socket|kernel-tc|kernel-cgroup-sockaddr] [--emit asm|hex|raw|elf] [--program N] [-o OUT]\n  \
          bpf-tcl run     <file.bpftcl> --packet <HEX> [--program N] [--repeat N]\n  \
          bpf-tcl plan    <file.bpftcl> [--name NAME]   (loader dry-run: programs, pins, attach targets, kernel features)"
     );
@@ -276,16 +276,20 @@ fn cmd_compile(args: &[String]) -> ExitCode {
             "--emit" => emit = it.next().cloned().unwrap_or_default(),
             "--target" => {
                 let Some(value) = it.next() else {
-                    eprintln!("compile: --target expects rbpf or kernel-xdp");
+                    eprintln!(
+                        "compile: --target expects rbpf|kernel-xdp|kernel-socket|kernel-tc|kernel-cgroup-sockaddr"
+                    );
                     return ExitCode::FAILURE;
                 };
                 target_abi = match value.as_str() {
                     "rbpf" => TargetAbi::RbpfFixedMbuff,
                     "kernel-xdp" => TargetAbi::KernelXdp,
                     "kernel-socket" | "kernel-socket-filter" => TargetAbi::KernelSocketFilter,
+                    "kernel-tc" => TargetAbi::KernelTc,
+                    "kernel-cgroup-sockaddr" | "kernel-cgroup" => TargetAbi::KernelCgroupSockAddr,
                     other => {
                         eprintln!(
-                            "compile: unknown --target `{other}` (want rbpf|kernel-xdp|kernel-socket)"
+                            "compile: unknown --target `{other}` (want rbpf|kernel-xdp|kernel-socket|kernel-tc|kernel-cgroup-sockaddr)"
                         );
                         return ExitCode::FAILURE;
                     }
@@ -462,6 +466,16 @@ fn format_verdict(prog_type: ProgType, value: u64) -> String {
             3 => "XDP_TX (r0=3)".to_owned(),
             4 => "XDP_REDIRECT (r0=4)".to_owned(),
             _ => format!("unknown XDP verdict {verdict} (r0={value})"),
+        },
+        ProgType::TcIngress | ProgType::TcEgress => match verdict {
+            0 => "TC_ACT_OK (r0=0)".to_owned(),
+            2 => "TC_ACT_SHOT (r0=2)".to_owned(),
+            _ => format!("unknown TC action {verdict} (r0={value})"),
+        },
+        ProgType::CgroupInet4Connect | ProgType::CgroupInet4Bind => match verdict {
+            0 => "deny (r0=0)".to_owned(),
+            1 => "allow (r0=1)".to_owned(),
+            _ => format!("unknown cgroup sock-addr verdict {verdict} (r0={value})"),
         },
     }
 }

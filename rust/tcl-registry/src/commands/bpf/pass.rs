@@ -16,11 +16,12 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! `pass` — the `XDP_PASS` verdict.
+//! `pass` — the `XDP_PASS` verdict (XDP), `TC_ACT_OK` (TC), or the
+//! allow-connect/allow-bind outcome (the cgroup sock-addr hooks).
 use crate::prelude::*;
 
 pub fn spec() -> CommandSpec {
-    const OP: BpfOpSpec = BpfOpSpec::verdict(BpfVerdictKind::Pass, BpfProgTypeSet::XdpOnly);
+    const OP: BpfOpSpec = BpfOpSpec::verdict(BpfVerdictKind::Pass, BpfProgTypeSet::PASS_LIKE);
     CommandSpec {
         name: "pass",
         dialects: Some(DialectSet::BPF),

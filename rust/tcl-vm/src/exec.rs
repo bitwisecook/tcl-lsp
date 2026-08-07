@@ -116,11 +116,45 @@ pub(crate) struct Frame {
     /// once per bracket, so a `yield` inside a bracket freezes the whole scan with
     /// the coroutine (`RUST_ISSUE_008`).
     subst: Option<Box<crate::subst::SubstState>>,
+    /// Set on an **each-loop** activation: a scanner-driven frame (no bytecode,
+    /// like `subst`) running a `foreach`/`lmap` runtime-fallback loop, one
+    /// iteration's body per yieldable child script frame, folding each result
+    /// back in by `each_loop`'s collect/continue/break rules (issue #1311).
+    each_loop: Option<Box<EachLoopState>>,
+    /// Set on a **try-phase** activation: runs one phase (body/handler/
+    /// `finally`) of a `try` construct's real bytecode (unlike `subst`/
+    /// `each_loop`, not scanner-driven — the phase's script dispatches
+    /// normally). On completion, `Vm::unwind` calls `cmd_try::advance_try`
+    /// with the taken state, which decides whether to push a fresh try-phase
+    /// activation for the next phase or deliver the construct's final
+    /// completion (issue #1311).
+    ///
+    /// Deliberately **not** `is_script`: an unhandled `break`/`continue`
+    /// completion from a phase does not get the `eval`/`uplevel`-style
+    /// transparent redirect to the caller's enclosing loop. `try`'s body
+    /// genuinely is transparent to `break`/`continue` in real Tcl, but a
+    /// simple (single-opaque-command-body) inline `foreach`/`while`/`for`'s
+    /// compiled `loop_targets` entry is keyed to the *whole loop body's* pc
+    /// range regardless of what that one command is, and redirecting through
+    /// it here loops forever instead of resuming the next iteration — a
+    /// pre-existing compiler gap (see the KCS note for issue #1311) that
+    /// already makes a bare `return -code continue` from a called proc report
+    /// "invoked continue outside of a loop" instead of correctly continuing,
+    /// rather than a regression this change introduces. Falling through the
+    /// ordinary (non-transparent) unwind path — the same one an unhandled
+    /// `break`/`continue` from a proc call already takes — keeps this
+    /// terminating instead of hanging.
+    try_ctx: Option<Box<crate::cmd_try::TryState>>,
     /// Execution-trace leave contexts this activation settles on completion
     /// (M16.3): each traced dispatch that deferred its body to this frame.  A
     /// `tailcall` transfers the issuing frame's contexts to its replacement,
     /// hence a Vec.  Fired (and step scopes popped) as the frame unwinds.
     exec_leave: Vec<ExecLeaveCtx>,
+    /// A command name to delete once this activation completes, regardless of
+    /// completion code — `apply`'s temporary lambda proc (issue #1311), torn
+    /// down the same way whether the call returned, errored, or unwound a
+    /// `break`/`continue`/`return`. `None` for every other script activation.
+    cleanup_proc: Option<String>,
 }
 
 /// One traced dispatch's leave-side state: the invoked command string, the
@@ -158,6 +192,53 @@ pub(crate) struct SubstReq {
     pub(crate) variables: bool,
 }
 
+/// One `foreach`/`lmap` variable-binding group: its loop variable names and
+/// this group's flattened value list (`each_loop`'s `(varList, list)` pair).
+pub(crate) struct EachLoopGroup {
+    pub(crate) vars: Vec<String>,
+    pub(crate) values: Vec<Value>,
+}
+
+/// A `foreach`/`lmap` runtime-fallback loop deferred to the explicit stack:
+/// each iteration's body runs as a yieldable child script frame (issue #1311
+/// — this is what a value-consumed `lmap`, e.g. `set r [lmap x {1 2} { yield
+/// $x }]`, needs: reached via generic command dispatch rather than the
+/// compiler's inline `LMAP_COLLECT` loop, its body used to run through
+/// `Vm::eval_source`'s nested drive). Parked in `Vm.pending_each_loop` by
+/// `each_loop` and drained into an each-loop activation (see
+/// [`Frame::each_loop`]).
+pub(crate) struct EachLoopReq {
+    pub(crate) name: &'static str,
+    pub(crate) collect: bool,
+    pub(crate) groups: Vec<EachLoopGroup>,
+    pub(crate) iterations: usize,
+    pub(crate) body: Rc<FunctionAsm>,
+}
+
+/// [`EachLoopReq`]'s live iteration state, carried on the activation
+/// ([`Frame::new_each_loop`]) between ticks.
+struct EachLoopState {
+    name: &'static str,
+    collect: bool,
+    groups: Vec<EachLoopGroup>,
+    iterations: usize,
+    body: Rc<FunctionAsm>,
+    /// The next iteration to run (`0..iterations`); set to `iterations` early
+    /// by a `break` to end the loop on the next tick without running more
+    /// bodies.
+    it: usize,
+    collected: Vec<Value>,
+}
+
+/// The outcome of folding an each-loop body child's completion into its loop
+/// frame (see [`Vm::fold_each_loop`]): either resume the loop (re-tick the
+/// frame for the next iteration, or its final result) or drop the frame and
+/// keep unwinding with this completion (an error, or an uncaught `return`).
+enum EachLoopFold {
+    Resume,
+    Unwind(Completion<Value>),
+}
+
 /// The outcome of folding a subst `[…]` bracket completion into its subst frame
 /// (see [`Vm::fold_subst_bracket`]): either resume the scan (re-tick the frame)
 /// or drop the frame and keep unwinding with this completion.
@@ -185,7 +266,10 @@ impl Frame {
             body_label: None,
             catch: None,
             subst: None,
+            each_loop: None,
+            try_ctx: None,
             exec_leave: Vec::new(),
+            cleanup_proc: None,
         }
     }
 
@@ -223,6 +307,33 @@ impl Frame {
             req.commands,
             req.variables,
         )));
+        f
+    }
+
+    /// An **each-loop** activation: a scanner-driven frame (empty placeholder
+    /// asm, like `subst`) carrying the resumable `foreach`/`lmap` iteration
+    /// state. `tick` runs the loop driver instead of the bytecode dispatch when
+    /// `each_loop` is set.
+    pub(crate) fn new_each_loop(req: EachLoopReq) -> Self {
+        let mut f = Self::new(Rc::new(FunctionAsm::default()), false);
+        f.each_loop = Some(Box::new(EachLoopState {
+            name: req.name,
+            collect: req.collect,
+            groups: req.groups,
+            iterations: req.iterations,
+            body: req.body,
+            it: 0,
+            collected: Vec::new(),
+        }));
+        f
+    }
+
+    /// A **try-phase** activation ([`Frame::try_ctx`]): runs `req.asm` (the
+    /// current phase's compiled script) as ordinary bytecode, tagged with the
+    /// state `Vm::unwind` hands to `cmd_try::advance_try` on completion.
+    pub(crate) fn new_try(req: crate::cmd_try::TryReq) -> Self {
+        let mut f = Self::new(req.asm, false);
+        f.try_ctx = Some(Box::new(req.state));
         f
     }
 
@@ -264,12 +375,15 @@ enum Tick {
     Call { proc: Rc<ProcDef>, argv: Vec<Value> },
     /// Run a compiled script on the explicit stack — push a *transparent* script
     /// activation ([`Frame::new_script`]). Used by `EVAL_STK` (and the
-    /// `eval`/`uplevel` builtins routed through it) so a `yield` inside the body
-    /// stays yieldable instead of re-entering the evaluator on the native stack.
-    /// `label` is the `errorInfo` body-frame label (`None` for command subst).
+    /// `eval`/`uplevel`/`apply` builtins routed through it) so a `yield` inside
+    /// the body stays yieldable instead of re-entering the evaluator on the
+    /// native stack. `label` is the `errorInfo` body-frame label (`None` for
+    /// command subst); `cleanup_proc` is a command name to delete once the
+    /// pushed frame completes (`apply`'s temporary lambda proc).
     PushScript {
         asm: Rc<FunctionAsm>,
         label: Option<&'static str>,
+        cleanup_proc: Option<String>,
     },
     /// Run a `catch` body on the explicit stack (yieldable) via a catch
     /// activation ([`Frame::new_catch`]); its completion is absorbed by the catch
@@ -279,6 +393,17 @@ enum Tick {
     /// ([`Frame::new_subst`]); its `[…]` bodies run as child script frames and are
     /// folded back by subst rules. Drained from `Vm.pending_subst`.
     PushSubst(SubstReq),
+    /// Run a `foreach`/`lmap` runtime-fallback loop on the explicit stack
+    /// (yieldable) via an each-loop activation ([`Frame::new_each_loop`]); each
+    /// iteration's body runs as a child script frame and is folded back by
+    /// `each_loop`'s collect/continue/break rules. Drained from
+    /// `Vm.pending_each_loop` (issue #1311).
+    PushEachLoop(EachLoopReq),
+    /// Run one phase (body/handler/`finally`) of a `try` on the explicit stack
+    /// (yieldable) via a try-phase activation ([`Frame::new_try`]); its
+    /// completion decides the next phase via `cmd_try::advance_try`. Drained
+    /// from `Vm.pending_try` (issue #1311).
+    PushTry(crate::cmd_try::TryReq),
     /// `tailcall cmd ?arg …?` — the current proc finishes and `cmd args` runs in
     /// its place (in the caller's activation), its result becoming the proc's.
     /// `words` is `[cmd, arg, …]` (the `tailcall` prefix word already dropped).
@@ -821,8 +946,13 @@ impl Vm {
                         }
                     }
                 },
-                Tick::PushScript { asm, label } => {
+                Tick::PushScript {
+                    asm,
+                    label,
+                    cleanup_proc,
+                } => {
                     let mut fr = Frame::new_script(asm, label);
+                    fr.cleanup_proc = cleanup_proc;
                     if let Some(ctx) = self.pending_exec_leave.take() {
                         fr.exec_leave.push(ctx);
                     }
@@ -837,6 +967,20 @@ impl Vm {
                 }
                 Tick::PushSubst(req) => {
                     let mut fr = Frame::new_subst(req);
+                    if let Some(ctx) = self.pending_exec_leave.take() {
+                        fr.exec_leave.push(ctx);
+                    }
+                    acts.push(fr);
+                }
+                Tick::PushEachLoop(req) => {
+                    let mut fr = Frame::new_each_loop(req);
+                    if let Some(ctx) = self.pending_exec_leave.take() {
+                        fr.exec_leave.push(ctx);
+                    }
+                    acts.push(fr);
+                }
+                Tick::PushTry(req) => {
+                    let mut fr = Frame::new_try(req);
                     if let Some(ctx) = self.pending_exec_leave.take() {
                         fr.exec_leave.push(ctx);
                     }
@@ -996,6 +1140,13 @@ impl Vm {
                     }
                 }
             }
+            // `apply`'s temporary lambda proc is torn down here, once its script
+            // activation completes — on every completion code, mirroring the old
+            // nested-drive `cmd_apply`'s unconditional `vm.take_command` after
+            // `eval_source` returned (issue #1311).
+            if let Some(name) = act.cleanup_proc.take() {
+                self.take_command(&name);
+            }
             // A `catch` activation absorbs the body's completion of *any* code:
             // its epilogue binds the result / options variables and yields the
             // status code as an integer, delivered to the parent as this `catch`
@@ -1017,6 +1168,21 @@ impl Vm {
                     }
                 }
             }
+            // A try-phase activation (body/handler/`finally`) just completed:
+            // `advance_try` decides whether another phase follows (pushed here,
+            // directly — `act` itself is already gone, unlike `each_loop`'s
+            // parent-stays-put pattern) or the whole `try` is done, in which
+            // case `c` becomes its completion and unwinding continues below
+            // exactly as for any other completed activation (issue #1311).
+            if let Some(ctx) = act.try_ctx.take() {
+                match crate::cmd_try::advance_try(self, *ctx, c) {
+                    crate::cmd_try::TryOutcome::Push(req) => {
+                        acts.push(Frame::new_try(req));
+                        return None;
+                    }
+                    crate::cmd_try::TryOutcome::Deliver(fc) => c = fc,
+                }
+            }
             // A subst activation's `[…]` child (`act`) just completed: fold its
             // result into the enclosing subst frame's scan by subst rules (see
             // [`Vm::fold_subst_bracket`]). `Resume` re-ticks the subst frame;
@@ -1026,6 +1192,23 @@ impl Vm {
                 match Self::fold_subst_bracket(parent, c) {
                     SubstFold::Resume => return None,
                     SubstFold::Unwind(nc) => {
+                        c = nc;
+                        continue;
+                    }
+                }
+            }
+            // An `each_loop` (`foreach`/`lmap` runtime-fallback) activation's body
+            // child (`act`) just completed: fold its result into the enclosing
+            // loop's iteration state (issue #1311 — this is what makes a
+            // value-consumed `lmap`, e.g. `set r [lmap x {1 2} { yield $x }]`,
+            // yieldable). `Resume` re-ticks the loop frame for the next iteration
+            // (or its final result, once exhausted); `Unwind` drops it and keeps
+            // unwinding (an error, or an uncaught `return`).
+            if acts.last().is_some_and(|p| p.each_loop.is_some()) {
+                let parent = acts.last_mut().expect("each_loop parent present");
+                match self.fold_each_loop(parent, c) {
+                    EachLoopFold::Resume => return None,
+                    EachLoopFold::Unwind(nc) => {
                         c = nc;
                         continue;
                     }
@@ -1228,10 +1411,88 @@ impl Vm {
             crate::subst::SubstStep::Done(out) => Tick::Return(ok(Value::string(out))),
             crate::subst::SubstStep::Error(msg) => Tick::Return(err(msg)),
             crate::subst::SubstStep::Bracket(inner) => match self.compile_source_cached(&inner) {
-                Ok(asm) => Tick::PushScript { asm, label: None },
+                Ok(asm) => Tick::PushScript {
+                    asm,
+                    label: None,
+                    cleanup_proc: None,
+                },
                 Err(e) => Tick::Return(err(e.message)),
             },
         }
+    }
+
+    /// One driver step of an each-loop activation: bind the next iteration's
+    /// loop variables (Rust-side — the synchronous `each_loop` this replaces
+    /// can't yield here either, since it's plain `Vm::set_var`) and push its
+    /// body as a yieldable child script frame, or — once every iteration has
+    /// run (or a `break` set `it` to `iterations` early, see
+    /// [`Vm::fold_each_loop`]) — return the collected/empty result.
+    fn tick_each_loop(&mut self, f: &mut Frame) -> Tick {
+        let done = {
+            let st = f.each_loop.as_ref().expect("each_loop frame carries state");
+            st.it >= st.iterations
+        };
+        if done {
+            let st = f.each_loop.take().expect("each_loop frame carries state");
+            return Tick::Return(ok(if st.collect {
+                Value::list(st.collected)
+            } else {
+                Value::empty()
+            }));
+        }
+        let body = {
+            let st = f.each_loop.as_mut().expect("each_loop frame carries state");
+            for group in &st.groups {
+                for (k, var) in group.vars.iter().enumerate() {
+                    let val = group
+                        .values
+                        .get(st.it * group.vars.len() + k)
+                        .cloned()
+                        .unwrap_or_else(Value::empty);
+                    if let Err(c) = self.set_var(var, val) {
+                        return Tick::Return(c);
+                    }
+                }
+            }
+            st.it += 1;
+            Rc::clone(&st.body)
+        };
+        Tick::PushScript {
+            asm: body,
+            label: None,
+            cleanup_proc: None,
+        }
+    }
+
+    /// Fold an each-loop body child's completion into the loop's iteration
+    /// state, matching the synchronous engine this replaces exactly: `Ok`
+    /// collects the result (`lmap`) and continues; `Continue` skips collection
+    /// and continues; `Break` stops the loop (delivered as the final result on
+    /// the next tick, since `it` is set to `iterations`); `Error` adds the
+    /// `each_loop`'s own body-frame label (`vm.append_body_frame(name)`) and
+    /// unwinds; `Return`/`Other` propagate immediately, uncollected, exactly as
+    /// C Tcl's `EachloopCmd` passes a body `return` straight out of the loop.
+    fn fold_each_loop(&mut self, parent: &mut Frame, c: Completion<Value>) -> EachLoopFold {
+        if matches!(c.code, Code::Error | Code::Return | Code::Other(_)) {
+            let name = parent.each_loop.as_ref().expect("each_loop state").name;
+            parent.each_loop = None;
+            if c.code == Code::Error {
+                self.append_body_frame(name);
+            }
+            return EachLoopFold::Unwind(c);
+        }
+        let st = parent.each_loop.as_mut().expect("each_loop state");
+        match c.code {
+            Code::Ok => {
+                if st.collect {
+                    st.collected.push(c.result);
+                }
+            }
+            Code::Continue => {}
+            Code::Break => st.it = st.iterations,
+            Code::Error | Code::Return | Code::Other(_) => unreachable!("handled above"),
+        }
+        EachLoopFold::Resume
     }
 
     /// Execute a single instruction of the top activation.
@@ -1242,6 +1503,11 @@ impl Vm {
         // instead of the instruction dispatch below.
         if f.subst.is_some() {
             return self.tick_subst(f);
+        }
+        // An each-loop activation (`foreach`/`lmap` runtime fallback) is
+        // likewise driver-stepped, not bytecode-driven.
+        if f.each_loop.is_some() {
+            return self.tick_each_loop(f);
         }
         let asm = Rc::clone(&f.asm);
         if f.pc >= asm.instructions.len() {
@@ -2754,7 +3020,13 @@ impl Vm {
                 // push/`Tick::Return` did.
                 let script = pop(f).to_str().to_string();
                 match self.compile_source_cached(&script) {
-                    Ok(asm) => return Tick::PushScript { asm, label: None },
+                    Ok(asm) => {
+                        return Tick::PushScript {
+                            asm,
+                            label: None,
+                            cleanup_proc: None,
+                        };
+                    }
                     Err(e) => return Tick::Return(err(e.message)),
                 }
             }
@@ -2856,7 +3128,9 @@ impl Vm {
                     Tick::Call { .. }
                     | Tick::PushScript { .. }
                     | Tick::PushCatch(_)
-                    | Tick::PushSubst(_) => self.pending_exec_leave = Some(ctx),
+                    | Tick::PushSubst(_)
+                    | Tick::PushEachLoop(_)
+                    | Tick::PushTry(_) => self.pending_exec_leave = Some(ctx),
                     // Control shapes with no owning frame (a traced `yield` /
                     // `tailcall` builtin itself): settle with an empty ok —
                     // their real result forms elsewhere.
@@ -2972,11 +3246,15 @@ impl Vm {
                 if let Some(req) = self.coro.pending.take() {
                     return Ok(Some(Tick::Suspend(req)));
                 }
-                // An `eval`/`uplevel`-style builtin defers its body to the
+                // An `eval`/`uplevel`/`apply`-style builtin defers its body to the
                 // explicit stack (yieldable): drain it into a `PushScript`, whose
                 // frame result replaces this builtin's placeholder (as for yield).
-                if let Some((asm, label)) = self.pending_eval.take() {
-                    return Ok(Some(Tick::PushScript { asm, label }));
+                if let Some((asm, label, cleanup_proc)) = self.pending_eval.take() {
+                    return Ok(Some(Tick::PushScript {
+                        asm,
+                        label,
+                        cleanup_proc,
+                    }));
                 }
                 // A `catch` defers its body the same way, but into a catch frame
                 // whose completion the epilogue absorbs (see `Frame::catch`).
@@ -2987,6 +3265,18 @@ impl Vm {
                 // bodies run yieldably as child frames (see `Frame::subst`).
                 if let Some(req) = self.pending_subst.take() {
                     return Ok(Some(Tick::PushSubst(req)));
+                }
+                // A `foreach`/`lmap` runtime-fallback loop defers to a
+                // scanner-driven each-loop frame, whose iterations run yieldably
+                // as child frames (see `Frame::each_loop`, issue #1311).
+                if let Some(req) = self.pending_each_loop.take() {
+                    return Ok(Some(Tick::PushEachLoop(req)));
+                }
+                // A `try` defers its body (and, from `advance_try`, each
+                // subsequent phase) to a try-phase frame (see `Frame::try_ctx`,
+                // issue #1311).
+                if let Some(req) = self.pending_try.take() {
+                    return Ok(Some(Tick::PushTry(req)));
                 }
                 Self::deliver_sync(f, res)
             }
@@ -3139,13 +3429,17 @@ impl Vm {
             Some(Command::Builtin(bf)) => {
                 self.set_invoked_name(name);
                 let res = bf(self, argv);
-                // An `eval`/`uplevel`-style builtin deferred its body to
+                // An `eval`/`uplevel`/`apply`-style builtin deferred its body to
                 // `pending_eval`. This call site is on the native Rust stack (no
                 // trampoline to push onto), so run the body via a nested drive —
                 // a `yield` inside cannot cross it, exactly like every other
                 // `invoke_command` re-entry.
-                if let Some((asm, label)) = self.pending_eval.take() {
-                    return self.run_activation(Frame::new_script(asm, label));
+                if let Some((asm, label, cleanup_proc)) = self.pending_eval.take() {
+                    let comp = self.run_activation(Frame::new_script(asm, label));
+                    if let Some(name) = cleanup_proc {
+                        self.take_command(&name);
+                    }
+                    return comp;
                 }
                 // A `catch` deferred its body: run it via a nested drive (a `yield`
                 // inside cannot cross this native re-entry), then absorb its
@@ -3159,6 +3453,22 @@ impl Vm {
                 // re-entry), returning its accumulated result.
                 if let Some(req) = self.pending_subst.take() {
                     return self.run_activation(Frame::new_subst(req));
+                }
+                // A `foreach`/`lmap` runtime-fallback loop deferred: run the
+                // scanner-driven each-loop frame via a nested drive (a `yield` in
+                // its body can't cross this native re-entry either).
+                if let Some(req) = self.pending_each_loop.take() {
+                    return self.run_activation(Frame::new_each_loop(req));
+                }
+                // A `try` deferred its body: run it (and, via `Vm::unwind`'s own
+                // `try_ctx` handling, every subsequent phase `advance_try`
+                // decides on) via a nested drive — a `yield` anywhere in it
+                // can't cross this native re-entry either. `unwind` pushes each
+                // next phase onto the same nested `acts`, so one
+                // `run_activation` call carries the whole construct through to
+                // its final completion.
+                if let Some(req) = self.pending_try.take() {
+                    return self.run_activation(Frame::new_try(req));
                 }
                 res
             }

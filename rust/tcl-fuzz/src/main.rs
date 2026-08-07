@@ -16,16 +16,21 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! `tcl-fuzz` — differential fuzzer for the native Tcl VM.
+//! `tcl-fuzz` — differential fuzzer for the native Tcl VM and related
+//! backends.
 //!
-//! Generates pure, bounded Tcl over the VM's supported surface, runs each
-//! script through both `tclvm` (subject) and `tclsh` (reference), and records
-//! any divergence in stdout or error status. See the module docs for the
-//! generator scope and the comparison rules.
+//! Generates pure, bounded Tcl over the generator's supported surface, runs
+//! each script through a pair of backend engines, and records any divergence
+//! in stdout, error status, or (opt-in) error message text. The `run`
+//! subcommand pairs any two [`engine::Engine`]s — `tclvm`/`tclsh` (the
+//! original, and still the default), `runtime-rust`/`tclsh`, or
+//! `tclvm`/`runtime-rust` (issue #1313) — over the same subprocess harness.
+//! See the module docs for the generator scope and the comparison rules.
 
 #![forbid(unsafe_code)]
 
 mod campaign;
+mod engine;
 mod findings;
 mod generator;
 mod harness;
@@ -38,23 +43,31 @@ use std::time::Duration;
 
 use clap::{Parser, Subcommand};
 
-use campaign::{Campaign, Stats};
+use campaign::{Backend, Campaign, Stats};
+use engine::Engine;
 use findings::Registry;
 use generator::{GenConfig, generate};
-use harness::{Outcome, compare, run_backend, write_script};
+use harness::{Outcome, compare_outcomes, run_backend, write_script};
 
-/// Differential fuzzer for the native Tcl bytecode VM.
+/// Differential fuzzer for the native Tcl bytecode VM and related backends.
 #[derive(Parser)]
 #[command(name = "tcl-fuzz", version, about)]
 struct Cli {
-    /// Path to the `tclvm` (subject) binary. Defaults to one beside this
-    /// executable, else `tclvm` on `PATH`.
+    /// Path to the `tclvm` binary. Defaults to one beside this executable,
+    /// else `tclvm` on `PATH`.
     #[arg(long, global = true)]
     tclvm: Option<PathBuf>,
-    /// Path to the reference `tclsh`. Defaults to `tclsh9.0`, else `tclsh`.
+    /// Path to a reference `tclsh`. Defaults to `tclsh9.0`, else `tclsh`.
     #[arg(long, global = true)]
     tclsh: Option<PathBuf>,
-    /// Findings directory.
+    /// Path to `runtime/rust`'s `run_script` dev-tool example binary (build
+    /// with `cargo build --release --example run_script` under `runtime/rust`).
+    /// Defaults to one beside this executable, else `run_script` on `PATH`.
+    #[arg(long, global = true)]
+    runtime_rust: Option<PathBuf>,
+    /// Findings directory. A non-default `run --reference/--subject` pair is
+    /// namespaced under `<findings>/<subject>-vs-<reference>/` so different
+    /// backend pairs never collide on the same seed.
     #[arg(long, global = true, default_value = "fuzz-findings")]
     findings: PathBuf,
     /// Per-script timeout, in milliseconds.
@@ -64,28 +77,60 @@ struct Cli {
     command: Cmd,
 }
 
+/// Which two engines a command operates on. Shared by every pair-aware
+/// subcommand so `run`, `replay`, and `summary` name a pair the same way and
+/// land on the same (pair-namespaced) registry.
+#[derive(clap::Args, Clone, Copy)]
+struct PairArgs {
+    /// The reference (presumed-correct) engine.
+    #[arg(long, value_enum, default_value = "tclsh")]
+    reference: Engine,
+    /// The subject (implementation under test) engine.
+    #[arg(long, value_enum, default_value = "tclvm")]
+    subject: Engine,
+}
+
+/// Everything one `run` campaign is configured by, beyond the global flags.
+#[derive(clap::Args)]
+struct RunArgs {
+    /// Number of scripts to generate and test.
+    #[arg(long, default_value_t = 1000)]
+    iterations: u64,
+    /// Starting seed (each iteration uses seed + i). Defaults to a
+    /// time-based seed.
+    #[arg(long)]
+    seed: Option<u64>,
+    /// Print each finding's seed as it is discovered.
+    #[arg(long)]
+    verbose: bool,
+    #[command(flatten)]
+    pair: PairArgs,
+    /// Additionally compare error message text when both engines error
+    /// (default: only whether each errored is compared — see
+    /// `harness::compare_outcomes`).
+    #[arg(long)]
+    compare_error_text: bool,
+}
+
 #[derive(Subcommand)]
 enum Cmd {
-    /// Run a fuzzing campaign.
-    Run {
-        /// Number of scripts to generate and test.
-        #[arg(long, default_value_t = 1000)]
-        iterations: u64,
-        /// Starting seed (each iteration uses seed + i). Defaults to a
-        /// time-based seed.
-        #[arg(long)]
-        seed: Option<u64>,
-        /// Print each finding's seed as it is discovered.
-        #[arg(long)]
-        verbose: bool,
-    },
+    /// Run a fuzzing campaign over one backend pair.
+    Run(RunArgs),
     /// Replay a single seed and print both engines' output side by side.
     Replay {
         /// The seed to reproduce.
         seed: u64,
+        /// The engine pair — must match the pair that recorded the finding,
+        /// if replaying one from the registry.
+        #[command(flatten)]
+        pair: PairArgs,
     },
-    /// Print a summary of the findings registry.
-    Summary,
+    /// Print a summary of a backend pair's findings registry.
+    Summary {
+        /// The engine pair whose registry to summarise.
+        #[command(flatten)]
+        pair: PairArgs,
+    },
     /// WASM-runnability arm: compile each generated program to the
     /// eval-fallback WASM module and run it under `wasmtime`, flagging codegen
     /// panics/errors and modules that fail to instantiate or trap. (The value
@@ -119,71 +164,135 @@ enum Cmd {
     },
 }
 
+/// A [`PairArgs`] with both engines resolved to a concrete `(binary, leading
+/// args)` invocation, so the campaign and replay paths never re-resolve.
+struct ResolvedPair {
+    reference: Engine,
+    subject: Engine,
+    reference_bin: PathBuf,
+    reference_args: Vec<String>,
+    subject_bin: PathBuf,
+    subject_args: Vec<String>,
+}
+
+impl ResolvedPair {
+    /// Resolve both engines' binaries, honouring the matching
+    /// `--tclvm`/`--tclsh`/`--runtime-rust` override. `Err` carries a ready-to-print
+    /// message naming the engine that could not be found and the flag to pass.
+    fn resolve(pair: PairArgs, cli: &Cli) -> Result<Self, String> {
+        let find = |engine: Engine| {
+            resolve_engine(engine, cli).ok_or_else(|| {
+                format!(
+                    "could not find `{}` (pass --{})",
+                    engine.label(),
+                    cli_flag_for(engine),
+                )
+            })
+        };
+        let (reference_bin, reference_args) = find(pair.reference)?;
+        let (subject_bin, subject_args) = find(pair.subject)?;
+        Ok(Self {
+            reference: pair.reference,
+            subject: pair.subject,
+            reference_bin,
+            reference_args,
+            subject_bin,
+            subject_args,
+        })
+    }
+
+    /// This pair's findings directory under `base` — see [`pair_findings_dir`].
+    fn findings_dir(&self, base: &Path) -> PathBuf {
+        pair_findings_dir(base, self.reference, self.subject)
+    }
+}
+
+/// Run one `Cmd::Run` campaign: resolve both engines, open the (pair-namespaced)
+/// findings registry, drive the campaign, and report the exit code.
+fn run_campaign(
+    cli: &Cli,
+    config: &GenConfig,
+    timeout: Duration,
+    args: &RunArgs,
+) -> std::process::ExitCode {
+    let pair = match ResolvedPair::resolve(args.pair, cli) {
+        Ok(p) => p,
+        Err(e) => {
+            eprintln!("error: {e}");
+            return std::process::ExitCode::from(2);
+        }
+    };
+    let findings_dir = pair.findings_dir(&cli.findings);
+    let registry = match Registry::open(&findings_dir) {
+        Ok(r) => r,
+        Err(e) => {
+            eprintln!("error: opening findings dir: {e}");
+            return std::process::ExitCode::from(2);
+        }
+    };
+    let scratch = std::env::temp_dir().join(format!("tcl-fuzz-{}", std::process::id()));
+    let _ = std::fs::create_dir_all(&scratch);
+    let base_seed = args.seed.unwrap_or_else(time_seed);
+    let iterations = args.iterations;
+
+    eprintln!(
+        "campaign: {iterations} iterations from seed {base_seed}\n  subject: {} ({})\n  reference: {} ({})\n  findings: {}",
+        pair.subject.label(),
+        pair.subject_bin.display(),
+        pair.reference.label(),
+        pair.reference_bin.display(),
+        findings_dir.display(),
+    );
+    let campaign = Campaign {
+        reference: Backend {
+            binary: &pair.reference_bin,
+            args: pair.reference_args.clone(),
+        },
+        subject: Backend {
+            binary: &pair.subject_bin,
+            args: pair.subject_args.clone(),
+        },
+        timeout,
+        config: *config,
+        registry: &registry,
+        scratch: scratch.clone(),
+        compare_error_text: args.compare_error_text,
+    };
+    let mut last_findings = 0u64;
+    let stats = campaign.run(base_seed, iterations, |i, stats| {
+        if args.verbose && stats.findings() > last_findings {
+            eprintln!("  finding @ iteration {i}");
+            last_findings = stats.findings();
+        } else if i % 100 == 0 {
+            eprintln!("  {i}/{iterations} — {} findings", stats.findings());
+        }
+    });
+    let _ = std::fs::remove_dir_all(&scratch);
+    print_stats(&stats);
+    // Exit non-zero when a divergence was found, so CI can gate on it.
+    if stats.findings() > 0 {
+        std::process::ExitCode::from(1)
+    } else {
+        std::process::ExitCode::SUCCESS
+    }
+}
+
 fn main() -> std::process::ExitCode {
     let cli = Cli::parse();
     let timeout = Duration::from_millis(cli.timeout_ms);
     let config = GenConfig::default();
 
     match &cli.command {
-        Cmd::Run {
-            iterations,
-            seed,
-            verbose,
-        } => {
-            let Some(tclvm) = resolve_tclvm(cli.tclvm.as_deref()) else {
-                eprintln!("error: could not find `tclvm` (pass --tclvm <path>)");
-                return std::process::ExitCode::from(2);
-            };
-            let tclsh = resolve_tclsh(cli.tclsh.as_deref());
-            let registry = match Registry::open(&cli.findings) {
-                Ok(r) => r,
+        Cmd::Run(args) => run_campaign(&cli, &config, timeout, args),
+        Cmd::Replay { seed, pair } => {
+            let pair = match ResolvedPair::resolve(*pair, &cli) {
+                Ok(p) => p,
                 Err(e) => {
-                    eprintln!("error: opening findings dir: {e}");
+                    eprintln!("error: {e}");
                     return std::process::ExitCode::from(2);
                 }
             };
-            let scratch = std::env::temp_dir().join(format!("tcl-fuzz-{}", std::process::id()));
-            let _ = std::fs::create_dir_all(&scratch);
-            let base_seed = seed.unwrap_or_else(time_seed);
-
-            eprintln!(
-                "campaign: {iterations} iterations from seed {base_seed}\n  subject: {}\n  reference: {}",
-                tclvm.display(),
-                tclsh.display(),
-            );
-            let campaign = Campaign {
-                tclsh: &tclsh,
-                tclvm: &tclvm,
-                timeout,
-                config,
-                registry: &registry,
-                scratch: scratch.clone(),
-            };
-            let mut last_findings = 0u64;
-            let stats = campaign.run(base_seed, *iterations, |i, stats| {
-                if *verbose && stats.findings() > last_findings {
-                    eprintln!("  finding @ iteration {i}");
-                    last_findings = stats.findings();
-                } else if i % 100 == 0 {
-                    eprintln!("  {i}/{iterations} — {} findings", stats.findings());
-                }
-            });
-            let _ = std::fs::remove_dir_all(&scratch);
-            print_stats(&stats);
-            // Exit non-zero when a divergence was found, so CI can gate on it.
-            if stats.findings() > 0 {
-                std::process::ExitCode::from(1)
-            } else {
-                std::process::ExitCode::SUCCESS
-            }
-        }
-        Cmd::Replay { seed } => {
-            let Some(tclvm) = resolve_tclvm(cli.tclvm.as_deref()) else {
-                eprintln!("error: could not find `tclvm` (pass --tclvm <path>)");
-                return std::process::ExitCode::from(2);
-            };
-            let tclsh = resolve_tclsh(cli.tclsh.as_deref());
-            if let Ok(registry) = Registry::open(&cli.findings)
+            if let Ok(registry) = Registry::open(pair.findings_dir(&cli.findings))
                 && let Some(prior) = registry.load(*seed)
             {
                 eprintln!(
@@ -191,27 +300,30 @@ fn main() -> std::process::ExitCode {
                     prior.category
                 );
             }
-            replay(*seed, &config, &tclvm, &tclsh, timeout);
+            replay(*seed, &config, &pair, timeout);
             std::process::ExitCode::SUCCESS
         }
-        Cmd::Summary => match Registry::open(&cli.findings) {
-            Ok(registry) => {
-                let summary = registry.summary();
-                if summary.is_empty() {
-                    println!("no findings in {}", cli.findings.display());
-                } else {
-                    println!("findings in {}:", cli.findings.display());
-                    for (cat, n) in summary {
-                        println!("  {cat:?}: {n}");
+        Cmd::Summary { pair } => {
+            let dir = pair_findings_dir(&cli.findings, pair.reference, pair.subject);
+            match Registry::open(&dir) {
+                Ok(registry) => {
+                    let summary = registry.summary();
+                    if summary.is_empty() {
+                        println!("no findings in {}", dir.display());
+                    } else {
+                        println!("findings in {}:", dir.display());
+                        for (cat, n) in summary {
+                            println!("  {cat:?}: {n}");
+                        }
                     }
+                    std::process::ExitCode::SUCCESS
                 }
-                std::process::ExitCode::SUCCESS
+                Err(e) => {
+                    eprintln!("error: {e}");
+                    std::process::ExitCode::from(2)
+                }
             }
-            Err(e) => {
-                eprintln!("error: {e}");
-                std::process::ExitCode::from(2)
-            }
-        },
+        }
         Cmd::WasmCheck {
             iterations,
             seed,
@@ -364,7 +476,7 @@ fn wasm_check(
 }
 
 /// Regenerate `seed`, run both engines, and print a side-by-side comparison.
-fn replay(seed: u64, config: &GenConfig, tclvm: &Path, tclsh: &Path, timeout: Duration) {
+fn replay(seed: u64, config: &GenConfig, pair: &ResolvedPair, timeout: Duration) {
     let script = generate(seed, config);
     println!("=== script (seed {seed}) ===\n{script}");
     let scratch = std::env::temp_dir();
@@ -372,18 +484,39 @@ fn replay(seed: u64, config: &GenConfig, tclvm: &Path, tclsh: &Path, timeout: Du
         eprintln!("error: could not write scratch script");
         return;
     };
-    let reference = run_backend(tclsh, &path, timeout);
-    let subject = run_backend(tclvm, &path, timeout);
+    let reference = run_backend(&pair.reference_bin, &pair.reference_args, &path, timeout);
+    let subject = run_backend(&pair.subject_bin, &pair.subject_args, &path, timeout);
     let _ = std::fs::remove_file(&path);
-    println!("=== tclsh (reference) ===\n{}", render(&reference));
-    println!("=== tclvm (subject) ===\n{}", render(&subject));
-    println!("=== verdict: {:?} ===", compare(&reference, &subject));
+    println!(
+        "=== reference: {} ({}) ===\n{}",
+        pair.reference.label(),
+        pair.reference_bin.display(),
+        render(&reference)
+    );
+    println!(
+        "=== subject: {} ({}) ===\n{}",
+        pair.subject.label(),
+        pair.subject_bin.display(),
+        render(&subject)
+    );
+    println!(
+        "=== verdict: {:?} ===",
+        compare_outcomes(&reference, &subject, true)
+    );
 }
 
 fn render(o: &Outcome) -> String {
     match o {
-        Outcome::Ran { stdout, errored } => {
-            format!("[errored={errored}]\n{stdout}")
+        Outcome::Ran {
+            stdout,
+            stderr,
+            errored,
+        } => {
+            if stderr.is_empty() {
+                format!("[errored={errored}]\n{stdout}")
+            } else {
+                format!("[errored={errored}]\n{stdout}--- stderr ---\n{stderr}")
+            }
         }
         Outcome::Timeout => "<timeout>".to_owned(),
         Outcome::Unavailable(m) => format!("<unavailable: {m}>"),
@@ -392,50 +525,51 @@ fn render(o: &Outcome) -> String {
 
 fn print_stats(stats: &Stats) {
     eprintln!(
-        "\ncampaign complete:\n  total {} | matched {} | skipped {}\n  findings: stdout {} | status {} | timeout {} (new this run: {})",
+        "\ncampaign complete:\n  total {} | matched {} | skipped {}\n  findings: stdout {} | status {} | error-text {} | timeout {} (new this run: {})",
         stats.total,
         stats.matched,
         stats.skipped,
         stats.stdout_mismatch,
         stats.status_mismatch,
+        stats.error_text_mismatch,
         stats.timeout,
         stats.new_findings,
     );
 }
 
-/// Locate the `tclvm` binary: explicit flag, then beside this executable, then
-/// `PATH`.
-fn resolve_tclvm(explicit: Option<&Path>) -> Option<PathBuf> {
-    if let Some(p) = explicit {
-        return p.is_file().then(|| p.to_owned());
-    }
-    if let Ok(exe) = std::env::current_exe()
-        && let Some(dir) = exe.parent()
-    {
-        let beside = dir.join("tclvm");
-        if beside.is_file() {
-            return Some(beside);
-        }
-    }
-    which("tclvm")
+/// Resolve an [`Engine`] to its `(binary, leading-args)` invocation, honouring
+/// the matching `--tclvm`/`--tclsh`/`--runtime-rust` override.
+fn resolve_engine(engine: Engine, cli: &Cli) -> Option<(PathBuf, Vec<String>)> {
+    let explicit = match engine {
+        Engine::Tclvm => cli.tclvm.as_deref(),
+        Engine::Tclsh => cli.tclsh.as_deref(),
+        Engine::RuntimeRust => cli.runtime_rust.as_deref(),
+    };
+    let bin = engine.resolve(explicit)?;
+    Some((bin, engine.args()))
 }
 
-/// Locate the reference `tclsh`: explicit flag, then `tclsh9.0`, then `tclsh`.
-fn resolve_tclsh(explicit: Option<&Path>) -> PathBuf {
-    if let Some(p) = explicit {
-        return p.to_owned();
+/// The `--<flag>` a user should pass to point this engine at an explicit
+/// binary, for an error message.
+fn cli_flag_for(engine: Engine) -> &'static str {
+    match engine {
+        Engine::Tclvm => "tclvm",
+        Engine::Tclsh => "tclsh",
+        Engine::RuntimeRust => "runtime-rust",
     }
-    which("tclsh9.0")
-        .or_else(|| which("tclsh"))
-        .unwrap_or_else(|| PathBuf::from("tclsh"))
 }
 
-/// Find an executable on `PATH`.
-fn which(name: &str) -> Option<PathBuf> {
-    let path = std::env::var_os("PATH")?;
-    std::env::split_paths(&path)
-        .map(|dir| dir.join(name))
-        .find(|p| p.is_file())
+/// The findings directory for a backend pair: the plain `base` for the
+/// original default pair (`tclsh` reference / `tclvm` subject — keeps
+/// existing findings directories meaningful with no migration), else
+/// `base/<subject>-vs-<reference>/` so a different pair never collides with
+/// another pair's seeds.
+fn pair_findings_dir(base: &Path, reference: Engine, subject: Engine) -> PathBuf {
+    if matches!(reference, Engine::Tclsh) && matches!(subject, Engine::Tclvm) {
+        base.to_owned()
+    } else {
+        base.join(format!("{}-vs-{}", subject.label(), reference.label()))
+    }
 }
 
 /// A coarse time-based seed for ad-hoc campaigns. The nanosecond count is
@@ -446,4 +580,71 @@ fn time_seed() -> u64 {
         .ok()
         .and_then(|d| u64::try_from(d.as_nanos() & u128::from(u64::MAX)).ok())
         .unwrap_or(0x1234_5678)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use clap::CommandFactory as _;
+
+    #[test]
+    fn cli_definition_is_well_formed() {
+        Cli::command().debug_assert();
+    }
+
+    #[test]
+    fn default_pair_keeps_the_plain_findings_dir() {
+        // Issue #1313: the original `tclvm` subject / `tclsh` reference pair
+        // must keep writing to `<findings>/` so existing registries need no
+        // migration when other pairs are added.
+        let base = Path::new("fuzz-findings");
+        assert_eq!(
+            pair_findings_dir(base, Engine::Tclsh, Engine::Tclvm),
+            base.to_owned()
+        );
+    }
+
+    #[test]
+    fn other_pairs_are_namespaced_so_seeds_never_collide() {
+        let base = Path::new("fuzz-findings");
+        assert_eq!(
+            pair_findings_dir(base, Engine::Tclsh, Engine::RuntimeRust),
+            base.join("runtime-rust-vs-tclsh")
+        );
+        assert_eq!(
+            pair_findings_dir(base, Engine::RuntimeRust, Engine::Tclvm),
+            base.join("tclvm-vs-runtime-rust")
+        );
+        // The same two engines swapped is a *different* registry — subject and
+        // reference are not interchangeable.
+        assert_ne!(
+            pair_findings_dir(base, Engine::Tclsh, Engine::RuntimeRust),
+            pair_findings_dir(base, Engine::RuntimeRust, Engine::Tclsh)
+        );
+    }
+
+    #[test]
+    fn every_engine_names_the_flag_that_overrides_it() {
+        for engine in [Engine::Tclvm, Engine::Tclsh, Engine::RuntimeRust] {
+            assert_eq!(cli_flag_for(engine), engine.label());
+        }
+    }
+
+    #[test]
+    fn an_explicit_override_resolves_that_engine_and_its_args() {
+        let cli = Cli::parse_from([
+            "tcl-fuzz",
+            "--runtime-rust",
+            "/opt/run_script",
+            "run",
+            "--subject",
+            "runtime-rust",
+        ]);
+        let (bin, args) =
+            resolve_engine(Engine::RuntimeRust, &cli).expect("explicit path resolves");
+        assert_eq!(bin, PathBuf::from("/opt/run_script"));
+        // `runtime/rust`'s runner needs `--quiet` to match `tclsh script.tcl`'s
+        // stdout contract — see `engine::Engine::args`.
+        assert_eq!(args, vec!["--quiet".to_string()]);
+    }
 }

@@ -56,16 +56,34 @@ pub fn event_is_described(event: &str) -> bool {
 }
 
 /// Map the registry's dependency-free program-type enum onto the IR's, for the
-/// codegen-ready targets. `None` for events the IR has no lowering for yet.
+/// codegen-ready targets. `None` for events the IR has no lowering for yet
+/// (none today — issue #1310 completed TC/cgroup codegen; kept `Option` so a
+/// future event can land its schema ahead of its codegen, as TC/cgroup did).
 #[must_use]
 pub fn prog_type_of(pt: BpfEventProgType) -> Option<ProgType> {
     match pt {
         BpfEventProgType::SocketFilter => Some(ProgType::SocketFilter),
         BpfEventProgType::Xdp => Some(ProgType::Xdp),
-        BpfEventProgType::TcIngress
-        | BpfEventProgType::TcEgress
-        | BpfEventProgType::CgroupInet4Connect
-        | BpfEventProgType::CgroupInet4Bind => None,
+        BpfEventProgType::TcIngress => Some(ProgType::TcIngress),
+        BpfEventProgType::TcEgress => Some(ProgType::TcEgress),
+        BpfEventProgType::CgroupInet4Connect => Some(ProgType::CgroupInet4Connect),
+        BpfEventProgType::CgroupInet4Bind => Some(ProgType::CgroupInet4Bind),
+    }
+}
+
+/// The inverse of [`prog_type_of`]: the registry's dependency-free family for
+/// an IR program type, for consulting registry-owned per-family policy (e.g.
+/// [`tcl_registry::bpf_op::BpfProgTypeSet::contains`]) from lowering without
+/// the registry depending back on the IR.
+#[must_use]
+pub fn registry_prog_type(pt: ProgType) -> BpfEventProgType {
+    match pt {
+        ProgType::SocketFilter => BpfEventProgType::SocketFilter,
+        ProgType::Xdp => BpfEventProgType::Xdp,
+        ProgType::TcIngress => BpfEventProgType::TcIngress,
+        ProgType::TcEgress => BpfEventProgType::TcEgress,
+        ProgType::CgroupInet4Connect => BpfEventProgType::CgroupInet4Connect,
+        ProgType::CgroupInet4Bind => BpfEventProgType::CgroupInet4Bind,
     }
 }
 

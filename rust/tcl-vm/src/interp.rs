@@ -680,13 +680,15 @@ pub struct InterpState {
     /// `[info coroutine]` + the yield-boundary check), and the pending
     /// `yield`/`yieldto` request. See [`crate::cmd_coro`].
     pub(crate) coro: crate::cmd_coro::CoroSystem,
-    /// A script an `eval`/`uplevel`-style builtin wants run on the *explicit*
-    /// stack (so a `yield` in it stays yieldable): the compiled body + its
-    /// `errorInfo` body label. Set by the builtin and drained by `dispatch_words`
-    /// into a [`Tick::PushScript`](crate::exec) (or run via a nested drive on the
+    /// A script an `eval`/`uplevel`/`apply`-style builtin wants run on the
+    /// *explicit* stack (so a `yield` in it stays yieldable): the compiled body,
+    /// its `errorInfo` body label, and an optional command name to delete once
+    /// the pushed frame completes (`apply`'s temporary lambda proc — issue
+    /// #1311). Set by the builtin and drained by `dispatch_words` into a
+    /// [`Tick::PushScript`](crate::exec) (or run via a nested drive on the
     /// `invoke_command` fallback path), mirroring how `coro.pending` becomes a
     /// `Tick::Suspend`.
-    pub(crate) pending_eval: Option<(Rc<FunctionAsm>, Option<&'static str>)>,
+    pub(crate) pending_eval: Option<(Rc<FunctionAsm>, Option<&'static str>, Option<String>)>,
     /// A `catch` body an about-to-run `catch` wants evaluated on the *explicit*
     /// stack (so a `yield` in it stays yieldable). Unlike `pending_eval`, the
     /// body's completion is **absorbed** (not propagated): a catch frame runs it
@@ -700,6 +702,19 @@ pub struct InterpState {
     /// by `dispatch_words` into a [`Tick::PushSubst`](crate::exec) (or run via a
     /// nested drive on the `invoke_command` fallback). See [`Frame::subst`].
     pub(crate) pending_subst: Option<crate::exec::SubstReq>,
+    /// A `foreach`/`lmap` runtime-fallback loop an about-to-run `each_loop` wants
+    /// driven on the *explicit* stack (so a `yield` in its body stays yieldable —
+    /// issue #1311). Set by `each_loop`, drained by `dispatch_words` into a
+    /// [`Tick::PushEachLoop`](crate::exec) (or run via a nested drive on the
+    /// `invoke_command` fallback). See [`Frame::each_loop`].
+    pub(crate) pending_each_loop: Option<crate::exec::EachLoopReq>,
+    /// A `try`'s next phase (body/handler/finally) an about-to-run `try` wants
+    /// driven on the *explicit* stack (so a `yield` anywhere in it stays
+    /// yieldable — issue #1311). Set by `cmd_try`/`advance_try`, drained by
+    /// `dispatch_words` into a [`Tick::PushTry`](crate::exec) (or run via a
+    /// nested drive loop on the `invoke_command` fallback). See
+    /// [`Frame::try_ctx`].
+    pub(crate) pending_try: Option<crate::cmd_try::TryReq>,
     /// The event loop's pending timer/idle events (`after`/`vwait`/`update`).
     /// The scheduler half of the coroutine subsystem. See [`crate::cmd_event`].
     pub(crate) events: crate::cmd_event::EventQueue,
@@ -926,6 +941,8 @@ impl InterpState {
             pending_eval: None,
             pending_catch: None,
             pending_subst: None,
+            pending_each_loop: None,
+            pending_try: None,
             events: crate::cmd_event::EventQueue::default(),
             thread: crate::cmd_thread::ThreadSystem::default(),
         }

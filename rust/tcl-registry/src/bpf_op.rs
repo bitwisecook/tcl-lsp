@@ -163,15 +163,44 @@ pub enum BpfDeclKind {
     Attach,
 }
 
-/// Which program types an operation is valid in.
+/// Which program types an operation is valid in — a bitset over
+/// [`BpfEventProgType`]'s families, since a verdict verb like `pass` is valid
+/// on more than one program type (XDP, TC, and the cgroup sock-addr hooks all
+/// accept `pass`/`drop`) without being valid on every type (`accept` stays
+/// socket-filter-only).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum BpfProgTypeSet {
-    /// Valid in every program type.
-    All,
+pub struct BpfProgTypeSet(u8);
+
+impl BpfProgTypeSet {
+    const SOCKET_FILTER: u8 = 1;
+    const XDP: u8 = 1 << 1;
+    const TC: u8 = 1 << 2;
+    const CGROUP: u8 = 1 << 3;
+
     /// Socket filters only (`accept`).
-    SocketFilterOnly,
-    /// XDP only (`pass`, `tx`).
-    XdpOnly,
+    pub const SOCKET_FILTER_ONLY: Self = Self(Self::SOCKET_FILTER);
+    /// XDP only (`tx`).
+    pub const XDP_ONLY: Self = Self(Self::XDP);
+    /// XDP, TC, and the cgroup sock-addr hooks (`pass`/`drop`) — every
+    /// program type with a `pass`-shaped verdict, i.e. every type but the
+    /// socket filter (which uses `accept` instead).
+    pub const PASS_LIKE: Self = Self(Self::XDP | Self::TC | Self::CGROUP);
+    /// Valid in every program type.
+    pub const ALL: Self = Self(Self::SOCKET_FILTER | Self::XDP | Self::TC | Self::CGROUP);
+
+    /// Whether `prog_type` is a member of this set.
+    #[must_use]
+    pub const fn contains(self, prog_type: BpfEventProgType) -> bool {
+        let bit = match prog_type {
+            BpfEventProgType::SocketFilter => Self::SOCKET_FILTER,
+            BpfEventProgType::Xdp => Self::XDP,
+            BpfEventProgType::TcIngress | BpfEventProgType::TcEgress => Self::TC,
+            BpfEventProgType::CgroupInet4Connect | BpfEventProgType::CgroupInet4Bind => {
+                Self::CGROUP
+            }
+        };
+        self.0 & bit == bit
+    }
 }
 
 /// What a BPF-Tcl command *is* — the typed core operation or framework
@@ -224,7 +253,7 @@ impl BpfOpSpec {
         Self {
             kind,
             effects: BpfEffects::NONE,
-            prog_types: BpfProgTypeSet::All,
+            prog_types: BpfProgTypeSet::ALL,
         }
     }
 
@@ -234,7 +263,7 @@ impl BpfOpSpec {
         Self {
             kind,
             effects,
-            prog_types: BpfProgTypeSet::All,
+            prog_types: BpfProgTypeSet::ALL,
         }
     }
 
@@ -254,7 +283,7 @@ impl BpfOpSpec {
         Self {
             kind: BpfOpKind::Framework(decl),
             effects: BpfEffects::NONE,
-            prog_types: BpfProgTypeSet::All,
+            prog_types: BpfProgTypeSet::ALL,
         }
     }
 }
@@ -279,11 +308,13 @@ pub enum BpfEventProgType {
 }
 
 /// How far the compiler backend supports an event today. Every event is fully
-/// *described* by its schema; only [`BpfCodegen::Ready`] events currently lower
-/// to a compiled program (issue #1203's XDP and socket-filter targets). The
-/// rest are declared contracts whose codegen is sequenced for a later change —
-/// the front-end resolves the schema and reports a precise "described, codegen
-/// pending" diagnostic rather than an "unknown event".
+/// *described* by its schema; a [`BpfCodegen::Ready`] event additionally lowers
+/// to a compiled program. All six current events are `Ready` (issue #1203's
+/// XDP/socket-filter targets, issue #1310's TC/cgroup targets); the
+/// `Described`-but-not-`Ready` state stays in the model for a future event
+/// whose schema lands before its codegen does — the front-end then resolves
+/// the schema and reports a precise "described, codegen pending" diagnostic
+/// rather than an "unknown event".
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum BpfCodegen {
     /// The event lowers to a compiled program on at least one target.
@@ -602,9 +633,11 @@ const CGROUP_PARAM: &[BpfAttachParam] = &[BpfAttachParam {
     description: "cgroup v2 directory the policy applies to",
 }];
 
-/// Every BPF event the framework recognises, in documentation order. The first
-/// two are codegen-ready (issue #1203); TC and cgroup are schema-described with
-/// codegen sequenced for a later change (issue #1204's event framework).
+/// Every BPF event the framework recognises, in documentation order. All six
+/// are codegen-ready: `SOCKET_FILTER`/`XDP` (issue #1203), then
+/// `TC_INGRESS`/`TC_EGRESS`/`CGROUP_CONNECT4`/`CGROUP_BIND4` (issue #1310's
+/// `SCHED_CLS`/`CGROUP_SOCK_ADDR` lowering, completing issue #1204's event
+/// framework).
 pub const BPF_EVENTS: &[BpfEventSpec] = &[
     BpfEventSpec {
         name: "SOCKET_FILTER",
@@ -686,7 +719,7 @@ pub const BPF_EVENTS: &[BpfEventSpec] = &[
             bpf_link: true,
         },
         output: BpfEventOutput::PacketDecision,
-        codegen: BpfCodegen::Described,
+        codegen: BpfCodegen::Ready,
         description: "TC ingress classifier: verdict is a TC action (OK/SHOT)",
     },
     BpfEventSpec {
@@ -712,7 +745,7 @@ pub const BPF_EVENTS: &[BpfEventSpec] = &[
             bpf_link: true,
         },
         output: BpfEventOutput::PacketDecision,
-        codegen: BpfCodegen::Described,
+        codegen: BpfCodegen::Ready,
         description: "TC egress classifier: verdict is a TC action (OK/SHOT)",
     },
     BpfEventSpec {
@@ -739,7 +772,7 @@ pub const BPF_EVENTS: &[BpfEventSpec] = &[
             bpf_link: true,
         },
         output: BpfEventOutput::PacketDecision,
-        codegen: BpfCodegen::Described,
+        codegen: BpfCodegen::Ready,
         description: "cgroup IPv4 connect policy: verdict allows (pass) or denies (drop) the connect",
     },
     BpfEventSpec {
@@ -764,7 +797,7 @@ pub const BPF_EVENTS: &[BpfEventSpec] = &[
             bpf_link: true,
         },
         output: BpfEventOutput::PacketDecision,
-        codegen: BpfCodegen::Described,
+        codegen: BpfCodegen::Ready,
         description: "cgroup IPv4 bind policy: verdict allows (pass) or denies (drop) the bind",
     },
 ];
@@ -845,15 +878,16 @@ mod tests {
     }
 
     #[test]
-    fn tc_and_cgroup_events_are_schema_described() {
+    fn tc_and_cgroup_events_are_schema_described_and_codegen_ready() {
         // Issue #1204: TC ingress/egress and cgroup connect/bind exist as typed
-        // registry contracts, resolvable by name/alias.
+        // registry contracts, resolvable by name/alias. Issue #1310: their
+        // codegen (SCHED_CLS / CGROUP_SOCK_ADDR) is now implemented too.
         for name in ["TC_INGRESS", "TC_EGRESS", "CGROUP_CONNECT4", "CGROUP_BIND4"] {
             let e = lookup_bpf_event(name).unwrap_or_else(|| panic!("{name} missing"));
             assert_eq!(
                 e.codegen,
-                BpfCodegen::Described,
-                "{name} should be described"
+                BpfCodegen::Ready,
+                "{name} should be codegen-ready"
             );
             assert!(!e.context.fields.is_empty(), "{name} has no context fields");
             assert!(!e.attach_params.is_empty(), "{name} has no attach params");
@@ -893,8 +927,22 @@ mod tests {
     }
 
     #[test]
-    fn codegen_ready_events_are_exactly_xdp_and_socket_filter() {
-        assert_eq!(codegen_ready_event_names(), vec!["SOCKET_FILTER", "XDP"]);
+    fn codegen_ready_events_are_every_described_event() {
+        // Issue #1310: TC and cgroup codegen (SCHED_CLS / CGROUP_SOCK_ADDR
+        // lowering) landed, so every registry-described event is now
+        // codegen-ready — this list grows only when a new event is added,
+        // not by dropping an existing one back to `Described`.
+        assert_eq!(
+            codegen_ready_event_names(),
+            vec![
+                "SOCKET_FILTER",
+                "XDP",
+                "TC_INGRESS",
+                "TC_EGRESS",
+                "CGROUP_CONNECT4",
+                "CGROUP_BIND4",
+            ]
+        );
     }
 
     #[test]

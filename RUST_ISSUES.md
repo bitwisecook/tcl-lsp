@@ -12,13 +12,14 @@ per-finding files and the `RUST_ISSUE_NNN` references that were scattered throug
 the source have been removed. Fixed defects belong in the git history, not in a
 tracker or a comment.
 
-The three that survived are on the GitHub issue list, where open work belongs:
+The three that survived are on the GitHub issue list, where open work belongs.
+One has since closed and two are partly done:
 
 | # | GitHub | What is left |
 |---|---|---|
-| [008](rust-issues/RUST_ISSUE_008.md) | [#1311](https://github.com/bitwisecook/tcl-lsp/issues/1311) | `yield` cannot cross `try`, `apply`, or a value-consumed `lmap` in the bytecode VM. |
-| [014](rust-issues/RUST_ISSUE_014.md) | [#1313](https://github.com/bitwisecook/tcl-lsp/issues/1313) | The differential fuzzer compares only two backend pairs and folds every error to a bool. |
-| [168](rust-issues/RUST_ISSUE_168.md) | [#1309](https://github.com/bitwisecook/tcl-lsp/issues/1309) | `runtime/rust`'s `ValueOps::as_str` is lossy, corrupting non-UTF-8 bytes across the portable `string` surface. |
+| [008](rust-issues/RUST_ISSUE_008.md) | [#1311](https://github.com/bitwisecook/tcl-lsp/issues/1311) | **Narrowed.** `yield` now crosses `try` (body/handler/`finally`), a bare `apply`, and a value-consumed `lmap`/`foreach`. Left: a `[yieldto …]` in a command-substitution *argument* slot (`coroutine.test` 7.3/12.1, lowers to runtime `subst_word`), not yet reduced to a standalone repro. |
+| [014](rust-issues/RUST_ISSUE_014.md) | [#1313](https://github.com/bitwisecook/tcl-lsp/issues/1313) | **Partly done.** The fuzzer now pairs any two backends (`runtime/rust` ↔ `tclsh` added) and compares error text behind `--compare-error-text`. Left: characterising the `tcl-vm` ↔ `runtime/rust` pair (plumbing exists, no real campaign), and the real linked WASM runtime and eBPF arms. |
+| ~~[168](rust-issues/RUST_ISSUE_168.md)~~ | [#1309](https://github.com/bitwisecook/tcl-lsp/issues/1309) | ✅ **Fixed** — `ValueOps::as_str`'s lossy conversion no longer corrupts non-UTF-8 bytes across the portable `string` surface. |
 
 Their files are kept under [`rust-issues/`](rust-issues/) for the detail the
 GitHub issues summarise; each carries a re-validation note and its issue number.

@@ -107,6 +107,17 @@ the layout is `{ i32, i32, i32, i32, <8-byte union> }` (24 bytes, 8-aligned).
 `internalRep` is a union sized/aligned to match (8 bytes); core-API extensions
 never touch its variants.
 
+`bytes` is one buffer doing double duty: an ordinary Tcl value's genuine UTF-8
+string rep, *and* the raw payload of a value built by `binary format` / a
+binary channel read, which is not generally valid UTF-8 — there is no separate
+byte-array internal rep the way `tclByteArray.c` keeps one. The portable
+`string`/`dict` command surface (`tcl-cmd-core`, shared with the bytecode VM)
+needs a Unicode-character view of that buffer regardless of which case it is;
+`runtime/rust/src/value_ops.rs`'s `bytes_to_str`/`str_to_bytes` are the seam
+that reconciles the two — see
+[the KCS note](../../kcs/kcs-issue-runtime-string-subcommands-corrupt-binary-values.md)
+for the escape convention and its one known trade-off (issue #1309).
+
 ### 4.3 Calls: direct imports
 
 Each Tcl C API function is a runtime export with the C ABI (`#[no_mangle]

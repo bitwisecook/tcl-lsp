@@ -18,14 +18,15 @@
 
 //! Campaign runner: generate → run both backends → compare → record.
 //!
-//! Runs over the native `tclvm` / `tclsh` subprocess harness.
+//! Runs over the native subprocess harness, generalised (issue #1313) to any
+//! pair of [`crate::engine::Engine`]s — not just `tclvm` / `tclsh`.
 
 use std::path::{Path, PathBuf};
 use std::time::Duration;
 
 use crate::findings::{Category, Finding, Registry};
 use crate::generator::{GenConfig, generate};
-use crate::harness::{Verdict, compare, run_backend, write_script};
+use crate::harness::{Verdict, compare_outcomes, run_backend, write_script};
 
 /// Aggregate campaign statistics.
 #[derive(Debug, Default, Clone, Copy)]
@@ -38,6 +39,9 @@ pub struct Stats {
     pub stdout_mismatch: u64,
     /// status-mismatch findings.
     pub status_mismatch: u64,
+    /// error-text-mismatch findings (only when error-text comparison is on —
+    /// see [`Campaign::compare_error_text`]).
+    pub error_text_mismatch: u64,
     /// subject-timeout findings.
     pub timeout: u64,
     /// Runs skipped (reference timeout / backend unavailable).
@@ -50,16 +54,27 @@ impl Stats {
     /// Total findings (any category) this campaign.
     #[must_use]
     pub fn findings(&self) -> u64 {
-        self.stdout_mismatch + self.status_mismatch + self.timeout
+        self.stdout_mismatch + self.status_mismatch + self.error_text_mismatch + self.timeout
     }
 }
 
-/// Configuration for one campaign.
+/// One engine's resolved invocation: a binary plus fixed leading arguments
+/// (see [`crate::engine::Engine::args`]).
+#[derive(Debug, Clone)]
+pub struct Backend<'a> {
+    /// The engine's binary.
+    pub binary: &'a Path,
+    /// Fixed leading arguments, before the script-file argument.
+    pub args: Vec<String>,
+}
+
+/// Configuration for one campaign, over any pair of engines (issue #1313 —
+/// previously hardcoded to `tclvm` subject / `tclsh` reference).
 pub struct Campaign<'a> {
-    /// Reference engine (`tclsh`).
-    pub tclsh: &'a Path,
-    /// Subject engine (`tclvm`).
-    pub tclvm: &'a Path,
+    /// Reference engine (the presumed-correct oracle for this pair).
+    pub reference: Backend<'a>,
+    /// Subject engine (the implementation under test).
+    pub subject: Backend<'a>,
     /// Per-script wall-clock timeout.
     pub timeout: Duration,
     /// Generator tunables.
@@ -68,6 +83,9 @@ pub struct Campaign<'a> {
     pub registry: &'a Registry,
     /// Scratch directory for generated `.tcl` files.
     pub scratch: PathBuf,
+    /// Whether to additionally compare error message text when both engines
+    /// error (see `harness::compare_outcomes`). Off by default.
+    pub compare_error_text: bool,
 }
 
 impl Campaign<'_> {
@@ -97,16 +115,22 @@ impl Campaign<'_> {
             stats.skipped += 1;
             return Verdict::Skipped;
         };
-        let reference = run_backend(self.tclsh, &path, self.timeout);
-        let subject = run_backend(self.tclvm, &path, self.timeout);
+        let reference = run_backend(
+            self.reference.binary,
+            &self.reference.args,
+            &path,
+            self.timeout,
+        );
+        let subject = run_backend(self.subject.binary, &self.subject.args, &path, self.timeout);
         let _ = std::fs::remove_file(&path);
 
-        let verdict = compare(&reference, &subject);
+        let verdict = compare_outcomes(&reference, &subject, self.compare_error_text);
         match verdict {
             Verdict::Match => stats.matched += 1,
             Verdict::Skipped => stats.skipped += 1,
             Verdict::StdoutMismatch => stats.stdout_mismatch += 1,
             Verdict::StatusMismatch => stats.status_mismatch += 1,
+            Verdict::ErrorTextMismatch => stats.error_text_mismatch += 1,
             Verdict::Timeout => stats.timeout += 1,
         }
         if let Some(category) = Category::from_verdict(verdict) {

@@ -3,23 +3,33 @@
 > **Status:** Experimental multi-target backend, kernel codegen landed
 > 2026-08-04 (issue #1203). Event framework, handler composition, typed
 > ring-buffer records, and the loader/link lifecycle model landed 2026-08-04
-> (issue #1204).
+> (issue #1204). TC (SCHED_CLS) and cgroup (CGROUP_SOCK_ADDR) codegen landed
+> 2026-08-07 (issue #1310), completing codegen for all six registry-described
+> events.
 > The default target runs under the bundled `rbpf` harness. The explicit
-> `kernel-xdp` and `kernel-socket` targets emit Linux-loadable objects with real
-> `struct xdp_md` / `struct __sk_buff` context lowering, verifier-safe packet
-> bounds proofs, BTF-defined maps, and map relocations. Rootless tests validate
-> the objects with `readelf`/`llvm-objdump` and an in-repo verifier model;
-> genuine kernel `bpf()` load and `BPF_PROG_TEST_RUN` acceptance is gated behind
-> an `#[ignore]`d privileged test (`rust/bpf-tcl/tests/kernel_load.rs`), since
-> loading needs root and a live kernel. The event framework adds a typed,
-> registry-described event schema (XDP, socket filter, and schema-described TC /
-> cgroup families), explicit `next`-based handler composition, a versioned
-> userspace record ABI with ring-buffer transport and loss accounting, and a
-> loader/link lifecycle state machine (plan → load → test-run → attach → status →
-> detach, with rollback and resource ownership). The lifecycle is modelled and
-> unit-tested deterministically in userspace over a `ModelKernel`; real
-> attachment (`bpf()` links/pins on a live interface or cgroup) is gated behind
-> `#[ignore]`d privileged tests (`rust/bpf-tcl/tests/kernel_attach.rs`).
+> `kernel-xdp`, `kernel-socket`, `kernel-tc`, and `kernel-cgroup-sockaddr`
+> targets emit Linux-loadable objects with real `struct xdp_md` /
+> `struct __sk_buff` / `struct bpf_sock_addr` context lowering, verifier-safe
+> packet bounds proofs (where the context has a packet body), BTF-defined maps,
+> and map relocations. Rootless tests validate the objects with
+> `readelf`/`llvm-objdump` and an in-repo verifier model; genuine kernel `bpf()`
+> load and `BPF_PROG_TEST_RUN` acceptance is gated behind `#[ignore]`d
+> privileged tests (`rust/bpf-tcl/tests/kernel_load.rs`,
+> `rust/bpf-tcl/tests/kernel_attach.rs`), since loading needs root and a live
+> kernel. The `kernel-tc` target's real-kernel attach was additionally
+> validated live on a 6.18 host via `tc filter add ... bpf da obj ... sec tc`
+> in a disposable network namespace (the filter listing showed `jited`,
+> confirming kernel verifier acceptance and JIT compilation) — see the KCS note
+> below for the experiment. The event framework adds a typed,
+> registry-described event schema (all six events: XDP, socket filter, TC
+> ingress/egress, cgroup connect4/bind4), explicit `next`-based handler
+> composition, a versioned userspace record ABI with ring-buffer transport and
+> loss accounting, and a loader/link lifecycle state machine (plan → load →
+> test-run → attach → status → detach, with rollback and resource ownership).
+> The lifecycle is modelled and unit-tested deterministically in userspace over
+> a `ModelKernel`; real attachment (`bpf()` links/pins on a live interface or
+> cgroup) is gated behind `#[ignore]`d privileged tests
+> (`rust/bpf-tcl/tests/kernel_attach.rs`).
 
 ## Purpose
 
@@ -30,7 +40,8 @@ intermediate representation, and emits eBPF instructions without LLVM.
 
 The framework layer borrows the readable `when EVENT priority N { ... }` shape
 from F5 iRules, but its events belong to a separate eBPF namespace. Today that
-namespace contains only socket filters and XDP packet handlers.
+namespace covers socket filters, XDP, TC ingress/egress, and cgroup
+connect4/bind4 packet handlers.
 
 ## Layer map
 
@@ -43,7 +54,7 @@ flowchart TB
     BpfIR["BPF-IR<br/>typed slots, blocks, loads, map ops,<br/>branches, typed verdict"]
     Codegen["eBPF codegen<br/>stack-machine lowering, jumps,<br/>raw bytes, disassembly, ELF wrapper"]
     Rbpf["Simulator target<br/>rbpf FixedMbuff userspace VM"]
-    Kernel["Kernel targets<br/>kernel-xdp (xdp_md) /<br/>kernel-socket (__sk_buff):<br/>context lowering, verifier proofs,<br/>BTF maps + relocations"]
+    Kernel["Kernel targets<br/>kernel-xdp (xdp_md) /<br/>kernel-socket (__sk_buff) /<br/>kernel-tc (__sk_buff) /<br/>kernel-cgroup-sockaddr (bpf_sock_addr):<br/>context lowering, verifier proofs,<br/>BTF maps + relocations"]
     Loader["Loader and links<br/>attach lifecycle, pins,<br/>handler composition (issue #1204)"]
 
     Source --> Framework --> Core --> TclIR --> BpfIR --> Codegen
@@ -64,7 +75,7 @@ framework.
 layout, a disassembler, a hand-written ELF64 relocatable-object writer, a BTF
 writer, and an in-repo verifier model.
 
-There are three execution ABIs, selected by [`TargetAbi`](../../../rust/bpf-tcl-codegen/src/ebpf/emit.rs)
+There are five execution ABIs, selected by [`TargetAbi`](../../../rust/bpf-tcl-codegen/src/ebpf/emit.rs)
 and requested on the CLI with `--target`:
 
 | Target | Context | Packet `data`/`data_end` | Map ABI |
@@ -72,6 +83,15 @@ and requested on the CLI with `--target`:
 | `rbpf` (default) | `rbpf` metadata buffer | 64-bit words at ctx+0 / ctx+8 | by-value userspace helper ids 1/2/3 |
 | `kernel-xdp` | `struct xdp_md` | 32-bit fields at ctx+0 / ctx+4 | BTF-defined maps + `bpf_map_*` helpers |
 | `kernel-socket` | `struct __sk_buff` | 32-bit fields at ctx+76 / ctx+80 | BTF-defined maps + `bpf_map_*` helpers |
+| `kernel-tc` | `struct __sk_buff` (SCHED_CLS) | 32-bit fields at ctx+76 / ctx+80 (same layout as `kernel-socket`) | BTF-defined maps + `bpf_map_*` helpers |
+| `kernel-cgroup-sockaddr` | `struct bpf_sock_addr` | none — no packet body; `setbuf` is rejected for this target family | BTF-defined maps + `bpf_map_*` helpers |
+
+`kernel-tc` accepts a program compiled for either `TC_INGRESS` or `TC_EGRESS`
+(attach direction is a `tc filter add ... ingress|egress` loader concern, not a
+codegen ABI difference — both share one `__sk_buff` context and one `SEC(tc)`
+convention). Likewise `kernel-cgroup-sockaddr` accepts either
+`CGROUP_CONNECT4` or `CGROUP_BIND4` (the attach point, `connect4` vs `bind4`,
+is chosen at `bpftool cgroup attach` time).
 
 All three share one lowering strategy:
 
@@ -101,8 +121,11 @@ Because the compared register (`r2 = r6 + C`) and the load base (`r6`) share a
 packet-pointer id, proving `r6 + C <= data_end` teaches the verifier that
 `r6 + off` (with `off < C`) is in bounds — the canonical direct-packet-access
 idiom. The out-of-bounds verdict is the program type's drop value
-(`XDP_DROP` / socket `0`). Multi-byte fields are converted with `BPF_END`
-according to the field's declared byte order.
+(`XDP_DROP` / socket `0` / TC `TC_ACT_SHOT`). Multi-byte fields are converted
+with `BPF_END` according to the field's declared byte order. A cgroup
+sock-addr program never reaches this path: `bpf_sock_addr` has no packet body
+(no `data`/`data_end` fields to read), so `lower.rs` rejects `setbuf` for that
+program-type family before any packet-load instruction could be emitted.
 
 **Maps.** A kernel map operation spills its integer key (and, for a store, its
 value) into stack scratch cells above the slot region, loads the map file
@@ -131,8 +154,10 @@ would make the kernel reject a program, without needing root.
 The `rbpf` simulator target is unchanged: `data`/`data_end` are 64-bit metadata
 words and map helpers pass keys/values by value. `bpf-tcl compile --emit elf`
 defaults to the `rbpf` object for inspection; kernel objects are requested with
-`--target kernel-xdp` or `--target kernel-socket`. No target performs live
-attachment.
+`--target kernel-xdp`, `--target kernel-socket`, `--target kernel-tc`, or
+`--target kernel-cgroup-sockaddr`. No target performs live attachment from the
+`compile` subcommand itself — attachment is the loader's job (see *Loader and
+link lifecycle* below).
 
 ### Linux verifier experiment
 
@@ -166,6 +191,26 @@ programs is written but gated behind `#[ignore]` (it needs root and a live
 kernel), so a maintainer re-runs it on a Linux host — see
 `rust/bpf-tcl/tests/kernel_load.rs`.
 
+Issue #1310 completed codegen for the two remaining schema-described families:
+`kernel-tc` (`SCHED_CLS`, sharing `__sk_buff` and its packet-bounds machinery
+with `kernel-socket`) and `kernel-cgroup-sockaddr` (`CGROUP_SOCK_ADDR`, which
+has no packet body, so `setbuf` is rejected for it rather than emitting a
+prologue that would read past `struct bpf_sock_addr`). The TC path was
+validated against a live 6.18 kernel: a disposable network namespace with a
+`veth` pair and a `clsact` qdisc, `tc filter add dev veth0 ingress bpf da obj
+<obj> sec tc` against a compiled `when TC_INGRESS { pass }` object, and `tc
+filter show dev veth0 ingress` reporting the filter with a `jited` flag —
+proof the kernel verifier accepted and JIT-compiled the program. This
+real-kernel run is also exercised as an `#[ignore]`d Rust test,
+`tc_ingress_attach_detach_in_a_disposable_namespace_leaks_nothing` in
+`rust/bpf-tcl/tests/kernel_attach.rs`, which passed against the same host. The
+cgroup path's real-kernel attach needs `bpftool cgroup attach`, which was not
+installable in the sandbox this fix was developed in; its Rust test
+(`cgroup_connect_attach_detach_on_a_disposable_cgroup_leaks_nothing`) exercises
+compile → emit → ELF-write and then gates on `bpftool`'s presence, so it is
+honestly unverified against a real kernel here even though the codegen itself
+is covered by the unit/e2e suites and the in-repo verifier model.
+
 ## Layer 2: typed low-level language and BPF-IR
 
 The low-level language is deliberately closed. Its 26 registered commands are
@@ -178,8 +223,8 @@ The low-level language is deliberately closed. Its 26 registered commands are
 | Packet context | `setbuf`, `pktlen`, `load8`, `load16`, `load32` | Bind the packet, inspect its length, and read fixed-width fields at constant offsets (with an optional `be`/`le`/`native` byte-order word). |
 | State | `map`, `map_get`, `map_has`, `map_set` | Declare and access userspace-emulated integer-to-integer maps; `map_has` distinguishes a missing key from a stored zero. |
 | Control flow | `if`, `loop` | Branch, or expand a literal-count loop up to 64 iterations before CFG construction. |
-| Socket verdicts | `accept`, `drop` | Return an accepted byte count or zero. |
-| XDP verdicts | `pass`, `drop`, `tx` | Return `XDP_PASS`, `XDP_DROP`, or `XDP_TX`. |
+| Socket verdicts | `accept`, `drop` | Return an accepted byte count or zero (`SOCKET_FILTER` only — the one event outside `BpfProgTypeSet::PASS_LIKE`). |
+| Pass-like verdicts | `pass`, `drop`, `tx` | `pass`/`drop` are shared by every `BpfProgTypeSet::PASS_LIKE` event (XDP, TC ingress/egress, cgroup connect4/bind4), each returning its own program type's wire value (`XDP_PASS`/`TC_ACT_OK`/allow and `XDP_DROP`/`TC_ACT_SHOT`/deny); `tx` (`XDP_TX`) is XDP-only. |
 | Composition | `next` | Explicit non-terminal continuation: end a path without a decision so the next handler in priority order runs (issue #1204). |
 | Framework | `when`, `profile`, `field`, `template`, `use`, `allow`, `deny`, `attach` | Declare handlers and expand policy/configuration conveniences. |
 
@@ -252,17 +297,18 @@ a codegen-readiness flag. `check` prints the resolved contract for each handler.
 |---|---|---|---|---|---|
 | `SOCKET_FILTER` | `SOCKET` | `__sk_buff` | `accept ?N?`, `drop` | `accept` | ready (`--target kernel-socket`) |
 | `XDP` | — | `xdp_md` | `pass`, `drop`, `tx` | `pass` | ready (`--target kernel-xdp`) |
-| `TC_INGRESS` | `TC` | `__sk_buff` | `pass`, `drop` | `pass` | schema-described |
-| `TC_EGRESS` | — | `__sk_buff` | `pass`, `drop` | `pass` | schema-described |
-| `CGROUP_CONNECT4` | — | `bpf_sock_addr` | `pass`, `drop` | `pass` | schema-described |
-| `CGROUP_BIND4` | — | `bpf_sock_addr` | `pass`, `drop` | `pass` | schema-described |
+| `TC_INGRESS` | `TC` | `__sk_buff` | `pass`, `drop` | `pass` | ready (`--target kernel-tc`) |
+| `TC_EGRESS` | — | `__sk_buff` | `pass`, `drop` | `pass` | ready (`--target kernel-tc`) |
+| `CGROUP_CONNECT4` | — | `bpf_sock_addr` | `pass`, `drop` | `pass` | ready (`--target kernel-cgroup-sockaddr`) |
+| `CGROUP_BIND4` | — | `bpf_sock_addr` | `pass`, `drop` | `pass` | ready (`--target kernel-cgroup-sockaddr`) |
 
-The TC and cgroup events are *fully described* (context, capabilities, verdict
-algebra, attach params, kernel requirements) but their codegen (SCHED_CLS /
-CGROUP_SOCK_ADDR lowering) is sequenced for a later change. A `when TC_INGRESS`
-handler resolves its schema and is rejected with a **precise** "registry-described
-but its codegen is not yet implemented" diagnostic — never treated as an unknown
-event. Tracepoints/kprobes/uprobes and LSM remain out of the schema until typed
+All six registry-described events now have implemented codegen (issue #1310).
+TC ingress/egress share the `kernel-tc` target and `__sk_buff` packet-bounds
+machinery with `kernel-socket`; cgroup connect4/bind4 share the
+`kernel-cgroup-sockaddr` target, which has no packet body (`bpf_sock_addr` has
+no `data`/`data_end` fields), so `setbuf` is rejected for that program-type
+family rather than emitting a prologue that would read past the struct.
+Tracepoints/kprobes/uprobes and LSM remain out of the schema until typed
 ring-buffer records (now available, see below) and stronger deployment
 guarantees are wired to codegen.
 
@@ -371,6 +417,35 @@ verifier model (real `bpf()` acceptance is gated behind an `#[ignore]`d test):
    declared byte order on both the rbpf and kernel paths (verified against
    Ethernet/IPv4/TCP fixtures under the simulator). *(Resolved.)*
 
+### TC and cgroup kernel codegen (issue #1310) — resolved
+
+These were the subject of [issue #1310](https://github.com/bitwisecook/tcl-lsp/issues/1310)
+(tracked against the original #1204 sequencing note that TC/cgroup codegen was
+"sequenced next") and are now **implemented**:
+
+1. **`kernel-tc` (`SCHED_CLS`) target.** Reuses `__sk_buff` and the
+   `kernel-socket` packet-bounds/prologue machinery; accepts either
+   `TC_INGRESS` or `TC_EGRESS` (attach direction is a loader concern, not a
+   codegen ABI difference); `pass_verdict`/`drop_verdict` return `TC_ACT_OK`
+   (0) / `TC_ACT_SHOT` (2). ELF `SEC(tc)`. *(Resolved; real-kernel `tc filter
+   add ... bpf da obj ... sec tc` attach validated live against a 6.18 kernel
+   — see the *Linux verifier experiment* section above.)*
+2. **`kernel-cgroup-sockaddr` (`CGROUP_SOCK_ADDR`) target.** Accepts either
+   `CGROUP_CONNECT4` or `CGROUP_BIND4`; `pass_verdict`/`drop_verdict` return
+   allow (1) / deny (0). `bpf_sock_addr` has no packet body, so `setbuf` is
+   rejected for this program-type family in `lower.rs` — the only DSL
+   surface a cgroup handler can use is verdicts (and, in principle, maps).
+   ELF `SEC(cgroup/connect4)` / `SEC(cgroup/bind4)`. *(Resolved for codegen;
+   real-kernel `bpftool cgroup attach` was not exercised in the sandbox this
+   fix was developed in — `bpftool` was not installable there — so this one
+   path is unverified against a live kernel, though covered by the unit/e2e
+   suites and the in-repo verifier model.)*
+3. **`BpfProgTypeSet` generalised to a bitset.** The verdict-compatibility gate
+   (which events accept `pass` vs only `accept`/`drop`) is a `BpfProgTypeSet`
+   bitset over all six program types rather than a three-way enum, so a new
+   program-type family only needs a new bit, not a new enum arm scattered
+   across call sites.
+
 ### Event framework and loader (issue #1204) — modelled
 
 These were the subject of [issue #1204](https://github.com/bitwisecook/tcl-lsp/issues/1204).
@@ -381,9 +456,10 @@ deterministically in userspace; genuine kernel attachment is gated behind
 
 1. **Typed registry event schema.** Events are declared by `BpfEventSpec` data
    (context, capabilities, verdict algebra + default, attach params, kernel/BTF
-   requirements, output kind), not command/event-name branches. TC ingress/egress
-   and cgroup connect/bind are described; their codegen is sequenced next.
-   *(Resolved for schema; TC/cgroup codegen pending.)*
+   requirements, output kind), not command/event-name branches. All six events
+   — socket filter, XDP, TC ingress/egress, cgroup connect/bind — are both
+   described and codegen-ready. *(Resolved; TC/cgroup codegen landed in issue
+   #1310, see above.)*
 2. **Composition with documented source + deployment semantics.** Priority
    ordering, terminal-verdict stop, explicit `next` continuation, per-event
    default, and ambiguous-priority rejection are documented and tested; the
@@ -398,11 +474,13 @@ deterministically in userspace; genuine kernel attachment is gated behind
    versioned header, ring-buffer transport, and observable loss accounting.
    *(Resolved.)*
 
-**Remaining production blocker.** TC / cgroup / tracepoint codegen and a
-privileged real-kernel loader are not yet implemented — the compiler emits only
-XDP and socket-filter objects, and live attach/link creation requires the
-gated privileged path. Wiring the modelled lifecycle to real `bpf()` syscalls
-(and the described TC/cgroup families to codegen) is the follow-up.
+**Remaining production blocker.** Tracepoint/kprobe/uprobe/LSM codegen and a
+non-gated real-kernel loader are not yet implemented — the compiler now emits
+XDP, socket-filter, TC, and cgroup connect4/bind4 objects (issue #1310), but
+live attach/link creation still requires the gated privileged path, and the
+trace/LSM event families remain schema-undescribed. Wiring the modelled
+lifecycle to real `bpf()` syscalls outside the `#[ignore]`d test gate (and
+adding the trace/LSM families to the schema and codegen) is the follow-up.
 
 ### Low-layer correctness and maintainability
 
@@ -450,11 +528,12 @@ The items in this section were the subject of
 2. **Fixed packet profiles do not parse protocols.** VLAN tags, variable IPv4
    header length, fragments, IPv6 extension headers, and tunnels invalidate
    hard-coded transport offsets.
-3. **TC / cgroup / trace codegen is not implemented.** These events are
-   schema-described (context, verdicts, attach params, kernel requirements) and
-   compose/plan/record correctly, but the compiler cannot yet emit SCHED_CLS,
-   CGROUP_SOCK_ADDR, or tracepoint/kprobe programs — a `when TC_INGRESS` handler
-   is rejected with a precise "codegen pending" diagnostic.
+3. **Trace/kprobe/uprobe/LSM codegen is not implemented.** TC and cgroup
+   codegen landed in issue #1310 — all six registry-described events (socket
+   filter, XDP, TC ingress/egress, cgroup connect4/bind4) now compile to real
+   kernel objects. Tracepoint, kprobe, uprobe, and LSM programs are not yet in
+   the event schema at all (not merely codegen-pending), so there is no
+   `when TRACEPOINT_...` surface to reject yet.
 4. **Privileged load / attach tests are gated, not automated.** Rootless tests
    cover the verifier model, structural ELF/BTF/relocation validation,
    network-byte-order fixtures, composition, ring-buffer records, and the loader
@@ -481,19 +560,19 @@ The items in this section were the subject of
 - Exercise the full source-to-kernel-object path — context, packet reads, maps,
   relocations — without attaching to a live interface.
 
-### Enabled by a production XDP/socket-filter target
+### Enabled by the production XDP/socket-filter/TC/cgroup targets
 
-- Drop known-bad L2/L3/L4 traffic before the host network stack.
-- Apply small allow/deny lists for exposed services.
+- Drop known-bad L2/L3/L4 traffic before the host network stack (XDP), on a
+  socket (socket filter), or at the TC classifier (TC ingress/egress).
+- Apply small allow/deny lists for exposed services, including per-connection
+  cgroup policy (`CGROUP_CONNECT4`/`CGROUP_BIND4`) for containers and services.
 - Sample or pre-filter packet capture traffic on a socket.
-- Count packets or flows in persistent maps.
+- Count packets, flows, or connection attempts in persistent maps.
 - Implement simple SYN, UDP, or destination-port rate controls, subject to a
   well-defined concurrency model for map updates.
 
 ### Enabled by a broader event framework
 
-- TC ingress/egress classification, marking, redirect, and shaping decisions.
-- Cgroup connect/bind policy for containers and services.
 - Tracepoint and kprobe latency/error telemetry with ring-buffer records.
 - Uprobe instrumentation for selected application functions.
 - Socket lifecycle and flow telemetry with event-specific context schemas.

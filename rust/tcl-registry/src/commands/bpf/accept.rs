@@ -21,7 +21,7 @@ use crate::prelude::*;
 
 pub fn spec() -> CommandSpec {
     const OP: BpfOpSpec =
-        BpfOpSpec::verdict(BpfVerdictKind::Accept, BpfProgTypeSet::SocketFilterOnly);
+        BpfOpSpec::verdict(BpfVerdictKind::Accept, BpfProgTypeSet::SOCKET_FILTER_ONLY);
     CommandSpec {
         name: "accept",
         dialects: Some(DialectSet::BPF),
