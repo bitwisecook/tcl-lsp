@@ -1972,6 +1972,31 @@ impl Analyser {
         use std::borrow::Cow;
 
         let braced = tok.kind == TokenType::Str;
+
+        // An unbraced word carrying a live `$var` / `[cmd]` substitution
+        // (e.g. `set ns::$k 1`) is not a single literal token: `word_piece`
+        // re-braces the substitution piece when reconstructing the word's
+        // display text (`ns::$k` -> `"ns::${k}"`, so an adjacent literal
+        // suffix can't be misread as part of the variable name), and that
+        // reconstruction is what `base_name` is built from. Its `{`/`}`
+        // characters are reconstruction artefacts, not text the analyser can
+        // attribute to the *runtime* name — the substituted value is
+        // unknown until the script actually runs, and for any ordinary
+        // value (`k = "client_addr"`) the resulting name is a perfectly
+        // ordinary, `$`-reachable one (`ns::client_addr`). Firing W215 on the
+        // *name* here would flag the reconstruction, not a real defect —
+        // skip that half of the check whenever the source word itself (not
+        // the reconstructed text) contains an unresolved substitution
+        // (issue #1316). The array-element `)` check below is unaffected: a
+        // dynamic index round-trips verbatim (no re-bracing), so it carries
+        // no such artefact.
+        let name_is_static = braced
+            || !self
+                .source
+                .get(tok.span.start() as usize..tok.span.end() as usize)
+                .unwrap_or("")
+                .contains(['$', '[']);
+
         let subst = |s: &str| -> String {
             if s.contains('\\') && !braced {
                 tcl_lexer::backslash_subst(s).into_owned()
@@ -1985,7 +2010,7 @@ impl Analyser {
         // nested braces and `\X` pairs; the 8.x family stops at the first
         // literal `}`) — resolve it from the active dialect's lexer config.
         let nesting = self.lexer_config().braced_var.nests();
-        if !is_brace_substitutable(&runtime_name, nesting) {
+        if name_is_static && !is_brace_substitutable(&runtime_name, nesting) {
             let detail = if runtime_name.contains('}') {
                 if nesting {
                     "the brace form ``${name}`` ends at the first unbalanced ``}`` not preceded by ``\\`` (and the bare form stops at the first non-word character)"
@@ -2604,6 +2629,43 @@ mod tests {
     #[test]
     fn w215_quiet_for_normal_name() {
         assert!(!diag_codes("set normal 1", "tcl").contains(&"W215".to_string()));
+    }
+
+    // FP-STY-… (issue #1316 sweep): a namespace-qualified `set` target with
+    // a dynamic trailing segment (`set ns::$k 1`) was firing W215 —
+    // `word_piece`'s reconstruction re-braces an unbraced `$k` piece to
+    // `${k}` when rendering the word's display text (so an adjacent literal
+    // suffix can't run into it), and that reconstruction — not the source,
+    // not the runtime name — was what the reachability check inspected.
+    // Confirmed against tclsh 8.6.14: `set k client_addr; set
+    // ::ns::$k hello` writes the perfectly ordinary, `$`-reachable variable
+    // `::ns::client_addr`; nothing about it is unreachable.
+
+    #[test]
+    fn w215_quiet_for_namespace_qualified_dynamic_suffix() {
+        // FP: the exact corpus shape (`rust/tcl-irule-test/tcl/runner.tcl`,
+        // `foreach {k v} $values { set ::state::connection::$k $v }`).
+        assert!(!diag_codes("set ::state::connection::$k $v", "tcl").contains(&"W215".to_string()));
+    }
+
+    #[test]
+    fn w215_quiet_for_dynamic_suffix_without_namespace() {
+        // FP: the bug is not namespace-specific — any unbraced word with an
+        // embedded, non-leading `$var` piece is affected.
+        assert!(!diag_codes("set prefix_$k 1", "tcl").contains(&"W215".to_string()));
+    }
+
+    #[test]
+    fn w215_quiet_for_dynamic_suffix_with_command_substitution() {
+        // FP: `[cmd]` pieces hit the same reconstruction path as `$var`.
+        assert!(!diag_codes("set prefix_[cmd] 1", "tcl").contains(&"W215".to_string()));
+    }
+
+    #[test]
+    fn w215_still_fires_for_static_typo_after_the_fix() {
+        // TN: the fix must not blunt the check for the genuine case it
+        // exists for — a fully static (no `$`/`[`) stray-delimiter typo.
+        assert!(diag_codes("set \"a}b\" 1", "tcl").contains(&"W215".to_string()));
     }
 
     #[test]

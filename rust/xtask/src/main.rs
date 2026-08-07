@@ -51,6 +51,7 @@ use clap::{Parser, Subcommand};
 mod audit_option_dialects;
 mod command_backing;
 mod diag_tables;
+mod fp_sweep;
 mod gen_ai;
 mod gen_editor_catalogs;
 mod gen_editor_settings;
@@ -209,6 +210,23 @@ enum Command {
         #[arg(long)]
         check: bool,
     },
+
+    /// Dump every firing of one or more diagnostic/optimisation codes across
+    /// a corpus, dialect-aware, grouped by message shape — the false-positive
+    /// audit harness (issue #1316; `docs/design/compiler/fp-audit-todo.md`).
+    FpSweep {
+        /// Diagnostic/optimisation code to sweep (repeatable, e.g. `--code
+        /// W111 --code W112`).
+        #[arg(long = "code", required = true)]
+        codes: Vec<String>,
+        /// Corpus directory or file to sweep (repeatable). A directory is
+        /// walked recursively for Tcl/iRules source files.
+        #[arg(long = "corpus", required = true)]
+        corpus: Vec<PathBuf>,
+        /// Sample locations printed per message shape.
+        #[arg(long, default_value_t = 3)]
+        examples: usize,
+    },
 }
 
 fn main() -> anyhow::Result<ExitCode> {
@@ -239,5 +257,10 @@ fn main() -> anyhow::Result<ExitCode> {
             timeout,
             check,
         } => tcltest_sweep::run(backend.parse()?, stem.as_deref(), timeout, check),
+        Command::FpSweep {
+            codes,
+            corpus,
+            examples,
+        } => fp_sweep::run(&codes, &corpus, examples),
     }
 }

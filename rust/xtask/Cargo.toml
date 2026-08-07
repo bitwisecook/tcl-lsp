@@ -39,6 +39,10 @@ regex = "1"
 tcl-core-types = { path = "../tcl-core-types" }
 tcl-registry = { path = "../tcl-registry" }
 tcl-syntax = { path = "../tcl-syntax" }
+tcl-lexer = { path = "../tcl-lexer" }
+tcl-compiler = { path = "../tcl-compiler" }
+tcl-cli-support = { path = "../tcl-cli-support" }
+tcl-lsp-core = { path = "../tcl-lsp-core" }
 serde = { version = "1", features = ["derive"] }
 serde_json = { version = "1", features = ["preserve_order"] }
 

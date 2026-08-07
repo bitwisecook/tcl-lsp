@@ -155,8 +155,22 @@ pub(crate) fn loop_termination_diagnostics(
 /// The condition is tokenised with the expression lexer (CST level) and
 /// the first `Variable` token is taken; its leading scalar name is then
 /// read off the token text.
+///
+/// Abstains (`None`) when the condition contains a `[cmd ...]` command
+/// substitution: a `Variable` token found *outside* it is not necessarily
+/// the loop's actual progress variable, since the substitution's own
+/// argument words can reference (and the body can update) a variable this
+/// shallow scan never sees — `while {[string length $u] > $rest}` picked
+/// `rest`, a threshold the loop never touches, over `u`, which the body
+/// visibly shrinks each iteration (issue #1316; the module doc's own
+/// "intentionally shallow ... avoiding false positives" philosophy,
+/// extended to the one case that slipped through it — corpus example:
+/// `tcltest.tcl`'s option-usage word-wrapper).
 fn extract_counter_name(cond: &str) -> Option<String> {
     let tokens = tokenise_expr(strip_braces(cond), None);
+    if tokens.iter().any(|t| t.kind == ExprTokenType::Command) {
+        return None;
+    }
     let var = tokens.iter().find(|t| t.kind == ExprTokenType::Variable)?;
     var_scalar_name(&var.text)
 }
@@ -1504,6 +1518,39 @@ mod tests {
         assert!(code_msgs("while {$x < 10} {set x 5}\n", "W242").is_empty());
         // A normal `for` whose step advances the counter is silent.
         assert!(code_msgs("for {set i 0} {$i < 10} {incr i} {puts hi}\n", "W242").is_empty());
+    }
+
+    // FP-STY-… (issue #1316 sweep, corpus: `tcltest.tcl`'s option-usage
+    // word-wrapper): a `[cmd $var]` command substitution in the condition
+    // hides the loop's real progress variable from the shallow scalar scan,
+    // which then blames whichever *other* bare variable it finds instead.
+
+    #[test]
+    fn w242_silent_when_the_progress_variable_is_inside_a_command_substitution() {
+        // FP: `u` shrinks every iteration via `string range`/`string trim` in
+        // the body — real, provable progress — but the condition's only
+        // *bare* variable is `rest` (a fixed threshold the loop never
+        // touches), which the old first-`Variable`-token scan picked
+        // instead. Exact corpus shape.
+        assert!(
+            code_msgs(
+                "while {[string length $u] > $rest} {\
+                     set u [string trim [string range $u 1 end]]\
+                 }\n",
+                "W242"
+            )
+            .is_empty()
+        );
+    }
+
+    #[test]
+    fn w242_silent_for_a_command_substitution_condition_even_when_nothing_is_modified() {
+        // FP guard, the genuinely-unprovable case: abstaining is still
+        // correct here — the analyser cannot see into `[llength $l]`'s
+        // argument to know whether `l` (or anything else) changes, so it
+        // must not guess at a bare variable elsewhere in the condition
+        // (there is none here) or fabricate a counter name.
+        assert!(code_msgs("while {[llength $l] > 0} {puts hi}\n", "W242").is_empty());
     }
 
     #[test]
