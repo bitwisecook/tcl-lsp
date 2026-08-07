@@ -128,7 +128,8 @@ fn classes_of(db: &TclDatabase, file: SourceFile) -> Vec<String> {
 }
 
 // The three files of the ticket's reproduction, one metaclass link each.
-const META_A: &str = "namespace eval ::MC {}\noo::class create ::MC::MetaA { superclass oo::class }\n";
+const META_A: &str =
+    "namespace eval ::MC {}\noo::class create ::MC::MetaA { superclass oo::class }\n";
 const META_B: &str = "::MC::MetaA create ::MC::MetaB { superclass oo::class }\n";
 const WIDGET: &str = "::MC::MetaB create ::MC::Widget { method go {} { return went } }\n";
 
@@ -150,7 +151,10 @@ fn a_cross_file_three_level_chain_converges_and_records_the_class() {
         "the manufactured class must be a declaration of the consuming file"
     );
     // Three links, so the loop needs one round per link plus a confirming one.
-    assert_eq!(settled.rounds, 3, "one round per link, plus the confirmation");
+    assert_eq!(
+        settled.rounds, 3,
+        "one round per link, plus the confirmation"
+    );
 }
 
 #[test]
@@ -312,11 +316,7 @@ fn a_same_named_proc_is_not_mistaken_for_the_metaclass() {
     // link short (no `MetaA create MetaB`) so the *only* candidate for the name
     // is the proc.
     let mut db = TclDatabase::default();
-    let sources = [
-        META_A,
-        "proc ::MC::MetaB {args} { return $args }\n",
-        WIDGET,
-    ];
+    let sources = [META_A, "proc ::MC::MetaB {args} { return $args }\n", WIDGET];
     let (files, settled) = project_of(&mut db, &sources);
     assert_eq!(
         factory_names(&settled.index),
@@ -428,7 +428,10 @@ fn removing_a_link_retracts_the_classes_it_manufactured() {
     // than leaving a published entry nothing proves any more.
     let mut db = TclDatabase::default();
     let (files, settled) = project_of(&mut db, &[META_A, META_B, WIDGET]);
-    assert_eq!(factory_names(&settled.index), ["::MC::MetaA", "::MC::MetaB"]);
+    assert_eq!(
+        factory_names(&settled.index),
+        ["::MC::MetaA", "::MC::MetaB"]
+    );
 
     files[1].set_text(&mut db).to(String::new());
     let project = Project::new(&db, files.clone());
