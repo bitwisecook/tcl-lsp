@@ -18,7 +18,13 @@
 
 import * as assert from "assert";
 import * as vscode from "vscode";
-import { activate, getDocUri, pollUntil, setTestContent } from "./helper";
+import {
+  activate,
+  getDocUri,
+  setTestContent,
+  waitForCodeActions,
+  waitForProviderResult,
+} from "./helper";
 
 // Apply-the-edit refactoring tests.  Unlike codeActions.test.ts (which checks
 // that an action exists), these load source into a scratch document, request
@@ -54,18 +60,13 @@ suite("Refactor Actions (applied)", () => {
   }
 
   async function findAction(range: vscode.Range, titleNeedle: string): Promise<vscode.CodeAction> {
-    const found = await pollUntil(
-      async () => {
-        const actions = (await vscode.commands.executeCommand(
-          "vscode.executeCodeActionProvider",
-          docUri,
-          range,
-        )) as vscode.CodeAction[];
-        return (actions || []).find((a) => a.title.includes(titleNeedle));
-      },
-      (a) => a !== undefined,
-      { timeout: 10_000, label: titleNeedle },
+    const actions = await waitForCodeActions(
+      docUri,
+      range,
+      (as) => as.some((a) => a.title.includes(titleNeedle)),
+      { timeout: 10_000, label: `a code action titled "${titleNeedle}"` },
     );
+    const found = actions.find((a) => a.title.includes(titleNeedle));
     assert.ok(found, `code action "${titleNeedle}" not found`);
     return found;
   }
@@ -196,10 +197,14 @@ suite("Refactor Actions (applied)", () => {
     // selection while no applicable extract-proc action is.
     await loadScratch("proc f {} {\n    set x 1\n    return $x\n}\n");
     const range = new vscode.Range(new vscode.Position(2, 0), new vscode.Position(3, 0));
-    await pollUntil(
+    await waitForProviderResult(
+      docUri,
       () => actionTitles(range),
       (ts) => ts.some((t) => t.includes("Extract into variable")),
-      { timeout: 10_000, label: "extract-variable anchor" },
+      {
+        timeout: 10_000,
+        label: `the "Extract into variable" anchor action, proving analysis settled`,
+      },
     );
     const titles = await actionTitles(range);
     assert.ok(
@@ -230,10 +235,11 @@ suite("Refactor Actions (applied)", () => {
     // plain-word call site offers Inline proc, the braced one does not.
     await loadScratch('proc greet {name} { puts "hello $name" }\ngreet world\ngreet {a b}\n');
     const good = new vscode.Range(new vscode.Position(1, 0), new vscode.Position(1, 0));
-    await pollUntil(
+    await waitForProviderResult(
+      docUri,
       () => actionTitles(good),
       (ts) => ts.some((t) => t.includes("Inline proc")),
-      { timeout: 10_000, label: "inline-proc anchor" },
+      { timeout: 10_000, label: `the "Inline proc" anchor action, proving analysis settled` },
     );
     const bad = new vscode.Range(new vscode.Position(2, 0), new vscode.Position(2, 0));
     const titles = await actionTitles(bad);

@@ -19,17 +19,16 @@
 import * as vscode from "vscode";
 import * as path from "path";
 
+import { awaitSignal, bounded, scaledTimeout, WAIT_TIMEOUT_MARKER } from "./signal";
+
+export { awaitSignal, bounded, loadFactor, scaledTimeout, sleep } from "./signal";
+
 /**
  * Resolve a fixture file name to a URI.
  * e.g. getDocUri("simple.tcl") → file:///…/testFixture/simple.tcl
  */
 export function getDocUri(fileName: string): vscode.Uri {
   return vscode.Uri.file(path.resolve(__dirname, "../../testFixture", fileName));
-}
-
-/** Promisified setTimeout. */
-export function sleep(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 // ---------------------------------------------------------------------------
@@ -57,6 +56,12 @@ let _serverLogSubscribed = false;
 // its full timeout every time.
 let _serverLogTotalPushed = 0;
 
+// Waiters registered by `waitForServerLog`. The `window/logMessage`
+// notification *is* the signal a log-line wait is for, so an arriving line
+// wakes every waiter immediately rather than leaving them to notice it on
+// their next poll tick.
+const _serverLogWaiters = new Set<() => void>();
+
 async function _ensureServerLogSubscribed(): Promise<void> {
   if (_serverLogSubscribed) return;
   const ext = vscode.extensions.getExtension("bitwisecook.tcl-lsp");
@@ -70,14 +75,14 @@ async function _ensureServerLogSubscribed(): Promise<void> {
     if (_serverLog.length > _SERVER_LOG_MAX) {
       _serverLog.splice(0, _serverLog.length - _SERVER_LOG_MAX);
     }
+    for (const notify of _serverLogWaiters) notify();
   });
   _serverLogSubscribed = true;
 }
 
 /**
  * Resolve on the next ``onDidChangeDiagnostics`` event for *docUri*,
- * or on timeout.  Returns the current diagnostics for *docUri* either
- * way.
+ * returning the diagnostics that publish left in place.
  *
  * Use this when a test needs to observe a single server publish for a
  * URI — typically to assert that an empty publish arrived (no signal
@@ -88,13 +93,20 @@ async function _ensureServerLogSubscribed(): Promise<void> {
  * Register the listener **before** the action that triggers the
  * publish (e.g. ``activate(docUri)`` or an edit) so the event is not
  * missed.
+ *
+ * **Rejects** on timeout.  The whole point of this helper is the barrier —
+ * "a publish happened, so what you read next is not the previous test's
+ * set".  Resolving with the current diagnostics when the publish never
+ * arrived hands the caller exactly the stale set it exists to exclude, and
+ * every caller then asserts against it as if the barrier had held.
  */
 export function nextDiagnosticsPublish(
   docUri: vscode.Uri,
   opts?: { timeout?: number },
 ): Promise<vscode.Diagnostic[]> {
-  const timeout = opts?.timeout ?? 5_000;
-  return new Promise<vscode.Diagnostic[]>((resolve) => {
+  const base = opts?.timeout ?? 5_000;
+  const timeout = scaledTimeout(base);
+  return new Promise<vscode.Diagnostic[]>((resolve, reject) => {
     const disposable = vscode.languages.onDidChangeDiagnostics((e) => {
       if (e.uris.some((u) => u.toString() === docUri.toString())) {
         disposable.dispose();
@@ -104,7 +116,17 @@ export function nextDiagnosticsPublish(
     });
     const timer = setTimeout(() => {
       disposable.dispose();
-      resolve(vscode.languages.getDiagnostics(docUri));
+      reject(
+        new Error(
+          `${WAIT_TIMEOUT_MARKER}: timed out awaiting the next diagnostics publish for ` +
+            `${docUri.toString()}\n` +
+            `  waited ${timeout}ms (base ${base}ms, load-scaled)\n` +
+            `  no onDidChangeDiagnostics event named this URI, so anything read now is ` +
+            `the pre-action set this barrier exists to exclude.\n` +
+            `  currently published: ${vscode.languages.getDiagnostics(docUri).length} ` +
+            `diagnostic(s)`,
+        ),
+      );
     }, timeout);
   });
 }
@@ -146,8 +168,12 @@ function _sinceToIndex(since: number): number {
 /**
  * Wait until at least one server log line at or after ``opts.since``
  * (an absolute sequence number from ``getServerLogSize()``) matches
- * *predicate*, or the timeout expires.  Returns the matching line, or
- * ``null`` on timeout.
+ * *predicate*.  Returns the matching line; **rejects** on timeout.
+ *
+ * Signal-driven: the ``window/logMessage`` notification the server sends *is*
+ * the thing being waited on, so an arriving line wakes the wait immediately.
+ * The interval re-scan inside [`awaitSignal`] is only a missed-notification
+ * backstop.
  *
  * The default ``since`` is ``0``, which keeps the legacy behaviour of
  * searching the entire captured buffer.  Tests waiting for an event
@@ -156,21 +182,30 @@ function _sinceToIndex(since: number): number {
  */
 export async function waitForServerLog(
   predicate: (line: string) => boolean,
-  opts?: { timeout?: number; since?: number },
-): Promise<string | null> {
-  const timeout = opts?.timeout ?? 5_000;
+  opts?: { timeout?: number; since?: number; label?: string },
+): Promise<string> {
   const since = opts?.since ?? 0;
-  const start = Date.now();
-  while (Date.now() - start < timeout) {
+  const scan = (): string | null => {
     for (let i = _sinceToIndex(since); i < _serverLog.length; i++) {
       if (predicate(_serverLog[i])) return _serverLog[i];
     }
-    await sleep(50);
-  }
-  for (let i = _sinceToIndex(since); i < _serverLog.length; i++) {
-    if (predicate(_serverLog[i])) return _serverLog[i];
-  }
-  return null;
+    return null;
+  };
+  const hit = await awaitSignal<string | null>({
+    label: opts?.label ?? "a matching server log line",
+    subscribe: (notify) => {
+      _serverLogWaiters.add(notify);
+      return { dispose: () => _serverLogWaiters.delete(notify) };
+    },
+    probe: scan,
+    predicate: (line) => line !== null,
+    timeout: opts?.timeout ?? 5_000,
+    describe: () =>
+      `no match among the ${_serverLog.length - _sinceToIndex(since)} line(s) logged ` +
+      `since seq ${since} (${_serverLogTotalPushed} logged in total)`,
+  });
+  // `predicate` above admits only non-null, so this cannot be null.
+  return hit as string;
 }
 
 /**
@@ -197,16 +232,14 @@ export async function waitForDeepDiagnostics(
   opts?: { timeout?: number; since?: number },
 ): Promise<void> {
   const uri = docUri.toString();
-  const hit = await waitForServerLog(
+  await waitForServerLog(
     (line) => line.includes("[timing] deep diagnostics") && line.includes(`uri=${uri}`),
-    { since: opts?.since, timeout: opts?.timeout ?? 20_000 },
+    {
+      since: opts?.since,
+      timeout: opts?.timeout ?? 20_000,
+      label: `the server's deep-diagnostics marker for ${uri}`,
+    },
   );
-  if (hit === null) {
-    throw new Error(
-      `Timeout waiting for deep diagnostics on ${uri} ` +
-        `(since=${opts?.since ?? 0}, logSize=${_serverLog.length})`,
-    );
-  }
 }
 
 /**
@@ -233,16 +266,14 @@ export async function waitForMasterOffDiagnostics(
   opts?: { timeout?: number; since?: number },
 ): Promise<void> {
   const uri = docUri.toString();
-  const hit = await waitForServerLog(
+  await waitForServerLog(
     (line) => line.includes("[timing] diagnostics master-off") && line.includes(`uri=${uri}`),
-    { since: opts?.since, timeout: opts?.timeout ?? 10_000 },
+    {
+      since: opts?.since,
+      timeout: opts?.timeout ?? 10_000,
+      label: `the server's master-off diagnostics marker for ${uri}`,
+    },
   );
-  if (hit === null) {
-    throw new Error(
-      `Timeout waiting for master-off diagnostics on ${uri} ` +
-        `(since=${opts?.since ?? 0}, logSize=${_serverLog.length})`,
-    );
-  }
 }
 
 /**
@@ -271,63 +302,185 @@ export interface EffectiveConfig {
 }
 
 /**
- * Poll ``tcl-lsp.getEffectiveConfig`` until ``predicate`` returns true,
- * or until ``opts.timeout`` elapses.  Use this instead of ``sleep(N)``
- * after any ``tclLsp.*`` config change so tests wait on the server's
- * resolved state rather than the debounce timer or the
- * ``workspace/configuration`` round-trip.  Throws on timeout with the
+ * Poll ``tcl-lsp.getEffectiveConfig`` until ``predicate`` returns true.
+ * Use this instead of ``sleep(N)`` after any ``tclLsp.*`` config change so
+ * tests wait on the server's resolved state rather than the debounce timer
+ * or the ``workspace/configuration`` round-trip.  Throws on timeout with the
  * last-seen config snapshot in the message.
+ *
+ * **Deliberately polled** — see [`pollUntil`].  Configuration settling emits
+ * no client-visible event: ``onDidChangeConfiguration`` fires when *VS Code*
+ * accepts the new value, which is strictly before the server has pulled it
+ * via ``workspace/configuration`` and re-resolved the document, so waiting on
+ * it would answer a different question than the one asked here.  The server
+ * publishes no settle marker for a config pull either, so the only available
+ * signal is the resolved config itself.
  */
 export async function waitForEffectiveConfig(
   docUri: vscode.Uri,
   predicate: (cfg: EffectiveConfig) => boolean,
   opts?: { timeout?: number; label?: string },
 ): Promise<EffectiveConfig> {
-  const timeout = opts?.timeout ?? 5_000;
-  const deadline = Date.now() + timeout;
-  let last: EffectiveConfig | undefined;
-  while (Date.now() < deadline) {
-    last = (await vscode.commands.executeCommand(
-      "tcl-lsp.getEffectiveConfig",
-      docUri.toString(),
-    )) as EffectiveConfig | undefined;
-    if (last && predicate(last)) return last;
-    await sleep(50);
-  }
-  throw new Error(
-    `Timeout waiting for effective config${opts?.label ? ` (${opts.label})` : ""} ` +
-      `(last seen: ${JSON.stringify(last)})`,
+  return pollUntil(
+    () =>
+      vscode.commands.executeCommand("tcl-lsp.getEffectiveConfig", docUri.toString()) as Thenable<
+        EffectiveConfig | undefined
+      >,
+    (cfg): cfg is EffectiveConfig => cfg !== undefined && predicate(cfg),
+    {
+      timeout: opts?.timeout ?? 5_000,
+      label: `effective config${opts?.label ? ` (${opts.label})` : ""}`,
+    },
   );
 }
 
 /**
- * Poll ``fn`` every 50ms until ``predicate(result)`` returns true, or
- * until ``opts.timeout`` elapses.  Returns the first result that
- * satisfies the predicate.  Throws on timeout with the last-seen
- * result included in the message.
+ * Poll ``fn`` until ``predicate(result)`` returns true.  Returns the first
+ * result that satisfies the predicate.  Throws on timeout with the
+ * last-seen result and a machine-load verdict in the message.
  *
- * Useful for waiting on a VS Code command's response shape without
- * sleeping on wall-clock time — for example, polling
- * ``vscode.executeCodeLensProvider`` until the language server has
- * published its first batch of lenses.
+ * # Use this only where there is genuinely no signal to wait on
+ *
+ * Polling is the fallback, not the default (see [`awaitSignal`]'s module
+ * docs): it is slower than the work in the good case and says nothing useful
+ * in the bad one.  It is the right answer for exactly one situation — a
+ * ``vscode.commands.executeCommand`` pull whose readiness VS Code announces
+ * through no event at all, such as ``tcl-lsp.getEffectiveConfig`` (config
+ * settling) or the extension host's document registry.
+ *
+ * A provider pull whose readiness follows the server *re-analysing a
+ * document* — code actions, code lenses, symbols — does have a signal:
+ * ``onDidChangeDiagnostics`` is that publish. Use
+ * [`waitForProviderResult`] for those, which polls only as a
+ * missed-event backstop.
+ *
+ * The deadline is scaled by measured machine load, so a loaded container
+ * cannot manufacture a timeout out of a merely slow round-trip.
  */
+export async function pollUntil<T, U extends T>(
+  fn: () => Thenable<T> | T,
+  predicate: (value: T) => value is U,
+  opts?: { timeout?: number; interval?: number; label?: string },
+): Promise<U>;
+export async function pollUntil<T>(
+  fn: () => Thenable<T> | T,
+  predicate: (value: T) => boolean,
+  opts?: { timeout?: number; interval?: number; label?: string },
+): Promise<T>;
 export async function pollUntil<T>(
   fn: () => Thenable<T> | T,
   predicate: (value: T) => boolean,
   opts?: { timeout?: number; interval?: number; label?: string },
 ): Promise<T> {
-  const timeout = opts?.timeout ?? 5_000;
-  const interval = opts?.interval ?? 50;
-  const deadline = Date.now() + timeout;
-  let last: T | undefined;
-  while (Date.now() < deadline) {
-    last = await fn();
-    if (predicate(last)) return last;
-    await sleep(interval);
-  }
-  throw new Error(
-    `Timeout polling${opts?.label ? ` (${opts.label})` : ""} ` +
-      `(last seen: ${JSON.stringify(last)})`,
+  return awaitSignal<T>({
+    label: opts?.label ?? "a polled condition",
+    // No event exists for these callers — that is the whole reason this
+    // helper is separate from `awaitSignal`'s event-driven users. The
+    // subscription is a no-op and the backstop interval is the mechanism.
+    subscribe: () => ({ dispose: () => {} }),
+    probe: fn,
+    predicate,
+    timeout: opts?.timeout ?? 5_000,
+    backstopInterval: opts?.interval ?? 50,
+  });
+}
+
+/**
+ * Whether an error is VS Code cancelling an in-flight request.
+ *
+ * VS Code cancels a pending provider request when the document or its
+ * diagnostics change underneath it. For a *wait*, that is not a failure — it
+ * means the answer would have been stale anyway, so ask again. Recognised
+ * structurally as well as by class, because the rejection crosses the
+ * extension-host RPC boundary and arrives as a plain ``Error`` named
+ * ``Canceled`` rather than a ``CancellationError`` instance.
+ */
+function isCancellation(error: unknown): boolean {
+  if (error instanceof vscode.CancellationError) return true;
+  if (!(error instanceof Error)) return false;
+  return (
+    error.name === "Canceled" ||
+    error.name === "CancellationError" ||
+    error.message === "Canceled" ||
+    error.message === "Cancelled"
+  );
+}
+
+/**
+ * Wait for a language-feature provider pull (``vscode.executeCodeActionProvider``
+ * and friends) to return a result satisfying *predicate*.
+ *
+ * Provider pulls have no completion event of their own — you ask, you get
+ * whatever the server knows *now*.  What they do have is a signal for the
+ * thing that usually changes the answer: the server re-analysing the
+ * document, which it announces by publishing diagnostics.  So this waits on
+ * ``onDidChangeDiagnostics`` for *uri* and re-pulls on every publish.
+ *
+ * # Why the backstop here is tight, not slow
+ *
+ * Unlike [`waitForDiagnostics`], where the event *is* the thing being awaited
+ * and the interval is a pure missed-event net, a provider's readiness only
+ * *correlates* with the publish: the server can finish the work that changes
+ * this answer without publishing anything new.  So the interval is load-bearing
+ * here, and it stays at the 50ms cadence of the polling this replaced — the
+ * conversion must only ever be able to return *sooner* (when the publish wakes
+ * it), never later.  Widening it to the 500ms default would make the common
+ * case — analysis already done, the provider just needs asking again — ten
+ * times slower than the code it replaced.
+ */
+export async function waitForProviderResult<T>(
+  uri: vscode.Uri,
+  pull: () => Thenable<T> | T,
+  predicate: (value: T) => boolean,
+  opts?: {
+    timeout?: number;
+    label?: string;
+    backstopInterval?: number;
+    describe?: (value: T | undefined) => string;
+  },
+): Promise<T> {
+  const target = uri.toString();
+  return awaitSignal<T>({
+    label: opts?.label ?? `a provider result for ${target}`,
+    subscribe: (notify) =>
+      vscode.languages.onDidChangeDiagnostics((e) => {
+        if (e.uris.some((u) => u.toString() === target)) notify();
+      }),
+    probe: pull,
+    predicate,
+    timeout: opts?.timeout ?? 10_000,
+    backstopInterval: opts?.backstopInterval ?? 50,
+    describe: opts?.describe,
+    retryProbeErrors: isCancellation,
+  });
+}
+
+/**
+ * [`waitForProviderResult`] specialised to ``vscode.executeCodeActionProvider``:
+ * wait until the code actions offered over *range* satisfy *predicate*.
+ */
+export async function waitForCodeActions(
+  uri: vscode.Uri,
+  range: vscode.Range,
+  predicate: (actions: vscode.CodeAction[]) => boolean,
+  opts?: { timeout?: number; label?: string },
+): Promise<vscode.CodeAction[]> {
+  return waitForProviderResult<vscode.CodeAction[]>(
+    uri,
+    async () =>
+      ((await vscode.commands.executeCommand("vscode.executeCodeActionProvider", uri, range)) as
+        vscode.CodeAction[] | undefined) ?? [],
+    predicate,
+    {
+      timeout: opts?.timeout,
+      label: opts?.label ?? `code actions at ${range.start.line}:${range.start.character}`,
+      describe: (actions) =>
+        actions === undefined
+          ? "<never pulled>"
+          : actions.length === 0
+            ? "no code actions offered"
+            : `offered: ${actions.map((a) => a.title).join("; ")}`,
+    },
   );
 }
 
@@ -355,6 +508,18 @@ export async function waitForFeatureToggle(
  * ``didOpen`` the editor sends — the extension only mirrors it into the status
  * bar.  So this waits for the server to have drained that ``didOpen`` (via the
  * hover round trips below) rather than for a dialect notification.
+ *
+ * # Every step is bounded
+ *
+ * Each await here is already the right *shape* — it resolves when the work
+ * completes — but none of them carried a bound, so a wedged step could only be
+ * caught by mocha's 60s per-test timeout, which fires knowing nothing about
+ * which step was outstanding.  That is what issue #1274 recorded: two
+ * `shimmerPrecision` tests each hit the raw 60s timeout, a number no wait in
+ * their body could produce (``waitForDiagnostics`` bounds at 20s and would have
+ * failed the assertion long before), so the stall was inside this function and
+ * the log said nothing about where.  [`bounded`] wraps each step with a
+ * load-scaled deadline that names it.
  */
 export async function activate(docUri: vscode.Uri): Promise<vscode.TextDocument> {
   // Ensure the extension is activated first.
@@ -362,12 +527,22 @@ export async function activate(docUri: vscode.Uri): Promise<vscode.TextDocument>
   // initialise/initialised handshake -- the server is ready at that point.
   const ext = vscode.extensions.getExtension("bitwisecook.tcl-lsp");
   if (ext && !ext.isActive) {
-    await ext.activate();
+    // Cold start spawns the server binary and completes the LSP handshake, so
+    // it gets a larger budget than the per-document steps below.
+    await bounded(ext.activate(), "the tcl-lsp extension to activate (LSP handshake)", {
+      timeout: 60_000,
+    });
   }
   await _ensureServerLogSubscribed();
 
-  const doc = await vscode.workspace.openTextDocument(docUri);
-  await vscode.window.showTextDocument(doc);
+  const doc = await bounded(
+    vscode.workspace.openTextDocument(docUri),
+    `workspace.openTextDocument(${docUri.toString()})`,
+  );
+  await bounded(
+    vscode.window.showTextDocument(doc),
+    `window.showTextDocument(${docUri.toString()})`,
+  );
 
   // Mirror the detected dialect into the status bar, exactly as the
   // extension's onDidChangeActiveTextEditor handler does.  Purely cosmetic
@@ -384,16 +559,19 @@ export async function activate(docUri: vscode.Uri): Promise<vscode.TextDocument>
   // server's processing queue so we don't return until that ``didOpen`` has
   // been drained.  Two hovers — one to flush, one belt-and-braces —
   // eliminate the residual race we saw on macOS.
-  await vscode.commands.executeCommand(
-    "vscode.executeHoverProvider",
-    docUri,
-    new vscode.Position(0, 0),
-  );
-  await vscode.commands.executeCommand(
-    "vscode.executeHoverProvider",
-    docUri,
-    new vscode.Position(0, 0),
-  );
+  for (const attempt of [1, 2]) {
+    await bounded(
+      vscode.commands.executeCommand(
+        "vscode.executeHoverProvider",
+        docUri,
+        new vscode.Position(0, 0),
+      ),
+      `the server to drain didOpen for ${docUri.toString()} ` +
+        `(flush hover ${attempt} of 2)\n  a timeout here means the server accepted the ` +
+        `document but never answered a request queued behind it`,
+      { timeout: 30_000 },
+    );
+  }
 
   return doc;
 }
@@ -450,7 +628,8 @@ export async function activateViaWorkbench(docUri: vscode.Uri): Promise<vscode.T
  * Register **before** issuing the close so the event cannot be missed.
  */
 export function documentClosed(docUri: vscode.Uri, opts?: { timeout?: number }): Promise<void> {
-  const timeout = opts?.timeout ?? 20_000;
+  const base = opts?.timeout ?? 20_000;
+  const timeout = scaledTimeout(base);
   const uri = docUri.toString();
   return new Promise<void>((resolve, reject) => {
     const disposable = vscode.workspace.onDidCloseTextDocument((doc) => {
@@ -463,7 +642,8 @@ export function documentClosed(docUri: vscode.Uri, opts?: { timeout?: number }):
       disposable.dispose();
       reject(
         new Error(
-          `Timeout waiting for onDidCloseTextDocument on ${uri} — the document is ` +
+          `${WAIT_TIMEOUT_MARKER}: timed out awaiting onDidCloseTextDocument on ${uri} ` +
+            `after ${timeout}ms (base ${base}ms, load-scaled) — the document is ` +
             `still open despite its editor closing, so the server never received a ` +
             `textDocument/didClose (was it opened with activateViaWorkbench?)`,
         ),
@@ -473,15 +653,31 @@ export function documentClosed(docUri: vscode.Uri, opts?: { timeout?: number }):
 }
 
 /**
- * Poll for diagnostics on the given URI until ``minCount`` are available
- * or ``predicate`` returns truthy, whichever comes first.  Combines event
- * listening with periodic polling for robustness.
+ * Wait for diagnostics on the given URI to satisfy ``predicate`` (or to reach
+ * ``minCount`` entries), driven by ``onDidChangeDiagnostics`` — the server's
+ * own publish is the signal — with a 500ms re-read purely as a missed-event
+ * backstop.  **Rejects** on a load-scaled timeout.
  *
  * The deep-diagnostic pass (IRULE1005 and friends) is async and fires
  * *after* the initial batch of basic diagnostics, so a test that wants
  * a specific deep code should pass a ``predicate`` rather than a fixed
  * ``minCount`` — ``minCount`` alone returns as soon as enough basic
  * diagnostics arrive, before the deep pass has run.
+ *
+ * # Why the timeout rejects
+ *
+ * It used to resolve with ``getDiagnostics(uri)`` — whatever happened to be
+ * published when the clock ran out.  A test that timed out therefore carried
+ * on and asserted against a set the server had never finished producing.  For
+ * a positive assertion that surfaces as a confusing content failure; for a
+ * *negative* one ("no diagnostic of kind X on line N") an unanalysed, empty
+ * set satisfies it trivially and the test passes vacuously — the suite's
+ * strongest tests are precisely the negative ones (issue #1274).
+ *
+ * Callers that genuinely want "settle, then look" and cannot name what they
+ * are waiting for are asking a different question; those are the ones that
+ * should pass ``minCount: 0`` explicitly, which is satisfied immediately and
+ * so never reaches this timeout at all.
  */
 export async function waitForDiagnostics(
   uri: vscode.Uri,
@@ -491,58 +687,31 @@ export async function waitForDiagnostics(
     predicate?: (diags: vscode.Diagnostic[]) => boolean;
   },
 ): Promise<vscode.Diagnostic[]> {
-  const timeout = opts?.timeout ?? 20_000;
   const minCount = opts?.minCount ?? 1;
   const predicate = opts?.predicate;
+  const target = uri.toString();
 
-  const isReady = (diags: vscode.Diagnostic[]): boolean => {
-    if (predicate) {
-      return predicate(diags);
-    }
-    return diags.length >= minCount;
-  };
-
-  // Check immediately
-  const immediate = vscode.languages.getDiagnostics(uri);
-  if (isReady(immediate)) {
-    return immediate;
-  }
-
-  return new Promise<vscode.Diagnostic[]>((resolve) => {
-    let resolved = false;
-
-    const finish = (diags: vscode.Diagnostic[]) => {
-      if (resolved) return;
-      resolved = true;
-      clearTimeout(timer);
-      clearInterval(poller);
-      disposable.dispose();
-      resolve(diags);
-    };
-
-    // Timeout -- return whatever we have
-    const timer = setTimeout(() => {
-      finish(vscode.languages.getDiagnostics(uri));
-    }, timeout);
-
-    // Event-driven: listen for diagnostic changes
-    const disposable = vscode.languages.onDidChangeDiagnostics((e) => {
-      const changed = e.uris.some((u) => u.toString() === uri.toString());
-      if (changed) {
-        const diags = vscode.languages.getDiagnostics(uri);
-        if (isReady(diags)) {
-          finish(diags);
-        }
-      }
-    });
-
-    // Polling fallback: check every 500ms in case we missed an event
-    const poller = setInterval(() => {
-      const diags = vscode.languages.getDiagnostics(uri);
-      if (isReady(diags)) {
-        finish(diags);
-      }
-    }, 500);
+  return awaitSignal<vscode.Diagnostic[]>({
+    label: predicate
+      ? `diagnostics on ${target} to satisfy the test's predicate`
+      : `at least ${minCount} diagnostic(s) on ${target}`,
+    subscribe: (notify) =>
+      vscode.languages.onDidChangeDiagnostics((e) => {
+        if (e.uris.some((u) => u.toString() === target)) notify();
+      }),
+    probe: () => vscode.languages.getDiagnostics(uri),
+    predicate: (diags) => (predicate ? predicate(diags) : diags.length >= minCount),
+    timeout: opts?.timeout ?? 20_000,
+    describe: (diags) =>
+      diags === undefined || diags.length === 0
+        ? "no diagnostics published"
+        : diags
+            .map(
+              (d) =>
+                `${typeof d.code === "object" && d.code !== null ? d.code.value : d.code}@` +
+                `${d.range.start.line}:${d.range.start.character}`,
+            )
+            .join(", "),
   });
 }
 

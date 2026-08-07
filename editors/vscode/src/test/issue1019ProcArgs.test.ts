@@ -26,7 +26,14 @@
 
 import * as assert from "assert";
 import * as vscode from "vscode";
-import { getDocUri, activate, waitForDiagnostics } from "./helper";
+import {
+  getDocUri,
+  activate,
+  getServerLogSize,
+  waitForDeepDiagnostics,
+  waitForDiagnostics,
+  waitForProviderResult,
+} from "./helper";
 
 function codeOf(d: vscode.Diagnostic): string {
   return typeof d.code === "object" && d.code !== null ? String(d.code.value) : String(d.code);
@@ -116,19 +123,40 @@ suite("Issue #1019 idx 28 — cross-file mixin hover", () => {
   const deviceUri = getDocUri("issue1019Idx28Device.tcl");
   const libUri = getDocUri("issue1019Idx28Lib.tcl");
 
-  test("hover on `my <method>` names the provider in the sibling file", async () => {
-    await activate(libUri);
-    await activate(deviceUri);
-    // Cursor on `ArgsPreprocess` in the `my` dispatch (line 4).
-    const hovers = (await vscode.commands.executeCommand(
-      "vscode.executeHoverProvider",
-      deviceUri,
-      new vscode.Position(4, 20),
-    )) as vscode.Hover[];
-    const text = (hovers ?? [])
+  // Cursor on `ArgsPreprocess` in the `my` dispatch (line 4).
+  const dispatchPos = new vscode.Position(4, 20);
+
+  function hoverText(hovers: vscode.Hover[] | undefined): string {
+    return (hovers ?? [])
       .flatMap((h) => h.contents)
       .map((c) => (typeof c === "string" ? c : (c as vscode.MarkdownString).value))
       .join("\n");
+  }
+
+  test("hover on `my <method>` names the provider in the sibling file", async () => {
+    await activate(libUri);
+    await activate(deviceUri);
+    // Naming the provider needs the *sibling* file, so the answer only becomes
+    // correct once the workspace scan has surfaced it.  Sampling the provider
+    // once races that scan: the request is served from whatever the workspace
+    // knows at that instant, and an empty hover reads as a failure rather than
+    // as "not indexed yet".  Wait on the answer instead — the good case
+    // returns on the first probe, the bad case is bounded by the timeout.
+    const hovers = await waitForProviderResult<vscode.Hover[]>(
+      deviceUri,
+      () =>
+        vscode.commands.executeCommand(
+          "vscode.executeHoverProvider",
+          deviceUri,
+          dispatchPos,
+        ) as Thenable<vscode.Hover[]>,
+      (hs) => hoverText(hs).includes("::Idx28::Utility"),
+      {
+        label: "cross-file mixin hover naming ::Idx28::Utility",
+        describe: (hs) => hoverText(hs) || "<no hover>",
+      },
+    );
+    const text = hoverText(hovers);
     assert.ok(text.includes("ArgsPreprocess"), `hover must name the method, got: ${text}`);
     assert.ok(
       text.includes("::Idx28::Utility"),
@@ -139,11 +167,21 @@ suite("Issue #1019 idx 28 — cross-file mixin hover", () => {
   test("hover and go-to-definition agree about the provider", async () => {
     await activate(libUri);
     await activate(deviceUri);
-    const locations = (await vscode.commands.executeCommand(
-      "vscode.executeDefinitionProvider",
+    // Same cross-file scan dependency as the hover above.
+    const locations = await waitForProviderResult<vscode.Location[]>(
       deviceUri,
-      new vscode.Position(4, 20),
-    )) as vscode.Location[];
+      () =>
+        vscode.commands.executeCommand(
+          "vscode.executeDefinitionProvider",
+          deviceUri,
+          dispatchPos,
+        ) as Thenable<vscode.Location[]>,
+      (ls) => (ls ?? []).length > 0,
+      {
+        label: "cross-file definition for `my ArgsPreprocess`",
+        describe: (ls) => `${(ls ?? []).length} location(s)`,
+      },
+    );
     assert.ok(locations && locations.length > 0, "definition must resolve cross-file");
     assert.strictEqual(
       locations[0].uri.toString(),
@@ -164,13 +202,19 @@ suite("Issue #1019 idx 11 — a proc named after a package command", () => {
   const docUri = getDocUri("issue1019Idx11Argparse.tcl");
 
   test("fires neither W113 nor W120 nor an arity error (false case)", async () => {
+    // The document is clean, so there is no diagnostic to wait *for*.  Waiting
+    // out a deadline with a predicate that can never hold is the anti-pattern
+    // issue #1274 is about: it costs the full deadline on every run even when
+    // the server settled in milliseconds, and it proves nothing — an empty set
+    // satisfies all three negative assertions below whether analysis ran or
+    // not.  The server's deep-diagnostics marker is the actual signal that the
+    // pass completed for this URI, and it fires on a clean file too
+    // (`diags=0`), so this returns as soon as the work is done and throws if it
+    // never happens.
+    const since = getServerLogSize();
     await activate(docUri);
-    // The document is clean, so there is no diagnostic to wait *for*; give
-    // the server a settled window and assert on whatever it published.
-    const diags = await waitForDiagnostics(docUri, {
-      timeout: 8000,
-      predicate: () => false,
-    }).catch(() => vscode.languages.getDiagnostics(docUri));
+    await waitForDeepDiagnostics(docUri, { since });
+    const diags = vscode.languages.getDiagnostics(docUri);
     const seen = diags.map(codeOf);
     assert.ok(!seen.includes("W113"), `the proc shadows no built-in: ${seen.join(", ")}`);
     assert.ok(!seen.includes("W120"), `the file defines the command itself: ${seen.join(", ")}`);
