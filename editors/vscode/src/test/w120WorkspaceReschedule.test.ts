@@ -19,7 +19,7 @@
 import * as assert from "assert";
 import * as vscode from "vscode";
 import * as path from "path";
-import { getDocUri, activate, waitForDiagnostics } from "./helper";
+import { getDocUri, activate, waitForDiagnostics, scaledTimeout } from "./helper";
 
 // Issue #829, third bug: `initialized()` kicks off `scan_workspace_folders()`
 // (which populates `workspace_index` / `package_resolver`, the inputs the
@@ -70,7 +70,7 @@ suite("W120 workspace-index reschedule (#829)", () => {
     "a false-positive W120 clears once an on-disk (unopened) ancestor sources " +
       "and requires it, without editing the caller",
     async function () {
-      this.timeout(60_000);
+      this.timeout(scaledTimeout(60_000));
       await activate(callerUri);
 
       // Precondition: with no ancestor on disk, the single-file W120 stands

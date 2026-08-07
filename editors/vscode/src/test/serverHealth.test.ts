@@ -19,7 +19,7 @@
 import * as assert from "assert";
 import * as vscode from "vscode";
 import { LanguageClient, State } from "vscode-languageclient/node";
-import { activate, getDocUri } from "./helper";
+import { activate, getDocUri, scaledTimeout } from "./helper";
 
 interface TclLspApi {
   getClient(): LanguageClient;
@@ -36,7 +36,7 @@ function getApi(): TclLspApi {
 // missing or crashes on startup then ext.activate() rejects because
 // client.start() fails, and the whole test run aborts with a clear message.
 suiteSetup(async function () {
-  this.timeout(60_000);
+  this.timeout(scaledTimeout(60_000));
   const ext = vscode.extensions.getExtension("bitwisecook.tcl-lsp")!;
   await ext.activate();
   assert.ok(ext.isActive, "Extension failed to activate – server may have crashed on startup");
@@ -44,7 +44,7 @@ suiteSetup(async function () {
 
 // Runs after ALL test suites.  Catches server crashes that happen mid-run.
 suiteTeardown(async function () {
-  this.timeout(30_000);
+  this.timeout(scaledTimeout(30_000));
   const client = getApi().getClient();
   assert.strictEqual(
     client.state,

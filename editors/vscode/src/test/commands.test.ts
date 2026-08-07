@@ -18,7 +18,7 @@
 
 import * as assert from "assert";
 import * as vscode from "vscode";
-import { activate, getDocUri } from "./helper";
+import { activate, getDocUri, scaledTimeout } from "./helper";
 
 suite("Command Registration", () => {
   const allCommands = [
@@ -62,7 +62,7 @@ suite("Command Registration", () => {
   let registeredCommands: string[];
 
   suiteSetup(async function () {
-    this.timeout(60_000);
+    this.timeout(scaledTimeout(60_000));
     // Ensure the extension is activated before querying commands.
     await activate(getDocUri("simple.tcl"));
     registeredCommands = await vscode.commands.getCommands(true);

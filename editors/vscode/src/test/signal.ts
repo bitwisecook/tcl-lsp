@@ -56,6 +56,14 @@
 //! contention it grows with the contention. The constants stay honest and a
 //! quiet machine keeps the tight bound.
 //!
+//! That applies to **mocha's own per-test backstop** too. A test that overrides
+//! it with `this.timeout(N)` must (a) scale `N` with [`scaledTimeout`], and (b)
+//! choose it to outlast the *sum* of the bounded waits inside the test —
+//! `activate` alone can spend 60s on a cold LSP handshake before the test's own
+//! wait begins. An override that fires first reports "Timeout of Nms exceeded"
+//! and names neither the outstanding wait nor why, which is precisely the
+//! unattributable failure this module exists to remove.
+//!
 //! The cheap signal (run-queue oversubscription) is read up front; the
 //! expensive one (scheduling latency, which costs ~100ms to sample) is taken
 //! only **at the moment of giving up**, where its cost is irrelevant. If it

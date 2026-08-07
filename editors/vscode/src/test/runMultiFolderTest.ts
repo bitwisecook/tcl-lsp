@@ -20,40 +20,26 @@
 // per-folder configuration tests can verify VS Code accepts and applies
 // folder-level tclLsp.* settings (issue #230).
 import * as path from "path";
-import { execSync } from "child_process";
-import { runTests } from "@vscode/test-electron";
-
-const DEFAULT_EXIT_TIMEOUT_MS = 180_000;
-
-function parseExitTimeoutMs(): number {
-  const raw = process.env.TCL_LSP_VSCODE_TEST_EXIT_TIMEOUT_MS;
-  if (!raw) return DEFAULT_EXIT_TIMEOUT_MS;
-  const parsed = Number(raw);
-  if (!Number.isFinite(parsed) || parsed < 0) return DEFAULT_EXIT_TIMEOUT_MS;
-  return Math.floor(parsed);
-}
-
-function escapeSingleQuotes(text: string): string {
-  return text.split("'").join("'\"'\"'");
-}
-
-function cleanupStaleTestHosts(extensionDevelopmentPath: string, extensionTestsPath: string): void {
-  try {
-    const escapedDevPath = escapeSingleQuotes(extensionDevelopmentPath);
-    const escapedTestsPath = escapeSingleQuotes(extensionTestsPath);
-    execSync(
-      `pkill -f 'extensionDevelopmentPath=${escapedDevPath}' || true; pkill -f 'extensionTestsPath=${escapedTestsPath}' || true`,
-      { stdio: "ignore" },
-    );
-  } catch {
-    /* best-effort */
-  }
-}
+import * as fs from "fs";
+import { runWatchedSuite } from "./runnerWatchdog";
 
 async function main() {
   const extensionDevelopmentPath = path.resolve(__dirname, "../../");
   const extensionTestsPath = path.resolve(__dirname, "./multiFolder/index");
-  cleanupStaleTestHosts(extensionDevelopmentPath, extensionTestsPath);
+  // multiFolder/index.ts writes these the same way index.ts does for the
+  // single-folder suite (see runnerWatchdog.ts's createHeartbeatWriter) —
+  // distinct filenames so a full `make test-ext` run (both suites,
+  // sequentially) never has one runner's markers mistaken for the other's.
+  const resultMarker = path.resolve(
+    extensionDevelopmentPath,
+    ".vscode-test",
+    "mocha-result-multifolder.json",
+  );
+  const heartbeatMarker = path.resolve(
+    extensionDevelopmentPath,
+    ".vscode-test",
+    "mocha-heartbeat-multifolder.json",
+  );
 
   // Open the multi-root .code-workspace fixture so VS Code is in
   // multi-folder mode and folder-level .vscode/settings.json files are
@@ -68,9 +54,8 @@ async function main() {
   const userDataDir = path.resolve(extensionDevelopmentPath, ".vscode-test", "user-data");
   const userSettingsFile = path.resolve(userDataDir, "User", "settings.json");
   try {
-    const { writeFileSync, mkdirSync } = require("fs");
-    mkdirSync(path.dirname(userSettingsFile), { recursive: true });
-    writeFileSync(userSettingsFile, "{}\n", "utf8");
+    fs.mkdirSync(path.dirname(userSettingsFile), { recursive: true });
+    fs.writeFileSync(userSettingsFile, "{}\n", "utf8");
   } catch {
     /* best-effort */
   }
@@ -82,7 +67,6 @@ async function main() {
   // (issue #407), ``tclLsp.style.nonAscii``, and ``tclLsp.diagnostics.W111``
   // values to exercise the per-folder resolution path.
   try {
-    const { writeFileSync, mkdirSync } = require("fs");
     const projA = path.resolve(
       extensionDevelopmentPath,
       "testFixtureMultiFolder",
@@ -95,9 +79,9 @@ async function main() {
       "proj-b",
       ".vscode",
     );
-    mkdirSync(projA, { recursive: true });
-    mkdirSync(projB, { recursive: true });
-    writeFileSync(
+    fs.mkdirSync(projA, { recursive: true });
+    fs.mkdirSync(projB, { recursive: true });
+    fs.writeFileSync(
       path.resolve(projA, "settings.json"),
       JSON.stringify(
         {
@@ -113,7 +97,7 @@ async function main() {
       ) + "\n",
       "utf8",
     );
-    writeFileSync(
+    fs.writeFileSync(
       path.resolve(projB, "settings.json"),
       JSON.stringify(
         {
@@ -136,7 +120,7 @@ async function main() {
     // reads the seed text.
     for (const folder of ["proj-a", "proj-b"]) {
       for (const name of ["extra.tcl", "race.tcl"]) {
-        writeFileSync(
+        fs.writeFileSync(
           path.resolve(extensionDevelopmentPath, "testFixtureMultiFolder", folder, name),
           "# placeholder — each test replaces this through the editor\n",
           "utf8",
@@ -147,37 +131,13 @@ async function main() {
     /* best-effort */
   }
 
-  const timeoutMs = parseExitTimeoutMs();
-  try {
-    const runPromise = runTests({
-      extensionDevelopmentPath,
-      extensionTestsPath,
-      launchArgs: [codeWorkspace, "--disable-extensions"],
-    });
-
-    if (timeoutMs <= 0) {
-      await runPromise;
-      return;
-    }
-
-    const timeoutPromise = new Promise<never>((_, reject) => {
-      setTimeout(() => {
-        reject(new Error(`VS Code test runner did not exit within ${timeoutMs}ms after launch.`));
-      }, timeoutMs).unref();
-    });
-
-    await Promise.race([runPromise, timeoutPromise]);
-    cleanupStaleTestHosts(extensionDevelopmentPath, extensionTestsPath);
-    process.exit(0);
-  } catch (err) {
-    cleanupStaleTestHosts(extensionDevelopmentPath, extensionTestsPath);
-    if (err instanceof Error && err.message.includes("did not exit within")) {
-      console.warn("Multi-folder VS Code tests completed but runner did not exit; continuing.");
-      process.exit(0);
-    }
-    console.error("Failed to run multi-folder tests:", err);
-    process.exit(1);
-  }
+  await runWatchedSuite({
+    extensionDevelopmentPath,
+    extensionTestsPath,
+    launchArgs: [codeWorkspace, "--disable-extensions"],
+    heartbeatMarker,
+    resultMarker,
+  });
 }
 
 main();

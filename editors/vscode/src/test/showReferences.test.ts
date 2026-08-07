@@ -18,7 +18,7 @@
 
 import * as assert from "assert";
 import * as vscode from "vscode";
-import { activate, getDocUri } from "./helper";
+import { activate, getDocUri, scaledTimeout } from "./helper";
 import { convertShowReferencesArgs } from "../showReferences";
 
 suite("tcl-lsp.showReferences adapter", () => {
@@ -92,7 +92,7 @@ suite("tcl-lsp.showReferences adapter", () => {
 
   suite("command registration", () => {
     suiteSetup(async function () {
-      this.timeout(60_000);
+      this.timeout(scaledTimeout(60_000));
       await activate(getDocUri("simple.tcl"));
     });
 
