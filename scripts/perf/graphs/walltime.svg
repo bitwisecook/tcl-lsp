@@ -17,16 +17,18 @@
     .f1 { fill: #56B4E9; }
     .s2 { stroke: #009E73; }
     .f2 { fill: #009E73; }
+    .s3 { stroke: #F0E442; }
+    .f3 { fill: #F0E442; }
     @media (prefers-color-scheme: dark) {
       :root { color: #E6EDF3; }
       .hatch { stroke: #E6EDF3; }
     }
   </style>
   <text class="title" x="78.00" y="30.00">Per-check wall time by version</text>
-  <rect class="f0" x="83.20" y="98.09" width="12.48" height="277.91" opacity="0.25"/>
+  <rect class="f0" x="83.20" y="98.09" width="9.36" height="277.91" opacity="0.25"/>
   <defs>
     <clipPath id="hx83_20y98_09">
-      <rect x="83.20" y="98.09" width="12.48" height="277.91"/>
+      <rect x="83.20" y="98.09" width="9.36" height="277.91"/>
     </clipPath>
   </defs>
   <g clip-path="url(#hx83_20y98_09)">
@@ -74,51 +76,66 @@
     <line class="hatch" x1="92.29" y1="376.00" x2="370.20" y2="98.09"/>
     <line class="hatch" x1="99.29" y1="376.00" x2="377.20" y2="98.09"/>
   </g>
-  <rect class="s0" fill="none" stroke-width="1.5" stroke-dasharray="3 2" x="83.20" y="98.09" width="12.48" height="277.91"/>
-  <rect class="f1" x="97.07" y="184.50" width="12.48" height="191.50"/>
-  <rect class="f2" x="110.93" y="216.62" width="12.48" height="159.38"/>
-  <rect class="f0" x="135.20" y="240.88" width="12.48" height="135.12"/>
-  <rect class="f1" x="149.07" y="222.80" width="12.48" height="153.20"/>
-  <rect class="f2" x="162.93" y="225.08" width="12.48" height="150.92"/>
-  <rect class="f0" x="187.20" y="209.70" width="12.48" height="166.30"/>
-  <rect class="f1" x="201.07" y="208.34" width="12.48" height="167.66"/>
-  <rect class="f2" x="214.93" y="203.27" width="12.48" height="172.73"/>
-  <rect class="f0" x="239.20" y="178.17" width="12.48" height="197.83"/>
-  <rect class="f1" x="253.07" y="177.32" width="12.48" height="198.68"/>
-  <rect class="f2" x="266.93" y="182.73" width="12.48" height="193.27"/>
-  <rect class="f0" x="291.20" y="328.39" width="12.48" height="47.61"/>
-  <rect class="f1" x="305.07" y="303.78" width="12.48" height="72.22"/>
-  <rect class="f2" x="318.93" y="292.52" width="12.48" height="83.48"/>
-  <rect class="f0" x="343.20" y="298.73" width="12.48" height="77.27"/>
-  <rect class="f1" x="357.07" y="290.28" width="12.48" height="85.72"/>
-  <rect class="f2" x="370.93" y="312.90" width="12.48" height="63.10"/>
-  <rect class="f0" x="395.20" y="198.37" width="12.48" height="177.63"/>
-  <rect class="f1" x="409.07" y="145.42" width="12.48" height="230.58"/>
-  <rect class="f2" x="422.93" y="165.59" width="12.48" height="210.41"/>
-  <rect class="f0" x="447.20" y="249.20" width="12.48" height="126.80"/>
-  <rect class="f1" x="461.07" y="250.19" width="12.48" height="125.81"/>
-  <rect class="f2" x="474.93" y="251.50" width="12.48" height="124.50"/>
-  <rect class="f0" x="499.20" y="228.93" width="12.48" height="147.07"/>
-  <rect class="f1" x="513.07" y="231.97" width="12.48" height="144.03"/>
-  <rect class="f2" x="526.93" y="234.81" width="12.48" height="141.19"/>
-  <rect class="f0" x="551.20" y="226.32" width="12.48" height="149.68"/>
-  <rect class="f1" x="565.07" y="124.37" width="12.48" height="251.63"/>
-  <rect class="f2" x="578.93" y="225.10" width="12.48" height="150.90"/>
-  <rect class="f0" x="603.20" y="228.96" width="12.48" height="147.04"/>
-  <rect class="f1" x="617.07" y="227.50" width="12.48" height="148.50"/>
-  <rect class="f2" x="630.93" y="228.93" width="12.48" height="147.07"/>
-  <rect class="f0" x="655.20" y="276.52" width="12.48" height="99.48"/>
-  <rect class="f1" x="669.07" y="263.99" width="12.48" height="112.01"/>
-  <rect class="f2" x="682.93" y="251.35" width="12.48" height="124.65"/>
-  <rect class="f0" x="707.20" y="213.93" width="12.48" height="162.07"/>
-  <rect class="f1" x="721.07" y="214.74" width="12.48" height="161.26"/>
-  <rect class="f2" x="734.93" y="214.37" width="12.48" height="161.63"/>
-  <rect class="f0" x="759.20" y="199.01" width="12.48" height="176.99"/>
-  <rect class="f1" x="773.07" y="145.45" width="12.48" height="230.55"/>
-  <rect class="f2" x="786.93" y="166.46" width="12.48" height="209.54"/>
-  <rect class="f0" x="811.20" y="215.75" width="12.48" height="160.25"/>
-  <rect class="f1" x="825.07" y="216.43" width="12.48" height="159.57"/>
-  <rect class="f2" x="838.93" y="216.50" width="12.48" height="159.50"/>
+  <rect class="s0" fill="none" stroke-width="1.5" stroke-dasharray="3 2" x="83.20" y="98.09" width="9.36" height="277.91"/>
+  <rect class="f1" x="93.60" y="184.50" width="9.36" height="191.50"/>
+  <rect class="f2" x="104.00" y="216.62" width="9.36" height="159.38"/>
+  <rect class="f3" x="114.40" y="199.54" width="9.36" height="176.46"/>
+  <rect class="f0" x="135.20" y="240.88" width="9.36" height="135.12"/>
+  <rect class="f1" x="145.60" y="222.80" width="9.36" height="153.20"/>
+  <rect class="f2" x="156.00" y="225.08" width="9.36" height="150.92"/>
+  <rect class="f3" x="166.40" y="225.49" width="9.36" height="150.51"/>
+  <rect class="f0" x="187.20" y="209.70" width="9.36" height="166.30"/>
+  <rect class="f1" x="197.60" y="208.34" width="9.36" height="167.66"/>
+  <rect class="f2" x="208.00" y="203.27" width="9.36" height="172.73"/>
+  <rect class="f3" x="218.40" y="202.65" width="9.36" height="173.35"/>
+  <rect class="f0" x="239.20" y="178.17" width="9.36" height="197.83"/>
+  <rect class="f1" x="249.60" y="177.32" width="9.36" height="198.68"/>
+  <rect class="f2" x="260.00" y="182.73" width="9.36" height="193.27"/>
+  <rect class="f3" x="270.40" y="179.31" width="9.36" height="196.69"/>
+  <rect class="f0" x="291.20" y="328.39" width="9.36" height="47.61"/>
+  <rect class="f1" x="301.60" y="303.78" width="9.36" height="72.22"/>
+  <rect class="f2" x="312.00" y="292.52" width="9.36" height="83.48"/>
+  <rect class="f3" x="322.40" y="307.19" width="9.36" height="68.81"/>
+  <rect class="f0" x="343.20" y="298.73" width="9.36" height="77.27"/>
+  <rect class="f1" x="353.60" y="290.28" width="9.36" height="85.72"/>
+  <rect class="f2" x="364.00" y="312.90" width="9.36" height="63.10"/>
+  <rect class="f3" x="374.40" y="282.86" width="9.36" height="93.14"/>
+  <rect class="f0" x="395.20" y="198.37" width="9.36" height="177.63"/>
+  <rect class="f1" x="405.60" y="145.42" width="9.36" height="230.58"/>
+  <rect class="f2" x="416.00" y="165.59" width="9.36" height="210.41"/>
+  <rect class="f3" x="426.40" y="148.44" width="9.36" height="227.56"/>
+  <rect class="f0" x="447.20" y="249.20" width="9.36" height="126.80"/>
+  <rect class="f1" x="457.60" y="250.19" width="9.36" height="125.81"/>
+  <rect class="f2" x="468.00" y="251.50" width="9.36" height="124.50"/>
+  <rect class="f3" x="478.40" y="248.77" width="9.36" height="127.23"/>
+  <rect class="f0" x="499.20" y="228.93" width="9.36" height="147.07"/>
+  <rect class="f1" x="509.60" y="231.97" width="9.36" height="144.03"/>
+  <rect class="f2" x="520.00" y="234.81" width="9.36" height="141.19"/>
+  <rect class="f3" x="530.40" y="230.39" width="9.36" height="145.61"/>
+  <rect class="f0" x="551.20" y="226.32" width="9.36" height="149.68"/>
+  <rect class="f1" x="561.60" y="124.37" width="9.36" height="251.63"/>
+  <rect class="f2" x="572.00" y="225.10" width="9.36" height="150.90"/>
+  <rect class="f3" x="582.40" y="148.70" width="9.36" height="227.30"/>
+  <rect class="f0" x="603.20" y="228.96" width="9.36" height="147.04"/>
+  <rect class="f1" x="613.60" y="227.50" width="9.36" height="148.50"/>
+  <rect class="f2" x="624.00" y="228.93" width="9.36" height="147.07"/>
+  <rect class="f3" x="634.40" y="230.41" width="9.36" height="145.59"/>
+  <rect class="f0" x="655.20" y="276.52" width="9.36" height="99.48"/>
+  <rect class="f1" x="665.60" y="263.99" width="9.36" height="112.01"/>
+  <rect class="f2" x="676.00" y="251.35" width="9.36" height="124.65"/>
+  <rect class="f3" x="686.40" y="185.55" width="9.36" height="190.45"/>
+  <rect class="f0" x="707.20" y="213.93" width="9.36" height="162.07"/>
+  <rect class="f1" x="717.60" y="214.74" width="9.36" height="161.26"/>
+  <rect class="f2" x="728.00" y="214.37" width="9.36" height="161.63"/>
+  <rect class="f3" x="738.40" y="215.18" width="9.36" height="160.82"/>
+  <rect class="f0" x="759.20" y="199.01" width="9.36" height="176.99"/>
+  <rect class="f1" x="769.60" y="145.45" width="9.36" height="230.55"/>
+  <rect class="f2" x="780.00" y="166.46" width="9.36" height="209.54"/>
+  <rect class="f3" x="790.40" y="148.85" width="9.36" height="227.15"/>
+  <rect class="f0" x="811.20" y="215.75" width="9.36" height="160.25"/>
+  <rect class="f1" x="821.60" y="216.43" width="9.36" height="159.57"/>
+  <rect class="f2" x="832.00" y="216.50" width="9.36" height="159.50"/>
+  <rect class="f3" x="842.40" y="215.80" width="9.36" height="160.20"/>
   <line class="grid" x1="78.00" y1="376.00" x2="858.00" y2="376.00"/>
   <line class="chrome" x1="74.00" y1="376.00" x2="78.00" y2="376.00"/>
   <text x="70.00" y="379.50" text-anchor="end">0.0001</text>
@@ -183,5 +200,7 @@
   <text x="291.00" y="478.00">2.1.14</text>
   <rect class="f2" x="468.00" y="468.00" width="12" height="12" rx="2"/>
   <text x="486.00" y="478.00">2.1.15</text>
+  <rect class="f3" x="663.00" y="468.00" width="12" height="12" rx="2"/>
+  <text x="681.00" y="478.00">2.1.16</text>
   <text class="note" x="78.00" y="506.00">hatched, dashed bars are checks that failed or timed out (value is the timeout budget)</text>
 </svg>
