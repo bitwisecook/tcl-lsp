@@ -20,6 +20,7 @@ import * as assert from "assert";
 import * as vscode from "vscode";
 import * as fs from "fs";
 import { getDocUri, activate, waitForDiagnostics, scaledTimeout } from "./helper";
+import { MAX_TEST_TIMEOUT_BASE_MS } from "./runnerWatchdog";
 
 // Issue #844: diagnostics are progressive. On a large document the server
 // publishes a workspace-independent *fast tier* (the analyser's syntax /
@@ -82,7 +83,7 @@ suite("Progressive diagnostics (#844)", () => {
     // idle machine. Load-scaled for the same reason every other bound here is:
     // it used to be a raw `60_000`, and a loaded container turned a correct run
     // into an unattributable timeout.
-    this.timeout(scaledTimeout(150_000));
+    this.timeout(scaledTimeout(MAX_TEST_TIMEOUT_BASE_MS));
 
     // Capture the sequence of diagnostic publishes for this URI. Registered
     // before `activate` (which sends `didOpen`) so no publish is missed — a

@@ -99,22 +99,37 @@ export const SERVER_PROBE_TIMEOUT_MS = 5_000;
 export const MOCHA_TEST_TIMEOUT_BASE_MS = 60_000;
 
 /**
+ * The largest per-test backstop (base, before load scaling) any single test may
+ * claim with `this.timeout(...)`.
+ *
+ * A test whose bounded waits genuinely need longer than the suite default may
+ * raise its own bound — `progressiveDiagnostics` waits on `activate` and then a
+ * 50s deep-tier publish — but it may not raise it past this, because
+ * [`DEFAULT_NO_PROGRESS_TIMEOUT_MS`] is derived from it. A test that outran the
+ * no-progress window would be killed by the *watchdog* instead of by mocha,
+ * which loses the per-test attribution mocha's own timeout gives and fails the
+ * whole run rather than the one test. (Observed for real: raising one test to
+ * 150s against a 90s window turned a single slow test into "no test completed
+ * for 90s" and a failed suite.)
+ */
+export const MAX_TEST_TIMEOUT_BASE_MS = 150_000;
+
+/**
  * Base no-progress window (before load scaling): how long `completed + failed`
  * may sit unchanged, with the in-flight test title also unchanged, before the
  * watchdog calls it a stall.
  *
- * Must exceed [`MOCHA_TEST_TIMEOUT_BASE_MS`]: mocha kills a single stuck test
- * at that bound, and `completed + failed` advances the instant it does (the
- * `fail` event fires). A window at or below the mocha timeout would flag
- * *every* mocha-timeout-recovered test as a stall in the moment before mocha's
- * own backstop resolves it — mistaking the cure for the disease. 1.5x leaves a
- * full half of an extra mocha timeout as slack for the heartbeat's own
- * [`HEARTBEAT_INTERVAL_MS`] write cadence and the round trip of mocha's `fail`
- * handler, so one unlucky stuck test never trips this — while a *second*,
- * consecutive one (a genuine wedge, not a single flaky test) still does well
- * before the old flat 180s budget would have.
+ * Must exceed [`MAX_TEST_TIMEOUT_BASE_MS`] — the longest any one test may run
+ * before mocha kills it, not merely the suite default: mocha kills a stuck test
+ * at *its own* bound, and `completed + failed` advances the instant it does
+ * (the `fail` event fires). A window at or below that would flag every
+ * mocha-timeout-recovered test as a stall in the moment before mocha's backstop
+ * resolves it — mistaking the cure for the disease. 1.5x leaves half again as
+ * slack for the heartbeat's [`HEARTBEAT_INTERVAL_MS`] write cadence and the
+ * round trip of mocha's `fail` handler, so one unlucky stuck test never trips
+ * this — while a genuine wedge still does, far inside the ceiling.
  */
-export const DEFAULT_NO_PROGRESS_TIMEOUT_MS = MOCHA_TEST_TIMEOUT_BASE_MS * 1.5;
+export const DEFAULT_NO_PROGRESS_TIMEOUT_MS = MAX_TEST_TIMEOUT_BASE_MS * 1.5;
 
 /**
  * Base absolute ceiling (before load scaling): bounds a run that never stalls
@@ -127,8 +142,13 @@ export const DEFAULT_NO_PROGRESS_TIMEOUT_MS = MOCHA_TEST_TIMEOUT_BASE_MS * 1.5;
  * a pathological case that keeps nudging `completed` without ever reaching
  * the end, so it can afford to sit an order of magnitude above a normal green
  * run rather than hugging it the way the old constant did.
+ *
+ * It must also stay well clear of [`DEFAULT_NO_PROGRESS_TIMEOUT_MS`], so the
+ * bound that fires is the one that understands progress. A ceiling only a few
+ * stall-windows wide would start catching runs the stall check was still
+ * deciding about, which is how a backstop quietly becomes the primary bound.
  */
-export const DEFAULT_ABSOLUTE_CEILING_MS = 900_000;
+export const DEFAULT_ABSOLUTE_CEILING_MS = 1_800_000;
 
 /**
  * Base grace period (before load scaling) before "no heartbeat file was ever

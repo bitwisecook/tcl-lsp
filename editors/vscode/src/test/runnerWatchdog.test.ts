@@ -25,6 +25,7 @@ import {
   DEFAULT_ABSOLUTE_CEILING_MS,
   DEFAULT_NEVER_STARTED_GRACE_MS,
   DEFAULT_NO_PROGRESS_TIMEOUT_MS,
+  MAX_TEST_TIMEOUT_BASE_MS,
   describeWatchdogVerdict,
   evaluateWatchdog,
   Heartbeat,
@@ -68,9 +69,14 @@ suite("runnerWatchdog: evaluateWatchdog (issue #1293)", () => {
     // future default that breaks one reintroduces a specific failure mode, so
     // they are asserted rather than left to the prose.
     assert.ok(
-      DEFAULT_NO_PROGRESS_TIMEOUT_MS > MOCHA_TEST_TIMEOUT_BASE_MS,
-      "the no-progress window must exceed mocha's own per-test backstop, or every " +
-        "mocha-timeout-recovered test would be flagged as a stall before mocha resolves it",
+      MAX_TEST_TIMEOUT_BASE_MS >= MOCHA_TEST_TIMEOUT_BASE_MS,
+      "the per-test ceiling must be at least the suite default it is a ceiling on",
+    );
+    assert.ok(
+      DEFAULT_NO_PROGRESS_TIMEOUT_MS > MAX_TEST_TIMEOUT_BASE_MS,
+      "the no-progress window must exceed the longest a single test may run before mocha " +
+        "kills it — not merely the suite default. Otherwise the watchdog kills the whole " +
+        "run before mocha can kill the one test, losing the per-test attribution",
     );
     assert.ok(
       DEFAULT_NEVER_STARTED_GRACE_MS < DEFAULT_NO_PROGRESS_TIMEOUT_MS,
