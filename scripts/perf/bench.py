@@ -303,8 +303,13 @@ class Bench:
         # Let the sampler catch up so `rss_after` reflects the check.
         time.sleep(SAMPLE_INTERVAL_S * 1.5)
         after = self.s.latest() or before
+        ops = items = None
         if isinstance(note, tuple):
             ok, note = note
+        elif isinstance(note, dict):
+            ok = note.get("ok", ok)
+            ops, items = note.get("ops"), note.get("items")
+            note = note.get("note")
         self.checks.append(
             {
                 "ord": self._ord,
@@ -314,6 +319,12 @@ class Bench:
                 "cpu_s": round(max(0.0, after["cpu_s"] - before["cpu_s"]), 2),
                 "rss_before_kib": before["rss_kib"],
                 "rss_after_kib": after["rss_kib"],
+                # Requests issued, and results they returned. A timing with
+                # no payload count is uninterpretable: a request that answers
+                # nothing is fast for the wrong reason, and comparing it
+                # against one that resolved 37 locations is meaningless.
+                "ops": ops,
+                "items": items,
                 "ok": ok,
                 "note": note,
             }
@@ -323,6 +334,26 @@ class Bench:
             f"  {self._ord:>2}. {label:<44} {wall:>8.3f}s  "
             f"{after['rss_kib'] / 1024:>8.1f} MiB{flag}"
         )
+
+
+def _count(result) -> int:
+    """How many things an LSP result actually contained.
+
+    Navigation responses are variously a list of locations, a single
+    location, a `{items: [...]}` completion list, or null. Collapsing them
+    to one number is what lets a fast check be distinguished from an empty
+    one — the whole reason timings alone were not enough to explain a 20x
+    gap between two runs over the same corpus.
+    """
+    if result is None:
+        return 0
+    if isinstance(result, list):
+        return len(result)
+    if isinstance(result, dict):
+        if isinstance(result.get("items"), list):
+            return len(result["items"])
+        return 1
+    return 1
 
 
 def build_suite(bench: Bench, docs: list[Path], root: Path) -> None:
@@ -436,7 +467,7 @@ def build_suite(bench: Bench, docs: list[Path], root: Path) -> None:
     # the specific feature rather than in an aggregate.
     def nav(method: str, extra: dict | None = None):
         def run():
-            fails = sent = 0
+            fails = sent = items = 0
             for s in state:
                 for line, col in s["pos"][:3]:
                     p = {
@@ -446,13 +477,24 @@ def build_suite(bench: Bench, docs: list[Path], root: Path) -> None:
                     if extra:
                         p.update(extra)
                     sent += 1
-                    fails += not bench.request(method, p)[1]
+                    got, ok = bench.request(method, p)
+                    fails += not ok
+                    items += _count(got)
             # A check that issued nothing is not a fast check, it is a broken
             # one — and a 0.000 s bar in the release-notes graph reading as
             # "this got faster" would be worse than no bar at all.
             if sent == 0:
-                return False, "no navigation positions found: check issued 0 requests"
-            return f"{fails}/{sent} request(s) failed" if fails else None
+                return {
+                    "ok": False,
+                    "note": "no navigation positions found: issued 0 requests",
+                    "ops": 0,
+                    "items": 0,
+                }
+            return {
+                "ops": sent,
+                "items": items,
+                "note": f"{fails}/{sent} request(s) failed" if fails else None,
+            }
 
         return run
 
