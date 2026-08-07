@@ -18,20 +18,27 @@
 
 //! The `f5 irule` verb group — iRules-specific sub-subcommands.
 //!
-//! The sub-subcommands split into two groups by which engine they reuse:
+//! Every sub-subcommand is implemented, reusing an existing engine rather
+//! than adding new analysis machinery:
 //!
-//! - **Implemented** — `event-order` (firing-order event metadata from
-//!   [`tcl_registry::events`]), `extract` (per-rule bodies from the
-//!   [`tcl_bigip`] model), `format` / `minify` (the [`tcl_lsp_core`]
-//!   formatter / minifier engines, driven with the `f5-irules` dialect), and
-//!   `event-info` (event metadata + the `validCommands` cross-product over the
-//!   reconciled command registry, `CommandRegistry::event_info`).
-//! - **Implemented** (continued) — `lint` (the iRule-only lint rules),
-//!   `context` (each rule bundled with the BIG-IP objects it references), and
-//!   `trace` (static event-flow trace from a starting event).
-//! - **Not yet implemented** — `pgo` (needs the compiler-VM branch-reorder
-//!   engine; issue #1315). It parses its args (so `--help` works) but its
-//!   handler prints a clear not-implemented error and exits 2.
+//! - `event-order` — firing-order event metadata from [`tcl_registry::events`].
+//! - `extract` — per-rule bodies from the [`tcl_bigip`] model.
+//! - `format` / `minify` — the [`tcl_lsp_core`] formatter / minifier engines,
+//!   driven with the `f5-irules` dialect.
+//! - `event-info` — event metadata + the `validCommands` cross-product over
+//!   the reconciled command registry, `CommandRegistry::event_info`.
+//! - `lint` — the [`tcl_bigip::lint`] iRule lint rules.
+//! - `context` — [`tcl_bigip::irule_context`]'s cross-reference bundles.
+//! - `trace` — a regex/reference extraction over the raw source (no CFG
+//!   involved); see [`run_irule_trace`].
+//!
+//! `pgo` (profile-guided branch-reorder suggestions) is deliberately **not**
+//! a sub-subcommand here: it would need a real branch-frequency profile
+//! source (an F5 rule-profiler log format this crate has no reader for) and
+//! a CFG the compiler crate exposes but `f5-cli` does not currently depend
+//! on, to safely reorder `if`/`switch` arms without changing behaviour. That
+//! is a standalone compiler feature, out of scope for a CLI-wiring fix — see
+//! issue #1315 and `docs/design/rust/python-parity-scrub.md` (`P100 PGO`).
 
 use std::path::{Path, PathBuf};
 
@@ -428,20 +435,10 @@ pub fn run_irule(action: &IruleCommand) -> anyhow::Result<u8> {
             json,
         } => run_irule_context(input, rule, *no_transitive, *json),
         IruleCommand::Trace { event, input, json } => run_irule_trace(event, input, *json),
-        // PGO needs the `compiler/pgo` branch-reorder engine (and `--capture`
-        // needs tclsh), neither of which is implemented yet.
-        IruleCommand::Pgo { .. } => Err(deferred("pgo", "compiler-VM")),
     };
     // Both the success path and the printed-error path resolve to a process
     // exit code.
     Ok(rc.unwrap_or_else(|code| code))
-}
-
-/// Print the standard error for an unimplemented sub and return the exit
-/// code (2).
-fn deferred(sub: &str, engine: &str) -> u8 {
-    eprintln!("error: f5 irule {sub} is not yet implemented (requires the {engine} engine)");
-    2
 }
 
 // event-order

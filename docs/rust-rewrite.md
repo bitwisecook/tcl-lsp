@@ -822,7 +822,7 @@ listed residuals · 🟡 partial · 🔴 not started.
 | LSP server / core / db | `tcl-lsp-server`, `tcl-lsp-core`, `tcl-lsp-db` | ✅ | #670 bulk + the two consumer-wiring residuals (GAP-C1 per-check config toggles; IRULE5002/5004 flow-warning code actions) landed; BIG-IP find-references / document-links / code-action providers + "Generate docstring" parity landed (parity-audit gap #8, 2026-06-25) — see history. The document-store / per-edit-incrementality work is its own **SRV-INCREMENTAL** track (the rope was measured and demoted; design in [`design/srv-incremental/`](design/srv-incremental/README.md)) |
 | Document store / incrementality | `tcl-lsp-db`, `tcl-compiler`, `tcl-lsp-server`, `tcl-lexer` | 🟢 | persisted incremental `LineIndex` (Task 1), per-function check memo (2a), incremental interprocedural-taint memo (2b), **the full cross-file cascade (Task 6 — W123 + arity, per-symbol `command_arity` early-cutoff, corpus-scale multi-file fuzzer)**, **Task 4 (per-procedure `optimise_unit` memo)**, and **Task 3 (incremental per-item IR lowering, `lower_proc_body` memo) gated v1** all landed byte-identical (full-corpus-verified); **Tasks 5 (windowed re-lex) + 7 (rope store) dropped — rope-dependent, removed from scope 2026-06-30**; residual: broaden the Task 3 body-cache eligibility gate → **SRV-INCREMENTAL** (see [`design/srv-incremental/`](design/srv-incremental/README.md)) |
 | `tcl` CLI | `tcl-cli` | ✅ | all 26 verbs ported & dispatched (`dis`/`compwasm` + `pkg`/`venv`/`docker` wired via TOOL-TCLPKG) → **TOOL-CLI** |
-| `f5-query` CLI | `f5-cli`, `tcl-bigip*`, `tcl-irules` | 🟢 | `explain-flow --tshark/--keylog/--tshark-filter` + `--simulate` (iRule run live on `tcl-vm` via `tcl-irule-test`) landed; residual: `f5 irule lint/context/trace/pgo` sub-verbs unimplemented (parse + exit 2), SSH/scp fetch transport unimplemented (REST works; SSH parses + exits 2), `registry-dump --section commands` unimplemented → **TOOL-F5** |
+| `f5-query` CLI | `f5-cli`, `tcl-bigip*`, `tcl-irules` | 🟢 | `explain-flow --tshark/--keylog/--tshark-filter` + `--simulate` (iRule run live on `tcl-vm` via `tcl-irule-test`) landed, plus `f5 irule lint/context/trace`; residual: `irule pgo` removed rather than deferred (#1315, standalone compiler feature), SSH/scp fetch transport unimplemented (REST works; SSH parses + exits 2), `registry-dump --section commands` unimplemented → **TOOL-F5** |
 | Formatter / minifier / diagram | `tcl-lsp-core`, `tcl-cli` | 🟢 | minifier + diagram byte-parity; formatter engine ported, residual: the **docstring rewriter** is unimplemented (config flags carried but not engine-consumed) |
 | Refactoring transforms | `tcl-lsp-core::code_actions` | ✅ | all 7 transforms ported (`tcl-lsp-core::refactor`), byte-parity vs the Python oracle → **TOOL-REFACTOR** |
 | Compiler explorer | `tcl-explorer`, `tcl-explorer-wasm` | 🟢 | `wasm` view renders the eval-fallback emitter's WAT; rich per-instruction web-GUI shape (`to_explorer_json`) ported (`tcl_explorer::wasm_explorer`: resolved call/branch targets, block-pairing, ranges) — densifies automatically as RT-WASM emits real instructions → **TOOL-EXPLORER** |
@@ -1066,11 +1066,12 @@ subsystem-status / track-map tables above. Only the 🟢 tracks carry residuals:
   reference-extractor, **not** this. *(XL)*
 - **TOOL-F5** 🟢 *(depends on RT-VM, TOOL-IRULE-TEST)* — the `f5` verbs
   (`event-order`/`extract`/`format`/`minify`/`event-info`, `explain-flow`,
-  `--simulate`) landed. Residuals in `f5-cli`: the `irule lint`/`context`/
-  `trace`/`pgo` sub-verbs are unimplemented (arg-parse then error + exit 2);
-  the SSH/scp fetch transport is unimplemented (`--transport rest` works; the
-  SSH path parses then errors + exit 2); `registry-dump --section commands` is
-  unimplemented.
+  `--simulate`) landed, including `irule lint`/`context`/`trace`. Residuals
+  in `f5-cli`: `irule pgo` was removed from the command surface rather than
+  shipped as a deferred stub (#1315) — a standalone `compiler/pgo`
+  branch-reorder-engine feature, out of scope here; the SSH/scp fetch
+  transport is unimplemented (`--transport rest` works; the SSH path parses
+  then errors + exit 2); `registry-dump --section commands` is unimplemented.
 - **Formatter — docstring rewriter** 🟢 — the formatter engine, minifier, and
   diagram extractor are byte-parity ported (`tcl-lsp-core::{formatting,minify}`,
   `tcl-cli`); residual: the docstring rewriter is unimplemented — its config

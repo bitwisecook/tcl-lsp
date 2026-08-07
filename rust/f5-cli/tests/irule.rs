@@ -21,8 +21,14 @@
 //! Runs the built `f5-query` binary against committed `.irule` / `.conf`
 //! fixtures and asserts exit codes and error/usage text for cases that don't
 //! depend on comparing full stdout against a captured golden file (input
-//! validation, the unimplemented `pgo` sub, and `--help` for every sub).
-//! Self-contained: no external tool runs at test time.
+//! validation and `--help` for every sub). Self-contained: no external tool
+//! runs at test time.
+//!
+//! `pgo` (profile-guided branch-reorder suggestions) is deliberately absent
+//! from the `irule` command surface — see the module doc on
+//! `f5-cli/src/commands/irule.rs` and issue #1315 — so
+//! `pgo_is_not_a_known_subcommand` pins that it is genuinely gone rather
+//! than silently reappearing.
 
 use std::path::PathBuf;
 use std::process::Command;
@@ -74,32 +80,6 @@ fn no_input_errors_exit_2() {
     );
 }
 
-// Unimplemented subs — clean exit-2 error naming the missing engine.
-
-fn assert_deferred(args: &[&str], expect_sub: &str) {
-    let (code, _out, stderr) = run(args);
-    assert_eq!(code, 2, "{args:?} should exit 2; stderr: {stderr}");
-    let expected = format!("error: f5 irule {expect_sub} is not yet implemented (requires the ");
-    assert!(
-        stderr.starts_with(&expected) && stderr.ends_with(" engine)\n"),
-        "{args:?} stderr: {stderr}"
-    );
-}
-
-#[test]
-fn pgo_is_deferred() {
-    assert_deferred(
-        &[
-            "irule",
-            "pgo",
-            "--profile",
-            "/dev/null",
-            &fixture("irule-sample.irule"),
-        ],
-        "pgo",
-    );
-}
-
 #[test]
 fn lint_clean_input_no_findings() {
     // A config / standalone iRule with no issues prints the no-findings line
@@ -123,8 +103,7 @@ fn context_no_irules_found_exits_1() {
     assert_eq!(stderr, "error: no iRules found in input\n");
 }
 
-// `--help` must work for every sub (including the unimplemented ones), since
-// they parse their args before the handler runs.
+// `--help` must work for every sub, all of which are fully implemented.
 
 #[test]
 fn help_works_for_all_subs() {
@@ -133,7 +112,6 @@ fn help_works_for_all_subs() {
         "event-info",
         "lint",
         "trace",
-        "pgo",
         "extract",
         "format",
         "minify",
@@ -143,6 +121,36 @@ fn help_works_for_all_subs() {
         assert_eq!(code, 0, "irule {sub} --help should exit 0");
         assert!(!out.is_empty(), "irule {sub} --help should print usage");
     }
+}
+
+/// `pgo` was advertised in `--help` with a description but always exited 2
+/// (issue #1315) — a stub dressed up as a real verb. It is now genuinely
+/// absent from the command surface: clap rejects it as an unknown
+/// subcommand (exit 2, "unrecognized subcommand"), not the old bespoke
+/// "not yet implemented" deferral text.
+#[test]
+fn pgo_is_not_a_known_subcommand() {
+    let (code, _out, stderr) = run(&["irule", "pgo", "--help"]);
+    assert_eq!(code, 2, "stderr: {stderr}");
+    assert!(
+        stderr.contains("unrecognized subcommand") && stderr.contains("pgo"),
+        "stderr: {stderr}"
+    );
+    assert!(
+        !stderr.contains("not yet implemented"),
+        "must not resurrect the old deferred-verb error text: {stderr}"
+    );
+}
+
+/// The `irule --help` command listing itself must not advertise `pgo`.
+#[test]
+fn pgo_not_listed_in_irule_help() {
+    let (code, out, _) = run(&["irule", "--help"]);
+    assert_eq!(code, 0);
+    assert!(
+        !out.lines().any(|l| l.trim_start().starts_with("pgo")),
+        "irule --help must not list pgo: {out}"
+    );
 }
 
 // ===========================================================================

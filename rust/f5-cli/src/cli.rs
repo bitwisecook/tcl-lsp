@@ -901,26 +901,6 @@ pub enum IruleCommand {
         #[arg(long)]
         json: bool,
     },
-    /// Profile-guided suggestions: reorder branches by execution frequency.
-    Pgo {
-        #[command(flatten)]
-        input: IruleInputArgs,
-        /// F5 rule-profiler occurrence log ('-' for stdin).
-        #[arg(long, value_name = "FILE", group = "pgo_source")]
-        profile: Option<String>,
-        /// Capture a profile by running each input under a local tclsh.
-        #[arg(long, group = "pgo_source")]
-        capture: bool,
-        /// Generate a profile by running each input through the iRule test framework.
-        #[arg(long = "from-test", value_name = "STIMULI", group = "pgo_source")]
-        from_test: Option<String>,
-        /// Rewrite the reordered chains instead of only reporting suggestions.
-        #[arg(long)]
-        apply: bool,
-        /// Emit suggestions as JSON.
-        #[arg(long)]
-        json: bool,
-    },
     /// Write each iRule body in a config to a standalone .tcl file.
     Extract {
         /// bigip.conf / SCF / UCS files (`-` for stdin).
