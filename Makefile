@@ -430,7 +430,8 @@ py-venv: ## Build the typecheck venv (f5report + native _engine + pytest)
 typecheck-py: py-venv ## Type-check every tracked Python file (ty + pyright)
 	@echo "==> Type-checking Python (ty)"
 	@cd $(ROOT) && uvx ty@$(TY_VERSION) check \
-	    --python $(PY_VENV) --extra-search-path typings $(PY_FILES)
+	    --python $(PY_VENV) --extra-search-path typings \
+	    --extra-search-path .claude/skills/lsp-client $(PY_FILES)
 	@echo "==> Type-checking Python (pyright)"
 	@cd $(ROOT) && uvx pyright@$(PYRIGHT_VERSION)
 

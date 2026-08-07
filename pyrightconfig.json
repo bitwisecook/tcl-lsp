@@ -4,13 +4,31 @@
     "editors/sublime-text",
     "experiments",
     "rust/bigip-report-gen/python",
-    "samples"
+    "samples",
+    "scripts/perf"
   ],
-  "exclude": ["**/__pycache__", "**/node_modules", "**/.venv*", "**/target"],
+  "exclude": [
+    "**/__pycache__",
+    "**/node_modules",
+    "**/.venv*",
+    "**/target"
+  ],
   "stubPath": "typings",
   "venvPath": ".",
   "venv": ".venv-typecheck",
   "pythonVersion": "3.10",
   "typeCheckingMode": "standard",
-  "reportMissingModuleSource": "none"
+  "reportMissingModuleSource": "none",
+  "extraPaths": [
+    ".claude/skills/lsp-client"
+  ],
+  "executionEnvironments": [
+    {
+      "root": "scripts/perf",
+      "pythonVersion": "3.11",
+      "extraPaths": [
+        ".claude/skills/lsp-client"
+      ]
+    }
+  ]
 }

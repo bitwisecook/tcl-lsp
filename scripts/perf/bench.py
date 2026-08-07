@@ -55,6 +55,7 @@ import threading
 import time
 import tomllib
 from pathlib import Path
+from typing import Any
 
 HERE = Path(__file__).resolve().parent
 REPO_ROOT = HERE.parent.parent
@@ -274,7 +275,7 @@ class Bench:
         self.checks: list[dict] = []
         self._ord = 0
 
-    def request(self, method: str, params: dict) -> tuple[object, bool]:
+    def request(self, method: str, params: dict) -> tuple[Any, bool]:
         """One request; `(result, ok)` where ok=False means timeout/error."""
         try:
             return self.c.send_request(method, params, timeout=REQUEST_TIMEOUT_S), True
@@ -336,7 +337,7 @@ class Bench:
         )
 
 
-def _count(result) -> int:
+def _count(result: Any) -> int:
     """How many things an LSP result actually contained.
 
     Navigation responses are variously a list of locations, a single
@@ -819,6 +820,9 @@ def main() -> int:
 
     client = LspClient(str(stage), launch_cmd=[str(args.server)])
     client.start()
+    if client.process is None:
+        print(f"server failed to start: {args.server}", file=sys.stderr)
+        return 2
     sampler = Sampler(client.process.pid)
     sampler.start()
     try:
