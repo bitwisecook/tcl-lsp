@@ -3946,9 +3946,7 @@ impl WorkspaceIndex {
         // unordered foreign ones, and among foreign ones the index's own
         // stable source order breaks the tie.
         imports
-            .iter()
-            .filter(|row| tcl_syntax::glob::string_match(&row.imp.tail_pattern, word))
-            .filter(|row| row.exported.covers(word))
+            .admitting(word)
             .filter(|row| {
                 let target = tcl_syntax::naming::qualify(ns, word);
                 row.imp.forced
@@ -4039,6 +4037,100 @@ struct GlobImportRow<'a> {
     registry: Option<&'static tcl_registry::CommandRegistry>,
 }
 
+/// Every wildcard import recorded for one importing namespace, indexed by the
+/// names its imports can actually admit.
+///
+/// [`WorkspaceIndex::import_hop`] used to scan every row in the namespace on
+/// every call, applying `string_match(tail_pattern, word)` and
+/// `ExportGate::covers(word)` to each. On the #1181 corpus that was 28 369
+/// calls scanning 3 987 739 rows — ~140 rows per call, and ~390 ms of the
+/// ~420 ms a `textDocument/references` cost after any edit (issue #1319).
+///
+/// Both of those filters depend only on the *word*, never on the call, so the
+/// admissible set per word is a build-time fact. A row whose gate exports
+/// nothing can admit no word at all and disappears from every lookup — which
+/// is most of them in practice, since a workspace typically imports several
+/// namespaces it has no `namespace export` records for (`::tcl::mathop`,
+/// `::tcltest`).
+#[derive(Debug, Default)]
+struct NamespaceImports<'a> {
+    /// The namespace's rows, in recorded order. [`Self::admitting`] yields
+    /// indices into this, ascending, so callers see exactly the subsequence a
+    /// full scan would have produced.
+    rows: Vec<GlobImportRow<'a>>,
+    /// Row indices keyed by a **literal** name that both the row's tail
+    /// pattern and its export gate admit.
+    by_name: rustc_hash::FxHashMap<&'a str, Vec<u32>>,
+    /// Rows whose export gate holds a glob pattern: any word may pass, so
+    /// these keep the per-word check.
+    glob_gated: Vec<u32>,
+    /// `-force` rows, for [`WildcardImportIndex::forced_shadow_at`] — which
+    /// can bypass the export gate entirely for an unobservable source
+    /// namespace, so it cannot use [`Self::by_name`].
+    forced: Vec<u32>,
+}
+
+impl<'a> NamespaceImports<'a> {
+    /// Index `rows` by the names they admit. Called once per namespace per
+    /// index build.
+    fn index(rows: Vec<GlobImportRow<'a>>) -> Self {
+        let mut by_name: rustc_hash::FxHashMap<&'a str, Vec<u32>> =
+            rustc_hash::FxHashMap::default();
+        let mut glob_gated = Vec::new();
+        let mut forced = Vec::new();
+        for (i, row) in rows.iter().enumerate() {
+            let idx = u32::try_from(i).unwrap_or(u32::MAX);
+            if row.imp.forced {
+                forced.push(idx);
+            }
+            if !row.exported.globs.is_empty() {
+                glob_gated.push(idx);
+            }
+            for name in &row.exported.literal {
+                // The tail pattern is the other half of the admission test,
+                // and it is decidable here because the name is known.
+                if tcl_syntax::glob::string_match(&row.imp.tail_pattern, name) {
+                    by_name.entry(name).or_default().push(idx);
+                }
+            }
+        }
+        Self {
+            rows,
+            by_name,
+            glob_gated,
+            forced,
+        }
+    }
+
+    /// The rows whose tail pattern **and** export gate both admit `word`, in
+    /// recorded order — the exact subsequence
+    /// `rows.iter().filter(tail matches).filter(gate covers)` would yield.
+    ///
+    /// Order matters: `import_hop` breaks ties on the position within this
+    /// sequence, so producing it out of order would change which import wins.
+    fn admitting(&self, word: &str) -> impl Iterator<Item = &GlobImportRow<'a>> {
+        let mut idx: Vec<u32> = self
+            .by_name
+            .get(word)
+            .map(Vec::as_slice)
+            .unwrap_or_default()
+            .to_vec();
+        idx.extend(self.glob_gated.iter().copied().filter(|&i| {
+            let row = &self.rows[i as usize];
+            tcl_syntax::glob::string_match(&row.imp.tail_pattern, word) && row.exported.covers(word)
+        }));
+        // A row carrying both literal and glob patterns can arrive twice.
+        idx.sort_unstable();
+        idx.dedup();
+        idx.into_iter().map(|i| &self.rows[i as usize])
+    }
+
+    /// The `-force` rows, in recorded order.
+    fn forced_rows(&self) -> impl Iterator<Item = &GlobImportRow<'a>> {
+        self.forced.iter().map(|&i| &self.rows[i as usize])
+    }
+}
+
 impl<'a> GlobImportRow<'a> {
     fn site(&self) -> ImportSite<'a> {
         self.imp.site()
@@ -4089,7 +4181,7 @@ impl<'a> ExactImportRow<'a> {
 /// than re-scanned per call site — see
 /// [`WorkspaceIndex::resolve_wildcard_import_indexed`]'s doc for why.
 struct WildcardImportIndex<'a> {
-    imports_by_ns: std::collections::HashMap<&'a str, Vec<GlobImportRow<'a>>>,
+    imports_by_ns: std::collections::HashMap<&'a str, NamespaceImports<'a>>,
     /// Every **exact** `namespace import` link, by importing namespace. The
     /// exact-pattern twin of [`Self::imports_by_ns`]: the two tables are one
     /// command table as far as the import-conflict rule is concerned, which is
@@ -4127,10 +4219,10 @@ impl<'a> WildcardImportIndex<'a> {
             exports_by_ns.entry(exp.ns.as_str()).or_default().push(exp);
         }
         let order = index.run_order();
-        let mut imports_by_ns: std::collections::HashMap<&str, Vec<GlobImportRow<'a>>> =
+        let mut rows_by_ns: std::collections::HashMap<&str, Vec<GlobImportRow<'a>>> =
             std::collections::HashMap::new();
         for imp in index.glob_imports() {
-            imports_by_ns
+            rows_by_ns
                 .entry(imp.ns.as_str())
                 .or_default()
                 .push(GlobImportRow {
@@ -4201,6 +4293,10 @@ impl<'a> WildcardImportIndex<'a> {
                 .or_default()
                 .push((uri, at));
         }
+        let imports_by_ns = rows_by_ns
+            .into_iter()
+            .map(|(ns, rows)| (ns, NamespaceImports::index(rows)))
+            .collect();
         Self {
             imports_by_ns,
             exact_by_ns,
@@ -4230,9 +4326,11 @@ impl<'a> WildcardImportIndex<'a> {
     /// worse than answering nothing.
     fn forced_shadow_at(&self, ns: &str, name: &str, call: CallSite<'_>) -> bool {
         self.imports_by_ns.get(ns).is_some_and(|imports| {
-            imports.iter().any(|row| {
-                row.imp.forced
-                    && tcl_syntax::glob::string_match(&row.imp.tail_pattern, name)
+            // Only the `-force` rows: this is the one path whose export gate
+            // can be bypassed (an unobservable source namespace), so it cannot
+            // read `NamespaceImports::by_name`.
+            imports.forced_rows().any(|row| {
+                tcl_syntax::glob::string_match(&row.imp.tail_pattern, name)
                     && (!self
                         .observable
                         .contains(row.imp.source_ns.trim_start_matches("::"))
@@ -4449,13 +4547,21 @@ impl<'a> WildcardImportIndex<'a> {
             at: site.at,
             enclosing_body: site.enclosing_body,
         };
+        // `admitting` applies exactly the two tests this arm needs — the tail
+        // pattern covers `name`, and the export gate admits it — as a probe
+        // rather than a scan of the namespace. Re-scanning here was what
+        // remained of issue #1319 once `import_hop` stopped scanning: this runs
+        // once per row `import_hop` admitted, so the two multiplied.
+        //
+        // `other_exported.covers(name)` stays in the conjunction below: it is
+        // redundant for the glob arm now, but the exact arm chained onto it is
+        // *not* filtered by the gate, so the test still has work to do there.
         let mut earlier = self
             .imports_by_ns
             .get(ns)
-            .map(Vec::as_slice)
+            .map(|imports| imports.admitting(name).collect::<Vec<_>>())
             .unwrap_or_default()
-            .iter()
-            .filter(|other| tcl_syntax::glob::string_match(&other.imp.tail_pattern, name))
+            .into_iter()
             .map(|other| (other.imp.source_ns.as_str(), other.site(), &other.exported))
             .chain(
                 self.exact_by_ns
@@ -9085,5 +9191,118 @@ mod tests {
             irules.linked_invocations_of("::Mine::uri", "").is_empty(),
             "f5-irules declares ::HTTP::uri, so the unforced import installs nothing",
         );
+    }
+
+    // ---------------------------------------------------------------------
+    // Issue #1319 — `import_hop` must not scan a namespace's whole import
+    // list per call.
+    //
+    // Both of its first two filters — the tail pattern covers the word, and
+    // the export gate admits it — depend only on the word, so the admissible
+    // set is a build-time fact (`NamespaceImports`). On the #1181 corpus the
+    // scan was 28 369 calls over 3 987 739 rows, ~390 ms of the ~420 ms a
+    // `textDocument/references` cost after any edit.
+    //
+    // The risk in indexing it is order: `import_hop` breaks ties on the
+    // position *within the filtered sequence*, so a reordering — or a
+    // duplicate from a row carrying both literal and glob export patterns —
+    // would silently change which import wins. These pin that.
+    // ---------------------------------------------------------------------
+
+    /// The admitted sequence must be exactly what a full scan would yield,
+    /// in the same order, over every shape the gate can take: literal-only,
+    /// glob-only, both at once (the duplicate hazard), and a tail pattern
+    /// that excludes a name the gate would otherwise admit.
+    #[test]
+    fn admitting_matches_a_full_scan_in_order() {
+        let lib = analyse(
+            "namespace eval ::Lib {\n    proc alpha {} {}\n    proc beta {} {}\n    proc gamma {} {}\n    namespace export alpha beta gamma\n}\n",
+        );
+        let globby = analyse(
+            "namespace eval ::Glob {\n    proc alpha {} {}\n    proc beta {} {}\n    namespace export a*\n}\n",
+        );
+        let app = analyse(
+            "namespace import ::Lib::*\nnamespace import ::Glob::*\nnamespace import ::Lib::b*\nalpha\nbeta\ngamma\n",
+        );
+        let index = WorkspaceIndex::from_documents([
+            ("file:///lib.tcl", &lib),
+            ("file:///glob.tcl", &globby),
+            ("file:///app.tcl", &app),
+        ]);
+        let wci = WildcardImportIndex::build(&index);
+        let imports = wci
+            .imports_by_ns
+            .get("::")
+            .expect("the three imports are all at global level");
+        for word in ["alpha", "beta", "gamma", "delta", "", "a", "*"] {
+            let scanned: Vec<_> = imports
+                .rows
+                .iter()
+                .filter(|row| tcl_syntax::glob::string_match(&row.imp.tail_pattern, word))
+                .filter(|row| row.exported.covers(word))
+                .map(|row| (row.imp.uri.as_str(), row.imp.at))
+                .collect();
+            let admitted: Vec<_> = imports
+                .admitting(word)
+                .map(|row| (row.imp.uri.as_str(), row.imp.at))
+                .collect();
+            assert_eq!(
+                admitted, scanned,
+                "admitting({word:?}) must equal the full scan, in order",
+            );
+        }
+    }
+
+    /// A row whose gate holds **both** a literal and a glob pattern is
+    /// reachable through both halves of the index and must still appear once.
+    /// A duplicate would shift every later row's tie-break position.
+    #[test]
+    fn a_row_indexed_twice_is_admitted_once() {
+        let lib = analyse(
+            "namespace eval ::Both {\n    proc alpha {} {}\n    namespace export alpha a*\n}\n",
+        );
+        let app = analyse("namespace import ::Both::*\nalpha\n");
+        let index =
+            WorkspaceIndex::from_documents([("file:///lib.tcl", &lib), ("file:///app.tcl", &app)]);
+        let wci = WildcardImportIndex::build(&index);
+        let imports = wci.imports_by_ns.get("::").expect("one global import");
+        assert_eq!(
+            imports.admitting("alpha").count(),
+            1,
+            "`alpha` matches both the literal and the `a*` pattern of one gate",
+        );
+    }
+
+    /// TP through the public answer: the indexed path still resolves a call
+    /// that only a wildcard import can reach. The perf guards below would be
+    /// happy with an index that admitted nothing at all.
+    #[test]
+    fn the_admission_index_still_resolves_a_wildcard_imported_call() {
+        let lib = analyse(
+            "namespace eval ::Lib {\n    proc helper {} {}\n    namespace export helper\n}\n",
+        );
+        let app = analyse("namespace import ::Lib::*\nhelper\n");
+        let index =
+            WorkspaceIndex::from_documents([("file:///lib.tcl", &lib), ("file:///app.tcl", &app)]);
+        assert_eq!(index.linked_invocations_of("::Lib::helper", "").len(), 1);
+    }
+
+    /// A gate that exports nothing admits nothing, so such rows drop out of
+    /// every lookup — the case that makes the index worth having, since a
+    /// workspace routinely imports namespaces it holds no exports for
+    /// (`::tcl::mathop`, `::tcltest`).
+    #[test]
+    fn an_import_of_an_unexporting_namespace_admits_no_word() {
+        let app = analyse("namespace import ::tcl::mathop::*\nset x 1\n+ 1 2\n");
+        let index = WorkspaceIndex::from_documents([("file:///app.tcl", &app)]);
+        let wci = WildcardImportIndex::build(&index);
+        let imports = wci.imports_by_ns.get("::").expect("one global import");
+        for word in ["set", "+", "puts", "anything"] {
+            assert_eq!(
+                imports.admitting(word).count(),
+                0,
+                "no export rows for ::tcl::mathop, so nothing is admissible",
+            );
+        }
     }
 }
