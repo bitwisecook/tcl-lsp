@@ -1402,9 +1402,29 @@ dedicated iRules corpus + the Tk stdlib for a real sweep.
   sample file that exists specifically to demonstrate IRULE1002, not an
   analyser bug. IRULE1005 ("will never fire without a client …::collect
   call") — all genuine missing-`::collect` cases. TP throughout.
-- [ ] **IRULE1002–5007** — need an iRules corpus. Still open: the available
-  local `.irul` corpus (`samples/irules/` + `samples/for_screenshots/`) is
-  curated/small and doesn't exercise most of this family.
+- [~] **IRULE1002–5007** — ~~need an iRules corpus~~ **corpus now available;
+  sweep blocked by a crash.** The in-repo `.irul` corpus (`samples/irules/` +
+  `samples/for_screenshots/`) is curated/small and doesn't exercise most of
+  this family, so `scripts/dev/fetch-irules-corpus.sh` fetches nine public
+  third-party iRules repositories into `tmp/irules-corpus` (~206 files with a
+  sweepable extension; ~384 carrying a `when EVENT` signature). Not vendored —
+  third-party code under its own licences, fetched to `tmp/` exactly as
+  `.claude/skills/fetch-tcl-source` handles the Tcl source trees.
+
+  **The sweep does not yet complete: it aborts on issue #1325.** The first run
+  against this corpus panicked in `Analyser::run_nested_command_diagnostics`
+  (`analyser/commands.rs:2886`) — a `self.source[start..end]` slice guarded for
+  bounds but not char boundaries, on a real iRule containing U+200B zero-width
+  spaces (`erkac/f5-irules` → `expire-url-faster.irule`). Same root cause loses
+  *all* diagnostics for that file in the LSP silently (0 returned vs 5 with the
+  ZWSPs stripped, including an IRULE3102 URL-evasion warning). Fix #1325 first,
+  then this row can be swept for real.
+
+  Two corpus legs are additionally invisible to `fp-sweep`, which only walks
+  recognised Tcl/iRules extensions: `f5devcentral/f5-agility-labs-irules`
+  (~31 iRules embedded in `.rst` lab documents) and `f5devcentral/irules-toolbox`
+  (~186 `.txt` snippets). Extracting those into sweepable files would widen the
+  corpus further and is not yet done.
 - [x] **TK1001/1002/1003** geometry/parent/option (0 corpus) — the Tk geometry
   W001 fix added coverage; sweep a real Tk app for TK100x FPs. 2026-08:
   TK1001 verified synthetically — mixing `pack`/`grid` on the same parent
