@@ -888,6 +888,13 @@ pub const COMMAND_FIELDS: &[FieldSchema] = &[
         "Keyword words whose value the enclosing TclOO method frame fixes, so the optimiser can fold them.",
     ),
     f(
+        "self_receiver_words",
+        "TclOO self-receiver words",
+        ADVANCED,
+        FieldKind::TextList,
+        "Argument-0 closed words for which a bracketed `[cmd ?word?]` dispatch head denotes the current TclOO receiving object, same target as `my` (e.g. `self`'s `object`).",
+    ),
+    f(
         "object_class",
         "Object class",
         ADVANCED,

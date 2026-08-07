@@ -1123,6 +1123,10 @@ fn command_advanced(d: &mut Draft, spec: &CommandSpec, lost: &mut Unrecovered) {
         }),
     );
     d.insert(
+        "self_receiver_words".into(),
+        str_list(spec.self_receiver_words),
+    );
+    d.insert(
         "object_class".into(),
         lost.expr("object_class", spec.object_class.is_some()),
     );

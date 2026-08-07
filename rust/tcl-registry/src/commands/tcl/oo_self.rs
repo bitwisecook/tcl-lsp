@@ -150,6 +150,11 @@ pub fn spec() -> CommandSpec {
         // live call chain, which mixins, filters, and `next` reshape at run
         // time.
         oo_context_facts: &[("class", OoContextFact::DefiningClass)],
+        // `[self]`/`[self object]` used as a dispatch head (`[self] m`) is
+        // TclOO's own same-object spelling — the same target `my m` reaches,
+        // never an inferred type. See `CommandRegistry::is_self_receiver_call`
+        // and its consumers in `tcl-lsp-core` (issue #1322).
+        self_receiver_words: &["object"],
         hover: Some(HoverSnippet {
             summary: "query information about the current method invocation",
             synopsis: &["self ?subcommand?"],

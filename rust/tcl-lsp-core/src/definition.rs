@@ -688,9 +688,10 @@ fn instance_method_definition(
         }
         return Some(vec![span_to_range(source, line_index, span)]);
     }
-    // `my m` — an internal call: dispatch starts at the *enclosing*
-    // class and reaches unexported methods too (issue #945 fault 4).
-    if is_self_dispatch_keyword(&inst) {
+    // `my m` / `[self] m` / `[self object] m` — an internal call: dispatch
+    // starts at the *enclosing* class and reaches unexported methods too
+    // (issue #945 fault 4; issue #1322 for the `[self]` spellings).
+    if is_self_dispatch_keyword(&inst) || is_self_receiver_call(&inst) {
         let cursor = byte_offset_at(line_index, source, line, character);
         if let Some(class_q) = enclosing_class_at(analysis, cursor) {
             return Some(method_dispatch_definition(
@@ -906,7 +907,7 @@ pub fn object_masks_external_dispatch(
     else {
         return false;
     };
-    if is_self_dispatch_keyword(&inst) {
+    if is_self_dispatch_keyword(&inst) || is_self_receiver_call(&inst) {
         return false;
     }
     let Some(st) = object_member_state_at(analysis, source, &inst, line, character) else {
@@ -1078,6 +1079,24 @@ pub(crate) fn method_dispatch_keyword_in(
 /// methods a `$obj` dispatch cannot.
 pub(crate) fn is_self_dispatch_keyword(word: &str) -> bool {
     method_dispatch_keyword_in("", word) == Some(tcl_registry::MethodDispatchKind::SelfDispatch)
+}
+
+/// Whether `receiver` (as returned by [`instance_method_at_cursor`]) is a
+/// `TclOO` self-receiver command substitution — `[self]` / `[self
+/// object]` — which dispatches exactly like `my`: the word after it names
+/// a method on the *enclosing* class, not an inferred type (issue #1322).
+///
+/// Registry data via [`tcl_registry::CommandRegistry::is_self_receiver_call`]
+/// (same `""`-dialect convention as [`is_self_dispatch_keyword`]) rather
+/// than matching `receiver` by name — `receiver` is parsed generically as a
+/// command substitution first, so this answers `false` for any receiver
+/// that isn't even bracket-shaped without special-casing that here either.
+pub(crate) fn is_self_receiver_call(receiver: &str) -> bool {
+    let Some((cmd, args)) = tcl_compiler::value_shapes::parse_command_substitution(receiver) else {
+        return false;
+    };
+    tcl_registry::registry_for_dialect("")
+        .is_self_receiver_call(&cmd, args.first().map(String::as_str))
 }
 
 /// Whether `word` is a `TclOO` next-chain keyword (`next` / `nextto`) under
@@ -1276,23 +1295,46 @@ pub(crate) fn instance_method_at_cursor(
         return None;
     }
 
-    // Command-segment start: nearest `;` / `[` / `{` to the
-    // left, else the line start.
+    // Command-segment start: nearest *unmatched* `;` / `[` / `{` to the
+    // left, else the line start. Depth-tracked (issue #1322) — a `]`/`}`
+    // seen first means the following `[`/`{` closes a balanced
+    // substitution that is itself part of the head (`[self] m`'s own
+    // brackets), not a boundary to stop at; only a `[`/`{` with no
+    // pending closer is a genuine enclosing scope.
     let mut seg_start = 0;
+    let mut depth: i32 = 0;
     for i in (0..wstart).rev() {
-        if matches!(chars[i], ';' | '[' | '{') {
-            seg_start = i + 1;
-            break;
+        match chars[i] {
+            ']' | '}' => depth += 1,
+            '[' | '{' if depth > 0 => depth -= 1,
+            '[' | '{' => {
+                seg_start = i + 1;
+                break;
+            }
+            ';' if depth == 0 => {
+                seg_start = i + 1;
+                break;
+            }
+            _ => {}
         }
     }
-    // The head must be exactly one whitespace-delimited token
-    // (the receiver), so the method is word-index 1.
+    // The head must be exactly one whitespace-delimited token (the
+    // receiver), so the method is word-index 1 — *except* a command
+    // substitution, which is one token by Tcl's own quoting rules even
+    // though it can contain internal whitespace (`[self object]`, issue
+    // #1322): checked as a whole before falling back to
+    // `split_whitespace`, which would otherwise split it in two.
     let prefix: String = chars[seg_start..wstart].iter().collect();
-    let head_tokens: Vec<&str> = prefix.split_whitespace().collect();
-    if head_tokens.len() != 1 {
-        return None;
-    }
-    let head = head_tokens[0];
+    let trimmed = prefix.trim();
+    let head = if tcl_compiler::value_shapes::parse_command_substitution(trimmed).is_some() {
+        trimmed
+    } else {
+        let head_tokens: Vec<&str> = prefix.split_whitespace().collect();
+        if head_tokens.len() != 1 {
+            return None;
+        }
+        head_tokens[0]
+    };
     if let Some(rest) = head.strip_prefix('$') {
         // `$var` / `${var}` receiver — a variable holding an object.
         let inst = rest
@@ -1302,11 +1344,22 @@ pub(crate) fn instance_method_at_cursor(
             return None;
         }
         Some((inst.to_string(), method, true))
+    } else if tcl_compiler::value_shapes::parse_command_substitution(head).is_some() {
+        // A well-formed single command substitution (`[cmd ?args?]`) — e.g.
+        // `TclOO`'s `[self]`/`[self object]`, a receiver the registry
+        // resolves at compile time regardless of the object's runtime name
+        // (issue #1322). This function only extracts the receiver text;
+        // whether `head` names anything real is answered downstream by the
+        // registry (`is_self_dispatch_keyword` / `is_self_receiver_call`)
+        // exactly as for a bareword receiver below — most substitutions
+        // resolve to nothing there, which is the correct outcome, not a
+        // reason to reject the shape here.
+        Some((head.to_string(), method, false))
     } else {
         // Bare `objcmd` receiver — a plain word naming an object command.
-        // Substituted / decorated heads (`[…]`, `{…}`, quoted) are not bare
-        // object commands; `receiver_instance_class` further gates this on
-        // `created_instance_commands`.
+        // Any other decorated head (`{…}`, quoted, an ill-formed `[…]`) is
+        // not a bare object command; `receiver_instance_class` further
+        // gates this on `created_instance_commands`.
         if head.is_empty() || head.contains(['[', ']', '{', '}', '"', '(', ')', '$']) {
             return None;
         }
@@ -6549,6 +6602,33 @@ mod tests {
         assert_eq!(locs[0].start_line, 4);
     }
 
+    /// Issue #1322: `[self] m` / `[self object] m` is `TclOO`'s own
+    /// same-object dispatch idiom — `self`, called with no argument (or the
+    /// explicit `object` word), returns the current object's own command
+    /// name. It reaches the enclosing class exactly like `my` does, but
+    /// through a bracketed command substitution rather than a bareword
+    /// dispatch keyword. Shared by both spellings' tests below.
+    fn assert_self_bracket_dispatch_resolves_like_my(head: &str) {
+        let src = format!(
+            "oo::class create C {{\n    method animTick {{}} {{ return 1 }}\n    method anim {{}} {{ {head} animTick }}\n}}\n"
+        );
+        let call_col =
+            u32::try_from(src.lines().nth(2).unwrap().find("animTick").unwrap()).unwrap();
+        let locs = definition(&src, 2, call_col, &analyse(&src));
+        assert_eq!(locs.len(), 1, "{locs:?} (head={head:?})");
+        assert_eq!(locs[0].start_line, 1);
+    }
+
+    #[test]
+    fn definition_bare_self_bracket_dispatch_resolves_like_my() {
+        assert_self_bracket_dispatch_resolves_like_my("[self]");
+    }
+
+    #[test]
+    fn definition_self_object_bracket_dispatch_resolves_like_my() {
+        assert_self_bracket_dispatch_resolves_like_my("[self object]");
+    }
+
     #[test]
     fn definition_bare_sibling_classmethod_call_without_link_abstains() {
         // FP (issue #923 idx 113) — same shape as the method case above,
@@ -6723,11 +6803,40 @@ mod tests {
     }
 
     #[test]
-    fn instance_method_at_cursor_rejects_substituted_head() {
+    fn instance_method_at_cursor_extracts_a_substituted_head_verbatim() {
         // `[x] bark` — a command-substitution head is not a bare object
-        // command.
+        // command, but this function only extracts the receiver text;
+        // whether `[x]` names anything a caller can resolve is a semantic
+        // question answered downstream (`is_self_dispatch_keyword` /
+        // `is_self_receiver_call`), not here. Issue #1322: rejecting every
+        // bracketed head outright also rejected `[self]`/`[self object]`,
+        // TclOO's own same-object dispatch spelling.
         let src = "[x] bark\n";
-        assert_eq!(instance_method_at_cursor(src, 0, 5), None);
+        assert_eq!(
+            instance_method_at_cursor(src, 0, 5),
+            Some(("[x]".to_string(), "bark".to_string(), false))
+        );
+    }
+
+    #[test]
+    fn instance_method_at_cursor_extracts_a_self_receiver_head_with_brackets_intact() {
+        // `[self] m` — issue #1322's exact shape. The brackets must survive
+        // extraction: `parse_command_substitution` (and so
+        // `is_self_receiver_call`) requires them.
+        let src = "[self] mrun\n";
+        assert_eq!(
+            instance_method_at_cursor(src, 0, 8),
+            Some(("[self]".to_string(), "mrun".to_string(), false))
+        );
+    }
+
+    #[test]
+    fn instance_method_at_cursor_still_rejects_a_malformed_bracket_head() {
+        // A stray, unmatched `]` with no opening `[` in scope is not a
+        // well-formed command substitution and not a bare identifier
+        // either — still rejected exactly as before this change.
+        let src = "x] bark\n";
+        assert_eq!(instance_method_at_cursor(src, 0, 4), None);
     }
 
     // Method names with non-identifier characters (issue #1019 idx 16).

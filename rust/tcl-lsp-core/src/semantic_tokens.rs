@@ -2855,9 +2855,10 @@ fn resolve_class_in_hierarchy(hierarchy: &ClassHierarchy, name: &str) -> Option<
 /// Resolve a self-call inside a class body against the enclosing class's MRO:
 /// colour the method a callable, and — for `configure` / `cget` on an
 /// `oo::configurable` class — its `-property` options.  The self-receiver is
-/// `my` (`TclOO`), `$self` (snit), or `$this` (itcl) — each of which dispatches
-/// on the enclosing object.  No-op outside a class body, without a hierarchy,
-/// or for any other head.
+/// `my` (`TclOO`), `[self]`/`[self object]` (`TclOO`, issue #1322), `$self`
+/// (snit), or `$this` (itcl) — each of which dispatches on the enclosing
+/// object.  No-op outside a class body, without a hierarchy, or for any
+/// other head.
 fn insert_self_method_overrides(
     seg: &tcl_compiler::segmenter::SegmentedCommand,
     classes: Option<&ClassHierarchy>,
@@ -2873,15 +2874,22 @@ fn insert_self_method_overrides(
     ) else {
         return;
     };
-    // Two different axes, deliberately kept apart. `my` is the `TclOO`
+    // Three different axes, deliberately kept apart. `my` is the `TclOO`
     // self-dispatch *command keyword* — registry data, queried through
     // `method_dispatch_keyword` so a dialect that gains or loses it
-    // propagates through its `CommandSpec` (issue #1050). `$self` / `$this`
-    // are snit / itcl *object-handle variable names*, a naming convention of
-    // those class systems rather than a command at all, so they stay matched
-    // by name here.
+    // propagates through its `CommandSpec` (issue #1050). `[self]`/`[self
+    // object]` is a bracketed *command substitution* whose result is the
+    // receiver, not a dispatch keyword — registry data via
+    // `is_self_receiver_call`, keyed on the substitution's own head and
+    // argument rather than matching `"self"` here (issue #1322). `$self` /
+    // `$this` are snit / itcl *object-handle variable names*, a naming
+    // convention of those class systems rather than a command at all, so
+    // they stay matched by name here.
     let is_self_head = crate::definition::is_self_dispatch_keyword(head)
-        || object_handle_name(head).is_some_and(|n| n == "self" || n == "this");
+        || object_handle_name(head).is_some_and(|n| n == "self" || n == "this")
+        || tcl_compiler::value_shapes::parse_command_substitution(head).is_some_and(
+            |(cmd, args)| registry.is_self_receiver_call(&cmd, args.first().map(String::as_str)),
+        );
     if !is_self_head {
         return;
     }
@@ -8187,6 +8195,26 @@ mod tests {
             "oo::class create C { method mrun {} {} }\n[C new] mrun\n",
             "mrun",
             1,
+            Resolve,
+        ),
+        (
+            // Issue #1322: TclOO's own same-object dispatch idiom — `self`
+            // called with no argument returns the current object's own
+            // command name, and dispatching through it (`[self] m`) reaches
+            // the enclosing class exactly like `my m`.
+            "bare_self_receiver",
+            "oo::class create C {\n    method mrun {} {}\n    method call {} { [self] mrun }\n}\n",
+            "mrun",
+            2,
+            Resolve,
+        ),
+        (
+            // The explicit spelling `self object` — documented as
+            // equivalent to a bare `self` (issue #1322).
+            "self_object_receiver",
+            "oo::class create C {\n    method mrun {} {}\n    method call {} { [self object] mrun }\n}\n",
+            "mrun",
+            2,
             Resolve,
         ),
         (
