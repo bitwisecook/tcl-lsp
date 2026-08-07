@@ -287,11 +287,12 @@ fn in_effect_at(order: &RunOrder, event: RunPoint<'_>, query: Option<RunPoint<'_
 /// One pass to collect the visible events, then an `O(patterns × clears)`
 /// check over them — both sets are a namespace's own `namespace export`
 /// statements, so in practice one or two of each, and the `Vec`s stay
-/// unallocated when nothing is visible. This runs inside the cross-document
-/// find-references loop, once per candidate import per invocation, where the
-/// workspace tier already had to hoist an index out (see
-/// `WorkspaceIndex::resolve_wildcard_import_indexed`) to keep that path off
-/// the profiler.
+/// unallocated when nothing is visible.
+///
+/// Stated over [`exports_in_effect`], which is the whole rule *except* the
+/// name: `name` enters only at the final glob match. Callers that ask about
+/// many names at one import site should hoist that half themselves rather
+/// than call this in a loop — see [`exports_in_effect`] and issue #1297.
 #[must_use]
 pub fn exported_at_import_site(
     events: &mut dyn Iterator<Item = ExportEvent<'_>>,
@@ -299,21 +300,55 @@ pub fn exported_at_import_site(
     order: &RunOrder,
     import_site: RunPoint<'_>,
 ) -> bool {
-    let mut patterns: Vec<RunPoint<'_>> = Vec::new();
-    let mut clears: Vec<RunPoint<'_>> = Vec::new();
+    exports_in_effect(events, order, import_site)
+        .iter()
+        .any(|pattern| string_match(pattern, name))
+}
+
+/// The export **patterns** in force at `import_site` — [`exported_at_import_site`]
+/// with the name left out, so a caller asking about many names at one site
+/// pays for the timeline once instead of once per name.
+///
+/// Every visible non-`-clear` pattern that no visible tombstone is *known* to
+/// follow, in recorded order. That is exactly the set
+/// [`exported_at_import_site`] would glob-match `name` against: the name only
+/// ever filtered which patterns were collected, never which tombstones applied
+/// (a `-clear` clears the slot, not one name), so pulling it out of the walk
+/// cannot change an answer.
+///
+/// # Why this exists
+///
+/// The workspace tier ranks every export row against the import with
+/// [`RunOrder`], which is a `HashMap` walk over document URIs. Asking per
+/// *call site* made that walk run once per (invocation × in-scope import ×
+/// export row) — 26 s to answer one `textDocument/references` on the #1181
+/// corpus, where 88 load-level `namespace import`s meet 38 `namespace export`
+/// rows (issue #1297). An import's site does not move between edits, so the
+/// timeline half is decided once per recorded import at index-build time and
+/// only the glob match stays on the per-call path.
+#[must_use]
+pub fn exports_in_effect<'e>(
+    events: &mut dyn Iterator<Item = ExportEvent<'e>>,
+    order: &RunOrder,
+    import_site: RunPoint<'_>,
+) -> Vec<&'e str> {
+    let mut patterns: Vec<(&'e str, RunPoint<'e>)> = Vec::new();
+    let mut clears: Vec<RunPoint<'e>> = Vec::new();
     for ev in events {
         if !in_effect_at(order, ev.at, Some(import_site)) {
             continue;
         }
         if ev.clears {
             clears.push(ev.at);
-        } else if string_match(ev.pattern, name) {
-            patterns.push(ev.at);
+        } else {
+            patterns.push((ev.pattern, ev.at));
         }
     }
     patterns
-        .iter()
-        .any(|&p| !clears.iter().any(|&c| ran_after(order, c, p)))
+        .into_iter()
+        .filter(|&(_, p)| !clears.iter().any(|&c| ran_after(order, c, p)))
+        .map(|(pattern, _)| pattern)
+        .collect()
 }
 
 /// The **load-order** position of a statement in its own document: `false`
@@ -1147,5 +1182,80 @@ mod tests {
             &order,
             Some(at("file:///app.tcl", 15))
         ));
+    }
+
+    // ---------------------------------------------------------------------
+    // Issue #1297: `exported_at_import_site` is now stated over
+    // `exports_in_effect`, which is the whole rule minus the name.  The
+    // workspace tier decides that half once per recorded import instead of
+    // once per (invocation x import x export row).  These pin that the split
+    // is exact: whatever `exports_in_effect` keeps must glob-match to the
+    // same verdict the one-shot function gives, over every shape the
+    // timeline can produce.
+    // ---------------------------------------------------------------------
+
+    /// The two must agree for every (event set, name) pair, including the
+    /// cases where the *timeline* is what decides — a `-clear` that provably
+    /// follows, one that does not, and a foreign event that cannot be ranked
+    /// at all.  A disagreement here would change what a `namespace import`
+    /// covers, silently.
+    #[test]
+    fn exports_in_effect_is_exported_at_import_site_without_the_name() {
+        let order = unlinked();
+        let site = at(DOC, 100);
+        let cases: Vec<Vec<ExportEvent<'_>>> = vec![
+            vec![],
+            vec![ev("p", 10)],
+            vec![ev("*", 10)],
+            vec![ev("get*", 10)],
+            vec![ev("p[ab]", 10)],
+            // A tombstone that provably follows the pattern revokes it.
+            vec![ev("p", 10), clear(20)],
+            // …one written before it does not.
+            vec![clear(10), ev("p", 20)],
+            // An event after the import site is not visible at all.
+            vec![ev("p", 200)],
+            vec![ev("p", 10), ev("q", 20)],
+            // A foreign event cannot be ranked, so it revokes nothing.
+            vec![ev("p", 10), foreign("q")],
+            vec![foreign("p"), clear(20)],
+            vec![ev("p", 10), clear(20), ev("p", 30)],
+        ];
+        for events in cases {
+            for name in ["p", "q", "pa", "pc", "getX", "setX", ""] {
+                let mut for_one = events.clone().into_iter();
+                let one_shot = exported_at_import_site(&mut for_one, name, &order, site);
+                let mut for_split = events.clone().into_iter();
+                let split = exports_in_effect(&mut for_split, &order, site)
+                    .iter()
+                    .any(|pattern| string_match(pattern, name));
+                assert_eq!(
+                    one_shot, split,
+                    "split disagreed for name={name:?} over {events:?}",
+                );
+            }
+        }
+    }
+
+    /// TP/TN on the surviving set itself, so a regression shows up as the
+    /// wrong *patterns* rather than only as a wrong verdict for some name.
+    #[test]
+    fn exports_in_effect_keeps_exactly_the_untombstoned_visible_patterns() {
+        let order = unlinked();
+        // TP: visible, no tombstone after it.
+        let mut evs = [ev("a", 10), ev("b", 20)].into_iter();
+        assert_eq!(
+            exports_in_effect(&mut evs, &order, at(DOC, 100)),
+            vec!["a", "b"],
+        );
+        // TN: a `-clear` that provably follows takes both away.
+        let mut evs = [ev("a", 10), ev("b", 20), clear(30)].into_iter();
+        assert!(exports_in_effect(&mut evs, &order, at(DOC, 100)).is_empty());
+        // FN guard: a re-export after the tombstone survives it.
+        let mut evs = [ev("a", 10), clear(20), ev("b", 30)].into_iter();
+        assert_eq!(exports_in_effect(&mut evs, &order, at(DOC, 100)), vec!["b"],);
+        // FP guard: nothing written after the import site is visible.
+        let mut evs = [ev("a", 200)].into_iter();
+        assert!(exports_in_effect(&mut evs, &order, at(DOC, 100)).is_empty());
     }
 }

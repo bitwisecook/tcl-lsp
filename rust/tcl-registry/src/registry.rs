@@ -467,6 +467,63 @@ impl CommandRegistry {
             .and_then(|v| v.last())
     }
 
+    /// Whether a **fresh interpreter** of this registry's dialect already holds
+    /// a command at exactly `qualified_name` — the question `namespace
+    /// import`'s "already exists" conflict asks, and the one `info commands
+    /// ::x` answers.
+    ///
+    /// Deliberately *not* [`Self::get`], which resolves every **spelling** a
+    /// call site may legally write, including spellings that only become
+    /// callable after an explicit `namespace import`.  The bare operator forms
+    /// are exactly that case, and conflating the two inverts a real answer:
+    ///
+    /// ```text
+    /// # oracle, tclsh 9.0.4 and 8.6.14, byte-identical
+    /// info commands ::+            ;# -> {}          (empty!)
+    /// + 1 2                        ;# -> invalid command name "+"
+    /// info commands ::set          ;# -> ::set
+    ///
+    /// namespace eval ::Ops { proc + {a b} {…}; namespace export + }
+    /// namespace import ::Ops::*    ;# -> OK, namespace origin ::+ is ::Ops::+
+    ///
+    /// namespace eval ::Foo { proc set {a b} {…}; namespace export set }
+    /// namespace import ::Foo::*    ;# -> can't import command "set": already exists
+    /// ```
+    ///
+    /// So `set` blocks an unforced import and `+` does not, even though
+    /// [`Self::get`] answers `Some` for both.  A bare
+    /// [`Traits::OPERATOR_COMMAND`] spelling is the post-`namespace import
+    /// ::tcl::mathop::*` form and is excluded here; the namespaced
+    /// `::tcl::mathop::+` spelling is a genuine member of a fresh
+    /// interpreter's command table and is kept.
+    ///
+    /// The name must also *be* the spec's own canonical name, so `get`'s
+    /// leading-`::` fallback cannot make a namespaced command answer for a
+    /// global one.
+    ///
+    /// # Known imprecision
+    ///
+    /// A command a *package* provides (`::csv::split`, `::math::statistics::mean`)
+    /// is declared here whether or not the script `package require`s it, so
+    /// asking about a package's own namespace can over-claim.  The registry
+    /// carries no "needs a `package require`" marker to gate on yet.  Reaching
+    /// that case means importing *into* a package's own namespace, which is
+    /// why it is documented rather than worked around.
+    #[must_use]
+    pub fn declares_command_at(&self, qualified_name: &str) -> bool {
+        let bare = qualified_name.trim_start_matches("::");
+        self.get(bare).is_some_and(|spec| {
+            // `get` resolves spellings; this asks about one exact name, so the
+            // spec has to be the one that *is* that command.
+            if spec.name.trim_start_matches("::") != bare {
+                return false;
+            }
+            // The namespaced `::tcl::mathop::+` is in a fresh interpreter's
+            // command table; the bare `+` it can be imported to is not.
+            bare.contains("::") || !spec.traits.contains(Traits::OPERATOR_COMMAND)
+        })
+    }
+
     /// The typed BPF-Tcl lowering descriptor for `name`, when `name` is a
     /// BPF-dialect command (see [`crate::bpf_op`]).  The BPF-Tcl front-end
     /// dispatches on this — never on the command name.
@@ -4831,5 +4888,62 @@ mod tests {
         let brk = reg.get("break").expect("break is registered");
         assert!(brk.traits.contains(Traits::TRANSFERS_CONTROL));
         assert!(!brk.traits.contains(Traits::SAFE_INTERP_HIDDEN));
+    }
+
+    /// Issue #1302: `declares_command_at` answers "is this in a fresh
+    /// interpreter's command table", which is strictly narrower than `get`'s
+    /// "is this a spelling a call site may write".
+    ///
+    /// Every row is oracle-verified on tclsh 9.0.4 and 8.6.14 via
+    /// `info commands <name>` in a fresh `interp create`.
+    #[test]
+    fn declares_command_at_is_the_fresh_interpreter_command_table() {
+        let reg = crate::registry_for_dialect("tcl9.0");
+        // `info commands ::set` -> ::set
+        for name in ["set", "::set", "puts", "::puts", "if", "foreach"] {
+            assert!(reg.declares_command_at(name), "{name} is a global builtin");
+        }
+        // `info commands ::tcl::mathop::+` -> ::tcl::mathop::+
+        for name in [
+            "tcl::mathop::+",
+            "::tcl::mathop::+",
+            "oo::define",
+            "::oo::define",
+        ] {
+            assert!(
+                reg.declares_command_at(name),
+                "{name} is a namespaced builtin"
+            );
+        }
+        // `info commands ::+` -> {} and `+ 1 2` -> invalid command name "+".
+        // `get` still answers `Some` for these — that is the whole point.
+        for name in ["+", "::+", "eq", "::eq", "in", "::in"] {
+            assert!(
+                reg.get(name).is_some(),
+                "{name} must stay a resolvable *spelling*",
+            );
+            assert!(
+                !reg.declares_command_at(name),
+                "{name} is only callable after `namespace import ::tcl::mathop::*`",
+            );
+        }
+        // A name nothing declares.
+        for name in ["notACommand", "::notACommand", "define"] {
+            assert!(!reg.declares_command_at(name), "{name}");
+        }
+    }
+
+    /// The answer is per dialect, because the command table is: `HTTP::uri`
+    /// exists for iRules and nowhere else.
+    #[test]
+    fn declares_command_at_is_dialect_specific() {
+        assert!(
+            crate::registry_for_dialect("f5-irules").declares_command_at("HTTP::uri"),
+            "iRules declares HTTP::uri",
+        );
+        assert!(
+            !crate::registry_for_dialect("tcl9.0").declares_command_at("HTTP::uri"),
+            "plain Tcl does not",
+        );
     }
 }
