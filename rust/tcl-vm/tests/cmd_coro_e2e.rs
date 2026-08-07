@@ -26,14 +26,20 @@
 //! `cmd [yield]` argument position both stay on the explicit stack (a whole-word
 //! `[…]` compiles to an inline `INVOKE`, not a runtime `subst_word` re-entry).
 //!
-//! `yield` also crosses `eval`, `uplevel 0`, `catch`, a straight-line `lmap`, and
-//! `subst` — each runs its body on the explicit stack (a transparent script /
-//! catch activation, the inline collecting loop, or the scanner-driven subst
-//! frame). A `yield` reached across a host re-entry the VM still runs on the
-//! *native* Rust stack (a *consumed*/branching `lmap`, `apply` in an arbitrary
-//! position, `lsort -command`) errors `cannot yield: C stack busy`. C Tcl makes
-//! those NR-enabled, so a real tclsh yields through them — the remaining
-//! divergence and a documented follow-up.
+//! `yield` also crosses `eval`, `uplevel 0`, `catch`, a straight-line `lmap`,
+//! `subst`, `try` (body/handler/`finally`, each its own explicit-stack phase —
+//! issue #1311), a value-consuming `lmap`/`foreach` runtime fallback (issue
+//! #1311's `each_loop` activation), and a bare `apply` call (issue #1311 —
+//! bound to a temporary proc run via `pending_eval`, mirroring how
+//! `coroutine … apply {lambda}` already ran the lambda on the coroutine's own
+//! stack). Each of these runs its body on the explicit stack (a transparent
+//! script / catch / try-phase / each-loop activation, the inline collecting
+//! loop, or the scanner-driven subst frame) rather than through a nested
+//! `Vm::eval_source` drive on the native Rust stack. A `yield` reached across
+//! a genuine host re-entry (`lsort -command`'s comparator, an `invoke_command`
+//! re-entry from outside the trampoline) still errors `cannot yield: C stack
+//! busy` — C Tcl refuses that one too (issue #1311's investigation confirmed
+//! `lsort -command` is parity, not a gap).
 
 use std::cell::RefCell;
 use std::io::Write;
@@ -41,7 +47,17 @@ use std::rc::Rc;
 
 use tcl_compiler::cfg_builder::build_cfg_codegen;
 use tcl_compiler::codegen::codegen_module;
-use tcl_compiler::lowering::lower_to_ir;
+// `lower_to_ir_for_bytecode`, not the analysis-oriented `lower_to_ir` (which
+// e.g. emits `beginCatch`-shaped IR for `try` instead of the runtime-call
+// shape `tcl-vm-cli` actually compiles) — this file's harness used the wrong
+// one, which happened not to matter for eval/lmap/subst/catch's IR shape but
+// gave a *different, wrong* compiled shape for `try`'s handler/`finally`
+// phases (issue #1311 test-writing fallout: `yield_across_try_handler`
+// silently ran the whole coroutine to completion in one resume instead of
+// suspending in the handler, because this lowering does not go through
+// `cmd_try` the way the real VM does). See `cmd_control_e2e.rs`'s identical
+// import for the precedent.
+use tcl_compiler::lowering::lower_to_ir_for_bytecode as lower_to_ir;
 use tcl_registry::CommandRegistry;
 use tcl_vm::{CompileError, CompileService, Vm};
 
@@ -257,6 +273,25 @@ fn yield_across_multivar_lmap_generator() {
     );
 }
 
+#[test]
+fn yield_across_value_consumed_lmap_generator() {
+    // issue #1311 — `set r [lmap x {1 2} { yield $x }]` reaches `lmap` through
+    // generic command dispatch (a value-consuming position, not a bare
+    // statement), which used to run through `Vm::eval_source`'s nested drive
+    // and reject the `yield` with "cannot yield: C stack busy". tclsh 9.0.4:
+    // creation consumes the first yield (1, whose resume value "A" becomes
+    // the first iteration's collected element); `[c A]` yields the second
+    // (2); `[c B]`'s resume value "B" becomes the second iteration's
+    // collected element, and the proc then returns the collected list.
+    assert_eq!(
+        result(
+            "proc g {} { set r [lmap x {1 2} { yield $x }]; return $r }; \
+             coroutine c g; list [c A] [c B]"
+        ),
+        "2 {A B}"
+    );
+}
+
 // ===========================================================================
 // yield across `subst` (RUST_ISSUE_008 piece 2)
 // ===========================================================================
@@ -360,6 +395,75 @@ fn coroutine_apply_lambda_proc_is_cleaned_up() {
     assert_eq!(
         result("coroutine c apply {{} { yield a; yield b }}; rename c {}; catch {c}"),
         "1"
+    );
+}
+
+#[test]
+fn yield_across_bare_apply_call() {
+    // issue #1311 — `apply {{} { yield a }}` called *from inside* a coroutine
+    // body (not as the coroutine's own initial command, which
+    // `coroutine_apply_generator` above already covers via a dedicated
+    // internal-proc binding) used to run the lambda body through a
+    // host-stack re-entry, where `yield` could not cross it. tclsh 9.0.4:
+    // the bare `apply` call yields once ("a", consumed by creation); the
+    // proc then continues past it and returns "done".
+    assert_eq!(
+        result(
+            "proc g {} { apply {{} { yield a }}; return done }; \
+             coroutine c g; c"
+        ),
+        "done"
+    );
+}
+
+// ===========================================================================
+// yield across `try` (issue #1311)
+// ===========================================================================
+
+#[test]
+fn yield_across_try_body() {
+    // tclsh 9.0.4: `try`'s body used to run through `Vm::eval_source`'s
+    // nested drive (`cmd_try.rs`'s `eval_body`), rejecting a `yield` inside
+    // it with "cannot yield: C stack busy". Creation consumes the first
+    // yield ("a"); `[c]` resumes it, runs the second `yield b`, and returns
+    // "b" (the resume value from creation, "a", is discarded — nothing reads
+    // it — matching the repro in issue #1311).
+    assert_eq!(
+        result(
+            "proc g {} { try { yield a; yield b } finally {}; return done }; \
+             coroutine c g; c"
+        ),
+        "b"
+    );
+}
+
+#[test]
+fn yield_across_try_handler() {
+    // A matched `on ok` handler's script also runs on the explicit stack:
+    // the body yields once (consumed by creation), the resume value becomes
+    // the body's result, the handler matches (`on ok`) and itself yields.
+    assert_eq!(
+        result(
+            "proc g {} { try { yield a } on ok {v} { yield \"h:$v\" }; return done }; \
+             coroutine c g; c X"
+        ),
+        "h:X"
+    );
+}
+
+#[test]
+fn yield_across_try_finally() {
+    // `finally` runs as its own phase on the explicit stack too: the body
+    // completes without yielding, `finally` itself yields (creation consumes
+    // it — "mid"), and once resumed `finally`'s own `Ok` completion does not
+    // override the `try`'s result — the body's original outcome ("done")
+    // does.
+    assert_eq!(
+        result(
+            "proc g {} { set r [try { set x done } finally { yield mid }]; return $r }; \
+             list [coroutine c g] [c]"
+        ),
+        "mid done"
     );
 }
 

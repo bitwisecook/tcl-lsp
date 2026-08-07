@@ -117,6 +117,10 @@ a design doc. Put it under [`../design/`](../design/README.md) instead.
   — `string index`/`range`/`replace`/`toupper` under the WASM runtime used to
   replace non-UTF-8 bytes from `binary format`/a binary channel read with
   U+FFFD instead of preserving them.
+- [kcs-issue-yield-cannot-cross-try-apply-consumed-lmap.md](kcs-issue-yield-cannot-cross-try-apply-consumed-lmap.md)
+  — the bytecode VM's `yield` used to error "cannot yield: C stack busy"
+  inside a `try` body/handler/`finally`, a bare `apply` call, or a
+  value-consumed `lmap`.
 
 ## Q&A
 

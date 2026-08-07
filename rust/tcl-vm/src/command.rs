@@ -308,7 +308,7 @@ fn cmd_eval(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     // errorInfo frame itself on error (eval-2.5; see `Frame::body_label`).
     match vm.compile_source_cached(&script) {
         Ok(asm) => {
-            vm.pending_eval = Some((asm, Some("eval")));
+            vm.pending_eval = Some((asm, Some("eval"), None));
             ok(Value::empty())
         }
         Err(e) => err(e.message),
@@ -393,6 +393,16 @@ pub(crate) fn build_lambda_proc(vm: &mut Vm, lambda: &Value) -> Result<String, C
 /// `apply lambda ?arg ...?` — invoke an anonymous function `{params body ?ns?}`.
 /// Implemented by binding the lambda to a temporary command and evaluating a
 /// call, so parameter binding and `return` semantics match a normal proc.
+///
+/// Defers the call to the *explicit* stack via `pending_eval` (like
+/// `eval`/`uplevel`) rather than `Vm::eval_source`'s nested drive, so a `yield`
+/// inside the lambda body stays yieldable — `coroutine c apply {lambda}`
+/// already got this treatment (`cmd_coroutine` binds the lambda to an internal
+/// proc run on the coroutine's own stack); a bare `apply` called *from inside*
+/// a coroutine body did not (issue #1311). `cleanup_proc` carries the
+/// temporary proc's name so it is torn down once the deferred call completes,
+/// mirroring the old `vm.take_command` that ran unconditionally after
+/// `eval_source` returned.
 fn cmd_apply(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     let Some((lambda, call_args)) = args.split_first() else {
         return err("wrong # args: should be \"apply lambdaExpr ?arg ...?\"");
@@ -405,11 +415,15 @@ fn cmd_apply(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     words.push(Value::string(name.as_str()));
     words.extend_from_slice(call_args);
     let script = tcl_syntax::list::join_list(words.iter().map(Value::to_str));
-    let result = vm.eval_source(&script);
-    vm.take_command(&name);
-    match result {
-        Ok(c) => c,
-        Err(e) => err(e.message),
+    match vm.compile_source_cached(&script) {
+        Ok(asm) => {
+            vm.pending_eval = Some((asm, None, Some(name)));
+            ok(Value::empty())
+        }
+        Err(e) => {
+            vm.take_command(&name);
+            err(e.message)
+        }
     }
 }
 
@@ -1908,7 +1922,7 @@ fn cmd_uplevel(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     if target == cur {
         return match vm.compile_source_cached(&script) {
             Ok(asm) => {
-                vm.pending_eval = Some((asm, Some("uplevel")));
+                vm.pending_eval = Some((asm, Some("uplevel"), None));
                 ok(Value::empty())
             }
             Err(e) => err(e.message),
