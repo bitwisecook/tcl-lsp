@@ -54,6 +54,27 @@ $p distance
 The analyser reports **`W308`** on `$p distance` — `Point` has no `distance`
 method.
 
+## `self`'s own dispatch spelling
+
+`my method` is `TclOO`'s bareword self-dispatch keyword — a call inside a
+method body that reaches the *enclosing* class. `[self]` and `[self
+object]` are the same receiver spelt as a command substitution (`self`
+alone, with no argument, is documented as equivalent to `self object`), so
+`W308` checks them identically:
+
+```tcl
+oo::class create Widget {
+    method render {} { return {} }
+    method refresh {} {
+        [self] render
+        [self] paint
+    }
+}
+```
+
+The analyser reports **`W308`** on `[self] paint` — `Widget` has no
+`paint` method — exactly as it would for `my paint`.
+
 ## What a deleted class changes
 
 The check asks whether the class is still live **at the dispatch**, not

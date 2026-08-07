@@ -82,42 +82,52 @@ impl Analyser {
     /// with no command substitution (`[`) or variable interpolation (`$`) in
     /// the returned word.
     fn oo_self_method_returns_literal(&self, site_offset: u32, method_name: &str) -> bool {
-        for class_def in self.result.all_classes.values() {
-            let body = class_def.body_span;
-            if !(body.start() <= site_offset && site_offset <= body.end()) {
-                continue;
-            }
-            let Some(md) = class_def
-                .methods
-                .get(method_name)
-                .or_else(|| class_def.class_methods.get(method_name))
-            else {
-                // Enclosing class found but no such method — stay conservative
-                // (treat as object-returning).
-                return false;
-            };
-            let start = md.body_span.start() as usize;
-            let end = (md.body_span.end() as usize).min(self.source.len());
-            if start >= end {
-                return false;
-            }
-            let mut bt = self.source[start..end].trim();
-            // Strip one layer of surrounding braces.
-            if let Some(inner) = bt.strip_prefix('{') {
-                bt = inner.trim_end();
-                bt = bt.strip_suffix('}').unwrap_or(bt).trim();
-            }
-            // Simple `return <literal>` — single statement, no substitutions.
-            if bt.contains('\n') || bt.contains(';') {
-                return false;
-            }
-            let Some(ret_arg) = bt.strip_prefix("return ") else {
-                return false;
-            };
-            let ret_arg = ret_arg.trim();
-            return !ret_arg.is_empty() && !ret_arg.contains('[') && !ret_arg.contains('$');
+        let Some(class_def) = self.enclosing_class_at_offset(site_offset) else {
+            return false;
+        };
+        let Some(md) = class_def
+            .methods
+            .get(method_name)
+            .or_else(|| class_def.class_methods.get(method_name))
+        else {
+            // Enclosing class found but no such method — stay conservative
+            // (treat as object-returning).
+            return false;
+        };
+        let start = md.body_span.start() as usize;
+        let end = (md.body_span.end() as usize).min(self.source.len());
+        if start >= end {
+            return false;
         }
-        false
+        let mut bt = self.source[start..end].trim();
+        // Strip one layer of surrounding braces.
+        if let Some(inner) = bt.strip_prefix('{') {
+            bt = inner.trim_end();
+            bt = bt.strip_suffix('}').unwrap_or(bt).trim();
+        }
+        // Simple `return <literal>` — single statement, no substitutions.
+        if bt.contains('\n') || bt.contains(';') {
+            return false;
+        }
+        let Some(ret_arg) = bt.strip_prefix("return ") else {
+            return false;
+        };
+        let ret_arg = ret_arg.trim();
+        !ret_arg.is_empty() && !ret_arg.contains('[') && !ret_arg.contains('$')
+    }
+
+    /// The `ClassDef` whose body contains `offset` — the enclosing `TclOO`
+    /// class for a call site inside a method body, if any. Naive
+    /// first-match over [`AnalysisResult::all_classes`] (class bodies don't
+    /// nest in practice); shared by [`Self::oo_self_method_returns_literal`]
+    /// and the `[self]`/`[self object]` self-receiver W308 check (issue
+    /// #1324), so the two "what class is this dispatch inside" answers
+    /// cannot drift apart.
+    fn enclosing_class_at_offset(&self, offset: u32) -> Option<&super::types::ClassDef> {
+        self.result.all_classes.values().find(|class_def| {
+            let body = class_def.body_span;
+            body.start() <= offset && offset <= body.end()
+        })
     }
 
     /// Harvest `set x [Cls new]` / `set x [Cls create name]` where `Cls` is a
@@ -1472,6 +1482,22 @@ impl Analyser {
                         severity: Severity::Warning,
                         fixes: Vec::new(),
                     });
+                    continue;
+                }
+                // `[self]` / `[self object]` is not just *some* self-dispatch
+                // or introspection call whose return type happens to be
+                // unknowable — the registry (`is_self_receiver_call`, issue
+                // #1322) says this exact head/arg pair denotes the *current*
+                // receiver, the same target `my <method>` dispatches on. So
+                // the outer method word is validated against the enclosing
+                // class (W308) instead of falling through as an opaque
+                // object handle of unresolvable class (issue #1324).
+                if self
+                    .registry
+                    .is_some_and(|r| r.is_self_receiver_call(head, arg_strs.first().copied()))
+                    && let Some(diag) = self.w308_for_self_receiver(site, hierarchy)
+                {
+                    self.result.diagnostics.push(diag);
                 }
                 continue;
             }
@@ -1527,6 +1553,41 @@ impl Analyser {
             });
         }
         self.cmd_command_sites = cmd_sites;
+    }
+
+    /// W308 for a `[self]` / `[self object]` dispatch head confirmed by
+    /// [`tcl_registry::CommandRegistry::is_self_receiver_call`] — the
+    /// receiver is the *enclosing* class, found via
+    /// [`Self::enclosing_class_at_offset`], exactly as a bareword `my
+    /// <method>` dispatch's target is. Unlike the `Object`-return-type path
+    /// above, the class here is never *inferred* from a type lattice — the
+    /// registry says the substitution denotes the current object outright,
+    /// so a bare `[self]`/`[self object]` head with no enclosing class (a
+    /// malformed or top-level use — `self` is only valid inside a method
+    /// body) safely abstains rather than guessing. `None` when the method
+    /// resolves, W308 is suppressed, or the diagnostic is disabled.
+    fn w308_for_self_receiver(
+        &self,
+        site: &crate::analyser::state::CmdCommandSite,
+        hierarchy: Option<&super::class_hierarchy::ClassHierarchy>,
+    ) -> Option<super::types::Diagnostic> {
+        if self.disabled_diagnostics.contains("W308") {
+            return None;
+        }
+        let method = site.method_name.as_ref()?;
+        let class_def = self.enclosing_class_at_offset(site.cmd_span.start())?;
+        let cls_qn = class_def.qualified_name.as_str();
+        if self.validate_method_on_class(cls_qn, method, Some(class_def), hierarchy) {
+            return None;
+        }
+        Some(self.w308_diagnostic(
+            method,
+            cls_qn,
+            &[cls_qn],
+            hierarchy,
+            site.method_span,
+            site.cmd_span,
+        ))
     }
 
     /// The type a `[head args…]` command-substitution head produces, for the
