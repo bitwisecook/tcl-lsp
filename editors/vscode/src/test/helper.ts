@@ -19,7 +19,13 @@
 import * as vscode from "vscode";
 import * as path from "path";
 
-import { awaitSignal, bounded, scaledTimeout, WAIT_TIMEOUT_MARKER } from "./signal";
+import {
+  awaitSignal,
+  bounded,
+  scaledTimeout,
+  WAIT_TIMEOUT_MARKER,
+  type TimeoutDiagnostic,
+} from "./signal";
 
 export { awaitSignal, bounded, loadFactor, scaledTimeout, sleep } from "./signal";
 
@@ -569,11 +575,164 @@ export async function activate(docUri: vscode.Uri): Promise<vscode.TextDocument>
       `the server to drain didOpen for ${docUri.toString()} ` +
         `(flush hover ${attempt} of 2)\n  a timeout here means the server accepted the ` +
         `document but never answered a request queued behind it`,
-      { timeout: 30_000 },
+      { timeout: 30_000, diagnose: serverLivenessDiagnostic(docUri) },
     );
   }
 
   return doc;
+}
+
+/** Fixture the liveness probe asks about — a document no test drives, so a
+ *  hover on it can never be queued behind another test's edits. */
+const LIVENESS_PROBE_FIXTURE = "livenessProbe.tcl";
+
+/** Per-question ceiling inside [`serverLivenessDiagnostic`]. Short by design:
+ *  the caller has already waited its whole budget, so a question that has not
+ *  answered in this long has answered "no". */
+const LIVENESS_PROBE_BUDGET_MS = 4_000;
+
+/** How one liveness question went. */
+export interface ProbeOutcome {
+  answered: boolean;
+  afterMs: number;
+  /** Why it failed, when it failed by throwing rather than by timing out. */
+  detail?: string;
+}
+
+/** The three independent questions [`serverLivenessDiagnostic`] asks. */
+export interface LivenessOutcomes {
+  /** A request that touches no document at all. */
+  transport: ProbeOutcome;
+  /** The same kind of request, on a document no test drives. */
+  otherDocument: ProbeOutcome;
+  /** The stalled document's own request, tried once more. */
+  retry: ProbeOutcome;
+}
+
+/**
+ * Turn three probe outcomes into the verdict — kept separate from the asking so
+ * the classification is a pure function with no server, no timing and no VS
+ * Code behind it, and can therefore be pinned by tests for every branch.
+ *
+ * Ordered most-general fault first: a server that answers nothing subsumes a
+ * pipeline that answers nothing, which subsumes one document being stuck.
+ */
+export function classifyLiveness(outcomes: LivenessOutcomes): string {
+  if (!outcomes.transport.answered) {
+    return (
+      "SERVER WEDGED — the server did not even answer a request that touches no document, " +
+      "so the fault is the server (or the connection), not this document."
+    );
+  }
+  if (!outcomes.otherDocument.answered) {
+    return (
+      "DOCUMENT PIPELINE WEDGED — the server answers a document-free request but no " +
+      "document hover, so intake is stuck for every document, not just this one."
+    );
+  }
+  if (outcomes.retry.answered) {
+    return (
+      "REQUEST DROPPED, NOT WEDGED — a retry of the same request on the same document " +
+      "answered, so the queue is draining and the original request was lost or merely " +
+      "slower than its budget."
+    );
+  }
+  return (
+    "THIS DOCUMENT'S QUEUE WEDGED — another document answers but this one still does " +
+    "not, so the stall is specific to this document (issue #1294's hypothesis)."
+  );
+}
+
+/**
+ * Ask one question with a hard, short bound, reporting how it went rather than
+ * throwing. Never rejects — this runs on an already-failing path.
+ */
+async function probeOutcome(
+  work: () => Thenable<unknown>,
+  budgetMs: number,
+): Promise<ProbeOutcome> {
+  const started = Date.now();
+  try {
+    const answered = await Promise.race([
+      Promise.resolve(work()).then(() => true),
+      new Promise<false>((resolve) => setTimeout(() => resolve(false), budgetMs).unref()),
+    ]);
+    return { answered, afterMs: Date.now() - started };
+  } catch (err) {
+    return {
+      answered: false,
+      afterMs: Date.now() - started,
+      detail: err instanceof Error ? err.message : String(err),
+    };
+  }
+}
+
+/**
+ * Separate "the server is wedged" from "this document's queue is wedged" after
+ * a wait on *stalledUri* has already expired.
+ *
+ * This is the gap issue #1294 records. Four consecutive waits on one fixture's
+ * ``didOpen`` drain expired with the machine measurably healthy, and the
+ * evidence could say only that the request never came back — not whether the
+ * server was answering *anything*. Three cheap questions separate the cases:
+ *
+ * 1. ``getEffectiveConfig`` for the stalled document — a request that touches
+ *    neither the analyser nor the document's work queue, so it answers whenever
+ *    the client → server → client path itself is alive.
+ * 2. A hover on a **different** document, which no test drives. Answering means
+ *    the document pipeline as a whole is draining, so whatever is stuck is
+ *    specific to *this* document.
+ * 3. A retry of the same request on the stalled document, which distinguishes a
+ *    permanently wedged queue from a request that was simply dropped.
+ *
+ * Every question is separately bounded and none may throw: the test is already
+ * failing, and a diagnostic that hangs turns an attributable failure into an
+ * unattributable one.
+ */
+export function serverLivenessDiagnostic(stalledUri: vscode.Uri): TimeoutDiagnostic {
+  return async () => {
+    const budget = scaledTimeout(LIVENESS_PROBE_BUDGET_MS);
+    const other = getDocUri(LIVENESS_PROBE_FIXTURE);
+    // Asked concurrently: the three questions are independent, and running
+    // them in series would make the whole diagnostic cost three budgets — which
+    // on a loaded machine is long enough for `bounded`'s own cap to truncate
+    // the answer, exactly when the answer is most wanted.
+    const [transport, otherDoc, retry] = await Promise.all([
+      probeOutcome(
+        () => vscode.commands.executeCommand("tcl-lsp.getEffectiveConfig", stalledUri.toString()),
+        budget,
+      ),
+      probeOutcome(
+        () =>
+          vscode.commands.executeCommand(
+            "vscode.executeHoverProvider",
+            other,
+            new vscode.Position(0, 0),
+          ),
+        budget,
+      ),
+      probeOutcome(
+        () =>
+          vscode.commands.executeCommand(
+            "vscode.executeHoverProvider",
+            stalledUri,
+            new vscode.Position(0, 0),
+          ),
+        budget,
+      ),
+    ]);
+
+    const describe = (name: string, p: ProbeOutcome) =>
+      `${name} ${p.answered ? "answered" : "did NOT answer"} after ${p.afterMs}ms` +
+      (p.detail ? ` (${p.detail})` : "");
+
+    return (
+      `LIVENESS: ${classifyLiveness({ transport, otherDocument: otherDoc, retry })}\n` +
+      `    ${describe("document-free getEffectiveConfig", transport)}\n` +
+      `    ${describe(`hover on ${LIVENESS_PROBE_FIXTURE} (a different document)`, otherDoc)}\n` +
+      `    ${describe("hover retried on the stalled document", retry)}`
+    );
+  };
 }
 
 /**

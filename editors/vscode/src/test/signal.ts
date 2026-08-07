@@ -281,6 +281,54 @@ export interface AwaitSignalOptions<T> {
    * unchanged, so a real provider fault still fails the test immediately.
    */
   retryProbeErrors?: (error: unknown) => boolean;
+  /** See [`TimeoutDiagnostic`]. */
+  diagnose?: TimeoutDiagnostic;
+}
+
+/**
+ * An extra investigation run **only** on the failing path, whose prose is
+ * appended to the timeout message.
+ *
+ * A timeout says the answer never came; it does not say what the server was
+ * doing instead, which is the gap issue #1294 records — four consecutive waits
+ * on one document's `didOpen` drain expired with a healthy machine, and the
+ * evidence could not tell "the server is wedged" apart from "this document's
+ * queue is wedged". A caller that knows a cheaper, independent question to ask
+ * supplies it here, and the answer lands in the same message as the failure.
+ *
+ * It must be self-bounding and must never throw: this runs when the test is
+ * already failing, and a diagnostic that hangs would replace an attributable
+ * failure with an unattributable one. [`diagnose`] enforces both.
+ */
+export type TimeoutDiagnostic = () => string | PromiseLike<string>;
+
+/** Ceiling on a [`TimeoutDiagnostic`], so the diagnostic can never become the
+ *  thing that hangs. Load-scaled like every other bound here: the probes a
+ *  diagnostic makes are themselves load-scaled, so a fixed cap would truncate
+ *  the answer on precisely the machines whose failures are hardest to read. */
+const DIAGNOSTIC_BUDGET_MS = 15_000;
+
+/**
+ * Run a [`TimeoutDiagnostic`] under a hard cap, converting any failure of the
+ * diagnostic itself into prose rather than letting it displace the timeout it
+ * was meant to explain.
+ */
+async function diagnose(probe: TimeoutDiagnostic | undefined): Promise<string> {
+  if (!probe) return "";
+  const cap = scaledTimeout(DIAGNOSTIC_BUDGET_MS);
+  try {
+    const note = await Promise.race([
+      Promise.resolve(probe()),
+      sleepDetached(cap).then(
+        () =>
+          `follow-up probe did not finish within ${cap}ms, which is itself evidence: the ` +
+          `server did not answer an independent question either`,
+      ),
+    ]);
+    return note ? `\n  ${note}` : "";
+  } catch (err) {
+    return `\n  follow-up probe itself failed: ${err instanceof Error ? err.message : String(err)}`;
+  }
 }
 
 function defaultDescribe(value: unknown): string {
@@ -364,7 +412,7 @@ export async function awaitSignal<T>(opts: AwaitSignalOptions<T>): Promise<T> {
             `${factor.toFixed(1)}; ${extensions} extension(s); ${probes} probe(s), ` +
             `${signals} signal(s))\n` +
             `  last seen: ${describe(last)}${retried}\n` +
-            `  ${note}`,
+            `  ${note}${await diagnose(opts.diagnose)}`,
         );
       }
 
@@ -402,7 +450,7 @@ export async function awaitSignal<T>(opts: AwaitSignalOptions<T>): Promise<T> {
 export function bounded<T>(
   work: PromiseLike<T>,
   label: string,
-  opts?: { timeout?: number },
+  opts?: { timeout?: number; diagnose?: TimeoutDiagnostic },
 ): Promise<T> {
   const base = opts?.timeout ?? DEFAULT_SIGNAL_TIMEOUT_MS;
   const started = Date.now();
@@ -438,7 +486,7 @@ export function bounded<T>(
               `${factor.toFixed(1)}; ${extensions} extension(s))\n` +
               `  this await has no completion signal to wait on — it *is* the signal — so a ` +
               `timeout here means the request never came back.\n` +
-              `  ${note}`,
+              `  ${note}${await diagnose(opts?.diagnose)}`,
           );
         }
       }
