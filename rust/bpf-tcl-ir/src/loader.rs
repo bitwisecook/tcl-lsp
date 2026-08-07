@@ -426,7 +426,26 @@ impl From<ProgType> for ProgTypeKey {
         ProgTypeKey(match pt {
             ProgType::SocketFilter => 0,
             ProgType::Xdp => 1,
+            ProgType::TcIngress => 2,
+            ProgType::TcEgress => 3,
+            ProgType::CgroupInet4Connect => 4,
+            ProgType::CgroupInet4Bind => 5,
         })
+    }
+}
+
+impl ProgTypeKey {
+    /// The inverse of [`From<ProgType>`], for reconstructing a `ProgType` from
+    /// a stored key (e.g. for an error that names the program type).
+    fn to_prog_type(self) -> ProgType {
+        match self.0 {
+            0 => ProgType::SocketFilter,
+            1 => ProgType::Xdp,
+            2 => ProgType::TcIngress,
+            3 => ProgType::TcEgress,
+            4 => ProgType::CgroupInet4Connect,
+            _ => ProgType::CgroupInet4Bind,
+        }
     }
 }
 
@@ -435,8 +454,16 @@ impl ModelKernel {
     #[must_use]
     pub fn new() -> Self {
         let mut test_runnable = std::collections::BTreeSet::new();
-        test_runnable.insert(ProgTypeKey::from(ProgType::SocketFilter));
-        test_runnable.insert(ProgTypeKey::from(ProgType::Xdp));
+        for pt in [
+            ProgType::SocketFilter,
+            ProgType::Xdp,
+            ProgType::TcIngress,
+            ProgType::TcEgress,
+            ProgType::CgroupInet4Connect,
+            ProgType::CgroupInet4Bind,
+        ] {
+            test_runnable.insert(ProgTypeKey::from(pt));
+        }
         ModelKernel {
             test_runnable,
             ..ModelKernel::default()
@@ -513,14 +540,9 @@ impl KernelOps for ModelKernel {
             return Err(LoaderError::Empty);
         };
         if !self.test_runnable.contains(&ty) {
-            // Map the key back for the error; both current types are runnable,
-            // so this only fires if a model is configured to disallow one.
-            let pt = if ty == ProgTypeKey::from(ProgType::Xdp) {
-                ProgType::Xdp
-            } else {
-                ProgType::SocketFilter
-            };
-            return Err(LoaderError::TestRunUnsupported(pt));
+            // Every type is runnable in the default model; this only fires
+            // when a test configures `without_test_run_for` to disallow one.
+            return Err(LoaderError::TestRunUnsupported(ty.to_prog_type()));
         }
         // The model returns a fixed sentinel; real verdicts come from the rbpf
         // harness in the bpf-tcl crate, not the lifecycle model.

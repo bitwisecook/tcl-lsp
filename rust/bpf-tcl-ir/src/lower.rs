@@ -435,15 +435,15 @@ impl Lowerer<'_> {
         span: Span,
         insts: &mut Vec<Inst>,
     ) -> Result<Option<Term>, BpfError> {
-        let compatible = match prog_types {
-            BpfProgTypeSet::All => true,
-            BpfProgTypeSet::SocketFilterOnly => self.prog_type == ProgType::SocketFilter,
-            BpfProgTypeSet::XdpOnly => self.prog_type == ProgType::Xdp,
-        };
+        let compatible = prog_types.contains(crate::event::registry_prog_type(self.prog_type));
         if !compatible {
             let hint = match self.prog_type {
                 ProgType::SocketFilter => "use `accept`/`drop` for socket filters",
                 ProgType::Xdp => "use `pass`/`drop`/`tx` for XDP",
+                ProgType::TcIngress | ProgType::TcEgress => "use `pass`/`drop` for TC",
+                ProgType::CgroupInet4Connect | ProgType::CgroupInet4Bind => {
+                    "use `pass`/`drop` for a cgroup sock-addr hook"
+                }
             };
             return Err(BpfError::new(
                 BpfDiag::OutOfSubset,
@@ -463,12 +463,20 @@ impl Lowerer<'_> {
                     return Err(arity(span, cmd, "?N?"));
                 }
             }
-            BpfVerdictKind::Pass | BpfVerdictKind::Tx => {
+            // `pass` is valid for XDP, TC, and the cgroup sock-addr hooks; the
+            // compatibility gate above already rejected it elsewhere. `tx` stays
+            // XDP-only (`XDP_TX`), so it needs no program-type branch.
+            BpfVerdictKind::Pass => {
                 if !args.is_empty() {
                     return Err(arity(span, cmd, "(no arguments)"));
                 }
-                let val = if kind == BpfVerdictKind::Pass { 2 } else { 3 };
-                self.const_slot(val, span, insts)?
+                self.const_slot(self.pass_verdict(), span, insts)?
+            }
+            BpfVerdictKind::Tx => {
+                if !args.is_empty() {
+                    return Err(arity(span, cmd, "(no arguments)"));
+                }
+                self.const_slot(3, span, insts)? // XDP_TX
             }
             // `drop` is valid for both; the value differs by program type.
             BpfVerdictKind::Drop => {
@@ -506,7 +514,24 @@ impl Lowerer<'_> {
     fn drop_verdict(&self) -> i64 {
         match self.prog_type {
             ProgType::Xdp => 1, // XDP_DROP
-            ProgType::SocketFilter => 0,
+            // A socket filter's `drop` and a cgroup sock-addr's `deny` share the
+            // same wire value (0), coincidentally.
+            ProgType::SocketFilter | ProgType::CgroupInet4Connect | ProgType::CgroupInet4Bind => 0,
+            ProgType::TcIngress | ProgType::TcEgress => 2, // TC_ACT_SHOT
+        }
+    }
+
+    /// The `pass` verdict value for this program type (not called for a
+    /// socket filter, which has no `pass` verb — `accept` covers that role).
+    fn pass_verdict(&self) -> i64 {
+        match self.prog_type {
+            ProgType::Xdp => 2,                                            // XDP_PASS
+            ProgType::TcIngress | ProgType::TcEgress => 0,                 // TC_ACT_OK
+            ProgType::CgroupInet4Connect | ProgType::CgroupInet4Bind => 1, // allow
+            ProgType::SocketFilter => unreachable!(
+                "socket filters have no `pass` verdict (BpfProgTypeSet::PASS_LIKE excludes it); \
+                 the compatibility gate in lower_verdict rejects it before this is called"
+            ),
         }
     }
 
@@ -712,6 +737,23 @@ impl Lowerer<'_> {
                         "the `setbuf` source must be `ctx` (the packet) in v1",
                     ));
                 }
+                // The cgroup sock-addr hooks' context (`bpf_sock_addr`) has no
+                // packet body — no `data`/`data_end` pointers for `setbuf`'s
+                // prologue to load, and codegen's `ctx_layout` has nothing
+                // meaningful to offer them (issue #1310). Named context-field
+                // reads (`user_ip4`/`user_port`/`family`, already registry
+                // schema — `BpfCtxField`) are not wired to a DSL accessor for
+                // *any* program type yet, so there is no packet-free
+                // context-reading path today either; reject cleanly rather
+                // than emit a prologue that reads past the struct.
+                if self.prog_type.is_cgroup_sock_addr() {
+                    return Err(BpfError::new(
+                        BpfDiag::OutOfSubset,
+                        span,
+                        "`setbuf` binds a packet buffer, but a cgroup sock-addr hook has no \
+                         packet — this program type has no packet-based subset yet",
+                    ));
+                }
                 let dst = self.var_slot(&args[0], Ty::Ptr(Region::Ctx), span)?;
                 insts.push(Inst::CtxPtr { dst, span });
                 Ok(None)
@@ -903,6 +945,10 @@ impl Lowerer<'_> {
         let verdicts = match self.prog_type {
             ProgType::SocketFilter => "`accept`/`drop`",
             ProgType::Xdp => "`pass`/`drop`/`tx`",
+            ProgType::TcIngress
+            | ProgType::TcEgress
+            | ProgType::CgroupInet4Connect
+            | ProgType::CgroupInet4Bind => "`pass`/`drop`",
         };
         BpfError::new(
             BpfDiag::MissingVerdict,

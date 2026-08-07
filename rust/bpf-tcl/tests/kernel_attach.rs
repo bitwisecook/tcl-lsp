@@ -89,6 +89,31 @@ impl DisposableNetns {
             .status()
             .is_ok_and(|s| s.success())
     }
+
+    /// Run `tc …` inside the namespace (via `ip netns exec`), returning
+    /// success. `tc` (unlike `ip link`) has no `-n <ns>` form of its own.
+    fn tc(&self, args: &[&str]) -> bool {
+        let mut full = vec!["netns", "exec", &self.name, "tc"];
+        full.extend_from_slice(args);
+        Command::new("ip")
+            .args(&full)
+            .status()
+            .is_ok_and(|s| s.success())
+    }
+
+    /// `tc filter show dev <dev> <direction>` inside the namespace, for
+    /// asserting the attached program is actually visible (not just that the
+    /// add command exited zero).
+    fn tc_filter_show(&self, dev: &str, direction: &str) -> String {
+        Command::new("ip")
+            .args([
+                "netns", "exec", &self.name, "tc", "filter", "show", "dev", dev, direction,
+            ])
+            .output()
+            .ok()
+            .and_then(|o| String::from_utf8(o.stdout).ok())
+            .unwrap_or_default()
+    }
 }
 
 impl Drop for DisposableNetns {
@@ -162,39 +187,206 @@ fn xdp_attach_detach_in_a_disposable_namespace_leaks_nothing() {
 }
 
 #[test]
-#[ignore = "TC codegen is registry-described but not yet implemented (issue #1204)"]
-fn tc_ingress_scenario_is_described_and_pending() {
-    // The TC event is a typed registry contract today; its codegen (SCHED_CLS)
-    // is sequenced for a later change. This test documents the intended isolated
-    // scenario — a TC classifier marking/redirecting traffic in a disposable
-    // namespace with a veth pair — and asserts the schema contract that a real
-    // implementation must satisfy, so it fails loudly if the schema regresses.
+#[ignore = "needs root + iproute2(tc) + a live kernel; run with --ignored on a Linux host"]
+fn tc_ingress_attach_detach_in_a_disposable_namespace_leaks_nothing() {
+    // Issue #1310: TC (SCHED_CLS) codegen is implemented — this attaches a
+    // real classifier to a veth's ingress hook in a disposable namespace,
+    // mirroring `xdp_attach_detach_in_a_disposable_namespace_leaks_nothing`
+    // above. `__sk_buff` (TC's context) is exactly the socket filter's, so
+    // `TargetAbi::KernelTc` reuses that context layout (see `emit.rs`).
+    if !is_root() {
+        eprintln!("skip: TC attach needs root/CAP_NET_ADMIN");
+        return;
+    }
+    if !tool_present("tc") {
+        eprintln!("skip: iproute2 (`tc`) unavailable");
+        return;
+    }
     let spec = event_spec("TC_INGRESS").expect("TC_INGRESS described");
     assert_eq!(spec.context.struct_name, "__sk_buff");
-    assert!(!spec.is_codegen_ready(), "TC codegen still pending");
+    assert!(spec.is_codegen_ready(), "TC codegen should be implemented");
+
+    let src = "when TC_INGRESS { pass }\n";
+    let module = compile_module(src).expect("TC_INGRESS compiles");
+    let plan = DeploymentPlan::from_module("bpftcl-test", &module);
+    eprintln!("plan pin: {}", plan.programs[0].pin);
+
+    let Some(ns) = DisposableNetns::new("bpftcl-tc-test") else {
+        eprintln!("skip: could not create a disposable netns");
+        return;
+    };
+    assert!(ns.ip(&[
+        "link", "add", "veth0", "type", "veth", "peer", "name", "veth1"
+    ]));
+    assert!(ns.ip(&["link", "set", "dev", "veth0", "up"]));
+    // A TC classifier attaches to the `clsact` qdisc's ingress/egress hooks —
+    // there is no `xdpgeneric`-style single-command load+attach for TC, so
+    // the qdisc is created explicitly first.
+    if !ns.tc(&["qdisc", "add", "dev", "veth0", "clsact"]) {
+        eprintln!("skip: `tc qdisc add … clsact` unsupported on this host");
+        return;
+    }
+
+    let obj = emit_program_for_target(&module.programs[0].program, TargetAbi::KernelTc)
+        .expect("object emits");
+    let bytes = write_object(&obj, "tc").expect("elf writes");
+    let mut obj_path = std::env::temp_dir();
+    obj_path.push(format!("bpftcl-tc-{}.o", std::process::id()));
+    std::fs::write(&obj_path, bytes).expect("write object");
+
+    let attached = ns.tc(&[
+        "filter",
+        "add",
+        "dev",
+        "veth0",
+        "ingress",
+        "bpf",
+        "da",
+        "obj",
+        obj_path.to_str().unwrap(),
+        "sec",
+        "tc",
+    ]);
+    if !attached {
+        let _ = std::fs::remove_file(&obj_path);
+        eprintln!("skip: TC bpf filter attach unsupported on this host");
+        return;
+    }
+    // The verifier only runs (and JITs) at attach time — a non-empty filter
+    // listing is the load+attach succeeding, not just the CLI exiting zero.
+    let listing = ns.tc_filter_show("veth0", "ingress");
     assert!(
-        compile_module("when TC_INGRESS { pass }\n").is_err(),
-        "TC does not compile yet"
+        listing.contains("bpf"),
+        "attached filter should be listed: {listing}"
     );
-    eprintln!(
-        "skip: TC ingress codegen pending; when implemented, attach a SCHED_CLS \
-         program to a veth in a disposable netns and assert cleanup"
-    );
+
+    // Detach explicitly (the namespace drop would also remove it, but the
+    // deployment owns the detach in production).
+    let detached = ns.tc(&["filter", "del", "dev", "veth0", "ingress"]);
+    assert!(detached, "detach should succeed");
+    let _ = std::fs::remove_file(&obj_path);
+    // `ns` drops here, deleting the namespace (and the clsact qdisc/filter
+    // with it) and proving nothing leaks.
 }
 
 #[test]
-#[ignore = "cgroup codegen is registry-described but not yet implemented (issue #1204)"]
-fn cgroup_connect_scenario_is_described_and_pending() {
-    // The cgroup connect/bind events are typed registry contracts; codegen
-    // (CGROUP_SOCK_ADDR) is pending. A real implementation attaches to an
-    // isolated test cgroup under /sys/fs/cgroup and denies a chosen connect
-    // target, then removes the attachment and the cgroup.
+#[ignore = "needs root + bpftool + a live kernel; run with --ignored on a Linux host"]
+fn cgroup_connect_attach_detach_on_a_disposable_cgroup_leaks_nothing() {
+    // Issue #1310: cgroup (CGROUP_SOCK_ADDR) codegen is implemented. Unlike
+    // XDP/TC, attaching a cgroup program has no `ip`/`tc` CLI path — it needs
+    // `bpftool cgroup attach`, so this additionally gates on `bpftool` (not
+    // available in every CI/sandbox image, hence a stricter skip condition
+    // than the netns-only tests above — confirmed absent in the sandbox this
+    // fix was developed in, so this exact sequence is unverified against a
+    // real kernel; the TC test above and the unit/e2e codegen suites are).
+    if !is_root() {
+        eprintln!("skip: cgroup attach needs root/CAP_BPF");
+        return;
+    }
+    if !tool_present("bpftool") {
+        eprintln!("skip: bpftool unavailable (needed for cgroup attach; no ip/tc equivalent)");
+        return;
+    }
     let spec = event_spec("CGROUP_CONNECT4").expect("CGROUP_CONNECT4 described");
     assert_eq!(spec.context.struct_name, "bpf_sock_addr");
     assert!(spec.context_field("user_port").is_some());
-    assert!(!spec.is_codegen_ready(), "cgroup codegen still pending");
-    eprintln!(
-        "skip: cgroup connect codegen pending; when implemented, attach to an \
-         isolated test cgroup, deny one connect target, then detach + rmdir the cgroup"
+    assert!(
+        spec.is_codegen_ready(),
+        "cgroup codegen should be implemented"
     );
+
+    // `pass` only (no `setbuf`/context reads — `bpf_sock_addr` has no packet
+    // body, and `lower.rs` rejects `setbuf` for this program-type family).
+    let src = "when CGROUP_CONNECT4 { pass }\n";
+    let module = compile_module(src).expect("CGROUP_CONNECT4 compiles");
+
+    let obj = emit_program_for_target(&module.programs[0].program, TargetAbi::KernelCgroupSockAddr)
+        .expect("object emits");
+    let bytes = write_object(&obj, "cgroup_connect4").expect("elf writes");
+    let mut obj_path = std::env::temp_dir();
+    obj_path.push(format!("bpftcl-cgroup-{}.o", std::process::id()));
+    std::fs::write(&obj_path, bytes).expect("write object");
+
+    let Some(cg) = DisposableCgroup::new("bpftcl-cgroup-test") else {
+        let _ = std::fs::remove_file(&obj_path);
+        eprintln!("skip: could not create a disposable test cgroup under /sys/fs/cgroup");
+        return;
+    };
+
+    // `bpftool cgroup attach` needs a *pinned* program: load-and-pin first,
+    // then attach the pin — the same two syscalls (`BPF_PROG_LOAD` then
+    // `BPF_PROG_ATTACH`) a real deployment (`bpf-tcl-ir::loader`) drives
+    // directly, `bpftool` just wraps them as two CLI steps.
+    let pin_path = format!("/sys/fs/bpf/bpftcl-cgroup-test-{}", std::process::id());
+    let loaded = Command::new("bpftool")
+        .args([
+            "prog",
+            "load",
+            obj_path.to_str().unwrap(),
+            &pin_path,
+            "type",
+            "cgroup/connect4",
+        ])
+        .status()
+        .is_ok_and(|s| s.success());
+    if !loaded {
+        let _ = std::fs::remove_file(&obj_path);
+        eprintln!("skip: `bpftool prog load` unsupported on this host");
+        return;
+    }
+    let attached = Command::new("bpftool")
+        .args([
+            "cgroup", "attach", &cg.path, "connect4", "pinned", &pin_path,
+        ])
+        .status()
+        .is_ok_and(|s| s.success());
+    if !attached {
+        let _ = std::fs::remove_file(&pin_path);
+        let _ = std::fs::remove_file(&obj_path);
+        eprintln!("skip: `bpftool cgroup attach` unsupported on this host");
+        return;
+    }
+
+    let listing = Command::new("bpftool")
+        .args(["cgroup", "show", &cg.path])
+        .output()
+        .ok()
+        .and_then(|o| String::from_utf8(o.stdout).ok())
+        .unwrap_or_default();
+    assert!(
+        listing.contains("connect4"),
+        "attached cgroup program should be listed: {listing}"
+    );
+
+    let detached = Command::new("bpftool")
+        .args([
+            "cgroup", "detach", &cg.path, "connect4", "pinned", &pin_path,
+        ])
+        .status()
+        .is_ok_and(|s| s.success());
+    assert!(detached, "detach should succeed");
+    let _ = std::fs::remove_file(&pin_path);
+    let _ = std::fs::remove_file(&obj_path);
+    // `cg` drops here, rmdir-ing the test cgroup and proving nothing leaks.
+}
+
+/// A disposable cgroup v2 directory under `/sys/fs/cgroup` that removes
+/// itself on drop. Cleanup is unconditional so a panicking test still leaves
+/// the host clean.
+struct DisposableCgroup {
+    path: String,
+}
+
+impl DisposableCgroup {
+    fn new(name: &str) -> Option<Self> {
+        let path = format!("/sys/fs/cgroup/{name}-{}", std::process::id());
+        std::fs::create_dir(&path).ok()?;
+        Some(DisposableCgroup { path })
+    }
+}
+
+impl Drop for DisposableCgroup {
+    fn drop(&mut self) {
+        let _ = std::fs::remove_dir(&self.path);
+    }
 }
