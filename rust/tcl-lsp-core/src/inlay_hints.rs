@@ -120,6 +120,43 @@ pub fn inlay_hints(
     type_hints: bool,
     parameter_hints: bool,
 ) -> Vec<InlayHint> {
+    inlay_hints_in_program(
+        source,
+        dialect,
+        range,
+        analysis,
+        crate::definition::CallResolution {
+            registry,
+            program: None,
+        },
+        type_hints,
+        parameter_hints,
+    )
+}
+
+/// [`inlay_hints`] with the caller's whole-program export view attached — the
+/// entry point a host with a workspace index should call.
+///
+/// The parameter-name hints are labelled from *the proc the call actually
+/// reaches*, so a `namespace import -force` whose covering `namespace export`
+/// lives in another file changes which parameter names are correct here
+/// (issue #1116 item 1).  Hinting the shadowed local proc's parameters over a
+/// call that runs the imported one is a wrong answer, not a missing one.
+///
+/// `resolution` carries the registry and the oracle together rather than as
+/// two parameters, which also keeps this entry point at the same arity as
+/// [`inlay_hints`].
+#[must_use]
+pub fn inlay_hints_in_program(
+    source: &str,
+    dialect: &str,
+    range: LspRange,
+    analysis: Option<&AnalysisResult>,
+    resolution: crate::definition::CallResolution<'_>,
+    type_hints: bool,
+    parameter_hints: bool,
+) -> Vec<InlayHint> {
+    let registry = resolution.registry;
     if !type_hints && !parameter_hints {
         return Vec::new();
     }
@@ -184,7 +221,7 @@ pub fn inlay_hints(
             // an unrelated namespace never captures the argument hints, and a
             // same-named builtin keeps its own hints unless a proc is visible.
             let cmd_off = seg.argv[0].span.start();
-            if let Some(proc_def) = lookup_proc(analysis, source, cmd_off, cmd_name, registry) {
+            if let Some(proc_def) = lookup_proc(analysis, source, cmd_off, cmd_name, resolution) {
                 emit_hints_for_call(source, seg, proc_def, &line_index, range, &mut out);
                 continue;
             }
@@ -933,14 +970,14 @@ fn lookup_proc<'a>(
     source: &str,
     cmd_off: u32,
     name: &str,
-    registry: Option<&CommandRegistry>,
+    resolution: crate::definition::CallResolution<'_>,
 ) -> Option<&'a ProcDef> {
     let ns = crate::definition::namespace_context_at(
         &analysis.global_scope,
         cmd_off,
         &analysis.namespace_overrides,
     );
-    crate::definition::resolve_called_proc(analysis, source, &ns, name, cmd_off, registry)
+    crate::definition::resolve_called_proc(analysis, source, &ns, name, cmd_off, resolution)
 }
 
 /// Walk a single segmented command, emit a hint per argument

@@ -67,7 +67,7 @@ pub use datagroup::{
 pub use extract_proc::{extract_proc, extract_proc_rename_command};
 pub use extract_variable::extract_variable;
 pub use if_to_switch::if_to_switch;
-pub use inline_proc::inline_proc;
+pub use inline_proc::{inline_proc, inline_proc_in_program};
 pub use inline_variable::inline_variable;
 pub use switch_to_dict::switch_to_dict;
 

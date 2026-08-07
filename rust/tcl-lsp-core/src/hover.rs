@@ -153,6 +153,33 @@ pub fn hover(
     )
 }
 
+/// [`hover_with_profile`] with the caller's whole-program export view
+/// attached — the entry point a host with a workspace index should call.
+///
+/// `program` is `None` for a host without one, which reproduces
+/// [`hover_with_profile`] exactly. It matters because a `namespace import
+/// -force` whose covering `namespace export` lives in another file changes
+/// *which proc* the hovered call reaches (issue #1116 item 1).
+#[must_use]
+pub fn hover_in_program(
+    source: &str,
+    line: u32,
+    character: u32,
+    analysis: &AnalysisResult,
+    registry: Option<&CommandRegistry>,
+    profile: &'static tcl_dialect::DialectProfile,
+    program: Option<crate::definition::ProgramExports<'_>>,
+) -> Option<Hover> {
+    hover_impl(
+        source,
+        line,
+        character,
+        analysis,
+        crate::definition::CallResolution { registry, program },
+        profile,
+    )
+}
+
 /// Render the hover body for a proc or class that lives in **another**
 /// document, identified by its qualified name.
 ///
@@ -239,7 +266,7 @@ fn ensemble_subcommand_hover(
     line: u32,
     character: u32,
     analysis: &AnalysisResult,
-    registry: Option<&CommandRegistry>,
+    ctx: crate::definition::CallResolution<'_>,
 ) -> Option<Hover> {
     let (head, sub, is_dollar) =
         crate::definition::instance_method_at_cursor(source, line, character)?;
@@ -254,14 +281,8 @@ fn ensemble_subcommand_hover(
         &analysis.namespace_overrides,
     );
     let target = crate::definition::ensemble_subcommand_target(analysis, &namespace, &head, &sub)?;
-    let proc_def = crate::definition::resolve_called_proc(
-        analysis,
-        source,
-        "::",
-        target,
-        cursor_offset,
-        registry,
-    )?;
+    let proc_def =
+        crate::definition::resolve_called_proc(analysis, source, "::", target, cursor_offset, ctx)?;
     let text = format!(
         "**Ensemble subcommand** of `{head}`\n\n{}",
         proc_hover_text(proc_def)
@@ -331,7 +352,7 @@ fn proc_hover_at(
     source: &str,
     cursor_offset: u32,
     word: &str,
-    registry: Option<&CommandRegistry>,
+    ctx: crate::definition::CallResolution<'_>,
 ) -> Option<Hover> {
     // A proc's own declaration name (`proc greet …`) is an argument of
     // `proc`, so the head gate below would refuse it; it is answered here,
@@ -358,7 +379,7 @@ fn proc_hover_at(
         &namespace,
         word,
         cursor_offset,
-        registry,
+        ctx,
     )?;
     Some(Hover::markdown(proc_hover_text(proc_def)))
 }
@@ -385,9 +406,10 @@ fn variable_hover(
     character: u32,
     line_index: &tcl_lexer::LineIndex,
     analysis: &AnalysisResult,
-    registry: Option<&CommandRegistry>,
+    ctx: crate::definition::CallResolution<'_>,
     profile: &'static tcl_dialect::DialectProfile,
 ) -> Option<Hover> {
+    let registry = ctx.registry;
     let dialect = profile.availability_mask;
     // `$var` resolution sits at a position where `find_word_span_at_position`
     // would also match the unqualified name, but a `$`-led ref should
@@ -445,7 +467,7 @@ fn variable_hover(
             analysis,
             source,
             profile.name,
-            registry,
+            ctx,
             var_byte_offset,
             &var_name,
         );
@@ -491,12 +513,11 @@ fn variable_position_hover(
     character: u32,
     line_index: &tcl_lexer::LineIndex,
     analysis: &AnalysisResult,
-    registry: Option<&CommandRegistry>,
+    ctx: crate::definition::CallResolution<'_>,
     profile: &'static tcl_dialect::DialectProfile,
 ) -> PositionHover {
-    if let Some(hover) = variable_hover(
-        source, line, character, line_index, analysis, registry, profile,
-    ) {
+    if let Some(hover) = variable_hover(source, line, character, line_index, analysis, ctx, profile)
+    {
         return PositionHover::Answer(hover);
     }
     let cursor_offset = crate::definition::byte_offset_at(line_index, source, line, character);
@@ -554,6 +575,20 @@ pub fn hover_with_profile(
     registry: Option<&CommandRegistry>,
     profile: &'static tcl_dialect::DialectProfile,
 ) -> Option<Hover> {
+    hover_in_program(source, line, character, analysis, registry, profile, None)
+}
+
+/// The body of [`hover_with_profile`] / [`hover_in_program`], stated once over
+/// the [`crate::definition::CallResolution`] both build.
+fn hover_impl(
+    source: &str,
+    line: u32,
+    character: u32,
+    analysis: &AnalysisResult,
+    ctx: crate::definition::CallResolution<'_>,
+    profile: &'static tcl_dialect::DialectProfile,
+) -> Option<Hover> {
+    let registry = ctx.registry;
     let dialect = profile.availability_mask;
     // One index shared by the position conversions below.
     let line_index = tcl_lexer::LineIndex::new(source);
@@ -561,15 +596,7 @@ pub fn hover_with_profile(
     let cursor_offset = crate::definition::byte_offset_at(&line_index, source, line, character);
     // Everything the cursor's *position* decides, before any word-based
     // resolver runs. `Some` is definitive, including `Some(None)`.
-    match variable_position_hover(
-        source,
-        line,
-        character,
-        &line_index,
-        analysis,
-        registry,
-        profile,
-    ) {
+    match variable_position_hover(source, line, character, &line_index, analysis, ctx, profile) {
         PositionHover::Answer(hover) => return Some(hover),
         PositionHover::Abstain => return None,
         PositionHover::FallThrough => {}
@@ -637,7 +664,7 @@ pub fn hover_with_profile(
     // before the generic proc lookup below for the same reason as the
     // `$obj method` check above: `make` is never independently a command,
     // only the pair `widget make` dispatches.
-    if let Some(hover) = ensemble_subcommand_hover(source, line, character, analysis, registry) {
+    if let Some(hover) = ensemble_subcommand_hover(source, line, character, analysis, ctx) {
         return Some(hover);
     }
 
@@ -654,12 +681,12 @@ pub fn hover_with_profile(
     // builtin, this yields nothing and the registry hover below wins — a
     // proc in an unrelated namespace must not hijack builtin hover.  A
     // non-builtin word keeps the lenient (deterministic) tail fallback.
-    if let Some(hover) = proc_hover_at(analysis, source, cursor_offset, &word, registry) {
+    if let Some(hover) = proc_hover_at(analysis, source, cursor_offset, &word, ctx) {
         return Some(hover);
     }
 
     if let Some((_, class_def)) =
-        crate::definition::resolve_class_target_at(analysis, cursor_offset, &word)
+        crate::definition::resolve_class_target_at(analysis, ctx, cursor_offset, &word)
     {
         return Some(Hover::markdown(class_hover_text(analysis, class_def)));
     }

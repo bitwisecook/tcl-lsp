@@ -76,6 +76,7 @@
 use std::collections::HashSet;
 use std::sync::Arc;
 
+use crate::namespace_import::ExportVerdict;
 use crate::source_graph::RunPoint;
 use crate::workspace_symbols::{
     IndexedWorkspaceSymbol, WorkspaceSymbolKind, matches_query, namespace_of,
@@ -1515,6 +1516,9 @@ pub struct WorkspaceIndex {
     /// without link-following — see
     /// [`WorkspaceIndex::invocations_by_settled_target`].
     settled_invocations: [Derived<SettledTargets>; 2],
+    /// The whole-program export oracle the single-document tier borrows — see
+    /// [`WorkspaceIndex::export_snapshot`].
+    export_snapshot: Derived<NamespaceExportSnapshot>,
     /// The `source`-path → document-URI resolver, when the host has installed
     /// one — see [`WorkspaceIndex::set_source_resolver`].
     source_resolver: Option<SourceResolver>,
@@ -1727,6 +1731,47 @@ impl WorkspaceIndex {
         })
     }
 
+    /// The whole-program export oracle the *single-document* tier consults
+    /// when deciding whether a `namespace import -force` really deleted the
+    /// importing namespace's own command (issue #1116 item 1).
+    ///
+    /// One document cannot answer that on its own: the `namespace export` that
+    /// decides it may live in another file, and two programs whose single
+    /// document is byte-identical then disagree — the transcript is on
+    /// [`crate::namespace_import::NamespaceExportOracle`]. This is the
+    /// whole-program evidence that closes the gap, and nothing more: it
+    /// answers one question and may answer
+    /// [`ExportVerdict::Unknown`].
+    ///
+    /// A [`Derived`] view, so it is built at most once per
+    /// [`Self::generation`]; the returned `Arc` is owned, so a caller may hold
+    /// it after releasing the index lock (which is how the server hands it to
+    /// its blocking providers).
+    #[must_use]
+    pub fn export_snapshot(&self) -> Arc<NamespaceExportSnapshot> {
+        self.export_snapshot.get_or_build(|| {
+            let mut exports_by_ns: std::collections::HashMap<
+                String,
+                Vec<WorkspaceNamespaceExport>,
+            > = std::collections::HashMap::new();
+            for exp in self.namespace_exports() {
+                exports_by_ns
+                    .entry(exp.ns.trim_start_matches("::").to_owned())
+                    .or_default()
+                    .push(exp.clone());
+            }
+            NamespaceExportSnapshot {
+                exports_by_ns,
+                observable: self
+                    .observable_namespaces()
+                    .into_iter()
+                    .map(str::to_owned)
+                    .collect(),
+                order: self.run_order(),
+            }
+        })
+    }
+
     /// Install the host's literal-`source`-path → document-URI resolver, so
     /// the index can build the [`crate::source_graph::RunOrder`] the
     /// import-lifecycle gates rank cross-document events with (issue #1104
@@ -1759,6 +1804,8 @@ impl WorkspaceIndex {
     pub fn set_source_resolver(&mut self, resolve: SourceResolver) {
         self.source_resolver = Some(resolve);
         self.run_order = Derived::default();
+        // The export snapshot captures the order, so it goes with it.
+        self.export_snapshot = Derived::default();
     }
 
     /// The `source`-graph load order over this workspace's documents, built at
@@ -1798,6 +1845,7 @@ impl WorkspaceIndex {
         self.defined_names = <[Derived<HashSet<String>>; 2]>::default();
         self.command_link_map = Derived::default();
         self.settled_invocations = <[Derived<SettledTargets>; 2]>::default();
+        self.export_snapshot = Derived::default();
         self.run_order = Derived::default();
     }
 
@@ -3281,10 +3329,29 @@ impl WorkspaceIndex {
         links: Option<&std::collections::HashMap<String, String>>,
         wci: &WildcardImportIndex<'_>,
     ) -> Option<String> {
-        if let Some(winner) = inv
-            .resolution_candidates
-            .iter()
-            .find(|c| defined.contains(c.trim_start_matches("::")))
+        let call = CallSite {
+            uri: &inv.uri,
+            at: inv.range.start(),
+            enclosing_body: inv.enclosing_body,
+        };
+        // A live `namespace import -force` has *replaced* the importing
+        // namespace's own command of this name, so no candidate naming that
+        // command may settle the call — it reaches the import's source, which
+        // the wildcard tier below resolves (issue #1116 item 1). The same rule
+        // `definition::resolve_called_proc` applies in-document, so without it
+        // find-references files the call under the definition the import
+        // deleted while go-to-definition jumps to the source.
+        //
+        // Only in the link-following view, matching the rule below: a glob
+        // import introduces no fixed link, so the direct-only view rename
+        // relies on does not see it in either direction.
+        let forced_shadow = links.is_some()
+            && wci.forced_shadow_over_candidates(&inv.name, &inv.resolution_candidates, call);
+        if !forced_shadow
+            && let Some(winner) = inv
+                .resolution_candidates
+                .iter()
+                .find(|c| defined.contains(c.trim_start_matches("::")))
         {
             let winner = winner.trim_start_matches("::");
             return Some(
@@ -3300,17 +3367,8 @@ impl WorkspaceIndex {
         // on — a call spelling the local imported name is not text-rewritten
         // just because its ultimate source is renamed.
         links?;
-        self.resolve_wildcard_import_indexed(
-            &inv.name,
-            &inv.resolution_candidates,
-            CallSite {
-                uri: &inv.uri,
-                at: inv.range.start(),
-                enclosing_body: inv.enclosing_body,
-            },
-            wci,
-        )
-        .map(|resolved| resolved.trim_start_matches("::").to_owned())
+        self.resolve_wildcard_import_indexed(&inv.name, &inv.resolution_candidates, call, wci)
+            .map(|resolved| resolved.trim_start_matches("::").to_owned())
     }
 
     /// The command name-link map (`::`-stripped `linked → immediate target`)
@@ -3693,6 +3751,13 @@ struct WildcardImportIndex<'a> {
     /// ordered wherever the graph proves an order and unrankable everywhere
     /// else (issue #1104 item 3).
     order: Arc<crate::source_graph::RunOrder>,
+    /// The `::`-stripped namespaces this workspace can say anything about —
+    /// [`WorkspaceIndex::observable_namespaces`]. Only
+    /// [`Self::forced_shadow_at`] reads it, and only to abstain the way the
+    /// single-document tier does: a `-force` import of a namespace no indexed
+    /// file declares deletes the local command whether or not the export can
+    /// be proven here.
+    observable: HashSet<&'a str>,
 }
 
 impl<'a> WildcardImportIndex<'a> {
@@ -3762,7 +3827,61 @@ impl<'a> WildcardImportIndex<'a> {
             deletions_by_name,
             declarations_by_qname,
             order: index.run_order(),
+            observable: index.observable_namespaces(),
         }
+    }
+
+    /// Whether a live `namespace import -force` in `ns` has taken `name` away
+    /// from `ns`'s own command table by the time the call at `call` runs — the
+    /// cross-document twin of `definition::forced_import_shadows`.
+    ///
+    /// `-force` is the one import that outranks a command the importing
+    /// namespace already holds, so it is the one case where a *defined*
+    /// candidate must not settle a call ([`WorkspaceIndex::settle_invocation`]).
+    /// No conflict check: a forced import never conflicts, which is what
+    /// `-force` means.
+    ///
+    /// The export gate abstains toward the shadow for a source namespace no
+    /// indexed file declares — the same direction the single-document tier
+    /// takes and the same one [`WorkspaceIndex::live_command_links`] takes for
+    /// exact imports. Answering with a command the import may have deleted is
+    /// worse than answering nothing.
+    fn forced_shadow_at(&self, ns: &str, name: &str, call: CallSite<'_>) -> bool {
+        self.imports_by_ns.get(ns).is_some_and(|imports| {
+            imports.iter().any(|imp| {
+                imp.forced
+                    && tcl_syntax::glob::string_match(&imp.tail_pattern, name)
+                    && (!self
+                        .observable
+                        .contains(imp.source_ns.trim_start_matches("::"))
+                        || self.exports_name_at(&imp.source_ns, name, imp.site()))
+                    && self.alias_live_at(ns, &imp.source_ns, name, imp.site(), call)
+            })
+        })
+    }
+
+    /// [`Self::forced_shadow_at`] over a call's own candidate list, in Tcl's
+    /// resolution order — the shape [`WorkspaceIndex::settle_invocation`] has
+    /// in hand.
+    fn forced_shadow_over_candidates(
+        &self,
+        name: &str,
+        resolution_candidates: &[String],
+        call: CallSite<'_>,
+    ) -> bool {
+        if name.contains("::") {
+            return false;
+        }
+        resolution_candidates.iter().any(|cand| {
+            cand.rsplit_once("::").is_some_and(|(prefix, tail)| {
+                tail == name
+                    && self.forced_shadow_at(
+                        if prefix.is_empty() { "::" } else { prefix },
+                        name,
+                        call,
+                    )
+            })
+        })
     }
 
     /// Every removal event bearing on the alias `importing_ns` took from
@@ -4047,24 +4166,81 @@ impl<'a> WildcardImportIndex<'a> {
     /// function abstains toward continuing to resolve.
     fn exports_name_at(&self, ns: &str, name: &str, site: ImportSite<'_>) -> bool {
         self.exports_by_ns.get(ns).is_some_and(|exports| {
-            let mut events = exports
-                .iter()
-                .map(|e| crate::namespace_import::ExportEvent {
-                    pattern: e.pattern.as_str(),
-                    clears: e.clears,
-                    at: RunPoint {
-                        uri: e.uri.as_str(),
-                        at: e.at,
-                        enclosing_body: None,
-                    },
-                });
-            crate::namespace_import::exported_at_import_site(
-                &mut events,
-                name,
-                &self.order,
-                site.point(),
-            )
+            exported_at_site(exports.iter().copied(), name, &self.order, site.point())
         })
+    }
+}
+
+/// [`crate::namespace_import::exported_at_import_site`] over a namespace's
+/// indexed export rows — the one place `WorkspaceNamespaceExport` is turned
+/// into an [`crate::namespace_import::ExportEvent`].
+///
+/// Shared by the per-call wildcard walk ([`WildcardImportIndex::exports_name_at`])
+/// and the standalone [`NamespaceExportSnapshot`] the single-document tier
+/// borrows, so the two cannot answer the same question differently.
+fn exported_at_site<'e>(
+    exports: impl Iterator<Item = &'e WorkspaceNamespaceExport>,
+    name: &str,
+    order: &crate::source_graph::RunOrder,
+    site: RunPoint<'_>,
+) -> bool {
+    let mut events = exports.map(|e| crate::namespace_import::ExportEvent {
+        pattern: e.pattern.as_str(),
+        clears: e.clears,
+        at: RunPoint {
+            uri: e.uri.as_str(),
+            at: e.at,
+            enclosing_body: None,
+        },
+    });
+    crate::namespace_import::exported_at_import_site(&mut events, name, order, site)
+}
+
+/// The workspace's `namespace export` records, plus the run order and the
+/// observable-namespace set needed to read them — an **owned**, self-contained
+/// [`crate::namespace_import::NamespaceExportOracle`] the single-document tier
+/// can borrow (issue #1116 item 1).
+///
+/// Owned rather than a view borrowing [`WorkspaceIndex`] because the server's
+/// pure-CPU providers run on a blocking worker with the index lock released:
+/// the snapshot is taken under the lock and moved into the worker. It is a
+/// [`Derived`] view, so a whole generation's requests share one build.
+///
+/// It holds *only* what the export question needs. Everything else about an
+/// import — the conflict rule, the alias lifecycle, chain following — stays
+/// where it already is; this is not a second cross-document resolver.
+#[derive(Debug, Default)]
+pub struct NamespaceExportSnapshot {
+    /// Export rows by exporting namespace, `::`-stripped so the two spellings
+    /// an import pattern and an export record may carry still meet.
+    exports_by_ns: std::collections::HashMap<String, Vec<WorkspaceNamespaceExport>>,
+    /// The `::`-stripped namespaces the workspace can say anything about — the
+    /// discriminator between [`ExportVerdict::NotExported`] and
+    /// [`ExportVerdict::Unknown`], and the same set
+    /// [`WorkspaceIndex::live_command_links`] gates its own abstention on.
+    observable: HashSet<String>,
+    /// The `source`-graph load order, so an export the graph proves runs
+    /// *after* the import is not retroactive.
+    order: Arc<crate::source_graph::RunOrder>,
+}
+
+impl crate::namespace_import::NamespaceExportOracle for NamespaceExportSnapshot {
+    fn exported_at(&self, source_ns: &str, name: &str, import_site: RunPoint<'_>) -> ExportVerdict {
+        let ns = source_ns.trim_start_matches("::");
+        if !self.observable.contains(ns) {
+            // The namespace lives somewhere the workspace cannot see — an
+            // installed package, a file outside the project. Silence is not
+            // evidence, exactly as in `live_command_links`.
+            return ExportVerdict::Unknown;
+        }
+        let exported = self.exports_by_ns.get(ns).is_some_and(|exports| {
+            exported_at_site(exports.iter(), name, &self.order, import_site)
+        });
+        if exported {
+            ExportVerdict::Exported
+        } else {
+            ExportVerdict::NotExported
+        }
     }
 }
 
@@ -7730,5 +7906,253 @@ mod tests {
         assert_eq!(index.package_prefers().count(), 1);
         index.remove_document("file:///a.tcl");
         assert!(index.package_prefers().next().is_none());
+    }
+
+    // Both tiers on the two-file `namespace import -force` shadow
+    // (issue #1116 item 1).
+    //
+    // `MAIN` below is one document, byte-for-byte identical in every test of
+    // this group. What changes is the *rest of the program*, and with it the
+    // correct answer — which is exactly why the single-document tier needed a
+    // whole-program export oracle. Oracle transcript (tclsh 8.6.14 and 9.0.4,
+    // byte-identical), running `MAIN` from a loader that does or does not also
+    // source the `namespace export helper`:
+    //
+    //   with the export sourced first: call -> SRC    origin -> ::src::helper
+    //   with nothing exporting it:     call -> LOCAL  origin -> ::app::helper
+
+    /// The pinned two-file shape's main document.
+    const MAIN: &str = "namespace eval src {\n    proc helper {} { return SRC }\n    proc other {} { return O }\n    namespace export other\n}\nnamespace eval app {\n    proc helper {} { return LOCAL }\n}\nnamespace eval app {\n    namespace import -force ::src::*\n}\nnamespace eval app {\n    helper\n}\n";
+
+    /// What each tier says about the `helper` call at the end of [`MAIN`],
+    /// given the rest of the program.
+    ///
+    /// Returns `(in-document target, cross-document target)`, where a tier's
+    /// "target" is the qualified name the call reaches: the local definition
+    /// when the `-force` import bound nothing, the import's source when it
+    /// did, and `None` when the tier cannot say. The two are computed
+    /// independently — the single-document resolver over `MAIN`'s own analysis
+    /// plus the index's export oracle, and the workspace's own
+    /// [`WorkspaceIndex::resolve_wildcard_import`] — so agreeing is a real
+    /// result and not a tautology.
+    fn both_tiers_on_main(others: &[(&str, &AnalysisResult)]) -> (Option<String>, Option<String>) {
+        let main = analyse(MAIN);
+        let mut index = WorkspaceIndex::new();
+        index.add_document("file:///main.tcl", &main);
+        for (uri, analysis) in others {
+            index.add_document(uri, analysis);
+        }
+        let call = u32::try_from(MAIN.rfind("    helper\n").expect("call present") + 4)
+            .expect("tiny test source");
+        let candidates =
+            tcl_syntax::naming::command_resolution_candidates("::app", &[] as &[String], "helper");
+
+        let exports = index.export_snapshot();
+        let in_document = crate::definition::resolve_called_proc(
+            &main,
+            MAIN,
+            "::app",
+            "helper",
+            call,
+            crate::definition::CallResolution::document_only().in_program(
+                crate::definition::ProgramExports {
+                    uri: "file:///main.tcl",
+                    oracle: exports.as_ref(),
+                },
+            ),
+        )
+        .map(|p| p.qualified_name.clone());
+
+        // The cross-document tier answers the import question; when no import
+        // is live the call reaches whatever the workspace defines under the
+        // first candidate, which is the local proc.
+        let cross_document = index
+            .resolve_wildcard_import(
+                "helper",
+                &candidates,
+                CallSite {
+                    uri: "file:///main.tcl",
+                    at: call,
+                    enclosing_body: main.innermost_definition_body_span(call),
+                },
+            )
+            .or_else(|| {
+                candidates
+                    .iter()
+                    .find(|c| index.defines_command(c))
+                    .cloned()
+            });
+        (in_document, cross_document)
+    }
+
+    #[test]
+    fn both_tiers_shadow_when_another_file_holds_the_covering_export() {
+        // TP (CRITICAL) — the export that decides it lives in `exports.tcl`.
+        // Oracle: SRC / `::src::helper`.
+        let exports = analyse("namespace eval src {\n    namespace export helper\n}\n");
+        let (in_document, cross_document) =
+            both_tiers_on_main(&[("file:///exports.tcl", &exports)]);
+        assert_eq!(in_document.as_deref(), Some("::src::helper"));
+        assert_eq!(
+            in_document, cross_document,
+            "the two tiers must reach the same command",
+        );
+    }
+
+    #[test]
+    fn both_tiers_keep_the_local_when_the_whole_program_exports_nothing() {
+        // TN, byte-identical `MAIN` — nothing anywhere exports `helper`, so
+        // the `-force` import binds only `other` and the local definition
+        // survives. Oracle: LOCAL / `::app::helper`.
+        let unrelated = analyse("namespace eval other {\n    proc q {} {}\n}\n");
+        let (in_document, cross_document) =
+            both_tiers_on_main(&[("file:///unrelated.tcl", &unrelated)]);
+        assert_eq!(in_document.as_deref(), Some("::app::helper"));
+        assert_eq!(
+            in_document, cross_document,
+            "the two tiers must reach the same command",
+        );
+    }
+
+    #[test]
+    fn both_tiers_shadow_when_the_source_namespace_is_wholly_in_another_file() {
+        // TP — the third oracle shape: `::src`'s procs *and* its export are
+        // elsewhere, so this document sees only the `-force` import and the
+        // local proc it deletes. Oracle: SRC / `::src::helper`.
+        let main = analyse(WHOLLY_FOREIGN);
+        let lib = analyse(
+            "namespace eval src {\n    proc helper {} { return SRC }\n    namespace export helper\n}\n",
+        );
+        let mut index = WorkspaceIndex::new();
+        index.add_document("file:///main.tcl", &main);
+        index.add_document("file:///lib.tcl", &lib);
+        let call = u32::try_from(WHOLLY_FOREIGN.rfind("    helper\n").expect("call present") + 4)
+            .expect("tiny test source");
+        let candidates =
+            tcl_syntax::naming::command_resolution_candidates("::app", &[] as &[String], "helper");
+        let exports = index.export_snapshot();
+        // In-document: the source is in no local table, so the resolver cannot
+        // *name* the target — but it must refuse to answer with the local
+        // definition the import deleted, which is the abstention the shadow
+        // gate exists for.
+        let ctx = crate::definition::CallResolution::document_only().in_program(
+            crate::definition::ProgramExports {
+                uri: "file:///main.tcl",
+                oracle: exports.as_ref(),
+            },
+        );
+        assert!(crate::definition::forced_import_shadows_call(
+            &main,
+            ctx,
+            "helper",
+            &candidates,
+            call,
+        ));
+        assert!(
+            crate::definition::resolve_called_proc(
+                &main,
+                WHOLLY_FOREIGN,
+                "::app",
+                "helper",
+                call,
+                ctx
+            )
+            .is_none(),
+            "the deleted local definition must not be the answer",
+        );
+        // …and the cross-document tier supplies the name.
+        assert_eq!(
+            index.resolve_wildcard_import(
+                "helper",
+                &candidates,
+                CallSite {
+                    uri: "file:///main.tcl",
+                    at: call,
+                    enclosing_body: main.innermost_definition_body_span(call),
+                },
+            ),
+            Some("::src::helper".to_owned()),
+        );
+    }
+
+    /// The `-force` shape whose source namespace is wholly in another file.
+    const WHOLLY_FOREIGN: &str = "namespace eval app {\n    proc helper {} { return LOCAL }\n}\nnamespace eval app {\n    namespace import -force ::src::*\n}\nnamespace eval app {\n    helper\n}\n";
+
+    #[test]
+    fn the_settled_call_moves_to_the_import_source_when_the_shadow_is_live() {
+        // The same fact on the *settle* path find-references reads (issue
+        // #1116 item 1): a candidate naming the command a `-force` import
+        // deleted must not settle the call, or find-references files it under
+        // a definition go-to-definition no longer answers with.
+        let exports = analyse("namespace eval src {\n    namespace export helper\n}\n");
+        let main = analyse(MAIN);
+        let index = WorkspaceIndex::from_documents([
+            ("file:///main.tcl", &main),
+            ("file:///exports.tcl", &exports),
+        ]);
+        assert_eq!(
+            index
+                .linked_invocations_of("::src::helper", "file:///exports.tcl")
+                .len(),
+            1,
+            "the shadowed call is a reference to the import source",
+        );
+        assert!(
+            index
+                .linked_invocations_of("::app::helper", "file:///exports.tcl")
+                .is_empty(),
+            "…and not to the command the import deleted",
+        );
+    }
+
+    #[test]
+    fn the_settled_call_stays_local_when_the_program_exports_nothing() {
+        // TN, byte-identical `MAIN` — with nothing exporting `helper` the
+        // import binds nothing and the call still belongs to the local proc.
+        let unrelated = analyse("namespace eval other {\n    proc q {} {}\n}\n");
+        let main = analyse(MAIN);
+        let index = WorkspaceIndex::from_documents([
+            ("file:///main.tcl", &main),
+            ("file:///unrelated.tcl", &unrelated),
+        ]);
+        assert_eq!(
+            index
+                .linked_invocations_of("::app::helper", "file:///unrelated.tcl")
+                .len(),
+            1,
+            "the surviving local definition owns the call",
+        );
+        assert!(
+            index
+                .linked_invocations_of("::src::helper", "file:///unrelated.tcl")
+                .is_empty(),
+            "…and an import that bound nothing creates no reference",
+        );
+    }
+
+    #[test]
+    fn the_export_snapshot_answers_unknown_for_a_namespace_no_file_declares() {
+        // The abstention, stated directly on the oracle: `::msgcat` is an
+        // installed package, in no indexed document. Silence about its exports
+        // is not evidence that it exports nothing — the same rule
+        // `live_command_links` already applies to exact imports.
+        use crate::namespace_import::NamespaceExportOracle as _;
+        let app = analyse("namespace eval app {\n    namespace import -force ::msgcat::*\n}\n");
+        let index = WorkspaceIndex::from_documents([("file:///app.tcl", &app)]);
+        let snapshot = index.export_snapshot();
+        let site = RunPoint {
+            uri: "file:///app.tcl",
+            at: 0,
+            enclosing_body: None,
+        };
+        assert_eq!(
+            snapshot.exported_at("::msgcat", "mc", site),
+            ExportVerdict::Unknown,
+        );
+        // …while a namespace the workspace *can* see gives a real negative.
+        assert_eq!(
+            snapshot.exported_at("::app", "mc", site),
+            ExportVerdict::NotExported,
+        );
     }
 }

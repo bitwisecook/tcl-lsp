@@ -124,6 +124,19 @@ to the **source** instead — until a `proc` of that name is written, which
 silently takes the name back and sends navigation to the new local
 definition.
 
+Whether a `-force` import really did take the name away depends on the *whole
+project*, not on the file the import is written in. `namespace import -force
+::src::*` only replaces a local command for names `::src` actually exports, and
+that `namespace export` may live in a different file. Go to Definition uses
+every open file to decide: with the export somewhere in the project the bare
+call jumps to the source, and with nothing anywhere exporting the name the
+import binds nothing and the call stays on the local definition — the same two
+answers real Tcl gives, from two projects whose importing file is identical
+character for character. When the source namespace is in no open file at all —
+an installed package, say — nothing can be proven either way, and rather than
+answer with a definition the import may have removed, Go to Definition answers
+nothing.
+
 Imports chain. When `::A` imports `::B::*` and `::B` had imported `::C::*`
 (and re-exported), a bare call in `::A` runs `::C`'s body, and Go to Definition
 follows the whole chain to `::C`'s header — while a forget anywhere along it

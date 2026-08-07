@@ -103,6 +103,38 @@ pub fn signature_help(
     analysis: &AnalysisResult,
     registry: Option<&CommandRegistry>,
 ) -> Option<SignatureHelp> {
+    signature_help_in_program(
+        source,
+        line,
+        character,
+        analysis,
+        crate::definition::CallResolution {
+            registry,
+            program: None,
+        },
+    )
+}
+
+/// [`signature_help`] with the caller's whole-program export view attached —
+/// the entry point a host with a workspace index should call.
+///
+/// The signature rendered is *the reached proc's*, so a `namespace import
+/// -force` whose covering `namespace export` lives in another file changes
+/// which parameter list is correct at this call (issue #1116 item 1).  Showing
+/// the shadowed local proc's signature would mis-describe the call that
+/// actually runs.
+///
+/// `resolution` carries the registry and the oracle together — the same pair
+/// [`crate::definition::resolve_called_proc`] consumes.
+#[must_use]
+pub fn signature_help_in_program(
+    source: &str,
+    line: u32,
+    character: u32,
+    analysis: &AnalysisResult,
+    resolution: crate::definition::CallResolution<'_>,
+) -> Option<SignatureHelp> {
+    let registry = resolution.registry;
     let (command, args, active_param) = command_context_with_args(source, line, character)?;
     // Resolve the command from the namespace the cursor sits in, the way C
     // Tcl's own command resolution would (caller namespace, then global), so a
@@ -117,9 +149,9 @@ pub fn signature_help(
         cursor_off,
         &analysis.namespace_overrides,
     );
-    if let Some(proc_def) =
-        lookup_proc(analysis, source, &namespace, &command, cursor_off, registry)
-    {
+    if let Some(proc_def) = lookup_proc(
+        analysis, source, &namespace, &command, cursor_off, resolution,
+    ) {
         return Some(proc_signature_help(proc_def, active_param));
     }
     let registry = registry?;
@@ -320,11 +352,11 @@ fn lookup_proc<'a>(
     namespace: &str,
     name: &str,
     call_off: u32,
-    registry: Option<&CommandRegistry>,
+    ctx: crate::definition::CallResolution<'_>,
 ) -> Option<&'a ProcDef> {
-    if let Some(proc_def) = crate::definition::resolve_called_proc(
-        analysis, source, namespace, name, call_off, registry,
-    ) {
+    if let Some(proc_def) =
+        crate::definition::resolve_called_proc(analysis, source, namespace, name, call_off, ctx)
+    {
         return Some(proc_def);
     }
     // Alias resolution.  When the cursor's command isn't a visible proc, check
@@ -337,7 +369,7 @@ fn lookup_proc<'a>(
         namespace,
         &resolved_target,
         call_off,
-        registry,
+        ctx,
     )
 }
 

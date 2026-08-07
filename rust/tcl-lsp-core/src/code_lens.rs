@@ -131,6 +131,22 @@ pub fn code_lenses(
     let Some(analysis) = analysis else {
         return Vec::new();
     };
+    // The lens title is a reference *count*, so it has to agree with the peek
+    // it labels — and both must exclude a bare call a live `namespace import
+    // -force` shadows, a fact only whole-program export knowledge can settle
+    // (issue #1116 item 1). The workspace index this provider already
+    // receives is exactly that knowledge, so no extra parameter is needed;
+    // without one the counts stay document-only, as before.
+    let exports = workspace.map(crate::workspace_index::WorkspaceIndex::export_snapshot);
+    let resolution = match exports.as_deref() {
+        Some(oracle) => crate::definition::CallResolution::document_only().in_program(
+            crate::definition::ProgramExports {
+                uri: current_uri,
+                oracle,
+            },
+        ),
+        None => crate::definition::CallResolution::document_only(),
+    };
     let line_index = LineIndex::new(source);
     let mut lenses: Vec<CodeLens> = Vec::new();
 
@@ -142,7 +158,8 @@ pub fn code_lenses(
         // another namespace).  `proc_reference_spans` takes the resolved
         // proc directly, so iterating every proc here doesn't rebuild a
         // `LineIndex` or rescan the proc table per definition.
-        let mut count = crate::references::proc_reference_spans(analysis, qname, proc_def).len();
+        let mut count =
+            crate::references::proc_reference_spans(analysis, resolution, qname, proc_def).len();
         if let Some(index) = workspace {
             count += index
                 .invocations_of(&proc_def.qualified_name, current_uri)
@@ -175,7 +192,7 @@ pub fn code_lenses(
     // inheritance chains (`oo::class create Sub { superclass
     // ClassName ... }`).
     for (qname, class_def) in &analysis.all_classes {
-        let mut count = count_class_references(qname, class_def, analysis);
+        let mut count = count_class_references(qname, class_def, analysis, resolution);
         if let Some(index) = workspace {
             count += index
                 .invocations_of(&class_def.qualified_name, current_uri)
@@ -447,12 +464,13 @@ fn count_class_references(
     qname: &str,
     class_def: &tcl_compiler::analyser::ClassDef,
     analysis: &AnalysisResult,
+    resolution: crate::definition::CallResolution<'_>,
 ) -> usize {
     // Derive the count from the *same* namespace-aware matching the peek
     // (Find All References) uses — `references::class_reference_spans` — so
     // the lens title and the peek can never drift (mirrors the proc lens's
     // `proc_reference_spans` reuse above).
-    crate::references::class_reference_spans(analysis, qname, class_def)
+    crate::references::class_reference_spans(analysis, resolution, qname, class_def)
         .into_iter()
         .filter(|span| {
             !(span.start() <= class_def.name_span.start()

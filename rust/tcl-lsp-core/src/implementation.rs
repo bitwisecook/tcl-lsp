@@ -79,9 +79,12 @@ pub fn implementation(
     // already resolves each written super/mixin owner-aware (the same
     // `normalise` the MRO builder uses) and unions super + mixin edges, so
     // it is the single source of truth `type_hierarchy::subtypes` shares.
-    if let Some((target_qname, _target)) =
-        crate::definition::resolve_class_target_at(analysis, cursor, &word)
-    {
+    if let Some((target_qname, _target)) = crate::definition::resolve_class_target_at(
+        analysis,
+        crate::definition::CallResolution::document_only(),
+        cursor,
+        &word,
+    ) {
         if let Some(subs) = analysis.class_hierarchy().subclasses.get(target_qname) {
             for sub_qname in subs {
                 if let Some(cd) = analysis.all_classes.get(sub_qname) {

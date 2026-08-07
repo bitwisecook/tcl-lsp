@@ -187,6 +187,32 @@ pub fn prepare_rename(
     character: u32,
     analysis: &AnalysisResult,
 ) -> Option<PrepareRename> {
+    prepare_rename_in_program(
+        source,
+        line,
+        character,
+        analysis,
+        crate::definition::CallResolution::document_only(),
+    )
+}
+
+/// [`prepare_rename`] with the caller's whole-program export view attached —
+/// the entry point a host with a workspace index should call.
+///
+/// A `namespace import -force` whose covering `namespace export` lives in
+/// another file changes *which* definition a bare call site denotes, so a
+/// rename started from that call must retarget with it (issue #1116 item 1).
+/// When the reached definition is not in this document the resolver answers
+/// `None` and the rename abstains — the safe outcome, and far better than
+/// rewriting the unrelated local proc the shadow deleted.
+#[must_use]
+pub fn prepare_rename_in_program(
+    source: &str,
+    line: u32,
+    character: u32,
+    analysis: &AnalysisResult,
+    resolution: crate::definition::CallResolution<'_>,
+) -> Option<PrepareRename> {
     let line_index = LineIndex::new(source);
     // A namespace name is renameable (issue #1114), and the check must come
     // first: the word resolvers below would otherwise anchor prepare on a
@@ -251,7 +277,7 @@ pub fn prepare_rename(
     let (word, _start, _end) = find_word_span_at_position(source, line, character)?;
     let word_off = crate::definition::byte_offset_at(&line_index, source, line, character);
     if let Some((_, proc_def)) =
-        crate::definition::resolve_proc_target_at(analysis, source, word_off, &word, None)
+        crate::definition::resolve_proc_target_at(analysis, source, word_off, &word, resolution)
     {
         return Some(PrepareRename {
             range: span_to_range(source, &line_index, proc_def.name_span),
@@ -260,7 +286,7 @@ pub fn prepare_rename(
     }
     // Class?  Same resolution shape against `all_classes`.
     if let Some((_, class_def)) =
-        crate::definition::resolve_class_target_at(analysis, word_off, &word)
+        crate::definition::resolve_class_target_at(analysis, resolution, word_off, &word)
     {
         return Some(PrepareRename {
             range: span_to_range(source, &line_index, class_def.name_span),
@@ -394,6 +420,41 @@ pub fn rename_with_diagnosis(
     analysis: &AnalysisResult,
     registry: Option<&CommandRegistry>,
 ) -> Result<Vec<TextEdit>, crate::rename_safety::RenameRefusal> {
+    rename_in_program(
+        source,
+        dialect,
+        line,
+        character,
+        new_name,
+        analysis,
+        crate::definition::CallResolution {
+            registry,
+            program: None,
+        },
+    )
+}
+
+/// [`rename_with_diagnosis`] with the caller's whole-program export view
+/// attached — the entry point a host with a workspace index should call.
+///
+/// A `namespace import -force` whose covering `namespace export` lives in
+/// another file changes *which* definition a bare call site denotes, so a
+/// rename started from that call must retarget with it (issue #1116 item 1).
+/// When the reached definition is not in this document the resolver answers
+/// `None` and the rename abstains — the safe outcome, and far better than
+/// rewriting the unrelated local proc the shadow deleted.
+///
+/// `resolution` carries the registry and the oracle together, which also keeps
+/// this entry point at [`rename_with_diagnosis`]'s arity.
+pub fn rename_in_program(
+    source: &str,
+    dialect: &str,
+    line: u32,
+    character: u32,
+    new_name: &str,
+    analysis: &AnalysisResult,
+    resolution: crate::definition::CallResolution<'_>,
+) -> Result<Vec<TextEdit>, crate::rename_safety::RenameRefusal> {
     // Shape gate first — applies to every rename target.
     if !is_safe_symbol_name(new_name) {
         return Ok(Vec::new());
@@ -434,7 +495,7 @@ pub fn rename_with_diagnosis(
         def_byte,
         new_name,
         analysis,
-        registry,
+        resolution,
         &line_index,
     ) {
         return Ok(edits);
@@ -445,7 +506,7 @@ pub fn rename_with_diagnosis(
         def_byte,
         new_name,
         analysis,
-        registry,
+        resolution,
         &line_index,
     ) {
         return Ok(edits);
@@ -1242,9 +1303,10 @@ fn rename_proc(
     cursor_off: u32,
     new_name: &str,
     analysis: &AnalysisResult,
-    registry: Option<&CommandRegistry>,
+    resolution: crate::definition::CallResolution<'_>,
     line_index: &LineIndex,
 ) -> Option<Vec<TextEdit>> {
+    let registry = resolution.registry;
     // Resolve the target the same way go-to-definition does: the proc whose
     // declaration covers the cursor, else C Tcl's namespace-aware call-site
     // resolution — never a namespace-blind `p.name == word` scan, which let a
@@ -1252,7 +1314,7 @@ fn rename_proc(
     // another namespace and rewrite the wrong definition (matches
     // `references::references`).
     let (qname, proc_def) =
-        crate::definition::resolve_proc_target_at(analysis, source, cursor_off, word, registry)?;
+        crate::definition::resolve_proc_target_at(analysis, source, cursor_off, word, resolution)?;
     if let Some(registry) = registry
         && is_builtin_command_name(new_name, registry)
     {
@@ -1333,14 +1395,15 @@ fn rename_class(
     cursor_off: u32,
     new_name: &str,
     analysis: &AnalysisResult,
-    registry: Option<&CommandRegistry>,
+    resolution: crate::definition::CallResolution<'_>,
     line_index: &LineIndex,
 ) -> Option<Vec<TextEdit>> {
+    let registry = resolution.registry;
     // Declaration under the cursor, else namespace-aware resolution — never a
     // namespace-blind `c.name == word` scan (which from a call site could
     // rename the wrong same-named class in another namespace).
     let (qname, class_def) =
-        crate::definition::resolve_class_target_at(analysis, cursor_off, word)?;
+        crate::definition::resolve_class_target_at(analysis, resolution, cursor_off, word)?;
     if let Some(registry) = registry
         && is_builtin_command_name(new_name, registry)
     {

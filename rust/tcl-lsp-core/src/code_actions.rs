@@ -306,6 +306,24 @@ pub fn code_actions(
     range: LspRange,
     analysis: Option<&AnalysisResult>,
 ) -> Vec<CodeAction> {
+    code_actions_in_program(source, range, analysis, None)
+}
+
+/// [`code_actions`] with the caller's whole-program export view attached —
+/// the entry point a host with a workspace index should call.
+///
+/// The refactor engine's inline-proc transform substitutes the body of the
+/// proc the call reaches, so a `namespace import -force` whose covering
+/// `namespace export` lives in another file decides whether inlining the
+/// local same-named proc is a refactor or a behaviour change (issue #1116
+/// item 1).
+#[must_use]
+pub fn code_actions_in_program(
+    source: &str,
+    range: LspRange,
+    analysis: Option<&AnalysisResult>,
+    program: Option<crate::definition::ProgramExports<'_>>,
+) -> Vec<CodeAction> {
     let Some(analysis) = analysis else {
         return Vec::new();
     };
@@ -361,7 +379,13 @@ pub fn code_actions(
     actions.extend(ip_conversion_actions(source, range, &line_index));
     actions.extend(expr_rewrite_actions(source, range, &line_index));
     actions.extend(docstring_actions(source, range, analysis, &line_index));
-    actions.extend(extract_inline_actions(source, range, analysis, &line_index));
+    actions.extend(extract_inline_actions(
+        source,
+        range,
+        analysis,
+        &line_index,
+        program,
+    ));
 
     actions
 }
@@ -663,6 +687,34 @@ pub fn package_require_actions(
     analysis: Option<&AnalysisResult>,
     context_diagnostics: &[ContextDiagnostic],
 ) -> Vec<CodeAction> {
+    package_require_actions_in_program(
+        source,
+        range,
+        crate::definition::CallResolution::document_only().with_registry(registry),
+        analysis,
+        context_diagnostics,
+    )
+}
+
+/// [`package_require_actions`] with the caller's whole-program export view
+/// attached — the entry point a host with a workspace index should call.
+///
+/// Gate 4 ("nothing answers to this head") runs the shared call resolver, so
+/// it must run it with the same context go-to-definition uses or the two can
+/// disagree about whether a call is satisfied (issue #1116 item 1).
+///
+/// In practice the `-force` shadow cannot change this provider's answer: gate
+/// 3 only lets a *package-qualified* head through, and a `-force` import
+/// rewrites the meaning of a **bare** name in the importing namespace. The
+/// context is threaded anyway so the resolver call is not the odd one out.
+#[must_use]
+pub fn package_require_actions_in_program(
+    source: &str,
+    range: LspRange,
+    resolution: crate::definition::CallResolution<'_>,
+    analysis: Option<&AnalysisResult>,
+    context_diagnostics: &[ContextDiagnostic],
+) -> Vec<CodeAction> {
     // No analysis means no evidence, and evidence is the whole gate.
     let Some(analysis) = analysis else {
         return Vec::new();
@@ -674,7 +726,7 @@ pub fn package_require_actions(
     let Some(package) = missing_package_for_head_at(
         source,
         range,
-        registry,
+        resolution,
         analysis,
         context_diagnostics,
         &line_index,
@@ -705,11 +757,12 @@ pub fn package_require_actions(
 fn missing_package_for_head_at(
     source: &str,
     range: LspRange,
-    registry: &tcl_registry::CommandRegistry,
+    resolution: crate::definition::CallResolution<'_>,
     analysis: &AnalysisResult,
     context_diagnostics: &[ContextDiagnostic],
     line_index: &LineIndex,
 ) -> Option<String> {
+    let registry = resolution.registry?;
     let catalogue = package_catalogue(registry);
     for invocation in &analysis.command_invocations {
         let start = line_index.position_at_utf16(invocation.range.start(), source);
@@ -737,7 +790,7 @@ fn missing_package_for_head_at(
         // this name.  A corroborating unknown-command diagnostic from the
         // editor is accepted in place of the local resolver run, for the case
         // where the editor's view is fresher than the analysis in hand.
-        if !head_is_unresolved(source, analysis, registry, invocation)
+        if !head_is_unresolved(source, analysis, resolution, invocation)
             && !unresolved_diagnostic_covers(
                 head_range,
                 analysis,
@@ -804,9 +857,12 @@ fn package_named_by_namespace(head: &str, catalogue: &[String]) -> Option<String
 fn head_is_unresolved(
     source: &str,
     analysis: &AnalysisResult,
-    registry: &tcl_registry::CommandRegistry,
+    resolution: crate::definition::CallResolution<'_>,
     invocation: &tcl_compiler::signature_scan::types::SignatureCommandInvocation,
 ) -> bool {
+    let Some(registry) = resolution.registry else {
+        return false;
+    };
     if registry.get(&invocation.name).is_some() {
         return false;
     }
@@ -822,7 +878,7 @@ fn head_is_unresolved(
         &namespace,
         &invocation.name,
         head_off,
-        Some(registry),
+        resolution,
     )
     .is_none()
 }
@@ -1445,6 +1501,7 @@ fn extract_inline_actions(
     range: LspRange,
     analysis: &AnalysisResult,
     line_index: &LineIndex,
+    program: Option<crate::definition::ProgramExports<'_>>,
 ) -> Vec<CodeAction> {
     // Load the iRules dialect so `when`-body descent and the
     // `class match` / `class lookup` data-group form resolve.  Loading is
@@ -1456,7 +1513,14 @@ fn extract_inline_actions(
     registry.load_dialect(tcl_dialect::DialectSet::IRULES);
     let mut out = Vec::new();
     out.extend(refactor_engine_actions(
-        source, range, analysis, line_index, &registry,
+        source,
+        range,
+        analysis,
+        line_index,
+        crate::definition::CallResolution {
+            registry: Some(&registry),
+            program,
+        },
     ));
     out
 }
@@ -1474,9 +1538,12 @@ fn refactor_engine_actions(
     range: LspRange,
     analysis: &AnalysisResult,
     line_index: &LineIndex,
-    registry: &tcl_registry::CommandRegistry,
+    resolution: crate::definition::CallResolution<'_>,
 ) -> Vec<CodeAction> {
     use crate::refactor;
+    let Some(registry) = resolution.registry else {
+        return Vec::new();
+    };
     let mut out = Vec::new();
 
     let cursor = line_index.offset_at_utf16(
@@ -1507,7 +1574,7 @@ fn refactor_engine_actions(
     if let Some(r) = refactor::inline_variable(source, cursor, analysis, registry, line_index) {
         out.push(refactoring_to_action(&r, source, line_index));
     }
-    if let Some(r) = refactor::inline_proc(source, cursor, analysis, registry) {
+    if let Some(r) = refactor::inline_proc_in_program(source, cursor, analysis, resolution) {
         out.push(refactoring_to_action(&r, source, line_index));
     }
     if let Some(r) = refactor::if_to_switch(source, cursor, registry, line_index) {

@@ -176,6 +176,30 @@ not change the rule, and must not grow bespoke resolution logic. Every
     nothing" / "replaced what was there" halves are both modelled; the error's
     *control-flow* consequence (nothing after it in that script runs) is
     deliberately out of scope.
+
+    Whether a `-force` import deleted the local command is a **whole-program**
+    question even when everything else about it is local, so the
+    single-document tier takes a whole-program **export oracle**
+    (`tcl_lsp_core::namespace_import::NamespaceExportOracle`, implemented by
+    `WorkspaceIndex::export_snapshot`) rather than reading one file (issue
+    #1116 item 1). Two programs whose importing document is *byte-identical*
+    disagree, decided entirely by another file (pinned, tclsh 8.6.14 + 9.0.4):
+    with `::src` holding `proc helper`, `proc other` and `namespace export
+    other` in that document, a `-force` import of `::src::*` over a local
+    `::app::helper` reaches `::src::helper` when some other file also declares
+    `namespace eval ::src {namespace export helper}`, and the local
+    `::app::helper` when nothing does. The oracle's answer is three-valued
+    (`ExportVerdict`) and the two questions abstain in opposite directions:
+    "what does this call reach?" installs only on a proven export, "did
+    `-force` delete the local command?" installs on anything but a proven
+    *non*-export — answering with a command the import may have removed is
+    worse than answering nothing and letting the cross-document tier resolve
+    it. The oracle is **optional**: a host with no workspace index (the `tcl`
+    CLI, a single-document test, an unindexed buffer) keeps the document-only
+    rule, under which absence of an export is evidence only where that
+    document holds some export record for the namespace. It is carried as one
+    context (`tcl_lsp_core::definition::CallResolution`) through
+    `resolve_called_proc` and every provider that calls it, never as a global.
   - **Redefining the imported name ends the alias.** A `proc ::dst::p` written
     after the import silently recreates `::dst::p` as an ordinary command:
     no error, `::dst::p` runs the new body, `namespace origin ::dst::p`

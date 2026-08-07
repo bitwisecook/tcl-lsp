@@ -983,3 +983,268 @@ fn a_computed_source_path_keeps_the_pre_graph_abstention_end_to_end() {
     );
     assert_eq!(locs[0].uri, mod_uri);
 }
+
+// Issue #1116 item 1 — the in-document `-force` shadow needs whole-program
+// export knowledge.
+//
+// `PARTLY_OBSERVABLE_MAIN` below is one document, byte-for-byte identical in
+// both tests of this pair. `::src` is *partly* observable in it: its procs and
+// one of its exports (`other`) are right there, while whether it also exports
+// `helper` is decided in another file. Oracle (tclsh 8.6.14 and 9.0.4,
+// byte-identical), loading this document with and without a sibling file
+// holding `namespace eval ::src {namespace export helper}`:
+//
+//   with it:     call -> SRC     origin -> ::src::helper
+//   without it:  call -> LOCAL   origin -> ::app::helper
+//
+// No rule reading only this document can separate those, which is why the
+// single-document resolver now takes a whole-program export oracle.
+//
+//  line 0  namespace eval src {
+//  line 1      proc helper {a b} { return SRC }
+//  line 2      proc other {} { return O }
+//  line 3      namespace export other
+//  line 4  }
+//  line 5  namespace eval app {
+//  line 6      proc helper {} { return LOCAL }
+//  line 7  }
+//  line 8  namespace eval app {
+//  line 9      namespace import -force ::src::*
+//  line 10 }
+//  line 11 namespace eval app {
+//  line 12     helper
+//  line 13 }
+const PARTLY_OBSERVABLE_MAIN: &str = "namespace eval src {\n    proc helper {a b} { return SRC }\n    proc other {} { return O }\n    namespace export other\n}\nnamespace eval app {\n    proc helper {} { return LOCAL }\n}\nnamespace eval app {\n    namespace import -force ::src::*\n}\nnamespace eval app {\n    helper\n}\n";
+
+#[test]
+fn a_forced_import_shadows_when_another_file_exports_the_name_end_to_end() {
+    // TP (CRITICAL) — with `::src`'s `namespace export helper` in a sibling
+    // file the `-force` import really did delete `::app::helper`, so the call
+    // reaches `::src::helper` (line 1), not the local one (line 6).
+    let mut lsp = Lsp::tcl();
+    let exports_uri = unique_uri("tcl");
+    lsp.open_ready(
+        &exports_uri,
+        "namespace eval src {\n    namespace export helper\n}\n",
+    );
+    let main_uri = unique_uri("tcl");
+    lsp.open_ready(&main_uri, PARTLY_OBSERVABLE_MAIN);
+    let locs = locations(&lsp.definition(&main_uri, 12, 4));
+    assert_eq!(locs.len(), 1, "{locs:?}");
+    assert_eq!(locs[0].uri, main_uri);
+    assert_eq!(
+        start_line(&locs[0]),
+        1,
+        "the `-force` import replaced the local `helper`: {locs:?}"
+    );
+    // Hover reads the same resolution, so it must name the same proc — the
+    // parameter lists differ precisely so the two are distinguishable.
+    let hover = hover_text(&lsp.hover(&main_uri, 12, 4));
+    assert!(
+        hover.contains('a') && hover.contains('b'),
+        "hover must describe `::src::helper {{a b}}`: {hover:?}"
+    );
+}
+
+#[test]
+fn a_forced_import_of_an_unexported_name_keeps_the_local_end_to_end() {
+    // TN, byte-identical `main.tcl` — nothing in the program exports
+    // `helper`, so the `-force` import binds only `other` and the local
+    // definition (line 6) survives. The pinned true negative: this is the
+    // case the document-only rule got right and must keep getting right.
+    let mut lsp = Lsp::tcl();
+    let unrelated_uri = unique_uri("tcl");
+    lsp.open_ready(
+        &unrelated_uri,
+        "namespace eval other {\n    proc q {} { return Q }\n}\n",
+    );
+    let main_uri = unique_uri("tcl");
+    lsp.open_ready(&main_uri, PARTLY_OBSERVABLE_MAIN);
+    let locs = locations(&lsp.definition(&main_uri, 12, 4));
+    assert_eq!(locs.len(), 1, "{locs:?}");
+    assert_eq!(locs[0].uri, main_uri);
+    assert_eq!(
+        start_line(&locs[0]),
+        6,
+        "an import that binds nothing leaves the local definition: {locs:?}"
+    );
+    let hover = hover_text(&lsp.hover(&main_uri, 12, 4));
+    assert!(
+        !hover.contains("a b"),
+        "hover must describe the local `helper {{}}`: {hover:?}"
+    );
+}
+
+#[test]
+fn a_forced_import_from_a_wholly_foreign_namespace_shadows_end_to_end() {
+    // TP — the third oracle shape: `::src`'s proc *and* its export are in
+    // another file, so this document holds only the `-force` import and the
+    // local proc it deletes. Oracle: SRC / `::src::helper`. Go-to-definition
+    // must leave this file rather than answer the deleted local definition.
+    let mut lsp = Lsp::tcl();
+    let lib_uri = unique_uri("tcl");
+    lsp.open_ready(
+        &lib_uri,
+        "namespace eval src {\n    proc helper {} { return SRC }\n    namespace export helper\n}\n",
+    );
+    let main_uri = unique_uri("tcl");
+    lsp.open_ready(
+        &main_uri,
+        "namespace eval app {\n    proc helper {} { return LOCAL }\n}\nnamespace eval app {\n    namespace import -force ::src::*\n}\nnamespace eval app {\n    helper\n}\n",
+    );
+    let locs = locations(&lsp.definition(&main_uri, 7, 4));
+    assert_eq!(locs.len(), 1, "{locs:?}");
+    assert_eq!(
+        locs[0].uri, lib_uri,
+        "the deleted local definition must not be the answer: {locs:?}"
+    );
+    assert_eq!(start_line(&locs[0]), 1);
+}
+
+// ---------------------------------------------------------------------------
+// Issue #1116 item 1 — every provider the export oracle was threaded through,
+// end to end over the packaged server.
+//
+// `SHADOW_MAIN` is byte-identical in both directions; only the sibling
+// document differs, so these pin the server's *wiring* (does each provider
+// actually receive `export_snapshot()`?) rather than the core resolver, which
+// `tcl-lsp-core/tests/force_import_shadow_consumers.rs` covers.
+//
+// C-Tcl proof (tclsh 8.6.14 and tclsh 9.0.4 agreeing): with the sibling's
+// `namespace export helper` present, `helper 1 2` prints `SRC/1/2`; without
+// it, `LOCAL`.  The call is at global scope because that is the one importing
+// namespace whose call sites the inlay-hint segmenter reaches.
+// ---------------------------------------------------------------------------
+
+//  line 0  namespace eval src {
+//  line 1      proc helper {alpha beta} { puts "SRC/$alpha/$beta" }
+//  line 2      proc other {} { puts O }
+//  line 3      namespace export other
+//  line 4  }
+//  line 5  proc helper {args} { puts LOCAL }
+//  line 6  namespace import -force ::src::*
+//  line 7  helper 1 2
+const SHADOW_MAIN: &str = "namespace eval src {\n    proc helper {alpha beta} { puts \"SRC/$alpha/$beta\" }\n    proc other {} { puts O }\n    namespace export other\n}\nproc helper {args} { puts LOCAL }\nnamespace import -force ::src::*\nhelper 1 2\n";
+
+const SHADOW_SIBLING: &str = "namespace eval src {\n    namespace export helper\n}\n";
+const INERT_SIBLING: &str = "namespace eval other {\n    proc q {} { puts Q }\n}\n";
+
+/// Open `SHADOW_MAIN` alongside `sibling` and return the ready server plus the
+/// main document's URI.
+fn shadow_workspace(sibling: &str) -> (Lsp, String) {
+    shadow_workspace_on(Lsp::tcl(), sibling)
+}
+
+/// The same two-document workspace on a caller-supplied server — inlay hints
+/// are gated off by default, so that test needs `Lsp::inlay()`.
+fn shadow_workspace_on(mut lsp: Lsp, sibling: &str) -> (Lsp, String) {
+    lsp.open_ready(&unique_uri("tcl"), sibling);
+    let main_uri = unique_uri("tcl");
+    lsp.open_ready(&main_uri, SHADOW_MAIN);
+    (lsp, main_uri)
+}
+
+#[test]
+fn the_server_hands_definition_and_hover_the_same_shadow_answer() {
+    // TP — the sibling's export means `-force` really deleted `::helper`, so
+    // the call reaches `::src::helper` on line 1, not the local on line 5.
+    let (mut lsp, uri) = shadow_workspace(SHADOW_SIBLING);
+    let locs = locations(&lsp.definition(&uri, 7, 0));
+    assert_eq!(locs.len(), 1, "{locs:?}");
+    assert_eq!(start_line(&locs[0]), 1, "the import replaced ::helper");
+    let hover = hover_text(&lsp.hover(&uri, 7, 0));
+    assert!(
+        hover.contains("alpha") && hover.contains("beta"),
+        "hover must describe `::src::helper {{alpha beta}}`: {hover:?}"
+    );
+
+    // TN — byte-identical document, inert sibling: the local survives.
+    let (mut lsp, uri) = shadow_workspace(INERT_SIBLING);
+    let locs = locations(&lsp.definition(&uri, 7, 0));
+    assert_eq!(locs.len(), 1, "{locs:?}");
+    assert_eq!(start_line(&locs[0]), 5, "the import bound nothing");
+    let hover = hover_text(&lsp.hover(&uri, 7, 0));
+    assert!(
+        !hover.contains("alpha"),
+        "hover must describe the local `helper {{args}}`: {hover:?}"
+    );
+}
+
+#[test]
+fn the_server_hands_signature_help_the_shadow_answer() {
+    let (mut lsp, uri) = shadow_workspace(SHADOW_SIBLING);
+    let sig = serde_json::to_string(&lsp.signature_help(&uri, 7, 8)).unwrap_or_default();
+    assert!(
+        sig.contains("alpha") && sig.contains("beta"),
+        "a live -force shadow must render `::src::helper`'s signature: {sig}"
+    );
+
+    let (mut lsp, uri) = shadow_workspace(INERT_SIBLING);
+    let sig = serde_json::to_string(&lsp.signature_help(&uri, 7, 8)).unwrap_or_default();
+    assert!(
+        !sig.contains("alpha") && sig.contains("args"),
+        "with no covering export the local signature is correct: {sig}"
+    );
+}
+
+#[test]
+fn the_server_hands_inlay_hints_the_shadow_answer() {
+    let (mut lsp, uri) = shadow_workspace_on(Lsp::inlay(), SHADOW_SIBLING);
+    let hints = serde_json::to_string(&lsp.inlay_hints(&uri, (7, 0), (8, 0))).unwrap_or_default();
+    assert!(
+        hints.contains("alpha") && hints.contains("beta"),
+        "a live -force shadow must label the imported proc's params: {hints}"
+    );
+
+    let (mut lsp, uri) = shadow_workspace_on(Lsp::inlay(), INERT_SIBLING);
+    let hints = serde_json::to_string(&lsp.inlay_hints(&uri, (7, 0), (8, 0))).unwrap_or_default();
+    assert!(
+        !hints.contains("alpha"),
+        "with no covering export the variadic local proc is reached: {hints}"
+    );
+}
+
+#[test]
+fn the_server_hands_call_hierarchy_the_shadow_answer() {
+    // The two candidates differ in arity, which the item `detail` carries, so
+    // this pins *which* definition the hierarchy is rooted at.
+    let (mut lsp, uri) = shadow_workspace(SHADOW_SIBLING);
+    let items = serde_json::to_string(&lsp.prepare_call_hierarchy(&uri, 7, 0)).unwrap_or_default();
+    assert!(
+        items.contains("2 params"),
+        "a live -force shadow roots the hierarchy at `::src::helper`: {items}"
+    );
+
+    let (mut lsp, uri) = shadow_workspace(INERT_SIBLING);
+    let items = serde_json::to_string(&lsp.prepare_call_hierarchy(&uri, 7, 0)).unwrap_or_default();
+    assert!(
+        items.contains("1 params"),
+        "with no covering export it roots at the local `helper {{args}}`: {items}"
+    );
+}
+
+#[test]
+fn the_server_hands_code_actions_the_shadow_answer() {
+    // Inlining the wrong body is a behaviour change, not a refactor: the two
+    // bodies print different text, so the offered edit names the winner.
+    let range = serde_json::json!({
+        "start": { "line": 7, "character": 0 },
+        "end":   { "line": 7, "character": 0 },
+    });
+    let (mut lsp, uri) = shadow_workspace(SHADOW_SIBLING);
+    let actions =
+        serde_json::to_string(&lsp.code_actions(&uri, range.clone(), serde_json::json!([])))
+            .unwrap_or_default();
+    assert!(
+        actions.contains("SRC/") && !actions.contains("LOCAL"),
+        "a live -force shadow must offer the imported body for inlining: {actions}"
+    );
+
+    let (mut lsp, uri) = shadow_workspace(INERT_SIBLING);
+    let actions = serde_json::to_string(&lsp.code_actions(&uri, range, serde_json::json!([])))
+        .unwrap_or_default();
+    assert!(
+        actions.contains("LOCAL") && !actions.contains("SRC/"),
+        "with no covering export the local body is offered: {actions}"
+    );
+}
