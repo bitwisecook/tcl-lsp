@@ -1691,3 +1691,103 @@ fn boolean_argument_role_is_declared_and_consistent() {
     assert!(!ArgRole::NumericOrBoolean.consumes_boolean());
     assert!(!ArgRole::Value.consumes_boolean());
 }
+
+/// A conditionally-bound local must never carry an `ArgRole` SSA models as
+/// an unconditional definition — issue #1278, prompted by the investigation
+/// that closed #1247.
+///
+/// #1247 reported a W210 false positive on a `dict update` value-var. It did
+/// not reproduce on `rust` (the commit it cited was on an unmerged
+/// integration branch), but the mechanism is real: that branch declared
+/// `dict update`'s pair locals `ArgRole::VarWrite`. `VarWrite` at a
+/// `repeated_args` position feeds every generic "does this argument write a
+/// variable" site the compiler has — established by reading each one's own
+/// `arg_indices_for_role` call: `tcl-compiler`'s `ssa::defs_of_with_registry`
+/// (the `Statement::Barrier` arm `dict update`/`dict with` lower to),
+/// `var_scoping` (twice — the `global`/`variable`/`upvar`-family scope-alias
+/// walk), `cfg_builder::builtin_write_defs_from_text`, `lowering`'s
+/// registry-driven default-call def extractor and its `trace`/`vwait`
+/// resolvers, and `ir_helpers`'s `defs_from_expr` / `defs_from_body_script`
+/// / deletion-safety scans. Every one of those asks for `ArgRole::VarWrite`
+/// specifically; none asks for `LoopVarList` or any other role. So
+/// `VarWrite` is, by construction of the compiler's own def-use code (not by
+/// assumption here), the one role SSA treats as an **unconditional**
+/// definition of the position it is declared at — a def with `version > 0`
+/// that `build_undef_suppression`
+/// (`tcl-compiler/src/analyser/diagnostics/helpers.rs`) puts straight into
+/// `explicitly_defined`, which `suppresses_strict` checks *before* it
+/// honours the key-aware `dict_with_known_keys` suppression
+/// `harvest_dict_with_suppression` computed for the very same read — so an
+/// absent-key read that should be suppressed draws W210 instead.
+///
+/// [`RepeatedArgLayout::conditional_binding`] is the registry's declared
+/// counterpart: `true` marks a position whose local is bound only when a
+/// runtime *data* condition holds (a dict/array key actually being present),
+/// not merely whenever the statement executes — `dict update dictVar key
+/// varName` binds `varName` only if `key` is in the dict (tclsh: an absent
+/// key leaves it unset). This sweep asserts the invariant over **every**
+/// `repeated_args` declaration in every dialect's registry: no command name
+/// appears in the check, only the two declared fields, so the next command
+/// whose layout gets this wrong fails here — pointing at the offending
+/// declaration — rather than surfacing four layers away as a diagnostic
+/// false positive. `dict update` (`conditional_binding: true`, `LoopVarList`)
+/// is the one positive control that currently exercises the `true` arm;
+/// `foreach`/`lmap`'s loop-var lists, `global`/`variable`'s repeated names,
+/// and the `upvar`/`namespace upvar` local layouts are positive controls for
+/// the untouched (`conditional_binding: false`) arm — they use `VarWrite` /
+/// `LoopVarList` freely because their bindings really are unconditional
+/// (aliasing/assignment that depends on the statement running, never on a
+/// key or element being present).
+#[test]
+fn repeated_arg_layouts_never_pair_conditional_binding_with_an_ssa_def_role() {
+    use tcl_registry::RepeatedArgLayout;
+
+    // Every `ArgRole` the compiler's own def-use code queries when deciding
+    // "does this argument position define a variable" — see the doc comment
+    // above for the exhaustive list of call sites this was read from. Only
+    // `VarWrite` is ever asked for; extending this list requires reading a
+    // new unconditional-def call site into existence first, not guessing.
+    const SSA_UNCONDITIONAL_DEF_ROLES: &[ArgRole] = &[ArgRole::VarWrite];
+
+    let mut conditional_layouts_checked = 0usize;
+
+    for &dialect in LOADABLE_DIALECTS {
+        let reg = registry_for_dialect(dialect);
+        let names: Vec<String> = reg.command_names().map(str::to_owned).collect();
+        for name in &names {
+            let Some(spec) = reg.get(name) else { continue };
+
+            let mut layouts: Vec<(String, &'static [RepeatedArgLayout])> =
+                vec![(spec.name.to_owned(), spec.repeated_args)];
+            for sub in spec.subcommands {
+                layouts.push((format!("{} {}", spec.name, sub.name), sub.repeated_args));
+            }
+
+            for (path, repeated) in layouts {
+                for layout in repeated {
+                    if !layout.conditional_binding {
+                        continue;
+                    }
+                    conditional_layouts_checked += 1;
+                    assert!(
+                        !SSA_UNCONDITIONAL_DEF_ROLES.contains(&layout.role),
+                        "{dialect} {path}: repeated_args layout at start {} declares \
+                         conditional_binding: true (its local is bound only when a runtime \
+                         data condition holds) but role {:?} is one SSA models as an \
+                         unconditional def — this reproduces the issue #1247 W210 \
+                         false-positive mechanism (issue #1278); use a role SSA does not \
+                         treat as a definite def instead",
+                        layout.start,
+                        layout.role,
+                    );
+                }
+            }
+        }
+    }
+
+    assert!(
+        conditional_layouts_checked > 0,
+        "the sweep must actually reach a `conditional_binding: true` layout \
+         (dict update's pair locals) — otherwise the assertion above is vacuous"
+    );
+}
