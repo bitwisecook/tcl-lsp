@@ -288,12 +288,16 @@ def parse_run(payload: dict[str, Any], source: Path) -> Run:
     return Run(
         version=str(payload["version"]),
         platform=str(payload.get("platform", "unknown")),
-        corpus_files=int(payload.get("corpus_files", 0)),
+        corpus_files=int(payload.get("corpus_files") or 0),
         scope=str(payload.get("scope", "")),
         corpus_revision=str(payload.get("corpus_revision", "")),
-        host_cpu=str(host.get("cpu", "unknown")),
-        host_cores=int(host.get("cores", 0)),
-        host_mem_gb=int(host.get("mem_gb", 0)),
+        # `or` rather than a `get` default throughout: a field that is
+        # *present but null* — which is what an unpopulated host probe
+        # writes — slips straight past a default and only fails at the
+        # int()/str() conversion, which is how the first CI run died.
+        host_cpu=str(host.get("cpu") or "unknown"),
+        host_cores=int(host.get("cores") or 0),
+        host_mem_gb=int(host.get("mem_gb") or 0),
         checks=checks,
         timeline=timeline,
     )

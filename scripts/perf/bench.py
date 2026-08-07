@@ -643,6 +643,17 @@ def initialize(client: LspClient, root: Path) -> None:
 
 
 def host_info() -> dict:
+    """CPU model, core count and RAM, for the provenance line on every graph.
+
+    Wall times are only comparable within one machine, so a result that
+    cannot say which machine produced it is close to useless. Both Darwin
+    and Linux are filled in properly — CI runs on Linux, and leaving those
+    fields `None` there is how the first CI run failed.
+
+    `mem_gb` is `0` rather than `None` when it cannot be determined, so
+    consumers can format it without a null check.
+    """
+
     def sysctl(key: str) -> str | None:
         r = subprocess.run(
             ["sysctl", "-n", key], capture_output=True, text=True, check=False
@@ -650,11 +661,28 @@ def host_info() -> dict:
         return r.stdout.strip() or None
 
     cpu = None
-    mem = None
-    if platform.system() == "Darwin":
+    mem = 0
+    system = platform.system()
+    if system == "Darwin":
         cpu = sysctl("machdep.cpu.brand_string")
         raw = sysctl("hw.memsize")
-        mem = round(int(raw) / 1024**3) if raw and raw.isdigit() else None
+        if raw and raw.isdigit():
+            mem = round(int(raw) / 1024**3)
+    elif system == "Linux":
+        try:
+            for line in Path("/proc/cpuinfo").read_text().splitlines():
+                if line.startswith("model name"):
+                    cpu = line.split(":", 1)[1].strip()
+                    break
+        except OSError:
+            pass
+        try:
+            for line in Path("/proc/meminfo").read_text().splitlines():
+                if line.startswith("MemTotal:"):
+                    mem = round(int(line.split()[1]) / 1024**2)
+                    break
+        except (OSError, ValueError, IndexError):
+            pass
     return {
         "cpu": cpu or platform.processor() or platform.machine(),
         "cores": os.cpu_count(),
@@ -720,7 +748,27 @@ def main() -> int:
             file=sys.stderr,
         )
 
-    print(f"== v{args.version} | scope={args.scope} | {total} .tcl files ==")
+    # Captured before the run, because the staged tree is deleted on the way
+    # out (and the rename checks move files within it anyway).
+    #
+    # This is provenance, not decoration. Two runs over the same corpus can
+    # differ by an order of magnitude depending on which documents were
+    # picked and how many navigation positions each yielded, and neither is
+    # recoverable from the timings afterwards. Recording the inputs turns a
+    # surprising number into a question you can answer instead of one you
+    # have to re-run to guess at.
+    doc_meta = [
+        {
+            "path": str(d.relative_to(stage)),
+            "bytes": d.stat().st_size,
+            "positions": len(proc_positions(d.read_text(errors="replace"))),
+        }
+        for d in docs
+    ]
+    for m in doc_meta:
+        print(f"   doc {m['path']}  ({m['bytes']}B, {m['positions']} positions)")
+
+    print(f"== {args.version} | scope={args.scope} | {total} .tcl files ==")
     print(f"   server {args.server}")
 
     client = LspClient(str(stage), launch_cmd=[str(args.server)])
@@ -746,6 +794,8 @@ def main() -> int:
         "scope": args.scope,
         "corpus_revision": manifest["corpus"]["revision"],
         "corpus_files": total,
+        "documents": doc_meta,
+        "anchors": anchors,
         "host": host_info(),
         "checks": bench.checks,
         "timeline": sampler.samples,
