@@ -19,7 +19,7 @@
 import * as assert from "assert";
 import * as vscode from "vscode";
 import { LanguageClient } from "vscode-languageclient/node";
-import { activate, getDocUri } from "./helper";
+import { activate, getDocUri, scaledTimeout } from "./helper";
 
 interface TclLspApi {
   getClient(): LanguageClient;
@@ -29,7 +29,7 @@ suite("Extension Activation", () => {
   let ext: vscode.Extension<TclLspApi>;
 
   suiteSetup(async function () {
-    this.timeout(60_000);
+    this.timeout(scaledTimeout(60_000));
     ext = vscode.extensions.getExtension("bitwisecook.tcl-lsp")!;
     assert.ok(ext, "Extension should be installed");
     if (!ext.isActive) {

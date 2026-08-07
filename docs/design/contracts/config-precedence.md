@@ -190,10 +190,29 @@ Documented in
 [`kcs-qa-how-tcl-lsp-loads-configuration.md`](../../kcs/kcs-qa-how-tcl-lsp-loads-configuration.md)
 under "How to figure out where a setting is coming from". The
 canonical mechanism is the `tcl-lsp.getEffectiveConfig` command
-(`server/commands.py:on_get_effective_config`),
+(`rust/tcl-lsp-server/src/lib.rs::get_effective_config_command`),
 which returns the resolved per-folder values the analyser will use
 for a given URI. The server also logs `Loaded user config from <path>`
 and `Loaded project config from <path>` on every load.
+
+**Contract: every value the command reports for a URI resolves through
+the same chain the code acting on that URI uses.** The command is not a
+dump of process-global state — it answers "what is in effect *here*",
+and a client is entitled to treat it as a barrier: once it reports a
+value, a request issued afterwards is answered under that value.
+
+The `features` map broke that contract until issue #1295. Each provider
+gate (`Backend::feature_enabled` and its default-off siblings) consults
+the deepest workspace folder containing the URI before falling back to
+the process-global toggles, but the command reported the global map
+alone. In a multi-root workspace a folder-scoped
+`tclLsp.features.*` override was therefore invisible in the report while
+being fully in effect in the behaviour, and a client polling the command
+to know a toggle had landed was waiting on a different fact from the one
+the provider would act on. Both now go through
+`Backend::resolved_feature_toggles`, which is the single place the
+folder-over-global overlay is performed — a folder overrides exactly the
+keys it sets and leaves the rest of the global set alone.
 
 ## Related
 

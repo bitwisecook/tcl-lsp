@@ -19,7 +19,8 @@
 import * as assert from "assert";
 import * as vscode from "vscode";
 import * as fs from "fs";
-import { getDocUri, activate, waitForDiagnostics } from "./helper";
+import { getDocUri, activate, waitForDiagnostics, scaledTimeout } from "./helper";
+import { MAX_TEST_TIMEOUT_BASE_MS } from "./runnerWatchdog";
 
 // Issue #844: diagnostics are progressive. On a large document the server
 // publishes a workspace-independent *fast tier* (the analyser's syntax /
@@ -73,7 +74,16 @@ suite("Progressive diagnostics (#844)", () => {
   });
 
   test("a large file surfaces the complete deep tier, fast tier first", async function () {
-    this.timeout(60_000);
+    // A per-test backstop must outlast the sum of the bounded waits inside the
+    // test, or it fires first and reports "Timeout of Nms exceeded" — naming
+    // neither the wait that was outstanding nor why, which is the failure shape
+    // issue #1274 set out to remove. This test's waits are `activate` (up to
+    // 60s for a cold LSP handshake, plus its two 30s didOpen drains) followed
+    // by the 50s deep-tier wait below, so 60s could not cover them even on an
+    // idle machine. Load-scaled for the same reason every other bound here is:
+    // it used to be a raw `60_000`, and a loaded container turned a correct run
+    // into an unattributable timeout.
+    this.timeout(scaledTimeout(MAX_TEST_TIMEOUT_BASE_MS));
 
     // Capture the sequence of diagnostic publishes for this URI. Registered
     // before `activate` (which sends `didOpen`) so no publish is missed — a

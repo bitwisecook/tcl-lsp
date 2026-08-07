@@ -502,7 +502,7 @@ check-report-assets: build-report-assets ## Verify committed report dist/ + f5re
 		rust/bigip-report-gen/python/python/f5report/vendor \
 		|| { echo "ERROR: report assets are stale — run 'make build-report-assets' and commit the result"; exit 1; }
 
-test-ext: ## Run VS Code extension integration tests; skip with SKIP_TEST_EXT=1
+test-ext: ## Run VS Code extension integration tests (single-root + multi-root); skip with SKIP_TEST_EXT=1
 	@# Single-shell recipe so SKIP_TEST_EXT=1 truly bypasses everything
 	@# (compile + xvfb install + test host).  Without ``set -eu`` the
 	@# early ``exit 0`` would only end its own recipe-line shell and
@@ -538,6 +538,12 @@ test-ext: ## Run VS Code extension integration tests; skip with SKIP_TEST_EXT=1
 		fi; \
 	else \
 		cd "$(EXT_DIR)" && "$(NPM)" test; \
+	fi; \
+	echo "==> Running multi-root VS Code extension tests"; \
+	if [[ "$$(uname -s)" == "Linux" && -z "$${DISPLAY:-}" ]]; then \
+		cd "$(EXT_DIR)" && xvfb-run -a "$(NPM)" run test:multi-folder; \
+	else \
+		cd "$(EXT_DIR)" && "$(NPM)" run test:multi-folder; \
 	fi
 
 # Coverage targets (reports go to tmp/coverage/, which is gitignored)

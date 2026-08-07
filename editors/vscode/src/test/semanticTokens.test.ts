@@ -18,7 +18,7 @@
 
 import * as assert from "assert";
 import * as vscode from "vscode";
-import { getDocUri, activate, setTestContent, pollUntil } from "./helper";
+import { getDocUri, activate, setTestContent, pollUntil, scaledTimeout } from "./helper";
 
 interface DecodedToken {
   line: number;
@@ -666,7 +666,7 @@ suite("Semantic Tokens", () => {
   }
 
   test("issue #829: semantic tokens arrive promptly on a large (600-proc) document", async function () {
-    this.timeout(30_000);
+    this.timeout(scaledTimeout(30_000));
     const uri = getDocUri("largeSemanticTokens.tcl");
     const doc = await activate(uri);
     const editor = await vscode.window.showTextDocument(doc);
@@ -742,7 +742,7 @@ suite("Semantic Tokens", () => {
   // fully enriched stream -- proving highlighting converges rather than
   // staying permanently stuck on the coarse tier.
   test("issue #829: highlighting eventually converges to the enriched result without an edit", async function () {
-    this.timeout(30_000);
+    this.timeout(scaledTimeout(30_000));
     const uri = getDocUri("largeSemanticTokens.tcl");
     const doc = await activate(uri);
     const editor = await vscode.window.showTextDocument(doc);

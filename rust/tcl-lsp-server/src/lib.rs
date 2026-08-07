@@ -1954,8 +1954,29 @@ async fn refresh_cross_file_evidence(
     slots: &Arc<Mutex<HashMap<Uri, DiagSlot>>>,
     uri: &Uri,
 ) {
+    // Call-site evidence first, class factories second — deliberately, and
+    // *not* in dependency order.  `file_call_site_evidence` does read the
+    // factory oracle transitively (`project_proc_names` / `file_decls` come off
+    // `item_tree`, which reads `SourceFile::workspace_class_factories`), so
+    // running the factory sync first looks like the tidier order.  Measured, it
+    // is much worse: the factory publish invalidates every file's `item_tree`,
+    // so the call-site pass that follows it is a *cold* one — the ~7s
+    // whole-project lower-and-CFG path this function is explicitly kept off the
+    // edit handler for — and that lands in front of `reschedule_peers`, which
+    // is what actually republishes the files the factory publish invalidated.
+    // On a large workspace that delayed convergence enough to lose a case that
+    // resolved before (issue #1296: a two-level cross-file chain rooted in
+    // tcllib's `clay.tcl` stopped resolving inside the probe's window).  Run in
+    // this order the call-site pass reads memoised state and the reschedule
+    // follows the factory publish immediately; the call-site tables computed
+    // under the pre-sync oracle are corrected by the peers' own next refresh,
+    // which the reschedule has already scheduled.
     let mut changed = sync_cross_file_evidence(handles).await;
-    for uri in sync_workspace_class_factories(handles).await {
+    let wake = RoundReschedule {
+        slots,
+        self_uri: uri,
+    };
+    for uri in sync_workspace_class_factories(handles, Some(wake)).await {
         if !changed.contains(&uri) {
             changed.push(uri);
         }
@@ -2164,35 +2185,156 @@ async fn sync_cross_file_evidence(handles: &EvidenceHandles) -> Vec<Uri> {
     changed
 }
 
+/// How many publish rounds [`sync_workspace_class_factories`] will run before
+/// it gives up and logs.
+///
+/// The round function only ever *adds* an entry some file proved, so it
+/// converges after one round per link of the longest metaclass chain plus one
+/// to observe the fixpoint.  Real chains are two or three links
+/// (`oo::class` → `Megawidget` → a widget's own metaclass); this leaves an
+/// order of magnitude of headroom while still making the loop provably
+/// bounded, so a pathological or half-edited workspace — one where an added
+/// entry re-shapes a body such that a previously-proved entry disappears, and
+/// the index oscillates instead of settling — costs a bounded amount of work
+/// rather than spinning the diagnostics worker forever.
+const CLASS_FACTORY_SYNC_ROUNDS: usize = 16;
+
 /// Refresh every project file's [`tcl_lsp_db::SourceFile::workspace_class_factories`]
-/// — the workspace's user-defined `TclOO` metaclasses (issue #1276) — and
-/// report the URIs whose oracle actually moved.
+/// — the workspace's user-defined `TclOO` metaclasses (issue #1276) — to a
+/// **fixpoint**, and report the union of the URIs whose oracle moved across
+/// all rounds.
 ///
 /// One index serves every file: a metaclass is a project-wide declaration,
 /// not a per-file slice, and there is no per-file narrowing to make.  It is
 /// **empty for the overwhelming majority of workspaces**, and an empty index
 /// is stored as `None`, so the input never leaves its default and nothing is
 /// ever invalidated by it — a workspace with no metaclass behaves exactly as
-/// it did before the index existed.
+/// it did before the index existed, and settles in exactly one round that
+/// writes nothing.
 ///
-/// Same shape as [`sync_cross_file_evidence`] and for the same reasons: the
-/// project-wide read runs on a cloned salsa snapshot inside `spawn_blocking`
-/// so the `db` mutex is held only for the short write section, cancellation
-/// is caught and reported as "nothing changed", and the write is
-/// compare-then-set against the *live* database rather than the snapshot.
+/// **Why a fixpoint and not a single round** (issue #1296).  The index is
+/// computed from [`tcl_lsp_db::project_class_factories`], which reads each
+/// file's `item_tree`, which reads the very input this function writes.  A
+/// metaclass that is *itself* manufactured by another file's metaclass is
+/// therefore provable only once the manufacturing metaclass is already
+/// published: round 1 proves `MetaA` (written out as `oo::class create`, so
+/// provable with no index at all), and only in round 2 can the file holding
+/// `MetaA create MetaB` prove `MetaB`.  A single round left `MetaB` — and so
+/// every class `MetaB` makes — unknown, which is what made a cross-file
+/// three-level chain resolve to nothing from a call site.  Each round is run
+/// against a snapshot taken *after* the previous round's writes, so the next
+/// link of the chain is visible to it.
+///
+/// **Termination.**  A round writes only what some file proved — never a
+/// guess — so the normal case is monotone growth over a set bounded by the
+/// project's creation calls, and the loop ends as soon as a round moves
+/// nothing.  A cyclic declaration (`A` made by `B` made by `A`) proves
+/// neither, so it settles empty on the first round.  Convergence is not
+/// *assumed*, though: [`CLASS_FACTORY_SYNC_ROUNDS`] caps the loop, and hitting
+/// the cap logs to stderr and returns what has been published so far, which is
+/// a valid — if possibly incomplete — index, because every entry in it was
+/// proved by some file.
+///
+/// Each round has the same shape as [`sync_cross_file_evidence`] and for the
+/// same reasons: the project-wide read runs on a cloned salsa snapshot inside
+/// `spawn_blocking` so the `db` mutex is held only for the short write
+/// section, and the write is compare-then-set against the *live* database
+/// rather than the snapshot.  A round the concurrent write cancelled publishes
+/// nothing and is **not** the fixpoint — it is simply a round whose answer we
+/// never learned, so the loop takes another one against a fresh snapshot
+/// rather than mistaking "unknown" for "settled".  That retry is what the cap
+/// bounds in the pathological case; without it a `did_open` arriving mid-pass
+/// truncated the chain at whatever link had been published so far, and the
+/// deeper links waited on whatever unrelated edit happened to run the sync
+/// next.
+///
+/// `wake`, when supplied, republishes each round's invalidated peers **as that
+/// round lands** rather than after the whole fixpoint.  A round only reads, but
+/// the round *after* a publish has to recompute every file's `item_tree`
+/// through the input the publish just moved, so on a large workspace the
+/// confirming round — the one that merely agrees the index has stopped moving —
+/// is the slowest part of the pass.  Left in front of the reschedule it delays
+/// the republish that the *previous* round already earned, and a two-level
+/// chain that resolved before the fixpoint existed stopped resolving until
+/// later (measured on tcllib's `clay.tcl`, issue #1296).  Waking per round
+/// keeps the fixpoint's extra rounds strictly additive: nothing that was
+/// already provable waits on them.
 ///
 /// Called from two places, because the answer must be in place before either
 /// consumer needs it: at the end of the workspace scan (so a document opened
-/// afterwards is analysed with the oracle on its very first pass) and after
-/// each diagnostics publish (so a metaclass added by an *edit* propagates).
-async fn sync_workspace_class_factories(handles: &EvidenceHandles) -> Vec<Uri> {
+/// afterwards is analysed with the oracle on its very first pass; no peers to
+/// wake there, since nothing has published yet) and after each diagnostics
+/// publish (so a metaclass added by an *edit* propagates).
+async fn sync_workspace_class_factories(
+    handles: &EvidenceHandles,
+    wake: Option<RoundReschedule<'_>>,
+) -> Vec<Uri> {
+    let mut changed: Vec<Uri> = Vec::new();
+    let mut seen: HashSet<Uri> = HashSet::new();
+    for _ in 0..CLASS_FACTORY_SYNC_ROUNDS {
+        match sync_workspace_class_factories_round(handles).await {
+            // The fixpoint: every file already carries the index the project
+            // proves, so another round would recompute a byte-identical one
+            // off unchanged inputs.
+            ClassFactoryRound::Settled => return changed,
+            ClassFactoryRound::Cancelled => {}
+            ClassFactoryRound::Moved(moved) => {
+                if let Some(wake) = wake.as_ref() {
+                    reschedule_peers(wake.slots, wake.self_uri, moved.clone()).await;
+                }
+                for uri in moved {
+                    if seen.insert(uri.clone()) {
+                        changed.push(uri);
+                    }
+                }
+            }
+        }
+    }
+    eprintln!(
+        "tcl-lsp: the workspace class-factory index did not settle in \
+         {CLASS_FACTORY_SYNC_ROUNDS} rounds; publishing what has been proved so far. \
+         Classes made by a metaclass deeper than that in the chain may not resolve \
+         until the next sync."
+    );
+    changed
+}
+
+/// Where [`sync_workspace_class_factories`] sends each round's invalidated
+/// peers, so a later round never sits in front of an earlier round's republish.
+struct RoundReschedule<'a> {
+    slots: &'a Arc<Mutex<HashMap<Uri, DiagSlot>>>,
+    /// The document driving this pass; [`reschedule_peers`] skips it, because
+    /// its own worker decides separately whether to re-run it.
+    self_uri: &'a Uri,
+}
+
+/// What one [`sync_workspace_class_factories`] round learned.
+///
+/// `Settled` and `Cancelled` are deliberately distinct: both publish nothing,
+/// but only the first is evidence that the index has stopped moving.
+enum ClassFactoryRound {
+    /// The published index already equals the one the project proves.
+    Settled,
+    /// These files' published index moved.
+    Moved(Vec<Uri>),
+    /// A concurrent write cancelled the read before it finished; nothing was
+    /// published and nothing was learned.
+    Cancelled,
+}
+
+/// One round of [`sync_workspace_class_factories`]: recompute the project's
+/// class-factory index off a fresh snapshot and compare-then-set it on every
+/// file.
+async fn sync_workspace_class_factories_round(handles: &EvidenceHandles) -> ClassFactoryRound {
     use salsa::Setter as _;
     let (snapshot, files, project) = {
         let db = handles.db.lock().await;
         let db_files = handles.db_files.lock().await;
         let db_project = handles.db_project.lock().await;
         let Some(&project) = db_project.as_ref() else {
-            return Vec::new();
+            // No project input yet — nothing to merge, and nothing a further
+            // round could learn.
+            return ClassFactoryRound::Settled;
         };
         let files: Vec<(Uri, tcl_lsp_db::SourceFile)> =
             db_files.iter().map(|(u, &f)| (u.clone(), f)).collect();
@@ -2217,7 +2359,7 @@ async fn sync_workspace_class_factories(handles: &EvidenceHandles) -> Vec<Uri> {
     })
     .await;
     let Ok(Some((want, pending))) = computed else {
-        return Vec::new();
+        return ClassFactoryRound::Cancelled;
     };
     let mut db = handles.db.lock().await;
     let mut changed = Vec::with_capacity(pending.len());
@@ -2229,7 +2371,11 @@ async fn sync_workspace_class_factories(handles: &EvidenceHandles) -> Vec<Uri> {
             .to(want.clone());
         changed.push(uri);
     }
-    changed
+    if changed.is_empty() {
+        ClassFactoryRound::Settled
+    } else {
+        ClassFactoryRound::Moved(changed)
+    }
 }
 
 /// The evidence `uri` should be carrying, or `None` when the host cannot claim
@@ -3731,6 +3877,19 @@ impl FeatureToggles {
         self.set.insert(feature.to_owned(), value);
     }
 
+    /// `self` with every key `overlay` sets explicitly taking precedence —
+    /// the folder-over-global resolution
+    /// [`Backend::resolved_feature_toggles`] performs.  A key the overlay does
+    /// not carry keeps this set's value, so a folder that mentions one feature
+    /// does not silently reset the rest to their defaults.
+    fn overlaid_with(&self, overlay: &Self) -> Self {
+        let mut merged = self.clone();
+        for (key, &flag) in &overlay.set {
+            merged.set.insert(key.clone(), flag);
+        }
+        merged
+    }
+
     /// The full resolved `{feature: bool}` map for `getEffectiveConfig`.
     fn resolved_map(&self) -> serde_json::Map<String, serde_json::Value> {
         Self::KEYS
@@ -4105,9 +4264,17 @@ impl Backend {
             file.set_text(&mut *db).to(text);
             file.set_dialect(&mut *db).to(dialect);
         } else {
+            let oracle = Self::published_class_factories(&db, &files);
             let file = {
                 let mut tombstones = self.db_tombstones.lock().await;
-                Self::revive_or_create_db_source(&mut db, &mut tombstones, uri, text, dialect)
+                Self::revive_or_create_db_source(
+                    &mut db,
+                    &mut tombstones,
+                    uri,
+                    text,
+                    dialect,
+                    oracle,
+                )
             };
             files.insert(uri.clone(), file);
             // Membership changed — re-set the `Project` file set.
@@ -4168,16 +4335,49 @@ impl Backend {
         uri: &Uri,
         text: String,
         dialect: String,
+        oracle: Option<Arc<tcl_compiler::analyser::ClassFactoryIndex>>,
     ) -> tcl_lsp_db::SourceFile {
         use salsa::Setter as _;
-        if let Some(file) = tombstones.remove(uri) {
+        let file = if let Some(file) = tombstones.remove(uri) {
             file.set_text(db).to(text);
             file.set_dialect(db).to(dialect);
             file
         } else {
             let path = uri.to_file_path().map(|p| p.display().to_string());
             tcl_lsp_db::SourceFile::new(&*db, text, dialect, path)
+        };
+        // Hand the arriving file the workspace class-factory oracle the rest of
+        // the project already carries (issue #1276/#1296), rather than leaving
+        // it at `None` for `sync_workspace_class_factories` to correct a publish
+        // later. A default-`None` arrival is analysed — and *published* — as if
+        // the workspace declared no metaclass at all, so every class a
+        // cross-file metaclass manufactures in it is missing from that first
+        // result and from the workspace index built out of it; only a second,
+        // rescheduled pass repaired it. The value is a project-wide fact every
+        // other file is already entitled to, so seeding it asserts nothing the
+        // next sync would not assert anyway.
+        if oracle.is_some() {
+            file.set_workspace_class_factories(db).to(oracle);
         }
+        file
+    }
+
+    /// The workspace class-factory oracle currently published to the project,
+    /// or `None` when the workspace has no metaclass (the overwhelmingly
+    /// common case, and the state every file starts in).
+    ///
+    /// One index serves every file, so any file carrying one carries *the* one.
+    /// Mid-round the publish is applied file by file, so a few may still hold
+    /// the previous, smaller index; the widest published index is the right
+    /// seed, and the next compare-then-set round corrects it either way.
+    fn published_class_factories(
+        db: &tcl_lsp_db::TclDatabase,
+        files: &HashMap<Uri, tcl_lsp_db::SourceFile>,
+    ) -> Option<Arc<tcl_compiler::analyser::ClassFactoryIndex>> {
+        files
+            .values()
+            .filter_map(|file| file.workspace_class_factories(db).clone())
+            .max_by_key(|index| index.len())
     }
 
     /// Add/update many salsa `SourceFile` inputs at once (disk-backed workspace
@@ -4194,6 +4394,7 @@ impl Backend {
         let mut db = self.db.lock().await;
         let mut files = self.db_files.lock().await;
         let mut tombstones = self.db_tombstones.lock().await;
+        let oracle = Self::published_class_factories(&db, &files);
         let mut membership_changed = false;
         for (uri, text, dialect) in entries {
             // Same analysis-form invariant `db_set_source` enforces; the disk
@@ -4209,6 +4410,7 @@ impl Backend {
                     uri,
                     text.clone(),
                     dialect.clone(),
+                    oracle.clone(),
                 );
                 files.insert(uri.clone(), file);
                 membership_changed = true;
@@ -9844,7 +10046,20 @@ impl Backend {
             Some(uri) => self.resolved_extra_commands(uri).await,
             None => self.extra_commands.lock().await.clone(),
         };
-        let features = self.feature_toggles.lock().await.resolved_map();
+        // Resolved through the same folder chain every provider gate uses, so a
+        // client polling this command observes the fact the provider will act
+        // on rather than the process-global one.  The two used to differ, which
+        // made a folder-scoped toggle invisible here and left the VS Code
+        // suite's toggle barrier waiting on the wrong fact (issue #1295).
+        // Resolved through the same folder chain every provider gate uses, so a
+        // client polling this command observes the fact the provider will act
+        // on rather than the process-global one.  The two used to differ, which
+        // made a folder-scoped toggle invisible here and left the VS Code
+        // suite's toggle barrier waiting on the wrong fact (issue #1295).
+        let features = self
+            .resolved_feature_toggles(parsed_uri.as_ref())
+            .await
+            .resolved_map();
         let optimiser_enabled = *self.optimiser_enabled.lock().await;
         // The optimiser *profile* and the editor `libraryPaths` are as much a
         // part of "what config is in effect" as the master switch, and a caller
@@ -10528,19 +10743,34 @@ impl Backend {
         *self.folder_configs.lock().await = parsed;
     }
 
+    /// The feature toggles in effect for `uri` — the process-global set with
+    /// the deepest containing folder's explicitly-set keys layered on top.
+    ///
+    /// Every per-URI toggle question resolves through this one place, so what
+    /// `getEffectiveConfig` *reports* for a document cannot drift from what the
+    /// providers *do* for it.  It used to: the command reported the global map
+    /// while every gate below consulted the folder chain first, which made
+    /// `waitForFeatureToggle` (the VS Code suite's barrier before asserting a
+    /// toggle took effect) observe a different fact from the one the provider
+    /// would use — issue #1295.
+    ///
+    /// `uri` is optional because the command also answers for no document at
+    /// all, which resolves to the global set alone.
+    async fn resolved_feature_toggles(&self, uri: Option<&Uri>) -> FeatureToggles {
+        let global = self.feature_toggles.lock().await.clone();
+        let Some(uri) = uri else { return global };
+        let configs = self.folder_configs.lock().await;
+        match longest_folder_match(&configs, uri) {
+            Some(fc) => global.overlaid_with(&fc.feature_toggles),
+            None => global,
+        }
+    }
+
     /// Whether the named `tclLsp.features.*` provider is enabled.
     async fn feature_enabled(&self, feature: &str, uri: &Uri) -> bool {
-        // A folder that explicitly sets the toggle wins for documents under it;
-        // otherwise fall back to the process-global toggle state.
-        {
-            let configs = self.folder_configs.lock().await;
-            if let Some(fc) = longest_folder_match(&configs, uri)
-                && let Some(flag) = fc.feature_toggles.set.get(feature).copied()
-            {
-                return flag;
-            }
-        }
-        self.feature_toggles.lock().await.is_enabled(feature)
+        self.resolved_feature_toggles(Some(uri))
+            .await
+            .is_enabled(feature)
     }
 
     /// Whether opt-in format-on-save (`tclLsp.features.willSaveWaitUntil`)
@@ -10550,16 +10780,7 @@ impl Backend {
     /// defaults **off**, so it cannot reuse
     /// `feature_enabled` (whose absent-key fallback is `true`).
     async fn will_save_format_enabled(&self, uri: &Uri) -> bool {
-        {
-            let configs = self.folder_configs.lock().await;
-            if let Some(fc) = longest_folder_match(&configs, uri)
-                && let Some(flag) = fc.feature_toggles.set.get("willSaveWaitUntil").copied()
-            {
-                return flag;
-            }
-        }
-        self.feature_toggles
-            .lock()
+        self.resolved_feature_toggles(Some(uri))
             .await
             .is_enabled_default_off("willSaveWaitUntil")
     }
@@ -10574,16 +10795,7 @@ impl Backend {
     /// per folder like [`Self::feature_enabled`] so a folder-scoped opt-in
     /// works in a multi-root workspace.
     async fn inlay_family_enabled(&self, uri: &Uri, family: &str) -> bool {
-        {
-            let configs = self.folder_configs.lock().await;
-            if let Some(fc) = longest_folder_match(&configs, uri)
-                && let Some(flag) = fc.feature_toggles.set.get(family).copied()
-            {
-                return flag;
-            }
-        }
-        self.feature_toggles
-            .lock()
+        self.resolved_feature_toggles(Some(uri))
             .await
             .is_enabled_default_off(family)
     }
@@ -11913,12 +12125,15 @@ impl Backend {
         // navigation come back empty for every class a cross-file metaclass
         // manufactures — the exact symptom the issue reports — until some
         // later edit happens to re-run the diagnostics worker.
-        sync_workspace_class_factories(&EvidenceHandles {
-            db: Arc::clone(&self.db),
-            db_files: Arc::clone(&self.db_files),
-            db_project: Arc::clone(&self.db_project),
-            workspace_index: Arc::clone(&self.workspace_index),
-        })
+        sync_workspace_class_factories(
+            &EvidenceHandles {
+                db: Arc::clone(&self.db),
+                db_files: Arc::clone(&self.db_files),
+                db_project: Arc::clone(&self.db_project),
+                workspace_index: Arc::clone(&self.workspace_index),
+            },
+            None,
+        )
         .await;
         // In-process readiness signal, released before the log line so a
         // handler waiting on it is not held up by a client round-trip.
@@ -20178,6 +20393,53 @@ mod tests {
         ] {
             assert!(map.contains_key(key), "missing reported feature {key}");
         }
+    }
+
+    /// Issue #1295: the folder-over-global overlay `getEffectiveConfig` and
+    /// every provider gate share.  A folder that mentions one feature must
+    /// override exactly that one and leave the rest of the global set alone —
+    /// the mistake in the other direction (a folder resetting unmentioned keys
+    /// to their defaults) would silently re-enable a globally-disabled feature
+    /// for every document under that folder.
+    #[test]
+    fn folder_toggles_overlay_only_the_keys_the_folder_sets() {
+        let mut global = FeatureToggles::default();
+        global.apply(
+            serde_json::json!({ "hover": false, "completion": false })
+                .as_object()
+                .unwrap(),
+        );
+        let mut folder = FeatureToggles::default();
+        folder.apply(
+            serde_json::json!({ "hover": true, "selectionRange": false })
+                .as_object()
+                .unwrap(),
+        );
+
+        let merged = global.overlaid_with(&folder);
+        assert!(merged.is_enabled("hover"), "folder must win over global");
+        assert!(
+            !merged.is_enabled("completion"),
+            "a key the folder does not mention keeps the global value"
+        );
+        assert!(
+            !merged.is_enabled("selectionRange"),
+            "a key only the folder sets must take effect"
+        );
+        assert!(
+            merged.is_enabled("definition"),
+            "a key neither sets keeps its default"
+        );
+        // Default-off keys stay off through the overlay unless something sets
+        // them, so an opt-in feature cannot be switched on by mere merging.
+        assert!(!merged.is_enabled("inlayTypeHints"));
+        assert!(!merged.is_enabled_default_off("willSaveWaitUntil"));
+
+        // An empty folder override is the identity, which is what makes the
+        // no-folder-config case indistinguishable from the pre-overlay
+        // behaviour.
+        let unchanged = global.overlaid_with(&FeatureToggles::default());
+        assert_eq!(unchanged.resolved_map(), global.resolved_map());
     }
 
     /// The shipped `tclLsp.xcDiagnostics.enabled` setting is a dedicated

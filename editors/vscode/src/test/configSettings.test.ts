@@ -30,6 +30,7 @@ import {
   waitForEffectiveConfig,
   waitForFeatureToggle,
   waitForMasterOffDiagnostics,
+  waitForProviderResult,
   setTestContent,
 } from "./helper";
 
@@ -1026,58 +1027,73 @@ suite("Configuration Settings", () => {
     );
   });
 
+  /** Length of a selection range's parent chain — the depth our AST-aware
+   *  provider contributes and VS Code's fallback does not. */
+  const chainDepth = (ranges: readonly vscode.SelectionRange[] | undefined): number => {
+    let depth = 0;
+    let range: vscode.SelectionRange | undefined = ranges?.[0];
+    while (range) {
+      depth++;
+      range = range.parent;
+    }
+    return depth;
+  };
+
+  const selectionRangesAt = async (
+    docUri: vscode.Uri,
+    pos: vscode.Position,
+  ): Promise<vscode.SelectionRange[]> =>
+    ((await vscode.commands.executeCommand("vscode.executeSelectionRangeProvider", docUri, [
+      pos,
+    ])) as vscode.SelectionRange[] | undefined) ?? [];
+
   test("disabling features.selectionRange removes LSP selection ranges", async () => {
     const docUri = getDocUri("procs.tcl");
     await activate(docUri);
     const pos = new vscode.Position(3, 8);
 
     // Baseline: our LSP provides nested selection ranges (proc body → proc → file)
-    const before = (await pollUntil(
-      () => vscode.commands.executeCommand("vscode.executeSelectionRangeProvider", docUri, [pos]),
-      (r) => Array.isArray(r) && r.length > 0,
+    const before = await waitForProviderResult(
+      docUri,
+      () => selectionRangesAt(docUri, pos),
+      (r) => r.length > 0,
       { timeout: 10_000, label: "selection ranges before disable (feature)" },
-    )) as vscode.SelectionRange[];
-    assert.ok(before && before.length > 0, "Selection ranges should work by default");
-    // Our provider returns deeply nested ranges (parent chain)
-    const depthBefore = (() => {
-      let d = 0;
-      let r: vscode.SelectionRange | undefined = before[0];
-      while (r) {
-        d++;
-        r = r.parent;
-      }
-      return d;
-    })();
+    );
+    assert.ok(before.length > 0, "Selection ranges should work by default");
+    const depthBefore = chainDepth(before);
 
     const config = vscode.workspace.getConfiguration("tclLsp.features");
     try {
       await config.update("selectionRange", false, undefined);
       await waitForFeatureToggle(docUri, "selectionRange", false);
 
-      const after = (await vscode.commands.executeCommand(
-        "vscode.executeSelectionRangeProvider",
+      // Wait on the *result*, not on a single sample of it.  The toggle
+      // barrier above says the server's effective config has moved; it does
+      // not say a request issued now has been answered under the new config,
+      // and there is no event that announces that transition.  Sampling once
+      // is what made this test fail with the depth unchanged (issue #1295) —
+      // and because the wait rejects rather than resolving, a feature toggle
+      // that genuinely never takes effect fails here loudly and
+      // deterministically instead of passing whenever the sample happens to
+      // land late.  VS Code's own word/bracket fallback may still answer, so
+      // the assertion is on the depth collapsing, not on an empty result.
+      const after = await waitForProviderResult(
         docUri,
-        [pos],
-      )) as vscode.SelectionRange[];
-      // VS Code may still provide basic selection ranges, but our deeply
-      // nested AST-aware ranges should be gone or much shallower.
-      if (after && after.length > 0) {
-        const depthAfter = (() => {
-          let d = 0;
-          let r: vscode.SelectionRange | undefined = after[0];
-          while (r) {
-            d++;
-            r = r.parent;
-          }
-          return d;
-        })();
-        assert.ok(
-          depthAfter < depthBefore,
-          `Selection range depth should decrease when disabled (before=${depthBefore}, after=${depthAfter})`,
-        );
-      }
+        () => selectionRangesAt(docUri, pos),
+        (r) => chainDepth(r) < depthBefore,
+        {
+          timeout: 10_000,
+          label: `selection range depth to drop below ${depthBefore} after disabling the feature`,
+          describe: (r) => `depth ${chainDepth(r)} (${r?.length ?? 0} range(s))`,
+        },
+      );
+      assert.ok(
+        chainDepth(after) < depthBefore,
+        `Selection range depth should decrease when disabled (before=${depthBefore}, after=${chainDepth(after)})`,
+      );
     } finally {
       await config.update("selectionRange", undefined, undefined);
+      await waitForFeatureToggle(docUri, "selectionRange", true);
     }
   });
 

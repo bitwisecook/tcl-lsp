@@ -22,8 +22,10 @@ import {
   activate,
   awaitSignal,
   bounded,
+  classifyLiveness,
   getDocUri,
   loadFactor,
+  type ProbeOutcome,
   scaledTimeout,
   waitForDiagnostics,
 } from "./helper";
@@ -246,6 +248,128 @@ suite("Wait discipline (issue #1274)", () => {
       Date.now() - started < 1_000,
       "bounded must not delay a promise that already settled",
     );
+  });
+
+  // Attributability of a stalled document (issue #1294).
+  //
+  // A timeout says the answer never came; on its own it cannot tell a wedged
+  // server apart from one document's queue being stuck, which is what left
+  // #1294's four consecutive `didOpen`-drain timeouts unexplainable. These pin
+  // both halves: that the classification is right for every combination of
+  // outcomes, and that the plumbing carries the verdict into the message
+  // without ever being able to displace the failure it explains.
+
+  const outcome = (answered: boolean): ProbeOutcome => ({ answered, afterMs: 1 });
+
+  test("the liveness verdict names the most general fault the probes support", () => {
+    // Nothing answers: the server, not this document.
+    assert.match(
+      classifyLiveness({
+        transport: outcome(false),
+        otherDocument: outcome(false),
+        retry: outcome(false),
+      }),
+      /SERVER WEDGED/,
+    );
+    // The server answers a document-free request but no document at all.
+    assert.match(
+      classifyLiveness({
+        transport: outcome(true),
+        otherDocument: outcome(false),
+        retry: outcome(false),
+      }),
+      /DOCUMENT PIPELINE WEDGED/,
+    );
+    // Another document answers, this one still does not — #1294's hypothesis,
+    // and the distinction the report could not previously make.
+    assert.match(
+      classifyLiveness({
+        transport: outcome(true),
+        otherDocument: outcome(true),
+        retry: outcome(false),
+      }),
+      /THIS DOCUMENT'S QUEUE WEDGED/,
+    );
+    // Everything answers on retry: the request was lost, not the queue.
+    assert.match(
+      classifyLiveness({
+        transport: outcome(true),
+        otherDocument: outcome(true),
+        retry: outcome(true),
+      }),
+      /REQUEST DROPPED, NOT WEDGED/,
+    );
+    // A transport that never answered outranks a retry that did — a server
+    // that cannot answer a document-free request is the more general fault,
+    // whatever the later probes claim.
+    assert.match(
+      classifyLiveness({
+        transport: outcome(false),
+        otherDocument: outcome(true),
+        retry: outcome(true),
+      }),
+      /SERVER WEDGED/,
+    );
+  });
+
+  test("a timeout carries its follow-up probe's verdict", async () => {
+    let error: Error | undefined;
+    try {
+      await bounded(new Promise<void>(() => {}), "a stalled document request", {
+        timeout: 300,
+        diagnose: () => "LIVENESS: the follow-up probe ran",
+      });
+      assert.fail("bounded resolved for a promise that never settles");
+    } catch (err) {
+      error = err as Error;
+    }
+    assert.ok(error, "expected a rejection");
+    assert.ok(
+      error.message.includes("LIVENESS: the follow-up probe ran"),
+      `the verdict must reach the failure message: ${error.message}`,
+    );
+    assert.ok(
+      error.message.includes("a stalled document request"),
+      "the diagnostic must not displace what was awaited",
+    );
+  });
+
+  test("a follow-up probe that throws or hangs cannot displace the timeout", async () => {
+    for (const [label, diagnose] of [
+      [
+        "throws",
+        () => {
+          throw new Error("probe blew up");
+        },
+      ],
+      ["hangs", () => new Promise<string>(() => {})],
+    ] as const) {
+      const base = 300;
+      const started = Date.now();
+      let error: Error | undefined;
+      try {
+        await bounded(new Promise<void>(() => {}), `a stalled request (${label})`, {
+          timeout: base,
+          diagnose,
+        });
+        assert.fail(`bounded resolved for a promise that never settles (${label})`);
+      } catch (err) {
+        error = err as Error;
+      }
+      assert.ok(error, `expected a rejection (${label})`);
+      assert.ok(
+        error.message.includes("VSCODE-WAIT-TIMEOUT") &&
+          error.message.includes(`a stalled request (${label})`),
+        `the original timeout must survive a ${label} probe: ${error.message}`,
+      );
+      // The hanging probe is capped by signal.ts's own diagnostic budget, so
+      // the failure still arrives — it just arrives later than the bound.
+      const ceiling = boundCeiling(base) + (label === "hangs" ? 16_000 : 0);
+      assert.ok(
+        Date.now() - started < ceiling,
+        `a ${label} probe must not make the failure unbounded; took ${Date.now() - started}ms`,
+      );
+    }
   });
 
   test("a diagnostics wait returns on the publish event without waiting out a backstop", async () => {

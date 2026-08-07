@@ -28,7 +28,7 @@
 import * as assert from "assert";
 import * as vscode from "vscode";
 import { LanguageClient } from "vscode-languageclient/node";
-import { activate, getDocUri } from "./helper";
+import { activate, getDocUri, scaledTimeout } from "./helper";
 
 interface TclLspApi {
   getClient(): LanguageClient;
@@ -51,7 +51,7 @@ suite("LSP Command Execution", () => {
   const docUri = getDocUri("simple.tcl");
 
   suiteSetup(async function () {
-    this.timeout(60_000);
+    this.timeout(scaledTimeout(60_000));
     await activate(docUri);
   });
 
@@ -99,7 +99,7 @@ suite("LSP Command Execution", () => {
   // -- minifyDocument semantic guarantees (issues #1192-#1194, #1197) ----------
 
   test("minifyDocument preserves switch # arms, proc names, and array keys", async function () {
-    this.timeout(30_000);
+    this.timeout(scaledTimeout(30_000));
     const semUri = getDocUri("minifySemantics.tcl");
     await activate(semUri);
     // Default tier: `#` inside a braced switch case list is a PATTERN (the

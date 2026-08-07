@@ -107,6 +107,12 @@ a design doc. Put it under [`../design/`](../design/README.md) instead.
 - [kcs-issue-reconstruct-a-stress-test-failure.md](kcs-issue-reconstruct-a-stress-test-failure.md)
   — a stress-test suite run failed and you want to reconstruct it from
   the `STRESS_FAILURE:` reproduction bundle.
+- [kcs-issue-vscode-test-timed-out-on-didopen.md](kcs-issue-vscode-test-timed-out-on-didopen.md)
+  — a VS Code extension test timed out draining `didOpen`, and you want to
+  tell a wedged server apart from one wedged document.
+- [kcs-issue-vscode-test-runner-reports-false-hang.md](kcs-issue-vscode-test-runner-reports-false-hang.md)
+  — `make test-ext` reports "mocha never completed (likely hung)" on a run
+  that actually passed every test.
 
 ## Q&A
 

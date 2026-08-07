@@ -518,12 +518,25 @@ pub fn project_proc_names(db: &dyn salsa::Database, project: Project) -> Arc<BTr
 /// edit that does not change a metaclass's `create` override leaves this
 /// equal, so it backdates and no cross-file query re-runs.
 ///
-/// [`item_tree`] itself reads [`SourceFile::workspace_class_factories`], so a
-/// metaclass that is *itself* manufactured by another file's metaclass is
-/// picked up on the host's next sync round rather than needing a fixpoint
-/// here: the sync is compare-then-set, so it stops as soon as the index stops
-/// moving. What never happens is a *guess* — a round adds an entry only when
-/// some file proved it.
+/// [`item_tree`] itself reads [`SourceFile::workspace_class_factories`], so
+/// this query is a function of the very input the host computes *from* it. A
+/// metaclass that is **itself** manufactured by another file's metaclass is
+/// therefore not provable until the manufacturing metaclass has already been
+/// published: the file holding `MetaA create MetaB` proves `MetaB` only on a
+/// round whose index already names `MetaA`. One publish is consequently one
+/// link of the chain deep, and no more — so the host must **iterate the
+/// publish to a fixpoint**, not publish once (issue #1296; before the fixpoint
+/// landed a cross-file `MetaA` → `MetaB` → `Widget` chain left `Widget`
+/// unknown, and a call site on one of its methods resolved to nothing).
+///
+/// The fixpoint is cheap and terminates: a round adds an entry only when some
+/// file *proved* it — never a guess — so the round function is normally
+/// monotone over a set bounded by the project's creation calls, and the host
+/// stops as soon as a round moves nothing. A workspace with no metaclass at
+/// all computes an empty index, which the host stores as `None`, so it settles
+/// in one round that writes nothing and invalidates nothing. The host caps the
+/// loop regardless rather than assuming convergence — see
+/// `sync_workspace_class_factories` in `tcl-lsp-server`.
 #[salsa::tracked]
 pub fn file_class_factories(
     db: &dyn salsa::Database,
