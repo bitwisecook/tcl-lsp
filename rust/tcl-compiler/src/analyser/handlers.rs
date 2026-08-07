@@ -5720,16 +5720,47 @@ impl Analyser {
         cmd_name: &str,
         arg_tokens: &[Token],
         scope_path: &[usize],
+        call_off: u32,
     ) -> Option<ClassFactory> {
         if crate::naming::is_dynamic_word(cmd_name) {
             return None;
         }
         let namespace = self.command_resolution_namespace(scope_path);
         let candidates = crate::naming::bareword_resolution_candidates(&namespace, cmd_name);
+        if let Some(factory) = self.class_factory_for_candidates(&candidates, arg_tokens) {
+            return Some(factory);
+        }
+        // A `rename`d metaclass command (issue #1305): the factory record is
+        // keyed on the name the metaclass was *created* with, never the name
+        // a later call spells, so `rename ::R::M ::R::Mk` then `::R::Mk
+        // create …` must resolve `::R::Mk` back to `::R::M` before the
+        // lookup above can ever hit — through the very same `rename` /
+        // `interp alias` chain-walk the W307/W308 method check and the
+        // LSP's navigation providers already use, so this can never
+        // recognise a rename those do not (or vice versa).
+        let renamed = candidates.iter().find_map(|candidate| {
+            super::indirection::walk(&self.result, candidate, call_off, &|n| {
+                crate::naming::normalise_qualified_name(n)
+            })
+        })?;
+        let renamed_candidates =
+            crate::naming::bareword_resolution_candidates(&namespace, &renamed.target);
+        self.class_factory_for_candidates(&renamed_candidates, arg_tokens)
+    }
+
+    /// The local-then-workspace factory lookup [`Self::class_factory_for_command`]
+    /// runs once for the command's own resolution candidates and once more
+    /// (issue #1305) for its rename target's, factored out so the two
+    /// attempts can never drift apart.
+    fn class_factory_for_candidates(
+        &self,
+        candidates: &[String],
+        arg_tokens: &[Token],
+    ) -> Option<ClassFactory> {
         // This file first: a locally-written metaclass shadows a workspace one
         // under the same name, exactly as a local proc shadows a workspace
         // proc for command resolution.
-        for candidate in &candidates {
+        for candidate in candidates {
             if let Some(class) = self.result.all_classes.get(candidate) {
                 return class.factory.clone();
             }
@@ -5881,6 +5912,7 @@ impl Analyser {
         args: &[String],
         arg_tokens: &[Token],
         scope_path: &[usize],
+        cmd_tok: Token,
     ) -> bool {
         // Every metaclass name behaves the same shape — ``cmd_name
         // create Name ?body?`` — so the cmd-name guard widens to the full set
@@ -5945,7 +5977,7 @@ impl Analyser {
         let user_factory = if registry_definer {
             None
         } else {
-            self.class_factory_for_command(cmd_name, arg_tokens, scope_path)
+            self.class_factory_for_command(cmd_name, arg_tokens, scope_path, cmd_tok.span.start())
         };
         if !registry_definer && user_factory.is_none() {
             return false;
@@ -11412,6 +11444,7 @@ mod tests {
                 esc_tok(span(17, 24)),
             ],
             &[],
+            esc_tok(span(0, 9)),
         );
         assert!(handled);
         assert!(a.result.all_classes.contains_key("::MyClass"));
@@ -11438,6 +11471,7 @@ mod tests {
                 str_tok(span(25, 41)),
             ],
             &[],
+            esc_tok(span(0, 9)),
         );
         assert!(handled);
         assert_eq!(a.result.all_classes["::MyClass"].body_span, span(25, 41));
@@ -11455,6 +11489,7 @@ mod tests {
                 esc_tok(span(18, 25)),
             ],
             &[],
+            esc_tok(span(0, 9)),
         );
         assert!(!handled);
         assert!(a.result.all_classes.is_empty());

@@ -846,11 +846,21 @@ impl Analyser {
             .result
             .object_handle_facts
             .classes_in_scope(call_off, &site.var_name);
+        // A bareword site (`is_dollar` false) names a `CLASS create NAME`
+        // instance command, never an SSA variable, so it carries no lattice
+        // or constructor-harvest evidence — its class comes from
+        // `instance_classes` instead (issue #1312).  `record_var_or_cmd_command_site`
+        // only ever pushes such a site once that map already resolves it to
+        // a locally-known class, so this is a plain lookup, not a new gate.
+        let bareword_class = (!site.is_dollar)
+            .then(|| self.result.instance_classes.get(&site.var_name))
+            .flatten();
         all_object_types
             .get(&site.var_name)
             .into_iter()
             .chain(lattice)
             .flatten()
+            .chain(bareword_class)
             .filter(|cls| self.class_live_by_name_for_call(cls, call_off))
             .cloned()
             .collect()

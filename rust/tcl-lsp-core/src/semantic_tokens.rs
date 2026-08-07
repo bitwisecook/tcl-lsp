@@ -829,7 +829,7 @@ fn bigip_conf_entries(source: &str, registry: &CommandRegistry) -> Vec<Entry> {
         // needs the column the body started at.
         let origin = line_index.position_at_utf16(u32::try_from(bstart).unwrap_or(0), source);
         for (line, col, len, kind, mods) in
-            collect_entries(body, IRULES_DIALECT, registry, None, None, None)
+            collect_entries(body, IRULES_DIALECT, registry, None, None, None, None)
         {
             let (line, col) = if line == 0 {
                 (origin.line, origin.character.get() + col)
@@ -911,7 +911,7 @@ fn apl_entries(source: &str, registry: &CommandRegistry) -> Vec<Entry> {
         };
         let origin = line_index.position_at_utf16(u32::try_from(bstart).unwrap_or(0), source);
         for (line, col, len, kind, mods) in
-            collect_entries(body, IAPPS_DIALECT, registry, None, None, None)
+            collect_entries(body, IAPPS_DIALECT, registry, None, None, None, None)
         {
             let (line, col) = if line == 0 {
                 (origin.line, origin.character.get() + col)
@@ -993,13 +993,17 @@ pub fn full_with_cu_and_analysis(
     analysis: Option<&AnalysisResult>,
 ) -> SemanticTokens {
     let proc_roles = analysis.map(VarNameArgRoles::from_analysis);
-    full_with_cu_and_classes_and_roles(
+    let named_instances = analysis.map(named_instances_from_analysis);
+    full_with_cu_and_facts(
         source,
         dialect,
         registry,
         cu,
-        analysis.map(AnalysisResult::class_hierarchy),
-        proc_roles.as_ref(),
+        WorkspaceTokenFacts {
+            classes: analysis.map(AnalysisResult::class_hierarchy),
+            proc_roles: proc_roles.as_ref(),
+            named_instances: named_instances.as_ref(),
+        },
     )
 }
 
@@ -1033,7 +1037,43 @@ pub fn full_with_cu_and_classes_and_roles(
     classes: Option<&ClassHierarchy>,
     proc_roles: Option<&VarNameArgRoles>,
 ) -> SemanticTokens {
-    let entries = collect_entries(source, dialect, registry, cu, classes, proc_roles);
+    full_with_cu_and_facts(
+        source,
+        dialect,
+        registry,
+        cu,
+        WorkspaceTokenFacts {
+            classes,
+            proc_roles,
+            named_instances: None,
+        },
+    )
+}
+
+/// [`full_with_cu_and_classes_and_roles`] with the workspace-merged named
+/// bareword instance-command index bundled in (issue #1312), so `CLASS
+/// create NAME` resolves its class exactly like the single-file
+/// [`full_with_cu_and_analysis`] path does — the project token-aggregation
+/// path (`semantic_tokens_project`) is the one caller with a project-wide
+/// [`NamedInstanceMap`] to hand; `WorkspaceTokenFacts::default()` (every
+/// other caller) skips the merge.
+#[must_use]
+pub fn full_with_cu_and_facts(
+    source: &str,
+    dialect: &str,
+    registry: &CommandRegistry,
+    cu: Option<&CompilationUnit>,
+    facts: WorkspaceTokenFacts<'_>,
+) -> SemanticTokens {
+    let entries = collect_entries(
+        source,
+        dialect,
+        registry,
+        cu,
+        facts.classes,
+        facts.proc_roles,
+        facts.named_instances,
+    );
     encode_entries(&entries)
 }
 
@@ -1077,14 +1117,18 @@ pub fn range_with_cu_and_analysis(
     analysis: Option<&AnalysisResult>,
 ) -> SemanticTokens {
     let proc_roles = analysis.map(VarNameArgRoles::from_analysis);
-    range_with_cu_and_classes_and_roles(
+    let named_instances = analysis.map(named_instances_from_analysis);
+    range_with_cu_and_facts(
         source,
         dialect,
         range,
         registry,
         cu,
-        analysis.map(AnalysisResult::class_hierarchy),
-        proc_roles.as_ref(),
+        WorkspaceTokenFacts {
+            classes: analysis.map(AnalysisResult::class_hierarchy),
+            proc_roles: proc_roles.as_ref(),
+            named_instances: named_instances.as_ref(),
+        },
     )
 }
 
@@ -1114,7 +1158,40 @@ pub fn range_with_cu_and_classes_and_roles(
     classes: Option<&ClassHierarchy>,
     proc_roles: Option<&VarNameArgRoles>,
 ) -> SemanticTokens {
-    let mut entries = collect_entries(source, dialect, registry, cu, classes, proc_roles);
+    range_with_cu_and_facts(
+        source,
+        dialect,
+        range,
+        registry,
+        cu,
+        WorkspaceTokenFacts {
+            classes,
+            proc_roles,
+            named_instances: None,
+        },
+    )
+}
+
+/// [`range_with_cu_and_classes_and_roles`] with the workspace-merged named
+/// bareword instance-command index bundled in (see [`full_with_cu_and_facts`]).
+#[must_use]
+pub fn range_with_cu_and_facts(
+    source: &str,
+    dialect: &str,
+    range: crate::definition::LspRange,
+    registry: &CommandRegistry,
+    cu: Option<&CompilationUnit>,
+    facts: WorkspaceTokenFacts<'_>,
+) -> SemanticTokens {
+    let mut entries = collect_entries(
+        source,
+        dialect,
+        registry,
+        cu,
+        facts.classes,
+        facts.proc_roles,
+        facts.named_instances,
+    );
     entries.retain(|(line, col, _, _, _)| {
         // Half-open interval per LSP `Range` semantics: start is
         // inclusive, end is exclusive.
@@ -2293,6 +2370,44 @@ fn is_generic_option_word(text: &str) -> bool {
 /// from the [`CompilationUnit`] by
 /// [`tcl_compiler::object_types::object_handle_classes`].
 type ObjectClassMap = std::collections::HashMap<String, std::collections::HashSet<String>>;
+
+/// Bareword instance-command name → qualified class name (issue #1312),
+/// built from [`AnalysisResult::instance_classes`] gated on
+/// [`AnalysisResult::created_instance_commands`] — the same contract the
+/// LSP's `receiver_instance_class` uses.  Merged into [`ObjectClassMap`] by
+/// [`collect_entries`] so a `CLASS create NAME` object types exactly like a
+/// `set var [CLASS new]` one.
+pub type NamedInstanceMap = std::collections::HashMap<String, String>;
+
+/// The optional workspace-merged facts a semantic-tokens request can enrich
+/// its object-dispatch resolution with — [`ClassHierarchy`] (cross-file
+/// classes), [`VarNameArgRoles`] (cross-file proc parameter roles), and
+/// [`NamedInstanceMap`] (cross-file `CLASS create NAME` bindings, issue
+/// #1312).  Bundled into one `Copy` struct so the `range_*` full-arity entry
+/// point stays within budget instead of growing a ninth positional
+/// parameter.
+#[derive(Clone, Copy, Default)]
+pub struct WorkspaceTokenFacts<'a> {
+    /// The workspace-merged class hierarchy, or the local single-file one.
+    pub classes: Option<&'a ClassHierarchy>,
+    /// The workspace-merged (or local) inferred proc parameter roles.
+    pub proc_roles: Option<&'a VarNameArgRoles>,
+    /// The workspace-merged (or local) `CLASS create NAME` bareword
+    /// instance-command index (issue #1312).
+    pub named_instances: Option<&'a NamedInstanceMap>,
+}
+
+/// Build a [`NamedInstanceMap`] from `analysis` — `None` when `analysis`
+/// created no named instances, so the merge in [`collect_entries`] is a
+/// no-op lookup-free skip for the overwhelming majority of documents.
+fn named_instances_from_analysis(analysis: &AnalysisResult) -> NamedInstanceMap {
+    analysis
+        .instance_classes
+        .iter()
+        .filter(|(name, _)| analysis.created_instance_commands.contains(name.as_str()))
+        .map(|(name, class)| (name.clone(), class.clone()))
+        .collect()
+}
 
 /// Precise `$obj method …` highlighting via the registry's object-class model —
 /// the object-handle half of issue #748.
@@ -5691,6 +5806,7 @@ fn collect_entries(
     cu: Option<&CompilationUnit>,
     classes: Option<&ClassHierarchy>,
     proc_roles: Option<&VarNameArgRoles>,
+    named_instances: Option<&NamedInstanceMap>,
 ) -> Vec<Entry> {
     let mut entries: Vec<Entry> = Vec::new();
     let line_index = LineIndex::new(source);
@@ -5744,6 +5860,27 @@ fn collect_entries(
     let mut object_classes: ObjectClassMap = cu.map_or_else(ObjectClassMap::default, |cu| {
         tcl_compiler::object_types::object_handle_classes(cu, registry)
     });
+
+    // A bareword instance command bound by a *user*-class `CLASS create
+    // NAME` (issue #1312) — the object-type lattice above only tracks `set`
+    // assignments and registry naming factories, never a plain `CLASS create
+    // NAME` statement, so a named instance's class comes from the analyser's
+    // `instance_classes` instead, gated on `created_instance_commands`
+    // exactly like the LSP's `receiver_instance_class` (hover / definition /
+    // completion already resolve this shape; this closes the same gap for
+    // the semantic-token / W308 dispatch resolver).  Merged into the same
+    // name-keyed map a registry naming factory (`ttk::treeview .t`) already
+    // populates, so `insert_object_method_overrides`'s bareword branch needs
+    // no new code path — see `object_types::harvest_unit`'s `Statement::Call`
+    // arm doc, which this mirrors for user classes.
+    if let Some(named) = named_instances {
+        for (name, class) in named {
+            object_classes
+                .entry(name.clone())
+                .or_default()
+                .insert(class.clone());
+        }
+    }
 
     // Object-*collection* → element-class map (`dict set Pins $k [Pin new]` →
     // `Pins` is a `Dict` of `Pin`), so a `[dict get $Pins $k] method …`
@@ -8192,13 +8329,16 @@ mod tests {
             0,
             Abstain,
         ),
-        // ---- not yet modelled, but abstains safely (flip to Resolve when done) ----
         (
-            "named_object", // issue #1312: resolve via created_instance_commands
+            // `CLASS create NAME` (issue #1312) — resolved via
+            // `instance_classes` gated on `created_instance_commands`,
+            // merged into the object-class map `insert_object_method_overrides`'s
+            // bareword branch already reads (see `NamedInstanceMap`).
+            "named_object",
             "oo::class create C { method mrun {} {} }\nC create obj\nobj mrun\n",
             "mrun",
             2,
-            Abstain,
+            Resolve,
         ),
         (
             // The snit *named-constructor* shape: `$o` bound by `foo create

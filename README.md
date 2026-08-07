@@ -412,6 +412,23 @@ set d [Pup new]
 $d fly                         ;# W308: unknown method 'fly' on ::Dog
 ```
 
+The **named-object** construction form (`ClassName create objName`, as
+opposed to `set d [ClassName new]`) resolves identically — hover,
+completion, go-to-definition, references, and W308 all treat `ClassName
+create obj; obj method` and `set o [ClassName new]; $o method` the same way,
+including when `ClassName` is a class factory reached through a `rename`d
+metaclass command:
+
+```tcl
+oo::class create C { method mrun {} { return 1 } }
+C create obj
+obj nosuchmethod                ;# W308: unknown method 'nosuchmethod' on class '::C'
+
+oo::class create ::R::M { superclass oo::class }
+rename ::R::M ::R::Mk
+::R::Mk create ::R::W { method go {} { return went } }  ;# ::R::W is a real class
+```
+
 The **grammar** of a command follows its binding too. A statically
 visible `namespace import`, `interp alias`, `rename`, or a top-level
 `proc` that shadows a built-in re-points every registry-driven feature —

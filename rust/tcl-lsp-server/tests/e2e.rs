@@ -73,6 +73,10 @@ mod issue1281_ensemble_rename;
 mod issue1296_metaclass_chain;
 #[path = "e2e/issue1302_import_builtin_shadow.rs"]
 mod issue1302_import_builtin_shadow;
+#[path = "e2e/issue1305_renamed_metaclass.rs"]
+mod issue1305_renamed_metaclass;
+#[path = "e2e/issue1312_named_object_dispatch.rs"]
+mod issue1312_named_object_dispatch;
 #[path = "e2e/issue923_class_refs.rs"]
 mod issue923_class_refs;
 #[path = "e2e/issue923_crossdoc.rs"]

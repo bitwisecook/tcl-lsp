@@ -92,6 +92,24 @@ struct DispatchSite<'a> {
     presubstituted_args: bool,
 }
 
+/// Bundled arguments for [`Analyser::record_var_or_cmd_command_site`] — the
+/// command-head token plus the co-varying slices `process_command` and its
+/// nested-substitution twin already have in hand.  Keeps the recorder under
+/// the argument-count limit; it destructures them back into locals so the
+/// body reads unchanged.  Every field is a reference or `Token` (itself
+/// `Copy`), so the bundle is `Copy` too — passed by value, no
+/// `needless_pass_by_value` lint to work around.
+#[derive(Clone, Copy)]
+struct VarOrCmdSite<'a> {
+    cmd_name: &'a str,
+    cmd_tok: Token,
+    head_expanded: bool,
+    args: &'a [String],
+    arg_tokens: &'a [Token],
+    arg_expand: &'a [bool],
+    scope_path: &'a [usize],
+}
+
 /// One resolved analyser-hook dispatch: the hook the head resolved to, plus
 /// the composed traits (`spec.traits | sub.traits`) of the concrete spec /
 /// subcommand it resolved to.
@@ -757,6 +775,17 @@ impl Analyser {
         // points at the unresolved name rather than the whole
         // command line.
         let cmd_tok = arg_tokens_in[0];
+        // Record TclOO / registry instance creation (`set v [Cls new]`,
+        // `Cls create inst`) regardless of structure-only mode: cheap map
+        // bookkeeping against `all_classes` (already populated structurally)
+        // with no diagnostic emission, and the LSP's project-wide
+        // semantic-token aggregation (`FileTokenFacts`, built in
+        // structure-only mode for cost reasons) needs `instance_classes` /
+        // `created_instance_commands` so a `CLASS create NAME` bareword
+        // dispatch resolves its class without paying for a full analysis
+        // (issue #1312).
+        let creation_ns = self.command_resolution_namespace(scope_path);
+        self.record_instance_creation(cmd_name, args, &creation_ns, cmd_tok.span.start());
         // Structure-only mode (item-tree extraction) skips every diagnostic /
         // cross-feature recording pass below — they don't affect the declared
         // proc / class / alias / ensemble structure and are the bulk of the
@@ -879,27 +908,21 @@ impl Analyser {
             // Record variable-as-command and
             // command-substitution-as-command call sites so the
             // post-walk W307 / W308 emitters can resolve them.
-            self.record_var_or_cmd_command_site(
+            self.record_var_or_cmd_command_site(VarOrCmdSite {
+                cmd_name,
                 cmd_tok,
-                arg_expand_in.first().copied().unwrap_or(false),
+                head_expanded: arg_expand_in.first().copied().unwrap_or(false),
                 args,
                 arg_tokens,
-                arg_expand_in.get(1..).unwrap_or(&[]),
+                arg_expand: arg_expand_in.get(1..).unwrap_or(&[]),
                 scope_path,
-            );
+            });
 
             // W125 (orphaned control-flow keyword) and IRULE5005 (direct
             // iRules-proc call without `call`) — both key off whether the
             // command head resolves to a user proc, so they share one
             // resolution.
             self.emit_proc_resolution_diagnostics(cmd_name, args, cmd_tok, scope_path);
-
-            // Record TclOO instance creation (`set v [Cls new]`,
-            // `Cls create inst`) so the LSP providers can resolve
-            // ``$v method`` / ``inst method`` call sites to the
-            // object's class.
-            let creation_ns = self.command_resolution_namespace(scope_path);
-            self.record_instance_creation(cmd_name, args, &creation_ns, cmd_tok.span.start());
 
             // When the constructor's class head is a `$var` reference
             // instead of a literal bareword, defer to the flow-sensitive
@@ -1158,7 +1181,7 @@ impl Analyser {
             // tcl-registry's analyser-hook drift tests for the registry
             // ones), so running them only on the hookless path preserves
             // the old chain's order.
-            return self.handle_oo_class_command(cmd_name, args, arg_tokens, scope_path)
+            return self.handle_oo_class_command(cmd_name, args, arg_tokens, scope_path, cmd_tok)
                 || self.handle_snit_type_command(cmd_name, args, arg_tokens, scope_path)
                 || self.handle_itcl_class_command(cmd_name, args, arg_tokens, scope_path)
                 || self.handle_interp_handle_eval_command(cmd_name, args, arg_tokens, scope_path);
@@ -3031,14 +3054,15 @@ impl Analyser {
         // walk treats `[…]` as a value, so without this the W307 multi-dispatch
         // suppression under-counts `$obj` dispatches that live inside command
         // substitutions and the W307/W308 emitters never see them.
-        self.record_var_or_cmd_command_site(
+        self.record_var_or_cmd_command_site(VarOrCmdSite {
+            cmd_name: &cmd_name,
             cmd_tok,
-            arg_expand.first().copied().unwrap_or(false),
+            head_expanded: arg_expand.first().copied().unwrap_or(false),
             args,
             arg_tokens,
-            arg_expand.get(1..).unwrap_or(&[]),
+            arg_expand: arg_expand.get(1..).unwrap_or(&[]),
             scope_path,
-        );
+        });
         // W125 (orphaned keyword) and IRULE5005 (direct iRules-proc call
         // without `call`) key off whether the head resolves to a user proc, so
         // they must reach substitution commands too: `when HTTP_REQUEST { set x
@@ -3142,7 +3166,7 @@ impl Analyser {
                 }
                 None => {
                     let _claimed = self
-                        .handle_oo_class_command(&cmd_name, args, arg_tokens, scope_path)
+                        .handle_oo_class_command(&cmd_name, args, arg_tokens, scope_path, cmd_tok)
                         || self.handle_snit_type_command(&cmd_name, args, arg_tokens, scope_path)
                         || self.handle_itcl_class_command(&cmd_name, args, arg_tokens, scope_path);
                 }
@@ -3380,15 +3404,16 @@ impl Analyser {
     /// method ...``) or command-substitution-as-command
     /// (``[expr ...] args``) call site so the post-walk W307 /
     /// W308 emitters can resolve them.
-    fn record_var_or_cmd_command_site(
-        &mut self,
-        cmd_tok: Token,
-        head_expanded: bool,
-        args: &[String],
-        arg_tokens: &[Token],
-        arg_expand: &[bool],
-        scope_path: &[usize],
-    ) {
+    fn record_var_or_cmd_command_site(&mut self, site: VarOrCmdSite<'_>) {
+        let VarOrCmdSite {
+            cmd_name,
+            cmd_tok,
+            head_expanded,
+            args,
+            arg_tokens,
+            arg_expand,
+            scope_path,
+        } = site;
         let in_method = self.scope_path_in_method_body(scope_path);
         // Content span of the method word (delimiters trimmed) — the tight
         // W308 anchor and "did you mean" fix target.
@@ -3444,6 +3469,7 @@ impl Analyser {
                     in_method,
                     argc: args.len(),
                     has_expand: arg_expand.iter().any(|&e| e),
+                    is_dollar: true,
                 });
             }
             TokenType::Cmd => {
@@ -3462,7 +3488,79 @@ impl Analyser {
                     in_method,
                 });
             }
+            TokenType::Esc => self.record_bareword_instance_dispatch_site(
+                cmd_name,
+                cmd_tok,
+                args,
+                method_span,
+                in_method,
+                arg_expand,
+            ),
             _ => {}
+        }
+    }
+
+    /// The [`TokenType::Esc`] arm of [`Self::record_var_or_cmd_command_site`]:
+    /// a bareword head bound to an instance by `CLASS create NAME` (issue
+    /// #1312) — the named-object dispatch form.  Split out to keep the
+    /// caller within the line budget.
+    ///
+    /// The real gate — `created_instance_commands` *and* an
+    /// `instance_classes` entry, exactly like the LSP's
+    /// `receiver_instance_class`: `created_instance_commands` alone also
+    /// covers coroutine / `interp create` / registry naming-factory names,
+    /// none of which bind a class — cannot be evaluated straight off
+    /// `self.result` while a shell/body pass is deferring:
+    /// `record_instance_creation`'s Pattern B defers a `CLASS create NAME`
+    /// creation into `pending_instances` rather than resolving it
+    /// immediately, so neither map is populated yet for a name created
+    /// earlier in this same pass (they fill in later, post-graft, in
+    /// `Analyser::replay_deferred_instances`).
+    ///
+    /// `cmd_name` is the caller's already-extracted head text
+    /// (`argv_texts[0]`) — reused rather than re-deriving it via
+    /// `SourceMap::token_text`, which costs a real slice on every plain
+    /// command call otherwise (nearly every Tcl command head is `Esc`-kind)
+    /// and, unlike `argv_texts`, is not guaranteed to line up with a
+    /// hand-built `self.source` in unit tests that construct tokens
+    /// directly.
+    fn record_bareword_instance_dispatch_site(
+        &mut self,
+        cmd_name: &str,
+        cmd_tok: Token,
+        args: &[String],
+        method_span: Option<tcl_lexer::Span>,
+        in_method: bool,
+        arg_expand: &[bool],
+    ) {
+        let site = || super::state::VarCommandSite {
+            var_name: cmd_name.to_string(),
+            method_name: args.first().cloned(),
+            method_span,
+            cmd_span: cmd_tok.span,
+            in_method,
+            argc: args.len(),
+            has_expand: arg_expand.iter().any(|&e| e),
+            is_dollar: false,
+        };
+        if let Some(pending) = self.pending_bareword_dispatch_sites.as_mut() {
+            // Cheap necessary (not sufficient) pre-filter, bounding the
+            // candidate list to names some pending `create`-shaped record
+            // already mentions — `Self::finalise_bareword_dispatch_sites`
+            // applies the real, sufficient gate once `instance_classes` is
+            // complete, post-replay.
+            let is_candidate = self.pending_instances.as_ref().is_some_and(|creations| {
+                creations.iter().any(|(_, args, _, _)| {
+                    args.len() >= 2 && args[0] == "create" && args[1] == cmd_name
+                })
+            });
+            if is_candidate {
+                pending.push(site());
+            }
+        } else if self.result.created_instance_commands.contains(cmd_name)
+            && self.result.instance_classes.contains_key(cmd_name)
+        {
+            self.var_command_sites.push(site());
         }
     }
 

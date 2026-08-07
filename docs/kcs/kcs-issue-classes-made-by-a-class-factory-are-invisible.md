@@ -7,6 +7,41 @@
 
 all-editors, analyser
 
+## Related issues in the class-factory / object-dispatch cluster
+
+Five issues share the class-factory / object-dispatch name-resolution
+subsystem this note documents. Status as of the #1312/#1303/#1304/#1305/#1306
+cluster fix:
+
+- **#1312** (fixed) — a *named* object handle (`ClassName create objName`, as
+  opposed to `[ClassName new]`) resolved no members: the dispatch resolver
+  never consulted `AnalysisResult::created_instance_commands` /
+  `instance_classes` for a bareword receiver. This is the plain-class base
+  case — no metaclass or factory is involved. See the "named-object dispatch"
+  decision rule below and the `issue_1312_named_object_dispatch` test module.
+- **#1305** (fixed) — a `rename`d metaclass command manufactured nothing: the
+  factory lookup matched the creation call's head against the literal text a
+  metaclass was *created* with, so a call through a renamed command found no
+  record. Now resolves through the same `rename` / `interp alias` hop-walk
+  (`indirection::walk`) the W307/W308 method check and the LSP navigation
+  providers already shared. See decision rule 16 below.
+- **#1303** (open) — an object handle bound by calling the class command
+  itself, dispatched through the metaclass's `unknown` method (Tk's
+  `::tk::IconList .il` idiom), resolves no members. Triage checklist item 11
+  below already isolates this from the factory/class resolution proper.
+- **#1304** (open) — a class made by a cross-file metaclass resolves only
+  when the metaclass's defining file is *open* in the editor; an ordinary
+  `oo::class` in an unopened file resolves fine. Suspected mechanism (per the
+  ticket, unconfirmed): `reschedule_peers` only reaches documents with a
+  diagnostics slot (open ones), and the startup scan indexes each file before
+  the class-factory oracle publishes.
+- **#1306** (open) — a metaclass created under a computed name
+  (`Meta create ${ns}::class {…}` inside a proc, called with a literal
+  argument) is never indexed — the shape tcllib's `oo::dialect` (and clay,
+  practcl) uses. `is_dynamic_word` correctly rejects the dynamic-looking name
+  per decision rule 2 below; the gap is that the analyser does not follow a
+  literal argument through a proc's parameter binding into the creation call.
+
 ## Symptom
 
 A class, a method, or a proc that a real interpreter genuinely creates is
@@ -178,12 +213,41 @@ latter.
    member twice, so `(objdefine_offset, member name)` is an exact
    "already recorded" identity — no iteration counter needed, and a genuinely
    separate block on the same object still accumulates.
+16. **A `rename`d metaclass command is resolved through the same hop-walk
+   every other command-table consumer uses, never re-derived.** The factory
+   record stays keyed on the name the metaclass was *created* with —
+   `class_factory_for_command` does not re-key it — so a call through
+   `rename ::R::M ::R::Mk` resolves by falling back to
+   `indirection::walk` (the shared `rename` / `interp alias` chain-follower
+   the W307/W308 method check and the LSP's navigation providers already
+   used) only when the direct literal-text lookup misses, then retrying the
+   same local-then-workspace lookup against the resolved name (issue #1305).
+   Order-gated exactly as every other `indirection::walk` consumer is: a
+   `rename` written *after* the creation call does not retroactively cover
+   it.
+17. **A named object handle is not a class-factory concern, but shares the
+   dispatch resolver.** `ClassName create objName` (as opposed to
+   `[ClassName new]`) is plain `TclOO`, no metaclass involved — the analyser
+   already recorded the binding in `instance_classes` /
+   `created_instance_commands`. The gap was that three separate consumers
+   never read it for a *bareword* receiver: the W307/W308 method-check
+   (`record_var_or_cmd_command_site`'s `TokenType::Esc` arm, gated on both
+   maps exactly like the LSP's `receiver_instance_class`), and the
+   semantic-token / project-token-aggregation object-class map (merged in
+   as a `NamedInstanceMap`, `object_types::harvest_unit`'s own
+   `Statement::Call` arm only ever modelled a *registry* naming factory, not
+   a user class). Go-to-definition, hover, completion, and references
+   already resolved this shape before the fix (they read
+   `instance_classes`/`created_instance_commands` directly, not through
+   either of those two paths) — issue #1312.
 
 ## File-path anchors
 
 - `rust/tcl-compiler/src/analyser/handlers.rs` —
   `handle_oo_class_command`, `class_factory_for_command`,
-  `class_factory_of`, `user_metaclass_of_class`,
+  `class_factory_for_candidates` (the local-then-workspace lookup, tried
+  once for the literal head and once more for its `rename` target — issue
+  #1305), `class_factory_of`, `user_metaclass_of_class`,
   `manufacturer_layout`, `manufacturer_word_positions`,
   `manufacturer_injected_template`, `injected_member_from_group`,
   `template_injected_member`, `resolve_factory_member`,
@@ -191,19 +255,32 @@ latter.
   `handle_oo_objdefine`, `record_object_methods`,
   `handle_foreach_command`, `simulate_remaining_foreach_iterations`,
   `resolve_dynamic_word`
+- `rust/tcl-compiler/src/analyser/indirection.rs` — `walk` (the shared
+  `rename` / `interp alias` hop-walk `class_factory_for_command` falls back
+  to — issue #1305)
 - `rust/tcl-compiler/src/analyser/class_hierarchy.rs` —
   `resolve_class_name`, `build_tail_index` (the shared owner-aware
   relative-name resolution the chain walk reuses)
 - `rust/tcl-compiler/src/analyser/oo.rs` —
   `splice_static_member_expansions`, `extract_method_def`
 - `rust/tcl-compiler/src/analyser/commands.rs` —
-  `resolve_dynamic_command_head`, `head_is_whole_word_variable`
-- `rust/tcl-compiler/src/analyser/types.rs` —
-  `ClassDef::inheritance_unknown`, `ClassDef::factory`, `ClassFactory`,
-  `ClassFactoryIndex`, `AnalysisResult::class_factories`
-- `rust/tcl-compiler/src/analyser/per_item.rs` —
-  `analyse_proc_body_isolated` (the oracle travelling with a deferred body)
-- `rust/tcl-lsp-db/src/lib.rs` — `file_class_factories`,
+  `resolve_dynamic_command_head`, `head_is_whole_word_variable`,
+  `record_var_or_cmd_command_site` / `record_bareword_instance_dispatch_site`
+  (the named-object `TokenType::Esc` W307/W308 site — issue #1312),
+  `record_instance_creation` (moved outside `structure_only` so the
+  project-wide token aggregation's lightweight per-file pass records
+  `instance_classes` / `created_instance_commands` too — issue #1312)
+- `rust/tcl-compiler/src/analyser/diagnostics/var_command.rs` —
+  `live_classes_at_dispatch` (the bareword-site `instance_classes` lookup —
+  issue #1312), `class_reachable_by_indirection` (the `indirection::walk`
+  consumer #1305's fix now shares the pattern of)
+- `rust/tcl-lsp-core/src/semantic_tokens.rs` — `NamedInstanceMap`,
+  `named_instances_from_analysis`, `WorkspaceTokenFacts`,
+  `full_with_cu_and_facts`, `range_with_cu_and_facts` (the semantic-token
+  half of issue #1312)
+- `rust/tcl-lsp-db/src/lib.rs` — `FileTokenFacts::named_instances`,
+  `project_named_instance_index` (the project-wide token-aggregation half of
+  issue #1312), `file_class_factories`,
   `project_class_factories`, `SourceFile::workspace_class_factories`,
   `ItemBodyKey::body_env`
 - `rust/tcl-lsp-server/src/lib.rs` — `sync_workspace_class_factories`
@@ -297,7 +374,31 @@ latter.
   `a_second_link_metaclass_publishes_a_factory_once_the_first_is_indexed`,
   `the_third_link_records_the_class_and_its_members`,
   `oo_define_after_the_fact_extends_a_chained_factory_made_class`,
-  `an_unproved_second_link_still_abstains`
+  `an_unproved_second_link_still_abstains`, and — for the renamed-metaclass
+  case (issue #1305) —
+  `a_renamed_metaclass_still_manufactures_its_class`,
+  `the_control_without_a_rename_records_the_same_class`,
+  `a_rename_written_after_the_creation_call_does_not_apply` (FN guard),
+  `a_rename_with_no_call_through_the_new_name_manufactures_nothing`
+  (FN guard)
+- `rust/tcl-compiler/tests/analyser.rs` — the `issue_1312_named_object_dispatch`
+  module (named-object dispatch, issue #1312):
+  `named_object_draws_w308_on_an_unknown_method`,
+  `named_object_and_handle_object_draw_the_same_w308_message`,
+  `named_object_calling_a_real_method_draws_no_w308` (TN),
+  `an_ordinary_proc_call_never_draws_w307_or_w308` (FP guard),
+  `interp_create_bareword_dispatch_draws_no_diagnostic` (FP guard —
+  `created_instance_commands` without `instance_classes` must stay silent),
+  `per_item_analysis_agrees_with_whole_file_analysis`
+- `rust/tcl-lsp-core/src/semantic_tokens.rs` — `tcloo_dispatch_pattern_fixture`
+  (the `named_object` golden-fixture row, flipped from `Abstain` to
+  `Resolve` — issue #1312)
+- `rust/tcl-lsp-server/tests/e2e/issue1312_named_object_dispatch.rs` — the
+  named-object ticket end to end: W308, the semantic-token `method`
+  classification, go-to-definition, and completion
+- `rust/tcl-lsp-server/tests/e2e/issue1305_renamed_metaclass.rs` — the
+  renamed-metaclass ticket end to end (go-to-definition through the rename,
+  plus the un-renamed control)
 - `rust/tcl-lsp-db/tests/class_factory_fixpoint.rs` — the publish loop itself:
   `a_cross_file_three_level_chain_converges_and_records_the_class`,
   `a_single_publish_is_one_link_deep` (the regression, asserted directly),

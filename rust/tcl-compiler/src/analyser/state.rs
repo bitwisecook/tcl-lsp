@@ -223,6 +223,18 @@ pub struct VarCommandSite {
     /// entirely when this is set, matching every other arity check's
     /// `{*}`-expansion convention.
     pub has_expand: bool,
+    /// True for a `$var method` dispatch, false for a bareword
+    /// `objcmd method` dispatch (`CLASS create NAME` idiom — issue #1312).
+    /// A `$var` can hold any object at run time, so its class evidence comes
+    /// from the SSA type lattice / constructor harvest only; a bareword head
+    /// is instead a *named* instance command, so its class comes from
+    /// `AnalysisResult::instance_classes` gated on
+    /// `AnalysisResult::created_instance_commands` — the same contract the
+    /// LSP's `receiver_instance_class` uses for hover/definition/completion.
+    /// Kept as an explicit flag rather than re-deriving it from the site's
+    /// shape so the diagnostic and the LSP's shared resolver can never
+    /// disagree about which sites the bareword lookup applies to.
+    pub is_dollar: bool,
 }
 
 /// One entry in [`Analyser::cmd_command_sites`] —
@@ -974,6 +986,19 @@ pub struct Analyser {
     /// plus every grafted body's (already rebased to absolute offsets),
     /// merged so the replay can run in one global source-order pass.
     pub(super) deferred_instance_replays: Vec<(u32, bool, String, Vec<String>, String)>,
+    /// Bareword `objcmd method` dispatch sites (issue #1312) captured while
+    /// `pending_instances` is active — a `CLASS create NAME` creation earlier
+    /// in the same deferred pass has not resolved `instance_classes` yet (it
+    /// resolves only post-graft, in [`Self::replay_deferred_instances`]), so
+    /// the site is held here instead of going straight into
+    /// `var_command_sites`.  Finalised right after that replay: a candidate
+    /// whose name the replay actually bound in `instance_classes` becomes a
+    /// real `var_command_sites` entry; every other candidate (a coroutine /
+    /// `interp create` / registry-factory / external-class name that merely
+    /// *looked* like a pending class instance at record time) is dropped —
+    /// the same soundness bar the non-deferred `analyse` path applies
+    /// immediately.  `None` on the whole-file path (sites resolve inline).
+    pub(super) pending_bareword_dispatch_sites: Option<Vec<VarCommandSite>>,
     /// **Experimental probe flag.**  When `true`, the per-item path does *not*
     /// take the duplicate-definition fallback, to measure the residual
     /// divergence the duplicate fast-path must still close.  Defaults to `false`.
@@ -1204,6 +1229,7 @@ impl Analyser {
             pending_var_literal_checks: Vec::new(),
             pending_instances: None,
             deferred_instance_replays: Vec::new(),
+            pending_bareword_dispatch_sites: None,
             probe_skip_enclosing_fallback: false,
             probe_skip_duplicate_fallback: false,
             took_fast_path: false,
@@ -2293,6 +2319,7 @@ impl Analyser {
         self.minted_synthetic_names.clear();
         self.pending_instances = None;
         self.deferred_instance_replays.clear();
+        self.pending_bareword_dispatch_sites = None;
         self.line_offsets = None;
         self.cached_line_index = tcl_lexer::LineIndex::new("");
         self.cached_line_index_source_len = 0;
