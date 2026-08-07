@@ -191,7 +191,7 @@ The project uses GNU Make. Key targets:
 | `make prep-pr`     | Pre-PR formatting + fast checks: auto-formats code, runs codegen, lint/typecheck, and `test-rust`. Run the heavier suites (`test-ext`, `runtime-rust-test`, `test-emacs`) separately before opening a PR — see "Before opening a PR" below. |
 | `make test`        | Run all tests — Rust workspace + VS Code extension + Rust runtime port (`test-rust test-ext runtime-rust-test`) |
 | `make test-rust`   | `cargo test --workspace --all-features` — includes the native lsp_e2e suite (`rust/tcl-lsp-server/tests/*_e2e.rs`); skip with `SKIP_TEST_RUST=1` |
-| `make test-ext`    | VS Code extension integration tests (xvfb on headless Linux) |
+| `make test-ext`    | VS Code extension integration tests — the single-root suite **and** the multi-root (`test:multi-folder`) suite (xvfb on headless Linux) |
 | `make lint-py`     | `ruff format --check` + `ruff check` over every tracked `.py` (versions pinned in the Makefile) |
 | `make format-py`   | `ruff format` over every tracked `.py` |
 | `make typecheck-py`| `ty` + `pyright` over every tracked `.py`.  Builds `.venv-typecheck`, which installs `f5report` (maturin-compiling the native `_engine`) plus pytest, so both checkers resolve every import for real.  Sublime host APIs are declared by stubs under `typings/`. |
@@ -408,7 +408,7 @@ make runtime-rust-test                           # the standalone runtime/rust c
   --workspace --all-features`, including the native lsp_e2e suite
   `rust/tcl-lsp-server/tests/*_e2e.rs`)
 - **check-rust** — Rust lint/typecheck
-- **test-ext** — VS Code extension integration tests
+- **test-ext** — VS Code extension integration tests, single-root and multi-root
 - **test-emacs** — Emacs eglot integration tests
 - **runtime-rust-test** — the leak round-trip + parse/eval unit suite for
   the standalone `runtime/rust` crate
