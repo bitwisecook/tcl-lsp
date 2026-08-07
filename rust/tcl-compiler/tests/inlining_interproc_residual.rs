@@ -114,7 +114,13 @@ fn inlined(source: &str) -> Module {
 fn interproc(source: &str) -> InterproceduralAnalysis {
     let r = reg();
     let cu = CompilationUnit::build_for(source, &r, false);
-    build_interprocedural_analysis(&cu.ir_module, &r, None, ObjectTypeMap::none())
+    build_interprocedural_analysis(
+        &cu.ir_module,
+        &r,
+        None,
+        ObjectTypeMap::none(),
+        tcl_compiler::head_identity::HeadIdentityMap::none(),
+    )
 }
 
 /// Count statement-position calls to `command` in a flat statement list.
@@ -777,7 +783,13 @@ fn inline_module_with_no_procs_at_all_is_unchanged() {
 fn call_by_name_reads(source: &str, caller_qname: &str) -> HashSet<String> {
     let r = reg();
     let cu = CompilationUnit::build_for(source, &r, false);
-    let ia = build_interprocedural_analysis(&cu.ir_module, &r, None, ObjectTypeMap::none());
+    let ia = build_interprocedural_analysis(
+        &cu.ir_module,
+        &r,
+        None,
+        ObjectTypeMap::none(),
+        tcl_compiler::head_identity::HeadIdentityMap::none(),
+    );
     let index = build_proc_index_from_summaries(&ia);
     let fu = cu.function(caller_qname).expect("caller proc");
     collect_call_by_name_reads(&fu.cfg, &index)

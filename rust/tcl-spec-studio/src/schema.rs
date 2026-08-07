@@ -915,6 +915,15 @@ pub const COMMAND_FIELDS: &[FieldSchema] = &[
         "Extra commands available only inside the command's body argument.",
     ),
     f(
+        "binds_handle",
+        "Binds handle",
+        ADVANCED,
+        FieldKind::RustExpr {
+            hint: "Some(&handle_binding::SET_BINDS_HANDLE)",
+        },
+        "Which argument becomes an object handle, and which says its class.",
+    ),
+    f(
         "creates_instance_at",
         "Creates instance at",
         SUBS,

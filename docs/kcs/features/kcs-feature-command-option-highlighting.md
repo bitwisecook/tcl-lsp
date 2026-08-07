@@ -108,9 +108,9 @@ There are two layers, most-precise first:
    named-object dispatch onto a *user*-defined `TclOO` class (`Foo create
    obj; obj method`, where the *object command* itself is the head — the
    registry-modelled shape above, including Tk widgets, does resolve; a
-   user class does not), and `$hull` (a Tk widget reference snit's own
-   `installhull` populates internally, not a literal constructor call this
-   feature's provenance scan can see). The receiver's class is found from a handle typed by
+   user class does not), and `installhull $win` (the already-created form,
+   which names no widget type — the `installhull using TYPE …` form does
+   resolve, typing the implicit `hull` component). The receiver's class is found from a handle typed by
    the SSA lattice — including a handle **retrieved from an object collection**:
    a `Pins` dict filled with `[Pin new]` in one method makes
    `[dict get $Pins $pin] configure -node …` resolve to `Pin` in another (issue
@@ -183,12 +183,13 @@ still highlighted by the object-method / generic passes above.
 - A `-option` on an unmodelled object method is highlighted by shape only, so
   an invalid switch is not distinguished from a valid one.
 - snit/itcl **`$self` / `$this` self-calls**, **named-constructor** objects
-  (`set o [foo create x]`), **installed components** (`install ax using Ax`), and
-  **bare-constructor components** (`set c [Type inst]`) all resolve, but `$hull`
-  (a Tk widget snit's own `installhull` sets internally) and a **bareword
-  named-object** command onto a *user*-defined class (`Foo create obj; obj
-  method`) are not yet provenance-tracked — they use the generic fallback
-  (`experiments/tcloo_diag/RESULTS.md`).
+  (`set o [foo create x]`), **installed components** (`install ax using Ax`),
+  the **implicit hull** (`installhull using TYPE …`), and
+  **bare-constructor components** (`set c [Type inst]`) all resolve, but
+  `installhull $win` (the already-created form, which names no widget type)
+  and a **bareword named-object** command onto a *user*-defined class
+  (`Foo create obj; obj method`) are not yet provenance-tracked — they use the
+  generic fallback (`experiments/tcloo_diag/RESULTS.md`).
 - A receiver whose class is only bound in *another file* (a cross-file instance
   variable, global, or parameter) is not tracked: object provenance is computed
   per file, so only the workspace class *hierarchy* crosses files today, not the

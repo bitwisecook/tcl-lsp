@@ -375,6 +375,7 @@ impl Analyser {
                 registry,
                 Some(self.dialect()),
                 crate::interprocedural::ObjectTypeMap::none(),
+                &self.head_identities,
             );
             crate::interprocedural::build_proc_index_from_summaries(&ia)
         };

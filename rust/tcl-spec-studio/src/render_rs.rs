@@ -54,7 +54,11 @@ pub const COPYRIGHT_BANNER: &str = "\
 // SPDX-License-Identifier: AGPL-3.0-or-later";
 
 /// Escape `s` as the body of a Rust double-quoted string literal.
-fn rust_string(s: &str) -> String {
+///
+/// Shared with [`crate::draft`], which renders the same literals when it seeds
+/// a descriptor field as a Rust expression — one escaper, so a `"` in a
+/// keyword word cannot compile in one path and not the other.
+pub(crate) fn rust_string(s: &str) -> String {
     let mut out = String::with_capacity(s.len() + 2);
     out.push('"');
     for ch in s.chars() {
@@ -399,6 +403,45 @@ fn lifecycle_expr(entry: &Value) -> Option<String> {
     Some(expr)
 }
 
+/// What a schema field whose key is one of the three `Lifecycle` releases
+/// contributes to the emitted struct literal.
+enum LifecycleLine {
+    /// Not a release key — render the field the ordinary way.
+    Other,
+    /// The first release key: emit this text (empty when the draft declares no
+    /// release at all, leaving the field to `..DEFAULT`).
+    Emit(String),
+    /// A later release key — the first already accounted for it.
+    Skip,
+}
+
+/// Collapse the schema's three release keys back into the registry's one
+/// `lifecycle` field.
+///
+/// `CommandSpec` / `SubCommand` declare **one** `lifecycle` field; the form
+/// edits it as three independent releases (#1210). Walking the schema and
+/// emitting each key verbatim produced `introduced_version: Some("21.1.0"),` —
+/// a spec file that does not compile (`struct SubCommand has no field named
+/// introduced_version`), caught by rendering the registry back into itself.
+/// The line lands at the position of the first release key, so field order is
+/// unchanged.
+fn lifecycle_line(key: &str, draft: &Value, indent: &str) -> LifecycleLine {
+    let Some((first, rest)) = crate::coverage::LIFECYCLE_KEYS.split_first() else {
+        return LifecycleLine::Other;
+    };
+    if *first == key {
+        return LifecycleLine::Emit(
+            lifecycle_expr(draft)
+                .map(|expr| format!("{indent}lifecycle: {expr},\n"))
+                .unwrap_or_default(),
+        );
+    }
+    if rest.contains(&key) {
+        return LifecycleLine::Skip;
+    }
+    LifecycleLine::Other
+}
+
 fn option_expr(entry: &Value, indent: &str) -> String {
     let inner = format!("{indent}    ");
     let mut parts = vec![format!(
@@ -683,6 +726,16 @@ fn subcommand_literal(sub: &Value, default: &Draft, indent: &str) -> String {
     let inner = format!("{indent}    ");
     let mut lines: Vec<String> = Vec::new();
     for field in schema::SUBCOMMAND_FIELDS {
+        match lifecycle_line(field.key, sub, &inner) {
+            LifecycleLine::Emit(line) => {
+                if !line.is_empty() {
+                    lines.push(line.trim_end_matches('\n').to_owned());
+                }
+                continue;
+            }
+            LifecycleLine::Skip => continue,
+            LifecycleLine::Other => {}
+        }
         // Nested tables are inlined here rather than hoisted — a subcommand's
         // option list belongs with the subcommand that declares it.
         let value = sub.get(field.key).unwrap_or(&Value::Null);
@@ -865,7 +918,16 @@ pub fn render(draft: &Draft) -> String {
     out.push_str("/// Command spec for `");
     out.push_str(name);
     out.push_str("`.\npub fn spec() -> CommandSpec {\n    CommandSpec {\n");
+    let whole = Value::Object(draft.clone());
     for field in schema::COMMAND_FIELDS {
+        match lifecycle_line(field.key, &whole, "        ") {
+            LifecycleLine::Emit(line) => {
+                out.push_str(&line);
+                continue;
+            }
+            LifecycleLine::Skip => continue,
+            LifecycleLine::Other => {}
+        }
         let value = draft.get(field.key).unwrap_or(&Value::Null);
         let default_value = default.get(field.key).unwrap_or(&Value::Null);
         if let Some(expr) = field_expr(field, value, default_value, "        ") {
@@ -994,7 +1056,7 @@ mod tests {
     use serde_json::json;
     use tcl_registry::arg_role::ArgRole;
     use tcl_registry::arity::Arity;
-    use tcl_registry::spec::CommandSpec;
+    use tcl_registry::spec::{CommandSpec, SubCommand};
     use tcl_registry::traits::Traits;
     use tcl_registry::types::TclType;
 
@@ -1129,6 +1191,57 @@ mod tests {
             out.contains("//! `mycmd` — does a thing\n//! and keeps going.\n"),
             "{out}"
         );
+    }
+
+    /// The three release keys collapse back into the one `lifecycle` field the
+    /// registry declares — at the command level and inside a subcommand.
+    ///
+    /// Emitting the schema keys verbatim produced `introduced_version:
+    /// Some("21.1.0"),` inside a `SubCommand` literal, which is not a field:
+    /// the studio's advertised drop-in file did not compile. Found by
+    /// rendering `persist` back into `tcl-registry` and building it, per the
+    /// procedure in `tests/render_sweep.rs`.
+    #[test]
+    fn a_lifecycle_renders_as_one_field_not_three_keys() {
+        const SUBS: &[SubCommand] = &[SubCommand {
+            name: "add",
+            lifecycle: tcl_registry::lifecycle::Lifecycle::introduced_in("21.1.0"),
+            ..SubCommand::DEFAULT
+        }];
+        let spec = CommandSpec {
+            name: "persist",
+            lifecycle: tcl_registry::lifecycle::Lifecycle::introduced_in("11.0.0")
+                .deprecated_from("17.0.0")
+                .retired_from("21.0.0"),
+            subcommands: SUBS,
+            ..CommandSpec::DEFAULT
+        };
+        let out = render(&draft::from_command_spec(&spec));
+        assert!(
+            out.contains(
+                "lifecycle: Lifecycle::introduced_in(\"11.0.0\")\
+                 .deprecated_from(\"17.0.0\").retired_from(\"21.0.0\"),"
+            ),
+            "{out}"
+        );
+        assert!(
+            out.contains("lifecycle: Lifecycle::introduced_in(\"21.1.0\"),"),
+            "a subcommand's lifecycle must collapse too:\n{out}"
+        );
+        for key in crate::coverage::LIFECYCLE_KEYS {
+            assert!(
+                !out.contains(&format!("{key}:")),
+                "`{key}` is a form key, not a struct field — it must never reach the spec:\n{out}"
+            );
+        }
+    }
+
+    /// A command with no lifecycle emits nothing, leaving it to `..DEFAULT`.
+    #[test]
+    fn an_unspecified_lifecycle_emits_no_field() {
+        let mut d = draft::default_command_draft();
+        d.insert("name".into(), json!("mycmd"));
+        assert!(!render(&d).contains("lifecycle"));
     }
 
     #[test]

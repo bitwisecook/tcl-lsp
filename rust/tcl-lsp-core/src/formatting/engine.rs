@@ -110,6 +110,13 @@ struct CommentLine {
 /// A single Tcl command with its arguments, ready for reformatting.
 struct ParsedCommand {
     name: String,
+    /// The registry name [`Self::name`] effectively resolves to — the command
+    /// this call really *is* once the document's `namespace import` / `interp
+    /// alias` / `rename` / built-in-shadowing `proc` statements are folded in
+    /// (issue #1275).  Equal to [`Self::name`] until [`identify_body_args`]
+    /// resolves it, and empty for a head whose binding was provably taken over,
+    /// which every registry query then answers "unknown" for.
+    resolved_name: String,
     args: Vec<CommandArg>,
     preceding_comments: Vec<CommentLine>,
     preceding_blank_lines: usize,
@@ -267,6 +274,7 @@ fn parse_commands(
             .map(|a| a.text.clone())
             .unwrap_or_default();
         commands.push(ParsedCommand {
+            resolved_name: name.clone(),
             name,
             args: taken_args,
             preceding_comments: std::mem::take(pending_comments),
@@ -369,7 +377,11 @@ fn parse_commands(
 /// Because the lookup goes through the registry, the explicitly-global
 /// spellings (`::if`, `::for`, `::try`) resolve to the same grammar as their
 /// bare forms — a false negative the old literal name comparisons had.
-fn identify_body_args(cmd: &mut ParsedCommand, registry: &CommandRegistry) {
+fn identify_body_args(
+    cmd: &mut ParsedCommand,
+    registry: &CommandRegistry,
+    identities: &tcl_compiler::head_identity::HeadIdentityMap,
+) {
     // {*}-expanded command word: dynamic identity, skip.
     if cmd
         .args
@@ -380,7 +392,23 @@ fn identify_body_args(cmd: &mut ParsedCommand, registry: &CommandRegistry) {
         return;
     }
 
-    let name = cmd.name.clone();
+    // Resolve the head's *effective command identity* once, and let every
+    // registry-driven decision below — body / keyword / param-list / lambda
+    // roles, presentation, expression bracing, keyword rewrites, the traits —
+    // key off it (issue #1275).  Without this a document doing `rename format
+    // origfmt` or `interp alias {} myfmt {} format` was still laid out under
+    // the grammar of the command it no longer is.
+    //
+    // The read is *unpositioned*: this engine re-lexes each nested body out of
+    // its own decoded `arg.text`, and range formatting lexes a line slice, so
+    // no document-absolute offset exists here.  `resolve_unpositioned` folds
+    // every fact about the spelling and abstains when they disagree, rather
+    // than falling back to the written name.
+    cmd.resolved_name = identities
+        .head_words_unpositioned(&cmd.name)
+        .resolved
+        .to_owned();
+    let name = cmd.resolved_name.clone();
     // Post-name argument texts, owned so the immutable borrow of
     // `cmd.args` is released before the role-driven mutation below.
     let arg_texts: Vec<String> = cmd.args.iter().skip(1).map(|a| a.text.clone()).collect();
@@ -429,7 +457,7 @@ fn identify_body_args(cmd: &mut ParsedCommand, registry: &CommandRegistry) {
 fn identify_expr_args(cmd: &ParsedCommand, registry: &CommandRegistry) -> Vec<usize> {
     let arg_texts: Vec<&str> = cmd.args.iter().skip(1).map(|a| a.text.as_str()).collect();
     registry
-        .arg_indices_for_role(&cmd.name, &arg_texts, ArgRole::Expr)
+        .arg_indices_for_role(&cmd.resolved_name, &arg_texts, ArgRole::Expr)
         .into_iter()
         .map(|idx| idx + 1)
         .collect()
@@ -505,6 +533,7 @@ fn format_switch_body(
     body_text: &str,
     config: &FormatterConfig,
     registry: &CommandRegistry,
+    identities: &tcl_compiler::head_identity::HeadIdentityMap,
     indent_level: usize,
 ) -> String {
     let sm = SourceMap::new(body_text);
@@ -515,7 +544,7 @@ fn format_switch_body(
     };
 
     let elements = segment_switch_elements(&sm, tokens);
-    let lines = emit_switch_lines(&elements, &sm, config, registry, indent_level);
+    let lines = emit_switch_lines(&elements, &sm, config, registry, identities, indent_level);
     lines.join("\n")
 }
 
@@ -589,6 +618,7 @@ fn emit_switch_lines(
     sm: &SourceMap,
     config: &FormatterConfig,
     registry: &CommandRegistry,
+    identities: &tcl_compiler::head_identity::HeadIdentityMap,
     indent_level: usize,
 ) -> Vec<String> {
     let indent = config.make_indent(indent_level);
@@ -621,7 +651,7 @@ fn emit_switch_lines(
             if body.text == "-" {
                 lines.push(format!("{indent}{pattern_raw} -"));
             } else if body.is_braced {
-                let formatted = format_body(&body.text, config, registry, inner_level);
+                let formatted = format_body(&body.text, config, registry, identities, inner_level);
                 if formatted.trim().is_empty() {
                     lines.push(format!("{indent}{pattern_raw} {{}}"));
                 } else {
@@ -1237,10 +1267,17 @@ fn keyword_rewrites_for(
         .dialect
         .as_deref()
         .and_then(tcl_registry::prelude::DialectSet::parse);
-    super::keywords::rewrites_for_command(registry, dialect, config, &cmd.name, &words, &dynamic)
-        .into_iter()
-        .map(|r| (r.index + 1, r.text))
-        .collect()
+    super::keywords::rewrites_for_command(
+        registry,
+        dialect,
+        config,
+        &cmd.resolved_name,
+        &words,
+        &dynamic,
+    )
+    .into_iter()
+    .map(|r| (r.index + 1, r.text))
+    .collect()
 }
 
 /// Reconstruct a single command as formatted text.
@@ -1252,13 +1289,13 @@ fn reconstruct_command(
     indent: &str,
     indent_level: usize,
 ) -> String {
-    if cmd.name == "switch" {
+    if cmd.resolved_name == "switch" {
         return reconstruct_switch(sm, cmd, config, indent);
     }
 
     let expr_args = identify_expr_args(cmd, registry);
     let keyword_rewrites = keyword_rewrites_for(cmd, registry, config);
-    let spec_traits = registry.get(&cmd.name).map(|s| s.traits);
+    let spec_traits = registry.get(&cmd.resolved_name).map(|s| s.traits);
     let never_inline = spec_traits.is_some_and(|t| t.contains(Traits::NEVER_INLINE_BODY));
 
     let mut parts: Vec<String> = Vec::new();
@@ -1455,6 +1492,7 @@ pub(crate) fn format_body(
     source: &str,
     config: &FormatterConfig,
     registry: &CommandRegistry,
+    identities: &tcl_compiler::head_identity::HeadIdentityMap,
     indent_level: usize,
 ) -> String {
     // Native-stack safety net — see `MAX_FORMAT_DEPTH`'s doc comment
@@ -1488,19 +1526,19 @@ pub(crate) fn format_body(
             emit_comment_lines(comment, config, &indent, indent_level, &mut lines);
         }
 
-        identify_body_args(&mut commands[i], registry);
+        identify_body_args(&mut commands[i], registry, identities);
 
         // Switch needs its body formatted from arg.text via the
         // pattern/body splitter; other bodies recurse normally.
-        let is_switch = commands[i].name == "switch";
+        let is_switch = commands[i].resolved_name == "switch";
         let arg_count = commands[i].args.len();
         for a in 0..arg_count {
             if commands[i].args[a].kind == ArgKind::Body && commands[i].args[a].is_braced {
                 let body_text = commands[i].args[a].text.clone();
                 let formatted = if is_switch {
-                    format_switch_body(&body_text, config, registry, inner_level)
+                    format_switch_body(&body_text, config, registry, identities, inner_level)
                 } else {
-                    format_body(&body_text, config, registry, inner_level)
+                    format_body(&body_text, config, registry, identities, inner_level)
                 };
                 commands[i].args[a].formatted_body = Some(formatted);
             } else if commands[i].args[a].kind == ArgKind::LambdaLiteral
@@ -1518,7 +1556,7 @@ pub(crate) fn format_body(
                 // must be collapsed before the result is parsed as a script,
                 // exactly as Tcl's own list-then-script evaluation would
                 // (codex review of #954's follow-up).
-                let formatted = format_body(&body_text, config, registry, inner_level);
+                let formatted = format_body(&body_text, config, registry, identities, inner_level);
                 commands[i].args[a].formatted_body = Some(formatted);
             }
         }
@@ -1640,7 +1678,15 @@ pub(crate) fn trim_trailing_ws_preserving_literals(text: &str) -> String {
 /// formatted source out.
 #[must_use]
 pub fn format_tcl(source: &str, config: &FormatterConfig, registry: &CommandRegistry) -> String {
-    let mut result = format_body(source, config, registry, 0);
+    // The document's command-identity facts, computed once for the whole file
+    // (issue #1275).  Empty — and lookup-free — unless the document binds
+    // something.
+    let identities = tcl_compiler::head_identity::command_head_identities_with_config(
+        source,
+        config.lexer_config,
+        registry,
+    );
+    let mut result = format_body(source, config, registry, &identities, 0);
 
     if config.trim_trailing_whitespace {
         result = trim_trailing_ws_preserving_literals(&result);
@@ -2366,5 +2412,79 @@ mod tests {
             "proc a {} {\nreturn\n}\nproc b {} {\nreturn\n}\n",
             "proc a {} {\n    return\n}\n\nproc b {} {\n    return\n}\n",
         );
+    }
+    /// Issue #1275 — the formatter must lay a command out under the grammar
+    /// of the command it *is*, not the one it is spelled as.
+    ///
+    /// This is the user-visible half of the issue: an `ArgRole::Body` argument
+    /// is expanded onto its own lines, so a rebound body-bearing command that
+    /// resolved by spelling was formatted under a grammar it no longer had.
+    ///
+    /// tclsh oracle (8.6.16 and 9.0.4, byte-identical): `interp alias {} maybe
+    /// {} if` makes `maybe` run `if`; `rename if maybe` moves it and leaves
+    /// `if` gone; a top-level `proc if …` takes the name over.
+    fn body_was_expanded(src: &str) -> bool {
+        fmt(src).contains("{\n    puts a\n}")
+    }
+
+    #[test]
+    fn formatting_follows_an_aliased_body_command() {
+        assert!(body_was_expanded(
+            "interp alias {} maybe {} if\nmaybe {$x} {puts a}\n"
+        ));
+        // The `::`-qualified spelling of the alias classifies alike.
+        assert!(body_was_expanded(
+            "interp alias {} maybe {} if\n::maybe {$x} {puts a}\n"
+        ));
+        // Guard: an unbound `maybe` has no body argument, so its braced word
+        // is left exactly as written.
+        assert!(!body_was_expanded("set y 1\nmaybe {$x} {puts a}\n"));
+    }
+
+    #[test]
+    fn formatting_follows_a_renamed_body_command() {
+        assert!(body_was_expanded("rename if maybe\nmaybe {$x} {puts a}\n"));
+        // The old spelling is gone from the rename onwards.
+        assert!(
+            !body_was_expanded("rename if maybe\nif {$x} {puts a}\n"),
+            "a renamed-away `if` must not keep the built-in's layout"
+        );
+    }
+
+    #[test]
+    fn formatting_abstains_for_a_builtin_shadowed_by_a_user_proc() {
+        assert!(
+            !body_was_expanded("proc if {c b} { return 1 }\nif {$x} {puts a}\n"),
+            "a user `proc if` takes the name over; no registry layout applies"
+        );
+        // Guard: the unshadowed built-in still expands.
+        assert!(body_was_expanded("set y 1\nif {$x} {puts a}\n"));
+    }
+
+    #[test]
+    fn formatting_abstains_for_a_dynamic_binding() {
+        assert!(
+            !body_was_expanded("rename $old maybe\nmaybe {$x} {puts a}\n"),
+            "a dynamic rename must not give `maybe` a body layout"
+        );
+        assert!(
+            body_was_expanded("rename $old maybe\nif {$x} {puts a}\n"),
+            "a dynamic rename must not take `if`'s layout away either"
+        );
+    }
+
+    /// The clause-list layout is head-driven too: `switch`'s pattern/body
+    /// pairs are laid out by [`format_switch_body`], which the reconstruction
+    /// picks by the *resolved* head.
+    #[test]
+    fn formatting_follows_an_aliased_clause_list_command() {
+        let formatted = fmt("interp alias {} pick {} switch\npick $v {a {puts 1} b {puts 2}}\n");
+        assert!(
+            formatted.contains("a {\n        puts 1\n    }"),
+            "an alias of `switch` must get the clause-list layout; got:\n{formatted}"
+        );
+        // Guard: an unbound `pick` keeps its braced word verbatim.
+        let formatted = fmt("set y 1\npick $v {a {puts 1} b {puts 2}}\n");
+        assert!(!formatted.contains("a {\n        puts 1\n    }"));
     }
 }

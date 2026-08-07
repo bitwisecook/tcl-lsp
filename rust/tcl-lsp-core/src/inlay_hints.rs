@@ -544,13 +544,22 @@ fn regsub_short(c: char) -> Option<&'static str> {
 fn format_args(
     seg: &tcl_compiler::segmenter::SegmentedCommand,
     registry: &CommandRegistry,
+    identities: &tcl_compiler::head_identity::HeadIdentityMap,
 ) -> Vec<(usize, tcl_registry::FormatType)> {
     let Some(head) = seg.texts.first() else {
         return Vec::new();
     };
+    let Some(tok) = seg.argv.first() else {
+        return Vec::new();
+    };
+    // Resolve the head's *effective command identity* first, exactly as the
+    // semantic-token walk does, so a call through a proven `interp alias` /
+    // `rename` gets the target's format family and a `rename`d-away or
+    // `proc`-shadowed spelling gets none (issue #1185).
+    let resolved = identities.resolve(head, tok.span.start()).spec_name();
     let arg_texts: Vec<&str> = seg.texts[1..].iter().map(String::as_str).collect();
     registry
-        .format_string_args(head, &arg_texts)
+        .format_string_args(resolved, &arg_texts)
         .into_iter()
         // `+ 1` converts a post-head argument index into an `argv` index
         // (`argv[0]` is the command word).
@@ -613,8 +622,12 @@ fn collect_format_string_hints(
         0,
         tcl_lexer::LexerConfig::for_file_dialect(dialect),
     );
+    // The document's proven command-identity facts, computed once for the
+    // whole file (empty, and lookup-free, unless it binds something).
+    let identities =
+        tcl_compiler::head_identity::command_head_identities(source, dialect, registry);
     for seg in &segments {
-        for (idx, kind) in format_args(seg, registry) {
+        for (idx, kind) in format_args(seg, registry, &identities) {
             let Some(tok) = seg.argv.get(idx) else {
                 continue;
             };
@@ -1785,5 +1798,43 @@ mod tests {
         let names: Vec<&str> = labels.iter().map(|(_, l)| l.as_str()).collect();
         assert!(names.contains(&"grp1"), "{labels:?}");
         assert!(names.contains(&"grp2"), "{labels:?}");
+    }
+
+    /// Issue #1185: format hints follow the head's *effective command
+    /// identity*, so a proven `interp alias` / `rename` of a format-family
+    /// command hints like the original — and a spelling whose binding was
+    /// taken over hints not at all.
+    ///
+    /// tclsh-proof (9.0.4 / 8.6.16): `interp alias {} myfmt {} format;
+    /// myfmt "%d-%s" 1 two` -> `1-two`; after `proc format {args} {return
+    /// USER}`, `format "%d"` -> `USER`.
+    #[test]
+    fn format_hints_follow_the_effective_command_identity() {
+        let names_of =
+            |src: &str| -> Vec<String> { type_labels(src).into_iter().map(|(_, l)| l).collect() };
+        // TP — an aliased and a renamed head both hint like the original.
+        for src in [
+            "interp alias {} myfmt {} format\nmyfmt \"%d-%s\" 1 two\n",
+            "rename format myfmt\nmyfmt \"%d-%s\" 1 two\n",
+        ] {
+            let names = names_of(src);
+            assert!(
+                names.iter().any(|n| n == "int") && names.iter().any(|n| n == "str"),
+                "`{}` must hint like a direct format call, got {names:?}",
+                src.lines().next().unwrap_or_default()
+            );
+        }
+        // FP — a top-level `proc` that shadows the built-in takes the name
+        // over, so its `%d` is an ordinary string.
+        assert!(
+            names_of("proc format {args} { return USER }\nformat \"%d-%s\" 1 two\n").is_empty(),
+            "a shadowed `format` must not be hinted"
+        );
+        // TN — an unprovable binding states nothing, so the name stays an
+        // ordinary unknown command.
+        assert!(
+            names_of("interp alias {} myfmt {} $target\nmyfmt \"%d-%s\" 1 two\n").is_empty(),
+            "a dynamic alias target must not confer format hints"
+        );
     }
 }

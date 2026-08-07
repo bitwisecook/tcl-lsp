@@ -113,6 +113,7 @@ pub mod execution_intent;
 pub use tcl_syntax::expr::ast as expr_ast;
 pub use tcl_syntax::expr::parser as expr_parser;
 pub mod gvn;
+pub mod head_identity;
 pub mod inline_uplevel;
 pub mod inlining;
 pub mod interprocedural;

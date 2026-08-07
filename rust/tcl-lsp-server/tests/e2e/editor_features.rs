@@ -514,6 +514,52 @@ fn test_formatting_qualified_control_flow_matches_bare_form() {
     }
 }
 
+/// Issue #1275 — the formatter lays a command out under the grammar of the
+/// command it **is**, not the one it is spelled as, end-to-end through the
+/// packaged server.
+///
+/// tclsh-proof, byte-identical on 8.6.16 and 9.0.4: after
+/// `interp alias {} guard {} if`, `guard {1} {puts a}` runs the `if`; after
+/// `rename if guard` the same holds and `if` is gone
+/// (`info commands if` → empty); after `proc if {c b} {…}` the call runs the
+/// user procedure.
+#[test]
+fn test_formatting_follows_effective_command_identity() {
+    let mut lsp = Lsp::tcl();
+    // A body-role argument is expanded onto its own lines; an unrecognised
+    // command's braced word is left exactly as written.  That difference is
+    // the witness.
+    let mut expanded = |src: &str| -> bool {
+        let uri = unique_uri("tcl");
+        lsp.open_ready(&uri, src);
+        // An already-normalised document yields no edit at all, which for
+        // these inputs means "left as written".
+        full_text(&lsp.formatting(&uri, 4, true))
+            .unwrap_or_else(|| src.to_owned())
+            .contains("{\n    puts a\n}")
+    };
+
+    // TP — an alias of `if`, and the `::`-qualified spelling of that alias.
+    assert!(expanded(
+        "interp alias {} guard {} if\nguard {$x} {puts a}\n"
+    ));
+    assert!(expanded(
+        "interp alias {} guard {} if\n::guard {$x} {puts a}\n"
+    ));
+    // TP — a renamed `if`.
+    assert!(expanded("rename if guard\nguard {$x} {puts a}\n"));
+
+    // FP guard — the vacated name must not keep the built-in's layout.
+    assert!(!expanded("rename if guard\nif {$x} {puts a}\n"));
+    // FP guard — a user `proc if` takes the name over.
+    assert!(!expanded("proc if {c b} { return 1 }\nif {$x} {puts a}\n"));
+    // TN — a dynamic binding proves nothing in either direction.
+    assert!(!expanded("rename $old guard\nguard {$x} {puts a}\n"));
+    assert!(expanded("rename $old guard\nif {$x} {puts a}\n"));
+    // Baseline — an unbound `guard` has no body argument at all.
+    assert!(!expanded("set y 1\nguard {$x} {puts a}\n"));
+}
+
 /// Issue #1186 — `for`'s `start` / `next` scripts stay on the header line
 /// (registry `ArgPresentation::InlineScript`) while only the body expands,
 /// and range formatting agrees with whole-document formatting.

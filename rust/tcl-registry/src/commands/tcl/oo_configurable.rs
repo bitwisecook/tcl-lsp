@@ -41,6 +41,7 @@ pub fn spec() -> CommandSpec {
         // `oo::abstract` also match, which is why it carries
         // `NOT_PROC_FACTORY` too (see the rationale on `oo_abstract.rs`).
         traits: Traits::IS_OO_METACLASS
+            | Traits::CONFIGURES_BY_PROPERTY
             | Traits::LANGUAGE_KEYWORD
             | Traits::DEFINES_PROCEDURE
             | Traits::NOT_PROC_FACTORY,

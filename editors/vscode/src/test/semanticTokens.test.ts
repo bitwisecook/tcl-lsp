@@ -834,4 +834,117 @@ suite("Semantic Tokens", () => {
       await setTestContent(editor, originalContent);
     }
   });
+
+  // Issue #1185: a command head's grammar follows its *effective command
+  // identity*, not its spelling — asserted end-to-end through the editor
+  // client on the decoded token stream, not just the server's encoder.
+  //
+  // The fixture is real, working Tcl: it runs clean on tclsh 9.0.4 and 8.6.16
+  // alike, printing `1`, `0000002a`, `0000002a`, `USER`.
+  test("command-head grammar follows effective identity (issue #1185)", async () => {
+    const uri = getDocUri("commandIdentityTokens.tcl");
+    const doc = await activate(uri);
+
+    const legend = (await vscode.commands.executeCommand(
+      "vscode.provideDocumentSemanticTokensLegend",
+      uri,
+    )) as vscode.SemanticTokensLegend;
+    assert.ok(legend, "expected a legend");
+
+    // The `rename`/alias-aware classification comes from the enriched tier,
+    // which races a coarse fast path on the first request (issue #829) —
+    // poll, as the regex-source test above does for the same reason.
+    let decoded: DecodedToken[] = [];
+    await pollUntil(
+      async () =>
+        (await vscode.commands.executeCommand(
+          "vscode.provideDocumentSemanticTokens",
+          uri,
+        )) as vscode.SemanticTokens,
+      (tokens) => {
+        decoded = decodeTokens(tokens, legend);
+        return decoded.some((t) => t.type === "formatSpec");
+      },
+      { timeout: 20_000, interval: 250, label: "enriched command-identity tokens" },
+    );
+
+    const textOf = (t: DecodedToken): string =>
+      doc.lineAt(t.line).text.substring(t.char, t.char + t.length);
+    /** 0-based line index of the first line whose text contains `needle`. */
+    const lineOf = (needle: string): number => {
+      for (let i = 0; i < doc.lineCount; i++) {
+        if (doc.lineAt(i).text.includes(needle)) return i;
+      }
+      assert.fail(`fixture has no line containing ${JSON.stringify(needle)}`);
+    };
+    const typesOnLine = (line: number): Set<string> =>
+      new Set(decoded.filter((t) => t.line === line).map((t) => t.type));
+    const wordsOnLine = (line: number, type: string): Set<string> =>
+      new Set(decoded.filter((t) => t.line === line && t.type === type).map(textOf));
+
+    // TP 1 — `::foreach {aa bb} …`: the explicitly global spelling classifies
+    // like the bare one, so its variable list declares both loop variables and
+    // the tail of the head is still a keyword.
+    const foreachLine = lineOf("::foreach {aa bb}");
+    const foreachVars = wordsOnLine(foreachLine, "variable");
+    for (const name of ["aa", "bb"]) {
+      assert.ok(
+        foreachVars.has(name),
+        `expected '${name}' as a variable token on '::foreach', got ${JSON.stringify([
+          ...foreachVars,
+        ])}`,
+      );
+    }
+    assert.ok(
+      wordsOnLine(foreachLine, "keyword").has("foreach"),
+      `expected '::foreach' to keep its keyword classification, got ${JSON.stringify([
+        ...typesOnLine(foreachLine),
+      ])}`,
+    );
+
+    // TP 2 — `::format {%08x} 42` and TP 3 — the aliased `myformat {%08x} 42`
+    // both surface printf conversion sub-tokens.
+    for (const needle of ["[::format {%08x}", "[myformat {%08x}"]) {
+      const line = lineOf(needle);
+      const types = typesOnLine(line);
+      assert.ok(
+        types.has("formatSpec") && types.has("formatPercent"),
+        `expected format conversion tokens on '${needle}', got ${JSON.stringify([...types])}`,
+      );
+    }
+
+    // TP 4 — `rename upvar myupvar` moves upvar's grammar onto the new name:
+    // the head keeps upvar's keyword classification and the call declares its
+    // local (`outer` names the *caller's* variable, so — exactly as for a
+    // literal `upvar` — it is not a declaration here).
+    const upvarLine = lineOf("myupvar 1 outer local");
+    assert.ok(
+      wordsOnLine(upvarLine, "keyword").has("myupvar"),
+      `expected the renamed 'myupvar' to inherit upvar's keyword classification, got ${JSON.stringify(
+        [...typesOnLine(upvarLine)],
+      )}`,
+    );
+    assert.ok(
+      wordsOnLine(upvarLine, "variable").has("local"),
+      `expected 'local' declared by the renamed upvar call, got ${JSON.stringify([
+        ...wordsOnLine(upvarLine, "variable"),
+      ])}`,
+    );
+
+    // FP guard — a top-level `proc scan` takes the built-in's name over, so
+    // `scan {%d} 7` gets no scan-format grammar and its argument stays a
+    // plain string.
+    const shadowedLine = lineOf("[scan {%d} 7]");
+    const shadowedTypes = typesOnLine(shadowedLine);
+    assert.ok(
+      !shadowedTypes.has("formatSpec") && !shadowedTypes.has("formatPercent"),
+      `a shadowed 'scan' must get no conversion tokens, got ${JSON.stringify([...shadowedTypes])}`,
+    );
+    assert.ok(
+      shadowedTypes.has("string"),
+      `expected the shadowed call's '{%d}' to stay a string, got ${JSON.stringify([
+        ...shadowedTypes,
+      ])}`,
+    );
+  });
 });

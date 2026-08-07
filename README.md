@@ -412,6 +412,29 @@ set d [Pup new]
 $d fly                         ;# W308: unknown method 'fly' on ::Dog
 ```
 
+The **grammar** of a command follows its binding too. A statically
+visible `namespace import`, `interp alias`, `rename`, or a top-level
+`proc` that shadows a built-in re-points every registry-driven feature —
+highlighting, format-specifier hints, folding, formatting, minifying,
+go-to-declaration, the call graph, parameter-usage inference, and the
+iRules object-reference scan — at the command a head really names.
+Formatting is the visible one: a body-bearing command reached through a
+proven alias is expanded onto its own lines, and one whose name has been
+renamed away or taken over by a user `proc` is left exactly as written.
+Chains compose (`interp alias {} a {} format; rename a b` leaves `b`
+naming `format`), and the explicitly global spelling behaves identically
+to the bare one. Anything unprovable — a computed binding, an alias with
+pre-bound arguments, another interpreter's command table, a binding
+nested inside a body — abstains rather than guessing. See
+[the KCS note](docs/kcs/kcs-qa-does-the-server-follow-rename-and-interp-alias.md).
+
+```tcl
+rename if maybe
+maybe {$x} {puts a}            ;# left as written — `maybe` is not `if`'s grammar
+interp alias {} guard {} if
+guard {$x} {puts a}            ;# expanded like `if`, because it is `if`
+```
+
 W113 ("proc shadows a built-in") only fires for a genuine core
 built-in. A proc named after a command that is gated behind `package
 require` — a tcllib package, `argparse`, an `itcl`/TclOO helper, … — is

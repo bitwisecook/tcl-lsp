@@ -1563,11 +1563,19 @@ impl CompilationUnit {
         // Object-handle → class map (SSA/VTA-derived) so a `$g walk … -command
         // cb` instance-method callback becomes a call-graph / reachability edge.
         let object_types = crate::object_types::object_handle_classes(&self, registry);
+        // The unit's own proven command-identity facts, so the call-graph scan
+        // classifies a rebound head as the command it is (issue #1275).
+        let identities = crate::head_identity::command_head_identities_with_config(
+            &self.source,
+            tcl_lexer::LexerConfig::for_dialect(dialect.unwrap_or_default()),
+            registry,
+        );
         let interproc = crate::interprocedural::build_interprocedural_analysis(
             &self.ir_module,
             registry,
             dialect,
             crate::interprocedural::ObjectTypeMap(&object_types),
+            &identities,
         );
 
         // Re-run taint with the new summary + dialect. We borrow
@@ -1624,11 +1632,19 @@ impl CompilationUnit {
         taint_cb: &mut TaintCascadeCallback<'_>,
     ) -> Self {
         let object_types = crate::object_types::object_handle_classes(&self, registry);
+        // The unit's own proven command-identity facts, so the call-graph scan
+        // classifies a rebound head as the command it is (issue #1275).
+        let identities = crate::head_identity::command_head_identities_with_config(
+            &self.source,
+            tcl_lexer::LexerConfig::for_dialect(dialect.unwrap_or_default()),
+            registry,
+        );
         let interproc = crate::interprocedural::build_interprocedural_analysis(
             &self.ir_module,
             registry,
             dialect,
             crate::interprocedural::ObjectTypeMap(&object_types),
+            &identities,
         );
 
         // Top level is built fresh (no offset-0 lattice key), so its taint

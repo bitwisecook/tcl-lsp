@@ -853,6 +853,19 @@ pub struct CommandSpec {
     /// [`crate::scoped`].
     pub body_scope: Option<&'static crate::scoped::ScopedCommandEnv>,
 
+    /// Object-handle binding — `Some` when one of this command's arguments
+    /// names a **variable that ends up holding an object handle**, with
+    /// another argument saying which class (`set NAME [TYPE inst …]`).  The
+    /// handle scan reads the two indices (and any required keyword) from the
+    /// descriptor rather than matching the command word, so `::set` and a
+    /// provable static alias/rename of it bind exactly like the bare spelling
+    /// — issue #1185.  A member-body-only installer such as snit's `install`
+    /// carries the same descriptor on its
+    /// [`crate::definer::MemberBodyCommand`] instead, so it stays scoped to
+    /// the class system that provides it.  `None` = the command binds no
+    /// handle.  See [`crate::handle_binding`].
+    pub binds_handle: Option<&'static crate::handle_binding::HandleBindingSpec>,
+
     /// Object-factory instance-name argument — `Some(idx)` when this command
     /// creates an object *command* named by its `idx`-th argument (0-based,
     /// after the command name), of the class given by its own
@@ -1106,6 +1119,7 @@ impl CommandSpec {
         object_class: None,
         defines_symbol: None,
         body_scope: None,
+        binds_handle: None,
         creates_instance_at: None,
         defines_command_at: None,
         context_gate: None,

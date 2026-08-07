@@ -370,24 +370,32 @@ differential audit's finding **idx 0** (georgtree/argparse), which found the
   overclaims the fix — it deliberately does not, to keep the
   correctness-sensitive analyser conservative (see decision rule 4).
 - Renaming (`rename apply myapply`) or aliasing (`interp alias {} myapply {}
-  apply`) `apply` before calling it — `myapply {x {puts $x}} 5` — defeats
-  every `LambdaLiteral`-aware consumer above, even though real Tcl treats the
-  rename/alias as fully transparent and runs the lambda exactly as it would
-  under the literal name. Confirmed at HEAD: the direct call's semantic
-  tokens split `{x {puts $x}}` into a `parameter`, a `function`, and a
-  `variable` token; both the renamed and aliased forms instead emit one
-  opaque `string` token for the whole list, identical to what an
-  unregistered command's argument would get. All eight consumers resolve a
-  segmented command's head by exact literal string against
-  `CommandRegistry::get` (a plain by-name lookup — see
+  apply`) `apply` before calling it — `myapply {x {puts $x}} 5` — used to
+  defeat every `LambdaLiteral`-aware consumer above, even though real Tcl
+  treats the rename/alias as fully transparent and runs the lambda exactly as
+  it would under the literal name (tclsh 9.0.4 / 8.6.16: it prints `5`). All
+  eight consumers resolved a segmented command's head by exact literal string
+  against `CommandRegistry::get` (a plain by-name lookup — see
   `rust/tcl-registry/src/registry.rs`), so a renamed or aliased head simply
-  never matches `apply`'s spec. This is a different mechanism from issue
-  #973 (the analyser's `known()` predicate in `scope.rs` not gating W123's
-  existence check on deletion) — #973 is one analyser-side predicate
-  partially growing rename/alias-awareness; this registry-head lookup has
-  none at all, in any of the eight consumers. See the "Known limitations"
-  note in [the command registry design doc](../design/compiler/command-registry.md#known-limitations)
-  for the project-wide scope of this exposure (issue #1002).
+  never matched `apply`'s spec, and the direct call's `parameter` /
+  `function` / `variable` split collapsed into one opaque `string` token.
+
+  **Fixed** for the semantic-token and inlay-hint consumers by issue #1185,
+  and for the remaining seven by issue #1275. Each resolves a head's effective
+  command identity through `rust/tcl-compiler/src/head_identity.rs` before any
+  registry query, so a statically visible `rename` / `interp alias` /
+  `namespace import` — and a built-in-shadowing top-level `proc`, in the other
+  direction — is followed (regression test:
+  `apply_lambda_literals_survive_a_rename_or_alias` in `semantic_tokens.rs`,
+  with per-consumer tiers in `folding.rs`, `formatting/engine.rs`,
+  `minify.rs`, `declaration.rs`, `tcl-irules/src/walker.rs`,
+  `interprocedural.rs`, and `analyser/param_traits.rs`). This is a different
+  mechanism from issue #973 (the analyser's `known()` predicate in `scope.rs`
+  not gating W123's existence check on deletion). See the "Known limitations"
+  note in
+  [the command registry design doc](../design/compiler/command-registry.md#known-limitations)
+  for which consumers read a positioned offset and which must abstain without
+  one.
 
 ## Triage checklist
 

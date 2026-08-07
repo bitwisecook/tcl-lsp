@@ -79,12 +79,19 @@ pub fn declaration(
         visible.clone()
     };
 
+    // The document's proven command-identity facts, so a scoping statement is
+    // recognised by the command a head *is* rather than the one it is spelled
+    // as (issue #1275).  Empty — and lookup-free — unless the document binds
+    // something.
+    let identities =
+        tcl_compiler::head_identity::command_head_identities(source, dialect, registry);
     let scan = DeclScan {
         source,
         dialect,
         target,
         visible: &visible,
         registry,
+        identities: &identities,
         cursor,
     };
     let mut found = DeclSpans::default();
@@ -128,6 +135,12 @@ struct DeclScan<'a> {
     target: &'a str,
     visible: &'a [Span],
     registry: &'a CommandRegistry,
+    /// The document's statically proven command-identity facts
+    /// ([`tcl_compiler::head_identity`]): which registry command each head
+    /// spelling really names at each point in the file.  A head whose binding
+    /// was provably taken over resolves to nothing, so no scope-alias grammar
+    /// and no body recursion is applied to it.
+    identities: &'a tcl_compiler::head_identity::HeadIdentityMap,
     /// The cursor's byte offset. The analyser's scope tree does not model an
     /// `apply` lambda body as its own scope (it has no `proc`/`namespace
     /// eval`-style boundary), so `visible` never reflects it; recursing into
@@ -159,6 +172,7 @@ fn collect_declarations_in_region(
         scan.visible,
         scan.registry,
     );
+    let identities = scan.identities;
     let (mut start, mut end) = (region.start() as usize, region.end() as usize);
     if start >= end || end > source.len() {
         return;
@@ -187,7 +201,15 @@ fn collect_declarations_in_region(
         let Some(head_tok) = cmd.argv.first() else {
             continue;
         };
-        let head = token_text(source, head_tok.span);
+        // The head's *effective command identity*, resolved exactly as the
+        // semantic-token walk resolves it: a proven `interp alias` / `rename` /
+        // `namespace import` answers with the command the head really names,
+        // and a spelling whose binding was provably taken over answers with
+        // nothing, so no registry grammar is applied to it (issue #1275).
+        let written = token_text(source, head_tok.span);
+        let head = identities
+            .head_words(written, head_tok.span.start())
+            .resolved;
         // Argument tokens, excluding the command word — the coordinate
         // system the `var_scoping` index helpers expect.
         let arg_tokens = &cmd.argv[1..];
@@ -471,5 +493,128 @@ mod tests {
         let locs = declaration(src, 1, 2, "tcl8.6", &analysis, &reg());
         assert_eq!(locs.len(), 1, "{locs:?}");
         assert_eq!(locs[0].start_line, 0);
+    }
+
+    /// Issue #1275 — the declaration scan must resolve a command head's
+    /// *effective identity*, not its written spelling.
+    ///
+    /// tclsh oracle (8.6.16 and 9.0.4, byte-identical): `interp alias {} decl
+    /// {} upvar` makes `decl 1 other local` alias the caller's variable;
+    /// `rename upvar decl` does the same and leaves `upvar` gone; `proc upvar
+    /// …` takes the name over so the built-in's grammar no longer applies.
+    ///
+    /// The probe drives [`collect_declarations_in_region`] — the scan this
+    /// issue changed — rather than the public [`declaration`] entry point.
+    /// When the scan finds nothing, `declaration` falls back to plain
+    /// go-to-definition, which reads the **analyser's** own scope model: a
+    /// separate consumer that still resolves scope aliases by spelling, and
+    /// which therefore answers with the identical span and would mask every
+    /// abstention this test exists to pin.
+    fn scanned_declaration_lines(src: &str, target: &str) -> Vec<u32> {
+        let registry = reg();
+        let identities =
+            tcl_compiler::head_identity::command_head_identities(src, "tcl8.6", &registry);
+        let end = u32::try_from(src.len()).unwrap_or(0);
+        let scan = DeclScan {
+            source: src,
+            dialect: "tcl8.6",
+            target,
+            visible: &[],
+            registry: &registry,
+            identities: &identities,
+            cursor: end,
+        };
+        let mut found = DeclSpans::default();
+        collect_declarations_in_region(&scan, Span::new(0, end), 0, &mut found);
+        let line_index = LineIndex::new(src);
+        let mut lines: Vec<u32> = found
+            .spans
+            .iter()
+            .map(|s| line_index.line_at(s.start()))
+            .collect();
+        lines.sort_unstable();
+        lines
+    }
+
+    /// `proc wrap` whose body declares `local` through `declarator`, preceded
+    /// by `prelude`.  The declarator always lands on line `prelude_lines + 1`.
+    fn upvar_body(prelude: &str, declarator: &str) -> String {
+        format!(
+            "{prelude}proc wrap {{}} {{\n\
+             {declarator} 1 other local\n\
+             return $local\n\
+             }}\n"
+        )
+    }
+
+    #[test]
+    fn declaration_scan_follows_an_aliased_scoping_command() {
+        let src = upvar_body("interp alias {} decl {} upvar\n", "decl");
+        assert_eq!(scanned_declaration_lines(&src, "local"), vec![2]);
+        // The `::`-qualified spelling of the alias classifies alike.
+        let src = upvar_body("interp alias {} decl {} upvar\n", "::decl");
+        assert_eq!(scanned_declaration_lines(&src, "local"), vec![2]);
+        // Guard: an unbound `decl` declares nothing.
+        let src = upvar_body("set y 1\n", "decl");
+        assert!(scanned_declaration_lines(&src, "local").is_empty());
+    }
+
+    #[test]
+    fn declaration_scan_follows_a_renamed_scoping_command() {
+        let src = upvar_body("rename upvar decl\n", "decl");
+        assert_eq!(scanned_declaration_lines(&src, "local"), vec![2]);
+        // The old spelling is gone from the rename onwards.
+        let src = upvar_body("rename upvar decl\n", "upvar");
+        assert!(
+            scanned_declaration_lines(&src, "local").is_empty(),
+            "a renamed-away `upvar` must not keep the built-in's grammar"
+        );
+    }
+
+    #[test]
+    fn declaration_scan_abstains_for_a_builtin_shadowed_by_a_user_proc() {
+        let src = upvar_body("proc upvar {args} { return 1 }\n", "upvar");
+        assert!(
+            scanned_declaration_lines(&src, "local").is_empty(),
+            "a user `proc upvar` takes the name over; no scope-alias grammar applies"
+        );
+        // Guard: the unshadowed built-in still declares.
+        let src = upvar_body("set y 1\n", "upvar");
+        assert_eq!(scanned_declaration_lines(&src, "local"), vec![2]);
+    }
+
+    #[test]
+    fn declaration_scan_abstains_for_a_dynamic_binding() {
+        let src = upvar_body("rename $old decl\n", "decl");
+        assert!(
+            scanned_declaration_lines(&src, "local").is_empty(),
+            "a dynamic rename must not make `decl` a scoping statement"
+        );
+        let src = upvar_body("rename $old decl\n", "upvar");
+        assert_eq!(
+            scanned_declaration_lines(&src, "local"),
+            vec![2],
+            "a dynamic rename must not take `upvar`'s grammar away either"
+        );
+    }
+
+    /// The body recursion is registry-driven too: a `global` buried in an
+    /// aliased control-flow body is only reached if the alias resolves to the
+    /// command whose argument carries `ArgRole::Body`.
+    #[test]
+    fn declaration_scan_recurses_through_an_aliased_body_command() {
+        let src = "interp alias {} maybe {} if\n\
+                   proc p {} {\n\
+                   maybe {[info exists x]} { global x }\n\
+                   puts $x\n\
+                   }\n";
+        assert_eq!(scanned_declaration_lines(src, "x"), vec![2]);
+        // Guard: an unbound `maybe` carries no body argument to recurse into.
+        let src = "set y 1\n\
+                   proc p {} {\n\
+                   maybe {[info exists x]} { global x }\n\
+                   puts $x\n\
+                   }\n";
+        assert!(scanned_declaration_lines(src, "x").is_empty());
     }
 }

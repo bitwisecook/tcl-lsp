@@ -412,6 +412,72 @@ report a bogus Tcl 8.6 requirement. `record_dsl_format_sites` (W138) therefore
 gates on `FormatType::Sprintf` and leaves the other families alone rather than
 guessing.
 
+### HandleBindingSpec -- which argument becomes an object handle
+
+Some calls make a *variable* hold an object handle, with a second word of
+the same call saying what class the handle is. Two shapes recur:
+
+```tcl
+install axis using ::verticalAxis $win.a   ;# snit component install
+set     axis      [::verticalAxis $win.a]  ;# snit bare-word construction
+```
+
+Both used to be recognised by matching the command word in the LSP's
+handle scan. They are now registry data
+(`rust/tcl-registry/src/handle_binding.rs`):
+
+```rust
+pub struct HandleBindingSpec {
+    pub name_from: HandleName,           // which variable receives the handle
+    pub class_from: HandleClassSource,   // where the class is written
+    pub keyword: Option<HandleKeyword>,  // a literal word the layout requires
+}
+
+pub enum HandleName {
+    Word(u8),                 // the word at this index names the variable
+    Implicit(&'static str),   // a fixed variable the class system provides
+}
+
+pub enum HandleClassSource {
+    Word(u8),               // the word *is* the class name (`install … using TYPE`)
+    ConstructionValue(u8),  // the word *contains* a construction (`set n [TYPE …]`)
+}
+```
+
+`HandleBindingSpec::resolve(args)` returns a `BoundHandle { name,
+class_word, class_source }` or `None`. It abstains rather than guesses: a
+missing keyword (`install a b c`, a user's own `install`), a call too short
+to carry both words, or a dynamic word all answer `None`.
+
+Where the descriptor hangs depends on whether the command is global:
+
+| Command | Home | Why |
+|---|---|---|
+| `set` | `CommandSpec::binds_handle` | a real global command; `CommandRegistry::handle_binding` resolves it through `get`, so `::set` answers identically |
+| snit `install` | `DefinitionBodyGrammar::member_body_commands` | the word exists **only** inside a snit member body -- a global spec would make a user's own `proc install` look like a built-in everywhere. `CommandRegistry::member_body_handle_bindings()` enumerates them once per document |
+| snit `installhull` | `DefinitionBodyGrammar::member_body_commands` (widget grammars only) | same reason, and only a `snit::widget` / `snit::widgetadaptor` has a hull, so it is absent from the plain `snit::type` grammar |
+
+The paired grammar flag `DefinitionBodyGrammar::bare_word_construction`
+says whether a family's *type command* constructs from a bare instance
+name (`$type $name`, snit(n)'s "The Type Command"). It is `true` for snit
+and `false` for `TclOO` / `[incr Tcl]`, and it replaced a
+`metaclass.starts_with("snit::")` spelling test in the scan.
+
+snit's `installhull using TYPE ?args…?` is the shape that forced
+`HandleName` to be an enum rather than an index. It binds the widget's
+**implicit** `hull` component, whose name appears nowhere in the call, so
+`HandleName::Implicit("hull")` supplies it from the descriptor. snit(n)
+documents a second form, `installhull $win`, which names an
+already-created widget and carries no static type word; the required
+`using` keyword makes `resolve` abstain on it.
+
+**Limits.** The descriptor covers a *fixed* pair of positions plus one
+optional literal keyword -- enough for the three shapes above and for a
+comparable installer in another class system, and deliberately not a
+general option parser. `install NAME $widget` (a run-time-typed
+component) is not modelled -- there is no static class word, so the scan
+abstains.
+
 ### ArgPresentation -- how a formatter lays an argument out
 
 `ArgRole` says what an argument **is**. `arg_presentation` (a
@@ -1077,52 +1143,125 @@ dispatch, var-escape, and taint sinks reached through this pipeline are
 they resolve through the same registry lookup, but only after the
 canonical name has already been substituted in.
 
-### The limitation is real for the source-text, re-segmentation-based consumers
+### The source-text consumers resolve identity themselves (issues #1185, #1275)
 
-The blind spot is the consumers that never go through
-`Lowering`'s alias table at all: the ones that recognise a shape (a
-lambda literal, a body, a callback prefix) by re-parsing a segmented
-command's own raw head text directly against the registry, outside the
-IR-lowering pass and with no alias map available to them. This is
-precisely the set of consumers the #954/#999 fix taught
-`ArgRole::LambdaLiteral` awareness — semantic tokens, folding, formatting,
-minification, declaration scanning, the best-effort text-based
-interprocedural call-graph scanner (`tcl-compiler/src/interprocedural.rs`
-— distinct from the IR-based taint/SSA interprocedural analysis, which
-*is* on the alias-aware pipeline above), param-trait inference, and the
-iRules object-reference walker. The concrete, verified case is `apply`'s
-`ArgRole::LambdaLiteral` handling under `rename`/`interp alias`: see the
-"Failure modes" section of
-[the `apply`-lambda-body KCS note](../../kcs/kcs-issue-apply-lambda-body-not-highlighted-via-list-quoting.md)
-for the reproduction and file-path anchors. The same gap applies to any
-other registry-keyed field (arg roles, `defines_command_at`, …) queried the
-same direct way by one of these consumers — `apply` is simply the instance
-that has been reproduced and written up (issue #1002); it is not evidence
-that taint or purity share it, since those two are demonstrably covered by
-the mechanism described above.
+The source-text consumers are no longer part of this limitation. Each resolves
+its head's **effective command identity** once, before any registry query,
+through `rust/tcl-compiler/src/head_identity.rs`:
+
+```rust
+enum HeadIdentity<'a> {
+    Command(&'a str),  // the registry name this spelling really invokes
+    Rebound,           // the binding was provably taken over -- no grammar applies
+}
+```
+
+`command_head_identities` scans the document's **top-level** statements once
+and records an offset-keyed fact per head spelling. Which commands mutate the
+command table is registry data (`CommandTableEffect`), and the argument shapes
+come from the compiler's own `alias.rs` detectors -- the same ones the
+IR-lowering pipeline uses -- so nothing here spells a command name. Four
+sources feed it:
+
+| Statement | Fact |
+|---|---|
+| `namespace import ::tcltest::*` | `test` -> `::tcltest::test` (issue #776) |
+| `interp alias {} myfmt {} format` | `myfmt` and `::myfmt` -> `format` |
+| `rename format origfmt` | `origfmt` -> `format`, **and** `format` -> `Rebound` |
+| `proc format {args} {...}` | `format` -> `Rebound` |
+
+A binding **source** is read through the map before the registry, so chains
+compose: `interp alias {} a {} format; rename a b` leaves `b` naming `format`
+(tclsh 8.6.16 and 9.0.4, byte-identical: `b %08x 42` answers `0000002a` while
+`info commands a` answers empty), and `proc format {…} {…}; rename format
+myfmt` correctly leaves `myfmt` `Rebound` rather than inheriting the built-in's
+grammar. An alias always *takes over* the name it binds, because C Tcl lets one
+shadow an existing command outright.
+
+Both the bare and the explicitly `::`-qualified spelling of a bound name are
+recorded, and the *latest* fact at or before the call's byte offset wins, so a
+binding never retroactively re-tags an earlier call:
+
+```tcl
+format {%08x} 42       ;# still the built-in -- specifier sub-tokens
+rename format origfmt
+origfmt {%08x} 42      ;# now the built-in
+format  {%08x} 42      ;# Rebound -- a plain string argument
+```
+
+`HeadIdentity::spec_name()` answers `""` for `Rebound`, which
+`CommandRegistry::get` never resolves -- so every registry query the walker
+already makes (`arg_indices_for_role`, `format_string_args`,
+`handle_binding`, ...) answers "unknown command" without a variant check at
+each call site.
+
+**Explicit limits.** The table is sound by abstention, and states nothing for:
+
+- a **dynamic** binding -- `rename $old new`, `interp alias {} $n {} eval`,
+  `interp alias {} n {} $t` (rejected by `is_dynamic_word`);
+- an alias with **pre-bound arguments** -- `interp alias {} pad {} format %08x`
+  shifts every index, so the target's layout cannot be reused; the name is
+  marked `Rebound` rather than aliased;
+- **another interpreter** -- a non-empty `srcPath` binds a name in a *child*
+  interpreter and states nothing here; a non-empty `targetPath` marks the name
+  `Rebound`. Hidden commands in a safe interpreter are invisible for the same
+  reason: this is a description of *this* document's command table;
+- a **conditional or nested** binding -- only top-level statements are scanned,
+  so a `rename` inside an `if` / proc / `eval`, and a `proc` inside
+  `namespace eval ::n` (which defines `::n::format`, not `::format`), state
+  nothing;
+- `unknown` fallback, traces, and computed heads -- nothing is inferred.
+
+#### Positioned and unpositioned readers
+
+`resolve(head, at)` answers for a head at a known byte offset. Several
+consumers re-lex a body out of its own *decoded* text — the formatter
+reformats `arg.text`, the minifier re-minifies a body slice, the call-graph
+and param-trait scans segment a body string at offset 0 — so no
+document-absolute offset exists at the point of the query. Those read
+`resolve_unpositioned(head)`, which folds *every* fact about the spelling and
+abstains (`Rebound`) unless they agree. A document that binds one name twice
+cannot be read without a position, and guessing one of the two bindings is
+exactly the fall-back-to-spelling this module exists to remove.
+
+`HeadWords { written, resolved }` carries both forms where the distinction
+matters. A **global command** lookup reads `resolved`; a **lexical** test reads
+`written`, because a class-body member sub-keyword (`method`, `constructor`) or
+a `$var` head is not a command binding at all — a top-level `rename method …`
+says nothing about the word inside an `oo::define`.
+
+#### Which consumers resolve, and how
+
+| Consumer | Reads | Notes |
+|---|---|---|
+| semantic tokens | positioned | issue #1185 |
+| inlay hints (format specifiers) | positioned | issue #1185 |
+| folding | positioned | body / lambda / clause-list roles |
+| the declaration scan | positioned | scope-alias grammar + body recursion |
+| the iRules object-ref walker | positioned | reference args, roles, `set` constant propagation |
+| the minifier's rename-barrier scan | positioned | the invocation carries its own range |
+| the minifier's keyword abbreviation | positioned | `base` makes a nested word's offset absolute |
+| the minifier's render path | unpositioned | re-minifies each body from its own slice |
+| formatting | unpositioned | re-lexes decoded `arg.text`; range formatting lexes a slice |
+| the call-graph scan (`interprocedural.rs`) | unpositioned | walks lowered statements and body text at offset 0 |
+| param-trait inference | unpositioned | scans a proc body from its own text |
+
+Range formatting builds the map from the **whole document**, not the selected
+slice, so a `rename` above the selection still governs it. The analyser builds
+it alongside its registry at the top of every entry point, so a per-proc
+param-trait scan reads the *document's* bindings while scanning a *body*.
 
 This is a different mechanism from issue #973, which is about the
 analyser's `known()` predicate (`scope.rs`) not gating an existence check
 (W123) on deletion — a single analyser-side predicate partially growing
-rename/alias-awareness for one diagnostic. The gap described here is a
-missing integration (the source-text consumers have no access to an alias
-table at all, static or otherwise), not a partial one.
+rename/alias-awareness for one diagnostic.
 
-**Plausible future fix direction** (out of scope here — this note only
-records the limitation): give the source-text-based consumers the same
-kind of alias resolution the compiler's lowering pass already has, rather
-than inventing a new mechanism. The `CommandAliasMap` pattern in
-`rust/tcl-compiler/src/alias.rs` is IR-lowering-specific (it's built while
-walking a `CompilationUnit`, and reads `self.aliases` accumulated so far in
-that walk); the source-text consumers operate on individually re-parsed
-segmented commands, often outside any compilation-unit walk, so reusing it
-directly is not a drop-in change — each consumer would need either its own
-document-wide alias scan pre-pass, or a shared one computed once and passed
-down to every consumer that currently calls `CommandRegistry::get` /
-`arg_indices_for_role` directly on raw head text. That is still a real,
-multi-consumer change (it touches every one of the source-text consumers
-listed above, not just `apply`'s), just a narrower one than rewriting
-`CommandRegistry::get` itself.
+**Still by spelling.** `CommandRegistry::get` itself is unchanged: it is a
+by-name lookup, and every consumer above resolves *before* calling it. A
+consumer added later that queries the registry on raw head text re-opens the
+gap for itself; the `apply`-lambda reproduction in the
+[`apply`-lambda-body KCS note](../../kcs/kcs-issue-apply-lambda-body-not-highlighted-via-list-quoting.md)
+is what that looks like from the outside.
 
 ## Decision rule
 

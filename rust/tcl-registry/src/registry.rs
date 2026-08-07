@@ -1028,6 +1028,52 @@ impl CommandRegistry {
             .collect()
     }
 
+    /// How a call to `name` binds a variable to an **object handle**, when it
+    /// does — [`CommandSpec::binds_handle`], resolved through [`Self::get`] so
+    /// the explicitly global spelling (`::set`) answers identically to the
+    /// bare one (issue #1185).
+    ///
+    /// The member-body-only installers a class system injects (snit's
+    /// `install NAME using TYPE …`) are **not** here: they are not global
+    /// commands, and live on
+    /// [`crate::definer::DefinitionBodyGrammar::member_body_commands`] —
+    /// enumerate them with [`Self::member_body_handle_bindings`].
+    ///
+    /// [`CommandSpec::binds_handle`]: crate::spec::CommandSpec::binds_handle
+    #[must_use]
+    pub fn handle_binding(
+        &self,
+        name: &str,
+    ) -> Option<&'static crate::handle_binding::HandleBindingSpec> {
+        self.get(name).and_then(|spec| spec.binds_handle)
+    }
+
+    /// Every member-body command that binds an object handle, as
+    /// `(word, layout)` pairs collected from the definition-body grammars this
+    /// registry's definers carry.
+    ///
+    /// These words exist only inside a class system's member bodies (snit's
+    /// `install`), so they deliberately have no global `CommandSpec` — a
+    /// consumer builds a small lookup from this list once per document instead
+    /// of naming the keyword.  Deduplicated: the snit `type` and `widget`
+    /// grammars share one member-body command set.
+    #[must_use]
+    pub fn member_body_handle_bindings(
+        &self,
+    ) -> Vec<(&'static str, crate::handle_binding::HandleBindingSpec)> {
+        let mut out: Vec<_> = self
+            .by_name
+            .values()
+            .filter_map(|specs| specs.last())
+            .filter_map(|spec| spec.definition_body)
+            .flat_map(|grammar| grammar.member_body_commands.iter())
+            .filter_map(|cmd| cmd.binds_handle.map(|layout| (cmd.name, layout)))
+            .collect();
+        out.sort_unstable_by_key(|(name, _)| *name);
+        out.dedup_by_key(|(name, _)| *name);
+        out
+    }
+
     /// Whether `name` **writes or modifies** the variable named by its
     /// first argument (`set` / `append` / `lappend` / `incr` / `lset`):
     /// [`Traits::FIRST_ARG_VARNAME`] minus the destroy-only `unset`
@@ -1841,22 +1887,23 @@ impl CommandRegistry {
     /// the subcommand `first_arg` names (which wins), for the
     /// mutators `proc` / `rename` / `interp alias`.
     ///
-    /// `name` is matched against the spec's own spelling only: a
-    /// `::`-qualified head resolves no effect, mirroring the retired
-    /// per-consumer literal matches (`cmd_name != "rename"`), which
-    /// never matched a qualified spelling — callers that canonicalise
-    /// first (the command-binding lattice strips a leading `::`)
-    /// keep doing so before calling.  The subcommand word must match
-    /// exactly (no prefix abbreviation), as those matches also did.
+    /// `name` resolves through [`Self::get`], so the explicitly global
+    /// spellings answer identically to the bare ones — `::rename format
+    /// ::origfmt`, `::interp alias {} myfmt {} ::origfmt` and `::proc
+    /// ::greet {} {…}` all really do mutate the command table (tclsh 9.0.4
+    /// and 8.6.16, byte-identical; `namespace which -command ::rename` →
+    /// `::rename`).  Resolving only the bare spelling — as the retired
+    /// per-consumer literal matches (`cmd_name != "rename"`) did — made a
+    /// qualified mutator invisible to every binding consumer, the
+    /// false-negative class issue #1185 exists to close.  The subcommand
+    /// word must still match exactly (no prefix abbreviation), as those
+    /// matches also did.
     #[must_use]
     pub fn command_table_effect(
         &self,
         name: &str,
         first_arg: Option<&str>,
     ) -> Option<CommandTableEffect> {
-        if name.starts_with("::") {
-            return None;
-        }
         let spec = self.get(name)?;
         first_arg
             .and_then(|word| spec.subcommand(word))

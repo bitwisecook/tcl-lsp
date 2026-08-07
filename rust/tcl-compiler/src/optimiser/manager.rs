@@ -793,11 +793,17 @@ pub fn optimise_raw(
         tcl_lexer::LexerConfig::for_dialect(dialect.unwrap_or_default()),
     );
     let object_types = crate::object_types::object_handle_classes(&cu, registry);
+    let identities = crate::head_identity::command_head_identities_with_config(
+        &cu.source,
+        tcl_lexer::LexerConfig::for_dialect(dialect.unwrap_or_default()),
+        registry,
+    );
     let ia = build_interprocedural_analysis(
         &cu.ir_module,
         registry,
         dialect,
         crate::interprocedural::ObjectTypeMap(&object_types),
+        &identities,
     );
     cu.interproc = Some(ia);
     let mut ctx = build_pass_context(&cu, registry, dialect);

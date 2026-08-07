@@ -77,53 +77,14 @@ use tcl_lexer::{LexerConfig, TokenType};
 /// (parameters with no detected trait) are dropped from the
 /// returned map.
 ///
-/// `registry` is the **dialect-aware** command registry the
-/// caller already built (typically `Analyser::registry`).
-/// Building a fresh `CommandRegistry::build_default()` on every
-/// proc would both be expensive and miss dialect-specific
-/// `arg_role_resolver` / `arg_roles` (e.g. iRules `when` body
-/// detection) that the caller's registry already loaded.
-///
-/// `stub_overlay`, when `Some`, lets user-declared
-/// `# tcl-lsp: stub` commands participate in role-driven
-/// trait inference.  The overlay's
-/// [`StubOverlay::arg_indices_for_role`] return is unioned
-/// with the registry's at each call site, so a stub like
-/// `# tcl-lsp: stub my_eval {script:body}` causes a
-/// `my_eval $param` invocation to mark the parameter as
-/// `ProcArgTrait::Body`.
+/// `env` carries the dialect-aware registry, the document's
+/// `# tcl-lsp: stub` overlay, the dialect lexer configuration, and the
+/// document's proven command-identity facts — see [`TraitScanEnv`].
 #[must_use]
 pub fn infer_param_traits(
     params: &[&str],
     body_source: &str,
-    registry: &CommandRegistry,
-    stub_overlay: Option<&StubOverlay>,
-) -> HashMap<String, HashSet<ProcArgTrait>> {
-    infer_param_traits_with_config(
-        params,
-        body_source,
-        registry,
-        stub_overlay,
-        LexerConfig::default(),
-    )
-}
-
-/// Like [`infer_param_traits`] but with an explicit dialect
-/// [`LexerConfig`] for the body's re-segmentation.
-///
-/// `{*}` expansion (off for Tcl 8.4 / iRules) and the iRules `}{`
-/// ghost SEP change how the body splits into commands and words, which
-/// in turn changes which arguments resolve to a clean `$param` and thus
-/// which traits are inferred.  The analyser threads
-/// `Analyser::lexer_config()` here so trait inference honours the
-/// document's dialect rather than always assuming the Tcl-8.5+ default.
-#[must_use]
-pub fn infer_param_traits_with_config(
-    params: &[&str],
-    body_source: &str,
-    registry: &CommandRegistry,
-    stub_overlay: Option<&StubOverlay>,
-    config: LexerConfig,
+    env: TraitScanEnv<'_>,
 ) -> HashMap<String, HashSet<ProcArgTrait>> {
     if params.is_empty() || body_source.trim().is_empty() {
         return HashMap::new();
@@ -135,9 +96,10 @@ pub fn infer_param_traits_with_config(
 
     let ctx = ScanCtx {
         param_set: &param_set,
-        registry,
-        stub_overlay,
-        config,
+        registry: env.registry,
+        stub_overlay: env.stub_overlay,
+        config: env.config,
+        identities: env.identities,
     };
     scan_commands(body_source, &ctx, &mut traits, &mut aliases);
 
@@ -166,34 +128,12 @@ pub const MAX_DEPTH: u8 = 8;
 pub fn infer_param_traits_deep(
     params: &[&str],
     body_source: &str,
-    registry: &CommandRegistry,
-    stub_overlay: Option<&StubOverlay>,
+    env: TraitScanEnv<'_>,
 ) -> HashMap<String, HashSet<ProcArgTrait>> {
-    infer_param_traits_deep_with_config(
-        params,
-        body_source,
-        registry,
-        stub_overlay,
-        LexerConfig::default(),
-    )
+    infer_param_traits_deep_at_depth(params, body_source, env, 0)
 }
 
-/// Like [`infer_param_traits_deep`] but with an explicit dialect
-/// [`LexerConfig`] (see [`infer_param_traits_with_config`]).  The config
-/// is threaded into both the top-level scan and every recursive descent
-/// into a braced body argument.
-#[must_use]
-pub fn infer_param_traits_deep_with_config(
-    params: &[&str],
-    body_source: &str,
-    registry: &CommandRegistry,
-    stub_overlay: Option<&StubOverlay>,
-    config: LexerConfig,
-) -> HashMap<String, HashSet<ProcArgTrait>> {
-    infer_param_traits_deep_at_depth(params, body_source, registry, stub_overlay, config, 0)
-}
-
-/// [`infer_param_traits_deep_with_config`] with an explicit starting depth.
+/// [`infer_param_traits_deep`] with an explicit starting depth.
 ///
 /// The public entry points always start at `0`; `scan_deep`'s own `apply`
 /// (`ArgRole::LambdaLiteral`) handling calls this with `depth + 1` instead
@@ -209,9 +149,7 @@ pub fn infer_param_traits_deep_with_config(
 fn infer_param_traits_deep_at_depth(
     params: &[&str],
     body_source: &str,
-    registry: &CommandRegistry,
-    stub_overlay: Option<&StubOverlay>,
-    config: LexerConfig,
+    env: TraitScanEnv<'_>,
     depth: u8,
 ) -> HashMap<String, HashSet<ProcArgTrait>> {
     if params.is_empty() || body_source.trim().is_empty() || depth > MAX_DEPTH {
@@ -224,9 +162,10 @@ fn infer_param_traits_deep_at_depth(
 
     let ctx = ScanCtx {
         param_set: &param_set,
-        registry,
-        stub_overlay,
-        config,
+        registry: env.registry,
+        stub_overlay: env.stub_overlay,
+        config: env.config,
+        identities: env.identities,
     };
     scan_deep(body_source, &ctx, &mut traits, &mut aliases, depth);
 
@@ -283,6 +222,50 @@ struct ScanCtx<'p, 'r> {
     registry: &'r CommandRegistry,
     stub_overlay: Option<&'r StubOverlay>,
     config: LexerConfig,
+    /// The **document's** proven command-identity facts (issue #1275), so a
+    /// role, frame-effect, or structural handler is chosen by the command a
+    /// head *is* rather than the one it is spelled as.
+    ///
+    /// Read *unpositioned*: a proc body is segmented from its own text at
+    /// offset 0, so no document-absolute offset exists here.
+    identities: &'r crate::head_identity::HeadIdentityMap,
+}
+
+impl ScanCtx<'_, '_> {
+    /// One command head in both its forms.
+    fn head<'h>(&'h self, written: &'h str) -> crate::head_identity::HeadWords<'h> {
+        self.identities.head_words_unpositioned(written)
+    }
+}
+
+/// Everything a param-trait scan needs about the document it is scanning
+/// inside: the dialect-aware registry, the per-document `# tcl-lsp: stub`
+/// overlay, the dialect lexer configuration the body re-segments under, and
+/// the document's proven command-identity facts.
+///
+/// Bundled so the four public entry points share one parameter rather than
+/// four, and so adding a document-level fact does not re-open every signature.
+#[derive(Clone, Copy)]
+pub struct TraitScanEnv<'a> {
+    /// The caller's already-built, dialect-aware registry (typically
+    /// `Analyser::registry`).  Building a fresh `CommandRegistry::build_default()`
+    /// per proc would both be expensive and miss the dialect-specific
+    /// `arg_role_resolver` / `arg_roles` the caller's registry has loaded.
+    pub registry: &'a CommandRegistry,
+    /// The document's `# tcl-lsp: stub` overlay, when it declares any: a stub
+    /// like `# tcl-lsp: stub my_eval {script:body}` makes a `my_eval $param`
+    /// invocation mark the parameter `ProcArgTrait::Body`.
+    pub stub_overlay: Option<&'a StubOverlay>,
+    /// The dialect lexer configuration the body re-segments under.  `{*}`
+    /// expansion (off for Tcl 8.4 / iRules) and the iRules `}{` ghost SEP
+    /// change how a body splits into commands and words, which changes which
+    /// arguments resolve to a clean `$param`.
+    pub config: LexerConfig,
+    /// The document's proven command-identity facts — see
+    /// [`crate::head_identity`].  Pass
+    /// [`HeadIdentityMap::none()`](crate::head_identity::HeadIdentityMap::none)
+    /// when there is no document to scan.
+    pub identities: &'a crate::head_identity::HeadIdentityMap,
 }
 
 /// Mutable alias / value-copy state accumulated while scanning a proc body.
@@ -361,7 +344,7 @@ fn scan_commands_bounded<'p>(
         // a literal command name, not a param reference.
         let head_is_var = seg.argv.first().is_some_and(|t| t.kind == TokenType::Var);
         scan_command(
-            &seg.texts[0],
+            ctx.head(&seg.texts[0]),
             &cmd_args,
             &braced,
             head_is_var,
@@ -416,7 +399,7 @@ fn scan_deep<'p>(
         if seg.texts.is_empty() {
             continue;
         }
-        let cmd_name = &seg.texts[0];
+        let cmd_name = ctx.head(&seg.texts[0]).resolved;
         let cmd_args: Vec<&str> = seg.texts[1..].iter().map(String::as_str).collect();
         // Look up body args from both the registry (for built-in
         // commands) and the stub overlay (for user-declared
@@ -504,9 +487,12 @@ fn scan_deep<'p>(
             let lambda_traits = infer_param_traits_deep_at_depth(
                 &lambda_param_names,
                 body_text,
-                ctx.registry,
-                ctx.stub_overlay,
-                ctx.config,
+                TraitScanEnv {
+                    registry: ctx.registry,
+                    stub_overlay: ctx.stub_overlay,
+                    config: ctx.config,
+                    identities: ctx.identities,
+                },
                 depth + 1,
             );
             if lambda_traits.is_empty() {
@@ -609,7 +595,7 @@ fn resolve_arg_roles(
 }
 
 fn scan_command<'p>(
-    cmd_name: &str,
+    head: crate::head_identity::HeadWords<'_>,
     cmd_args: &[String],
     braced: &[bool],
     head_is_var: bool,
@@ -618,6 +604,11 @@ fn scan_command<'p>(
     aliases: &mut Aliases<'p>,
 ) {
     let param_set = ctx.param_set;
+    // The *written* spelling is what a `$param` head test reads (a `$cmd` head
+    // is a substitution, not a command binding); every registry query and
+    // structural handler below reads the resolved one (issue #1275).
+    let cmd_name = head.written;
+    let resolved = head.resolved;
     // A `$param` command *head* (`$cmd arg1 arg2`) means the param's value names
     // a command.  Only a genuine `$`-substitution head counts — a braced
     // `{$cmd}` is a literal command name.  Resolves value-copies, so
@@ -629,11 +620,14 @@ fn scan_command<'p>(
     {
         set.insert(ProcArgTrait::Command);
     }
-    apply_arg_role_traits(cmd_name, cmd_args, braced, ctx, traits, aliases);
-    apply_eval_traits(cmd_name, cmd_args, param_set, traits);
+    apply_arg_role_traits(resolved, cmd_args, braced, ctx, traits, aliases);
+    apply_eval_traits(resolved, cmd_args, param_set, traits);
 
-    // Per-command structural handlers.
-    match cmd_name {
+    // Per-command structural handlers.  Matched on the *resolved* head, so a
+    // proven alias or rename of `upvar` / `foreach` / `after` is handled like
+    // the command it is, and a spelling whose binding was provably taken over
+    // matches nothing.
+    match resolved {
         "upvar" => handle_upvar(cmd_args, ctx, traits, aliases),
         "namespace" if cmd_args.first().map(String::as_str) == Some("upvar") => {
             handle_namespace_upvar(cmd_args, param_set, traits, aliases);
@@ -663,7 +657,7 @@ fn scan_command<'p>(
 
     // Track writes through upvar aliases — ``set local …`` where
     // ``local`` was registered as an alias for some param.
-    if matches!(cmd_name, "set" | "incr" | "append" | "lappend")
+    if matches!(resolved, "set" | "incr" | "append" | "lappend")
         && !cmd_args.is_empty()
         && let Some(target) = aliases.upvar.get(cmd_args[0].as_str())
         && let Some(set) = traits.get_mut(target)
@@ -672,7 +666,7 @@ fn scan_command<'p>(
     }
 
     // foreach / lmap loop variables write through aliases.
-    if matches!(cmd_name, "foreach" | "lmap") && cmd_args.len() >= 3 {
+    if matches!(resolved, "foreach" | "lmap") && cmd_args.len() >= 3 {
         let remaining = &cmd_args[..cmd_args.len() - 1];
         let mut i = 0;
         while i < remaining.len() {
@@ -689,7 +683,7 @@ fn scan_command<'p>(
     // so a later `$n` in a name / command position resolves to `p`.  Any other
     // write to a tracked local invalidates the copy.  Recorded *after* the role
     // scan so this command's effect applies only to later commands.
-    match cmd_name {
+    match resolved {
         "set" if cmd_args.len() == 2 => {
             let target = cmd_args[0].as_str();
             if extract_var_name(&cmd_args[0]).is_none()
@@ -1004,22 +998,25 @@ fn handle_upvar<'p>(
 pub fn caller_frame_upvar_params(
     params: &[&str],
     body_source: &str,
-    registry: &CommandRegistry,
-    config: LexerConfig,
+    env: TraitScanEnv<'_>,
 ) -> HashSet<String> {
+    let registry = env.registry;
     let mut out = HashSet::new();
     if params.is_empty() || body_source.trim().is_empty() {
         return out;
     }
     let param_set: HashSet<&str> = params.iter().copied().collect();
-    for seg in &segment_commands_with_offset_and_config(body_source, 0, config) {
+    for seg in &segment_commands_with_offset_and_config(body_source, 0, env.config) {
         // Registry-driven recognition (`FrameArgLayout::AliasPairs`), the
         // same test `caller_frame_literal_targets` applies — never a
-        // spelled command name.
+        // spelled command name, and against the head's *resolved* identity so
+        // a proven alias or rename of `upvar` still counts (issue #1275).
         if seg.texts.first().is_none_or(|head| {
-            registry.frame_effect(head).is_none_or(|spec| {
-                spec.layout != tcl_registry::frame_effect::FrameArgLayout::AliasPairs
-            })
+            registry
+                .frame_effect(env.identities.resolve_unpositioned(head).spec_name())
+                .is_none_or(|spec| {
+                    spec.layout != tcl_registry::frame_effect::FrameArgLayout::AliasPairs
+                })
         }) {
             continue;
         }
@@ -1075,25 +1072,28 @@ pub fn caller_frame_upvar_params(
 #[must_use]
 pub fn caller_frame_literal_targets(
     body_source: &str,
-    registry: &CommandRegistry,
-    config: LexerConfig,
+    env: TraitScanEnv<'_>,
 ) -> HashMap<String, bool> {
     use tcl_registry::frame_effect::FrameArgLayout;
 
+    let registry = env.registry;
     let mut targets: HashMap<String, bool> = HashMap::new();
     if body_source.trim().is_empty() {
         return targets;
     }
     // local alias name → the caller-frame name it stands for.
     let mut alias_to_target: HashMap<String, String> = HashMap::new();
-    let segs = segment_commands_with_offset_and_config(body_source, 0, config);
+    let segs = segment_commands_with_offset_and_config(body_source, 0, env.config);
     for seg in &segs {
-        let Some(head) = seg.texts.first() else {
+        let Some(written) = seg.texts.first() else {
             continue;
         };
         // Registry-driven recognition: any command whose frame-effect
         // grammar is `otherVar myVar` alias pairs (`upvar`), never a
-        // spelled name.
+        // spelled name — and against the head's *resolved* identity, so a
+        // proven alias or rename of `upvar` still counts and a spelling whose
+        // binding was taken over does not (issue #1275).
+        let head = env.identities.resolve_unpositioned(written).spec_name();
         if registry
             .frame_effect(head)
             .is_none_or(|spec| spec.layout != FrameArgLayout::AliasPairs)
@@ -1118,9 +1118,10 @@ pub fn caller_frame_literal_targets(
         return targets;
     }
     for seg in &segs {
-        let Some(head) = seg.texts.first() else {
+        let Some(written) = seg.texts.first() else {
             continue;
         };
+        let head = env.identities.resolve_unpositioned(written).spec_name();
         let args: Vec<&str> = seg.texts.iter().skip(1).map(String::as_str).collect();
         for idx in registry.arg_indices_for_role(head, &args, ArgRole::VarWrite) {
             if let Some(word) = args.get(idx)
@@ -1344,7 +1345,29 @@ mod tests {
     /// stub overlay; tests that need one construct it inline.
     fn infer(params: &[&str], body: &str) -> HashMap<String, HashSet<ProcArgTrait>> {
         let registry = CommandRegistry::build_default();
-        infer_param_traits(params, body, &registry, None)
+        infer_param_traits(params, body, env_for(&registry, LexerConfig::default()))
+    }
+
+    /// A scan environment over `registry` with no stub overlay and no document
+    /// binding facts — what a bare-body unit test scans under.
+    fn env_for(registry: &CommandRegistry, config: LexerConfig) -> TraitScanEnv<'_> {
+        TraitScanEnv {
+            registry,
+            stub_overlay: None,
+            config,
+            identities: crate::head_identity::HeadIdentityMap::none(),
+        }
+    }
+
+    /// [`env_for`] with a stub overlay attached.
+    fn env_with_overlay<'a>(
+        registry: &'a CommandRegistry,
+        overlay: &'a StubOverlay,
+    ) -> TraitScanEnv<'a> {
+        TraitScanEnv {
+            stub_overlay: Some(overlay),
+            ..env_for(registry, LexerConfig::default())
+        }
     }
 
     #[test]
@@ -1377,8 +1400,11 @@ mod tests {
     #[test]
     fn eval_inside_apply_lambda_body_does_not_leak_to_unrelated_enclosing_param() {
         let registry = CommandRegistry::build_default();
-        let traits =
-            infer_param_traits_deep(&["body"], "apply {x {eval $body}} 1", &registry, None);
+        let traits = infer_param_traits_deep(
+            &["body"],
+            "apply {x {eval $body}} 1",
+            env_for(&registry, LexerConfig::default()),
+        );
         assert!(
             !traits
                 .get("body")
@@ -1396,8 +1422,11 @@ mod tests {
     #[test]
     fn eval_param_forwarded_into_apply_lambda_records_eval_trait() {
         let registry = CommandRegistry::build_default();
-        let traits =
-            infer_param_traits_deep(&["body"], "apply {x {eval $x}} $body", &registry, None);
+        let traits = infer_param_traits_deep(
+            &["body"],
+            "apply {x {eval $x}} $body",
+            env_for(&registry, LexerConfig::default()),
+        );
         assert_trait(&traits, "body", ProcArgTrait::Eval);
     }
 
@@ -1409,23 +1438,19 @@ mod tests {
         // `eval $p` (→ `p` is Eval) on 9.0 but `eval` of the single
         // composite word `{*}$p` (no clean `$p`, no trait) on 8.4.
         let registry = CommandRegistry::build_default();
-        let on = infer_param_traits_with_config(
+        let on = infer_param_traits(
             &["p"],
             "eval {*}$p",
-            &registry,
-            None,
-            LexerConfig::default(),
+            env_for(&registry, LexerConfig::default()),
         );
         assert!(
             on.get("p").is_some_and(|s| s.contains(&ProcArgTrait::Eval)),
             "9.0 expands `{{*}}` → eval $p → Eval: {on:?}",
         );
-        let off = infer_param_traits_with_config(
+        let off = infer_param_traits(
             &["p"],
             "eval {*}$p",
-            &registry,
-            None,
-            LexerConfig::for_dialect("tcl8.4"),
+            env_for(&registry, LexerConfig::for_dialect("tcl8.4")),
         );
         assert!(
             off.get("p")
@@ -1503,7 +1528,11 @@ mod tests {
             // variable.
             ("upvar 1 caller $n", false),
         ] {
-            let got = caller_frame_upvar_params(&params, body, &registry, LexerConfig::default());
+            let got = caller_frame_upvar_params(
+                &params,
+                body,
+                env_for(&registry, LexerConfig::default()),
+            );
             assert_eq!(
                 got.contains("n"),
                 expected,
@@ -1521,22 +1550,19 @@ mod tests {
         let registry = CommandRegistry::build_default();
         let got = caller_frame_literal_targets(
             "upvar name name\nset name W1",
-            &registry,
-            LexerConfig::default(),
+            env_for(&registry, LexerConfig::default()),
         );
         assert_eq!(got.get("name"), Some(&true), "written through the alias");
         // A body that only reads through the alias creates nothing.
         let got = caller_frame_literal_targets(
             "upvar name name\nreturn [string length $name]",
-            &registry,
-            LexerConfig::default(),
+            env_for(&registry, LexerConfig::default()),
         );
         assert_eq!(got.get("name"), Some(&false), "read-only alias");
         // Distinct local alias spelling still records the CALLER name.
         let got = caller_frame_literal_targets(
             "upvar 1 other mine\nset mine 1",
-            &registry,
-            LexerConfig::default(),
+            env_for(&registry, LexerConfig::default()),
         );
         assert_eq!(got.get("other"), Some(&true));
         assert!(!got.contains_key("mine"));
@@ -1559,7 +1585,8 @@ mod tests {
             "upvar 1 name $dst",
             "namespace upvar ::cfg name local; set local 1",
         ] {
-            let got = caller_frame_literal_targets(body, &registry, LexerConfig::default());
+            let got =
+                caller_frame_literal_targets(body, env_for(&registry, LexerConfig::default()));
             assert!(got.is_empty(), "{body:?} must record nothing, got {got:?}");
         }
     }
@@ -1576,7 +1603,8 @@ mod tests {
         let traits = infer(&["n"], body);
         assert_trait(&traits, "n", ProcArgTrait::VarWrite);
         assert!(
-            caller_frame_upvar_params(&["n"], body, &registry, LexerConfig::default()).is_empty(),
+            caller_frame_upvar_params(&["n"], body, env_for(&registry, LexerConfig::default()))
+                .is_empty(),
             "the level fact must reject what the trait alone accepts"
         );
     }
@@ -1594,8 +1622,7 @@ mod tests {
             caller_frame_upvar_params(
                 &["lvl", "v"],
                 "upvar $lvl $v local\nset local 1",
-                &registry,
-                LexerConfig::default()
+                env_for(&registry, LexerConfig::default())
             )
             .is_empty(),
             "a computed level names no statically-known frame"
@@ -1770,7 +1797,16 @@ mod tests {
             ],
         )]);
         let registry = CommandRegistry::build_default();
-        let traits = infer_param_traits(&["h"], "on_event click $h", &registry, Some(&overlay));
+        let traits = infer_param_traits(
+            &["h"],
+            "on_event click $h",
+            TraitScanEnv {
+                registry: &registry,
+                stub_overlay: Some(&overlay),
+                config: LexerConfig::default(),
+                identities: crate::head_identity::HeadIdentityMap::none(),
+            },
+        );
         assert_trait(&traits, "h", ProcArgTrait::Command);
     }
 
@@ -1929,7 +1965,7 @@ mod tests {
     /// Deep-pass helper that mirrors [`infer`] for ergonomics.
     fn infer_deep(params: &[&str], body: &str) -> HashMap<String, HashSet<ProcArgTrait>> {
         let registry = CommandRegistry::build_default();
-        infer_param_traits_deep(params, body, &registry, None)
+        infer_param_traits_deep(params, body, env_for(&registry, LexerConfig::default()))
     }
 
     #[test]
@@ -2027,7 +2063,7 @@ mod tests {
         // threshold happens to sit a little higher.
         let registry = CommandRegistry::build_default();
         let start = std::time::Instant::now();
-        let _ = infer_param_traits_deep(&["p"], &body, &registry, None);
+        let _ = infer_param_traits_deep(&["p"], &body, env_for(&registry, LexerConfig::default()));
         let elapsed = start.elapsed();
         assert!(
             elapsed < std::time::Duration::from_secs(2),
@@ -2141,7 +2177,16 @@ mod tests {
         // the `script` param.
         let overlay = make_overlay(vec![stub_sig("my_eval", &[("script", ArgRole::Body)])]);
         let registry = CommandRegistry::build_default();
-        let traits = infer_param_traits(&["script"], "my_eval $script", &registry, Some(&overlay));
+        let traits = infer_param_traits(
+            &["script"],
+            "my_eval $script",
+            TraitScanEnv {
+                registry: &registry,
+                stub_overlay: Some(&overlay),
+                config: LexerConfig::default(),
+                identities: crate::head_identity::HeadIdentityMap::none(),
+            },
+        );
         assert_trait(&traits, "script", ProcArgTrait::Body);
     }
 
@@ -2154,7 +2199,16 @@ mod tests {
             &[("varName", ArgRole::VarWrite), ("value", ArgRole::Value)],
         )]);
         let registry = CommandRegistry::build_default();
-        let traits = infer_param_traits(&["v"], "with_var $v 42", &registry, Some(&overlay));
+        let traits = infer_param_traits(
+            &["v"],
+            "with_var $v 42",
+            TraitScanEnv {
+                registry: &registry,
+                stub_overlay: Some(&overlay),
+                config: LexerConfig::default(),
+                identities: crate::head_identity::HeadIdentityMap::none(),
+            },
+        );
         // A stub `VarWrite` role on a bare `$v` substitution is the same
         // callee-local dynamic-name shape as `set $v …` — refined to
         // DynamicNameLocal (+ VarRead), not a caller-frame VarWrite.
@@ -2177,7 +2231,11 @@ mod tests {
         let body = "my_loop 5 { uplevel 1 $script }";
         // Sanity: without the overlay, the deep pass misses
         // the nested Eval because `my_loop` isn't recognised.
-        let no_overlay = infer_param_traits_deep(&["script"], body, &registry, None);
+        let no_overlay = infer_param_traits_deep(
+            &["script"],
+            body,
+            env_for(&registry, LexerConfig::default()),
+        );
         assert!(
             !no_overlay
                 .get("script")
@@ -2185,7 +2243,16 @@ mod tests {
             "without overlay, my_loop body shouldn't be recognised, got {no_overlay:?}",
         );
         // With the overlay, the recursion fires.
-        let with_overlay = infer_param_traits_deep(&["script"], body, &registry, Some(&overlay));
+        let with_overlay = infer_param_traits_deep(
+            &["script"],
+            body,
+            TraitScanEnv {
+                registry: &registry,
+                stub_overlay: Some(&overlay),
+                config: LexerConfig::default(),
+                identities: crate::head_identity::HeadIdentityMap::none(),
+            },
+        );
         assert_trait(&with_overlay, "script", ProcArgTrait::Eval);
     }
 
@@ -2201,8 +2268,7 @@ mod tests {
         let traits = infer_param_traits(
             &["items", "body"],
             "foreach x $items $body",
-            &registry,
-            Some(&overlay),
+            env_with_overlay(&registry, &overlay),
         );
         assert_trait(&traits, "items", ProcArgTrait::LoopList);
         assert_trait(&traits, "body", ProcArgTrait::Body);
@@ -2215,8 +2281,139 @@ mod tests {
         // entries.
         let registry = CommandRegistry::build_default();
         let body = "foreach x {1 2 3} $body";
-        let none = infer_param_traits(&["body"], body, &registry, None);
-        let empty = infer_param_traits(&["body"], body, &registry, Some(&StubOverlay::new()));
+        let none = infer_param_traits(&["body"], body, env_for(&registry, LexerConfig::default()));
+        let overlay = StubOverlay::new();
+        let empty = infer_param_traits(&["body"], body, env_with_overlay(&registry, &overlay));
         assert_eq!(none, empty);
+    }
+
+    /// Issue #1275 — trait inference must resolve a command head's *effective
+    /// identity*, not its written spelling.
+    ///
+    /// tclsh oracle (8.6.16 and 9.0.4, byte-identical): `interp alias {} run
+    /// {} eval` makes `run $body` evaluate `$body`; `rename eval run` moves it
+    /// and leaves `eval` gone; a top-level `proc eval …` takes the name over,
+    /// so `eval $body` no longer evaluates anything.
+    ///
+    /// The environment carries the *document's* facts while the scan reads a
+    /// *proc body*, which is exactly the shape the analyser threads.
+    fn traits_under(prelude: &str, body: &str) -> HashMap<String, HashSet<ProcArgTrait>> {
+        let registry = CommandRegistry::build_default();
+        let identities =
+            crate::head_identity::command_head_identities(prelude, "tcl8.6", &registry);
+        infer_param_traits(
+            &["body"],
+            body,
+            TraitScanEnv {
+                registry: &registry,
+                stub_overlay: None,
+                config: LexerConfig::default(),
+                identities: &identities,
+            },
+        )
+    }
+
+    fn is_eval(traits: &HashMap<String, HashSet<ProcArgTrait>>) -> bool {
+        traits
+            .get("body")
+            .is_some_and(|s| s.contains(&ProcArgTrait::Eval))
+    }
+
+    #[test]
+    fn param_traits_follow_an_aliased_head() {
+        assert!(is_eval(&traits_under(
+            "interp alias {} run {} eval\n",
+            "run $body"
+        )));
+        // The `::`-qualified spelling of the alias classifies alike.
+        assert!(is_eval(&traits_under(
+            "interp alias {} run {} eval\n",
+            "::run $body"
+        )));
+        // Guard: an unbound `run` evaluates nothing.
+        assert!(!is_eval(&traits_under("set y 1\n", "run $body")));
+    }
+
+    #[test]
+    fn param_traits_follow_a_renamed_head() {
+        assert!(is_eval(&traits_under("rename eval run\n", "run $body")));
+        assert!(
+            !is_eval(&traits_under("rename eval run\n", "eval $body")),
+            "a renamed-away `eval` must not keep the built-in's grammar"
+        );
+    }
+
+    #[test]
+    fn param_traits_abstain_for_a_builtin_shadowed_by_a_user_proc() {
+        assert!(
+            !is_eval(&traits_under("proc eval {s} { return $s }\n", "eval $body")),
+            "a user `proc eval` takes the name over; its argument is not a script"
+        );
+        // Guard: the unshadowed built-in still records the trait.
+        assert!(is_eval(&traits_under("set y 1\n", "eval $body")));
+    }
+
+    #[test]
+    fn param_traits_abstain_for_a_dynamic_binding() {
+        assert!(
+            !is_eval(&traits_under("rename $old run\n", "run $body")),
+            "a dynamic rename must not make `run` an evaluator"
+        );
+        assert!(
+            is_eval(&traits_under("rename $old run\n", "eval $body")),
+            "a dynamic rename must not take `eval`'s grammar away either"
+        );
+    }
+
+    /// The caller-frame scans read the resolved head too: `upvar`'s
+    /// `FrameArgLayout::AliasPairs` grammar belongs to the command a head is.
+    #[test]
+    fn caller_frame_scans_follow_the_resolved_head() {
+        let registry = CommandRegistry::build_default();
+        let env_of = |prelude: &str| {
+            crate::head_identity::command_head_identities(prelude, "tcl8.6", &registry)
+        };
+
+        let aliased = env_of("interp alias {} peek {} upvar\n");
+        let env = TraitScanEnv {
+            registry: &registry,
+            stub_overlay: None,
+            config: LexerConfig::default(),
+            identities: &aliased,
+        };
+        assert!(
+            caller_frame_upvar_params(&["v"], "peek 1 $v alias", env).contains("v"),
+            "an alias of `upvar` must bind the caller's frame like `upvar`"
+        );
+        assert!(
+            caller_frame_literal_targets("peek 1 name name\nset name W1", env).contains_key("name"),
+            "an alias of `upvar` must record its literal caller-frame target"
+        );
+
+        let shadowed = env_of("proc upvar {a b c} { return 1 }\n");
+        let env = TraitScanEnv {
+            identities: &shadowed,
+            ..env
+        };
+        assert!(
+            caller_frame_upvar_params(&["v"], "upvar 1 $v alias", env).is_empty(),
+            "a shadowed `upvar` binds no caller frame"
+        );
+        assert!(
+            caller_frame_literal_targets("upvar 1 name name\nset name W1", env).is_empty(),
+            "a shadowed `upvar` records no literal caller-frame target"
+        );
+
+        // Guard: with nothing bound, both scans fire on the built-in.
+        let none = crate::head_identity::HeadIdentityMap::none();
+        let env = TraitScanEnv {
+            identities: none,
+            ..env
+        };
+        assert!(caller_frame_upvar_params(&["v"], "upvar 1 $v alias", env).contains("v"));
+        assert!(
+            caller_frame_literal_targets("upvar 1 name name\nset name W1", env)
+                .contains_key("name")
+        );
     }
 }

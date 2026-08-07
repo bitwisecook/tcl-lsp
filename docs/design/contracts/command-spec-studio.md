@@ -47,6 +47,47 @@ both directions. A field added to the registry without a schema entry fails
 the test by name — otherwise the studio would silently drop it, and a draft
 seeded from a real command would render back having lost behaviour.
 
+### Invariant: every `CommandSpec`-family field is surfaced or excluded
+
+The text scan above only reaches the two `DEFAULT` initialisers, and only
+compares against the schema. `coverage.rs` is the load-bearing gate: it makes
+the property a **build failure** rather than a test, and it reaches the whole
+family — the nested types a draft carries structurally (`OptionSpec`,
+`OptionArg`, `ArgValue`, `FormSpec`, `HoverSnippet`, `SideEffect`,
+`SetterConstraint`, `Arity`, `ArgTypeHint`, `Lifecycle`, `SubSubCommand`), the
+plain-data descriptors (`RepeatedArgLayout`, `HandleBindingSpec`,
+`HandleKeyword`, `SymbolDef`, `BytePayloadSpec`, `VersionedArgValue`), and the
+shared `&'static` descriptors (`DefinitionBodyGrammar`, `MemberBodyCommand`,
+`ObjectClassSpec`, `CaseListSpec`).
+
+Each covered type gets a pair:
+
+- a `witness_*` function holding an **exhaustive destructuring pattern with no
+  `..` rest**, so a field added to the registry type fails to compile there,
+  naming it (`error[E0027]: pattern does not mention field <name>`), and a
+  field removed fails too;
+- a `&[Field]` table saying where the studio surfaces each of those fields:
+  `Surface::Key` (a draft/schema key), `Surface::Keys` (a `Lifecycle`'s three
+  releases), `Surface::Expression` (rendered into the Rust expression a named
+  field holds), or `Surface::Excluded` **with a reason**.
+
+This is the field-level twin of the catalogue witnesses below, which use
+exhaustive `match`es so a new enum *variant* breaks the build.
+
+The tests then prove the claim: a `Key` entry must be both a schema key and a
+key the seeder writes (which, because `render_rs` walks the schema and the WASM
+`schema()` serialises it, is what carries a field through all four layers); an
+`Expression` entry's field name must appear in the literal a rendered spec
+emits; and no schema key may be left without a coverage entry.
+
+**Excluded by decision, not by accident.** The only exclusions today are the
+fields of `DefinitionBodyGrammar`, `MemberBodyCommand`, `ObjectClassSpec`, and
+`CaseListSpec`: each is a shared registry constant that many commands
+reference, so the studio's editor takes the *constant's path*
+(`Some(&definer::SNIT_GRAMMAR)`) and authoring a new grammar is an edit to the
+registry module that owns it. Every field is still listed, so adding one to a
+grammar is a stated decision rather than an oversight.
+
 ### Invariant: the catalogues cover every variant
 
 `catalogue` holds the registry's enum and bitflag vocabularies. Each catalogue
@@ -69,9 +110,11 @@ what makes the studio a *browser* of the registry as well as an editor.
 ### Fields that cannot round-trip
 
 Some fields hold a function pointer (`arg_role_resolver`, `const_fold`,
-`taint_sink_gate`, …) or a reference to a `&'static` descriptor
-(`definition_body`, `case_list`, `object_class`, …). Rust can observe that
-such a field is `Some`, but not recover the expression that set it.
+`taint_sink_gate`, …) or a reference to a **named** `&'static` descriptor the
+registry shares between commands (`definition_body`, `case_list`,
+`object_class`, `body_scope`, `frame_effect`, `bpf_op`, `event_requires`,
+`command_forms`). Rust can observe that such a field is `Some`, but not
+recover the expression — the constant's path — that set it.
 
 Seeding records those keys under `draft::UNRENDERABLE_KEY` (`__unrenderable`).
 The form warns about them and the renderer emits a `TODO` comment naming each
@@ -81,6 +124,18 @@ rendered file says what is missing.
 Those fields use `FieldKind::RustExpr`: the value is a string emitted
 verbatim, so it carries its own `Some(…)` and type path. The schema's `hint`
 shows the exact expression shape expected.
+
+A descriptor that is **plain data** is a different case and does round-trip.
+`repeated_args`, `binds_handle`, `byte_array_payload`, `defines_symbol`,
+`oo_context_facts`, and a subcommand's `versioned_arg_values` are still edited
+as one `RustExpr` field, but seeding renders them back out as **full struct
+literals** — every field spelled, never a defaulting constructor like
+`RepeatedArgLayout::strided` that would hide the ones it defaults. Drafting a
+command that sets one and re-rendering it therefore loses nothing, and the
+`Surface::Expression` half of `coverage.rs` is what keeps each literal
+complete: a new field on `HandleBindingSpec` breaks the destructuring, and a
+field the renderer forgets fails the test that looks for it in the emitted
+spec.
 
 One unrecoverable expression is not a top-level field. `OptionArity::Hook`
 holds a function pointer inside an *option row*, so it gets a `hook fn` text

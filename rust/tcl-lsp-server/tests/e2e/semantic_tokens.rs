@@ -2073,3 +2073,103 @@ fn test_list_built_upvar_declares_its_local_like_the_literal_spelling() {
         "a value slot must not declare anything: {value_tokens:?}"
     );
 }
+
+/// Issue #1185: a command head's grammar follows its **effective command
+/// identity**, not its spelling — end-to-end through the packaged server.
+///
+/// tclsh-proof, byte-identical on 9.0.4 and 8.6.16: `interp alias {} myformat
+/// {} format; myformat %08x 42` → `0000002a`; `rename upvar myupvar` leaves
+/// `myupvar 1 outer local` a working `upvar`; `proc scan {args} {return USER};
+/// scan %d 7` → `USER`.
+#[test]
+fn test_command_identity_drives_argument_grammar() {
+    let mut lsp = Lsp::tcl();
+    let leg = legend(&lsp);
+    let mods = modifiers(&lsp);
+    let decl_bit = modifier_bit(&mods, "declaration");
+    let lib_bit = modifier_bit(&mods, "defaultLibrary");
+
+    let src = concat!(
+        "puts [::format {%08x} 42]\n",          // 0 — qualified spelling
+        "interp alias {} myformat {} format\n", // 1
+        "puts [myformat {%08x} 42]\n",          // 2 — aliased
+        "rename upvar myupvar\n",               // 3
+        "proc reader {} {\n",                   // 4
+        "    myupvar 1 outer local\n",          // 5 — renamed
+        "}\n",                                  // 6
+        "proc scan {args} { return USER }\n",   // 7
+        "puts [scan {%d} 7]\n",                 // 8 — shadowed
+    );
+    let uri = open_doc(&mut lsp, src);
+    let tokens = typed(&mut lsp, &leg, &uri);
+    let types_on = |line: i64| -> Vec<&str> {
+        tokens
+            .iter()
+            .filter(|t| t.line == line)
+            .map(|t| t.ttype.as_str())
+            .collect()
+    };
+
+    // TP — the qualified spelling and the alias both surface printf
+    // conversion sub-tokens, exactly as a bare `format` call does.
+    for line in [0, 2] {
+        let types = types_on(line);
+        assert!(
+            types.contains(&"formatSpec") && types.contains(&"formatPercent"),
+            "line {line} must carry format conversion tokens: {types:?}"
+        );
+    }
+
+    // TP — the renamed `upvar` keeps its keyword classification and still
+    // declares its local variable.
+    let head = tokens
+        .iter()
+        .find(|t| t.line == 5 && covered(src, t) == "myupvar")
+        .unwrap_or_else(|| panic!("no `myupvar` head token: {tokens:?}"));
+    assert_eq!(
+        head.ttype, "keyword",
+        "a renamed keyword stays a keyword: {head:?}"
+    );
+    let local = tokens
+        .iter()
+        .find(|t| t.line == 5 && covered(src, t) == "local")
+        .unwrap_or_else(|| panic!("no `local` token: {tokens:?}"));
+    assert_eq!(
+        (local.ttype.as_str(), local.modifiers & decl_bit != 0),
+        ("variable", true),
+        "the renamed upvar must still declare its local: {local:?}"
+    );
+
+    // FP — a top-level `proc scan` takes the built-in's name over: no scan
+    // grammar, no `defaultLibrary` modifier, and the `%d` word stays a string.
+    let types = types_on(8);
+    assert!(
+        !types.contains(&"formatSpec") && !types.contains(&"formatPercent"),
+        "a shadowed `scan` must get no conversion tokens: {types:?}"
+    );
+    let shadowed = tokens
+        .iter()
+        .find(|t| t.line == 8 && covered(src, t) == "scan")
+        .unwrap_or_else(|| panic!("no shadowed `scan` head token: {tokens:?}"));
+    assert_eq!(
+        shadowed.modifiers & lib_bit,
+        0,
+        "a shadowed built-in must lose `defaultLibrary`: {shadowed:?}"
+    );
+    assert!(
+        types.contains(&"string"),
+        "the shadowed call's `{{%d}}` stays a string: {types:?}"
+    );
+
+    // TN — an unprovable binding states nothing, so the name keeps its own
+    // (unknown-command) identity and its argument stays a plain string.
+    let dyn_src = "interp alias {} myfmt {} $target\nputs [myfmt {%08x} 42]\n";
+    let dyn_uri = open_doc(&mut lsp, dyn_src);
+    let dyn_tokens = typed(&mut lsp, &leg, &dyn_uri);
+    assert!(
+        !dyn_tokens
+            .iter()
+            .any(|t| t.line == 1 && t.ttype == "formatSpec"),
+        "a dynamic alias target must not confer format grammar: {dyn_tokens:?}"
+    );
+}
