@@ -428,12 +428,14 @@ fn lifecycle_expr(value: Lifecycle) -> String {
 /// is exactly the drift this module exists to prevent.
 fn repeated_arg_layout_expr(layout: RepeatedArgLayout) -> String {
     format!(
-        "RepeatedArgLayout {{ role: {}, start: {}, stride: {}, exclude_trailing: {}, optional_leading_word: {} }}",
+        "RepeatedArgLayout {{ role: {}, start: {}, stride: {}, exclude_trailing: {}, \
+         optional_leading_word: {}, conditional_binding: {} }}",
         catalogue::qualified_variant("ArgRole", &layout.role),
         layout.start,
         layout.stride,
         layout.exclude_trailing,
         layout.optional_leading_word,
+        layout.conditional_binding,
     )
 }
 

@@ -1303,7 +1303,8 @@ mod tests {
             d["repeated_args"],
             json!(
                 "&[RepeatedArgLayout { role: ArgRole::VarWrite, start: 1, stride: 2, \
-                 exclude_trailing: 1, optional_leading_word: true }]"
+                 exclude_trailing: 1, optional_leading_word: true, \
+                 conditional_binding: false }]"
             )
         );
         assert_eq!(
