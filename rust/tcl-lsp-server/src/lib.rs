@@ -1954,16 +1954,29 @@ async fn refresh_cross_file_evidence(
     slots: &Arc<Mutex<HashMap<Uri, DiagSlot>>>,
     uri: &Uri,
 ) {
-    // Class factories first, call-site evidence second, because the second
-    // reads the first: `file_call_site_evidence` resolves against
-    // `project_proc_names` / `file_decls`, both of which come off `item_tree`,
-    // which reads `SourceFile::workspace_class_factories`.  Run the other way
-    // round, every call-site table is computed under the pre-sync oracle and
-    // then immediately invalidated by the factory publish, so the pass costs a
-    // full project scan whose answer is thrown away and the corrected one
-    // waits on a reschedule (issue #1296).
-    let mut changed = sync_workspace_class_factories(handles).await;
-    for uri in sync_cross_file_evidence(handles).await {
+    // Call-site evidence first, class factories second — deliberately, and
+    // *not* in dependency order.  `file_call_site_evidence` does read the
+    // factory oracle transitively (`project_proc_names` / `file_decls` come off
+    // `item_tree`, which reads `SourceFile::workspace_class_factories`), so
+    // running the factory sync first looks like the tidier order.  Measured, it
+    // is much worse: the factory publish invalidates every file's `item_tree`,
+    // so the call-site pass that follows it is a *cold* one — the ~7s
+    // whole-project lower-and-CFG path this function is explicitly kept off the
+    // edit handler for — and that lands in front of `reschedule_peers`, which
+    // is what actually republishes the files the factory publish invalidated.
+    // On a large workspace that delayed convergence enough to lose a case that
+    // resolved before (issue #1296: a two-level cross-file chain rooted in
+    // tcllib's `clay.tcl` stopped resolving inside the probe's window).  Run in
+    // this order the call-site pass reads memoised state and the reschedule
+    // follows the factory publish immediately; the call-site tables computed
+    // under the pre-sync oracle are corrected by the peers' own next refresh,
+    // which the reschedule has already scheduled.
+    let mut changed = sync_cross_file_evidence(handles).await;
+    let wake = RoundReschedule {
+        slots,
+        self_uri: uri,
+    };
+    for uri in sync_workspace_class_factories(handles, Some(wake)).await {
         if !changed.contains(&uri) {
             changed.push(uri);
         }
@@ -2235,29 +2248,40 @@ const CLASS_FACTORY_SYNC_ROUNDS: usize = 16;
 /// deeper links waited on whatever unrelated edit happened to run the sync
 /// next.
 ///
+/// `wake`, when supplied, republishes each round's invalidated peers **as that
+/// round lands** rather than after the whole fixpoint.  A round only reads, but
+/// the round *after* a publish has to recompute every file's `item_tree`
+/// through the input the publish just moved, so on a large workspace the
+/// confirming round — the one that merely agrees the index has stopped moving —
+/// is the slowest part of the pass.  Left in front of the reschedule it delays
+/// the republish that the *previous* round already earned, and a two-level
+/// chain that resolved before the fixpoint existed stopped resolving until
+/// later (measured on tcllib's `clay.tcl`, issue #1296).  Waking per round
+/// keeps the fixpoint's extra rounds strictly additive: nothing that was
+/// already provable waits on them.
+///
 /// Called from two places, because the answer must be in place before either
 /// consumer needs it: at the end of the workspace scan (so a document opened
-/// afterwards is analysed with the oracle on its very first pass) and after
-/// each diagnostics publish (so a metaclass added by an *edit* propagates).
-async fn sync_workspace_class_factories(handles: &EvidenceHandles) -> Vec<Uri> {
+/// afterwards is analysed with the oracle on its very first pass; no peers to
+/// wake there, since nothing has published yet) and after each diagnostics
+/// publish (so a metaclass added by an *edit* propagates).
+async fn sync_workspace_class_factories(
+    handles: &EvidenceHandles,
+    wake: Option<RoundReschedule<'_>>,
+) -> Vec<Uri> {
     let mut changed: Vec<Uri> = Vec::new();
     let mut seen: HashSet<Uri> = HashSet::new();
     for _ in 0..CLASS_FACTORY_SYNC_ROUNDS {
-        let __t0 = std::time::Instant::now();
-        let __r = sync_workspace_class_factories_round(handles).await;
-        {
-            use std::io::Write as _;
-            if let Ok(mut f) = std::fs::OpenOptions::new().create(true).append(true).open("/tmp/dbg1296.log") {
-                let _ = writeln!(f, "ROUND {:?} {}", __t0.elapsed(), match &__r { ClassFactoryRound::Settled => "settled".to_string(), ClassFactoryRound::Cancelled => "cancelled".to_string(), ClassFactoryRound::Moved(v) => format!("moved {}", v.len()) });
-            }
-        }
-        match __r {
+        match sync_workspace_class_factories_round(handles).await {
             // The fixpoint: every file already carries the index the project
             // proves, so another round would recompute a byte-identical one
             // off unchanged inputs.
             ClassFactoryRound::Settled => return changed,
             ClassFactoryRound::Cancelled => {}
             ClassFactoryRound::Moved(moved) => {
+                if let Some(wake) = wake.as_ref() {
+                    reschedule_peers(wake.slots, wake.self_uri, moved.clone()).await;
+                }
                 for uri in moved {
                     if seen.insert(uri.clone()) {
                         changed.push(uri);
@@ -2273,6 +2297,15 @@ async fn sync_workspace_class_factories(handles: &EvidenceHandles) -> Vec<Uri> {
          until the next sync."
     );
     changed
+}
+
+/// Where [`sync_workspace_class_factories`] sends each round's invalidated
+/// peers, so a later round never sits in front of an earlier round's republish.
+struct RoundReschedule<'a> {
+    slots: &'a Arc<Mutex<HashMap<Uri, DiagSlot>>>,
+    /// The document driving this pass; [`reschedule_peers`] skips it, because
+    /// its own worker decides separately whether to re-run it.
+    self_uri: &'a Uri,
 }
 
 /// What one [`sync_workspace_class_factories`] round learned.
@@ -2313,12 +2346,6 @@ async fn sync_workspace_class_factories_round(handles: &EvidenceHandles) -> Clas
     let computed = tokio::task::spawn_blocking(move || {
         salsa::Cancelled::catch(std::panic::AssertUnwindSafe(|| {
             let index = tcl_lsp_db::project_class_factories(&snapshot, project);
-            {
-                use std::io::Write as _;
-                if let Ok(mut f) = std::fs::OpenOptions::new().create(true).append(true).open("/tmp/dbg1296.log") {
-                    let _ = writeln!(f, "  index={:?}", index.keys().collect::<Vec<_>>());
-                }
-            }
             let want = (!index.is_empty()).then_some(index);
             let pending: Vec<(Uri, tcl_lsp_db::SourceFile)> = files
                 .into_iter()
@@ -4148,9 +4175,17 @@ impl Backend {
             file.set_text(&mut *db).to(text);
             file.set_dialect(&mut *db).to(dialect);
         } else {
+            let oracle = Self::published_class_factories(&db, &files);
             let file = {
                 let mut tombstones = self.db_tombstones.lock().await;
-                Self::revive_or_create_db_source(&mut db, &mut tombstones, uri, text, dialect)
+                Self::revive_or_create_db_source(
+                    &mut db,
+                    &mut tombstones,
+                    uri,
+                    text,
+                    dialect,
+                    oracle,
+                )
             };
             files.insert(uri.clone(), file);
             // Membership changed — re-set the `Project` file set.
@@ -4211,16 +4246,49 @@ impl Backend {
         uri: &Uri,
         text: String,
         dialect: String,
+        oracle: Option<Arc<tcl_compiler::analyser::ClassFactoryIndex>>,
     ) -> tcl_lsp_db::SourceFile {
         use salsa::Setter as _;
-        if let Some(file) = tombstones.remove(uri) {
+        let file = if let Some(file) = tombstones.remove(uri) {
             file.set_text(db).to(text);
             file.set_dialect(db).to(dialect);
             file
         } else {
             let path = uri.to_file_path().map(|p| p.display().to_string());
             tcl_lsp_db::SourceFile::new(&*db, text, dialect, path)
+        };
+        // Hand the arriving file the workspace class-factory oracle the rest of
+        // the project already carries (issue #1276/#1296), rather than leaving
+        // it at `None` for `sync_workspace_class_factories` to correct a publish
+        // later. A default-`None` arrival is analysed — and *published* — as if
+        // the workspace declared no metaclass at all, so every class a
+        // cross-file metaclass manufactures in it is missing from that first
+        // result and from the workspace index built out of it; only a second,
+        // rescheduled pass repaired it. The value is a project-wide fact every
+        // other file is already entitled to, so seeding it asserts nothing the
+        // next sync would not assert anyway.
+        if oracle.is_some() {
+            file.set_workspace_class_factories(db).to(oracle);
         }
+        file
+    }
+
+    /// The workspace class-factory oracle currently published to the project,
+    /// or `None` when the workspace has no metaclass (the overwhelmingly
+    /// common case, and the state every file starts in).
+    ///
+    /// One index serves every file, so any file carrying one carries *the* one.
+    /// Mid-round the publish is applied file by file, so a few may still hold
+    /// the previous, smaller index; the widest published index is the right
+    /// seed, and the next compare-then-set round corrects it either way.
+    fn published_class_factories(
+        db: &tcl_lsp_db::TclDatabase,
+        files: &HashMap<Uri, tcl_lsp_db::SourceFile>,
+    ) -> Option<Arc<tcl_compiler::analyser::ClassFactoryIndex>> {
+        files
+            .values()
+            .filter_map(|file| file.workspace_class_factories(db).clone())
+            .max_by_key(|index| index.len())
     }
 
     /// Add/update many salsa `SourceFile` inputs at once (disk-backed workspace
@@ -4237,6 +4305,7 @@ impl Backend {
         let mut db = self.db.lock().await;
         let mut files = self.db_files.lock().await;
         let mut tombstones = self.db_tombstones.lock().await;
+        let oracle = Self::published_class_factories(&db, &files);
         let mut membership_changed = false;
         for (uri, text, dialect) in entries {
             // Same analysis-form invariant `db_set_source` enforces; the disk
@@ -4252,6 +4321,7 @@ impl Backend {
                     uri,
                     text.clone(),
                     dialect.clone(),
+                    oracle.clone(),
                 );
                 files.insert(uri.clone(), file);
                 membership_changed = true;
@@ -11761,12 +11831,15 @@ impl Backend {
         // navigation come back empty for every class a cross-file metaclass
         // manufactures — the exact symptom the issue reports — until some
         // later edit happens to re-run the diagnostics worker.
-        sync_workspace_class_factories(&EvidenceHandles {
-            db: Arc::clone(&self.db),
-            db_files: Arc::clone(&self.db_files),
-            db_project: Arc::clone(&self.db_project),
-            workspace_index: Arc::clone(&self.workspace_index),
-        })
+        sync_workspace_class_factories(
+            &EvidenceHandles {
+                db: Arc::clone(&self.db),
+                db_files: Arc::clone(&self.db_files),
+                db_project: Arc::clone(&self.db_project),
+                workspace_index: Arc::clone(&self.workspace_index),
+            },
+            None,
+        )
         .await;
         // In-process readiness signal, released before the log line so a
         // handler waiting on it is not held up by a client round-trip.
