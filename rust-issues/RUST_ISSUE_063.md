@@ -7,7 +7,7 @@
 | **Severity** | medium |
 | **Subsystem** | Backend parity (WASM/VM/eBPF/registry) |
 | **Location** | `eBPF` |
-| **Status** | Open |
+| **Status** | Fixed — all three sub-findings re-checked at the branch tip (2026-08-07). A non-integer or substituted `when` priority, and any word beyond the `when EVENT ?priority N?` grammar, is now a hard error (`frontend.rs:205-249`, citing this issue at `:207`). A profile body may contain only `field` declarations; anything else is rejected rather than dropped (`profile.rs:40-41`, `:211`). A handler path that reaches the end without a verdict is a hard error, never a synthesised `drop` (`lower.rs:892-912`, "Never synthesize one silently"). Covered by `bpf-tcl/tests/hardening.rs:37` and `bpf-tcl/tests/profiles.rs:129`. |
 | **Verification** | Reported by review agent (confidence: high) |
 
 ## Finding

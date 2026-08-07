@@ -26,10 +26,12 @@
 //!   formatter / minifier engines, driven with the `f5-irules` dialect), and
 //!   `event-info` (event metadata + the `validCommands` cross-product over the
 //!   reconciled command registry, `CommandRegistry::event_info`).
-//! - **Not yet implemented** — `lint` / `context` (the iRule analyser), and
-//!   `trace` / `pgo` (the compiler lowering / CFG / VM). Each parses its args
-//!   (so `--help` works) but its handler prints a clear not-implemented error
-//!   and exits 2.
+//! - **Implemented** (continued) — `lint` (the iRule-only lint rules),
+//!   `context` (each rule bundled with the BIG-IP objects it references), and
+//!   `trace` (static event-flow trace from a starting event).
+//! - **Not yet implemented** — `pgo` (needs the compiler-VM branch-reorder
+//!   engine; issue #1315). It parses its args (so `--help` works) but its
+//!   handler prints a clear not-implemented error and exits 2.
 
 use std::path::{Path, PathBuf};
 

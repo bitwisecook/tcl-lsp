@@ -8194,7 +8194,7 @@ mod tests {
         ),
         // ---- not yet modelled, but abstains safely (flip to Resolve when done) ----
         (
-            "named_object", // TODO(phase-3): resolve via created_instance_commands
+            "named_object", // issue #1312: resolve via created_instance_commands
             "oo::class create C { method mrun {} {} }\nC create obj\nobj mrun\n",
             "mrun",
             2,

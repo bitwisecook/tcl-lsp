@@ -88,13 +88,20 @@ orphans to retire, so the completeness guard correctly keeps them in the table:
   (`tclpkg-architecture.md`, `contracts/tclpkg-lockfile.md`) specify these editor
   diagnostics — but the analyser does not yet surface them. Wire them when it
   gains tclpkg-awareness for `tclpkg.tcl` / `tclpkg.lock`.
-- **`W122` ("Mistyped IPv4 address, octet > 255").** Has dedup-suppression
-  handling (`analyser/diagnostics.rs:475`) and a test, but the octet-range check
-  at `analyser/diagnostics/usage.rs:388` *skips* octets > 255 rather than flagging
-  them — a stubbed check to finish, not stale handling to remove.
+- **`W122` ("Mistyped IPv4 address, octet > 255 or leading zero").**
+  **Correction (2026-08-07): this row is wrong and W122 is a genuine orphan.**
+  It claimed the octet-range check skipped octets > 255, leaving a stub to
+  finish. Both halves of W122's description are in fact implemented and firing
+  — under **`W124`**, which reports `octet 4 (300) exceeds 255` and
+  `octet 3 (01) has a leading zero` on the obvious inputs. So W122 duplicates a
+  working code, and its dedup-suppression rule
+  (`analyser/diagnostics.rs:983`, "suppress W122 where W124 fired on the same
+  line") can never be reached. Retiring it is tracked in **issue #1317**.
 
 An "every code is emitted" guard is deliberately **not** added: it would
-false-positive on exactly these legitimately-reserved codes.
+false-positive on the legitimately-reserved `W130`–`W134`. Note that those five
+are nonetheless shipped to every editor's settings catalogue today, where they
+present as toggles that do nothing — also #1317.
 
 ### 2. Investigated and rejected — do not re-open
 

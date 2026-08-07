@@ -1,7 +1,21 @@
 # Python → Rust port gaps — audit
 
 > **Audience:** Maintainer / Contributor
-> **Type:** Design (status audit)
+> **Type:** Design (status audit — **historical**)
+
+> **Historical: do not plan from this file.** It was written on 2026-06-27
+> against a `main`-based branch while the Python tree still existed, and the
+> world it describes is gone. Spot-checked on 2026-08-07, its executive summary
+> is wrong in at least three places: Python is retired (there is no `pyproject.toml`
+> or `uv.lock` on this branch, so the "PyO3 public API finish + Python retirement"
+> row is closed — the only remaining `pyo3` dependency is the deliberate
+> `rust/bigip-report-gen/python` binding); the "FP precision divergences
+> (5 `#[ignore]`s)" row is closed, as the FP suite carries no `#[ignore]` at all;
+> and the `f5-cli` tooling residual is down to a single verb (issue #1315).
+>
+> Kept for the record of *how* the port was sequenced. For live gaps use
+> [`../runtime/runtime-execution-gaps.md`](../runtime/runtime-execution-gaps.md)
+> (runtime and execution) and the GitHub issue list (everything else).
 
 A single consolidated inventory of **every feature not yet completely ported
 from Python to Rust**, verified against source on the day of writing:
