@@ -775,6 +775,7 @@ pub fn witness_repeated_arg_layout(layout: &RepeatedArgLayout) {
         stride: _,
         exclude_trailing: _,
         optional_leading_word: _,
+        conditional_binding: _,
     } = layout;
 }
 
@@ -788,6 +789,7 @@ pub const REPEATED_ARG_LAYOUT: &[Field] = &[
         "optional_leading_word",
         Surface::Expression("repeated_args"),
     ),
+    f("conditional_binding", Surface::Expression("repeated_args")),
 ];
 
 /// Compile-time witness for [`HANDLE_BINDING_SPEC`].
@@ -1238,6 +1240,7 @@ mod tests {
         stride: 2,
         exclude_trailing: 1,
         optional_leading_word: true,
+        conditional_binding: false,
     };
 
     const WITNESS_SYMBOL: SymbolDef = SymbolDef {
