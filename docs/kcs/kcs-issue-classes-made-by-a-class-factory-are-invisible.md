@@ -163,7 +163,16 @@ latter.
    strategies disagree about whether a class exists. It travels on
    `analyse_proc_body_isolated` and is part of `ItemBodyKey::body_env` so
    salsa cannot serve a stale verdict.
-14. **Re-dispatch must be idempotent per source site.** The ordinary body
+14. **The workspace index is a fixpoint, not one pass.** The query that
+   collects a file's factories reads the very index the host publishes from
+   it, so a metaclass manufactured by another file's metaclass is provable
+   only on a round whose index already names its maker. One publish is
+   therefore one link deep. The host iterates until a round moves nothing
+   (issue #1296); termination holds because a round writes only what some
+   file proved, a declaration cycle proves neither of its halves, and the
+   loop is capped regardless. A workspace with no metaclass settles in one
+   round that writes nothing.
+15. **Re-dispatch must be idempotent per source site.** The ordinary body
    walk already covered the first element, so a site is visited twice under
    the loop variable's own key. One source site can never declare the same
    member twice, so `(objdefine_offset, member name)` is an exact
@@ -256,6 +265,22 @@ latter.
    `project_class_factories` carry its qualified name? does the call's name
    resolve to that exact qualified name under the enclosing namespace? Each
    "no" is a deliberate abstention, not a bug.
+10. Chain **depth** across files is not a reason for a "no" at step 9. A
+    metaclass that is itself manufactured by a *third* file's metaclass is
+    proved one link per publish round, so the host iterates the publish to a
+    fixpoint (issue #1296). If `project_class_factories` is missing a
+    qualified name you can see being created, the question is whether some
+    file *proved* it, not how deep it sits — a round adds an entry only on
+    proof, never on a guess. Before the fixpoint landed this presented as a
+    three-level cross-file chain resolving to nothing from a call site while
+    `documentSymbol` on the declaring file reported the class correctly,
+    which is the partial-resolution shape that makes it easy to miss.
+11. If the class resolves but a *handle* bound from it does not, the
+    construction form is the thing to look at, not the factory. A handle
+    bound by calling the class command itself — dispatched through the
+    metaclass's `unknown` method, as every Tk megawidget is
+    (`::tk::IconList .il`) — is a separate, open gap: issue #1303. `create`
+    and `new` on the same class bind the handle correctly.
 
 ## Test anchors
 
