@@ -113,6 +113,10 @@ a design doc. Put it under [`../design/`](../design/README.md) instead.
 - [kcs-issue-vscode-test-runner-reports-false-hang.md](kcs-issue-vscode-test-runner-reports-false-hang.md)
   — `make test-ext` reports "mocha never completed (likely hung)" on a run
   that actually passed every test.
+- [kcs-issue-runtime-string-subcommands-corrupt-binary-values.md](kcs-issue-runtime-string-subcommands-corrupt-binary-values.md)
+  — `string index`/`range`/`replace`/`toupper` under the WASM runtime used to
+  replace non-UTF-8 bytes from `binary format`/a binary channel read with
+  U+FFFD instead of preserving them.
 
 ## Q&A
 
