@@ -278,11 +278,25 @@ pub(crate) fn caller_frame_bindings(
     if start >= end {
         return out;
     }
+    // Built once for the whole scan, not per command: the self-dispatch walk
+    // below resolves method-body heads through it, and a `rename` or
+    // `interp alias` in this document has to read the same way here as it does
+    // in every other consumer (issue #1275).
+    // Without a registry there is no way to know which commands mutate the
+    // command table, so there is no fact to record and the shared empty map is
+    // the honest answer.
+    let scanned_identities = resolution.registry.map(|registry| {
+        tcl_compiler::head_identity::command_head_identities(source, dialect, registry)
+    });
+    let identities = scanned_identities
+        .as_ref()
+        .unwrap_or_else(|| tcl_compiler::head_identity::HeadIdentityMap::none());
     let ctx = BindingScan {
         analysis,
         source,
         dialect,
         resolution,
+        identities,
         namespace: crate::definition::namespace_context_at(
             &analysis.global_scope,
             cursor_off,
@@ -305,6 +319,10 @@ struct BindingScan<'a> {
     /// in this scan is answered in — the builtin gate and, when the host has a
     /// workspace index, the export oracle (issue #1116 item 1).
     resolution: crate::definition::CallResolution<'a>,
+    /// The document's proven command-identity facts, built once per scan and
+    /// handed to every trait scan below so a rebound head resolves here the
+    /// same way it does everywhere else (issue #1275).
+    identities: &'a tcl_compiler::head_identity::HeadIdentityMap,
     namespace: String,
     name: &'a str,
 }
@@ -477,7 +495,7 @@ fn bindings_from_self_dispatch(
     out: &mut Vec<CallerFrameBinding>,
 ) {
     use tcl_compiler::analyser::param_traits::{
-        caller_frame_literal_targets, caller_frame_upvar_params, infer_param_traits_with_config,
+        TraitScanEnv, caller_frame_literal_targets, caller_frame_upvar_params, infer_param_traits,
     };
 
     let (Some(head), Some(head_text)) = (cmd.argv.first(), cmd.texts.first()) else {
@@ -487,7 +505,7 @@ fn bindings_from_self_dispatch(
         return;
     }
     let (Some(registry), Some(method)) = (
-        ctx.registry,
+        ctx.resolution.registry,
         cmd.texts.get(1).filter(|w| is_plain_var_name(w)),
     ) else {
         return;
@@ -508,9 +526,14 @@ fn bindings_from_self_dispatch(
     let Some(body) = method_body_text(ctx.source, md.body_span) else {
         return;
     };
-    let config = tcl_lexer::LexerConfig::for_dialect(ctx.dialect);
+    let env = TraitScanEnv {
+        registry,
+        stub_overlay: None,
+        config: tcl_lexer::LexerConfig::for_dialect(ctx.dialect),
+        identities: ctx.identities,
+    };
     let callee = format!("{provider_q}::{method}");
-    if let Some(written) = caller_frame_literal_targets(body, registry, config).get(ctx.name) {
+    if let Some(written) = caller_frame_literal_targets(body, env).get(ctx.name) {
         out.push(CallerFrameBinding {
             callee: callee.clone(),
             param: None,
@@ -523,11 +546,11 @@ fn bindings_from_self_dispatch(
     if param_names.is_empty() {
         return;
     }
-    let caller_frame_params = caller_frame_upvar_params(&param_names, body, registry, config);
+    let caller_frame_params = caller_frame_upvar_params(&param_names, body, env);
     if caller_frame_params.is_empty() {
         return;
     }
-    let traits = infer_param_traits_with_config(&param_names, body, registry, None, config);
+    let traits = infer_param_traits(&param_names, body, env);
     for (i, param) in param_names.iter().enumerate() {
         // `my <method> <arg>…` — the actual arguments start one word later
         // than a plain call's, because the method name is itself a word.
@@ -1167,8 +1190,14 @@ oo::class create Widget {
     fn a_mixin_method_reached_by_my_dispatch_binds_its_literal_target() {
         let analysis = analyse(MIXIN_SRC);
         let read = offset_of(MIXIN_SRC, "$name\"") + 1;
-        let bindings =
-            caller_frame_bindings(&analysis, MIXIN_SRC, "tcl9.0", Some(reg()), read, "name");
+        let bindings = caller_frame_bindings(
+            &analysis,
+            MIXIN_SRC,
+            "tcl9.0",
+            crate::definition::CallResolution::document_only().with_registry(reg()),
+            read,
+            "name",
+        );
         assert_eq!(bindings.len(), 1, "{bindings:?}");
         assert!(
             bindings[0].callee.contains("NameProcess"),
@@ -1190,8 +1219,15 @@ oo::class create Widget {
         let analysis = analyse(MIXIN_SRC);
         let read = offset_of(MIXIN_SRC, "$name\"") + 1;
         assert!(
-            caller_frame_bindings(&analysis, MIXIN_SRC, "tcl9.0", Some(reg()), read, "other")
-                .is_empty()
+            caller_frame_bindings(
+                &analysis,
+                MIXIN_SRC,
+                "tcl9.0",
+                crate::definition::CallResolution::document_only().with_registry(reg()),
+                read,
+                "other"
+            )
+            .is_empty()
         );
     }
 
@@ -1213,7 +1249,15 @@ oo::class create Widget {
         let analysis = analyse(src);
         let read = offset_of(src, "$name\"") + 1;
         assert!(
-            caller_frame_bindings(&analysis, src, "tcl9.0", Some(reg()), read, "name").is_empty()
+            caller_frame_bindings(
+                &analysis,
+                src,
+                "tcl9.0",
+                crate::definition::CallResolution::document_only().with_registry(reg()),
+                read,
+                "name"
+            )
+            .is_empty()
         );
     }
 
@@ -1241,7 +1285,15 @@ oo::class create Derived {
         let analysis = analyse(src);
         let read = offset_of(src, "$name\"") + 1;
         assert!(
-            caller_frame_bindings(&analysis, src, "tcl9.0", Some(reg()), read, "name").is_empty()
+            caller_frame_bindings(
+                &analysis,
+                src,
+                "tcl9.0",
+                crate::definition::CallResolution::document_only().with_registry(reg()),
+                read,
+                "name"
+            )
+            .is_empty()
         );
     }
 
