@@ -252,6 +252,53 @@ mod opt_proc_definer {
         assert!(!fires(src, D, "E003"), "{:?}", codes(src, D));
     }
 
+    /// The **accepted trade-off**, pinned as a choice rather than left to
+    /// read as an oversight (issue #923 audit idx 99 verification).
+    ///
+    /// C Tcl does enforce a positional-argument bound for an `OptProc`, at
+    /// call time, from the parsed optlist — tclsh 9.0.4 and 8.6.16 agree
+    /// exactly:
+    ///
+    /// ```text
+    /// ::tcl::OptProc ::safe::loadTk {{child -tkAppName} {-use …} {-display …}} {…}
+    /// ::safe::loadTk interp1                       → OK (one positional arg)
+    /// ::safe::loadTk interp1 extraPositionalArg    → too many arguments
+    ///                                                (unexpected argument(s): …)
+    /// ```
+    ///
+    /// The definer installs `::proc $name args {…}`, so nothing in the
+    /// *declaration* bounds the call; reproducing the bound would mean
+    /// modelling `::tcl::OptKeyParse`'s runtime dispatch over the optlist
+    /// (flag descriptors, defaults, `-…` terminators).  Until that exists,
+    /// the choice is between a false E003 on every legitimate call — the
+    /// defect the audit found, `::safe::loadTk interp1` reported as "too
+    /// many arguments: expected at most 0" — and silence on a genuine
+    /// overflow.  Silence is the abstaining direction this whole cluster
+    /// takes, so the overflow goes unreported **on purpose**.
+    ///
+    /// The scope of that silence is what keeps it honest, so it is asserted
+    /// here too: an ordinary proc is still arity-checked
+    /// (`unrelated_proc_still_gets_real_arity_checked`), and this is a
+    /// definer-scoped abstention, not a retreat from arity checking.
+    #[test]
+    fn a_genuine_opt_proc_arity_overflow_is_deliberately_unreported() {
+        let src = "tcl::OptProc greet {child -use -display} { return $child }\n\
+                   greet interp1 extraPositionalArg\n";
+        assert!(
+            !fires(src, D, "E002") && !fires(src, D, "E003"),
+            "the overflow is real in C Tcl but deliberately not modelled here: {:?}",
+            codes(src, D)
+        );
+        // …and the legitimate call is silent for the same reason, which is
+        // the half the audit was actually about.
+        let ok = "tcl::OptProc greet {child -use -display} { return $child }\ngreet interp1\n";
+        assert!(
+            !fires(ok, D, "E002") && !fires(ok, D, "E003"),
+            "a legitimate OptProc call must never draw arity noise: {:?}",
+            codes(ok, D)
+        );
+    }
+
     #[test]
     fn optlist_flag_descriptor_dash_is_stripped_for_the_bound_local() {
         // TP — `::tcl::OptKeyParse` binds `-use`/`-display` as `use`/

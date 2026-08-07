@@ -134,6 +134,76 @@ proc user {} {
     assert!(w210(src).contains("itemLegend1"), "got {:?}", w210(src));
 }
 
+// idx 59 — the same out-parameter helper, defined in ANOTHER FILE.
+
+/// The ticklecharts layout the finding was actually mined from: `setdef`
+/// lives in `utils.tcl`, the caller in `options.tcl`, and only a
+/// `pkgIndex.tcl` ties them together — so the caller's compilation unit
+/// holds no definition of `setdef` at all.  Reproduced here by simply
+/// omitting the helper, which is exactly what the caller's unit sees.
+///
+/// tclsh 9.0.4 / 8.6.16, running the real four-file layout:
+/// `demo::build {a b c}` → `{nothing str no} {nothing str no} {nothing str
+/// no}` — `options` is populated by the calls and never assigned in
+/// `build`'s own text before it is read.
+const CROSS_FILE_CALLER: &str = "\
+namespace eval demo {}
+proc demo::build {items} {
+    set opts {}
+    foreach item $items {
+        setdef options name -type str -default \"nothing\"
+        lappend opts [dict get $options name]
+        set options {}
+    }
+    return $opts
+}
+";
+
+#[test]
+fn idx59_a_callee_this_unit_cannot_see_may_write_the_names_it_is_handed() {
+    assert!(
+        !w210(CROSS_FILE_CALLER).contains("options"),
+        "a cross-file helper may create `options` through `upvar`; got {:?}",
+        w210(CROSS_FILE_CALLER),
+    );
+}
+
+#[test]
+fn idx59_control_a_name_the_opaque_call_never_spells_still_reports() {
+    // TP control — the abstention is per-name, not a blanket silence for the
+    // whole frame.  tclsh 9.0.4 / 8.6.16: `can't read "neverPassed"`.
+    let src = "\
+proc build {} {
+    setdef options name -default nothing
+    puts $neverPassed
+}
+";
+    assert!(w210(src).contains("neverPassed"), "got {:?}", w210(src));
+}
+
+#[test]
+fn idx59_control_a_substituted_argument_names_nothing_resolvable() {
+    // TP control — only a *literal* word can name a caller-frame variable
+    // this analysis can identify.  `setdef $key …` says nothing about
+    // `options`, so the read still reports (tclsh: `can't read "options"`).
+    let src = "\
+proc build {key} {
+    setdef $key name -default nothing
+    puts $options
+}
+";
+    assert!(w210(src).contains("options"), "got {:?}", w210(src));
+}
+
+#[test]
+fn idx59_control_a_registry_command_is_not_an_opaque_callee() {
+    // TN control — `puts` has a declared frame effect (none), so handing it
+    // a bareword proves nothing about a same-named local.  tclsh 9.0.4 /
+    // 8.6.16: `can't read "options"`.
+    let src = "proc build {} {\n puts options\n puts $options\n}\n";
+    assert!(w210(src).contains("options"), "got {:?}", w210(src));
+}
+
 // idx 38 — `uplevel <caller> [list set …]`, the tclopt `NewArrays` shape.
 
 #[test]

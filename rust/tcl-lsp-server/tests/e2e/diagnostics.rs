@@ -4603,3 +4603,166 @@ fn itcl_method_bodies_are_analysed_end_to_end() {
         codes(&diags)
     );
 }
+
+// -- Caller-frame injection through `upvar` / `uplevel` (issue #923 audit
+//    cluster C1 — idx 7, 38, 57, 59; issue #1019) --
+//
+// The compiler-unit twins live in `tcl-compiler/tests/caller_frame_effects.rs`.
+// These pin the same facts through the **live server**, whose incremental
+// per-item analysis is a different code path from the whole-file walk those
+// tests drive — a regression confined to the diagnostic-publishing pipeline
+// would be invisible to them.
+
+/// idx 57 — the ticklecharts `setdef` / `estruct` out-parameter shape:
+/// `upvar 1 $name local` plus a write through the alias, called with a
+/// literal name.  tclsh 9.0.4 / 8.6.16: `things::estruct itemLegend1 tree1`
+/// leaves `itemLegend1` set in the caller.
+#[test]
+fn an_upvar_out_parameter_draws_no_false_read_before_set_end_to_end() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let diags = lsp.open_ready(
+        &uri,
+        "namespace eval things {\n    proc estruct {name value} {\n        upvar 1 $name obj\n        set obj [dict create v $value]\n    }\n}\nproc build {} {\n    things::estruct itemLegend1 tree1\n    return [dict get $itemLegend1 v]\n}\n",
+    );
+    assert!(
+        !has_code(&diags, "W210"),
+        "the helper's upvar creates `itemLegend1` in build's frame: {:?}",
+        codes(&diags)
+    );
+}
+
+/// TP control for the test above — the suppression is per-name, so a local
+/// the helper never touches is still read-before-set (tclsh 9.0.4 / 8.6.16
+/// raise `can't read "neverSet"`).
+#[test]
+fn an_unrelated_local_still_draws_read_before_set_end_to_end() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let diags = lsp.open_ready(
+        &uri,
+        "proc estruct {name value} {\n    upvar 1 $name obj\n    set obj $value\n}\nproc build {} {\n    estruct itemLegend1 tree1\n    return $neverSet\n}\n",
+    );
+    let hits = with_code(&diags, "W210");
+    assert_eq!(hits.len(), 1, "exactly one W210: {:?}", codes(&diags));
+    assert!(
+        message(&hits[0]).contains("neverSet"),
+        "and it must be the unrelated local: {:?}",
+        message(&hits[0])
+    );
+}
+
+/// idx 7 — `argparse` injects caller-frame locals from its own definition
+/// list, none of which the proc's own text assigns.  tclsh 9.0.4 / 8.6.16
+/// (argparse 0.5): `upvarProc p 1 2` prints `a=… b=1 c=2`.
+#[test]
+fn argparse_injected_locals_draw_no_false_read_before_set_end_to_end() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let diags = lsp.open_ready(
+        &uri,
+        "package require argparse\nproc upvarProc {args} {\n    argparse {\n        {a -upvar}\n        b\n        c\n    }\n    puts \"a=$a b=$b c=$c\"\n}\n",
+    );
+    assert!(
+        !has_code(&diags, "W210"),
+        "argparse's DSL creates a/b/c in this very frame: {:?}",
+        codes(&diags)
+    );
+}
+
+/// idx 59 — the **cross-file** half, in the layout it was mined from:
+/// `setdef` lives in `utils.tcl`, the caller in `options.tcl`, and only a
+/// `pkgIndex.tcl` ties them together, so the caller's compilation unit
+/// holds no definition of `setdef` at all.  tclsh 9.0.4 / 8.6.16 running
+/// the real four-file layout: `demo::build {a b c}` returns
+/// `{nothing str no} {nothing str no} {nothing str no}`.
+#[test]
+fn a_cross_file_upvar_helper_draws_no_false_read_before_set_end_to_end() {
+    let root = std::env::temp_dir().join(format!(
+        "tcl-lsp-e2e-xfile-upvar-{}-{}",
+        std::process::id(),
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .expect("clock")
+            .as_nanos(),
+    ));
+    std::fs::create_dir_all(&root).expect("create workspace root");
+    std::fs::write(
+        root.join("utils.tcl"),
+        "namespace eval demo {}\nproc demo::setdef {d key args} {\n    upvar 1 $d _dict\n    dict set _dict $key $args\n}\n",
+    )
+    .expect("write utils.tcl");
+    let options = root.join("options.tcl");
+    let text = "proc demo::build {items} {\n    set opts {}\n    foreach item $items {\n        setdef options name -default nothing\n        lappend opts [dict get $options name]\n        set options {}\n    }\n    return $opts\n}\n";
+    std::fs::write(&options, text).expect("write options.tcl");
+
+    let mut lsp = Lsp::at_workspace_root(&root);
+    let uri = format!("file://{}", options.to_string_lossy());
+    let diags = lsp.open_ready(&uri, text);
+    assert!(
+        !has_code(&diags, "W210"),
+        "a helper this file cannot see may create `options` through upvar: {:?}",
+        codes(&diags)
+    );
+
+    // TP control, same session: a name the opaque call never spells is
+    // still read-before-set.
+    let control = root.join("control.tcl");
+    let control_text = "proc demo::build2 {} {\n    setdef options name -default nothing\n    return $neverPassed\n}\n";
+    std::fs::write(&control, control_text).expect("write control.tcl");
+    let control_uri = format!("file://{}", control.to_string_lossy());
+    let control_diags = lsp.open_ready(&control_uri, control_text);
+    let hits = with_code(&control_diags, "W210");
+    assert_eq!(
+        hits.len(),
+        1,
+        "exactly one W210: {:?}",
+        codes(&control_diags)
+    );
+    assert!(
+        message(&hits[0]).contains("neverPassed"),
+        "and it must be the name the call never spells: {:?}",
+        message(&hits[0])
+    );
+
+    let _ = std::fs::remove_dir_all(&root);
+}
+
+/// idx 99 — the deliberate `tcl::OptProc` arity trade-off, pinned as a
+/// choice rather than left to look like an oversight.
+///
+/// The definer installs `::proc $name args {…}` at run time, so the
+/// declared optlist says nothing about how many *positional* arguments a
+/// call may pass; C Tcl enforces it from the parsed optlist at call time,
+/// which is a runtime fact this analysis does not model.  tclsh 9.0.4 /
+/// 8.6.16 do raise `too many arguments` for the overflow below — and we
+/// deliberately stay silent about it, because the only alternative on
+/// offer was the false E003 the audit found on *legitimate* calls.  Both
+/// halves are asserted so the asymmetry cannot drift unnoticed.
+#[test]
+fn opt_proc_arity_is_deliberately_unchecked_in_both_directions_end_to_end() {
+    let mut lsp = Lsp::tcl();
+    for call in ["greet interp1", "greet interp1 extraPositionalArg"] {
+        let uri = unique_uri("tcl");
+        let diags = lsp.open_ready(
+            &uri,
+            &format!(
+                "package require opt\n::tcl::OptProc greet {{child -use -display}} {{ return $child }}\n{call}\n"
+            ),
+        );
+        assert!(
+            !has_code(&diags, "E002") && !has_code(&diags, "E003"),
+            "OptProc calls draw no arity diagnostic either way — `{call}`: {:?}",
+            codes(&diags)
+        );
+    }
+    // TN control — an ordinary proc still gets real arity checking, so the
+    // silence above is scoped to the definer and not a global retreat.
+    let uri = unique_uri("tcl");
+    let diags = lsp.open_ready(&uri, "proc plain {a} { return $a }\nplain 1 2\n");
+    assert!(
+        has_code(&diags, "E002") || has_code(&diags, "E003"),
+        "an ordinary proc must still be arity-checked: {:?}",
+        codes(&diags)
+    );
+}

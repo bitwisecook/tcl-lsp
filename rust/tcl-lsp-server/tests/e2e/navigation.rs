@@ -280,33 +280,190 @@ fn references_on_a_literal_upvar_target_link_the_call_and_the_read() {
     );
 }
 
-/// Issue #923 audit idx 98: `upvar ::tk::FocusGrab($index) data` names one
-/// fixed global cell (level-independent), so the sibling proc's
-/// `$::tk::FocusGrab($index)` read and the `upvar` `otherVar` word now
-/// cross-reference — previously every anchor answered nothing.
-///
-/// Pinned at the parity point with a plain qualified write: the server's
-/// per-item incremental analysis merges a proc-body `set
-/// ::tk::FocusGrab($i) 1` to exactly the same answer (references link the
-/// write word and the `$` read; read-anchored hover/definition and the
-/// bareword `info exists` / `unset` occurrences are a known per-item
-/// residual shared by both spellings — the whole-file analysis pinned in
-/// `tcl-lsp-core`'s `caller_frame` tests answers all four anchors).
+// -- `my <method>` dispatch through a mixin (issue #923 audit idx 22) --
+
+/// The `SpiceGenTcl` shape the audit reported: the callee is a **mixin**'s
+/// method reached by `my NameProcess …`, and the constructor that reads
+/// `$name` never assigns it.  tclsh 9.0.4 / 8.6.16, identical: `Widget new
+/// {-base 1}` prints `name=::oo::Obj24 params=-base 1`.
+const MIXIN_DISPATCH_SRC: &str = "\
+oo::class create Utility {
+    method NameProcess {arguments object} {
+        upvar name name
+        set name $object
+    }
+}
+oo::class create Widget {
+    mixin Utility
+    constructor {arguments} {
+        my NameProcess $arguments [self object]
+        set params $arguments
+        puts \"name=$name params=$params\"
+    }
+}
+";
+
+/// Character of the `name` inside `puts "name=$name params=$params"` on
+/// line 11 of [`MIXIN_DISPATCH_SRC`].
+fn mixin_read_column() -> u32 {
+    let at = MIXIN_DISPATCH_SRC
+        .lines()
+        .nth(11)
+        .and_then(|l| l.find("$name"))
+        .expect("the read");
+    u32::try_from(at).expect("column fits u32") + 2
+}
+
 #[test]
-fn a_fully_qualified_upvar_target_cross_references_between_procs() {
+fn hover_on_a_mixin_dispatch_caller_frame_read_names_the_creating_call() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    lsp.open_ready(&uri, MIXIN_DISPATCH_SRC);
+    // Line 11 — inside the `name` of `puts "name=$name params=$params"`.
+    let col = mixin_read_column();
+    let text = hover_text(&lsp.hover(&uri, 11, col));
+    assert!(
+        text.contains("Caller-frame variable") && text.contains("NameProcess"),
+        "the card must name the method the MRO resolves: {text:?}"
+    );
+}
+
+#[test]
+fn definition_on_a_mixin_dispatch_caller_frame_read_reaches_the_dispatch() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    lsp.open_ready(&uri, MIXIN_DISPATCH_SRC);
+    let col = mixin_read_column();
+    let locs = locations(&lsp.definition(&uri, 11, col));
+    assert_eq!(locs.len(), 1, "one definition: {locs:?}");
+    assert_eq!(
+        locs[0].range["start"]["line"].as_i64(),
+        Some(9),
+        "the `my NameProcess …` dispatch is where the variable comes to \
+         exist in this frame: {locs:?}"
+    );
+}
+
+#[test]
+fn references_on_a_mixin_dispatch_link_the_dispatch_and_the_read() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    lsp.open_ready(&uri, MIXIN_DISPATCH_SRC);
+    let col = mixin_read_column();
+    let refs = start_lines(&lsp.references(&uri, 11, col, true));
+    assert_eq!(
+        refs.iter().copied().collect::<Vec<i64>>(),
+        vec![9, 11],
+        "the dispatch and the read are one variable: {refs:?}"
+    );
+}
+
+/// TN — a mixin method with no caller-frame `upvar` creates nothing, so the
+/// read keeps abstaining rather than gaining a wrong answer.  tclsh 9.0.4:
+/// the constructor's `$name` raises `can't read "name"`.
+#[test]
+fn a_mixin_dispatch_without_an_upvar_still_abstains() {
     let mut lsp = Lsp::tcl();
     let uri = unique_uri("tcl");
     lsp.open_ready(
         &uri,
-        "proc SetFocusGrab {grab focus} {\n    set index \"$grab,$focus\"\n    upvar ::tk::FocusGrab($index) data\n    lappend data one\n}\nproc RestoreFocusGrab {grab focus} {\n    set index \"$grab,$focus\"\n    if {[info exists ::tk::FocusGrab($index)]} {\n        set data2 $::tk::FocusGrab($index)\n        unset ::tk::FocusGrab($index)\n    }\n}\n",
+        "oo::class create Utility {\n    method NameProcess {arguments object} { set name $object }\n}\noo::class create Widget {\n    mixin Utility\n    constructor {arguments} {\n        my NameProcess $arguments [self object]\n        puts \"name=$name\"\n    }\n}\n",
     );
-    // Line 8 col 26 — inside the `FocusGrab` of the
-    // `$::tk::FocusGrab($index)` read.
-    let refs = start_lines(&lsp.references(&uri, 8, 26, true));
+    // Line 7 col 21 — inside the `name` of `puts "name=$name"`.
     assert!(
-        refs.contains(&2) && refs.contains(&8),
-        "the read must link the upvar otherVar word across procs: {refs:?}"
+        hover_text(&lsp.hover(&uri, 7, 21)).is_empty(),
+        "an unbound `$`-led read must draw no hover"
     );
+    assert!(
+        locations(&lsp.definition(&uri, 7, 21)).is_empty(),
+        "…and no definition"
+    );
+}
+
+/// Issue #923 audit idx 98: `upvar ::tk::FocusGrab($index) data` names one
+/// fixed global cell (level-independent), so every occurrence of the cell —
+/// the `upvar` `otherVar` word, the sibling proc's `info exists` argument,
+/// its `$::tk::FocusGrab($index)` read, and its `unset` argument — is one
+/// variable.
+///
+/// Pinned through the **live server**, i.e. the incremental per-item
+/// analysis a real editor drives, and on all three navigation verbs.  The
+/// compiler library answered all four anchors from the whole-file walk
+/// while the server answered nothing for hover and go-to-definition,
+/// because the cell is defined *inside a deferred body* and the per-item
+/// graft merged a fragment's proc scope only — so the cell never reached
+/// the scope tree the providers read.  A `references`-only assertion could
+/// not see that, which is exactly why this asserts all three.
+///
+/// Known residual, deliberately left visible rather than asserted away:
+/// the *bareword* `info exists` / `unset` arguments (lines 7 and 9) are
+/// not in the cell's reference set.  A bareword in a variable-role
+/// argument slot is a separate anchor kind on both sides — the cursor
+/// does not resolve there either — and the compiler-library twin
+/// (`tcl-lsp-core`'s `a_fully_qualified_upvar_target_navigates_from_word_and_read`)
+/// now asserts the same set by position, so the two tiers agree about
+/// exactly what is and is not covered.
+const FOCUS_GRAB_SRC: &str = "proc SetFocusGrab {grab focus} {\n    set index \"$grab,$focus\"\n    upvar ::tk::FocusGrab($index) data\n    lappend data one\n}\nproc RestoreFocusGrab {grab focus} {\n    set index \"$grab,$focus\"\n    if {[info exists ::tk::FocusGrab($index)]} {\n        set data2 $::tk::FocusGrab($index)\n        unset ::tk::FocusGrab($index)\n    }\n}\n";
+
+/// Line/character of each anchor: the `upvar` `otherVar` word (line 2) and
+/// the `$::tk::FocusGrab($index)` read (line 8), both inside `FocusGrab`.
+const FOCUS_GRAB_ANCHORS: [(u32, u32); 2] = [(2, 20), (8, 26)];
+
+#[test]
+fn a_fully_qualified_upvar_target_hovers_from_word_and_read() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    lsp.open_ready(&uri, FOCUS_GRAB_SRC);
+    for (line, character) in FOCUS_GRAB_ANCHORS {
+        let text = hover_text(&lsp.hover(&uri, line, character));
+        assert!(
+            text.contains("::tk::FocusGrab"),
+            "hover at {line}:{character} must name the cell: {text:?}"
+        );
+    }
+}
+
+#[test]
+fn a_fully_qualified_upvar_target_defines_from_word_and_read() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    lsp.open_ready(&uri, FOCUS_GRAB_SRC);
+    for (line, character) in FOCUS_GRAB_ANCHORS {
+        let locs = locations(&lsp.definition(&uri, line, character));
+        assert_eq!(
+            locs.len(),
+            1,
+            "one definition at {line}:{character}: {locs:?}"
+        );
+        assert_eq!(
+            locs[0].range["start"]["line"].as_i64(),
+            Some(2),
+            "the `upvar` otherVar word is where the cell comes to exist: {locs:?}"
+        );
+    }
+}
+
+#[test]
+fn a_fully_qualified_upvar_target_cross_references_between_procs() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    lsp.open_ready(&uri, FOCUS_GRAB_SRC);
+    for (line, character) in FOCUS_GRAB_ANCHORS {
+        let refs = start_lines(&lsp.references(&uri, line, character, true));
+        assert_eq!(
+            refs.iter().copied().collect::<Vec<i64>>(),
+            vec![2, 3, 8],
+            "the `upvar` otherVar word and its `data` alias (line 2), the alias \
+             use (line 3), and the sibling proc's read (line 8), from \
+             {line}:{character}: {refs:?}"
+        );
+        // The cross-proc link is the point of the finding, so it is called
+        // out separately from the exact set above.
+        assert!(
+            refs.contains(&2) && refs.contains(&8),
+            "the read must link the upvar otherVar word across procs: {refs:?}"
+        );
+    }
 }
 
 /// TN — an unbound `$`-led read abstains rather than resolving to a

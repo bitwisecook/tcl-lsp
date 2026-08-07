@@ -115,6 +115,92 @@ mod var_command;
 pub(in crate::analyser) mod version_gate;
 pub(in crate::analyser) mod widget_command;
 
+/// Whether a command head names something **this compilation unit can
+/// resolve** — a registry command the active dialect enables, or a
+/// definition the document makes itself.
+///
+/// The complement is what matters: a head this answers `false` for is a
+/// callee whose body is simply not here (the ticklecharts layout of issue
+/// #923 audit idx 59 — the helper in `utils.tcl`, the caller in
+/// `options.tcl`), so nothing in this unit can say whether it writes the
+/// caller's frame through `upvar`.
+/// [`crate::interprocedural::collect_opaque_callee_name_args`] turns that
+/// into the per-frame abstention the read-before-set emitters honour.
+///
+/// Resolution mirrors Tcl's own: an absolute head is looked up as written,
+/// a relative one may name a definition in any namespace this document
+/// declares (the leaf spellings), and the registry half goes through the
+/// dialect profile — exactly the availability query
+/// [`Analyser::build_w123_known_names`](super::state::Analyser) uses, so
+/// "unknown command" and "opaque callee" cannot disagree about the same
+/// head.  No command name appears here.
+struct UnitCommandResolver<'a> {
+    registry: &'a tcl_registry::CommandRegistry,
+    profile: &'static tcl_dialect::DialectProfile,
+    /// Every spelling under which this document's own definitions —
+    /// procedures, classes, `interp alias` / `rename` targets, declared
+    /// stubs, and created object-instance commands — can be called.
+    defined: HashSet<String>,
+}
+
+impl UnitCommandResolver<'_> {
+    fn resolves(&self, command: &str) -> bool {
+        if self.defined.contains(command) {
+            return true;
+        }
+        let bare = command.trim_start_matches(':');
+        if self.defined.contains(bare) {
+            return true;
+        }
+        tcl_registry::ProfileQueries::resolve_command(self.profile, self.registry, command)
+            .is_some()
+    }
+}
+
+impl Analyser {
+    /// Build the [`UnitCommandResolver`] for the document just walked.
+    fn unit_command_resolver<'a>(
+        &self,
+        registry: &'a tcl_registry::CommandRegistry,
+    ) -> UnitCommandResolver<'a> {
+        let mut defined: HashSet<String> = HashSet::new();
+        let mut add = |name: &str| {
+            let bare = name.trim_start_matches(':');
+            if bare.is_empty() {
+                return;
+            }
+            defined.insert(name.to_owned());
+            defined.insert(bare.to_owned());
+            if let Some(leaf) = bare.rsplit("::").next() {
+                defined.insert(leaf.to_owned());
+            }
+        };
+        for name in self.result.all_procs.keys() {
+            add(name);
+        }
+        for name in self.result.all_classes.keys() {
+            add(name);
+        }
+        for name in self.result.command_aliases.keys() {
+            add(name);
+        }
+        for name in self.result.renamed_commands.keys() {
+            add(name);
+        }
+        for stub in &self.result.stub_commands {
+            add(&stub.name);
+        }
+        for name in &self.result.created_instance_commands {
+            add(name);
+        }
+        UnitCommandResolver {
+            registry,
+            profile: tcl_dialect::DialectProfile::by_name(self.dialect()),
+            defined,
+        }
+    }
+}
+
 /// Which IR object owns the body the per-function dispatcher is running over.
 ///
 /// Supplied by the caller: every diagnostic loop iterates exactly one of the
@@ -415,7 +501,7 @@ impl Analyser {
         // `cross_event_vars` only reaches the dead-store / unused checks, so
         // fold the implicit set into `extra_known_defined` too — that is the
         // argument the W210 emitters consult (#955).
-        let top_level_known_defined: HashSet<String> = if pkgindex_implicit_vars.is_empty() {
+        let mut top_level_known_defined: HashSet<String> = if pkgindex_implicit_vars.is_empty() {
             globals_written.clone()
         } else {
             globals_written
@@ -424,6 +510,20 @@ impl Analyser {
                 .cloned()
                 .collect()
         };
+
+        // **W210 opaque-callee abstention (issue #923 audit idx 59).** A call
+        // to a command whose body this unit does not hold — the cross-file
+        // helper the finding was mined from — may create any caller-frame
+        // name it is handed, so the names it *spells* stop being provably
+        // unset here.  Per frame, and per name: everything else in the frame
+        // still reports.
+        let unit_commands = self.unit_command_resolver(registry);
+        let opaque_callee_defs = |fu: &crate::compilation_unit::FunctionUnit| {
+            crate::interprocedural::collect_opaque_callee_name_args(&fu.cfg, &|cmd: &str| {
+                unit_commands.resolves(cmd)
+            })
+        };
+        top_level_known_defined.extend(opaque_callee_defs(&cu.top_level));
 
         // Top-level first, then procedures in insertion order —
         // matches the iteration order of
@@ -443,8 +543,9 @@ impl Analyser {
             // ConnectionScope so dead-store / unused-variable
             // diagnostics suppress vars that may be read in a
             // different iRule event.
-            let (mut cross_event_vars, extra_known_defined) =
+            let (mut cross_event_vars, mut extra_known_defined) =
                 when_proc_cross_event_names(cu, qname);
+            extra_known_defined.extend(opaque_callee_defs(fu));
             // Suppress dead-store on caller-locals this
             // proc passes by name to an upvar callee.
             cross_event_vars.extend(crate::interprocedural::collect_call_by_name_reads(
@@ -477,7 +578,13 @@ impl Analyser {
             }
         }
 
-        self.emit_fresh_frame_body_diagnostics(cu, registry, &cbn_proc_index, &traced_globals);
+        self.emit_fresh_frame_body_diagnostics(
+            cu,
+            registry,
+            &cbn_proc_index,
+            &traced_globals,
+            &unit_commands,
+        );
 
         // Cross-function post-pass: resolve $var-as-command sites
         // collected during the walk.
@@ -522,6 +629,7 @@ impl Analyser {
         registry: &tcl_registry::CommandRegistry,
         cbn_proc_index: &crate::interprocedural::ProcIndex,
         traced_globals: &HashSet<String>,
+        unit_commands: &UnitCommandResolver<'_>,
     ) {
         for (qname, fu) in &cu.methods {
             let method_ir = cu.ir_module.methods.get(qname);
@@ -557,11 +665,15 @@ impl Analyser {
             // the IR here, so this family and the existence fold (I230 /
             // O100 / O101) cannot source the same fact from different maps
             // (issue #1174; that divergence shape was issue #1129).
-            let known_bound: HashSet<String> = fu.method_facts.as_deref().map_or_else(
+            let mut known_bound: HashSet<String> = fu.method_facts.as_deref().map_or_else(
                 HashSet::new,
                 crate::compilation_unit::MethodBodyFacts::known_bound_at_entry,
             );
             let mut cross_event_vars = known_bound.clone();
+            known_bound.extend(crate::interprocedural::collect_opaque_callee_name_args(
+                &fu.cfg,
+                &|cmd: &str| unit_commands.resolves(cmd),
+            ));
             cross_event_vars.extend(crate::interprocedural::collect_call_by_name_reads(
                 &fu.cfg,
                 cbn_proc_index,
@@ -587,9 +699,22 @@ impl Analyser {
         registry: &tcl_registry::CommandRegistry,
         cbn_proc_index: &crate::interprocedural::ProcIndex,
         traced_globals: &HashSet<String>,
+        unit_commands: &UnitCommandResolver<'_>,
     ) {
-        self.emit_method_body_diagnostics(cu, registry, cbn_proc_index, traced_globals);
-        self.emit_lambda_body_diagnostics(cu, registry, cbn_proc_index, traced_globals);
+        self.emit_method_body_diagnostics(
+            cu,
+            registry,
+            cbn_proc_index,
+            traced_globals,
+            unit_commands,
+        );
+        self.emit_lambda_body_diagnostics(
+            cu,
+            registry,
+            cbn_proc_index,
+            traced_globals,
+            unit_commands,
+        );
     }
 
     /// The same CFG/SSA dataflow family over an `apply` **lambda body**.
@@ -615,6 +740,7 @@ impl Analyser {
         registry: &tcl_registry::CommandRegistry,
         cbn_proc_index: &crate::interprocedural::ProcIndex,
         traced_globals: &HashSet<String>,
+        unit_commands: &UnitCommandResolver<'_>,
     ) {
         for qname in &cu.ir_module.lambda_body_units {
             let (Some(fu), Some(ir_proc)) =
@@ -622,8 +748,12 @@ impl Analyser {
             else {
                 continue;
             };
-            let known_bound: HashSet<String> = ir_proc.params.iter().cloned().collect();
+            let mut known_bound: HashSet<String> = ir_proc.params.iter().cloned().collect();
             let mut cross_event_vars = known_bound.clone();
+            known_bound.extend(crate::interprocedural::collect_opaque_callee_name_args(
+                &fu.cfg,
+                &|cmd: &str| unit_commands.resolves(cmd),
+            ));
             cross_event_vars.extend(crate::interprocedural::collect_call_by_name_reads(
                 &fu.cfg,
                 cbn_proc_index,

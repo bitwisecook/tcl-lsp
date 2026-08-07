@@ -930,6 +930,13 @@ impl Analyser {
         // any deferred body, so without this guard a later definition would
         // spuriously absorb the read.  Gate on the body token start (the proc
         // header precedes it, and no top-level command can fall inside the body).
+        // Replay the body's global-scope *definitions* first (issue #923 idx
+        // 98): a body that names a fixed cell (`upvar ::tk::FocusGrab($i)
+        // data`) is the only place that cell comes to exist, and the reads
+        // replayed below — plus the tail's
+        // `attach_qualified_var_references` — resolve against the shell's
+        // scope tree, which the fragment's own throwaway root never reaches.
+        self.replay_body_global_defs(frag.global_defs);
         self.replay_body_global_reads(frag.global_reads, db.body_tok.span.start(), delta);
         // Re-defer the body's would-be-W002 sites (already rebased by
         // `rebase_fragment`); the tail re-applies the shadow check against
@@ -1005,6 +1012,35 @@ impl Analyser {
     /// second time — a duplicate the whole-file walk never produces (its
     /// adjacent-duplicate collapse cannot catch the replay's non-adjacent
     /// twin).
+    /// Replay a grafted body's **global-scope definitions** on the shell's
+    /// real global scope, so a fixed cell an `upvar` `otherVar` word names
+    /// (`upvar ::tk::FocusGrab($i) data`, `upvar #0 counter c`) exists in
+    /// the document's scope tree exactly as the whole-file walk leaves it.
+    ///
+    /// Spans are already absolute ([`rebase_fragment_pending`] shifted
+    /// them).  The replay goes through the real
+    /// [`Analyser::define_var`](super::state::Analyser) — so a cell the
+    /// shell already owns keeps its first definition span and gains this
+    /// word as a reference, matching `analyse`'s own second-definition
+    /// handling — under `structural_rebind`, because the isolated body pass
+    /// already recorded this word's [`super::types::QualifiedVarRef`] (the
+    /// graft merged it) and already emitted its W215; doing either again
+    /// would double-count.
+    fn replay_body_global_defs(
+        &mut self,
+        global_defs: Vec<(String, tcl_lexer::Token, tcl_lexer::Span)>,
+    ) {
+        if global_defs.is_empty() {
+            return;
+        }
+        let was_structural = self.structural_rebind;
+        self.structural_rebind = true;
+        for (name, tok, span) in global_defs {
+            self.define_var(&name, tok, &[], false, Some(span));
+        }
+        self.structural_rebind = was_structural;
+    }
+
     fn replay_body_global_reads(
         &mut self,
         global_reads: Vec<(String, tcl_lexer::Span)>,
@@ -1046,6 +1082,14 @@ pub struct BodyFragment {
     /// Qualified (`::`/`static::`) reads that missed the isolated body's empty
     /// enclosing global scope; replayed on the shell's real globals at graft.
     global_reads: Vec<(String, tcl_lexer::Span)>,
+    /// Definitions the isolated body wrote **into its own root scope** — the
+    /// fixed, frame-independent cells an `upvar` `otherVar` word names
+    /// (`upvar ::tk::FocusGrab($i) data`, `upvar #0 counter c`).  The graft
+    /// merges the fragment's *proc* scope only, so these are replayed onto
+    /// the shell's real global scope; without that the cell never entered
+    /// the scope tree the navigation providers and
+    /// `attach_qualified_var_references` read (issue #923 audit idx 98).
+    global_defs: Vec<(String, tcl_lexer::Token, tcl_lexer::Span)>,
     /// W002 (disabled-in-dialect command) sites — always deferred (see
     /// [`super::state::Analyser::pending_disabled_commands`]), so this is
     /// simply the isolated body's own queue: `(command name, call-site
@@ -1163,6 +1207,10 @@ pub fn analyse_proc_body_isolated<S: std::hash::BuildHasher>(
     // Capture qualified (`::`/`static::`) reads that miss the (empty) enclosing
     // global scope, so the graft can replay them on the shell's real globals.
     a.capture_global_reads = Some(Vec::new());
+    // …and the write-side twin: a fixed global cell this body *defines*
+    // (`upvar ::ns::cell local`) must reach the shell's real global scope,
+    // not the throwaway root this isolated walk builds (issue #923 idx 98).
+    a.capture_global_defs = Some(Vec::new());
     // Seed the ensemble subcommand→target maps visible to this body (the
     // shell attached exactly the whole-file-DFS-visible, body-relevant
     // slice — see `DeferredBody::ensemble_targets`), so an
@@ -1263,6 +1311,7 @@ pub fn analyse_proc_body_isolated<S: std::hash::BuildHasher>(
         var_sites: a.var_command_sites,
         cmd_sites: a.cmd_command_sites,
         global_reads: a.capture_global_reads.unwrap_or_default(),
+        global_defs: a.capture_global_defs.unwrap_or_default(),
         disabled_commands: a.pending_disabled_commands,
         private_ns_calls: a.pending_w143,
         w304: a.pending_w304,
@@ -1812,6 +1861,10 @@ fn rebase_fragment_pending(frag: &mut BodyFragment, d: u32) {
     for (_, _, _, off) in &mut frag.instances {
         *off += d;
     }
+    for (_, tok, span) in &mut frag.global_defs {
+        tok.span = shift(tok.span, d);
+        *span = shift(*span, d);
+    }
     for off in frag.walk_alias_offsets.values_mut() {
         *off += d;
     }
@@ -1976,6 +2029,50 @@ mod tests {
         let want = Analyser::new().analyse(src, dialect);
         let got = Analyser::new().analyse_per_item(src, dialect);
         assert_eq!(got, want, "per_item != analyse for:\n{src}");
+    }
+
+    // -- Body-defined global cells (issue #923 audit idx 98) --
+
+    /// The Tk `SetFocusGrab` / `RestoreFocusGrab` shape: one proc names a
+    /// fixed global array cell through `upvar`'s `otherVar` word, a sibling
+    /// proc reaches the same cell by its own qualified spelling.
+    ///
+    /// The cell is defined *inside a deferred body*, so the isolated pass
+    /// wrote it into that body's throwaway root scope and the graft — which
+    /// merges the fragment's **proc** scope only — dropped it.  The
+    /// whole-file walk left it in the document's global scope, which is what
+    /// every navigation provider and `attach_qualified_var_references` read,
+    /// so hover / go-to-definition answered in the compiler library and
+    /// nothing at all in the live server.  `fast_path` pins both halves:
+    /// the document still takes the incremental path, and the result is
+    /// byte-identical to `analyse`.
+    #[test]
+    fn a_body_defined_global_cell_survives_the_graft() {
+        fast_path(
+            "proc SetFocusGrab {grab focus} {\n    set index \"$grab,$focus\"\n    \
+             upvar ::tk::FocusGrab($index) data\n    lappend data one\n}\n\
+             proc RestoreFocusGrab {grab focus} {\n    set index \"$grab,$focus\"\n    \
+             if {[info exists ::tk::FocusGrab($index)]} {\n        \
+             set data2 $::tk::FocusGrab($index)\n        \
+             unset ::tk::FocusGrab($index)\n    }\n}\n",
+        );
+    }
+
+    /// The `#0`-level spelling of the same fact: `upvar #0 counter c` names
+    /// the global `::counter` from any depth, so the cell must reach the
+    /// shell's global scope too.
+    #[test]
+    fn a_body_defined_hash_zero_global_survives_the_graft() {
+        fast_path(
+            "proc bump {} { upvar #0 counter c; incr c }\nproc show {} { puts $::counter }\n",
+        );
+    }
+
+    /// TN — a body-local `upvar` whose target is frame-relative names no
+    /// fixed cell, so nothing is captured and the graft is unchanged.
+    #[test]
+    fn a_caller_frame_upvar_defines_no_global_cell() {
+        fast_path("proc setdef {d} { upvar 1 $d dst; set dst 1 }\nproc build {} { setdef opts }\n");
     }
 
     // Tk activation gate (issue #1188).  The gate decides whether a document
