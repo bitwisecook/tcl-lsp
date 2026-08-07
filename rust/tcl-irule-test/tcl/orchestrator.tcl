@@ -806,7 +806,7 @@ namespace eval ::orch {
         # Collect EVERY decision with the matching action, not just the first.
         # Breaking on the first match made `was_called_with` order-dependent:
         # `pool a` then `pool b` would fail `was_called_with "b"` because only
-        # the leading `pool a` was inspected (RUST_ISSUE_117). This mirrors the
+        # the leading `pool a` was inspected. This mirrors the
         # classic `assert_decision`, which passes if ANY matching call carries
         # the expected value.
         set found 0

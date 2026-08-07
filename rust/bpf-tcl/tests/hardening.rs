@@ -34,7 +34,7 @@ fn run(src: &str, packet: &mut [u8]) -> u64 {
     run_socket_filter(&obj, packet).expect("runs")
 }
 
-// ── strict `when` header grammar (RUST_ISSUE_063) ───────────────────────────
+// ── strict `when` header grammar ───────────────────────────
 
 #[test]
 fn when_non_integer_priority_is_rejected_not_silently_500() {
@@ -80,7 +80,7 @@ fn every_path_terminated_compiles() {
         .expect("compiles");
 }
 
-// ── full-width constants (RUST_ISSUE_172) ───────────────────────────────────
+// ── full-width constants ───────────────────────────────────
 
 #[test]
 fn full_width_64bit_constant_materialises() {

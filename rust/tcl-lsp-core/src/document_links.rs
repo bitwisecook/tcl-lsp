@@ -175,8 +175,7 @@ pub fn document_links_in_context(
         {
             if let Some(tok) = seg.argv.get(2) {
                 // Start at the word *content*, not the opening `{`/`"` delimiter,
-                // so a braced/quoted package name underlines the name only
-                // (RUST_ISSUE_111).
+                // so a braced/quoted package name underlines the name only.
                 let start = line_index
                     .position_at_utf16(tok.span.start() + u32::from(tok.content_offset), source);
                 let end = line_index.position_at_utf16(tok.span.end(), source);
@@ -241,7 +240,7 @@ pub fn document_links_in_context(
         let arg_tok = seg.argv.get(idx);
         let Some(arg_tok) = arg_tok else { continue };
         // Start at the path *content*: a braced/quoted `source {…}` / `source "…"`
-        // must underline the path, not the opening delimiter (RUST_ISSUE_111).
+        // must underline the path, not the opening delimiter.
         let start = line_index.position_at_utf16(
             arg_tok.span.start() + u32::from(arg_tok.content_offset),
             source,
@@ -619,7 +618,7 @@ mod tests {
 
     #[test]
     fn braced_and_quoted_path_range_excludes_delimiter() {
-        // RUST_ISSUE_111: `source {/tmp/foo.tcl}` must underline the path, not
+        // `source {/tmp/foo.tcl}` must underline the path, not
         // the opening `{` — the range starts at the content, past the delimiter.
         for (src, want_start) in [
             ("source {/tmp/foo.tcl}\n", 8u32), // `source ` = 7, then `{` at 7, content at 8

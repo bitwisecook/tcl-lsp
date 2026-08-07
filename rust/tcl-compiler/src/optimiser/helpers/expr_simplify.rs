@@ -73,7 +73,7 @@ use crate::types::{TclType, TypeKind, TypeLattice};
 /// (`<<`, `>>`, `&`, `|`, `^`, `%`) needs the operand *integer*: for a
 /// double operand Tcl yields a double (`1.5 * 0` → `0.0`, not `0`) or raises
 /// "can't use floating-point value as operand" — either way the integer-result
-/// / operator-drop rewrite would be wrong (`RUST_ISSUE_075`).
+/// / operator-drop rewrite would be wrong.
 #[derive(Debug, Default, Clone)]
 pub struct OperandTypes {
     numeric: HashSet<String>,
@@ -593,8 +593,7 @@ fn reassociate_node(node: &ExprNode) -> Option<ExprNode> {
             // coercion error `$a` must raise when non-numeric (`expr {$a}`
             // returns the string; `expr {$a + 5 - 5}` errors). Proving `$a`
             // integer needs the SSA type lattice this AST pass can't consult,
-            // so mirror the multiplicative guard (`$a * 1`) and leave it be.
-            // RUST_ISSUE_074.
+            // so mirror the multiplicative guard (`$a * 1`) and leave it be..
             if constant == 0 && terms.len() == 1 {
                 return None;
             }
@@ -1055,7 +1054,7 @@ fn reduce_self_comparison(
         // be a provable integer, not merely numeric: for a double `$x`,
         // `expr {1.5 - 1.5}` is `0.0` (not `0`), and `^` is integer-only
         // (`expr {1.5 ^ 1.5}` errors). Folding to `0` in either case would be
-        // wrong (`RUST_ISSUE_075`). A non-numeric `$x` still errors, which the
+        // wrong. A non-numeric `$x` still errors, which the
         // integer gate also (conservatively) declines to fold.
         BinOp::Sub | BinOp::BitXor if node_provably_integer(left, numeric) => 0,
         _ => return None,
@@ -1071,7 +1070,7 @@ fn reduce_self_comparison(
 /// operator (`x + 0`, `x - 0`, `x * 1`, `x / 1`) are gated on the operand being
 /// provably *numeric*. The `x * 0 → 0` annihilator folds to an **integer**
 /// literal, so it is gated on the operand being provably *integer*: for a
-/// double `$x`, `expr {1.5 * 0}` is `0.0`, not `0` (`RUST_ISSUE_075`). Without a
+/// double `$x`, `expr {1.5 * 0}` is `0.0`, not `0`. Without a
 /// type context both guards pass (legacy aggressive behaviour).
 fn reduce_arith_identity(
     op: BinOp,
@@ -1155,7 +1154,7 @@ fn reduce_pow(
 ///
 /// `%` is integer-only, so `% 1 → 0` drops `x` *and* folds to an integer: `x`
 /// must be provably *integer* (`expr {1.5 % 1}` errors — folding to `0` would
-/// hide it; `RUST_ISSUE_075`). The pow2 strength-reduction keeps `x` under `&`
+/// hide it). The pow2 strength-reduction keeps `x` under `&`
 /// (also integer-only), so a double `x` errors either way — error semantics
 /// preserved without a guard.
 fn reduce_mod(
@@ -1183,8 +1182,7 @@ fn reduce_mod(
 
 /// `x << 0 → x`, `x >> 0 → x`. The shift is integer-only, so `x` must be
 /// provably *integer*: for a double `x`, `expr {1.5 << 0}` errors, while `$x`
-/// alone returns the double — dropping the shift would hide the error
-/// (`RUST_ISSUE_075`).
+/// alone returns the double — dropping the shift would hide the error.
 fn reduce_shift(
     op: BinOp,
     left: &ExprNode,
@@ -1204,7 +1202,7 @@ fn reduce_shift(
 /// Bitwise identities / annihilators: `x & 0 → 0`, `x | 0 → x`, `x ^ 0 → x`.
 /// `&`/`|`/`^` are integer-only, so each rewrite (folding to `0`, or stripping
 /// the operator around `x`) needs the non-literal operand provably *integer* —
-/// a double operand is a Tcl error the rewrite must not hide (`RUST_ISSUE_075`).
+/// a double operand is a Tcl error the rewrite must not hide.
 fn reduce_bitwise(
     op: BinOp,
     left: &ExprNode,
@@ -1825,7 +1823,7 @@ mod tests {
 
     #[test]
     fn integer_only_ops_need_integer_not_just_numeric() {
-        // RUST_ISSUE_075: `<<`/`>>`/`&`/`|`/`^`/`%`/`**0`/`*0`/`$x-$x` are wrong
+        // `<<`/`>>`/`&`/`|`/`^`/`%`/`**0`/`*0`/`$x-$x` are wrong
         // for a Double-typed operand — they either yield a double where an
         // integer literal is produced, or are integer-only ops Tcl rejects on a
         // float. A numeric-but-not-integer context must decline them all.
@@ -2041,7 +2039,7 @@ mod tests {
 
     #[test]
     fn o110_additive_lone_term_cancel_to_zero_abstains() {
-        // RUST_ISSUE_074: `$a + 1 - 1` cancels to a lone bare `$a`, dropping the
+        // `$a + 1 - 1` cancels to a lone bare `$a`, dropping the
         // numeric-coercion error `$a + 1 - 1` raises for a non-numeric `$a`.
         // Mirror the multiplicative `$a * 1` guard and abstain (the AST pass
         // has no numeric proof).

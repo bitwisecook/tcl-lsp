@@ -686,8 +686,7 @@ fn sccp_process_statements(
             // the def key is never inserted (the widen loop above only touches
             // keys already present), so it stays `Unknown` and vanishes from a
             // downstream phi join, letting a phi that merges a barrier-def with
-            // a constant fold to that constant and miscompile a following test
-            // (RUST_ISSUE_015).
+            // a constant fold to that constant and miscompile a following test.
             for (&var, ver) in &stmt_ssa.defs {
                 if set_value(values, (var, *ver), &LatticeValue::Overdefined) {
                     changed = true;
@@ -2196,7 +2195,7 @@ mod tests {
 
     #[test]
     fn barrier_own_defs_become_overdefined() {
-        // RUST_ISSUE_015: a barrier (e.g. `dict for {x y} $d {}`) defines its
+        // A barrier (e.g. `dict for {x y} $d {}`) defines its
         // own variables. Those defs must be set Overdefined so they participate
         // in a downstream phi join; otherwise the def key is never inserted and
         // a phi merging the barrier-def with a constant folds to that constant.

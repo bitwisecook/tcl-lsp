@@ -524,7 +524,7 @@ fn enclosing_proc<'a>(
 /// and Rename — so Call Hierarchy can never disagree with them about
 /// whether a given call site is a reference (in particular the namespace
 /// gate that keeps a bare call in a different namespace from cross-matching
-/// a same-named proc, `RUST_ISSUE_035`).
+/// a same-named proc).
 fn invocation_targets(
     analysis: &AnalysisResult,
     inv: &tcl_compiler::signature_scan::types::SignatureCommandInvocation,

@@ -1058,7 +1058,7 @@ fn walk_statement(
                 // outer (enclosing) criteria still hold — mirror `walk_switch`'s
                 // default-body handling, which keeps `enclosing` and only clears
                 // its own key. Preserve `enclosing` so an `else`-body action does
-                // not become an unconditional catch-all route (RUST_ISSUE_044).
+                // not become an unconditional catch-all route.
                 // Any criterion the `if` clauses matched on is not part of
                 // `enclosing`, so it is already excluded here.
                 walk_script(eb, ctx, registry, depth + 1, enclosing);
@@ -1169,8 +1169,8 @@ fn arm_context(base: &EnclosingContext, spec: SwitchArmSpec, pattern: &str) -> E
 ///
 /// Fall-through arms (`"/a*" -`) carry `body: None`; their pattern must be
 /// attached to the following non-fall-through arm's body so that every
-/// pattern routes to an action (`RUST_ISSUE_047`). Each arm's pattern is
-/// translated honouring the switch mode/nocase (`RUST_ISSUE_046`), and the
+/// pattern routes to an action. Each arm's pattern is
+/// translated honouring the switch mode/nocase, and the
 /// default body keeps `enclosing` with only the switch's own key cleared.
 fn walk_switch_arms(
     spec: SwitchArmSpec,
@@ -1203,8 +1203,7 @@ fn walk_switch_arms(
         // fall-through arm stays in `arms` with `body: None`, so `pending`
         // still holds those patterns here. Tcl runs the default body for each
         // such pattern too, so emit a criterion-specific route for every
-        // pending pattern before the catch-all route with the key cleared
-        // (`RUST_ISSUE_047`).
+        // pending pattern before the catch-all route with the key cleared.
         for pattern in pending.drain(..) {
             let enc = arm_context(enclosing, spec, pattern);
             walk_script(db, ctx, registry, depth + 1, &enc);
@@ -1293,7 +1292,7 @@ fn walk_switch(
             });
             // The subject is dynamic, so no arm pattern can be mapped to a
             // criterion — but the enclosing criteria still apply, so preserve
-            // them rather than dropping to a catch-all (RUST_ISSUE_044).
+            // them rather than dropping to a catch-all.
             for arm in arms {
                 if let Some(body) = arm.body.as_ref() {
                     walk_script(body, ctx, registry, depth + 1, enclosing);

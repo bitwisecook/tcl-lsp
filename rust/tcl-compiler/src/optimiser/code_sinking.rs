@@ -112,7 +112,7 @@ fn walk_script(ctx: &mut PassContext<'_>, script: &Script, depth: u32) {
         // those redefine a variable the assignment's RHS *reads*, the moved
         // computation would observe a different value — a miscompile. The
         // earlier guards only protect the assigned variable itself, not its
-        // read-set (RUST_ISSUE_016).
+        // read-set.
         if sink_rhs_clobbered_by_decision(stmt, decision) {
             continue;
         }
@@ -931,7 +931,7 @@ mod tests {
 
     #[test]
     fn branch_redefining_rhs_read_suppresses_sink() {
-        // RUST_ISSUE_016: the branch body redefines `a`, which the assignment's
+        // The branch body redefines `a`, which the assignment's
         // RHS reads, before the use of `x`. Sinking `set x [expr {$a + 1}]`
         // there would compute it against the modified `a` — must not emit O125.
         let opts = run_pass(
@@ -958,7 +958,7 @@ mod tests {
 
     #[test]
     fn condition_command_subst_writing_rhs_read_suppresses_sink() {
-        // RUST_ISSUE_016: a condition command substitution may write an output
+        // A condition command substitution may write an output
         // variable the RHS reads; conservatively suppress the sink.
         let opts = run_pass(
             "proc ::f {a s} { set x [expr {$a + 1}]; if {[regexp {b} $s -> a]} { puts $x } else { puts no } }",

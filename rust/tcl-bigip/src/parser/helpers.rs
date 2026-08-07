@@ -142,7 +142,7 @@ pub fn extract_blocks(source: &str) -> Vec<Block> {
 ///
 /// Three value shapes: a braced `{…}` block (quote- and escape-aware), a
 /// double-quoted string — which may contain an embedded literal newline, so it
-/// scans to the matching close quote rather than end-of-line (`RUST_ISSUE_116`) —
+/// scans to the matching close quote rather than end-of-line —
 /// and a bareword value to end-of-line. `val_end` is clamped to `length` so an
 /// unterminated quote can't overshoot the slice.
 fn scan_property_value(bytes: &[u8], length: usize, mut pos: usize) -> (usize, usize, usize) {
@@ -312,8 +312,8 @@ pub fn parse_list_block(braced: &str) -> Vec<String> {
         let name_start = pos;
         // A record key may be double-quoted because it contains spaces (a
         // data-group key like `"Mozilla/5.0 (Windows)"`); scan the whole quoted
-        // run as one key instead of splitting it on the inner space
-        // (`RUST_ISSUE_115`). The list-body scan used to be unquote-aware even
+        // run as one key instead of splitting it on the inner space.
+        // The list-body scan used to be unquote-aware even
         // though header tokenising is.
         let name = if bytes[pos] == b'"' {
             pos += 1;
@@ -613,7 +613,7 @@ mod tests {
 
     #[test]
     fn list_block_key_may_be_quoted_with_spaces() {
-        // RUST_ISSUE_115: a data-group record key quoted because it contains
+        // A data-group record key quoted because it contains
         // spaces is one key, not several.
         let keys = parse_list_block(r#"{ "Mozilla/5.0 (Windows)" { data blocked } }"#);
         assert_eq!(keys, vec!["Mozilla/5.0 (Windows)".to_owned()]);
@@ -626,7 +626,7 @@ mod tests {
 
     #[test]
     fn quoted_property_value_may_span_newlines() {
-        // RUST_ISSUE_116: a double-quoted value with an embedded newline is one
+        // A double-quoted value with an embedded newline is one
         // value — `line two"` must not parse as a new key.
         let body = "description \"line one\nline two\"\nmonitor /Common/http\n";
         let props = parse_properties(body);

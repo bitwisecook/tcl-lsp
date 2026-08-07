@@ -1059,7 +1059,7 @@ fn next_unused_name(
 /// `{name default}` pair, or a bare `name`. A raw word-boundary byte scan over
 /// the whole region also rewrote occurrences inside *other* parameters' default
 /// values (`proc f {{x 1} {y x}}` renamed `y`'s default `x` too), changing the
-/// default the proc receives (`RUST_ISSUE_106`).
+/// default the proc receives.
 fn rename_params_in_list(
     source: &str,
     proc_def: &ProcDef,
@@ -1181,7 +1181,7 @@ fn is_word_byte(b: Option<u8>) -> bool {
 /// index — `${x}(k)` is scalar `$x` + literal `(k)`, but `$x(k)` is an array
 /// element) and `:` (a namespace separator — `$x` + `::y` vs the variable
 /// `x::y`). Keeping the braces when any of these follow is always safe;
-/// dropping them changes the reference (`RUST_ISSUE_039`).
+/// dropping them changes the reference.
 fn extends_dollar_ref(b: Option<u8>) -> bool {
     is_word_byte(b) || matches!(b, Some(b'(' | b':'))
 }
@@ -2918,7 +2918,7 @@ fn reconstruct_raw(
     match tok.kind {
         // Inside a double-quoted word the caller re-wraps the arg in `"…"`, so a
         // `Str` token (e.g. a lone `$` classified as literal) is string data —
-        // emit it verbatim, not brace-wrapped as `{$}` (`RUST_ISSUE_103`).
+        // emit it verbatim, not brace-wrapped as `{$}`.
         TokenType::Str if in_quotes => sm.text(tok.span).to_owned(),
         TokenType::Str => format!("{{{}}}", sm.token_text(tok)),
         TokenType::Cmd => format!("[{}]", minify_body(sm.token_text(tok), env, depth + 1)),
@@ -2927,7 +2927,7 @@ fn reconstruct_raw(
             // variable name.  Beyond name characters, `(` (array index) and `:`
             // (namespace separator) also extend a `$` reference, so dropping
             // the braces before them changes the read (`${x}(k)` scalar-plus-
-            // literal vs `$x(k)` array element) (RUST_ISSUE_039).
+            // literal vs `$x(k)` array element).
             if let Some(next) = next_tok
                 && let Some(c) = first_rendered_char(sm, next)
                 && (c.is_alphanumeric() || c == '_' || c == '(' || c == ':')
@@ -3007,8 +3007,7 @@ fn reconstruct_arg(sm: &SourceMap, arg: &Arg, env: MinifyEnv<'_>, depth: u32) ->
         // The next token within the *same* word can extend a preceding
         // `${var}` reference whether the word is quoted or bare
         // (`"${a}jumps"` and bare `${a}jumps` both read `ajumps` if the braces
-        // are dropped), so the name-extension guard must see it in both cases
-        // (RUST_ISSUE_039).
+        // are dropped), so the name-extension guard must see it in both cases.
         let next = arg.tokens.get(idx + 1).copied();
         raw.push_str(&reconstruct_raw(sm, tok, next, env, arg.is_quoted, depth));
     }
@@ -3614,7 +3613,7 @@ mod tests {
 
     #[test]
     fn bare_dollar_in_quoted_string_not_brace_wrapped() {
-        // RUST_ISSUE_103: minifying a lone `$` inside a double-quoted string
+        // Minifying a lone `$` inside a double-quoted string
         // must keep it literal, not emit `{$}`.
         let out = min("puts \"cost: $\"\n");
         assert!(out.contains("\"cost: $\""), "{out:?}");
@@ -3636,7 +3635,7 @@ mod tests {
 
     #[test]
     fn keeps_braces_when_next_token_extends_bare_word() {
-        // RUST_ISSUE_039: a bare word `${a}jumps` must keep its braces — dropping
+        // A bare word `${a}jumps` must keep its braces — dropping
         // them yields `$ajumps`, reading a different variable.
         let out = min("set a 1\nputs ${a}jumps\n");
         assert!(
@@ -3651,7 +3650,7 @@ mod tests {
 
     #[test]
     fn keeps_braces_before_paren_in_quoted_word() {
-        // RUST_ISSUE_039: `"${x}(k)"` must not become `"$x(k)"` (array element).
+        // `"${x}(k)"` must not become `"$x(k)"` (array element).
         let out = min("set x 1\nputs \"${x}(k)\"\n");
         assert!(
             out.contains("${x}(k)"),
@@ -3788,7 +3787,7 @@ mod tests {
 
     #[test]
     fn compact_renames_param_name_not_other_defaults() {
-        // RUST_ISSUE_106: renaming param `x` must touch only its NAME, not a
+        // Renaming param `x` must touch only its NAME, not a
         // literal `x` sitting in another param's default value. Here `{y x}`
         // gives `y` the default string `x`; that `x` must survive the `x`→…
         // rename, otherwise the proc's default silently changes.

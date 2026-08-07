@@ -38,7 +38,7 @@
 //! procs) persists across calls in the one `Vm`. Returning the real code lets the
 //! emitted control flow honour an `error`/`return`/`break`/`continue` a leaf
 //! command completes with — the same code the direct `tcl-vm` run acts on — so
-//! this arm now covers abrupt-completion propagation (`RUST_ISSUE_010`), not just
+//! this arm now covers abrupt-completion propagation, not just
 //! branch/iteration shape.
 //!
 //! This is the in-process upgrade of the runnability arm (`wasm.rs`): it embeds
@@ -374,7 +374,7 @@ mod tests {
         assert_eq!(check(&e, src), DiffVerdict::Match);
     }
 
-    // --- completion-code propagation (RUST_ISSUE_010) ---------------------
+    // --- completion-code propagation ---------------------
     // Each of these terminates and matches *because* a leaf command's abrupt
     // completion code is honoured by the emitted control flow. Under the prior
     // "swallow the code" behaviour they would `WasmHang` (the `while {1}` never

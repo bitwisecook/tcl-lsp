@@ -231,7 +231,7 @@ pub fn read_venv_config(venv_path: &Path) -> Result<Vec<(String, String)>, TclPk
 /// `force` overrides the active-venv guard (the documented "Force deletion even
 /// if active"). The `tclvenv.cfg` marker check is *not* overridable even under
 /// `force` — refusing to `remove_dir_all` a non-venv directory is a data-loss
-/// safeguard, not an activeness check (`RUST_ISSUE_126`).
+/// safeguard, not an activeness check.
 pub fn delete_venv(venv_path: &Path, force: bool) -> Result<(), TclPkgError> {
     if !venv_path.is_dir() {
         return Err(venv_error(
@@ -402,7 +402,7 @@ mod tests {
         std::fs::create_dir_all(&base).unwrap();
         let err = delete_venv(&base, false).unwrap_err();
         assert!(err.to_string().contains("not a tclpkg venv"));
-        // RUST_ISSUE_126/123: even under --force, a non-venv directory is
+        // even under --force, a non-venv directory is
         // refused — force overrides the *active-venv* guard, never the
         // data-loss (missing-marker) guard.
         let err = delete_venv(&base, true).unwrap_err();
@@ -412,7 +412,7 @@ mod tests {
 
     #[test]
     fn delete_force_deletes_a_marker_venv() {
-        // RUST_ISSUE_126: a real venv (with the marker) deletes under --force
+        // A real venv (with the marker) deletes under --force
         // when it is not the active one — the `force` flag is now plumbed
         // through `delete_venv` rather than ignored.
         let venv = tmp("force-del");

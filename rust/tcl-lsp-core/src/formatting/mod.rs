@@ -273,7 +273,7 @@ fn raw_span<'a>(
 fn finalise_slice(text: &str, config: &FormatterConfig, line_ending: &str) -> String {
     let mut out = if config.trim_trailing_whitespace {
         // Brace/quote-aware trim so a multi-line string literal's interior is
-        // preserved (RUST_ISSUE_037).
+        // preserved.
         engine::trim_trailing_ws_preserving_literals(text)
     } else {
         text.to_owned()

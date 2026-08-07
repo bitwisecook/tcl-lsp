@@ -137,7 +137,7 @@ pub fn spec() -> CommandSpec {
         // `assigns_variable_at: Some(0)` both contradicts the arg-role resolver
         // (arg 0 may be `-nocomplain`) and pre-empted the destroy branch in the
         // side-effect classifier, modelling `unset x` as a *write* to `x` and
-        // `unset -nocomplain x` as a write to `-nocomplain` (RUST_ISSUE_081/078).
+        // `unset -nocomplain x` as a write to `-nocomplain`.
         return_type: Some(TclType::String),
         options: const {
             &[

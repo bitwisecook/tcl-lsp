@@ -419,9 +419,9 @@ The items in this section were the subject of
    `when EVENT { body }` or `when EVENT priority N { body }` — a non-integer or
    substituted priority, an unknown header keyword, or a substituted event is a
    span-anchored error, never silently normalised. A user `profile` body accepts
-   only `field` declarations; anything else is rejected rather than dropped
-   (`RUST_ISSUE_063`). A handler path that reaches the end without an explicit
-   verdict is a `MissingVerdict` error, never a silent drop. *(Resolved.)*
+   only `field` declarations; anything else is rejected rather than dropped. A
+   handler path that reaches the end without an explicit verdict is a
+   `MissingVerdict` error, never a silent drop. *(Resolved.)*
 3. **The IR states byte order and checked ranges.** `Inst::Load` carries a
    constant range, width, byte order (`Native`/`Big`/`Little`), and an explicit
    out-of-bounds action. The rbpf emitter proves `base + off + width <=

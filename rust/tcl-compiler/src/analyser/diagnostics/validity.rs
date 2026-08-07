@@ -127,7 +127,7 @@ fn count_positionals(args: &[String], arg_expand: &[bool], start: usize) -> (usi
 /// already sits on the closer byte, one short of covering it; an empty
 /// `{}` / `[]` already has `end()` past the closer, so it is left alone
 /// (widening it could swallow an unrelated adjacent `}` / `]` from
-/// whatever encloses this word — `RUST_ISSUE_527`). Any other token kind
+/// whatever encloses this word). Any other token kind
 /// (a bareword, `then`/`elseif`/`else`, a `Var`, …) has no closer to
 /// widen for.
 fn widen_token_end(tok: tcl_lexer::Token, source: &str) -> u32 {

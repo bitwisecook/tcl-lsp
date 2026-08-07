@@ -753,7 +753,7 @@ fn run_verify(common: &PkgCommon) -> anyhow::Result<u8> {
         }
 
         // Actually recompute and compare the hash, rather than merely checking
-        // the recorded string is non-empty (RUST_ISSUE_127). Prefer the
+        // the recorded string is non-empty. Prefer the
         // materialised worktree the runtime actually loads
         // (`lib/<name>-<version>`); fall back to the CAS tree. A missing copy
         // cannot be verified — flag it rather than passing it.
@@ -1113,7 +1113,7 @@ fn run_sync(common: &PkgCommon) -> anyhow::Result<u8> {
     let cas = ContentAddressableStore::new(&tcl_pkg::cache_dir());
 
     // A lock-driven install must actually materialise each locked package into
-    // `lib/<name>-<version>`, not merely print the lockfile (RUST_ISSUE_125).
+    // `lib/<name>-<version>`, not merely print the lockfile.
     // For each package: ensure its content is in the CAS (fetch from the
     // recorded source when missing, unless offline), enforce that the fetched
     // content matches the locked integrity, then materialise it.

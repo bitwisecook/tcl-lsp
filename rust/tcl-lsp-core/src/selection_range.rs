@@ -167,8 +167,8 @@ pub fn selection_range(
     // Enforce the LSP parent-contains-child invariant: every range must lie
     // within its outward neighbour. A full-width *line* range can stick out of
     // an enclosing body that starts/ends mid-line (e.g. `proc foo {} {\n set x 1
-    // }` — the line's end column exceeds the body's), which VS Code rejects
-    // (RUST_ISSUE_110). Clamp each range to its parent, processing
+    // }` — the line's end column exceeds the body's), which VS Code rejects.
+    // Clamp each range to its parent, processing
     // outermost→innermost so the chain stays strictly nested. Every range
     // contains the cursor, so the intersection is never empty (no inversion).
     for i in (0..ranges.len().saturating_sub(1)).rev() {
@@ -463,7 +463,7 @@ mod tests {
 
     #[test]
     fn chain_is_strictly_nested_for_mid_line_body() {
-        // RUST_ISSUE_110: a single-line-ish proc whose body ends mid-line
+        // A single-line-ish proc whose body ends mid-line
         // (`set x 1 }` on line 1) must still yield a strictly-nested chain —
         // every range contained by its outward neighbour.
         let src = "proc foo {} {\n    set x 1 }\n";

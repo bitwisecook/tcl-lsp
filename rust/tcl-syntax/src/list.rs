@@ -266,8 +266,7 @@ pub fn find_element(s: &str, start: usize) -> Result<Option<Element>, ListError>
                     // escape: C `TclParseBackslash` collapses it AND the
                     // following run of spaces/tabs into a single space, so that
                     // whitespace belongs to the element and must not terminate
-                    // it — `split_list("a\\\n b")` is one element `a b`, not two
-                    // (RUST_ISSUE_087).
+                    // it — `split_list("a\\\n b")` is one element `a b`, not two.
                     if open_braces == 0 && bytes[pos + 1] == b'\n' {
                         pos += 2;
                         while pos < len && matches!(bytes[pos], b' ' | b'\t') {
@@ -721,7 +720,7 @@ mod tests {
 
     #[test]
     fn backslash_newline_continuation_is_one_element() {
-        // RUST_ISSUE_087: `\<newline>` is a line continuation that absorbs the
+        // `\<newline>` is a line continuation that absorbs the
         // following run of spaces/tabs, so `a\<newline> b` is ONE element, not
         // two — the whitespace after the continuation is part of the element.
         assert_eq!(split_list_raw("a\\\n b").unwrap().len(), 1);

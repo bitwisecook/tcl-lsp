@@ -790,8 +790,7 @@ fn var_taint<S: std::hash::BuildHasher>(
 ///
 /// Variable references are intentionally *not* re-scanned here — they are
 /// already covered by the `AssignExpr` statement's SSA `uses` join — so this
-/// adds only the command-substitution taint that variable joining misses
-/// (`RUST_ISSUE_021`).
+/// adds only the command-substitution taint that variable joining misses.
 fn expr_command_taint<S: std::hash::BuildHasher>(
     node: &ExprNode,
     uses: &HashMap<Symbol, u32>,
@@ -878,8 +877,7 @@ fn evaluate_taint_def<S: std::hash::BuildHasher>(
         // substitution embedded in the expression AST. `join_uses` only sees
         // `$var` SSA uses, so a taint source nested in an `[expr {…}]` command
         // substitution (`set x [expr {[gets stdin] + 1}]`) would otherwise
-        // launder the taint — a false-negative security diagnostic
-        // (RUST_ISSUE_021).
+        // launder the taint — a false-negative security diagnostic.
         Statement::AssignExpr { expr, .. } => {
             join_uses(uses, taints, ssa).join(expr_command_taint(expr, uses, taints, ctx, 0))
         }
@@ -1505,7 +1503,7 @@ fn classify_network_interp_sinks(
     }
     // Resolve the subcommand prefix-aware (`interp ev` ⇒ `eval`) before testing
     // membership, so a legal abbreviation does not dodge the cross-interpreter
-    // eval classification (RUST_ISSUE_023).
+    // eval classification.
     if let Some(sub) = args.first() {
         let canonical = spec
             .resolve_subcommand(sub)
@@ -2028,8 +2026,7 @@ fn irule3002_name_position_safe(
     // Registry-driven + prefix-aware: an output-sink subcommand
     // (`taint_output_sink_subcommands`, e.g. `insert`/`replace`) resolved from
     // whatever the caller wrote (`ins` ⇒ `insert`), so the name-position
-    // safety check matches the same set the sink classifier uses
-    // (RUST_ISSUE_023).
+    // safety check matches the same set the sink classifier uses.
     let Some(spec) = registry.get(command) else {
         return false;
     };
@@ -4805,7 +4802,7 @@ mod tests {
 
     #[test]
     fn classify_irules_sink_prefix_abbreviation() {
-        // RUST_ISSUE_023: `HTTP::cookie ins` is a legal abbreviation of `insert`
+        // `HTTP::cookie ins` is a legal abbreviation of `insert`
         // and must still classify as the IRULE3002 output sink.
         let reg = tcl_registry::registry_for_dialect("f5-irules");
         let hit = classify_sink(

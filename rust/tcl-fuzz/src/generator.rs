@@ -231,7 +231,7 @@ impl Gen {
     /// A scoping statement: a one-shot proc that reaches an enclosing/global
     /// variable through `global` or `upvar`, then is called. The referenced
     /// variables (`a`/`b`) are seeded at top level, so the result is
-    /// deterministic (`RUST_ISSUE_064`).
+    /// deterministic.
     fn scope_stmt(&mut self) {
         if self.rng.chance(1, 2) {
             // `global`: read module-global scalars from inside a proc.
@@ -688,7 +688,7 @@ _cff2 _cfu; puts [info exists _cfu]}\n_cff0\n",
 
     /// A `string` ensemble subcommand producing a value. Every form is
     /// deterministic (no locale/encoding-sensitive output) so a divergence is a
-    /// real bug (`RUST_ISSUE_064`).
+    /// real bug.
     fn string_op(&mut self) -> String {
         let w = self.nonempty_word();
         let w2 = self.nonempty_word();
@@ -777,7 +777,7 @@ _cff2 _cfu; puts [info exists _cfu]}\n_cff0\n",
     /// divisor so both engines agree on the (non-error) result. The leaves mix
     /// integers, floats, and variable reads; a fraction of interior nodes are
     /// string-relational (`eq`/`ne`/`in`/`ni`/TIP 461 `lt`/`le`/`gt`/`ge`) so
-    /// those operators are exercised (`RUST_ISSUE_064`), and a fraction are a
+    /// those operators are exercised, and a fraction are a
     /// builtin math-function call (see [`Self::mathfunc_call`]).
     ///
     /// Issue #983's plan: this operator list used to be missing every TIP 461
@@ -1057,7 +1057,7 @@ mod tests {
             "switch -- ",
             "catch {",
             "try {",
-            // Command families added for RUST_ISSUE_064.
+            // Command families added for.
             "format ",
             "scan ",
             "array set ",

@@ -444,7 +444,7 @@ fn next_arg<'a>(args: &[&'a [u8]], ai: &mut usize) -> Result<&'a [u8], CmdError>
 /// Allocate `n` bytes filled with `fill`, returning a catchable [`CmdError`]
 /// instead of panicking on a capacity overflow. A `binary format` count may be
 /// a saturated out-of-range value (`usize::MAX`); `vec![fill; n]` would abort
-/// the process with "capacity overflow" (`RUST_ISSUE_131`).
+/// the process with "capacity overflow".
 fn alloc_field(n: usize, fill: u8) -> Result<Vec<u8>, CmdError> {
     let mut v: Vec<u8> = Vec::new();
     v.try_reserve_exact(n)
@@ -715,8 +715,8 @@ pub fn scan(data: &[u8], fmt: &[u8]) -> Result<Vec<Vec<u8>>, CmdError> {
                 // `n` may be `usize::MAX` (a saturated out-of-range count), so
                 // `cur + n` must be checked — an unchecked add panics in debug
                 // and wraps in release (`1 + usize::MAX → 0`), turning the
-                // bounds check into `0 > len` (false) and slicing `data[1..0]`
-                // (`RUST_ISSUE_131`). Not enough bytes → stop, like any short read.
+                // bounds check into `0 > len` (false) and slicing `data[1..0]`.
+                // Not enough bytes → stop, like any short read.
                 let Some(end) = cur.checked_add(n).filter(|&e| e <= data.len()) else {
                     break;
                 };
@@ -868,7 +868,7 @@ mod tests {
 
     #[test]
     fn scan_a_field_with_huge_count_does_not_panic() {
-        // RUST_ISSUE_131: an out-of-range count saturates to usize::MAX; the
+        // An out-of-range count saturates to usize::MAX; the
         // `a`/`A` bounds check must not overflow `cur + n` (debug panic / release
         // wrap → OOB slice). `@1` advances cur to 1 first to exercise the add.
         let r = scan(b"xy", b"@1 a99999999999999999999999").expect("scan returns, no panic");
@@ -881,7 +881,7 @@ mod tests {
 
     #[test]
     fn format_a_field_with_huge_count_errors_not_panics() {
-        // RUST_ISSUE_131: a huge field width must be a catchable CmdError, not a
+        // A huge field width must be a catchable CmdError, not a
         // process-aborting "capacity overflow".
         let err = format(b"a99999999999999999999999", &[b"x"]).unwrap_err();
         assert!(err.to_string().contains("too large"), "{err}");

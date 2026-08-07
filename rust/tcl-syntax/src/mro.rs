@@ -105,7 +105,7 @@ struct DfsCtx<'a> {
     /// on re-visit) is order-significant, so a shared sub-DAG is legitimately
     /// re-explored once per reaching path — Θ(2^k) on k stacked diamonds. The
     /// budget bounds that adversarial blow-up without changing the result for
-    /// realistic hierarchies (RUST_ISSUE_076).
+    /// realistic hierarchies.
     budget: usize,
     /// Set when the depth cap or visit budget is exceeded; the linearisation is
     /// then abandoned as too complex rather than hung or stack-overflowed.
@@ -126,7 +126,7 @@ const MAX_MRO_VISITS: usize = 200_000;
 /// `true` when the class was reached via a mixin edge.
 fn tcloo_dfs(cls: &str, ctx: &mut DfsCtx<'_>, is_mixin_path: bool, depth: usize) {
     // Bound the walk: an over-deep chain would overflow the stack and stacked
-    // diamonds would explode the visit count. Abort gracefully (RUST_ISSUE_076).
+    // diamonds would explode the visit count. Abort gracefully.
     if depth > MAX_MRO_DEPTH || ctx.budget == 0 {
         ctx.aborted = true;
         return;
@@ -179,7 +179,7 @@ fn has_super_cycle(start: &str, supers_map: &HashMap<String, Vec<String>>) -> bo
     // Two sets, not one: `on_path` is the current DFS stack (a back-edge to it
     // is a real cycle) and `explored` memoises nodes fully proven acyclic (so a
     // shared sub-DAG is visited once, not once per reaching path — the previous
-    // single path-scoped set was Θ(2^k) on k stacked diamonds; RUST_ISSUE_076).
+    // single path-scoped set was Θ(2^k) on k stacked diamonds).
     // A depth over `MAX_MRO_DEPTH` is treated as a cycle rather than overflowing
     // the stack on a pathological linear chain.
     fn recurse(
@@ -416,7 +416,7 @@ mod tests {
 
     /// `k` stacked diamonds: `L{i} → {A{i}, B{i}}`, both `A{i}` and `B{i}`
     /// point at `L{i+1}`. The bottom `L{k}` is reachable by 2^k paths — the
-    /// shape that made the old path-scoped DFS explode (RUST_ISSUE_076).
+    /// shape that made the old path-scoped DFS explode.
     fn stacked_diamonds(k: usize) -> HashMap<String, Vec<String>> {
         let mut m: HashMap<String, Vec<String>> = HashMap::new();
         for i in 0..k {
@@ -440,7 +440,7 @@ mod tests {
 
     #[test]
     fn adversarial_stacked_diamonds_do_not_hang() {
-        // RUST_ISSUE_076: ~40 stacked diamonds is 2^40 paths — the old DFS
+        // ~40 stacked diamonds is 2^40 paths — the old DFS
         // would hang. The visit budget makes it abort gracefully with a
         // "too complex" error. The test completing at all is the assertion.
         let s = stacked_diamonds(40);
@@ -450,7 +450,7 @@ mod tests {
 
     #[test]
     fn deep_linear_chain_does_not_overflow() {
-        // RUST_ISSUE_076: a ~5000-deep superclass chain would overflow the
+        // A ~5000-deep superclass chain would overflow the
         // stack. The depth cap bounds recursion (reported as a cycle rather
         // than a crash). Completing without a stack overflow is the point.
         let mut s: HashMap<String, Vec<String>> = HashMap::new();

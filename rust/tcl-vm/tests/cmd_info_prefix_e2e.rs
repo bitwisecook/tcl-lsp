@@ -522,7 +522,7 @@ fn info_dispatch_and_abbreviation() {
 ///   info frame      -> a frame count / dict
 /// UNIMPLEMENTED in the VM (coverage limit, not a correctness bug on supported
 /// input): asserting the VM's actual error so the gap is pinned and visible.
-/// (`info object`/`info class` — `RUST_ISSUE_009` — and `info coroutine` —
+/// (`info object`/`info class` — and `info coroutine` —
 /// `RUST_ISSUE_008` — are now implemented, so they are no longer in this list.)
 #[test]
 fn info_unimplemented_subcommands_error() {

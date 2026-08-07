@@ -230,7 +230,7 @@ pub(crate) fn fold_join(args: &[&str]) -> Option<String> {
 pub(crate) fn fold_split(args: &[&str]) -> Option<String> {
     let (s, chars) = match args {
         // Tcl's default split set is " \n\t\r" (whitespace incl. carriage
-        // return); omitting `\r` mis-folds `split "a\r\nb"` (RUST_ISSUE_079).
+        // return); omitting `\r` mis-folds `split "a\r\nb"`.
         [s] => (*s, " \t\n\r"),
         [s, c] => (*s, *c),
         _ => return None,
@@ -476,7 +476,7 @@ mod tests {
         assert_eq!(fold_join(&["{a b} c"]).as_deref(), Some("a b c"));
         assert_eq!(fold_split(&["a,b,c", ","]).as_deref(), Some("a b c"));
         assert_eq!(fold_split(&["a b,c", ","]).as_deref(), Some("{a b} c"));
-        // RUST_ISSUE_079: the default split set includes `\r`. `split "a\r\nb"`
+        // the default split set includes `\r`. `split "a\r\nb"`
         // → tclsh `a {} b` (empty element between \r and \n).
         assert_eq!(fold_split(&["a\r\nb"]).as_deref(), Some("a {} b"));
         assert_eq!(fold_split(&["a b\tc"]).as_deref(), Some("a b c"));

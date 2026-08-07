@@ -294,7 +294,7 @@ pub fn run_diff(
 
     // A side may be supplied as a positional path OR as inline source
     // (`--left-source` / `--right-source`) — the inline flags are usable on
-    // their own, not only appended to a path (RUST_ISSUE_124).
+    // their own, not only appended to a path.
     if left.is_none() && left_source.is_none() {
         anyhow::bail!("diff requires a left input (a path or --left-source)");
     }
@@ -428,7 +428,7 @@ mod tests {
 
     #[test]
     fn inline_sources_are_usable_without_paths() {
-        // RUST_ISSUE_124: `--left-source` / `--right-source` work on their own,
+        // `--left-source` / `--right-source` work on their own,
         // not only appended to a positional path.
         let show = vec!["ast".to_owned()];
         let r = run_diff(

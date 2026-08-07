@@ -63,7 +63,7 @@ pub fn use_colour(force: Option<bool>) -> bool {
 /// Resolve colour for a verb that carries a `--json` flag: JSON output is never
 /// coloured, but *human* output must still auto-detect (respecting a pipe,
 /// `NO_COLOR`, and `FORCE_COLOR`). Passing `Some(!json)` forced colour ON for
-/// every non-JSON run, defeating that detection (`RUST_ISSUE_128`).
+/// every non-JSON run, defeating that detection.
 #[must_use]
 pub fn use_colour_for_json(json: bool) -> bool {
     use_colour(if json { Some(false) } else { None })
@@ -136,7 +136,7 @@ mod tests {
 
     #[test]
     fn json_mode_never_colours_but_human_auto_detects() {
-        // RUST_ISSUE_128: JSON output is never coloured; human output must
+        // JSON output is never coloured; human output must
         // defer to auto-detection (pipe / NO_COLOR / FORCE_COLOR), NOT be
         // force-enabled.
         assert!(!use_colour_for_json(true), "JSON must never colour");

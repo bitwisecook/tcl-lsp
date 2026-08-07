@@ -772,7 +772,7 @@ pub fn classify_side_effects(
         // through the registry's arg-role resolver — which skips the leading
         // options (`-nocomplain`, `--`) and yields *every* trailing name, not
         // just the first. So `unset -nocomplain x` keys `x` (not `-nocomplain`),
-        // and `unset a b` keys both `a` and `b` (RUST_ISSUE_078).
+        // and `unset a b` keys both `a` and `b`.
         let arg_refs: Vec<&str> = args.iter().map(String::as_str).collect();
         let targets =
             registry.arg_indices_for_role(command, &arg_refs, tcl_registry::ArgRole::VarWrite);
@@ -1399,7 +1399,7 @@ mod tests {
 
     #[test]
     fn classify_unset_keys_the_variable_not_the_option() {
-        // RUST_ISSUE_078: `unset x` destroys `x` — it is a WRITE (destroy) of
+        // `unset x` destroys `x` — it is a WRITE (destroy) of
         // `x`, never a read, and its key is `x` (not modelled as an assignment).
         let registry = CommandRegistry::build_default();
         let cse = classify_side_effects(&registry, "unset", &["x".into()], None, None);
@@ -1412,7 +1412,7 @@ mod tests {
 
     #[test]
     fn classify_unset_skips_leading_options() {
-        // RUST_ISSUE_078: `unset -nocomplain x` keys `x`, NOT `-nocomplain`.
+        // `unset -nocomplain x` keys `x`, NOT `-nocomplain`.
         let registry = CommandRegistry::build_default();
         let cse = classify_side_effects(
             &registry,
@@ -1431,7 +1431,7 @@ mod tests {
 
     #[test]
     fn classify_unset_keys_every_name() {
-        // RUST_ISSUE_078: `unset a b c` destroys all three — not just the first.
+        // `unset a b c` destroys all three — not just the first.
         let registry = CommandRegistry::build_default();
         let cse = classify_side_effects(
             &registry,

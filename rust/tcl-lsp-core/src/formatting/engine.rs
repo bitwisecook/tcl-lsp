@@ -132,7 +132,7 @@ struct ParsedCommand {
 ///
 /// `keep_preceding` controls whitespace *before* the backslash. Inside a
 /// double-quoted string that whitespace is literal data, so it must survive
-/// (`"a \<nl> b"` is the value `a  b`, two spaces — `RUST_ISSUE_104`); pass
+/// (`"a \<nl> b"` is the value `a  b`, two spaces); pass
 /// `true`. Inside a command substitution `[…]` (and bare word contexts) the
 /// whole `<ws>\<nl><ws>` run is inter-word spacing the lexer collapses to a
 /// single space, so the preceding whitespace must be trimmed (`[cat a \<nl> b]`
@@ -153,7 +153,7 @@ fn normalise_backslash_newline(text: &str, keep_preceding: bool) -> String {
 /// double-quoted argument (which the caller re-wraps in `"…"`). In that context
 /// a `Str` token is literal string data — a lone `$` the lexer classified as
 /// `Str`, for instance — so it is emitted verbatim rather than brace-wrapped as
-/// `{$}`, which would change the string's value (`RUST_ISSUE_103`).
+/// `{$}`, which would change the string's value.
 fn reconstruct_raw(sm: &SourceMap, tok: Token, in_quotes: bool) -> String {
     match tok.kind {
         TokenType::Str if in_quotes => sm.text(tok.span).to_owned(),
@@ -523,7 +523,7 @@ struct SwitchElem {
     is_braced: bool,
     /// A comment token standing on its own — emitted verbatim on its own line
     /// rather than paired as a pattern/body, so switch-body comments are not
-    /// silently deleted (`RUST_ISSUE_038`).
+    /// silently deleted.
     is_comment: bool,
 }
 
@@ -565,7 +565,7 @@ fn segment_switch_elements(sm: &SourceMap, tokens: Vec<Token>) -> Vec<SwitchElem
             }
             TokenType::Comment => {
                 // Preserve the comment as a standalone element instead of
-                // dropping it (RUST_ISSUE_038): flush any in-progress element,
+                // dropping it: flush any in-progress element,
                 // then push the comment on its own so the emit loop renders it
                 // on its own line.
                 if let Some(e) = cur.take() {
@@ -627,7 +627,7 @@ fn emit_switch_lines(
     let mut i = 0;
     while i < elements.len() {
         // A comment element is emitted verbatim on its own line and never
-        // consumed as a pattern (RUST_ISSUE_038).
+        // consumed as a pattern.
         if elements[i].is_comment {
             let comment_raw: String = elements[i]
                 .tokens
@@ -1021,7 +1021,7 @@ fn body_can_be_inline(
     {
         // Only force expansion once the body carries at least
         // `min_body_commands_for_expansion` commands; a trivial one-command
-        // body stays inline (RUST_ISSUE_133).
+        // body stays inline.
         return false;
     }
     let stripped = body_text.trim();
@@ -1175,7 +1175,7 @@ fn append_word_arg(ctx: &WordArgContext<'_>, parts: &mut Vec<String>) -> bool {
     let mut raw = reconstruct_arg(sm, arg, config.enforce_braced_variables);
     if raw.contains('\n') {
         // Keep whitespace before the backslash only for a quoted string, where
-        // it is literal data (RUST_ISSUE_104); a bare/continued word collapses.
+        // it is literal data; a bare/continued word collapses.
         let collapsed = normalise_backslash_newline(&raw, arg.is_quoted)
             .trim()
             .to_owned();
@@ -1304,7 +1304,7 @@ fn reconstruct_command(
     // `enforceBracedExpr`, concatenating form: a command whose entire argument
     // tail is one expression (`expr $a + $b`) — brace the joined tail
     // (`expr {$a + $b}`) rather than the single marked argument, which would
-    // corrupt it (RUST_ISSUE_133). Bounded-expression commands fall through to
+    // corrupt it. Bounded-expression commands fall through to
     // the per-argument bracing in `append_word_arg`.
     if config.enforce_braced_expr
         && spec_traits.is_some_and(|t| t.contains(Traits::EXPR_CONCATENATES_ARGS))
@@ -1567,8 +1567,8 @@ pub(crate) fn format_body(
         // `replace_semicolons_with_newlines`, but only in the simple case:
         // the previous command ended with a bare `;`, neither this command
         // nor the previous rendered line spans multiple lines, and this
-        // command has no leading comment/blank that would force a break
-        // (RUST_ISSUE_133). Any other shape falls back to the default
+        // command has no leading comment/blank that would force a break.
+        // Any other shape falls back to the default
         // one-command-per-line layout.
         let joinable = !config.replace_semicolons_with_newlines
             && i > 0
@@ -1594,8 +1594,8 @@ pub(crate) fn format_body(
 }
 
 /// Emit a comment into `out`, either re-indented to the code column
-/// (`align_comments_to_code`, the default) or at its original source column
-/// (`RUST_ISSUE_133`). The commented-code long-line split only applies when
+/// (`align_comments_to_code`, the default) or at its original source column.
+/// The commented-code long-line split only applies when
 /// aligning — preserving the author's column means leaving the line as-is.
 fn emit_comment_lines(
     comment: &CommentLine,
@@ -1620,7 +1620,7 @@ fn emit_comment_lines(
 /// newline sits inside a multi-line braced (`{…}`) or double-quoted (`"…"`)
 /// word — i.e. inside string data. Trimming such a line changes the value of
 /// the literal (`set x {line1␠␠␠\nline2}` must keep the spaces after `line1`),
-/// which would violate "the formatter never changes semantics" (`RUST_ISSUE_037`).
+/// which would violate "the formatter never changes semantics".
 ///
 /// A line is safe to trim when, after scanning it, the running brace depth is
 /// zero and no double-quoted word is open — the newline is then a structural
@@ -1761,7 +1761,7 @@ mod tests {
 
     #[test]
     fn min_body_commands_keeps_single_command_body_inline() {
-        // RUST_ISSUE_133: with expansion on but the threshold at 2, a
+        // With expansion on but the threshold at 2, a
         // one-command body stays inline while a two-command body expands.
         // `catch` has an inline-able body (not NEVER_INLINE_BODY), so it
         // exercises the `expand_single_line_bodies` path.
@@ -1784,7 +1784,7 @@ mod tests {
 
     #[test]
     fn enforce_braced_expr_braces_expr_and_conditions() {
-        // RUST_ISSUE_133: `enforceBracedExpr` braces bare expressions.
+        // `enforceBracedExpr` braces bare expressions.
         let config = FormatterConfig {
             enforce_braced_expr: true,
             ..FormatterConfig::default()
@@ -1855,7 +1855,7 @@ mod tests {
 
     #[test]
     fn replace_semicolons_disabled_keeps_commands_inline() {
-        // RUST_ISSUE_133: default splits `a; b` onto two lines; disabling the
+        // Default splits `a; b` onto two lines; disabling the
         // setting keeps them on one line joined by `; `.
         let split = fmt("puts a; puts b\n");
         assert!(
@@ -1875,7 +1875,7 @@ mod tests {
 
     #[test]
     fn bare_dollar_in_quoted_string_is_not_brace_wrapped() {
-        // RUST_ISSUE_103: a lone `$` inside a double-quoted string is literal
+        // A lone `$` inside a double-quoted string is literal
         // data; formatting must not turn `"cost: $"` into `"cost: {$}"`.
         let out = fmt("puts \"cost: $\"\n");
         assert!(out.contains("\"cost: $\""), "{out:?}");
@@ -1884,7 +1884,7 @@ mod tests {
 
     #[test]
     fn backslash_newline_keeps_preceding_spaces_in_quoted_string() {
-        // RUST_ISSUE_104: Tcl replaces `\<nl><following-ws>` with a single
+        // Tcl replaces `\<nl><following-ws>` with a single
         // space but keeps whitespace *before* the backslash. `"a \<nl> b"` is
         // the value `a  b` (two spaces) — the pre-backslash space must survive.
         let out = fmt("puts \"a \\\n b\"\n");
@@ -1914,7 +1914,7 @@ mod tests {
 
     #[test]
     fn trim_preserves_multiline_braced_string_interior() {
-        // RUST_ISSUE_037: trailing spaces *inside* a multi-line braced word are
+        // Trailing spaces *inside* a multi-line braced word are
         // string data and must survive the trailing-whitespace pass.
         let input = "set x {line1   \nline2}\n";
         let out = fmt(input);
@@ -2044,7 +2044,7 @@ mod tests {
 
     #[test]
     fn switch_body_preserves_comments() {
-        // RUST_ISSUE_038: a comment line inside a switch body must survive
+        // A comment line inside a switch body must survive
         // formatting rather than being silently deleted.
         let out = fmt("switch $x {\n# note\na { puts 1 }\n}\n");
         assert!(

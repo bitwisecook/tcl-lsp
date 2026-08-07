@@ -174,8 +174,7 @@ pub fn simulate_irule(
     // (`::state::http::response_committed`), set by the `HTTP::respond` /
     // `HTTP::redirect` mocks. Reading the non-existent
     // `::state::http::response::response_committed` errored, and `is_ok_and`
-    // swallowed the error so a committed response always read as `false`
-    // (RUST_ISSUE_112).
+    // swallowed the error so a committed response always read as `false`.
     out.response_committed = sess
         .eval("set ::state::http::response_committed")
         .is_ok_and(|v| v == "1" || v == "true");

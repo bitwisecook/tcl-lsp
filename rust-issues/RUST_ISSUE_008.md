@@ -304,7 +304,7 @@ the reference tclsh is non-threaded, so there is no threaded oracle).
   called in deleted namespace` when a coroutine's namespace is deleted while it
   is suspended.
 - The `tcl-registry` `Thread`-package `CommandSpec`s for the sync primitives are
-  LSP metadata only (the runtime and the `RUST_ISSUE_006` core-backing gate do
+  LSP metadata only (the runtime and the `cargo xtask command-backing` gate do
   not require them). The `thread` package (including the `mutex`/`cond`/`rwmutex`/
   `tpool` primitives now landed) is a native-only VM feature — it needs OS
   threads; on wasm the VM runs single-threaded with coroutines, matching the

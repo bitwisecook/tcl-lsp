@@ -156,7 +156,7 @@ pub fn is_taint_source(
         // Tcl ensemble dispatch accepts a unique prefix (`chan g` ⇒ `gets`,
         // `encoding convertf` ⇒ `convertfrom`), so a source subcommand must be
         // resolved prefix-aware or an abbreviation dodges the classification —
-        // a taint-source false negative (RUST_ISSUE_023). Dialect-agnostic:
+        // a taint-source false negative. Dialect-agnostic:
         // classifying a source in *every* dialect only ever catches more (the
         // safe direction for a security source), matching the prior behaviour.
         if let Some(sub_name) = args.first().copied()
@@ -250,7 +250,7 @@ pub fn is_sanitiser(registry: &CommandRegistry, command: &str, args: &[&str]) ->
     };
     // Prefix-aware (`string le` ⇒ `length`) so a legal abbreviation of a
     // sanitiser is still recognised — otherwise a spurious T101 fires where the
-    // full spelling is correctly suppressed (RUST_ISSUE_023).
+    // full spelling is correctly suppressed.
     if let Some(sub_name) = args.first().copied()
         && let Some(sub) = spec.resolve_subcommand(sub_name)
         && is_fixed_numeric(sub.return_type)
@@ -327,7 +327,7 @@ pub fn classify_taint_sinks(
         // Tcl ensemble dispatch accepts a unique prefix (`HTTP::cookie ins` ⇒
         // `insert`), so the abbreviation is resolved to its canonical
         // subcommand name before the sink-membership test — an exact `contains`
-        // let a prefix-abbreviated sink dodge classification (RUST_ISSUE_080).
+        // let a prefix-abbreviated sink dodge classification.
         // Falls back to the raw word when the subcommand isn't a registered
         // `SubCommand` (nothing to resolve against).
         let canonical = subcommand
@@ -679,7 +679,7 @@ mod tests {
         assert_eq!(domain.output_sink, None);
     }
 
-    /// `RUST_ISSUE_080`: a unique-prefix abbreviation of a sink subcommand
+    /// a unique-prefix abbreviation of a sink subcommand
     /// (`HTTP::cookie ins` ⇒ `insert`) must still be classified as the
     /// IRULE3002 sink — an exact `contains` let it dodge the check.
     #[test]

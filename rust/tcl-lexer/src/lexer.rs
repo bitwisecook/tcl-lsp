@@ -844,8 +844,8 @@ impl<'src> Lexer<'src> {
     /// (`[…]`) or a nested variable reference (`${…}` / `$name(…)`) — whose
     /// tokens are scanned so their inner `)` are not mistaken for the
     /// terminator. Paren-counting made `$a((b)` never close (swallowing the
-    /// rest of the source) and made `$a(x\)y)` end at the escaped `)`
-    /// (`RUST_ISSUE_085`). Advances `self.pos` past the closing `)` (or to EOF
+    /// rest of the source) and made `$a(x\)y)` end at the escaped `)`.
+    /// Advances `self.pos` past the closing `)` (or to EOF
     /// for unterminated input).
     ///
     /// `depth` is the nesting level of this call (0 at the top, via
@@ -1419,7 +1419,7 @@ impl<'src> Lexer<'src> {
                 // `self.pos += 1` skipped that real byte and left the ghost in
                 // place, mis-boundarying recovery and (for a ghost at EOF)
                 // driving `pos` to `len + 1` — a span past the buffer that
-                // panics `SourceMap::text` (RUST_ISSUE_027).
+                // panics `SourceMap::text`.
                 self.ghosts.remove(&self.pos);
                 continue;
             }
@@ -2171,7 +2171,7 @@ mod tests {
 
     #[test]
     fn var_array_index_nested_parens() {
-        // RUST_ISSUE_085: C Tcl does NOT nest parens in an array index — it
+        // C Tcl does NOT nest parens in an array index — it
         // terminates at the first `)`. `$arr(one(two)three)` is the variable
         // `arr(one(two)` followed by the literal text `three)`.
         let (rows, _) = var_token_text("$arr(one(two)three)");
@@ -3153,7 +3153,7 @@ mod tests {
 
     #[test]
     fn ghost_bracket_at_eof_with_deep_nesting_stays_in_bounds() {
-        // RUST_ISSUE_027: a ghost `]` consumed while nesting is ≥ 2 must be
+        // A ghost `]` consumed while nesting is ≥ 2 must be
         // zero-width — it must not advance `pos` past the real byte (here past
         // EOF to `len + 1`), which produced a token span one past the buffer and
         // panicked `SourceMap::text`.

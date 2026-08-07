@@ -640,7 +640,7 @@ const P200: &str = "160693804425899027554196209234116260252220299378279283530137
 fn expr_runtime_bignum_operands_past_i128() {
     // An operand already past i128 (e.g. a prior 2**200 result) is numeric —
     // it reaches the exact bignum path instead of erroring as a non-numeric
-    // string (the RUST_ISSUE_011 operand gap).  tclsh 8.6/9.0:
+    // string (the operand gap).  tclsh 8.6/9.0:
     expr_ab(
         P200,
         "1",

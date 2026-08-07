@@ -618,7 +618,7 @@ xtask-gen-ai-diagnostics: ## Verify ai/shared/diagnostics.json + AI prompt/skill
 	@echo "==> Checking generated AI files are in sync (cargo xtask)"
 	cd $(ROOT) && cargo xtask gen-ai-diagnostics --check
 
-xtask-command-backing: ## Verify the WASM runtime backs every core-Tcl registry command (RUST_ISSUE_006 drift + gap gate)
+xtask-command-backing: ## Verify the WASM runtime backs every core-Tcl registry command (drift + gap gate)
 	@echo "==> Checking WASM command backing coverage is in sync (cargo xtask)"
 	cd $(ROOT) && cargo xtask command-backing --check
 

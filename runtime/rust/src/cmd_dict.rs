@@ -330,8 +330,7 @@ fn filter(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
                 // Tcl boolean parser (the one `if`/`while`/`expr` use), so a
                 // numeric false like `0x0`/`0.0` drops the pair and a
                 // non-boolean result raises `expected boolean value` — matching
-                // C's `Tcl_GetBooleanFromObj` rather than a loose string test
-                // (RUST_ISSUE_092).
+                // C's `Tcl_GetBooleanFromObj` rather than a loose string test.
                 match dict_filter_bool(interp.get_obj_result()) {
                     Ok(true) => kept.push((k, v)),
                     Ok(false) => {}
@@ -348,8 +347,8 @@ fn filter(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
 }
 
 /// Coerce a `dict filter -filter script` body result to a boolean like C's
-/// `Tcl_GetBooleanFromObj`, returning the C error message bytes on a non-boolean
-/// (`RUST_ISSUE_092`). On the numeric-tower build this is the canonical `expr`
+/// `Tcl_GetBooleanFromObj`, returning the C error message bytes on a non-boolean.
+/// On the numeric-tower build this is the canonical `expr`
 /// parser (arbitrary-precision non-zero test); the degraded no-`tommath` wasm
 /// build (where `expr` is compiled out) falls back to the boolean keywords plus a
 /// `parse_whole` numeric non-zero test — enough to keep `dict filter` building and
@@ -503,7 +502,7 @@ fn lappend(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
 /// bignum-aware `int_add` seam (the one scalar `incr` uses), so a radix literal
 /// such as `0x10` is accepted and a sum past `i64::MAX` widens to a bignum
 /// instead of wrapping — matching C's `TclIncrObj` rather than a decimal-only
-/// `wrapping_add` (RUST_ISSUE_093 / 166).
+/// `wrapping_add`.
 fn incr(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     if argv.len() < 4 || argv.len() > 5 {
         return interp.wrong_args(b"dict incr dictVarName key ?increment?");
@@ -589,7 +588,7 @@ type DictPathLevel = (*mut TclObj, *mut TclObj, *mut TclObj, bool);
 /// set`/`dict unset` path failed partway through. The iterative form of the
 /// original recursive `dict_path_set`/`dict_path_unset`'s per-frame
 /// `if sub_fresh { drop_fresh(sub) }` unwind on the way back out of a failed
-/// recursive call (RUST_ISSUE_090) — same bookkeeping, expressed over an
+/// recursive call — same bookkeeping, expressed over an
 /// explicit stack instead of the native call stack.
 fn unwind_fresh_chain(chain: &[DictPathLevel]) {
     for &(_, _, sub, fresh) in chain {
@@ -648,7 +647,7 @@ fn dict_path_set(
     if let Err(e) = dict::dict_set(cur, last, value) {
         // A freshly duplicated/created `sub` (rc 0) at any level is only
         // retained once re-bound into its parent below; nothing in `chain` has
-        // been re-bound yet, so unwind all of it (RUST_ISSUE_090).
+        // been re-bound yet, so unwind all of it.
         unwind_fresh_chain(&chain);
         return Err(e);
     }
@@ -760,7 +759,7 @@ fn dict_path_unset(dict: *mut TclObj, keys: &[*mut TclObj]) -> Result<(), PathEr
     }
     let last = *keys.last().expect("keys is non-empty: the [last] case above handles len 1");
     // Drop a freshly duplicated `sub` still in `chain` if this (or the descent
-    // above) errors before the re-bind loop below retains it (RUST_ISSUE_090).
+    // above) errors before the re-bind loop below retains it.
     if let Err(e) = dict::dict_unset(cur, &obj_bytes(last)) {
         unwind_fresh_chain(&chain);
         return Err(PathErr::Bad(e));

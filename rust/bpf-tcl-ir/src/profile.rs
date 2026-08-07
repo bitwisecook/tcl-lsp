@@ -38,7 +38,7 @@
 //! temporary compatibility mode for synthetic host-order test packets.
 //!
 //! A user profile body may contain **only** `field` declarations — anything
-//! else is rejected rather than silently dropped (`RUST_ISSUE_063`).
+//! else is rejected rather than silently dropped.
 
 use tcl_compiler::ir::IfClause;
 use tcl_compiler::lowering::lower_to_ir;
@@ -208,7 +208,7 @@ fn parse_user_profile(
         } = stmt
         else {
             // A profile body is a pure declaration list — reject any control
-            // flow or assignment rather than dropping it (RUST_ISSUE_063).
+            // flow or assignment rather than dropping it.
             return Err(BpfError::new(
                 BpfDiag::BadProfile,
                 stmt.span(),

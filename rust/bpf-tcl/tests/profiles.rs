@@ -126,7 +126,7 @@ fn user_profile_little_endian_field() {
 #[test]
 fn profile_body_rejects_non_field_statement() {
     // A user profile body is a pure declaration list — a stray command is
-    // rejected, not silently dropped (RUST_ISSUE_063).
+    // rejected, not silently dropped.
     let src = "profile p { field a 0 16\n setint x 5 }\nwhen XDP { pass }\n";
     let err = compile_module(src).unwrap_err();
     assert_eq!(err.code, BpfDiag::BadProfile);

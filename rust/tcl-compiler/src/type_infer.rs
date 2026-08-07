@@ -2372,7 +2372,7 @@ mod tests {
     #[test]
     fn conditionally_assigned_param_merges_to_overdefined() {
         use crate::compilation_unit::CompilationUnit;
-        // RUST_ISSUE_066: a parameter assigned in only one arm must NOT be
+        // A parameter assigned in only one arm must NOT be
         // typed from that arm alone. The merge phi joins the live-in
         // (caller-supplied, unknown → OVERDEFINED) with the assigned-arm Int,
         // so the merged type is OVERDEFINED — never Known Int.
@@ -2413,7 +2413,7 @@ mod tests {
     #[test]
     fn unconditionally_assigned_param_still_typed() {
         use crate::compilation_unit::CompilationUnit;
-        // RUST_ISSUE_066 (FP guard): an *unconditionally* reassigned local is
+        // (FP guard): an *unconditionally* reassigned local is
         // still typed from its definition — the version-0 join only applies
         // when a live-in genuinely reaches the merge. Here `y` is set on every
         // path, so its post-assignment type stays Known Int.

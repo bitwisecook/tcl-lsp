@@ -438,7 +438,7 @@ fn emit_inst(inst: &Inst, ctx: EmitCtx, pend: &mut Vec<Pending>) -> Result<(), B
         Inst::Const { dst, val, .. } => {
             // A value fitting a sign-extended 32-bit immediate uses the single
             // `mov`; a full 64-bit constant uses the two-instruction `lddw`
-            // (`RUST_ISSUE_172`: large constants must materialise correctly).
+            // (large constants must materialise correctly).
             if let Ok(imm) = i32::try_from(*val) {
                 pend.push(Pending::Ins(mov64_imm(R1, imm)));
             } else {
@@ -699,9 +699,9 @@ fn emit_term(term: &Term, pend: &mut Vec<Pending>) {
 /// does not silently pretend to be Tcl. `BPF_SDIV` / `BPF_SMOD` are encoded as
 /// `DIV` / `MOD` with `off == 1`; the plain unsigned forms (off 0) reinterpret
 /// a negative operand as a huge unsigned value, giving a catastrophically
-/// wrong result (`RUST_ISSUE_031`). `>>` lowers to the arithmetic
+/// wrong result. `>>` lowers to the arithmetic
 /// (sign-preserving) `ARSH`, not the logical `RSH`, so `-8 >> 1` is `-4`
-/// (`RUST_ISSUE_062` / `097`). Every other op keeps `off == 0`.
+/// (`097`). Every other op keeps `off == 0`.
 fn bin_alu(op: IntBinOp) -> (u8, i16) {
     match op {
         IntBinOp::Add => (ADD, 0),
@@ -868,7 +868,7 @@ mod tests {
 
     #[test]
     fn division_uses_signed_ops() {
-        // `RUST_ISSUE_031`: `/` and `%` on signed Tcl integers must emit the
+        // `/` and `%` on signed Tcl integers must emit the
         // signed eBPF ops (BPF_SDIV / BPF_SMOD = DIV / MOD with off == 1), not
         // the unsigned forms that mangle negative operands.
         let div_op = alu64_reg_off(DIV, R1, R2, 1).op;

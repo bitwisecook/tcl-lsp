@@ -1804,7 +1804,7 @@ mod tests {
 
     #[test]
     fn right_shift_at_and_past_width() {
-        // RUST_ISSUE_018: `x >> 64` must not execute a 64-bit shift (which
+        // `x >> 64` must not execute a 64-bit shift (which
         // panics in debug / masks to `x >> 0` in release). At >= 64 the
         // result is the replicated sign bit.
         assert_eq!(eval_str("5 >> 64"), Some(TclValue::Int(0)));
@@ -2063,7 +2063,7 @@ mod tests {
 
     #[test]
     fn lshift_overflowing_a_wide_promotes_exactly() {
-        // RUST_ISSUE_069 → P4: `1 << 63` overflows a wide; Tcl promotes to
+        // → P4: `1 << 63` overflows a wide; Tcl promotes to
         // the bignum 9223372036854775808 and the folder now computes it
         // exactly (never the wrapped `i64::MIN`).
         assert_eq!(
@@ -2240,7 +2240,7 @@ mod tests {
 
     #[test]
     fn arith_rejects_boolean_words() {
-        // RUST_ISSUE_070: arithmetic/unary/mathfunc reject boolean words the
+        // Arithmetic/unary/mathfunc reject boolean words the
         // way Tcl's numeric context does — folding them would replace an error
         // with a value. All of these are Tcl errors, so the folder declines.
         assert_eq!(eval_str("true + 0"), None); // (TP)

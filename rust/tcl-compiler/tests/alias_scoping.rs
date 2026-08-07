@@ -339,7 +339,7 @@ mod taint_through_alias {
 
     #[test]
     fn taint_through_expr_command_substitution_still_warns() {
-        // RUST_ISSUE_021: a taint source nested in an `[expr {…}]` command
+        // A taint source nested in an `[expr {…}]` command
         // substitution must propagate into the assigned variable, so a later
         // `eval $x` fires T100. Storing the value through `expr` previously
         // laundered the taint (join_uses saw no `$var`), a false negative.

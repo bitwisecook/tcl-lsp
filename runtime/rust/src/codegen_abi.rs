@@ -39,8 +39,8 @@
 //! The emitted control flow inspects the completion `code` a leaf command
 //! returns and honours it — an `error` / `return` unwinds the function, a
 //! `break` / `continue` re-enters the enclosing loop's structural scopes — so
-//! abrupt completion propagates like the tree-walker's command loop
-//! (`RUST_ISSUE_010`). [`tcl_eval`] (returning the result object) is retained
+//! abrupt completion propagates like the tree-walker's command loop.
+//! [`tcl_eval`] (returning the result object) is retained
 //! for a host that wants the *value* of an evaluated script (the whole-program
 //! bootstrap reads a query result through it), but the AOT command emitter uses
 //! [`tcl_eval_code`].
@@ -194,7 +194,7 @@ pub unsafe extern "C" fn tcl_eval(script: *mut TclObj) -> *mut TclObj {
 /// own result. This is the AOT command emitter's eval: the emitted control flow
 /// branches on the returned code so an `error` / `return` inside a compiled
 /// `if`/`while`/`for` body unwinds, and a `break` / `continue` re-enters the
-/// enclosing loop — faithful abrupt-completion propagation (`RUST_ISSUE_010`).
+/// enclosing loop — faithful abrupt-completion propagation.
 ///
 /// **Adopts (frees)** the `rc 0` `script`. Unlike [`tcl_eval`] it returns no
 /// owned reference (the result stays the interp's borrowed result), so there is

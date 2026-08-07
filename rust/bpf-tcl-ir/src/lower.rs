@@ -612,7 +612,7 @@ impl Lowerer<'_> {
     /// (`(v << 32) >> 32`, arithmetic), so a value overflowing 32 bits becomes
     /// its signed 32-bit truncation; [`BpfScalarWidth::U32ZeroExtended`] zeroes
     /// the high half (`v & 0xFFFF_FFFF`); [`BpfScalarWidth::I64`] keeps the
-    /// full 64-bit value (`RUST_ISSUE_172`).
+    /// full 64-bit value.
     fn emit_width_set(
         &mut self,
         width: BpfScalarWidth,

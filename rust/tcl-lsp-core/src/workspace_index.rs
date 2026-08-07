@@ -3094,7 +3094,7 @@ impl WorkspaceIndex {
     /// renaming `::a::helper` must not touch a `proc helper` inside
     /// `namespace eval ::b` (whose qualified name is `::b::helper`). The looser
     /// [`Self::proc_definitions`] matches by simple name for go-to-definition
-    /// and must not be reused here (`RUST_ISSUE_036`).
+    /// and must not be reused here.
     #[must_use]
     pub fn proc_definitions_qualified<'a>(
         &'a self,

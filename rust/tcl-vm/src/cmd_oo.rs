@@ -16,7 +16,7 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! `TclOO` for the bytecode VM (`RUST_ISSUE_009`).
+//! `TclOO` for the bytecode VM.
 //!
 //! The object system the tree-walking WASM runtime already backs
 //! (`runtime/rust/src/cmd_oo.rs`), ported to the VM's `Rc`-value / bytecode

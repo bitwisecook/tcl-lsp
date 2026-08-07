@@ -37,7 +37,7 @@ pub enum Outcome {
     /// engines. Keeping stdout byte-faithful is what lets the differential
     /// harness see trailing-whitespace / trailing-blank-line divergences
     /// (`format "%-5s"` / `string repeat " "` padding) — the exact class of
-    /// output bug it exists to catch (`RUST_ISSUE_030`).
+    /// output bug it exists to catch.
     Ran {
         /// Verbatim stdout (no whitespace normalisation).
         stdout: String,
@@ -209,7 +209,7 @@ mod tests {
 
     #[test]
     fn trailing_whitespace_divergence_is_a_finding() {
-        // RUST_ISSUE_030: a padding/whitespace difference (`format "%-5s"`,
+        // A padding/whitespace difference (`format "%-5s"`,
         // `string repeat " "`) must surface as a StdoutMismatch, not be
         // normalised away into a false Match.
         assert_eq!(

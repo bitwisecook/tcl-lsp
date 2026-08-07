@@ -46,7 +46,7 @@ const MAX_FORMAT_SIZE: usize = i32::MAX as usize;
 /// (`tclStringObj.c`): the default is a 32-bit `int`, `h` a 16-bit `short`, `l`
 /// (and `j`/`q`/`t`/`z`/`I64`) a 64-bit wide, and `ll`/`L` an arbitrary-precision
 /// bignum. The width decides both the signed value of a `%d` and the unsigned bit
-/// pattern of a `%u`/`%o`/`%x`/`%X`/`%b` (RUST_ISSUE_091).
+/// pattern of a `%u`/`%o`/`%x`/`%X`/`%b`.
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum IntSize {
     Short,
@@ -344,7 +344,7 @@ fn bad_value_desc(arg: &[u8]) -> String {
 /// render its *unsigned* bit pattern — so `%x -1` is `ffffffff` at the default
 /// 32-bit width and `ffffffffffffffff` with `l`. A sign (`-`/`+`/space) is
 /// carried only by `%d`/`%i` and by any bignum conversion; a negative bignum
-/// under `%u` is the `unsigned bignum format is invalid` error (RUST_ISSUE_091).
+/// under `%u` is the `unsigned bignum format is invalid` error.
 fn int_field(interp: &mut Interp, spec: &Spec, value: i64, conv: u8) -> Result<Vec<u8>, Code> {
     let (radix, upper) = match conv {
         b'o' => (8u32, false),

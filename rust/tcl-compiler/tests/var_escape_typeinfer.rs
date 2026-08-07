@@ -1055,7 +1055,7 @@ fn subst_nocommands_missing_var_refuses() {
 
 #[test]
 fn subst_nocommands_unbalanced_bracket_is_literal() {
-    // RUST_ISSUE_019: `-nocommands` disables *command* substitution, so `[` is
+    // `-nocommands` disables *command* substitution, so `[` is
     // an ordinary character and an unbalanced `[` is NOT an error — it is
     // copied literally (tclsh: `subst -nocommands {[unbalanced}` -> `[unbalanced`).
     assert_eq!(subst("[unbalanced", &[]).as_deref(), Some("[unbalanced"));

@@ -2665,7 +2665,7 @@ pub fn find_var_at_position(source: &str, line: u32, character: u32) -> Option<S
     // `$` is a delimiter: in a `$a$b` concatenation the left-scan must stop at
     // the inner `$` so a cursor on `b` resolves `b`, not `a`. Omitting it walked
     // left across the whole concatenation to the first `$` and always returned
-    // the first variable (RUST_ISSUE_108). Mirrors `WORD_DELIMS`.
+    // the first variable. Mirrors `WORD_DELIMS`.
     let stop_chars: &[char] = &[' ', '\t', '\n', ';', '{', '}', '[', ']', '"', '$'];
     while pos > 0 && !stop_chars.contains(&chars[pos - 1]) {
         pos -= 1;
@@ -3680,7 +3680,7 @@ mod tests {
 
     #[test]
     fn find_var_at_position_resolves_second_var_of_concatenation() {
-        // RUST_ISSUE_108: `set z $x$y` — a cursor on `y` must resolve `y`, not
+        // `set z $x$y` — a cursor on `y` must resolve `y`, not
         // walk left across the `$` to the first variable `x`.
         let src = "set z $x$y\n";
         // Columns: s(0)e(1)t(2) (3)z(4) (5)$(6)x(7)$(8)y(9)

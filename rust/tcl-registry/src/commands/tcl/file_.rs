@@ -112,7 +112,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         // TIP 323 (Tcl 8.6+) made the zero-argument form a legal no-op, so the
         // arity floor is 0 for the modern dialects this registry targets. The
         // tighter `>= 1` bound held only for 8.4/8.5, and the registry has no
-        // dialect-split arity to express that exception (RUST_ISSUE_084).
+        // dialect-split arity to express that exception.
         name: "delete",
         traits: Traits::FIRE_AND_FORGET_TEARDOWN,
         arity: Arity::at_least(0),
@@ -303,7 +303,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         // `file lstat name varName` — required — through 8.4/8.5/8.6, and
         // `file lstat name ?varName?` from 9.0 onward, where omitting it
         // returns a dict instead of populating the array and returning "").
-        // The registry has no dialect-split arity (RUST_ISSUE_084-style
+        // The registry has no dialect-split arity (a known
         // gap): the floor of 1 below is only correct for 9.0+; 8.4-8.6
         // require exactly 2 args (name and varName).
         name: "lstat",
@@ -332,7 +332,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
     },
     SubCommand {
         // TIP 323 (Tcl 8.6+): the zero-argument form is a legal no-op; the
-        // `>= 1` bound held only for 8.4/8.5 (RUST_ISSUE_084).
+        // `>= 1` bound held only for 8.4/8.5.
         name: "mkdir",
         arity: Arity::at_least(0),
         detail: "Creates each directory specified, including any non-existing parent directories. An already-existing directory is not an error. Halts at the first error, if any, leaving earlier directories (processed in the order given) created.",
@@ -541,7 +541,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         // returns a dict of the stat fields when varName is omitted, but
         // still returns the empty string and populates the array when it
         // is given, in every version. The registry has no dialect-split
-        // arity (RUST_ISSUE_084-style gap): the floor of 1 below is only
+        // arity (a known gap): the floor of 1 below is only
         // correct for 9.0+; 8.4-8.6 require exactly 2 args (name and
         // varName).
         name: "stat",
@@ -740,7 +740,7 @@ mod tests {
 
     #[test]
     fn file_delete_and_mkdir_allow_zero_args() {
-        // RUST_ISSUE_084: TIP 323 (Tcl 8.6+) made `file delete` / `file mkdir`
+        // TIP 323 (Tcl 8.6+) made `file delete` / `file mkdir`
         // with no pathname a legal no-op — the arity floor must be 0, not 1, so
         // a plain `file delete` draws no false wrong-#-args on 8.6/9.x.
         let reg = CommandRegistry::build_default();

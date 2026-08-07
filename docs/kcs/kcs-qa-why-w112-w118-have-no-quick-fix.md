@@ -26,8 +26,8 @@ the end of a line *inside* a multi-line braced or quoted word is string
 data, and deleting it changes the program's values. The formatter's
 trailing-whitespace pass (`trim_trailing_ws_preserving_literals`, on by
 default via `trim_trailing_whitespace`) carries a cross-line brace,
-quote, and backslash scan precisely so it never trims those lines
-(`RUST_ISSUE_037`). A safe per-diagnostic fix would have to duplicate
+quote, and backslash scan precisely so it never trims those lines.
+A safe per-diagnostic fix would have to duplicate
 that scan for every flagged line — all of the formatter's cost with none
 of its coverage. The naive remove-whitespace edit the checker computes
 internally (`StyleDiagnostic::fix`) therefore stays unsurfaced.

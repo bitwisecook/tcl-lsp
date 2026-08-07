@@ -1324,7 +1324,7 @@ fn default_error_code(message: &str) -> &'static str {
 }
 
 /// Rebuild a return-options dict with its `-level` replaced — the proc-boundary
-/// countdown for `return -level N` (`RUST_ISSUE_170`). Every other key (`-code`
+/// countdown for `return -level N`. Every other key (`-code`
 /// and any user options) is preserved; a missing `-level` is appended.
 pub(crate) fn with_return_level(options: &Value, new_level: i64) -> Value {
     let mut items = Vec::new();
@@ -1432,7 +1432,7 @@ fn cmd_return(_vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     // TCL_RETURN carrying `-code`/`-level` in its options; each proc boundary
     // decrements the level and only applies `-code` once it reaches 0, so
     // `return -level 2 -code error` is seen as TCL_RETURN one level up, not an
-    // immediate error (`RUST_ISSUE_170`; the countdown lives at the proc boundary
+    // immediate error (the countdown lives at the proc boundary
     // in `exec.rs`).
     let final_code = if level == 0 { ret_code } else { Code::Return };
     Completion::new(final_code, value, options)
@@ -1701,7 +1701,7 @@ impl Vm {
 /// The options dict `catch` binds for an error completion. C always attaches
 /// `-errorcode`, `-errorinfo`, and `-errorline` to an error's options — even a
 /// bare builtin error such as `catch {llength} m opts` — so
-/// `dict get $opts -errorcode` never fails (`RUST_ISSUE_013`). The resolved code
+/// `dict get $opts -errorcode` never fails. The resolved code
 /// and trace already fold in any values a user `error`/`throw`/`return` carried;
 /// any *other* carried option (a custom `-foo`) is preserved verbatim.
 fn catch_error_options(comp: &Completion<Value>, ecode: &Value, einfo: &str, eline: u32) -> Value {

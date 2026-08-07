@@ -227,7 +227,7 @@ fn install_local_dep(tag: &str) -> (PathBuf, PathBuf, PathBuf) {
     (base, cache, dir)
 }
 
-// RUST_ISSUE_127: `pkg verify` must recompute and compare the integrity hash,
+// `pkg verify` must recompute and compare the integrity hash,
 // so tampering with a materialised file is detected — not just check that the
 // lockfile's integrity string is non-empty.
 #[test]
@@ -253,7 +253,7 @@ fn pkg_verify_detects_tampered_content() {
     let _ = std::fs::remove_dir_all(&base);
 }
 
-// RUST_ISSUE_125: `pkg sync` must actually materialise the locked packages into
+// `pkg sync` must actually materialise the locked packages into
 // `lib/`, reconstructing them from the CAS — not merely print the lockfile.
 #[test]
 fn pkg_sync_materialises_from_lockfile() {

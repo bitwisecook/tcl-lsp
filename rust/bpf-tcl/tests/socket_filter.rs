@@ -57,7 +57,7 @@ fn arithmetic_verdict() {
 #[test]
 fn signed_shift_and_32bit_widths() {
     let mut pkt = vec![0u8; 8];
-    // `>>` is arithmetic (sign-preserving): -8 >> 1 == -4 (RUST_ISSUE_062/097).
+    // `>>` is arithmetic (sign-preserving): -8 >> 1 == -4.
     assert_eq!(
         run_src(
             "when SOCKET_FILTER { setint x {0 - 8}\n accept {$x >> 1} }\n",
@@ -65,7 +65,7 @@ fn signed_shift_and_32bit_widths() {
         ),
         (-4i64).cast_unsigned()
     );
-    // seti32 sign-extends the low 32 bits: (1<<31) → i32::MIN (RUST_ISSUE_172).
+    // seti32 sign-extends the low 32 bits: (1<<31) → i32::MIN.
     assert_eq!(
         run_src(
             "when SOCKET_FILTER { seti32 x {1 << 31}\n accept {$x} }\n",
@@ -73,7 +73,7 @@ fn signed_shift_and_32bit_widths() {
         ),
         i64::from(i32::MIN).cast_unsigned()
     );
-    // setu32 zero-extends: (1<<31) stays 0x8000_0000 (RUST_ISSUE_172).
+    // setu32 zero-extends: (1<<31) stays 0x8000_0000.
     assert_eq!(
         run_src(
             "when SOCKET_FILTER { setu32 x {1 << 31}\n accept {$x} }\n",

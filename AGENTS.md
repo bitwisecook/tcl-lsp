@@ -326,8 +326,8 @@ known-gap), and writes
 `--check` fails on report drift, on any unclassified command (a new gap),
 or on a stale classification — so the registry and runtime cannot silently
 diverge.  A genuinely-missing command that is a real gap goes on the
-`KNOWN_UNBACKED` allow-list in `rust/xtask/src/command_backing.rs`
-(tracked by `RUST_ISSUE_007`) until it gains a handler.
+`KNOWN_UNBACKED` allow-list in `rust/xtask/src/command_backing.rs` until it
+gains a handler.
 
 For a walkthrough of how a Tcl script becomes a WASM module (the
 6-phase codegen pipeline, per-statement dispatch order, per-command

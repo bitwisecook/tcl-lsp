@@ -215,7 +215,7 @@ pub fn if_to_switch(
         // form, whose patterns are LITERAL. A RHS that carried a substitution
         // in the original `eq` comparison (`$y`, `[cmd]`, a `\`-escape) cannot
         // be reproduced as a literal pattern — the arm would never match — so
-        // decline the conversion (RUST_ISSUE_107).
+        // decline the conversion.
         if value.bytes().any(|b| matches!(b, b'$' | b'[' | b'\\')) {
             return None;
         }
@@ -293,7 +293,7 @@ mod tests {
 
     #[test]
     fn dynamic_rhs_pattern_returns_none() {
-        // RUST_ISSUE_107: `$x eq $y` — the RHS `$y` can't be a literal braced
+        // `$x eq $y` — the RHS `$y` can't be a literal braced
         // switch pattern (it would never match), so decline the conversion.
         let source = "if {$x eq $y} {\n    puts \"a\"\n} elseif {$x eq $z} {\n    puts \"b\"\n}";
         assert!(run(source, 0).is_none());

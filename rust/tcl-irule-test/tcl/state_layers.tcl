@@ -661,7 +661,7 @@ namespace eval ::state {
         # operator. On real TMM the record is the pattern and the subject is
         # tested against it: `contains`/`starts_with`/`ends_with` ask whether the
         # subject contains / begins with / ends with the record, and `equals`
-        # asks for exact equality (RUST_ISSUE_113). All are literal (no glob),
+        # asks for exact equality. All are literal (no glob),
         # with an optional case-insensitive fold.
         proc _cmp_string {subject record operator nocase} {
             if {$nocase} {
