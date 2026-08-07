@@ -402,3 +402,258 @@ fn initialize_block_variables_do_not_leak_between_sibling_classes() {
         "the two classes' declarations must not merge into one symbol",
     );
 }
+
+// ───────────── class factories and dynamically-installed members ─────────────
+//
+// Issue #923 idx 53 / 55 / 96 / 97 at the *LSP* surface.  The analyser-side
+// mechanics have their own matrix (`tcl-compiler/tests/analyser.rs`,
+// `mod class_factories`); these pin what the editor actually sees, which is
+// what those findings reported.
+
+/// Flatten an outline to `(container, member)` pairs, one per nested symbol.
+fn outline_members(source: &str) -> Vec<(String, String)> {
+    fn walk(
+        parent: &str,
+        syms: &[tcl_lsp_core::document_symbols::DocumentSymbol],
+        out: &mut Vec<(String, String)>,
+    ) {
+        for s in syms {
+            if !parent.is_empty() {
+                out.push((parent.to_string(), s.name.clone()));
+            }
+            walk(&s.name, &s.children, out);
+        }
+    }
+    let mut out = Vec::new();
+    walk(
+        "",
+        &tcl_lsp_core::document_symbols::document_symbols(source, D),
+        &mut out,
+    );
+    out
+}
+
+/// Diagnostic codes the analyser emits for `source`.
+fn diag_codes(source: &str) -> Vec<String> {
+    analyse(source)
+        .diagnostics
+        .iter()
+        .map(|d| d.code.to_string())
+        .collect()
+}
+
+/// idx 55 (TP): `foreach class {A B} { oo::define $class { method m … } }` —
+/// the ticklecharts `etsb.tcl` monkey-patch.  The target names come from a
+/// **literal** list, so each real class genuinely gains the method (tclsh
+/// 9.0.4 / 8.6.16: `[mychart::chart new] RenderTsb` answers
+/// `TSB:chart-json`).  The outline must hang it off the real classes — not a
+/// synthetic `@dynclass@…` key — and navigation must reach its declaration.
+#[test]
+fn idx55_a_literal_foreach_oo_define_installer_reaches_the_real_classes() {
+    let src = "\
+namespace eval mychart {}
+oo::class create mychart::chart {
+    method toJSON {} { return chart-json }
+}
+oo::class create mychart::chart3D {
+    method toJSON {} { return chart3d-json }
+}
+foreach class {mychart::chart mychart::chart3D} {
+    oo::define $class {
+        method RenderTsb {args} { return \"TSB:[my toJSON]\" }
+        export RenderTsb
+    }
+}
+set obj [mychart::chart new]
+$obj RenderTsb
+";
+    let members = outline_members(src);
+    for owner in ["chart", "chart3D"] {
+        assert!(
+            members.contains(&(owner.to_string(), "RenderTsb".to_string())),
+            "{owner} must own the injected method: {members:?}",
+        );
+    }
+    assert!(
+        members
+            .iter()
+            .all(|(owner, _)| !owner.contains("@dynclass@")),
+        "no synthetic key may leak into the outline: {members:?}",
+    );
+    let t = trio_at(src, cursor_at_line(src, "$obj RenderTsb", "RenderTsb"));
+    assert_eq!(start_lines(&t.definition), vec![9], "{:?}", t.definition);
+    assert!(t.hover.is_some_and(|h| h.contains("RenderTsb")));
+    assert!(
+        !diag_codes(src).contains(&"W308".to_string()),
+        "a method the class really has must not warn: {:?}",
+        diag_codes(src),
+    );
+}
+
+/// idx 96 (TP): a class made by a **user-defined metaclass** (Tk's
+/// `::tk::Megawidget`) is a real class, and the method it inherits from the
+/// superclass that metaclass splices in resolves like any other.
+///
+/// tclsh 9.0.4 / 8.6.14: `info class superclasses ::tk::SimpleWidget` →
+/// `::tk::MegawidgetClass`, and `my TraceOption` inside `CreateHull` really
+/// runs `::tk::MegawidgetClass`'s implementation.
+#[test]
+fn idx96_a_metaclass_made_class_resolves_its_spliced_inherited_method() {
+    let src = "\
+namespace eval ::tk {}
+oo::class create ::tk::Megawidget {
+    superclass ::oo::class
+    self method create {name superclasses body} {
+        next $name [list superclass ::tk::MegawidgetClass {*}$superclasses]\\;$body
+    }
+}
+oo::class create ::tk::MegawidgetClass {
+    method TraceOption {option method args} { return traced }
+}
+::tk::Megawidget create ::tk::SimpleWidget {} {
+    method CreateHull {} { my TraceOption -cursor UpdateCursorOption }
+}
+::tk::Megawidget create ::tk::FocusableWidget ::tk::SimpleWidget {
+    method CreateHull {} { my TraceOption -takefocus UpdateTakefocus }
+}
+";
+    let members = outline_members(src);
+    for owner in ["SimpleWidget", "FocusableWidget"] {
+        assert!(
+            members.contains(&(owner.to_string(), "CreateHull".to_string())),
+            "{owner} must be a class with its own members: {members:?}",
+        );
+    }
+    let t = trio_at(src, cursor_at_line(src, "-cursor", "TraceOption"));
+    assert_eq!(start_lines(&t.definition), vec![8], "{:?}", t.definition);
+    assert!(
+        t.hover
+            .is_some_and(|h| h.contains("::tk::MegawidgetClass::TraceOption")),
+        "hover must name the providing class",
+    );
+    // Both metaclass-made classes' call sites come back from the provider's
+    // own declaration.
+    assert_eq!(
+        start_lines(&t.references),
+        vec![8, 11, 14],
+        "{:?}",
+        t.references
+    );
+}
+
+/// idx 97 (TP): `next` inside a metaclass-made class walks the same
+/// linearisation the literal spelling would.
+///
+/// tclsh 9.0.4 / 8.6.14: `[IconList new] probe` → `GetSpecs
+/// iconlist+focusable+simple+base`, i.e. `IconList::GetSpecs`'s `next`
+/// reaches `FocusableWidget::GetSpecs`, skipping neither more nor less.
+#[test]
+fn idx97_next_resolves_through_a_metaclass_made_chain() {
+    let src = "\
+oo::class create Megawidget {
+    superclass oo::class
+    self method create {name superclasses body} {
+        next $name [list superclass MegawidgetClass {*}$superclasses]\\;$body
+    }
+}
+oo::class create MegawidgetClass {
+    method GetSpecs {} { return base }
+}
+Megawidget create SimpleWidget {} {
+    method GetSpecs {} { return \"simple+[next]\" }
+}
+Megawidget create FocusableWidget SimpleWidget {
+    method GetSpecs {} { return \"focusable+[next]\" }
+}
+Megawidget create IconList FocusableWidget {
+    method GetSpecs {} { return \"iconlist+[next]\" }
+}
+";
+    let t = trio_at(src, cursor_at_line(src, "iconlist+", "next"));
+    assert_eq!(
+        start_lines(&t.definition),
+        vec![13],
+        "`next` must reach FocusableWidget::GetSpecs: {:?}",
+        t.definition
+    );
+}
+
+/// idx 53 (abstention) / issue #1277 (partial recovery): a class whose
+/// members are installed by *reflection* keeps its member tables as a lower
+/// bound, so W308 answers nothing rather than answering wrongly.
+///
+/// tclsh 9.0.4 / 8.6.16 both prove the members are real (`info class methods
+/// ::C3` lists `options`; `[C3 new] options` runs). Since issue #1277, the
+/// installer's `method $m …` names itself with exactly the loop variable
+/// bound to a **literal** list (`foreach m {options} { … }`), so the walk
+/// can honestly say where `options`'s name comes from — the list element
+/// itself — even though it still knows nothing about the method's
+/// parameter list (`{*}[info class definition ::Donor $m]` is itself
+/// computed, so the signature stays `params_computed`). Definition/hover
+/// now resolve to that honest source location instead of finding nothing;
+/// what must still never happen is the W308 that used to fire here, or an
+/// invented arity diagnostic on a call of any shape.
+#[test]
+fn idx53_reflectively_installed_members_abstain_instead_of_warning() {
+    let src = "\
+oo::class create Donor {
+    method options {} { return 1 }
+}
+oo::class create C3 {
+    constructor {*}[info class constructor ::Donor]
+    foreach m {options} { method $m {*}[info class definition ::Donor $m] }
+    method getType {} { return c3 }
+}
+set c3 [C3 new]
+$c3 options
+";
+    assert!(
+        !diag_codes(src).contains(&"W308".to_string()),
+        "a reflectively-installed method is not a missing one: {:?}",
+        diag_codes(src),
+    );
+    // The readable half of the class is still fully modelled.
+    assert!(
+        outline_members(src).contains(&("C3".to_string(), "getType".to_string())),
+        "the abstention must not erase what *was* readable",
+    );
+    // The *name* is now honestly known (issue #1277) — go-to-definition
+    // lands on the loop's own literal list, line 5 (`foreach m {options}
+    // …`), not on a wrong or invented target.
+    let t = trio_at(src, cursor_at_line(src, "$c3 options", "options"));
+    assert_eq!(
+        start_lines(&t.definition),
+        vec![5],
+        "the name's one real source location, not an invented one: {:?}",
+        t.definition
+    );
+    // …but the *signature* is still unknown: a call of any arity must not
+    // draw E002/E003.
+    assert!(
+        !diag_codes(src).iter().any(|c| c == "E002" || c == "E003"),
+        "an unmodelled signature must never be checked: {:?}",
+        diag_codes(src),
+    );
+}
+
+/// idx 53 (FN guard): the abstention is scoped to the class that earns it.
+/// A sibling class in the same file whose body is fully readable keeps every
+/// method check.
+#[test]
+fn idx53_a_readable_sibling_class_keeps_its_method_checks() {
+    let src = "\
+oo::class create Donor {
+    method options {} { return 1 }
+}
+oo::class create C3 {
+    constructor {*}[info class constructor ::Donor]
+}
+set d [Donor new]
+$d nosuch
+";
+    assert!(
+        diag_codes(src).contains(&"W308".to_string()),
+        "the readable class must still warn: {:?}",
+        diag_codes(src),
+    );
+}

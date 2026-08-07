@@ -618,6 +618,68 @@ proc callit {} {
     );
 }
 
+/// idx 54 residual (TP): find-references from a proc's own declaration must
+/// reach a `${ns}::name` call **inside that proc's own namespace**.
+///
+/// The walk records the local-first candidate (`::mypkg::mypkg::setdef` for
+/// a `${ns}::setdef` head folded to `mypkg::setdef` while inside `::mypkg`), and the
+/// post-walk settle recovers the calling namespace by stripping `::{name}`
+/// off it — which cannot work when `name` is the *written* head
+/// (`${ns}::setdef`) rather than the folded one.  The call therefore stayed
+/// pinned to a name that exists nowhere, and find-references missed it while
+/// go-to-definition (which re-resolves from the cursor) found it.
+///
+/// C Tcl ground truth: a qualified name resolves in the current namespace
+/// first, then global, so `mypkg::setdef` called from inside `::mypkg`
+/// reaches `::mypkg::setdef` — `::mypkg::mypkg::setdef` does not exist.
+#[test]
+fn tp_idx54_folded_head_settles_through_the_global_fallback() {
+    let src = "\
+namespace eval mypkg {}
+proc mypkg::setdef {opts key args} { return 1 }
+proc mypkg::literal {} {
+    mypkg::setdef opts a
+}
+proc mypkg::folded {} {
+    set ns \"mypkg\"
+    ${ns}::setdef opts a
+}
+";
+    let analysis = analyse(src);
+    let (line, col) = pos_of(src, "setdef {opts key args}");
+    let refs = tcl_lsp_core::references::references(src, "tcl8.6", line, col, &analysis, true);
+    let mut lines: Vec<u32> = refs.iter().map(|r| r.start_line).collect();
+    lines.sort_unstable();
+    assert_eq!(
+        lines,
+        vec![1, 3, 7],
+        "declaration + the literal call + the folded-head call: {refs:?}"
+    );
+}
+
+/// idx 54 residual FP guard: the settle must not invent a target.  A folded
+/// head naming a proc that exists in **neither** candidate namespace stays
+/// unresolved — no reference is attributed to the same-tailed proc in an
+/// unrelated namespace.
+#[test]
+fn fp_idx54_folded_head_does_not_borrow_an_unrelated_same_tail_proc() {
+    let src = "\
+namespace eval other {}
+proc other::setdef {a} { return 1 }
+namespace eval mypkg {}
+proc mypkg::folded {} {
+    set ns \"nowhere\"
+    ${ns}::setdef opts a
+}
+";
+    let analysis = analyse(src);
+    let (line, col) = pos_of(src, "setdef {a}");
+    let refs = tcl_lsp_core::references::references(src, "tcl8.6", line, col, &analysis, true);
+    let mut lines: Vec<u32> = refs.iter().map(|r| r.start_line).collect();
+    lines.sort_unstable();
+    assert_eq!(lines, vec![1], "declaration only: {refs:?}");
+}
+
 /// idx 54 TN — the colon grammar, pinned against C Tcl: a **single** colon is
 /// an ordinary name character, so it must never split a word.  Verified on
 /// tclsh 8.6 / 9.0 (`set a:b 42`, `proc p:q {x}`, `set arr(k:1) v`,

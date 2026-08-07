@@ -1329,6 +1329,32 @@ mod tests {
     }
 
     #[test]
+    fn oo_literal_foreach_installed_methods_appear_in_the_outline() {
+        // Issue #1277: a literal `foreach`-installed member's *name* is
+        // statically knowable even though its signature is not, so it must
+        // still show up in `documentSymbol` alongside an ordinary method.
+        let source = concat!(
+            "oo::class create Widget {\n",
+            "    foreach m {alpha beta gamma} {\n",
+            "        method $m {args} { return $args }\n",
+            "    }\n",
+            "    method fetch {item} { return $item }\n",
+            "}\n",
+        );
+        let symbols = document_symbols(source, "tcl9.0");
+        let cls = &symbols[0];
+        let method_names: Vec<&str> = cls
+            .children
+            .iter()
+            .filter(|c| c.kind == SymbolKind::Method)
+            .map(|c| c.name.as_str())
+            .collect();
+        for name in ["alpha", "beta", "gamma", "fetch"] {
+            assert!(method_names.contains(&name), "{method_names:?}");
+        }
+    }
+
+    #[test]
     fn oo_class_constructor_emits_constructor_symbol() {
         let source = concat!(
             "oo::class create Dog {\n",

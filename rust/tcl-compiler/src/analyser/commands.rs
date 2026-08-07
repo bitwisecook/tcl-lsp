@@ -628,6 +628,28 @@ impl Analyser {
     /// CFG/SSA value model rather than the walk's lexical map and marks the
     /// resulting invocation `indirect`.  Only the composite shapes M7
     /// explicitly skips are folded here.
+    /// The full command-resolution candidate list for a **folded** dynamic
+    /// head, or an empty list when the head was written literally (the
+    /// ordinary case, which `finalise_invocation_resolutions` rebuilds for
+    /// itself).  See the call site for why the folded case cannot be
+    /// rebuilt there.
+    fn folded_head_candidates(
+        &self,
+        head: &str,
+        folded: bool,
+        scope_path: &[usize],
+    ) -> Vec<String> {
+        if !folded {
+            return Vec::new();
+        }
+        let ns = self.command_resolution_namespace(scope_path);
+        let path: Vec<&str> = self
+            .namespace_paths
+            .get(&ns)
+            .map_or_else(Vec::new, |p| p.iter().map(String::as_str).collect());
+        crate::naming::command_resolution_candidates(&ns, &path, head)
+    }
+
     fn resolve_dynamic_command_head<'w>(
         &self,
         cmd_name: &'w str,
@@ -749,31 +771,41 @@ impl Analyser {
                 scope_path,
             );
             let resolved = self.resolve_command_qualified_name(&head, scope_path);
-            // Argument count for cross-file arity checking.  A `{*}`-
-            // expanded argument makes the runtime count unknown, so record `None`
-            // and let arity checking skip conservatively.
-            let arg_count = if arg_expand_in.iter().skip(1).copied().any(|e| e) {
-                None
-            } else {
-                Some(args.len())
-            };
+            let arg_count = call_arg_count(args, arg_expand_in);
             let resolved_cmd = resolved.clone();
+            // A folded head resolves to a real command, but its span is not
+            // the written name — `${ns}::setdef` spells only the tail — so it
+            // is a *reference*, never a rename target: overwriting the span
+            // would splice the new name over the substitution itself (the
+            // same class of corruption as issue #923 idx 95).
+            let folded = matches!(head, std::borrow::Cow::Owned(_));
+            // A folded head's *written* name (`${ns}::setdef`) is not the
+            // `{ns}::{name}` shape `finalise_invocation_resolutions` recovers
+            // the calling namespace from, so that pass cannot rebuild this
+            // call's candidate list — and without one it also cannot demote
+            // the walk's local-first guess to the global candidate Tcl really
+            // dispatches to.  `set ns tk; ${ns}::setdef …` inside `::tk` was
+            // left pinned to the non-existent `::tk::tk::setdef`, so
+            // find-references from `::tk::setdef`'s own declaration missed the
+            // call while go-to-definition (which re-resolves from the cursor)
+            // found it (issue #923 idx 54 residual).  The folded name *is*
+            // known here, so the list is built now and finalise settles
+            // against it instead of rebuilding.  The `namespace path` read
+            // here is the walk's current one: a path declared *later* in the
+            // file is not retro-applied to a folded head (every other
+            // walk-time resolution has the same horizon; finalise's own
+            // rebuild is what normally widens it).
+            let folded_candidates = self.folded_head_candidates(&head, folded, scope_path);
             self.result.command_invocations.push(
                 crate::signature_scan::types::SignatureCommandInvocation {
                     name: cmd_name.to_string(),
                     range: cmd_tok.span,
                     resolved_qualified_name: Some(resolved),
-                    resolution_candidates: Vec::new(),
+                    resolution_candidates: folded_candidates,
                     argc: arg_count,
                     callback_arity: None,
                     callback_baked_args: 0,
-                    // A folded head resolves to a real command, but its span
-                    // is not the written name — `${ns}::setdef` spells only
-                    // the tail — so it is a *reference*, never a rename
-                    // target: overwriting the span would splice the new name
-                    // over the substitution itself (the same class of
-                    // corruption as issue #923 idx 95).
-                    indirect: matches!(head, std::borrow::Cow::Owned(_)),
+                    indirect: folded,
                     rename_safe: true,
                     existence_probe: false,
                     is_mathfunc_call: false,
@@ -4337,6 +4369,18 @@ fn scan_nested_command_heads_at(text: &str, rec_depth: u32) -> Vec<(String, u32)
         }
     }
     out
+}
+
+/// The argument count a call site advertises for cross-file arity checking.
+///
+/// A `{*}`-expanded argument makes the runtime count unknown, so the answer
+/// is `None` and arity checking skips conservatively.
+fn call_arg_count(args: &[String], arg_expand_in: &[bool]) -> Option<usize> {
+    if arg_expand_in.iter().skip(1).copied().any(|e| e) {
+        None
+    } else {
+        Some(args.len())
+    }
 }
 
 /// Find the first command-head token in `text` (skipping

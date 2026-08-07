@@ -2359,6 +2359,31 @@ mod tests {
     }
 
     #[test]
+    fn obj_method_completion_includes_a_literal_foreach_installed_method() {
+        // Issue #1277: the loop-installed names must be offered exactly
+        // like an ordinary written method — completion, like hover /
+        // definition / outline, reads the same `ClassDef::methods` table.
+        let src = concat!(
+            "oo::class create Widget {\n",
+            "    foreach m {alpha beta gamma} {\n",
+            "        method $m {args} { return $args }\n",
+            "    }\n",
+            "    method fetch {item} { return $item }\n",
+            "}\n",
+            "set d [Widget new]\n",
+            "$d \n",
+        );
+        let analysis = analyse(src);
+        let registry = CommandRegistry::build_default();
+        // Cursor after `$d ` on line 7.
+        let items = completions(src, 7, 3, &analysis, Some(&registry), None, "tcl9.0");
+        let labels: Vec<&str> = items.iter().map(|i| i.label.as_str()).collect();
+        for name in ["alpha", "beta", "gamma", "fetch"] {
+            assert!(labels.contains(&name), "{name} missing: {labels:?}");
+        }
+    }
+
+    #[test]
     fn obj_method_completion_excludes_class_side_methods() {
         // `classmethod build` is callable on the *class* command, not on an
         // instance.  `$obj ` completion must offer the instance method

@@ -6772,6 +6772,43 @@ fn tcloo_method_arity_fires_and_stays_silent() {
 }
 
 #[test]
+fn tcloo_loop_installed_method_arity_abstains() {
+    // Issue #1277: a literal `foreach`-installed member's parameter list is
+    // deliberately never re-derived (`params_computed`), so a call of any
+    // arity must draw neither E002 nor E003 — tclsh 9.0.4 / 8.6.16 both
+    // agree `alpha` really does take any number of arguments (`args`), but
+    // even if it took none this must still abstain: the point is that the
+    // analyser never claims to know.
+    let src = |call: &str| {
+        format!(
+            "oo::class create Widget {{\n\
+                 foreach m {{alpha beta gamma}} {{ method $m {{args}} {{ return $args }} }}\n\
+             }}\n\
+             set f1 [Widget new]\n{call}\n"
+        )
+    };
+    assert_eq!(e00x_codes_for(&src("$f1 alpha")), Vec::<String>::new());
+    assert_eq!(
+        e00x_codes_for(&src("$f1 alpha 1 2 3 4 5")),
+        Vec::<String>::new()
+    );
+    // Non-vacuity: an *ordinary*, non-loop-installed method with the exact
+    // same call shape still fires — proving this test would catch a
+    // reversion of the fix (a fixed two-parameter method really does draw
+    // E002/E003 on the same harness).
+    let ordinary = |call: &str| {
+        format!(
+            "oo::class create Widget2 {{ method bar {{x y}} {{ return \"$x+$y\" }} }}\n\
+             set f1 [Widget2 new]\n{call}\n"
+        )
+    };
+    assert_eq!(
+        e00x_codes_for(&ordinary("$f1 bar 1")),
+        vec!["E002".to_owned()]
+    );
+}
+
+#[test]
 fn tcloo_method_with_default_and_trailing_args_is_unbounded() {
     // tclsh 9.0.4: `method baz {x {y 1} args}` accepts any count >= 1.
     let src = |call: &str| {

@@ -145,6 +145,133 @@ The harness measures the marginal value of each layer:
 - **A3 +cross-file index** — resolve against a corpus-merged class index
   instead of the per-file one.
 
+## Abstentions on the class *definition* side
+
+The ⊤ taxonomy above is about the receiver — "which class is this object?".
+A second, independent family of abstentions is about the class itself —
+"what does this class contain, and is this even a class?".  Both are
+recorded on the `ClassDef` so every consumer abstains from one fact rather
+than each re-deriving its own guess.
+
+| flag / state | trigger | consumer effect |
+|---|---|---|
+| `ClassDef::inheritance_unknown` | manufactured by a user metaclass whose `create` override could not be read, so the spliced superclass list is unknown (audit idx 96/97) | W308 abstains: an inherited method is not a missing one |
+| `ClassDef::member_set_incomplete` | the class body installs members the walk cannot read (audit idx 53) | W308 abstains: the member tables are a lower bound |
+| *no `ClassDef` at all* | `X create Name … Body` where `X` cannot be **proved** to be a metaclass — a dynamic head, or a name no workspace factory index carries (audit idx 97, multi-file half) | nothing is recorded, and nothing is diagnosed |
+
+### Reflective member installation (`member_set_incomplete`)
+
+ticklecharts' `chart3D` builds its whole public surface by reflection:
+
+```tcl
+oo::class create ticklecharts::chart3D {
+    constructor {*}[info class constructor "ticklecharts::chart"]
+    foreach method {Render toHTML options get toJSON …} {
+        method $method {*}[ticklecharts::classDef "chart" $method]
+    }
+}
+```
+
+Tcl expands both shapes at definition time, so the members are entirely
+real — `info class methods ::ticklecharts::chart3D` lists all of them on
+9.0.4 and 8.6.16 alike.  What the analyser cannot do is *name* them: a
+`{*}` over a command substitution has no statically-known element list, and
+the installer loop's body is a script the member walk does not descend into.
+
+Two registry-driven signals set the flag (`Analyser::member_declaration_is_opaque`):
+
+- a **member** word (per the definer grammar) whose declaration arrives
+  through a `{*}` expansion that would not splice statically, or with a
+  computed word in one of its declaring roles (`Name` / `ParamList` /
+  `Body`);
+- a **non-member** word that either has no registry spec or declares an
+  `ArgRole::Body` argument — a script that can install members out of
+  sight (`foreach`, `if`, a helper proc).
+
+Neither signal names a command or a keyword.  What is recorded stays
+recorded: the readable members, the class itself, and its inheritance are
+all still modelled — the flag only says "there may be more", which is
+exactly the premise W308 needs to be sound.
+
+*Not* built: recovering the member *names* from a literal `foreach` list
+while leaving their signatures unknown.  It is tempting (the names really
+are static) but it buys an outline entry at the cost of a `MethodDef` whose
+parameter list is a fabrication, and every arity-shaped consumer would have
+to learn a second "unknown signature" state.  The abstention is the honest
+answer until that state exists.
+
+### Cross-file class factories
+
+A user metaclass is resolved wherever it can be **proved** to be one, and
+abstained on wherever it cannot.  What changed with issue #1276 is only what
+counts as proof — never that proof is required.
+
+**The fact, derived once.**  When a class is recorded, the walk asks whether
+that class is itself a factory (its superclass chain reaches a registry
+`IS_OO_METACLASS` command with a `TclOo` grammar) and, if so, stores a
+`ClassDef::factory` describing how it manufactures classes: per manufacturer
+subcommand, which creation argument is the new class's name, which is its
+body, and the prologue it splices — the last as a *template*
+(`FactoryWord::{Literal, CallerSplice}`) over the creation call's arguments,
+because `{*}$superclasses` is only resolvable per call.  The template is
+call-site independent by construction, which is exactly what lets one
+derivation serve every call site.
+
+**Same file.**  `Meta create Name …` looks the factory up in `all_classes`
+and resolves the template against its own arguments.  Tk's
+`library/megawidget.tcl` (`SimpleWidget`, `FocusableWidget`) is entirely
+covered, as before — the derivation simply moved from the call site to the
+declaration.
+
+**Across files.**  The host publishes a workspace **class factory index**
+(`ClassFactoryIndex`, qualified name → `ClassFactory`) and the walk consults
+it when the local class table misses.  In the LSP that index is built by the
+salsa graph — `ItemTree::class_factories` per file, merged by
+`project_class_factories`, compare-then-set onto
+`SourceFile::workspace_class_factories` at the end of the workspace scan and
+after each diagnostics publish — so it rides the same rails
+`external_call_sites` already runs on rather than a parallel mechanism.  An
+empty index is stored as `None`, so a workspace with no metaclass never
+moves the input off its default.
+
+`::tk::Megawidget create IconList FocusableWidget {…}` in a file that never
+mentions the metaclass's definition — Tk's own `library/iconlist.tcl` — is
+therefore recorded with the members it declares and the superclasses the
+manufacturer splices, matching `info class methods -private` / `info class
+superclasses` on tclsh 8.6.14 and 9.0.4.
+
+**What still abstains, and why it must.**
+
+- A **dynamic head** (`$meta create …`) names nothing statically.  No index
+  can prove what it is; the call is rejected before any lookup.
+- A name the index does not carry.  Nothing is recorded and nothing is
+  diagnosed — byte-for-byte the pre-#1276 behaviour, which is also every
+  single-file analysis and every host that has not enumerated a project.
+- A name that is only a **tail match**.  The lookup walks Tcl's own
+  current-namespace-then-global candidate order and takes an exact hit only,
+  so a global `Megawidget create …` never reaches `::tk::Megawidget`.  A
+  locally-written class of the same qualified name shadows the index, as the
+  interpreter would.
+- An **unreadable prologue** still yields `inheritance_unknown`, cross-file
+  exactly as same-file.  Additionally, a cross-document factory's literal
+  words carry tokens indexing the *metaclass's* document; they are re-homed
+  onto a token of the creation call, and an injected member whose registry
+  spec actually reads those tokens (a `retraction` member — `deletemethod` /
+  `renamemethod`) collapses the injection to unknown rather than being
+  applied against a substituted span.
+- A metaclass that is itself manufactured by a *third* file's metaclass
+  resolves only once the host's next sync round has published it.  The sync
+  is compare-then-set, so it stops as soon as the index stops moving; what
+  never happens is a round that adds an entry no file proved.
+
+**Per-item parity.**  The oracle travels with a deferred proc/method body
+(`analyse_proc_body_isolated`, keyed into `ItemBodyKey::body_env`), so a
+`Meta create …` inside a proc body is classified identically by the
+whole-file and per-item strategies.  This is asserted directly by
+`the_per_item_walk_agrees_with_the_whole_file_walk_cross_file`, and it
+earned its keep on the first run: without the propagation the per-item path
+silently dropped the class.
+
 ## What is deliberately *not* built
 
 - No second dataflow engine — the SSA type lattice is reused.

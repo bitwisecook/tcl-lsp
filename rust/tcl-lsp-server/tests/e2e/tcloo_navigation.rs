@@ -1422,3 +1422,61 @@ fn tn_a_not_yet_run_import_does_not_resolve_the_receiver() {
         "a call written before its import must not resolve",
     );
 }
+
+// Issue #1019 idx 16 — a class member hovers at its own declaration.
+
+/// TP (end-to-end): hovering a method's own name token describes that method,
+/// in the `oo::class create` block **and** in a later `oo::define` block that
+/// reopens the same class.
+///
+/// The reopening block is the `SpiceGenTcl` `generalClasses.tcl` shape
+/// (`oo::configurable create Parameter { … }` followed by `oo::define
+/// Parameter { method <WriteProp-value> … }`).  Oracle, tclsh 9.0.4: the
+/// method the second block declares really is dispatchable on the class the
+/// first block created, so both declarations describe members of one class
+/// and must hover identically.
+///
+/// Before this, neither block hovered at a declaration at all — only call
+/// sites did — which made the reopening half look like a block-specific bug.
+#[test]
+fn tp_member_declaration_hovers_in_both_class_blocks() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    lsp.open_ready(
+        &uri,
+        concat!(
+            "oo::class create Widget {\n",
+            "    method show {} { return shown }\n",
+            "}\n",
+            "oo::define Widget {\n",
+            "    method reopened {val} { return $val }\n",
+            "}\n",
+            "Widget create w\n",
+            "w reopened hi\n",
+        ),
+    );
+
+    let creation = hover_text(&lsp.hover(&uri, 1, 13));
+    assert!(
+        creation.contains("::Widget::show"),
+        "creation-block declaration must hover: {creation:?}"
+    );
+
+    let reopened = hover_text(&lsp.hover(&uri, 4, 13));
+    assert!(
+        reopened.contains("::Widget::reopened"),
+        "reopening-block declaration must hover: {reopened:?}"
+    );
+    assert!(
+        reopened.contains("1 param"),
+        "…with the member's real signature: {reopened:?}"
+    );
+
+    // The declaration and its call site describe the same member the same
+    // way — the asymmetry idx 16 reported is gone in both directions.
+    let call_site = hover_text(&lsp.hover(&uri, 7, 4));
+    assert_eq!(
+        reopened, call_site,
+        "declaration and call site must render identically",
+    );
+}

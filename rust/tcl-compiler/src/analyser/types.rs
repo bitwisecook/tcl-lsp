@@ -22,9 +22,9 @@
 //! actually populates. Each handler fills in the variant fields of
 //! the records it owns as it walks.
 
-use std::collections::{HashMap, HashSet};
+use std::collections::{BTreeMap, HashMap, HashSet};
 
-use tcl_lexer::Span;
+use tcl_lexer::{Span, Token};
 
 use crate::signature_scan::types::{
     ParamDef, SignatureCommandAlias, SignatureCommandInvocation, SignatureNamespaceExport,
@@ -539,7 +539,28 @@ pub struct MethodDef {
     pub name: String,
     /// Parameters parsed from the method's parameter list.
     /// Empty for ``destructor`` (no parameter slot in the syntax).
+    ///
+    /// Empty *and* [`Self::params_computed`] set means "unknown", not
+    /// "none" — see that field.
     pub params: Vec<ParamDef>,
+    /// The method's formals are unmodelled: either the parameter-list word
+    /// was itself computed, or — the case this field was added for
+    /// (issue #1277) — the *method* itself was installed by a literal
+    /// loop (`foreach m {alpha beta gamma} { method $m {args} {…} }`)
+    /// whose per-iteration name this walk can read off the loop's own
+    /// literal list, but whose per-iteration signature it deliberately
+    /// does not attempt to re-derive (a reflective installer's parameter
+    /// list can itself be computed per iteration — `method $m {*}[classDef
+    /// $m]` — so treating one iteration's literal `{args}` as
+    /// representative of every other would be a fabrication for the
+    /// general shape this exists to cover, even on the rare iteration
+    /// where it happens to be right).
+    ///
+    /// Mirrors [`crate::analyser::ProcDef::params_computed`] exactly: every
+    /// arity-shaped consumer must ask [`Self::arity`] rather than compute
+    /// one from [`Self::params`] directly, so the abstention cannot be
+    /// forgotten at one call site.
+    pub params_computed: bool,
     /// Source span of the name token.
     pub name_span: Span,
     /// Source span of the method body (braces excluded).
@@ -574,6 +595,27 @@ pub struct MethodDef {
     /// arity). `None` for every other kind, and for a `forward` whose
     /// target couldn't be parsed.
     pub forward_target: Option<(String, Vec<String>)>,
+}
+
+impl MethodDef {
+    /// The method's declared argument arity — or the **abstaining**
+    /// `0..unlimited` when its parameter list is unmodelled
+    /// ([`Self::params_computed`], issue #1277).
+    ///
+    /// Exactly [`ProcDef::arity`]'s contract, extended to `MethodDef`: every
+    /// arity consumer (`$obj method` call-site checking, `next`/`nextto`
+    /// dispatch) asks here rather than calling
+    /// [`crate::signature_scan::arity::arity_of`] on [`Self::params`]
+    /// directly, so a member whose name is all this walk could honestly
+    /// record never has its absent parameter list mistaken for a
+    /// zero-argument one.
+    #[must_use]
+    pub fn arity(&self) -> tcl_registry::Arity {
+        if self.params_computed {
+            return tcl_registry::Arity::new(0, tcl_registry::Arity::UNLIMITED);
+        }
+        crate::signature_scan::arity::arity_of(&self.params)
+    }
 }
 
 /// Stable composite key naming a class's instance method or class method:
@@ -966,6 +1008,147 @@ impl DefinitionAbort {
     }
 }
 
+/// One word of a definition-body member a class factory splices into every
+/// class it manufactures, as a **template** over the creation call's own
+/// arguments.
+///
+/// The template is call-site independent, which is the whole point: it is
+/// derived once, where the metaclass is written, and then resolved against
+/// each `Meta create …` call — including one in a different file, which is
+/// the only way the per-file walk can classify such a call at all
+/// (issue #1276).
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub enum FactoryWord {
+    /// A word the manufacturer writes literally in its own body
+    /// (`superclass ::tk::MegawidgetClass`), with the token it occupies
+    /// **in the metaclass's own document**.
+    Literal {
+        /// The word's text.
+        text: String,
+        /// Its token in the defining document — usable only while resolving
+        /// a call in that same document (see
+        /// [`ClassFactory::resolve_in_other_document`]).
+        token: Token,
+    },
+    /// A `{*}$param` splice of the creation call's argument at this index
+    /// (argument 0 being the manufacturer subcommand itself), so the words
+    /// it contributes are the caller's own and carry the caller's tokens.
+    CallerSplice(usize),
+}
+
+/// One definition-body member a class factory injects, as a template.
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct FactoryMember {
+    /// Member keyword followed by its argument words.
+    pub words: Vec<FactoryWord>,
+}
+
+/// The word layout one manufacturer subcommand of a class factory imposes,
+/// plus what it splices into every body it makes.
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct ManufacturerSpec {
+    /// Argument index of the new class's name.
+    pub name_arg: usize,
+    /// Argument index of the new class's definition body.
+    pub body_arg: usize,
+    /// The members the manufacturer always injects, or `None` when its
+    /// prologue could not be read — the
+    /// [`ClassDef::inheritance_unknown`] case.
+    pub injected: Option<Vec<FactoryMember>>,
+}
+
+/// Workspace-wide class factories, keyed by fully-qualified metaclass name —
+/// what a host hands the analyser so a `Meta create …` call can be classified
+/// when `Meta` is written in another document (issue #1276).
+pub type ClassFactoryIndex = BTreeMap<String, ClassFactory>;
+
+/// How a user-defined `TclOO` metaclass manufactures classes.
+///
+/// Recorded on the metaclass's own [`ClassDef`] when it is written, so a
+/// `Meta create Name …` call anywhere — same file or, through the workspace
+/// factory index, another one — is classified from a fact that was *proved*
+/// at the definition rather than guessed from the call's shape (issue #1276).
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Default)]
+pub struct ClassFactory {
+    /// The registry metaclass command at the root of this factory's
+    /// superclass chain (`oo::class`), whose definition-body grammar governs
+    /// every body the factory makes.
+    pub root_metaclass: String,
+    /// Per manufacturer subcommand (`create` / `new` / …) word layout, for
+    /// the subcommands the factory **overrides**.  A subcommand with no entry
+    /// runs the inherited manufacturer, i.e. the builtin `create Name Body`
+    /// layout with nothing injected.
+    pub overrides: BTreeMap<String, ManufacturerSpec>,
+}
+
+impl ClassFactory {
+    /// The same factory with every literal word's token replaced by
+    /// `elsewhere` — what a **cross-document** consumer must use, because the
+    /// stored tokens index the metaclass's own document, not the caller's.
+    ///
+    /// A member whose registry spec *retracts* (`deletemethod` /
+    /// `renamemethod`) reads its argument tokens for real, so an injection
+    /// containing one cannot be resolved against a foreign document at all:
+    /// the whole injection collapses to `None` (inheritance unknown) rather
+    /// than being applied against a substituted span.  `retracts` is supplied
+    /// by the caller, which owns the registry lookup.
+    #[must_use]
+    pub fn resolve_in_other_document(
+        &self,
+        elsewhere: Token,
+        retracts: &dyn Fn(&str) -> bool,
+    ) -> Self {
+        let overrides = self
+            .overrides
+            .iter()
+            .map(|(sub, spec)| {
+                let injected = spec.injected.as_ref().and_then(|members| {
+                    members
+                        .iter()
+                        .map(|m| rehome_member(m, elsewhere, retracts))
+                        .collect::<Option<Vec<_>>>()
+                });
+                (sub.clone(), ManufacturerSpec { injected, ..*spec })
+            })
+            .collect();
+        Self {
+            root_metaclass: self.root_metaclass.clone(),
+            overrides,
+        }
+    }
+}
+
+/// One injected member's words re-homed onto `elsewhere`, or `None` when the
+/// member's own effect reads the tokens it would lose.
+fn rehome_member(
+    member: &FactoryMember,
+    elsewhere: Token,
+    retracts: &dyn Fn(&str) -> bool,
+) -> Option<FactoryMember> {
+    let keyword = match member.words.first() {
+        Some(FactoryWord::Literal { text, .. }) => text.as_str(),
+        // A member whose *keyword* is spliced from the caller is not a shape
+        // the prologue reader produces, and cannot be classified here.
+        _ => return None,
+    };
+    if retracts(keyword) {
+        return None;
+    }
+    Some(FactoryMember {
+        words: member
+            .words
+            .iter()
+            .map(|w| match w {
+                FactoryWord::Literal { text, .. } => FactoryWord::Literal {
+                    text: text.clone(),
+                    token: elsewhere,
+                },
+                splice @ FactoryWord::CallerSplice(_) => splice.clone(),
+            })
+            .collect(),
+    })
+}
+
 /// Class definition record.
 ///
 /// The structural fields (`superclasses`, `mixins`, `methods`,
@@ -1142,6 +1325,44 @@ pub struct ClassDef {
     /// they do for one whose superclass lives outside the workspace index —
     /// a method it inherits is not one it is missing (issue #923 idx 96/97).
     pub inheritance_unknown: bool,
+    /// `true` when the class's definition body installs members the analyser
+    /// could not read, so the recorded member tables are a **lower bound**
+    /// on what the class really has (issue #923 idx 53).
+    ///
+    /// Two shapes set it, both registry-driven rather than keyword-matched:
+    ///
+    /// * a recognised member word whose declaration is supplied through an
+    ///   unresolvable `{*}` expansion or a computed name —
+    ///   `constructor {*}[info class constructor ::Base]`,
+    ///   `method $m {*}[info class definition ::Base $m]` (the ticklecharts
+    ///   `chart3D` reflection idiom). Tcl expands these at definition time,
+    ///   so the members are entirely real; only their spelling is opaque.
+    /// * a body command that is **not** a member word and either has no
+    ///   registry spec at all (a helper proc that installs members) or takes
+    ///   a script argument the member walk does not descend into
+    ///   (`foreach m {…} { method $m … }`, `if {…} { method … }`).
+    ///
+    /// The class itself, and every member that *was* readable, stay fully
+    /// modelled — this only says "there may be more". Method-existence
+    /// checks (W308) must therefore abstain on such a class, exactly as they
+    /// do for [`Self::inheritance_unknown`]: a method installed by
+    /// reflection is not a method that is missing. tclsh 9.0.4 and 8.6.16
+    /// agree that `oo::class create C3 { constructor {*}[info class
+    /// constructor ::C] ; foreach m {options} { method $m {*}[info class
+    /// definition ::C $m] } }` yields `info class methods ::C3` → `options`,
+    /// and `[C3 new] options` really runs.
+    pub member_set_incomplete: bool,
+    /// Present when this class is itself a **class factory** — a user-defined
+    /// `TclOO` metaclass whose superclass chain reaches `oo::class`.
+    ///
+    /// It describes how the factory manufactures classes (which creation
+    /// argument is the name, which is the body, what the manufacturer splices
+    /// into every body), derived once here rather than re-derived at each
+    /// `Meta create …` call.  Publishing it on the `ClassDef` is what lets a
+    /// *different file*'s walk classify `::tk::Megawidget create IconList …`
+    /// at all (issue #1276): without it, that call is indistinguishable from
+    /// `interp create` or `image create`.
+    pub factory: Option<ClassFactory>,
 }
 
 impl Default for ClassDef {
@@ -1182,6 +1403,8 @@ impl Default for ClassDef {
             doc: String::new(),
             via_define: false,
             inheritance_unknown: false,
+            member_set_incomplete: false,
+            factory: None,
         }
     }
 }
@@ -1788,6 +2011,23 @@ pub struct AnalysisResult {
 }
 
 impl AnalysisResult {
+    /// Every **class factory** this document declares, keyed by qualified
+    /// name — the slice a host merges into the workspace factory index it
+    /// feeds back through
+    /// [`Analyser::with_workspace_class_factories`](super::Analyser::with_workspace_class_factories)
+    /// (issue #1276).
+    ///
+    /// A document that declares no user metaclass — nearly all of them —
+    /// contributes an empty map, so the merged index stays empty and every
+    /// consuming walk behaves exactly as it did before.
+    #[must_use]
+    pub fn class_factories(&self) -> ClassFactoryIndex {
+        self.all_classes
+            .iter()
+            .filter_map(|(qname, class)| Some((qname.clone(), class.factory.clone()?)))
+            .collect()
+    }
+
     /// The [`ClassHierarchy`](super::class_hierarchy::ClassHierarchy) for
     /// this result's classes, built once and cached.  Prefer this over
     /// calling [`build_class_hierarchy`](super::class_hierarchy::build_class_hierarchy)

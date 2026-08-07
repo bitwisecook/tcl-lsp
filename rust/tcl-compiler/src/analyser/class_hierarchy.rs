@@ -716,6 +716,7 @@ mod tests {
                 MethodDef {
                     name: (*m).to_string(),
                     params: Vec::new(),
+                    params_computed: false,
                     name_span: span(),
                     body_span: span(),
                     kind: "method".to_string(),
@@ -902,6 +903,7 @@ mod tests {
         cd.constructors.push(MethodDef {
             name: "<constructor>".to_string(),
             params: Vec::new(),
+            params_computed: false,
             name_span: span(),
             body_span,
             kind: "constructor".to_string(),
@@ -1068,6 +1070,7 @@ mod tests {
         cd.destructor = Some(MethodDef {
             name: "<destructor>".to_string(),
             params: Vec::new(),
+            params_computed: false,
             name_span: span(),
             body_span: NON_EMPTY_BODY,
             kind: "destructor".to_string(),

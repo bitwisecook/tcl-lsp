@@ -145,6 +145,17 @@ pub struct Item {
 pub struct ItemTree {
     /// Items in stable [`ItemId`] order.
     pub items: Vec<Item>,
+    /// The user-defined `TclOO` **class factories** this file declares, keyed
+    /// by qualified name — what the workspace merges so *another* file's walk
+    /// can classify `Meta create Name …` (issue #1276).
+    ///
+    /// It rides on the item tree because that is already a structure-level,
+    /// per-file, memoised product of the same walk: publishing the factories
+    /// here costs no extra analysis pass, and a body edit that leaves the
+    /// metaclass's `create` override alone leaves this equal, so the
+    /// cross-file query early-cutoffs. Behind an `Arc` because the consumer
+    /// hands it straight to the analyser.
+    pub class_factories: std::sync::Arc<super::types::ClassFactoryIndex>,
 }
 
 /// The aggregate declaration sets the cross-item passes read: the firewall's
@@ -294,7 +305,10 @@ impl ItemTree {
         // Deterministic order so `ItemTree` value-equality is stable across the
         // analyser's non-deterministic `HashMap` iteration order.
         items.sort_by(|a, b| a.sig.id.cmp(&b.sig.id));
-        Self { items }
+        Self {
+            items,
+            class_factories: std::sync::Arc::new(result.class_factories()),
+        }
     }
 
     /// The signatures of every item, in stable [`ItemId`] order. This is the

@@ -3301,6 +3301,26 @@ fn class_member_hover_text(
             cursor_offset,
         )?)?;
     let qname = &class_def.qualified_name;
+    // The member's **own declaration** token — `method reopened {v} {…}`'s
+    // `reopened` — hovers as that member, wherever in the class the
+    // declaration was written (issue #1019 idx 16).  A class body is not a
+    // single lexical region: `oo::define Cls { … }` reopens the class and
+    // its members are just as much `Cls`'s own, so this hangs off
+    // `enclosing_class_at` (which already consults
+    // `AnalysisResult::class_body_spans`, the multi-span record) rather than
+    // any single `body_span`, and the reopening block behaves exactly like
+    // the creation block.  Declaration-site hover previously had no path at
+    // all — only *call* sites (`my m`, `$obj m`) and `link`-exposed
+    // barewords rendered — which left a class member the one declared
+    // symbol in the language that could not be hovered where it is
+    // declared, while `proc` and the class name itself both could.
+    //
+    // Gated on the cursor genuinely sitting inside the member's own
+    // `name_span`, so this never fires for a same-named word elsewhere in
+    // the body (those keep falling through to the tiers below).
+    if let Some(text) = member_declaration_hover_text(analysis, class_def, word, cursor_offset) {
+        return Some(text);
+    }
     if let Some(target) = class_def.linked_members.get(word) {
         let linked_note = if target == word {
             String::new()
@@ -3340,6 +3360,57 @@ fn class_member_hover_text(
         return Some(format!("**destructor** of `{qname}`"));
     }
     None
+}
+
+/// Hover text for a class member's **own declaration** name token, or
+/// `None` when the cursor is not sitting on one (issue #1019 idx 16).
+///
+/// Which member a name belongs to is
+/// [`crate::references::resolve_member_span`] — the very same
+/// method/classmethod/property disambiguation find-references uses, so
+/// hover and references can never disagree about *which* declaration a
+/// cursor is on when a name appears in more than one of a class's three
+/// independent member tables.  That helper falls back to the first
+/// candidate when the cursor is on no declaration at all (it is also used
+/// from call sites), so the containment test is re-applied here: a
+/// declaration hover must be anchored on the declaration.
+///
+/// The rendered summary is byte-identical to the call-site
+/// (`my m` / `$obj m`) rendering, including the MRO note, so hovering a
+/// method at its declaration and at a call site describe the same member
+/// the same way.
+fn member_declaration_hover_text(
+    analysis: &AnalysisResult,
+    class_def: &tcl_compiler::analyser::types::ClassDef,
+    word: &str,
+    cursor_offset: u32,
+) -> Option<String> {
+    use crate::references::MemberSel;
+    let (kind, span) = crate::references::resolve_member_span(class_def, word, cursor_offset)?;
+    if !(span.start() <= cursor_offset && cursor_offset <= span.end()) {
+        return None;
+    }
+    let qname = &class_def.qualified_name;
+    let note = |label: &str, m: &tcl_compiler::analyser::types::MethodDef| {
+        let suffix = oo_method_resolution_note(analysis, qname, &m.name)
+            .map_or(String::new(), |n| format!("  \n{n}"));
+        format!(
+            "**{label}** `{qname}::{name}` ({nparam} param(s)){suffix}",
+            name = m.name,
+            nparam = m.params.len(),
+        )
+    };
+    match kind {
+        MemberSel::Method => class_def.methods.get(word).map(|m| note("method", m)),
+        MemberSel::ClassMethod => class_def
+            .class_methods
+            .get(word)
+            .map(|m| note("classmethod", m)),
+        MemberSel::Property => class_def
+            .properties
+            .get(word)
+            .map(|p| format!("**property** `{qname}::{name}`", name = p.name)),
+    }
 }
 
 /// Hover text for a `$obj method` / `my method` call — `method` resolved
@@ -5230,6 +5301,93 @@ mod tests {
         assert!(hover(src, 1, 34, &analysis, None).is_none());
     }
 
+    // A class member's own declaration hovers as that member (issue #1019
+    // idx 16).  `proc` and the class name itself already hovered at their
+    // declarations; a method did not, which is what made the reopening-block
+    // half of idx 16 look like a block-specific bug rather than a missing
+    // feature — neither block hovered.
+
+    #[test]
+    fn member_declaration_hover_resolves_in_the_creation_block() {
+        // TP — the baseline: `method plain` hovers at its own name token.
+        let src = "oo::class create Foo {\n    method plain {a} { return $a }\n}\n";
+        let analysis = analyse(src);
+        // Line 1, col 13 — inside `plain`.
+        let h = hover(src, 1, 13, &analysis, None).expect("hover");
+        assert!(h.value.contains("**method**"), "{}", h.value);
+        assert!(h.value.contains("::Foo::plain"), "{}", h.value);
+        assert!(h.value.contains("1 param"), "{}", h.value);
+    }
+
+    #[test]
+    fn member_declaration_hover_resolves_in_a_reopening_oo_define_block() {
+        // TP — issue #1019 idx 16's own shape (SpiceGenTcl
+        // `generalClasses.tcl`: `oo::configurable create Parameter { … }`
+        // then a separate `oo::define Parameter { method <WriteProp-value>
+        // … }`).  tclsh 9.0.4 dispatches `$f reopened hi` to the reopened
+        // block's method, so it is every bit `Foo`'s own member and must
+        // hover identically to one written in the creation block.
+        let src = "oo::class create Foo {\n    method plain {} { return plain }\n}\noo::define Foo {\n    method reopened {val} { return $val }\n}\n";
+        let analysis = analyse(src);
+        // Line 4, col 13 — inside `reopened`, in the reopening block.
+        let h = hover(src, 4, 13, &analysis, None).expect("hover");
+        assert!(h.value.contains("**method**"), "{}", h.value);
+        assert!(h.value.contains("::Foo::reopened"), "{}", h.value);
+        assert!(h.value.contains("1 param"), "{}", h.value);
+    }
+
+    #[test]
+    fn member_declaration_hover_covers_classmethods_and_properties() {
+        // TP — the other two member tables render with their own labels.
+        let src = "oo::configurable create C {\n    property size\n    self method make {n} { return $n }\n}\n";
+        let analysis = analyse(src);
+        let prop = hover(src, 1, 15, &analysis, None).expect("property hover");
+        assert!(prop.value.contains("**property**"), "{}", prop.value);
+        assert!(prop.value.contains("::C::size"), "{}", prop.value);
+        let cm = hover(src, 2, 19, &analysis, None).expect("classmethod hover");
+        assert!(cm.value.contains("**classmethod**"), "{}", cm.value);
+        assert!(cm.value.contains("::C::make"), "{}", cm.value);
+    }
+
+    #[test]
+    fn member_declaration_hover_notes_an_override() {
+        // TP — the declaration renders the same MRO note a call site does,
+        // so the two descriptions of one member cannot disagree.
+        let src = "oo::class create Base {\n    method run {} { return base }\n}\noo::class create Derived {\n    superclass Base\n    method run {} { return derived }\n}\n";
+        let analysis = analyse(src);
+        let h = hover(src, 5, 12, &analysis, None).expect("hover");
+        assert!(h.value.contains("::Derived::run"), "{}", h.value);
+        assert!(h.value.contains("Base"), "MRO note expected: {}", h.value);
+    }
+
+    #[test]
+    fn member_declaration_hover_does_not_fire_on_a_same_named_word_elsewhere() {
+        // FP guard — only the declaration's own name token hovers as the
+        // member.  A same-spelled *data* word inside a method body is not a
+        // member reference, and must keep falling through the tier order
+        // (here: to nothing at all).
+        let src = "oo::class create Foo {\n    method plain {} { return plain }\n}\n";
+        let analysis = analyse(src);
+        // Line 1, col 30 — the bareword `plain` in `return plain`, which is
+        // a value, not a call (an un-linked sibling name is not callable —
+        // issue #923 idx 113).
+        assert!(hover(src, 1, 30, &analysis, None).is_none());
+    }
+
+    #[test]
+    fn member_declaration_hover_abstains_outside_a_class_body() {
+        // TN — a proc whose name happens to match a method of some class in
+        // the file must not borrow that class's member hover.
+        let src = "oo::class create Foo {\n    method plain {} { return 1 }\n}\nproc plain {} { return 2 }\n";
+        let analysis = analyse(src);
+        let h = hover(src, 3, 6, &analysis, None).expect("proc hover");
+        assert!(
+            !h.value.contains("**method**"),
+            "the proc, not Foo's method: {}",
+            h.value
+        );
+    }
+
     #[test]
     fn class_member_hover_bare_sibling_classmethod_without_link_abstains() {
         // FP (issue #923 idx 113) — same shape as the method case above,
@@ -5281,6 +5439,28 @@ mod tests {
         let h = hover(src, 4, 3, &analysis, None).expect("hover");
         assert!(h.value.contains("**method**"), "{}", h.value);
         assert!(h.value.contains("::Dog::bark"), "{}", h.value);
+    }
+
+    #[test]
+    fn obj_method_hover_fires_for_a_literal_foreach_installed_method() {
+        // Issue #1277: the member's name comes from the loop's own literal
+        // list, not a written `method NAME` word, but a call site must
+        // still resolve to a hover — go-to-definition and hover share the
+        // same member table this walk populates.
+        let src = concat!(
+            "oo::class create Widget {\n",
+            "    foreach m {alpha beta gamma} {\n",
+            "        method $m {args} { return $args }\n",
+            "    }\n",
+            "}\n",
+            "set d [Widget new]\n",
+            "$d alpha\n",
+        );
+        let analysis = analyse(src);
+        // Line 6 `$d alpha` — cursor on `alpha` (col 3).
+        let h = hover(src, 6, 3, &analysis, None).expect("hover");
+        assert!(h.value.contains("**method**"), "{}", h.value);
+        assert!(h.value.contains("::Widget::alpha"), "{}", h.value);
     }
 
     #[test]

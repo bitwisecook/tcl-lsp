@@ -1954,7 +1954,12 @@ async fn refresh_cross_file_evidence(
     slots: &Arc<Mutex<HashMap<Uri, DiagSlot>>>,
     uri: &Uri,
 ) {
-    let changed = sync_cross_file_evidence(handles).await;
+    let mut changed = sync_cross_file_evidence(handles).await;
+    for uri in sync_workspace_class_factories(handles).await {
+        if !changed.contains(&uri) {
+            changed.push(uri);
+        }
+    }
     // Re-analyse *this* document only when the refresh gave it evidence
     // that can actually change its result: a non-empty table means some
     // other file calls into it, which is what retracts a fold. Going
@@ -1966,7 +1971,7 @@ async fn refresh_cross_file_evidence(
     // decline, which can *add* a fold; not republishing leaves that as
     // a missing hint until the next edit, the safe direction.
     if changed.contains(uri)
-        && has_external_callers(&handles.db, &handles.db_files, uri).await
+        && refresh_can_change_result(&handles.db, &handles.db_files, uri).await
         && let Some(slot) = slots.lock().await.get_mut(uri)
     {
         slot.dirty = true;
@@ -2012,13 +2017,23 @@ async fn reschedule_peers(
     }
 }
 
-/// Whether `uri`'s cross-file evidence actually names a caller.
+/// Whether the cross-file refresh gave `uri` something that can actually
+/// change its own result.
 ///
-/// Distinguishes "the project has something to say about this file's
-/// procedures" from "the project was enumerated and had nothing to add" — the
-/// latter cannot change what the file folds, so it must not trigger a second,
-/// identical publish. Lock order is `db` → `db_files`.
-async fn has_external_callers(
+/// Two independent facts qualify, and both distinguish "the project has
+/// something to say about this file" from "the project was enumerated and had
+/// nothing to add" — the latter cannot change the file's analysis, so it must
+/// not trigger a second, identical publish:
+///
+/// * its **call-site evidence** names a caller (issue #977) — what retracts an
+///   interprocedural fold;
+/// * the workspace's **class-factory index** is non-empty (issue #1276) — a
+///   `Meta create Name …` in this file is recorded or abstained on depending
+///   on it, so a file that published before the index arrived published
+///   without the classes it manufactures.
+///
+/// Lock order is `db` → `db_files`.
+async fn refresh_can_change_result(
     db: &Mutex<tcl_lsp_db::TclDatabase>,
     db_files: &Mutex<HashMap<Uri, tcl_lsp_db::SourceFile>>,
     uri: &Uri,
@@ -2029,6 +2044,7 @@ async fn has_external_callers(
         f.external_call_sites(&*db)
             .as_ref()
             .is_some_and(|e| !e.is_empty())
+            || f.workspace_class_factories(&*db).is_some()
     })
 }
 
@@ -2143,6 +2159,74 @@ async fn sync_cross_file_evidence(handles: &EvidenceHandles) -> Vec<Uri> {
             continue;
         }
         file.set_external_call_sites(&mut *db).to(want);
+        changed.push(uri);
+    }
+    changed
+}
+
+/// Refresh every project file's [`tcl_lsp_db::SourceFile::workspace_class_factories`]
+/// — the workspace's user-defined `TclOO` metaclasses (issue #1276) — and
+/// report the URIs whose oracle actually moved.
+///
+/// One index serves every file: a metaclass is a project-wide declaration,
+/// not a per-file slice, and there is no per-file narrowing to make.  It is
+/// **empty for the overwhelming majority of workspaces**, and an empty index
+/// is stored as `None`, so the input never leaves its default and nothing is
+/// ever invalidated by it — a workspace with no metaclass behaves exactly as
+/// it did before the index existed.
+///
+/// Same shape as [`sync_cross_file_evidence`] and for the same reasons: the
+/// project-wide read runs on a cloned salsa snapshot inside `spawn_blocking`
+/// so the `db` mutex is held only for the short write section, cancellation
+/// is caught and reported as "nothing changed", and the write is
+/// compare-then-set against the *live* database rather than the snapshot.
+///
+/// Called from two places, because the answer must be in place before either
+/// consumer needs it: at the end of the workspace scan (so a document opened
+/// afterwards is analysed with the oracle on its very first pass) and after
+/// each diagnostics publish (so a metaclass added by an *edit* propagates).
+async fn sync_workspace_class_factories(handles: &EvidenceHandles) -> Vec<Uri> {
+    use salsa::Setter as _;
+    let (snapshot, files, project) = {
+        let db = handles.db.lock().await;
+        let db_files = handles.db_files.lock().await;
+        let db_project = handles.db_project.lock().await;
+        let Some(&project) = db_project.as_ref() else {
+            return Vec::new();
+        };
+        let files: Vec<(Uri, tcl_lsp_db::SourceFile)> =
+            db_files.iter().map(|(u, &f)| (u.clone(), f)).collect();
+        (db.clone(), files, project)
+    };
+    // `AssertUnwindSafe`: the closure only *reads* the database, and a
+    // cancellation unwind discards the whole `pending` list without applying
+    // anything, so no torn state can be observed afterwards.
+    let computed = tokio::task::spawn_blocking(move || {
+        salsa::Cancelled::catch(std::panic::AssertUnwindSafe(|| {
+            let index = tcl_lsp_db::project_class_factories(&snapshot, project);
+            let want = (!index.is_empty()).then_some(index);
+            let pending: Vec<(Uri, tcl_lsp_db::SourceFile)> = files
+                .into_iter()
+                .filter(|(_, file)| {
+                    file.workspace_class_factories(&snapshot).as_deref() != want.as_deref()
+                })
+                .collect();
+            (want, pending)
+        }))
+        .ok()
+    })
+    .await;
+    let Ok(Some((want, pending))) = computed else {
+        return Vec::new();
+    };
+    let mut db = handles.db.lock().await;
+    let mut changed = Vec::with_capacity(pending.len());
+    for (uri, file) in pending {
+        if file.workspace_class_factories(&*db).as_deref() == want.as_deref() {
+            continue;
+        }
+        file.set_workspace_class_factories(&mut *db)
+            .to(want.clone());
         changed.push(uri);
     }
     changed
@@ -4053,6 +4137,22 @@ impl Backend {
             let mut project = self.db_project.lock().await;
             Self::sync_db_project(&mut db, &files, &mut project);
         }
+    }
+
+    /// The workspace class-factory oracle this document is analysed under,
+    /// cloned out of the salsa db so a `spawn_blocking` analysis can carry it
+    /// (issue #1276).
+    ///
+    /// `None` when the document is not in the salsa db, which is the honest
+    /// answer — no workspace view — rather than a claim of one.  Lock order is
+    /// `db` → `db_files`, matching [`Self::db_set_source`].
+    async fn class_factories_for(
+        &self,
+        uri: &Uri,
+    ) -> Option<Arc<tcl_compiler::analyser::ClassFactoryIndex>> {
+        let db = self.db.lock().await;
+        let files = self.db_files.lock().await;
+        files.get(uri)?.workspace_class_factories(&*db).clone()
     }
 
     /// This document's cross-file call-site evidence, cloned out of the salsa
@@ -7189,6 +7289,11 @@ impl Backend {
         dialect: &str,
     ) -> Arc<AnalysisResult> {
         let workspace_classes = self.workspace_index.read().await.all_class_qnames();
+        // The class-factory oracle travels with the class-name set (issue
+        // #1276): without it this tier would not see a class the document
+        // manufactures through a cross-file metaclass at all, and a method
+        // lookup on one would miss where the cached tier resolves it.
+        let workspace_class_factories = self.class_factories_for(uri).await;
         let fingerprint = (
             document_fingerprint(source, dialect),
             class_set_fingerprint(&workspace_classes),
@@ -7208,6 +7313,7 @@ impl Backend {
             Arc::new(
                 tcl_compiler::analyser::Analyser::new()
                     .with_workspace_classes(workspace_classes)
+                    .with_workspace_class_factories(workspace_class_factories)
                     .analyse(&owned_source, &owned_dialect)
                     .clone(),
             )
@@ -11452,6 +11558,19 @@ impl Backend {
         // just batched in, which answer `file_decls` / `item_sigs` on demand)
         // until a request actually needs their deep analysis.
         self.spawn_workspace_warm();
+        // Publish the workspace's class-factory oracle *before* the readiness
+        // signal (issue #1276). A document opened after the scan must be
+        // analysed with it on its very first pass, or its outline and
+        // navigation come back empty for every class a cross-file metaclass
+        // manufactures — the exact symptom the issue reports — until some
+        // later edit happens to re-run the diagnostics worker.
+        sync_workspace_class_factories(&EvidenceHandles {
+            db: Arc::clone(&self.db),
+            db_files: Arc::clone(&self.db_files),
+            db_project: Arc::clone(&self.db_project),
+            workspace_index: Arc::clone(&self.workspace_index),
+        })
+        .await;
         // In-process readiness signal, released before the log line so a
         // handler waiting on it is not held up by a client round-trip.
         self.workspace_scan_ready.mark_complete();
@@ -24475,6 +24594,168 @@ mod tests {
         );
         drop(index);
 
+        std::fs::remove_dir_all(&root).ok();
+    }
+
+    /// The three-file Tk shape of issue #1276, written to a scratch workspace.
+    ///
+    /// Ground truth (tclsh 8.6.14 and 9.0.4 agree, `source`ing the three in
+    /// order): `::IconList` is a real class, `info class superclasses
+    /// ::IconList` is `::tk::MegawidgetClass ::FocusableWidget`, and
+    /// `info class methods ::IconList -private` is `CreateHull GetSpecs`.
+    fn write_metaclass_workspace(root: &std::path::Path) {
+        std::fs::write(
+            root.join("megawidget.tcl"),
+            concat!(
+                "oo::class create ::tk::MegawidgetClass {\n",
+                "    method TraceOption {a b} { return traced }\n",
+                "}\n",
+                "oo::class create ::tk::Megawidget {\n",
+                "    superclass oo::class\n",
+                "    self method create {name superclasses body} {\n",
+                "        next $name [list superclass ::tk::MegawidgetClass",
+                " {*}$superclasses]\\;$body\n",
+                "    }\n",
+                "}\n",
+            ),
+        )
+        .unwrap();
+        std::fs::write(
+            root.join("base.tcl"),
+            concat!(
+                "::tk::Megawidget create FocusableWidget {} {\n",
+                "    method CreateHull {} { return h }\n",
+                "}\n",
+            ),
+        )
+        .unwrap();
+        std::fs::write(
+            root.join("iconlist.tcl"),
+            concat!(
+                "::tk::Megawidget create IconList FocusableWidget {\n",
+                "    method GetSpecs {} { return iconlist }\n",
+                "    method CreateHull {} { return hull }\n",
+                "}\n",
+            ),
+        )
+        .unwrap();
+    }
+
+    /// The salsa analysis a scanned (unopened) workspace file resolves to.
+    async fn scanned_analysis(
+        backend: &Backend,
+        root: &std::path::Path,
+        name: &str,
+    ) -> Arc<AnalysisResult> {
+        let uri = Uri::from_file_path(root.join(name)).unwrap();
+        let db = backend.db.lock().await;
+        let files = backend.db_files.lock().await;
+        let file = *files.get(&uri).expect("scanned file is a salsa input");
+        let config = *backend.db_config.lock().await;
+        tcl_lsp_db::file_analysis_incremental(&*db, file, config)
+    }
+
+    #[tokio::test]
+    async fn a_cross_file_metaclass_resolves_after_the_workspace_scan() {
+        // TP — issue #1276, the whole point. `iconlist.tcl` names
+        // `::tk::Megawidget` and nothing else about it; the scan publishes the
+        // factory index and the file's own analysis then records the class the
+        // interpreter really makes, superclasses and members included.
+        let root = unique_scratch_dir("metaclass");
+        write_metaclass_workspace(&root);
+        let backend = test_backend();
+        *backend.workspace_folders.lock().await = vec![Uri::from_file_path(&root).unwrap()];
+        backend.scan_workspace_folders().await;
+
+        let analysis = scanned_analysis(&backend, &root, "iconlist.tcl").await;
+        let class = analysis
+            .all_classes
+            .get("::IconList")
+            .unwrap_or_else(|| panic!("::IconList: {:?}", analysis.all_classes.keys()));
+        let mut methods: Vec<&str> = class.methods.keys().map(String::as_str).collect();
+        methods.sort_unstable();
+        assert_eq!(methods, ["CreateHull", "GetSpecs"], "{class:?}");
+        assert_eq!(
+            class.superclasses,
+            ["::tk::MegawidgetClass", "FocusableWidget"],
+            "{class:?}"
+        );
+        assert!(!class.inheritance_unknown, "{class:?}");
+
+        // The outline is what the audit actually complained about: it was
+        // empty for this file.
+        let symbols = tcl_lsp_core::document_symbols::document_symbols_from_analysis(
+            &std::fs::read_to_string(root.join("iconlist.tcl")).unwrap(),
+            &analysis,
+        );
+        assert!(
+            symbols.iter().any(|s| s.name.contains("IconList")),
+            "outline names the class: {symbols:?}"
+        );
+        std::fs::remove_dir_all(&root).ok();
+    }
+
+    #[tokio::test]
+    async fn a_dynamic_metaclass_head_abstains_even_with_the_scan_index() {
+        // TN, the non-negotiable half — the index is populated and correct,
+        // but the creation call's head is a runtime value, so nothing about it
+        // is provable and no class may be invented.
+        let root = unique_scratch_dir("metaclass-dyn");
+        write_metaclass_workspace(&root);
+        std::fs::write(
+            root.join("dynamic.tcl"),
+            concat!(
+                "set meta ::tk::Megawidget\n",
+                "$meta create Invented FocusableWidget {\n",
+                "    method GetSpecs {} { return nope }\n",
+                "}\n",
+            ),
+        )
+        .unwrap();
+        let backend = test_backend();
+        *backend.workspace_folders.lock().await = vec![Uri::from_file_path(&root).unwrap()];
+        backend.scan_workspace_folders().await;
+
+        // Non-vacuity: the very same scan *does* resolve the provable file, so
+        // this abstention is not just "the index never arrived".
+        let resolved = scanned_analysis(&backend, &root, "iconlist.tcl").await;
+        assert!(resolved.all_classes.contains_key("::IconList"));
+
+        let analysis = scanned_analysis(&backend, &root, "dynamic.tcl").await;
+        assert!(
+            !analysis.all_classes.contains_key("::Invented"),
+            "a dynamic head proves nothing: {:?}",
+            analysis.all_classes.keys().collect::<Vec<_>>()
+        );
+        std::fs::remove_dir_all(&root).ok();
+    }
+
+    #[tokio::test]
+    async fn a_workspace_with_no_metaclass_never_sets_the_factory_oracle() {
+        // The no-op guarantee: an ordinary workspace must not acquire a new
+        // cross-file input at all, or every file in every project would be
+        // invalidated by a fact none of them use.
+        let root = unique_scratch_dir("metaclass-none");
+        std::fs::write(root.join("a.tcl"), "proc greet {n} { puts $n }\n").unwrap();
+        std::fs::write(
+            root.join("b.tcl"),
+            "oo::class create Dog { method bark {} {} }\n",
+        )
+        .unwrap();
+        let backend = test_backend();
+        *backend.workspace_folders.lock().await = vec![Uri::from_file_path(&root).unwrap()];
+        backend.scan_workspace_folders().await;
+
+        let db = backend.db.lock().await;
+        let files = backend.db_files.lock().await;
+        for (uri, file) in files.iter() {
+            assert!(
+                file.workspace_class_factories(&*db).is_none(),
+                "{uri:?} acquired a factory oracle it has no use for"
+            );
+        }
+        drop(files);
+        drop(db);
         std::fs::remove_dir_all(&root).ok();
     }
 

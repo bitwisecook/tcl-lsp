@@ -207,6 +207,21 @@ pub struct SourceFile {
     /// — untouched.
     #[returns(ref)]
     pub external_call_sites: Option<Arc<CallSiteEvidence>>,
+    /// The workspace's user-defined `TclOO` **class factories** (metaclasses),
+    /// keyed by qualified name — the oracle that lets this file's walk
+    /// classify `::tk::Megawidget create IconList …` when `::tk::Megawidget`
+    /// is written in another document (issue #1276).
+    ///
+    /// `None` means "no workspace view", and the walk abstains on every such
+    /// call exactly as it did before the index existed — the deliberate
+    /// pre-#1276 behaviour, which every standalone consumer keeps.
+    ///
+    /// Set by the server from [`project_class_factories`] (compare-then-set),
+    /// the same discipline [`Self::external_call_sites`] uses: an index that
+    /// does not move invalidates nothing, and almost no edit moves it, since
+    /// almost no document declares a metaclass.
+    #[returns(ref)]
+    pub workspace_class_factories: Option<Arc<tcl_compiler::analyser::ClassFactoryIndex>>,
 }
 
 impl SourceFile {
@@ -220,7 +235,7 @@ impl SourceFile {
         dialect: String,
         path: Option<String>,
     ) -> Self {
-        Self::with_call_site_evidence(db, text, dialect, path, None)
+        Self::with_call_site_evidence(db, text, dialect, path, None, None)
     }
 }
 
@@ -279,7 +294,8 @@ pub fn file_analysis(
         .with_non_ascii_mode(config.non_ascii_mode(db))
         .with_extra_commands(extra)
         .with_bigip_version(config.bigip_version(db).clone())
-        .with_file_path(file.path(db).clone());
+        .with_file_path(file.path(db).clone())
+        .with_workspace_class_factories(file.workspace_class_factories(db).clone());
     Arc::new(analyser.analyse(file.text(db), file.dialect(db)))
 }
 
@@ -293,13 +309,24 @@ pub fn file_analysis(
 /// item set therefore *cannot* diverge from `analyse`. Slices 2–3 re-home this
 /// onto a cheap, independent CST extractor — guarded by the `file_decls` corpus
 /// gate + the `incremental == fresh` differential fuzzer + the full-rebuild
-/// fallback (item detection is config-independent, hence no `AnalyserConfig`).
+/// fallback (item detection is config-independent, hence no `AnalyserConfig`;
+/// the one cross-file input it does read, `SourceFile::workspace_class_factories`,
+/// is a property of the *file*, so the query key is unchanged).
 #[salsa::tracked]
 pub fn item_tree(db: &dyn salsa::Database, file: SourceFile) -> Arc<ItemTree> {
     // `structure_only` skips diagnostic emission (the dominant analyse cost)
     // while building the identical declaration/scope structure — a cheap,
     // non-divergent item extractor (gated by `file_decls_corpus`).
-    let mut analyser = Analyser::new().structure_only();
+    let mut analyser = Analyser::new()
+        .structure_only()
+        // The workspace class-factory oracle (issue #1276) is part of the
+        // *file's* input, not the analyser config, so the item tree stays a
+        // function of `SourceFile` alone. It has to be here: a class a
+        // cross-file metaclass manufactures is a declaration of this file, and
+        // leaving it out of the item tree would leave it out of `file_decls`
+        // too — so cross-file W123 would call `IconList` an unknown command
+        // while the full analysis, hover, and the outline all describe it.
+        .with_workspace_class_factories(file.workspace_class_factories(db).clone());
     let result = analyser.analyse(file.text(db), file.dialect(db));
     Arc::new(ItemTree::from_analysis(
         &result,
@@ -356,6 +383,52 @@ pub fn project_proc_names(db: &dyn salsa::Database, project: Project) -> Arc<BTr
         names.extend(file_decls(db, file).procs.iter().cloned());
     }
     Arc::new(names)
+}
+
+/// The **class factories** one file declares — the user-defined `TclOO`
+/// metaclasses (`oo::class create Meta { superclass oo::class; self method
+/// create … }`) it publishes to the rest of the workspace (issue #1276).
+///
+/// Read straight off [`item_tree`], which every project file already
+/// computes for [`file_decls`] / [`project_proc_names`], so the factory index
+/// costs no extra analysis pass. Structure-level, like [`file_decls`]: a body
+/// edit that does not change a metaclass's `create` override leaves this
+/// equal, so it backdates and no cross-file query re-runs.
+///
+/// [`item_tree`] itself reads [`SourceFile::workspace_class_factories`], so a
+/// metaclass that is *itself* manufactured by another file's metaclass is
+/// picked up on the host's next sync round rather than needing a fixpoint
+/// here: the sync is compare-then-set, so it stops as soon as the index stops
+/// moving. What never happens is a *guess* — a round adds an entry only when
+/// some file proved it.
+#[salsa::tracked]
+pub fn file_class_factories(
+    db: &dyn salsa::Database,
+    file: SourceFile,
+) -> Arc<tcl_compiler::analyser::ClassFactoryIndex> {
+    Arc::clone(&item_tree(db, file).class_factories)
+}
+
+/// The project-wide merge of every file's [`file_class_factories`] — the
+/// oracle the server sets on [`SourceFile::workspace_class_factories`].
+///
+/// Unordered, exactly as the workspace index's other cross-file facts are: a
+/// `source` graph can prove a load order, but nothing requires one here —
+/// a metaclass declaration either exists in the project or it does not.
+/// Later entries win on a duplicate qualified name, which cannot be told
+/// apart from the earlier one by anything the index knows.
+#[salsa::tracked]
+pub fn project_class_factories(
+    db: &dyn salsa::Database,
+    project: Project,
+) -> Arc<tcl_compiler::analyser::ClassFactoryIndex> {
+    let mut merged = tcl_compiler::analyser::ClassFactoryIndex::new();
+    for &file in project.files(db) {
+        for (qname, factory) in file_class_factories(db, file).iter() {
+            merged.insert(qname.clone(), factory.clone());
+        }
+    }
+    Arc::new(merged)
 }
 
 /// The project files this file pulls into its own interpreter — its resolved
@@ -1061,10 +1134,19 @@ pub struct ItemBodyKey<'db> {
     ///   body that moves in or out of a tracked safe interpreter between
     ///   edits gets re-analysed rather than serving a stale cached `W129`
     ///   verdict.
+    /// - `.2` — the workspace **class factory** oracle
+    ///   ([`SourceFile::workspace_class_factories`], issue #1276). A
+    ///   `Meta create …` inside a proc body is classified by the whole-file
+    ///   walk from this index, so the isolated body pass must see the same
+    ///   one or the two strategies disagree about whether a class exists.
+    ///   Part of the key for the usual reason: a metaclass appearing or
+    ///   changing shape elsewhere in the workspace must re-analyse the
+    ///   bodies whose creation calls it decides.
     #[returns(ref)]
     pub body_env: (
         Vec<(String, Vec<(String, String)>)>,
         Option<(bool, Vec<String>, Vec<String>)>,
+        Option<Arc<tcl_compiler::analyser::ClassFactoryIndex>>,
     ),
     #[returns(ref)]
     pub dialect: String,
@@ -1109,6 +1191,7 @@ pub fn item_body_analysis<'db>(db: &'db dyn TclDb, key: ItemBodyKey<'db>) -> Arc
         &disabled,
         key.non_ascii(db),
         Some(overlay),
+        key.body_env(db).2.clone(),
     ))
 }
 
@@ -2550,11 +2633,13 @@ pub fn file_analysis_incremental(
     let extra_commands: HashSet<String> = config.extra_commands(db).iter().cloned().collect();
     let dialect = file.dialect(db).clone();
     let text = file.text(db).clone();
+    let workspace_class_factories = file.workspace_class_factories(db).clone();
     let mut analyser = Analyser::with_disabled_diagnostics(disabled_vec.iter().cloned().collect())
         .with_non_ascii_mode(non_ascii)
         .with_extra_commands(extra_commands)
         .with_bigip_version(config.bigip_version(db).clone())
-        .with_file_path(file.path(db).clone());
+        .with_file_path(file.path(db).clone())
+        .with_workspace_class_factories(workspace_class_factories.clone());
 
     // Build the CFG/SSA tail's compilation unit with per-procedure lattices
     // memoised by `function_lattice`, and feed it through the analyser's
@@ -2580,7 +2665,11 @@ pub fn file_analysis_incremental(
             body.command_trust
                 .clone()
                 .map(|trust| (trust, body.oo_defining_class.clone())),
-            (body.ensemble_targets.clone(), body.safe_interp_ctx.clone()),
+            (
+                body.ensemble_targets.clone(),
+                body.safe_interp_ctx.clone(),
+                workspace_class_factories.clone(),
+            ),
             dialect.clone(),
             disabled_vec.clone(),
             non_ascii,
@@ -3064,7 +3153,7 @@ mod tests {
                 false,
                 Vec::new(),
                 None,
-                (Vec::new(), None),
+                (Vec::new(), None, None),
                 "tcl8.6".to_owned(),
                 Vec::new(),
                 NonAsciiMode::Default,
@@ -3087,7 +3176,7 @@ mod tests {
             false,
             Vec::new(),
             None,
-            (Vec::new(), None),
+            (Vec::new(), None, None),
             "tcl8.6".to_owned(),
             Vec::new(),
             NonAsciiMode::Default,
