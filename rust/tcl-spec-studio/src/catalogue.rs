@@ -437,6 +437,10 @@ pub const TRAITS: &[Variant] = &[
         "iRules: valid only at the top level",
     ),
     v("IS_OO_METACLASS", "a TclOO metaclass factory"),
+    v(
+        "CONFIGURES_BY_PROPERTY",
+        "answers `configure`/`cget` from declared properties",
+    ),
     v("DIAGRAM_ACTION", "an action node in extracted diagrams"),
     v("NEEDS_START_CMD", "needs an explicit start command"),
     v("TAINT_SINK", "a taint sink"),
