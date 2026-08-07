@@ -50,6 +50,7 @@ use clap::{Parser, Subcommand};
 
 mod audit_option_dialects;
 mod command_backing;
+mod diag_emission;
 mod diag_tables;
 mod fp_sweep;
 mod gen_ai;
@@ -119,6 +120,11 @@ enum Command {
         #[arg(long)]
         check: bool,
     },
+
+    /// Verify every non-internal, non-reserved `DiagCode` has at least one
+    /// real construction site under `rust/tcl-compiler/src` (issue #1317).
+    #[command(name = "diag-emission-check")]
+    DiagEmissionCheck,
 
     /// Generate the Zed/VS Code editor catalog JSON from the command registry.
     GenEditorCatalogs {
@@ -242,6 +248,7 @@ fn main() -> anyhow::Result<ExitCode> {
         Command::AuditOptionDialects => audit_option_dialects::run(),
         Command::WasmBacking { check } => command_backing::run(check),
         Command::DiagTables { check } => diag_tables::run(check),
+        Command::DiagEmissionCheck => Ok(diag_emission::run()),
         Command::GenEditorCatalogs { check } => gen_editor_catalogs::run(check),
         Command::GenZedQueries { check } => gen_zed_queries::run(check),
         Command::GenTmlanguageKeywords { check } => gen_tmlanguage_keywords::run(check),

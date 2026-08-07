@@ -48,4 +48,4 @@ Add `# noqa: W124` at the end of the offending line.
 - [KCS codes index](README.md)
 - [Diagnostics feature](../features/kcs-feature-diagnostics.md)
 - [lexing](../../GLOSSARY.md#lexing)
-- Related codes: `W121`, `W122`
+- Related codes: `W121`

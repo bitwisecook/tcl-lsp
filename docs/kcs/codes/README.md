@@ -65,7 +65,6 @@ for historical reference.
 - [W118 — inconsistent line endings](kcs-diagnostic-w118-inconsistent-line-endings.md)
 - [W120 — missing package require](kcs-diagnostic-w120-missing-package-require.md)
 - [W121 — invalid subnet mask](kcs-diagnostic-w121-invalid-subnet-mask.md)
-- [W122 — mistyped IPv4 address](kcs-diagnostic-w122-mistyped-ipv4-address.md)
 - [W124 — invalid IP literal](kcs-diagnostic-w124-invalid-ip-literal.md)
 - [W125 — orphaned control flow](kcs-diagnostic-w125-orphaned-control-flow.md)
 - [W126 — non-channel argument](kcs-diagnostic-w126-non-channel-argument.md)

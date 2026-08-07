@@ -63,6 +63,7 @@ fn diagnostic_rows() -> Vec<(DiagCode, DiagSection, bool, &'static str)> {
                 default_on,
                 description,
                 internal: _,
+                reserved: _,
             } => Some((c, section, default_on, description)),
             DocRow::Optimisation { .. } => None,
         })

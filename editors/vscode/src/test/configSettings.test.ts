@@ -577,7 +577,6 @@ suite("Configuration Settings", () => {
     "W118",
     "W120",
     "W121",
-    "W122",
     "W124",
     "W126",
     "W200",

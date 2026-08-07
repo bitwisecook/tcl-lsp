@@ -16,7 +16,7 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! STY family — style / usage warnings (W001/W104/W105/W113/W120/W122/W124/W126/
+//! STY family — style / usage warnings (W001/W104/W105/W113/W120/W124/W126/
 //! W201/W210/W212/W214/W216/W302/W306).
 //! Pairs to `tests/test_fp_sty.py` and the §STY entries in `docs/design/compiler/FP.md`.
 
@@ -281,20 +281,16 @@ fn fp_sty_05_user_call_still_fires() {
 }
 
 // ---------------------------------------------------------------------------
-// FP-STY-06 — W122/W124 OID-like dotted chains (not IPv4)
+// FP-STY-06 — W124 OID-like dotted chains (not IPv4)
 // ---------------------------------------------------------------------------
 
 #[test]
-fn fp_sty_06_oid_chain_no_w122_w124() {
+fn fp_sty_06_oid_chain_no_w124() {
     // FP-STY-06: `1.3.6.1.4.1.4203.1.11.3` (LDAP PEN OID) is an enterprise OID,
     // NOT an IPv4 address. The naive regex matched an embedded 4-component slice
-    // where octet 4203 > 255; W122/W124 fired falsely.
+    // where octet 4203 > 255; W124 (and the now-retired W122 it superseded —
+    // issue #1317) fired falsely.
     let src = "set oid 1.3.6.1.4.1.4203.1.11.3";
-    assert!(
-        !fires(src, D, "W122"),
-        "FP-STY-06: OID chain must NOT fire W122; emitted: {:?}",
-        codes(src, D)
-    );
     assert!(
         !fires(src, D, "W124"),
         "FP-STY-06: OID chain must NOT fire W124; emitted: {:?}",

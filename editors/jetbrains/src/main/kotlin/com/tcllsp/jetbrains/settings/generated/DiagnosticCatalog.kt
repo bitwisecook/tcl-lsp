@@ -60,7 +60,6 @@ object DiagnosticCatalog {
         DiagnosticDef("W118", "warning", "W118: Inconsistent line endings", true),
         DiagnosticDef("W120", "warning", "W120: Command used without a corresponding package require", true),
         DiagnosticDef("W121", "warning", "W121: Subnet mask has non-contiguous bits", true),
-        DiagnosticDef("W122", "warning", "W122: Mistyped IPv4 address (octet > 255 or leading zero)", true),
         DiagnosticDef("W124", "warning", "W124: Invalid IP address literal", true),
         DiagnosticDef("W125", "warning", "W125: Orphaned control-flow keyword used as standalone com...", true),
         DiagnosticDef("W126", "warning", "W126: Non-channel value in channel argument position", true),
@@ -158,11 +157,6 @@ object DiagnosticCatalog {
         DiagnosticDef("IRULE4003", "irules_variable", "IRULE4003: Variable scoping concern across events", true),
         DiagnosticDef("IRULE4004", "irules_variable", "IRULE4004: Constant set in per-request event could be hoisted t...", true),
         DiagnosticDef("IRULE4005", "irules_variable", "IRULE4005: Potential race", true),
-        DiagnosticDef("W130", "tclpkg", "W130: tclpkg.tcl requires package but it is not in tclpkg....", true),
-        DiagnosticDef("W131", "tclpkg", "W131: tclpkg.lock is out of sync with tclpkg.tcl", true),
-        DiagnosticDef("W132", "tclpkg", "W132: tclpkg.lock integrity mismatch", true),
-        DiagnosticDef("W133", "tclpkg", "W133: tclpkg.tcl directive not permitted in safe mode", true),
-        DiagnosticDef("W134", "tclpkg", "W134: Package resolved but no pkgIndex.tcl found", true),
     )
 
     val optimisations: List<OptimisationDef> = listOf(

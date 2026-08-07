@@ -941,7 +941,7 @@ Rust: `rust/tcl-compiler/src/analyser/*`, `compiler_checks.rs`, `irules_checks.r
 | W118 | Inconsistent line endings | shared/codes.py:291 | lib.rs:6101 | ✅ | |
 | W120 | Command without `package require` | shared/codes.py:292 | state.rs:1524 | ✅ | |
 | W121 | Style | checks/_style.py:1799 | diagnostics.rs:2865 | ✅ | |
-| W122 | Style | checks/_style.py:1878 | diagnostics.rs:8728 | ✅ | Dedup-suppressed when W124 same line (both). |
+| W122 | Style | checks/_style.py:1878 | *(retired)* | ⛔ | **Retired (issue #1317, 2026-08):** the dedup-suppressed regex check duplicated W124's SSA-traced octet check with no independent producer left; removed rather than kept as dead-but-guarded. |
 | W123 | Unresolved command (off by default) | _analyser/_utils.py:198 | handlers.rs:3675 | ✅ | Uses unknown-proc/CHA to gate FPs. |
 | W124 | Invalid IP literal | _analyser/_diag_ip.py | diagnostics.rs:7524 | ✅ | |
 | W125 | Orphaned control-flow keyword as standalone | _analyser/_commands.py:171 | — | ❌ | Deferred to "C41e5" (commands.rs:12). |

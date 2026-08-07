@@ -128,7 +128,6 @@ class TclLspSettings : PersistentStateComponent<TclLspSettings> {
     var diagnosticW118: Boolean = true
     var diagnosticW120: Boolean = true
     var diagnosticW121: Boolean = true
-    var diagnosticW122: Boolean = true
     var diagnosticW124: Boolean = true
     var diagnosticW125: Boolean = true
     var diagnosticW126: Boolean = true
@@ -226,11 +225,6 @@ class TclLspSettings : PersistentStateComponent<TclLspSettings> {
     var diagnosticIRULE4003: Boolean = true
     var diagnosticIRULE4004: Boolean = true
     var diagnosticIRULE4005: Boolean = true
-    var diagnosticW130: Boolean = true
-    var diagnosticW131: Boolean = true
-    var diagnosticW132: Boolean = true
-    var diagnosticW133: Boolean = true
-    var diagnosticW134: Boolean = true
     // @generated:diagnostic-vars:end
 
     // Style
@@ -399,7 +393,6 @@ class TclLspSettings : PersistentStateComponent<TclLspSettings> {
                 "W118" to diagnosticW118,
                 "W120" to diagnosticW120,
                 "W121" to diagnosticW121,
-                "W122" to diagnosticW122,
                 "W124" to diagnosticW124,
                 "W125" to diagnosticW125,
                 "W126" to diagnosticW126,
@@ -497,11 +490,6 @@ class TclLspSettings : PersistentStateComponent<TclLspSettings> {
                 "IRULE4003" to diagnosticIRULE4003,
                 "IRULE4004" to diagnosticIRULE4004,
                 "IRULE4005" to diagnosticIRULE4005,
-                "W130" to diagnosticW130,
-                "W131" to diagnosticW131,
-                "W132" to diagnosticW132,
-                "W133" to diagnosticW133,
-                "W134" to diagnosticW134,
                 // @generated:diagnostic-map:end
             ).let { map ->
                 val patterns = diagnosticsGenericVariablePatterns

@@ -930,17 +930,19 @@ impl Analyser {
     /// Two passes:
     ///
     /// 1. Compute the set of source lines on which `E101`
-    ///    (missing-open-brace) and `W124` (SSA-based IP check)
-    ///    fired.  These are sentinels for the related
-    ///    redundant-message codes.
+    ///    (missing-open-brace) fired — a sentinel for the related
+    ///    redundant-message code.
     /// 2. Walk diagnostics in source order, deduplicating by
-    ///    `(code, span, message, severity)` and dropping:
-    ///    - `E002` on a line where `E101` fired (the recovered
-    ///      switch makes the arity message a false positive).
-    ///    - `W122` on a line where `W124` fired (the SSA check
-    ///      is more precise).
+    ///    `(code, span, message, severity)` and dropping `E002` on a
+    ///    line where `E101` fired (the recovered switch makes the
+    ///    arity message a false positive).
     ///
     /// Lines come from the [`SourceMap`] over `self.source`.
+    ///
+    /// (Formerly also suppressed `W122` on a line where `W124` fired —
+    /// removed with `W122` itself, which duplicated `W124`'s IPv4 octet
+    /// check under a superseded code with no independent producer;
+    /// issue #1317.)
     pub fn dedupe_diagnostics(&mut self) {
         let sm = Analyser::source_map(
             &self.source,
@@ -948,17 +950,10 @@ impl Analyser {
             self.cached_line_index_source_len,
         );
         let mut e101_lines: FxHashSet<u32> = FxHashSet::default();
-        let mut w124_lines: FxHashSet<u32> = FxHashSet::default();
         for d in &self.result.diagnostics {
-            let line = sm.range_positions(d.span).0.line;
-            match d.code.as_str() {
-                "E101" => {
-                    e101_lines.insert(line);
-                }
-                "W124" => {
-                    w124_lines.insert(line);
-                }
-                _ => {}
+            if d.code.as_str() == "E101" {
+                let line = sm.range_positions(d.span).0.line;
+                e101_lines.insert(line);
             }
         }
 
@@ -978,9 +973,6 @@ impl Analyser {
             }
             let line = sm.range_positions(d.span).0.line;
             if d.code == DiagCode::E002 && e101_lines.contains(&line) {
-                continue;
-            }
-            if d.code == DiagCode::W122 && w124_lines.contains(&line) {
                 continue;
             }
             seen.insert(key);

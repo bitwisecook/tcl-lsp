@@ -9395,34 +9395,6 @@ fn dedupe_drops_e002_on_e101_line() {
 }
 
 #[test]
-fn dedupe_drops_w122_on_w124_line() {
-    // W124 (SSA-based IP check) on a line → W122 (regex IP
-    // check) on the same line is redundant.
-    let mut a = Analyser::new();
-    a.source = "if {[IP::addr $ip]} {}".to_string();
-    let ip_span = Span::new(15, 18);
-    a.result
-        .diagnostics
-        .push(diag(DiagCode::W124, ip_span, "invalid IP"));
-    a.result
-        .diagnostics
-        .push(diag(DiagCode::W122, ip_span, "regex IP check"));
-    a.dedupe_diagnostics();
-    assert!(
-        a.result
-            .diagnostics
-            .iter()
-            .any(|d| d.code == DiagCode::W124)
-    );
-    assert!(
-        !a.result
-            .diagnostics
-            .iter()
-            .any(|d| d.code == DiagCode::W122)
-    );
-}
-
-#[test]
 fn dedupe_keeps_e002_on_unrelated_line() {
     // E101 on line 0, E002 on line 1 — different lines, so
     // the suppression rule doesn't fire.

@@ -1586,18 +1586,22 @@ mod invalid_subnet_mask {
 }
 
 // ===========================================================================
-// W122 / W124 — mistyped IPv4 address.
+// W124 — mistyped IPv4 address.
 //
-// tclsh: `192.168.1.256` is not a valid IP (octet > 255). On this surface the
-// SSA-traced **W124** supersedes the lexical **W122** everywhere (W122 never
-// fires on its own), so these
-// tests assert "W122 OR W124" via [`ip_count`]. Octet > 255 → Error;
-// octal-ambiguous leading zero → Warning. OIDs / version numbers are excluded.
+// tclsh: `192.168.1.256` is not a valid IP (octet > 255). The SSA-traced
+// **W124** check covers both halves of what the lexical **W122** used to
+// describe (octet > 255 and a leading-zero octal ambiguity); W122 duplicated
+// it with no independent producer and was retired (issue #1317). `ip_count`
+// keeps summing "W122 OR W124" (W122's contribution is now always 0) rather
+// than being narrowed to W124 alone, so a future accidental reintroduction of
+// a W122 producer would still be counted here rather than silently going
+// unnoticed by this suite. Octet > 255 → Error; octal-ambiguous leading zero
+// → Warning. OIDs / version numbers are excluded.
 // ===========================================================================
 mod mistyped_ipv4 {
     use super::*;
 
-    /// Count of W122 + W124.
+    /// Count of W122 (retired, always 0 — see the module note) + W124.
     fn ip_count(src: &str) -> usize {
         count(src, D, "W122") + count(src, D, "W124")
     }

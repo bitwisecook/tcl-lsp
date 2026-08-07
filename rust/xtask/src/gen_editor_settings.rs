@@ -99,6 +99,7 @@ fn catalog() -> String {
                 section,
                 default_on,
                 internal: false,
+                reserved: false,
                 description,
             } => Some((c.as_str(), section.as_str(), default_on, description)),
             _ => None,
