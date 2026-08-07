@@ -56,6 +56,6 @@ is the `diagnose` hook `bounded` accepts.
 
 ## Related
 
-- [KCS index](../README.md)
-- [Glossary](../../GLOSSARY.md)
+- [KCS index](README.md)
+- [Glossary](../GLOSSARY.md)
 - [kcs-issue-lsp-features-are-missing.md](kcs-issue-lsp-features-are-missing.md)
