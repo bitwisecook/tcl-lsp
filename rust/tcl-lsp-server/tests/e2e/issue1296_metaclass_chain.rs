@@ -42,16 +42,32 @@
 //! so `::MC::Widget` genuinely has `go`, and a definition request on it has a
 //! real answer to find.
 //!
-//! **Not covered here, deliberately.** Every case below opens the chain's
-//! documents. A chain that lives entirely in *unopened* workspace files does
-//! not resolve, and that is a separate, pre-existing gap in issue #1276 rather
-//! than one of publish depth: the startup scan indexes each file's analysis
-//! into `workspace_index` *before* the class-factory oracle is published, and
-//! nothing re-indexes an unopened file afterwards, so the classes a cross-file
-//! metaclass manufactures never reach the index the navigation providers read.
-//! It reproduces identically with a **two**-level chain (one metaclass, one
-//! manufactured class), which is the shape #1276 shipped, so it is not a
-//! regression of this change and is not fixed by it.
+//! **Not covered here.** Every case below opens the chain's documents. A chain
+//! living entirely in *unopened* workspace files does not resolve — measured,
+//! and tracked as issue #1304.
+//!
+//! That is a pre-existing #1276 gap rather than one of publish depth, and this
+//! change neither causes nor fixes it. The evidence for that is the shape it
+//! takes, not an argument about the code: it reproduces identically with a
+//! **two**-level chain (one metaclass, one manufactured class), which is
+//! exactly what #1276 shipped, while a plain `oo::class` in the same position
+//! resolves unopened perfectly well. So unopened files are indexed; it is
+//! specifically classes that exist only because a metaclass made them that go
+//! missing.
+//!
+//! The *mechanism* — that the startup scan indexes each file before the
+//! class-factory oracle is published, and `reschedule_peers` only reaches
+//! documents with a diagnostics slot, i.e. open ones — is a reading of the
+//! code and is deliberately left as a hypothesis on #1304. This bug existed
+//! because a design note recorded "it converges on the next sync round" as
+//! settled fact when nothing had checked it; the mechanism here has had no
+//! more checking than that note did.
+//!
+//! Beware when probing it by hand: `.claude/skills/lsp-client/lsp_client.py`
+//! sets `rootUri` from `--server-dir`, so a probe that points that at the repo
+//! puts its fixtures outside the scanned workspace and *everything* cross-file
+//! fails, a plain `proc` included. Pass `--server-dir <fixture dir>` with
+//! `--server-bin <binary>` to separate the two.
 
 use crate::common::helpers::*;
 use crate::common::{Lsp, scaled_timeout, unique_uri};
