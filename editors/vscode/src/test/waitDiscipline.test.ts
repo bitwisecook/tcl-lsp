@@ -23,6 +23,7 @@ import {
   awaitSignal,
   bounded,
   classifyLiveness,
+  DIAGNOSTIC_BUDGET_MS,
   getDocUri,
   loadFactor,
   type ProbeOutcome,
@@ -364,7 +365,18 @@ suite("Wait discipline (issue #1274)", () => {
       );
       // The hanging probe is capped by signal.ts's own diagnostic budget, so
       // the failure still arrives — it just arrives later than the bound.
-      const ceiling = boundCeiling(base) + (label === "hangs" ? 16_000 : 0);
+      //
+      // That budget is *load-scaled* (`scaledTimeout(DIAGNOSTIC_BUDGET_MS)`),
+      // so this ceiling has to scale with it. A fixed addend asserts a
+      // constant against a moving cap: on a busy machine the budget stretches
+      // past it and the test fails for being slow rather than for being
+      // unbounded, which is the opposite of what it is checking. Observed on
+      // CI with two runs sharing a runner — 24 201 ms against a fixed
+      // 22 400 ms ceiling — while the same job passed in the other run.
+      // Reading the budget from its own definition also stops the two
+      // drifting apart again.
+      const ceiling =
+        boundCeiling(base) + (label === "hangs" ? scaledTimeout(DIAGNOSTIC_BUDGET_MS) + 2_000 : 0);
       assert.ok(
         Date.now() - started < ceiling,
         `a ${label} probe must not make the failure unbounded; took ${Date.now() - started}ms`,

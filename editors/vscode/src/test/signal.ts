@@ -314,7 +314,7 @@ export type TimeoutDiagnostic = () => string | PromiseLike<string>;
  *  thing that hangs. Load-scaled like every other bound here: the probes a
  *  diagnostic makes are themselves load-scaled, so a fixed cap would truncate
  *  the answer on precisely the machines whose failures are hardest to read. */
-const DIAGNOSTIC_BUDGET_MS = 15_000;
+export const DIAGNOSTIC_BUDGET_MS = 15_000;
 
 /**
  * Run a [`TimeoutDiagnostic`] under a hard cap, converting any failure of the

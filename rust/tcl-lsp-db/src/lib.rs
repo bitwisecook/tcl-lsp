@@ -78,6 +78,77 @@
 //! memos at all (#1144: the closed-file republish takes the uncached
 //! pipeline).  While they did, every closed-file sweep would `record_use` on
 //! hundreds of closed files and evict the *open* documents' units instead.
+//!
+//! # The interned garbage collector is load-bearing
+//!
+//! `lru = N` above bounds *memo payloads*.  It does **not** bound the
+//! **interned tables**, and six of this crate's interned structs key on
+//! content that changes on every keystroke inside a procedure body:
+//!
+//! | Interned struct | The per-revision field |
+//! |---|---|
+//! | [`ItemBodyKey`] | `body_text` — the procedure/method body source |
+//! | [`FnLatticeKey`] | `body` — the whole post-inline procedure IR |
+//! | [`ProcBodyKey`] | `body_text` |
+//! | [`OptDepsKey`] | `body_source` + `proc_body_source` |
+//! | [`TaintSummaryKey`] | `reachable` — shifts as the projections move |
+//! | [`SummaryDepsKey`] | `interproc_reachable` + `callee_summaries` |
+//!
+//! Typing inside a body therefore mints a brand-new interned id for every one
+//! of them on every keystroke, each holding a body's worth of `Arc` payload in
+//! its memo table — the exact shape of an unbounded interning leak.  Measured
+//! against the #1181 corpus the edit path is nonetheless flat (~0 bytes/edit
+//! steady state, ~66.5 MB across 60–500 edits), and the reason is **salsa's
+//! interned garbage collector**, not anything this crate does:
+//!
+//! * A cold intern walks the shard's LRU tail and reuses any slot that has not
+//!   been interned for `DEFAULT_REVISIONS` (3) revisions: it overwrites the
+//!   slot's fields and calls `clear_memos` on it.  That `clear_memos` is what
+//!   drops the retained `Arc`s — so the collector, not `lru = N`, is what keeps
+//!   a typing session bounded.
+//! * A slot is eligible only when its recorded durability is exactly
+//!   `Durability::LOW`.  Collecting anything more durable would require
+//!   invalidating that durability's revision (`Database::synthetic_write`,
+//!   which needs `&mut` on the database), so salsa refuses outright.
+//! * A slot's durability is the *minimum* durability of the inputs the creating
+//!   query had read when it interned — and with **no active query at all**
+//!   salsa stamps `Durability::MAX` / `Revision::MAX`, i.e. an immortal slot.
+//!
+//! Two rules follow, and breaking either restores a KB-per-keystroke leak of
+//! the #1035 class while looking like an optimisation in review:
+//!
+//! 1. **[`SourceFile`], [`AnalyserConfig`], and [`Project`] stay at
+//!    `Durability::LOW`** — salsa's default, which this workspace never
+//!    overrides.  Marking the document text or the analyser config `HIGH`
+//!    "because it rarely changes" would stamp every key in the table above
+//!    non-`LOW`, and none would ever be collected again.
+//! 2. **The per-body keys are interned from inside a tracked query.**  That is
+//!    why `memoised_compilation_unit` is crate-private and documented as
+//!    tracked-query-only: reached from [`compilation_unit`] its interning
+//!    inherits that query's `LOW` durability, whereas a direct call from
+//!    untracked code mints immortal slots holding whole `CompilationUnit`
+//!    lattices.
+//!
+//! Interned structs with a *bounded* key space are outside this contract:
+//! [`LexerCfgKey`] is two booleans and [`CommandTail`] one command name, so
+//! minting them from untracked host code (as [`compilation_unit`]'s own
+//! signature requires) can retain only a handful of tiny slots.
+//! [`CfgContext`] is content-keyed but signature-level, so a body edit leaves
+//! it alone; it is collected by the same mechanism when a signature does move.
+//!
+//! Neither rule is expressible in the type system, so both are pinned
+//! behaviourally by `tests/interned_gc.rs`.  It drives a typing session through
+//! the production queries and counts salsa's `DidReuseInternedValue` events per
+//! ingredient (see [`TclDatabase::with_interned_reuse_logger`]) — the event the
+//! collector fires when it recycles a slot, and one that a non-`LOW` or
+//! untracked slot can never produce.  A control session repeats the run with
+//! both inputs at `Durability::HIGH` and asserts the collector goes silent,
+//! which is what keeps the first test from going vacuous.  A third test fails
+//! on any `with_durability` / input-builder `durability` call site in this
+//! crate or in `tcl-lsp-server` (its only dependant), because durability is
+//! chosen at the setter call site where the behavioural tests cannot see it.
+//! The full contract is written up in
+//! `docs/design/rust/salsa-interned-gc.md`.
 
 use std::collections::{BTreeSet, HashMap, HashSet};
 use std::sync::Arc;
@@ -151,6 +222,29 @@ impl TclDatabase {
         })));
         Self { storage }
     }
+
+    /// Construct a database that forwards, for every interned-slot **reuse**
+    /// (salsa's `DidReuseInternedValue`), the reused slot's `database_key`
+    /// `Debug` string — `"<IngredientName>(Id(..))"` — to `logger`.
+    ///
+    /// That event is the only observable face of the interned garbage
+    /// collector described under "The interned garbage collector is
+    /// load-bearing": salsa fires it exactly when a cold intern recycles a
+    /// stale LRU slot and clears its memo table.  A slot that is not
+    /// collectable — durability above `Durability::LOW`, or interned with no
+    /// active query — is never in the LRU list, so it can never produce this
+    /// event.  Counting the events per ingredient is therefore a direct,
+    /// machine-independent read of whether the collector is still working;
+    /// `tests/interned_gc.rs` is built on it.
+    #[must_use]
+    pub fn with_interned_reuse_logger(logger: impl Fn(String) + Send + Sync + 'static) -> Self {
+        let storage = salsa::Storage::new(Some(Box::new(move |ev: salsa::Event| {
+            if let salsa::EventKind::DidReuseInternedValue { key, .. } = ev.kind {
+                logger(format!("{key:?}"));
+            }
+        })));
+        Self { storage }
+    }
 }
 
 #[salsa::db]
@@ -173,6 +267,17 @@ impl TclDb for TclDatabase {
 ///
 /// `set_text` (generated) is the single write on an edit — salsa cascades
 /// invalidation to every query that read it.
+///
+/// # Durability must stay `LOW`
+///
+/// Write this input with a plain `set_*(…).to(…)`, never with
+/// `Setter::with_durability` or the builder's `durability` / `*_durability`
+/// methods.  Every per-body interned key in this crate is minted by a query
+/// that has read this input, so the key inherits its durability — and salsa's
+/// interned garbage collector only ever reclaims `Durability::LOW` slots.
+/// Raising it looks like a revalidation win and is in fact a
+/// KB-per-keystroke leak.  See the crate docs' "The interned garbage collector
+/// is load-bearing"; enforced by `tests/interned_gc.rs`.
 #[salsa::input(constructor = with_call_site_evidence)]
 pub struct SourceFile {
     #[returns(ref)]
@@ -243,6 +348,15 @@ impl SourceFile {
 /// `disabled_diagnostics` / `non_ascii_mode` server state).  One input
 /// instance shared by every file's analysis; setting it recomputes all
 /// analyses.
+///
+/// # Durability must stay `LOW`
+///
+/// This is the input a "it only changes when the user edits settings"
+/// argument most tempts one to mark `Durability::HIGH`.  Do not: an analysis
+/// query that has read this config interns [`ItemBodyKey`] under the minimum
+/// durability of everything it read, so a `HIGH` config makes those body keys
+/// uncollectable.  Same contract as [`SourceFile`] — see the crate docs' "The
+/// interned garbage collector is load-bearing".
 #[salsa::input]
 pub struct AnalyserConfig {
     #[returns(ref)]
@@ -357,6 +471,15 @@ pub fn file_decls(db: &dyn salsa::Database, file: SourceFile) -> Arc<FileDecls> 
 /// for free: editing one file recomputes only the cross-file facts that actually
 /// read it.  Setting `files` (open/close) recomputes the project aggregates;
 /// editing a file's text does not touch this input.
+///
+/// # Durability must stay `LOW`
+///
+/// The file *set* really does change rarely, which is exactly why this input
+/// attracts a durability bump.  It carries the same prohibition as
+/// [`SourceFile`] and [`AnalyserConfig`]: a cross-file query that has read it
+/// interns under its durability, and only `Durability::LOW` slots are
+/// garbage-collected.  See the crate docs' "The interned garbage collector is
+/// load-bearing".
 #[salsa::input]
 pub struct Project {
     /// The project's files (workspace + open documents).
@@ -1082,6 +1205,14 @@ pub fn project_diagnostics(
 /// config), *not* the body's position — so a shifted-but-unedited proc has the
 /// same key and reuses the cached [`item_body_analysis`] (the aggregator rebases
 /// the offset-0 facts by the body's real span).
+///
+/// **Per-revision key — reclaimed by salsa's interned garbage collector.**
+/// `body_text` changes on every keystroke inside the body, so each edit mints a
+/// fresh id here.  What keeps that bounded is the collector reusing the LRU
+/// tail's stale slots (`clear_memos` releasing the retained analysis `Arc`s),
+/// which happens only for `Durability::LOW` slots interned inside a tracked
+/// query.  See the crate docs' "The interned garbage collector is
+/// load-bearing"; pinned by `tests/interned_gc.rs`.
 #[salsa::interned]
 pub struct ItemBodyKey<'db> {
     /// The proc / method body source, shared with the
@@ -1243,6 +1374,13 @@ pub struct CfgContext<'db> {
 /// literal at that position changes (which re-interns to a new key).  The seeds
 /// are position-independent (keyed by parameter name + SSA version), so they do
 /// not break the offset-invariance of the body key.
+///
+/// **Per-revision key — reclaimed by salsa's interned garbage collector.**
+/// `body` is the procedure's whole post-inline IR, so an edit inside the body
+/// mints a fresh id *and* a fresh `Script` behind it.  The collector's slot
+/// reuse is what frees both, and it only reclaims `Durability::LOW` slots
+/// interned inside a tracked query.  See the crate docs' "The interned garbage
+/// collector is load-bearing"; pinned by `tests/interned_gc.rs`.
 #[salsa::interned]
 pub struct FnLatticeKey<'db> {
     #[returns(ref)]
@@ -1346,6 +1484,13 @@ pub fn function_lattice<'db>(db: &'db dyn TclDb, key: FnLatticeKey<'db>) -> Arc<
 /// where the isolated lowering is byte-identical to the in-place `lower_body`;
 /// guarded by the corpus differential gates (`file_analysis_corpus` /
 /// `compiler_check_corpus`).
+///
+/// **Per-revision key — reclaimed by salsa's interned garbage collector.**
+/// `body_text` changes on every keystroke inside the body; the lowered
+/// `Arc<Script>` memo behind the stale id is released when the collector reuses
+/// its slot, which happens only for `Durability::LOW` slots interned inside a
+/// tracked query.  See the crate docs' "The interned garbage collector is
+/// load-bearing"; pinned by `tests/interned_gc.rs`.
 #[salsa::interned]
 pub struct ProcBodyKey<'db> {
     #[returns(ref)]
@@ -1400,8 +1545,23 @@ pub fn lower_proc_body<'db>(db: &'db dyn TclDb, key: ProcBodyKey<'db>) -> Arc<Sc
 /// change a `{*}`/`}{` body's IR), so the same procedure can intern to two
 /// different bodies; because the **post-lowering body is part of the key**, the
 /// two never cross-pollute — no explicit namespace is needed.
+///
+/// # Must be called from inside a tracked query
+///
+/// This is crate-private, and stays crate-private, because it interns the
+/// per-body keys ([`FnLatticeKey`], [`ProcBodyKey`], [`TaintSummaryKey`],
+/// [`SummaryDepsKey`], [`OptDepsKey`]) directly.  Salsa stamps an interned slot
+/// with the minimum durability of the inputs the *active* query has read; with
+/// no active query it stamps `Durability::MAX`, and only `Durability::LOW`
+/// slots are ever garbage-collected.  An untracked call therefore mints
+/// immortal slots, each pinning a full procedure IR plus its lattice memos —
+/// a KB-per-keystroke leak if it ever landed on the edit path.
+///
+/// The sanctioned entry point is the tracked [`compilation_unit`] query, which
+/// reads [`SourceFile`] (`LOW`) before building.  See the crate docs' "The
+/// interned garbage collector is load-bearing".
 #[must_use]
-pub fn memoised_compilation_unit(
+pub(crate) fn memoised_compilation_unit(
     db: &dyn TclDb,
     source: &str,
     options: UnitBuildOptions<'_>,
@@ -1409,7 +1569,7 @@ pub fn memoised_compilation_unit(
     build_unit_with_keys(db, source, options).0
 }
 
-/// [`memoised_compilation_unit`] that also returns the per-procedure
+/// `memoised_compilation_unit` that also returns the per-procedure
 /// [`FnLatticeKey`] map built during lowering (qname → offset-0 baseline key).
 ///
 /// [`proc_taint_solve`] needs those keys to memoise the interprocedural summary
@@ -1574,6 +1734,13 @@ pub struct ProcTaintSummary {
 /// transitive callees.  A body edit that leaves these unchanged is a cache hit;
 /// an edit that flips a reachable callee's `writes_global` / passthrough
 /// re-interns this key for exactly the callers that reach it.
+///
+/// **Per-revision key — reclaimed by salsa's interned garbage collector.**
+/// `reachable` moves as the edited procedure's projections move, so a typing
+/// session mints fresh ids steadily.  Only the collector's reuse of stale LRU
+/// slots keeps the table flat, and it reclaims `Durability::LOW` slots interned
+/// inside a tracked query only.  See the crate docs' "The interned garbage
+/// collector is load-bearing"; pinned by `tests/interned_gc.rs`.
 #[salsa::interned]
 pub struct TaintSummaryKey<'db> {
     /// All procedure names in the module (sorted) — the call-resolution domain.
@@ -1686,6 +1853,13 @@ pub fn taint_cascade<'db>(
 /// edit that leaves all of these unchanged re-interns to the same key, so `P`'s
 /// inference is a cache hit; an edit that flips a reachable callee's summary
 /// re-keys exactly the callers that reach it.
+///
+/// **Per-revision key — reclaimed by salsa's interned garbage collector.**
+/// `interproc_reachable` / `callee_summaries` move with the edited procedure's
+/// projections, exactly as [`TaintSummaryKey`]'s `reachable` does, so the same
+/// contract applies: collection needs `Durability::LOW` slots interned inside a
+/// tracked query.  See the crate docs' "The interned garbage collector is
+/// load-bearing"; pinned by `tests/interned_gc.rs`.
 #[salsa::interned]
 pub struct SummaryDepsKey<'db> {
     /// All procedure names in the module (sorted) — the call-resolution domain.
@@ -2195,6 +2369,13 @@ fn opt_callee_to_summary(o: &OptCalleeSummary) -> ProcSummary {
 /// callees (O103 fold / purity inputs), and the module `redefined_procedures` set
 /// (the O103 don't-fold-a-redefined-callee gate).  A body edit to an unrelated proc
 /// whose summary this proc doesn't read leaves this key unchanged → cache hit.
+///
+/// **Per-revision key — reclaimed by salsa's interned garbage collector.**
+/// `body_source` and `proc_body_source` change on every keystroke inside the
+/// procedure, and the memo behind a stale id holds that procedure's whole
+/// optimisation set.  Slot reuse releases it, for `Durability::LOW` slots
+/// interned inside a tracked query only.  See the crate docs' "The interned
+/// garbage collector is load-bearing"; pinned by `tests/interned_gc.rs`.
 #[salsa::interned]
 pub struct OptDepsKey<'db> {
     #[returns(ref)]
@@ -2600,7 +2781,7 @@ fn lexer_cfg_key(db: &dyn TclDb, config: tcl_lexer::LexerConfig) -> LexerCfgKey<
 }
 
 /// The shared, memoised [`CompilationUnit`] for a document under a given lexer
-/// config — built via [`memoised_compilation_unit`] (per-procedure lattices on
+/// config — built via `memoised_compilation_unit` (per-procedure lattices on
 /// the salsa-native [`function_lattice`] graph).  Tracked + keyed on
 /// `(file, cfg)` so the analyser tail ([`file_analysis_incremental`]) and the
 /// optimiser/compiler-checks pass ([`compiler_check_diagnostics`]) **share one
@@ -2636,7 +2817,7 @@ pub fn compilation_unit<'db>(
 /// recomputes one body + the cheap shell instead of the whole walk; the
 /// CFG/SSA diagnostic tail's per-procedure lattices are likewise memoised via
 /// the salsa-native [`function_lattice`] query (through
-/// [`memoised_compilation_unit`]), so an unchanged procedure's lattice is reused
+/// `memoised_compilation_unit`), so an unchanged procedure's lattice is reused
 /// (and rebased) instead of rebuilt.  Byte-identical to [`file_analysis`] (and
 /// `analyse`) — proven by the `per_item_corpus` gate over the shared
 /// `analyse_per_item_with` orchestration.
@@ -3111,21 +3292,24 @@ mod tests {
     /// the unit at offset 0 and every consumer is rebased to the procedure's
     /// real position — but `def_use` / `types` / `taints` / `rendered_props` are
     /// span-free, so a rebuild that hits the memo must share them.
+    ///
+    /// Two *distinct* `SourceFile`s carrying the same text give two distinct
+    /// `compilation_unit` keys, so both really build — while their per-procedure
+    /// lattice demands land on the same `function_lattice` memos.  Driving it
+    /// through the tracked query rather than calling `memoised_compilation_unit`
+    /// directly is deliberate: the per-body keys are only garbage-collectable
+    /// when interned inside a tracked query (see the crate docs' "The interned
+    /// garbage collector is load-bearing").
     #[test]
     fn memoised_lattices_are_shared_not_deep_copied_across_builds() {
         const SRC: &str = "proc alpha {a b} {\n    set s [expr {$a + $b}]\n    return $s\n}\n\
                            proc beta {x} {\n    return [alpha $x 1]\n}\n";
         let db = TclDatabase::default();
-        let registry = db.registry("tcl8.6");
-        let options = || UnitBuildOptions {
-            registry,
-            defer_top_level: false,
-            config: tcl_lexer::LexerConfig::default(),
-            dialect: "tcl8.6",
-            external_call_sites: None,
-        };
-        let first = memoised_compilation_unit(&db, SRC, options());
-        let second = memoised_compilation_unit(&db, SRC, options());
+        let cfg_key = lexer_cfg_key(&db, tcl_lexer::LexerConfig::default());
+        let file_a = SourceFile::new(&db, SRC.to_owned(), "tcl8.6".to_owned(), None);
+        let file_b = SourceFile::new(&db, SRC.to_owned(), "tcl8.6".to_owned(), None);
+        let first = compilation_unit(&db, file_a, cfg_key);
+        let second = compilation_unit(&db, file_b, cfg_key);
         for qname in ["::alpha", "::beta"] {
             let a = first
                 .procedures

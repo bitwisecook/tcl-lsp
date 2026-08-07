@@ -80,6 +80,12 @@ fn main() {
     // parses, so nothing fails loudly — it just measures the wrong thing, and a
     // parameter edit additionally re-keys every procedure's lattice through the
     // module-wide `proc_params` context rather than isolating one body.
+    //
+    // `body_span.start()` is the offset *of* the opening `{`, hence the `+ 1`:
+    // inserting at `start()` itself lands between the parameter list and the
+    // brace, which leaves every body unedited (merely shifted). The body-keyed
+    // interned structs are offset-invariant, so that session re-keys nothing —
+    // it measures a buffer that changes with no incremental work behind it.
     let edit_pos = Analyser::new()
         .analyse(&src, dialect)
         .all_procs
@@ -87,7 +93,7 @@ fn main() {
         .map(|p| p.body_span)
         .filter(|s| s.end() > s.start())
         .max_by_key(|s| s.end() - s.start())
-        .map_or(src.len() / 2, |s| s.start() as usize);
+        .map_or(src.len() / 2, |s| s.start() as usize + 1);
 
     let mut db = TclDatabase::default();
     let file = SourceFile::new(&db, src.clone(), dialect.to_owned(), None);

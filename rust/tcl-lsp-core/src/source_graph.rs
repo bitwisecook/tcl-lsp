@@ -36,6 +36,7 @@
 use std::collections::{HashMap, HashSet};
 use std::hash::BuildHasher;
 use std::path::{Component, Path, PathBuf};
+use std::sync::Arc;
 
 /// Resolve a literal `source` path argument written in `parent_file` to the
 /// absolute path it refers to.
@@ -320,6 +321,19 @@ pub struct Placed {
     pub exact: bool,
 }
 
+/// A `String`-keyed map on the [`RunOrder`] hot path.
+///
+/// Every one of these is probed from inside the cross-document import walk,
+/// which runs per (invocation × in-scope import), so the default `SipHash`
+/// over an owned URI string was itself a measurable share of a 26 s
+/// `textDocument/references` (issue #1297 — 338 of 439 samples under
+/// [`RunOrder::alternatives`] were in `sip::Hasher::write`).  These keys are
+/// workspace-local document URIs, never attacker-chosen, so the `HashDoS`
+/// resistance `SipHash` buys is not worth its cost here.
+type UriMap<V> = rustc_hash::FxHashMap<String, V>;
+/// The [`UriMap`] of sets — same keys, same reasoning.
+type UriSet = rustc_hash::FxHashSet<String>;
+
 /// The **load order the workspace proves** — the single relation both
 /// wildcard-import tiers rank cross-document events with (issue #1104 item 3,
 /// #1116 item 6, #1279; design in
@@ -391,17 +405,25 @@ pub struct RunOrder {
     /// Root-ward path of every document the graph knows: root-first positions
     /// of the `source` statements that enter the next document down.  Empty
     /// for a root.
-    paths: HashMap<String, Vec<Placed>>,
+    paths: UriMap<Vec<Placed>>,
     /// Root document of every keyed document (itself, for a root).
-    root_of: HashMap<String, String>,
+    root_of: UriMap<String>,
     /// Documents with no unique position — re-sourced from two sites, or on a
     /// cycle.  Every cross-document comparison touching one abstains.
-    ambiguous: HashSet<String>,
-    /// For each document a `package require` *loads*, the require sites that
-    /// load it — see [`Self::alternatives`].  Keyed by the loaded document,
-    /// which is always a `source`-forest root: a document that is both
-    /// `source`d and `package require`d is ambiguous instead.
-    package_entries: HashMap<String, Vec<OwnedRunPoint>>,
+    ambiguous: UriSet,
+    /// [`Self::alternatives`]'s answer, per **document** rather than per root.
+    ///
+    /// The `package require` sites that load a document's tree are a fact about
+    /// its root, and whether the document may use them is a fact about its own
+    /// ambiguity — both fixed at build time.  Resolving that per call meant up
+    /// to three hash probes on owned URI strings inside the import walk, and
+    /// the `package_entries.is_empty()` fast path that was supposed to make it
+    /// free vanished the moment *any* document in the workspace contributed a
+    /// package edge (issue #1297).  Folding it into one probe of one map costs
+    /// nothing extra: the site vectors are shared with `Arc`, so a root's
+    /// entry is stored once however many documents it covers, and a workspace
+    /// with no package edge leaves the map empty and every probe a miss.
+    package_alternatives: UriMap<Arc<[OwnedRunPoint]>>,
 }
 
 /// A [`RunPoint`] the order has to keep past the borrow it was built from —
@@ -444,7 +466,7 @@ impl RunOrder {
     #[must_use]
     pub fn build(edges: &[RunEdge]) -> Self {
         let mut parent_of: HashMap<&str, (&str, Placed)> = HashMap::new();
-        let mut ambiguous: HashSet<String> = HashSet::new();
+        let mut ambiguous: UriSet = UriSet::default();
         let mut documents: HashSet<&str> = HashSet::new();
         let mut package_entries: HashMap<String, Vec<OwnedRunPoint>> = HashMap::new();
         for edge in edges {
@@ -489,8 +511,8 @@ impl RunOrder {
                 ambiguous.insert(child.clone());
             }
         }
-        let mut paths: HashMap<String, Vec<Placed>> = HashMap::new();
-        let mut root_of: HashMap<String, String> = HashMap::new();
+        let mut paths: UriMap<Vec<Placed>> = UriMap::default();
+        let mut root_of: UriMap<String> = UriMap::default();
         for &doc in &documents {
             let mut chain: Vec<Placed> = Vec::new();
             let mut seen: HashSet<&str> = HashSet::new();
@@ -534,12 +556,51 @@ impl RunOrder {
             .cloned()
             .collect();
         ambiguous.extend(inherited);
+        let package_alternatives =
+            Self::fold_package_alternatives(&documents, &root_of, &ambiguous, &package_entries);
         Self {
             paths,
             root_of,
             ambiguous,
-            package_entries,
+            package_alternatives,
         }
+    }
+
+    /// Resolve [`Self::alternatives`] for every document up front: the root
+    /// walk and the ambiguity test do not depend on the point being asked
+    /// about, so they belong here rather than on the per-call path
+    /// (issue #1297).
+    ///
+    /// A root's site vector is shared by every document under it, so a tree is
+    /// stored once however deep it is.  A document the graph knows only as a
+    /// `package require` target is its own root, so it is keyed too.  An
+    /// ambiguous document is left out entirely — that is the abstention the
+    /// old per-call `self.ambiguous.contains` performed, moved rather than
+    /// dropped.
+    fn fold_package_alternatives(
+        documents: &HashSet<&str>,
+        root_of: &UriMap<String>,
+        ambiguous: &UriSet,
+        package_entries: &HashMap<String, Vec<OwnedRunPoint>>,
+    ) -> UriMap<Arc<[OwnedRunPoint]>> {
+        let mut out: UriMap<Arc<[OwnedRunPoint]>> = UriMap::default();
+        if package_entries.is_empty() {
+            return out;
+        }
+        let shared: HashMap<&str, Arc<[OwnedRunPoint]>> = package_entries
+            .iter()
+            .map(|(root, sites)| (root.as_str(), Arc::from(sites.as_slice())))
+            .collect();
+        for &doc in documents {
+            if ambiguous.contains(doc) {
+                continue;
+            }
+            let root = root_of.get(doc).map_or(doc, String::as_str);
+            if let Some(sites) = shared.get(root) {
+                out.insert(doc.to_owned(), Arc::clone(sites));
+            }
+        }
+        out
     }
 
     /// Whether the statement at `event` had already run when the statement at
@@ -667,16 +728,14 @@ impl RunOrder {
     /// A point's tree is identified by its root: a file the provider `source`s
     /// runs when the provider does, so it is bounded by the same require
     /// sites.
+    /// One probe: which document a point sits in is the only thing left to
+    /// look up, because the root walk and the ambiguity test that used to
+    /// stand in front of it do not depend on the point's offset and were
+    /// folded into [`Self::package_alternatives`] at build time.
     fn alternatives(&self, p: RunPoint<'_>) -> &[OwnedRunPoint] {
-        // The overwhelmingly common shape: no package edge anywhere, so the
-        // fallback costs nothing at all beyond this test.
-        if self.package_entries.is_empty() || self.ambiguous.contains(p.uri) {
-            return &[];
-        }
-        let root = self.root_of.get(p.uri).map_or(p.uri, String::as_str);
-        self.package_entries
-            .get(root)
-            .map_or(&[], std::vec::Vec::as_slice)
+        self.package_alternatives
+            .get(p.uri)
+            .map_or(&[], |sites| &**sites)
     }
 
     /// Both points as positions in their deepest common document — the single
@@ -1378,6 +1437,92 @@ mod tests {
         // Above the require, neither direction is a fact.
         assert_eq!(order.cmp_run(point("lib", 30), point("app", 5)), None);
         assert_eq!(order.cmp_run(point("app", 5), point("lib", 30)), None);
+    }
+
+    // ---------------------------------------------------------------------
+    // Issue #1297: `alternatives` used to resolve, per call, "is there any
+    // package edge at all / is this document ambiguous / what is its root /
+    // does that root have require sites" — three hash probes on owned URI
+    // strings, on the hottest path in the cross-document import walk.  All
+    // four questions are fixed at build time, so they are now one probe of
+    // `package_alternatives`.  These pin that the folded answer is the same
+    // answer, case by case, because a silent change here would move which
+    // cross-document events the import tiers can rank.
+    // ---------------------------------------------------------------------
+
+    /// TP: a document a `package require` loads, and everything under it,
+    /// gets the require sites; the require's own document does not.
+    #[test]
+    fn package_alternatives_cover_the_required_tree_and_nothing_else() {
+        let order = RunOrder::build(&[require_edge("app", "lib", 10), edge("lib", "deep", 5)]);
+        assert_eq!(order.alternatives(point("lib", 0)).len(), 1);
+        assert_eq!(
+            order.alternatives(point("deep", 0)).len(),
+            1,
+            "a file the provider sources rides the provider's bound",
+        );
+        assert!(
+            order.alternatives(point("app", 0)).is_empty(),
+            "the requiring document is not itself bounded by its own require",
+        );
+    }
+
+    /// TN: no package edge anywhere leaves every document without
+    /// alternatives — the shape the old `package_entries.is_empty()` fast
+    /// path existed for, which must stay free of any behaviour change.
+    #[test]
+    fn a_workspace_with_no_package_edge_has_no_alternatives() {
+        let order = RunOrder::build(&[edge("a", "b", 10), edge("b", "c", 5)]);
+        for doc in ["a", "b", "c"] {
+            assert!(order.alternatives(point(doc, 0)).is_empty(), "{doc}");
+        }
+    }
+
+    /// FP guard: an **ambiguous** document must get no alternatives even
+    /// though its root has require sites.  This was the `self.ambiguous`
+    /// test that stood in front of the old lookup; folding it into the build
+    /// must not lose it.  A document both `source`d and `package require`d is
+    /// exactly that case.
+    #[test]
+    fn an_ambiguous_document_gets_no_alternatives() {
+        let order = RunOrder::build(&[require_edge("app", "lib", 10), edge("other", "lib", 3)]);
+        assert!(
+            order.alternatives(point("lib", 0)).is_empty(),
+            "both sourced and required: two incompatible stories, so neither",
+        );
+        // …and ambiguity is inherited, so a file below it is barred too.
+        let order = RunOrder::build(&[
+            require_edge("app", "lib", 10),
+            edge("other", "lib", 3),
+            edge("lib", "deep", 1),
+        ]);
+        assert!(order.alternatives(point("deep", 0)).is_empty());
+    }
+
+    /// TN: a document the graph has never heard of has no alternatives, and
+    /// asking does not panic — the `map_or(p.uri, …)` fallback the old code
+    /// took, restated as a plain miss.
+    #[test]
+    fn an_unknown_document_has_no_alternatives() {
+        let order = RunOrder::build(&[require_edge("app", "lib", 10)]);
+        assert!(order.alternatives(point("never-indexed", 0)).is_empty());
+        assert!(RunOrder::default().alternatives(point("a", 0)).is_empty());
+    }
+
+    /// TP: many requires of one provider all reach it — the per-document
+    /// fold shares one site vector rather than dropping the extras.
+    #[test]
+    fn every_require_site_survives_the_per_document_fold() {
+        let order = RunOrder::build(&[
+            require_edge("a", "lib", 10),
+            require_edge("b", "lib", 20),
+            require_edge("c", "lib", 30),
+        ]);
+        let sites = order.alternatives(point("lib", 0));
+        assert_eq!(sites.len(), 3);
+        let mut ats: Vec<u32> = sites.iter().map(|s| s.at).collect();
+        ats.sort_unstable();
+        assert_eq!(ats, vec![10, 20, 30]);
     }
 
     /// `trusted` is the whole rule in one place: an answer needs the side it

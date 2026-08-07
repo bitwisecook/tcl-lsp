@@ -30,8 +30,8 @@ use tcl_compiler::gvn::{
 use tcl_compiler::shimmer::{find_shimmer_warnings_for_cu, find_thunking_warnings_for_cu};
 use tcl_compiler::taint_interproc::solve_interprocedural_taints;
 use tcl_lsp_db::{
-    AnalyserConfig, SourceFile, TclDatabase, TclDb, compiler_check_diagnostics,
-    file_analysis_incremental,
+    AnalyserConfig, LexerCfgKey, SourceFile, TclDatabase, TclDb, compilation_unit,
+    compiler_check_diagnostics, file_analysis_incremental,
 };
 
 fn ms(d: std::time::Duration) -> f64 {
@@ -177,7 +177,7 @@ fn main() {
         t_taint,
     );
 
-    // The warm cost of a SECOND `memoised_compilation_unit` build on the
+    // The warm cost of a SECOND whole-file unit build on the
     // same db — exactly what a checks-path `proc_taint_solve` query would re-run to
     // recover the offset-0 `FnLatticeKey`s locally (they cannot be threaded out of
     // the shared `compilation_unit`: a salsa tracked return must be `'static`). The
@@ -186,24 +186,32 @@ fn main() {
     // reassembly (lex + segment + IR skeleton + interproc summary) the second build
     // cannot avoid. This delta is the duplicate-build cost the checks-path memo
     // must pay against its ~120 ms summary-floor saving.
+    //
+    // Measured through the tracked `compilation_unit` query, one fresh
+    // `SourceFile` per iteration: the same text under a distinct query key, so
+    // each iteration really rebuilds instead of hitting the memo. It does not
+    // call the crate's unit builder directly — that is crate-private precisely
+    // because its per-body interning is only garbage-collectable inside a
+    // tracked query (see tcl-lsp-db's "The interned garbage collector is
+    // load-bearing").
     println!("\n== 2b gate: warm duplicate-build cost (function_lattice cache hot) ==");
     {
+        const DUP_ITERS: u32 = 5;
         let cfg_d = tcl_lexer::LexerConfig::for_dialect(dialect);
         // Warm the shared build (populates function_lattice / taint_cascade) on the
         // *edited* text, mirroring the per-edit state proc_taint_solve runs in.
         file.set_text(&mut db).to(edited.clone());
         let _ = compiler_check_diagnostics(&db, file, cfg);
-        let dup = time("memoised_compilation_unit (2nd build, warm)", 5, || {
-            tcl_lsp_db::memoised_compilation_unit(
+        let cfg_key = LexerCfgKey::new(&db, cfg_d.expand_syntax, cfg_d.irules_brace_separator);
+        let mut dup_files = (0..DUP_ITERS)
+            .map(|_| SourceFile::new(&db, edited.clone(), dialect.to_owned(), None))
+            .collect::<Vec<_>>()
+            .into_iter();
+        let dup = time("compilation_unit (2nd build, warm)", DUP_ITERS, || {
+            compilation_unit(
                 &db,
-                &edited,
-                tcl_compiler::compilation_unit::UnitBuildOptions {
-                    registry,
-                    defer_top_level: false,
-                    config: cfg_d,
-                    dialect,
-                    external_call_sites: None,
-                },
+                dup_files.next().expect("one source file per iteration"),
+                cfg_key,
             )
         });
         println!(

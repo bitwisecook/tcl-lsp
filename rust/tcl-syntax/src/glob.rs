@@ -37,9 +37,57 @@ pub fn string_match(pattern: &str, text: &str) -> bool {
     string_case_match(pattern, text, false)
 }
 
+/// Whether `pattern` contains no glob metacharacter, so
+/// [`string_match(pattern, text)`](string_match) is exactly `pattern == text`.
+///
+/// The metacharacters are the four [`match_one`] and the star loop act on —
+/// `*`, `?`, `[` and `\` — named here rather than at each caller so a change
+/// to the matcher's dialect cannot leave a "this is a plain name" test behind.
+/// (An unterminated `[` is still special: it makes the match depend on where
+/// both sides end, which is not string equality.)
+///
+/// Lets a caller that matches one pattern set against many names put the
+/// literal patterns in a hash set and glob-match only the rest — the shape
+/// [`crate::glob`]'s `namespace export` consumers need (issue #1297).
+#[must_use]
+pub fn is_literal(pattern: &str) -> bool {
+    !pattern.contains(['*', '?', '[', '\\'])
+}
+
 /// Tcl `string match ?-nocase? pattern text`.
+///
+/// Two allocation-free fast paths stand in front of [`do_match`], which needs
+/// random access with backtracking and so has to collect both sides into
+/// `Vec<char>` first. Both are answers `do_match` would reach anyway, proven
+/// equivalent over a pattern × text matrix by
+/// `fast_paths_agree_with_the_general_matcher`:
+///
+/// - `*` matches every string, including the empty one.
+/// - a pattern with no metacharacter ([`is_literal`]) is consumed one
+///   folded char per folded char and must end where the text does, which is
+///   exactly (folded) string equality.
+///
+/// They are here rather than at one caller because they are properties of the
+/// glob dialect, and because those two shapes dominate every consumer: `*` and
+/// a plain name are what `namespace export` / `namespace import` patterns
+/// almost always are. The workspace import walk alone called this ~5 M times
+/// to answer one `textDocument/references`, and the two `Vec<char>`
+/// allocations per call were ~1 s of it (issue #1297).
 #[must_use]
 pub fn string_case_match(pattern: &str, text: &str, nocase: bool) -> bool {
+    if pattern == "*" {
+        return true;
+    }
+    if is_literal(pattern) {
+        return if nocase {
+            pattern
+                .chars()
+                .map(|c| fold(c, true))
+                .eq(text.chars().map(|c| fold(c, true)))
+        } else {
+            pattern == text
+        };
+    }
     let p: Vec<char> = pattern.chars().collect();
     let s: Vec<char> = text.chars().collect();
     do_match(&p, 0, &s, 0, nocase)
@@ -269,6 +317,67 @@ mod tests {
         // member match (the old recursion's run-to-`]` skip of the `-`).
         assert!(string_match("[ab-", "a"));
         assert!(!string_match("[ab-", "aa"));
+    }
+
+    /// Issue #1297: [`string_case_match`]'s two allocation-free fast paths
+    /// (`*`, and a metacharacter-free pattern) must answer exactly what the
+    /// general matcher would. Checked over a full pattern × text matrix, in
+    /// both case modes, against [`do_match`] called directly — so a future
+    /// change to either side that makes them disagree fails here rather than
+    /// silently changing what `namespace export` covers.
+    ///
+    /// The matrix deliberately mixes the shapes the fast paths claim (`*`, a
+    /// plain name, the empty pattern, non-ASCII, case pairs) with ones they
+    /// must decline to (`*x`, `?`, `[ab]`, an escaped literal, an
+    /// unterminated class), so the test also pins that [`is_literal`] is not
+    /// over-claiming.
+    #[test]
+    fn fast_paths_agree_with_the_general_matcher() {
+        let patterns = [
+            "*", "", "Resistor", "resistor", "R", "*x", "x*", "a*b", "?", "a?", "[ab]", "[abc",
+            "\\*", "\\a", "p[ab]", "Ω", "ΩΩ", "a\\", "**", "*R*",
+        ];
+        let texts = [
+            "", "*", "R", "Resistor", "resistor", "RESISTOR", "x", "ax", "ab", "a", "p a", "pa",
+            "Ω", "ω", "a\\", "\\", "aXb",
+        ];
+        for pattern in patterns {
+            for text in texts {
+                for nocase in [false, true] {
+                    let p: Vec<char> = pattern.chars().collect();
+                    let s: Vec<char> = text.chars().collect();
+                    let general = do_match(&p, 0, &s, 0, nocase);
+                    assert_eq!(
+                        string_case_match(pattern, text, nocase),
+                        general,
+                        "fast path disagreed: pattern={pattern:?} text={text:?} nocase={nocase}",
+                    );
+                }
+            }
+        }
+    }
+
+    /// [`is_literal`] must claim a pattern only when `string_match` against it
+    /// really is string equality — the property the fast path above rests on.
+    #[test]
+    fn is_literal_claims_exactly_the_patterns_that_are_string_equality() {
+        for pattern in ["", "R", "Resistor", "a b", "Ω", "-", "]", "{p}"] {
+            assert!(is_literal(pattern), "should be literal: {pattern:?}");
+            assert!(string_match(pattern, pattern), "{pattern:?}");
+        }
+        // Every metacharacter the matcher acts on disqualifies a pattern, and
+        // each of these really does match something other than itself.
+        for (pattern, other) in [
+            ("*", "anything"),
+            ("?", "z"),
+            ("[ab]", "a"),
+            ("\\*", "*"),
+            ("a*", "abc"),
+        ] {
+            assert!(!is_literal(pattern), "should not be literal: {pattern:?}");
+            assert!(string_match(pattern, other), "{pattern:?} vs {other:?}");
+            assert_ne!(pattern, other);
+        }
     }
 
     #[test]

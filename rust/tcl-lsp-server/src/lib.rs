@@ -3313,6 +3313,19 @@ pub struct Backend {
     /// map records what is applied so [`Backend::refresh_source_rehoming`]
     /// only re-analyses on change, and so declaration-side queries can map a
     /// standalone name to its re-homed twin.
+    ///
+    /// **Invariant: this map holds exactly the documents whose indexed analysis
+    /// is re-homed *away from* the standalone view.**  A document whose only
+    /// source site is the global namespace has a desired seed set of exactly
+    /// `["::"]`, which *is* the ordinary standalone analysis the index already
+    /// holds, so it is recorded as **absence** — never as an entry.  Every
+    /// producer and consumer has to agree on that single representation, via
+    /// [`Backend::is_standalone_view`]: while
+    /// [`Backend::refresh_source_rehoming_locked`]'s work queue and its store
+    /// disagreed about it, an ordinary top-level `source b.tcl` never converged
+    /// — `b.tcl` was re-analysed and re-indexed on every round of every call,
+    /// and each re-index bumps the workspace index's generation, dropping every
+    /// `Derived` memo built on it (issue #1297).
     rehomed_source_seeds: Arc<Mutex<HashMap<String, Vec<String>>>>,
     /// Serialises [`Backend::refresh_source_rehoming`] passes.
     ///
@@ -3521,6 +3534,82 @@ pub struct Backend {
     /// `did_change` / `did_close`) so their buffer mutations apply in the exact
     /// order the client sent them. See [`EditOrder`].
     edit_order: EditOrder,
+}
+
+/// Every per-document-URI cache [`Backend`] holds, borrowed as one group.
+///
+/// Built only by [`Backend::per_uri_caches`] — whose exhaustive destructuring of
+/// `Backend` classifies *every* field and so refuses to compile once a new one
+/// is added — and consumed only by [`PerUriCaches::forget`], which destructures
+/// this struct exhaustively in turn.  Between them, a per-URI cache cannot be
+/// wired into one retirement path and forgotten by another: that asymmetry is
+/// exactly how issue #1298 arose (`retire_renamed_uri` cleared seven per-URI
+/// maps but not `rehomed_source_seeds`, which every other retirement path did
+/// clear) and how issue #1300's three stale caches survived a folder removal.
+struct PerUriCaches<'a> {
+    /// [`Backend::autoloaded_library_uris`] — keyed by `uri.as_str()`.
+    autoloaded_library_uris: &'a Arc<Mutex<HashSet<String>>>,
+    /// [`Backend::rehomed_source_seeds`] — keyed by `uri.as_str()`.
+    rehomed_source_seeds: &'a Arc<Mutex<HashMap<String, Vec<String>>>>,
+    /// [`Backend::last_semantic_tokens`].
+    last_semantic_tokens: &'a SemanticTokensCache,
+    /// [`Backend::semantic_tokens_refresh_asked`].
+    semantic_tokens_refresh_asked: &'a EnrichedRefreshAsked,
+    /// [`Backend::workspace_class_analyses`].
+    workspace_class_analyses: &'a Arc<Mutex<HashMap<Uri, WorkspaceClassAnalysis>>>,
+}
+
+impl PerUriCaches<'_> {
+    /// Drop every entry these caches hold for `uris`.
+    ///
+    /// Exhaustively destructured for the same reason
+    /// `WorkspaceIndex`'s `DocumentRecords::clear` is: a cache added to the
+    /// group does not compile until it is cleared here too.
+    ///
+    /// Each map is locked on its own, never nested inside another, so this adds
+    /// no edge to the server's global lock order.
+    async fn forget(&self, uris: &[Uri]) {
+        if uris.is_empty() {
+            return;
+        }
+        let Self {
+            autoloaded_library_uris,
+            rehomed_source_seeds,
+            last_semantic_tokens,
+            semantic_tokens_refresh_asked,
+            workspace_class_analyses,
+        } = self;
+        {
+            let mut autoloaded = autoloaded_library_uris.lock().await;
+            for uri in uris {
+                autoloaded.remove(uri.as_str());
+            }
+        }
+        {
+            let mut seeds = rehomed_source_seeds.lock().await;
+            for uri in uris {
+                seeds.remove(uri.as_str());
+            }
+        }
+        {
+            let mut tokens = last_semantic_tokens.lock().await;
+            for uri in uris {
+                tokens.remove(uri);
+            }
+        }
+        {
+            let mut asked = semantic_tokens_refresh_asked.lock().await;
+            for uri in uris {
+                asked.remove(uri);
+            }
+        }
+        {
+            let mut analyses = workspace_class_analyses.lock().await;
+            for uri in uris {
+                analyses.remove(uri);
+            }
+        }
+    }
 }
 
 /// Applies document-sync notifications in arrival order.
@@ -5492,6 +5581,17 @@ impl Backend {
     /// one of `folders` and is not currently open in the editor.  Used when a
     /// workspace folder is removed (`did_change_workspace_folders`) so its
     /// files stop contributing definitions / references / symbols.
+    ///
+    /// Documents the editor still has open are deliberately excluded
+    /// throughout: their live buffer is the source of truth regardless of which
+    /// folders the workspace currently holds, so neither their index entry nor
+    /// any of their per-URI state is touched here.
+    ///
+    /// Every per-URI cache of the *closed* files goes through the shared
+    /// [`Self::forget_uri_states`] (#1300): this function used to clear the
+    /// rehoming seeds by hand and left `last_semantic_tokens`,
+    /// `semantic_tokens_refresh_asked` and `workspace_class_analyses` holding
+    /// entries for files that are no longer in any workspace folder.
     async fn drop_index_under_folders(&self, folders: &[Uri]) {
         if folders.is_empty() {
             return;
@@ -5530,12 +5630,10 @@ impl Backend {
             .collect();
         self.db_remove_sources_batch(&removed_urls).await;
         drop(docs);
-        {
-            let mut seeds = self.rehomed_source_seeds.lock().await;
-            for uri in &to_remove {
-                seeds.remove(uri);
-            }
-        }
+        // Batched so each cache is locked once for the whole folder, not once
+        // per file.  Still inside the rehoming gate, so a reconciliation pass
+        // cannot observe the index entries gone while their seed records stand.
+        self.forget_uri_states(&removed_urls).await;
         drop(rehoming_guard);
         // Clear the Problems / File-Explorer badge of any removed-folder file
         // that still carried one (#865) — it is no longer part of the workspace,
@@ -5853,6 +5951,137 @@ impl Backend {
             .retain(|queued| queued != uri);
     }
 
+    /// Borrow the per-URI caches as one group, classifying every other
+    /// `Backend` field on the way past.
+    ///
+    /// The `let Self { … } = self` below names **every** field, so adding one to
+    /// `Backend` is a compile error here until the author has decided whether it
+    /// is keyed by a document URI.  That is deliberately stronger than grouping
+    /// the caches into an owned nested struct (the `DocumentRecords::clear`
+    /// technique this borrows, in `tcl-lsp-core`'s `workspace_index`): a nested
+    /// struct only catches a field added *inside* the group, whereas a new
+    /// per-URI map is by definition added to `Backend` first — which is precisely
+    /// how issue #1298 happened.  Moving the five fields into an owned struct
+    /// would also have rewritten ~60 unrelated access sites for no extra safety.
+    ///
+    /// The classification, by field:
+    ///
+    /// - **Per-URI caches** (returned here, forgotten wholesale by
+    ///   [`Self::forget_uri_states`]): `autoloaded_library_uris`,
+    ///   `rehomed_source_seeds`, `last_semantic_tokens`,
+    ///   `semantic_tokens_refresh_asked`, `workspace_class_analyses`.
+    /// - **Per-URI, but owned by a dedicated path** — each needs more than a map
+    ///   removal, so retirement paths call that path explicitly: `documents`
+    ///   (the live buffer set; `did_open` / `did_close` own it, and a folder
+    ///   removal deliberately leaves open documents alone), `diag_slots`
+    ///   ([`Self::evict_diag_slot`] — a slot a worker is draining is that
+    ///   worker's liveness record and must survive), `db_files` /
+    ///   `db_tombstones` ([`Self::db_remove_source`] retires the salsa handle
+    ///   rather than dropping it, #1145), `pull_diag_cache` / `closed_diag_gen` /
+    ///   `closed_diag_order` ([`Self::clear_closed_diagnostics`], which must also
+    ///   publish the empty diagnostic set), `semantic_tokens_convergence` (a
+    ///   claim released by [`ConvergenceGuard`] on drop), and `workspace_index`
+    ///   (URI-keyed, but the cross-document index — removed under its own write
+    ///   lock, batched where the caller has several URIs).
+    /// - **Keyed by *folder* URI, not document URI** — untouched by a document
+    ///   retirement: `workspace_folders`, `folder_dialects`, `folder_configs`,
+    ///   `folder_db_configs`, `folder_db_config_tombstones`.
+    /// - **Not keyed by a URI at all** — session configuration, gates, salsa
+    ///   inputs, and workspace-wide caches: everything else.
+    fn per_uri_caches(&self) -> PerUriCaches<'_> {
+        let Self {
+            // The group.
+            autoloaded_library_uris,
+            rehomed_source_seeds,
+            last_semantic_tokens,
+            semantic_tokens_refresh_asked,
+            workspace_class_analyses,
+            // Per-URI, owned by a dedicated path (see the doc comment).
+            documents: _,
+            diag_slots: _,
+            workspace_index: _,
+            db_files: _,
+            db_tombstones: _,
+            pull_diag_cache: _,
+            closed_diag_gen: _,
+            closed_diag_order: _,
+            semantic_tokens_convergence: _,
+            // Keyed by folder URI.
+            workspace_folders: _,
+            folder_dialects: _,
+            folder_configs: _,
+            folder_db_configs: _,
+            folder_db_config_tombstones: _,
+            // Not keyed by a URI.
+            client: _,
+            default_dialect: _,
+            default_dialect_explicit: _,
+            session_dialect_override: _,
+            config_reload: _,
+            non_ascii_mode: _,
+            disabled_diagnostics: _,
+            severity_overrides: _,
+            package_resolver: _,
+            recovery_names: _,
+            workspace_scan_gate: _,
+            workspace_scan_ready: _,
+            rehoming_gate: _,
+            discovered_tcl: _,
+            editor_library_paths: _,
+            package_prefer_latest_default: _,
+            extra_commands: _,
+            bigip_version: _,
+            generic_variable_patterns: _,
+            formatting_settings: _,
+            feature_toggles: _,
+            optimiser_enabled: _,
+            shimmer_enabled: _,
+            optimiser_profile: _,
+            optimiser_code_overrides: _,
+            line_length: _,
+            style_line_length: _,
+            db: _,
+            db_project: _,
+            db_config: _,
+            client_supports_pull_diagnostics: _,
+            semantic_tokens_refresh_pending: _,
+            warm_task: _,
+            edit_order: _,
+        } = self;
+        PerUriCaches {
+            autoloaded_library_uris,
+            rehomed_source_seeds,
+            last_semantic_tokens,
+            semantic_tokens_refresh_asked,
+            workspace_class_analyses,
+        }
+    }
+
+    /// Forget every piece of per-URI state keyed on `uris` — the single entry
+    /// point every path that retires a URI goes through (#1298, #1300).
+    ///
+    /// Covers the [`PerUriCaches`] group plus `diag_slots`, whose eviction is
+    /// not a plain map removal.  Callers keep the rest of their retirement
+    /// explicit, because the two paths legitimately differ there: the
+    /// `workspace_index` entry and the salsa source (batched for a folder
+    /// removal, single for a rename) and the published-diagnostics state
+    /// (unconditional for a dead path, badge-carrying files only for a folder
+    /// removal).
+    async fn forget_uri_states(&self, uris: &[Uri]) {
+        if uris.is_empty() {
+            return;
+        }
+        self.per_uri_caches().forget(uris).await;
+        for uri in uris {
+            self.evict_diag_slot(uri).await;
+        }
+    }
+
+    /// Single-URI [`Self::forget_uri_states`].
+    async fn forget_uri_state(&self, uri: &Uri) {
+        self.forget_uri_states(std::slice::from_ref(uri)).await;
+    }
+
     /// Retire every trace of a path a `workspace/didRenameFiles` moved away
     /// from (#1146).
     ///
@@ -5864,18 +6093,40 @@ impl Backend {
     /// entry, semantic-token baseline and class analysis survived every rename
     /// for the process's life.  The empty publish is what removes the client's
     /// Problems entry for the dead path.
+    ///
+    /// The per-URI caches go through the shared [`Self::forget_uri_states`]
+    /// (#1298): this function used to clear them by hand and missed
+    /// `rehomed_source_seeds` and `autoloaded_library_uris`, which every *other*
+    /// retirement path did clear.  A retained seed record is far worse than the
+    /// bytes it holds — `refresh_source_rehoming_locked` can never reach its
+    /// early return again, because the stale URI is queued as work on every
+    /// round of every call (the desired set no longer names it) and the work
+    /// item then dies at the `read_document` guard before it can heal the
+    /// record.  One rename of a `source`d file therefore turned an O(1) early
+    /// return into a permanent four-round workspace scan on every navigation
+    /// request that enters through `rehomed_index_guard`.
     async fn retire_renamed_uri(&self, uri: &Uri) {
-        self.workspace_index
-            .write()
-            .await
-            .remove_document(uri.as_str());
-        self.db_remove_source(uri).await;
-        self.last_semantic_tokens.lock().await.remove(uri);
-        self.semantic_tokens_refresh_asked.lock().await.remove(uri);
-        self.workspace_class_analyses.lock().await.remove(uri);
-        self.evict_diag_slot(uri).await;
-        // Publishes the empty set and drops the pull-cache + closed-generation
-        // entries, matching the watched-file DELETED branch's badge clear.
+        {
+            // Serialise the index/salsa removal *and* the cache forget with
+            // source-site reconciliation, as every other retirement path does,
+            // so a `refresh_source_rehoming` pass cannot observe the index entry
+            // gone while the seed record still stands.
+            let _rehoming_guard = self.rehoming_gate.lock().await;
+            self.workspace_index
+                .write()
+                .await
+                .remove_document(uri.as_str());
+            self.db_remove_source(uri).await;
+            self.forget_uri_state(uri).await;
+        }
+        // Rename-specific extra: publishes the empty set and drops the
+        // pull-cache + closed-generation entries, matching the watched-file
+        // DELETED branch's badge clear.  Unconditional — unlike the folder-drop
+        // path, which clears only files that still carry a badge — because this
+        // path is dead and the client must lose its Problems entry either way.
+        // Deliberately outside the gate above: it awaits a client notification,
+        // and holding the rehoming gate across that would stall every
+        // navigation request behind it.
         self.clear_closed_diagnostics(uri).await;
     }
 
@@ -11530,6 +11781,31 @@ impl Backend {
         guard
     }
 
+    /// The seed standing for "evaluated in the global namespace".
+    ///
+    /// Must match the seed `WorkspaceIndex::source_seed_map` emits for a
+    /// `source` whose site namespace is empty — the two halves of the same
+    /// convention.
+    const STANDALONE_SEED: &'static str = "::";
+
+    /// Whether a seed set is exactly the standalone view — i.e. the document is
+    /// **not** re-homed and [`Self::rehomed_source_seeds`] must hold no entry
+    /// for it.
+    ///
+    /// Taken as an iterator so the *one* definition serves every caller
+    /// whatever collection it holds: the desired set arrives from
+    /// `WorkspaceIndex::source_seed_map` as a `BTreeSet`, the recorded and
+    /// applied ones as a `Vec`.  Spelling the test twice — once per collection
+    /// type — is how the queue and the store came to disagree in the first
+    /// place (#1297), so there is deliberately nowhere else to state it.
+    fn is_standalone_view<'s>(seeds: impl IntoIterator<Item = &'s String>) -> bool {
+        let mut seeds = seeds.into_iter();
+        seeds
+            .next()
+            .is_some_and(|only| only == Self::STANDALONE_SEED)
+            && seeds.next().is_none()
+    }
+
     /// [`Self::refresh_source_rehoming`] with the transaction gate already held.
     async fn refresh_source_rehoming_locked(&self) {
         for _round in 0..4 {
@@ -11538,7 +11814,21 @@ impl Backend {
                 if !index.has_source_edges() && self.rehomed_source_seeds.lock().await.is_empty() {
                     return;
                 }
-                index.source_seed_map(resolve_source_edge)
+                // Documents whose only source site is the global namespace are
+                // dropped here: their desired view *is* the standalone analysis
+                // the index already holds, and [`Self::rehomed_source_seeds`]
+                // records that as absence.  Leaving them in is what stopped an
+                // ordinary top-level `source b.tcl` from ever converging — the
+                // queue below compared `recorded.get(uri)` against `Some(["::"])`
+                // while the store *removes* such an entry, so the same document
+                // was re-analysed and re-indexed on every round of every call,
+                // for ever, invalidating every index-generation memo with it
+                // (issue #1297).
+                index
+                    .source_seed_map(resolve_source_edge)
+                    .into_iter()
+                    .filter(|(_, seeds)| !Self::is_standalone_view(seeds))
+                    .collect::<HashMap<String, std::collections::BTreeSet<String>>>()
             };
             let recorded = self.rehomed_source_seeds.lock().await.clone();
             let mut work: Vec<(String, Vec<String>)> = Vec::new();
@@ -11549,9 +11839,13 @@ impl Backend {
                 }
             }
             for (uri, seeds) in &recorded {
-                if !desired.contains_key(uri) && seeds != &["::".to_owned()] {
-                    // No longer sourced from anywhere: restore the standalone view.
-                    work.push((uri.clone(), vec!["::".to_owned()]));
+                if !desired.contains_key(uri) && !Self::is_standalone_view(seeds) {
+                    // No longer re-homed anywhere: restore the standalone view.
+                    // The invariant makes a recorded standalone view impossible,
+                    // so the second test never fires; it stays because queuing
+                    // one would be work the store immediately undoes — the
+                    // non-convergence this pass must never re-admit.
+                    work.push((uri.clone(), vec![Self::STANDALONE_SEED.to_owned()]));
                 }
             }
             if work.is_empty() {
@@ -11572,7 +11866,7 @@ impl Backend {
                         .iter()
                         .map(|seed| {
                             let mut analyser = Analyser::new();
-                            if seed == "::" {
+                            if seed == Self::STANDALONE_SEED {
                                 analyser.analyse(&text, &dialect)
                             } else {
                                 analyser.analyse_with_source_namespace(&text, &dialect, seed)
@@ -11591,7 +11885,7 @@ impl Backend {
                         index.add_document(&uri_s, analysis);
                     }
                 }
-                if seeds == ["::".to_owned()] {
+                if Self::is_standalone_view(&seeds) {
                     self.rehomed_source_seeds.lock().await.remove(&uri_s);
                 } else {
                     self.rehomed_source_seeds.lock().await.insert(uri_s, seeds);
@@ -24664,6 +24958,81 @@ mod tests {
         );
     }
 
+    /// Issue #1300: removing a workspace folder cleared the index, the salsa
+    /// sources, the rehoming seeds and the diagnostics badge of the closed files
+    /// it took with it — but left `last_semantic_tokens`,
+    /// `semantic_tokens_refresh_asked` and `workspace_class_analyses` holding an
+    /// entry per file, for the process's life, even though the file was no
+    /// longer in any workspace folder.  All three are cleared by
+    /// `retire_renamed_uri`, which is the asymmetry
+    /// [`Backend::forget_uri_states`] now makes impossible.
+    ///
+    /// The negatives matter as much as the positive: a file under a folder that
+    /// stayed keeps everything, and so does an **open** document under the
+    /// removed folder — its live buffer is the source of truth regardless of the
+    /// folder set, and that exclusion is deliberate.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn workspace_folder_removal_forgets_per_uri_caches_1300() {
+        let backend = test_backend();
+        let dropped = Uri::from_str("file:///drop-a/closed.tcl").unwrap();
+        let still_open = Uri::from_str("file:///drop-a/open.tcl").unwrap();
+        let kept = Uri::from_str("file:///drop-b/closed.tcl").unwrap();
+        let src = "proc p {} {}\n";
+        {
+            let mut analyser = Analyser::new();
+            let analysis = analyser.analyse(src, "tcl8.6").clone();
+            let mut index = backend.workspace_index.write().await;
+            for uri in [&dropped, &still_open, &kept] {
+                index.add_document(uri.as_str(), &analysis);
+            }
+        }
+        backend.documents.lock().await.insert(
+            still_open.clone(),
+            DocumentState::new(src.to_owned(), "tcl8.6".to_owned()),
+        );
+        for uri in [&dropped, &still_open, &kept] {
+            seed_per_uri_caches(&backend, uri).await;
+        }
+        *backend.workspace_folders.lock().await = vec![
+            Uri::from_str("file:///drop-a").unwrap(),
+            Uri::from_str("file:///drop-b").unwrap(),
+        ];
+
+        backend
+            .did_change_workspace_folders(DidChangeWorkspaceFoldersParams {
+                event: tower_lsp_server::ls_types::WorkspaceFoldersChangeEvent {
+                    added: Vec::new(),
+                    removed: vec![tower_lsp_server::ls_types::WorkspaceFolder {
+                        uri: Uri::from_str("file:///drop-a").unwrap(),
+                        name: "drop-a".to_owned(),
+                    }],
+                },
+            })
+            .await;
+
+        assert_eq!(
+            per_uri_cache_hits(&backend, &dropped).await,
+            [false; 5],
+            "a closed file under the removed folder must lose every per-URI cache",
+        );
+        assert_eq!(
+            per_uri_cache_hits(&backend, &kept).await,
+            [true; 5],
+            "a file under a folder that stayed keeps its entries",
+        );
+        assert_eq!(
+            per_uri_cache_hits(&backend, &still_open).await,
+            [true; 5],
+            "an open document under the removed folder keeps its state — that \
+             exclusion is deliberate",
+        );
+        let uris = backend.workspace_index.read().await.document_uris();
+        assert!(
+            uris.iter().any(|u| u == still_open.as_str()),
+            "…and keeps its index entry too",
+        );
+    }
+
     /// Removing a workspace folder shifts the salsa `Project` without an open
     /// document's own edit, so open documents with cross-file diagnostics enabled
     /// must be rescheduled (matching the watched-file path) — otherwise a
@@ -27699,6 +28068,162 @@ mod tests {
         );
     }
 
+    /// Issue #1297: an ordinary top-level `source b.tcl` — no namespace, the
+    /// normal way to write Tcl — must reconcile to a fixed point.
+    ///
+    /// A document sourced only from the global namespace wants exactly the
+    /// standalone analysis the index already holds, so
+    /// [`Backend::rehomed_source_seeds`] records it as *absence*.  The work
+    /// queue used to compare against `Some(["::"])` instead, a value the store
+    /// never writes, so the document was queued, re-analysed and re-indexed on
+    /// every round of every call, for ever.
+    ///
+    /// The generation assertion is the one with the user-visible teeth: every
+    /// index mutation bumps it, and every `Derived` memo on the index (settled
+    /// invocations, defined names, command links, run order) is dropped when it
+    /// moves — so a non-converging pass threw the whole memo tier away on every
+    /// navigation request, which is the residual cost behind #1297's report.
+    #[tokio::test]
+    async fn a_global_source_site_converges_without_touching_the_index_1297() {
+        let backend = test_backend();
+        let a = Uri::from_str("file:///global-source/a.tcl").unwrap();
+        let b = Uri::from_str("file:///global-source/b.tcl").unwrap();
+        register(&backend, &b, "proc helper {} {}\n").await;
+        register(&backend, &a, "source b.tcl\nhelper\n").await;
+        let before = backend.workspace_index.read().await.generation();
+
+        backend.refresh_source_rehoming().await;
+
+        assert!(
+            backend.rehomed_source_seeds.lock().await.is_empty(),
+            "a document sourced only from the global namespace is not re-homed, \
+             so the map holds no entry for it",
+        );
+        let after_first = backend.workspace_index.read().await.generation();
+        assert_eq!(
+            before, after_first,
+            "there is nothing to re-home, so the pass must not re-index anything",
+        );
+        backend.refresh_source_rehoming().await;
+        assert_eq!(
+            after_first,
+            backend.workspace_index.read().await.generation(),
+            "a second pass over converged state must be a no-op — while it was \
+             not, every index-generation memo was invalidated on every \
+             navigation request",
+        );
+    }
+
+    /// Issue #1297, mixed shape: one document genuinely re-homed under `::ns`
+    /// and another sourced from global scope, in the same workspace.  Both must
+    /// reach a fixed point, and the re-homed one must keep its seed.
+    #[tokio::test]
+    async fn mixed_global_and_namespaced_source_sites_reach_a_fixed_point_1297() {
+        let backend = test_backend();
+        let a = Uri::from_str("file:///mixed-source/a.tcl").unwrap();
+        let b = Uri::from_str("file:///mixed-source/b.tcl").unwrap();
+        let c = Uri::from_str("file:///mixed-source/c.tcl").unwrap();
+        let d = Uri::from_str("file:///mixed-source/d.tcl").unwrap();
+        register(&backend, &b, "proc helper {} {}\n").await;
+        register(&backend, &c, "proc plain {} {}\n").await;
+        register(&backend, &a, "namespace eval ::ns { source b.tcl }\n").await;
+        register(&backend, &d, "source c.tcl\n").await;
+
+        backend.refresh_source_rehoming().await;
+
+        assert_eq!(
+            backend
+                .rehomed_source_seeds
+                .lock()
+                .await
+                .iter()
+                .map(|(uri, seeds)| (uri.clone(), seeds.clone()))
+                .collect::<std::collections::BTreeMap<_, _>>(),
+            [(b.as_str().to_owned(), vec!["::ns".to_owned()])]
+                .into_iter()
+                .collect::<std::collections::BTreeMap<_, _>>(),
+            "only the namespaced source site is re-homed; the global one is not",
+        );
+        {
+            let index = backend.workspace_index.read().await;
+            assert!(
+                index.workspace_command_exists("::ns::helper"),
+                "the re-homed twin is indexed",
+            );
+            assert!(
+                index.workspace_command_exists("::plain"),
+                "the globally-sourced document keeps its standalone view",
+            );
+        }
+
+        let settled = backend.workspace_index.read().await.generation();
+        backend.refresh_source_rehoming().await;
+        backend.refresh_source_rehoming().await;
+        assert_eq!(
+            settled,
+            backend.workspace_index.read().await.generation(),
+            "both documents are converged, so further passes do no work",
+        );
+    }
+
+    /// Issue #1297, transition: a document re-homed under `::ns` whose source
+    /// site later moves to global scope must end up standalone, lose its record,
+    /// and converge from there.  This is the direction the `recorded` loop
+    /// serves, and the one that proves filtering the standalone view out of the
+    /// desired set has not stranded anything.
+    #[tokio::test]
+    async fn a_source_site_moving_to_global_scope_restores_the_standalone_view_1297() {
+        let backend = test_backend();
+        let a = Uri::from_str("file:///unwrapped-source/a.tcl").unwrap();
+        let b = Uri::from_str("file:///unwrapped-source/b.tcl").unwrap();
+        register(&backend, &b, "proc helper {} {}\n").await;
+        register(&backend, &a, "namespace eval ::ns { source b.tcl }\n").await;
+        backend.refresh_source_rehoming().await;
+        assert_eq!(
+            backend
+                .rehomed_source_seeds
+                .lock()
+                .await
+                .get(b.as_str())
+                .cloned(),
+            Some(vec!["::ns".to_owned()]),
+            "precondition: b.tcl is re-homed under ::ns",
+        );
+
+        // The user unwraps the `namespace eval`: the same `source` now runs in
+        // the global namespace.
+        backend
+            .workspace_index
+            .write()
+            .await
+            .remove_document(a.as_str());
+        register(&backend, &a, "source b.tcl\n").await;
+        backend.refresh_source_rehoming().await;
+
+        assert!(
+            backend.rehomed_source_seeds.lock().await.is_empty(),
+            "the document is standalone again, so its record goes with the seed",
+        );
+        {
+            let index = backend.workspace_index.read().await;
+            assert!(
+                index.workspace_command_exists("::helper"),
+                "the standalone view is back in the index",
+            );
+            assert!(
+                !index.workspace_command_exists("::ns::helper"),
+                "and the re-homed twin is gone",
+            );
+        }
+        let settled = backend.workspace_index.read().await.generation();
+        backend.refresh_source_rehoming().await;
+        assert_eq!(
+            settled,
+            backend.workspace_index.read().await.generation(),
+            "the restored state is itself a fixed point",
+        );
+    }
+
     /// Issue #945 fault 3: a file sourced into **several** namespaces is one
     /// physical declaration with one runtime identity per source site
     /// (tclsh 9.0.4: `namespace eval ::x {source b.tcl}` + `namespace eval
@@ -30485,6 +31010,324 @@ mod tests {
                 .lock()
                 .await
                 .contains_key(&old)
+        );
+    }
+
+    /// Put an entry for `uri` in every cache [`Backend::forget_uri_states`]
+    /// clears, so a retirement test can assert on the whole group rather than
+    /// on whichever member the bug of the day happened to be about.
+    async fn seed_per_uri_caches(backend: &Backend, uri: &Uri) {
+        backend
+            .autoloaded_library_uris
+            .lock()
+            .await
+            .insert(uri.as_str().to_owned());
+        backend
+            .rehomed_source_seeds
+            .lock()
+            .await
+            .insert(uri.as_str().to_owned(), vec!["::seeded".to_owned()]);
+        backend
+            .last_semantic_tokens
+            .lock()
+            .await
+            .insert(uri.clone(), ("st-1".to_owned(), Vec::new()));
+        backend
+            .semantic_tokens_refresh_asked
+            .lock()
+            .await
+            .insert(uri.clone(), 7);
+        backend.workspace_class_analyses.lock().await.insert(
+            uri.clone(),
+            WorkspaceClassAnalysis {
+                fingerprint: (0, 0),
+                analysis: Arc::default(),
+            },
+        );
+    }
+
+    /// Whether each cache [`seed_per_uri_caches`] fills still holds `uri`, in
+    /// the same order, so an assertion reads `[false; 5]` / `[true; 5]`.
+    async fn per_uri_cache_hits(backend: &Backend, uri: &Uri) -> [bool; 5] {
+        [
+            backend
+                .autoloaded_library_uris
+                .lock()
+                .await
+                .contains(uri.as_str()),
+            backend
+                .rehomed_source_seeds
+                .lock()
+                .await
+                .contains_key(uri.as_str()),
+            backend.last_semantic_tokens.lock().await.contains_key(uri),
+            backend
+                .semantic_tokens_refresh_asked
+                .lock()
+                .await
+                .contains_key(uri),
+            backend
+                .workspace_class_analyses
+                .lock()
+                .await
+                .contains_key(uri),
+        ]
+    }
+
+    /// One `workspace/didRenameFiles` notification for `pairs`.
+    fn rename_params(pairs: &[(&Uri, &Uri)]) -> RenameFilesParams {
+        RenameFilesParams {
+            files: pairs
+                .iter()
+                .map(|(old, new)| tower_lsp_server::ls_types::FileRename {
+                    old_uri: old.to_string(),
+                    new_uri: new.to_string(),
+                })
+                .collect(),
+        }
+    }
+
+    /// Issue #1298: `retire_renamed_uri` is the *sole* cleanup for a
+    /// renamed-away path, and it dropped seven per-URI maps but not the M9
+    /// `rehomed_source_seeds` record — which every other retirement path
+    /// (`did_close`, the watched-file DELETED branch, the folder drop, the
+    /// batch reindex, the workspace scan) does drop.
+    ///
+    /// The rename arrives on its own here, with **no** `didChangeWatchedFiles`
+    /// alongside it: that racing watch event is what masks the leak under VS
+    /// Code, so a test that sends both proves nothing about this path.
+    #[tokio::test]
+    async fn did_rename_forgets_the_source_rehoming_seed_1298() {
+        let backend = test_backend();
+        let a = Uri::from_str("file:///rehome-rename/a.tcl").unwrap();
+        let b = Uri::from_str("file:///rehome-rename/b.tcl").unwrap();
+        let c = Uri::from_str("file:///rehome-rename/c.tcl").unwrap();
+        let sourced = "proc helper {} {}\n";
+        register(&backend, &b, sourced).await;
+        register(&backend, &a, "namespace eval ::ns { source b.tcl }\n").await;
+        backend.refresh_source_rehoming().await;
+        assert_eq!(
+            backend
+                .rehomed_source_seeds
+                .lock()
+                .await
+                .get(b.as_str())
+                .cloned(),
+            Some(vec!["::ns".to_owned()]),
+            "precondition: the sourced file is indexed under the ::ns source site",
+        );
+
+        // The client renames b.tcl → c.tcl: the file leaves its old path, the
+        // buffer follows it to the new URI, and the workspace edit
+        // `will_rename_files` handed back rewrites the `source` literal.
+        backend.documents.lock().await.remove(&b);
+        register(&backend, &c, sourced).await;
+        backend
+            .workspace_index
+            .write()
+            .await
+            .remove_document(a.as_str());
+        register(&backend, &a, "namespace eval ::ns { source c.tcl }\n").await;
+        backend.did_rename_files(rename_params(&[(&b, &c)])).await;
+
+        assert!(
+            !backend
+                .rehomed_source_seeds
+                .lock()
+                .await
+                .contains_key(b.as_str()),
+            "the renamed-away path's seed record must go with it",
+        );
+
+        // The consequence, not just the symptom.  `work` in
+        // `refresh_source_rehoming_locked` is derived purely from the recorded
+        // seeds and the set the index asks for, so their equality proves the
+        // next pass queues nothing and returns in its first round — the O(1)
+        // behaviour the leaked record destroyed for the rest of the session.
+        backend.refresh_source_rehoming().await;
+        let desired: std::collections::BTreeMap<String, Vec<String>> = backend
+            .workspace_index
+            .read()
+            .await
+            .source_seed_map(resolve_source_edge)
+            .into_iter()
+            .map(|(uri, seeds)| (uri, seeds.into_iter().collect()))
+            .collect();
+        let recorded: std::collections::BTreeMap<String, Vec<String>> = backend
+            .rehomed_source_seeds
+            .lock()
+            .await
+            .clone()
+            .into_iter()
+            .collect();
+        assert_eq!(
+            recorded, desired,
+            "reconciliation must have converged: anything recorded that the \
+             index no longer asks for is re-queued as work on every round of \
+             every later call, and dies at the `read_document` guard before it \
+             can heal itself",
+        );
+        assert_eq!(
+            recorded.keys().map(String::as_str).collect::<Vec<_>>(),
+            vec![c.as_str()],
+            "only the new path carries a seed record",
+        );
+    }
+
+    /// Issue #1298, the consequence in its purest form: when the renamed pair
+    /// takes the workspace's last `source` edge with it,
+    /// `refresh_source_rehoming_locked`'s early return
+    /// (`!has_source_edges() && seeds.is_empty()`) must be reachable again.
+    ///
+    /// A retained record fails the second half of that guard for good, so every
+    /// `references` / `definition` / `hover` / `rename` / call-hierarchy request
+    /// that enters through `rehomed_index_guard` pays a full four-round
+    /// workspace scan instead of an O(1) return, serialised behind one shared
+    /// gate.
+    #[tokio::test]
+    async fn renaming_a_sourced_pair_restores_the_rehoming_early_return_1298() {
+        let backend = test_backend();
+        let a = Uri::from_str("file:///rehome-moved/a.tcl").unwrap();
+        let b = Uri::from_str("file:///rehome-moved/b.tcl").unwrap();
+        let a2 = Uri::from_str("file:///moved/a.tcl").unwrap();
+        let b2 = Uri::from_str("file:///moved/b.tcl").unwrap();
+        register(&backend, &b, "proc helper {} {}\n").await;
+        register(&backend, &a, "namespace eval ::ns { source b.tcl }\n").await;
+        backend.refresh_source_rehoming().await;
+        assert!(
+            !backend.rehomed_source_seeds.lock().await.is_empty(),
+            "precondition: a seed record exists to be leaked",
+        );
+
+        // A directory move: the client renames both files in one notification
+        // and neither old path survives.
+        backend.documents.lock().await.remove(&a);
+        backend.documents.lock().await.remove(&b);
+        backend
+            .did_rename_files(rename_params(&[(&a, &a2), (&b, &b2)]))
+            .await;
+
+        // Both halves of the early-return guard, asserted as the guard reads.
+        assert!(
+            !backend.workspace_index.read().await.has_source_edges(),
+            "the `source` edge left with the renamed files",
+        );
+        assert!(
+            backend.rehomed_source_seeds.lock().await.is_empty(),
+            "a renamed-away seed record blocks the early return for the whole \
+             session — the real cost of #1298, far beyond the bytes retained",
+        );
+        // …and a pass over that state is a no-op, as the early return promises.
+        backend.refresh_source_rehoming().await;
+        assert!(backend.rehomed_source_seeds.lock().await.is_empty());
+    }
+
+    /// Issue #1298, FP/TN guard: retiring a path that was never source-rehomed
+    /// must disturb nobody — an unrelated document's seed record is still
+    /// relevant and must survive the rename.
+    #[tokio::test]
+    async fn did_rename_of_an_unrelated_file_keeps_other_seeds_1298() {
+        let backend = test_backend();
+        let a = Uri::from_str("file:///rehome-fp/a.tcl").unwrap();
+        let b = Uri::from_str("file:///rehome-fp/b.tcl").unwrap();
+        let unrelated = Uri::from_str("file:///rehome-fp/tool.tcl").unwrap();
+        let renamed = Uri::from_str("file:///rehome-fp/tool2.tcl").unwrap();
+        register(&backend, &b, "proc helper {} {}\n").await;
+        register(&backend, &a, "namespace eval ::ns { source b.tcl }\n").await;
+        register(&backend, &unrelated, "proc standalone {} {}\n").await;
+        backend.refresh_source_rehoming().await;
+        let before = backend.rehomed_source_seeds.lock().await.clone();
+        assert_eq!(
+            before.get(b.as_str()).cloned(),
+            Some(vec!["::ns".to_owned()]),
+            "precondition: only the sourced file has a record",
+        );
+
+        backend.documents.lock().await.remove(&unrelated);
+        backend
+            .did_rename_files(rename_params(&[(&unrelated, &renamed)]))
+            .await;
+
+        assert_eq!(
+            *backend.rehomed_source_seeds.lock().await,
+            before,
+            "renaming a file that was never source-rehomed must leave every \
+             other document's seed record exactly as it was",
+        );
+    }
+
+    /// Issue #1298, second half: `retire_renamed_uri` also skipped
+    /// `autoloaded_library_uris`, whose entries are otherwise drained only by a
+    /// full package-database rebuild — so a renamed library file kept claiming
+    /// to be merged into the index long after its index entry was gone.
+    #[tokio::test]
+    async fn did_rename_forgets_the_autoloaded_library_record_1298() {
+        let backend = test_backend();
+        let lib_uri = seed_autoload_library(&backend, "autoload-rename").await;
+        let app = Uri::from_str("file:///autoload-rename-app.tcl").unwrap();
+        let app_src = "Rbc_ActiveLegend .g\n";
+        register(&backend, &app, app_src).await;
+        let analysis = {
+            let mut a = Analyser::new();
+            a.analyse(app_src, "tcl8.6").clone()
+        };
+        let refs = backend
+            .cross_document_references(&app, app_src, &analysis, Position::new(0, 3), true)
+            .await;
+        assert!(
+            refs.iter().any(|l| l.uri == lib_uri),
+            "precondition: the autoload tier merged the library: {refs:?}",
+        );
+        assert!(
+            backend
+                .autoloaded_library_uris
+                .lock()
+                .await
+                .contains(lib_uri.as_str()),
+            "precondition: the merge is recorded against the library URI",
+        );
+
+        let moved = Uri::from_str("file:///autoload-rename-moved.tcl").unwrap();
+        backend
+            .did_rename_files(rename_params(&[(&lib_uri, &moved)]))
+            .await;
+
+        assert!(
+            !backend
+                .autoloaded_library_uris
+                .lock()
+                .await
+                .contains(lib_uri.as_str()),
+            "the renamed-away library must not stay recorded as merged",
+        );
+    }
+
+    /// Issue #1298 / #1300 together: both retirement paths clear the *same*
+    /// group of per-URI caches, because both go through
+    /// [`Backend::forget_uri_states`].  Asserting the whole group on the rename
+    /// path is what stops the two drifting apart again.
+    #[tokio::test]
+    async fn did_rename_forgets_every_per_uri_cache_1298() {
+        let backend = test_backend();
+        let old = Uri::from_str("file:///forget-all/old.tcl").unwrap();
+        let new = Uri::from_str("file:///forget-all/new.tcl").unwrap();
+        let bystander = Uri::from_str("file:///forget-all/other.tcl").unwrap();
+        seed_per_uri_caches(&backend, &old).await;
+        seed_per_uri_caches(&backend, &bystander).await;
+
+        backend
+            .did_rename_files(rename_params(&[(&old, &new)]))
+            .await;
+
+        assert_eq!(
+            per_uri_cache_hits(&backend, &old).await,
+            [false; 5],
+            "every per-URI cache keyed on the dead path must be forgotten",
+        );
+        assert_eq!(
+            per_uri_cache_hits(&backend, &bystander).await,
+            [true; 5],
+            "no other document's state may be touched",
         );
     }
 

@@ -66,6 +66,57 @@ No order at all — so the pre-existing lenient answer stands — when:
 - the `package require` is conditional (`if {[catch {package require
   Tk}]}`) or names a variable (`package require $pkg`).
 
+### An import that never installed anything at all
+
+Order is only half the question. Even a perfectly ordered import binds
+nothing if the target namespace **already holds a command of that name**:
+real Tcl raises `can't import command "p": already exists` and installs
+nothing, so a bare call still reaches whatever was already there.
+
+"Already holds" means the workspace's own procs and classes *and* the
+commands the **registry** says a fresh interpreter of that document's
+dialect starts with. The second half is easy to forget and the effect is
+a find-references false positive on every call of the shadowed name:
+
+```tcl
+# lib.tcl
+namespace eval ::Shadow { proc set {n v} {…}; namespace export set }
+# app.tcl
+namespace import ::Shadow::*   ;# -> can't import command "set": already exists
+set counter 1                  ;# reaches the BUILTIN, not ::Shadow::set
+```
+
+Oracle (tclsh 9.0.4 and 8.6.14, byte-identical): `namespace origin ::set`
+answers `::set`. Note that the import *errors* and still binds the other
+names it matched — `mything` exported alongside `set` is imported — so one
+import statement can produce both outcomes at once.
+
+Three things that are **not** conflicts, each a real case:
+
+- **`namespace import -force`** replaces the existing command outright,
+  and the call then does reach the import's source (`namespace origin
+  ::set` -> `::Shadow::set`).
+- **A sub-namespace target.** The builtins live in `::`, so
+  `namespace eval ::Bar { namespace import ::Shadow::* }` binds
+  `::Bar::set` with no conflict at all.
+- **The bare operator spellings.** `+`, `eq`, `in` and friends are *not*
+  commands in `::` — `info commands ::+` is empty and `+ 1 2` raises
+  `invalid command name "+"` — they only become callable after an
+  explicit `namespace import ::tcl::mathop::*`. So exporting `+` and
+  importing it into `::` genuinely binds. This is why the question the
+  registry answers is `CommandRegistry::declares_command_at` ("does a
+  fresh interpreter hold a command at exactly this name") and not the
+  broader `get` ("is this a spelling a call site may write").
+
+The dialect matters: `HTTP::uri` is a command for `f5-irules` and for
+nothing else, so the same source conflicts there and binds under plain
+Tcl. The gate reads each document's own analysed dialect.
+
+*Known imprecision:* a command a **package** provides (`::csv::split`) is
+treated as present whether or not the script `package require`s it — the
+registry carries no "needs a `package require`" marker yet. Reaching that
+case means importing into a package's own namespace.
+
 For the relation itself, its proofs, and its measured effect on real
 code, see the
 [import-order design note](../design/import-order-source-graph.md).
