@@ -418,6 +418,7 @@ fn generate_stub_text(source: &str, proc_name: &str) -> Option<String> {
         source,
         cursor(u32::try_from(line).unwrap(), 0),
         Some(&analysis),
+        &analysis.diagnostics,
     );
     find(&actions, &format!("Generate docstring for '{proc_name}'"))
         .map(|a| a.edits[0].new_text.clone())
@@ -456,7 +457,7 @@ fn generate_stub_action_is_source_kind() {
     // editor-level producer, not a quick-fix).
     let src = "proc greet {name} { puts $name }\n";
     let analysis = analyse(src);
-    let actions = code_actions(src, cursor(0, 0), Some(&analysis));
+    let actions = code_actions(src, cursor(0, 0), Some(&analysis), &analysis.diagnostics);
     let act = find(&actions, "Generate docstring for 'greet'").expect("generate action");
     assert_eq!(act.kind, ActionKind::Source, "{act:?}");
 }
@@ -527,7 +528,7 @@ fn generate_stub_skipped_for_documented_proc() {
     let src = "# Existing doc\nproc foo {} { puts hi }\n";
     let analysis = analyse(src);
     // Cursor on the proc declaration line (line 1).
-    let actions = code_actions(src, cursor(1, 0), Some(&analysis));
+    let actions = code_actions(src, cursor(1, 0), Some(&analysis), &analysis.diagnostics);
     assert!(
         find(&actions, "Generate docstring for 'foo'").is_none(),
         "documented proc must not be offered a stub; got titles {:?}",
@@ -542,7 +543,7 @@ fn generate_stub_offered_for_undocumented_proc() {
     // documented/undocumented partition of `insert_docstring_stubs`.
     let src = "proc bar {} { puts bye }\n";
     let analysis = analyse(src);
-    let actions = code_actions(src, cursor(0, 0), Some(&analysis));
+    let actions = code_actions(src, cursor(0, 0), Some(&analysis), &analysis.diagnostics);
     assert!(
         find(&actions, "Generate docstring for 'bar'").is_some(),
         "undocumented proc should be offered a stub; got titles {:?}",
@@ -557,13 +558,13 @@ fn generate_stub_multiple_procs_each_offered_on_their_line() {
     // per-cursor-line, so each proc is offered a stub on its own line.)
     let src = "proc foo {} { puts hi }\nproc bar {} { puts bye }\n";
     let analysis = analyse(src);
-    let foo = code_actions(src, cursor(0, 0), Some(&analysis));
+    let foo = code_actions(src, cursor(0, 0), Some(&analysis), &analysis.diagnostics);
     assert!(
         find(&foo, "Generate docstring for 'foo'").is_some(),
         "foo offered on its line: {:?}",
         foo.iter().map(|a| &a.title).collect::<Vec<_>>(),
     );
-    let bar = code_actions(src, cursor(1, 0), Some(&analysis));
+    let bar = code_actions(src, cursor(1, 0), Some(&analysis), &analysis.diagnostics);
     assert!(
         find(&bar, "Generate docstring for 'bar'").is_some(),
         "bar offered on its line: {:?}",
@@ -580,7 +581,7 @@ fn generate_stub_absent_when_cursor_off_declaration_line() {
     let src = "set marker 1\nproc qux {z} { puts $z }\n";
     let analysis = analyse(src);
     // Cursor on line 0 (the `set marker` line), NOT the proc line.
-    let actions = code_actions(src, cursor(0, 0), Some(&analysis));
+    let actions = code_actions(src, cursor(0, 0), Some(&analysis), &analysis.diagnostics);
     assert!(
         find(&actions, "Generate docstring for 'qux'").is_none(),
         "off-declaration-line cursor must not offer the stub; got {:?}",

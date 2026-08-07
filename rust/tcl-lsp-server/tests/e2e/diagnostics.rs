@@ -4419,6 +4419,61 @@ fn issue_968_version_gated_math_function_dual_fires_end_to_end() {
     );
 }
 
+/// Issue #923 idx 103 — the **plain-command** spelling of a math function,
+/// `tcl::mathfunc::isinf`, which is a real, directly-callable, version-gated
+/// command and not only an `expr` production. The registry now carries it, so
+/// the generic per-dispatch-site availability check fires for free; this pins
+/// that it really reaches the wire, which the registry-level unit test
+/// (`mathfunc_command_spellings_are_registered_and_gated`) cannot show.
+///
+/// Oracle:
+///
+/// ```text
+/// $ tclsh8.6 -c 'set r [tcl::mathfunc::isinf 1.0]'
+/// invalid command name "tcl::mathfunc::isinf"     (exit 1)
+/// $ tclsh9.0 -c 'puts [tcl::mathfunc::isinf 1.0]'
+/// 0                                                (exit 0)
+/// ```
+#[test]
+fn issue_923_idx103_plain_command_mathfunc_is_dialect_gated_end_to_end() {
+    let mut lsp = Lsp::tcl();
+    let src = "set r [tcl::mathfunc::isinf 1.0]\n";
+
+    let uri86 = unique_uri("idx103-86");
+    let diags86 = lsp.open_ready_lang(&uri86, src, "tcl8.6");
+    assert!(
+        has_code(&diags86, "W002"),
+        "`isinf` arrived in 9.0; calling `tcl::mathfunc::isinf` under an 8.6 \
+         document is a real `invalid command name` and must draw W002: {:?}",
+        codes(&diags86)
+    );
+    assert!(
+        diags86
+            .iter()
+            .any(|d| code_str(d).as_deref() == Some("W002")
+                && message(d).contains("tcl::mathfunc::isinf")),
+        "the W002 must name the qualified command it gated: {diags86:?}",
+    );
+
+    let uri90 = unique_uri("idx103-90");
+    let diags90 = lsp.open_ready_lang(&uri90, src, "tcl9.0");
+    assert!(
+        !has_code(&diags90, "W002") && !has_code(&diags90, "W123"),
+        "under tcl9.0 the same call is valid and must be clean: {:?}",
+        codes(&diags90)
+    );
+
+    // TN control: the `expr` spelling of the same function is gated
+    // identically, so the two spellings cannot drift apart.
+    let uri_expr = unique_uri("idx103-expr86");
+    let diags_expr = lsp.open_ready_lang(&uri_expr, "set r [expr {isinf(1.0)}]\n", "tcl8.6");
+    assert!(
+        has_code(&diags_expr, "W002"),
+        "the expr spelling must stay gated too: {:?}",
+        codes(&diags_expr)
+    );
+}
+
 /// The VS Code extension contributes *undotted* version-pinned language ids
 /// (`tcl84` … `tcl91`) — a dotted id cannot carry a `configurationDefaults`
 /// override (issue #1122). The server must resolve them to the same dialects

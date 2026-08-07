@@ -743,7 +743,7 @@ fn edits_well_formed(action: &CodeAction) -> bool {
 #[test]
 fn actions_none_without_analysis() {
     // `analysis = None` -> the diagnostic-driven path produces nothing.
-    let actions = code_actions("proc f {} { return }\n", cursor(0, 0), None);
+    let actions = code_actions("proc f {} { return }\n", cursor(0, 0), None, &[]);
     assert!(actions.is_empty(), "{actions:?}");
 }
 
@@ -753,7 +753,7 @@ fn actions_none_at_inert_position() {
     // quick-fix and no range refactor.
     let src = "set x 1\n";
     let analysis = analyse(src);
-    let actions = code_actions(src, cursor(0, 4), Some(&analysis));
+    let actions = code_actions(src, cursor(0, 4), Some(&analysis), &analysis.diagnostics);
     assert!(
         actions.is_empty(),
         "inert position should offer nothing; got {actions:?}"
@@ -791,7 +791,12 @@ fn actions_catch_without_result_var_offers_capture_fixes() {
         .lines()
         .nth(1)
         .map_or(0, |l| u32::try_from(l.len()).unwrap_or(0));
-    let actions = code_actions(src, selection(1, 0, line2_len), Some(&analysis));
+    let actions = code_actions(
+        src,
+        selection(1, 0, line2_len),
+        Some(&analysis),
+        &analysis.diagnostics,
+    );
     let titles: Vec<&str> = actions.iter().map(|a| a.title.as_str()).collect();
     assert!(
         titles.iter().any(|t| t.contains("catch result")),
@@ -860,7 +865,7 @@ fn actions_extract_proc_on_selection_is_well_formed() {
         end_line: 3,
         end_character: 0,
     };
-    let actions = code_actions(src, sel, Some(&analysis));
+    let actions = code_actions(src, sel, Some(&analysis), &analysis.diagnostics);
     // Select by *title*: extract-variable shares the `refactor.extract` kind,
     // so a kind-only lookup picks whichever the provider happens to emit first.
     let extract = actions
@@ -897,7 +902,7 @@ fn actions_ipv4_literal_offers_ipv6_mapped_conversion() {
     let src = "set ip 192.168.0.1\n";
     let analysis = analyse(src);
     // Cursor inside the IPv4 literal (after `set ip `, col ~9).
-    let actions = code_actions(src, cursor(0, 9), Some(&analysis));
+    let actions = code_actions(src, cursor(0, 9), Some(&analysis), &analysis.diagnostics);
     let conv = actions
         .iter()
         .find(|a| a.title.contains("IPv6-mapped"))
@@ -921,7 +926,7 @@ fn actions_demorgan_rewrite_on_expression_selection() {
     // Select the `!($a && $b)` substring. `if {` is 4 chars; the expr starts
     // at col 4 and is 11 chars long.
     let sel = selection(0, 4, 4 + 11);
-    let actions = code_actions(src, sel, Some(&analysis));
+    let actions = code_actions(src, sel, Some(&analysis), &analysis.diagnostics);
     let dm = actions
         .iter()
         .find(|a| a.title.contains("De Morgan"))
@@ -944,7 +949,7 @@ fn actions_generate_docstring_for_undocumented_proc() {
     // real parameters as `@param` lines.
     let src = "proc greet {name greeting} {\n    return \"$greeting $name\"\n}\n";
     let analysis = analyse(src);
-    let actions = code_actions(src, cursor(0, 6), Some(&analysis));
+    let actions = code_actions(src, cursor(0, 6), Some(&analysis), &analysis.diagnostics);
     let doc = actions
         .iter()
         .find(|a| a.title.contains("Generate docstring"))
@@ -976,7 +981,7 @@ fn actions_edits_are_always_well_formed() {
         end_line: 3,
         end_character: 0,
     };
-    let actions = code_actions(src, whole, Some(&analysis));
+    let actions = code_actions(src, whole, Some(&analysis), &analysis.diagnostics);
     assert!(
         !actions.is_empty(),
         "expected at least one action over the document"

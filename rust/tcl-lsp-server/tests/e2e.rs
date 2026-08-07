@@ -73,6 +73,8 @@ mod issue1281_ensemble_rename;
 mod issue923_class_refs;
 #[path = "e2e/issue923_crossdoc.rs"]
 mod issue923_crossdoc;
+#[path = "e2e/issue923_idx80_mathfunc.rs"]
+mod issue923_idx80_mathfunc;
 #[path = "e2e/issue945.rs"]
 mod issue945;
 #[path = "e2e/issue954_followup.rs"]

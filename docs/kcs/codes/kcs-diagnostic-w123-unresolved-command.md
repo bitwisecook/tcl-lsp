@@ -107,7 +107,7 @@ command name "Dog"`, so the old name is reported.
 ## Commands defined in another file
 
 The check reads one file at a time, so a `proc` that lives in a sibling
-file is not something it can see on its own. Two things make it visible.
+file is not something it can see on its own. Three things make it visible.
 
 Always on, needing no setting: a command an installed library auto-loads
 (`tclIndex`), and a command defined by a package the file `package
@@ -119,9 +119,8 @@ rules: `set auto_path {…}` contributes one directory per **list element**
 Windows `[info script]` resolves against its own directory, and a versioned
 `package require NAME 2.0` reads the release `package vsatisfies` would pick.
 
-Off by default, opt in with `tclLsp.features.crossFileResolution`: every
-`proc` and class the **workspace** defines, whether or not anything links
-the two files. Turn it on and this stops firing:
+Also always on: an `expr` math function the **workspace** defines. Nothing
+below is reported:
 
 ```tcl
 # helper.tcl
@@ -133,13 +132,29 @@ namespace eval tcl::mathfunc {
 proc angle {dp} { return [expr {Pi()}] }
 ```
 
-With the setting off, `Pi` is reported as unresolved even though Go to
-Definition and Find All References both resolve it to `helper.tcl` — the
-two disagree, and the offered quick fix ("did you mean `ni`?") would break
-working code if accepted. With it on, they agree.
+`expr` looks a function up in `::tcl::mathfunc`, which is one table per
+interpreter — so a workspace that defines `Pi` there defines the one `Pi`
+every `expr` in it can call, and there is no second project-local meaning to
+confuse it with. This one needs no setting for that reason. It is also why
+the match is exact: a `proc` named `Pi` in some *other* namespace is a
+different command, `expr {Pi()}` cannot reach it, and the report stands.
 
-A name nothing in the workspace defines is still reported, so turning the
-setting on removes false alarms without hiding real ones.
+Off by default, opt in with `tclLsp.features.crossFileResolution`: every
+`proc` and class the **workspace** defines, whether or not anything links
+the two files. This one is a setting because a workspace is not always one
+program — two unrelated scripts in the same folder each have their own
+`helper`, and a call to the wrong one is a real error worth reporting.
+
+A name nothing in the workspace defines is still reported either way, so
+neither removes real alarms.
+
+## The quick fix and the report always agree
+
+The "did you mean …?" quick fix is offered only for a report you can
+actually see. If any of the rules above resolved the name, the report is
+gone and so is its quick fix — accepting one would otherwise rewrite
+working code (`expr {Pi()}` into `expr {ni()}`, which is not valid Tcl at
+all).
 
 ## What a `proc unknown` changes
 

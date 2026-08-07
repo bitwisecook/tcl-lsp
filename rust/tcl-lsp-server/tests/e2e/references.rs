@@ -93,6 +93,71 @@ fn find_references_from_catch_resultvar_bareword_include_the_original_declaratio
     );
 }
 
+/// Issue #923 idx 48 — the two declaring tokens the finding actually named,
+/// which the e2e tier covered only by proxy (a proc parameter, a `catch`
+/// result variable): a `set` left-hand side and a `foreach` loop variable.
+/// The query anchored on the bare declaring word must return exactly what the
+/// same query anchored on a `$name` read returns; anything less is the
+/// asymmetry the finding reported.
+///
+/// Oracle — tclsh 8.6.16 and 9.0.4: `set y 10; puts $y; puts $y` prints
+/// `10` twice, so all three tokens name one cell.
+#[test]
+fn find_references_from_a_set_lhs_bareword_matches_the_read_anchored_query() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let src = "set y 10\nputs $y\nputs $y\n";
+    lsp.open_ready(&uri, src);
+
+    // Anchored on the bare `y` of `set y 10` (line 0, col 4).
+    let from_decl = starts(&lsp.references(&uri, 0, 4, true));
+    // Anchored on the `$y` read (line 1, col 6).
+    let from_read = starts(&lsp.references(&uri, 1, 6, true));
+    assert_eq!(
+        from_decl, from_read,
+        "the declaring token and a read of the same variable must answer \
+         identically; decl: {from_decl:?} read: {from_read:?}",
+    );
+    let lines: std::collections::BTreeSet<i64> = from_decl.iter().map(|(l, _)| *l).collect();
+    assert!(
+        lines.contains(&0) && lines.contains(&1) && lines.contains(&2),
+        "all three occurrences must be present: {from_decl:?}",
+    );
+}
+
+/// The `foreach` loop-variable half of idx 48, in the shape `etsb.tcl` writes:
+/// the loop variable is declared bare and then read through `${cmd}` inside a
+/// `subst`ed proc body and a trace's `[list …]` prefix.
+///
+/// Oracle — tclsh 8.6.16 and 9.0.4: prints `cmd is alpha` / `cmd is beta`.
+#[test]
+fn find_references_from_a_foreach_loop_variable_bareword_declaration() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let src = "set tracecmds {alpha beta}\nforeach cmd $tracecmds {\n    puts \"cmd is $cmd\"\n}\n";
+    lsp.open_ready(&uri, src);
+
+    // Anchored on the bare loop variable `cmd` (line 1, col 8).
+    let from_decl = starts(&lsp.references(&uri, 1, 8, true));
+    // Anchored on the `$cmd` read inside the body (line 2, col 19).
+    let from_read = starts(&lsp.references(&uri, 2, 19, true));
+    assert_eq!(
+        from_decl, from_read,
+        "decl: {from_decl:?} read: {from_read:?}",
+    );
+    let lines: std::collections::BTreeSet<i64> = from_decl.iter().map(|(l, _)| *l).collect();
+    assert!(
+        lines.contains(&1) && lines.contains(&2),
+        "the declaration and the body read must both be present: {from_decl:?}",
+    );
+    // The `$tracecmds` list word is a different variable and must not be
+    // dragged in.
+    assert!(
+        !from_decl.contains(&(1, 12)),
+        "the list word is not a reference to the loop variable: {from_decl:?}",
+    );
+}
+
 #[test]
 fn find_qualified_proc_call_sites() {
     let mut lsp = Lsp::tcl();

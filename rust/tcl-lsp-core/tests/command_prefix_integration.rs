@@ -639,3 +639,99 @@ fn struct_tree_walkproc_trailing_prefix_is_recorded() {
         "`myT walkproc … onN` must form a build→onN call-graph edge; got {g}"
     );
 }
+
+/// Issue #923 differential audit, finding idx 47 — the `trace` idiom Tk's own
+/// `etrace.tcl` writes verbatim: `trace add variable V write [list handler
+/// baked…]`.  The general `[list HEAD …]` mechanism is covered above via
+/// `lsort -command`; this pins the trace-specific spelling, whose head sits in
+/// a `write`-op argument rather than an option value, so a future narrowing of
+/// `extract_list_quoted_prefix_head` back to the option-value shape fails here.
+///
+/// Oracle — tclsh 8.6.16 and 9.0.4, writing the traced variable:
+///
+/// ```text
+/// initial: 1
+/// onVersionWrite fired: minlevel=1.0.0 baseline=1 args=::demo::version {} write
+/// final: 42
+/// ```
+///
+/// The handler really is invoked, solely through the trace's `[list …]`
+/// command prefix, so the site is a real reference to it.
+#[test]
+fn trace_add_variable_write_list_prefix_is_a_reference() {
+    let src = "namespace eval demo {\n\
+               \x20   variable version 1\n\
+               \x20   proc onVersionWrite {minlevel baseline args} { return $args }\n\
+               \x20   trace add variable version write [list demo::onVersionWrite 1.0.0 $version]\n\
+               }\n";
+    let mut a = tcl_compiler::analyser::Analyser::new();
+    let r = a.analyse(src, "tcl9.0");
+
+    let inv = r
+        .command_invocations
+        .iter()
+        .find(|i| i.name.ends_with("onVersionWrite") && i.callback_arity.is_some())
+        .unwrap_or_else(|| {
+            panic!(
+                "the trace's [list …] handler must be recorded as a command-prefix \
+                 invocation; got {:?}",
+                r.command_invocations
+                    .iter()
+                    .map(|i| i.name.as_str())
+                    .collect::<Vec<_>>()
+            )
+        });
+    assert_eq!(
+        inv.callback_baked_args, 2,
+        "`1.0.0` and `$version` are baked before Tcl appends name/index/op"
+    );
+    let head_text = &src[inv.range.start() as usize..inv.range.end() as usize];
+    assert_eq!(
+        head_text, "demo::onVersionWrite",
+        "the recorded span must cover exactly the written head word"
+    );
+
+    // The reference surfaces every command_invocations-fed consumer reads:
+    // find-references anchored at the declaration must reach the trace site.
+    let decl_line = 2;
+    let refs = tcl_lsp_core::references::references(src, "tcl9.0", decl_line, 9, &r, true);
+    assert!(
+        refs.iter().any(|rg| rg.start_line == 3),
+        "find-references from the proc declaration must include the \
+         `trace add variable … write [list …]` call site on line 3; got {refs:?}"
+    );
+
+    // …and the call graph carries the edge, attributed to the enclosing scope.
+    let reg = CommandRegistry::build_default();
+    let g = graphs::call_graph(src, &reg, "tcl9.0");
+    assert!(
+        g["edges"]
+            .as_array()
+            .expect("edges array")
+            .iter()
+            .any(|e| e["callee"]
+                .as_str()
+                .unwrap_or("")
+                .contains("onVersionWrite")),
+        "the trace handler must be a call-graph callee; got {g}"
+    );
+}
+
+/// FP guard for the same shape: a *dynamic* head inside the trace's
+/// `[list …]` names no static command and must stay unrecorded, so the
+/// trace-specific path inherits the general mechanism's discipline rather
+/// than relaxing it.
+#[test]
+fn trace_add_variable_write_list_prefix_with_a_dynamic_head_is_not_recorded() {
+    let mut a = tcl_compiler::analyser::Analyser::new();
+    let r = a.analyse(
+        "proc arm {cb} {\n    variable v\n    trace add variable v write [list $cb 1]\n}\n",
+        "tcl9.0",
+    );
+    assert!(
+        !r.command_invocations
+            .iter()
+            .any(|i| i.callback_arity.is_some()),
+        "a `[list $cb …]` trace handler is a runtime value, not a static reference"
+    );
+}

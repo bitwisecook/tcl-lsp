@@ -2667,10 +2667,14 @@ async fn run_deep_diagnostics(
         Vec::new()
     };
     // idx 80: the workspace's own definitions, as the cross-file
-    // unknown-command refinement's known-name set — only when the toggle is
-    // on, and read from the index's own derived-set cache, so this is an `Arc`
-    // clone rather than a walk of every indexed symbol.
-    let workspace_known_names = if inputs.cross_file_resolution {
+    // unknown-command refinement's known-name set — demanded only when it can
+    // change this document's verdict (see `needs_workspace_command_names`), and
+    // read from the index's own derived-set cache.
+    let workspace_known_names = if needs_workspace_command_names(
+        &analyser_diags,
+        &analysis,
+        inputs.cross_file_resolution,
+    ) {
         Some(inputs.workspace_index.read().await.command_names())
     } else {
         None
@@ -2684,6 +2688,7 @@ async fn run_deep_diagnostics(
             package_resolver: inputs.package_resolver,
             registry: inputs.registry,
             workspace_known_names,
+            cross_file_resolution: inputs.cross_file_resolution,
         },
         lift_inputs,
     )
@@ -2774,16 +2779,22 @@ struct LiftInputs<'a> {
     xc_diagnostics: bool,
 }
 
-/// The three workspace-wide inputs the W120 / W123 refinements resolve
-/// against, grouped so [`refine_and_lift_diagnostics`] takes them as one
-/// parameter: the requires this document inherits (#804), the package
-/// database (#723 / #832), and — when `crossFileResolution` is on — the
-/// workspace index's own command names (issue #923 idx 80).
+/// The workspace-wide inputs the W120 / W123 refinements resolve against,
+/// grouped so [`refine_and_lift_diagnostics`] takes them as one parameter: the
+/// requires this document inherits (#804), the package database (#723 / #832),
+/// and the workspace index's own command names (issue #923 idx 80).
 struct RefinementInputs<'a> {
     inherited_requires: &'a [String],
     package_resolver: &'a Arc<RwLock<PackageResolver>>,
     registry: &'static CommandRegistry,
+    /// The workspace index's memoised command names — read whenever this
+    /// document has a W123 to refine, because
+    /// [`refine_workspace_index_w123`]'s always-on math-function tier needs
+    /// them too, not only its `crossFileResolution`-gated project tier.
     workspace_known_names: Option<Arc<HashSet<String>>>,
+    /// Whether `crossFileResolution` is on, i.e. whether the *project* tier of
+    /// [`refine_workspace_index_w123`] applies on top of its always-on tier.
+    cross_file_resolution: bool,
 }
 
 /// Refine the analyser's single-file W120 against the workspace package
@@ -2820,9 +2831,14 @@ async fn refine_and_lift_diagnostics(
     )
     .await;
     // idx 80: and any W123 the *workspace index* resolves — a proc / class in a
-    // sibling document.  Opt-in via `crossFileResolution` (`None` when off).
-    let analyser_diags =
-        refine_workspace_index_w123(analyser_diags, refinement.workspace_known_names.as_deref());
+    // sibling document.  Its math-function tier is always on; its whole-project
+    // tier is opt-in via `crossFileResolution`.
+    let analyser_diags = refine_workspace_index_w123(
+        analyser_diags,
+        analysis.as_ref(),
+        refinement.workspace_known_names.as_deref(),
+        refinement.cross_file_resolution,
+    );
 
     let analysis_lifts = Arc::clone(analysis);
     let lift_text = inputs.text.to_owned();
@@ -10944,15 +10960,6 @@ impl Backend {
             .await;
         let registry = self.registry_for_dialect(&dialect).await;
 
-        // Cross-file: the project's proc arities, so the
-        // pull path resolves cross-file W123 / emits the cross-file arity error
-        // exactly as the push path does.  Only gathered when `crossFileResolution`
-        // is enabled.  Computed inside `spawn_blocking`: on a cold cache (or after a
-        // signature change) this tracked query can demand `item_sigs` / `item_tree`
-        // for every project file — now the *whole* workspace — so it must not run
-        // on the async event-loop thread and stall other LSP traffic.
-        let cross_file_on = self.cross_file_resolution_enabled(uri).await;
-        let project_arities = self.project_arities_if(cross_file_on).await;
         let compiler_diags = self
             .compiler_diagnostics_for(uri, &analysis_text, &dialect, registry)
             .await;
@@ -10960,29 +10967,12 @@ impl Backend {
         // XC100-301 translatability lints — independent toggle, f5-irules only.
         let xc_on = self.xc_diagnostics_enabled(uri).await;
         let xc_for_irules = dialect == "f5-irules" && xc_on;
-        // Cross-file resolution — W123 suppression + E002/E003 arity,
-        // matching the push path.  Arity keys off `unresolved_command_sites`, which
-        // the analyser records regardless of the W123 toggle, so disabling W123
-        // does not also silence cross-file arity.
-        let analyser_diags = match &project_arities {
-            Some(arities) => tcl_lsp_db::apply_cross_file_resolution(
-                &analysis.diagnostics,
-                &analysis.unresolved_command_sites,
-                &analysis.command_invocations,
-                arities,
-                |code| disabled.contains(code),
-            ),
-            None => analysis.diagnostics.clone(),
-        };
+        // Cross-file resolution + the workspace W120 / W123 refinements,
+        // matching the push path — and shared verbatim with
+        // `textDocument/codeAction`, which lifts its quick-fixes from this
+        // exact set (see `published_analyser_diagnostics`).
         let analyser_diags = self
-            .refine_pull_analyser_diagnostics(
-                uri,
-                analyser_diags,
-                &analysis,
-                &dialect,
-                registry,
-                cross_file_on,
-            )
+            .published_analyser_diagnostics(uri, &analysis, &dialect, registry, &disabled)
             .await;
         let style_line_length = self.resolved_style_line_length(uri).await;
         let severity_overrides = self.resolved_severity_overrides(uri).await;
@@ -11029,8 +11019,9 @@ impl Backend {
     ///   that an entry file / `source` ancestor already required.
     /// * **#832 W123** — a command the package database resolves (auto-loaded
     ///   library command, or an available package's defined command).
-    /// * **idx 80 W123** — a command the workspace index resolves, when
-    ///   `crossFileResolution` is on.
+    /// * **idx 80 W123** — a command the workspace index resolves: always for
+    ///   an `expr` math-function call site, and for any name at all when
+    ///   `crossFileResolution` is on (see [`refine_workspace_index_w123`]).
     ///
     /// The inherited-requires walk and the workspace-index read are both
     /// gated on there being something to refine, so a clean document pays
@@ -11068,12 +11059,76 @@ impl Backend {
             dialect,
         )
         .await;
-        let workspace_known_names = if cross_file_on {
-            Some(self.workspace_index.read().await.command_names())
-        } else {
-            None
+        // Demanded whenever the refinement below can change a verdict, which
+        // is no longer only when the toggle is on: its math-function tier is
+        // always on.
+        let workspace_known_names =
+            if needs_workspace_command_names(&analyser_diags, analysis, cross_file_on) {
+                Some(self.workspace_index.read().await.command_names())
+            } else {
+                None
+            };
+        refine_workspace_index_w123(
+            analyser_diags,
+            analysis,
+            workspace_known_names.as_deref(),
+            cross_file_on,
+        )
+    }
+
+    /// The analyser diagnostics this document actually **publishes**: the
+    /// analyser's own set put through every workspace pass the diagnostics
+    /// pipeline applies — cross-file resolution when `crossFileResolution` is
+    /// on, then the #723/#804 W120 and #832 / idx-80 W123 refinements.
+    ///
+    /// This is the single answer both diagnostic-consuming surfaces must use.
+    /// `textDocument/diagnostic` publishes it; `textDocument/codeAction` lifts
+    /// quick-fixes from it.  Having code actions read `analysis.diagnostics`
+    /// instead is what let the server offer "Replace with 'ni'" over a
+    /// perfectly good cross-file `Pi()` call *whose diagnostic it had already
+    /// decided to suppress* — a quick-fix that rewrites working code into a
+    /// syntax error (tclsh 8.6.16 / 9.0.4: `expr {ni() / acos(-1.0)}` →
+    /// `missing operand`).  One function, one verdict, so the two surfaces
+    /// cannot drift apart again.
+    async fn published_analyser_diagnostics(
+        &self,
+        uri: &Uri,
+        analysis: &AnalysisResult,
+        dialect: &str,
+        registry: &'static CommandRegistry,
+        disabled: &HashSet<String>,
+    ) -> Vec<tcl_compiler::analyser::Diagnostic> {
+        // Cross-file: the project's proc arities, so the pull path resolves
+        // cross-file W123 / emits the cross-file arity error exactly as the
+        // push path does.  Only gathered when `crossFileResolution` is enabled.
+        // Computed inside `spawn_blocking` (see `project_arities_if`): on a cold
+        // cache this tracked query can demand `item_sigs` / `item_tree` for
+        // every project file, so it must not run on the async event-loop thread
+        // and stall other LSP traffic.
+        let cross_file_on = self.cross_file_resolution_enabled(uri).await;
+        let project_arities = self.project_arities_if(cross_file_on).await;
+        // Arity keys off `unresolved_command_sites`, which the analyser records
+        // regardless of the W123 toggle, so disabling W123 does not also
+        // silence cross-file arity.
+        let analyser_diags = match &project_arities {
+            Some(arities) => tcl_lsp_db::apply_cross_file_resolution(
+                &analysis.diagnostics,
+                &analysis.unresolved_command_sites,
+                &analysis.command_invocations,
+                arities,
+                |code| disabled.contains(code),
+            ),
+            None => analysis.diagnostics.clone(),
         };
-        refine_workspace_index_w123(analyser_diags, workspace_known_names.as_deref())
+        self.refine_pull_analyser_diagnostics(
+            uri,
+            analyser_diags,
+            analysis,
+            dialect,
+            registry,
+            cross_file_on,
+        )
+        .await
     }
 
     /// Compute and publish diagnostics synchronously (awaited).  Used by the
@@ -12106,6 +12161,88 @@ async fn log_range_convergence_settled(
             ),
         )
         .await;
+}
+
+/// The dialect-specific code actions, appended to the generic Tcl set.
+///
+/// BIG-IP `.conf`/`.scf` gets the rename-partition / rename-object /
+/// extract-rule actions: the generic Tcl code-action path yields nothing
+/// useful on a non-Tcl config, so these extend rather than replace it —
+/// mirroring the references / document-links BIG-IP routing.  iRules
+/// additionally gets the `# Profiles:` header source action.
+fn push_dialect_code_actions(
+    actions: &mut Vec<core_code_actions::CodeAction>,
+    source: &str,
+    range: core_definition::LspRange,
+    uri_str: &str,
+    dialect: &str,
+    analysis: &tcl_compiler::analyser::AnalysisResult,
+    registry: &tcl_registry::CommandRegistry,
+) {
+    if Backend::is_bigip_dialect(dialect) {
+        actions.extend(core_code_actions::bigip_code_actions(
+            source, range, uri_str,
+        ));
+    }
+    if dialect == "f5-irules"
+        && let Some(a) = core_code_actions::profiles_action(source, analysis, registry)
+    {
+        actions.push(a);
+    }
+}
+
+/// The context-diagnostic actions, plus the fuzzy `package require`
+/// suggestion.
+///
+/// That suggestion needs both the analysis — to prove the cursor is on an
+/// unresolved *command head* rather than on a comment, a string, or a data
+/// word — and the request's own diagnostics, since the editor may be showing a
+/// W123 this analysis has not re-emitted.  Passing neither is what let it fire
+/// anywhere an identifier-shaped word appeared (issue #1191).
+fn push_context_code_actions(
+    actions: &mut Vec<core_code_actions::CodeAction>,
+    source: &str,
+    range: core_definition::LspRange,
+    registry: &tcl_registry::CommandRegistry,
+    program: core_definition::ProgramExports<'_>,
+    analysis: &tcl_compiler::analyser::AnalysisResult,
+    context_diags: &[core_code_actions::ContextDiagnostic],
+) {
+    actions.extend(core_code_actions::package_require_actions_in_program(
+        source,
+        range,
+        core_definition::CallResolution {
+            registry: Some(registry),
+            program: Some(program),
+        },
+        Some(analysis),
+        context_diags,
+    ));
+    actions.extend(core_code_actions::context_diagnostic_actions(
+        source,
+        context_diags,
+    ));
+}
+
+/// The compiler-check quick-fixes: the iRules control-flow fixes (IRULE5002
+/// unguarded drop / IRULE5004 `DNS::return`) plus the shimmer-family
+/// noqa-suppress action (S100/S101/S102/S110).
+///
+/// Every dialect's checks are lowered here, not just iRules' — a plain-Tcl
+/// document's checks simply carry no IRULE-family fixes.
+fn push_check_code_actions(
+    actions: &mut Vec<core_code_actions::CodeAction>,
+    source: &str,
+    range: core_definition::LspRange,
+    checks: &tcl_lsp_db::CompilerDiagnostics,
+    disabled_codes: &std::collections::HashSet<String>,
+) {
+    actions.extend(core_code_actions::check_diagnostic_actions(
+        source,
+        range,
+        &checks.checks,
+        disabled_codes,
+    ));
 }
 
 impl LanguageServer for Backend {
@@ -14583,10 +14720,25 @@ impl LanguageServer for Backend {
         // requested range, plus fuzzy `package require`
         // suggestions for the word at the cursor.  Run on a worker.
         let registry = self.registry_for_dialect(&doc.dialect).await;
-        // The resolved per-check disabled set — the same one baked into the
-        // analyser build above — so the compiler-checks code-action path does
-        // not re-surface a quick-fix for a diagnostic the user disabled.
-        let (disabled_codes, _) = self.analyser_config().await;
+        // The resolved per-check disabled set — the same one the diagnostics
+        // path resolves for this document (folder overrides included) — so the
+        // compiler-checks code-action path does not re-surface a quick-fix for
+        // a diagnostic the user disabled.
+        let (disabled_codes, ..) = self.resolved_analysis_settings(&uri).await;
+        // The analyser diagnostics this document actually publishes.  Code
+        // actions lift their quick-fixes from this set, never from the
+        // analyser's raw one, so a W123 the workspace refinements decided to
+        // suppress can never leave a "did you mean…?" rewrite behind
+        // (issue #923 idx 80).
+        let published = self
+            .published_analyser_diagnostics(
+                &uri,
+                &analysis,
+                &doc.dialect,
+                registry,
+                &disabled_codes,
+            )
+            .await;
         // Lift the request-context diagnostics (the editor sends the ones it
         // currently shows) so context-driven quick-fixes — e.g. the iRules
         // taint encode-wrap fixes — can act on them even when the analyser
@@ -14615,53 +14767,33 @@ impl LanguageServer for Backend {
                 uri: &uri_key,
                 oracle: exports.as_ref(),
             };
+            // `program` decides what an inlined call reaches (#1116 item 1);
+            // `published` decides what this document shows (#1019 idx 80).
             let mut actions = core_code_actions::code_actions_in_program(
                 &doc.text,
                 range,
                 Some(&analysis),
+                &published,
                 Some(program),
             );
-            // The fuzzy package-suggestion path needs both the analysis (to
-            // prove the cursor is on an unresolved *command head* rather than
-            // on a comment, a string, or a data word) and the request's own
-            // diagnostics (the editor may be showing a W123 this analysis has
-            // not re-emitted).  Passing neither is what let it fire anywhere
-            // an identifier-shaped word appeared — issue #1191.
-            actions.extend(core_code_actions::package_require_actions_in_program(
+            push_context_code_actions(
+                &mut actions,
                 &doc.text,
                 range,
-                core_definition::CallResolution {
-                    registry: Some(registry),
-                    program: Some(program),
-                },
-                Some(&analysis),
+                registry,
+                program,
+                &analysis,
                 &context_diags,
-            ));
-            actions.extend(core_code_actions::context_diagnostic_actions(
+            );
+            push_dialect_code_actions(
+                &mut actions,
                 &doc.text,
-                &context_diags,
-            ));
-            // BIG-IP `.conf`/`.scf`: the dialect-specific rename-partition /
-            // rename-object / extract-rule actions (`tcl-lsp-core::bigip_code_actions`).
-            // The generic Tcl code-action path above yields nothing useful on a
-            // non-Tcl config, so extend rather than replace — mirroring the
-            // references / document-links BIG-IP routing.
-            if Backend::is_bigip_dialect(&dialect) {
-                actions.extend(core_code_actions::bigip_code_actions(
-                    &doc.text, range, &uri_str,
-                ));
-            }
-            // iRules-only: the `# Profiles:` header source action.
-            if dialect == "f5-irules"
-                && let Some(a) = core_code_actions::profiles_action(&doc.text, &analysis, registry)
-            {
-                actions.push(a);
-            }
-            // Compiler-check quick-fixes: the iRules control-flow fixes
-            // (IRULE5002 unguarded drop / IRULE5004 DNS::return) plus the
-            // shimmer-family noqa-suppress action (S100/S101/S102/S110) —
-            // every dialect's checks are lowered here, not just iRules'; a
-            // plain-Tcl document's checks simply carry no IRULE-family fixes.
+                range,
+                &uri_str,
+                &dialect,
+                &analysis,
+                registry,
+            );
             let checks = tcl_lsp_db::compiler_check_diagnostics_uncached(
                 &doc.text,
                 registry,
@@ -14669,12 +14801,7 @@ impl LanguageServer for Backend {
                 generic_patterns.as_deref(),
                 evidence.as_deref(),
             );
-            actions.extend(core_code_actions::check_diagnostic_actions(
-                &doc.text,
-                range,
-                &checks.checks,
-                &disabled_codes,
-            ));
+            push_check_code_actions(&mut actions, &doc.text, range, &checks, &disabled_codes);
             actions
         })
         .await
@@ -17071,8 +17198,7 @@ fn refine_w123_diagnostics(
 }
 
 /// Drop every W123 whose command the **workspace index** defines — a proc or
-/// class in a sibling document, in any of the three name forms a call site may
-/// spell.
+/// class in a sibling document — in two tiers with very different confidence.
 ///
 /// The analyser's own known-name set (`build_w123_known_names`) is
 /// single-document by construction, so a command whose `proc` lives in another
@@ -17083,16 +17209,48 @@ fn refine_w123_diagnostics(
 /// would have rewritten it to the unrelated `ni` operator, breaking working
 /// code (issue #923 differential-audit finding idx 80).
 ///
-/// Gated on `crossFileResolution` — `names` is `None` when the toggle is off,
-/// and the function is then a no-op.  Unlike the package / auto-load
-/// refinements (which are always on, because a library command is ambient like
-/// a builtin), this one *is* the cross-file inference the toggle governs.
+/// # Tier 1 — the interpreter-global tier, always on
 ///
-/// Cost is one hash lookup per surviving W123: `names` is the
-/// generation-keyed memo, so nothing is walked or rebuilt here.
+/// An `expr` math-function application (`Pi()`) does not dispatch through the
+/// caller's own namespace the way an ordinary bareword does: it dispatches
+/// through `::tcl::mathfunc::<name>`, a single slot the *language* owns, one
+/// per interpreter.  A workspace that injects `::tcl::mathfunc::Pi` anywhere
+/// therefore defines the one and only `Pi` every `expr` in that workspace can
+/// call — there is no project-scoped second meaning of expr function `Pi` the
+/// way every project has its own `helper`.  Suppressing the W123 for such a
+/// call is a statement about the language, not a cross-file guess, so it needs
+/// no opt-in.
+///
+/// The match runs the call's **own** `resolution_candidates` — the
+/// `Tcl_FindCommand` priority order `finalise_invocation_resolutions` already
+/// settled for that exact site, recorded precisely so "a cross-document
+/// consumer can re-settle this call against a workspace-wide existence check"
+/// — against the index's names.  Every candidate is fully qualified by
+/// `command_resolution_candidates`' own contract, so this can only ever match
+/// the index's *qualified* entries; the bare tails
+/// [`insert_qualified_and_tail`](tcl_compiler::analyser::utils::insert_qualified_and_tail)
+/// also puts in `names` are unreachable from here.
+///
+/// # Tier 2 — the project tier, opt-in via `crossFileResolution`
+///
+/// Any W123 whose bare name the workspace index carries in *any* of its three
+/// name forms.  This is the genuine cross-file inference — it treats the whole
+/// workspace as one program — and it is deliberately lossy: matching a bare
+/// tail resolves nothing, so a `proc ::clay::define::current_class` in one file
+/// silences a bare `current_class` call that Tcl would never route there.
+/// Measured over tcllib 2.0 (790 files, 450 W123s) that tail match silences 396
+/// of them, 197 of which no `Tcl_FindCommand` candidate of the call site
+/// justifies — which is why it stays behind the toggle while tier 1 does not.
+///
+/// Cost is one hash lookup per surviving W123 plus, only when the document has
+/// math-function call sites at all, one pass over them: `names` is the
+/// generation-keyed memo, so nothing is walked or rebuilt here.  Callers decide
+/// whether to demand that memo at all — see [`needs_workspace_command_names`].
 fn refine_workspace_index_w123(
     diags: Vec<tcl_compiler::analyser::Diagnostic>,
+    analysis: &AnalysisResult,
     names: Option<&HashSet<String>>,
+    project_tier: bool,
 ) -> Vec<tcl_compiler::analyser::Diagnostic> {
     let Some(names) = names.filter(|n| !n.is_empty()) else {
         return diags;
@@ -17100,13 +17258,57 @@ fn refine_workspace_index_w123(
     if !diags.iter().any(|d| d.code == DiagCode::W123) {
         return diags;
     }
+    // Tier 1: the spans of every math-function call site the workspace does
+    // define, keyed the way a diagnostic's own span is (the analyser raises the
+    // W123 at exactly the invocation's range).
+    let mathfunc_spans: HashSet<(u32, u32)> = analysis
+        .command_invocations
+        .iter()
+        .filter(|inv| {
+            inv.is_mathfunc_call
+                && inv
+                    .resolution_candidates
+                    .iter()
+                    .any(|candidate| names.contains(candidate.as_str()))
+        })
+        .map(|inv| (inv.range.start(), inv.range.end()))
+        .collect();
     diags
         .into_iter()
         .filter(|d| {
-            d.code != DiagCode::W123
-                || !w123_command_name(&d.message).is_some_and(|name| names.contains(name))
+            if d.code != DiagCode::W123 {
+                return true;
+            }
+            if mathfunc_spans.contains(&(d.span.start(), d.span.end())) {
+                return false;
+            }
+            !(project_tier
+                && w123_command_name(&d.message).is_some_and(|name| names.contains(name)))
         })
         .collect()
+}
+
+/// Whether [`refine_workspace_index_w123`] can change anything for this
+/// document, i.e. whether its `names` argument is worth demanding.
+///
+/// The set is a per-index-generation memo, but the *first* call after any
+/// document is indexed walks every proc and class in the workspace — so on a
+/// large project, demanding it for every analysis would put that walk on the
+/// keystroke path. It is only ever consulted for a W123, and then only by the
+/// always-on tier (which needs an `expr` math-function call site to match
+/// against) or the opt-in project tier. A document with neither pays nothing,
+/// exactly as it did before the always-on tier existed.
+fn needs_workspace_command_names(
+    diags: &[tcl_compiler::analyser::Diagnostic],
+    analysis: &AnalysisResult,
+    project_tier: bool,
+) -> bool {
+    diags.iter().any(|d| d.code == DiagCode::W123)
+        && (project_tier
+            || analysis
+                .command_invocations
+                .iter()
+                .any(|inv| inv.is_mathfunc_call))
 }
 
 /// Apply the issue-#832 workspace W123 refinement to `analyser_diags`: resolve
@@ -20641,9 +20843,10 @@ mod tests {
 
     /// Issue #923 idx 80 — TP + TN: a `tcl::mathfunc` proc declared in a
     /// sibling document makes a bare `Pi()` inside `expr` resolvable
-    /// cross-file, so W123 must not fire on it once `crossFileResolution` is
-    /// on — and must still fire on a genuinely undefined name in the same
-    /// document, and on `Pi()` while the toggle is off.
+    /// cross-file, so W123 must not fire on it — **with the toggle at its
+    /// default (off) as well as on**, because `::tcl::mathfunc::Pi` is one
+    /// interpreter-wide slot, not a project-scoped name — and must still fire
+    /// on a genuinely undefined name in the same document either way.
     ///
     /// tclsh 9.0.4 / 8.6.16 oracle: sourcing the two files and calling the
     /// consumer prints `3.141592653589793` — `Pi()` really does dispatch to
@@ -20663,7 +20866,9 @@ mod tests {
                           proc tomato::v::A {} { return [expr {Pi()}] }\n\
                           proc tomato::v::B {} { return [NeverDefinedAnywhere] }\n";
 
-        // Toggle OFF: the single-document pass sees neither name.
+        // Toggle OFF — the default a real editor session gets: the
+        // math-function tier is not the toggle's to gate, so `Pi` already
+        // resolves through the workspace index here.
         let off = backend
             .full_diagnostics_for(&vector, Arc::from(vector_src), "tcl8.6".to_owned(), "tcl")
             .await;
@@ -20673,8 +20878,14 @@ mod tests {
             .filter_map(|d| w123_command_name(&d.message))
             .collect();
         assert!(
-            off_names.contains(&"Pi"),
-            "with the toggle off the cross-file Pi stays unknown, got: {off_names:?}",
+            !off_names.contains(&"Pi"),
+            "the workspace defines ::tcl::mathfunc::Pi, and an `expr` function \
+             call has no project-scoped second meaning — W123 must not fire on \
+             it under the default configuration, got: {off_names:?}",
+        );
+        assert!(
+            off_names.contains(&"NeverDefinedAnywhere"),
+            "TP control with the toggle off, got: {off_names:?}",
         );
 
         // Toggle ON: `Pi` resolves through the workspace index; the undefined
@@ -20700,6 +20911,61 @@ mod tests {
         assert!(
             on_names.contains(&"NeverDefinedAnywhere"),
             "a genuinely undefined command must still draw W123, got: {on_names:?}",
+        );
+    }
+
+    /// Issue #923 idx 80, the precision control for the always-on tier: it
+    /// matches the call site's own `Tcl_FindCommand` candidates, never a bare
+    /// tail.  A sibling `proc ::helpers::Pi` puts the tail `Pi` into the
+    /// workspace index without putting `::tcl::mathfunc::Pi` there, and
+    /// `expr {Pi()}` cannot reach it — tclsh 9.0.4 / 8.6.16 with only
+    /// `::helpers::Pi` defined: `invalid command name "tcl::mathfunc::Pi"` —
+    /// so the W123 must survive by default.  Enabling `crossFileResolution`
+    /// opts into exactly that looser, tail-matching inference and does silence
+    /// it: the two tiers are what tell the cases apart.
+    #[tokio::test]
+    async fn cross_file_mathfunc_w123_needs_the_qualified_definition_not_a_tail() {
+        let backend = test_backend();
+        let helper = Uri::from_str("file:///decoy.tcl").unwrap();
+        let vector = Uri::from_str("file:///consumer.tcl").unwrap();
+        register(
+            &backend,
+            &helper,
+            "namespace eval helpers {\n    proc Pi {} { return 3.14159 }\n}\n",
+        )
+        .await;
+        let vector_src = "proc consume {} { return [expr {Pi()}] }\n";
+
+        let off = backend
+            .full_diagnostics_for(&vector, Arc::from(vector_src), "tcl8.6".to_owned(), "tcl")
+            .await;
+        let off_names: Vec<&str> = off
+            .iter()
+            .filter(|d| matches!(&d.code, Some(tower_lsp_server::ls_types::NumberOrString::String(c)) if c == "W123"))
+            .filter_map(|d| w123_command_name(&d.message))
+            .collect();
+        assert!(
+            off_names.contains(&"Pi"),
+            "`::helpers::Pi` is not `::tcl::mathfunc::Pi`; `expr {{Pi()}}` cannot \
+             reach it, so the W123 must stand, got: {off_names:?}",
+        );
+
+        backend.feature_toggles.lock().await.apply(
+            serde_json::json!({ "crossFileResolution": true })
+                .as_object()
+                .unwrap(),
+        );
+        let on = backend
+            .full_diagnostics_for(&vector, Arc::from(vector_src), "tcl8.6".to_owned(), "tcl")
+            .await;
+        let on_names: Vec<&str> = on
+            .iter()
+            .filter(|d| matches!(&d.code, Some(tower_lsp_server::ls_types::NumberOrString::String(c)) if c == "W123"))
+            .filter_map(|d| w123_command_name(&d.message))
+            .collect();
+        assert!(
+            !on_names.contains(&"Pi"),
+            "the opt-in project tier matches bare tails by design, got: {on_names:?}",
         );
     }
 
