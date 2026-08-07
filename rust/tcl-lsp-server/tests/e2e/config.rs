@@ -75,6 +75,31 @@ fn feature_enabled(cfg: &Value, feature: &str) -> bool {
     cfg.get("features").and_then(|f| f.get(feature)) == Some(&Value::Bool(true))
 }
 
+/// Wait until `predicate` holds over the live server, bounded by a load-scaled
+/// deadline that **panics** naming `what`.
+///
+/// The per-folder `workspace/configuration` pull is a round trip the server
+/// makes on its own schedule, so a test that reads a folder-resolved value
+/// straight after `initialize` is reading it before the answer exists. There is
+/// no notification announcing the pull landed — `getEffectiveConfig` is the
+/// observation — so this is a bounded settle, not a fixed sleep, and it is the
+/// one place the shape is written.
+fn settle(lsp: &mut Lsp, what: &str, predicate: impl Fn(&mut Lsp) -> bool) {
+    use std::time::{Duration, Instant};
+    let budget = scaled_timeout(Duration::from_secs(20));
+    let deadline = Instant::now() + budget;
+    loop {
+        if predicate(lsp) {
+            return;
+        }
+        assert!(
+            Instant::now() < deadline,
+            "{what} never settled within {budget:?} (load-scaled)"
+        );
+        std::thread::sleep(Duration::from_millis(50));
+    }
+}
+
 // -- TestEffectiveConfigShape --------------------------------------------
 
 #[test]
@@ -461,8 +486,6 @@ fn diagnostic_severity_override_is_per_code() {
 /// suite (`multiFolderConfig.test.ts`) without an editor.
 #[test]
 fn folder_scoped_dialect_reaches_documents_in_that_folder() {
-    use std::time::{Duration, Instant};
-
     let base = std::env::temp_dir().join(format!(
         "tcl-lsp-e2e-folder-dialect-{}-{}",
         std::process::id(),
@@ -497,21 +520,10 @@ fn folder_scoped_dialect_reaches_documents_in_that_folder() {
     // the VS Code suite polls to know the per-folder pull has settled.
     let uri_a = format!("file://{}", root_a.to_string_lossy());
     let uri_b = format!("file://{}", root_b.to_string_lossy());
-    let deadline = Instant::now() + Duration::from_secs(20);
-    loop {
-        let a = lsp.effective_config(&uri_a);
-        let b = lsp.effective_config(&uri_b);
-        if a.get("dialect") == Some(&json!("tcl8.4"))
-            && b.get("dialect") == Some(&json!("f5-irules"))
-        {
-            break;
-        }
-        assert!(
-            Instant::now() < deadline,
-            "per-folder dialects never settled: proj-a={a}, proj-b={b}"
-        );
-        std::thread::sleep(Duration::from_millis(50));
-    }
+    settle(&mut lsp, "per-folder dialects", |lsp| {
+        lsp.effective_config(&uri_a).get("dialect") == Some(&json!("tcl8.4"))
+            && lsp.effective_config(&uri_b).get("dialect") == Some(&json!("f5-irules"))
+    });
 
     // …and so do documents inside them, which is what actually changes analysis.
     let doc_a = format!("file://{}", file_a.to_string_lossy());
@@ -562,6 +574,79 @@ fn folder_scoped_dialect_reaches_documents_in_that_folder() {
     assert!(
         known.contains(&uri_a.as_str()) && known.contains(&uri_b.as_str()),
         "known_folder_uris must name both roots: {cfg}"
+    );
+
+    std::fs::remove_dir_all(&base).ok();
+}
+
+/// Issue #1295: `getEffectiveConfig`'s `features` map must resolve through the
+/// same folder chain the provider gates use.
+///
+/// It used to report the process-global toggles while every gate consulted the
+/// deepest containing folder first.  A client that polls this command before
+/// asserting a toggle took effect — which is exactly what the VS Code suite's
+/// `waitForFeatureToggle` barrier does — was therefore waiting on a different
+/// fact from the one the provider would act on, and in a multi-root workspace
+/// a folder-scoped toggle was invisible here entirely.
+///
+/// Both halves are asserted together, because the report is only worth anything
+/// if it agrees with the behaviour: the folder that disables `selectionRange`
+/// must both *say* so and *suppress* the provider, and the folder that does not
+/// must keep both.
+#[test]
+fn a_folder_scoped_feature_toggle_is_reported_and_applied_for_that_folder() {
+    let base = std::env::temp_dir().join(format!(
+        "tcl-lsp-e2e-folder-feature-{}-{}",
+        std::process::id(),
+        line!()
+    ));
+    let root_off = base.join("proj-off");
+    let root_on = base.join("proj-on");
+    std::fs::create_dir_all(&root_off).expect("mk proj-off");
+    std::fs::create_dir_all(&root_on).expect("mk proj-on");
+    let src = "proc greet {} {\n    set x 1\n    return $x\n}\n";
+    let file_off = root_off.join("foo.tcl");
+    let file_on = root_on.join("foo.tcl");
+    std::fs::write(&file_off, src).expect("write proj-off fixture");
+    std::fs::write(&file_on, src).expect("write proj-on fixture");
+
+    let mut lsp = Lsp::multi_root(
+        // The unscoped pull leaves the feature at its default (on), so the only
+        // thing that can turn it off for `proj-off` is that folder's override.
+        json!({}),
+        &[
+            (
+                root_off.as_path(),
+                json!({ "features": { "selectionRange": false } }),
+            ),
+            (root_on.as_path(), json!({})),
+        ],
+    );
+
+    let doc_off = format!("file://{}", file_off.to_string_lossy());
+    let doc_on = format!("file://{}", file_on.to_string_lossy());
+    lsp.open_ready(&doc_off, src);
+    lsp.open_ready(&doc_on, src);
+
+    let position = json!([{ "line": 2, "character": 11 }]);
+
+    // The report. `proj-off` must say the feature is off *for a document in it*
+    // — the global map says nothing about this folder and would report `true`.
+    settle(&mut lsp, "per-folder selectionRange toggles", |lsp| {
+        feature_disabled(&lsp.effective_config(&doc_off), "selectionRange")
+            && feature_enabled(&lsp.effective_config(&doc_on), "selectionRange")
+    });
+
+    // The behaviour, which is the fact the report is a proxy for.
+    let suppressed = lsp.selection_range(&doc_off, position.clone());
+    assert!(
+        is_empty(&suppressed),
+        "proj-off disables selectionRange, so its provider must return empty: {suppressed}"
+    );
+    let served = lsp.selection_range(&doc_on, position);
+    assert!(
+        !is_empty(&served),
+        "proj-on leaves selectionRange enabled, so its provider must answer: {served}"
     );
 
     std::fs::remove_dir_all(&base).ok();
