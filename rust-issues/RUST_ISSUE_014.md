@@ -7,7 +7,7 @@
 | **Severity** | high |
 | **Subsystem** | Backend parity (WASM/VM/eBPF/registry) |
 | **Location** | `fuzzer` |
-| **Status** | Open |
+| **Status** | Open — re-verified at the branch tip (2026-08-07) and promoted to **GitHub issue #1313**. Still exactly two pairs: `campaign.rs:100-101` (`tclsh` ↔ `tclvm`) and `wasm_diff.rs` (WASM control flow ↔ `tcl-vm`, both sides evaluating leaf commands on `tcl-vm`). `rust/tcl-fuzz/Cargo.toml` has no `bpf-*` or `runtime/rust` dependency. `harness.rs:114-142` still folds errors to a bool, so error-message text is never compared. |
 | **Verification** | Reported by review agent (confidence: high) |
 
 ## Finding

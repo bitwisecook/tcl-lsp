@@ -1,6 +1,15 @@
 <!-- markdownlint-disable MD013 MD033 -->
 # Rust-rewrite registry audit
 
+> **Historical — the audit is complete and cannot be re-run as written.** Every
+> row and every entry below is ticked, and the drift check it describes no longer
+> has anything to compare: the Python `core/…` registries were deleted with the
+> Python engine, and `scripts/registry-audit/` went with them, so the "reproduce"
+> commands are dead. Last substantive update 2026-06-19. Kept as the record that
+> the port was verified entry-by-entry; the Rust registry under
+> `rust/tcl-registry/…` is now the sole source of truth, guarded by the registry
+> contract tests rather than by this file.
+
 Tracks parity between the **Python source-of-truth registries** and their
 **Rust ports** during the rust rewrite, so we can detect drift over time.
 

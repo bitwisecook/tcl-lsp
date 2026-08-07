@@ -258,7 +258,7 @@ fn handle_uplevel(args: &[String], state: &mut EscapeState) {
     // `uplevel 0` runs the body in the *current* frame, so a `set x` inside it
     // name-writes our proc's local `x` exactly like `eval`. Walk it the same
     // way and escape every name it touches. Treating `0` as global-safe like
-    // `#0` wrongly whitelists our own frame (RUST_ISSUE_073).
+    // `#0` wrongly whitelists our own frame.
     if level.is_current_frame() {
         handle_eval(&args[1..], state);
         return;
@@ -877,7 +877,7 @@ mod tests {
 
     #[test]
     fn uplevel_zero_walks_body_like_eval() {
-        // RUST_ISSUE_073: `uplevel 0` runs the body in the *current* frame, so
+        // `uplevel 0` runs the body in the *current* frame, so
         // it must escape the same names `eval` does — not be treated as
         // global-safe like `#0`. The body's `set x` reaches our proc's local.
         let eval = analyse("eval {set x 2}");
@@ -895,7 +895,7 @@ mod tests {
 
     #[test]
     fn uplevel_global_does_not_escape_current_frame_local() {
-        // TN for RUST_ISSUE_073: `uplevel #0` runs at *global* scope — our
+        // TN for: `uplevel #0` runs at *global* scope — our
         // local `x` is not visible there, so a literal body's `set x` must NOT
         // mark our local frame-escaping.
         let up_global = analyse("uplevel #0 {set x 2}");

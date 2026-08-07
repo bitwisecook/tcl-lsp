@@ -1593,7 +1593,7 @@ looks_like_our_native_mcp() {
 }
 
 looks_like_our_native_cli() {
-    # Our `tcl` and `f5` CLIs ship as native binaries (RUST_ISSUE_057), not
+    # Our `tcl` and `f5` CLIs ship as native binaries, not
     # Python zipapps, so looks_like_our_zipapp can't recognise a prior
     # install of them. As with looks_like_our_native_mcp, a native binary
     # can't be introspected structurally, so match on the artefact names the

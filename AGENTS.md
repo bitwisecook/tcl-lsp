@@ -136,7 +136,7 @@ via [`scripts/dev/ensure-test-deps.sh`](scripts/dev/ensure-test-deps.sh)
 | Wasmtime         | v43.0.1       | `/opt/wasmtime-43.0.1/`         | `/usr/local/bin/wasmtime` |
 | Binaryen         | v123          | `/opt/binaryen-123/`            | `/usr/local/bin/wasm-merge`, `/usr/local/bin/wasm-opt` |
 | wasi-sdk         | 25.0          | `/opt/wasi-sdk-25.0/` (symlink `/opt/wasi-sdk`) | — (found by `runtime/rust/build.rs`) |
-| rustup + Rust    | floating `stable` (currently 1.96.0) | `/root/.rustup`, `/root/.cargo` | `/usr/local/bin/{cargo,rustc,rustup,rustfmt,clippy-driver}` |
+| rustup + Rust    | floating `stable` (currently 1.97.0) | `/root/.rustup`, `/root/.cargo` | `/usr/local/bin/{cargo,rustc,rustup,rustfmt,clippy-driver}` |
 | Tcl 8.4 source   | 8.4.20        | `tmp/tcl8.4.20/`                | —                         |
 | Tcl 8.5 source   | 8.5.19        | `tmp/tcl8.5.19/`                | —                         |
 | Tcl 8.6 source   | 8.6.16        | `tmp/tcl8.6.16/`                | —                         |
@@ -326,8 +326,8 @@ known-gap), and writes
 `--check` fails on report drift, on any unclassified command (a new gap),
 or on a stale classification — so the registry and runtime cannot silently
 diverge.  A genuinely-missing command that is a real gap goes on the
-`KNOWN_UNBACKED` allow-list in `rust/xtask/src/command_backing.rs`
-(tracked by `RUST_ISSUE_007`) until it gains a handler.
+`KNOWN_UNBACKED` allow-list in `rust/xtask/src/command_backing.rs` until it
+gains a handler.
 
 For a walkthrough of how a Tcl script becomes a WASM module (the
 6-phase codegen pipeline, per-statement dispatch order, per-command

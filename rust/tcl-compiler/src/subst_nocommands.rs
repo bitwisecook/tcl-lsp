@@ -220,7 +220,7 @@ mod tests {
 
     #[test]
     fn vars_inside_brackets_are_substituted() {
-        // RUST_ISSUE_019: `$field` inside `[...]` still substitutes under
+        // `$field` inside `[...]` still substitutes under
         // -nocommands; only the command is not executed. `\$obj` decodes to
         // a literal `$obj`. Mirrors tclsh:
         //   subst -nocommands {[dict get \$obj $field]} → [dict get $obj email]
@@ -241,7 +241,7 @@ mod tests {
 
     #[test]
     fn backslash_before_multibyte_char() {
-        // RUST_ISSUE_017: `\é` must not split the 2-byte `é` and panic; the
+        // `\é` must not split the 2-byte `é` and panic; the
         // backslash is dropped and the following char is emitted verbatim.
         let m: HashMap<String, String> = HashMap::new();
         assert_eq!(subst_nocommands(r"\é", &m).as_deref(), Some("é"));

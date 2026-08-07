@@ -448,7 +448,8 @@ regens in the milestone that lands it (§12, Milestone 4) — **not** Milestone 
 Two divergent rules exist: `get_for_dialect` = **last-match**
 (`registry.rs:405`, `.iter().rev().find`); `command_snapshot::resolve_spec` =
 **most-specific / min dialect-set size** (`command_snapshot.rs:364-380`, backs
-the golden `tcl registry-dump` snapshots that caught RUST_ISSUE_082/083).
+the golden `tcl registry-dump` snapshots that caught the dialect-membership
+and version-arm gaps).
 `p.resolve_command` must pick **one**.
 
 **Decision: adopt `resolve_spec`'s most-specific rule** as the single

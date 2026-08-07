@@ -56,7 +56,7 @@ use crate::obj::{self, TclObj};
 /// Maximum superclass/mixin linearisation depth for [`Interp::linearize_class`]
 /// / [`Interp::gather_class_props`] (issue #996). `tcl_syntax::mro::MAX_MRO_DEPTH`
 /// fixed the identical algorithm (TclOO's DFS + late-placement) in the
-/// *diagnostics* linearizer under the internal tracking label RUST_ISSUE_076,
+/// *diagnostics* linearizer under the internal tracking label,
 /// settling on 1024 there — but that pass runs on a host-controlled analysis
 /// stack, not this runtime's live call stack. Confirmed crash reproduction
 /// (this sweep): a deep `mixin` chain (`oo::class create C$i { mixin C[i-1]

@@ -1057,7 +1057,7 @@ impl Vm {
     /// Unwind one proc activation `act`: on error add its `(procedure "name" line
     /// N)` errorInfo frame, pop the call-frame + namespace, apply
     /// `TclUpdateReturnInfo` (a proc boundary decrements a carried `-code`/`-level`
-    /// return — `RUST_ISSUE_170`), and on error log the caller's `invoked from
+    /// return), and on error log the caller's `invoked from
     /// within "…"` frame. Mutates `c` in place. Split out of [`Vm::unwind`].
     fn unwind_proc_frame(&mut self, act: &Frame, acts: &[Frame], c: &mut Completion<Value>) {
         // C's `InterpProcNR2` proc epilogue (`tclProc.c:1864`): a proc body that
@@ -1361,8 +1361,7 @@ impl Vm {
             // `START_CMD`/`NOP` are inert; so are the `catch` exception-range
             // markers (the VM unwinds errors through its activation stack rather
             // than bytecode exception ranges — the inline `dict for`/`dict map`/
-            // try codegen emits them for C-faithful reference bytecode,
-            // RUST_ISSUE_029/061).
+            // try codegen emits them for C-faithful reference bytecode,).
             Op::NOP | Op::START_CMD | Op::BEGIN_CATCH4 | Op::END_CATCH => {}
 
             // -- variables (stack form, by name) --
@@ -2288,7 +2287,7 @@ impl Vm {
             // -- return --
             // `SYNTAX` shares `RETURN_IMM`'s shape (a code immediate, result +
             // options on the stack): the inline `if {…}` codegen emits it to
-            // raise a compile-time expression error at runtime (RUST_ISSUE_061).
+            // raise a compile-time expression error at runtime.
             Op::RETURN_IMM | Op::RETURN_STK | Op::SYNTAX => {
                 let (result, options) = if f.stack.len() >= 2 {
                     let opts = pop(f);
@@ -2455,7 +2454,7 @@ impl Vm {
                     // The same tower addition `incr` uses (`value_ops::int_add`):
                     // a sum past `i64` promotes to `i128` and past that to an
                     // arbitrary-precision bignum rather than erroring, matching
-                    // tclsh (`RUST_ISSUE_095`).
+                    // tclsh.
                     crate::value_ops::int_add(old, &inc).map_err(|e| err(e.message()))
                 });
                 match updated {
@@ -2745,7 +2744,7 @@ impl Vm {
                 f.stack.push(crate::command::options_dict(Code::Ok, 0, &[]));
             }
             // Evaluate a popped script string and push its result — value-position
-            // multi-command substitution `[a; b]` (RUST_ISSUE_061). A non-OK
+            // multi-command substitution `[a; b]`. A non-OK
             // completion unwinds like any other command error.
             Op::EVAL_STK => {
                 // Run the script on the *explicit* stack (a transparent script

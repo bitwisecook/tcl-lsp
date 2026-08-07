@@ -119,7 +119,7 @@ fn length_preserving_lset_input(stmt: &crate::ssa::SsaStatement, sym: Symbol) ->
 /// live-in — resolves to [`Len::Unknown`] and poisons the merge. The previous
 /// code ignored such an incoming on the assumption it was always an `lset`
 /// result, so a length-*growing* def in the loop (`lappend l x y; lset l 5 v`)
-/// left the pre-loop length trusted and fired a false W231 (`RUST_ISSUE_068`).
+/// left the pre-loop length trusted and fired a false W231.
 fn resolve_len(
     ssa: &SsaFunction,
     name: &str,
@@ -1145,7 +1145,7 @@ mod tests {
 
     #[test]
     fn lset_preserves_length_through_linear_chain_fires_w231() {
-        // RUST_ISSUE_068 (precision gain): a length-preserving `lset` is now
+        // (precision gain): a length-preserving `lset` is now
         // seen through to its input, so the length survives a linear `lset`
         // chain. `lset l 99` on the (still length-3) list is a real Tcl error
         // ("list index out of range") — W231 correctly fires.
@@ -1156,7 +1156,7 @@ mod tests {
 
     #[test]
     fn lset_after_length_growing_op_is_silent() {
-        // RUST_ISSUE_068 (false-positive fix): a length-*growing* def
+        // (false-positive fix): a length-*growing* def
         // (`lappend`) in the loop body makes the list length unknown at the
         // `lset`, so no bound can be proven. The pre-loop length of 3 must NOT
         // be trusted — `lset l 5` is the legal append slot after two lappends.

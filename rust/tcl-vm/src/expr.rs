@@ -42,7 +42,7 @@ use crate::value::Value;
 
 /// A coerced numeric operand. `Big` carries an out-of-`i64` integer that still
 /// fits `i128` — the fast integer tier; `Huge` is the arbitrary-precision tier
-/// beyond it (`RUST_ISSUE_011`), so no integer magnitude wraps, errors, or
+/// beyond it, so no integer magnitude wraps, errors, or
 /// degrades to a lossy `double`.
 enum Num {
     Int(i64),
@@ -124,7 +124,7 @@ pub(crate) fn int_value(r: i128) -> Value {
 
 /// Wrap an arbitrary-precision integer result as a value, narrowing to a wide
 /// when it fits (so `2+2` via the bignum path is still `Value::int(4)`), else its
-/// canonical decimal string (`RUST_ISSUE_011`).
+/// canonical decimal string.
 pub(crate) fn big_value(r: &BigInt) -> Value {
     r.to_i64()
         .map_or_else(|| Value::string(r.to_string()), Value::int)
@@ -259,7 +259,7 @@ pub(crate) fn cvt_to_numeric(v: Value) -> Result<Value, TclError> {
         return Ok(int_value(b));
     }
     // An integer past `i128` keeps its exact (bignum) value, canonicalised to its
-    // decimal string, rather than degrading to a lossy `double` (`RUST_ISSUE_011`).
+    // decimal string, rather than degrading to a lossy `double`.
     if let Some(b) = value_as_bigint(&v) {
         return Ok(big_value(&b));
     }
@@ -360,7 +360,7 @@ fn fmod_i(x: i128, y: i128) -> i128 {
 }
 
 /// Promote an `i128` integer operation that overflowed (or can't stay bounded)
-/// to the arbitrary-precision path (`RUST_ISSUE_011`).
+/// to the arbitrary-precision path.
 fn promote(op: BinOp, x: i128, y: i128) -> Result<Value, TclError> {
     big_arith(op, &BigInt::from(x), &BigInt::from(y))
 }
@@ -368,7 +368,7 @@ fn promote(op: BinOp, x: i128, y: i128) -> Result<Value, TclError> {
 /// Integer arithmetic in `i128`, narrowing the result to a wide when it fits and
 /// **promoting to arbitrary precision on overflow** rather than wrapping: `2**70`
 /// / `9223372036854775807 + 1` fit `i128`; `2**200` / a product past `2^127`
-/// promote to a bignum, matching tclsh (`RUST_ISSUE_011`). `i64`-range operands
+/// promote to a bignum, matching tclsh. `i64`-range operands
 /// and results are unchanged.
 fn int_arith(op: BinOp, x: i128, y: i128) -> Result<Value, TclError> {
     use BinOp::{Add, BitAnd, BitOr, BitXor, Div, LShift, Mod, Mul, Pow, RShift, Sub};
@@ -489,7 +489,7 @@ pub fn arith(op: BinOp, a: &Value, b: &Value) -> Result<Value, TclError> {
         return int_arith(op, xi, yi);
     }
     // Not both `i128`-fit. When *both* are integers (an operand already past
-    // `i128`), stay exact via the arbitrary-precision path (`RUST_ISSUE_011`).
+    // `i128`), stay exact via the arbitrary-precision path.
     if let (Some(xb), Some(yb)) = (num_as_bigint(&x), num_as_bigint(&y)) {
         return big_arith(op, &xb, &yb);
     }
@@ -573,7 +573,7 @@ fn cmp_num_of(v: &Value) -> Option<CmpNum> {
         return Some(CmpNum::Dbl(d));
     }
     // `as_double` rejects integers past `i128` and the NaN spellings; both
-    // are numeric for comparison purposes (`RUST_ISSUE_011`; Tcl's NaN rule).
+    // are numeric for comparison purposes (Tcl's NaN rule).
     match number::parse_whole(v.to_str().trim()) {
         Some(Number::Nan { .. }) => Some(CmpNum::Dbl(f64::NAN)),
         Some(Number::Big { .. }) => value_as_bigint(v).map(CmpNum::Big),
@@ -584,7 +584,7 @@ fn cmp_num_of(v: &Value) -> Option<CmpNum> {
 /// The one numeric-comparison path over *values*: `None` when either operand is
 /// non-numeric (the caller falls back to a string comparison), otherwise the
 /// exact outcome across the whole tower — wide/`i128` exactly, integer-vs-double
-/// exactly, integers past `i128` as bignums (`RUST_ISSUE_011`), NaN unordered.
+/// exactly, integers past `i128` as bignums, NaN unordered.
 /// Shared by [`compare`] and the [`ExprEval`] adapter so the two cannot drift.
 fn compare_values_numeric(a: &Value, b: &Value) -> Option<NumericCompare> {
     use NumericCompare::{Ordered, Unordered};
@@ -650,7 +650,7 @@ pub fn unary(op: UnaryOp, v: &Value) -> Result<Value, TclError> {
             Ok(Num::Int(n)) => Ok(int_value(-i128::from(n))),
             Ok(Num::Big(b)) => Ok(int_value(b.wrapping_neg())),
             // An integer past `i128` negates exactly in arbitrary precision,
-            // never as a lossy float (`RUST_ISSUE_011`).
+            // never as a lossy float.
             Ok(Num::Huge(b)) => Ok(big_value(&-b)),
             Ok(Num::Dbl(f)) => Ok(Value::double(-f)),
             Err(_) => Err(unary_operand_err(v, "-")),
@@ -824,7 +824,7 @@ mod tests {
         );
     }
 
-    /// The arbitrary-precision integer tower (`RUST_ISSUE_011`): operations that
+    /// The arbitrary-precision integer tower: operations that
     /// overflow `i128` (or whose operands already exceed it) stay exact and match
     /// tclsh 9.0.4, instead of wrapping or degrading to a lossy `double`.
     #[test]

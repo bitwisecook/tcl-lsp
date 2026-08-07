@@ -81,7 +81,7 @@ fn query_match_dict(m: &XCQueryMatch) -> Value {
 /// Build the `match` object for a route from every recorded criterion
 /// (path, host, method, headers, query, cookies). Shared by the simple,
 /// redirect, and direct-response route renderers so none silently drops a
-/// criterion the translator recorded (`RUST_ISSUE_045`).
+/// criterion the translator recorded.
 fn route_match_map(route: &XCRoute) -> Map<String, Value> {
     let mut m = Map::new();
     if let Some(pm) = &route.path_match {

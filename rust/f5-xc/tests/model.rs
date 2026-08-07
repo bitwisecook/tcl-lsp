@@ -158,7 +158,7 @@ fn empty_rule_is_full_coverage() {
     assert!((result.coverage_pct - 100.0).abs() < 1e-9);
 }
 
-// RUST_ISSUE_044: an `else` body must keep the enclosing match criteria
+// An `else` body must keep the enclosing match criteria
 // instead of translating to an unconditional catch-all route.
 #[test]
 fn else_body_keeps_enclosing_criteria() {
@@ -181,7 +181,7 @@ fn else_body_keeps_enclosing_criteria() {
     assert_eq!(api.path_match.as_ref().unwrap().value, "/api");
 }
 
-// RUST_ISSUE_046: `switch -regexp` arms must translate to regex path
+// `switch -regexp` arms must translate to regex path
 // matches, not prefix matches on the literal pattern.
 #[test]
 fn switch_regexp_path_is_regex_not_prefix() {
@@ -193,7 +193,7 @@ fn switch_regexp_path_is_regex_not_prefix() {
     assert_eq!(pm.value, "^/api/.*");
 }
 
-// RUST_ISSUE_046: a plain (exact) `switch` arm containing `*` is a literal,
+// A plain (exact) `switch` arm containing `*` is a literal,
 // not a prefix.
 #[test]
 fn switch_exact_path_with_star_is_literal() {
@@ -205,7 +205,7 @@ fn switch_exact_path_with_star_is_literal() {
     assert_eq!(pm.value, "/a*");
 }
 
-// RUST_ISSUE_046: a `switch -glob` host arm must become a regex host match,
+// A `switch -glob` host arm must become a regex host match,
 // not an exact match on the glob text (which would never match).
 #[test]
 fn switch_glob_host_is_regex() {
@@ -217,7 +217,7 @@ fn switch_glob_host_is_regex() {
     assert_eq!(hm.value, "^.*\\.example\\.com$");
 }
 
-// RUST_ISSUE_046: `-nocase` must be honoured, producing a case-insensitive
+// `-nocase` must be honoured, producing a case-insensitive
 // regex.
 #[test]
 fn switch_nocase_glob_host_is_case_insensitive_regex() {
@@ -233,7 +233,7 @@ fn switch_nocase_glob_host_is_case_insensitive_regex() {
     );
 }
 
-// RUST_ISSUE_047: a fall-through arm (`"/a*" -`) must attach its pattern to
+// A fall-through arm (`"/a*" -`) must attach its pattern to
 // the shared body, so no pattern's traffic is silently dropped.
 #[test]
 fn switch_fallthrough_arm_routes_all_patterns() {
@@ -253,7 +253,7 @@ fn switch_fallthrough_arm_routes_all_patterns() {
     assert_eq!(prefixes, vec!["/a".to_owned(), "/b".to_owned()]);
 }
 
-// RUST_ISSUE_047: a fall-through pattern that runs into the final `default`
+// A fall-through pattern that runs into the final `default`
 // arm (`"/old" - default { … }`) shares the default's body in Tcl, so the
 // translator must emit both a `/old`-specific route and the catch-all route.
 #[test]
@@ -278,7 +278,7 @@ fn switch_fallthrough_into_default_routes_pattern_and_catch_all() {
     );
 }
 
-// RUST_ISSUE_045: the Terraform simple-route renderer must emit host and
+// The Terraform simple-route renderer must emit host and
 // method criteria the translator recorded.
 #[test]
 fn terraform_simple_route_emits_host_and_method() {
@@ -294,7 +294,7 @@ fn terraform_simple_route_emits_host_and_method() {
     assert!(tf.contains("\"POST\""), "TF missing method value:\n{tf}");
 }
 
-// RUST_ISSUE_118: a pool name carrying HCL-invalid characters (`/`, `-`) must
+// A pool name carrying HCL-invalid characters (`/`, `-`) must
 // be sanitised into a valid resource label, and the route's reference must use
 // the SAME sanitised label — while the real name is preserved in `name = "…"`.
 #[test]
@@ -336,7 +336,7 @@ fn terraform_pool_name_with_slashes_is_sanitised() {
     );
 }
 
-// RUST_ISSUE_045: the Terraform redirect-route renderer must emit the host
+// The Terraform redirect-route renderer must emit the host
 // criterion, otherwise every request is redirected.
 #[test]
 fn terraform_redirect_route_emits_host() {
@@ -354,7 +354,7 @@ fn terraform_redirect_route_emits_host() {
     );
 }
 
-// RUST_ISSUE_045: the JSON redirect-route renderer must emit the host
+// The JSON redirect-route renderer must emit the host
 // criterion.
 #[test]
 fn json_redirect_route_emits_host() {
@@ -371,7 +371,7 @@ fn json_redirect_route_emits_host() {
     assert_eq!(redirect["match"]["host"]["exact"], "old.example.com");
 }
 
-// RUST_ISSUE_045: the JSON simple-route renderer must emit the method
+// The JSON simple-route renderer must emit the method
 // criterion.
 #[test]
 fn json_simple_route_emits_method() {

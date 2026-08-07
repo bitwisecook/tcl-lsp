@@ -365,8 +365,7 @@ pub fn spec() -> CommandSpec {
         // -glob pattern` as a write. Each subcommand instead declares its
         // own precise `side_effects` below, read by the same consumer's
         // subcommand-first hints path — the same fix already applied to
-        // `unset` for an identical reason (see RUST_ISSUE_078 /
-        // RUST_ISSUE_081).
+        // `unset` for an identical reason (see /).
         inferred_storage_type: Some(StorageType::Array),
         subcommands: SUBCOMMANDS,
         // Coarse fallback for any call the per-subcommand hints above don't

@@ -40,7 +40,7 @@ fn quote(value: &str) -> String {
 /// A Terraform resource label (and any `type.label.attr` reference to it) must
 /// match `[A-Za-z_][A-Za-z0-9_-]*`. iRule pool names routinely carry `/`, `.`
 /// and other metacharacters (`/Common/web-pool`), which — interpolated raw —
-/// produce syntactically invalid Terraform (`RUST_ISSUE_118`). Replace every
+/// produce syntactically invalid Terraform. Replace every
 /// disallowed character with `_`, prefix `_` when the first character is not a
 /// valid leader, and — when sanitisation actually changed the name — append a
 /// short deterministic hash of the ORIGINAL so two distinct names that sanitise
@@ -131,7 +131,7 @@ fn method_match_block(m: &XCMethodMatch, level: usize) -> String {
 /// Emit every recorded match criterion of a route (path, host, method,
 /// headers, query, cookies) as indented HCL blocks. Shared by the simple,
 /// redirect, and direct-response route renderers so none silently drops a
-/// criterion the translator recorded (`RUST_ISSUE_045`).
+/// criterion the translator recorded.
 fn route_match_blocks(route: &XCRoute, level: usize, lines: &mut Vec<String>) {
     if let Some(pm) = &route.path_match {
         lines.push(path_match_block(pm, level));
@@ -237,8 +237,7 @@ fn render_simple_route(route: &XCRoute, level: usize) -> String {
         lines.push(format!("{p}  origin_pools {{"));
         lines.push(format!("{p}    pool {{"));
         // Reference the resource by its sanitised label so the reference is
-        // valid HCL and matches the label emitted in `render_origin_pool`
-        // (RUST_ISSUE_118).
+        // valid HCL and matches the label emitted in `render_origin_pool`.
         let label = hcl_ident(&op.name);
         lines.push(format!(
             "{p}      name      = volterra_origin_pool.{label}.name"
@@ -594,7 +593,7 @@ mod ident_tests {
 
     #[test]
     fn slashed_name_is_sanitised_to_valid_identifier() {
-        // RUST_ISSUE_118: `/` and other metacharacters become `_`, and a
+        // `/` and other metacharacters become `_`, and a
         // disambiguating hash is appended.
         let id = hcl_ident("/Common/web-pool");
         assert!(!id.contains('/'), "{id}");

@@ -304,7 +304,7 @@ fn m_wide(_vm: &mut Vm, args: &[Value]) -> Completion<Value> {
 /// `-1`); a double truncates toward zero first, then wraps the same way
 /// (`int(1e300)` is `0` — 10^300 divides by 2^64). The integer path is exact —
 /// never round-tripped through `f64`, which would lose precision above 2^53
-/// (`int(9007199254740993)` must stay `…993`, `RUST_ISSUE_096`).
+/// (`int(9007199254740993)` must stay `…993`).
 fn int_window(args: &[Value], name: &str) -> Completion<Value> {
     let x = match one(args, name) {
         Ok(v) => v,

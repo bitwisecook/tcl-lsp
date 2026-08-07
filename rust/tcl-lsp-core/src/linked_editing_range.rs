@@ -79,7 +79,7 @@ pub fn linked_editing_ranges(
     // the canonical content; each call site is narrowed to the sub-span whose
     // text equals it, so a namespace-qualified self-call (`::greet`) links only
     // its `greet` tail — not the whole `::greet`, which would drop the `::` and
-    // corrupt the call under rename-as-you-type (RUST_ISSUE_040).
+    // corrupt the call under rename-as-you-type.
     let decl_text = source
         .get(proc.name_span.start() as usize..proc.name_span.end() as usize)
         .unwrap_or("");
@@ -255,7 +255,7 @@ mod tests {
 
     #[test]
     fn qualified_self_call_links_only_the_name_tail() {
-        // RUST_ISSUE_040: `::greet` self-call must link only its `greet` tail so
+        // `::greet` self-call must link only its `greet` tail so
         // every linked range covers identical text (`greet`); linking the whole
         // `::greet` would drop the `::` under rename-as-you-type.
         let src = "proc greet {} { ::greet }\n";

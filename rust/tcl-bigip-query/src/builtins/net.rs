@@ -1622,8 +1622,7 @@ fn bi_last_host(args: &[Value]) -> Result<Value, QueryError> {
 
 /// Represent a u128 address count as a query number: an exact `Int` when it
 /// fits i64, otherwise a `Float` (approximate but correctly signed and scaled).
-/// A raw `as i64` cast truncated 2^96-scale IPv6 counts to negative garbage
-/// (`RUST_ISSUE_120`).
+/// A raw `as i64` cast truncated 2^96-scale IPv6 counts to negative garbage.
 fn count_value(count: u128) -> Value {
     i64::try_from(count).map_or_else(|_| Value::Float(count as f64), Value::Int)
 }
@@ -2383,7 +2382,7 @@ mod tests {
 
     #[test]
     fn host_count_large_ipv6_is_not_negative() {
-        // RUST_ISSUE_120: a /32 IPv6 network has 2^96-2 hosts — an `as i64`
+        // A /32 IPv6 network has 2^96-2 hosts — an `as i64`
         // truncation returned -2. The value must be a large, positive number
         // (a Float, since it exceeds i64), never negative garbage.
         match bi_host_count(&[Value::Str("2001:db8::/32".to_owned())]).unwrap() {
@@ -2402,7 +2401,7 @@ mod tests {
 
     #[test]
     fn ip_range_count_large_span_is_not_negative() {
-        // RUST_ISSUE_120: a huge IPv6 range must not truncate to a negative i64.
+        // A huge IPv6 range must not truncate to a negative i64.
         match bi_ip_range_count(&[Value::Str(
             "::-ffff:ffff:ffff:ffff:ffff:ffff:ffff:fffe".to_owned(),
         )])

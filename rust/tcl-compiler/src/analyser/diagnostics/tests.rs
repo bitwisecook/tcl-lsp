@@ -1268,7 +1268,7 @@ fn e003_not_emitted_for_leading_switches() {
 
 #[test]
 fn e003_not_emitted_for_value_taking_leading_option() {
-    // RUST_ISSUE_022: `-start` consumes a value word, so
+    // `-start` consumes a value word, so
     // `regsub -start 0 $exp $str $sub out` is `-start` + its value +
     // 4 positional (exp/string/subSpec/varName) = max arity 4 → valid.
     // A name-only leading-option skip miscounted the `0` value word as a
@@ -1306,7 +1306,7 @@ fn e003_still_fires_past_value_taking_option() {
 
 #[test]
 fn interp_optional_path_subcommands_no_arity_error() {
-    // RUST_ISSUE_025: `interp issafe`/`exists`/`hidden` take an optional
+    // `interp issafe`/`exists`/`hidden` take an optional
     // `?path?`; the zero-arg idiom must not trip E002.
     for snippet in ["interp issafe", "interp exists", "interp hidden"] {
         let mut a = Analyser::new();
@@ -1333,7 +1333,7 @@ fn interp_optional_path_subcommands_no_arity_error() {
 
 #[test]
 fn interp_create_with_options_no_arity_error() {
-    // RUST_ISSUE_025: `interp create -safe -- name` — the option words are
+    // `interp create -safe -- name` — the option words are
     // skipped, leaving one positional (`name`) within the 0..=1 bound.
     let mut a = Analyser::new();
     let result = a.analyse("interp create -safe -- child", "tcl8.6");

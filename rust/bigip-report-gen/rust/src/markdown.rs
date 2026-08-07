@@ -36,7 +36,7 @@ use pulldown_cmark::{CowStr, Event, Options, Parser, Tag, html};
 /// Browsers strip ASCII whitespace and control characters and match the scheme
 /// case-insensitively, so a payload like `java\tSCRIPT:alert(1)` or
 /// ` javascript:…` would still execute — normalise the same way before the
-/// prefix test (`RUST_ISSUE_121`).
+/// prefix test.
 fn is_dangerous_url(url: &str) -> bool {
     let normalised: String = url
         .chars()
@@ -131,7 +131,7 @@ mod tests {
 
     #[test]
     fn neutralises_script_bearing_link_urls() {
-        // RUST_ISSUE_121: a `javascript:` / `data:` / `vbscript:` link
+        // A `javascript:` / `data:` / `vbscript:` link
         // destination must not survive into the rendered `href`, even with
         // scheme obfuscation (case, embedded whitespace/control chars).
         for md in [

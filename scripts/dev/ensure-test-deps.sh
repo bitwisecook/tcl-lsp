@@ -125,7 +125,7 @@ fi
 # not already root — on macOS too, where `ensure_wasi_sdk`/`ensure_wasmtime`
 # `mkdir -p /opt/...` on root-owned /opt. Setting SUDO only in the Linux branch
 # meant the Darwin path ran those as the invoking user and aborted under `set
-# -e` (RUST_ISSUE_140). Homebrew invocations deliberately do not use $SUDO.
+# -e`. Homebrew invocations deliberately do not use $SUDO.
 if [ "$(id -u)" != "0" ] && command -v sudo >/dev/null 2>&1; then
     SUDO="sudo"
 fi

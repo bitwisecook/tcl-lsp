@@ -50,7 +50,7 @@ tcl-cmd-core = { path = "../tcl-cmd-core" }
 tcl-platform = { path = "../tcl-platform" }
 tcl-host-native = { path = "../tcl-host-native" }
 tcl-regex = { path = "../tcl-regex", features = ["cmd-core"] }
-# Arbitrary-precision integers for the `expr` tower (RUST_ISSUE_011): the VM is
+# Arbitrary-precision integers for the `expr` tower: the VM is
 # pure Rust (no libtommath), so `num-bigint` is its bignum backend once a result
 # outgrows the `i128` fast path. `num-integer`/`num-traits` supply floor
 # div/mod, `pow`, and the primitive narrowing. The `tcl-syntax` `num-bigint`

@@ -53,8 +53,7 @@ impl TclVersion {
             Some("tcl8.6") => Some(Self::V8_6),
             Some("tcl9.0") => Some(Self::V9_0),
             // 9.1 must not fall through to `None` (which degrades a versioned
-            // fold to the dialect-invariant subset) — it behaves as 9.0+
-            // (RUST_ISSUE_083).
+            // fold to the dialect-invariant subset) — it behaves as 9.0+.
             Some("tcl9.1") => Some(Self::V9_1),
             _ => None,
         }
@@ -682,7 +681,7 @@ mod tests {
 
     #[test]
     fn from_dialect_maps_every_versioned_tcl() {
-        // RUST_ISSUE_083: tcl9.1 must resolve to a version, not `None` (which
+        // Tcl9.1 must resolve to a version, not `None` (which
         // silently degrades versioned folds to the dialect-invariant subset).
         assert_eq!(
             TclVersion::from_dialect(Some("tcl8.4")),

@@ -208,7 +208,7 @@ fn bi_strftime(args: &[Value]) -> Result<Value, QueryError> {
     // `Display` returns `fmt::Error`. `.to_string()` turns that into a *panic*
     // ("a Display implementation returned an error unexpectedly"), aborting the
     // in-report wasm console; `write!` propagates it so we can return a clean
-    // Tcl error instead (RUST_ISSUE_119).
+    // Tcl error instead.
     let mut buf = String::new();
     if write!(buf, "{}", dt.naive_utc().format(&fmt)).is_err() {
         return Err(QueryError::builtin(format!(
@@ -446,7 +446,7 @@ mod tests {
 
     #[test]
     fn strftime_invalid_format_errors_not_panics() {
-        // RUST_ISSUE_119: an invalid specifier lexes to `Item::Error`, whose
+        // An invalid specifier lexes to `Item::Error`, whose
         // Display returns fmt::Error — `.to_string()` would panic. We must get a
         // clean QueryError instead.
         for bad in ["%E", "100%", "%"] {

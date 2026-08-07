@@ -358,7 +358,7 @@ fn dict_op(vm: &mut Vm, sub: &str, rest: &[Value]) -> Completion<Value> {
             };
             // The same tower addition `incr` uses (`value_ops::int_add`): a sum
             // past `i64` promotes to `i128` and past that to an
-            // arbitrary-precision bignum, matching tclsh (RUST_ISSUE_095 —
+            // arbitrary-precision bignum, matching tclsh ( —
             // `dict incr` at `i64::MAX` yields `9223372036854775808`, never an
             // overflow error).
             let one = Value::int(1);

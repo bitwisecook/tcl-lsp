@@ -162,7 +162,7 @@ fn xdp_attach_detach_in_a_disposable_namespace_leaks_nothing() {
 }
 
 #[test]
-#[ignore = "TC codegen is registry-described but not yet implemented (issue #1204)"]
+#[ignore = "TC codegen is registry-described but not yet implemented (issue #1310)"]
 fn tc_ingress_scenario_is_described_and_pending() {
     // The TC event is a typed registry contract today; its codegen (SCHED_CLS)
     // is sequenced for a later change. This test documents the intended isolated
@@ -183,7 +183,7 @@ fn tc_ingress_scenario_is_described_and_pending() {
 }
 
 #[test]
-#[ignore = "cgroup codegen is registry-described but not yet implemented (issue #1204)"]
+#[ignore = "cgroup codegen is registry-described but not yet implemented (issue #1310)"]
 fn cgroup_connect_scenario_is_described_and_pending() {
     // The cgroup connect/bind events are typed registry contracts; codegen
     // (CGROUP_SOCK_ADDR) is pending. A real implementation attaches to an

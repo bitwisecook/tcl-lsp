@@ -101,8 +101,8 @@ enum Command {
     /// Probe `OptionSpec` dialect gates against real tclsh 8.4/8.5/8.6/9.0.
     AuditOptionDialects,
 
-    /// Check the WASM runtime backs every core-Tcl registry command
-    /// (`RUST_ISSUE_006`); regenerate `docs/generated/wasm-command-backing.md`.
+    /// Check the WASM runtime backs every core-Tcl registry command;
+    /// regenerate `docs/generated/wasm-command-backing.md`.
     #[command(name = "command-backing")]
     WasmBacking {
         /// Verify backing + report are in sync instead of rewriting; exit

@@ -922,7 +922,7 @@ impl Lowerer<'_> {
                 // runtime command instead. The `-` fallthrough marker is a
                 // literal, not a body, so it is exempt. (`seg.argv` includes the
                 // command word, so the body word `args[i + 1]` is index
-                // `i + 2`.) RUST_ISSUE_071.
+                // `i + 2`.).
                 if body_text_inner != "-" && !super::seg_word_is_static_literal(seg, i + 2) {
                     return Self::barrier(seg, "switch with non-literal arm body");
                 }
@@ -1133,7 +1133,7 @@ mod tests {
 
     #[test]
     fn switch_substituted_arm_body_barriers() {
-        // RUST_ISSUE_071: a multi-arg arm body that is a substitution
+        // A multi-arg arm body that is a substitution
         // (`$handler`, `[cmd]`, a quoted word) must NOT be lowered from its
         // unsubstituted spelling — the switch defers to the runtime command so
         // no phantom Call to `${handler}` is fabricated.
@@ -1154,7 +1154,7 @@ mod tests {
 
     #[test]
     fn switch_static_arm_body_still_lowers() {
-        // FP-guard for RUST_ISSUE_071: genuinely literal arm bodies (braced,
+        // FP-guard for: genuinely literal arm bodies (braced,
         // and the `-` fallthrough marker) still lower to a structured Switch.
         for src in [
             "switch $x a {puts a} b {puts b}",

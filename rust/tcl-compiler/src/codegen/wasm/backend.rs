@@ -25,7 +25,7 @@
 //! is **structured** WASM (`if`/`else`; `block`/`loop` with `br`/`br_if` for
 //! loops + `break`/`continue`/`return`), and the code a leaf command returns is
 //! honoured — an `error`/`return` unwinds, a `break`/`continue` re-enters the
-//! loop (`RUST_ISSUE_010`). This produces a *structurally valid* module
+//! loop. This produces a *structurally valid* module
 //! (validated with `wasmtime compile`) against the `"tcl"` import ABI the WASM
 //! runtime provides (values are i32 `*mut TclObj` pointers into shared linear
 //! memory). The runtime side of that ABI is the leak-tested eval surface in
@@ -74,7 +74,7 @@ struct Imports {
     /// `(script_obj) -> i32` — evaluate a leaf command and return its **completion
     /// code** (`0` ok … `4` continue, or a `return -code N`); the result stays the
     /// interp's own. The emitted control flow branches on the code so abrupt
-    /// completion propagates (`RUST_ISSUE_010`). Adopts (frees) its argument, so
+    /// completion propagates. Adopts (frees) its argument, so
     /// there is no result reference for the emitter to release.
     eval_code: u32,
     /// `(expr_obj) -> i32` — evaluate a condition to a boolean.
@@ -201,8 +201,7 @@ impl WasmEmitter {
     /// Honour the completion code a leaf command's [`tcl_eval_code`] left on the
     /// stack — the AOT realisation of the tree-walker's "stop the script on the
     /// first non-`OK` command" loop (`eval_script_mode`), so abrupt completion
-    /// propagates through compiled `if`/`while`/`for` instead of being swallowed
-    /// (`RUST_ISSUE_010`).
+    /// propagates through compiled `if`/`while`/`for` instead of being swallowed.
     ///
     /// Inside a loop, `break` (3) / `continue` (4) re-enter that loop's structural
     /// scopes (identical to a literal `break`/`continue`, so a *dynamic* one — a

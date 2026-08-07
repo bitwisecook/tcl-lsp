@@ -1552,7 +1552,7 @@ impl Parser<'_> {
                         // CC_LOWER to CC_ALPHA — *letters*, not alnum. Folding to
                         // `Alnum` wrongly matched digits, so
                         // `regexp -nocase {[[:upper:]]} 5` matched here but not
-                        // in tclsh (RUST_ISSUE_132).
+                        // in tclsh.
                         if set.nocase && matches!(k, ClassKind::Lower | ClassKind::Upper) {
                             k = ClassKind::Alpha;
                         }

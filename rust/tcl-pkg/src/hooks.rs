@@ -203,7 +203,7 @@ fn run_one(
 /// Operates on `&str` slices (split at ASCII `${` / `}` boundaries, which are
 /// always char boundaries) rather than re-encoding each byte as a `char`, which
 /// mojibake-corrupted non-ASCII text — a hook `command = ["/opt/prüfer"]`
-/// became `/opt/prÃ¼fer` (`RUST_ISSUE_129`).
+/// became `/opt/prÃ¼fer`.
 fn expand(input: &str, vars: &HashMap<String, String>) -> String {
     let mut out = String::with_capacity(input.len());
     let mut rest = input;
@@ -272,7 +272,7 @@ mod tests {
 
     #[test]
     fn expand_preserves_non_ascii() {
-        // RUST_ISSUE_129: non-ASCII text must survive verbatim, not be
+        // Non-ASCII text must survive verbatim, not be
         // re-encoded byte-by-byte as Latin-1 (`prüfer` → `prÃ¼fer`).
         let mut vars = HashMap::new();
         vars.insert("DIR".to_string(), "/opt/prüfer".to_string());

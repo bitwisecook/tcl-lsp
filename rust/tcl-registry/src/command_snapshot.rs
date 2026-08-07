@@ -105,7 +105,7 @@ const TRAIT_FLAGS: &[(&str, Traits)] = &[
 // `CommandSpec.dialects` serialisation derives from
 // `DialectSet::member_names` — the same canonical-name table `parse`
 // inverts — rather than a parallel hand-list. A hand-list here missed
-// `tcl9.1`/`bpf` once (RUST_ISSUE_082: a `TCL90_PLUS` spec dropped its 9.1
+// `tcl9.1`/`bpf` once (a `TCL90_PLUS` spec dropped its 9.1
 // membership and a BPF-only spec serialised `[]`, indistinguishable from
 // "available nowhere") and the Milestone 6 `TMSH`/`BIGIP` bits a second
 // time, so new primitive bits can never be forgotten again.
@@ -458,7 +458,7 @@ mod tests {
 
     #[test]
     fn tcl90_plus_includes_tcl91() {
-        // RUST_ISSUE_082: a TCL90_PLUS spec must serialise BOTH tcl9.0 and
+        // A TCL90_PLUS spec must serialise BOTH tcl9.0 and
         // tcl9.1 — 9.1 was silently dropped.
         let n = names(DialectSet::TCL90_PLUS);
         assert!(n.contains(&"tcl9.0".to_owned()), "{n:?}");
@@ -467,7 +467,7 @@ mod tests {
 
     #[test]
     fn bpf_only_spec_is_not_empty() {
-        // RUST_ISSUE_082: a BPF-only spec serialised `[]` (looks like
+        // A BPF-only spec serialised `[]` (looks like
         // "available nowhere"); it must render `["bpf"]`.
         assert_eq!(names(DialectSet::BPF), vec!["bpf".to_owned()]);
     }

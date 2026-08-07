@@ -74,7 +74,7 @@ fn run_create(
     if force && path.exists() {
         // Only clobber an existing *venv* — an existing directory that isn't a
         // tclpkg venv (a typo'd path to a real project dir) must not be silently
-        // `rm -rf`'d, mirroring `delete_venv`'s data-loss guard (`RUST_ISSUE_123`).
+        // `rm -rf`'d, mirroring `delete_venv`'s data-loss guard.
         if path.join("tclvenv.cfg").is_file() {
             let _ = std::fs::remove_dir_all(path);
         } else {

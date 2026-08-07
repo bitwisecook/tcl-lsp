@@ -806,7 +806,7 @@ mod tests {
 
     #[test]
     fn lsp_index_counts_lone_cr_as_line_break() {
-        // RUST_ISSUE_033: for LSP document sync a bare `\r` starts a new line
+        // For LSP document sync a bare `\r` starts a new line
         // (the client models it that way), unlike the `\n`-only `new`.
         let src = "a\rb\nc";
         let idx = LineIndex::new_lsp(src);

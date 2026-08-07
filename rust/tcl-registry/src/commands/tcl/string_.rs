@@ -1991,7 +1991,7 @@ mod tests {
         assert_eq!(is("dict", "", Some(V8_6)), None, "dict \"\" raises pre-9.0");
         assert_eq!(is("dict", "", Some(V9_0)).as_deref(), Some("1"));
 
-        // RUST_ISSUE_083: tcl9.1 must fold identically to 9.0 (it is a 9.0+
+        // Tcl9.1 must fold identically to 9.0 (it is a 9.0+
         // superset), not degrade to the dialect-invariant 8.x subset. Assert
         // parity with 9.0 across the version-sensitive classes.
         let v91 = TclVersion::from_dialect(Some("tcl9.1"));

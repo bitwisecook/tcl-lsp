@@ -7,7 +7,7 @@
 | **Severity** | high |
 | **Subsystem** | Backend parity (WASM/VM/eBPF/registry) |
 | **Location** | `WASM backend` |
-| **Status** | Substantially resolved (VM coroutines incl. `coroprobe`/`coroinject`/`corotype`/`yieldto` + event loop + thread package incl. `mutex`/`cond`/`rwmutex`/`tpool`; coroutines proven on wasm32 via the VM, now the **default `tcl compwasm` backend** shipping a generic `vm.wasm` runner; `yield` now crosses `eval`/`uplevel 0`/`catch`, a straight-line `lmap` (the inline collecting loop), and `subst` (a scanner-driven subst frame) on the explicit stack). C `coroutine.test` runs the VM at **60/77** (3 skipped; the lmap-in-`apply` 9.2/10.1/10.3 and the `subst`-as-coroutine 1.13/1.14 now pass; 10.2 still diverges on coroinject stacking order). Open tail: a `[yieldto …]` in a command-substitution *argument* slot (7.3/12.1, lowers to runtime `subst_word`), `lmap` in a *consumed*/branching position, and `try`/`apply`/`lsort -command`. |
+| **Status** | Substantially resolved (VM coroutines incl. `coroprobe`/`coroinject`/`corotype`/`yieldto` + event loop + thread package incl. `mutex`/`cond`/`rwmutex`/`tpool`; coroutines proven on wasm32 via the VM, now the **default `tcl compwasm` backend** shipping a generic `vm.wasm` runner; `yield` now crosses `eval`/`uplevel 0`/`catch`, a straight-line `lmap` (the inline collecting loop), and `subst` (a scanner-driven subst frame) on the explicit stack). C `coroutine.test` runs the VM at **60/77** (3 skipped; the lmap-in-`apply` 9.2/10.1/10.3 and the `subst`-as-coroutine 1.13/1.14 now pass; 10.2 still diverges on coroinject stacking order). Open tail: a `[yieldto …]` in a command-substitution *argument* slot (7.3/12.1, lowers to runtime `subst_word`), `lmap` in a *consumed*/branching position, and `try`/`apply` — now tracked as **GitHub issue #1311** with standalone repros for the last three. **Correction (2026-08-07):** `lsort -command` was listed here as an open barrier and is not one — C Tcl refuses it too (`tclsh9.0` and `tclvm` both raise `cannot yield: C stack busy` for a `yield` inside an `lsort -command` comparator), so that is parity, not a gap. |
 | **Verification** | Oracle-checked against tclsh 9.0.4 (coroutine/event-loop suites, 28 `cmd_coro_e2e` tests) + the real C `tests/coroutine.test` through the VM (55/77) + a Node-executed wasm32 coroutine test; thread package via deterministic concurrency tests (`thread.test` is `testthread`-gated → N/A; no threaded oracle). |
 
 ## Finding
@@ -304,7 +304,7 @@ the reference tclsh is non-threaded, so there is no threaded oracle).
   called in deleted namespace` when a coroutine's namespace is deleted while it
   is suspended.
 - The `tcl-registry` `Thread`-package `CommandSpec`s for the sync primitives are
-  LSP metadata only (the runtime and the `RUST_ISSUE_006` core-backing gate do
+  LSP metadata only (the runtime and the `cargo xtask command-backing` gate do
   not require them). The `thread` package (including the `mutex`/`cond`/`rwmutex`/
   `tpool` primitives now landed) is a native-only VM feature — it needs OS
   threads; on wasm the VM runs single-threaded with coroutines, matching the

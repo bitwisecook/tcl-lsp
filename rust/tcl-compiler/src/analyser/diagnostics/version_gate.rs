@@ -609,7 +609,7 @@ mod tests {
 
     #[test]
     fn option_value_that_looks_like_a_flag_is_not_retested() {
-        // RUST_ISSUE_077: `-placeholder`'s value is itself `-placeholder`. The
+        // `-placeholder`'s value is itself `-placeholder`. The
         // value word must be skipped, so exactly ONE W136 fires (the option),
         // not two (the option plus its value re-tested as an option).
         let src = "package require Tk 8.6\nentry .e -placeholder -placeholder\n";

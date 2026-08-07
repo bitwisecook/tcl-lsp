@@ -423,7 +423,7 @@ fn dict_incr() {
 
 /// `dict incr` promotes through the same integer tower as `incr`/`expr`
 /// (`value_ops::int_add`): a sum past `i64` becomes the exact bignum, never
-/// the old "integer value too large to represent" error (`RUST_ISSUE_095`).
+/// the old "integer value too large to represent" error.
 #[test]
 fn dict_incr_promotes_past_wide() {
     // tclsh 8.6/9.0: the default-increment (compiled `DICT_INCR_IMM`) path

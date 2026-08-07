@@ -98,7 +98,7 @@ pub fn compile_module(source: &str) -> Result<BpfModule, BpfError> {
     // declarations (`is_decl`) are consumed. Any other top-level statement —
     // a stray `drop`, `load16 …`, `set …`, or an unknown command — would be
     // silently dropped from the emitted program with no diagnostic, a silent
-    // mishandle. Reject it instead (RUST_ISSUE_012).
+    // mishandle. Reject it instead.
     if saw_when {
         for stmt in &module.top_level.statements {
             let is_when = matches!(
@@ -204,7 +204,7 @@ fn lower_when_decl(
 
     // Accept exactly `when EVENT { body }` or `when EVENT priority N { body }`
     // — nothing else. A malformed header must never be silently normalised
-    // (`RUST_ISSUE_063`: `when XDP priority nope { … }` used to become
+    // (`when XDP priority nope { … }` used to become
     // priority 500 with no diagnostic).
     let priority = match args.len() {
         2 => DEFAULT_PRIORITY,
@@ -423,7 +423,7 @@ mod tests {
 
     #[test]
     fn stray_top_level_statement_after_when_is_rejected() {
-        // RUST_ISSUE_012: a stray top-level statement alongside a `when` block
+        // A stray top-level statement alongside a `when` block
         // must not be silently dropped — it is a hard error.
         let err =
             compile_module("when SOCKET_FILTER { setbuf pkt ctx\n accept }\ndrop\n").unwrap_err();

@@ -77,7 +77,7 @@ fn set_list(interp: &mut Interp, elems: &[*mut TclObj]) {
 /// shared, radix-aware [`tcl_cmd_core::index`] core — the same parser `lindex`
 /// / `lrange` / `lreplace` / `linsert` use — so a hex index like `0x1` or
 /// `end-0x1` resolves the way real Tcl's `Tcl_GetIntForIndex` does instead of
-/// being rejected by a decimal-only reader (RUST_ISSUE_028). Returns a
+/// being rejected by a decimal-only reader. Returns a
 /// (possibly out-of-range) signed index; callers clamp/range-check.
 pub(crate) fn index_spec(spec: &[u8], len: usize) -> Option<isize> {
     let s = core::str::from_utf8(spec).ok()?;
@@ -295,7 +295,7 @@ fn bad_list(interp: &mut Interp, e: crate::parse::ListError) -> Code {
 /// accepts the full Tcl integer grammar (`0x3` → `a a a`), the negative-count
 /// error reports the *actual* count (`lrepeat -3 a` → `bad count "-3"…`, not a
 /// hard-coded `"-1"`), and the result-capacity multiply is `saturating_mul`
-/// rather than an overflowing `count * values.len()` (RUST_ISSUE_094 / 169).
+/// rather than an overflowing `count * values.len()`.
 fn lrepeat(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     if argv.len() < 2 {
         return interp.wrong_args(b"lrepeat count ?value ...?");
@@ -479,7 +479,7 @@ fn ledit(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     };
     let lo = first.max(0).min(len as isize) as usize;
     // `last.saturating_add(1)` — an `end`-relative or explicit index at
-    // `isize::MAX` must not overflow the `+ 1` before the clamp (RUST_ISSUE_169).
+    // `isize::MAX` must not overflow the `+ 1` before the clamp.
     let hi = (last.saturating_add(1).max(0) as usize).clamp(lo, len);
     let mut out: Vec<*mut TclObj> = Vec::with_capacity(len + argv.len());
     out.extend_from_slice(&elems[..lo]);
@@ -506,7 +506,7 @@ fn ledit(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
 
 /// `lpop varName ?index?` — remove and return the element at `index` (default
 /// the last), storing the shortened list back into the variable. A radix or
-/// `end`-relative index resolves via the shared index core (RUST_ISSUE_007).
+/// `end`-relative index resolves via the shared index core.
 fn lpop(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     if argv.len() < 2 {
         return interp.wrong_args(b"lpop varName ?index?");
@@ -571,7 +571,7 @@ fn lpop(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
 
 /// `lremove list ?index ...?` — return `list` with the elements at the given
 /// indices removed. Indices resolve (radix + `end`-relative), duplicates
-/// collapse, and out-of-range indices are ignored (RUST_ISSUE_007).
+/// collapse, and out-of-range indices are ignored.
 fn lremove(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     if argv.len() < 2 {
         return interp.wrong_args(b"lremove list ?index ...?");
@@ -1134,7 +1134,7 @@ mod tests {
 
     #[test]
     fn hex_indices_and_counts_accepted() {
-        // RUST_ISSUE_028: lset/ledit and string index/repeat now share the
+        // Lset/ledit and string index/repeat now share the
         // radix-aware index/integer core, so hex specs resolve like real Tcl.
         assert_eq!(ok(b"set x {a b c}; lset x 0x1 Z; set x"), b"a Z c");
         assert_eq!(ok(b"string index abcdef 0x2"), b"c");

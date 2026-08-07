@@ -75,7 +75,7 @@ fn rename_var_name(name: &str, rename: &HashMap<String, String>) -> String {
         // Both the array base *and* any `$var` inside the index need the
         // rename: `set arr($idx) …` substitutes `$idx`, so an inlined body's
         // index reference must map to the renamed inline local, not capture the
-        // caller's variable (RUST_ISSUE_020). The base is renamed only when it
+        // caller's variable. The base is renamed only when it
         // is a tracked local; the tail is rewritten regardless (its `$var`
         // might be a local even when the base is a caller global).
         let renamed_base = rename.get(base).map_or(base, String::as_str);
@@ -88,7 +88,7 @@ fn rename_var_name(name: &str, rename: &HashMap<String, String>) -> String {
 /// Rewrite the `(idx)` array-index tail of an *unbraced* variable reference.
 /// The index is a substituted context (`arr($idx)`), so any `$var` / `${var}`
 /// inside it is α-renamed via the value-string rewriter rather than copied
-/// verbatim (`RUST_ISSUE_020`). A braced `${arr(idx)}` name is *not* a
+/// verbatim. A braced `${arr(idx)}` name is *not* a
 /// substituted context and must not be routed here.
 fn rewrite_array_index_tail(tail: &str, rename: &HashMap<String, String>) -> String {
     if tail.is_empty() {
@@ -549,7 +549,7 @@ fn rewrite_value_string(text: &str, rename: &HashMap<String, String>) -> String 
         // Emit the base (renamed when it is a tracked local) followed by the
         // rewritten index tail — the index is a substituted context, so a
         // `$var` inside it (`$arr($idx)`) is α-renamed too instead of copied
-        // verbatim (RUST_ISSUE_020).
+        // verbatim.
         out.push('$');
         out.push_str(rename.get(base).map_or(base, String::as_str));
         out.push_str(&rewrite_array_index_tail(tail, rename));
@@ -732,7 +732,7 @@ mod tests {
 
     #[test]
     fn value_string_renames_var_inside_array_index() {
-        // RUST_ISSUE_020: `$arr($idx)` — both the base and the `$idx` inside the
+        // `$arr($idx)` — both the base and the `$idx` inside the
         // index are α-renamed, so an inlined body reads the renamed inline
         // local, not the caller's `idx`.
         let r = rn(&[("arr", "__inline_arr"), ("idx", "__inline_idx")]);

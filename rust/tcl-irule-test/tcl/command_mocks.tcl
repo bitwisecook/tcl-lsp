@@ -1344,7 +1344,7 @@ namespace eval ::itest::cmd {
                 # <value> <operator> <datagroup> triple. Parse them off the
                 # front rather than assuming the value is at index 0, so
                 # `class match -- [HTTP::host] equals hosts` no longer treats
-                # `equals` as the datagroup name (RUST_ISSUE_114).
+                # `equals` as the datagroup name.
                 set flags {}
                 set idx 0
                 set n [llength $rest]
@@ -1364,7 +1364,7 @@ namespace eval ::itest::cmd {
                 set options [concat $flags [lrange $rest [expr {$idx + 3}] end]]
                 # Thread the comparison operator through to the matcher so
                 # starts_with / contains / ends_with are honoured rather than
-                # collapsing to exact equality (RUST_ISSUE_113).
+                # collapsing to exact equality.
                 return [::state::datagroup::match $dg_name $value $operator {*}$options]
             }
             lookup {

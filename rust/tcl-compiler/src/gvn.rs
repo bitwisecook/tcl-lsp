@@ -1675,7 +1675,7 @@ mod tests {
         t.insert(entry(&["call", "b"], "b", 1));
         t.kill_all();
         // `kill_all` drops every entry but preserves the scope-stack depth, so
-        // the push/pop discipline survives (RUST_ISSUE_067). Collapsing the
+        // the push/pop discipline survives. Collapsing the
         // stack would strand later inserts in a never-popped root scope.
         assert_eq!(t.scope_depth(), 2);
         assert_eq!(t.total_entries(), 0);
@@ -1683,7 +1683,7 @@ mod tests {
 
     #[test]
     fn kill_all_mid_branch_does_not_leak_to_sibling() {
-        // RUST_ISSUE_067, replicated at the table level exactly as the
+        // replicated at the table level exactly as the
         // dominator walk drives it: enter block, enter then-arm, a state write
         // kills, record an occurrence, leave the then-arm, enter the else-arm.
         // The then-arm's occurrence must not be visible in the sibling.
@@ -3047,7 +3047,7 @@ mod tests {
 
     #[test]
     fn kill_all_does_not_leak_across_sibling_branches() {
-        // RUST_ISSUE_067: a state-writing statement (a global write here) in
+        // A state-writing statement (a global write here) in
         // the then-arm calls `kill_all`. That must NOT collapse the scope
         // stack, or the then-arm's `[llength $lst]` occurrence strands in the
         // never-popped root scope and the else-arm's identical computation is
@@ -3064,7 +3064,7 @@ mod tests {
 
     #[test]
     fn kill_all_preserves_within_path_detection() {
-        // FP-guard for RUST_ISSUE_067: the in-place clear must not disturb
+        // FP-guard for: the in-place clear must not disturb
         // ordinary same-path redundancy detection — two identical pure
         // computations with nothing between them are still redundant.
         assert_eq!(

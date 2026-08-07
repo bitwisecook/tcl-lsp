@@ -411,8 +411,7 @@ impl<'s> Inner<'s> {
             // of a `::` namespace-separator pair — a *single* colon ends the
             // name, exactly like the main lexer's `parse_var`. Accepting a lone
             // `:` made `expr {$x>0?$y:$z}` lex `$y:` as one variable, swallowing
-            // the ternary separator so the whole expr degraded to Raw
-            // (RUST_ISSUE_086).
+            // the ternary separator so the whole expr degraded to Raw.
             while self.i < self.b.len() {
                 let c = self.b[self.i];
                 if c.is_ascii_alphanumeric() || c == b'_' {
@@ -440,7 +439,7 @@ impl<'s> Inner<'s> {
     /// substitution, or inside a nested `${…}` / `$name(…)` reference — whose
     /// tokens are scanned so their inner `)` are not the terminator. The old
     /// paren-counting left `$a((b)` unterminated and ended `$a(x\)y)` at the
-    /// escaped `)` (`RUST_ISSUE_085`).
+    /// escaped `)`.
     ///
     /// `depth` is the nesting level of this call (0 at the top); past
     /// [`MAX_EXPR_ARRAY_INDEX_DEPTH`] a nested `$name(` is scanned as an
@@ -521,7 +520,7 @@ impl<'s> Inner<'s> {
                 // `\` at end-of-input must not combine with the unconditional
                 // `self.i += 1` below to push `i` to `len + 1`, which then
                 // panics the out-of-bounds `self.s[start..self.i]` slice in
-                // `tok` (RUST_ISSUE_026).
+                // `tok`.
                 b'\\' if self.i + 1 < self.b.len() => {
                     self.i += 1;
                 }
@@ -537,7 +536,7 @@ impl<'s> Inner<'s> {
         self.i += 1;
         while self.i < self.b.len() && self.b[self.i] != b'"' {
             // Skip the escaped byte only when it exists (a trailing `\` must not
-            // push `i` past the end and panic `tok`'s slice — RUST_ISSUE_026).
+            // push `i` past the end and panic `tok`'s slice).
             if self.b[self.i] == b'\\' && self.i + 1 < self.b.len() {
                 self.i += 1;
             }
@@ -681,7 +680,7 @@ mod tests {
 
     #[test]
     fn trailing_backslash_in_command_does_not_panic() {
-        // RUST_ISSUE_026: a `[...` command substitution ending in a bare `\`
+        // A `[...` command substitution ending in a bare `\`
         // must not push the cursor past end-of-input (out-of-bounds slice in
         // `tok`). The whole token, backslash included, is returned.
         let toks = tokenise_expr(r"[a \", None);
@@ -693,7 +692,7 @@ mod tests {
 
     #[test]
     fn trailing_backslash_in_quoted_does_not_panic() {
-        // RUST_ISSUE_026: a `"...` string ending in a bare `\`.
+        // A `"...` string ending in a bare `\`.
         let toks = tokenise_expr(r#""a\"#, None);
         assert!(toks.iter().any(|t| t.kind == ExprTokenType::String));
     }
@@ -762,7 +761,7 @@ mod tests {
 
     #[test]
     fn array_index_first_paren_terminates() {
-        // RUST_ISSUE_085: no paren nesting — the index ends at the first `)`.
+        // No paren nesting — the index ends at the first `)`.
         assert_eq!(texts("$a((b)").first().map(String::as_str), Some("$a((b)"));
         // An escaped `)` stays in the index; a `[…]`/`${…}` inner `)` too.
         assert_eq!(
@@ -781,7 +780,7 @@ mod tests {
 
     #[test]
     fn single_colon_ends_variable_name() {
-        // RUST_ISSUE_086: a lone `:` is not a name char — the ternary separator
+        // A lone `:` is not a name char — the ternary separator
         // in `$y:$z` must not be swallowed into the variable, or the spaceless
         // ternary `$x>0?$y:$z` degrades to Raw.
         let t = texts("$y:$z");

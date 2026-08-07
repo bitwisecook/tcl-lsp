@@ -2495,7 +2495,7 @@ mod tests {
         let mut reg90 = CommandRegistry::build_default();
         reg90.load_dialect(DialectSet::TCL90);
         assert!(!reg90.leading_zero_is_octal(), "tcl9.0 should be decimal");
-        // RUST_ISSUE_024: tcl9.1 keeps the TIP 114 decimal rule; a tcl9.1-only
+        // tcl9.1 keeps the TIP 114 decimal rule; a tcl9.1-only
         // registry (loads TCL91, not TCL90) must still read leading zeros as
         // decimal.
         let mut reg91 = CommandRegistry::build_default();

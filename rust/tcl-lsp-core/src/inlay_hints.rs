@@ -296,7 +296,7 @@ fn collect_type_hints(
     // qualified name (leading `::` stripped so it matches the analyser's
     // scope names). A single flat map was last-writer-wins across functions,
     // so a var named `x` typed Int in one proc bled its type onto an unrelated
-    // `x` typed String in another (RUST_ISSUE_109). Keeping the maps separate
+    // `x` typed String in another. Keeping the maps separate
     // and selecting by the owning scope keeps each scope's types local.
     let mut by_function: FxHashMap<String, FxHashMap<String, String>> = FxHashMap::default();
     for fu in cu.functions() {
@@ -1592,7 +1592,7 @@ mod tests {
 
     #[test]
     fn same_named_vars_in_different_procs_do_not_bleed_types() {
-        // RUST_ISSUE_109: `x` is Int in `a` and a String in `b`. The type hint
+        // `x` is Int in `a` and a String in `b`. The type hint
         // for each `x` must reflect its own proc, not last-writer-wins across a
         // flat name→type map.
         let src = "proc a {} { set x 42 }\nproc b {} { set x \"hi\" }\n";

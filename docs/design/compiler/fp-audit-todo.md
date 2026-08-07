@@ -4,12 +4,17 @@ A living checklist for sweeping **every** diagnostic / optimisation / shimmer
 code against the real corpus (tcllib 2.0, Tcl 9.0.3 stdlib, tklib 0.9, tdom,
 **SpiceGenTcl**) looking for false positives.
 
-**Method per code:** dump every firing (`bench/fp_snippets.py`-style harness,
-dialect-aware via `detect_dialect_from_source` + `dialect_scope` — see the note
-below), group by site/shape, reduce the highest-volume shapes to a minimal
-repro, verify against **C tclsh 9.0.3**, and either (a) fix the FP with paired
-TP/FP regression tests, or (b) record "confirmed true-positive / no change"
-with the reasoning.
+**Method per code:** dump every firing with a dialect-aware corpus harness (see
+the note below), group by site/shape, reduce the highest-volume shapes to a
+minimal repro, verify against **C tclsh 9.0.3**, and either (a) fix the FP with
+paired TP/FP regression tests, or (b) record "confirmed true-positive / no
+change" with the reasoning.
+
+> **The harness no longer exists.** The method above was built on
+> `bench/fp_snippets.py`, which went with the Python retirement; `bench/` is not
+> present on this branch and `xtask` has no replacement sweep. The 40 `[ ]` rows
+> below therefore cannot be picked up as written. Rebuilding the sweep as
+> `xtask fp-sweep` is tracked in **issue #1316**.
 
 > **Harness correctness note (learned this round):** a raw `get_diagnostics(src)`
 > uses the default dialect `tcl8.6`. The corpus must be swept *dialect-aware* —

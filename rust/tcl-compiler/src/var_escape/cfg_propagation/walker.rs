@@ -238,7 +238,7 @@ fn handle_uplevel(args: &[String], state: &mut CfgState, defs: &HashMap<String, 
     // `uplevel 0` runs the body in the *current* frame — a `set x` there
     // name-writes our proc's local `x` exactly like `eval`. Walk it the same
     // way so those escapes are recorded; treating `0` as global-safe like `#0`
-    // wrongly whitelists our own frame (RUST_ISSUE_073).
+    // wrongly whitelists our own frame.
     if level.is_current_frame() {
         handle_eval(&args[1..], state, defs);
         return;

@@ -576,7 +576,7 @@ fn needs_parens_for_binary_child(parent_op: BinOp, child: &ExprNode, is_right: b
     // child of a binary op it ALWAYS needs parentheses — on either side.
     // `($a ? 1 : 2) + 3` must not render as `$a ? 1 : 2 + 3` (re-parses as
     // `$a ? 1 : (2 + 3)`); `1 + ($a ? 2 : 3)` must not render as
-    // `1 + $a ? 2 : 3` (re-parses as `(1 + $a) ? 2 : 3`) — RUST_ISSUE_089.
+    // `1 + $a ? 2 : 3` (re-parses as `(1 + $a) ? 2 : 3`).
     if matches!(child, ExprNode::Ternary { .. }) {
         return true;
     }
@@ -810,7 +810,7 @@ mod tests {
     #[test]
     fn ternary_child_of_binary_is_parenthesised() {
         use crate::expr::parser::parse_expr;
-        // RUST_ISSUE_089: a ternary child of a binary op must round-trip with
+        // A ternary child of a binary op must round-trip with
         // parens so it re-parses identically.
         for src in [
             "($a ? 1 : 2) + 3",

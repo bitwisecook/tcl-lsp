@@ -156,7 +156,7 @@ fn snapshot_dialect_serialisation_covers_every_primitive_bit() {
     // Codex review on PR #938: the hand-maintained dialect-name table
     // missed the Milestone 6 TMSH/BIGIP bits, so `registry-dump` reported
     // the shared tmsh:: specs (tagged IAPPS|TMSH) as f5-iapps-only — the
-    // RUST_ISSUE_082 shape again. The serialisation now derives from
+    // shape again. The serialisation now derives from
     // `DialectSet::member_names`, so a spec's entry must name every
     // canonical dialect its gate carries.
     let reg = registry_for_dialect("f5-tmsh");

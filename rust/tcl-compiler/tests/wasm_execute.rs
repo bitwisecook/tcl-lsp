@@ -230,7 +230,7 @@ fn run_capture(src: &str, expr_result: u8, tag: &str) -> String {
 
 /// As [`run_capture`], but the recording host's `tcl_eval_code` returns the fixed
 /// `eval_code` completion code for **every** leaf command, so the test can drive
-/// the emitted abrupt-completion dispatch (`RUST_ISSUE_010`). Only codes that
+/// the emitted abrupt-completion dispatch. Only codes that
 /// terminate (`error`/`return`/`break`) are safe with a `true` guard — a fixed
 /// `continue` (4) under a `true` condition would iterate forever.
 fn run_capture_code(src: &str, expr_result: u8, eval_code: u8, tag: &str) -> String {
@@ -310,8 +310,8 @@ fn emitted_control_flow_runs_the_right_commands() {
     );
 }
 
-/// A leaf command's **completion code** is honoured, not swallowed
-/// (`RUST_ISSUE_010`): an `error`/`return` unwinds the compiled function and a
+/// A leaf command's **completion code** is honoured, not swallowed:
+/// an `error`/`return` unwinds the compiled function and a
 /// `break` re-enters the enclosing loop's exit — so an abrupt code inside a
 /// compiled `while` no longer loops forever or runs dead code. The recording
 /// host forces `tcl_expr_bool` to `1` (guard true) and `tcl_eval_code` to the

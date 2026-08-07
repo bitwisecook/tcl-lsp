@@ -1277,7 +1277,7 @@ fn sub(lhs: Value, rhs: Value) -> Result<Value, QueryError> {
         // Equality coerces both sides' PathRef to its full-path string, exactly
         // as `contains` / `index` / the scalar `==` operator do — otherwise
         // removing config references by path string silently removes nothing
-        // (a PathRef never `py_eq`s an equal Str) — RUST_ISSUE_122.
+        // (a PathRef never `py_eq`s an equal Str).
         let eq = |item: &Value, target: &Value| -> bool {
             value::py_eq(
                 &value::coerce_scalar(item.clone()),

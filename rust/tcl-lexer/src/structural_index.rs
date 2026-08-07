@@ -338,8 +338,7 @@ impl Builder<'_> {
                     // A backslash-newline (`\<newline>`) is a line continuation
                     // that acts as a word separator (it collapses to a space),
                     // so a `{`/`"` on the continued line still opens a word.
-                    // Every other `\X` escape is part of the current word
-                    // (RUST_ISSUE_088).
+                    // Every other `\X` escape is part of the current word.
                     newword = !in_quote && i + 1 < n && self.bytes[i + 1] == b'\n';
                     i = end;
                 }
@@ -793,7 +792,7 @@ impl BraceBuilder<'_> {
                         // Line continuation (`\<newline>`) behaves like
                         // whitespace: a word separator that keeps the command
                         // open, so a `{`/`"` on the continued line still opens a
-                        // word (RUST_ISSUE_088). `command_start` is preserved,
+                        // word. `command_start` is preserved,
                         // as in the whitespace arm.
                         newword = true;
                     } else {
@@ -1541,7 +1540,7 @@ mod tests {
 
     #[test]
     fn backslash_newline_continuation_opens_brace_word() {
-        // RUST_ISSUE_088: a `{` on a `\<newline>`-continued line opens a brace
+        // A `{` on a `\<newline>`-continued line opens a brace
         // word, so the `[` inside `{[}` is inert — no unterminated verdict, and
         // the index must agree with the production lexer (the escape arm used to
         // clear `newword`, so `{[}` was scanned as bare text and the `[`

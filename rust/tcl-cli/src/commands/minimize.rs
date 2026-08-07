@@ -280,7 +280,7 @@ fn dedent(source: &str) -> String {
 /// over whole whitespace characters so a multibyte indent char (e.g. U+00A0) is
 /// never split. A raw `ln[common..]` panicked ("byte index is not a char
 /// boundary") when lines mixed multibyte whitespace with ASCII spaces so that
-/// `common` fell inside a char (`RUST_ISSUE_130`).
+/// `common` fell inside a char.
 fn strip_leading_indent(ln: &str, common: usize) -> &str {
     let mut end = 0;
     for (i, ch) in ln.char_indices() {
@@ -456,7 +456,7 @@ mod tests {
 
     #[test]
     fn dedent_mixed_multibyte_whitespace_does_not_panic() {
-        // RUST_ISSUE_130: one line indented with U+00A0 (2 bytes, whitespace)
+        // One line indented with U+00A0 (2 bytes, whitespace)
         // and another with a single space → common == 1 byte, which falls
         // inside the U+00A0 char. `ln[common..]` panicked; the char-safe strip
         // must advance over whole whitespace chars instead.

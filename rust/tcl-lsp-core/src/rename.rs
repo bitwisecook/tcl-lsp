@@ -1413,7 +1413,7 @@ fn rename_proc(
         // Use the *same* invocation-matching rule as Find-All-References so a
         // rename never rewrites a call the reference finder wouldn't report —
         // in particular the namespace gate that keeps a bare `helper` call in
-        // `namespace eval ::b` from matching `::a::helper` (RUST_ISSUE_035).
+        // `namespace eval ::b` from matching `::a::helper`.
         if !crate::references::invocation_references_proc(analysis, inv, qname, proc_def) {
             continue;
         }
@@ -1497,7 +1497,7 @@ fn rename_class(
         // Use the *same* invocation-matching rule as Find-All-References so a
         // rename never rewrites a call the reference finder wouldn't report —
         // in particular the namespace gate that keeps a bare `ClassName new`
-        // call in a *different* namespace from being rewritten (RUST_ISSUE_035).
+        // call in a *different* namespace from being rewritten.
         if !crate::references::invocation_references_class(analysis, inv, qname, class_def) {
             continue;
         }
@@ -1736,7 +1736,7 @@ pub fn cross_document_symbol_edits(
     }
     // Definition sites (proc + class) in other documents — matched by
     // *qualified* name so a same-simple-name proc in a different namespace is
-    // not rewritten (and moved into the target's namespace) (RUST_ISSUE_036).
+    // not rewritten (and moved into the target's namespace).
     for p in index.proc_definitions_qualified(qualified_name, current_uri) {
         edits.push(WorkspaceTextEdit {
             uri: p.uri.clone(),

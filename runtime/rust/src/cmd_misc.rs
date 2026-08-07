@@ -40,8 +40,8 @@ pub fn install(interp: &mut Interp) {
     interp.register_builtin(b"pid", pid_cmd);
     // Commands with a registry spec but no portable WASM backing: report an
     // explicit "not supported under the WASM runtime" error rather than the
-    // generic `invalid command name` an unregistered command yields
-    // (RUST_ISSUE_007). Each needs an OS process, sockets, native loading, or the
+    // generic `invalid command name` an unregistered command yields.
+    // Each needs an OS process, sockets, native loading, or the
     // event loop, none of which the single-threaded WASM tier provides.
     for name in [
         b"exec".as_slice(),

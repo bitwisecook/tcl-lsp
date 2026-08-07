@@ -27,7 +27,7 @@
 //! the scope installs it.
 //!
 //! A copied artefact with no gate is a drift generator, and this pair has
-//! drifted twice: `RUST_ISSUE_206` reconciled a stale comment in both files,
+//! drifted twice: an earlier pass reconciled a stale comment in both files,
 //! and the two later diverged again — `.github/workflows/` gained
 //! `fetch-depth: 0`, the release-version stamping step and an explicit stable
 //! toolchain, while the canonical copies gained a self-description neither

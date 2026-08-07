@@ -377,7 +377,7 @@ fn lower_append_lappend(cmd: &LoweringCommand<'_>) -> Option<Statement> {
     // list being read*, not a write target; `append $x foo` writes through a
     // substituted name whose source text is not the variable. Recording
     // `defs=[normalise(args[0])]` in either case fabricates a def of the wrong
-    // variable (RUST_ISSUE_072). Leaving `defs` empty keeps the write out of
+    // variable. Leaving `defs` empty keeps the write out of
     // SSA/def-use as a concrete name — the registry's arg-role / side-effect
     // model still resolves it, and `resolve_place` yields Unknown, matching
     // `incr $x`.
@@ -752,7 +752,7 @@ mod tests {
 
     #[test]
     fn append_literal_name_records_def() {
-        // FP-guard for RUST_ISSUE_072: a literal target still records a def.
+        // FP-guard for: a literal target still records a def.
         assert_eq!(first_stmt_defs("append x foo"), vec!["x".to_string()]);
         assert_eq!(
             first_stmt_defs("lappend items a b"),
@@ -762,7 +762,7 @@ mod tests {
 
     #[test]
     fn append_substituted_or_expanded_name_records_no_def() {
-        // RUST_ISSUE_072: `append $x foo` writes through a substituted name —
+        // `append $x foo` writes through a substituted name —
         // recording defs=["x"] fabricates a def of the wrong variable. And
         // `append {*}$args` makes args[0] the expanded *read* list. Both must
         // record no concrete def (the registry side-effect model resolves the

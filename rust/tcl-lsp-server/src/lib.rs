@@ -450,7 +450,7 @@ struct BulkFix {
 
 /// What "still the current state" means for a diagnostics run at publish time,
 /// and therefore what the currency guard re-checks under the `documents` lock
-/// before delivering (`RUST_ISSUE_098`).
+/// before delivering.
 ///
 /// A run against an **open** buffer is current only while the document is still
 /// open at the revision it was captured for.  A run against a **closed** but
@@ -1212,8 +1212,8 @@ impl DeliveryCtx<'_> {
     /// delivery so a concurrent `did_close`/`did_change` cannot interleave
     /// between them — otherwise a `did_close` that lands in that window clears
     /// the squiggles and drops the pull-cache entry, only for this run's late
-    /// delivery to re-publish and re-cache them for the now-closed document
-    /// (`RUST_ISSUE_098`).  Returns whether it published — a superseded (no
+    /// delivery to re-publish and re-cache them for the now-closed document.
+    /// Returns whether it published — a superseded (no
     /// longer current) run returns `false` without touching the client.
     async fn deliver_if_current(&self, diags: Vec<tower_lsp_server::ls_types::Diagnostic>) -> bool {
         let docs = self.documents.lock().await;
@@ -1238,15 +1238,14 @@ impl DeliveryCtx<'_> {
     /// tier's whole purpose, so such a client just gets the deep tier's refresh
     /// as before.  Currency-guarded under the `documents` lock exactly like the
     /// deep publish (held across the push), so a superseding edit or a
-    /// `did_close` in the window can never let a stale fast tier land
-    /// (`RUST_ISSUE_098`).
+    /// `did_close` in the window can never let a stale fast tier land.
     /// Publish the fast tier for a push client, iff this run's revision is still
     /// current. Skipped for a pull client (the pull path always serves the
     /// complete deep set, never the reduced fast tier).
     ///
     /// Like [`publish_diagnostics_result`], this holds the `documents` lock
     /// **across** `publish_diagnostics().await`, and that is load-bearing: the
-    /// lock-across-send is what closes `RUST_ISSUE_098`. Releasing `documents`
+    /// lock-across-send is what closes. Releasing `documents`
     /// before the send would let a `did_close` clearing-publish land between the
     /// currency check and the send, repainting squiggles on a now-closed document
     /// that nothing downstream clears (the deep pass then finds `!is_current` and
@@ -1258,7 +1257,7 @@ impl DeliveryCtx<'_> {
     /// …)`: the lock is held for at most the budget, after which this best-effort
     /// push is dropped (the deep tier still supersedes it — the same outcome as the
     /// already-accepted lift-worker-panic drop). The lock is *not* released before
-    /// the send — that would reopen `RUST_ISSUE_098` — only time-bounded.
+    /// the send — that would reopen — only time-bounded.
     async fn deliver_fast_tier_if_current(
         &self,
         diags: Vec<tower_lsp_server::ls_types::Diagnostic>,
@@ -3080,7 +3079,7 @@ async fn publish_diagnostics_result(
         // lock order. Delivering *inside* the lock is what stops a `did_close`
         // that ran between the currency check and the delivery from having its
         // clearing empty publish overwritten (and its pull-cache removal
-        // undone) by this run's late squiggles (RUST_ISSUE_098).
+        // undone) by this run's late squiggles.
         let docs = delivery.documents.lock().await;
         if !delivery.is_current(&docs).await {
             // Superseded by a newer edit (open run), a reopen, or a newer closed
@@ -5688,7 +5687,7 @@ impl Backend {
     ///
     /// Currency: `documents` is re-checked once, right before the batched
     /// apply — the same guard [`Self::reindex_index_from_disk`] uses (closed
-    /// re-check under the lock, `RUST_ISSUE_098`) — so a `did_open` racing in
+    /// re-check under the lock) — so a `did_open` racing in
     /// for one of the URIs mid-batch still wins for that URI: its scanned
     /// copy is dropped rather than clobbering the live buffer, exactly as the
     /// single-file path behaves for that same race. An entry that reads as
@@ -5935,7 +5934,7 @@ impl Backend {
         }
         // Hold `documents` across the clearing publish + pull-cache drop (the
         // `documents` → `pull_diag_cache` order), exactly as the open publish
-        // holds it, so a concurrent reopen cannot interleave (`RUST_ISSUE_098`).
+        // holds it, so a concurrent reopen cannot interleave.
         self.client
             .publish_diagnostics(uri.clone(), Vec::new(), None)
             .await;
@@ -11655,8 +11654,8 @@ impl Backend {
         // dirty first and storing `latest_inputs` only after the `await` let a
         // running worker drain the dirty flag with the *stale* inputs in that
         // window, silently dropping a config change (e.g. squiggles the user
-        // just disabled would persist until the next keystroke) —
-        // RUST_ISSUE_102. Resolving first means `dirty` and `latest_inputs` are
+        // just disabled would persist until the next keystroke) —.
+        // Resolving first means `dirty` and `latest_inputs` are
         // published together, atomically, so the worker never observes one
         // without the other.
         let fresh_inputs = if need_inputs {
@@ -12931,7 +12930,7 @@ impl LanguageServer for Backend {
             // splicing a ranged edit against a phantom empty buffer that
             // `didOpen` then silently overwrites at the wrong version) would
             // corrupt state and keep publishing diagnostics for a closed
-            // document (RUST_ISSUE_099). A dropped change is safe — `didOpen`
+            // document. A dropped change is safe — `didOpen`
             // carries the authoritative full text, and a post-close change has
             // nothing to apply to.
             let Some(entry) = docs.get_mut(&uri) else {
@@ -13175,7 +13174,7 @@ impl LanguageServer for Backend {
         // entry, exactly as before.  The reindex above primed the salsa source it
         // reads; both re-check the document is still closed under the `documents`
         // lock, so a racing `did_open` can never have a stale closed publish land
-        // on a freshly reopened buffer (`RUST_ISSUE_098`).
+        // on a freshly reopened buffer.
         self.publish_closed_file_diagnostics(uri).await;
         // #865 sync guarantee: the VS Code e2e harness (`waitForDeepDiagnostics`)
         // keys on the `[timing] deep diagnostics (uri=…)` marker to know the
@@ -13455,7 +13454,7 @@ impl LanguageServer for Backend {
         let registry = self.registry_for_dialect(&doc.dialect).await;
         // Honour the user's resolved `tclLsp.formatting` settings, exactly as
         // `formatting()` does — otherwise format-on-save re-indents with
-        // defaults and fights an explicit Format Document (RUST_ISSUE_101).
+        // defaults and fights an explicit Format Document.
         // `WillSaveTextDocumentParams` carries no `FormattingOptions`, so the
         // settings object is the sole source; the resolved formatter width is
         // then applied on top, preserving prior behaviour.
@@ -15485,8 +15484,7 @@ impl LanguageServer for Backend {
                     // When no chain is found (e.g. the cursor sits on empty
                     // space), fall back to a degenerate range at the cursor
                     // itself rather than dropping the entry, which would
-                    // misalign the client's cursor-to-range pairing
-                    // (RUST_ISSUE_100).
+                    // misalign the client's cursor-to-range pairing.
                     materialise_selection_range(&chain).unwrap_or(SelectionRange {
                         range: Range {
                             start: pos,
@@ -16454,7 +16452,7 @@ fn apply_formatting_object(
         cfg.expand_single_line_bodies = b;
     }
     // These four were shipped by every editor but never mapped here, so
-    // toggling them did nothing (RUST_ISSUE_133). `minBodyCommandsForExpansion`
+    // toggling them did nothing. `minBodyCommandsForExpansion`
     // and `replaceSemicolonsWithNewlines` are engine-consumed;
     // `enforceBracedExpr` / `alignCommentsToCode` are carried through so the
     // resolved config round-trips (and so they take effect once the engine
@@ -19278,7 +19276,7 @@ mod tests {
 
     #[test]
     fn normalize_config_payload_scalar_object_collision_does_not_panic() {
-        // RUST_ISSUE_032: a flat scalar key that collides with a deeper dotted
+        // A flat scalar key that collides with a deeper dotted
         // key in the same payload must not panic the server; the nested
         // structure wins over the conflicting scalar.
         let collide = serde_json::json!({
@@ -20626,7 +20624,7 @@ mod tests {
 
     #[test]
     fn formatter_config_consumes_previously_dropped_settings() {
-        // RUST_ISSUE_133: these four `tclLsp.formatting.*` settings were shipped
+        // These four `tclLsp.formatting.*` settings were shipped
         // by every editor but never mapped, so toggling them did nothing. They
         // must now flow into the FormatterConfig.
         let opts = tower_lsp_server::ls_types::FormattingOptions::default();
@@ -20854,7 +20852,7 @@ mod tests {
         }
     }
 
-    /// `RUST_ISSUE_033`: an incremental edit on an old-Mac (bare-`\r`) buffer must
+    /// an incremental edit on an old-Mac (bare-`\r`) buffer must
     /// resolve against the LSP EOL model so the splice lands at the right byte
     /// and the shadow buffer stays correct. A bare-`\r` document is exactly the
     /// case [`apply_content_change_indexed`] cannot patch incrementally (the
@@ -24193,7 +24191,7 @@ mod tests {
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn did_change_on_unopened_document_is_dropped() {
-        // RUST_ISSUE_099: notification handlers run concurrently, so a
+        // Notification handlers run concurrently, so a
         // `didChange` can be processed before its `didOpen` or after its
         // `didClose`. It must NOT resurrect/create a phantom document.
         let backend = test_backend();
@@ -24219,7 +24217,7 @@ mod tests {
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn selection_range_returns_one_entry_per_position() {
-        // RUST_ISSUE_100: the LSP spec requires `result[i]` to answer
+        // The LSP spec requires `result[i]` to answer
         // `positions[i]`. Any position that yields no chain must still produce
         // a range (a degenerate fallback at the cursor) rather than being
         // dropped, which would misalign every later cursor in a multi-cursor
@@ -24255,7 +24253,7 @@ mod tests {
         // The fallback the handler applies when a position yields no chain:
         // `materialise_selection_range` returns `None` for an empty chain, and
         // the handler substitutes a degenerate range at the cursor so the
-        // position is never dropped (RUST_ISSUE_100).
+        // position is never dropped.
         assert!(materialise_selection_range(&[]).is_none());
     }
 

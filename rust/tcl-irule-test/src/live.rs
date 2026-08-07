@@ -449,7 +449,7 @@ mod tests {
 
     #[test]
     fn live_session_class_match_starts_with_honours_operator() {
-        // RUST_ISSUE_113: `starts_with` must test whether the subject BEGINS
+        // `starts_with` must test whether the subject BEGINS
         // WITH a record, not exact equality. Record `/api`, URI `/api/v1/x`
         // matches under `starts_with` (but would NOT under `equals`).
         let mut s = LiveSession::new(&lib_dir()).expect("session");
@@ -467,7 +467,7 @@ mod tests {
 
     #[test]
     fn live_session_class_match_equals_is_not_prefix_match() {
-        // FP-guard for RUST_ISSUE_113: the same `/api` record under `equals`
+        // FP-guard for: the same `/api` record under `equals`
         // must NOT match the longer `/api/v1/x`, proving the operator actually
         // changes the comparison rather than always behaving like `contains`.
         let mut s = LiveSession::new(&lib_dir()).expect("session");
@@ -485,7 +485,7 @@ mod tests {
 
     #[test]
     fn live_session_class_match_ends_with_honours_operator() {
-        // RUST_ISSUE_113: `ends_with` tests the tail of the subject.
+        // `ends_with` tests the tail of the subject.
         let mut s = LiveSession::new(&lib_dir()).expect("session");
         s.eval("::orch::configure -profiles {TCP HTTP}").unwrap();
         s.eval("::orch::add_pool matched {10.0.9.9:80}").unwrap();
@@ -501,7 +501,7 @@ mod tests {
 
     #[test]
     fn live_session_class_match_accepts_leading_dashdash() {
-        // RUST_ISSUE_114: a leading `--` (or option flags) before the value
+        // A leading `--` (or option flags) before the value
         // must be parsed off, not mistaken for the value/operator/datagroup.
         // Before the fix, `dg_name` resolved to `equals` and raised
         // `class "equals" not found`, aborting the handler so `pool` never ran.
@@ -520,7 +520,7 @@ mod tests {
 
     #[test]
     fn live_session_http_respond_commits_response() {
-        // RUST_ISSUE_112: `HTTP::respond` sets
+        // `HTTP::respond` sets
         // `::state::http::response_committed`; the flag must be observable
         // (the simulator reads this exact variable to populate
         // `SimOutcome::response_committed`).
@@ -537,7 +537,7 @@ mod tests {
 
     #[test]
     fn live_session_fluent_decision_was_called_with_scans_all_calls() {
-        // RUST_ISSUE_117: `was_called_with` must pass if ANY matching decision
+        // `was_called_with` must pass if ANY matching decision
         // carries the expected value, not only the first. An iRule that calls
         // `pool a` then `pool b` must satisfy `was_called_with "b"`.
         let mut s = LiveSession::new(&lib_dir()).expect("session");
@@ -572,7 +572,7 @@ mod tests {
 
     #[test]
     fn configured_tmm_select_auto_survives_reset() {
-        // RUST_ISSUE_043: `::orch::test` runs `reset` before every body, and
+        // `::orch::test` runs `reset` before every body, and
         // `reset` previously forced `_tmm_select_mode` back to "manual",
         // clobbering a configured `-tmm_select auto`. Capture the live mode
         // from inside a test body (i.e. after that reset) and prove it's still

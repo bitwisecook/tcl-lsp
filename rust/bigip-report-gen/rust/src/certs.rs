@@ -559,7 +559,7 @@ mod tests {
 
     #[test]
     fn cn_multibyte_component_does_not_panic() {
-        // RUST_ISSUE_048: a DN component whose 3rd byte is inside a multi-byte
+        // A DN component whose 3rd byte is inside a multi-byte
         // character (`O=émission`, where `é` occupies bytes 2-3) must not
         // panic the CN scan.
         assert_eq!(cn("O=émission,CN=host.example.com"), "host.example.com");

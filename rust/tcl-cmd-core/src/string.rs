@@ -422,7 +422,7 @@ pub fn map<O: ValueOps>(ops: &mut O, args: &[O::Value]) -> Result<O::Value, CmdE
     // Case-insensitive matching folds full Unicode case (like `string equal
     // -nocase` and `tolower`), not just ASCII, and matches/advances by
     // *character* so a key whose case fold changes byte length stays aligned
-    // with C's `Tcl_UniCharNcasecmp` over `length2` characters (RUST_ISSUE_167).
+    // with C's `Tcl_UniCharNcasecmp` over `length2` characters.
     let keys: Vec<(Vec<char>, Vec<char>, &str)> = map
         .iter()
         .filter(|(from, _)| !from.is_empty())
@@ -726,7 +726,7 @@ mod tests {
 
     #[test]
     fn string_last_empty_haystack_with_index_does_not_panic() {
-        // RUST_ISSUE_052: `string last a "" 0` must return -1, not panic on an
+        // `string last a "" 0` must return -1, not panic on an
         // out-of-bounds slice of the empty haystack.
         assert_eq!(last_of("a", "", Some("0")), -1);
         assert_eq!(last_of("a", "", None), -1);
