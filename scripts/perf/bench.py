@@ -498,16 +498,18 @@ def build_suite(bench: Bench, docs: list[Path], root: Path) -> None:
 
         return run
 
-    bench.check("nav.hover", "Hover x12", nav("textDocument/hover"))
-    bench.check(
-        "nav.definition", "Go to definition x12", nav("textDocument/definition")
-    )
+    bench.check("nav.hover", "Hover at definition sites", nav("textDocument/hover"))
+    bench.check("nav.definition", "Go to definition", nav("textDocument/definition"))
     bench.check(
         "nav.references",
-        "Find references x12",
+        "Find references",
         nav("textDocument/references", {"context": {"includeDeclaration": True}}),
     )
-    bench.check("nav.completion", "Completion x12", nav("textDocument/completion"))
+    bench.check(
+        "nav.completion",
+        "Completion at definition sites",
+        nav("textDocument/completion"),
+    )
 
     def doc_wide():
         fails = 0
@@ -556,7 +558,7 @@ def build_suite(bench: Bench, docs: list[Path], root: Path) -> None:
             return False, "no positions found: check issued 0 requests"
         return f"{fails}/{sent} request(s) failed" if fails else None
 
-    bench.check("action.codeaction", "Code actions x12", actions)
+    bench.check("action.codeaction", "Code actions at definition sites", actions)
 
     # 12 — symbol rename across the workspace.
     def rename_symbol():
@@ -578,7 +580,7 @@ def build_suite(bench: Bench, docs: list[Path], root: Path) -> None:
             return False, "no positions found: check issued 0 requests"
         return f"{fails}/{sent} request(s) failed" if fails else None
 
-    bench.check("refactor.rename", "Rename symbol x4", rename_symbol)
+    bench.check("refactor.rename", "Rename symbol (one per document)", rename_symbol)
 
     # 13 — external file rename: the explorer-rename sequence, including the
     # watched-file events, then following the buffer to the new URI.
@@ -620,14 +622,16 @@ def build_suite(bench: Bench, docs: list[Path], root: Path) -> None:
         c.collect_notifications("textDocument/publishDiagnostics", timeout=2.0)
         return None
 
-    bench.check("refactor.filerename", "External file rename x4", rename_files)
+    bench.check(
+        "refactor.filerename", "External file rename (one per document)", rename_files
+    )
 
     # 14 — navigation *after* the renames. Separate from check 8 on purpose:
     # a retire path that strands per-URI state shows up as this check being
     # dramatically slower than its pre-rename twin (#1298).
     bench.check(
         "nav.after_rename",
-        "Find references after rename x12",
+        "Find references after rename",
         nav("textDocument/references", {"context": {"includeDeclaration": True}}),
     )
 
