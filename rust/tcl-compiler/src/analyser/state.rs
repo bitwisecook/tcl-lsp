@@ -80,6 +80,37 @@ pub(super) struct PendingInstanceClassSite {
     pub target_name: String,
 }
 
+/// One `<ensemble> <subcommand> …` call site the shell pass could not
+/// resolve yet (issue #923 idx 85), held until every deferred proc/method
+/// body has been walked.
+///
+/// The whole-file DFS walks a proc body at its *definition* point, so a
+/// `namespace ensemble create -map` written inside `proc ::app::widget::Setup`
+/// is on the books long before a top-level `::app::widget show` further down
+/// the file. The per-item shell pass defers that body, so the identical call
+/// site is walked while `ensemble_subcommand_targets` is still empty and the
+/// subcommand reference is silently never recorded — go-to-definition
+/// (an on-demand lookup against the *finished* analysis) answered, but
+/// find-references / rename / code-lens / call-hierarchy (which enumerate
+/// recorded invocations) could not. Deferring the miss and replaying it in
+/// [`Analyser::flush_pending_ensemble_subcommand_invocations`] restores the
+/// whole-file result exactly.
+#[derive(Debug, Clone, PartialEq)]
+pub(super) struct PendingEnsembleSubcommand {
+    /// The ensemble's own resolved command name — the
+    /// [`super::types::AnalysisResult::ensemble_subcommand_targets`] key the
+    /// walk would have looked up, computed exactly as the immediate path
+    /// computes it so the replay cannot resolve differently.
+    pub ensemble: String,
+    /// The static subcommand word.
+    pub sub: String,
+    /// The subcommand word's span — the reference this records.
+    pub span: Span,
+    /// Arguments *after* the consumed subcommand word (`None` when any is
+    /// `{*}`-expanded), the same convention the immediate path uses.
+    pub argc: Option<usize>,
+}
+
 /// One W315 candidate from an `oo::objdefine` walk (issue #1170), held
 /// until the whole document is walked so
 /// [`Analyser::flush_objdefine_abort_diagnostics`] can consult
@@ -532,6 +563,13 @@ pub struct Analyser {
     /// visibility the whole-file DFS gives a body walked at its definition
     /// point.  Never merged into the result.
     pub(super) ensemble_record_offsets: HashMap<String, u32>,
+    /// `<ensemble> <subcommand> …` call sites the **shell pass** met before
+    /// the ensemble that maps them was known, replayed against the finished
+    /// map by [`Self::flush_pending_ensemble_subcommand_invocations`]
+    /// (issue #923 idx 85). Only the shell pass fills this: the whole-file
+    /// DFS and the isolated body pass both resolve at walk time against a
+    /// map that already holds everything their own walk order could see.
+    pub(super) pending_ensemble_subcommands: Vec<PendingEnsembleSubcommand>,
     /// `namespace ensemble create|configure ... -map {sub target ...}`
     /// subcommand-to-target maps, keyed by the ensemble's own qualified
     /// command name (`-command NAME`, or the enclosing namespace's own
@@ -1124,6 +1162,7 @@ impl Analyser {
             prefixless_ensembles: HashSet::new(),
             ensemble_command_maps: HashMap::new(),
             ensemble_record_offsets: HashMap::new(),
+            pending_ensemble_subcommands: Vec::new(),
             objdefined_vars: HashSet::new(),
             objdefine_bindings: HashMap::new(),
             objdefine_abort_candidates: Vec::new(),
@@ -2065,6 +2104,12 @@ impl Analyser {
     }
 
     pub(super) fn run_diagnostic_emitters(&mut self, source: &str) {
+        // Replay the `<ensemble> <subcommand>` call sites the shell pass met
+        // before the deferred body that declares the ensemble was walked
+        // (issue #923 idx 85) — before `finalise_invocation_resolutions`, so
+        // the replayed invocations go through exactly the same settlement
+        // the walk-time ones do. A no-op on every other entry point.
+        self.flush_pending_ensemble_subcommand_invocations();
         // Settle every invocation's `resolved_qualified_name` with Tcl's
         // existence-checked two-step rule now that the walk has recorded
         // every definition in the file (a local candidate defined later in

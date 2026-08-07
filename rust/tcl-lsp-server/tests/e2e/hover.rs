@@ -845,3 +845,93 @@ fn parameter_default_literal_does_not_hover_923_idx104() {
     let text = hover(&mut lsp, &uri, 2, 5);
     assert!(text.contains("destroy"), "hover: {text:?}");
 }
+
+/// Issue #923 differential-audit findings idx 3 / idx 4 — tcllib's
+/// `textutil::adjust` submodule. `package require textutil::adjust` followed
+/// by `namespace import textutil::adjust::*` makes bare `adjust` / `indent`
+/// callable, and they are the *three*-segment commands
+/// `::textutil::adjust::adjust` / `::textutil::adjust::indent` — distinct
+/// from the two-segment `textutil::adjust` / `textutil::indent` flattened
+/// aliases the umbrella `textutil` package creates.
+///
+/// Oracle (tclsh 8.6.16 and 9.0.4, tcllib 2.0 on `auto_path`):
+/// `namespace origin adjust` → `::textutil::adjust::adjust` and
+/// `namespace origin indent` → `::textutil::adjust::indent`.
+///
+/// Coverage was split between registry-table unit tests (naming and gating)
+/// and a generic `resolve_imported_command` e2e test using `tcltest`; nothing
+/// tied the two together for this pair, so a regression in either layer's
+/// interaction would have gone unseen. The idiom is real corpus code
+/// (`argparse.tcl` buries both inside an `if`, as here).
+#[test]
+fn a_wildcard_imported_textutil_submodule_command_hovers_qualified_923_idx3_idx4() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    lsp.open_ready(
+        &uri,
+        concat!(
+            "proc buildHelp {args} {\n",
+            "    if {[llength $args]} {\n",
+            "        package require textutil::adjust\n",
+            "        namespace import textutil::adjust::*\n",
+            "        set wrapped [adjust \"a long help string\" -length 20]\n",
+            "        set final [indent $wrapped \"  \"]\n",
+            "        puts $final\n",
+            "    }\n",
+            "}\n",
+        ),
+    );
+    // Line 4, `adjust` starts at column 21.
+    let adjust = hover(&mut lsp, &uri, 4, 22);
+    assert!(
+        adjust.contains("textutil::adjust::adjust"),
+        "bare imported `adjust` must hover as the three-segment submodule \
+         command, not the umbrella alias: {adjust:?}",
+    );
+    // Line 5, `indent` starts at column 19.
+    let indent = hover(&mut lsp, &uri, 5, 20);
+    assert!(
+        indent.contains("textutil::adjust::indent"),
+        "bare imported `indent` must hover as `textutil::adjust::indent`: \
+         {indent:?}",
+    );
+}
+
+/// Issue #923 differential-audit finding idx 102, its *secondary* claim —
+/// hover on the `{file}` **parameter declaration** token must report a
+/// variable, never the built-in `file` command's documentation.
+///
+/// The primary claim (the `$file` read inside the `[list source [file join
+/// …]]` body resolving at all) is pinned by
+/// `references_reach_a_parameter_read_inside_a_list_built_namespace_body`;
+/// nothing guarded this half, which is fixed only as a by-product of the
+/// read being classified as a variable reference before any registry lookup
+/// happens — precisely the kind of thing a later refactor reintroduces.
+///
+/// Oracle (tclsh 8.6.16 and 9.0.4): the parameter genuinely drives which file
+/// is sourced, so it is a variable at both ends.
+#[test]
+fn hover_on_a_parameter_named_after_a_builtin_is_a_variable_923_idx102() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    lsp.open_ready(
+        &uri,
+        "proc ::tk::SourceLibFile {file} {\n    namespace eval :: [list source [file join $::tk_library $file.tcl]]\n}\n",
+    );
+    // Line 0, the `file` of the parameter list `{file}` — column 25.
+    let decl = hover(&mut lsp, &uri, 0, 26);
+    assert!(
+        decl.contains("Variable"),
+        "the `{{file}}` parameter declaration must hover as a variable: {decl:?}",
+    );
+    assert!(
+        !decl.contains("file dirname") && !decl.contains("file exists"),
+        "it must not be misattributed to the builtin `file` command: {decl:?}",
+    );
+    // And the read inside the list-built body agrees.
+    let read = hover(&mut lsp, &uri, 1, 62);
+    assert!(
+        read.contains("Variable"),
+        "the `$file` read must hover as the same variable: {read:?}",
+    );
+}

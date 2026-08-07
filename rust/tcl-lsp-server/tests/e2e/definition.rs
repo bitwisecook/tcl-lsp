@@ -1248,3 +1248,69 @@ fn the_server_hands_code_actions_the_shadow_answer() {
         "with no covering export the local body is offered: {actions}"
     );
 }
+
+/// Issue #923 differential-audit finding idx 43 — `ticklecharts`' `etypes.tcl`
+/// shape: a `namespace ensemble create -command ::new -subcommands {…}` whose
+/// implementing procs are installed by a `foreach` loop through a substituted
+/// name (`proc ticklecharts::${ptype} …`).
+///
+/// Oracle (tclsh 9.0.4 and 8.6.16, identical): `new elist {1 2 3}` prints
+/// `elist {1 2 3}` and `new edict {k v}` prints `edict {k v}`, so every
+/// literal loop element really does become a callable command.
+///
+/// The analyser's `all_procs` table is pinned by a unit test; nothing checked
+/// that the LSP-facing consumers (go-to-definition, diagnostics, the outline)
+/// read it correctly for a loop-generated name — which is where all three of
+/// the finding's reported symptoms lived.
+#[test]
+fn foreach_generated_ensemble_subcommands_navigate_and_outline_923_idx43() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let src = concat!(
+        "namespace eval ticklecharts {\n", // 0
+        "    namespace ensemble create -command ::new -subcommands {elist elist.n edict}\n", // 1
+        "}\n",                             // 2
+        "foreach ptype {elist elist.n} {\n", // 3
+        "    proc ticklecharts::${ptype} {args} [string map [list %P% $ptype] {\n", // 4
+        "        return \"%P% $args\"\n",  // 5
+        "    }]\n",                        // 6
+        "}\n",                             // 7
+        "proc ticklecharts::edict {args} { return \"edict $args\" }\n", // 8
+    );
+    lsp.open_ready(&uri, src);
+
+    // 1. Go-to-definition on `elist` inside the `-subcommands` list (line 1,
+    //    column 60) lands on the one physical `proc` statement that backs it.
+    let def = locations(&lsp.definition(&uri, 1, 60));
+    assert_eq!(
+        def.iter().map(start_line).collect::<Vec<_>>(),
+        vec![4],
+        "`elist` in -subcommands must reach the foreach-installed proc: {def:?}",
+    );
+
+    // 2. No false "unknown command" for a name only the loop creates.
+    let diags = lsp.pull_diagnostics(&uri);
+    assert!(
+        !diags.iter().any(|d| {
+            d.get("code").and_then(Value::as_str) == Some("W123")
+                && d.get("message")
+                    .and_then(Value::as_str)
+                    .is_some_and(|m| m.contains("elist"))
+        }),
+        "a loop-installed proc must not draw W123: {diags:?}",
+    );
+
+    // 3. The outline names the real per-literal procs, not the unsubstituted
+    //    `${ptype}` placeholder.
+    let symbols = serde_json::to_string(&lsp.document_symbols(&uri)).expect("symbols json");
+    for want in ["elist", "elist.n"] {
+        assert!(
+            symbols.contains(&format!("\"{want}\"")),
+            "the outline must list `{want}`: {symbols}",
+        );
+    }
+    assert!(
+        !symbols.contains("${ptype}"),
+        "the outline must not show the unsubstituted placeholder: {symbols}",
+    );
+}

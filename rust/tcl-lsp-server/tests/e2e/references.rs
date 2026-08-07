@@ -28,7 +28,8 @@
 #![allow(clippy::cast_possible_truncation)]
 
 use crate::common::helpers::*;
-use crate::common::{Lsp, unique_uri};
+use crate::common::{Lsp, scaled_timeout, unique_uri};
+use std::time::Duration;
 
 // -- TestProcReferences --------------------------------------------------
 
@@ -758,4 +759,166 @@ fn the_unshadowed_call_references_the_local_proc_when_nothing_exports_it() {
         !from_src.contains(&12),
         "an import that bound nothing creates no reference: {from_src:?}"
     );
+}
+
+/// Issue #923 differential-audit finding idx 85 — the audit's exact shape:
+/// `namespace ensemble create -map` inside a proc declared with a
+/// fully-qualified name at top level, with no enclosing `namespace eval`, so
+/// the ensemble homes to `::app::widget`.
+///
+/// Oracle (tclsh 8.6.16 and 9.0.4, identical): the script prints `shown` then
+/// `configured:-x 1`, so `::app::widget show` really does dispatch to
+/// `::app::widget::Show`, statically determinable from the `-map` literal.
+///
+/// Go-to-definition and hover answered this correctly all along — they
+/// resolve on demand against the finished analysis. Find-references
+/// enumerates *recorded* invocations, and the live server (which always
+/// analyses incrementally, deferring proc bodies) never recorded one for the
+/// dispatch site, so both reference directions silently under-reported. This
+/// drives the same surface the audit did, and pins that the two directions
+/// agree.
+#[test]
+fn ensemble_dispatch_call_sites_are_found_from_both_directions_923_idx85() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let src = concat!(
+        "namespace eval ::app::widget {\n",                            // 0
+        "    variable state 0\n",                                      // 1
+        "}\n",                                                         // 2
+        "proc ::app::widget::Setup {} {\n",                            // 3
+        "    namespace ensemble create -map {\n",                      // 4
+        "        show      ::app::widget::Show\n",                     // 5
+        "        configure ::app::widget::Configure\n",                // 6
+        "    }\n",                                                     // 7
+        "}\n",                                                         // 8
+        "proc ::app::widget::Show {} { puts \"shown\" }\n",            // 9
+        "proc ::app::widget::Configure {args} { puts \"c:$args\" }\n", // 10
+        "::app::widget::Setup\n",                                      // 11
+        "puts [::app::widget show]\n",                                 // 12
+        "::app::widget configure -x 1\n",                              // 13
+    );
+    lsp.open_ready(&uri, src);
+
+    // Sanity: go-to-definition on the dispatch site already worked, and is the
+    // answer references must agree with.
+    let def = start_lines(&lsp.definition(&uri, 12, 21));
+    assert!(
+        def.contains(&9),
+        "baseline: `show` must resolve to `proc ::app::widget::Show`: {def:?}",
+    );
+
+    // Direction 1 — from the mapped target's own declaration (line 9, `Show`
+    // starts at column 20).
+    let from_decl = start_lines(&lsp.references(&uri, 9, 21, true));
+    assert!(
+        from_decl.contains(&12),
+        "the `[::app::widget show]` dispatch is missing from the declaration's \
+         reference set: {from_decl:?}",
+    );
+    assert!(
+        from_decl.contains(&9) && from_decl.contains(&5),
+        "the declaration and the -map target text must both be present: {from_decl:?}",
+    );
+
+    // Direction 2 — from the dispatch call site itself (line 12, `show`
+    // starts at column 20).
+    let from_call = start_lines(&lsp.references(&uri, 12, 21, true));
+    assert_eq!(
+        from_call, from_decl,
+        "both query directions must return the same reference set",
+    );
+
+    // And the sibling subcommand written as a plain top-level command (not
+    // nested in a `[…]` substitution) resolves the same way.
+    let configure_refs = start_lines(&lsp.references(&uri, 10, 21, true));
+    assert!(
+        configure_refs.contains(&13),
+        "the top-level `::app::widget configure` dispatch is missing: \
+         {configure_refs:?}",
+    );
+}
+
+/// TN for the above — a `-map` built with `[list …]` is not a literal
+/// mapping, so no `subcommand -> target` fact exists and the dispatch site
+/// must stay unattributed. A deliberate abstention, not an oversight: the
+/// mapping is genuinely dynamic and guessing would manufacture a navigation
+/// edge (and, through rename, an edit) that may not exist at run time.
+#[test]
+fn a_dynamically_mapped_ensemble_dispatch_is_not_attributed_923_idx85() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    lsp.open_ready(
+        &uri,
+        concat!(
+            "proc ::app::widget::Setup {} {\n",
+            "    namespace ensemble create -map [list show ::app::widget::Show]\n",
+            "}\n",
+            "proc ::app::widget::Show {} {}\n",
+            "::app::widget::Setup\n",
+            "::app::widget show\n",
+        ),
+    );
+    let refs = start_lines(&lsp.references(&uri, 3, 21, true));
+    assert!(
+        !refs.contains(&5),
+        "a dynamic -map must not manufacture a navigation edge: {refs:?}",
+    );
+}
+
+/// Issue #923 differential-audit finding idx 27 — a `.test` file that is
+/// never opened in the editor and is reached only through a dynamic
+/// `glob`+`source` loop the analyser correctly abstains on. `.test` had been
+/// missing from the Tcl source-extension set, so the background workspace
+/// scan never indexed it and its call sites were invisible.
+///
+/// Oracle (tclsh 9.0.4): `source lib.tcl; cd test; source all_codeCoverage.tcl`
+/// prints `hello from greet` — the `.test` file's bare `greet` call really
+/// runs. Committed coverage stops at `collect_tcl_files` / `is_tcl_source`,
+/// one layer below the references handler; this drives the whole pipeline.
+#[test]
+fn find_references_reaches_an_unopened_tcltest_file_923_idx27() {
+    let root = std::env::temp_dir().join(format!(
+        "tcl-lsp-e2e-idx27-{}-{}",
+        std::process::id(),
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .expect("clock")
+            .as_nanos(),
+    ));
+    std::fs::create_dir_all(root.join("test")).expect("create workspace root");
+    let lib = root.join("lib.tcl");
+    std::fs::write(&lib, "proc greet {} { puts \"hello from greet\" }\n").expect("write lib.tcl");
+    // Mirrors SpiceGenTcl's all_codeCoverage.tcl: a glob + source loop with no
+    // literal source edge into the `.test` file at all.
+    std::fs::write(
+        root.join("test").join("all_codeCoverage.tcl"),
+        "set testFiles [glob -directory [file dirname [info script]] *.test]\n\
+         foreach file $testFiles { source $file }\n",
+    )
+    .expect("write all_codeCoverage.tcl");
+    std::fs::write(
+        root.join("test").join("a.test"),
+        "# never opened in the editor\ngreet\n",
+    )
+    .expect("write a.test");
+
+    let mut lsp = Lsp::at_workspace_root(&root);
+    let uri = format!("file://{}", lib.to_string_lossy());
+    lsp.open_ready(&uri, &std::fs::read_to_string(&lib).expect("read"));
+
+    // The workspace index is built asynchronously; poll until the `.test`
+    // call site appears, or the budget runs out.
+    let deadline = std::time::Instant::now() + scaled_timeout(Duration::from_secs(20));
+    let mut refs = locations(&lsp.references(&uri, 0, 6, true));
+    while std::time::Instant::now() < deadline && !refs.iter().any(|l| l.uri.ends_with("a.test")) {
+        std::thread::sleep(Duration::from_millis(150));
+        refs = locations(&lsp.references(&uri, 0, 6, true));
+    }
+    assert!(
+        refs.iter().any(|l| l.uri.ends_with("a.test")),
+        "the bare `greet` call in the un-opened .test file must be a reference: \
+         {refs:?}",
+    );
+
+    let _ = std::fs::remove_dir_all(&root);
 }

@@ -209,8 +209,13 @@ pub struct DeferredBody {
     /// [`Analyser::fill_deferred_bodies`]; empty at construction.  The
     /// isolated pass seeds its own result map from this, so an
     /// `<ensemble> <sub> …` call inside the body records the same
-    /// existence-probed subcommand invocation the whole-file walk does.
-    pub ensemble_targets: Vec<(String, Vec<(String, String)>)>,
+    /// existence-probed subcommand invocation the whole-file walk does —
+    /// provenance included, so the body's dispatch words carry the same
+    /// `-map`/`-subcommands` tag rename gates on (issue #1281).
+    pub ensemble_targets: Vec<(
+        String,
+        Vec<(String, super::types::EnsembleSubcommandTarget)>,
+    )>,
     /// Mirrors [`super::types::Scope::oo_defining_class`] for the isolated
     /// rebuild: the fully-qualified defining class when this is an
     /// instance-side `TclOO` method body of a statically-named class,
@@ -583,12 +588,17 @@ impl Analyser {
         // unrelated ensemble edit re-keys no body. Canonically sorted so
         // the snapshot can key `tcl-lsp-db`'s `ItemBodyKey`.
         if !self.result.ensemble_subcommand_targets.is_empty() {
-            let mut all: Vec<(&String, &std::collections::HashMap<String, String>)> =
-                self.result.ensemble_subcommand_targets.iter().collect();
+            let mut all: Vec<(
+                &String,
+                &std::collections::HashMap<String, super::types::EnsembleSubcommandTarget>,
+            )> = self.result.ensemble_subcommand_targets.iter().collect();
             all.sort_by_key(|(k, _)| *k);
             for db in &mut deferred {
                 let body_start = db.body_tok.span.start();
-                let visible: Vec<(String, Vec<(String, String)>)> = all
+                let visible: Vec<(
+                    String,
+                    Vec<(String, super::types::EnsembleSubcommandTarget)>,
+                )> = all
                     .iter()
                     .filter(|(k, _)| {
                         self.ensemble_record_offsets
@@ -597,7 +607,7 @@ impl Analyser {
                             && db.body_text.contains(crate::naming::key_tail(k))
                     })
                     .map(|(k, subs)| {
-                        let mut inner: Vec<(String, String)> =
+                        let mut inner: Vec<(String, super::types::EnsembleSubcommandTarget)> =
                             subs.iter().map(|(s, t)| (s.clone(), t.clone())).collect();
                         inner.sort();
                         ((*k).clone(), inner)
@@ -921,6 +931,11 @@ impl Analyser {
             .extend(frag.instance_class_sites);
         self.pending_var_literal_checks
             .extend(frag.var_literal_checks);
+        // Ensembles declared *inside* this body: the shell needs their
+        // absolute recording offsets to apply the whole-file DFS visibility
+        // rule when it replays the call sites it deferred (issue #923 idx
+        // 85). `rebase_fragment_pending` has already shifted them.
+        self.ensemble_record_offsets.extend(frag.ensemble_offsets);
         // Replay the body's qualified global reads against the shell's real
         // global scope (rebased to the body's position): a `$::g` read lands as
         // a reference on the enclosing `::g` exactly as a whole-file walk would.
@@ -1156,6 +1171,13 @@ pub struct BodyFragment {
     /// resolution (see
     /// [`super::state::Analyser::pending_var_literal_checks`]).
     var_literal_checks: Vec<(tcl_core_types::DiagCode, String, Token)>,
+    /// Where inside this body each ensemble the body declares was recorded
+    /// (`super::state::Analyser::ensemble_record_offsets`), body-relative.
+    /// The graft rebases these to absolute and merges them into the shell so
+    /// the tail's `flush_pending_ensemble_subcommand_invocations` can apply
+    /// the whole-file DFS's "declaration precedes the call site" visibility
+    /// rule to an ensemble created inside a proc body (issue #923 idx 85).
+    ensemble_offsets: std::collections::HashMap<String, u32>,
     /// Every offset-keyed synthetic identity the isolated pass minted
     /// (`@dynns@<off>` / `@dynclass@<off>` / `@autoname@<off>`), with
     /// **body-relative** offsets — the whole fragment is body-relative, so
@@ -1337,6 +1359,7 @@ pub fn analyse_proc_body_isolated<S: std::hash::BuildHasher>(
         instance_class_sites: a.pending_instance_class_sites,
         widget_sites: a.widget_dispatch_sites,
         var_literal_checks: a.pending_var_literal_checks,
+        ensemble_offsets: a.ensemble_record_offsets,
         minted_synthetics: a.minted_synthetic_names,
     }
 }
@@ -1751,8 +1774,8 @@ fn rebase_result_names(r: &mut AnalysisResult, fix: &impl Fn(&mut String)) {
     fix_string_keys(&mut r.rename_offsets, fix);
     fix_string_keys(&mut r.ensemble_subcommand_targets, fix);
     for subs in r.ensemble_subcommand_targets.values_mut() {
-        for target in subs.values_mut() {
-            fix(target);
+        for entry in subs.values_mut() {
+            fix(&mut entry.target);
         }
     }
     for imp in &mut r.namespace_imports {
@@ -1816,6 +1839,7 @@ fn rebase_pending_names(frag: &mut BodyFragment, fix: &impl Fn(&mut String)) {
     for site in &mut frag.const_dispatches {
         fix(&mut site.ns);
     }
+    fix_string_keys(&mut frag.ensemble_offsets, fix);
     fix_string_keys(&mut frag.walk_aliases, fix);
     for (target, _) in frag.walk_aliases.values_mut() {
         fix(target);
@@ -1879,6 +1903,9 @@ fn rebase_fragment_pending(frag: &mut BodyFragment, d: u32) {
     for (_, tok, span) in &mut frag.global_defs {
         tok.span = shift(tok.span, d);
         *span = shift(*span, d);
+    }
+    for off in frag.ensemble_offsets.values_mut() {
+        *off += d;
     }
     for off in frag.walk_alias_offsets.values_mut() {
         *off += d;

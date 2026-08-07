@@ -17723,6 +17723,15 @@ fn extend_resolver_with_document_auto_paths(
 /// (`C:\repo\user.tcl`, which is what `Uri::to_file_path` yields there)
 /// resolving against its own directory.  It returns slash form, which
 /// `PathBuf` accepts on every host.
+///
+/// A `lappend auto_path lib` folds to a **relative** directory: Tcl resolves
+/// it against the interpreter's run-time working directory, which no static
+/// analysis knows (tclsh 8.6.16 / 9.0.4-verified), so the evaluator returns
+/// it unanchored rather than pinning it to the language server's own launch
+/// directory — an editor artefact unrelated to the user's program. This is
+/// the caller that owns the closest base the editor actually has: the
+/// analysed document's own directory, which is what the run-from-its-own
+/// -directory convention every relocatable Tcl project uses makes true.
 fn document_auto_path_dirs(uri: &Uri, analysis: &AnalysisResult) -> Vec<PathBuf> {
     if analysis.auto_path_entries.is_empty() {
         return Vec::new();
@@ -17741,7 +17750,10 @@ fn document_auto_path_dirs(uri: &Uri, analysis: &AnalysisResult) -> Vec<PathBuf>
             if dirs.len() >= DOCUMENT_AUTO_PATH_DIR_CAP {
                 break;
             }
-            let dir = PathBuf::from(folded);
+            // Anchor a rootless fold on the document's own directory (see
+            // this function's doc comment); an already-rooted one passes
+            // through unchanged.
+            let dir = tcl_lsp_core::source_graph::resolve_source_target(&file_path, &folded);
             if !dirs.contains(&dir) {
                 dirs.push(dir);
             }
@@ -21250,6 +21262,97 @@ mod tests {
             locs[0].uri.as_str().ends_with("mypix.tcl"),
             "unexpected target: {:?}",
             locs[0].uri,
+        );
+    }
+
+    /// Issue #923 idx 73 — the depth `pix` itself writes: **three** nested
+    /// `file dirname`s, reaching two directories above the analysed file.
+    /// The committed tests are one level shallower, and the evaluator is
+    /// recursive, so this is about the layout rather than the arithmetic: a
+    /// deeply-nested `examples/subdir/user.tcl` whose package lives at the
+    /// repo root, with the workspace root scoped to the leaf directory.
+    ///
+    /// Oracle (tclsh 9.0.4 and 8.6.16, this exact layout): running
+    /// `examples/demos/user.tcl` prints `loaded:foo.png`.
+    #[tokio::test]
+    async fn a_triple_nested_dirname_auto_path_feeds_the_package_database() {
+        let ws = TmpWs::new("autopath-triple");
+        ws.write(
+            "reporoot/pkgIndex.tcl",
+            "package ifneeded mypix 1.0 [list source [file join $dir mypix.tcl]]\n",
+        );
+        ws.write(
+            "reporoot/mypix.tcl",
+            "package provide mypix 1.0\nproc ::mypix::readImage {path} { return \"loaded:$path\" }\n",
+        );
+        ws.write(
+            "reporoot/examples/demos/user.tcl",
+            "lappend auto_path [file dirname [file dirname [file dirname [info script]]]]\n\
+             package require mypix\n\
+             puts [::mypix::readImage foo.png]\n",
+        );
+
+        let backend = test_backend();
+        // Root is the leaf `demos/` directory — two levels below the package.
+        let narrow_root = Uri::from_file_path(ws.0.join("reporoot/examples/demos")).unwrap();
+        *backend.workspace_folders.lock().await = vec![narrow_root];
+        backend.scan_workspace_folders().await;
+        assert!(
+            backend.package_resolver.read().await.provides("mypix"),
+            "a triple-nested `[file dirname …]` auto_path entry must reach the \
+             repo-root package directory",
+        );
+    }
+
+    /// Issue #923 idx 41's incidental finding: a *relative* `auto_path` entry
+    /// (`lappend auto_path lib`) resolves against the interpreter's working
+    /// directory at run time, which no static analysis knows — so it must be
+    /// anchored on the analysed document's own directory, never on the
+    /// language server process's launch directory (an editor artefact).
+    ///
+    /// Oracle (tclsh 8.6.16 / 9.0.4): `cd reporoot && tclsh main.tcl` loads
+    /// `reporoot/lib`'s package; the same file run from elsewhere would not.
+    /// The document's directory is the closest base an editor has, and — as
+    /// this test proves by construction — it is a base the *server's* own
+    /// working directory is not.
+    #[tokio::test]
+    async fn a_relative_auto_path_entry_anchors_on_the_document_not_the_server_cwd() {
+        let ws = TmpWs::new("autopath-relative");
+        ws.write(
+            "reporoot/lib/pkgIndex.tcl",
+            "package ifneeded relpix 1.0 [list source [file join $dir relpix.tcl]]\n",
+        );
+        ws.write(
+            "reporoot/lib/relpix.tcl",
+            "package provide relpix 1.0\nproc ::relpix::go {} { return ok }\n",
+        );
+        ws.write(
+            "reporoot/main.tcl",
+            "lappend auto_path lib\npackage require relpix\nputs [::relpix::go]\n",
+        );
+
+        let main_uri = Uri::from_file_path(ws.0.join("reporoot/main.tcl")).unwrap();
+        let main_src = std::fs::read_to_string(ws.0.join("reporoot/main.tcl")).expect("read");
+        let analysis = tcl_compiler::analyser::Analyser::new()
+            .analyse(&main_src, "tcl8.6")
+            .clone();
+        assert_eq!(
+            document_auto_path_dirs(&main_uri, &analysis),
+            vec![ws.0.join("reporoot/lib")],
+            "`lappend auto_path lib` must resolve against the document's own \
+             directory; the server process's working directory is not a fact \
+             about the user's program",
+        );
+
+        // And it really does make the package resolvable, with the workspace
+        // root scoped to the document's directory only.
+        let backend = test_backend();
+        let root = Uri::from_file_path(ws.0.join("reporoot")).unwrap();
+        *backend.workspace_folders.lock().await = vec![root];
+        backend.scan_workspace_folders().await;
+        assert!(
+            backend.package_resolver.read().await.provides("relpix"),
+            "the relative auto_path entry must put `reporoot/lib` on the search path",
         );
     }
 

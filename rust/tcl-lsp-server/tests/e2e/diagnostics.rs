@@ -2919,6 +2919,180 @@ fn patch_level_guarded_pkgindex_suppresses_w123() {
     let _ = std::fs::remove_dir_all(&libdir);
 }
 
+/// TN (issue #923 differential-audit finding idx 42) — the shape
+/// `georgtree/tclopt`'s real `pkgIndex.tcl.in` has: a TEA-style version
+/// branch whose **both** arms declare the same `package ifneeded`. The
+/// package is available whichever arm runs, so flagging its commands is a
+/// false positive.
+///
+/// The e2e tier previously only covered the *early-return* guard (#1017);
+/// the both-arms shape was pinned only by a `package_resolver::reachability`
+/// unit test, so a regression in how the server's diagnostics pipeline
+/// consumes that module would not have been caught here.
+///
+/// Oracle (tclsh 8.6.16 and 9.0.4, `TCLLIBPATH` pointing at the fixture):
+/// `package require mypkg` succeeds and `mypkgHello` returns `hi` on both,
+/// exactly as for a flat unguarded index.
+#[test]
+fn both_arms_of_a_version_branch_declaring_the_package_suppress_w123_923_idx42() {
+    let libdir = pkg_libdir_with_index(
+        "if {[package vsatisfies [package provide Tcl] 9-]} {\n\
+         \x20   package ifneeded mypkg 1.0 [list source [file join $dir mypkg.tcl]]\n\
+         } else {\n\
+         \x20   package ifneeded mypkg 1.0 [list source [file join $dir mypkg.tcl]]\n\
+         }\n",
+    );
+    for dialect in ["tcl8.6", "tcl9.0"] {
+        let diags = guarded_pkg_child_diagnostics(dialect, &libdir);
+        assert!(
+            !has_code(&diags, "W123"),
+            "{dialect}: a package declared in every arm of a version branch is \
+             always available and must suppress W123, got: {:?}",
+            codes(&diags),
+        );
+    }
+    let _ = std::fs::remove_dir_all(&libdir);
+}
+
+/// TP control for the above — the same both-arms index, but the sourced file
+/// does not define the called command. The suppression must be
+/// *command-specific* (the package resolved, this command genuinely is not in
+/// it), not a blanket "package involved, stay quiet".
+#[test]
+fn a_command_absent_from_a_branch_declared_package_still_fires_w123_923_idx42() {
+    let libdir = pkg_libdir_with_index(
+        "if {[package vsatisfies [package provide Tcl] 9-]} {\n\
+         \x20   package ifneeded mypkg 1.0 [list source [file join $dir other.tcl]]\n\
+         } else {\n\
+         \x20   package ifneeded mypkg 1.0 [list source [file join $dir other.tcl]]\n\
+         }\n",
+    );
+    // `other.tcl` exists but defines something else entirely.
+    std::fs::write(
+        libdir.join("mypkg").join("other.tcl"),
+        "proc somethingElse {} { return hi }\n",
+    )
+    .expect("write other.tcl");
+    let diags = guarded_pkg_child_diagnostics("tcl9.0", &libdir);
+    assert!(
+        has_code(&diags, "W123"),
+        "a command the resolved package does not provide must still be flagged, got: {:?}",
+        codes(&diags),
+    );
+    let _ = std::fs::remove_dir_all(&libdir);
+}
+
+/// TN (issue #923 differential-audit finding idx 72) — a package whose
+/// `pkgIndex.tcl` only `load`s a binary extension has **no** companion `.tcl`
+/// file at all (`pix`'s real shape). Such a declaration is still a real,
+/// known package: treating it as unknowable made the whole document's W120
+/// "requires `package require …`" diagnostics vanish, including ones about
+/// entirely unrelated packages.
+///
+/// The two committed regression tests for this call `parse_pkg_index` /
+/// `refine_w120_diagnostics` directly; this drives the same fact through the
+/// real server, a real on-disk library scan and the pull-diagnostics path.
+#[test]
+fn a_load_only_package_does_not_suppress_unrelated_w120s_923_idx72() {
+    use std::sync::atomic::Ordering;
+    let libdir = std::env::temp_dir().join(format!(
+        "tcl-lsp-e2e-loadonlypkg-{}-{}",
+        std::process::id(),
+        GUARDED_PKG_N.fetch_add(1, Ordering::Relaxed)
+    ));
+    let pkgdir = libdir.join("testpix");
+    std::fs::create_dir_all(&pkgdir).expect("mk testpix lib dir");
+    // Deliberately the *only* file in the directory — no companion `.tcl`.
+    std::fs::write(
+        pkgdir.join("pkgIndex.tcl"),
+        "package ifneeded testpix 0.8 \
+         [list apply {dir {load [file join $dir libtestpix.so] Pix}} $dir]\n",
+    )
+    .expect("write pkgIndex.tcl");
+
+    let mut lsp = Lsp::with_config(serde_json::json!({
+        "libraryPaths": [ libdir.to_string_lossy() ],
+    }));
+    let baseline_uri = unique_uri("tcl");
+    lsp.open_ready(&baseline_uri, "http::register https 443 ::tls::socket\n");
+    let baseline = lsp.pull_diagnostics(&baseline_uri);
+    assert!(
+        has_code(&baseline, "W120"),
+        "baseline: an `http::register` with no `package require http` must draw \
+         W120, got: {:?}",
+        codes(&baseline),
+    );
+
+    let uri = unique_uri("tcl");
+    lsp.open_ready(
+        &uri,
+        "package require testpix\nhttp::register https 443 ::tls::socket\n",
+    );
+    // The package database loads asynchronously; poll until the answer settles.
+    let mut diags = lsp.pull_diagnostics(&uri);
+    let deadline = std::time::Instant::now() + scaled_timeout(Duration::from_secs(15));
+    while std::time::Instant::now() < deadline {
+        std::thread::sleep(Duration::from_millis(100));
+        let next = lsp.pull_diagnostics(&uri);
+        if codes(&next) == codes(&diags) {
+            diags = next;
+            break;
+        }
+        diags = next;
+    }
+    assert!(
+        has_code(&diags, "W120"),
+        "requiring a load-only package must not silence an unrelated W120, got: {:?}",
+        codes(&diags),
+    );
+    let _ = std::fs::remove_dir_all(&libdir);
+}
+
+/// TN (issue #923 differential-audit finding idx 64) — an unmatched literal
+/// `{` inside a *double-quoted* string does not stop substitution, so the
+/// `$ns` beside it is a genuine read and the `set` before it is not a dead
+/// store.
+///
+/// Oracle (tclsh 8.6.16 and 9.0.4): `set ns "ctx"; puts "{ $ns"` prints
+/// `{ ctx` — the variable really is read. W220 fired anyway, on the exact
+/// shape `pix`'s `pixdoc.tcl` uses to emit generated `namespace eval`
+/// preambles. Pinned at the analyser's own `fires()` helper (FP-DS-13) but
+/// never through the server's publish path until now.
+#[test]
+fn an_unmatched_brace_in_a_quoted_string_keeps_the_read_923_idx64() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    lsp.open_ready(&uri, "set ns \"ctx\"\nputs \"{ $ns\"\n");
+    let diags = lsp.pull_diagnostics(&uri);
+    assert!(
+        !has_code(&diags, "W220"),
+        "`$ns` after an unmatched `{{` in a quoted string is a real read, got: {:?}",
+        codes(&diags),
+    );
+
+    // The fuller shape the finding came from: an if/elseif namespace remap
+    // feeding a generated `namespace eval` preamble.
+    let uri2 = unique_uri("tcl");
+    lsp.open_ready(
+        &uri2,
+        "set fp [open /tmp/genned.tcl w]\n\
+         foreach name {paths image} {\n\
+         \x20   if {$name eq \"paths\"} { set ns path } elseif {$name eq \"image\"} \
+         { set ns img } else { set ns other }\n\
+         \x20   set preamble \"Docs for $name\"\n\
+         \x20   puts $fp \"namespace eval ::pix {\\n    namespace eval $ns {\\n\
+         \x20       variable _ruff_preamble $preamble\\n    }\\n}\"\n\
+         }\n\
+         close $fp\n",
+    );
+    let diags2 = lsp.pull_diagnostics(&uri2);
+    assert!(
+        !has_code(&diags2, "W220"),
+        "the generated-preamble idiom must draw no dead-store warning, got: {:?}",
+        codes(&diags2),
+    );
+}
+
 /// Per-call counter for the autoload references/rename fixture dir.
 static AUTOLOAD_REFS_N: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
 

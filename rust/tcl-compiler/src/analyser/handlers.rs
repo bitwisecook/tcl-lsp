@@ -3493,6 +3493,12 @@ impl Analyser {
     /// (issue #923 idx 106) — a distinct field from `ensemble_command_maps`
     /// above, serving navigation rather than the safe-interpreter gate.
     ///
+    /// The navigation entry is tagged
+    /// [`EnsembleSubcommandProvenance::Map`](crate::signature_scan::types::EnsembleSubcommandProvenance::Map)
+    /// (issue #1281): a `-map` key is an arbitrary name, so a consumer that
+    /// *rewrites* the subcommand word — rename — must leave it alone, unlike
+    /// the `-subcommands` sibling below whose entry is the target's own tail.
+    ///
     /// A `-map` target is a command name **or a command prefix** in real
     /// Tcl (tclsh 8.6.14-verified: `-map {go {string length}}` dispatches
     /// `myens go hello` to `string length hello`) — the command actually
@@ -3579,7 +3585,14 @@ impl Analyser {
                     .ensemble_subcommand_targets
                     .entry(key.to_owned())
                     .or_default()
-                    .insert(sub.clone(), resolved.clone());
+                    .insert(
+                        sub.clone(),
+                        super::types::EnsembleSubcommandTarget {
+                            target: resolved.clone(),
+                            provenance:
+                                crate::signature_scan::types::EnsembleSubcommandProvenance::Map,
+                        },
+                    );
                 self.ensemble_record_offsets
                     .insert(key.to_owned(), tok.span.start());
             }
@@ -3593,6 +3606,12 @@ impl Analyser {
     /// [`AnalysisResult::ensemble_subcommand_targets`] — the `-subcommands`
     /// sibling of [`Self::record_ensemble_map_targets`]'s issue #923 idx 106
     /// fix (same one-directional-only gap, same fix shape).
+    ///
+    /// Tagged
+    /// [`EnsembleSubcommandProvenance::Subcommands`](crate::signature_scan::types::EnsembleSubcommandProvenance::Subcommands)
+    /// (issue #1281): here the subcommand word *is* the target's tail — the
+    /// ensemble derives `<ns>::<name>` from it — so renaming the target must
+    /// rewrite the entry and the dispatch word with it.
     fn record_ensemble_subcommands(
         &mut self,
         list_text: &str,
@@ -3610,7 +3629,14 @@ impl Analyser {
                     .ensemble_subcommand_targets
                     .entry(key.to_owned())
                     .or_default()
-                    .insert(elem.clone(), resolved.clone());
+                    .insert(
+                        elem.clone(),
+                        super::types::EnsembleSubcommandTarget {
+                            target: resolved.clone(),
+                            provenance: crate::signature_scan::types::
+                                EnsembleSubcommandProvenance::Subcommands,
+                        },
+                    );
                 self.ensemble_record_offsets
                     .insert(key.to_owned(), tok.span.start());
             }
@@ -9618,6 +9644,145 @@ mod tests {
         );
     }
 
+    // Issue #923 idx 85, the *call-site* half.  Everything above pins the
+    // ensemble's own declaration (where the `-map`/`-subcommands` targets
+    // home to); these pin the downstream `<ensemble> <sub>` dispatch sites,
+    // which is what find-references / rename / code-lens / call-hierarchy
+    // enumerate.  Oracle — tclsh 8.6.16 and 9.0.4 both print
+    // `shown` then `configured:-x 1` for `VIAPROC_SRC`, so
+    // `::app::widget show` really does dispatch to `::app::widget::Show`.
+
+    /// The finding's exact shape: `namespace ensemble create -map` inside a
+    /// proc declared with a fully-qualified name at top level, with no
+    /// enclosing `namespace eval`, and the dispatch call sites written after
+    /// it — one nested in a `[…]` substitution, one at the top level.
+    const VIAPROC_SRC: &str = "namespace eval ::app::widget {\n    \
+         variable state 0\n\
+         }\n\
+         proc ::app::widget::Setup {} {\n    \
+         namespace ensemble create -map {\n        \
+         show      ::app::widget::Show\n        \
+         configure ::app::widget::Configure\n    \
+         }\n\
+         }\n\
+         proc ::app::widget::Show {} { puts \"shown\" }\n\
+         proc ::app::widget::Configure {args} { puts \"configured:$args\" }\n\
+         ::app::widget::Setup\n\
+         puts [::app::widget show]\n\
+         ::app::widget configure -x 1\n";
+
+    /// Every `(written name, resolved name)` pair recorded as an
+    /// existence-probed reference — the shape
+    /// `record_ensemble_subcommand_invocation` gives a subcommand word.
+    fn probe_refs(r: &super::super::types::AnalysisResult) -> Vec<(String, String)> {
+        r.command_invocations
+            .iter()
+            .filter(|i| i.existence_probe)
+            .map(|i| {
+                (
+                    i.name.clone(),
+                    i.resolved_qualified_name.clone().unwrap_or_default(),
+                )
+            })
+            .collect()
+    }
+
+    #[test]
+    fn ensemble_call_sites_resolve_when_the_ensemble_is_created_in_a_qualified_proc_923_idx85() {
+        let r = Analyser::new().analyse(VIAPROC_SRC, "tcl8.6").clone();
+        let probes = probe_refs(&r);
+        assert!(
+            probes.contains(&("show".to_owned(), "::app::widget::Show".to_owned())),
+            "the `[::app::widget show]` dispatch must be a reference to Show: {probes:?}",
+        );
+        assert!(
+            probes.contains(&(
+                "configure".to_owned(),
+                "::app::widget::Configure".to_owned()
+            )),
+            "the top-level `::app::widget configure` dispatch must be a reference \
+             to Configure: {probes:?}",
+        );
+    }
+
+    #[test]
+    fn per_item_records_the_same_ensemble_call_sites_as_the_whole_file_walk_923_idx85() {
+        // The regression that shipped: the per-item shell pass defers
+        // `::app::widget::Setup`'s body, so the ensemble map was still empty
+        // when the two call sites below it were walked and neither
+        // subcommand reference was ever recorded — go-to-definition (an
+        // on-demand lookup against the finished analysis) still answered,
+        // find-references could not.  Comparing the two walk strategies
+        // directly is the assertion that cannot drift.
+        let whole = Analyser::new().analyse(VIAPROC_SRC, "tcl8.6").clone();
+        let per_item = Analyser::new().analyse_per_item(VIAPROC_SRC, "tcl8.6");
+        assert_eq!(
+            probe_refs(&per_item),
+            probe_refs(&whole),
+            "per-item must record the same ensemble dispatch references as the \
+             whole-file walk",
+        );
+        assert!(
+            probe_refs(&per_item)
+                .iter()
+                .any(|(_, res)| res == "::app::widget::Show"),
+            "and both must actually find Show's call site: {:?}",
+            probe_refs(&per_item),
+        );
+    }
+
+    #[test]
+    fn a_dynamic_ensemble_map_records_no_call_site_reference_923_idx85() {
+        // TN — deliberate abstention.  `-map [list …]` is not a literal
+        // list, so no `subcommand -> target` fact exists at all; the
+        // dispatch site must stay unattributed rather than being guessed
+        // at from the surrounding text.  Both walk strategies abstain.
+        let src = "proc ::app::widget::Setup {} {\n    \
+                   namespace ensemble create -map [list show ::app::widget::Show]\n\
+                   }\n\
+                   proc ::app::widget::Show {} {}\n\
+                   ::app::widget::Setup\n\
+                   ::app::widget show\n";
+        for r in [
+            Analyser::new().analyse(src, "tcl8.6").clone(),
+            Analyser::new().analyse_per_item(src, "tcl8.6"),
+        ] {
+            assert!(
+                !probe_refs(&r)
+                    .iter()
+                    .any(|(_, res)| res == "::app::widget::Show"),
+                "a dynamic -map must not attribute the dispatch site: {:?}",
+                probe_refs(&r),
+            );
+        }
+    }
+
+    #[test]
+    fn an_ensemble_call_site_above_its_declaration_is_not_attributed_923_idx85() {
+        // TN — the whole-file DFS walks a proc body at its *definition*
+        // point, so a dispatch written above the proc that creates the
+        // ensemble sees no map.  The deferred replay reproduces that
+        // visibility rule rather than widening it, which is what keeps the
+        // two walk strategies byte-identical.
+        let src = "proc ::app::widget::Show {} {}\n\
+                   ::app::widget show\n\
+                   proc ::app::widget::Setup {} {\n    \
+                   namespace ensemble create -map {show ::app::widget::Show}\n\
+                   }\n";
+        for r in [
+            Analyser::new().analyse(src, "tcl8.6").clone(),
+            Analyser::new().analyse_per_item(src, "tcl8.6"),
+        ] {
+            assert!(
+                !probe_refs(&r)
+                    .iter()
+                    .any(|(_, res)| res == "::app::widget::Show"),
+                "a dispatch above the declaration must not be attributed: {:?}",
+                probe_refs(&r),
+            );
+        }
+    }
+
     // `namespace ensemble configure` (issue #923 idx 84): the real
     // `tk/library/systray.tcl` idiom splices new subcommands onto a
     // *pre-existing* ensemble via `configure`, not `create` — previously
@@ -9749,6 +9914,111 @@ mod tests {
             !resolved.contains(&"::myens::foo"),
             "must not record a spurious command reference from splitting \
              the dynamic expression's own text: {resolved:?}",
+        );
+    }
+
+    #[test]
+    fn ensemble_subcommand_targets_record_which_option_declared_them() {
+        // Issue #1281: the two options bind the subcommand word to its
+        // target in opposite ways, so the recorded fact has to say which one
+        // wrote it. Oracle (tclsh 8.6.14 / 9.0.4, identical): with `-map
+        // {show ::app::widget::Show}` the call `::app::widget Show` is
+        // `unknown or ambiguous subcommand "Show": must be show` — the key is
+        // arbitrary; with `-subcommands {alpha}` the ensemble derives
+        // `::app::widget::alpha` from the entry, and a `-subcommands {alpha}`
+        // whose proc is named `beta` is `invalid command name "alpha"`.
+        use crate::signature_scan::types::EnsembleSubcommandProvenance;
+
+        let mut a = Analyser::new();
+        let map_src = "namespace eval ::app::widget {}\n\
+                       proc ::app::widget::Show {} {}\n\
+                       namespace ensemble create -command ::app::widget \
+                       -map {show ::app::widget::Show}\n";
+        let r = a.analyse(map_src, "tcl8.6");
+        let entry = r
+            .ensemble_subcommand_targets
+            .get("::app::widget")
+            .and_then(|subs| subs.get("show"))
+            .expect("the literal -map pair is recorded");
+        assert_eq!(entry.target, "::app::widget::Show");
+        assert_eq!(
+            entry.provenance,
+            EnsembleSubcommandProvenance::Map,
+            "a -map pair must be tagged as such",
+        );
+
+        let mut a = Analyser::new();
+        let sub_src = "namespace eval ::app::widget {\n    \
+                       proc alpha {} {}\n    \
+                       namespace ensemble create -command ::app::widget \
+                       -subcommands {alpha}\n\
+                       }\n";
+        let r = a.analyse(sub_src, "tcl8.6");
+        let entry = r
+            .ensemble_subcommand_targets
+            .get("::app::widget")
+            .and_then(|subs| subs.get("alpha"))
+            .expect("the literal -subcommands entry is recorded");
+        assert_eq!(entry.target, "::app::widget::alpha");
+        assert_eq!(
+            entry.provenance,
+            EnsembleSubcommandProvenance::Subcommands,
+            "a -subcommands entry must be tagged as such",
+        );
+    }
+
+    #[test]
+    fn ensemble_dispatch_call_sites_carry_their_mapping_provenance() {
+        // The dispatch word's own invocation record carries the provenance
+        // (issue #1281), because only the recording site knows *this span* is
+        // a subcommand word: a `-map {Show ::app::widget::Show}` whose key
+        // happens to equal the target's tail is textually indistinguishable
+        // from an ordinary bare call to the target, so a consumer that
+        // re-derived the fact by name would gate the wrong spans.
+        use crate::signature_scan::types::EnsembleSubcommandProvenance;
+
+        let mut a = Analyser::new();
+        let map_src = "namespace eval ::app::widget {}\n\
+                       proc ::app::widget::Show {} {}\n\
+                       namespace ensemble create -command ::app::widget \
+                       -map {show ::app::widget::Show}\n\
+                       ::app::widget show\n";
+        let r = a.analyse(map_src, "tcl8.6");
+        let tagged: Vec<(&str, Option<EnsembleSubcommandProvenance>)> = r
+            .command_invocations
+            .iter()
+            .filter(|i| i.resolved_qualified_name.as_deref() == Some("::app::widget::Show"))
+            .map(|i| (i.name.as_str(), i.ensemble_dispatch))
+            .collect();
+        assert!(
+            tagged.contains(&("show", Some(EnsembleSubcommandProvenance::Map))),
+            "the dispatch word is tagged with the -map provenance: {tagged:?}",
+        );
+        assert!(
+            tagged
+                .iter()
+                .any(|(name, prov)| *name == "::app::widget::Show" && prov.is_none()),
+            "the -map *value* is an ordinary reference, not a dispatch word — \
+             it carries the target's own name and rename must rewrite it: {tagged:?}",
+        );
+
+        let mut a = Analyser::new();
+        let sub_src = "namespace eval ::app::widget {\n    \
+                       proc alpha {} {}\n    \
+                       namespace ensemble create -command ::app::widget \
+                       -subcommands {alpha}\n\
+                       }\n\
+                       ::app::widget alpha\n";
+        let r = a.analyse(sub_src, "tcl8.6");
+        let tagged: Vec<(&str, Option<EnsembleSubcommandProvenance>)> = r
+            .command_invocations
+            .iter()
+            .filter(|i| i.resolved_qualified_name.as_deref() == Some("::app::widget::alpha"))
+            .map(|i| (i.name.as_str(), i.ensemble_dispatch))
+            .collect();
+        assert!(
+            tagged.contains(&("alpha", Some(EnsembleSubcommandProvenance::Subcommands))),
+            "the dispatch word is tagged with the -subcommands provenance: {tagged:?}",
         );
     }
 

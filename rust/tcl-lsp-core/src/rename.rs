@@ -1291,6 +1291,47 @@ fn rename_var(
     edits
 }
 
+/// Whether this call site is an ensemble **dispatch word whose spelling the
+/// rename must not touch** — the `show` of `::app::widget show` when the
+/// ensemble bound it with `-map {show ::app::widget::Show}` (issue #1281).
+///
+/// A `-map` key is an arbitrary name with no required relationship to the
+/// target it dispatches to (tclsh 8.6.14 / 9.0.4: with that map,
+/// `::app::widget show` runs the proc and `::app::widget Show` is `unknown or
+/// ambiguous subcommand "Show": must be show`).  So renaming
+/// `::app::widget::Show` → `Display` must rewrite the declaration and the
+/// `-map` *value* — a separate reference this same loop rewrites, because its
+/// span really does carry the target's name — while leaving the dispatch word
+/// alone.  Rewriting it is the corruption the issue reports: the map still
+/// says `show`, and the edited call names a subcommand that does not exist.
+///
+/// A `-subcommands {alpha}` entry is the opposite case and is deliberately
+/// **not** gated: there the subcommand word *is* the target's tail, the
+/// ensemble derives `::app::widget::alpha` from it, and leaving it behind
+/// gives `invalid command name "alpha"` — so it must be rewritten with the
+/// declaration, which is what the ungated path already does.
+///
+/// This reads the per-site provenance the analyser recorded, not a name
+/// comparison against `ensemble_subcommand_targets`: a `-map {Show
+/// ::app::widget::Show}` whose key happens to equal the target's tail is
+/// textually indistinguishable from an ordinary bare call to the target, and
+/// only the recording site knows which one this span is.
+///
+/// Find-references, code-lens counts and call-hierarchy are untouched by this
+/// — a dispatch site is a genuine reference under either provenance, and the
+/// gate lives here (in the two rename loops) rather than in
+/// [`crate::references::invocation_references_proc`], which all of them
+/// share.
+#[must_use]
+fn ensemble_map_dispatch_word(
+    ensemble_dispatch: Option<tcl_compiler::signature_scan::types::EnsembleSubcommandProvenance>,
+) -> bool {
+    matches!(
+        ensemble_dispatch,
+        Some(tcl_compiler::signature_scan::types::EnsembleSubcommandProvenance::Map)
+    )
+}
+
 /// Proc-rename path — declaration name span + every matching
 /// call site.  Namespace-aware: the declaration keeps its
 /// prefix; call sites pick the rewrite that matches the form
@@ -1362,6 +1403,11 @@ fn rename_proc(
         // `$cmd` head, M7) — rewriting it would splice the new name over
         // unrelated text.  References still report it; rename must not.
         if inv.indirect {
+            continue;
+        }
+        // A `-map` key is an arbitrary name the target's rename does not
+        // change — see [`ensemble_map_dispatch_word`].
+        if ensemble_map_dispatch_word(inv.ensemble_dispatch) {
             continue;
         }
         // Use the *same* invocation-matching rule as Find-All-References so a
@@ -1441,6 +1487,11 @@ fn rename_class(
         // Indirect sites (M7) are references, never rename targets — the span
         // does not carry the written name.
         if inv.indirect {
+            continue;
+        }
+        // A `-map` key is an arbitrary name the target's rename does not
+        // change — see [`ensemble_map_dispatch_word`].
+        if ensemble_map_dispatch_word(inv.ensemble_dispatch) {
             continue;
         }
         // Use the *same* invocation-matching rule as Find-All-References so a
@@ -1651,6 +1702,13 @@ pub fn cross_document_symbol_edits(
         // Indirect sites (constant `$cmd` heads, M7) are references, never
         // rename targets — their span is not the written name.
         if inv.indirect {
+            continue;
+        }
+        // The cross-document half of the same `-map` gate the in-document
+        // rename applies — see [`ensemble_map_dispatch_word`].  An ensemble
+        // declared in one document and dispatched from another is exactly the
+        // shape issue #923 idx 85 widened the recording to reach.
+        if ensemble_map_dispatch_word(inv.ensemble_dispatch) {
             continue;
         }
         let replacement =
@@ -2072,6 +2130,135 @@ mod tests {
         result
     }
 
+    /// Issue #1281 — the `-map` half. Renaming the target must rewrite the
+    /// declaration and the `-map` *value* and leave the subcommand word
+    /// alone.
+    ///
+    /// Oracle (tclsh 8.6.14 / 9.0.4, identical): with `-map {show
+    /// ::app::widget::Show}`, `::app::widget show` runs the proc and
+    /// `::app::widget Show` is `unknown or ambiguous subcommand "Show": must
+    /// be show` — the key is arbitrary, so the applied edit set must keep
+    /// spelling it `show`.
+    #[test]
+    fn renaming_a_map_target_does_not_rewrite_the_subcommand_word_1281() {
+        let src = "namespace eval ::app::widget {}\n\
+                   proc ::app::widget::Show {} { return \"showing\" }\n\
+                   namespace ensemble create -command ::app::widget \
+                   -map {show ::app::widget::Show}\n\
+                   puts [::app::widget show]\n";
+        let analysis = analyse(src);
+        // Cursor on the `Show` of the declaration (line 1, col 20).
+        let edits = rename(src, "tcl", 1, 20, "Display", &analysis, None);
+        let applied = apply_edits(src, &edits);
+        assert!(
+            applied.contains("proc ::app::widget::Display {}"),
+            "the declaration must be renamed: {applied}"
+        );
+        assert!(
+            applied.contains("-map {show ::app::widget::Display}"),
+            "the -map value names the target and must follow it: {applied}"
+        );
+        assert!(
+            applied.contains("puts [::app::widget show]"),
+            "the -map key is arbitrary and must be left alone: {applied}"
+        );
+    }
+
+    /// Issue #1281 — the `-subcommands` half, and the true negative for the
+    /// gate above: the fix must not over-correct into never rewriting an
+    /// ensemble dispatch word.
+    ///
+    /// Oracle (tclsh 8.6.14 / 9.0.4, identical): a `-subcommands {alpha}`
+    /// ensemble whose proc has been renamed to `beta` answers
+    /// `invalid command name "alpha"` — the entry *is* the target's tail, so
+    /// it and the dispatch word must move with the declaration.
+    #[test]
+    fn renaming_a_subcommands_target_still_rewrites_the_subcommand_word_1281() {
+        let src = "namespace eval ::app::widget {\n    \
+                   proc alpha {} { return \"alpha!\" }\n    \
+                   namespace ensemble create -command ::app::widget \
+                   -subcommands {alpha}\n\
+                   }\n\
+                   puts [::app::widget alpha]\n";
+        let analysis = analyse(src);
+        // Cursor on the `alpha` of the declaration (line 1, col 9).
+        let edits = rename(src, "tcl", 1, 9, "beta", &analysis, None);
+        let applied = apply_edits(src, &edits);
+        assert!(
+            applied.contains("proc beta {}"),
+            "the declaration must be renamed: {applied}"
+        );
+        assert!(
+            applied.contains("-subcommands {beta}"),
+            "the -subcommands entry is the target's tail: {applied}"
+        );
+        assert!(
+            applied.contains("puts [::app::widget beta]"),
+            "the dispatch word must follow the target under -subcommands: {applied}"
+        );
+    }
+
+    /// Issue #1281 — the gate is a *rename* gate, not a reference rule. Both
+    /// dispatch sites stay in find-references (they are genuine references
+    /// under either provenance); only the emitted edit sets differ. The two
+    /// share `invocation_references_proc`, so this is the assertion that
+    /// stops the hazard being "fixed" by weakening references.
+    #[test]
+    fn find_references_still_reports_both_ensemble_dispatch_sites_1281() {
+        let map_src = "namespace eval ::app::widget {}\n\
+                       proc ::app::widget::Show {} { return \"showing\" }\n\
+                       namespace ensemble create -command ::app::widget \
+                       -map {show ::app::widget::Show}\n\
+                       puts [::app::widget show]\n";
+        let analysis = analyse(map_src);
+        let refs = crate::references::references(map_src, "tcl", 1, 20, &analysis, false);
+        assert!(
+            refs.iter().any(|r| r.start_line == 3),
+            "the -map dispatch site is a reference: {refs:?}"
+        );
+
+        let sub_src = "namespace eval ::app::widget {\n    \
+                       proc alpha {} { return \"alpha!\" }\n    \
+                       namespace ensemble create -command ::app::widget \
+                       -subcommands {alpha}\n\
+                       }\n\
+                       puts [::app::widget alpha]\n";
+        let analysis = analyse(sub_src);
+        let refs = crate::references::references(sub_src, "tcl", 1, 9, &analysis, false);
+        assert!(
+            refs.iter().any(|r| r.start_line == 4),
+            "the -subcommands dispatch site is a reference: {refs:?}"
+        );
+    }
+
+    /// Issue #1281 — a dynamically built `-map` records no mapping at all, so
+    /// the dispatch word is never attributed to the target and no rename can
+    /// rewrite it. The abstention is inherited from the recording site rather
+    /// than re-decided in rename.
+    #[test]
+    fn a_dynamic_map_leaves_the_dispatch_word_unattributed_1281() {
+        let src = "namespace eval ::app::widget {}\n\
+                   proc ::app::widget::Show {} { return \"showing\" }\n\
+                   set m [list show ::app::widget::Show]\n\
+                   namespace ensemble create -command ::app::widget -map $m\n\
+                   puts [::app::widget show]\n";
+        let analysis = analyse(src);
+        assert!(
+            analysis
+                .ensemble_subcommand_targets
+                .get("::app::widget")
+                .is_none_or(std::collections::HashMap::is_empty),
+            "a dynamic -map records no mapping: {:?}",
+            analysis.ensemble_subcommand_targets,
+        );
+        let edits = rename(src, "tcl", 1, 20, "Display", &analysis, None);
+        let applied = apply_edits(src, &edits);
+        assert!(
+            applied.contains("puts [::app::widget show]"),
+            "an unattributed dispatch word must not be rewritten: {applied}"
+        );
+    }
+
     #[test]
     fn rename_rewrites_a_method_return_captured_dispatch_site() {
         // Issue #994 C5b / #1143: `b` is typed only by the object-type
@@ -2329,6 +2516,96 @@ mod tests {
             cross_document_symbol_edits("::mymod::helper", "helper2", &index, "file:///caller.tcl");
         assert_eq!(edits.len(), 1, "{edits:?}");
         assert_eq!(edits[0].uri, "file:///mymod.tcl");
+    }
+
+    /// Issue #1281 — the class-rename tier carries the same gate. A `-map`
+    /// target can name a class command just as easily as a proc
+    /// (`-map {make ::Widget}` dispatches `widget make` to `::Widget`), and
+    /// `rename_class` gathers call sites through the same invocation loop, so
+    /// leaving it ungated would move the corruption one tier over.
+    #[test]
+    fn renaming_a_class_used_as_a_map_target_does_not_rewrite_the_subcommand_word_1281() {
+        let src = "oo::class create ::Widget { method draw {} {} }\n\
+                   namespace ensemble create -command ::app -map {make ::Widget}\n\
+                   ::app make\n";
+        let analysis = analyse(src);
+        // Cursor on the `::Widget` of the class declaration (line 0, col 17).
+        let edits = rename(src, "tcl", 0, 17, "Panel", &analysis, None);
+        let applied = apply_edits(src, &edits);
+        // (The class tier's own qualifier handling writes the short form
+        // here; the identity is the same command at global level. What this
+        // test is about is the two words below.)
+        assert!(
+            applied.contains("oo::class create Panel"),
+            "the class declaration must be renamed: {applied}"
+        );
+        assert!(
+            applied.contains("-map {make ::Panel}"),
+            "the -map value names the class and must follow it: {applied}"
+        );
+        assert!(
+            applied.contains("::app make\n"),
+            "the -map key is arbitrary and must be left alone: {applied}"
+        );
+    }
+
+    /// Issue #1281, cross-document half: the workspace edit path
+    /// ([`cross_document_symbol_edits`], which `workspace_symbol_rename_edits`
+    /// drives over *every* document) gathers the same invocation records, so
+    /// it needs the same provenance gate — otherwise the corruption simply
+    /// moves from the in-document tier to the workspace one.
+    ///
+    /// The `-subcommands` half is the control: the identical shape, sharing
+    /// the identical path, does rewrite its dispatch word — so the `-map`
+    /// verdict below is the gate at work, not a path that never reaches the
+    /// site.
+    #[test]
+    fn cross_document_symbol_edits_apply_the_ensemble_map_gate_1281() {
+        use crate::workspace_index::WorkspaceIndex;
+
+        let map_lib = analyse(
+            "namespace eval ::app::widget {}\n\
+             proc ::app::widget::Show {} { return \"showing\" }\n\
+             namespace ensemble create -command ::app::widget \
+             -map {show ::app::widget::Show}\n\
+             puts [::app::widget show]\n",
+        );
+        let index = WorkspaceIndex::from_documents([("file:///lib.tcl", &map_lib)]);
+        let edits = cross_document_symbol_edits(
+            "::app::widget::Show",
+            "Display",
+            &index,
+            "file:///caller.tcl",
+        );
+        assert!(
+            edits.iter().all(|e| e.new_text != "Display"),
+            "the -map key is arbitrary — no bare-tail edit may target the \
+             dispatch word: {edits:?}",
+        );
+        assert!(
+            edits.iter().any(|e| e.new_text == "::app::widget::Display"),
+            "the declaration and the -map value must still be rewritten: {edits:?}",
+        );
+
+        let sub_lib = analyse(
+            "namespace eval ::app::widget {\n    \
+             proc alpha {} { return \"alpha!\" }\n    \
+             namespace ensemble create -command ::app::widget -subcommands {alpha}\n\
+             }\n\
+             puts [::app::widget alpha]\n",
+        );
+        let index = WorkspaceIndex::from_documents([("file:///lib.tcl", &sub_lib)]);
+        let edits = cross_document_symbol_edits(
+            "::app::widget::alpha",
+            "beta",
+            &index,
+            "file:///caller.tcl",
+        );
+        assert!(
+            edits.iter().filter(|e| e.new_text == "beta").count() >= 2,
+            "a -subcommands entry and its dispatch word must both follow the \
+             target through the same path: {edits:?}",
+        );
     }
 
     #[test]

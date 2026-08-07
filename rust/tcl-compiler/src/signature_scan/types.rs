@@ -414,6 +414,38 @@ pub struct SignatureAutoPathEntry {
     pub range: Span,
 }
 
+/// How a `namespace ensemble` subcommand got its name — the option that
+/// declared it (issue #1281).
+///
+/// The two options bind the subcommand word to its target in opposite ways,
+/// and a consumer that **rewrites source text** has to tell them apart
+/// (tclsh 8.6.14 / 9.0.4, identical):
+///
+/// - `-map {show ::app::widget::Show}` — the key is an *arbitrary* name with
+///   no required relationship to the target. `::app::widget show` runs
+///   `::app::widget::Show`, and `::app::widget Show` is `unknown or ambiguous
+///   subcommand "Show": must be show`. Renaming the target therefore must
+///   **not** touch the subcommand word; the pairing lives in the `-map`
+///   value, which is a separate reference the rename does rewrite.
+/// - `-subcommands {alpha}` — the entry *is* the target's tail; the ensemble
+///   derives `::app::widget::alpha` from it. Leaving the word behind when the
+///   proc is renamed gives `invalid command name "alpha"`, so renaming the
+///   target **must** rewrite the dispatch word (and the `-subcommands` entry)
+///   along with the declaration.
+///
+/// A dynamic value (`-map [list …]`) records no mapping at all, so it has no
+/// provenance to carry and every consumer abstains — see
+/// [`crate::analyser::types::AnalysisResult::ensemble_subcommand_targets`].
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum EnsembleSubcommandProvenance {
+    /// Declared by `-map {sub target …}`: the subcommand word is arbitrary
+    /// and independent of the target's name.
+    Map,
+    /// Declared by `-subcommands {name …}`: the subcommand word *is* the
+    /// target command's tail.
+    Subcommands,
+}
+
 /// A single command invocation recorded by the signature scanner.
 ///
 /// One record per command in the source — populated for every
@@ -513,6 +545,26 @@ pub struct SignatureCommandInvocation {
     /// the generic one-hop suffix-strip, which would otherwise misparse
     /// `tcl::mathfunc` as if it were the calling namespace.
     pub is_mathfunc_call: bool,
+    /// `Some(provenance)` when this record is the **subcommand word** of an
+    /// `<ensemble> <sub> …` dispatch (issue #923 idx 106 / idx 85), carrying
+    /// the option that declared the mapping; `None` for every other
+    /// invocation, including the `-map` target and the `-subcommands` entry
+    /// inside the ensemble declaration itself (those spans *do* carry the
+    /// target's own name and are ordinary references).
+    ///
+    /// The flag rides on the invocation rather than being re-derived from
+    /// [`crate::analyser::types::AnalysisResult::ensemble_subcommand_targets`]
+    /// by name at the consumer, because only the recording site knows *this
+    /// span* is a dispatch word: a `-map {Show ::app::widget::Show}` whose
+    /// key happens to equal the target's tail makes a name-based test
+    /// indistinguishable from an ordinary bare call to the target.
+    ///
+    /// Navigation consumers (references, go-to-definition, call hierarchy)
+    /// ignore it — a dispatch site is a genuine reference under either
+    /// provenance. Rename reads it: see
+    /// [`EnsembleSubcommandProvenance`] for the oracle that says why a `-map`
+    /// dispatch word must survive a rename of its target unchanged.
+    pub ensemble_dispatch: Option<EnsembleSubcommandProvenance>,
 }
 
 /// The full result returned by `extract_signatures`.

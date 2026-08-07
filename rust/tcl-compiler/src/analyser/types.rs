@@ -106,6 +106,27 @@ pub struct Diagnostic {
     pub fixes: Vec<CodeFix>,
 }
 
+/// One statically recorded `namespace ensemble` subcommand: the command it
+/// dispatches to, plus **how** the ensemble bound the two together
+/// (issue #1281).
+///
+/// The value half of
+/// [`AnalysisResult::ensemble_subcommand_targets`]'s inner map. Navigation
+/// (`definition` / `hover` / `references`) only wants [`Self::target`]; a
+/// source-rewriting consumer (rename) has to read [`Self::provenance`] as
+/// well, because the subcommand word is the target's own tail under
+/// `-subcommands` and an arbitrary key under `-map`.
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct EnsembleSubcommandTarget {
+    /// The resolved, qualified command name the subcommand dispatches to
+    /// (`::app::widget::Show`). For a `-map` target that is a command
+    /// *prefix* (`-map {go {string length}}`) this is the prefix's head —
+    /// the command actually invoked.
+    pub target: String,
+    /// Which option declared the mapping.
+    pub provenance: crate::signature_scan::types::EnsembleSubcommandProvenance,
+}
+
 /// One same-file user-call arity candidate, buffered during the command
 /// walk for post-walk resolution against same-file procs / `TclOO`
 /// forwards / `interp alias` / static `rename` targets — the set the
@@ -1767,7 +1788,13 @@ pub struct AnalysisResult {
     /// `-subcommands` list — a dynamic value (`-map $var`) leaves the
     /// ensemble's entry absent entirely, so a lookup against it correctly
     /// abstains rather than guessing.
-    pub ensemble_subcommand_targets: HashMap<String, HashMap<String, String>>,
+    ///
+    /// Each entry carries the **provenance** of its mapping
+    /// ([`EnsembleSubcommandTarget::provenance`], issue #1281) — `-map` binds
+    /// an arbitrary key to a target, `-subcommands` derives the target from
+    /// the name — because a consumer that rewrites the subcommand word
+    /// (rename) is only correct for one of the two.
+    pub ensemble_subcommand_targets: HashMap<String, HashMap<String, EnsembleSubcommandTarget>>,
     /// Namespace import records.
     pub namespace_imports: Vec<SignatureNamespaceImport>,
     /// Namespace `forget` records — the removal half of the import edge's

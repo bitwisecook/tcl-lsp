@@ -809,6 +809,7 @@ impl Analyser {
                     rename_safe: true,
                     existence_probe: false,
                     is_mathfunc_call: false,
+                    ensemble_dispatch: None,
                 },
             );
 
@@ -970,6 +971,7 @@ impl Analyser {
                 rename_safe: true,
                 existence_probe: false,
                 is_mathfunc_call: false,
+                ensemble_dispatch: None,
             },
         );
     }
@@ -2123,6 +2125,7 @@ impl Analyser {
                     rename_safe: true,
                     existence_probe: false,
                     is_mathfunc_call: false,
+                    ensemble_dispatch: None,
                 },
             );
         }
@@ -2172,6 +2175,45 @@ impl Analyser {
                 rename_safe: true,
                 existence_probe,
                 is_mathfunc_call: false,
+                ensemble_dispatch: None,
+            },
+        );
+    }
+
+    /// [`Self::push_command_reference`] for the **subcommand word** of an
+    /// `<ensemble> <sub> …` dispatch: an existence-probed reference to the
+    /// mapped target that also carries the mapping's provenance
+    /// ([`crate::signature_scan::types::SignatureCommandInvocation::ensemble_dispatch`],
+    /// issue #1281), so rename can tell a `-map` key — an arbitrary name it
+    /// must leave alone — from a `-subcommands` entry, which is the target's
+    /// own tail and has to move with it.
+    ///
+    /// A dedicated method rather than another parameter on
+    /// [`Self::push_command_reference_with_policy`]: every dispatch word is
+    /// existence-probed for the same reason (`make` is never independently
+    /// callable — issue #945 fault 9), so the two facts always travel
+    /// together and callers cannot pair them wrongly.
+    pub(in crate::analyser) fn push_ensemble_dispatch_reference(
+        &mut self,
+        written: String,
+        span: Span,
+        entry: &super::types::EnsembleSubcommandTarget,
+        argc: Option<usize>,
+    ) {
+        self.result.command_invocations.push(
+            crate::signature_scan::types::SignatureCommandInvocation {
+                name: written,
+                range: span,
+                resolved_qualified_name: Some(entry.target.clone()),
+                resolution_candidates: Vec::new(),
+                argc,
+                callback_arity: None,
+                callback_baked_args: 0,
+                indirect: false,
+                rename_safe: true,
+                existence_probe: true,
+                is_mathfunc_call: false,
+                ensemble_dispatch: Some(entry.provenance),
             },
         );
     }
@@ -2203,6 +2245,7 @@ impl Analyser {
                 rename_safe: true,
                 existence_probe: false,
                 is_mathfunc_call: true,
+                ensemble_dispatch: None,
             },
         );
     }
@@ -2450,16 +2493,10 @@ impl Analyser {
         if arg_expand_in.get(1).copied().unwrap_or(false) {
             return;
         }
-        let Some(sub_map) = self.result.ensemble_subcommand_targets.get(resolved_cmd) else {
-            return;
-        };
         let Some(sub) = args.first() else { return };
         if crate::naming::is_dynamic_word(sub) {
             return;
         }
-        let Some(target) = sub_map.get(sub).cloned() else {
-            return;
-        };
         let Some(tok) = arg_tokens_in.get(1) else {
             return;
         };
@@ -2476,7 +2513,90 @@ impl Analyser {
         } else {
             Some(args.len() - 1)
         };
-        self.push_command_reference_with_policy(sub.clone(), tok.span, target, sub_argc, true);
+        self.record_or_defer_ensemble_subcommand(resolved_cmd, sub, tok.span, sub_argc);
+    }
+
+    /// Record the existence-probed subcommand reference for
+    /// `<ensemble> <sub>` — now if the ensemble's map is already known,
+    /// else queued for [`Self::flush_pending_ensemble_subcommand_invocations`]
+    /// (issue #923 idx 85).
+    ///
+    /// The queue is filled **only** by the per-item shell pass. The
+    /// whole-file DFS walks each proc/method body at its definition point,
+    /// so its map already holds every ensemble a body declared earlier in
+    /// the file; the shell pass defers those bodies, so an ensemble created
+    /// inside `proc ::app::widget::Setup {…}` is invisible to it and every
+    /// later `::app::widget show` call site was silently dropped — leaving
+    /// find-references / rename / code-lens / call-hierarchy unable to
+    /// enumerate call sites that go-to-definition (an on-demand lookup
+    /// against the finished analysis) resolved perfectly well.
+    ///
+    /// The replay is gated on the ensemble's own recording preceding the
+    /// call site, which is exactly the visibility the whole-file DFS has —
+    /// so the two walk strategies produce identical `command_invocations`
+    /// (the `per_item == analyse` corpus gate holds).
+    fn record_or_defer_ensemble_subcommand(
+        &mut self,
+        resolved_cmd: &str,
+        sub: &str,
+        span: Span,
+        argc: Option<usize>,
+    ) {
+        if let Some(entry) = self
+            .result
+            .ensemble_subcommand_targets
+            .get(resolved_cmd)
+            .and_then(|subs| subs.get(sub))
+            .cloned()
+        {
+            self.push_ensemble_dispatch_reference(sub.to_owned(), span, &entry, argc);
+            return;
+        }
+        // Nothing deferred yet means nothing can *become* visible before
+        // this offset either, so there is no candidate to hold.
+        if !self.defer_proc_bodies || self.deferred_bodies.is_empty() {
+            return;
+        }
+        self.pending_ensemble_subcommands
+            .push(super::state::PendingEnsembleSubcommand {
+                ensemble: resolved_cmd.to_owned(),
+                sub: sub.to_owned(),
+                span,
+                argc,
+            });
+    }
+
+    /// Replay every [`Self::record_or_defer_ensemble_subcommand`] miss
+    /// against the finished `ensemble_subcommand_targets` map, once every
+    /// deferred body has been walked and grafted (issue #923 idx 85).
+    ///
+    /// A candidate counts only when the ensemble's own
+    /// `namespace ensemble create|configure` recording **precedes** the call
+    /// site — the whole-file DFS's visibility rule, reproduced here so the
+    /// per-item walk records the same invocation set. Where the ensemble's
+    /// name or its `-map` is dynamic nothing is recorded at all (the map
+    /// never gains the entry), so the abstention is inherited from the one
+    /// place that decides it rather than re-decided here.
+    pub(super) fn flush_pending_ensemble_subcommand_invocations(&mut self) {
+        let pending = std::mem::take(&mut self.pending_ensemble_subcommands);
+        for cand in pending {
+            let Some(entry) = self
+                .result
+                .ensemble_subcommand_targets
+                .get(&cand.ensemble)
+                .and_then(|subs| subs.get(&cand.sub))
+                .cloned()
+            else {
+                continue;
+            };
+            let Some(&declared_at) = self.ensemble_record_offsets.get(&cand.ensemble) else {
+                continue;
+            };
+            if declared_at >= cand.span.start() {
+                continue;
+            }
+            self.push_ensemble_dispatch_reference(cand.sub, cand.span, &entry, cand.argc);
+        }
     }
 
     /// Walk every argument's source slice for ``[cmd ...]``
@@ -3141,16 +3261,9 @@ impl Analyser {
             // `argc` here is "args after the head" (the subcommand word
             // included), so it shifts by one to become "args after the
             // subcommand word" — the same convention that function uses.
-            if let Some((sub, sub_span)) = sub_candidate
-                && let Some(target) = self
-                    .result
-                    .ensemble_subcommand_targets
-                    .get(&resolved)
-                    .and_then(|subs| subs.get(&sub))
-                    .cloned()
-            {
+            if let Some((sub, sub_span)) = sub_candidate {
                 let sub_argc = argc.map(|a| a.saturating_sub(1));
-                self.push_command_reference_with_policy(sub, sub_span, target, sub_argc, true);
+                self.record_or_defer_ensemble_subcommand(&resolved, &sub, sub_span, sub_argc);
             }
             self.result.command_invocations.push(
                 crate::signature_scan::types::SignatureCommandInvocation {
@@ -3165,6 +3278,7 @@ impl Analyser {
                     rename_safe: true,
                     existence_probe: false,
                     is_mathfunc_call: false,
+                    ensemble_dispatch: None,
                 },
             );
         }
@@ -3216,6 +3330,7 @@ impl Analyser {
                     rename_safe: true,
                     existence_probe: false,
                     is_mathfunc_call: false,
+                    ensemble_dispatch: None,
                 },
             );
         }
@@ -5432,6 +5547,72 @@ mod tests {
             !r.diagnostics.iter().any(|d| d.code == DiagCode::W123),
             "must draw no W123: {:?}",
             r.diagnostics,
+        );
+    }
+
+    /// Issue #923 differential-audit finding idx 102 (fixed under #1138) —
+    /// [`Analyser::analyse_list_quoted_body`]'s *variable-reference*
+    /// recording, isolated at the analyser tier.
+    ///
+    /// `analyse_body`'s gate used to treat any non-`Str` body token as an
+    /// opaque barrier, so a script argument **built** with `list` — Tk's own
+    /// `library/tk.tcl` writes `namespace eval :: [list source [file join
+    /// $::tk_library $file.tcl]]` — never had `record_arg_var_reads` run
+    /// inside it and the enclosing proc's parameter looked unread from its
+    /// own scope.  Coverage for this lived only at the e2e / VS Code tiers,
+    /// testing through find-references and semantic tokens; nothing pinned
+    /// the analyser primitive that supplies them.
+    ///
+    /// Oracle (tclsh 8.6.16 and 9.0.4): the parameter deterministically
+    /// drives which file is sourced, so the read is real.
+    #[test]
+    fn a_list_built_body_records_its_parameter_reads_923_idx102() {
+        // The read lands on the *scope tree*'s copy of the parameter — the
+        // binding the LSP's variable providers resolve through.
+        fn find<'a>(
+            scope: &'a super::super::types::Scope,
+            name: &str,
+        ) -> Option<&'a super::super::types::VarDef> {
+            scope
+                .variables
+                .get(name)
+                .or_else(|| scope.children.iter().find_map(|c| find(c, name)))
+        }
+        let src = "proc ::app::SourceLibFile {file} {\n    \
+                   namespace eval :: [list source [file join $::app::lib_dir $file.tcl]]\n}\n";
+        let r = Analyser::new().analyse(src, "tcl8.6").clone();
+        let param = find(&r.global_scope, "file")
+            .expect("the `file` parameter must be recorded in the proc scope");
+        // The recorded span covers the whole `$file` substitution, `$` included.
+        let read_start = u32::try_from(src.find("$file.tcl").expect("the read is in the source"))
+            .expect("offset fits u32");
+        assert!(
+            param.references.iter().any(|s| s.start() == read_start),
+            "the `$file` read inside the list-built body must be recorded on the \
+             parameter (expected a reference at {read_start}): {:?}",
+            param.references,
+        );
+    }
+
+    /// TN control for the above — a body that is genuinely dynamic
+    /// (`[gen]`, not a statically known `list`-built command) stays the
+    /// opaque barrier it always was, so nothing inside it is attributed.
+    #[test]
+    fn a_dynamic_body_records_no_parameter_reads_923_idx102() {
+        let src = "proc ::app::Run {file} {\n    namespace eval :: [gen $file]\n}\n";
+        let r = Analyser::new().analyse(src, "tcl8.6").clone();
+        // The `$file` inside `[gen $file]` is a real argument read of the
+        // enclosing command substitution and is recorded once; what must not
+        // happen is the `[gen …]` body being *walked* as a script.
+        assert!(
+            !r.command_invocations
+                .iter()
+                .any(|i| i.name == "source" || i.name == "namespace eval"),
+            "a dynamic body must not be walked as a script: {:?}",
+            r.command_invocations
+                .iter()
+                .map(|i| i.name.as_str())
+                .collect::<Vec<_>>(),
         );
     }
 }

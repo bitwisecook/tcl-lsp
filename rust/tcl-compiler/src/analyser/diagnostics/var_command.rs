@@ -1755,6 +1755,7 @@ impl Analyser {
                 rename_safe: true,
                 existence_probe: false,
                 is_mathfunc_call: false,
+                ensemble_dispatch: None,
             });
         }
         self.result.command_invocations.extend(new_invocations);
