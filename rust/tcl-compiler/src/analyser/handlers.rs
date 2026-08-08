@@ -4608,6 +4608,11 @@ impl Analyser {
         prepended: Vec<String>,
         offset: u32,
     ) {
+        // Binding a second name onto `source` (or another external-unit
+        // loader) means calls through that name never reach the `Source` hook,
+        // so the files they pull in are invisible — see
+        // [`Self::note_external_unit_command_moved`].
+        self.note_external_unit_command_moved(&target_cmd);
         self.command_aliases
             .insert(qualified.clone(), (target_cmd.clone(), prepended.clone()));
         self.alias_offsets.insert(qualified.clone(), offset);
@@ -4766,6 +4771,10 @@ impl Analyser {
         if old.is_empty() {
             return false;
         }
+        // Moving `source` (or any other external-unit loader) out from under
+        // its own name takes its file-loading out of static view — see
+        // [`Self::note_external_unit_command_moved`].
+        self.note_external_unit_command_moved(&old);
         // `OLD` names an existing command as data — manipulated, not called —
         // the same shape `ArgRole::CommandName` already models for `info body
         // PROC` / `namespace origin NAME`. Recorded as an ordinary command
@@ -6298,7 +6307,92 @@ impl Analyser {
         true
     }
 
+    /// Note that the command whose name is being moved/bound loads an external
+    /// unit — a `source`, a `load`, an `auto_load` — and, if so, widen
+    /// [`AnalysisResult::has_dynamic_providers`](super::types::AnalysisResult::has_dynamic_providers).
+    ///
+    /// Hook dispatch keys off the **written** head, so once `source` has been
+    /// renamed or aliased to another name, calls through that name no longer
+    /// reach [`Self::handle_source_command`] and the files they pull in become
+    /// invisible. Rather than let W120 / W123 then confidently report a package
+    /// or command "missing" that the moved command loads, this widens to the
+    /// same unknowable state a dynamic `namespace import` pattern or a
+    /// `namespace unknown` handler produces — issue #1332's option (2), applied
+    /// to the one case option (1) cannot reach.
+    ///
+    /// The test is [`Traits::LOADS_EXTERNAL_UNIT`](tcl_registry::Traits), read
+    /// off the spec: no command name appears here, so `load` and `auto_load`
+    /// are covered by the same code that covers `source`, and a dialect that
+    /// adds another file-loading command is covered by declaring the trait.
+    fn note_external_unit_command_moved(&mut self, name: &str) {
+        let bare = name.trim_start_matches("::");
+        if self
+            .registry
+            .and_then(|r| r.get(bare))
+            .is_some_and(|spec| spec.traits.contains(tcl_registry::Traits::LOADS_EXTERNAL_UNIT))
+        {
+            self.result.has_dynamic_providers = true;
+        }
+    }
+
+    /// How many of `args`' leading words the **top-level** command `cmd_name`
+    /// consumes as options, entirely from registry data — the whole-command
+    /// counterpart of [`Self::namespace_leading_flag_words`], which answers the
+    /// same question for a `namespace` *subcommand*.
+    ///
+    /// A leading word counts when it matches one of the command's
+    /// profile-available [`OptionSpec`](tcl_registry::OptionSpec)s, and a
+    /// value-taking option (`source -encoding utf-8 f.tcl`) consumes its value
+    /// word too.  The scan stops at the first word that is not a declared
+    /// option, so the first *positional* is what remains — which is the only
+    /// thing callers want to know.
+    ///
+    /// Matching is exact (`OptionSpec::matches`: canonical name or a declared
+    /// alias), never the generic unique-prefix rule, for the same reason
+    /// [`Self::namespace_leading_flag_words`] is exact: these are hand-parsed
+    /// in C and an abbreviation is not accepted.
+    ///
+    /// `0` when no registry is attached (the analyser runs registry-less in
+    /// some unit tests) or the command has no declared options — a flagless
+    /// read then treats every word as positional, which is the pre-registry
+    /// behaviour.
+    fn leading_option_words(&self, cmd_name: &str, args: &[String]) -> usize {
+        use tcl_registry::ProfileQueries;
+        let Some(spec) = self.registry.and_then(|r| r.get(cmd_name)) else {
+            return 0;
+        };
+        let options = self.profile.available_option_specs(spec);
+        if options.is_empty() {
+            return 0;
+        }
+        let mut consumed = 0usize;
+        while let Some(word) = args.get(consumed) {
+            let Some(opt) = options.iter().find(|o| o.matches(word.as_str())) else {
+                break;
+            };
+            // A value-taking option eats the next word as well — but only when
+            // that word is actually present, so a truncated `source -encoding`
+            // does not report more words than were written.
+            let width = 1 + usize::from(opt.takes_value());
+            if consumed + width > args.len() {
+                break;
+            }
+            consumed += width;
+        }
+        consumed
+    }
+
     /// Record `source ?-encoding ENC? FILE` invocations.
+    ///
+    /// Which leading words are options — and therefore which word is the
+    /// script path — comes from `source`'s own [`OptionSpec`
+    /// list](tcl_registry::CommandSpec::options) via
+    /// [`Self::leading_option_words`], not a `-encoding` literal here.  The
+    /// option carries `DialectSet::TCL85_PLUS` in the registry, so the
+    /// dialect gating comes along for free: under an 8.4 profile — which has
+    /// no `-encoding` — the word is not recognised as an option and the path
+    /// word is read at index 0, matching that spec's own declaration rather
+    /// than a hardcoded assumption here.
     ///
     /// Dispatched via [`tcl_registry::hooks::AnalyserHookId::Source`].
     pub fn handle_source_command(
@@ -6311,11 +6405,7 @@ impl Analyser {
         if args.is_empty() {
             return;
         }
-        let file_idx = if args[0] == "-encoding" && args.len() >= 3 {
-            2
-        } else {
-            0
-        };
+        let file_idx = self.leading_option_words("source", args);
         if file_idx >= args.len() || file_idx >= arg_tokens.len() {
             return;
         }

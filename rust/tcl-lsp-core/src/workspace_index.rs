@@ -96,6 +96,18 @@ pub struct WorkspaceProc {
     pub qualified_name: String,
     /// Declared parameter count (for completion detail).
     pub param_count: usize,
+    /// The `(min, max)` argument arity this proc accepts, straight from
+    /// [`tcl_compiler::analyser::ProcDef::arity`] — so a trailing `args` is
+    /// unbounded, a defaulted parameter lowers the minimum, and a **computed**
+    /// parameter list (`proc p $params {…}`) abstains to the fully-open
+    /// `0..UNLIMITED` rather than reading as "takes no arguments".
+    ///
+    /// [`Self::param_count`] cannot answer an arity question: it is the raw
+    /// formal count, which says nothing about defaults or `args`. Cross-file
+    /// arity checking (issue #1331) needs the real envelope, and it needs it
+    /// from the same index that settles the call, so a caller is checked
+    /// against the command navigation says it actually reaches.
+    pub arity: tcl_registry::Arity,
     /// Byte span of the proc's name token in `uri`'s source.
     /// The server resolves this to an LSP range against the
     /// target document at query time.
@@ -1241,6 +1253,7 @@ impl DocumentRecords {
                 name: proc_def.name.clone(),
                 qualified_name: proc_def.qualified_name.clone(),
                 param_count: proc_def.params.len(),
+                arity: proc_def.arity(),
                 name_span: proc_def.name_span,
                 nested: analysis.offset_is_inside_any_definition_body(proc_def.name_span.start()),
             });

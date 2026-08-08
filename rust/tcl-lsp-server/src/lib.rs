@@ -2815,24 +2815,46 @@ async fn run_deep_diagnostics(
         ControlFlow::Break(false) => return false,
     };
 
-    // #804: extra requires this document inherits from configured entry points
-    // or its `source` ancestors, resolved against the live workspace index.
-    // Only computed when there is a W120 or W123 to refine (#832 uses inherited
-    // requires for its package-source resolution) — otherwise the index lock and
-    // `source`-graph walk are wasted work on the hot diagnostics path.
-    let inherited_requires = if analyser_diags
+    // What the workspace `source` graph contributes to this document (#804 up
+    // to now, #1332 for the `source`-descendant direction), and its call sites
+    // settled against the workspace index (#1331). Both read the index, so
+    // they share one lock acquisition.
+    //
+    // Demanded only when they can change a verdict: the inheritance when there
+    // is a W120 or W123 to refine, the settled calls when the analyser
+    // recorded any unresolved site at all. A document with neither pays
+    // nothing, exactly as before.
+    let needs_inheritance = analyser_diags
         .iter()
-        .any(|d| d.code == DiagCode::W120 || d.code == DiagCode::W123)
-    {
+        .any(|d| d.code == DiagCode::W120 || d.code == DiagCode::W123);
+    let needs_settling = !analysis.unresolved_command_sites.is_empty();
+    let (inheritance, settled_calls) = if needs_inheritance || needs_settling {
         let index = inputs.workspace_index.read().await;
-        compute_inherited_requires(
-            &index,
-            delivery.uri,
-            inputs.entry_points,
-            inputs.folder_root,
+        (
+            if needs_inheritance {
+                compute_source_inheritance(
+                    &index,
+                    delivery.uri,
+                    &analysis,
+                    inputs.entry_points,
+                    inputs.folder_root,
+                )
+            } else {
+                SourceInheritance::default()
+            },
+            if needs_settling {
+                settle_cross_file_calls(
+                    &index,
+                    &analysis,
+                    inputs.registry,
+                    delivery.uri.as_str(),
+                )
+            } else {
+                CrossFileCalls::default()
+            },
         )
     } else {
-        Vec::new()
+        (SourceInheritance::default(), CrossFileCalls::default())
     };
     // idx 80: the workspace's own definitions, as the cross-file
     // unknown-command refinement's known-name set — demanded only when it can
@@ -2852,10 +2874,11 @@ async fn run_deep_diagnostics(
         analyser_diags,
         &compiler_diags,
         &RefinementInputs {
-            inherited_requires: &inherited_requires,
+            inheritance: &inheritance,
             package_resolver: inputs.package_resolver,
             registry: inputs.registry,
             workspace_known_names,
+            settled_calls,
             cross_file_resolution: inputs.cross_file_resolution,
         },
         lift_inputs,
@@ -2948,11 +2971,11 @@ struct LiftInputs<'a> {
 }
 
 /// The workspace-wide inputs the W120 / W123 refinements resolve against,
-/// grouped so [`refine_and_lift_diagnostics`] takes them as one parameter: the
-/// requires this document inherits (#804), the package database (#723 / #832),
+/// grouped so [`refine_and_lift_diagnostics`] takes them as one parameter: what
+/// the `source` graph contributes (#804 / #1332), the package database (#723 / #832),
 /// and the workspace index's own command names (issue #923 idx 80).
 struct RefinementInputs<'a> {
-    inherited_requires: &'a [String],
+    inheritance: &'a SourceInheritance,
     package_resolver: &'a Arc<RwLock<PackageResolver>>,
     registry: &'static CommandRegistry,
     /// The workspace index's memoised command names — read whenever this
@@ -2960,8 +2983,12 @@ struct RefinementInputs<'a> {
     /// [`refine_workspace_index_w123`]'s always-on math-function tier needs
     /// them too, not only its `crossFileResolution`-gated project tier.
     workspace_known_names: Option<Arc<HashSet<String>>>,
+    /// The document's call sites settled against the workspace index — the
+    /// always-on tier 2 of [`refine_workspace_index_w123`] and the source of
+    /// the cross-file arity errors (issue #1331).
+    settled_calls: CrossFileCalls,
     /// Whether `crossFileResolution` is on, i.e. whether the *project* tier of
-    /// [`refine_workspace_index_w123`] applies on top of its always-on tier.
+    /// [`refine_workspace_index_w123`] applies on top of its always-on tiers.
     cross_file_resolution: bool,
 }
 
@@ -2982,7 +3009,7 @@ async fn refine_and_lift_diagnostics(
     let analyser_diags = refine_workspace_w120(
         analyser_diags,
         analysis.as_ref(),
-        refinement.inherited_requires,
+        refinement.inheritance,
         refinement.package_resolver,
         refinement.registry,
     )
@@ -2993,7 +3020,7 @@ async fn refine_and_lift_diagnostics(
     let analyser_diags = refine_workspace_w123(
         analyser_diags,
         analysis.as_ref(),
-        refinement.inherited_requires,
+        refinement.inheritance,
         refinement.package_resolver,
         inputs.dialect,
     )
@@ -3001,12 +3028,23 @@ async fn refine_and_lift_diagnostics(
     // idx 80: and any W123 the *workspace index* resolves — a proc / class in a
     // sibling document.  Its math-function tier is always on; its whole-project
     // tier is opt-in via `crossFileResolution`.
-    let analyser_diags = refine_workspace_index_w123(
+    let mut analyser_diags = refine_workspace_index_w123(
         analyser_diags,
         analysis.as_ref(),
         refinement.workspace_known_names.as_deref(),
+        &refinement.settled_calls,
         refinement.cross_file_resolution,
     );
+    // #1331: a cross-file call that resolved to a workspace proc with a bad
+    // argument count is the same error as the same-file one, reported with the
+    // same codes. Emitted after the W123 refinement because it replaces that
+    // W123 with something more specific — the command is not unknown, the call
+    // is wrong.
+    analyser_diags.extend(cross_file_arity_diagnostics(
+        analysis.as_ref(),
+        &refinement.settled_calls,
+        |code| inputs.disabled.iter().any(|c| c == code),
+    ));
 
     let analysis_lifts = Arc::clone(analysis);
     let lift_text = inputs.text.to_owned();
@@ -7288,60 +7326,16 @@ impl Backend {
         {
             let index = self.workspace_index.read().await;
             let registry = tcl_registry::registry_for_dialect(&analysis.dialect);
-            // A live `namespace import -force` has *replaced* the importing
-            // namespace's own command of this name, so no candidate naming it
-            // may settle the call — the call reaches the import's source,
-            // which the wildcard-import tier below resolves (issue #1103).
-            // Applied here because this is a separate resolver from
-            // `resolve_called_proc`, which already applies the same rule.
             let exports = index.export_snapshot();
-            let forced_shadow = core_definition::forced_import_shadows_call(
+            if let Some(cand) = settle_call_against_workspace(
+                &index,
                 analysis,
-                core_definition::CallResolution::document_only().in_program(
-                    core_definition::ProgramExports {
-                        uri: uri.as_str(),
-                        oracle: exports.as_ref(),
-                    },
-                ),
-                &inv.name,
-                &inv.resolution_candidates,
+                registry,
+                uri.as_str(),
+                inv,
+                exports.as_ref(),
                 offset_u32,
-            );
-            if let Some(cand) = inv.resolution_candidates.iter().find(|cand| {
-                if forced_shadow {
-                    return false;
-                }
-                let cand = cand.as_str();
-                // A candidate naming a real registry builtin only counts a
-                // same-file or cross-file proc definition when that
-                // definition isn't itself nested inside another proc's or
-                // class's body — the "rename the builtin away, install a
-                // same-named shadow, restore it" idiom otherwise makes the
-                // shadow permanently outrank the builtin for every call site
-                // in the workspace, including ones that run strictly after
-                // the shadow has been renamed back off. Mirrors the same
-                // gate `resolve_called_proc` (tcl-lsp-core) already applies;
-                // `resolve_workspace_symbols` is a separate resolver (the
-                // declaration-vs-call-site / cross-file oracle), not a
-                // caller of it, so it needs its own copy of the same check.
-                let has_builtin = registry.get(cand.trim_start_matches("::")).is_some();
-                // A name this document only gains from a `rename` / `interp
-                // alias` written *after* the cursor is not a command here yet
-                // (tclsh: `invalid command name`), so its workspace link must
-                // not settle the call — the index's links are position-free
-                // because a mutation in another file loads wholesale, which
-                // is not true of one in this file (issue #1064).
-                if core_definition::indirection_pending_at(analysis, cand, offset_u32) {
-                    return false;
-                }
-                let same_file_hit = analysis.all_procs.get(cand).is_some_and(|p| {
-                    !has_builtin
-                        || !analysis.offset_is_inside_any_definition_body(p.name_span.start())
-                });
-                same_file_hit
-                    || analysis.all_classes.contains_key(cand)
-                    || index.workspace_command_exists_for_call(cand, has_builtin)
-            }) {
+            ) {
                 // A candidate that resolves through an `interp alias` /
                 // `rename` / `namespace import` names the linked command
                 // locally; follow the link so the cursor resolves to the
@@ -11362,13 +11356,18 @@ impl Backend {
         }
     }
 
-    /// The extra `package require` names `uri` inherits for the W120 refinement
-    /// (#804), resolved live against the current workspace index. Empty in the
-    /// common single-file / no-project case.
-    async fn inherited_package_requires(&self, uri: &Uri) -> Vec<String> {
+    /// Everything the workspace `source` graph contributes to `uri` — both
+    /// directions plus the abstention flag — resolved live against the current
+    /// index. The pull path's counterpart of the push path's inline call, so
+    /// the two surfaces answer identically.
+    async fn source_inheritance_for(
+        &self,
+        uri: &Uri,
+        analysis: &AnalysisResult,
+    ) -> SourceInheritance {
         let (entry_points, folder_root) = self.w120_inheritance_config(uri).await;
         let index = self.workspace_index.read().await;
-        compute_inherited_requires(&index, uri, &entry_points, folder_root.as_deref())
+        compute_source_inheritance(&index, uri, analysis, &entry_points, folder_root.as_deref())
     }
 
     /// Build the **complete** diagnostic set for a document — analyser +
@@ -11559,19 +11558,32 @@ impl Backend {
         dialect: &str,
         registry: &CommandRegistry,
         cross_file_on: bool,
+        disabled: &HashSet<String>,
     ) -> Vec<tcl_compiler::analyser::Diagnostic> {
-        let inherited_requires = if analyser_diags
+        let inheritance = if analyser_diags
             .iter()
             .any(|d| d.code == DiagCode::W120 || d.code == DiagCode::W123)
         {
-            self.inherited_package_requires(uri).await
+            self.source_inheritance_for(uri, analysis).await
         } else {
-            Vec::new()
+            SourceInheritance::default()
+        };
+        // #1331: settle this document's unresolved call sites against the
+        // workspace index — the same lookup navigation uses — so the pull path
+        // suppresses the same W123s and raises the same arity errors the push
+        // path does. Both surfaces must agree; see
+        // `published_analyser_diagnostics`.
+        let settled_calls = if analysis.unresolved_command_sites.is_empty() {
+            CrossFileCalls::default()
+        } else {
+            let index = self.workspace_index.read().await;
+            let registry = tcl_registry::registry_for_dialect(dialect);
+            settle_cross_file_calls(&index, analysis, registry, uri.as_str())
         };
         let analyser_diags = refine_workspace_w120(
             analyser_diags,
             analysis,
-            &inherited_requires,
+            &inheritance,
             &self.package_resolver,
             registry,
         )
@@ -11579,26 +11591,31 @@ impl Backend {
         let analyser_diags = refine_workspace_w123(
             analyser_diags,
             analysis,
-            &inherited_requires,
+            &inheritance,
             &self.package_resolver,
             dialect,
         )
         .await;
         // Demanded whenever the refinement below can change a verdict, which
-        // is no longer only when the toggle is on: its math-function tier is
-        // always on.
+        // is no longer only when the toggle is on: its math-function tier and
+        // its settled cross-file tier are always on.
         let workspace_known_names =
             if needs_workspace_command_names(&analyser_diags, analysis, cross_file_on) {
                 Some(self.workspace_index.read().await.command_names())
             } else {
                 None
             };
-        refine_workspace_index_w123(
+        let mut out = refine_workspace_index_w123(
             analyser_diags,
             analysis,
             workspace_known_names.as_deref(),
+            &settled_calls,
             cross_file_on,
-        )
+        );
+        out.extend(cross_file_arity_diagnostics(analysis, &settled_calls, |code| {
+            disabled.contains(code)
+        }));
+        out
     }
 
     /// The analyser diagnostics this document actually **publishes**: the
@@ -11652,6 +11669,7 @@ impl Backend {
             dialect,
             registry,
             cross_file_on,
+            disabled,
         )
         .await
     }
@@ -17612,29 +17630,124 @@ fn refine_w120_diagnostics(
     resolver: &PackageResolver,
     registry: &CommandRegistry,
 ) -> Vec<tcl_compiler::analyser::Diagnostic> {
-    let unknowable = package_requires
-        .iter()
-        .any(|p| p != "Tcl" && !registry.provides_package(p) && !resolver.provides(p));
-    if unknowable {
-        return diags
-            .into_iter()
-            .filter(|d| d.code != DiagCode::W120)
-            .collect();
-    }
-    let available = resolver
-        .transitive_available_packages(package_requires, &|p| std::fs::read_to_string(p).ok());
+    let availability = W120Availability::resolve(package_requires, resolver, registry);
     diags
         .into_iter()
-        .filter(|d| {
-            if d.code != DiagCode::W120 {
-                return true;
-            }
-            match w120_required_package(d) {
-                Some(pkg) => !available.contains(pkg),
-                None => true,
-            }
-        })
+        .filter(|d| !availability.suppresses(d))
         .collect()
+}
+
+/// What one set of `package require`s makes available, as the W120 check reads
+/// it — the two rules of [`refine_w120_diagnostics`] in a reusable form.
+///
+/// Split out because the #1332 position-gated path evaluates a *different*
+/// availability set per diagnostic offset and must be able to memoise the
+/// expensive part (the transitive scan, which reads package implementation
+/// files) independently of which diagnostic it is judging.
+struct W120Availability {
+    /// A required package neither the registry nor the database can resolve —
+    /// it may load anything, so every W120 is unprovable.
+    unknowable: bool,
+    /// The transitive closure of package names the requires pull in.
+    available: std::collections::HashSet<String>,
+}
+
+impl W120Availability {
+    fn resolve(
+        package_requires: &[String],
+        resolver: &PackageResolver,
+        registry: &CommandRegistry,
+    ) -> Self {
+        let unknowable = package_requires
+            .iter()
+            .any(|p| p != "Tcl" && !registry.provides_package(p) && !resolver.provides(p));
+        if unknowable {
+            return Self {
+                unknowable,
+                available: std::collections::HashSet::new(),
+            };
+        }
+        Self {
+            unknowable,
+            available: resolver
+                .transitive_available_packages(package_requires, &|p| {
+                    std::fs::read_to_string(p).ok()
+                })
+                .into_iter()
+                .collect(),
+        }
+    }
+
+    /// Whether this availability set removes `d` — always `false` for anything
+    /// that is not a W120.
+    fn suppresses(&self, d: &tcl_compiler::analyser::Diagnostic) -> bool {
+        if d.code != DiagCode::W120 {
+            return false;
+        }
+        self.unknowable || w120_required_package(d).is_some_and(|pkg| self.available.contains(pkg))
+    }
+}
+
+/// Everything the workspace `source` graph contributes to one document's
+/// W120 / W123 verdicts — both directions of the graph plus the abstention
+/// flag (issues #804 and #1332).
+///
+/// See [`tcl_lsp_core::source_graph`] for why the two directions differ: the
+/// **down** direction (what my callers loaded before running me) is ambient
+/// over the whole document, while the **up** direction (what the files I
+/// `source` loaded for me) starts at the `source` statement and so is placed.
+#[derive(Debug, Default, Clone)]
+pub struct SourceInheritance {
+    /// Requires that hold for the whole document: the configured project
+    /// entry points' requires, or — in automatic mode — the requires of every
+    /// file that transitively `source`s this one (#804).
+    ambient: Vec<String>,
+    /// Requires this document acquires by `source`ing other files, each at the
+    /// offset of the `source` statement that brings it in (#1332).
+    placed: Vec<tcl_lsp_core::source_graph::PlacedRequire>,
+    /// This document has a `source` whose target the server could not pin to
+    /// an indexed document — a path it cannot fold statically, a file outside
+    /// the workspace, or one that does not exist.
+    ///
+    /// That file may `package require` anything and define any command, so the
+    /// honest answer to "is this command/package missing?" becomes *unknown*
+    /// and W120 / W123 abstain document-wide. Exactly the bargain
+    /// `handle_namespace_unknown_command` and the dynamic-pattern branch of
+    /// `handle_namespace_import_command` already strike by flipping
+    /// `has_dynamic_providers`; option (2) of issue #1332.
+    unresolvable_source: bool,
+}
+
+impl SourceInheritance {
+    /// Whether this contributes nothing — the common single-file case, where
+    /// the caller can skip the package resolver entirely.
+    fn is_empty(&self) -> bool {
+        self.ambient.is_empty() && self.placed.is_empty() && !self.unresolvable_source
+    }
+
+    /// The package names available **at** `off` in this document: the ambient
+    /// set plus every placed require whose `source` statement has already run
+    /// by then.
+    ///
+    /// Order-gated with
+    /// [`in_effect_within`](tcl_compiler::analyser::indirection::in_effect_within),
+    /// so a load-level `source` counts for a call written inside any proc body
+    /// (the whole file loads before any body runs) but *not* for a call written
+    /// above it at load level — which is what C Tcl 9.0.4 does: `package
+    /// present` before the `source` statement raises, after it succeeds.
+    fn available_at(&self, off: u32, enclosing_body: Option<tcl_lexer::Span>) -> Vec<String> {
+        use tcl_compiler::analyser::indirection::in_effect_within;
+        let mut out = self.ambient.clone();
+        out.extend(
+            self.placed
+                .iter()
+                .filter(|p| in_effect_within(p.at, off, enclosing_body))
+                .map(|p| p.name.clone()),
+        );
+        out.sort();
+        out.dedup();
+        out
+    }
 }
 
 /// Apply the #723 workspace W120 refinement to `analyser_diags`: resolve the
@@ -17643,33 +17756,81 @@ fn refine_w120_diagnostics(
 /// path (`refine_and_lift_diagnostics`) and the pull path
 /// (`Backend::full_diagnostics_for`) so both stay behavior-identical.
 ///
-/// The common case (no W120, or no `package require`) skips the resolver lock
-/// entirely; otherwise the (bounded) transitive scan reads only the required
-/// packages' implementation files.
+/// Three sources of availability feed it, and they are *not* interchangeable:
+///
+/// * the document's own `package require`s;
+/// * [`SourceInheritance::ambient`] — the #804 down direction;
+/// * [`SourceInheritance::placed`] — the #1332 up direction, evaluated **per
+///   diagnostic** at that diagnostic's own offset, because a `source` only
+///   makes its packages present from its own statement onward.
+///
+/// An [`unresolvable_source`](SourceInheritance::unresolvable_source) short-
+/// circuits all of it and drops every W120: with a file of unknown content in
+/// the run, "this package is missing" is not a claim this server can make.
+///
+/// The common case (no W120, or nothing to inherit and no `package require`)
+/// skips the resolver lock entirely; otherwise the (bounded) transitive scan
+/// reads only the required packages' implementation files, memoised per
+/// distinct availability set so a document with many W120s at the same
+/// position pays for one scan.
 async fn refine_workspace_w120(
     analyser_diags: Vec<tcl_compiler::analyser::Diagnostic>,
     analysis: &AnalysisResult,
-    inherited_requires: &[String],
+    inheritance: &SourceInheritance,
     package_resolver: &Arc<RwLock<PackageResolver>>,
     registry: &CommandRegistry,
 ) -> Vec<tcl_compiler::analyser::Diagnostic> {
     if !analyser_diags.iter().any(|d| d.code == DiagCode::W120) {
         return analyser_diags;
     }
-    // The document's own `package require`s plus any inherited from the
-    // project's entry files / `source` ancestors (#804): a module `source`d by
-    // an entry that already required the package should not be flagged.
-    let mut pkg_requires: Vec<String> = analysis
+    // A `source` we cannot follow makes every W120 unprovable — abstain.
+    if inheritance.unresolvable_source {
+        return analyser_diags
+            .into_iter()
+            .filter(|d| d.code != DiagCode::W120)
+            .collect();
+    }
+    let own: Vec<String> = analysis
         .package_requires
         .iter()
         .map(|pr| pr.name.clone())
         .collect();
-    pkg_requires.extend(inherited_requires.iter().cloned());
-    if pkg_requires.is_empty() {
+    if own.is_empty() && inheritance.is_empty() {
         return analyser_diags;
     }
     let resolver = package_resolver.read().await;
-    refine_w120_diagnostics(analyser_diags, &pkg_requires, &resolver, registry)
+    // Nothing placed ⇒ no position to gate on ⇒ the pre-#1332 whole-set pass,
+    // unchanged. This is the shape of every document that does not `source`
+    // anything, i.e. almost all of them.
+    if inheritance.placed.is_empty() {
+        let mut available = own;
+        available.extend(inheritance.ambient.iter().cloned());
+        return refine_w120_diagnostics(analyser_diags, &available, &resolver, registry);
+    }
+    // One transitive scan per distinct availability set, keyed by its sorted
+    // contents — so the overwhelmingly common "every W120 sees the same
+    // packages" shape pays for exactly one.
+    let mut scans: HashMap<Vec<String>, W120Availability> = HashMap::new();
+    let mut out: Vec<tcl_compiler::analyser::Diagnostic> = Vec::new();
+    for diag in analyser_diags {
+        if diag.code != DiagCode::W120 {
+            out.push(diag);
+            continue;
+        }
+        let off = diag.span.start();
+        let body = analysis.innermost_definition_body_span(off);
+        let mut available = own.clone();
+        available.extend(inheritance.available_at(off, body));
+        available.sort();
+        available.dedup();
+        let scan = scans
+            .entry(available.clone())
+            .or_insert_with(|| W120Availability::resolve(&available, &resolver, registry));
+        if !scan.suppresses(&diag) {
+            out.push(diag);
+        }
+    }
+    out
 }
 
 /// Extract the unknown-command name from a W123 message
@@ -17773,6 +17934,263 @@ fn refine_w123_diagnostics(
         .collect()
 }
 
+/// Settle one call site against the whole workspace: the first of its
+/// `resolution_candidates` that names a command the workspace actually has,
+/// or `None` when none of them do.
+///
+/// **This is the cross-document command lookup — there is one, and both
+/// navigation and diagnostics call it.**  Issue #1331 was the direct cost of
+/// there having been two: `textDocument/definition` settled `libtest` against
+/// the workspace index while `publishDiagnostics` consulted a different,
+/// bare-tail name set that was off by default, so the same server both
+/// resolved the command and called it unknown. Any future refinement to how a
+/// call is settled — a new indirection kind, a new visibility rule — now
+/// lands in one place and both consumers move together.
+///
+/// The rules it applies, in order:
+///
+/// * A live `namespace import -force` has *replaced* the importing namespace's
+///   own command of this name, so **no** candidate may settle the call — it
+///   reaches the import's source instead, which the caller's wildcard tier
+///   handles (issue #1103).
+/// * A candidate naming a real registry builtin counts a proc definition only
+///   when that definition is not itself nested inside another proc's or
+///   class's body: the "rename the builtin away, install a same-named shadow,
+///   restore it" idiom must not make the shadow permanently outrank the
+///   builtin.
+/// * A name this document gains only from a `rename` / `interp alias` written
+///   *after* the call is not a command there yet (tclsh: `invalid command
+///   name`), so a workspace link cannot settle it (issue #1064).
+/// * Otherwise the candidate settles if this document defines it, or the
+///   workspace does ([`workspace_command_exists_for_call`](core_workspace_index::WorkspaceIndex::workspace_command_exists_for_call)).
+///
+/// Candidates are tried in `Tcl_FindCommand` priority order — the order
+/// `finalise_invocation_resolutions` recorded them in — so the answer is the
+/// command the call would actually reach, not merely one that shares its tail.
+fn settle_call_against_workspace<'a>(
+    index: &core_workspace_index::WorkspaceIndex,
+    analysis: &AnalysisResult,
+    registry: &'static CommandRegistry,
+    uri: &str,
+    inv: &'a tcl_compiler::signature_scan::types::SignatureCommandInvocation,
+    exports: &dyn tcl_lsp_core::namespace_import::NamespaceExportOracle,
+    call_off: u32,
+) -> Option<&'a str> {
+    if core_definition::forced_import_shadows_call(
+        analysis,
+        core_definition::CallResolution::document_only()
+            .in_program(core_definition::ProgramExports { uri, oracle: exports }),
+        &inv.name,
+        &inv.resolution_candidates,
+        call_off,
+    ) {
+        return None;
+    }
+    inv.resolution_candidates
+        .iter()
+        .map(String::as_str)
+        .find(|cand| {
+            let has_builtin = registry.get(cand.trim_start_matches("::")).is_some();
+            if core_definition::indirection_pending_at(analysis, cand, call_off) {
+                return false;
+            }
+            let same_file_hit = analysis.all_procs.get(*cand).is_some_and(|p| {
+                !has_builtin || !analysis.offset_is_inside_any_definition_body(p.name_span.start())
+            });
+            same_file_hit
+                || analysis.all_classes.contains_key(*cand)
+                || index.workspace_command_exists_for_call(cand, has_builtin)
+        })
+}
+
+/// One document's unresolved call sites, settled against the workspace by
+/// [`settle_call_against_workspace`] (issue #1331).
+#[derive(Debug, Default)]
+struct CrossFileCalls {
+    /// Spans of call sites the workspace *does* resolve. Keyed exactly as a
+    /// diagnostic's own span is — the analyser raises W123 at the invocation's
+    /// range — so a W123 is matched by span, never by re-parsing its message.
+    resolved: HashSet<(u32, u32)>,
+    /// For a site that settles on workspace **procs**, the `(min, max)`
+    /// envelope over every proc sharing the settled qualified name. Absent
+    /// when the site settles on something with no fixed signature (a class,
+    /// an `interp alias`, an ensemble, a `namespace import` link) or on
+    /// nothing at all — those resolve the command but must never draw an
+    /// arity error.
+    arity: HashMap<(u32, u32), (u32, Option<u32>)>,
+}
+
+/// Settle every unresolved call site in `analysis` against the workspace
+/// index, recording which ones resolve and — where the resolution is a proc —
+/// what arity it accepts.
+///
+/// Driven off [`AnalysisResult::unresolved_command_sites`], which the analyser
+/// records only when it has actually attempted resolution. That single choice
+/// inherits every abstention the analyser already makes, at no cost and with
+/// no duplicated rules: the sites list is left **empty** when the document has
+/// any `package require`, when `has_dynamic_providers` is set (a `load`, an
+/// `auto_path` mutation, a `namespace unknown` handler, a dynamic `namespace
+/// import` pattern, a dynamic `rename`), or when a user `proc unknown` has a
+/// dynamic dispatch shape. In all of those the command set is unknowable, so
+/// this returns nothing and both the W123 suppression and the arity check
+/// abstain together — which is the correct answer, not a missing feature.
+fn settle_cross_file_calls(
+    index: &core_workspace_index::WorkspaceIndex,
+    analysis: &AnalysisResult,
+    registry: &'static CommandRegistry,
+    uri: &str,
+) -> CrossFileCalls {
+    let mut out = CrossFileCalls::default();
+    if analysis.unresolved_command_sites.is_empty() {
+        return out;
+    }
+    let unresolved: HashSet<(u32, u32)> = analysis
+        .unresolved_command_sites
+        .iter()
+        .map(|(span, _)| (span.start(), span.end()))
+        .collect();
+    let exports = index.export_snapshot();
+    for inv in &analysis.command_invocations {
+        let key = (inv.range.start(), inv.range.end());
+        if !unresolved.contains(&key) || inv.resolution_candidates.is_empty() {
+            continue;
+        }
+        let Some(settled) = settle_call_against_workspace(
+            index,
+            analysis,
+            registry,
+            uri,
+            inv,
+            exports.as_ref(),
+            inv.range.start(),
+        ) else {
+            continue;
+        };
+        out.resolved.insert(key);
+        if let Some(envelope) = workspace_proc_arity(index, settled) {
+            out.arity.insert(key, envelope);
+        }
+    }
+    out
+}
+
+/// The `(min, max)` argument envelope of the workspace procs named exactly
+/// `qualified_name`, or `None` when that name is **not** answerable as a proc
+/// signature.
+///
+/// `None` — abstain — in three distinct situations, all of which resolve the
+/// command but none of which pin a signature:
+///
+/// * no proc carries the name (it settled on a class, an ensemble, or an
+///   `interp alias` / `rename` / `namespace import` link);
+/// * a class *also* carries it, so the call may dispatch to the arity-less
+///   class command;
+/// * a link introduces it, so the call may be re-pointed at a different
+///   command with a different signature — and an `interp alias` may bind
+///   leading arguments, which shifts the count the callee sees.
+///
+/// Where several procs share the name (the same file re-analysed under two
+/// `source`-site namespace seeds, or a genuine redefinition), the envelope is
+/// their union: an argument count that fits *any* of them is not an error.
+fn workspace_proc_arity(
+    index: &core_workspace_index::WorkspaceIndex,
+    qualified_name: &str,
+) -> Option<(u32, Option<u32>)> {
+    let target = qualified_name.trim_start_matches("::");
+    let same = |q: &str| q.trim_start_matches("::") == target;
+    if index.classes().any(|c| same(&c.qualified_name)) {
+        return None;
+    }
+    // A name an `interp alias` / `rename` / `namespace import` introduces
+    // chases to a *different* command, so the procs carrying this name (if
+    // any) are not what the call reaches — and an alias may bind leading
+    // arguments, shifting the count the callee sees. `resolve_command_target`
+    // returns the name unchanged when it is not linked, which is the test.
+    if index.resolve_command_target(target).trim_start_matches("::") != target {
+        return None;
+    }
+    let mut min: Option<u32> = None;
+    let mut max: Option<Option<u32>> = None;
+    for arity in index
+        .procs()
+        .filter(|p| same(&p.qualified_name))
+        .map(|p| p.arity)
+    {
+        let lo = u32::from(arity.min);
+        let hi = if arity.is_unlimited() {
+            None
+        } else {
+            Some(u32::from(arity.max))
+        };
+        min = Some(min.map_or(lo, |m: u32| m.min(lo)));
+        // Any unbounded member makes the union unbounded.
+        max = Some(match max {
+            None => hi,
+            Some(None) => None,
+            Some(Some(prev)) => hi.map(|h| h.max(prev)),
+        });
+    }
+    Some((min?, max?))
+}
+
+/// The cross-file wrong-argument-count diagnostics for `calls` — `E002` (too
+/// few) / `E003` (too many), the analyser's **own** arity codes, message shape
+/// and `Severity::Error`, so a cross-file arity problem is classified, linked,
+/// and disabled exactly like a same-file one.
+///
+/// Emitted only for a call whose argument count is *known*: `argc` is `None`
+/// for a `{*}`-expanded call (the true count is a runtime fact) and for a
+/// command-prefix callback head, and both are skipped. A count inside the
+/// resolved proc's envelope is silence, which is what makes an `args`-tailed
+/// or defaulted signature abstain — the envelope is open-ended or wide, so
+/// nothing fits outside it.
+fn cross_file_arity_diagnostics(
+    analysis: &AnalysisResult,
+    calls: &CrossFileCalls,
+    is_disabled: impl Fn(&str) -> bool,
+) -> Vec<tcl_compiler::analyser::Diagnostic> {
+    use tcl_compiler::analyser::types::Severity;
+    let mut out = Vec::new();
+    for inv in &analysis.command_invocations {
+        let key = (inv.range.start(), inv.range.end());
+        let (Some(&(min, max)), Some(argc)) = (calls.arity.get(&key), inv.argc) else {
+            continue;
+        };
+        let argc = u32::try_from(argc).unwrap_or(u32::MAX);
+        let (code, message) = if argc < min {
+            (
+                DiagCode::E002,
+                format!(
+                    "Too few arguments for '{}': expected at least {min}, got {argc}",
+                    inv.name
+                ),
+            )
+        } else if max.is_some_and(|m| argc > m) {
+            (
+                DiagCode::E003,
+                format!(
+                    "Too many arguments for '{}': expected at most {}, got {argc}",
+                    inv.name,
+                    max.unwrap_or(argc)
+                ),
+            )
+        } else {
+            continue;
+        };
+        if is_disabled(code.as_str()) {
+            continue;
+        }
+        out.push(tcl_compiler::analyser::Diagnostic {
+            code,
+            span: inv.range,
+            message,
+            severity: Severity::Error,
+            fixes: Vec::new(),
+        });
+    }
+    out
+}
+
 /// Drop every W123 whose command the **workspace index** defines — a proc or
 /// class in a sibling document — in two tiers with very different confidence.
 ///
@@ -17807,7 +18225,24 @@ fn refine_w123_diagnostics(
 /// [`insert_qualified_and_tail`](tcl_compiler::analyser::utils::insert_qualified_and_tail)
 /// also puts in `names` are unreachable from here.
 ///
-/// # Tier 2 — the project tier, opt-in via `crossFileResolution`
+/// # Tier 2 — the settled cross-file tier, always on (issue #1331)
+///
+/// A W123 whose call site [`settle_call_against_workspace`] resolves — the
+/// *same* lookup `textDocument/definition` uses, run over the same candidates
+/// in the same `Tcl_FindCommand` priority order.  This is what closes issue
+/// #1331: a `proc libtest` in `deflib.tcl` and a bare `libtest 1 2` in
+/// `plaincaller.tcl` produced a resolving definition and an "Unknown command"
+/// hint from one server, because navigation consulted the index and
+/// diagnostics did not.
+///
+/// It is always on for the reason tier 1 is: it makes no cross-file *guess*.
+/// A bare `current_class` called from `::foo` has candidates `::foo::current_class`
+/// and `::current_class`; a `proc ::clay::define::current_class` defined
+/// elsewhere matches neither, so this tier leaves that W123 standing — which
+/// is exactly the 197-of-396 unjustified suppression that keeps tier 3 opt-in.
+/// Whatever this tier suppresses, go-to-definition would have navigated.
+///
+/// # Tier 3 — the project tier, opt-in via `crossFileResolution`
 ///
 /// Any W123 whose bare name the workspace index carries in *any* of its three
 /// name forms.  This is the genuine cross-file inference — it treats the whole
@@ -17826,40 +18261,49 @@ fn refine_workspace_index_w123(
     diags: Vec<tcl_compiler::analyser::Diagnostic>,
     analysis: &AnalysisResult,
     names: Option<&HashSet<String>>,
+    settled: &CrossFileCalls,
     project_tier: bool,
 ) -> Vec<tcl_compiler::analyser::Diagnostic> {
-    let Some(names) = names.filter(|n| !n.is_empty()) else {
-        return diags;
-    };
     if !diags.iter().any(|d| d.code == DiagCode::W123) {
         return diags;
     }
     // Tier 1: the spans of every math-function call site the workspace does
     // define, keyed the way a diagnostic's own span is (the analyser raises the
-    // W123 at exactly the invocation's range).
-    let mathfunc_spans: HashSet<(u32, u32)> = analysis
-        .command_invocations
-        .iter()
-        .filter(|inv| {
-            inv.is_mathfunc_call
-                && inv
-                    .resolution_candidates
-                    .iter()
-                    .any(|candidate| names.contains(candidate.as_str()))
+    // W123 at exactly the invocation's range). Needs the name memo; tier 2 does
+    // not, so an absent memo must not skip the whole refinement.
+    let mathfunc_spans: HashSet<(u32, u32)> = names
+        .filter(|n| !n.is_empty())
+        .map(|names| {
+            analysis
+                .command_invocations
+                .iter()
+                .filter(|inv| {
+                    inv.is_mathfunc_call
+                        && inv
+                            .resolution_candidates
+                            .iter()
+                            .any(|candidate| names.contains(candidate.as_str()))
+                })
+                .map(|inv| (inv.range.start(), inv.range.end()))
+                .collect()
         })
-        .map(|inv| (inv.range.start(), inv.range.end()))
-        .collect();
+        .unwrap_or_default();
     diags
         .into_iter()
         .filter(|d| {
             if d.code != DiagCode::W123 {
                 return true;
             }
-            if mathfunc_spans.contains(&(d.span.start(), d.span.end())) {
+            let span = (d.span.start(), d.span.end());
+            // Tiers 1 and 2 — both always on, both span-keyed.
+            if mathfunc_spans.contains(&span) || settled.resolved.contains(&span) {
                 return false;
             }
+            // Tier 3 — the opt-in bare-tail match over the whole workspace.
             !(project_tier
-                && w123_command_name(&d.message).is_some_and(|name| names.contains(name)))
+                && names.is_some_and(|names| {
+                    w123_command_name(&d.message).is_some_and(|name| names.contains(name))
+                }))
         })
         .collect()
 }
@@ -17901,23 +18345,39 @@ fn needs_workspace_command_names(
 async fn refine_workspace_w123(
     analyser_diags: Vec<tcl_compiler::analyser::Diagnostic>,
     analysis: &AnalysisResult,
-    inherited_requires: &[String],
+    inheritance: &SourceInheritance,
     package_resolver: &Arc<RwLock<PackageResolver>>,
     dialect: &str,
 ) -> Vec<tcl_compiler::analyser::Diagnostic> {
     if !analyser_diags.iter().any(|d| d.code == DiagCode::W123) {
         return analyser_diags;
     }
+    // #1332 option (2): a `source` whose target this server cannot pin to an
+    // indexed document may define any command, so no name in this file can be
+    // called unknown. Same bargain as `has_dynamic_providers`, applied at the
+    // level that owns path resolution.
+    if inheritance.unresolvable_source {
+        return analyser_diags
+            .into_iter()
+            .filter(|d| d.code != DiagCode::W123)
+            .collect();
+    }
     // Packages available to the document: its own `package require`s (empty
     // whenever a W123 survived — the analyser drops every W123 once a file has
     // any `package require`) plus those inherited from entry points / `source`
-    // ancestors (#804).
+    // ancestors (#804) and from the files it `source`s (#1332).
+    //
+    // Not position-gated, unlike the W120 path: this asks whether some package
+    // *provides the command*, and a call to a command provided by a package
+    // loaded later in the file is a runtime ordering bug, not an unknown
+    // command — reporting it as "unknown" would be the wrong diagnostic.
     let mut available: Vec<String> = analysis
         .package_requires
         .iter()
         .map(|pr| pr.name.clone())
         .collect();
-    available.extend(inherited_requires.iter().cloned());
+    available.extend(inheritance.ambient.iter().cloned());
+    available.extend(inheritance.placed.iter().map(|p| p.name.clone()));
     let resolver = package_resolver.read().await;
     refine_w123_diagnostics(analyser_diags, &available, &resolver, dialect)
 }
@@ -17946,6 +18406,118 @@ fn compute_inherited_requires(
     out.sort();
     out.dedup();
     out
+}
+
+/// The workspace `source` edges, resolved with this server's own resolver.
+///
+/// **One** construction of the edge list, shared by everything that walks the
+/// graph, so the *same* `source` statements are followed everywhere.  In
+/// particular it uses [`resolve_source_edge`] — the three-argument resolver
+/// with the statically-foldable computed-path tier (`[file join [file dirname
+/// [info script]] x.tcl]`) — not the literals-only [`resolve_source_uri`]:
+/// issue #1332 is precisely a report that the common computed idiom was
+/// invisible, and having two resolvers behind two callers is how that
+/// divergence happened.
+fn workspace_source_edges(
+    index: &core_workspace_index::WorkspaceIndex,
+) -> Vec<tcl_lsp_core::source_graph::RunEdge> {
+    index
+        .sources()
+        .filter_map(|s| {
+            resolve_source_edge(&s.uri, &s.raw_path, s.is_literal).map(|child| {
+                tcl_lsp_core::source_graph::RunEdge {
+                    parent: s.uri.clone(),
+                    child,
+                    at: s.range.start(),
+                    enclosing_body: s.enclosing_body,
+                    kind: tcl_lsp_core::source_graph::RunEdgeKind::Source,
+                }
+            })
+        })
+        .collect()
+}
+
+/// Everything the `source` graph says about `uri` — both directions plus the
+/// abstention flag (issues #804 and #1332).  Operates on an already-locked
+/// index so the push and pull paths share it.
+///
+/// The **up** direction and the abstention flag are computed from this
+/// document's own recorded `source` statements:
+///
+/// * a statement whose target [`resolve_source_edge`] can pin to a document the
+///   index holds contributes that document's (transitive) `package require`s,
+///   placed at the statement's offset;
+/// * a statement whose target cannot be pinned — an unfoldable dynamic path, a
+///   file outside the workspace, or one that does not exist — sets
+///   [`SourceInheritance::unresolvable_source`], and the caller abstains.
+///
+/// A file sourced under a *conditional* (`if {0} { source x }`) or inside a
+/// proc body is followed like any other. That is deliberate and it is the
+/// direction to be wrong in: the graph has no conditional-execution analysis,
+/// and treating "might not run" as "definitely did not run" is what produces
+/// the false `package require Tk` this fixes. The cost is a false negative —
+/// a genuinely missing require going unreported in a file that conditionally
+/// sources a provider — which is the cheaper error on a real project.
+fn compute_source_inheritance(
+    index: &core_workspace_index::WorkspaceIndex,
+    uri: &Uri,
+    analysis: &AnalysisResult,
+    entry_points: &[String],
+    folder_root: Option<&Path>,
+) -> SourceInheritance {
+    let ambient = compute_inherited_requires(index, uri, entry_points, folder_root);
+    // This document's *own* `source` statements come from the analysis in
+    // hand, not from the index: the index is refreshed at the end of a
+    // publish, so on a document's first (or freshly-edited) run its own
+    // statements are not in there yet — reading them from the index made the
+    // whole up direction silently inert exactly when it was needed. The index
+    // is still the authority for every *other* document's edges and requires.
+    let uri_str = uri.as_str();
+    if analysis.source_targets.is_empty() {
+        return SourceInheritance {
+            ambient,
+            placed: Vec::new(),
+            unresolvable_source: false,
+        };
+    }
+    let mut unresolvable_source = false;
+    let mut own_edges: Vec<tcl_lsp_core::source_graph::RunEdge> = Vec::new();
+    for src in &analysis.source_targets {
+        match resolve_source_edge(uri_str, &src.raw_path, src.is_literal) {
+            Some(child) if index.contains_document(&child) => {
+                own_edges.push(tcl_lsp_core::source_graph::RunEdge {
+                    parent: uri_str.to_owned(),
+                    child,
+                    at: src.range.start(),
+                    enclosing_body: analysis.innermost_definition_body_span(src.range.start()),
+                    kind: tcl_lsp_core::source_graph::RunEdgeKind::Source,
+                });
+            }
+            // Resolvable but not indexed (outside the workspace, or absent), or
+            // not resolvable at all (a path no static fold can prove).
+            _ => unresolvable_source = true,
+        }
+    }
+    // Deeper hops come from the index, which does hold the *other* documents'
+    // statements; this document's own index edges are dropped so the fresher
+    // `own_edges` are the only ones speaking for it.
+    let mut edges: Vec<tcl_lsp_core::source_graph::RunEdge> = workspace_source_edges(index)
+        .into_iter()
+        .filter(|e| e.parent != uri_str)
+        .collect();
+    edges.extend(own_edges);
+    let mut requires: HashMap<String, Vec<String>> = HashMap::new();
+    for pr in index.package_requires() {
+        requires
+            .entry(pr.uri.clone())
+            .or_default()
+            .push(pr.name.clone());
+    }
+    SourceInheritance {
+        ambient,
+        placed: tcl_lsp_core::source_graph::descendant_requires(uri_str, &edges, &requires),
+        unresolvable_source,
+    }
 }
 
 /// The URI for a file path, in the **one canonical form** both sides of the

@@ -32,6 +32,24 @@
 //! resolution: the lexical path resolution ([`resolve_source_target`]) and the
 //! reverse-reachability walk ([`ancestor_requires`]).  The server supplies the
 //! URI ↔ path conversion, keeping this logic testable without any real files.
+//!
+//! # The two directions, and why both exist
+//!
+//! `source` is a two-way channel of facts, and the two directions answer
+//! different questions:
+//!
+//! * **Down** ([`ancestor_requires`], issue #804) — *what did my callers
+//!   already load before they ran me?*  A module `source`d by an entry file
+//!   that required `Tk` may use `winfo` with no `package require` of its own.
+//! * **Up** ([`descendant_requires`], issue #1332) — *what did the files I
+//!   `source` load on my behalf?*  `source tkFile.tcl` where `tkFile.tcl` does
+//!   `package require Tk` makes `Tk` present in the sourcing file from that
+//!   statement onward, exactly as if the `package require` had been written
+//!   inline.  Verified against C Tcl 9.0.4: a `package present` before the
+//!   `source` statement fails and after it succeeds, which is why the up
+//!   direction is *placed* (carries the statement offset) while the down
+//!   direction is not — an ancestor ran its whole prologue before entering us,
+//!   so there is no position in *our* text to gate on.
 
 use std::collections::{HashMap, HashSet};
 use std::hash::BuildHasher;
@@ -136,6 +154,90 @@ pub fn ancestor_requires<S: BuildHasher>(
         .cloned()
         .collect();
     out.sort();
+    out.dedup();
+    out
+}
+
+/// A package a document acquires by `source`ing another file, together with
+/// **where in this document** it becomes available (issue #1332).
+///
+/// The position is what separates this from a plain package name: `source`
+/// runs the child inline at that statement, so a command needing the package
+/// is satisfied *after* the `source` and unsatisfied *before* it.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PlacedRequire {
+    /// The `package require`d name, as written in the sourced file.
+    pub name: String,
+    /// Byte offset, **in the document that asked**, of the `source` statement
+    /// that brings the package in.
+    pub at: u32,
+    /// Span of the innermost proc/class body containing that `source`
+    /// statement; `None` at load level.  Feeds
+    /// [`tcl_compiler::analyser::indirection::in_effect_within`], so a
+    /// load-level `source` counts for a call written anywhere inside a proc
+    /// body (the whole file loads before any body runs).
+    pub enclosing_body: Option<tcl_lexer::Span>,
+}
+
+/// The `package require`s a document acquires from the files it (transitively)
+/// `source`s — the **up** direction of the graph (issue #1332).
+///
+/// `edges` are the workspace's resolved `source` edges; only
+/// [`RunEdgeKind::Source`] edges are followed, because only a `source` inlines
+/// the child's body into the parent's run at a known position (a
+/// `package require` edge merely bounds when the provider ran, which says
+/// nothing about *this* document acquiring it).
+///
+/// Every package required anywhere below a direct edge `target -> child` is
+/// attributed to that edge's position in `target`.  Depth beyond the first hop
+/// is **not** re-gated: proving that `child`'s own `source` really executes
+/// would need conditional-execution analysis this graph does not have, so the
+/// walk takes the whole subtree and the caller treats the result as
+/// suppression evidence rather than proof.  That is the deliberate direction
+/// to be wrong in here — a missed suppression is a false "requires
+/// `package require X`" on code that runs fine, which is the failure mode
+/// issue #1332 was filed for.
+///
+/// Cycles (`a` sources `b` sources `a`) terminate on the visited set, and a
+/// file sourced twice simply contributes its packages at both positions.
+/// `target`'s *own* `package require`s are not included — those are the
+/// single-document question the analyser already answers.
+#[must_use]
+pub fn descendant_requires<S: BuildHasher>(
+    target: &str,
+    edges: &[RunEdge],
+    requires: &HashMap<String, Vec<String>, S>,
+) -> Vec<PlacedRequire> {
+    let mut out: Vec<PlacedRequire> = Vec::new();
+    for edge in edges
+        .iter()
+        .filter(|e| e.parent == target && e.kind == RunEdgeKind::Source && e.child != target)
+    {
+        // Everything reachable from this direct child, attributed to the
+        // position of *this* `source` statement in `target`.
+        let mut stack: Vec<&str> = vec![edge.child.as_str()];
+        let mut visited: HashSet<&str> = HashSet::new();
+        visited.insert(target);
+        while let Some(node) = stack.pop() {
+            if !visited.insert(node) {
+                continue;
+            }
+            if let Some(names) = requires.get(node) {
+                out.extend(names.iter().map(|name| PlacedRequire {
+                    name: name.clone(),
+                    at: edge.at,
+                    enclosing_body: edge.enclosing_body,
+                }));
+            }
+            for next in edges
+                .iter()
+                .filter(|e| e.parent == node && e.kind == RunEdgeKind::Source)
+            {
+                stack.push(next.child.as_str());
+            }
+        }
+    }
+    out.sort_by(|a, b| a.name.cmp(&b.name).then(a.at.cmp(&b.at)));
     out.dedup();
     out
 }
