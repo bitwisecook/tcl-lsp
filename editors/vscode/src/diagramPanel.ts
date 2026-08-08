@@ -17,6 +17,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 import * as vscode from "vscode";
+import * as fs from "fs";
 import { getDiagramPanelHtml } from "./diagramPanelHtml";
 
 let panel: vscode.WebviewPanel | undefined;
@@ -27,6 +28,14 @@ let pendingSource: string | undefined;
  *
  * If the panel already exists it is revealed and updated with the new source.
  */
+// Set once at activation so the panel can resolve the bundled Mermaid asset
+// without threading the extension context through the chat commands.
+let extensionUri: vscode.Uri | undefined;
+
+export function setDiagramPanelExtensionUri(uri: vscode.Uri): void {
+  extensionUri = uri;
+}
+
 export function openDiagramPanel(mermaidSource: string): void {
   if (panel) {
     panel.reveal(vscode.ViewColumn.Beside);
@@ -40,10 +49,28 @@ export function openDiagramPanel(mermaidSource: string): void {
     "tclIruleDiagram",
     "iRule Diagram",
     vscode.ViewColumn.Beside,
-    { enableScripts: true, retainContextWhenHidden: true },
+    {
+      enableScripts: true,
+      retainContextWhenHidden: true,
+      localResourceRoots: extensionUri ? [vscode.Uri.joinPath(extensionUri, "out")] : undefined,
+    },
   );
 
-  panel.webview.html = getDiagramPanelHtml();
+  // Prefer the Mermaid copy bundled into the VSIX: the panel then renders with
+  // no network access and no CDN entry in the webview's CSP.
+  let mermaidUri: string | undefined;
+  if (extensionUri) {
+    const asset = vscode.Uri.joinPath(extensionUri, "out", "mermaid.min.js");
+    try {
+      if (fs.existsSync(asset.fsPath)) {
+        mermaidUri = panel.webview.asWebviewUri(asset).toString();
+      }
+    } catch {
+      // Fall through to the CDN path.
+    }
+  }
+
+  panel.webview.html = getDiagramPanelHtml(mermaidUri, panel.webview.cspSource);
 
   panel.webview.onDidReceiveMessage((msg: { type: string }) => {
     if (msg.type === "ready" && pendingSource) {

@@ -1115,6 +1115,11 @@ $(OUT_DIR)/extension.js: $(TS_SRCS) $(EXT_DIR)/tsconfig.json $(NPM_STAMP) $(CANO
 	@mkdir -p $(OUT_DIR)/chat/canonical
 	@cp $(CANONICAL_DIR)/* $(OUT_DIR)/chat/canonical/
 	@cp $(EXPLORER_STATIC)/explorer-core.js $(OUT_DIR)/explorer-core.js
+	@# Mermaid for the iRule diagram webview. Bundled rather than pulled from a
+	@# CDN at render time, so the panel works offline and needs no remote origin
+	@# in its CSP. Downloaded on demand by the $(MERMAID_JS) rule.
+	@if [ ! -f $(MERMAID_JS) ]; then $(MAKE) --no-print-directory $(MERMAID_JS); fi
+	@cp $(MERMAID_JS) $(OUT_DIR)/mermaid.min.js
 	@# Bundle the Rust → WASM explorer module so the webview compiles in-process
 	@# (no LSP roundtrip). Best-effort: built by `make explorer-wasm`; when it is
 	@# absent the webview degrades to host-brokered compilation.

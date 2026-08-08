@@ -33,6 +33,7 @@ import { gzipSync } from "zlib";
 import { tmpdir } from "os";
 import { promisify } from "util";
 import * as vscode from "vscode";
+import { setDiagramPanelExtensionUri } from "./diagramPanel";
 import {
   commands,
   ExtensionContext,
@@ -347,6 +348,7 @@ function resolveAllFeatureToggles(): Record<string, boolean> {
 }
 
 export async function activate(context: ExtensionContext) {
+  setDiagramPanelExtensionUri(context.extensionUri);
   const activateStart = Date.now();
   const ch = getOutputChannel();
   const config = workspace.getConfiguration("tclLsp");
