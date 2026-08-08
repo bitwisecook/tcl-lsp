@@ -1067,6 +1067,17 @@ struct DocumentRecords {
     namespace_forgets: Vec<WorkspaceNamespaceForget>,
     command_deletions: Vec<WorkspaceCommandDeletion>,
     defined_symbols: Vec<WorkspaceDefinedSymbol>,
+    /// Hash of every record of this document the **settle walk** reads —
+    /// everything except its own call sites. See
+    /// [`DocumentRecords::settle_fingerprint`] (issue #1319).
+    settle_fingerprint: u64,
+    /// Bumped on every (re-)index of this slot, so a memo keyed on it is
+    /// dropped when the document's own records change even if the
+    /// workspace-visible declaration set did not.
+    revision: u64,
+    /// This document's own contribution to the settled-target view, with and
+    /// without link-following — see [`WorkspaceIndex::invocations_by_settled_target`].
+    settled: [Memo<SettledTargets>; 2],
 }
 
 impl DocumentRecords {
@@ -1100,7 +1111,14 @@ impl DocumentRecords {
             namespace_forgets,
             command_deletions,
             defined_symbols,
+            settle_fingerprint,
+            revision,
+            settled,
         } = self;
+        *settle_fingerprint = 0;
+        *revision = revision.wrapping_add(1);
+        settled[0].clear();
+        settled[1].clear();
         dialect.clear();
         procs.clear();
         classes.clear();
@@ -1120,6 +1138,81 @@ impl DocumentRecords {
         namespace_forgets.clear();
         command_deletions.clear();
         defined_symbols.clear();
+    }
+
+    /// Hash every record the **settle walk** reads — that is, everything this
+    /// document contributes to `defined_command_names`, `command_link_map`,
+    /// and the [`WildcardImportIndex`] tables — and nothing else (issue
+    /// #1319).
+    ///
+    /// The one thing deliberately **left out** is [`Self::invocations`]: a
+    /// call site is what gets settled, never an input to how anything else
+    /// settles. That is exactly why an ordinary edit inside a proc body — the
+    /// dominant editing pattern — leaves this value unchanged, and why every
+    /// *other* document's settled contribution stays valid across it.
+    ///
+    /// The `Self { .. }` destructuring is the gate: a table added to
+    /// [`DocumentRecords`] fails to compile until someone decides which side
+    /// of that line it falls on. Getting it wrong in the "leave out"
+    /// direction would serve a stale settlement, so the tables below are
+    /// hashed whole (via `Debug`) rather than field by field — only the
+    /// *table list* is a judgement call, never a field list.
+    ///
+    /// `procs` and `classes` contribute their qualified names alone, because
+    /// that is all `defined_command_names` and `observable_namespaces` read
+    /// of them; hashing their spans and member tables would make every
+    /// keystroke in a proc body look like a declaration change and defeat the
+    /// whole firewall.
+    fn settle_fingerprint(&self) -> u64 {
+        use std::hash::{Hash as _, Hasher as _};
+        let Self {
+            dialect,
+            procs,
+            classes,
+            // Not settle inputs: variables and their references, package
+            // declarations, `namespace forget` / command deletions (which
+            // reach the settle walk only through `command_links`, hashed
+            // below), and the lightweight symbol-definer records.
+            variables: _,
+            variable_refs: _,
+            variable_aliases: _,
+            package_requires: _,
+            package_provides: _,
+            package_ifneededs: _,
+            package_prefers: _,
+            namespace_forgets: _,
+            command_deletions: _,
+            defined_symbols: _,
+            // The call sites themselves — see the doc comment.
+            invocations: _,
+            // Settle inputs, hashed whole.
+            namespace_refs,
+            sources,
+            command_links,
+            glob_imports,
+            namespace_exports,
+            // Derived state, never an input.
+            settle_fingerprint: _,
+            revision: _,
+            settled: _,
+        } = self;
+        let mut hasher = std::collections::hash_map::DefaultHasher::new();
+        // The registry a decision about this document is made under.
+        dialect.hash(&mut hasher);
+        for proc_def in procs {
+            proc_def.qualified_name.hash(&mut hasher);
+        }
+        for class in classes {
+            class.qualified_name.hash(&mut hasher);
+        }
+        // `namespace_refs` decides `observable_namespaces`, which gates every
+        // import; `sources` decides the `run_order` the export gates read.
+        hasher.write(format!("{namespace_refs:?}").as_bytes());
+        hasher.write(format!("{sources:?}").as_bytes());
+        hasher.write(format!("{command_links:?}").as_bytes());
+        hasher.write(format!("{glob_imports:?}").as_bytes());
+        hasher.write(format!("{namespace_exports:?}").as_bytes());
+        hasher.finish()
     }
 
     /// Append this document's [`IndexedWorkspaceSymbol`]s matching
@@ -1344,6 +1437,11 @@ impl DocumentRecords {
         }
         self.index_import_lifecycle(uri, analysis);
         self.index_command_links(uri, analysis);
+        // Settled last, over the finished tables (issue #1319).
+        self.settle_fingerprint = self.settle_fingerprint();
+        self.revision = self.revision.wrapping_add(1);
+        self.settled[0].clear();
+        self.settled[1].clear();
     }
 
     /// Lift one document's class definitions, each with its members flattened
@@ -1620,32 +1718,43 @@ pub struct WorkspaceIndex {
     slots: std::collections::HashMap<String, usize>,
     free_slots: Vec<usize>,
     generation: u64,
+    /// Bumped only when a mutation changes something the **settle walk**
+    /// reads — a proc / class declaration, a name link, an import, an export,
+    /// a `source` edge, or a document's dialect (issue #1319).
+    ///
+    /// [`Self::generation`] moves on *every* mutation, because the
+    /// settled-target view stores `(slot, invocation index)` pairs that any
+    /// re-index invalidates. This one is the narrower fact the per-document
+    /// settle memos key on: an edit inside a proc body moves `generation` and
+    /// leaves this alone, so every document's own settlement stays valid and
+    /// only the edited document is re-settled.
+    settle_generation: u64,
     /// Every command name the workspace defines, in each spelling a call site
     /// may write — see [`WorkspaceIndex::command_names`].
-    command_names: Derived<HashSet<String>>,
+    command_names: Memo<HashSet<String>>,
     /// Parallel liveness mask over `command_links` — see
     /// [`WorkspaceIndex::live_command_links`].
-    live_links: Derived<Vec<bool>>,
+    live_links: Memo<Vec<bool>>,
     /// `::`-stripped qualified names of every indexed proc and class, and the
     /// same set with the names links introduce — see
     /// [`WorkspaceIndex::defined_command_names`].
-    defined_names: [Derived<HashSet<String>>; 2],
+    defined_names: [Memo<HashSet<String>>; 2],
     /// `linked name -> target name` over the live links — see
     /// [`WorkspaceIndex::command_link_map`].
-    command_link_map: Derived<std::collections::HashMap<String, String>>,
+    command_link_map: Memo<std::collections::HashMap<String, String>>,
     /// Every invocation's settled target, grouped by that target, with and
     /// without link-following — see
     /// [`WorkspaceIndex::invocations_by_settled_target`].
-    settled_invocations: [Derived<SettledTargets>; 2],
+    settled_invocations: [Derived<SettledByDocument>; 2],
     /// The whole-program export oracle the single-document tier borrows — see
     /// [`WorkspaceIndex::export_snapshot`].
-    export_snapshot: Derived<NamespaceExportSnapshot>,
+    export_snapshot: Memo<NamespaceExportSnapshot>,
     /// The `source`-path → document-URI resolver, when the host has installed
     /// one — see [`WorkspaceIndex::set_source_resolver`].
     source_resolver: Option<SourceResolver>,
     /// The `source`-graph load order derived from it — see
     /// [`WorkspaceIndex::run_order`].
-    run_order: Derived<crate::source_graph::RunOrder>,
+    run_order: Memo<crate::source_graph::RunOrder>,
 }
 
 /// The host's `source`-path → document-URI resolver: `(sourcing document's
@@ -1690,6 +1799,83 @@ impl<T> Derived<T> {
     }
 }
 
+/// A **version-keyed** memo: like [`Derived`], but re-built when either of two
+/// versions moves rather than dropped by a mutation hook (issue #1319).
+///
+/// [`Derived`] exists for a value the whole index derives, and every mutation
+/// drops it. This exists for a value **one document** derives from itself plus
+/// the workspace's declaration set, where the two move independently: an edit
+/// inside a proc body changes that document's own records and nothing else's
+/// declarations, so every *other* document's memo survives it.
+///
+/// Interior mutability because the memo is read through `&self` on the query
+/// path and must be *replaced*, not merely initialised, when a version moves —
+/// which is what an `OnceLock` cannot do. Dropped on clone and excluded from
+/// equality, exactly as [`Derived`] is.
+#[derive(Debug)]
+struct Memo<T>(std::sync::Mutex<Option<(u64, u64, Arc<T>)>>);
+
+impl<T> Default for Memo<T> {
+    fn default() -> Self {
+        Self(std::sync::Mutex::new(None))
+    }
+}
+
+impl<T> Clone for Memo<T> {
+    fn clone(&self) -> Self {
+        Self::default()
+    }
+}
+
+impl<T> Memo<T> {
+    /// The cached value when it was built under both of these versions,
+    /// otherwise a fresh one built by `build` and stored under them.
+    fn get_or_build(&self, outer: u64, inner: u64, build: impl FnOnce() -> T) -> Arc<T> {
+        let mut slot = self
+            .0
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        if let Some((o, i, value)) = slot.as_ref()
+            && *o == outer
+            && *i == inner
+        {
+            return Arc::clone(value);
+        }
+        let value = Arc::new(build());
+        *slot = Some((outer, inner, Arc::clone(&value)));
+        value
+    }
+
+    /// The cached value **only** when it was built under both versions —
+    /// the peek behind [`Self::get_or_build`], for a caller that wants to
+    /// know whether a rebuild is needed before paying to set one up.
+    fn get(&self, outer: u64, inner: u64) -> Option<Arc<T>> {
+        let slot = self
+            .0
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        slot.as_ref()
+            .filter(|(o, i, _)| *o == outer && *i == inner)
+            .map(|(_, _, value)| Arc::clone(value))
+    }
+
+    /// Store `value` under both versions.
+    fn set(&self, outer: u64, inner: u64, value: Arc<T>) {
+        *self
+            .0
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner) = Some((outer, inner, value));
+    }
+
+    /// Forget the cached value.
+    fn clear(&self) {
+        *self
+            .0
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner) = None;
+    }
+}
+
 /// Every invocation's **settled target**, grouped by that target's
 /// `::`-stripped qualified name: `target -> [(doc slot, index within that
 /// slot's invocations)]`.
@@ -1707,7 +1893,58 @@ impl<T> Derived<T> {
 /// (`DocumentRecords::clear` / `index_document`), never reordered in place,
 /// and any mutation that could invalidate a stored `(slot, index)` pair also
 /// bumps the generation and drops the [`Derived`] view holding it.
-type SettledTargets = std::collections::HashMap<String, Vec<(usize, usize)>>;
+type SettledTargets = std::collections::HashMap<Arc<str>, Vec<usize>>;
+
+/// The three workspace-wide tables the settle walk reads, built **only** if
+/// some document actually needs re-settling (issue #1319).
+///
+/// The whole point of the per-document memo is that an ordinary edit leaves
+/// every other document's settlement valid; setting up the tables anyway
+/// would put an O(imports + exports + links) floor under a query that has no
+/// work to do. Two of the three are themselves memoised on the settle
+/// version, so the real cost avoided here is the `WildcardImportIndex` build.
+struct SettleInputs<'a> {
+    defined: Arc<HashSet<String>>,
+    links: Option<Arc<std::collections::HashMap<String, String>>>,
+    wildcard: WildcardImportIndex<'a>,
+}
+
+/// [`SettleInputs`] behind a build-on-first-use gate.
+struct LazySettleInputs<'a> {
+    index: &'a WorkspaceIndex,
+    follow_links: bool,
+    built: Option<SettleInputs<'a>>,
+}
+
+impl<'a> LazySettleInputs<'a> {
+    fn new(index: &'a WorkspaceIndex, follow_links: bool) -> Self {
+        Self {
+            index,
+            follow_links,
+            built: None,
+        }
+    }
+
+    fn get(&mut self) -> &SettleInputs<'a> {
+        let index = self.index;
+        let follow_links = self.follow_links;
+        self.built.get_or_insert_with(|| {
+            let t0 = std::time::Instant::now();
+            let defined = index.defined_command_names(follow_links);
+            let t1 = std::time::Instant::now();
+            let links = follow_links.then(|| index.command_link_map());
+            let t2 = std::time::Instant::now();
+            let wildcard = WildcardImportIndex::build(index);
+            eprintln!("INPUTS defined={:?} links={:?} wci={:?}", t1-t0, t2-t1, t2.elapsed());
+            SettleInputs { defined, links, wildcard }
+        })
+    }
+}
+
+/// Every document's [`SettledTargets`], positionally aligned with
+/// [`WorkspaceIndex::docs`] — the whole workspace's settled view, assembled
+/// from per-document parts rather than rebuilt as one flat map (issue #1319).
+type SettledByDocument = Vec<Arc<SettledTargets>>;
 
 impl WorkspaceIndex {
     /// Empty index.
@@ -1834,7 +2071,7 @@ impl WorkspaceIndex {
     /// serve from the cache.
     #[must_use]
     pub fn command_names(&self) -> Arc<HashSet<String>> {
-        self.command_names.get_or_build(|| {
+        self.command_names.get_or_build(self.settle_generation, 0, || {
             let mut names: HashSet<String> = HashSet::new();
             for p in self.procs() {
                 tcl_compiler::analyser::utils::insert_qualified_and_tail(
@@ -1870,7 +2107,7 @@ impl WorkspaceIndex {
     /// its blocking providers).
     #[must_use]
     pub fn export_snapshot(&self) -> Arc<NamespaceExportSnapshot> {
-        self.export_snapshot.get_or_build(|| {
+        self.export_snapshot.get_or_build(self.settle_generation, 0, || {
             let mut exports_by_ns: std::collections::HashMap<
                 String,
                 Vec<WorkspaceNamespaceExport>,
@@ -1924,9 +2161,9 @@ impl WorkspaceIndex {
     /// cross-document event unrankable, every same-document one ordered.
     pub fn set_source_resolver(&mut self, resolve: SourceResolver) {
         self.source_resolver = Some(resolve);
-        self.run_order = Derived::default();
+        self.run_order = Memo::default();
         // The export snapshot captures the order, so it goes with it.
-        self.export_snapshot = Derived::default();
+        self.export_snapshot = Memo::default();
     }
 
     /// The load order over this workspace's documents, built at most once per
@@ -1942,7 +2179,7 @@ impl WorkspaceIndex {
     /// `package provide` records, so it works on a host that installs none
     /// (issue #1279).
     fn run_order(&self) -> Arc<crate::source_graph::RunOrder> {
-        self.run_order.get_or_build(|| {
+        self.run_order.get_or_build(self.settle_generation, 0, || {
             let source_edges = self.source_resolver.into_iter().flat_map(|resolve| {
                 self.sources().filter_map(move |s| {
                     resolve(&s.uri, &s.raw_path, s.is_literal).map(|child| {
@@ -2049,13 +2286,51 @@ impl WorkspaceIndex {
     /// Note a mutation: bump the generation and drop every derived cache.
     fn invalidate(&mut self) {
         self.generation = self.generation.wrapping_add(1);
-        self.command_names = Derived::default();
-        self.live_links = Derived::default();
-        self.defined_names = <[Derived<HashSet<String>>; 2]>::default();
-        self.command_link_map = Derived::default();
-        self.settled_invocations = <[Derived<SettledTargets>; 2]>::default();
-        self.export_snapshot = Derived::default();
-        self.run_order = Derived::default();
+        // Always: this view stores `(slot, invocation index)` pairs, and any
+        // re-index refills a slot's invocation vector wholesale.
+        self.settled_invocations = <[Derived<SettledByDocument>; 2]>::default();
+        // The settle version is **content-derived**, not a counter, and that
+        // is load-bearing (issue #1319): the server re-indexes a document as
+        // `remove_document` immediately followed by `add_document`, so a
+        // counter would move twice on every publish and no memo could ever
+        // survive one. A hash over the per-document fingerprints returns to
+        // its previous value the moment the same declarations are back, which
+        // is exactly what makes a body-only edit free for every *other*
+        // document.
+        let version = self.settle_inputs_version();
+        if version == self.settle_generation {
+            return;
+        }
+        // A declaration, link, import, export, `source` edge, or dialect
+        // moved. Every whole-index view keyed on this version — the command
+        // set, the link mask and map, the export snapshot, the `source` run
+        // order — is a pure function of exactly those records, so moving the
+        // version is what re-derives them; an edit that touches none of them
+        // leaves the version, and so the views, exactly where they were.
+        self.settle_generation = version;
+    }
+
+    /// A hash over every document's [`DocumentRecords::settle_fingerprint`],
+    /// in slot order — the workspace-wide version the settle memos key on.
+    ///
+    /// Slot order is stable (a URI keeps its slot across a re-index), and an
+    /// emptied slot hashes as its cleared fingerprint, so adding, removing,
+    /// and restoring a document round-trips to the same value.
+    ///
+    /// Being a hash, this shares the assumption every content-addressed
+    /// incremental system makes: two genuinely different declaration sets
+    /// colliding on 64 bits would serve a stale settlement. The inputs are
+    /// per-document hashes rather than adversarial input, and the cost of
+    /// the alternative — re-settling the workspace on every keystroke — is
+    /// the 420 ms this exists to remove.
+    fn settle_inputs_version(&self) -> u64 {
+        use std::hash::{Hash as _, Hasher as _};
+        let mut hasher = std::collections::hash_map::DefaultHasher::new();
+        self.docs.len().hash(&mut hasher);
+        for doc in &self.docs {
+            doc.settle_fingerprint.hash(&mut hasher);
+        }
+        hasher.finish()
     }
 
     /// The command name-links that are actually installed — every `interp
@@ -2081,7 +2356,7 @@ impl WorkspaceIndex {
     /// visible too — otherwise this abstains and keeps the link, the same
     /// abstain-toward-silence rule the unknown-command pass follows.
     fn live_command_links(&self) -> Vec<&WorkspaceCommandLink> {
-        let mask = self.live_links.get_or_build(|| {
+        let mask = self.live_links.get_or_build(self.settle_generation, 0, || {
             let wci = WildcardImportIndex::build(self);
             let observable = self.observable_namespaces();
             self.command_links()
@@ -2212,9 +2487,9 @@ impl WorkspaceIndex {
     /// several runtime identities of one physical file, not a replacement of
     /// each other.
     pub fn add_document(&mut self, uri: &str, analysis: &AnalysisResult) {
-        self.invalidate();
         let slot = self.slot_for(uri);
         self.docs[slot].index_document(uri, analysis);
+        self.invalidate();
     }
 
     /// `uri`'s slot, allocating one — the most recently freed, else a fresh
@@ -2254,11 +2529,11 @@ impl WorkspaceIndex {
     /// Costs that document's own records, not the workspace's: its slot is
     /// cleared and handed back to the free list (issue #1149).
     pub fn remove_document(&mut self, uri: &str) {
-        self.invalidate();
         if let Some(slot) = self.slots.remove(uri) {
             self.docs[slot].clear();
             self.free_slots.push(slot);
         }
+        self.invalidate();
     }
 
     /// Every indexed `source FILE` reference.
@@ -3517,15 +3792,20 @@ impl WorkspaceIndex {
         follow_links: bool,
     ) -> Vec<&'a WorkspaceInvocation> {
         let target = qualified_name.trim_start_matches("::");
-        let by_target = self.invocations_by_settled_target(follow_links);
-        let Some(sites) = by_target.get(target) else {
-            return Vec::new();
-        };
-        sites
-            .iter()
-            .map(|&(slot, idx)| &self.docs[slot].invocations[idx])
-            .filter(|i| i.uri != exclude_uri)
-            .collect()
+        let by_document = self.invocations_by_settled_target(follow_links);
+        let mut out = Vec::new();
+        for (slot, view) in by_document.iter().enumerate() {
+            let Some(indices) = view.get(target) else {
+                continue;
+            };
+            out.extend(
+                indices
+                    .iter()
+                    .map(|&idx| &self.docs[slot].invocations[idx])
+                    .filter(|i| i.uri != exclude_uri),
+            );
+        }
+        out
     }
 
     /// Every indexed invocation's settled target, `::`-stripped and grouped
@@ -3535,25 +3815,57 @@ impl WorkspaceIndex {
     /// A [`Derived`] view, one reading per `follow_links` value; see
     /// [`SettledTargets`] for why the stored `(slot, index)` pairs stay valid
     /// for the view's whole lifetime.
-    fn invocations_by_settled_target(&self, follow_links: bool) -> Arc<SettledTargets> {
+    fn invocations_by_settled_target(&self, follow_links: bool) -> Arc<SettledByDocument> {
         self.settled_invocations[usize::from(follow_links)].get_or_build(|| {
-            // Built once per generation (both the command set and the
-            // wildcard-import index — see `WildcardImportIndex`'s own doc),
-            // then reused for every invocation in the workspace.
-            let defined = self.defined_command_names(follow_links);
-            let links = follow_links.then(|| self.command_link_map());
-            let wci = WildcardImportIndex::build(self);
-            let mut by_target: SettledTargets = std::collections::HashMap::new();
-            for (slot, doc) in self.docs.iter().enumerate() {
-                for (idx, inv) in doc.invocations.iter().enumerate() {
-                    if let Some(target) =
-                        self.settle_invocation(inv, &defined, links.as_deref(), &wci)
-                    {
-                        by_target.entry(target).or_default().push((slot, idx));
+            // Each document settles its **own** call sites into its own map,
+            // memoised on `(settle_generation, revision)` — issue #1319.
+            //
+            // That pair is the whole soundness argument. `settle_invocation`
+            // reads one invocation plus three workspace-wide tables
+            // (`defined_command_names`, `command_link_map`, the
+            // `WildcardImportIndex`) and nothing else. `settle_generation` is
+            // a hash of every document's settle inputs, so it moves whenever
+            // any document changes what those tables contain — which is what
+            // makes the cross-document case right: one file adding a proc
+            // re-settles *every* document, not just its own. `revision` moves
+            // whenever this document's own records change. A memo valid under
+            // both is therefore exactly the answer a full walk would give.
+            //
+            // Nothing is regrouped into a workspace-wide map, deliberately:
+            // that regroup was itself O(all invocations) and so paid the very
+            // cost this exists to remove. A query walks the per-document maps
+            // instead, which is one hash lookup per document.
+            let mut lazy = LazySettleInputs::new(self, follow_links);
+            let __t = std::time::Instant::now();
+            let mut __misses = 0usize;
+            let __r = self.docs
+                .iter()
+                .map(|doc| {
+                    let key = (self.settle_generation, doc.revision);
+                    let memo = &doc.settled[usize::from(follow_links)];
+                    if let Some(hit) = memo.get(key.0, key.1) {
+                        return hit;
                     }
-                }
-            }
-            by_target
+                    __misses += 1;
+                    let inputs = lazy.get();
+                    let mut view: SettledTargets = std::collections::HashMap::new();
+                    for (idx, inv) in doc.invocations.iter().enumerate() {
+                        if let Some(target) = self.settle_invocation(
+                            inv,
+                            &inputs.defined,
+                            inputs.links.as_deref(),
+                            &inputs.wildcard,
+                        ) {
+                            view.entry(Arc::from(target.as_str())).or_default().push(idx);
+                        }
+                    }
+                    let view = Arc::new(view);
+                    memo.set(key.0, key.1, Arc::clone(&view));
+                    view
+                })
+                .collect();
+            eprintln!("SETTLE build {:?} misses={__misses}/{}", __t.elapsed(), self.docs.len());
+            __r
         })
     }
 
@@ -3621,7 +3933,7 @@ impl WorkspaceIndex {
     /// [`Self::live_command_links`] per call (issue #1152); owned (`String`,
     /// not `&str`) so the view is independent of any one call's borrow.
     fn command_link_map(&self) -> Arc<std::collections::HashMap<String, String>> {
-        self.command_link_map.get_or_build(|| {
+        self.command_link_map.get_or_build(self.settle_generation, 0, || {
             self.live_command_links()
                 .into_iter()
                 .map(|l| {
@@ -3804,7 +4116,7 @@ impl WorkspaceIndex {
     /// on, and folding the link names into it would let a call spelling an
     /// imported name be text-rewritten.
     fn defined_command_names(&self, include_links: bool) -> Arc<HashSet<String>> {
-        self.defined_names[usize::from(include_links)].get_or_build(|| {
+        self.defined_names[usize::from(include_links)].get_or_build(self.settle_generation, 0, || {
             let mut names: HashSet<String> = self
                 .procs()
                 .map(|p| p.qualified_name.trim_start_matches("::").to_owned())
@@ -8492,7 +8804,17 @@ mod tests {
         index.add_document("file:///b.tcl", &b);
 
         let first = index.invocations_by_settled_target(false);
-        assert_eq!(first.get("helper").map(Vec::len), Some(2), "{first:?}");
+        // The view is per-document now (issue #1319), so the two `helper`
+        // calls live in `b.tcl`'s own map rather than a flat workspace one.
+        assert_eq!(
+            first
+                .iter()
+                .filter_map(|doc| doc.get("helper"))
+                .map(Vec::len)
+                .sum::<usize>(),
+            2,
+            "{first:?}"
+        );
         assert!(
             Arc::ptr_eq(&first, &index.invocations_by_settled_target(false)),
             "an unchanged index must serve the cache, not re-settle",
@@ -9003,6 +9325,202 @@ mod tests {
     /// a second reading of an unchanged index must serve the cached view, so
     /// the cost above is paid once per generation and not once per request.
     /// (`code_lenses` asks once per proc *and* once per class — issue #1152.)
+    /// A workspace of independent files, each declaring procs and calling
+    /// them, plus one shared library every file calls into — the shape the
+    /// per-document settle firewall has to get right (issue #1319).
+    fn cross_calling_workspace(files: usize, procs_per_file: usize) -> Vec<(String, String)> {
+        use std::fmt::Write as _;
+        let mut docs = vec![(
+            "file:///lib.tcl".to_owned(),
+            "proc ::Lib::shared {} { return 1 }\n".to_owned(),
+        )];
+        for f in 0..files {
+            let mut src = String::new();
+            for p in 0..procs_per_file {
+                writeln!(src, "proc ::F{f}::p{p} {{}} {{ ::Lib::shared }}")
+                    .expect("writing to a String cannot fail");
+                writeln!(src, "::F{f}::p{p}").expect("writing to a String cannot fail");
+            }
+            docs.push((format!("file:///f{f}.tcl"), src));
+        }
+        docs
+    }
+
+    /// Every settled answer this index gives for `targets`, as a comparable
+    /// snapshot — `target -> sorted (uri, offset)` pairs.
+    fn settled_snapshot(
+        index: &WorkspaceIndex,
+        targets: &[String],
+    ) -> Vec<(String, Vec<(String, u32)>)> {
+        targets
+            .iter()
+            .map(|t| {
+                let mut sites: Vec<(String, u32)> = index
+                    .linked_invocations_of(t, "")
+                    .into_iter()
+                    .map(|i| (i.uri.clone(), i.range.start()))
+                    .collect();
+                sites.sort_unstable();
+                (t.clone(), sites)
+            })
+            .collect()
+    }
+
+    /// Build the same index from scratch — the wholesale answer the
+    /// incremental path must reproduce exactly.
+    fn index_of(docs: &[(String, String)]) -> (WorkspaceIndex, Vec<AnalysisResult>) {
+        let analyses: Vec<AnalysisResult> = docs.iter().map(|(_, src)| analyse(src)).collect();
+        let mut index = WorkspaceIndex::new();
+        for ((uri, _), a) in docs.iter().zip(&analyses) {
+            index.add_document(uri, a);
+        }
+        (index, analyses)
+    }
+
+    #[test]
+    fn a_body_edit_keeps_every_other_documents_settlement() {
+        // The firewall itself (issue #1319): re-indexing one document with a
+        // changed proc *body* must not move `settle_generation`, because
+        // nothing it contributes to the three tables the settle walk reads
+        // has changed.
+        let docs = cross_calling_workspace(4, 3);
+        let (mut index, _) = index_of(&docs);
+        let before = index.settle_generation;
+        let edited = analyse("proc ::F0::p0 {} {}\n::F0::p0\nproc ::F0::p1 {} { puts hello }\n::F0::p1\nproc ::F0::p2 {} { ::Lib::shared }\n::F0::p2\n");
+        index.remove_document("file:///f0.tcl");
+        index.add_document("file:///f0.tcl", &edited);
+        assert_eq!(
+            index.settle_generation, before,
+            "an edit that adds and removes no declaration must not move the settle generation",
+        );
+    }
+
+    #[test]
+    fn adding_a_declaration_moves_the_settle_generation() {
+        // The other half: a change that *does* alter what the workspace
+        // declares must invalidate every document's settlement, because it
+        // can change how any other document's calls settle.
+        let docs = cross_calling_workspace(3, 2);
+        let (mut index, _) = index_of(&docs);
+        let before = index.settle_generation;
+        let edited = analyse("proc ::F0::p0 {} {}\n::F0::p0\nproc ::F0::p1 {} {}\n::F0::p1\nproc ::F0::brandNew {} {}\n");
+        index.remove_document("file:///f0.tcl");
+        index.add_document("file:///f0.tcl", &edited);
+        assert_ne!(
+            index.settle_generation, before,
+            "a new proc declaration must move the settle generation",
+        );
+    }
+
+    #[test]
+    fn the_incremental_settlement_matches_a_wholesale_rebuild() {
+        // Correctness (issue #1319): after an edit, the incrementally-served
+        // view must give byte-identical answers to an index built from
+        // scratch over the same documents. Run for a body-only edit (the
+        // firewall's fast path) and for a declaration change (which must
+        // re-settle everything).
+        let mut docs = cross_calling_workspace(4, 3);
+        let targets: Vec<String> = ["::Lib::shared", "::F0::p0", "::F1::p1", "::F3::p2"]
+            .iter()
+            .map(|s| (*s).to_owned())
+            .collect();
+        for replacement in [
+            // Body-only edit: same declarations, different body text and
+            // different call-site offsets.
+            "proc ::F0::p0 {} { }\n::F0::p0\nproc ::F0::p1 {} { ::Lib::shared ; ::Lib::shared }\n::F0::p1\nproc ::F0::p2 {} { ::Lib::shared }\n::F0::p2\n",
+            // Declaration change: `::F0::p2` is gone, so calls that used to
+            // settle to it must now settle to nothing — in *this* document,
+            // and in any other that called it.
+            "proc ::F0::p0 {} {}\n::F0::p0\nproc ::F0::p1 {} {}\n::F0::p1\n::F0::p2\n",
+        ] {
+            let (mut incremental, _keep) = index_of(&docs);
+            // Warm the settled view so the edit is invalidating a live cache.
+            let _ = settled_snapshot(&incremental, &targets);
+            let edited = analyse(replacement);
+            incremental.remove_document("file:///f0.tcl");
+            incremental.add_document("file:///f0.tcl", &edited);
+            docs[1].1 = replacement.to_owned();
+            let (wholesale, _keep2) = index_of(&docs);
+            assert_eq!(
+                settled_snapshot(&incremental, &targets),
+                settled_snapshot(&wholesale, &targets),
+                "incremental settlement diverged from a wholesale rebuild after `{replacement}`",
+            );
+        }
+    }
+
+    #[test]
+    fn a_cross_document_edit_re_settles_the_documents_it_affects() {
+        // The case a naive per-document cache gets wrong: `b.tcl`'s bare
+        // `helper` call settles to `a.tcl`'s proc, and *deleting that proc*
+        // must change `b.tcl`'s answer even though `b.tcl` itself did not
+        // change. This is why the memo is keyed on `settle_generation` and
+        // not on the document's own revision alone.
+        let a = analyse("proc ::helper {} { return 1 }\n");
+        let b = analyse("helper\n");
+        let mut index = WorkspaceIndex::new();
+        index.add_document("file:///a.tcl", &a);
+        index.add_document("file:///b.tcl", &b);
+        assert_eq!(
+            index.linked_invocations_of("::helper", "").len(),
+            1,
+            "the bare call settles to the workspace proc",
+        );
+        let a_gone = analyse("# the proc is gone\n");
+        index.remove_document("file:///a.tcl");
+        index.add_document("file:///a.tcl", &a_gone);
+        assert!(
+            index.linked_invocations_of("::helper", "").is_empty(),
+            "deleting the target must change the *other* document's settlement",
+        );
+    }
+
+    #[test]
+    fn re_settling_after_a_body_edit_costs_one_document_not_the_workspace() {
+        // The measurement behind issue #1319. A body edit used to discard
+        // every document's settlement, so the next `references` re-settled
+        // the whole workspace; now only the edited document is re-settled and
+        // the rest is a regroup of memoised results.
+        //
+        // Bound rather than ratio, because the two sides differ by an order of
+        // magnitude and a loaded box perturbs both. Measured on this shape
+        // (113 files x 40 procs, ~9000 invocations, debug build): the cold
+        // whole-workspace walk ~140 ms, the post-edit re-settle ~9 ms — and
+        // before this change the post-edit figure *was* the cold figure,
+        // because every `Derived` view was dropped wholesale. The bound sits
+        // well above the incremental measurement and well below the wholesale
+        // one, so it cannot flake either way.
+        let docs = cross_calling_workspace(113, 40);
+        let (mut index, _keep) = index_of(&docs);
+        // Cold: build the settled view once for the whole workspace.
+        let cold_started = std::time::Instant::now();
+        let _ = index.linked_invocations_of("::Lib::shared", "");
+        let cold = cold_started.elapsed();
+        // One **body-only** edit: every declaration f0 contributed is still
+        // there, only a body's text (and so every later offset in the file)
+        // moved. This is the ordinary editing keystroke.
+        let edited = analyse(&docs[1].1.replacen(
+            "{ ::Lib::shared }",
+            "{ puts edited ; ::Lib::shared }",
+            1,
+        ));
+        index.remove_document("file:///f0.tcl");
+        index.add_document("file:///f0.tcl", &edited);
+        let warm_started = std::time::Instant::now();
+        let _ = index.linked_invocations_of("::Lib::shared", "");
+        let warm = warm_started.elapsed();
+        assert!(
+            warm < cold,
+            "a post-edit re-settle must be cheaper than the cold whole-workspace walk \
+             (cold {cold:?}, after-edit {warm:?})",
+        );
+        assert!(
+            warm.as_millis() * 3 < cold.as_millis(),
+            "a post-edit re-settle must cost a fraction of the whole-workspace walk \
+             (took {warm:?}, cold walk was {cold:?})",
+        );
+    }
+
     #[test]
     fn the_settled_target_view_is_served_from_cache_within_a_generation() {
         let docs = wildcard_import_heavy_workspace(8, 6, 4);
