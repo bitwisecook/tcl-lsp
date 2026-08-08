@@ -120,6 +120,31 @@ Two design points worth knowing:
   graph reading as "this got faster" is worse than no bar, so the suite
   refuses to record one.
 
+## Reading the pre-2.1.14 results
+
+Every version from **2.1.0 to 2.1.13 fails `scan.workspace`** with an
+identical 120.0 s. That figure is *this harness's wait timing out*, not the
+server's indexing time: `wait_for_workspace_scan` blocks on a
+workspace-scan-complete signal that those releases do not emit. 2.1.14 is
+the first version where it settles (1.8 s), and 2.1.15/2.1.16 do too
+(0.4 s / 0.8 s).
+
+Two consequences when reading the graphs:
+
+* The 120 s `scan.workspace` bars for 2.1.0–2.1.13 are hatched (failed) and
+  must not be read as "indexing took two minutes". They are a harness
+  limitation against older servers.
+* Those versions were still indexing while the rest of the suite ran, so
+  their later checks measure a partially-populated index. The `items`
+  column shows it plainly — `nav.references` returns **7** results on
+  2.1.0–2.1.9, **13** on 2.1.10, and **25** from 2.1.11 onward, which is
+  what the settled versions also return. A fast check against a smaller
+  index is not a faster server.
+
+So treat 2.1.0–2.1.9 as indicative only. From 2.1.11 the reference counts
+agree with the modern versions, and from 2.1.14 the scan settles too, which
+is where the numbers become straightforwardly comparable.
+
 ## Corpus scopes
 
 `small` (georgtree, ~113 files) is the default and the right one for routine

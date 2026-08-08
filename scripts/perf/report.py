@@ -85,6 +85,11 @@ KIB_PER_MIB = 1024.0
 # final entry differs between the two: pure black vanishes on a dark page, so
 # it becomes white there. Keeping the pairs explicit means the swap is data,
 # not a special case in the emitter.
+#: Stroke patterns layered under the palette once it wraps, so a 16-version
+#: sweep does not draw two releases identically. Solid first, so a run with
+#: eight or fewer series is unchanged.
+DASH_CYCLE: tuple[str, ...] = ("", "7 3", "2 3", "11 3 2 3")
+
 PALETTE: tuple[tuple[str, str], ...] = (
     ("#E69F00", "#E69F00"),  # orange
     ("#56B4E9", "#56B4E9"),  # sky blue
@@ -519,6 +524,16 @@ def _stylesheet(series_count: int) -> str:
         light, _dark = PALETTE[i % len(PALETTE)]
         rules.append(f".s{i} {{ stroke: {light}; }}")
         rules.append(f".f{i} {{ fill: {light}; }}")
+        # Past the end of the palette the colours repeat, and two versions
+        # drawn in the same colour make the chart actively misleading — a
+        # reader attributes one version's curve to another. Each wrap adds a
+        # distinct dash pattern so colour+pattern stays unique. Legend swatches
+        # carry the same pattern (see the legend renderer) so the key still
+        # identifies a line. Applies to strokes only; bars are keyed by
+        # position within their group, so a repeated fill is unambiguous there.
+        dash = DASH_CYCLE[(i // len(PALETTE)) % len(DASH_CYCLE)]
+        if dash:
+            rules.append(f".s{i} {{ stroke-dasharray: {dash}; }}")
 
     dark_rules = [
         f":root {{ color: {INK_DARK}; }}",
@@ -605,8 +620,17 @@ def _hatch_rect(x: float, y: float, w: float, h: float) -> list[str]:
     return out
 
 
-def _legend(items: Sequence[str], x: float, y: float, width: float) -> list[str]:
-    """Swatch-and-label legend, laid out left to right in fixed-width columns."""
+def _legend(
+    items: Sequence[str], x: float, y: float, width: float, *, lines: bool = False
+) -> list[str]:
+    """Swatch-and-label legend, laid out left to right in fixed-width columns.
+
+    `lines=True` draws each swatch as a stroked line segment rather than a
+    filled square, so that a series distinguished from a same-coloured one by
+    its dash pattern (see `DASH_CYCLE`) is identifiable from the key. A filled
+    square cannot show a dash pattern, which would leave two versions with
+    identical swatches on any sweep of more than eight.
+    """
     out: list[str] = []
     col_w = width / LEGEND_COLS
     for i, label in enumerate(items):
@@ -614,9 +638,15 @@ def _legend(items: Sequence[str], x: float, y: float, width: float) -> list[str]
         row = i // LEGEND_COLS
         lx = x + col * col_w
         ly = y + row * LEGEND_ROW_H
-        out.append(
-            f'  <rect class="f{i}" x="{fnum(lx)}" y="{fnum(ly - 8)}" width="12" height="12" rx="2"/>'
-        )
+        if lines:
+            out.append(
+                f'  <line class="series s{i}" x1="{fnum(lx)}" y1="{fnum(ly - 2)}" '
+                f'x2="{fnum(lx + 14)}" y2="{fnum(ly - 2)}"/>'
+            )
+        else:
+            out.append(
+                f'  <rect class="f{i}" x="{fnum(lx)}" y="{fnum(ly - 8)}" width="12" height="12" rx="2"/>'
+            )
         out.append(
             f'  <text x="{fnum(lx + 18)}" y="{fnum(ly + 2)}">{esc(label)}</text>'
         )
@@ -784,7 +814,9 @@ def line_chart(
         out.append(f'  <polyline class="series s{i}" points="{coords}"/>')
 
     legend_y = y1 + AXIS_LABEL_H + 12
-    out += _legend(labels, x0, legend_y, PLOT_W)
+    # Line swatches: past eight series the palette wraps and the dash pattern
+    # is what tells two same-coloured lines apart, so the key has to show it.
+    out += _legend(labels, x0, legend_y, PLOT_W, lines=True)
     if footnote:
         out.append(
             f'  <text class="note" x="{fnum(x0)}" y="{fnum(legend_y + legend_h + 10)}">{esc(footnote)}</text>'

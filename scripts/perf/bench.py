@@ -730,10 +730,21 @@ def host_info() -> dict:
                     break
         except (OSError, ValueError, IndexError):
             pass
+    # Machine load at the moment of measurement. A developer laptop has a
+    # busy desktop on it (browser, editor, chat) and will never be quiet, so
+    # rather than pretend otherwise or gate on a threshold that never
+    # clears, record the contention alongside the numbers. Large differences
+    # survive it; a 10% wall-time move on a loaded host means nothing, and
+    # this is what lets a reader tell the two apart.
+    try:
+        load1 = round(os.getloadavg()[0], 2)
+    except (OSError, AttributeError):
+        load1 = None
     return {
         "cpu": cpu or platform.processor() or platform.machine(),
         "cores": os.cpu_count(),
         "mem_gb": mem,
+        "load_1m": load1,
     }
 
 
