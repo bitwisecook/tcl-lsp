@@ -122,16 +122,26 @@ impl AsyncWrite for PumpedWriter {
                 "stdout pump already shut down",
             )));
         };
+        // Count the bytes *before* handing them over. The drain task subtracts
+        // as soon as it has written a chunk, and it runs on another thread, so
+        // adding afterwards leaves a window where the subtraction lands first
+        // and wraps the counter — after which this arithmetic overflows and
+        // panics the transport future, taking the whole server down. Ordering
+        // the accounting this way makes the counter monotone by construction.
+        let queued = self
+            .queued
+            .fetch_add(buf.len(), Ordering::Relaxed)
+            .saturating_add(buf.len());
         // A send failure means the drain task is gone, which happens when the
         // real stdout errored — the client went away. Report it as a write
         // error so the transport tears the session down as it would have.
         if tx.send(buf.to_vec()).is_err() {
+            self.queued.fetch_sub(buf.len(), Ordering::Relaxed);
             return Poll::Ready(Err(io::Error::new(
                 io::ErrorKind::BrokenPipe,
                 "stdout pump drained task has stopped",
             )));
         }
-        let queued = self.queued.fetch_add(buf.len(), Ordering::Relaxed) + buf.len();
         if queued >= BACKLOG_WARN_BYTES && !self.warned {
             self.warned = true;
             eprintln!(
@@ -255,6 +265,46 @@ mod tests {
         fn poll_shutdown(self: Pin<&mut Self>, _: &mut Context<'_>) -> Poll<io::Result<()>> {
             Poll::Ready(Ok(()))
         }
+    }
+
+    /// The backlog accounting stays sane while the drain task runs
+    /// concurrently: writer and drain touch the same counter from different
+    /// threads, and it must not wrap.
+    ///
+    /// What this test is *not*: a regression test for the count-then-send
+    /// ordering in `poll_write`. That bug — accounting after handing the chunk
+    /// over, letting the drain's subtraction land first, wrapping the counter
+    /// and overflow-panicking the transport future — was measured against this
+    /// test and it does **not** catch it: the window is a few instructions
+    /// wide and was not reachable in 3×20,000 iterations, with or without the
+    /// yields. The e2e suite is what caught it, and the guarantee comes from
+    /// the ordering itself being monotone by construction. Do not treat a pass
+    /// here as cover for changing that ordering.
+    ///
+    /// `multi_thread` is still required for the concurrency this *does* check:
+    /// on the default current-thread runtime the drain cannot run at all while
+    /// the writer is running.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    async fn the_backlog_counter_never_wraps_against_a_fast_drain() {
+        let sink = RecordingSink::default();
+        let (mut writer, drained) = pump(sink);
+        for _ in 0..20_000 {
+            writer.write_all(b"some outbound bytes").await.unwrap();
+            // Hand the scheduler an opening for the drain task between every
+            // write, so writer and drain stay interleaved rather than the
+            // writer running away with the queue.
+            tokio::task::yield_now().await;
+            // A wrapped counter shows up as an absurd backlog long before it
+            // reaches the arithmetic that panics.
+            assert!(
+                writer.backlog() < BACKLOG_WARN_BYTES,
+                "backlog wrapped: {}",
+                writer.backlog()
+            );
+        }
+        writer.shutdown().await.unwrap();
+        drop(writer);
+        drained.await.unwrap();
     }
 
     /// The core property: writes complete even when the sink never accepts a
