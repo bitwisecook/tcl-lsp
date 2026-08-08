@@ -28,8 +28,8 @@ use std::sync::Arc;
 use rmcp::ServiceExt;
 use rmcp::handler::server::ServerHandler;
 use rmcp::model::{
-    CallToolRequestParams, CallToolResult, ContentBlock, ErrorData, ListToolsResult,
-    PaginatedRequestParams, ServerCapabilities, ServerInfo, Tool,
+    CallToolRequestParams, CallToolResponse, CallToolResult, ContentBlock, ErrorData,
+    ListToolsResult, PaginatedRequestParams, ServerCapabilities, ServerInfo, Tool,
 };
 use rmcp::service::{RequestContext, RoleServer};
 use rmcp::transport::stdio;
@@ -87,15 +87,21 @@ impl ServerHandler for TclMcp {
         &self,
         request: CallToolRequestParams,
         _context: RequestContext<RoleServer>,
-    ) -> Result<CallToolResult, ErrorData> {
+    ) -> Result<CallToolResponse, ErrorData> {
+        // rmcp 3 widened the `call_tool` return type from `CallToolResult` to
+        // the `CallToolResponse` enum, so a handler can also answer
+        // "input required" or "task materialised". Every tool here answers
+        // synchronously, so they all take the `Complete` arm — which is what
+        // `From<CallToolResult>` gives.
         let args = request.arguments.map_or_else(|| json!({}), Value::Object);
         match tools::dispatch(&request.name, &args) {
-            Some(result) => Ok(CallToolResult::success(vec![ContentBlock::text(
-                result.to_string(),
-            )])),
+            Some(result) => {
+                Ok(CallToolResult::success(vec![ContentBlock::text(result.to_string())]).into())
+            }
             None => Ok(CallToolResult::error(vec![ContentBlock::text(
                 json!({ "error": format!("Unknown tool: {}", request.name) }).to_string(),
-            )])),
+            )])
+            .into()),
         }
     }
 }

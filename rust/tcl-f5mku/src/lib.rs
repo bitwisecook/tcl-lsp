@@ -42,8 +42,11 @@
 //! assert_eq!(extract_salt("$M$iP$rr0su9oHn9J9p1t3nRzydA==").unwrap(), "iP");
 //! ```
 
-use aes::cipher::generic_array::GenericArray;
-use aes::cipher::{BlockDecrypt, BlockEncrypt, KeyInit};
+// `aes` 0.9 moved off `generic-array` onto `hybrid-array`'s `Array`, and split
+// the block transforms out of `BlockEncrypt`/`BlockDecrypt` into
+// `BlockCipherEncrypt`/`BlockCipherDecrypt`. Same operations, new names.
+use aes::cipher::array::Array;
+use aes::cipher::{BlockCipherDecrypt, BlockCipherEncrypt, KeyInit};
 use aes::{Aes128, Aes192, Aes256};
 use base64::Engine;
 use base64::engine::general_purpose::STANDARD as B64;
@@ -77,7 +80,7 @@ enum Aes {
 
 impl Aes {
     fn encrypt_block(&self, block: &[u8; BLOCK_SIZE]) -> [u8; BLOCK_SIZE] {
-        let mut b = GenericArray::clone_from_slice(block);
+        let mut b = Array(*block);
         match self {
             Aes::A128(c) => c.encrypt_block(&mut b),
             Aes::A192(c) => c.encrypt_block(&mut b),
@@ -87,7 +90,7 @@ impl Aes {
     }
 
     fn decrypt_block(&self, block: &[u8; BLOCK_SIZE]) -> [u8; BLOCK_SIZE] {
-        let mut b = GenericArray::clone_from_slice(block);
+        let mut b = Array(*block);
         match self {
             Aes::A128(c) => c.decrypt_block(&mut b),
             Aes::A192(c) => c.decrypt_block(&mut b),
@@ -162,15 +165,15 @@ struct Ciphertext {
 fn load_key(f5mku: &str) -> Result<Aes, F5MkuError> {
     let key = B64.decode(f5mku).map_err(|_| bad_key())?;
     match key.len() {
-        16 => Ok(Aes::A128(Box::new(Aes128::new(GenericArray::from_slice(
-            &key,
-        ))))),
-        24 => Ok(Aes::A192(Box::new(Aes192::new(GenericArray::from_slice(
-            &key,
-        ))))),
-        32 => Ok(Aes::A256(Box::new(Aes256::new(GenericArray::from_slice(
-            &key,
-        ))))),
+        16 => Ok(Aes::A128(Box::new(Aes128::new(
+            &Array::try_from(&key[..]).map_err(|_| bad_key())?,
+        )))),
+        24 => Ok(Aes::A192(Box::new(Aes192::new(
+            &Array::try_from(&key[..]).map_err(|_| bad_key())?,
+        )))),
+        32 => Ok(Aes::A256(Box::new(Aes256::new(
+            &Array::try_from(&key[..]).map_err(|_| bad_key())?,
+        )))),
         _ => Err(bad_key()),
     }
 }

@@ -30,8 +30,8 @@ authors.workspace = true
 [dependencies]
 # The block transform comes from the audited pure-Rust `aes` crate (already in
 # the workspace lockfile for the encrypted-UCS path).
-aes = "0.8"
-base64 = "0.22"
+aes = "0.9"
+base64 = "0.23"
 # Only the `encrypt` random-salt path needs entropy; kept optional so the crate
 # builds for wasm32 (where the report generator only ever *decrypts*).
 getrandom = { version = "0.4", optional = true }

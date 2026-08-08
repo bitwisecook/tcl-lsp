@@ -56,7 +56,7 @@ tcl-regex = { path = "../tcl-regex", features = ["cmd-core"] }
 # div/mod, `pow`, and the primitive narrowing. The `tcl-syntax` `num-bigint`
 # feature above supplies the shared tower's `BigIntOps` adapter for this same
 # `BigInt`, so the operator semantics come from `tcl_syntax::number_tower`.
-num-bigint = "0.4"
+num-bigint = "0.5"
 num-integer = "0.1"
 num-traits = "0.2"
 

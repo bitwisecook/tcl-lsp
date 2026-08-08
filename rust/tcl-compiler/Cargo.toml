@@ -44,7 +44,7 @@ regex = "1"
 # mirrors the VM's `num-bigint` tower so `2**64` / `i64::MAX + 1` fold to the
 # exact values C Tcl computes — never wrapped, never approximated.
 # `num-integer`/`num-traits` supply floor div/mod and primitive narrowing.
-num-bigint = "0.4"
+num-bigint = "0.5"
 num-integer = "0.1"
 num-traits = "0.2"
 

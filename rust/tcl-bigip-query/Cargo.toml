@@ -44,7 +44,7 @@ tcl-registry = { path = "../tcl-registry" }
 # Shared Tcl semantics layer — `string match` glob (`Tcl_StringCaseMatch`) for
 # the forensic file builtins. Pure `&str` logic, wasm-safe.
 tcl-syntax = { path = "../tcl-syntax" }
-base64 = "0.22"
+base64 = "0.23"
 chrono = { version = "0.4", default-features = false, features = ["clock", "std"] }
 indexmap = "2"
 ipnet = "2"
@@ -58,7 +58,7 @@ serde_json = { version = "1", features = ["preserve_order"] }
 # socket / TLS stack (e.g. the wasm32 query console), which just omits the
 # probe builtins.
 x509-parser = { version = "0.18", optional = true }
-sha2 = { version = "0.10", optional = true }
+sha2 = { version = "0.11", optional = true }
 dns-lookup = { version = "3", optional = true }
 ureq = { version = "3", optional = true }
 rustls = { version = "0.23", optional = true }

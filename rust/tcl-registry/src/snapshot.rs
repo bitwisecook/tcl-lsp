@@ -424,7 +424,18 @@ fn digest_list(items: &[String]) -> String {
     sorted_items.sort_unstable();
     let joined = sorted_items.join("\n");
     let digest = Sha256::digest(joined.as_bytes());
-    format!("sha256:{digest:x}")
+    // `sha2` 0.11 returns a `hybrid-array` `Array`, which — unlike the
+    // `generic-array` one 0.10 returned — does not implement `LowerHex`, so
+    // `{digest:x}` no longer compiles. Hand-rolled rather than pulling in a hex
+    // crate for one call site: this string is part of the committed registry
+    // snapshot, so the encoding must stay exactly lowercase, zero-padded, two
+    // characters per byte.
+    let mut hex = String::with_capacity(digest.len() * 2);
+    for byte in digest {
+        hex.push(char::from_digit(u32::from(byte >> 4), 16).expect("nibble is < 16"));
+        hex.push(char::from_digit(u32::from(byte & 0x0f), 16).expect("nibble is < 16"));
+    }
+    format!("sha256:{hex}")
 }
 
 /// Serialise an [`EventProps`](crate::events::EventProps) as a JSON
