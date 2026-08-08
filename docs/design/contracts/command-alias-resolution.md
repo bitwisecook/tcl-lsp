@@ -1,5 +1,35 @@
 # KCS: Command alias resolution
 
+> **Rust architecture note (issue #1305).** The sections below describe the
+> retired Python implementation (`shared/alias.py`) and predate the Rust
+> rewrite; they are kept for historical context on the *shape* of the
+> problem, not as a description of the current code paths. In the Rust
+> workspace, alias/rename tracking lives on `Analyser` as
+> `command_aliases` / `alias_offsets` (`interp alias`) and
+> `renamed_commands` / `rename_offsets` (`rename`), both keyed by qualified
+> name and both mirrored onto `AnalysisResult`. **`rename` *is* tracked** —
+> the "Limitations" bullet below claiming otherwise is the stale-doc
+> artefact this note exists to correct. The single shared hop-walk in
+> `rust/tcl-compiler/src/analyser/indirection.rs` (`indirection::walk`)
+> follows both `rename` and `interp alias` chains, order-gated by the
+> mutating statement's own offset, and is what the W307/W308 method check
+> (`diagnostics::var_command::class_reachable_by_indirection`) and the LSP
+> navigation providers already shared before issue #1305.
+>
+> Issue #1305 extended a third consumer onto the same rail: the class-factory
+> lookup (`analyser::handlers::class_factory_for_command`) used to match a
+> creation call's head against `ClassFactory` records by literal text only,
+> so `rename ::R::M ::R::Mk` then `::R::Mk create ::R::W {…}` could not find
+> the factory recorded under `::R::M`. It now falls back to
+> `indirection::walk` when the direct (local-then-workspace) lookup misses,
+> resolving the call's head through the same rename chain before retrying —
+> so a renamed metaclass command manufactures its class exactly as it did
+> under its original name. See
+> `rust/tcl-compiler/tests/analyser.rs`'s `class_factories` module
+> (`a_renamed_metaclass_still_manufactures_its_class` and its FN-guard
+> siblings) and
+> `rust/tcl-lsp-server/tests/e2e/issue1305_renamed_metaclass.rs`.
+
 ## Purpose
 
 When `interp alias {} name {} target ?args?` creates a command alias in the
@@ -142,8 +172,9 @@ several LSP features:
 
 - Aliases must appear textually before their use in the same file
   (the analyser and lowerer process commands sequentially).
-- Only `interp alias` is tracked; `rename` and runtime alias creation
-  via `proc` wrappers are not detected.
+- (Python-era limitation, superseded — see the Rust architecture note above.)
+  Only `interp alias` was tracked; `rename` and runtime alias creation
+  via `proc` wrappers were not detected.
 - `namespace import` aliases are not tracked — this is a common Tcl
   pattern but requires cross-namespace resolution infrastructure.
 - Alias chains (alias-of-alias) are not resolved transitively.

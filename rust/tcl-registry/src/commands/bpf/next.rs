@@ -28,7 +28,7 @@
 use crate::prelude::*;
 
 pub fn spec() -> CommandSpec {
-    const OP: BpfOpSpec = BpfOpSpec::verdict(BpfVerdictKind::Next, BpfProgTypeSet::All);
+    const OP: BpfOpSpec = BpfOpSpec::verdict(BpfVerdictKind::Next, BpfProgTypeSet::ALL);
     CommandSpec {
         name: "next",
         dialects: Some(DialectSet::BPF),

@@ -5795,6 +5795,83 @@ mod class_factories {
         }
         std::sync::Arc::new(index)
     }
+
+    // Issue #1305 — a `rename`d metaclass command manufactures nothing.
+
+    /// TP — the ticket's own oracle: `oo::class create ::R::M`, `rename ::R::M
+    /// ::R::Mk`, then `::R::Mk create ::R::W { method go {} {…} }` records
+    /// `::R::W` with `go`, exactly as calling the metaclass under its
+    /// original name would.
+    #[test]
+    fn a_renamed_metaclass_still_manufactures_its_class() {
+        let src = concat!(
+            "namespace eval ::R {}\n",
+            "oo::class create ::R::M { superclass oo::class }\n",
+            "rename ::R::M ::R::Mk\n",
+            "::R::Mk create ::R::W { method go {} { return went } }\n",
+        );
+        let cd = class(src, "::R::W");
+        assert!(
+            cd.methods.contains_key("go"),
+            "renamed-metaclass creation must still record members: {cd:?}"
+        );
+        assert!(
+            !cd.inheritance_unknown,
+            "a proved renamed-metaclass creation is not inheritance-unknown: {cd:?}"
+        );
+    }
+
+    /// TP control — the un-renamed form (metaclass created directly as
+    /// `::R::Mk`) records the identical class, so the rename case above is
+    /// judged against its own oracle rather than an assumption.
+    #[test]
+    fn the_control_without_a_rename_records_the_same_class() {
+        let src = concat!(
+            "namespace eval ::R {}\n",
+            "oo::class create ::R::Mk { superclass oo::class }\n",
+            "::R::Mk create ::R::W { method go {} { return went } }\n",
+        );
+        let cd = class(src, "::R::W");
+        assert!(cd.methods.contains_key("go"), "{cd:?}");
+    }
+
+    /// FN guard — a rename written *after* the creation call it would have
+    /// covered must not retroactively enable it: order-gating is inherited
+    /// unchanged from `indirection::walk`'s "in effect" rule.
+    #[test]
+    fn a_rename_written_after_the_creation_call_does_not_apply() {
+        let src = concat!(
+            "namespace eval ::R {}\n",
+            "oo::class create ::R::M { superclass oo::class }\n",
+            "::R::Mk create ::R::W { method go {} { return went } }\n",
+            "rename ::R::M ::R::Mk\n",
+        );
+        let r = analysis(src, "tcl9.0");
+        assert!(
+            !r.all_classes.contains_key("::R::W"),
+            "a rename written after the call site must not retroactively apply: {:?}",
+            r.all_classes.keys().collect::<Vec<_>>()
+        );
+    }
+
+    /// FN guard — a `rename` to a name that is never actually used as a
+    /// metaclass call must not spuriously manufacture anything (the rename
+    /// machinery is exercised, but the renamed-through call itself is
+    /// missing).
+    #[test]
+    fn a_rename_with_no_call_through_the_new_name_manufactures_nothing() {
+        let src = concat!(
+            "namespace eval ::R {}\n",
+            "oo::class create ::R::M { superclass oo::class }\n",
+            "rename ::R::M ::R::Mk\n",
+        );
+        let r = analysis(src, "tcl9.0");
+        assert!(
+            !r.all_classes.contains_key("::R::W"),
+            "no creation call means no manufactured class: {:?}",
+            r.all_classes.keys().collect::<Vec<_>>()
+        );
+    }
 }
 
 // ===========================================================================
@@ -6397,6 +6474,128 @@ mod braced_word_elements_are_literal {
             !diag_codes(src).iter().any(|c| c == "W123"),
             "{:?}",
             diag_codes(src)
+        );
+    }
+}
+
+/// Issue #1312 — a named object (`CLASS create NAME`) resolves no members.
+/// `[CLASS new]` already gave W308 on an unknown method; the named form
+/// abstained because the dispatch resolver never consulted
+/// `AnalysisResult::created_instance_commands` / `instance_classes` for a
+/// bareword receiver.
+mod issue_1312_named_object_dispatch {
+    use super::*;
+
+    /// TP — the ticket's own repro: `C create obj` then `obj nosuchmethod`
+    /// now draws the same W308 the handle form (`[C new]`) already does.
+    #[test]
+    fn named_object_draws_w308_on_an_unknown_method() {
+        let src = "oo::class create C {\n\
+                     method mrun {} { return 1 }\n\
+                   }\n\
+                   C create obj\n\
+                   obj nosuchmethod\n";
+        assert!(
+            fires(src, "tcl9.0", "W308"),
+            "named-object dispatch must draw W308 like the handle form: {:?}",
+            codes(src, "tcl9.0")
+        );
+    }
+
+    /// TP — parity check: the handle form and the named form must draw
+    /// exactly the same W308 message for the identical class/method pair,
+    /// so the two construction forms are provably treated alike.
+    #[test]
+    fn named_object_and_handle_object_draw_the_same_w308_message() {
+        let handle = "oo::class create C { method mrun {} { return 1 } }\n\
+                       set h [C new]\n\
+                       $h nosuchmethod\n";
+        let named = "oo::class create C { method mrun {} { return 1 } }\n\
+                      C create obj\n\
+                      obj nosuchmethod\n";
+        let handle_msg = analyser_diags(handle, "tcl9.0")
+            .into_iter()
+            .find(|(c, _, _)| c == "W308")
+            .map(|(_, m, _)| m)
+            .expect("handle form draws W308");
+        let named_msg = analyser_diags(named, "tcl9.0")
+            .into_iter()
+            .find(|(c, _, _)| c == "W308")
+            .map(|(_, m, _)| m)
+            .expect("named form draws W308");
+        assert_eq!(handle_msg, named_msg);
+    }
+
+    /// TN — a named object calling a method its class actually declares
+    /// must not draw a spurious W308.
+    #[test]
+    fn named_object_calling_a_real_method_draws_no_w308() {
+        let src = "oo::class create C { method mrun {} { return 1 } }\n\
+                   C create obj\n\
+                   obj mrun\n";
+        assert!(
+            !fires(src, "tcl9.0", "W308"),
+            "a real method must not draw W308: {:?}",
+            codes(src, "tcl9.0")
+        );
+    }
+
+    /// FP guard — a bareword command that merely *looks* like a named
+    /// instance (an ordinary proc call, never bound via `CLASS create
+    /// NAME`) must not be swept into the object-dispatch check and must
+    /// never draw W307 "non-literal command name" — the whole point of
+    /// gating the bareword site on `instance_classes`, not on bareword
+    /// shape alone.
+    #[test]
+    fn an_ordinary_proc_call_never_draws_w307_or_w308() {
+        let src = "proc obj {args} { return 1 }\nobj nosuchmethod\n";
+        let got = codes(src, "tcl9.0");
+        assert!(
+            !got.iter().any(|c| c == "W307" || c == "W308"),
+            "an ordinary proc call must draw neither: {got:?}"
+        );
+    }
+
+    /// FP guard — `interp create child` binds `child` as a *command*
+    /// (`created_instance_commands`), but never as a class instance
+    /// (`instance_classes` stays unset for it) — the coroutine / `interp
+    /// create` carve-out `record_bareword_instance_dispatch_site` documents.
+    /// `child eval …` must draw neither W307 nor W308.
+    #[test]
+    fn interp_create_bareword_dispatch_draws_no_diagnostic() {
+        let src = "interp create child\nchild eval { puts hi }\n";
+        let got = codes(src, "tcl9.0");
+        assert!(
+            !got.iter().any(|c| c == "W307" || c == "W308"),
+            "an `interp create` handle must draw neither: {got:?}"
+        );
+    }
+
+    /// TP — the per-item (incremental) analysis path must agree with the
+    /// whole-file `analyse` path byte-for-byte on this shape, including when
+    /// the class is declared inside a proc body the per-item shell pass
+    /// defers (`Analyser::analyse_per_item`, `replay_deferred_instances`,
+    /// `finalise_bareword_dispatch_sites`).
+    #[test]
+    fn per_item_analysis_agrees_with_whole_file_analysis() {
+        let src = "proc def {} { oo::class create ::K { method poke {} {} } }\n\
+                   def\n\
+                   ::K create inst\n\
+                   inst nosuchmethod\n";
+        let whole = Analyser::new().analyse(src, "tcl9.0");
+        let per_item = Analyser::new().analyse_per_item(src, "tcl9.0");
+        assert_eq!(
+            per_item, whole,
+            "per_item != analyse for:\n{src}\nper_item diagnostics: {:?}\nwhole diagnostics: {:?}",
+            per_item.diagnostics, whole.diagnostics
+        );
+        assert!(
+            whole
+                .diagnostics
+                .iter()
+                .any(|d| d.code.to_string() == "W308"),
+            "expected W308 on the named object created inside a deferred proc body: {:?}",
+            whole.diagnostics
         );
     }
 }

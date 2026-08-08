@@ -69,6 +69,23 @@ A "Generate docstring for 'name'" source action is offered when the cursor
 is on a `proc` definition that has no docstring.  It inserts a doxygen-style
 stub with `@param` tags for each parameter.
 
+The resolved `docstringStyle` setting (#1314) gates both *whether* and
+*where* this action fires, in the native Rust LSP server
+(`rust/tcl-lsp-server`, `Backend::resolved_docstring_style` ->
+`tcl_lsp_core::code_actions::code_actions_in_program`):
+
+- `none` (the default) — the action is not offered at all.
+- `preceding` — the stub is inserted directly above the `proc` line, as a
+  standalone comment block (the only placement the plain `code_actions()`
+  entry point used by the MCP `code_actions` tool and by tests offers).
+- `body` — the stub is inserted as the first line inside the `proc` body,
+  indented to match the body's existing content (four spaces when the body
+  has none to match, e.g. an empty or single-line proc).
+
+Only the LSP server's `codeAction` request resolves this setting; the MCP
+`generate_docstring` / `update_docstrings` tools have no client config to
+read and always use `preceding` placement.
+
 ## MCP AI tools
 
 Three tools expose docstring operations:

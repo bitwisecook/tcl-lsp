@@ -126,7 +126,6 @@ class TclLspSettingsPanel {
     private val diagW118 = JBCheckBox("W118: Inconsistent line endings")
     private val diagW120 = JBCheckBox("W120: Command used without a corresponding package require")
     private val diagW121 = JBCheckBox("W121: Subnet mask has non-contiguous bits")
-    private val diagW122 = JBCheckBox("W122: Mistyped IPv4 address (octet > 255 or leading zero)")
     private val diagW124 = JBCheckBox("W124: Invalid IP address literal")
     private val diagW125 = JBCheckBox("W125: Orphaned control-flow keyword used as standalone com...")
     private val diagW126 = JBCheckBox("W126: Non-channel value in channel argument position")
@@ -236,13 +235,6 @@ class TclLspSettingsPanel {
     private val diagIRULE4003 = JBCheckBox("IRULE4003: Variable scoping concern across events")
     private val diagIRULE4004 = JBCheckBox("IRULE4004: Constant set in per-request event could be hoisted t...")
     private val diagIRULE4005 = JBCheckBox("IRULE4005: Potential race")
-
-    // Diagnostics — Package Manager
-    private val diagW130 = JBCheckBox("W130: tclpkg.tcl requires package but it is not in tclpkg....")
-    private val diagW131 = JBCheckBox("W131: tclpkg.lock is out of sync with tclpkg.tcl")
-    private val diagW132 = JBCheckBox("W132: tclpkg.lock integrity mismatch")
-    private val diagW133 = JBCheckBox("W133: tclpkg.tcl directive not permitted in safe mode")
-    private val diagW134 = JBCheckBox("W134: Package resolved but no pkgIndex.tcl found")
     // @generated:diag-checkboxes:end
 
     // XC Diagnostics
@@ -384,12 +376,12 @@ class TclLspSettingsPanel {
             diagW001, diagW002, diagW003, diagW004, diagW100, diagW104,
             diagW105, diagW106, diagW108, diagW110, diagW111, diagW112,
             diagW113, diagW114, diagW115, diagW116, diagW117, diagW118,
-            diagW120, diagW121, diagW122, diagW124, diagW125, diagW126,
-            diagW127, diagW128, diagW129, diagW135, diagW136, diagW137,
-            diagW138, diagW139, diagW140, diagW141, diagW142, diagW143,
-            diagW144, diagW145, diagW200, diagW201, diagW230, diagW231,
-            diagW232, diagW233, diagW240, diagW241, diagW250, diagW308,
-            diagW314, diagW315,
+            diagW120, diagW121, diagW124, diagW125, diagW126, diagW127,
+            diagW128, diagW129, diagW135, diagW136, diagW137, diagW138,
+            diagW139, diagW140, diagW141, diagW142, diagW143, diagW144,
+            diagW145, diagW200, diagW201, diagW230, diagW231, diagW232,
+            diagW233, diagW240, diagW241, diagW250, diagW308, diagW314,
+            diagW315,
         ).forEach { diagWarnPanel.add(it) }
         builder.addComponent(diagWarnPanel)
 
@@ -441,13 +433,6 @@ class TclLspSettingsPanel {
             diagIRULE4005,
         ).forEach { diagIRulePanel.add(it) }
         builder.addComponent(diagIRulePanel)
-
-        builder.addComponent(TitledSeparator("Diagnostics — Package Manager"))
-        val diagPanel = JPanel(java.awt.GridLayout(0, 2, 8, 2))
-        listOf(
-            diagW130, diagW131, diagW132, diagW133, diagW134,
-        ).forEach { diagPanel.add(it) }
-        builder.addComponent(diagPanel)
         // @generated:diag-ui:end
 
         // Style section
@@ -590,7 +575,6 @@ class TclLspSettingsPanel {
             diagW118.isSelected != s.diagnosticW118 ||
             diagW120.isSelected != s.diagnosticW120 ||
             diagW121.isSelected != s.diagnosticW121 ||
-            diagW122.isSelected != s.diagnosticW122 ||
             diagW124.isSelected != s.diagnosticW124 ||
             diagW125.isSelected != s.diagnosticW125 ||
             diagW126.isSelected != s.diagnosticW126 ||
@@ -688,11 +672,6 @@ class TclLspSettingsPanel {
             diagIRULE4003.isSelected != s.diagnosticIRULE4003 ||
             diagIRULE4004.isSelected != s.diagnosticIRULE4004 ||
             diagIRULE4005.isSelected != s.diagnosticIRULE4005 ||
-            diagW130.isSelected != s.diagnosticW130 ||
-            diagW131.isSelected != s.diagnosticW131 ||
-            diagW132.isSelected != s.diagnosticW132 ||
-            diagW133.isSelected != s.diagnosticW133 ||
-            diagW134.isSelected != s.diagnosticW134 ||
             // @generated:diag-dirty:end
             // XC Diagnostics
             xcDiagnosticsEnabled.isSelected != s.xcDiagnosticsEnabled ||
@@ -836,7 +815,6 @@ class TclLspSettingsPanel {
         s.diagnosticW118 = diagW118.isSelected
         s.diagnosticW120 = diagW120.isSelected
         s.diagnosticW121 = diagW121.isSelected
-        s.diagnosticW122 = diagW122.isSelected
         s.diagnosticW124 = diagW124.isSelected
         s.diagnosticW125 = diagW125.isSelected
         s.diagnosticW126 = diagW126.isSelected
@@ -934,11 +912,6 @@ class TclLspSettingsPanel {
         s.diagnosticIRULE4003 = diagIRULE4003.isSelected
         s.diagnosticIRULE4004 = diagIRULE4004.isSelected
         s.diagnosticIRULE4005 = diagIRULE4005.isSelected
-        s.diagnosticW130 = diagW130.isSelected
-        s.diagnosticW131 = diagW131.isSelected
-        s.diagnosticW132 = diagW132.isSelected
-        s.diagnosticW133 = diagW133.isSelected
-        s.diagnosticW134 = diagW134.isSelected
         // @generated:diag-apply:end
         s.xcDiagnosticsEnabled = xcDiagnosticsEnabled.isSelected
 
@@ -1099,7 +1072,6 @@ class TclLspSettingsPanel {
         diagW118.isSelected = s.diagnosticW118
         diagW120.isSelected = s.diagnosticW120
         diagW121.isSelected = s.diagnosticW121
-        diagW122.isSelected = s.diagnosticW122
         diagW124.isSelected = s.diagnosticW124
         diagW125.isSelected = s.diagnosticW125
         diagW126.isSelected = s.diagnosticW126
@@ -1197,11 +1169,6 @@ class TclLspSettingsPanel {
         diagIRULE4003.isSelected = s.diagnosticIRULE4003
         diagIRULE4004.isSelected = s.diagnosticIRULE4004
         diagIRULE4005.isSelected = s.diagnosticIRULE4005
-        diagW130.isSelected = s.diagnosticW130
-        diagW131.isSelected = s.diagnosticW131
-        diagW132.isSelected = s.diagnosticW132
-        diagW133.isSelected = s.diagnosticW133
-        diagW134.isSelected = s.diagnosticW134
         // @generated:diag-reset:end
         xcDiagnosticsEnabled.isSelected = s.xcDiagnosticsEnabled
 

@@ -185,6 +185,7 @@ fn diags_by_section() -> Vec<(&'static str, Vec<DiagRow>)> {
             section,
             default_on,
             internal: false,
+            reserved: false,
             description,
         } = c.doc_row()
         {

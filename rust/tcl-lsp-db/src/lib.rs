@@ -3070,6 +3070,12 @@ pub struct FileTokenFacts {
     pub classes: HashMap<String, ClassDef>,
     /// The file's user-proc parameter roles.
     pub proc_roles: VarNameArgRoles,
+    /// Bareword instance-command names this file binds via `CLASS create
+    /// NAME`, mapped to the (locally-resolved) qualified class name — the
+    /// named-object dispatch form (issue #1312), gated on
+    /// `created_instance_commands` exactly like the LSP's
+    /// `receiver_instance_class`.
+    pub named_instances: HashMap<String, String>,
 }
 
 /// The light (structure-only) per-file tier feeding [`project_class_index`] and
@@ -3105,9 +3111,16 @@ pub fn file_token_facts(db: &dyn TclDb, file: SourceFile) -> Arc<FileTokenFacts>
         .structure_only()
         .with_file_path(file.path(db).clone());
     let result = analyser.analyse(file.text(db), file.dialect(db));
+    let named_instances = result
+        .instance_classes
+        .iter()
+        .filter(|(name, _)| result.created_instance_commands.contains(name.as_str()))
+        .map(|(name, class)| (name.clone(), class.clone()))
+        .collect();
     Arc::new(FileTokenFacts {
         proc_roles: VarNameArgRoles::from_procs(result.all_procs.values()),
         classes: result.all_classes,
+        named_instances,
     })
 }
 
@@ -3175,13 +3188,52 @@ pub fn project_proc_var_index(db: &dyn TclDb, project: Project) -> Arc<VarNameAr
     ))
 }
 
+/// The project's workspace-merged `CLASS create NAME` bareword
+/// instance-command index (issue #1312): every file's `named_instances`
+/// unioned into one cross-file map, so `$obj method` on a named object
+/// bound in *another* project file's file resolves too.
+///
+/// A name bound to a *different* class in two or more files is genuinely
+/// ambiguous — dropped from the merged index, matching
+/// [`project_class_index`]'s order-independent abstention posture, rather
+/// than depending on `project.files`' unordered enumeration.
+///
+/// Reads the same light [`file_token_facts`] firewall as [`project_class_index`].
+#[salsa::tracked]
+pub fn project_named_instance_index(
+    db: &dyn TclDb,
+    project: Project,
+) -> Arc<tcl_lsp_core::semantic_tokens::NamedInstanceMap> {
+    let mut merged: HashMap<String, String> = HashMap::new();
+    let mut ambiguous: HashSet<String> = HashSet::new();
+    for &file in project.files(db) {
+        for (name, class) in &file_token_facts(db, file).named_instances {
+            if ambiguous.contains(name) {
+                continue;
+            }
+            match merged.entry(name.clone()) {
+                std::collections::hash_map::Entry::Occupied(e) => {
+                    if e.get() != class {
+                        e.remove();
+                        ambiguous.insert(name.clone());
+                    }
+                }
+                std::collections::hash_map::Entry::Vacant(e) => {
+                    e.insert(class.clone());
+                }
+            }
+        }
+    }
+    Arc::new(merged)
+}
+
 /// [`semantic_tokens`] resolved against the **workspace-merged** class index, so
 /// a `$obj method …` dispatch on a class defined in another project file
 /// resolves too.  The server calls this when a [`Project`] is available; the
 /// bare [`semantic_tokens`] (local file only) is the fallback.
 ///
 /// Takes no [`AnalyserConfig`]: every input it reads — the document's
-/// compilation unit and the two project indexes — is config-independent, so
+/// compilation unit and the three project indexes — is config-independent, so
 /// keying on one would only fragment the memo across per-folder configs that
 /// cannot change the answer.
 #[salsa::tracked]
@@ -3194,13 +3246,17 @@ pub fn semantic_tokens_project(
     let cu = document_compilation_unit(db, file);
     let classes = project_class_index(db, project);
     let proc_roles = project_proc_var_index(db, project);
-    tcl_lsp_core::semantic_tokens::full_with_cu_and_classes_and_roles(
+    let named_instances = project_named_instance_index(db, project);
+    tcl_lsp_core::semantic_tokens::full_with_cu_and_facts(
         file.text(db),
         file.dialect(db),
         registry,
         Some(&cu),
-        Some(&classes),
-        Some(&proc_roles),
+        tcl_lsp_core::semantic_tokens::WorkspaceTokenFacts {
+            classes: Some(&classes),
+            proc_roles: Some(&proc_roles),
+            named_instances: Some(&named_instances),
+        },
     )
 }
 

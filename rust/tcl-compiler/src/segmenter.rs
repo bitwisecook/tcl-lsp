@@ -294,6 +294,86 @@ pub fn segment_commands_with_offset_and_config(
         .collect()
 }
 
+/// The longest prefix of `text` that is byte-identical to `source` starting at
+/// `base` — the region over which rebasing `text`'s spans by `base` yields
+/// truthful absolute offsets into `source`.
+///
+/// Every body walk segments a *word value* this module produced and adds a
+/// single base offset to the resulting spans.  That is exact only while the
+/// value is a verbatim slice of the document, which holds for an ordinary
+/// braced body: `{…}`'s value is the source between the braces, backslash
+/// sequences and all.
+///
+/// It stops holding for a **compound** word — a braced group welded to more
+/// word characters, `{body}x`.  Real Tcl rejects that outright ("extra
+/// characters after close-brace"); the analyser accepts it so the braced part
+/// still gets diagnosed, and the word's value is then the brace content
+/// concatenated with the trailing fragment, closing `}` dropped.  Rebasing
+/// *that* slides every token past the dropped brace one byte left.  On ASCII
+/// the result is an off-by-one span; on a multi-byte character it is an offset
+/// inside a UTF-8 sequence, which panics the first consumer that slices the
+/// source with it — how 40 zero-width spaces in a real iRule aborted
+/// `fp-sweep` and blanked the LSP's diagnostics for the file (issue #1325).
+///
+/// Truncating to the verbatim prefix keeps the walk on the contiguous braced
+/// region and drops the welded tail, which is not a script in the first place.
+/// The common case returns `text` unchanged.
+///
+/// This corrects only what `source` can actually *prove* wrong.  When `source`
+/// does not reach `base + text.len()` — an isolated body fragment analysed at
+/// offset 0 on the per-item path, or a handler called directly with fabricated
+/// spans in a unit test — there is nothing to compare against, so `text` is
+/// returned as given rather than truncated on no evidence.  The consumer-side
+/// slice guards ([`crate::analyser::Analyser::source_slice`]) are what keep
+/// that case safe.
+#[must_use]
+pub fn contiguous_prefix<'t>(source: &str, base: usize, text: &'t str) -> &'t str {
+    let Some(rest) = source.get(base..) else {
+        return text;
+    };
+    if rest.len() < text.len() {
+        return text;
+    }
+    if rest.as_bytes()[..text.len()] == *text.as_bytes() {
+        return text;
+    }
+    let mut i = 0;
+    while i < text.len() && rest.as_bytes()[i] == text.as_bytes()[i] {
+        i += 1;
+    }
+    while i > 0 && !text.is_char_boundary(i) {
+        i -= 1;
+    }
+    &text[..i]
+}
+
+/// The part of a body word's `text` whose spans a walk may rebase by `base`,
+/// given that the word occupies `base..region_end` in `source`.
+///
+/// A body text is rebasable when it maps 1:1 onto its source region, which two
+/// different constructions both achieve: an ordinary braced body, whose value
+/// *is* the source between the braces, and
+/// [`crate::analyser::utils::concat_script_window`]'s padded window, which
+/// blanks the delimiters but keeps every real word at its written offset.
+/// Both fill the region exactly, so a length match is the cheap, sufficient
+/// test for either — and it is what keeps the window (deliberately *not*
+/// byte-identical to the source) out of [`contiguous_prefix`]'s comparison.
+///
+/// A word value that does not fill its region is the compound `{body}x` shape
+/// (issue #1325); [`contiguous_prefix`] clamps it to the braced part.
+#[must_use]
+pub fn body_text_in_region<'t>(
+    source: &str,
+    base: usize,
+    region_end: usize,
+    text: &'t str,
+) -> &'t str {
+    if text.len() == region_end.saturating_sub(base) {
+        return text;
+    }
+    contiguous_prefix(source, base, text)
+}
+
 /// Split a `{pattern body ?pattern body ...?}` clause-list body into its
 /// flat, alternating sequence of pattern/body elements — the single-braced
 /// form of a [`tcl_registry::CommandSpec::case_list`] command (`switch`'s
@@ -311,12 +391,26 @@ pub fn segment_commands_with_offset_and_config(
 /// TokenType::Str` — a `$var` / `[cmd]` clause list computed at runtime)
 /// yield an empty list: the shape can't be statically split, so the caller
 /// must fall back to whatever it does for a non-literal clause list.
+///
+/// `source` is the document `body_tok`'s span indexes into; the split runs
+/// over [`contiguous_prefix`] of `body_text` so the rebased element spans are
+/// truthful even for a compound `{…}x` clause-list word (issue #1325).
 #[must_use]
-pub fn flatten_clause_list_elements(body_text: &str, body_tok: Token) -> Vec<(String, Token)> {
+pub fn flatten_clause_list_elements(
+    source: &str,
+    body_text: &str,
+    body_tok: Token,
+) -> Vec<(String, Token)> {
     if body_tok.kind != TokenType::Str {
         return Vec::new();
     }
     let base_offset = body_tok.span.start() + u32::from(body_tok.content_offset);
+    let body_text = body_text_in_region(
+        source,
+        base_offset as usize,
+        body_tok.span.end() as usize,
+        body_text,
+    );
     let cmds = segment_commands_with_offset(body_text, base_offset);
     let mut elements = Vec::new();
     for cmd in cmds {

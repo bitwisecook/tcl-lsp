@@ -243,6 +243,15 @@ fn cmd_lmap(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
 
 /// Shared `foreach`/`lmap` engine. With `collect`, each successful body result
 /// is appended to the result list; without, the result is the empty string.
+///
+/// Parses the grammar up front (same validation, same errors) then defers the
+/// actual iteration to the explicit stack via `vm.pending_each_loop`
+/// (`crate::exec::EachLoopReq`/`Frame::each_loop`), so each iteration's body
+/// runs as a yieldable child script frame instead of through
+/// `Vm::eval_source`'s nested drive — issue #1311: a value-consumed `lmap`
+/// (`set r [lmap x {1 2} { yield $x }]`) reaches this fallback via generic
+/// command dispatch (the compiler's inline `LMAP_COLLECT` loop only lowers a
+/// bare-statement `lmap`), and needs the same yieldability.
 fn each_loop(vm: &mut Vm, args: &[Value], collect: bool) -> Completion<Value> {
     let name = if collect { "lmap" } else { "foreach" };
     // (name-stripped) N×(varlist, list) pairs + body ⇒ an odd arg count ≥ 3.
@@ -257,7 +266,7 @@ fn each_loop(vm: &mut Vm, args: &[Value], collect: bool) -> Completion<Value> {
     let body = args[args.len() - 1].clone();
 
     // Parse each group's variable names + values; track the iteration count.
-    let mut groups: Vec<(Vec<String>, Vec<Value>)> = Vec::new();
+    let mut groups: Vec<crate::exec::EachLoopGroup> = Vec::new();
     let mut iterations = 0usize;
     for pair in args[..args.len() - 1].chunks_exact(2) {
         let vars: Vec<String> = match pair[0].as_list() {
@@ -267,46 +276,29 @@ fn each_loop(vm: &mut Vm, args: &[Value], collect: bool) -> Completion<Value> {
         if vars.is_empty() {
             return err(format!("{name} varlist is empty"));
         }
-        let values = match pair[1].as_list() {
+        let values: Vec<Value> = match pair[1].as_list() {
             Ok(v) => (*v).clone(),
             Err(e) => return err(e.message),
         };
         iterations = iterations.max(values.len().div_ceil(vars.len()));
-        groups.push((vars, values));
+        groups.push(crate::exec::EachLoopGroup { vars, values });
     }
 
-    let mut collected: Vec<Value> = Vec::new();
-    for it in 0..iterations {
-        for (vars, vals) in &groups {
-            for (k, var) in vars.iter().enumerate() {
-                let val = vals
-                    .get(it * vars.len() + k)
-                    .cloned()
-                    .unwrap_or_else(Value::empty);
-                if let Err(e) = vm.set_var(var, val) {
-                    return e;
-                }
-            }
-        }
-        let c = eval_body(vm, &body);
-        match c.code {
-            Code::Ok => {
-                if collect {
-                    collected.push(c.result.clone());
-                }
-            }
-            Code::Continue => {} // skip collection, keep looping
-            Code::Break => break,
-            Code::Error => {
-                vm.append_body_frame(name);
-                return c;
-            }
-            _ => return c, // return / Other propagate
-        }
-    }
-    if collect {
-        ok(Value::list(collected))
-    } else {
-        ok(Value::empty())
-    }
+    // Unlike `eval_body`'s other callers in this module, the loop body no
+    // longer runs via a nested nested-drive nested-native re-entry (it is
+    // deferred to the explicit stack below), so it does not need
+    // `enter_control_fallback`'s native-stack recursion guard — matching
+    // `eval`/`uplevel`'s own `pending_eval` deferral, which likewise has none.
+    let asm = match vm.compile_source_cached(&body.to_str()) {
+        Ok(asm) => asm,
+        Err(e) => return err(e.message),
+    };
+    vm.pending_each_loop = Some(crate::exec::EachLoopReq {
+        name,
+        collect,
+        groups,
+        iterations,
+        body: asm,
+    });
+    ok(Value::empty())
 }

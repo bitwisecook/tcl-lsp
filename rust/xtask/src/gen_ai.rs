@@ -116,6 +116,7 @@ fn categories() -> Value {
         if let DocRow::Diagnostic {
             section,
             internal: false,
+            reserved: false,
             ..
         } = c.doc_row()
         {
@@ -192,6 +193,7 @@ fn section_list(sections: &[&str]) -> Vec<(String, String)> {
                 DocRow::Diagnostic {
                     section,
                     internal: false,
+                    reserved: false,
                     description,
                     ..
                 } if section.as_str() == sec => Some((c.as_str(), description)),

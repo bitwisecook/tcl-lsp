@@ -239,6 +239,7 @@ pub fn witness_command_spec(spec: &CommandSpec) {
         context_gate: _,
         implementation_namespace: _,
         oo_context_facts: _,
+        self_receiver_words: _,
     } = spec;
 }
 
@@ -374,6 +375,7 @@ pub const COMMAND_SPEC: &[Field] = &[
         Surface::Key("implementation_namespace"),
     ),
     f("oo_context_facts", Surface::Key("oo_context_facts")),
+    f("self_receiver_words", Surface::Key("self_receiver_words")),
 ];
 
 // ---------------------------------------------------------------------------

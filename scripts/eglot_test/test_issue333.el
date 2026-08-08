@@ -556,8 +556,33 @@ canary for when eglot upstream fixes the painter."
                                        (nth 0 a) (nth 1 a) (nth 2 a))))
             nil)))))))
 
+;; NATURALLY FLAKY — DO NOT CHASE AS A SERVER BUG (issue #1323, closed).
+;;
+;; This scenario intermittently reports "no `edits' in any response — server
+;; re-sent a full stream?" while passing on the next run, against an unchanged
+;; server.  Measured: 2 of 3 consecutive runs pass, no code change between.
+;;
+;; That is inherent to driving a real eglot, not a defect here.  eglot
+;; pipelines a second `semanticTokens/full' (~76 ms after the first, before
+;; the first reply lands) whenever a response is slower than its font-lock
+;; retry, then names whichever `resultId' it has processed so far in the
+;; `full/delta' that follows — a scheduling coin-flip.  When it names the
+;; older id the server has nothing to diff against and answers with a full
+;; stream, which is a CORRECT `full/delta' response per the LSP spec, just not
+;; an incremental one.  So a run that "fails" here has not caught a server
+;; fault; it has caught eglot racing itself.
+;;
+;; Treat a red run as noise.  If the incremental path genuinely needs a
+;; regression gate, add it as a pure-Rust reference-client e2e test (no Emacs
+;; in the loop) rather than tightening anything here — a parked, unverified
+;; sketch of both that test and a wider server-side stream cache lives on
+;; branch `worktree-agent-a800a38f74c8619c2' (commit 4b7b1e2a).
 (cl-defun t333-delta-test ()
   "End-to-end verification of the server's `semanticTokens/full/delta'.
+
+NATURALLY FLAKY — see the comment above this function.  A failure here is
+eglot racing its own pipelined requests, not a server fault; do not chase
+it as one (issue #1323, closed as not-a-bug).
 
 Through a real eglot connection: the server advertises `full/delta' +
 `range', and after an edit eglot receives an actual DELTA and applies it
@@ -636,6 +661,16 @@ window, small on large files.  Returns t when every assertion holds."
          ;; A scenario contributes to ``any-fail`` only if it failed AND
          ;; isn't marked :xfail.  The delta test is a real gate for our
          ;; server's `full/delta' implementation, so its failure fails the suite.
+         ;;
+         ;; CAVEAT (issue #1323, closed as not-a-bug): `t333-delta-test' is
+         ;; NATURALLY FLAKY — see the comment above its definition.  It fails
+         ;; roughly 1 run in 3 because eglot races its own pipelined requests,
+         ;; not because the server regressed, and this line turns that noise
+         ;; into a red `make test-emacs'.  Left gating deliberately rather than
+         ;; silently downgraded; if the false-failure rate becomes annoying,
+         ;; the fix is to move the gate to a pure-Rust reference client (no
+         ;; Emacs in the loop) and drop this one to :xfail — not to weaken the
+         ;; delta assertions themselves.
          (any-fail (or (not delta-pass)
                        (cl-some (lambda (r)
                                   (and (not (nth 1 r))

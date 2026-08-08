@@ -223,6 +223,18 @@ pub struct VarCommandSite {
     /// entirely when this is set, matching every other arity check's
     /// `{*}`-expansion convention.
     pub has_expand: bool,
+    /// True for a `$var method` dispatch, false for a bareword
+    /// `objcmd method` dispatch (`CLASS create NAME` idiom — issue #1312).
+    /// A `$var` can hold any object at run time, so its class evidence comes
+    /// from the SSA type lattice / constructor harvest only; a bareword head
+    /// is instead a *named* instance command, so its class comes from
+    /// `AnalysisResult::instance_classes` gated on
+    /// `AnalysisResult::created_instance_commands` — the same contract the
+    /// LSP's `receiver_instance_class` uses for hover/definition/completion.
+    /// Kept as an explicit flag rather than re-deriving it from the site's
+    /// shape so the diagnostic and the LSP's shared resolver can never
+    /// disagree about which sites the bareword lookup applies to.
+    pub is_dollar: bool,
 }
 
 /// One entry in [`Analyser::cmd_command_sites`] —
@@ -974,6 +986,19 @@ pub struct Analyser {
     /// plus every grafted body's (already rebased to absolute offsets),
     /// merged so the replay can run in one global source-order pass.
     pub(super) deferred_instance_replays: Vec<(u32, bool, String, Vec<String>, String)>,
+    /// Bareword `objcmd method` dispatch sites (issue #1312) captured while
+    /// `pending_instances` is active — a `CLASS create NAME` creation earlier
+    /// in the same deferred pass has not resolved `instance_classes` yet (it
+    /// resolves only post-graft, in [`Self::replay_deferred_instances`]), so
+    /// the site is held here instead of going straight into
+    /// `var_command_sites`.  Finalised right after that replay: a candidate
+    /// whose name the replay actually bound in `instance_classes` becomes a
+    /// real `var_command_sites` entry; every other candidate (a coroutine /
+    /// `interp create` / registry-factory / external-class name that merely
+    /// *looked* like a pending class instance at record time) is dropped —
+    /// the same soundness bar the non-deferred `analyse` path applies
+    /// immediately.  `None` on the whole-file path (sites resolve inline).
+    pub(super) pending_bareword_dispatch_sites: Option<Vec<VarCommandSite>>,
     /// **Experimental probe flag.**  When `true`, the per-item path does *not*
     /// take the duplicate-definition fallback, to measure the residual
     /// divergence the duplicate fast-path must still close.  Defaults to `false`.
@@ -1087,6 +1112,41 @@ impl Analyser {
         } else {
             tcl_lexer::SourceMap::new(source)
         }
+    }
+
+    /// [`Self::source`] sliced by absolute byte offsets, or `None` when the
+    /// range is inverted, out of bounds, **or lands inside a multi-byte UTF-8
+    /// sequence**.
+    ///
+    /// The one sanctioned way for a handler to turn a token span back into
+    /// source text.  A bare `&self.source[start..end]` panics on a span whose
+    /// end is not a `char` boundary, which is reachable from real-world input:
+    /// a body word of the shape `{…}x` (Tcl's "extra characters after
+    /// close-brace", which this analyser accepts leniently) has its closing
+    /// `}` dropped from the segmenter's word *value*, so rebasing that value
+    /// by a single offset shifts every token after the brace one byte left —
+    /// harmless-looking on ASCII, mid-character on anything else.  An iRule
+    /// carrying zero-width spaces (`U+200B`, the usual residue of a
+    /// copy-paste from a web page) hit exactly that and aborted `fp-sweep`
+    /// outright, while the LSP lost **every** diagnostic for the file and
+    /// showed it as clean (issue #1325).
+    ///
+    /// [`crate::analyser::utils::contiguous_prefix`] fixes that producer, but
+    /// spans reach these slices from the lexer, the segmenter, the CST, and
+    /// the analyser's own arithmetic, so the consumer stays defensive: a span
+    /// this rejects means "no text here", never an abort.
+    ///
+    /// A free function taking `source` explicitly, **not** a `&self` method,
+    /// for the same reason as [`Self::source_map`]: a method call borrows all
+    /// of `self`, which would tie up `self.result` for the returned slice's
+    /// lifetime and break every call site that slices and then pushes a
+    /// diagnostic in the same scope.
+    pub(in crate::analyser) fn source_slice(
+        source: &str,
+        start: usize,
+        end: usize,
+    ) -> Option<&str> {
+        source.get(start..end)
     }
 
     /// The active dialect's canonical name — the string that round-trips
@@ -1204,6 +1264,7 @@ impl Analyser {
             pending_var_literal_checks: Vec::new(),
             pending_instances: None,
             deferred_instance_replays: Vec::new(),
+            pending_bareword_dispatch_sites: None,
             probe_skip_enclosing_fallback: false,
             probe_skip_duplicate_fallback: false,
             took_fast_path: false,
@@ -2293,6 +2354,7 @@ impl Analyser {
         self.minted_synthetic_names.clear();
         self.pending_instances = None;
         self.deferred_instance_replays.clear();
+        self.pending_bareword_dispatch_sites = None;
         self.line_offsets = None;
         self.cached_line_index = tcl_lexer::LineIndex::new("");
         self.cached_line_index_source_len = 0;

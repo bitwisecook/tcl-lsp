@@ -92,10 +92,12 @@ engine, so the two verbs share one rewrite path.
 
 `irule` is a sub-command group rather than a top-level verb: the
 `IruleCommand` sub-enum in `rust/f5-cli/src/cli.rs` hosts its sub-verbs
-(`event-order`, `event-info`, `lint`, `trace`, `pgo`, `extract`,
+(`event-order`, `event-info`, `lint`, `trace`, `extract`,
 `format`, `minify`, `context`), dispatched by
 [`commands::irule::run_irule`](../../rust/f5-cli/src/commands/irule.rs);
-new sub-groups follow the same nested-`Subcommand` shape.
+new sub-groups follow the same nested-`Subcommand` shape. `pgo`
+(profile-guided branch-reorder suggestions) is deliberately not a
+sub-verb here — see the module doc on `commands::irule` and issue #1315.
 
 ## Query DSL
 

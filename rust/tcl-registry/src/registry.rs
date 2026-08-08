@@ -609,6 +609,37 @@ impl CommandRegistry {
         }
     }
 
+    /// Whether a bracketed command substitution `[cmd ?arg?]` denotes the
+    /// current `TclOO` receiving object — so a consumer resolving what a
+    /// dispatch head (`[cmd ?arg?] method`) means should treat it exactly
+    /// like `my method`: the enclosing class, not a structurally-inferred
+    /// type. `arg` is the substitution's own first word, `None` for a bare
+    /// call (`[self]` as opposed to `[self object]`).
+    ///
+    /// Registry data via [`CommandSpec::self_receiver_words`]
+    /// (`self`/`object` today) rather than name-matching `cmd` — a
+    /// `TCLOO_INTROSPECTION` command answers `Introspection` from
+    /// [`Self::method_dispatch_keyword`] (its argument is a closed
+    /// subcommand set, never a method name) for every *other* word, since
+    /// this is a narrower, additional fact about specific words of that
+    /// same closed set, not a fourth [`MethodDispatchKind`] axis: unlike
+    /// `my`, the value only dispatches once *substituted* as a command
+    /// head, and unlike plain introspection, this one specific word's
+    /// result is the receiver itself.
+    #[must_use]
+    pub fn is_self_receiver_call(&self, cmd: &str, arg: Option<&str>) -> bool {
+        let Some(spec) = self.spec_for_this_registry(cmd) else {
+            return false;
+        };
+        if spec.self_receiver_words.is_empty() {
+            return false;
+        }
+        match arg {
+            None => spec.arity.min == 0,
+            Some(word) => spec.self_receiver_words.contains(&word),
+        }
+    }
+
     /// Whether `head`'s **bare** spelling resolves only from inside a
     /// `TclOO` method context — the registry-side half of issue #1026's
     /// scoping rule; see [`Traits::TCLOO_METHOD_CONTEXT`] for the oracle

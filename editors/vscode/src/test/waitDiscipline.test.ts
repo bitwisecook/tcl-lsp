@@ -25,9 +25,13 @@ import {
   classifyLiveness,
   DIAGNOSTIC_BUDGET_MS,
   getDocUri,
+  latchFromOutcomes,
   loadFactor,
+  MAX_LOAD_FACTOR,
   type ProbeOutcome,
+  resetServerTransportWedged,
   scaledTimeout,
+  serverTransportWedged,
   waitForDiagnostics,
 } from "./helper";
 
@@ -313,6 +317,40 @@ suite("Wait discipline (issue #1274)", () => {
     );
   });
 
+  // Issue #1294: once the server answers nothing, every later test can only
+  // re-pay its wait budget to learn the same thing. The latch is what lets the
+  // runner skip them, so it must arm on exactly the terminal verdict and no
+  // other.
+  test("only a transport-level wedge latches the skip-the-rest flag", () => {
+    resetServerTransportWedged();
+    assert.strictEqual(serverTransportWedged(), false, "latch must start clear");
+
+    // Recoverable verdicts must NOT latch: a stuck document queue, or a
+    // request that was merely dropped, still leaves a suite that can run.
+    for (const recoverable of [
+      { transport: outcome(true), otherDocument: outcome(false), retry: outcome(false) },
+      { transport: outcome(true), otherDocument: outcome(true), retry: outcome(true) },
+      { transport: outcome(true), otherDocument: outcome(true), retry: outcome(false) },
+    ]) {
+      latchFromOutcomes(recoverable);
+      assert.strictEqual(
+        serverTransportWedged(),
+        false,
+        `a recoverable verdict must not latch: ${classifyLiveness(recoverable)}`,
+      );
+    }
+
+    // The terminal verdict arms it.
+    latchFromOutcomes({
+      transport: outcome(false),
+      otherDocument: outcome(true),
+      retry: outcome(true),
+    });
+    assert.strictEqual(serverTransportWedged(), true, "a transport wedge must latch");
+
+    resetServerTransportWedged();
+  });
+
   test("a timeout carries its follow-up probe's verdict", async () => {
     let error: Error | undefined;
     try {
@@ -367,16 +405,24 @@ suite("Wait discipline (issue #1274)", () => {
       // the failure still arrives — it just arrives later than the bound.
       //
       // That budget is *load-scaled* (`scaledTimeout(DIAGNOSTIC_BUDGET_MS)`),
-      // so this ceiling has to scale with it. A fixed addend asserts a
-      // constant against a moving cap: on a busy machine the budget stretches
-      // past it and the test fails for being slow rather than for being
-      // unbounded, which is the opposite of what it is checking. Observed on
-      // CI with two runs sharing a runner — 24 201 ms against a fixed
-      // 22 400 ms ceiling — while the same job passed in the other run.
-      // Reading the budget from its own definition also stops the two
-      // drifting apart again.
+      // so this ceiling has to scale with it — but it must use the
+      // *guaranteed worst case* (`MAX_LOAD_FACTOR`), not a fresh `loadFactor()`
+      // reading taken here, after the diagnose has already run. Load
+      // fluctuates: a `scaledTimeout(DIAGNOSTIC_BUDGET_MS)` computed at this
+      // point can read a *lower* factor than was in effect while the actual
+      // diagnose ran (the 1s `LOAD_FACTOR_TTL_MS` cache elapses within a
+      // multi-second diagnose), asserting a smaller ceiling than the
+      // documented contract actually allows. Observed on CI: a diagnose that
+      // took ~32.7s (a real, legitimate ~2.2x scaling) failing against a
+      // ceiling computed moments later from a ~1.6x reading — the diagnose
+      // itself was within contract, only this ceiling's own measurement was
+      // stale. `MAX_LOAD_FACTOR` is the fixed upper bound `diagnose()` itself
+      // is capped by (see `signal.ts`), so asserting against it is racy in
+      // one direction only: it can under-fail (miss a real regression that
+      // stays within the max) but never flake on legitimate load.
       const ceiling =
-        boundCeiling(base) + (label === "hangs" ? scaledTimeout(DIAGNOSTIC_BUDGET_MS) + 2_000 : 0);
+        boundCeiling(base) +
+        (label === "hangs" ? MAX_LOAD_FACTOR * DIAGNOSTIC_BUDGET_MS + 2_000 : 0);
       assert.ok(
         Date.now() - started < ceiling,
         `a ${label} probe must not make the failure unbounded; took ${Date.now() - started}ms`,

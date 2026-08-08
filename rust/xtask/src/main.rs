@@ -50,7 +50,9 @@ use clap::{Parser, Subcommand};
 
 mod audit_option_dialects;
 mod command_backing;
+mod diag_emission;
 mod diag_tables;
+mod fp_sweep;
 mod gen_ai;
 mod gen_editor_catalogs;
 mod gen_editor_settings;
@@ -118,6 +120,11 @@ enum Command {
         #[arg(long)]
         check: bool,
     },
+
+    /// Verify every non-internal, non-reserved `DiagCode` has at least one
+    /// real construction site under `rust/tcl-compiler/src` (issue #1317).
+    #[command(name = "diag-emission-check")]
+    DiagEmissionCheck,
 
     /// Generate the Zed/VS Code editor catalog JSON from the command registry.
     GenEditorCatalogs {
@@ -209,6 +216,23 @@ enum Command {
         #[arg(long)]
         check: bool,
     },
+
+    /// Dump every firing of one or more diagnostic/optimisation codes across
+    /// a corpus, dialect-aware, grouped by message shape — the false-positive
+    /// audit harness (issue #1316; `docs/design/compiler/fp-audit-todo.md`).
+    FpSweep {
+        /// Diagnostic/optimisation code to sweep (repeatable, e.g. `--code
+        /// W111 --code W112`).
+        #[arg(long = "code", required = true)]
+        codes: Vec<String>,
+        /// Corpus directory or file to sweep (repeatable). A directory is
+        /// walked recursively for Tcl/iRules source files.
+        #[arg(long = "corpus", required = true)]
+        corpus: Vec<PathBuf>,
+        /// Sample locations printed per message shape.
+        #[arg(long, default_value_t = 3)]
+        examples: usize,
+    },
 }
 
 fn main() -> anyhow::Result<ExitCode> {
@@ -224,6 +248,7 @@ fn main() -> anyhow::Result<ExitCode> {
         Command::AuditOptionDialects => audit_option_dialects::run(),
         Command::WasmBacking { check } => command_backing::run(check),
         Command::DiagTables { check } => diag_tables::run(check),
+        Command::DiagEmissionCheck => Ok(diag_emission::run()),
         Command::GenEditorCatalogs { check } => gen_editor_catalogs::run(check),
         Command::GenZedQueries { check } => gen_zed_queries::run(check),
         Command::GenTmlanguageKeywords { check } => gen_tmlanguage_keywords::run(check),
@@ -239,5 +264,10 @@ fn main() -> anyhow::Result<ExitCode> {
             timeout,
             check,
         } => tcltest_sweep::run(backend.parse()?, stem.as_deref(), timeout, check),
+        Command::FpSweep {
+            codes,
+            corpus,
+            examples,
+        } => fp_sweep::run(&codes, &corpus, examples),
     }
 }

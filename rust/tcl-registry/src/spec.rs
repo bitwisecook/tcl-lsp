@@ -926,6 +926,23 @@ pub struct CommandSpec {
     /// [`OoContextFact`] for the oracle transcript and the abstention shapes
     /// the consumer must still apply on top of this declaration.
     pub oo_context_facts: &'static [(&'static str, OoContextFact)],
+
+    /// Argument-0 closed [`ArgValue`] words for which a bracketed command
+    /// substitution `[cmd ?word?]` used as a dispatch head denotes the
+    /// current `TclOO` *receiving object* — the same target `my` dispatches
+    /// on — rather than a value whose class must be inferred structurally.
+    /// `self`'s `object` word, and nothing else in the registry today.
+    ///
+    /// Distinct from [`Self::oo_context_facts`]: that field is about
+    /// constant-folding a *value* the source fixes (`self class`); this one
+    /// is about *dispatch-candidate resolution* for a value that is never a
+    /// source constant (a fresh `::oo::ObjNN` per `new`) but always means
+    /// "the enclosing object" regardless. A consumer also treats a *bare*
+    /// call (no argument at all) as this same receiver when the command's
+    /// own [`Arity`] permits omitting argv[0] — `self` alone is documented
+    /// as equivalent to `self object`, so no separate "bare" entry is
+    /// needed here. See [`CommandRegistry::is_self_receiver_call`].
+    pub self_receiver_words: &'static [&'static str],
 }
 
 /// Count the leading words of `args` that are declared options in
@@ -1125,6 +1142,7 @@ impl CommandSpec {
         context_gate: None,
         implementation_namespace: None,
         oo_context_facts: &[],
+        self_receiver_words: &[],
     };
 
     /// Run this command's constant folder for `args` under the optimiser's

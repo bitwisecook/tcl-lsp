@@ -78,9 +78,14 @@ purpose rather than ported.
 
 ### ⬜ T3-e · P100 PGO (`f5 irule pgo`) — large compiler feature, out of scope
 Python's profile-guided branch-reorder optimisation (`compiler/pgo`, code P100)
-is a substantial codegen pass, not a config knob; the Rust CLI verb returns an
-explicit "not yet ported" deferral (`f5-cli/.../irule.rs`). Tracked as a
-standalone feature port, outside this config-parity sweep.
+is a substantial codegen pass, not a config knob. Issue #1315 found the Rust
+CLI verb advertised in `--help` with a working-sounding description while
+always exiting 2 — a stub dressed up as a real verb, worse than an honest
+gap. Resolved by removing `irule pgo` from the command surface entirely
+(`f5-cli/.../irule.rs`, `cli.rs`) rather than keeping the deferral stub;
+`--help` no longer lists a command that cannot run. Still tracked as a
+standalone feature port, outside this config-parity sweep, should someone
+build the real branch-reorder engine.
 
 ### ⬜ T3-f · W130–W134 tclpkg diagnostics — low-confidence, not emitted
 Defined in both code registries but with no clear emission path in either

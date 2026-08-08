@@ -463,16 +463,21 @@ mod tests {
     }
 
     #[test]
-    fn described_but_uncompilable_event_is_rejected_precisely() {
-        // TC is a registry-described event whose codegen is not ready — the
-        // message must say so, not "unknown event".
-        let err = compile_module("when TC_INGRESS { pass }\n").unwrap_err();
-        assert_eq!(err.code, BpfDiag::BadEvent);
-        assert!(
-            err.msg.contains("codegen") && err.msg.contains("TC_INGRESS"),
-            "precise described-event message: {}",
-            err.msg
-        );
+    fn every_registry_described_event_now_compiles() {
+        // Issue #1310: TC and cgroup codegen landed, so every event the
+        // registry describes is codegen-ready — `resolve_event_prog_type`'s
+        // "described, but codegen not ready" branch
+        // (`BpfDiag::BadEvent` naming the event precisely rather than
+        // claiming it unknown) has no live event to fire on today. It stays
+        // reachable generically (dispatched off `BpfCodegen::Described`, not
+        // a hardcoded event name) for whenever a future event's schema lands
+        // ahead of its codegen, as TC/cgroup's did.
+        // `drop` (not `pass`) is the one verdict every current program type
+        // accepts (a socket filter has no `pass` — it uses `accept`).
+        for name in crate::event::known_event_names() {
+            let src = format!("when {name} {{ drop }}\n");
+            compile_module(&src).unwrap_or_else(|e| panic!("{name} should compile: {}", e.msg));
+        }
     }
 
     #[test]

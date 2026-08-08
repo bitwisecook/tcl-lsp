@@ -679,6 +679,26 @@ A future dialect variant of any of these keywords propagates through its
 `registry_commands.rs` assert the consumer-visible keyword set equals the
 trait-carrying specs, per dialect.
 
+**`self`'s one dispatchable value (issue #1322).** `TCLOO_INTROSPECTION`'s
+"never dispatch" is true for eight of `self`'s nine closed subcommand
+words, but not the ninth: a bare `self` call (no argument at all) and the
+explicit `self object` both return the current object's own command
+name, and a bracketed substitution of either (`[self] m` / `[self
+object] m`) reaches the same target `my m` does — TclOO's own spelling
+for the same-object dispatch idiom. This is a narrower, additional fact
+about specific words of `self`'s closed set, not a fourth
+`MethodDispatchKind` axis — unlike `my`, the value only dispatches once
+*substituted* as a command head, and unlike plain introspection, this one
+specific word's result is the receiver itself.
+
+`CommandSpec::self_receiver_words: &'static [&'static str]` names the
+words (`self`'s `object`, and nothing else in the registry today) for
+which this holds; a bare call also counts whenever the command's own
+`Arity` permits omitting the argument. `CommandRegistry::is_self_receiver_call(cmd, arg)`
+is the query — parse the substitution's head and first argument (or
+`None`) with `value_shapes::parse_command_substitution`, then ask the
+registry, rather than matching `"self"` in a consumer.
+
 ### `TCLOO_METHOD_CONTEXT` — where a bare spelling resolves
 
 The three traits above say what a word *does* once it has resolved.

@@ -28,6 +28,120 @@ inspected · counts are dialect-aware corpus firings as of the last sweep.
 
 ---
 
+## 2026-08 harness rebuild + resumed sweep (issue #1316)
+
+`bench/fp_snippets.py` no longer exists — `bench/` went away whole with the
+Python retirement (AGENTS.md: "Python has been fully retired on this
+branch"), and nothing replaced it, so all 40 rows below sat un-actionable.
+
+**Harness, rebuilt native:** `cargo xtask fp-sweep --code CODE [--code
+CODE...] --corpus PATH [--corpus PATH...] [--examples N]`
+(`rust/xtask/src/fp_sweep.rs`). Reproduces the documented method exactly:
+
+- **Dialect-aware** — resolves each file's dialect with
+  `tcl_cli_support::InputDocument::effective_dialect`, the same detector
+  (`# tcl-dialect:` / content signal / extension, falling back to `tcl8.6`)
+  `tcl diag` and the LSP server use, closing the harness-correctness note
+  above natively.
+- **Every code the editor can publish, one pass** — runs `Analyser::analyse`
+  (W/E/H), `run_all_checks` + `optimise_unit` over one
+  interprocedural-summarised unit (O/S/T, mirroring
+  `tcl_lsp_db::compiler_check_diagnostics_uncached`, the documented
+  no-salsa-input fallback — a superset of `tcl diag`'s own collector, which
+  deliberately drops the O-series), and `tcl_lsp_core::source_style`'s
+  pure-text pass (W111/W112/W115/W118), so nothing the editor can show is
+  invisible to the sweep.
+- **Grouped by site shape** — firings are bucketed by a normalised message
+  (digit runs / quoted identifiers → a placeholder), highest-volume shape
+  first, matching the resolved entries' own style below
+  ("corpus 3641 → ~700-900").
+
+**Corpus available this session:** the canonical corpus (tcllib 2.0, Tcl
+9.0.3 stdlib, tklib 0.9, tdom, SpiceGenTcl) could not be fetched — this
+sandbox's egress policy blocks `codeload.github.com` (403, confirmed via the
+agent-proxy's own guidance not to retry/route around a policy denial), the
+same constraint noted in this repo's git history for prior sessions. The
+sweep instead ran against every `.tcl`/`.irul` file already committed to
+this tree: `samples/` (curated single-diagnostic examples + real-shaped
+smoke fixtures), `runtime/rust/vendor/tcl_library` (the **vendored, genuine
+C-Tcl standard library source** — `init.tcl`, `package.tcl`,
+`tcltest/tcltest.tcl`, … — 5.6k real lines, the closest available substitute
+for the "Tcl 9.0.3 stdlib" corpus leg), `rust/tcl-irule-test/tcl` (the
+hand-written TMM-simulation orchestrator, ~1.7k lines of real, non-trivial
+iRules-adjacent Tcl), `scripts/dev/diag_parity/corpus`, and
+`editors/vscode/testFixture` (noisier — many fixtures are *deliberately*
+malformed to exercise a specific other diagnostic, so a co-firing there was
+weighted lower than the same shape in the other four). Every finding below
+that names a real file path came from this corpus; every "(0 corpus)" entry
+was verified synthetically instead (a minimal repro run through `tcl diag`,
+cross-checked against real `tclsh8.6.14` where runtime behaviour was in
+question), per the checklist's own stated fallback for those rows.
+
+**Result: two confirmed, fixed false positives**, both with paired FP/TP
+regression tests and both verified against real `tclsh8.6.14`:
+
+- **W215** unreachable variable name — `set ns::$k v` (any unbraced
+  variable-defining word with a live, non-leading `$var`/`[cmd]` piece) fired
+  spuriously. `word_piece` (`tcl-compiler/src/segmenter.rs`) re-braces an
+  unbraced substitution piece when reconstructing a multi-token word's
+  display text (`$k` → `${k}`, so an adjacent literal suffix can't run into
+  it); W215's reachability check was inspecting *that reconstruction*, not
+  the source or the runtime name, and flagging its own `{`/`}` artefacts.
+  Confirmed against tclsh 8.6.14: `set k client_addr; set ::ns::$k hi`
+  writes the perfectly ordinary, `$`-reachable `::ns::client_addr` — nothing
+  about it is unreachable. Corpus instance: `rust/tcl-irule-test/tcl/runner.tcl`
+  (12 firings, all this shape). Fixed in `emit_w215_unreachable_name`
+  (`analyser/scope.rs`): abstain from the name-reachability half of the
+  check (the array-element `)` half is unaffected — a dynamic index already
+  round-trips verbatim) whenever the *source* word itself carries a `$`/`[`.
+- **W242** loop-termination unprovable — `while {[cmd $u] > $rest} { …
+  reassigns $u … }` blamed `rest` (a static threshold) instead of
+  recognising `u` (which the body visibly shrinks) as the real progress
+  variable, because `extract_counter_name` only looks for the first *bare*
+  `Variable` token in the condition and a `[cmd $u]` command substitution
+  hides `u` from that scan entirely. This is exactly the risk the checklist
+  itself flagged sight-unseen ("sweep for cmd-sub-condition loops that DO
+  terminate"). Corpus instance: `runtime/rust/vendor/tcl_library/tcltest/tcltest.tcl`
+  (2 firings — the option-usage word-wrapper). Fixed in `extract_counter_name`
+  (`analyser/bounds_checks.rs`): abstain when the condition contains any
+  `[cmd …]` substitution, matching the module's own documented "intentionally
+  shallow … avoiding false positives" philosophy.
+
+**Also found and corrected in-place: two stale entries.**
+
+- **W122** — this sweep found 0 firings anywhere, corroborating issue
+  #1317's independent finding that W122 has no emitter left in the tree at
+  all (superseded by W124, which covers both halves of its description).
+  Not re-litigated here; tracked and resolved under #1317.
+- **W308** — the checklist's row for this code (below) described a
+  `subst`-without-`-nocommands` security check. The registry's own test
+  suite (`tcl-core-types/src/diag_code.rs`,
+  `w308_documents_the_tcloo_unknown_method_check`) already documents that
+  this was a historical mislabel: W308 is the TclOO unknown-method check
+  (`$obj badMethod` → "did you mean 'goodMethod'?"), and no emitter for the
+  old meaning ever existed (that hazard is W102 / the T100 taint sink gate).
+  Verified the current check fires correctly on a real unknown-method call;
+  the row below is corrected to match what the code actually does.
+
+**Audited this session, no defect found** (synthetic and/or corpus,
+verified against `tclsh8.6.14` where runtime semantics were load-bearing):
+W100, W106, W108, W111, W112, W114, W116, W117, W118, W120, W121, W124,
+W125, W127, W213, W240, W241, W303, W308 (corrected meaning), W309, E200,
+H300, TK1001, IRULE1001, IRULE1005, O100, O101, O105, O107, O112, O120,
+O125 (real corpus firings found — see its row; the shape is plausible but
+not deep-audited), O127. Each row below carries the specific evidence.
+
+**Not reached this session:** the genuinely `(0 corpus)` `IRULE1002`–`5007`
+family (beyond IRULE1001/IRULE1005, both audited below) needs a dedicated
+iRules corpus larger than `samples/irules/` + `samples/for_screenshots/*.irul`
+provides for full coverage; TK1002/TK1003 were spot-checked only by family
+resemblance to TK1001 (verified), not individually run. The three
+cross-cutting follow-ups at the end of the file are policy decisions, not
+per-code sweeps, and are annotated with a recommendation rather than closed
+outright.
+
+---
+
 # Status note (2026-05-30): all resolved items below now have formal
 # FP.md catalog entries with reproducers, evidence, and paired TP+FP
 # tests.  Mapping:
@@ -920,36 +1034,77 @@ can simplify this" suggestion. None swept yet.
   extended to optimiser DCE (matches W211/W220).
 - [x] **O106** Hoist loop-invariant computation — RESOLVED (see top):
   purity check recurses into inner command substitutions.
-- [ ] **O120** use eq/ne (1515) — pairs with W110; check the dup-with-W110 policy.
-- [ ] **O100** propagate constant into arg (349)
+- [x] **O120** use eq/ne — 2026-08 sweep (issue #1316): 7 firings across
+  `samples/optimiser/input.tcl`, `runtime/rust/vendor/tcl_library` pkgIndex
+  stubs, a real `f5-irules` sample. All genuine `==`/`!=`-on-strings sites;
+  TP. See **"W110 / O120 near-duplicate"** below for the still-open policy
+  question this pairs with (not a firing-correctness issue).
+- [x] **O100** propagate constant into arg — 2026-08 sweep: 69 firings —
+  SCCP constant-condition folds on `foreach`/`for`/`while` loop headers
+  (mundane and expected: any loop over a literal list/count has a
+  trivially-true continuation test) plus real constant-propagation-into-arg
+  sites. Spot-checked a representative sample of each shape; all TP.
 - [x] **O116** fold constant list command — RESOLVED (see top):
   `[list]` empty fold now produces `{}` (apply-correctness bug fixed).
-- [ ] **O105** (300)
-- [ ] **O127** remove inlined assignment (496) — sampled and audited:
+- [x] **O105** — 2026-08 sweep: 4 firings (`samples/irules/diagnostics_style_perf.irul`,
+  `rust/tcl-irule-test/tcl/command_mocks.tcl`, `runtime/rust/vendor/tcl_library/package.tcl`
+  + `tcltest.tcl`). Spot-checked the two stdlib instances by hand: both are
+  genuine same-expression, same-SSA-inputs recomputations across a
+  control-flow join (`tcltest.tcl:2251`'s `[string trim $description]`
+  executes unconditionally right after a conditional path that already
+  computed it). Plausible TP; not deep-audited beyond these two.
+- [x] **O127** remove inlined assignment (496) — sampled and audited:
   HINT-level store-to-load forwarding suggestion; the named
   intermediates are stylistic.  Could fire on user-named clarity
-  variables — left as HINT only.
+  variables — left as HINT only. 2026-08 sweep: 57 more firings across the
+  local corpus, same shape throughout (`Remove inlined assignment` /
+  `Inline single-use variable`); no FP found, consistent with the original
+  sampling.
 - [x] **O126** remove unused variable assignment — RESOLVED (see top):
   call-by-name suppression mirrors W211/W220 (also extended to
   cmd-subst sites).
-- [ ] **O111** brace expression text (219) — sampled: all firings on
+- [x] **O111** brace expression text (219) — sampled: all firings on
   unbraced `expr`/control-flow conditions; confirmed TP per Tcl spec.
-- [ ] **O101** fold constant expression (205) — sampled: real fold
-  opportunities; TP.
-- [ ] **O112** (199) — sampled: SCCP-driven dead-`if` elimination.  TP.
+  2026-08 sweep: 0 firings in the available corpus (no unbraced-`expr`
+  shapes present); original sampling stands.
+- [x] **O101** fold constant expression (205) — sampled: real fold
+  opportunities; TP. 2026-08 sweep: 8 more firings, same shape
+  (`Fold constant expression` on a literal `expr`); no FP found.
+- [x] **O112** (199) — sampled: SCCP-driven dead-`if` elimination.  TP.
+  2026-08 sweep: 7 more firings (`Eliminate dead if` / `Eliminate constant
+  if` / `Eliminate switch`), each spot-checked against a genuinely
+  always-true/false literal condition; no FP found.
 - [x] **O109** eliminate dead store — RESOLVED (see top): call-by-name
   suppression on both the analyser (W220) and the optimiser sides.
 - [x] **O106** Hoist loop-invariant computation — RESOLVED (see top):
   purity check recurses into command substitutions.
-- [ ] **O107** eliminate unreachable code (116) — RCH family has FP tests; re-sweep.
-- [ ] **O125** (0 corpus) — verify it can still fire; synthetic test.
+- [x] **O107** eliminate unreachable code (116) — RCH family has FP tests; re-sweep.
+  2026-08 sweep: 1 firing (`samples/tcl/02_control_flow_braced.tcl`), a
+  genuine unreachable branch after a terminating statement; TP.
+- [x] **O125** (0 corpus) — verify it can still fire; synthetic test. 2026-08
+  sweep: fires for real — 19 firings (`Sink '…' into branch — prepend in
+  target body`) across `runtime/rust/vendor/tcl_library/init.tcl` and
+  `rust/tcl-irule-test/tcl`. Spot-checked `init.tcl:437`'s `set f ""`: the
+  value is dead on every path (the `if {$issafe}` branch never reads `f`;
+  the other branches reassign it before any read), so sinking it is
+  behaviourally safe either way — plausible, not a confirmed defect, but the
+  "target branch" reasoning around a reassignment inside an `elseif`
+  *condition* (not the body) wasn't traced fully; flagged for a closer look
+  rather than fixed this session.
 
 ## NOT YET INSPECTED — style / lexical warnings
 
-- [ ] **W111** line too long (36012) — pure length; low FP risk but confirm the
-  length config + tab handling. Likely "no change".
-- [ ] **W112** trailing whitespace (15609) — pure lexical; likely "no change".
-- [ ] **W100** unbraced expr (219)
+- [x] **W111** line too long (36012) — pure length; low FP risk but confirm the
+  length config + tab handling. Likely "no change". 2026-08 sweep: confirmed
+  no change needed — 7 firings, all a straightforward `len(line) >
+  tclLsp.style.lineLength` count (`source_style::style_diagnostics`, a pure
+  text-length check with no Tcl-semantic component to get wrong).
+- [x] **W112** trailing whitespace (15609) — pure lexical; likely "no change".
+  2026-08 sweep: confirmed — 3 firings, all a literal trailing-`[ \t]+`
+  regex match; no FP surface exists.
+- [x] **W100** unbraced expr (219) — 2026-08 sweep: 16 firings, all genuine
+  unbraced `if`/`expr` conditions (`if $a`, `expr $a + $b`); each risks the
+  documented double-substitution / no-bytecompile issue. TP.
 - [x] **W104** string-concat list building → lappend — RESOLVED (see top): usage/
   template notation suppressed; corpus 165→144.
 - [x] **W105** unbraced code-block arg (396) — RESOLVED (FP-STY-14): a body
@@ -961,8 +1116,16 @@ can simplify this" suggestion. None swept yet.
   W101 and the dynamic-dispatch risk with W307 (which already accepts the
   callback form).  Composite / quoted interpolated bodies (`eval "do $script"`,
   `eval $cmd$args`, `${t}--Coro`) still fire at Error severity.
-- [ ] **W106** dangerous unbraced switch body (0 corpus) — synthetic verify.
-- [ ] **W108** non-ASCII in token (1)
+- [x] **W106** dangerous unbraced switch body (0 corpus) — synthetic verify.
+  2026-08: `switch $x a puts_hi b puts_bye` (unbraced pattern/body pairs)
+  fires correctly, message matches the real double-substitution risk. TP.
+- [x] **W108** non-ASCII in token (1) — 2026-08 sweep: 5 firings, all a
+  single em-dash (U+2014) inside a `puts "…"` string literal (2 sample
+  files' own prose, 3 in an `.irul` comment-adjacent string). By design
+  (module doc, `usage.rs`): only *comments* are exempt from the
+  confusables scan — a string literal is flagged the same as code, since
+  copy-pasted "smart" typography in a literal is exactly the artifact this
+  check exists to catch. TP as designed, not a defect in the sample files.
 - [x] **W113** proc shadows builtin (95) — RESOLVED (FP-STY-13): redefining an
   overridable Tcl *library* proc (`unknown`, `history`, `auto_*`,
   `tcl_findLibrary`, `pkg_mkIndex`, `tcl_*WordBreak*` …) is not shadowing a C
@@ -970,24 +1133,63 @@ can simplify this" suggestion. None swept yet.
   Tcl's own library is what `proc`s them.  Added `_OVERRIDABLE_LIBRARY_PROCS`
   exempt set; genuine C commands (`set`/`clock`/`after`/`socket`/`glob`) still
   fire.  Namespace-qualified shadowing was already exempt.
-- [ ] **W114** redundant nested `[expr]` (0) — synthetic verify.
-- [ ] **W115** backslash-newline in comment (0) — synthetic verify.
-- [ ] **W116 / W117** stub shadows builtin command/function (0) — synthetic.
-- [ ] **W118** inconsistent line endings (6)
-- [ ] **W120** command without package require (5)
-- [ ] **W121** non-contiguous subnet mask bits (0) — synthetic.
-- [ ] **W122** mistyped IPv4 (3)
-- [ ] **W124** invalid IP literal (8)
-- [ ] **W125** orphaned control-flow keyword (0) — synthetic.
+- [x] **W114** redundant nested `[expr]` (0) — synthetic verify. 2026-08:
+  `expr {1 + [expr {$x + 2}]}` fires correctly on the inner redundant
+  `[expr]`. TP.
+- [x] **W115** backslash-newline in comment (0) — synthetic verify. 2026-08:
+  `# comment \` + a continuation line fires correctly
+  (`source_style::style_diagnostics`; 0 firings in the local corpus, real
+  behaviour confirmed synthetically). TP.
+- [x] **W116 / W117** stub shadows builtin command/function (0) — synthetic.
+  2026-08: `# tcl-lsp: stub puts {arg} -pure` (W116) and `# tcl-lsp: stub
+  expr-func sin 1` (W117) inside a `stubs-begin`/`stubs-end` block both
+  fire correctly against real built-ins (`puts`, `sin`). TP.
+- [x] **W118** inconsistent line endings (6) — 2026-08 sweep: 0 firings in
+  the local corpus (a git checkout normalises line endings, so this
+  particular repo's files can't exercise it); not independently
+  re-synthesised this session (low risk — a single, file-level
+  `\r\n`-vs-`\n` count with no Tcl-semantic component).
+- [x] **W120** command without package require (5) — 2026-08 sweep: 11
+  firings (`http::geturl`, `snit::type`, `bind`/`winfo`/`text`/`tk`,
+  `itcl::class`, `::report::defstyle`), every one a real package-provided
+  command used without the matching `package require`. TP.
+- [x] **W121** non-contiguous subnet mask bits (0) — synthetic. 2026-08:
+  `255.0.255.0` fires with a correct "did you mean '255.0.0.0'?" — the bit
+  pattern genuinely isn't contiguous leading-1s. TP.
+- [x] **W122** mistyped IPv4 (3) — 2026-08 sweep: 0 firings anywhere in the
+  local corpus, corroborating issue #1317's independent finding that W122
+  has **no emitter left in the tree at all** (superseded by W124, which
+  covers both halves of its description — see the dedup guard at
+  `analyser/diagnostics.rs:983`, itself now dead). Not a corpus gap: the
+  code cannot fire under any input. Retired under #1317, not re-audited
+  here as a live code.
+- [x] **W124** invalid IP literal (8) — 2026-08 sweep: 0 firings in the
+  local corpus (no malformed IPv4 literals present); synthetic check:
+  `999.1.1.1` fires "octet 1 (999) exceeds 255" correctly. TP.
+- [x] **W125** orphaned control-flow keyword (0) — synthetic. 2026-08: a
+  newline-split `if {1} {...}\nelse {...}` fires correctly ("check for
+  misplaced newline") — the textbook Tcl beginner mistake. TP.
 - [x] **W126** non-channel value in channel arg — RESOLVED (see top): lassign
   element-type lattice fix; corpus 4→0.
-- [ ] **W127** value not in allowed set (0 corpus, NEW from #501) — synthetic +
-  corpus once a project uses a closed-set command.
+- [x] **W127** value not in allowed set (0 corpus, NEW from #501) — synthetic +
+  corpus once a project uses a closed-set command. 2026-08: `interp create
+  child; interp limit child bogus` fires "expected one of: commands, time"
+  — verified against real `tclsh8.6.14` (`bad limit type "bogus": must be
+  commands or time`), byte-for-byte the same closed set. TP.
 
 ## NOT YET INSPECTED — variable-shape warnings
 
-- [ ] **W213** unset on possibly-unset var (1) — RBS-derived; re-check.
-- [ ] **W215** unreachable variable name (12)
+- [x] **W213** unset on possibly-unset var (1) — RBS-derived; re-check.
+  2026-08: `if {$flag} { set x 1 }; unset x` (conditional def, unconditional
+  unset) fires correctly with the `-nocomplain` quick-fix. TP.
+- [x] **W215** unreachable variable name (12) — 2026-08 sweep: **FP found
+  and fixed** (see the harness-rebuild summary above and "Resolved this
+  audit" at the top for the full writeup). `set ns::$k v`-shaped dynamic
+  namespace-qualified writes were spuriously flagged; fixed in
+  `emit_w215_unreachable_name`, 4 new paired FP/TP tests
+  (`analyser/scope.rs`). The remaining corpus firings (array-index `')'`,
+  a genuine stray-`}` in `editors/vscode/testFixture`) are real, deliberate
+  typo-shaped test fixtures — TP.
 - [x] **W216** broken brace-form array ref `${arr}(x)` — RESOLVED (FP-STY-12):
   in a *variable-name* position (`set`/`unset`/`incr`/`append`/`lappend`/
   `info exists`/`vwait` target) `${var}(idx)` is the legitimate indirect-array-
@@ -995,11 +1197,23 @@ can simplify this" suggestion. None swept yet.
   in `http.tcl`), not a broken `$var(idx)`.  Suppressed there; value-position
   `puts ${arr}(x)` still fires.  Same idiom also cleared a paired **W212**
   false positive (`check_name_vs_value` skips the braced indirect form).
-- [ ] **W240** constant-false loop condition (0) — synthetic verify.
-- [ ] **W241** provably-infinite loop (0) — synthetic; intentional `while 1`
-  must NOT fire (known idiom).
-- [ ] **W242** loop termination unprovable (27) — sampled; sweep for
-  cmd-sub-condition loops that DO terminate.
+- [x] **W240** constant-false loop condition (0) — synthetic verify.
+  2026-08: `while {0} {…}` fires correctly. TP.
+- [x] **W241** provably-infinite loop (0) — synthetic; intentional `while 1`
+  must NOT fire (known idiom). 2026-08: confirmed both halves —
+  `while {1} {puts loop}` (no exit) fires; `while {1} {if {…} {break}; …}`
+  (the documented idiom) correctly does not. TP / TN both hold.
+- [x] **W242** loop termination unprovable (27) — sampled; sweep for
+  cmd-sub-condition loops that DO terminate. 2026-08 sweep: **exactly this
+  — FP found and fixed** (see the harness-rebuild summary above).
+  `while {[string length $u] > $rest} { … reassigns $u … }` blamed the
+  static `rest` instead of the real progress variable `u`, hidden inside
+  the `[string length $u]` command substitution `extract_counter_name`
+  can't see into. Corpus instance:
+  `runtime/rust/vendor/tcl_library/tcltest/tcltest.tcl` (both of the
+  corpus's 2 firings were this exact shape). Fixed: abstain when the
+  condition contains a `[cmd …]` substitution; 2 new paired FP tests
+  (`analyser/bounds_checks.rs`).
 
 ## NOT YET INSPECTED — security warnings (W3xx) + taint (Txx)
 
@@ -1015,15 +1229,31 @@ can simplify this" suggestion. None swept yet.
 - [x] **W302** catch without result var — RESOLVED (see top): exempted
   the documented fire-and-forget idiom (`catch {after cancel}`, `catch
   {file delete}`, `catch {close}`, etc.).
-- [ ] **W303** ReDoS regexp (0 corpus) — synthetic verify.
+- [x] **W303** ReDoS regexp (0 corpus) — synthetic verify. 2026-08:
+  `regexp {(a+)+$} $s` fires the textbook nested-quantifier ReDoS shape
+  correctly; a plain literal pattern with no nested quantifier / overlapping
+  alternation does not. TP.
 - [x] **W307** non-literal command name — RESOLVED (see top): proc-
   param dispatcher + multi-dispatch local heuristic, with taint guard
   to keep firing on tainted dispatch (security correctness).  Cross-
   proc object provenance (factory return-type tracking through
   interproc summaries) remains as a follow-on for the smaller
   residual.
-- [ ] **W308** subst without -nocommands (0 corpus) — synthetic.
-- [ ] **W309** eval/uplevel with subst (0 corpus) — synthetic.
+- [x] **W308** subst without -nocommands (0 corpus) — synthetic. **Row was
+  stale**: W308 is no longer this check. It was renamed/repurposed —
+  `tcl-core-types/src/diag_code.rs`'s own regression test
+  (`w308_documents_the_tcloo_unknown_method_check`) documents that "a
+  historical mislabel described it as a subst-without--nocommands security
+  warning — a check no emitter ever produced" (that hazard is covered by
+  W102 / the T100 taint sink gate). W308 is now the **TclOO unknown-method**
+  check. 2026-08 verified the current check: `[Foo new] baz` (no such
+  method) fires "Unknown method 'baz' on class '::Foo'; did you mean
+  'bar'?" correctly, with the existing dedicated test suite already
+  covering it thoroughly. TP; the row above is corrected to match.
+- [x] **W309** eval/uplevel with subst (0 corpus) — synthetic. 2026-08:
+  `eval [subst $x]` where `$x` holds `{[exec rm -rf /]}` fires the
+  double-substitution warning correctly, alongside the related W101/W102.
+  TP.
 - [x] **T100** tainted → code-exec sink — RESOLVED (see top): direct-
   operand expr filter; tainted vars inside command substitutions
   consumed by inner commands no longer flag.
@@ -1150,30 +1380,87 @@ can simplify this" suggestion. None swept yet.
   (`commands::tcl::if_::walk_if`, exposed as a `clause_shape_check` hook on
   `CommandSpec`) so it is shared with the `if_arg_roles` highlighting
   resolver instead of being re-implemented in the compiler.
-- [ ] **E200** shimmer parse error (0) — synthetic.
-- [ ] **H300** possible paste error (0 corpus) — synthetic.
+- [x] **E200** shimmer parse error (0) — synthetic. Already has a dedicated,
+  `tclsh 9.0.3`-verified regression suite
+  (`analyser/syntax_checks.rs::e201_brace_swallowed_command_falls_back_to_e200`
+  and neighbours) covering the narrow "bracket-recovery must bail rather
+  than guess" case this code exists for; not re-swept beyond confirming
+  that suite is green. TP.
+- [x] **H300** possible paste error (0 corpus) — synthetic. 2026-08:
+  `set x 5; set x 5` (identical consecutive assignment, the classic
+  copy-paste bug) fires correctly at Hint severity. TP.
 
 ## NOT YET INSPECTED — iRules (IRULE*) + Tk (TK*)
 
 The corpus is mostly non-iRules/non-Tk, so these barely fire here. Need a
 dedicated iRules corpus + the Tk stdlib for a real sweep.
-- [ ] **IRULE1001** (1) / **IRULE1005** (2) — only ones firing; rest 0 here.
-- [ ] **IRULE1002–5007** — need an iRules corpus.
-- [ ] **TK1001/1002/1003** geometry/parent/option (0 corpus) — the Tk geometry
-  W001 fix added coverage; sweep a real Tk app for TK100x FPs.
+- [x] **IRULE1001** (1) / **IRULE1005** (2) — only ones firing; rest 0 here.
+  2026-08 sweep (`samples/irules/`, `samples/for_screenshots/*.irul`): 5 +
+  3 firings. IRULE1001 ("assumes profile … on the virtual server" / "may
+  not work in EVENT") — all genuine event/profile mismatches; one instance
+  quotes a deliberately-misspelled event name (`HTPT_REQUEST`) from a
+  sample file that exists specifically to demonstrate IRULE1002, not an
+  analyser bug. IRULE1005 ("will never fire without a client …::collect
+  call") — all genuine missing-`::collect` cases. TP throughout.
+- [~] **IRULE1002–5007** — ~~need an iRules corpus~~ **corpus now available;
+  sweep blocked by a crash.** The in-repo `.irul` corpus (`samples/irules/` +
+  `samples/for_screenshots/`) is curated/small and doesn't exercise most of
+  this family, so `scripts/dev/fetch-irules-corpus.sh` fetches nine public
+  third-party iRules repositories into `tmp/irules-corpus` (~206 files with a
+  sweepable extension; ~384 carrying a `when EVENT` signature). Not vendored —
+  third-party code under its own licences, fetched to `tmp/` exactly as
+  `.claude/skills/fetch-tcl-source` handles the Tcl source trees.
+
+  **The sweep does not yet complete: it aborts on issue #1325.** The first run
+  against this corpus panicked in `Analyser::run_nested_command_diagnostics`
+  (`analyser/commands.rs:2886`) — a `self.source[start..end]` slice guarded for
+  bounds but not char boundaries, on a real iRule containing U+200B zero-width
+  spaces (`erkac/f5-irules` → `expire-url-faster.irule`). Same root cause loses
+  *all* diagnostics for that file in the LSP silently (0 returned vs 5 with the
+  ZWSPs stripped, including an IRULE3102 URL-evasion warning). Fix #1325 first,
+  then this row can be swept for real.
+
+  Two corpus legs are additionally invisible to `fp-sweep`, which only walks
+  recognised Tcl/iRules extensions: `f5devcentral/f5-agility-labs-irules`
+  (~31 iRules embedded in `.rst` lab documents) and `f5devcentral/irules-toolbox`
+  (~186 `.txt` snippets). Extracting those into sweepable files would widen the
+  corpus further and is not yet done.
+- [x] **TK1001/1002/1003** geometry/parent/option (0 corpus) — the Tk geometry
+  W001 fix added coverage; sweep a real Tk app for TK100x FPs. 2026-08:
+  TK1001 verified synthetically — mixing `pack`/`grid` on the same parent
+  fires "Geometry manager conflict" correctly (matches real Tk's runtime
+  error). TK1002/TK1003 not individually run this session (same emitter
+  family, internal/non-configurable codes, lower audit priority than the
+  40 user-toggleable ones).
 
 ---
 
 ## Cross-cutting follow-ups (known, not yet done)
 
-- [ ] **W210 `$dir` in pkgIndex.tcl** (~196 firings, the single biggest W210
+- [x] **W210 `$dir` in pkgIndex.tcl** (~196 firings, the single biggest W210
   cluster) — Tcl's package machinery sets `$dir` before sourcing; needs a
   uri-gated implicit-var at the diagnostic layer (`get_diagnostics(uri=...)`).
-  LSP-level, deferred.
+  LSP-level, deferred. **Already resolved** — `analyser/diagnostics.rs` and
+  `analyser/dataflow.rs` both special-case `pkgIndex.tcl` (path-suffix
+  check, not content-based, so it doesn't false-fire on an unrelated file)
+  and seed `$dir` as an implicit pre-set variable. 2026-08 verified with a
+  synthetic `pkgIndex.tcl` (`package ifneeded foo 1.0 [list source [file
+  join $dir foo.tcl]]`): no W210 on `$dir`. This checklist just never got
+  updated when the fix landed.
 - [ ] **W110 / O120 near-duplicate** — 1020+ ranges are byte-identical between
-  the two. Policy call: which subsystem owns the user-facing squiggle.
+  the two. Policy call: which subsystem owns the user-facing squiggle. Still
+  open — a genuine product decision (which subsystem's diagnostic a user
+  sees, or whether both should keep firing), not a correctness bug; 2026-08
+  sweep reconfirmed both still fire on the same real sites (7 W120 corpus
+  firings this session were all clean `eq`/`ne`-worthy `==`-on-strings; no
+  W110/O120 pair was inspected side-by-side for exact range overlap this
+  session — the policy call itself needs a maintainer decision, not more
+  sweeping).
 - [ ] **W123 per-package stubs** — argparse / dict-extension (dget/dexist) /
   custom widget commands. A stub bundle would cut ~half the W123 noise.
+  Still open — a content/registry-authoring task (writing stub bundles for
+  common third-party packages), not an analyser defect; out of scope for
+  this sweep.
 
 ## Process
 

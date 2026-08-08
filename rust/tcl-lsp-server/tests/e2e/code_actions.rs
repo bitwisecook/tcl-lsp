@@ -86,6 +86,31 @@ fn new_texts(actions: &Value) -> Vec<String> {
     out
 }
 
+/// The `range` of the first workspace edit found on `action` — checks
+/// `edit.changes` first, then `edit.documentChanges`, same dual path as
+/// [`new_texts`].
+fn first_edit_range(action: &Value) -> Value {
+    let edit = action.get("edit").cloned().unwrap_or(Value::Null);
+    if let Some(r) = edit
+        .get("changes")
+        .and_then(Value::as_object)
+        .and_then(|m| m.values().next())
+        .and_then(Value::as_array)
+        .and_then(|edits| edits.first())
+        .map(|e| e["range"].clone())
+    {
+        return r;
+    }
+    edit.get("documentChanges")
+        .and_then(Value::as_array)
+        .and_then(|dc| dc.first())
+        .and_then(|change| change.get("edits"))
+        .and_then(Value::as_array)
+        .and_then(|edits| edits.first())
+        .map(|e| e["range"].clone())
+        .expect("action carries a workspace edit")
+}
+
 /// The `title` of every action (`_titles`).
 fn titles(actions: &Value) -> Vec<String> {
     actions
@@ -977,10 +1002,36 @@ fn test_cursor_past_last_line_does_not_crash() {
 }
 
 // -- TestGenerateDocstringAction -----------------------------------------
+//
+// The generate-docstring source action is gated by the resolved
+// `tclLsp.formatting.docstringStyle` setting (#1314). Its documented
+// default is `"none"` — "do not generate or reformat docstrings" — which
+// `Lsp::tcl()` reproduces (it sends no `formatting` section at all, so the
+// server falls back to that default). Tests that exercise the *generation*
+// mechanics therefore opt into `"preceding"` explicitly via
+// `Lsp::with_config`; `test_none_is_the_default_and_offers_no_action` pins
+// the gate itself.
+
+#[test]
+fn test_none_is_the_default_and_offers_no_action() {
+    // TN-shape: with no `docstringStyle` configured (`Lsp::tcl()`'s
+    // baseline), the resolved setting is `none` and the source action is
+    // not offered at all, even for an undocumented proc.
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    lsp.open_ready(&uri, "proc greet {name} { puts $name }\n");
+    let actions = lsp.code_actions(&uri, range((0, 0), (0, 0)), json!([]));
+    let sa = kinds(&actions, "source");
+    assert!(
+        sa.iter()
+            .all(|a| !action_title(a).to_lowercase().contains("docstring")),
+        "docstringStyle defaults to none; no generate action expected, got {sa:?}",
+    );
+}
 
 #[test]
 fn test_offered_for_undocumented_proc() {
-    let mut lsp = Lsp::tcl();
+    let mut lsp = Lsp::with_config(json!({ "formatting": { "docstringStyle": "preceding" } }));
     let uri = unique_uri("tcl");
     lsp.open_ready(&uri, "proc greet {name} { puts $name }\n");
     let actions = lsp.code_actions(&uri, range((0, 0), (0, 0)), json!([]));
@@ -991,11 +1042,15 @@ fn test_offered_for_undocumented_proc() {
         .collect();
     assert_eq!(doc.len(), 1);
     assert!(action_title(&doc[0]).contains("'greet'"));
+    // Preceding placement: the edit lands on the declaration line itself.
+    let range = first_edit_range(&doc[0]);
+    assert_eq!(range["start"]["line"], 0);
+    assert_eq!(range["start"]["character"], 0);
 }
 
 #[test]
 fn test_not_offered_for_documented_proc() {
-    let mut lsp = Lsp::tcl();
+    let mut lsp = Lsp::with_config(json!({ "formatting": { "docstringStyle": "preceding" } }));
     let uri = unique_uri("tcl");
     lsp.open_ready(
         &uri,
@@ -1011,7 +1066,7 @@ fn test_not_offered_for_documented_proc() {
 
 #[test]
 fn test_generated_edit_contains_param_tags() {
-    let mut lsp = Lsp::tcl();
+    let mut lsp = Lsp::with_config(json!({ "formatting": { "docstringStyle": "preceding" } }));
     let uri = unique_uri("tcl");
     lsp.open_ready(&uri, "proc add {a b} { expr {$a + $b} }\n");
     let actions = lsp.code_actions(&uri, range((0, 0), (0, 0)), json!([]));
@@ -1022,6 +1077,28 @@ fn test_generated_edit_contains_param_tags() {
     let snippets = new_texts(&json!(doc));
     assert!(snippets.iter().any(|s| s.contains("@param a")));
     assert!(snippets.iter().any(|s| s.contains("@param b")));
+}
+
+#[test]
+fn test_body_style_inserts_inside_the_proc_not_on_the_decl_line() {
+    // TP-shape: `docstringStyle: "body"` moves the insertion point off the
+    // declaration line and into the body, matching the resolved config
+    // rather than always using `Preceding`.
+    let mut lsp = Lsp::with_config(json!({ "formatting": { "docstringStyle": "body" } }));
+    let uri = unique_uri("tcl");
+    lsp.open_ready(&uri, "proc greet {name} {\n    puts $name\n}\n");
+    let actions = lsp.code_actions(&uri, range((0, 0), (0, 0)), json!([]));
+    let doc: Vec<Value> = kinds(&actions, "source")
+        .into_iter()
+        .filter(|a| action_title(a).to_lowercase().contains("docstring"))
+        .collect();
+    assert_eq!(doc.len(), 1);
+    let edit_range = first_edit_range(&doc[0]);
+    assert_eq!(edit_range["start"]["line"], 0);
+    assert!(
+        edit_range["start"]["character"].as_u64().unwrap() > 0,
+        "body placement must not sit at column 0 of the decl line: {edit_range:?}",
+    );
 }
 
 // -- TestEvalListQuickFix ------------------------------------------------
@@ -1045,8 +1122,8 @@ fn test_eval_string_to_list_action() {
 
 #[test]
 fn test_no_profiles_action_for_tcl_dialect() {
-    // On the plain-Tcl server, a proc gets a docstring source action but no
-    // F5 "# Profiles:" header action.
+    // On the plain-Tcl server, a proc never gets an F5 "# Profiles:" header
+    // action.
     let mut lsp = Lsp::tcl();
     let uri = unique_uri("tcl");
     lsp.open_ready(&uri, "proc hello {} { puts hi }\n");

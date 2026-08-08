@@ -22,13 +22,18 @@
 //! formatter field is modelled here as an editor-settings/config knob.
 //!
 //! The docstring knobs split by consumer: `docstring_tag_style` and the
-//! `docstring_decoration*` fields drive the docstring-stub generator
-//! ([`generate_stub_for_proc`](super::docstring::generate_stub_for_proc) —
+//! `docstring_decoration*` fields drive the docstring-stub generator's
+//! *content* ([`generate_stub_for_proc`](super::docstring::generate_stub_for_proc) —
 //! the "generate docstring" code action and the MCP docstring tool).
-//! `docstring_style` (placement) is inert: the stub generator emits at a
-//! fixed position and the formatter does not move docstrings.  The formatter
-//! itself never rewrites an existing docstring, so none of the docstring
-//! knobs affect a plain format pass.
+//! `docstring_style` drives the code action's *placement*: the LSP server's
+//! `code_action` handler resolves it from `tclLsp.formatting.docstringStyle`
+//! and threads it into `code_actions_in_program`, which inserts the
+//! generated stub above the `proc` (`Preceding`) or as the first line of its
+//! body (`Body`), or offers no stub-generation action at all (`None`, the
+//! documented default — "do not generate or reformat docstrings"). The
+//! formatter itself never rewrites an *existing* docstring, so none of the
+//! docstring knobs affect a plain format pass — only the explicit
+//! generate-docstring action.
 
 use tcl_lexer::LexerConfig;
 use tcl_registry::prelude::DialectSet;
@@ -52,8 +57,12 @@ pub enum IndentStyle {
 
 /// Where a docstring comment block is placed relative to a `proc`.
 ///
-/// Placement is inert: the stub generator emits at a fixed position and the
-/// formatter does not move docstrings, so the value is not consumed.
+/// Consumed by the "Generate docstring" code action
+/// (`tcl_lsp_core::code_actions::code_actions_in_program`): `Preceding` and
+/// `Body` choose the insertion point for a newly-generated stub; `None`
+/// suppresses the action entirely (no stub is generated). The formatter
+/// never moves or rewrites an *existing* docstring — this only governs where
+/// a new one is inserted.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum DocstringStyle {
     /// Comment block above the `proc` statement.
@@ -62,6 +71,21 @@ pub enum DocstringStyle {
     Body,
     /// Do not generate or reformat docstrings.
     None,
+}
+
+impl DocstringStyle {
+    /// Parse the editor-settings spelling (`"preceding"`, `"body"`,
+    /// `"none"`, case-insensitive). An unrecognised value falls back to
+    /// [`Self::None`] — the same default `FormatterConfig` and every editor
+    /// catalogue ship.
+    #[must_use]
+    pub fn parse(value: &str) -> Self {
+        match value.to_ascii_lowercase().as_str() {
+            "preceding" => Self::Preceding,
+            "body" => Self::Body,
+            _ => Self::None,
+        }
+    }
 }
 
 /// Tag format used inside docstrings for parameter/return documentation.
@@ -197,8 +221,11 @@ pub struct FormatterConfig {
     pub blank_lines_between_blocks: usize,
     /// Maximum consecutive blank lines to keep.
     pub max_consecutive_blank_lines: usize,
-    /// Where docstrings are placed relative to `proc` definitions. Inert:
-    /// the stub generator emits at a fixed position (see [`DocstringStyle`]).
+    /// Where docstrings are placed relative to `proc` definitions, or
+    /// whether stub generation is offered at all (see [`DocstringStyle`]).
+    /// Round-tripped here for config-consumer parity; the LSP server's
+    /// `code_action` handler resolves the same setting independently and
+    /// passes it to `code_actions_in_program`, which is the actual consumer.
     pub docstring_style: DocstringStyle,
     /// Tag format the docstring-stub generator emits (`@param` vs an
     /// `Arguments:` prose block). Consumed by `generate_stub_for_proc`.

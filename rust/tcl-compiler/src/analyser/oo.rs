@@ -753,7 +753,7 @@ impl Analyser {
             // A `{*}` over a *substituted* word (`{*}[info class definition
             // …]`) has no statically-known element list, so it is left
             // exactly as written and the member still abstains.
-            let spliced = splice_static_member_expansions(cmd);
+            let spliced = splice_static_member_expansions(&self.source, cmd);
             let (texts, argv) = spliced
                 .as_ref()
                 .map_or((cmd.texts.as_slice(), cmd.argv.as_slice()), |(t, a)| {
@@ -787,7 +787,13 @@ impl Analyser {
             // (`MemberKind::Wrapper` + `wrapper_block_body`), never a keyword
             // matched here; `None` means "not a block form", i.e. the command
             // stands for itself.
-            let expanded = expand_wrapper_block_members(grammar, texts, argv, self.lexer_config());
+            let expanded = expand_wrapper_block_members(
+                &self.source,
+                grammar,
+                texts,
+                argv,
+                self.lexer_config(),
+            );
             let member_calls: Vec<(&[String], &[Token])> = expanded.as_ref().map_or_else(
                 || vec![(texts, argv)],
                 |inner| {
@@ -2033,6 +2039,7 @@ fn collect_class_level_bodies(
 /// today — on a dynamic (non-`Str`) block word, which cannot be re-segmented
 /// statically, and on any shape carrying words after the block.
 fn expand_wrapper_block_members(
+    source: &str,
     grammar: &DefinitionBodyGrammar,
     texts: &[String],
     argv: &[Token],
@@ -2070,7 +2077,7 @@ fn expand_wrapper_block_members(
         if cmd.is_partial || cmd.argv.is_empty() {
             continue;
         }
-        let spliced = splice_static_member_expansions(cmd);
+        let spliced = splice_static_member_expansions(source, cmd);
         let (inner_texts, inner_argv) = spliced
             .as_ref()
             .map_or((cmd.texts.as_slice(), cmd.argv.as_slice()), |(t, a)| {
@@ -2088,6 +2095,7 @@ fn expand_wrapper_block_members(
 }
 
 fn splice_static_member_expansions(
+    source: &str,
     cmd: &crate::segmenter::SegmentedCommand,
 ) -> Option<(Vec<String>, Vec<Token>)> {
     let expand = cmd.expand_word.as_ref()?;
@@ -2103,7 +2111,8 @@ fn splice_static_member_expansions(
             && cmd.single_token_word.get(i).copied().unwrap_or(false);
         if is_static_expansion {
             spliced = true;
-            for (element, element_tok) in crate::segmenter::flatten_clause_list_elements(text, *tok)
+            for (element, element_tok) in
+                crate::segmenter::flatten_clause_list_elements(source, text, *tok)
             {
                 texts.push(element);
                 argv.push(element_tok);

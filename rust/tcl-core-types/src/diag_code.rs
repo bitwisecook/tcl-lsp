@@ -181,6 +181,20 @@ pub enum DocRow {
         /// validators, translation markers). Excluded from the editor-settings
         /// catalogue.
         internal: bool,
+        /// Whether the code is *reserved* — specified and documented (a real
+        /// section, a real description, a genuine future producer) but no
+        /// analyser/compiler-checks path emits it **yet**, because the
+        /// subsystem it depends on isn't wired up (e.g. `W130`-`W134` need
+        /// `tclpkg.tcl`/`tclpkg.lock` awareness the analyser doesn't have).
+        /// Distinct from `internal`: an internal code is *always* active and
+        /// deliberately not user-configurable; a reserved code is *never*
+        /// active yet and would otherwise offer a setting that visibly does
+        /// nothing — so it is excluded from the generated editor-settings
+        /// catalogues the same way `internal` is, but for the opposite
+        /// reason, and it stays included in [`DiagCode::ALL`] and the
+        /// published code tables (it is a real, load-bearing identity, not
+        /// dead code) — see issue #1317.
+        reserved: bool,
         /// The one-line description.
         description: &'static str,
     },
@@ -245,6 +259,20 @@ macro_rules! diagnostic_codes {
                     DocRow::Diagnostic { internal: true, .. }
                 )
             }
+
+            /// Whether this code is *reserved* — specified and documented
+            /// but not emitted by any analyser/compiler-checks path yet
+            /// (see [`DocRow::Diagnostic::reserved`]). Excluded from the
+            /// generated editor-settings catalogues the same way
+            /// [`Self::is_internal`] is; still a full member of
+            /// [`Self::ALL`] and the published code tables.
+            #[must_use]
+            pub const fn is_reserved(self) -> bool {
+                matches!(
+                    self.doc_row(),
+                    DocRow::Diagnostic { reserved: true, .. }
+                )
+            }
         }
 
         impl FromStr for DiagCode {
@@ -263,6 +291,7 @@ macro_rules! diagnostic_codes {
             section: DiagSection::$sec,
             default_on: $default,
             internal: false,
+            reserved: false,
             description: $desc,
         }
     };
@@ -271,6 +300,16 @@ macro_rules! diagnostic_codes {
             section: DiagSection::$sec,
             default_on: $default,
             internal: true,
+            reserved: false,
+            description: $desc,
+        }
+    };
+    (@row diag_reserved ( $sec:ident, $default:literal, $desc:literal )) => {
+        DocRow::Diagnostic {
+            section: DiagSection::$sec,
+            default_on: $default,
+            internal: false,
+            reserved: true,
             description: $desc,
         }
     };
@@ -406,7 +445,14 @@ diagnostic_codes! {
     W118 => "W118", diag(Warning, true, "Inconsistent line endings.");
     W120 => "W120", diag(Warning, true, "Command used without a corresponding `package require`.");
     W121 => "W121", diag(Warning, true, "Subnet mask has non-contiguous bits.");
-    W122 => "W122", diag(Warning, true, "Mistyped IPv4 address (octet > 255 or leading zero).");
+    // W122 ("Mistyped IPv4 address, octet > 255 or leading zero") retired —
+    // issue #1317. It duplicated W124's SSA-traced octet check under a less
+    // precise regex-based implementation with no independent producer left in
+    // the tree; the old dedup rule that suppressed it on a W124 line
+    // (analyser/diagnostics.rs) is gone with it. Do not reuse "W122" for an
+    // unrelated diagnostic — a stale user config disabling it should stay a
+    // harmless no-op (unknown codes are silently ignored), not resurface as
+    // a different check.
     W123 => "W123", diag(Hint, true, "Unresolved command — not found in registry, user procs, or `unknown` handler.");
     W124 => "W124", diag(Warning, true, "Invalid IP address literal.");
     W125 => "W125", diag(Warning, true, "Orphaned control-flow keyword used as standalone command.");
@@ -414,11 +460,18 @@ diagnostic_codes! {
     W127 => "W127", diag(Warning, true, "Value not in the command's allowed set.");
     W128 => "W128", diag(Warning, true, "Command called after it was renamed or deleted earlier in this file; the call falls through to the `unknown` handler.");
     W129 => "W129", diag(Warning, true, "Command is hidden in a safe interpreter — the call raises `invalid command name` unless it is exposed or reached via `interp invokehidden`.");
-    W130 => "W130", diag(Tclpkg, true, "tclpkg.tcl requires package but it is not in tclpkg.lock — run 'tcl pkg install'.");
-    W131 => "W131", diag(Tclpkg, true, "tclpkg.lock is out of sync with tclpkg.tcl — run 'tcl pkg install'.");
-    W132 => "W132", diag(Tclpkg, true, "tclpkg.lock integrity mismatch — CAS hash differs from lockfile.");
-    W133 => "W133", diag(Tclpkg, true, "tclpkg.tcl directive not permitted in safe mode.");
-    W134 => "W134", diag(Tclpkg, true, "Package resolved but no pkgIndex.tcl found — 'package require' will fail at runtime.");
+    // W130-W134 are genuinely reserved (issue #1317): `tcl-pkg` and the
+    // `tcl pkg` verbs exist and the design docs specify these diagnostics,
+    // but the analyser has no `tclpkg.tcl` / `tclpkg.lock` awareness yet, so
+    // no path can emit them. `diag_reserved` keeps them out of the generated
+    // editor-settings catalogues (a user should not be offered a toggle for
+    // a check that can never fire) while keeping them full members of
+    // `DiagCode::ALL` and the published code tables.
+    W130 => "W130", diag_reserved(Tclpkg, true, "tclpkg.tcl requires package but it is not in tclpkg.lock — run 'tcl pkg install'.");
+    W131 => "W131", diag_reserved(Tclpkg, true, "tclpkg.lock is out of sync with tclpkg.tcl — run 'tcl pkg install'.");
+    W132 => "W132", diag_reserved(Tclpkg, true, "tclpkg.lock integrity mismatch — CAS hash differs from lockfile.");
+    W133 => "W133", diag_reserved(Tclpkg, true, "tclpkg.tcl directive not permitted in safe mode.");
+    W134 => "W134", diag_reserved(Tclpkg, true, "Package resolved but no pkgIndex.tcl found — 'package require' will fail at runtime.");
     W135 => "W135", diag(Warning, true, "Command requires a newer package version than the resolved `package require`.");
     W136 => "W136", diag(Warning, true, "Option requires a newer package version than the resolved `package require`.");
     W137 => "W137", diag(Warning, true, "Argument value requires a newer Tcl version than the dialect provides.");
@@ -785,6 +838,46 @@ mod tests {
                 assert!(!code.is_internal(), "{} opt is not internal", code.as_str());
             }
         }
+    }
+
+    #[test]
+    fn reserved_flag_classifies_the_tclpkg_family_issue_1317() {
+        use core::str::FromStr;
+        // W130-W134 (tclpkg lockfile/CAS/installer/policy) are documented and
+        // specified but not yet emitted by the analyser (issue #1317) — the
+        // `reserved` flag keeps them out of the generated editor-settings
+        // catalogues (a setting that always does nothing would be
+        // misleading) while they stay full members of `DiagCode::ALL` and
+        // the published code tables. `reserved` and `internal` are
+        // orthogonal: a reserved code is not internal (it will eventually
+        // become an ordinary user-configurable code once implemented).
+        for s in ["W130", "W131", "W132", "W133", "W134"] {
+            let code = DiagCode::from_str(s).unwrap();
+            assert!(code.is_reserved(), "{s} must be reserved");
+            assert!(!code.is_internal(), "{s} must not be internal");
+        }
+        // Ordinary user-configurable codes, internal codes, and
+        // optimisations must never be reserved.
+        for s in ["E001", "W001", "W210", "IRULE1001", "T101"] {
+            assert!(
+                !DiagCode::from_str(s).unwrap().is_reserved(),
+                "{s} must not be reserved"
+            );
+        }
+        for s in ["E004", "W310", "TK1001"] {
+            assert!(
+                !DiagCode::from_str(s).unwrap().is_reserved(),
+                "{s} (internal) must not also be reserved"
+            );
+        }
+        for &code in DiagCode::ALL {
+            if code.is_optimisation() {
+                assert!(!code.is_reserved(), "{} opt is not reserved", code.as_str());
+            }
+        }
+        // W122 was retired outright (not reserved) — it must no longer
+        // parse as a DiagCode at all.
+        assert!(DiagCode::from_str("W122").is_err());
     }
 
     #[test]

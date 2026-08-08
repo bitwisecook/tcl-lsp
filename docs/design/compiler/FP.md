@@ -9152,9 +9152,18 @@ emitter consults both before firing.
 
 ### FP-STY-06 — W122 / W124 OID-like dotted chains (not IPv4)
 
+> **Update (issue #1317, 2026-08):** `W122` has since been **retired** — its
+> regex-based check had no independent producer left (superseded by W124's
+> SSA-traced check, which covers both halves of W122's description), and the
+> dedup rule suppressing it on a W124 line is gone with it. The reasoning
+> below is kept for the historical record; the current regression coverage
+> for this shape is `tcl-compiler/src/analyser/diagnostics/fp/sty.rs`'s
+> `fp_sty_06_oid_chain_no_w124` (W124 only).
+
 - **Verdict:** FALSE POSITIVE (now fixed)
-- **Status:** locked in by `tests/test_fp_sty.py::test_FP_STY_06_*`
-- **Codes:** W122, W124 (IPv4-shaped literal with out-of-range octet)
+- **Status:** locked in by `tests/test_fp_sty.py::test_FP_STY_06_*` (Python-era;
+  the current Rust suite is `fp/sty.rs::fp_sty_06_oid_chain_no_w124`)
+- **Codes:** W122 (retired), W124 (IPv4-shaped literal with out-of-range octet)
 - **Corpus:** LDAP / SNMP OID literals across tcllib (`ldap`, `asn`, etc.).
 
 #### Reproducer

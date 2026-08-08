@@ -5751,8 +5751,12 @@ dependencies = [
  "regex",
  "serde",
  "serde_json",
+ "tcl-cli-support",
+ "tcl-compiler",
  "tcl-core-types",
  "tcl-dialect",
+ "tcl-lexer",
+ "tcl-lsp-core",
  "tcl-registry",
  "tcl-syntax",
 ]

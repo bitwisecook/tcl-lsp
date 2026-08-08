@@ -336,6 +336,7 @@ impl Analyser {
         // the definition-precedes-site gate
         // ([`Self::replay_deferred_instances`]).
         self.pending_instances = Some(Vec::new());
+        self.pending_bareword_dispatch_sites = Some(Vec::new());
         self.defer_proc_bodies = true;
         self.walk_commands_top_level(&commands, false);
         self.defer_proc_bodies = false;
@@ -674,7 +675,32 @@ impl Analyser {
             self.per_item_fallback = Some(fallback);
             return Err(Box::new(self.fresh_full_analyse(source, dialect)));
         }
+        // `instance_classes` / `created_instance_commands` are complete now
+        // (issue #1312) — resolve the bareword named-object dispatch
+        // candidates the shell/body passes deferred above.
+        self.finalise_bareword_dispatch_sites();
         Ok(())
+    }
+
+    /// The real, sufficient gate for a bareword named-object dispatch
+    /// candidate `record_var_or_cmd_command_site` deferred: a name
+    /// `instance_classes` binds to a class becomes a real
+    /// `var_command_sites` entry (the same contract the non-deferred
+    /// `analyse` path applies inline); a coroutine / `interp create` /
+    /// registry-factory / external-class name that merely matched the
+    /// cheap `args[0] == "create"` pre-filter never had a class and is
+    /// dropped here without ever drawing a diagnostic — issue #1312.
+    fn finalise_bareword_dispatch_sites(&mut self) {
+        let Some(candidates) = self.pending_bareword_dispatch_sites.take() else {
+            return;
+        };
+        self.var_command_sites
+            .extend(candidates.into_iter().filter(|site| {
+                self.result
+                    .created_instance_commands
+                    .contains(&site.var_name)
+                    && self.result.instance_classes.contains_key(&site.var_name)
+            }));
     }
 
     /// Replay every captured instance-creation site (shell pass + grafted
@@ -920,6 +946,13 @@ impl Analyser {
         self.pending_next_arity.extend(frag.pending_next_arity);
         self.var_command_sites.extend(frag.var_sites);
         self.cmd_command_sites.extend(frag.cmd_sites);
+        // Held for finalisation after `replay_deferred_instances` (issue
+        // #1312) — the shell is always in the deferred pass here (a graft
+        // only runs from within it), so `pending_bareword_dispatch_sites` is
+        // always `Some`.
+        if let Some(pending) = self.pending_bareword_dispatch_sites.as_mut() {
+            pending.extend(frag.bareword_dispatch_sites);
+        }
         self.widget_dispatch_sites.extend(frag.widget_sites);
         self.command_aliases.extend(frag.walk_aliases);
         self.renamed_commands.extend(frag.walk_renames);
@@ -1138,6 +1171,10 @@ pub struct BodyFragment {
     /// rebased) for the global source-ordered replay
     /// (`Analyser::replay_deferred_instances`).
     instances: Vec<(String, Vec<String>, String, u32)>,
+    /// Captured bareword named-object dispatch candidates (issue #1312); the
+    /// graft queues them (spans rebased) for finalisation right after the
+    /// instance-creation replay above, once `instance_classes` is complete.
+    bareword_dispatch_sites: Vec<super::state::VarCommandSite>,
     /// The isolated pass's **analyser-side** alias / rename / deletion
     /// tables (`Analyser::command_aliases` / `renamed_commands` /
     /// `alias_offsets` / `rename_offsets` / `deleted_commands`) — parallel
@@ -1260,6 +1297,7 @@ pub fn analyse_proc_body_isolated<S: std::hash::BuildHasher>(
     // Capture object-instance creations: the isolated body's `all_classes` is
     // empty, so the class can't be resolved here — the graft replays them.
     a.pending_instances = Some(Vec::new());
+    a.pending_bareword_dispatch_sites = Some(Vec::new());
     // A method body is analysed in a `Method` scope (so `in_method` dispatch
     // recording fires) under the class's defining namespace, with the class
     // instance variables pre-bound; a proc body in a `Proc` scope.
@@ -1350,6 +1388,7 @@ pub fn analyse_proc_body_isolated<S: std::hash::BuildHasher>(
         private_ns_calls: a.pending_w143,
         w304: a.pending_w304,
         instances: a.pending_instances.unwrap_or_default(),
+        bareword_dispatch_sites: a.pending_bareword_dispatch_sites.unwrap_or_default(),
         walk_aliases: a.command_aliases,
         walk_renames: a.renamed_commands,
         walk_alias_offsets: a.alias_offsets,
@@ -1880,6 +1919,10 @@ fn rebase_fragment_pending(frag: &mut BodyFragment, d: u32) {
     }
     for s in &mut frag.var_sites {
         s.cmd_span = shift(s.cmd_span, d);
+    }
+    for s in &mut frag.bareword_dispatch_sites {
+        s.cmd_span = shift(s.cmd_span, d);
+        s.method_span = s.method_span.map(|sp| shift(sp, d));
     }
     for s in &mut frag.cmd_sites {
         s.cmd_span = shift(s.cmd_span, d);

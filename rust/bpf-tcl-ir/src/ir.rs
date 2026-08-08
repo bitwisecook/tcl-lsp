@@ -295,6 +295,36 @@ pub enum ProgType {
     SocketFilter,
     /// `BPF_PROG_TYPE_XDP` — verdict is `XDP_ABORTED`(0)/`DROP`(1)/`PASS`(2)/`TX`(3).
     Xdp,
+    /// `BPF_PROG_TYPE_SCHED_CLS` on the ingress hook — verdict is a TC action
+    /// (`TC_ACT_OK`(0)/`TC_ACT_SHOT`(2)).
+    TcIngress,
+    /// `BPF_PROG_TYPE_SCHED_CLS` on the egress hook — same verdict encoding as
+    /// [`ProgType::TcIngress`].
+    TcEgress,
+    /// `BPF_PROG_TYPE_CGROUP_SOCK_ADDR`, `connect4` attach — verdict is
+    /// allow(1)/deny(0).
+    CgroupInet4Connect,
+    /// `BPF_PROG_TYPE_CGROUP_SOCK_ADDR`, `bind4` attach — same verdict
+    /// encoding as [`ProgType::CgroupInet4Connect`].
+    CgroupInet4Bind,
+}
+
+impl ProgType {
+    /// Whether this program type is one of the two `BPF_PROG_TYPE_SCHED_CLS`
+    /// hooks (ingress/egress differ only in attach direction, not verdict
+    /// encoding or context).
+    #[must_use]
+    pub const fn is_tc(self) -> bool {
+        matches!(self, Self::TcIngress | Self::TcEgress)
+    }
+
+    /// Whether this program type is one of the two
+    /// `BPF_PROG_TYPE_CGROUP_SOCK_ADDR` hooks (connect4/bind4 differ only in
+    /// attach point, not verdict encoding or context).
+    #[must_use]
+    pub const fn is_cgroup_sock_addr(self) -> bool {
+        matches!(self, Self::CgroupInet4Connect | Self::CgroupInet4Bind)
+    }
 }
 
 /// The kind of a declared map.

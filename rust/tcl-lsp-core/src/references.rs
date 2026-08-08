@@ -1189,23 +1189,28 @@ fn instance_method_references(ctx: &RefCtx<'_>) -> Option<Vec<LspRange>> {
     } = *ctx;
     let (inst, method, is_dollar) =
         crate::definition::instance_method_at_cursor(source, line, character)?;
-    // Two receiver spellings reach an instance method, and both must be
-    // recognised here — `definition.rs` and `hover.rs` already handle the
-    // pair. `$obj m` names an instance *variable* whose class is known;
-    // `my m` is an internal dispatch whose receiver is the class whose body
-    // lexically encloses the call, and it also reaches unexported methods
-    // (issue #923 idx 34: find-references at a `my duplListCheck` call site
-    // returned nothing at all, because `analysis.instance_classes` has no
-    // entry named `my`).
+    // Three receiver spellings reach an instance method, and all must be
+    // recognised here — `definition.rs` and `hover.rs` already handle them.
+    // `$obj m` names an instance *variable* whose class is known; `my m` /
+    // `[self] m` / `[self object] m` are internal dispatches whose receiver
+    // is the class whose body lexically encloses the call, and they also
+    // reach unexported methods (issue #923 idx 34: find-references at a
+    // `my duplListCheck` call site returned nothing at all, because
+    // `analysis.instance_classes` has no entry named `my`; issue #1322 for
+    // the `[self]` spellings, which the same gap affected identically).
     let line_index_local = tcl_lexer::LineIndex::new(source);
     let cursor = crate::definition::byte_offset_at(&line_index_local, source, line, character);
     let (class_q, external) =
         match crate::definition::receiver_instance_class_at(analysis, &inst, is_dollar, cursor) {
             Some(class_q) => (class_q.clone(), true),
-            None if crate::definition::is_self_dispatch_keyword(&inst) => (
-                crate::definition::enclosing_class_at(analysis, cursor)?.to_owned(),
-                false,
-            ),
+            None if crate::definition::is_self_dispatch_keyword(&inst)
+                || crate::definition::is_self_receiver_call(&inst) =>
+            {
+                (
+                    crate::definition::enclosing_class_at(analysis, cursor)?.to_owned(),
+                    false,
+                )
+            }
             None => return None,
         };
     // The class that actually *declares* the implementation this call
@@ -1911,13 +1916,24 @@ fn scan_my_method_region(
             // Registry query, not a `== "my"` literal: the self-dispatch
             // keyword is spec data, so a dialect that gains or loses it
             // propagates through `tcl-registry` rather than through this
-            // walker (issue #1050).
+            // walker (issue #1050). `[self]`/`[self object]` reaches the
+            // same target through a different registry query — a bracketed
+            // command substitution, not a dispatch keyword (issue #1322).
+            // Checked against `cmd.texts[0]`, not a `source[h_start..h_end]`
+            // slice: a `Cmd`-kind token's span excludes its closing `]`
+            // (`tcl_lexer`'s own convention — `texts` is where the
+            // reconstruction re-adds it), so the raw slice would hand
+            // `is_self_receiver_call` a `]`-less, unparseable `"[self"`.
             let head_is_self_dispatch = h_start < source.len()
                 && h_end <= source.len()
-                && crate::definition::method_dispatch_keyword_in(
+                && (crate::definition::method_dispatch_keyword_in(
                     ctx.dialect,
                     &source[h_start..h_end],
-                ) == Some(tcl_registry::MethodDispatchKind::SelfDispatch);
+                ) == Some(tcl_registry::MethodDispatchKind::SelfDispatch)
+                    || cmd
+                        .texts
+                        .first()
+                        .is_some_and(|t| crate::definition::is_self_receiver_call(t)));
             if head_is_self_dispatch {
                 let n_start = name_tok.span.start() as usize;
                 let n_end = name_tok.span.end() as usize;
@@ -1952,9 +1968,11 @@ fn scan_my_method_region(
         }) {
             let switch_arg_tokens: Vec<tcl_lexer::Token> =
                 cmd.argv.iter().skip(1).copied().collect();
-            for (_, body_tok) in
-                tcl_compiler::analyser::commands::switch_arm_bodies(cmd.args(), &switch_arg_tokens)
-            {
+            for (_, body_tok) in tcl_compiler::analyser::commands::switch_arm_bodies(
+                source,
+                cmd.args(),
+                &switch_arg_tokens,
+            ) {
                 scan_my_method_body(ctx, body_tok.span, sink);
             }
         }
@@ -3327,7 +3345,7 @@ fn case_list_clause_body_regions(
     let (Some(text), Some(tok)) = (cmd.texts.get(i + 1), cmd.argv.get(i + 1).copied()) else {
         return Some(Vec::new());
     };
-    let elements = tcl_compiler::segmenter::flatten_clause_list_elements(text, tok);
+    let elements = tcl_compiler::segmenter::flatten_clause_list_elements(source, text, tok);
     let mut out = Vec::new();
     let mut j = 0;
     while j + 1 < elements.len() {
@@ -4842,6 +4860,25 @@ mod tests {
         assert!(
             lines.contains(&5),
             "the my Helper call site inside the separate oo::define block is missing: {refs:?}"
+        );
+    }
+
+    #[test]
+    fn references_from_decl_reach_a_self_bracket_dispatch_call_site() {
+        // Issue #1322: `[self] m` is TclOO's own same-object dispatch
+        // idiom — reaches the enclosing class exactly like `my m`, but
+        // through a bracketed command substitution. References from the
+        // declaration must reach it, not silently return only the
+        // declaration itself.
+        let src = "oo::class create C {\n    method animTick {} { return 1 }\n    method anim {} { [self] animTick }\n}\n";
+        let analysis = analyse(src);
+        // Cursor on the `animTick` declaration (line 1, col 11).
+        let refs = references(src, "tcl", 1, 11, &analysis, true);
+        let lines: Vec<u32> = refs.iter().map(|r| r.start_line).collect();
+        assert!(lines.contains(&1), "decl missing: {refs:?}");
+        assert!(
+            lines.contains(&2),
+            "the [self] animTick call site is missing: {refs:?}"
         );
     }
 

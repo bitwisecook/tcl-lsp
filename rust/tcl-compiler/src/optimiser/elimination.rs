@@ -1022,10 +1022,20 @@ pub(crate) fn collect_textual_var_references(
     };
     let abs =
         |v: u32| -> usize { usize::try_from((i64::from(v) + base_offset).max(0)).unwrap_or(0) };
-    let start = abs(lo);
-    let end = abs(hi).min(source.len());
+    let mut start = abs(lo);
+    let mut end = abs(hi).min(source.len());
     if start >= end {
         return HashSet::new();
+    }
+    // The envelope is a union of statement spans, and a statement span can land
+    // inside a multi-byte sequence (issue #1325).  This scan only harvests
+    // variable *names* and is suppress-only, so widen to the enclosing `char`
+    // boundaries — a superset region — rather than dropping the scan.
+    while !source.is_char_boundary(start) {
+        start -= 1;
+    }
+    while !source.is_char_boundary(end) {
+        end += 1;
     }
     let slice = &source[start..end];
     let mut out: HashSet<String> = HashSet::new();

@@ -24,7 +24,13 @@
 //!
 //! This is the end-to-end "execute a simple script" path: parse → eval loop →
 //! builtins (`set`/`expr`/`if`/`while`/`for`/`foreach`/`proc`/`puts`/…). `puts`
-//! writes to stdout directly; the script's final result is printed last.
+//! writes to stdout directly; the script's final result is printed last,
+//! **unless** `--quiet` is given, which matches `tclsh script.tcl`'s actual
+//! non-interactive contract (only `puts` reaches stdout; the last command's
+//! result is silently discarded, not echoed). `--quiet` exists for tooling
+//! that diffs this runner's stdout against `tclsh`/`tclvm` (see
+//! `rust/tcl-fuzz`) — a raw stdout comparison would otherwise see a spurious
+//! divergence on any script whose last command leaves a non-empty result.
 
 use std::io::Read;
 
@@ -54,10 +60,23 @@ fn main() {
 fn run() -> i32 {
     let mut args: Vec<String> = std::env::args().collect();
     // `--init` bootstraps the standard library (TCL_LIBRARY → source init.tcl)
-    // before evaluating, like a real `tclsh`.
-    let init = args.get(1).map(String::as_str) == Some("--init");
-    if init {
-        args.remove(1);
+    // before evaluating, like a real `tclsh`. `--quiet` suppresses the final
+    // non-empty-result echo (see the module doc comment). Both are recognised
+    // in either order, ahead of the path/stdin argument.
+    let mut init = false;
+    let mut quiet = false;
+    loop {
+        match args.get(1).map(String::as_str) {
+            Some("--init") => {
+                init = true;
+                args.remove(1);
+            }
+            Some("--quiet") => {
+                quiet = true;
+                args.remove(1);
+            }
+            _ => break,
+        }
     }
     // A file path is *sourced* (like `tclsh script.tcl`: `info script` is set and
     // `info frame` reports `type source`); stdin is evaluated as a script.
@@ -109,8 +128,10 @@ fn run() -> i32 {
         eprintln!("error: {}", String::from_utf8_lossy(&result));
         return 1;
     }
-    // Print the script's final result (if any), like an interactive evaluation.
-    if !result.is_empty() {
+    // Print the script's final result (if any), like an interactive evaluation
+    // — unless `--quiet` asked for `tclsh script.tcl`'s actual non-interactive
+    // contract instead (stdout carries only `puts` output).
+    if !quiet && !result.is_empty() {
         println!("{}", String::from_utf8_lossy(&result));
     }
     0

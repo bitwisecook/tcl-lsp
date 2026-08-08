@@ -7896,6 +7896,90 @@ fn analyse_w307_suppressed_for_my_self_dispatch() {
     );
 }
 
+// Issue #1324 — `[self]` / `[self object]` used as a dispatch head
+// (`[self] method`) is `TclOO`'s own same-object spelling: it must resolve
+// like `my method` for W308 ("unknown method") too, not just for the
+// LSP-layer consumers #1322 already fixed (highlighting, go-to-def,
+// references, code lens). Before this fix, `emit_cmd_command_diagnostics`
+// treated *any* self-dispatch/introspection head — `self`'s own included —
+// as an opaque, unresolvable-class object handle and silently abstained,
+// a false negative on invalid code.
+
+#[test]
+fn analyse_w308_tp_1324_bare_self_receiver_unknown_method() {
+    // `[self] nosuchmethod` — the exact community repro (issue #1324).
+    let src = "\
+oo::class create Test1324A {
+    method animTick {} {
+        return {}
+    }
+    method anim {} {
+        [self] nosuchmethod
+        return {}
+    }
+}
+";
+    let mut a = Analyser::new();
+    let r = a.analyse(src, "tcl");
+    assert!(
+        r.diagnostics
+            .iter()
+            .any(|d| d.code == DiagCode::W308 && d.message.contains("nosuchmethod")),
+        "W308 expected for `[self] nosuchmethod`; got {:?}",
+        r.diagnostics,
+    );
+}
+
+#[test]
+fn analyse_w308_fp_1324_bare_self_receiver_real_method_silent() {
+    // FP guard: `[self] animTick` dispatches to a real method on the
+    // enclosing class — must NOT fire W308.
+    let src = "\
+oo::class create Test1324B {
+    method animTick {} {
+        return {}
+    }
+    method anim {} {
+        [self] animTick
+        return {}
+    }
+}
+";
+    let mut a = Analyser::new();
+    let r = a.analyse(src, "tcl");
+    assert!(
+        !r.diagnostics.iter().any(|d| d.code == DiagCode::W308),
+        "W308 must not fire for `[self] animTick`, a real method; got {:?}",
+        r.diagnostics,
+    );
+}
+
+#[test]
+fn analyse_w308_tp_1324_self_object_receiver_unknown_method() {
+    // `[self object]` is `self`'s explicit-word spelling of the same
+    // receiver `[self]` (bare) denotes — must resolve identically.
+    let src = "\
+oo::class create Test1324C {
+    method animTick {} {
+        return {}
+    }
+    method anim {} {
+        [self object] nosuchmethod
+        return {}
+    }
+}
+";
+    let mut a = Analyser::new();
+    let r = a.analyse(src, "tcl");
+    assert!(
+        r.diagnostics
+            .iter()
+            .any(|d| d.code == DiagCode::W308 && d.message.contains("nosuchmethod")),
+        "W308 expected for `[self object] nosuchmethod`; got {:?}",
+        r.diagnostics,
+    );
+}
+
 #[test]
 fn analyse_w123_suppressed_for_partial_interpolation_resolving_to_known_proc() {
     // ``set suffix _hi`` makes ``$suffix`` resolve to ``_hi``;
@@ -9391,34 +9475,6 @@ fn dedupe_drops_e002_on_e101_line() {
             .diagnostics
             .iter()
             .any(|d| d.code == DiagCode::E002)
-    );
-}
-
-#[test]
-fn dedupe_drops_w122_on_w124_line() {
-    // W124 (SSA-based IP check) on a line → W122 (regex IP
-    // check) on the same line is redundant.
-    let mut a = Analyser::new();
-    a.source = "if {[IP::addr $ip]} {}".to_string();
-    let ip_span = Span::new(15, 18);
-    a.result
-        .diagnostics
-        .push(diag(DiagCode::W124, ip_span, "invalid IP"));
-    a.result
-        .diagnostics
-        .push(diag(DiagCode::W122, ip_span, "regex IP check"));
-    a.dedupe_diagnostics();
-    assert!(
-        a.result
-            .diagnostics
-            .iter()
-            .any(|d| d.code == DiagCode::W124)
-    );
-    assert!(
-        !a.result
-            .diagnostics
-            .iter()
-            .any(|d| d.code == DiagCode::W122)
     );
 }
 

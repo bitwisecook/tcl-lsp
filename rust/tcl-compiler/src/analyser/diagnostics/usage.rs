@@ -1065,10 +1065,12 @@ literal text `({inner})`; did you mean `{corrected}` for array element access?"
     ) {
         let start = diag_span.start() as usize;
         let end = diag_span.end() as usize;
-        if start >= end || end > self.source.len() {
+        if start >= end {
             return;
         }
-        let slice = &self.source[start..end];
+        let Some(slice) = Analyser::source_slice(&self.source, start, end) else {
+            return;
+        };
         let Some((open, close)) = first_nested_expr(slice) else {
             return;
         };

@@ -20,7 +20,7 @@
 use crate::prelude::*;
 
 pub fn spec() -> CommandSpec {
-    const OP: BpfOpSpec = BpfOpSpec::verdict(BpfVerdictKind::Tx, BpfProgTypeSet::XdpOnly);
+    const OP: BpfOpSpec = BpfOpSpec::verdict(BpfVerdictKind::Tx, BpfProgTypeSet::XDP_ONLY);
     CommandSpec {
         name: "tx",
         dialects: Some(DialectSet::BPF),

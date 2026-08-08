@@ -461,10 +461,9 @@ word as one argument; no re-parsing)"
         };
         let start = tok.span.start() as usize + tok.content_offset as usize;
         let end = tok.span.end() as usize;
-        if start >= end || end > self.source.len() {
+        let Some(script) = Analyser::source_slice(&self.source, start, end).map(str::trim) else {
             return false;
-        }
-        let script = self.source[start..end].trim();
+        };
         if script.is_empty() || script.contains(';') || script.contains('\n') {
             return false;
         }
@@ -517,17 +516,17 @@ word as one argument; no re-parsing)"
 
     /// Return the trimmed inner script of a `Cmd` substitution token
     /// (`[ … ]` with the brackets stripped), or `None` for a non-`Cmd`
-    /// token or an out-of-bounds span.
+    /// token or an unusable span.
     fn cmd_token_inner(&self, tok: tcl_lexer::Token) -> Option<&str> {
         if !matches!(tok.kind, tcl_lexer::TokenType::Cmd) {
             return None;
         }
         let start = tok.span.start() as usize + tok.content_offset as usize;
         let end = tok.span.end() as usize;
-        if start >= end || end > self.source.len() {
+        if start >= end {
             return None;
         }
-        Some(self.source[start..end].trim())
+        Analyser::source_slice(&self.source, start, end).map(str::trim)
     }
 
     /// **W300.** Warn when `source`'s file argument is a `$var` or
@@ -1048,8 +1047,13 @@ or use explicit I/O commands."
         if !takes_regex_pattern && cmd_name != "switch" {
             return;
         }
-        let patterns =
-            find_regex_patterns_in_command(takes_regex_pattern, cmd_name, args, arg_tokens);
+        let patterns = find_regex_patterns_in_command(
+            &self.source,
+            takes_regex_pattern,
+            cmd_name,
+            args,
+            arg_tokens,
+        );
         if patterns.is_empty() {
             return;
         }
@@ -1102,16 +1106,19 @@ matching time on crafted input."
         }
         let start = tok.span.start() as usize;
         let end = tok.span.end() as usize;
-        if start >= end || end > self.source.len() {
+        if start >= end {
             return;
         }
+        let Some(raw) = Analyser::source_slice(&self.source, start, end) else {
+            return;
+        };
         let is_subst_token = matches!(
             tok.kind,
             tcl_lexer::TokenType::Var | tcl_lexer::TokenType::Cmd
         );
         // A quoted/literal token (not a single `$var` / `[cmd]` word) only
         // counts when the raw source carries a *live* (unescaped) `[`/`$`.
-        if !is_subst_token && !raw_has_live_substitution(&self.source[start..end]) {
+        if !is_subst_token && !raw_has_live_substitution(raw) {
             return;
         }
         // Bare `$var` / `${var}` is the canonical idiom — a `Var` word has
@@ -1844,6 +1851,7 @@ fn parse_subst_flags(args: &[String]) -> (Option<usize>, bool, bool) {
 /// or a single braced case list (form 2, re-segmented via
 /// [`crate::segmenter::flatten_clause_list_elements`]).
 fn find_regex_patterns_in_command(
+    source: &str,
     takes_regex_pattern: bool,
     cmd_name: &str,
     args: &[String],
@@ -1887,7 +1895,7 @@ fn find_regex_patterns_in_command(
                 // Form 2: single braced case list.
                 if let Some(case_tok) = arg_tokens.get(i) {
                     let elements =
-                        crate::segmenter::flatten_clause_list_elements(&args[i], *case_tok);
+                        crate::segmenter::flatten_clause_list_elements(source, &args[i], *case_tok);
                     let mut j = 0;
                     while j + 1 < elements.len() {
                         let (text, tok) = &elements[j];

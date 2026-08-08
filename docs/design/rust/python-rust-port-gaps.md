@@ -210,17 +210,26 @@ living in `tcl-cmd-core`: the `-about` option, `regsub -command`, and
 
 The formatter engine + minifier are ported (`tcl-lsp-core::{formatting,minify}`,
 byte-parity). **Residual:** the **docstring rewriter is not yet implemented** —
-its config flags are carried through `formatting::config` but the engine does
-not consume them (`rust/tcl-lsp-core/src/formatting/config.rs`).
+a plain `textDocument/formatting` pass never moves or rewrites an *existing*
+docstring. `docstring_style` (placement for a newly-*generated* stub) is
+consumed — the LSP server's `codeAction` handler resolves it and threads it
+into `code_actions_in_program`, which places the "Generate docstring" stub
+`preceding` / `body` / not at all (#1314); `docstring_tag_style` and the
+`docstring_decoration*` fields govern that same stub's content
+(`generate_stub_for_proc`). None of the five govern the formatter's plain
+format pass, which is the actual residual gap here.
 
 ### 7f. TOOL-F5 — `f5-cli` residuals 🟢
 
 The core `f5` verbs are ported (`event-order` / `extract` / `format` / `minify` /
-`event-info`, plus `explain-flow` and `--simulate` on `tcl-vm`). **Residuals in
-`f5-cli`:** the `irule lint` / `context` / `trace` / `pgo` sub-subcommands are
-**not yet implemented** (they parse args so `--help` works, then error + exit 2 —
-`f5-cli/src/commands/irule.rs`); the **SSH/scp fetch transport** is not ported
-(REST works; an SSH request falls back to the Python CLI —
+`event-info`, plus `explain-flow` and `--simulate` on `tcl-vm`), including the
+`irule lint` / `context` / `trace` sub-subcommands. **Residuals in `f5-cli`:**
+`irule pgo` was removed from the command surface rather than shipped as a
+`--help`-advertised stub that always errors (#1315) — profile-guided
+branch-reorder suggestions need a real profile source plus the compiler's
+CFG (`tcl-compiler` is not an `f5-cli` dependency), a standalone compiler
+feature out of scope for a CLI-wiring fix; the **SSH/scp fetch transport**
+is not ported (REST works; an SSH request falls back to the Python CLI —
 `f5-cli/src/commands/remote/ssh.rs`); and `registry-dump --section commands` is
 not implemented (`f5-cli/src/commands/registry_dump.rs`).
 

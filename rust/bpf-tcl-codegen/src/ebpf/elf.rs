@@ -144,11 +144,16 @@ impl Sym {
     }
 }
 
-/// The conventional `SEC(...)` name for a program type.
+/// The conventional `SEC(...)` name for a program type — mirrors each
+/// event's registry `elf_section` field
+/// ([`tcl_registry::bpf_op::BpfEventSpec::elf_section`]).
 fn section_name(prog_type: ProgType) -> &'static str {
     match prog_type {
         ProgType::Xdp => "xdp",
         ProgType::SocketFilter => "socket",
+        ProgType::TcIngress | ProgType::TcEgress => "tc",
+        ProgType::CgroupInet4Connect => "cgroup/connect4",
+        ProgType::CgroupInet4Bind => "cgroup/bind4",
     }
 }
 
