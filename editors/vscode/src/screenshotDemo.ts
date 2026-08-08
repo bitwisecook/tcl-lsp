@@ -836,6 +836,8 @@ async function waitForDiagnosticsReady(
 
   const deadline = Date.now() + timeoutMs;
   let goodSince = 0;
+  let settledSince = 0;
+  let settledCount = -1;
   let latest = vscode.languages.getDiagnostics(uri);
 
   while (Date.now() < deadline) {
@@ -854,18 +856,53 @@ async function waitForDiagnosticsReady(
     } else {
       goodSince = 0;
     }
+
+    // The thresholds above are what the scene hopes for. When a fixture stops
+    // producing them — it was simplified, or a diagnostic was consolidated —
+    // the wait would otherwise burn its whole timeout on every run and capture
+    // seconds late. A non-empty set that has stopped changing is good enough to
+    // photograph, so accept it and say so.
+    if (latest.length > 0 && latest.length === settledCount) {
+      if (settledSince === 0) {
+        settledSince = Date.now();
+      } else if (Date.now() - settledSince >= stableMs) {
+        if (!good) {
+          console.log(
+            `[screenshot-demo] Diagnostics settled at ${latest.length} (${errors}E/${warnings}W) ` +
+              `below the scene's minCount=${options.minCount} minErrors=${minErrors} ` +
+              `minWarnings=${minWarnings} for ${uri.toString()}`,
+          );
+        }
+        return latest;
+      }
+    } else {
+      settledSince = 0;
+      settledCount = latest.length;
+    }
     await sleep(150);
   }
 
   return latest;
 }
 
+/**
+ * Wait until the document's semantic tokens have arrived.
+ *
+ * `minDataEntries` is a fast path for documents big enough to clear it — the
+ * LSP encoding is five integers per token, so 40 entries is only eight tokens.
+ * A small fixture (a five-line iRule, the rename scene's temp files) can be
+ * fully tokenised and still never reach it, which used to mean polling for the
+ * whole timeout and capturing ten seconds late. So a non-empty result that has
+ * stopped changing counts as done too.
+ */
 async function waitForSemanticTokens(
   uri: vscode.Uri,
   minDataEntries = 40,
   timeoutMs = 10_000,
 ): Promise<void> {
   const deadline = Date.now() + timeoutMs;
+  let lastCount = -1;
+  let stablePolls = 0;
   while (Date.now() < deadline) {
     try {
       const tokens = (await vscode.commands.executeCommand(
@@ -876,10 +913,21 @@ async function waitForSemanticTokens(
       if (count >= minDataEntries) {
         return;
       }
+      if (count > 0 && count === lastCount) {
+        // Two consecutive identical non-empty reads: the server has finished.
+        if (++stablePolls >= 2) {
+          return;
+        }
+      } else {
+        stablePolls = 0;
+      }
+      lastCount = count;
     } catch {}
     await sleep(200);
   }
-  console.log(`[screenshot-demo] Semantic tokens timeout for ${uri.toString()}`);
+  console.log(
+    `[screenshot-demo] Semantic tokens timeout for ${uri.toString()} (last count ${lastCount})`,
+  );
 }
 
 async function sortProblemsBySeverity(): Promise<void> {
@@ -1246,18 +1294,22 @@ function buildScenes(): Scene[] {
           waitForSemanticTokens(split.left.document.uri, 50, 10_000),
           waitForSemanticTokens(split.right.document.uri, 50, 10_000),
         ]);
-        await waitForDiagnosticsReady(split.left.document.uri, {
-          minCount: 2,
-          minWarnings: 1,
-          timeoutMs: 12_000,
-          stableMs: 800,
-        });
-        await waitForDiagnosticsReady(split.right.document.uri, {
-          minCount: 2,
-          minWarnings: 1,
-          timeoutMs: 12_000,
-          stableMs: 800,
-        });
+        // Both panes settle concurrently — they are independent documents, and
+        // each wait costs its own stability window.
+        await Promise.all([
+          waitForDiagnosticsReady(split.left.document.uri, {
+            minCount: 2,
+            minWarnings: 1,
+            timeoutMs: 12_000,
+            stableMs: 800,
+          }),
+          waitForDiagnosticsReady(split.right.document.uri, {
+            minCount: 2,
+            minWarnings: 1,
+            timeoutMs: 12_000,
+            stableMs: 800,
+          }),
+        ]);
         await vscode.window.showTextDocument(split.right.document, {
           viewColumn: vscode.ViewColumn.Two,
           preserveFocus: false,
@@ -1804,16 +1856,23 @@ async function prepareAiScenes(): Promise<boolean> {
     console.log(
       `[screenshot-demo] Showing AI login prompt (attempt ${attempt + 1}/3, copilotDetected=${Boolean(copilot)})`,
     );
+    // Modal, not a toast. VS Code auto-hides information notifications, and a
+    // dismissed one was treated as "ask again" — so the prompt could flash past
+    // without ever pausing, which is the opposite of what it is for. A modal
+    // blocks until a button is chosen, so the run genuinely waits for the
+    // sign-in to be done.
     const choice = await vscode.window.showInformationMessage(
       message,
+      { modal: true },
       verifyLabel,
       "Open Sign-In",
       "Skip AI Screenshots",
     );
     if (!choice) {
-      console.log("[screenshot-demo] AI login toast dismissed — prompting again");
-      await sleep(400);
-      continue;
+      // Escape / Cancel on a modal is a deliberate "no" — take it as skip
+      // rather than reprompting forever.
+      console.log("[screenshot-demo] AI login dialog cancelled — skipping AI scenes");
+      return false;
     }
     if (choice === "Open Sign-In") {
       const started = await openAnyAvailableSignInFlow();
