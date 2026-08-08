@@ -25,7 +25,7 @@
 //! which is what makes the assertion meaningful rather than vacuous.
 
 use std::convert::Infallible;
-use std::future::{Ready, ready};
+use std::future::{Future, Ready, ready};
 use std::io;
 use std::pin::Pin;
 use std::sync::Arc;
@@ -114,6 +114,59 @@ impl Service<Request> for CountingService {
     }
 }
 
+/// A service whose handlers never finish, modelling a handler parked on a
+/// server-to-client request (`client.configuration(..).await`) whose reply can
+/// only be delivered by `read_input`.
+#[derive(Debug, Clone)]
+struct StuckService {
+    calls: Arc<AtomicUsize>,
+}
+
+/// A service whose handlers block, but only for `delay` — the shape
+/// `CLIENT_REQUEST_TIMEOUT` imposes on a config pull the editor never answers.
+#[derive(Debug, Clone)]
+struct SlowService {
+    calls: Arc<AtomicUsize>,
+    delay: std::time::Duration,
+}
+
+impl Service<Request> for SlowService {
+    type Response = Option<Response>;
+    type Error = Infallible;
+    type Future = Pin<Box<dyn Future<Output = Result<Self::Response, Self::Error>> + Send>>;
+
+    fn poll_ready(&mut self, _: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
+        Poll::Ready(Ok(()))
+    }
+
+    fn call(&mut self, req: Request) -> Self::Future {
+        self.calls.fetch_add(1, Ordering::SeqCst);
+        let (_method, id, _params) = req.into_parts();
+        let delay = self.delay;
+        Box::pin(async move {
+            tokio::time::sleep(delay).await;
+            Ok(id.map(|id| Response::from_parts(id, Ok(serde_json::Value::Null))))
+        })
+    }
+}
+
+impl Service<Request> for StuckService {
+    type Response = Option<Response>;
+    type Error = Infallible;
+    type Future = Pin<Box<dyn Future<Output = Result<Self::Response, Self::Error>> + Send>>;
+
+    fn poll_ready(&mut self, _: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
+        Poll::Ready(Ok(()))
+    }
+
+    fn call(&mut self, _req: Request) -> Self::Future {
+        self.calls.fetch_add(1, Ordering::SeqCst);
+        // Never resolves — exactly what awaiting a client reply that can no
+        // longer be read amounts to.
+        Box::pin(std::future::pending())
+    }
+}
+
 /// No server-to-client traffic of its own; the outbound pressure in this test
 /// comes from responses.
 struct NoLoopback;
@@ -190,5 +243,73 @@ async fn pumped_stdout_keeps_the_stdin_reader_running() {
     assert_eq!(
         drained, REQUESTS,
         "the server must keep reading stdin while the client is not reading stdout"
+    );
+}
+
+/// A **second** way to wedge the stdin reader, which the stdout pump does not
+/// address — recorded because it is a live hazard, not a hypothetical.
+///
+/// `buffer_unordered(DEFAULT_MAX_CONCURRENCY)` stops pulling from the task
+/// queue while its four slots are occupied. Handlers that never complete
+/// therefore let the 100-slot queue fill, after which `read_input` parks on
+/// `server_tasks_tx.send(..)` and stops reading stdin — with a perfectly
+/// healthy stdout.
+///
+/// That matters because several handlers here (`initialized`,
+/// `did_change_workspace_folders`, `did_change_watched_files`) `await`
+/// `client.configuration(..)`, a *server-to-client request*. Its reply arrives
+/// as a `Message::Response` on stdin, and only `read_input` can deliver it.
+/// Four concurrent config pulls with a burst behind them therefore close a
+/// cycle the stdout fix cannot open: the handlers wait for replies that the
+/// parked reader will never read.
+///
+/// This asserts the mechanism (stuck handlers stop the reader), not the
+/// LSP-level scenario. It is why `client.configuration` needs a timeout.
+#[tokio::test]
+async fn stuck_handlers_wedge_the_stdin_reader_even_with_a_healthy_stdout() {
+    let calls = Arc::new(AtomicUsize::new(0));
+    let service = StuckService {
+        calls: Arc::clone(&calls),
+    };
+    // A sink that accepts everything: stdout is explicitly not the problem.
+    let (stdout, _drain) = stdio_pump::pump(tokio::io::sink());
+    let served = Server::new(BurstThenIdle(burst()), stdout, NoLoopback).serve(service);
+    let _ = tokio::time::timeout(DRAIN_BUDGET, served).await;
+
+    let drained = calls.load(Ordering::SeqCst);
+    println!("with stuck handlers, the reader drained {drained}/{REQUESTS}");
+    assert!(
+        drained < REQUESTS,
+        "expected stuck handlers to stall the reader, but it drained all {REQUESTS}"
+    );
+}
+
+/// The property `CLIENT_REQUEST_TIMEOUT` buys: handlers that are *bounded*
+/// cannot wedge the reader, only slow it down.
+///
+/// This is the counterpart to
+/// `stuck_handlers_wedge_the_stdin_reader_even_with_a_healthy_stdout`. The only
+/// difference is that these handlers finish. Every request still gets through,
+/// which is why bounding `client.configuration(..)` turns a permanent deadlock
+/// into a bounded stall: the handler returns, its `buffer_unordered` slot
+/// frees, the queue drains, and `read_input` resumes.
+///
+/// The delay here is short so the test is quick; in the server the bound is
+/// `CLIENT_REQUEST_TIMEOUT`. What is under test is the shape, not the number.
+#[tokio::test]
+async fn bounded_handlers_only_slow_the_stdin_reader_down() {
+    let calls = Arc::new(AtomicUsize::new(0));
+    let service = SlowService {
+        calls: Arc::clone(&calls),
+        delay: std::time::Duration::from_millis(20),
+    };
+    let (stdout, _drain) = stdio_pump::pump(tokio::io::sink());
+    let served = Server::new(BurstThenIdle(burst()), stdout, NoLoopback).serve(service);
+    let _ = tokio::time::timeout(DRAIN_BUDGET, served).await;
+
+    assert_eq!(
+        calls.load(Ordering::SeqCst),
+        REQUESTS,
+        "handlers that finish must not be able to strand the reader"
     );
 }
