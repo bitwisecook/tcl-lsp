@@ -36,7 +36,9 @@
 #![no_std]
 
 mod diag_code;
-pub use diag_code::{DiagCode, DiagFamily, DiagSection, DocRow, OptCategory, UnknownDiagCode};
+pub use diag_code::{
+    DiagCode, DiagFamily, DiagSection, DiagTag, DocRow, OptCategory, UnknownDiagCode,
+};
 
 mod recursion;
 pub use recursion::{RecursionGuard, RecursionLimit};

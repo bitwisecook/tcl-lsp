@@ -530,6 +530,17 @@ Use braces: {{ \u{2026} }}"
                 if is_standard_ascii(ch) {
                     continue;
                 }
+                // Bidi formatting controls belong to W305, which scans the
+                // whole file — a bidi override reorders the text *around*
+                // itself, so a per-argument scan is the wrong shape — and
+                // reports at error severity rather than as a style warning.
+                // Skipping them here is what stops one character producing two
+                // codes; see `confusables_table::BIDI_CONTROLS` for the exact
+                // set, and for why directional *marks* and zero-width
+                // characters deliberately stay with W108. Issue #1326.
+                if super::super::confusables_table::is_bidi_control(ch) {
+                    continue;
+                }
                 if comments.iter().any(|r| r.contains(&rel)) && !is_review_hazard_unicode(ch) {
                     continue;
                 }

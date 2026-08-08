@@ -1673,8 +1673,10 @@ async fn widen_recovery_extra_commands(
             &key.requires,
             target,
             &|path| {
-                std::fs::read_to_string(path)
-                    .map(|text| defined_command_tails(&text, dialect))
+                // Shared decoder: a package implementation file with a stray
+                // high byte should still contribute its command names.
+                tcl_lsp_core::source_decode::read_source_file(path)
+                    .map(|(text, _)| defined_command_tails(&text, dialect))
                     .unwrap_or_default()
             },
         );
@@ -2921,7 +2923,7 @@ async fn publish_fast_tier(
             &disabled,
             style_line_length as usize,
         ));
-        apply_severity_overrides(&mut diagnostics, &severity_overrides);
+        finalise_diagnostics(&mut diagnostics, &severity_overrides);
         diagnostics
     })
     .await;
@@ -3045,7 +3047,7 @@ async fn refine_and_lift_diagnostics(
                 &analysis_lifts.suppressed_lines,
             ));
         }
-        apply_severity_overrides(&mut diagnostics, &severity_overrides);
+        finalise_diagnostics(&mut diagnostics, &severity_overrides);
         diagnostics
     })
     .await
@@ -5199,10 +5201,15 @@ impl Backend {
         // paths fall through to `None`.  `to_file_path` yields a borrowed
         // `Cow<Path>`; take ownership so the path can move into the blocking task.
         let path = url.to_file_path()?.into_owned();
-        let text = tokio::task::spawn_blocking(move || std::fs::read_to_string(path))
-            .await
-            .ok()?
-            .ok()?;
+        // Through the shared decoder, not `read_to_string`: a closed file with
+        // one ill-formed byte must still resolve its spans rather than vanish
+        // from cross-document navigation (issue #1326).
+        let (text, _) = tokio::task::spawn_blocking(move || {
+            tcl_lsp_core::source_decode::read_source_file(&path)
+        })
+        .await
+        .ok()?
+        .ok()?;
         let dialect = match self.resolve_folder_dialect(url).await {
             Some(d) => d,
             None => self.session_dialect().await,
@@ -5688,8 +5695,12 @@ impl Backend {
             // input and diagnostics describe the same script the editor would
             // see once the file is opened (issue: background and interactive
             // paths must not disagree about where a lone `\r` breaks a line).
-            let text =
-                tcl_lexer::normalise_lone_cr(&std::fs::read_to_string(&path).ok()?).into_owned();
+            // Read through the shared decoder (issue #1326): `read_to_string`
+            // would fail on ill-formed UTF-8 and `.ok()?` would then drop the
+            // whole file — its procs, its `source` edges, its symbols — out of
+            // the index with nothing said about it.
+            let (raw, _) = tcl_lsp_core::source_decode::read_source_file(&path).ok()?;
+            let text = tcl_lexer::normalise_lone_cr(&raw).into_owned();
             let dialect =
                 Self::dialect_for_closed_sync(&uri, &text, &folder_dialects, &default_dialect);
             let analysis = Analyser::new().analyse(&text, &dialect);
@@ -11528,7 +11539,7 @@ impl Backend {
                     &analysis.suppressed_lines,
                 ));
             }
-            apply_severity_overrides(&mut diagnostics, &severity_overrides);
+            finalise_diagnostics(&mut diagnostics, &severity_overrides);
             diagnostics
         })
         .await
@@ -12260,8 +12271,11 @@ impl Backend {
                         return None;
                     }
                     // Analysis form, matching `read_document` / `scan_disk_file`.
-                    let text = tcl_lexer::normalise_lone_cr(&std::fs::read_to_string(&path).ok()?)
-                        .into_owned();
+                    // Shared decoder, for the same reason `scan_disk_file`
+                    // uses it: an ill-formed byte must not silently remove the
+                    // file from the workspace index (issue #1326).
+                    let (raw, _) = tcl_lsp_core::source_decode::read_source_file(&path).ok()?;
+                    let text = tcl_lexer::normalise_lone_cr(&raw).into_owned();
                     let dialect = folder_dialect_for(&uri, &folder_dialects)
                         .unwrap_or_else(|| default_dialect.clone());
                     let mut analyser = Analyser::new();
@@ -17752,8 +17766,10 @@ fn refine_w123_diagnostics(
         HashSet::new()
     } else {
         resolver.package_defined_commands(available, target, &|path| {
-            std::fs::read_to_string(path)
-                .map(|text| defined_command_tails(&text, dialect))
+            // Shared decoder: a package implementation file with a stray high
+            // byte should still contribute its command names.
+            tcl_lsp_core::source_decode::read_source_file(path)
+                .map(|(text, _)| defined_command_tails(&text, dialect))
                 .unwrap_or_default()
         })
     };
@@ -18118,6 +18134,89 @@ fn append_brace_expr_perf_hints(
     diagnostics.extend(hints);
 }
 
+/// Finalise a lifted diagnostic set for publication: attach the LSP
+/// `DiagnosticTag`s the code table declares, then apply the user's severity
+/// overrides.
+///
+/// Every path that publishes diagnostics — the fast tier, the deep push, and
+/// the pull provider — goes through this one call, which is what makes the
+/// three agree on tags without each remembering to ask for them.  Order
+/// matters only in that tags are attached from the code, so a severity
+/// override changes how loud a diagnostic is and never what it is tagged as.
+fn finalise_diagnostics(
+    diagnostics: &mut Vec<tower_lsp_server::ls_types::Diagnostic>,
+    overrides: &std::collections::HashMap<String, tower_lsp_server::ls_types::DiagnosticSeverity>,
+) {
+    apply_encoding_abstention(diagnostics);
+    apply_diagnostic_tags(diagnostics);
+    apply_severity_overrides(diagnostics, overrides);
+}
+
+/// Abstain from everything but the encoding findings once W109 has said the
+/// document is not UTF-8 text (issue #1326).
+///
+/// A three-line UTF-16 iRule used to publish 87 diagnostics — `E102`s about
+/// braces that are really NUL bytes, `W108`s about characters that are half of
+/// a UTF-16 code unit, `W123`s about commands whose names are interleaved with
+/// NULs.  Every one of them is a statement about decoding artefacts rather than
+/// about the user's code, and each is *wrong* in the specific sense that
+/// matters: it points at a position that does not correspond to anything in
+/// the file.  Publishing one accurate finding and stopping is the honest
+/// answer.
+///
+/// This is abstention, not silence — the file is not left un-diagnosed, it is
+/// diagnosed with the only thing that can be said about it truthfully.  The
+/// three encoding codes themselves survive, since they are the answer.
+///
+/// Applied here, at the one point every publish path funnels through, so the
+/// fast tier, the deep push and the pull provider cannot disagree about it.
+fn apply_encoding_abstention(diagnostics: &mut Vec<tower_lsp_server::ls_types::Diagnostic>) {
+    use tower_lsp_server::ls_types::NumberOrString;
+    let code_of = |d: &tower_lsp_server::ls_types::Diagnostic| match &d.code {
+        Some(NumberOrString::String(c)) => Some(c.clone()),
+        _ => None,
+    };
+    if !diagnostics
+        .iter()
+        .any(|d| code_of(d).as_deref() == Some("W109"))
+    {
+        return;
+    }
+    diagnostics.retain(|d| matches!(code_of(d).as_deref(), Some("W107" | "W109" | "W305")));
+}
+
+/// Attach `Diagnostic.tags` from the diagnostic-code table (issue #1333).
+///
+/// The mapping lives in `tcl_core_types::DiagCode::lsp_tag` — declared next to
+/// each code, alongside its section and description — so tagging a diagnostic
+/// is a table edit and this function never changes.  In particular the
+/// *deprecated-command* diagnostics get their strikethrough because the code
+/// they carry is tagged, and which commands are deprecated is registry data;
+/// there is no command-name list here or anywhere else in the server.
+///
+/// A code the table does not tag keeps `tags: None` rather than an empty
+/// array: an empty `tags` is legal LSP but tells a client nothing, and `None`
+/// is what every untagged diagnostic in the server has always sent.
+fn apply_diagnostic_tags(diagnostics: &mut [tower_lsp_server::ls_types::Diagnostic]) {
+    use core::str::FromStr as _;
+    use tower_lsp_server::ls_types::{DiagnosticTag, NumberOrString};
+    for d in diagnostics.iter_mut() {
+        let Some(NumberOrString::String(code)) = &d.code else {
+            continue;
+        };
+        let Some(tag) = tcl_core_types::DiagCode::from_str(code)
+            .ok()
+            .and_then(tcl_core_types::DiagCode::lsp_tag)
+        else {
+            continue;
+        };
+        d.tags = Some(vec![match tag {
+            tcl_core_types::DiagTag::Unnecessary => DiagnosticTag::UNNECESSARY,
+            tcl_core_types::DiagTag::Deprecated => DiagnosticTag::DEPRECATED,
+        }]);
+    }
+}
+
 /// Apply user severity overrides (`tclLsp.diagnosticSeverity.<CODE>`) to the
 /// lifted diagnostics: a code present in `overrides` is re-published at the
 /// chosen [`DiagnosticSeverity`], leaving its range/message/code untouched.
@@ -18140,11 +18239,11 @@ fn apply_severity_overrides(
     }
 }
 
-/// Lift the source-style pass (W111 line length,
-/// W112 trailing whitespace, W115 comment continuation, W118 line
-/// endings) into LSP diagnostics.  These are pure source-text
-/// checks (no analyser / compiler unit needed); see
-/// `tcl_lsp_core::source_style`.
+/// Lift the source-text pass (W111 line length, W112 trailing whitespace,
+/// W115 comment continuation, W118 line endings, plus the W107 / W109 / W305
+/// encoding-integrity checks) into LSP diagnostics.  These are pure
+/// source-text checks (no analyser / compiler unit needed); see
+/// `tcl_lsp_core::source_style` and `tcl_lsp_core::source_decode`.
 ///
 /// `suppressed` is the analyser's `suppressed_lines` map — it
 /// carries both inline `# noqa` line suppressions and the
@@ -18153,6 +18252,12 @@ fn apply_severity_overrides(
 /// do.  The checks run with default settings (line length 120,
 /// expected line ending `\n`); there is no per-check feature-config
 /// surface.
+///
+/// The decode report is `None` here and always will be: an editor hands the
+/// server text it has already decoded, so the original bytes never reach this
+/// process.  That costs precision (no byte offset, no malformation class) but
+/// not the verdict — see `tcl_lsp_core::source_decode` for the contract, and
+/// `tcl diag`, which does read bytes, for the precise form.
 fn lift_source_style_diagnostics(
     text: &str,
     suppressed: &std::collections::HashMap<i32, std::collections::HashSet<String>>,
@@ -18177,6 +18282,7 @@ fn lift_source_style_diagnostics(
         DEFAULT_LINE_ENDING,
         &disabled,
         suppressed,
+        None,
     )
     .into_iter()
     .map(|d| tower_lsp_server::ls_types::Diagnostic {
@@ -18191,6 +18297,7 @@ fn lift_source_style_diagnostics(
             },
         },
         severity: Some(match d.severity {
+            StyleSeverity::Error => DiagnosticSeverity::ERROR,
             StyleSeverity::Warning => DiagnosticSeverity::WARNING,
             StyleSeverity::Hint => DiagnosticSeverity::HINT,
         }),

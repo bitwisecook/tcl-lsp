@@ -16,13 +16,89 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! Unicode confusables -> ASCII table (W108).
+//! Unicode confusables -> ASCII table (W108), and the bidirectional
+//! formatting-control table (W305).
 //!
 //! Derived from the Unicode confusables data
 //! (Public/security/8.0.0/confusables.txt).
 //! Sorted by codepoint for binary search via `confusable_to_ascii`.
 //! Only single-codepoint confusables are included (W108 scans
 //! char-by-char); multi-codepoint sequences are not table-keyed.
+//!
+//! # Bidi controls (Trojan Source)
+//!
+//! A homoglyph makes one *character* look like another; a bidi control makes a
+//! whole *run* of characters render in an order other than the one it is
+//! stored — and therefore parsed and executed — in.  Both defeat review by the
+//! same mechanism (what the reviewer sees is not what runs), which is why they
+//! share this module, but they warrant different codes: a homoglyph is a
+//! plausible copy-paste accident (W108, warning, with an ASCII quick-fix),
+//! whereas a bidi override in source has essentially no legitimate use and is
+//! the published "Trojan Source" attack (W305, error, no quick-fix — the
+//! character has to go, and only the author knows what the code was meant to
+//! say).
+//!
+//! See [`BIDI_CONTROLS`] for the exact set and its deliberate limits.
+
+/// The bidirectional **formatting controls** — embeddings, overrides, and
+/// isolates — paired with their Unicode names, sorted by codepoint.
+///
+/// This is exactly the set the Trojan Source paper (CVE-2021-42574) and
+/// `rustc`'s `text_direction_codepoint_in_literal` lint cover.  Each of these
+/// characters opens or closes a region whose *visual* order differs from its
+/// *logical* order, so a reviewer reading rendered source can be shown
+/// statements in a different order — or shown a comment where an executable
+/// statement sits.
+///
+/// **Deliberately excluded**, because including them would fire on ordinary
+/// right-to-left prose and drown the real signal:
+///
+/// * `U+200E` LEFT-TO-RIGHT MARK / `U+200F` RIGHT-TO-LEFT MARK and `U+061C`
+///   ARABIC LETTER MARK — *marks*, not overrides.  They nudge the resolved
+///   direction of a single neutral character and are routinely written by hand
+///   in legitimate bidirectional text; they cannot reorder a run.
+/// * Arabic, Hebrew, Thaana, and N'Ko letters themselves.  Right-to-left
+///   *content* is not an attack; only a control that lies about order is.
+/// * Zero-width and other invisible characters (`U+200B`-`U+200D`, `U+2060`,
+///   a mid-file `U+FEFF`).  They can hide or split an identifier, which is a
+///   real hazard — but it is the *homoglyph / confusable* hazard, so they stay
+///   with W108 rather than being folded into a bidi code.
+pub static BIDI_CONTROLS: &[(char, &str)] = &[
+    ('\u{202a}', "LEFT-TO-RIGHT EMBEDDING"),
+    ('\u{202b}', "RIGHT-TO-LEFT EMBEDDING"),
+    ('\u{202c}', "POP DIRECTIONAL FORMATTING"),
+    ('\u{202d}', "LEFT-TO-RIGHT OVERRIDE"),
+    ('\u{202e}', "RIGHT-TO-LEFT OVERRIDE"),
+    ('\u{2066}', "LEFT-TO-RIGHT ISOLATE"),
+    ('\u{2067}', "RIGHT-TO-LEFT ISOLATE"),
+    ('\u{2068}', "FIRST STRONG ISOLATE"),
+    ('\u{2069}', "POP DIRECTIONAL ISOLATE"),
+];
+
+/// The Unicode name of `ch` when it is a bidi formatting control
+/// ([`BIDI_CONTROLS`]), else `None`.
+///
+/// ```
+/// use tcl_compiler::analyser::confusables_table::bidi_control_name;
+///
+/// assert_eq!(bidi_control_name('\u{202e}'), Some("RIGHT-TO-LEFT OVERRIDE"));
+/// // Arabic *content* is not a control.
+/// assert_eq!(bidi_control_name('م'), None);
+/// ```
+#[must_use]
+pub fn bidi_control_name(ch: char) -> Option<&'static str> {
+    BIDI_CONTROLS
+        .binary_search_by(|&(c, _)| c.cmp(&ch))
+        .ok()
+        .map(|i| BIDI_CONTROLS[i].1)
+}
+
+/// Whether `ch` is a bidi formatting control — the W305 membership test, and
+/// the exclusion W108 applies so one character never produces both codes.
+#[must_use]
+pub fn is_bidi_control(ch: char) -> bool {
+    bidi_control_name(ch).is_some()
+}
 
 /// Confusable codepoint -> its ASCII skeleton, sorted by `char`.
 pub(crate) static CONFUSABLE_TO_ASCII: &[(char, &str)] = &[
