@@ -33,6 +33,7 @@ import {
   scaledTimeout,
   serverTransportWedged,
   waitForDiagnostics,
+  waitForProviderResult,
 } from "./helper";
 
 // Properties of the wait discipline itself (issue #1274).
@@ -171,6 +172,51 @@ suite("Wait discipline (issue #1274)", () => {
     assert.ok(
       elapsed < boundCeiling(base),
       `stall must fail at its bound; took ${elapsed}ms for a ${base}ms base`,
+    );
+  });
+
+  test("waitForProviderResult rejects loudly when the provider's answer never changes (issue #1295 shape)", async () => {
+    // The shape #1295 exists to catch: a feature-toggle "after" sample whose
+    // provider keeps answering with its pre-toggle result. Prove the failure
+    // is loud (rejects, names what was awaited and what was last seen)
+    // rather than silent (resolving with the stale value and letting the
+    // caller's assertion pass or fail on its own, or worse, pass vacuously).
+    await activate(docUri);
+    const base = 500;
+    const started = Date.now();
+    let probes = 0;
+    let error: Error | undefined;
+    try {
+      const result = await waitForProviderResult<number>(
+        docUri,
+        () => {
+          probes++;
+          return 7; // a "depth" that never drops, as if a toggle never took effect
+        },
+        (depth) => depth < 7,
+        { timeout: base, backstopInterval: 20, label: "depth to drop below 7" },
+      );
+      assert.fail(`waitForProviderResult resolved with ${result} instead of rejecting`);
+    } catch (err) {
+      error = err as Error;
+    }
+    const elapsed = Date.now() - started;
+    assert.ok(error, "expected a rejection");
+    assert.ok(
+      error.message.includes("VSCODE-WAIT-TIMEOUT"),
+      `failure must carry the greppable marker: ${error.message}`,
+    );
+    assert.ok(
+      error.message.includes("depth to drop below 7"),
+      `failure must name what was awaited: ${error.message}`,
+    );
+    assert.ok(
+      elapsed < boundCeiling(base),
+      `stall must fail at its bound; took ${elapsed}ms for a ${base}ms base`,
+    );
+    assert.ok(
+      probes > 1,
+      `the provider must have been re-probed, not sampled once; got ${probes} probe(s)`,
     );
   });
 
