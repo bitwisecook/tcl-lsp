@@ -12769,7 +12769,8 @@ fn analyse_w308_tp_1329_object_command_cannot_reach_unexported_builtins() {
     // everywhere": the object's own command really does *not* expose it
     // (tclsh 9.0.4: `$obj varname v` -> `unknown method "varname"`), so this
     // stays a true positive.
-    let src = "oo::class create C {\n    method m {} { return 1 }\n}\nC create obj\nobj varname v\n";
+    let src =
+        "oo::class create C {\n    method m {} { return 1 }\n}\nC create obj\nobj varname v\n";
     assert_eq!(
         dispatch_codes(src),
         vec!["W308".to_string()],
@@ -12850,7 +12851,10 @@ fn analyse_w308_fp_1329_disturbed_self_dispatch_keyword_abstains() {
     // `my` may not be TclOO's dispatcher at all. Order-independent: the
     // `rename` written *after* the class body still governs, because the
     // method body only runs later.
-    let shadowed = format!("proc my {{args}} {{}}\n{}", cls_1329("        my nosuchmethod\n"));
+    let shadowed = format!(
+        "proc my {{args}} {{}}\n{}",
+        cls_1329("        my nosuchmethod\n")
+    );
     let renamed = format!("{}rename my mine\n", cls_1329("        my nosuchmethod\n"));
     let aliased = format!(
         "{}interp alias {{}} my {{}} puts\n",
@@ -12952,6 +12956,9 @@ fn analyse_w308_1330_quick_fix_span_matches_the_diagnostic() {
         .first()
         .unwrap_or_else(|| panic!("a `did you mean` fix expected; got {d:?}"));
     assert_eq!(fix.span, d.span, "fix must rewrite the word it points at");
-    assert_eq!(&src[fix.span.start() as usize..fix.span.end() as usize], "bakr");
+    assert_eq!(
+        &src[fix.span.start() as usize..fix.span.end() as usize],
+        "bakr"
+    );
     assert_eq!(fix.new_text, "bark");
 }

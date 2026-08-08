@@ -2852,7 +2852,9 @@ fn builtin_object_methods_are_reach_gated() {
     // reaches find it.
     for reach in [MethodReach::ObjectCommand, MethodReach::SelfDispatch] {
         assert!(
-            TCLOO_GRAMMAR.builtin_object_method("destroy", reach).is_some(),
+            TCLOO_GRAMMAR
+                .builtin_object_method("destroy", reach)
+                .is_some(),
             "`destroy` is exported, so every reach finds it"
         );
     }
@@ -2899,7 +2901,11 @@ fn builtin_object_methods_are_reach_gated() {
             &SNIT_GRAMMAR,
             &["configure", "configurelist", "cget", "destroy", "info"][..],
         ),
-        ("itcl", &ITCL_GRAMMAR, &["configure", "cget", "isa", "info"][..]),
+        (
+            "itcl",
+            &ITCL_GRAMMAR,
+            &["configure", "cget", "isa", "info"][..],
+        ),
     ] {
         for name in names {
             for reach in [MethodReach::ObjectCommand, MethodReach::SelfDispatch] {

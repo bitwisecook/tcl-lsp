@@ -1730,14 +1730,7 @@ impl Analyser {
         if self.validate_method_on_class(cls_qn, method, Some(class_def), hierarchy, reach) {
             return None;
         }
-        Some(self.w308_diagnostic(
-            method,
-            cls_qn,
-            &[cls_qn],
-            hierarchy,
-            method_span,
-            cmd_span,
-        ))
+        Some(self.w308_diagnostic(method, cls_qn, &[cls_qn], hierarchy, method_span, cmd_span))
     }
 
     /// Whether a recorded method word is a **literal** name the static
@@ -1927,9 +1920,7 @@ impl Analyser {
         let mut consumed: HashSet<String> = self
             .var_command_sites
             .iter()
-            .filter(|s| {
-                s.receiver != crate::analyser::state::DispatchReceiver::SelfDispatch
-            })
+            .filter(|s| s.receiver != crate::analyser::state::DispatchReceiver::SelfDispatch)
             .map(|s| base_of(&s.var_name))
             .collect();
         for site in &self.cmd_command_sites {
