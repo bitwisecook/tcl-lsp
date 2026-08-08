@@ -2816,3 +2816,105 @@ fn bare_word_construction_is_declared_per_definer_family() {
         assert!(grammar.member_body_command("nosuchword").is_none());
     }
 }
+
+/// The built-in **object** methods each definer family supplies, and — the
+/// load-bearing half — which dispatch spellings can reach each one.
+///
+/// oracle: tclsh 9.0.4 and 8.6.16, byte-identical on both:
+///
+/// ```text
+/// info class methods ::oo::object -all -private
+///   -> <cloned> destroy eval unknown variable varname
+/// info class methods ::oo::class -all -private
+///   -> <cloned> create createWithNamespace destroy eval new unknown variable varname
+/// ```
+///
+/// and, from inside a method of a class declaring only `probe`:
+///
+/// ```text
+/// my varname v      -> ::oo::Obj22::v
+/// [self] varname v  -> unknown method "varname": must be destroy or probe
+/// $obj varname v    -> unknown method "varname": must be destroy or probe
+/// ```
+///
+/// That last pair is the guard for issue #1329: `my` bypasses TclOO's export
+/// filter and the object's own command does not, so a consumer diagnosing an
+/// unknown method must ask with the right `MethodReach` or it will either
+/// false-positive on the idiomatic `my variable v` or wave through the real
+/// error `$obj varname v`.
+#[test]
+fn builtin_object_methods_are_reach_gated() {
+    use tcl_registry::definer::{
+        BuiltinMethodReceiver, ITCL_GRAMMAR, MethodReach, SNIT_GRAMMAR, TCLOO_GRAMMAR,
+    };
+
+    // `destroy` is the one exported member every TclOO object has: both
+    // reaches find it.
+    for reach in [MethodReach::ObjectCommand, MethodReach::SelfDispatch] {
+        assert!(
+            TCLOO_GRAMMAR.builtin_object_method("destroy", reach).is_some(),
+            "`destroy` is exported, so every reach finds it"
+        );
+    }
+
+    // The unexported five are reachable only through `my`.
+    for name in ["eval", "unknown", "variable", "varname", "<cloned>"] {
+        assert!(
+            TCLOO_GRAMMAR
+                .builtin_object_method(name, MethodReach::SelfDispatch)
+                .is_some(),
+            "`my {name}` must resolve"
+        );
+        assert!(
+            TCLOO_GRAMMAR
+                .builtin_object_method(name, MethodReach::ObjectCommand)
+                .is_none(),
+            "`$obj {name}` / `[self] {name}` is a real error, not a builtin"
+        );
+    }
+
+    // The class-object constructors are recorded as such, so a consumer with
+    // receiver-kind evidence can narrow; one without may accept both.
+    for name in ["new", "create", "createWithNamespace"] {
+        let m = TCLOO_GRAMMAR
+            .builtin_object_method(name, MethodReach::ObjectCommand)
+            .unwrap_or_else(|| panic!("`{name}` is an exported class-object method"));
+        assert_eq!(m.receiver, BuiltinMethodReceiver::ClassObject, "{name}");
+    }
+
+    // A word no class system supplies answers for nobody.
+    for grammar in [&TCLOO_GRAMMAR, &SNIT_GRAMMAR, &ITCL_GRAMMAR] {
+        assert!(
+            grammar
+                .builtin_object_method("nosuchmethod", MethodReach::SelfDispatch)
+                .is_none()
+        );
+    }
+
+    // snit and itcl dispatch through their own generated machinery, which has
+    // no `my`-only tier — every builtin of theirs is reachable either way.
+    for (what, grammar, names) in [
+        (
+            "snit",
+            &SNIT_GRAMMAR,
+            &["configure", "configurelist", "cget", "destroy", "info"][..],
+        ),
+        ("itcl", &ITCL_GRAMMAR, &["configure", "cget", "isa", "info"][..]),
+    ] {
+        for name in names {
+            for reach in [MethodReach::ObjectCommand, MethodReach::SelfDispatch] {
+                assert!(
+                    grammar.builtin_object_method(name, reach).is_some(),
+                    "{what} instances have `{name}`"
+                );
+            }
+        }
+        // `new` is TclOO's constructor spelling and belongs to no other family.
+        assert!(
+            grammar
+                .builtin_object_method("new", MethodReach::ObjectCommand)
+                .is_none(),
+            "{what} constructs through its own type command, never `new`"
+        );
+    }
+}
