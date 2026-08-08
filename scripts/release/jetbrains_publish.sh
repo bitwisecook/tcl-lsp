@@ -69,18 +69,46 @@ fi
 [ -f "$zip" ] || { echo "error: plugin zip not found: $zip" >&2; exit 1; }
 echo "Uploading $zip to the JetBrains Marketplace (xmlId=$XML_ID${channel:+, channel=$channel})"
 
-# --fail-with-body: non-2xx becomes a non-zero exit while still printing the
-# server's error body (a bare --fail hides it).  channel is passed only when
-# non-empty so a stable release genuinely uses the Marketplace default.
+# The status check is ours rather than curl's --fail-with-body, which exits
+# non-zero on a 4xx: inside the http_code="$(curl …)" assignment under `set -e`
+# that aborts the script *before* the body is printed, so the Marketplace's
+# stated reason is lost exactly when it is needed.  (That is how a v2.1.16 eap
+# upload failed with a bare `curl: (22) … error: 400` and nothing else.)  So
+# curl only transports here: its exit status is captured without killing the
+# shell, the body is printed unconditionally, and the HTTP code is judged
+# afterwards.  channel is passed only when non-empty so a stable release
+# genuinely uses the Marketplace default.
+response_body="$(mktemp)"
+trap 'rm -f "$response_body"' EXIT
+
+set +e
 http_code="$(
-    curl --fail-with-body -sS -o /tmp/jb-upload-response.txt -w '%{http_code}' \
+    curl -sS -o "$response_body" -w '%{http_code}' \
         --header "Authorization: Bearer ${JETBRAINS_TOKEN}" \
         -F "xmlId=${XML_ID}" \
         ${channel:+-F "channel=${channel}"} \
         -F "file=@${zip}" \
         "$UPLOAD_URL"
 )"
+curl_status=$?
+set -e
+
+# A transport-level failure (DNS, TLS, connection reset) means there may be no
+# HTTP status at all, so report curl's own error rather than an empty code.
+if [ "$curl_status" -ne 0 ]; then
+    echo "error: curl failed with exit status $curl_status before a complete HTTP response" >&2
+    [ -s "$response_body" ] && cat "$response_body" >&2
+    exit 1
+fi
 
 echo "Marketplace responded HTTP $http_code"
-cat /tmp/jb-upload-response.txt
+cat "$response_body"
 echo
+
+case "$http_code" in
+    2??) ;;
+    *)
+        echo "error: JetBrains Marketplace upload failed with HTTP $http_code (see the response body above)" >&2
+        exit 1
+        ;;
+esac
