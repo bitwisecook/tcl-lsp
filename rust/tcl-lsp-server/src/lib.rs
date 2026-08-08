@@ -31,6 +31,7 @@
 #![forbid(unsafe_code)]
 
 pub mod config_ini;
+pub mod stdio_pump;
 pub mod uri_norm;
 
 use std::collections::{HashMap, HashSet, VecDeque};
