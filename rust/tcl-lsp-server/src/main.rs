@@ -27,6 +27,7 @@
 #![forbid(unsafe_code)]
 
 use tcl_lsp_server::Backend;
+use tcl_lsp_server::stdio_pump;
 use tcl_lsp_server::uri_norm::normalise_uris_in_params;
 use tower::ServiceExt as _;
 use tower_lsp_server::jsonrpc::{Request, Response};
@@ -128,7 +129,17 @@ fn main() {
 
 async fn serve() {
     let stdin = tokio::io::stdin();
-    let stdout = tokio::io::stdout();
+    // INVARIANT (no wedged sessions): the transport's write half must never be
+    // the reason its read half stops. `tower-lsp-server` 0.23 joins
+    // `read_input`, `process_server_tasks` and `print_output` on one task,
+    // chained by bounded channels, so a client that stops draining stdout
+    // seizes the chain all the way back to the only thing reading stdin — and
+    // a server that has stopped reading stdin makes the client block in
+    // `write()`, which is why it never resumes draining stdout. That is the
+    // 8h45m hang in issue #1334, and the server-wide unresponsiveness in
+    // #1294. `stdio_pump::pump` decouples the two halves; its module docs
+    // carry the full derivation and the reason the queue has to be unbounded.
+    let (stdout, stdout_drained) = stdio_pump::pump(tokio::io::stdout());
     let (service, socket) = LspService::new(Backend::new);
     // Wrap the service so every incoming message passes through the URI
     // canonicalisation shim (a no-op for a conforming client) and every
@@ -137,27 +148,34 @@ async fn serve() {
     let service = service
         .map_request(normalise_request_uris)
         .map_response(|resp: Option<Response>| resp.map(inject_type_hierarchy_provider));
-    // INVARIANT (no lost diagnostics under a slow client): the diagnostics
-    // delivery path relies on this transport being *bounded and
-    // backpressured*. `tower-lsp-server` 0.23 gives the `Client` a bounded
+    // INVARIANT (no lost and no reordered diagnostics under a slow client):
+    // the delivery path needs outbound messages to be *ordered* and *never
+    // dropped*. `tower-lsp-server` 0.23 gives the `Client` a bounded
     // `futures::mpsc::channel(1)` drained by a single `.forward(FramedWrite(
-    // stdout))`, so a `client.publish_diagnostics(..).await` suspends when the
-    // channel is full and resolves only once the message is durably queued —
-    // it never `try_send`s (drop-on-full) and never buffers unboundedly. That
-    // awaited backpressure *is* the "wait for the buffer to drain" behaviour; a
-    // burst of publishes to a slow client is throttled, not lost.
+    // stdout))`, so a `client.publish_diagnostics(..).await` resolves only
+    // once the message is durably queued — it never `try_send`s
+    // (drop-on-full). Behind that, `stdio_pump` keeps a single FIFO queue
+    // drained by a single writer task, so ordering and no-drop both hold end
+    // to end; what it deliberately does not do is make a slow client stall the
+    // producer, because that coupling is what deadlocked the session (#1334).
     //
     // Two things must not silently break this — re-audit the whole delivery
     // path (`deliver_diagnostics`, `deliver_fast_tier_if_current`,
     // `publish_diagnostics_result`) if either changes:
-    //   1. Swapping `tower-lsp-server` for a build whose client channel is
-    //      unbounded or uses `try_send` — outbound would then grow without
-    //      bound or drop under load. The dep is version-pinned in `Cargo.toml`;
-    //      treat an upgrade that touches its transport as a delivery-review gate.
+    //   1. Swapping `tower-lsp-server` for a build whose client channel uses
+    //      `try_send`, or reordering the outbound path so more than one task
+    //      writes to the pump — outbound would then drop or interleave. The dep
+    //      is version-pinned in `Cargo.toml`; treat an upgrade that touches its
+    //      transport as a delivery-review gate.
     //   2. Making any diagnostics publish fire-and-forget (e.g. wrapping it in a
     //      detached `tokio::spawn` to avoid holding the `documents` lock across
-    //      the send). That discards backpressure: publishes would reorder and
-    //      accumulate unboundedly, and a state-gated/disconnected drop would go
-    //      unnoticed. Delivery MUST stay an inline `.await`.
+    //      the send). Concurrent publishes would reorder, and a
+    //      state-gated/disconnected drop would go unnoticed. Delivery MUST stay
+    //      an inline `.await`.
     Server::new(stdin, stdout, socket).serve(service).await;
+    // `serve` has returned, so the transport's `FramedWrite` — and with it the
+    // pump's sender — has been dropped, which is what lets the drain task
+    // finish. Awaiting it here is what stops a burst of diagnostics sitting in
+    // the queue from being lost to `main` returning out from under it.
+    let _ = stdout_drained.await;
 }
