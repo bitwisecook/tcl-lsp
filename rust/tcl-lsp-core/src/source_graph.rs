@@ -1652,4 +1652,114 @@ mod tests {
         assert!(!RunOrder::trusted(true, bound, bound));
         assert!(!RunOrder::trusted(false, bound, bound));
     }
+
+    // ---------------------------------------------------------------------
+    // `descendant_requires` — the up direction (issue #1332)
+    //
+    // Oracle for the whole group, C Tcl 9.0.4:
+    //
+    // ```
+    // % cat child.tcl
+    // package require msgcat
+    // % cat t1.tcl
+    // puts [expr {[lsearch -exact [package names] msgcat] >= 0}]  ;# 0
+    // source child.tcl
+    // puts [package present msgcat]                               ;# 1.7.1
+    // ```
+    //
+    // i.e. the package is absent before the `source` statement and present
+    // after it — which is why these results carry a position.
+    // ---------------------------------------------------------------------
+
+    // Load-level `source` edges are built with the module-test `edge` helper
+    // defined above for the `ancestor_prefer_latest_raised` group — same
+    // shape, same meaning, so it is shared rather than duplicated.
+
+    /// The reported #1332 shape: `main.tcl` sources `tkFile.tcl`, which
+    /// requires Tk. Tk becomes available to `main` *at the source statement*.
+    #[test]
+    fn descendant_requires_carries_a_sourced_files_package_up() {
+        let edges = vec![edge("main", "tk", 7)];
+        let requires = reqs(&[("tk", &["Tk"])]);
+        let got = descendant_requires("main", &edges, &requires);
+        assert_eq!(got.len(), 1, "{got:?}");
+        assert_eq!(got[0].name, "Tk");
+        assert_eq!(
+            got[0].at, 7,
+            "the package arrives at the `source` statement, not at offset 0",
+        );
+    }
+
+    /// A file that sources something requiring nothing contributes nothing —
+    /// the TN that keeps `source`-following from silencing W120 wholesale.
+    #[test]
+    fn descendant_requires_is_empty_for_a_sourced_file_with_no_requires() {
+        let edges = vec![edge("main", "plain", 7)];
+        let requires = reqs(&[("plain", &[])]);
+        assert!(descendant_requires("main", &edges, &requires).is_empty());
+    }
+
+    /// Transitive: `main` → `mid` → `leaf`. `leaf`'s package reaches `main`,
+    /// attributed to the position of *`main`'s own* `source`, since that is
+    /// where the whole subtree enters `main`'s run.
+    #[test]
+    fn descendant_requires_is_transitive_and_placed_at_the_first_hop() {
+        let edges = vec![edge("main", "mid", 12), edge("mid", "leaf", 400)];
+        let requires = reqs(&[("leaf", &["Tk"])]);
+        let got = descendant_requires("main", &edges, &requires);
+        assert_eq!(got.len(), 1, "{got:?}");
+        assert_eq!(got[0].name, "Tk");
+        assert_eq!(
+            got[0].at, 12,
+            "a transitive package enters at the outermost hop's position, not \
+             at an offset that belongs to a different document",
+        );
+    }
+
+    /// A cycle terminates instead of spinning, and still reports what it found.
+    #[test]
+    fn descendant_requires_terminates_on_a_cycle() {
+        let edges = vec![edge("a", "b", 5), edge("b", "a", 9)];
+        let requires = reqs(&[("b", &["Tk"])]);
+        let got = descendant_requires("a", &edges, &requires);
+        assert_eq!(got.len(), 1, "{got:?}");
+        assert_eq!(got[0].name, "Tk");
+    }
+
+    /// The target's *own* requires are the single-document question and are
+    /// never reported here — otherwise a file would inherit from itself and
+    /// the caller would double-count.
+    #[test]
+    fn descendant_requires_excludes_the_targets_own_requires() {
+        let edges = vec![edge("main", "child", 7)];
+        let requires = reqs(&[("main", &["http"]), ("child", &["Tk"])]);
+        let got = descendant_requires("main", &edges, &requires);
+        assert_eq!(got.iter().map(|p| p.name.as_str()).collect::<Vec<_>>(), ["Tk"]);
+    }
+
+    /// Only `source` edges are followed. A `package require` edge bounds when
+    /// a provider ran but says nothing about *this* document acquiring it, so
+    /// it must not contribute — otherwise every document requiring a package
+    /// would inherit every other requirer's packages.
+    #[test]
+    fn descendant_requires_ignores_package_require_edges() {
+        let mut e = edge("main", "provider", 7);
+        e.kind = RunEdgeKind::PackageRequire;
+        let requires = reqs(&[("provider", &["Tk"])]);
+        assert!(descendant_requires("main", &[e], &requires).is_empty());
+    }
+
+    /// A file sourced from two places contributes at both positions, so a
+    /// caller gating on offset gets the right answer at each.
+    #[test]
+    fn descendant_requires_reports_a_twice_sourced_file_at_both_positions() {
+        let edges = vec![edge("main", "tk", 7), edge("main", "tk", 90)];
+        let requires = reqs(&[("tk", &["Tk"])]);
+        let got = descendant_requires("main", &edges, &requires);
+        assert_eq!(
+            got.iter().map(|p| p.at).collect::<Vec<_>>(),
+            [7, 90],
+            "{got:?}",
+        );
+    }
 }
