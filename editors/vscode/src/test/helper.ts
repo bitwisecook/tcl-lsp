@@ -599,6 +599,48 @@ const LIVENESS_PROBE_FIXTURE = "livenessProbe.tcl";
  *  answered in this long has answered "no". */
 const LIVENESS_PROBE_BUDGET_MS = 4_000;
 
+/**
+ * Set once a liveness probe has confirmed a **transport-level** wedge: the
+ * server did not answer even a request that touches no document.
+ *
+ * That verdict is terminal, not transient. Every test after it pays its whole
+ * wait budget to re-discover the same dead server: issue #1294's second
+ * occurrence spent ~27 of its 32 minutes that way, 47 tests × ~34s, after the
+ * first failure had already diagnosed the fault. The run learned nothing in
+ * that time and reported it half an hour later than it could have.
+ *
+ * Deliberately *only* the transport verdict. The other three
+ * [`classifyLiveness`] outcomes are recoverable — a dropped request, or one
+ * document's queue stuck while the rest of the suite runs fine — and skipping
+ * on those would hide real, attributable failures.
+ */
+let transportWedgeConfirmed = false;
+
+/** Whether a probe has confirmed a terminal, server-wide wedge (see above). */
+export function serverTransportWedged(): boolean {
+  return transportWedgeConfirmed;
+}
+
+/** Reset the wedge latch — for tests of this module only. */
+export function resetServerTransportWedged(): void {
+  transportWedgeConfirmed = false;
+}
+
+/**
+ * Arm [`serverTransportWedged`] if — and only if — `outcomes` is the terminal
+ * transport verdict. Kept separate from the asking, for the same reason
+ * [`classifyLiveness`] is: the decision is then a pure function of three
+ * booleans, so every branch can be pinned without a server behind it.
+ *
+ * Latch-only: it never clears the flag, so a later probe that happens to get
+ * an answer out of a dying server cannot un-diagnose an earlier wedge.
+ */
+export function latchFromOutcomes(outcomes: LivenessOutcomes): void {
+  if (!outcomes.transport.answered) {
+    transportWedgeConfirmed = true;
+  }
+}
+
 /** How one liveness question went. */
 export interface ProbeOutcome {
   answered: boolean;
@@ -729,6 +771,11 @@ export function serverLivenessDiagnostic(stalledUri: vscode.Uri): TimeoutDiagnos
         budget,
       ),
     ]);
+
+    // Latch the terminal verdict so the rest of the run stops paying full wait
+    // budgets to rediscover a server that is already gone (see
+    // `transportWedgeConfirmed`).
+    latchFromOutcomes({ transport, otherDocument: otherDoc, retry });
 
     const describe = (name: string, p: ProbeOutcome) =>
       `${name} ${p.answered ? "answered" : "did NOT answer"} after ${p.afterMs}ms` +

@@ -25,10 +25,13 @@ import {
   classifyLiveness,
   DIAGNOSTIC_BUDGET_MS,
   getDocUri,
+  latchFromOutcomes,
   loadFactor,
   MAX_LOAD_FACTOR,
   type ProbeOutcome,
+  resetServerTransportWedged,
   scaledTimeout,
+  serverTransportWedged,
   waitForDiagnostics,
 } from "./helper";
 
@@ -312,6 +315,40 @@ suite("Wait discipline (issue #1274)", () => {
       }),
       /SERVER WEDGED/,
     );
+  });
+
+  // Issue #1294: once the server answers nothing, every later test can only
+  // re-pay its wait budget to learn the same thing. The latch is what lets the
+  // runner skip them, so it must arm on exactly the terminal verdict and no
+  // other.
+  test("only a transport-level wedge latches the skip-the-rest flag", () => {
+    resetServerTransportWedged();
+    assert.strictEqual(serverTransportWedged(), false, "latch must start clear");
+
+    // Recoverable verdicts must NOT latch: a stuck document queue, or a
+    // request that was merely dropped, still leaves a suite that can run.
+    for (const recoverable of [
+      { transport: outcome(true), otherDocument: outcome(false), retry: outcome(false) },
+      { transport: outcome(true), otherDocument: outcome(true), retry: outcome(true) },
+      { transport: outcome(true), otherDocument: outcome(true), retry: outcome(false) },
+    ]) {
+      latchFromOutcomes(recoverable);
+      assert.strictEqual(
+        serverTransportWedged(),
+        false,
+        `a recoverable verdict must not latch: ${classifyLiveness(recoverable)}`,
+      );
+    }
+
+    // The terminal verdict arms it.
+    latchFromOutcomes({
+      transport: outcome(false),
+      otherDocument: outcome(true),
+      retry: outcome(true),
+    });
+    assert.strictEqual(serverTransportWedged(), true, "a transport wedge must latch");
+
+    resetServerTransportWedged();
   });
 
   test("a timeout carries its follow-up probe's verdict", async () => {

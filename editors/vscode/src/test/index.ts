@@ -23,6 +23,7 @@ import { glob } from "glob";
 import { scaledTimeout } from "./signal";
 import { createHeartbeatWriter, MOCHA_TEST_TIMEOUT_BASE_MS } from "./runnerWatchdog";
 import { probeServer } from "./serverProbe";
+import { serverTransportWedged } from "./helper";
 
 // Register a require hook so tsc-compiled output can load .md files at runtime.
 // (In production the esbuild bundle uses --loader:.md=text to inline them.)
@@ -89,6 +90,22 @@ export async function run(): Promise<void> {
   for (const f of files) {
     mocha.addFile(path.resolve(testsRoot, f));
   }
+
+  // Once a liveness probe has confirmed the server answers nothing at all, the
+  // remaining tests cannot pass and cannot learn anything new — they can only
+  // each burn a full wait budget rediscovering it. Skip them instead, so a
+  // wedged run reports in about the time a healthy one takes rather than
+  // grinding to the watchdog's absolute ceiling (issue #1294; the second
+  // occurrence spent ~27 of its 32 minutes this way).
+  //
+  // A skip, not a bail: the failure that *did* diagnose the wedge stays in the
+  // report as a failure, and the skipped count makes the lost coverage visible
+  // instead of silently shrinking the suite.
+  mocha.suite.beforeEach(function skipWhenServerWedged(this: Mocha.Context) {
+    if (serverTransportWedged()) {
+      this.skip();
+    }
+  });
 
   const heartbeatWriter = createHeartbeatWriter({ heartbeatMarker, probeServer });
 
