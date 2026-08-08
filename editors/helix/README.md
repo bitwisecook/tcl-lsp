@@ -5,37 +5,28 @@ Helix has built-in LSP support. Add the following to your `languages.toml`
 
 ## Prerequisites
 
-**Python 3.10+** is required. We recommend the latest stable Python
-(currently 3.14). Install via [Homebrew](https://docs.brew.sh/Homebrew-and-Python)
-(`brew install python@3.14`) or [python.org](https://www.python.org/downloads/).
+The `tcl-lsp-server` binary. It is self-contained — no Python, runtime, or
+interpreter. Download the asset for your platform from
+[Releases](https://github.com/bitwisecook/tcl-lsp/releases/latest) or build
+it with `make rust-server`.
 
-The `.pyz` zipapp bundles all Python dependencies internally — no
-`pip install` is needed. You only need a Python interpreter on your system.
-
-See the [Installation Guide](../../INSTALL-editors.md#python) for
-full details on Python setup across platforms.
+See [The server binary](../../INSTALL-editors.md#the-server-binary) in the
+installation guide for the per-platform asset names.
 
 ## Upstream integration (after merge)
 
 Once tcl-lsp is added to
 [`helix-editor/helix`](https://github.com/helix-editor/helix)'s default
-`languages.toml`, Helix users only need the `tcl-lsp-server.pyz` zipapp
-on their PATH — no per-user `languages.toml` edit is required.
+`languages.toml`, Helix users only need `tcl-lsp-server` on their PATH — no
+per-user `languages.toml` edit is required.
 
 ## Configuration (until upstream merges)
 
 ```toml
-# Native Rust server (default); build with `make rust-server`.
+# The released binary, or a local build from `make rust-server`.
 [language-server.tcl-lsp]
-command = "/path/to/tcl-lsp/target/release/tcl-lsp-server"
+command = "/path/to/tcl-lsp-server"
 args = []
-
-# Python opt-out — run from source:
-# command = "uv"
-# args = ["run", "--directory", "/path/to/tcl-lsp", "--no-dev", "python", "-m", "server"]
-# ...or the standalone zipapp:
-# command = "python3"
-# args = ["/path/to/tcl-lsp-server.pyz"]
 
 # Core Tcl / Tk. Sends languageId "tcl" → the server's default dialect.
 [[language]]

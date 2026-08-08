@@ -1,9 +1,14 @@
 # KCS: Array elements are per-key SSA variables (typing, folding, shimmer)
 
+> **Audience:** Contributor
+> **Type:** How-To
+
 ## Applies to
 
-- `rust/tcl-compiler` SSA construction, SCCP, type inference, shimmer and
-  dead-store/unused diagnostics; `rust/tcl-lsp-core` hover.
+all-editors, ssa, sccp, type-infer, shimmer
+
+Covers `rust/tcl-compiler` SSA construction, SCCP, type inference, shimmer,
+and the dead-store/unused diagnostics, plus `rust/tcl-lsp-core` hover.
 
 ## Symptom
 

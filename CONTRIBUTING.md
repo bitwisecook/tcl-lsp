@@ -18,8 +18,8 @@ accommodate it in a way that works upstream.
 
 ## AI Use
 
-All code in the seven concern packages (`shared/`, `compiler/`, `dialects/`,
-`analyser/`, `server/`, `tooling/`, `ai/`) must be human reviewed before merging to main.
+All code in the compiler, analysis, registry, and runtime crates under `rust/`
+must be human reviewed before merging.
 Front-end code, editor integrations, CI/CD, build pipelines, AI integrations are
 all vibe-coded. You may contribute to any area of this project using AI. AI generated code
 must come with tests, and I would encourage you to at least use your organic brain
@@ -35,8 +35,9 @@ Models used so far: Claude Opus 4.6, Gemini 3.1 Pro, GPT-5.3-Codex.
 
 ## Style and formatting
 
-- Python style is enforced with Ruff. Run `make lint-py` and `make format-py`.
+- Rust style is enforced with `cargo fmt` + `clippy` (`-D warnings`). Run `make check-rust`.
 - TypeScript style is enforced with ESLint and Prettier. Run `make lint-ts`.
+- Python style (the remaining `f5report` / skills / Sublime code) is enforced with Ruff. Run `make lint-py` and `make format-py`.
 - Use UK spelling in internal names and comments (for example `normalise`, `optimiser`, `analyse`).
 - Keep names explicit; avoid ambiguous one-letter variables outside tiny local loops.
   - Function parameters and return-position variables can be single letters when the type is explicit, the use is local to the function, and the letter means the same thing everywhere in the codebase.
@@ -61,12 +62,13 @@ Models used so far: Claude Opus 4.6, Gemini 3.1 Pro, GPT-5.3-Codex.
 Do not duplicate utility functions across modules. If two or more files need
 the same helper, extract it into an appropriate shared module.
 
-- Identifier helpers live in `shared/naming.py`.
-- Command registry helpers live in `compiler/registry/_base.py`.
-  The `make_av(source)` factory there returns an `_av` closure bound to a
-  documentation source string.  Use `_av = make_av(_SOURCE)` at module level
-  in command definition files rather than defining a per-file `_av` function.
-- Before adding a private helper prefixed with `_`, grep the tree for its body.
+- Command specs and the helpers that build them live in `rust/tcl-registry/src/`
+  (`spec.rs` for `CommandSpec`, `commands/<dialect>/` for the per-command
+  definitions).
+- Compiler-internal helpers shared across passes live in
+  `rust/tcl-compiler/src/ir_helpers.rs` and
+  `rust/tcl-compiler/src/optimiser/helpers/`.
+- Before adding a private helper, grep the tree for its body.
   If it already exists elsewhere, extract it into a shared location rather than
   copying it.
 
@@ -144,7 +146,7 @@ The compiler pipeline transforms source through several stages. Each module's
 docstring should explain:
 
 1. What the module computes and why.
-2. Key domain terms -- target audience is a senior Python engineer who has not
+2. Key domain terms -- target audience is a senior engineer who has not
    written a compiler. For example, explain what SSA is, what a lattice value
    represents, or why a barrier node exists.
 3. How the module fits into the pipeline (what feeds it, what consumes its
@@ -153,23 +155,46 @@ docstring should explain:
 The stages are:
 
 ```
-Source -> Lexer (parsing/lexer.py)
-      -> IR Lowering (compiler/lowering.py)
-      -> CFG Construction (compiler/cfg.py)
-      -> SSA Construction (compiler/ssa.py)
-      -> Core Analyses: SCCP, liveness, dead stores (compiler/core_analyses.py)
-      -> Diagnostics
+Source -> Lexer (rust/tcl-lexer/src/lexer.rs)
+      -> CST (rust/tcl-syntax/)
+      -> IR Lowering (rust/tcl-compiler/src/lowering/)
+      -> CFG Construction (rust/tcl-compiler/src/cfg.rs)
+      -> SSA Construction (rust/tcl-compiler/src/ssa.rs)
+      -> Core Analyses: SCCP, liveness, dead stores
+         (rust/tcl-compiler/src/analyses.rs, dead_stores.rs, …)
+      -> Diagnostics / codegen (rust/tcl-compiler/src/codegen/)
 ```
 
 Individual classes and functions with domain-specific names (e.g. `IRBarrier`,
 `LatticeValue`, `_sccp`) must include a one-sentence explanation of the concept,
 not just the implementation.
 
-## Exception handling and debug logging
+## Swallowed errors must still be logged
 
-Bare `except Exception:` handlers must include a `log.debug(...)` call with
-`exc_info=True` so failures are visible at debug log level.  Follow the
-pattern established in `server/workspace/scanner.py` and `analyser/packages/resolver.py`:
+A recovered error that leaves no trace makes production debugging extremely
+difficult.  Whenever a fallback hides a failure, log it so operators can still
+see what happened.
+
+In Rust, an `Err` arm (or an `unwrap_or_default()`-style fallback on a fallible
+call) that discards the error should say what failed first.  There is no `log` /
+`tracing` dependency in the workspace: inside the LSP server, report through the
+client with `client.log_message(MessageType::LOG, …)`; elsewhere (CLIs, xtask)
+write to stderr with `eprintln!`.
+
+```rust
+let cfg = match load_config(path) {
+    Ok(c) => c,
+    Err(e) => {
+        self.client
+            .log_message(MessageType::LOG, format!("config unreadable, using defaults: {e}"))
+            .await;
+        Config::default()
+    }
+};
+```
+
+In the remaining Python (`f5report`, the Claude skills, the Sublime plugin), a
+bare `except Exception:` must carry a `log.debug(..., exc_info=True)`:
 
 ```python
 except Exception:
@@ -177,36 +202,25 @@ except Exception:
     return fallback_value
 ```
 
-Every module that catches exceptions needs a logger:
-
-```python
-import logging
-log = logging.getLogger(__name__)
-```
-
-Silent swallowing makes production debugging extremely difficult.  The debug
-level keeps normal output clean while still letting operators diagnose issues
-with `--log-level DEBUG`.
-
 ## Command metadata belongs on `CommandSpec`
 
 When code needs to classify commands (e.g. "is this a diagram-worthy action?",
 "does this always mutate state?", "can this be translated to XC?"), the metadata
-must live as a field on `CommandSpec` in `compiler/registry/models.py`.
+must live as a field on `CommandSpec` in `rust/tcl-registry/src/spec.rs`.
 
-**Do not** create hardcoded `frozenset` or `set` literals of command names in
-consumer modules. This scatters knowledge about commands across the codebase and
+**Do not** create hardcoded `HashSet`/`match` literals of command names in
+consumer crates. This scatters knowledge about commands across the codebase and
 makes it easy for new commands to be missed.
 
 The pattern to follow:
 
-1. **Add a field** to `CommandSpec` (default `False` or `None`).
-2. **Add query methods** to `CommandRegistry` — a single-command predicate
-   (e.g. `is_diagram_action(name)`) and a bulk query
-   (e.g. `diagram_action_commands()`).
-3. **Set the flag** on each relevant command spec in
-   `dialects/tcl/`, `dialects/f5/irules/`, or `dialects/f5/iapps/`.
-4. **Use the registry** in the consumer module instead of a local set.
+1. **Add a field** to `CommandSpec` (default `false` / `None`).
+2. **Add query methods** to `CommandRegistry` in
+   `rust/tcl-registry/src/registry.rs` — a single-command predicate (e.g.
+   `is_diagram_action(name)`) and a bulk query where consumers need one.
+3. **Set the flag** on each relevant command spec under
+   `rust/tcl-registry/src/commands/` (`tcl/`, `irules/`, `iapps/`, …).
+4. **Use the registry** in the consumer crate instead of a local set.
 
 Existing examples of this pattern: `pure`, `commits_response`,
 `http_namespace`, `diagram_action`, `drops_connection`, `always_mutating`,
@@ -216,15 +230,15 @@ Existing examples of this pattern: `pure`, `commits_response`,
 ## Body identification and command argument roles
 
 The canonical source for identifying body, expression, and pattern argument
-indices is `compiler/registry/runtime.py` via `body_arg_indices()`,
-`expr_arg_indices()`, and `arg_indices_for_role()`.  Other modules (including
-the formatter) delegate to these functions rather than duplicating the
+indices is `CommandRegistry` in `rust/tcl-registry/src/registry.rs` via
+`arg_indices_for_role()` and `plain_body_arg_indices()`.  Other modules
+(including the formatter) delegate to these rather than duplicating the
 argument-walking logic.
 
 If the formatter needs to restrict which bodies are expanded (e.g. the `for`
 command only expands its main body, not `init`/`next`), add a
-formatter-specific override in `tooling/formatter/engine.py` before the general
-delegation call.
+formatter-specific override under `rust/tcl-lsp-core/src/formatting/` before the
+general delegation call.
 
 ## Dead code and docstring accuracy
 
@@ -242,16 +256,22 @@ command registry, server singletons), document the initialisation order and
 thread-safety expectations in a comment at the definition site. Prefer passing
 instances through constructors over importing module globals where practical.
 
-## Python source of truth
+## Source of truth
 
-The Python source of truth is partitioned into seven concern packages
-(see [`AGENTS.md`](AGENTS.md) "Repository layout" and
-`.importlinter`): `shared/`, `compiler/`,
-`dialects/`, `analyser/`, `server/`, `tooling/`, `ai/`.
+The product is a Cargo workspace — see [`AGENTS.md`](AGENTS.md) "Repository
+layout" for the crate roles, and `[workspace] members` in the top-level
+`Cargo.toml` for the authoritative list. The language server, both CLIs, and the
+MCP server are all cargo bins; there is no Python in the shipped server.
 
-- The extension package does not keep a mirrored Python tree under `editors/vscode/`.
-- `make package-vsix` stages bundled zipapp artifacts into an isolated packaging directory under `build/`.
-- If you need to point VS Code at a working tree directly, set `tclLsp.serverPath` to the repo root.
+Python remains only in `rust/bigip-report-gen/python` (the `f5report` package
+backed by the native `_engine`), the Claude skills under `.claude/skills/`, and
+the Sublime Text plugin. `make lint-py` / `make typecheck-py` cover exactly that
+set (`git ls-files '*.py'`).
+
+- `make package-vsix` stages the VSIX into an isolated packaging directory under
+  `build/`, bundling one native `tcl-lsp-server` binary per platform.
+- To point an editor at a working tree, build the server (`make rust-server`) and
+  set the client's server-path setting to `target/release/tcl-lsp-server`.
 
 ## Dependency audit policy
 

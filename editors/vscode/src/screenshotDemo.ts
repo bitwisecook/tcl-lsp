@@ -155,17 +155,74 @@ async function awaitAiRequestStarted(timeoutMs = 10_000): Promise<void> {
  *   2. Shell   writes    OUTPUT_DIR/<name>.captured  (and removes .ready)
  *   3. Extension removes .captured and proceeds
  */
+/**
+ * Read one message from a FIFO, resolving on the first chunk rather than EOF.
+ *
+ * The writer holds its end open across the whole run, so there is no EOF to
+ * wait for; `readFile` would hang until the run finished.
+ */
+function readLineFromFifo(fifo: string, timeoutMs: number): Promise<string | null> {
+  return new Promise((resolve) => {
+    let settled = false;
+    const finish = (value: string | null) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      try {
+        stream.destroy();
+      } catch {}
+      resolve(value);
+    };
+    const timer = setTimeout(() => finish(null), timeoutMs);
+    const stream = fs.createReadStream(fifo, { encoding: "utf8" });
+    stream.on("data", (chunk) => finish(String(chunk).trim()));
+    stream.on("error", () => finish(null));
+  });
+}
+
+const REQ_FIFO = process.env.TCL_LSP_SCREENSHOT_REQ_FIFO ?? "";
+const ACK_FIFO = process.env.TCL_LSP_SCREENSHOT_ACK_FIFO ?? "";
+
+/**
+ * Ask the shell to capture, over the FIFO pair it set up.
+ *
+ * Writing the scene name wakes the shell's blocked `read` immediately, and the
+ * single line it writes back wakes us — no poll interval on either side, so a
+ * scene costs its render time and nothing else. Returns false when the channel
+ * is unavailable, so the caller can fall back to marker files.
+ */
+async function captureViaFifo(sceneName: string): Promise<boolean> {
+  if (!REQ_FIFO || !ACK_FIFO) return false;
+  try {
+    fs.writeFileSync(REQ_FIFO, `${sceneName}\n`, "utf8");
+  } catch (err) {
+    console.error(`[screenshot-demo] FIFO write failed (${sceneName}):`, err);
+    return false;
+  }
+  // Resolve on the shell's first byte, not on EOF: it holds the write end open
+  // for the whole run (so the channel survives between scenes), which means a
+  // plain readFile would block until the run ended.
+  const ack = await readLineFromFifo(ACK_FIFO, 15_000);
+  if (ack === null) {
+    console.error(`[screenshot-demo] Timeout waiting for capture: ${sceneName}`);
+  }
+  return true; // the request was sent; never double-capture via markers
+}
+
 async function captureScreenshot(sceneName: string): Promise<void> {
   fs.mkdirSync(OUTPUT_DIR, { recursive: true });
-
-  const readyFile = path.join(OUTPUT_DIR, `${sceneName}.ready`);
-  const capturedFile = path.join(OUTPUT_DIR, `${sceneName}.captured`);
-
-  // Signal readiness.
-  fs.writeFileSync(readyFile, "", "utf8");
   console.log(`[screenshot-demo] Signalled: ${sceneName}`);
 
-  // Wait for the shell to capture (poll every 50ms, timeout 15s).
+  if (await captureViaFifo(sceneName)) {
+    console.log(`[screenshot-demo] Captured: ${sceneName}`);
+    return;
+  }
+
+  // Fallback: marker files, polled.
+  const readyFile = path.join(OUTPUT_DIR, `${sceneName}.ready`);
+  const capturedFile = path.join(OUTPUT_DIR, `${sceneName}.captured`);
+  fs.writeFileSync(readyFile, "", "utf8");
+
   const deadline = Date.now() + 15_000;
   while (Date.now() < deadline) {
     if (fs.existsSync(capturedFile)) {
@@ -175,7 +232,7 @@ async function captureScreenshot(sceneName: string): Promise<void> {
       console.log(`[screenshot-demo] Captured: ${sceneName}`);
       return;
     }
-    await sleep(50);
+    await sleep(25);
   }
   console.error(`[screenshot-demo] Timeout waiting for capture: ${sceneName}`);
 }
@@ -779,6 +836,8 @@ async function waitForDiagnosticsReady(
 
   const deadline = Date.now() + timeoutMs;
   let goodSince = 0;
+  let settledSince = 0;
+  let settledCount = -1;
   let latest = vscode.languages.getDiagnostics(uri);
 
   while (Date.now() < deadline) {
@@ -797,18 +856,53 @@ async function waitForDiagnosticsReady(
     } else {
       goodSince = 0;
     }
+
+    // The thresholds above are what the scene hopes for. When a fixture stops
+    // producing them — it was simplified, or a diagnostic was consolidated —
+    // the wait would otherwise burn its whole timeout on every run and capture
+    // seconds late. A non-empty set that has stopped changing is good enough to
+    // photograph, so accept it and say so.
+    if (latest.length > 0 && latest.length === settledCount) {
+      if (settledSince === 0) {
+        settledSince = Date.now();
+      } else if (Date.now() - settledSince >= stableMs) {
+        if (!good) {
+          console.log(
+            `[screenshot-demo] Diagnostics settled at ${latest.length} (${errors}E/${warnings}W) ` +
+              `below the scene's minCount=${options.minCount} minErrors=${minErrors} ` +
+              `minWarnings=${minWarnings} for ${uri.toString()}`,
+          );
+        }
+        return latest;
+      }
+    } else {
+      settledSince = 0;
+      settledCount = latest.length;
+    }
     await sleep(150);
   }
 
   return latest;
 }
 
+/**
+ * Wait until the document's semantic tokens have arrived.
+ *
+ * `minDataEntries` is a fast path for documents big enough to clear it — the
+ * LSP encoding is five integers per token, so 40 entries is only eight tokens.
+ * A small fixture (a five-line iRule, the rename scene's temp files) can be
+ * fully tokenised and still never reach it, which used to mean polling for the
+ * whole timeout and capturing ten seconds late. So a non-empty result that has
+ * stopped changing counts as done too.
+ */
 async function waitForSemanticTokens(
   uri: vscode.Uri,
   minDataEntries = 40,
   timeoutMs = 10_000,
 ): Promise<void> {
   const deadline = Date.now() + timeoutMs;
+  let lastCount = -1;
+  let stablePolls = 0;
   while (Date.now() < deadline) {
     try {
       const tokens = (await vscode.commands.executeCommand(
@@ -819,10 +913,21 @@ async function waitForSemanticTokens(
       if (count >= minDataEntries) {
         return;
       }
+      if (count > 0 && count === lastCount) {
+        // Two consecutive identical non-empty reads: the server has finished.
+        if (++stablePolls >= 2) {
+          return;
+        }
+      } else {
+        stablePolls = 0;
+      }
+      lastCount = count;
     } catch {}
     await sleep(200);
   }
-  console.log(`[screenshot-demo] Semantic tokens timeout for ${uri.toString()}`);
+  console.log(
+    `[screenshot-demo] Semantic tokens timeout for ${uri.toString()} (last count ${lastCount})`,
+  );
 }
 
 async function sortProblemsBySeverity(): Promise<void> {
@@ -1189,18 +1294,22 @@ function buildScenes(): Scene[] {
           waitForSemanticTokens(split.left.document.uri, 50, 10_000),
           waitForSemanticTokens(split.right.document.uri, 50, 10_000),
         ]);
-        await waitForDiagnosticsReady(split.left.document.uri, {
-          minCount: 2,
-          minWarnings: 1,
-          timeoutMs: 12_000,
-          stableMs: 800,
-        });
-        await waitForDiagnosticsReady(split.right.document.uri, {
-          minCount: 2,
-          minWarnings: 1,
-          timeoutMs: 12_000,
-          stableMs: 800,
-        });
+        // Both panes settle concurrently — they are independent documents, and
+        // each wait costs its own stability window.
+        await Promise.all([
+          waitForDiagnosticsReady(split.left.document.uri, {
+            minCount: 2,
+            minWarnings: 1,
+            timeoutMs: 12_000,
+            stableMs: 800,
+          }),
+          waitForDiagnosticsReady(split.right.document.uri, {
+            minCount: 2,
+            minWarnings: 1,
+            timeoutMs: 12_000,
+            stableMs: 800,
+          }),
+        ]);
         await vscode.window.showTextDocument(split.right.document, {
           viewColumn: vscode.ViewColumn.Two,
           preserveFocus: false,
@@ -1724,6 +1833,12 @@ async function prepareAiScenes(): Promise<boolean> {
     }
   }
 
+  // How long to keep offering the sign-in prompt before giving up and running
+  // without the AI scenes. Long enough for a person to complete a GitHub sign-in
+  // in the browser; short enough that an unattended run still finishes.
+  const AI_LOGIN_GRACE_MS = 3 * 60_000;
+  const aiLoginDeadline = Date.now() + AI_LOGIN_GRACE_MS;
+
   for (let attempt = 0; attempt < 3; attempt++) {
     // Re-check availability each attempt in case extension activation/login
     // finished after startup.
@@ -1747,6 +1862,13 @@ async function prepareAiScenes(): Promise<boolean> {
     console.log(
       `[screenshot-demo] Showing AI login prompt (attempt ${attempt + 1}/3, copilotDetected=${Boolean(copilot)})`,
     );
+    // A toast, deliberately not a modal: VS Code's DialogService refuses modal
+    // dialogs under the test host ("refused to show dialog in tests"), so a
+    // modal here is silently swallowed and the operator sees nothing at all.
+    //
+    // Toasts auto-hide, so re-show on dismissal to keep a clickable prompt in
+    // front of whoever is watching — but stop once AI_LOGIN_GRACE_MS has passed
+    // so an unattended run skips the AI scenes instead of hanging forever.
     const choice = await vscode.window.showInformationMessage(
       message,
       verifyLabel,
@@ -1754,8 +1876,13 @@ async function prepareAiScenes(): Promise<boolean> {
       "Skip AI Screenshots",
     );
     if (!choice) {
+      if (Date.now() >= aiLoginDeadline) {
+        console.log("[screenshot-demo] AI login prompt went unanswered — skipping AI scenes");
+        return false;
+      }
       console.log("[screenshot-demo] AI login toast dismissed — prompting again");
       await sleep(400);
+      attempt -= 1; // a dismissed toast is not a failed attempt
       continue;
     }
     if (choice === "Open Sign-In") {
@@ -1908,12 +2035,16 @@ async function runDemo(): Promise<void> {
 
   console.log(`[screenshot-demo] Starting ${scenes.length} scenes`);
   console.log(`[screenshot-demo] Output: ${OUTPUT_DIR}`);
+
+  // Settle the AI sign-in first, before any capture setup. It is the only step
+  // that can need a human, so asking up front means an unattended run either
+  // proceeds immediately or is told to skip — rather than getting most of the
+  // way through the scenes and then stopping on a modal.
+  const hasAiScenes = scenes.some((scene) => scene.requiresAi);
+  aiScenesEnabled = hasAiScenes ? await prepareAiScenes() : false;
+
   writeProcessMarkers();
   await configureScreenshotCursor();
-
-  const hasAiScenes = scenes.some((scene) => scene.requiresAi);
-  // Ensure AI is genuinely ready before attempting AI scenes.
-  aiScenesEnabled = hasAiScenes ? await prepareAiScenes() : false;
 
   // Clean up UI chrome before first capture.
   await cleanUpUI();
@@ -1926,6 +2057,7 @@ async function runDemo(): Promise<void> {
       console.log(`[screenshot-demo] Skipping ${scene.name} (AI unavailable)`);
       continue;
     }
+    const sceneStartedAt = Date.now();
     console.log(`[screenshot-demo] Scene: ${scene.name}`);
     // Close all editors and the compiler explorer so only the current
     // file is visible — the compiler explorer reads from the active
@@ -1941,6 +2073,7 @@ async function runDemo(): Promise<void> {
     }
     try {
       await scene.run();
+      console.log(`[screenshot-demo] Scene ${scene.name} took ${Date.now() - sceneStartedAt}ms`);
     } catch (err) {
       console.error(`[screenshot-demo] Scene ${scene.name} failed:`, err);
       continue;

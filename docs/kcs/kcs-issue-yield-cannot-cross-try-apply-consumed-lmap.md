@@ -55,6 +55,9 @@ pushed onto the *explicit* stack instead:
 
 ### Known residual gap
 
+Tracked as
+[issue #1348](https://github.com/bitwisecook/tcl-lsp/issues/1348).
+
 A `try`'s body being transparent to a *bare* `break`/`continue` (per TIP
 329 — propagating to the caller's enclosing loop when nothing inside `try`
 handles it) still does not work for a simple, single-command loop body: it
@@ -72,3 +75,5 @@ this path at all (yield could not even suspend `try` before).
 - [KCS index](README.md)
 - [Glossary](../GLOSSARY.md)
 - `rust-issues/RUST_ISSUE_008.md` — the full coroutine yieldability history
+- [issue #1348](https://github.com/bitwisecook/tcl-lsp/issues/1348) — the
+  residual `break`/`continue` transparency gap above

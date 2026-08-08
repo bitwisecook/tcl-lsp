@@ -11,9 +11,9 @@ describe a contract, an interface, a data structure, or an architecture,
 you are writing a design doc, not a KCS note. Put it under
 [`docs/design/`](../design/README.md) instead.
 
-## The four categories
+## The six categories
 
-A KCS note is always one of four types:
+A KCS note is always one of six types:
 
 | Type | The question it answers | Template |
 |---|---|---|
@@ -21,13 +21,16 @@ A KCS note is always one of four types:
 | **Q&A** | What is X? / When should I use Y? | [`kcs-template-qa.md`](templates/kcs-template-qa.md) |
 | **How-To** | How do I do X? | [`kcs-template-how-to.md`](templates/kcs-template-how-to.md) |
 | **Functionality** | What does command/feature/tool X do, and how do I use it? | [`kcs-template-functionality.md`](templates/kcs-template-functionality.md) |
+| **Diagnostic** | Per-code page for an E/W/S/T/IRULE diagnostic. | [`kcs-template-diagnostic.md`](templates/kcs-template-diagnostic.md) |
+| **Optimisation** | Per-code page for an O-code optimiser rewrite. | [`kcs-template-optimisation.md`](templates/kcs-template-optimisation.md) |
 
-If a note does not fit any of these four, it is probably a design doc.
+If a note does not fit any of these six, it is probably a design doc.
 
-## The nine rules
+## The rules
 
-These nine rules are enforced by review. The numbered list also appears
-verbatim in `AGENTS.md` for quick reference.
+These rules are enforced by review. A short-form summary also appears in
+`AGENTS.md` for quick reference; that list is numbered independently, so cite
+rules by name rather than by number when crossing between the two.
 
 ### 1. One note answers one question
 
@@ -435,6 +438,32 @@ Run `:TclRename` on the symbol under the cursor.
 
 When the steps are identical everywhere, do not add sub-headings —
 write one paragraph under the answer section.
+
+### 13. A fixed bug that needs no reader action is not a KCS note
+
+A KCS note earns its place by changing what the reader does. If a bug is
+fixed and the only thing anyone has to do is be on a current build, there
+is nothing for a note to tell them — that belongs in the changelog and the
+release notes, not here. Writing one anyway leaves the knowledge base
+describing problems that no longer exist, which is worse than silence: a
+reader who finds it cannot tell whether they are looking at a live fault.
+
+Do not write (or keep) an Issue note whose whole answer is "this was
+broken, it is fixed now, update".
+
+Do write one when, even after the fix, the reader still has something to
+do or something to know:
+
+- **They must act.** A specific version range is affected and they need to
+  recognise it, or the fix needs a restart, a setting change, a cache
+  clear, or a migration step.
+- **A boundary survives the fix.** The behaviour is deliberately still
+  reported in nearby cases, or a residual gap remains. Say which, and why.
+- **The symptom is a live diagnosis.** The same symptom has several
+  possible causes and the note walks the reader through telling them apart.
+
+The test to apply: strip out every sentence that only says the bug is
+fixed. If nothing actionable is left, delete the note.
 
 ## When to link the glossary
 

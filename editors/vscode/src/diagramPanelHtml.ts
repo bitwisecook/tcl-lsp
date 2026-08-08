@@ -23,7 +23,12 @@
  * Mermaid library loaded from CDN.  Falls back to showing the raw
  * Mermaid source if the library cannot be loaded (e.g. offline).
  */
-export function getDiagramPanelHtml(): string {
+/**
+ * @param mermaidUri  webview URI for the bundled Mermaid build, or undefined to
+ *                    fall back to the CDN (dev builds where the asset is absent).
+ * @param cspSource   `webview.cspSource`, so the bundled script is allowed.
+ */
+export function getDiagramPanelHtml(mermaidUri?: string, cspSource?: string): string {
   return `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -32,7 +37,7 @@ export function getDiagramPanelHtml(): string {
 <meta http-equiv="Content-Security-Policy"
   content="default-src 'none';
            style-src 'unsafe-inline';
-           script-src 'unsafe-inline' https://cdn.jsdelivr.net;
+           script-src 'unsafe-inline' ${cspSource ?? ""} ${mermaidUri ? "" : "https://cdn.jsdelivr.net"};
            img-src data:;">
 <title>iRule Diagram</title>
 <style>
@@ -159,6 +164,26 @@ btnCopy.addEventListener('click', () => {
   }
 });
 
+// Load the bundled Mermaid when the extension shipped one (offline, no CDN),
+// otherwise fall back to the CDN ESM build so a dev build without the asset
+// still renders.
+const MERMAID_SRC = ${mermaidUri ? JSON.stringify(mermaidUri) : "null"};
+let mermaidPromise;
+function loadMermaid() {
+  mermaidPromise ??= MERMAID_SRC
+    ? new Promise((resolve, reject) => {
+        const el = document.createElement('script');
+        el.src = MERMAID_SRC;
+        el.onload = () => resolve(window.mermaid);
+        el.onerror = () => reject(new Error('failed to load bundled mermaid'));
+        document.head.appendChild(el);
+      })
+    : import('https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs').then(
+        (m) => m.default,
+      );
+  return mermaidPromise;
+}
+
 async function renderDiagram(source) {
   currentSource = source;
   diagramEl.className = '';
@@ -167,9 +192,7 @@ async function renderDiagram(source) {
   rawEl.style.display = 'none';
 
   try {
-    const { default: mermaid } = await import(
-      'https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs'
-    );
+    const mermaid = await loadMermaid();
 
     // Detect VS Code theme.
     const isDark = document.body.classList.contains('vscode-dark') ||

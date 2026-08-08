@@ -22,6 +22,7 @@
 import * as path from "path";
 import * as fs from "fs";
 import { runWatchedSuite } from "./runnerWatchdog";
+import { resolveTestUserDataDir } from "./testUserDataDir";
 
 async function main() {
   const extensionDevelopmentPath = path.resolve(__dirname, "../../");
@@ -50,8 +51,11 @@ async function main() {
     "multiFolder.code-workspace",
   );
 
-  // Clear persisted user settings between runs.
-  const userDataDir = path.resolve(extensionDevelopmentPath, ".vscode-test", "user-data");
+  // Clear persisted user settings between runs.  Same out-of-checkout dir the
+  // single-root suite uses (test-electron's in-checkout default blows the IPC
+  // socket's `sun_path` budget from a deeply nested worktree) — see
+  // resolveTestUserDataDir.
+  const userDataDir = resolveTestUserDataDir(extensionDevelopmentPath);
   const userSettingsFile = path.resolve(userDataDir, "User", "settings.json");
   try {
     fs.mkdirSync(path.dirname(userSettingsFile), { recursive: true });
@@ -134,7 +138,7 @@ async function main() {
   await runWatchedSuite({
     extensionDevelopmentPath,
     extensionTestsPath,
-    launchArgs: [codeWorkspace, "--disable-extensions"],
+    launchArgs: [codeWorkspace, "--disable-extensions", `--user-data-dir=${userDataDir}`],
     heartbeatMarker,
     resultMarker,
   });

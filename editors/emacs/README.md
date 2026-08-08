@@ -115,8 +115,7 @@ proper `semanticTokens/full/delta`, so a keystroke transmits only the
 changed tokens (a few bytes) instead of the whole document — the same
 incremental behaviour rust-analyzer uses. That reduces how often eglot
 is caught mid-refresh, but the definitive fix is still the painter
-advice below. Running the **native binary** rather than an older Python
-`.pyz`, and lowering `eglot-send-changes-idle-time`, also help by
+advice below. Lowering `eglot-send-changes-idle-time` also helps, by
 keeping the round-trip short.
 
 **Workarounds (pick one):**

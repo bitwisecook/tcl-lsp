@@ -170,19 +170,20 @@ TS_SRCS  := $(shell find $(EXT_DIR)/src -name '*.ts' 2>/dev/null)
 
 # ---------------------------------------------------------------------------
 # Phony targets — declared once at the top, organised by section.  File-
-# producing rules (VSIX, zipapps, KCS db, generated catalogs, etc.) are
+# producing rules (VSIX, plugin/package archives, generated catalogs, etc.) are
 # NOT phony — they live further down with real file deps.
 # ---------------------------------------------------------------------------
 
 .PHONY: help
 # Top-level gates
-.PHONY: rust-check check-all prep-pr
+.PHONY: rust-check check-all prep-pr _prep-pr-checks _prep-pr-tests _prep-pr-smoke
 # Tests
-.PHONY: test test-ext test-ext-rust test-emacs test-rust rust-server rust-tcl rust-f5 rust-mcp rust-clis ensure-server-cross-deps server-cross-build server-cross-build-all mcp-cross-build-all cli-cross-build-all server-cross-test server-cross-test-build print-server-targets-all
+.PHONY: test test-ext test-emacs test-rust rust-server rust-tcl rust-f5 rust-mcp rust-clis ensure-server-cross-deps server-cross-build server-cross-build-all mcp-cross-build-all cli-cross-build-all server-cross-test server-cross-test-build print-server-targets-all print-server-targets-jetbrains
 .PHONY: xtask-check xtask-kcs-index-links xtask-diag-tables xtask-diag-emission-check xtask-gen-editor-catalogs xtask-gen-zed-queries xtask-gen-editor-settings xtask-gen-vscode-package xtask-gen-jetbrains-catalog xtask-gen-ai-diagnostics xtask-command-backing xtask-audit-option-dialects tcltest-sweep tcltest-sweep-check
+.PHONY: xtask-workflow-sync xtask-resolution-drift xtask-gen-tmlanguage-keywords
 # Lint / format / typecheck
 .PHONY: lint format lint-ts format-ts typecheck-ts check-rust rust-deny
-.PHONY: build-report-assets lint-report-ts typecheck-report-ts check-report-assets lint-spec-studio-ts typecheck-spec-studio-ts
+.PHONY: build-report-assets build-report-pyz lint-report-ts typecheck-report-ts check-report-assets lint-spec-studio-ts typecheck-spec-studio-ts
 # Coverage
 .PHONY: coverage coverage-ext
 # Compile + codegen + generated assets
@@ -296,20 +297,13 @@ verify-vsix: $(VSIX_FILE) ## Fail if dev/cache artifacts leaked into the .vsix
 			echo "$$BAD_ENTRIES"; \
 			exit 1; \
 		fi
-	@# The native server has replaced the Python pyz — there must be no .pyz
-	@# and no raw Python server source in the package.
+	@# The extension ships native binaries only — the Python server and its
+	@# .pyz are gone, so any Python in the package is a packaging regression.
 	@set -euo pipefail; \
-		PYZ_COUNT="$$(unzip -Z1 $(VSIX_FILE) | grep -c '\.pyz$$' || true)"; \
-		if [[ "$$PYZ_COUNT" -ne 0 ]]; then \
-			echo "VSIX contains a .pyz — the native server should have replaced it:"; \
-			unzip -Z1 $(VSIX_FILE) | grep '\.pyz$$'; \
-			exit 1; \
-		fi
-	@set -euo pipefail; \
-		RAW_SERVER="$$(unzip -Z1 $(VSIX_FILE) | grep -E '^extension/(compiler/|analyser/|dialects/|shared/|core/|pyproject\.toml$$|uv\.lock$$)' || true)"; \
-		if [[ -n "$$RAW_SERVER" ]]; then \
-			echo "VSIX contains raw Python source/pyproject.toml/uv.lock (should be native binaries only):"; \
-			echo "$$RAW_SERVER"; \
+		PY_ENTRIES="$$(unzip -Z1 $(VSIX_FILE) | grep -E '(\.pyz|\.py)$$|^extension/(pyproject\.toml|uv\.lock)$$' || true)"; \
+		if [[ -n "$$PY_ENTRIES" ]]; then \
+			echo "VSIX contains Python content (the extension ships native binaries only):"; \
+			echo "$$PY_ENTRIES"; \
 			exit 1; \
 		fi
 	@# Every requested target must ship a binary under server/<dir>/.
@@ -575,10 +569,9 @@ coverage-ext: compile $(NPM_STAMP) ensure-vscode-test-deps ## Run VS Code extens
 	@echo ""
 	@echo "VS Code extension coverage report: $(COV_DIR)/vscode/index.html"
 
-# --- Native (cargo xtask) check gates — the Rust replacement for the retired
-# scripts/check/*.py.  These need the Rust toolchain, so CI runs them in the
-# Rust-capable rust-tests job (rust-gate.yml / ci.yml), never in the Python-only
-# ci-fast job.  `xtask-check` is the CI aggregate.
+# --- Native (cargo xtask) check gates.  These need the Rust toolchain, so CI
+# runs them in the rust-tests job (rust-gate.yml / ci.yml).  `xtask-check` is
+# the CI aggregate.
 xtask-check: xtask-workflow-sync xtask-kcs-index-links xtask-diag-tables xtask-diag-emission-check xtask-gen-editor-catalogs xtask-gen-zed-queries xtask-gen-tmlanguage-keywords xtask-gen-editor-settings xtask-gen-vscode-package xtask-gen-jetbrains-catalog xtask-gen-ai-diagnostics xtask-resolution-drift xtask-command-backing ## Rust-side check gates (docs index coverage + generated-table/catalog drift)
 
 xtask-workflow-sync: ## Verify .github/workflows/ copies match their canonical deploy sources (drift gate)
@@ -589,7 +582,7 @@ xtask-resolution-drift: ## Flag namespace-blind simple-name scans over all_procs
 	@echo "==> Checking for name-resolution drift (cargo xtask)"
 	cd $(ROOT) && cargo xtask resolution-drift
 
-xtask-kcs-index-links: ## Validate docs links + design/KCS index coverage (⇐ scripts/check/kcs_index_links.py)
+xtask-kcs-index-links: ## Validate docs links + design/KCS index coverage
 	@echo "==> Checking docs links + index coverage (cargo xtask)"
 	cd $(ROOT) && cargo xtask kcs-index-links
 
@@ -650,25 +643,19 @@ _prep-pr-checks: lint-ts typecheck-ts check-editor-settings typecheck-report-ts 
 _prep-pr-tests: test-rust
 _prep-pr-smoke: smoke-vsix
 
-# Rust-side check gate (fmt + clippy + generated-file drift) — the native
-# replacement for the retired Python `ci-fast`.  Mirrors the pr-gate job in
-# GitHub Actions (ci.yml).
+# Rust-side check gate (fmt + clippy + generated-file drift).  Mirrors the
+# pr-gate job in GitHub Actions (ci.yml).
 rust-check: check-rust xtask-check ## Rust fmt + clippy + generated-file drift gates (mirrors the GitHub Actions PR gate)
 
 prep-pr: format codegen ## Fast pre-PR gate (format + codegen + lint + typecheck + fast tests, no UI/smoke)
 	@$(MAKE) -j $(NPROC) _prep-pr-checks _prep-pr-tests
 
-# Optional Rust test step.  Cargo tests run only if a workspace exists at the
-# repo root (some branches add Rust code beyond the Zed extension); otherwise
-# this is a no-op.  Set SKIP_TEST_RUST=1 to skip explicitly.
+# The workspace test suite, including the native lsp_e2e suite
+# (rust/tcl-lsp-server/tests/*_e2e.rs).  Set SKIP_TEST_RUST=1 to skip.
 test-rust: ## Run Rust workspace tests + the native-server lsp_e2e suite (skip with SKIP_TEST_RUST=1)
 	@set -eu; \
 	if [ -n "$${SKIP_TEST_RUST:-}" ]; then \
 		echo "==> SKIP_TEST_RUST set — skipping Rust tests"; \
-		exit 0; \
-	fi; \
-	if [ ! -f "$(ROOT)Cargo.toml" ]; then \
-		echo "==> No top-level Cargo.toml — skipping Rust tests"; \
 		exit 0; \
 	fi; \
 	if ! command -v cargo >/dev/null 2>&1; then \
@@ -678,12 +665,11 @@ test-rust: ## Run Rust workspace tests + the native-server lsp_e2e suite (skip w
 	fi; \
 	echo "==> Running Rust workspace tests (includes the native lsp_e2e suite)"; \
 	cd $(ROOT) && cargo test --workspace --all-features
-	@echo "==> lsp_e2e ran natively as rust/tcl-lsp-server/tests/*_e2e.rs (no Python)"
 
-# Build the native Rust LSP server binary (target/release/tcl-lsp-server).
-# This is the server the test harnesses drive when TCL_LSP_SERVER_KIND=rust
-# (lsp_e2e) or tclLsp.serverKind="rust" (VS Code).  Release by default for
-# usable latency; pass PROFILE=debug for a faster build (see PROFILE above).
+# Build the native Rust LSP server binary (target/release/tcl-lsp-server) —
+# the only server there is, and the one every harness drives (test-ext points
+# the extension at it via TCL_LSP_SERVER_BIN).  Release by default for usable
+# latency; pass PROFILE=debug for a faster build (see PROFILE above).
 rust-server: ## Build the native Rust LSP server (PROFILE=release|debug)
 	@set -eu; \
 	if ! command -v cargo >/dev/null 2>&1; then \
@@ -694,8 +680,7 @@ rust-server: ## Build the native Rust LSP server (PROFILE=release|debug)
 	echo "==> Built $(ROOT)target/$(PROFILE)/tcl-lsp-server"
 
 # Build the native Rust `tcl` CLI binary (target/release/tcl).  Mirrors
-# rust-server: release by default, PROFILE=debug for a faster build.  This is
-# the Rust port of the Python `tcl` console script (tooling/tcl/main.py).
+# rust-server: release by default, PROFILE=debug for a faster build.
 rust-tcl: ## Build the native Rust `tcl` CLI (PROFILE=release|debug)
 	@set -eu; \
 	if ! command -v cargo >/dev/null 2>&1; then \
@@ -706,7 +691,6 @@ rust-tcl: ## Build the native Rust `tcl` CLI (PROFILE=release|debug)
 	echo "==> Built $(ROOT)target/$(PROFILE)/tcl"
 
 # Build the native Rust `f5-query` CLI binary (target/release/f5-query).
-# The Rust port of the Python `f5-query` console script (tooling/f5/main.py).
 rust-f5: ## Build the native Rust `f5-query` CLI (PROFILE=release|debug)
 	@set -eu; \
 	if ! command -v cargo >/dev/null 2>&1; then \
@@ -716,9 +700,8 @@ rust-f5: ## Build the native Rust `f5-query` CLI (PROFILE=release|debug)
 	cd $(ROOT) && cargo build -p f5-cli $(if $(filter release,$(PROFILE)),--release,); \
 	echo "==> Built $(ROOT)target/$(PROFILE)/f5-query"
 
-# Build the native Rust MCP server binary (target/release/tcl-mcp).  The Rust
-# port of the Python `ai/mcp/tcl_mcp_server.py` server; the repo `.mcp.json`
-# (via scripts/tcl-mcp) launches this for Claude Code / Codex.
+# Build the native Rust MCP server binary (target/release/tcl-mcp).  The repo
+# `.mcp.json` (via scripts/tcl-mcp) launches this for Claude Code / Codex.
 rust-mcp: ## Build the native Rust `tcl-mcp` MCP server (PROFILE=release|debug)
 	@set -eu; \
 	if ! command -v cargo >/dev/null 2>&1; then \
@@ -804,8 +787,7 @@ mcp-cross-build-all: ## Cross-compile tcl-mcp for all 7 targets (release-asset p
 
 # Cross-compile the native `tcl` + `f5-query` CLIs for all release targets —
 # local parity with the CI build-server-matrix job that publishes the per-triple
-# `tcl-<triple>` / `f5-query-<triple>` release assets (the native replacements
-# for the tcl / f5 Python zipapps).
+# `tcl-<triple>` / `f5-query-<triple>` release assets.
 cli-cross-build-all: ## Cross-compile tcl + f5-query for all 7 targets (release-asset parity)
 	@set -eu; \
 	if ! command -v cargo >/dev/null 2>&1; then echo "ERROR: cargo not found."; exit 1; fi; \
@@ -829,37 +811,14 @@ server-cross-test: ## Smoke-test built tcl-lsp-server binaries (QEMU on Linux, n
 server-cross-test-build: ## Cross-build then smoke-test tcl-lsp-server binaries
 	@bash $(ROOT)scripts/test-cross-server.sh --build
 
-# Opt-in: run the VS Code extension integration tests against the NATIVE Rust
-# server.  Mirrors `test-ext` but exports TCL_LSP_SERVER_KIND=rust + the binary
-# path so the extension launches the native server (extension.ts
-# resolveRustServer()).  Failures are expected during parity work; the bar is
-# that the suite terminates with a pass/fail report (no indefinite hang).
-test-ext-rust: rust-server ## Run VS Code extension tests against the native Rust server (TCL_LSP_SERVER_KIND=rust)
-	@set -eu; \
-	"$(MAKE)" compile ensure-vscode-test-deps; \
-	echo "==> Running VS Code extension tests against the native Rust server"; \
-	export TCL_LSP_SERVER_KIND=rust; \
-	export TCL_LSP_SERVER_BIN="$(ROOT)target/$(PROFILE)/tcl-lsp-server"; \
-	if [[ "$$(uname -s)" == "Linux" && -z "$${DISPLAY:-}" ]]; then \
-		if command -v xvfb-run >/dev/null 2>&1; then \
-			echo "==> No DISPLAY detected; running under xvfb-run"; \
-			cd "$(EXT_DIR)" && xvfb-run -a "$(NPM)" test; \
-		else \
-			echo "ERROR: DISPLAY is unset and xvfb-run is not available." >&2; \
-			exit 1; \
-		fi; \
-	else \
-		cd "$(EXT_DIR)" && "$(NPM)" test; \
-	fi
-
 ## Full lint + typecheck across every language (TS, Rust).
 ## Tests are NOT included here — run them separately (test-ext, test-rust,
 ## runtime-rust-test, test-emacs) before PR creation.
 
-# Rust: cargo fmt --check + cargo clippy on the Zed extension (always
-# present) and on a top-level Cargo.toml when it exists (Rust branches).
-# Skip with SKIP_CHECK_RUST=1.
-check-rust: ensure-rust-deps ## Rust fmt-check + clippy on Zed extension and top-level workspace if present
+# Rust: cargo fmt --check + cargo clippy on the root workspace and on each
+# crate excluded from it (the Zed extension and the wasm32 cdylibs, which have
+# their own targets and lockfiles).  Skip with SKIP_CHECK_RUST=1.
+check-rust: ensure-rust-deps ## Rust fmt-check + clippy on the workspace and the excluded wasm/Zed crates
 	@set -eu; \
 	if [ -n "$${SKIP_CHECK_RUST:-}" ]; then \
 		echo "==> SKIP_CHECK_RUST set — skipping Rust lint/typecheck"; \
@@ -875,12 +834,10 @@ check-rust: ensure-rust-deps ## Rust fmt-check + clippy on Zed extension and top
 		echo "       Set SKIP_CHECK_RUST=1 to skip."; \
 		exit 1; \
 	fi; \
-	if [ -f "$(ROOT)Cargo.toml" ]; then \
-		echo "==> Checking top-level Rust workspace (fmt + clippy)"; \
-		cd $(ROOT); \
-		cargo fmt --all --check; \
-		cargo clippy --workspace --all-targets -- -D warnings; \
-	fi; \
+	echo "==> Checking top-level Rust workspace (fmt + clippy)"; \
+	cd $(ROOT); \
+	cargo fmt --all --check; \
+	cargo clippy --workspace --all-targets -- -D warnings; \
 	if [ -f "$(ZED_DIR)/Cargo.toml" ]; then \
 		echo "==> Checking Zed extension (fmt + clippy --target wasm32-wasip2 + host tests)"; \
 		cd $(ZED_DIR); \
@@ -1109,19 +1066,29 @@ $(CANONICAL_MANIFEST): $(ROOT)ai/prompts/manifest.json
 
 # The ai/prompts/*.md system prompts are GENERATED (not checked in) by
 # `cargo xtask gen-ai-diagnostics` from ai/shared/diagnostics.json +
-# ai/prompts/*.j2 + ai/prompts/manifest.json.  Generate them (grouped
-# target: one xtask run emits all three) so the copy rules below have a
+# ai/prompts/*.j2 + ai/prompts/manifest.json, so the copy rules below have a
 # source to copy for the VSIX build.
 AI_PROMPT_SRCS  := $(ROOT)ai/shared/diagnostics.json $(ROOT)ai/prompts/manifest.json \
 	$(wildcard $(ROOT)ai/prompts/*.j2)
 
 # tcl_system.md / irules_system.md are GENERATED from the .j2 templates by
-# xtask; tk_system.md is NOT — it is a static domain-knowledge prompt that was
-# relocated to ai/claude/skills/_prompts/ when the skills moved off Python, so
-# it is not part of this grouped generator target (see CANONICAL_TK_MD below).
-$(ROOT)ai/prompts/irules_system.md $(ROOT)ai/prompts/tcl_system.md &: $(AI_PROMPT_SRCS)
+# xtask; tk_system.md is NOT — it is a static domain-knowledge prompt that lives
+# in ai/claude/skills/_prompts/, so it is not produced here (see CANONICAL_TK_MD
+# below).
+#
+# One xtask run emits both prompts.  GNU Make's grouped-target syntax (`&:`)
+# says that directly, but macOS ships Make 3.81, which parses the `&` as a third
+# target and attaches the recipe to every output — so `make -j` launches one
+# xtask per output.  Expressing it as a primary output plus a dependent one
+# keeps the single-run guarantee on every Make version.
+$(ROOT)ai/prompts/tcl_system.md: $(AI_PROMPT_SRCS)
 	@echo "==> Generating AI system prompts (cargo xtask gen-ai-diagnostics)"
 	cd $(ROOT) && cargo xtask gen-ai-diagnostics
+
+# Written by the run above; the touch only settles mtime ordering so the copy
+# rules below don't re-fire on every build.
+$(ROOT)ai/prompts/irules_system.md: $(ROOT)ai/prompts/tcl_system.md
+	@touch $@
 
 $(CANONICAL_IRULES_MD): $(ROOT)ai/prompts/irules_system.md
 	@mkdir -p $(CANONICAL_DIR)
@@ -1148,6 +1115,11 @@ $(OUT_DIR)/extension.js: $(TS_SRCS) $(EXT_DIR)/tsconfig.json $(NPM_STAMP) $(CANO
 	@mkdir -p $(OUT_DIR)/chat/canonical
 	@cp $(CANONICAL_DIR)/* $(OUT_DIR)/chat/canonical/
 	@cp $(EXPLORER_STATIC)/explorer-core.js $(OUT_DIR)/explorer-core.js
+	@# Mermaid for the iRule diagram webview. Bundled rather than pulled from a
+	@# CDN at render time, so the panel works offline and needs no remote origin
+	@# in its CSP. Downloaded on demand by the $(MERMAID_JS) rule.
+	@if [ ! -f $(MERMAID_JS) ]; then $(MAKE) --no-print-directory $(MERMAID_JS); fi
+	@cp $(MERMAID_JS) $(OUT_DIR)/mermaid.min.js
 	@# Bundle the Rust → WASM explorer module so the webview compiles in-process
 	@# (no LSP roundtrip). Best-effort: built by `make explorer-wasm`; when it is
 	@# absent the webview degrades to host-brokered compilation.
@@ -1162,15 +1134,19 @@ $(OUT_DIR)/extension.js: $(TS_SRCS) $(EXT_DIR)/tsconfig.json $(NPM_STAMP) $(CANO
 # Generated editor catalogs
 #
 # Depends on: the Rust generator (xtask) + the command/event registries.
-# Ported from scripts/codegen/catalogs.py to `cargo xtask gen-editor-catalogs`
-# (tcl-registry is now the source of truth; the catalog carries the full
-# command surface, including Tk).
+# tcl-registry is the source of truth; the catalog carries the full command
+# surface, including Tk.
 REGISTRY_SRCS := $(shell find $(ROOT)rust/tcl-registry/src $(ROOT)rust/xtask/src -name '*.rs')
 _CATALOG_DEPS := $(REGISTRY_SRCS)
 
-editors/zed/src/generated/tcl_commands.json editors/zed/src/generated/irule_events.json editors/vscode/src/generated/iruleEvents.json &: $(_CATALOG_DEPS)
+# One xtask run emits all three catalogs — see the AI-prompt rules above for why
+# this is spelled as a primary output plus dependants rather than `&:`.
+editors/zed/src/generated/tcl_commands.json: $(_CATALOG_DEPS)
 	@echo "==> Generating editor catalogs (cargo xtask)"
 	cd $(ROOT) && cargo xtask gen-editor-catalogs
+
+editors/zed/src/generated/irule_events.json editors/vscode/src/generated/iruleEvents.json: editors/zed/src/generated/tcl_commands.json
+	@touch $@
 
 editors/zed/languages/tcl/highlights.scm: $(_CATALOG_DEPS)
 	@echo "==> Generating Zed tree-sitter highlight queries (cargo xtask)"
@@ -1222,7 +1198,7 @@ codegen: generate gen-editor-settings ## Regenerate ALL generated files (catalog
 # (`rust/tcl-cli/gui/index.html` + `explorer-core.js` + `worker.js` + assets)
 # plus the Rust → WASM compiler core and Mermaid, which the targets below build
 # into that same dir. `build.rs` then embeds the whole bundle, and
-# `tcl explore --serve` serves it from memory — no Python, no CDN, no Pyodide.
+# `tcl explore --serve` serves it from memory — no CDN, no network at runtime.
 
 MERMAID_VERSION  := 11
 MERMAID_JS       := $(EXPLORER_STATIC)/mermaid.min.js
@@ -1257,7 +1233,7 @@ explorer-wasm: ## Build the Rust → WASM compiler-explorer core into the tcl GU
 		|| echo "    note: node not found — skipping wasm growability check"
 	@ls -lh $(EXPLORER_STATIC)/tcl_explorer_wasm_bg.wasm
 
-explorer-build: explorer-wasm $(MERMAID_JS) ## Build the compiler-explorer GUI bundle (Rust → WASM, offline, no Python)
+explorer-build: explorer-wasm $(MERMAID_JS) ## Build the compiler-explorer GUI bundle (Rust → WASM, offline)
 	@echo "==> Compiler explorer bundle ready in $(EXPLORER_STATIC) — rebuild the tcl binary to embed it"
 
 TCL_VM_WASM_DIR := $(ROOT)rust/tcl-vm-wasm
@@ -1298,25 +1274,14 @@ compiler-explorer-gui: explorer-build ## Build the GUI bundle and serve it via t
 	cargo run -p tcl-cli --release --bin tcl -- explore --serve --open
 	@ls -lh $(EXPLORER_STATIC)/
 
-# ---------------------------------------------------------------------------
-# Native binaries have superseded the Python zipapps.
-#
-# The tcl / f5-query / tcl-lsp-server / tcl-mcp Python `.pyz` builds are gone;
-# the native `tcl` / `f5-query` / `tcl-lsp-server` / `tcl-mcp` binaries (see
-# rust-tcl / rust-f5 / rust-server / rust-mcp and the *-cross-build-all targets)
-# ship in their place.  The compiler-explorer CLI/GUI + WASM compiler ride
-# inside the native `tcl` binary (`tcl explore`, `tcl explore --serve`,
-# `tcl compwasm`); see the "Compiler Explorer" section.
-# ---------------------------------------------------------------------------
-
 claude-skills: $(CLAUDE_SKILLS) ## Build Claude Code skills release zip
 
-# Native skills bundle: a plain zip of the (native, MCP-driven) skills tree —
-# no Python `tcl-ai.pyz`, no separate prompts/ (the domain-knowledge prompts
-# live in skills/_prompts/). Layout: tcl-lsp-claude-skills-<v>/skills/<skill>/…
-# which install.sh extracts into ~/.claude/skills/.
+# Skills bundle: a plain zip of the (native, MCP-driven) skills tree; the
+# domain-knowledge prompts live in skills/_prompts/. Layout:
+# tcl-lsp-claude-skills-<v>/skills/<skill>/…, which install.sh extracts into
+# ~/.claude/skills/.
 $(CLAUDE_SKILLS): $(shell find $(ROOT)ai/claude/skills -type f)
-	@echo "==> Building Claude skills release zip (native, no Python)"
+	@echo "==> Building Claude skills release zip"
 	@command -v zip >/dev/null 2>&1 || { echo "ERROR: 'zip' not found."; exit 1; }
 	@rm -rf $(BUILD_DIR)/claude-skills-stage
 	@mkdir -p $(BUILD_DIR)/claude-skills-stage/tcl-lsp-claude-skills-$(VERSION)/skills
@@ -1617,8 +1582,8 @@ distclean: clean ## Remove build artifacts and node_modules
 
 # Rust runtime port (runtime/rust) — standalone crate, excluded from the root
 # workspace (it is `unsafe`; root forbids `unsafe`). These are the gates the
-# rust-runtime-port doc + runtime/rust/README cite. Not wired into ci-fast /
-# prep-pr: the runtime port is a separate workstream from the LSP/compiler CI.
+# rust-runtime-port doc + runtime/rust/README cite. Not wired into prep-pr: the
+# runtime port is a separate workstream from the LSP/compiler CI.
 RUNTIME_RUST_DIR := $(ROOT)runtime/rust
 
 runtime-rust-test: ## Run the Rust runtime port's cargo test (leak round-trip + unit/parse/eval suite)

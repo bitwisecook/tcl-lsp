@@ -5,19 +5,12 @@ IntelliJ Platform plugin providing Tcl language support via the [tcl-lsp](../../
 ## Requirements
 
 - IntelliJ IDEA Ultimate 2024.1+ (or other paid JetBrains IDE)
-- **Python 3.10+** — we recommend the latest stable Python (currently
-  3.14). Install via [Homebrew](https://docs.brew.sh/Homebrew-and-Python)
-  (`brew install python@3.14`) or
-  [python.org](https://www.python.org/downloads/).
 
-The `.zip` plugin bundles the server and all Python dependencies
-internally — no `pip install` is needed. You only need a Python
-interpreter on your system.
+Nothing else — the `.zip` plugin bundles the self-contained native
+`tcl-lsp-server` binary for every supported platform and launches the one
+matching your machine. No Python, runtime, or interpreter is needed.
 
-To use a specific Python interpreter, set the **Python path** in
-**Settings > Tools > Tcl Language Server**.
-
-See the [Installation Guide](../../INSTALL-editors.md#python) for
+See the [Installation Guide](../../INSTALL-editors.md) for
 full details on Python setup across platforms.
 
 > Starting with IntelliJ IDEA 2025.3, the LSP API will be available to all users,
@@ -72,8 +65,7 @@ make build-editor-jetbrains
 
 **Settings → Tools → Tcl Language Server**
 
-- **Python path**: Path to Python 3.10+ (`auto` discovers the best available)
-- **Server path**: Path to tcl-lsp project root (dev mode; leave empty for bundled server)
+- **Server path**: Path to a `tcl-lsp-server` binary (dev mode; leave empty for the bundled server)
 - **Dialect**: Tcl 8.4–9.0, F5 iRules, F5 iApps, EDA Tools
 - **Feature toggles**: Enable/disable individual LSP features
 - **Formatting**: 20+ style settings (indent, braces, line length, etc.)

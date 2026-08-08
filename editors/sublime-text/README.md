@@ -9,10 +9,9 @@ with a superset of its features across all Tcl dialects.
 ## Requirements
 
 - **Sublime Text** 4 (build 4107+)
-- **Python 3.10+** on your system PATH — the LSP server runs as a Python
-  process. The `.sublime-package` bundles the server and all its Python
-  dependencies, so no `pip install` is needed; you only need an
-  interpreter installed.
+- Nothing else — the `.sublime-package` bundles the self-contained native
+  `tcl-lsp-server` binary. No Python, runtime, or interpreter is needed for
+  the server.
 - The **[LSP](https://packagecontrol.io/packages/LSP)** package — install
   it **first**, before this package, for full language-server features
   (diagnostics, completions, hover, formatting, code actions, and more).
@@ -64,22 +63,16 @@ edit to that repo is ever needed by hand.
 4. Install the [LSP](https://packagecontrol.io/packages/LSP) package from
    Package Control for full language-server features
 
-**Python 3.10+** is required for LSP features. We recommend the latest
-stable Python (currently 3.14). Install via
-[Homebrew](https://docs.brew.sh/Homebrew-and-Python)
-(`brew install python@3.14`) or
-[python.org](https://www.python.org/downloads/).
+The `.sublime-package` bundles the native `tcl-lsp-server` binary for each
+platform, so there is nothing further to install for LSP features. The
+bundled server is extracted to the Sublime Text cache on first load and
+marked executable there.
 
-The `.sublime-package` bundles the server and all Python dependencies
-internally — no `pip install` is needed. You only need a Python
-interpreter on your system. The bundled server is extracted to the
-Sublime Text cache on first load.
-
-To use a specific Python interpreter, set `python_path` in
+To point the package at a different build, set `server_path` in
 **Preferences > Package Settings > LSP-Tcl > Settings**.
 
-See the [Installation Guide](../../INSTALL-editors.md#python) for
-full details on Python setup across platforms.
+See the [Installation Guide](../../INSTALL-editors.md) for the full
+per-editor matrix.
 
 ### Development install (from source)
 
@@ -198,8 +191,7 @@ If the bundled server is not found or you want to use a different version:
 
 ```json
 {
-    "server_path": "/path/to/server/__main__.py",
-    "python_path": "/usr/bin/python3.12"
+    "server_path": "/path/to/tcl-lsp-server"
 }
 ```
 

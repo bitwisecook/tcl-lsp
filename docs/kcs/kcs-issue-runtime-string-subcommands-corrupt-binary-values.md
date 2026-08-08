@@ -67,6 +67,9 @@ collision-free escape range.
 
 ### Known residual limitation
 
+Tracked as
+[issue #1347](https://github.com/bitwisecook/tcl-lsp/issues/1347).
+
 `runtime/rust`'s `TclObj` has one byte buffer serving both roles real Tcl
 keeps separate: the object's string rep (what `puts` writes) and a
 byte-array's raw payload (what `binary encode`/`scan` read). A `string`
@@ -76,13 +79,27 @@ through `bytes_to_str`/`str_to_bytes`, matching what `tcl_cmd_core` computed —
 but a case-changing subcommand (`toupper`/`tolower`/`totitle`) applied to a
 value that *is* raw binary content is a no-op on the escaped bytes, rather
 than the byte-for-byte-different Latin-1 case fold C Tcl's byte-array shimmer
-performs (verified against tclsh 8.6: `binary encode hex [string toupper
-[binary format H* 41ff42]]` gives `417842` in real Tcl, `41ff42` here).
-Leaving binary content untouched by a case-conversion command was judged the
-safer trade-off over silently reintroducing a different kind of corruption.
+performs. Leaving binary content untouched by a case-conversion command was
+judged the safer trade-off over silently reintroducing a different kind of
+corruption.
+
+`binary encode hex [string toupper [binary format H* 41ff42]]` gives:
+
+| Backend | Result |
+|---|---|
+| `tclsh8.6` | `417842` |
+| `tclsh9.0` | error: `expected code point values below 0xff but value at byte offset 1 was 0x178` |
+| the bytecode VM | `417842` — matches 8.6 |
+| `runtime/rust` | `41ff42` — unchanged |
+
+Note that 0xFF upper-cases to U+0178, which Tcl 9.0 refuses to encode as a
+byte, so the correct answer is version-dependent; the bytecode VM already
+matches 8.6.
 
 ## Related
 
 - [KCS index](README.md)
 - [Glossary](../GLOSSARY.md)
 - `docs/design/runtime/c-extension-abi.md` — why `TclObj.bytes` is one buffer
+- [issue #1347](https://github.com/bitwisecook/tcl-lsp/issues/1347) — the
+  residual case-fold limitation above

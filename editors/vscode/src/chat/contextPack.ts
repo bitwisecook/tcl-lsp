@@ -514,9 +514,15 @@ async function resolveModel(
     return exact;
   }
 
-  // Preferred model not in the concrete list (e.g. id is "auto").
-  // Pick the first available model.
-  return available[0];
+  // Preferred model not in the concrete list (e.g. id is "auto"). The order of
+  // `selectChatModels()` is not specified, so taking [0] can land on an old,
+  // small model while a far more capable one is right there. Prefer the
+  // largest context window instead: it is a provider-agnostic proxy for the
+  // newer model, and it does not rot the way a hardcoded model name would.
+  const byCapacity = [...available].sort(
+    (a, b) => (b.maxInputTokens ?? 0) - (a.maxInputTokens ?? 0),
+  );
+  return byCapacity[0] ?? available[0];
 }
 
 export async function sendContextualRequest(

@@ -87,12 +87,7 @@
                         "server_path": {
                             "type": "string",
                             "default": "",
-                            "markdownDescription": "Override path to the server `__main__.py` entry point.  Leave empty to use the bundled server."
-                        },
-                        "python_path": {
-                            "type": "string",
-                            "default": "",
-                            "markdownDescription": "Override path to the Python 3.10+ interpreter.  Leave empty for auto-detection."
+                            "markdownDescription": "Override path to the `tcl-lsp-server` binary.  Leave empty to use the bundled server."
                         }
                     }
                 }

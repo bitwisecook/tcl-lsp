@@ -25,8 +25,22 @@ import { CommandContext } from "./types";
  * Looks for ```tcl or ``` blocks and returns the inner content.
  */
 export function extractCodeBlock(text: string): string | undefined {
-  const match = text.match(/```(?:tcl|irule)?\s*\n([\s\S]+?)```/);
-  return match ? match[1].trimEnd() : undefined;
+  // Prefer an explicitly Tcl-ish fence, but accept any tag. Models label these
+  // blocks inconsistently — ```irules, ```f5, ```tcl8.6, sometimes nothing at
+  // all — and treating an unrecognised tag as "no code block" sent a perfectly
+  // good response down the malformed-response fallback path.
+  const fence = /```([A-Za-z0-9_.+-]*)[ \t]*\r?\n([\s\S]*?)```/g;
+  let firstBlock: string | undefined;
+  for (const match of text.matchAll(fence)) {
+    const tag = (match[1] ?? "").toLowerCase();
+    const body = match[2].trimEnd();
+    if (!body.trim()) continue;
+    if (tag.startsWith("tcl") || tag.startsWith("irule")) {
+      return body;
+    }
+    firstBlock ??= body;
+  }
+  return firstBlock;
 }
 
 /**
