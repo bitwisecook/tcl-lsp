@@ -231,7 +231,9 @@ fn a_namespaced_proc_does_not_silence_a_bare_global_call() {
 
     let diags = settled(&lsp, &caller, |d| has(d, "W123"));
     assert!(
-        message_of(&diags, "W123").unwrap_or_default().contains("buried"),
+        message_of(&diags, "W123")
+            .unwrap_or_default()
+            .contains("buried"),
         "a bare global call reaches no namespaced definition: {:?}",
         codes(&diags),
     );
@@ -243,7 +245,10 @@ fn a_namespaced_proc_does_not_silence_a_bare_global_call() {
 fn a_cross_file_args_tailed_proc_abstains_from_arity() {
     let mut lsp = Lsp::tcl();
     let lib = unique_uri("tcl");
-    lsp.open_ready(&lib, "proc argstail {a args} { return $a }\nproc sentinel {} {}\n");
+    lsp.open_ready(
+        &lib,
+        "proc argstail {a args} { return $a }\nproc sentinel {} {}\n",
+    );
     let caller = unique_uri("tcl");
     lsp.open_ready(&caller, "argstail 1 2 3 4 5 6\nneverEverDefined y\n");
 

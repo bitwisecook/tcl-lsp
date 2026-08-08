@@ -1734,7 +1734,10 @@ mod tests {
         let edges = vec![edge("main", "child", 7)];
         let requires = reqs(&[("main", &["http"]), ("child", &["Tk"])]);
         let got = descendant_requires("main", &edges, &requires);
-        assert_eq!(got.iter().map(|p| p.name.as_str()).collect::<Vec<_>>(), ["Tk"]);
+        assert_eq!(
+            got.iter().map(|p| p.name.as_str()).collect::<Vec<_>>(),
+            ["Tk"]
+        );
     }
 
     /// Only `source` edges are followed. A `package require` edge bounds when

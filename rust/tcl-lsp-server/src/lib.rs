@@ -2843,12 +2843,7 @@ async fn run_deep_diagnostics(
                 SourceInheritance::default()
             },
             if needs_settling {
-                settle_cross_file_calls(
-                    &index,
-                    &analysis,
-                    inputs.registry,
-                    delivery.uri.as_str(),
-                )
+                settle_cross_file_calls(&index, &analysis, inputs.registry, delivery.uri.as_str())
             } else {
                 CrossFileCalls::default()
             },
@@ -11612,9 +11607,11 @@ impl Backend {
             &settled_calls,
             cross_file_on,
         );
-        out.extend(cross_file_arity_diagnostics(analysis, &settled_calls, |code| {
-            disabled.contains(code)
-        }));
+        out.extend(cross_file_arity_diagnostics(
+            analysis,
+            &settled_calls,
+            |code| disabled.contains(code),
+        ));
         out
     }
 
@@ -17978,8 +17975,12 @@ fn settle_call_against_workspace<'a>(
 ) -> Option<&'a str> {
     if core_definition::forced_import_shadows_call(
         analysis,
-        core_definition::CallResolution::document_only()
-            .in_program(core_definition::ProgramExports { uri, oracle: exports }),
+        core_definition::CallResolution::document_only().in_program(
+            core_definition::ProgramExports {
+                uri,
+                oracle: exports,
+            },
+        ),
         &inv.name,
         &inv.resolution_candidates,
         call_off,
@@ -18106,7 +18107,11 @@ fn workspace_proc_arity(
     // any) are not what the call reaches — and an alias may bind leading
     // arguments, shifting the count the callee sees. `resolve_command_target`
     // returns the name unchanged when it is not linked, which is the test.
-    if index.resolve_command_target(target).trim_start_matches("::") != target {
+    if index
+        .resolve_command_target(target)
+        .trim_start_matches("::")
+        != target
+    {
         return None;
     }
     let mut min: Option<u32> = None;
@@ -20580,7 +20585,10 @@ mod tests {
             "a literal `source` of an indexed file is followable",
         );
         assert_eq!(
-            got.placed.iter().map(|p| p.name.as_str()).collect::<Vec<_>>(),
+            got.placed
+                .iter()
+                .map(|p| p.name.as_str())
+                .collect::<Vec<_>>(),
             ["Tk"],
             "{got:?}",
         );

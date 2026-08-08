@@ -53,6 +53,7 @@ combine them when more than one form helps:
 ## LSP features
 
 - [kcs-feature-diagnostics.md](kcs-feature-diagnostics.md)
+- [kcs-feature-cross-file-diagnostics.md](kcs-feature-cross-file-diagnostics.md)
 - [kcs-feature-byte-array-corruption.md](kcs-feature-byte-array-corruption.md)
 - [kcs-feature-unknown-command-resolution.md](kcs-feature-unknown-command-resolution.md)
 - [kcs-feature-unused-variables.md](kcs-feature-unused-variables.md)

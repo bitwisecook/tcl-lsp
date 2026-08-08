@@ -376,6 +376,46 @@ rename helper {}
 proc caller {} { helper }      ;# W123: helper was deleted, never re-established
 ```
 
+Diagnostics see the **whole workspace**, not just the open file. A call to a
+proc defined in a sibling file is recognised as the command it really reaches,
+and a call with the wrong number of arguments is reported with the same codes
+as a same-file one — go-to-definition and the Problems panel answer from one
+shared lookup, so they cannot disagree about whether a name exists. Matching is
+by fully-qualified name in Tcl's own resolution order, so a `proc
+::deep::buried` never silences a bare `buried` call that Tcl would not route
+there.
+
+```tcl
+# deflib.tcl
+proc libtest {a b c} { return [expr {$a + $b + $c}] }
+
+# plaincaller.tcl — no `source`, same workspace
+libtest 1 2                    ;# E002: expected at least 3, got 2 (not "unknown command")
+```
+
+`source` is followed when its path resolves statically — a literal, or the
+common `[file join [file dirname [info script]] …]` form — so the sourced
+file's `package require`s and definitions carry into the sourcing file, from
+the `source` statement onward exactly as Tcl loads them.
+
+```tcl
+# tkFile.tcl
+package require Tk
+
+# main.tcl
+winfo exists .l                ;# W120: Tk is not loaded yet at this line
+source tkFile.tcl
+winfo exists .l                ;# no warning — Tk is loaded from here on
+```
+
+Where a fact cannot be proven the analyser says nothing rather than guessing: a
+`source` path it cannot resolve to a file in the workspace, a `load`, an
+`auto_path` mutation, a `namespace unknown` handler, a dynamic `namespace
+import`, a dynamic user `proc unknown`, or a `source` that has itself been
+`rename`d or aliased away all make the available command and package set
+unknowable, and W120 / W123 go quiet for that file. A false warning on working
+code is worse than a missing one.
+
 The eval family (`eval`, `uplevel`, `namespace eval`, `interp eval`) is
 analysed the way Tcl runs it: the trailing words concatenate into one
 script, so a multi-word call is walked as the script it actually

@@ -6326,11 +6326,10 @@ impl Analyser {
     /// adds another file-loading command is covered by declaring the trait.
     fn note_external_unit_command_moved(&mut self, name: &str) {
         let bare = name.trim_start_matches("::");
-        if self
-            .registry
-            .and_then(|r| r.get(bare))
-            .is_some_and(|spec| spec.traits.contains(tcl_registry::Traits::LOADS_EXTERNAL_UNIT))
-        {
+        if self.registry.and_then(|r| r.get(bare)).is_some_and(|spec| {
+            spec.traits
+                .contains(tcl_registry::Traits::LOADS_EXTERNAL_UNIT)
+        }) {
             self.result.has_dynamic_providers = true;
         }
     }
