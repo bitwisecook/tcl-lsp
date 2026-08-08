@@ -77,6 +77,11 @@ mod issue1302_import_builtin_shadow;
 mod issue1305_renamed_metaclass;
 #[path = "e2e/issue1312_named_object_dispatch.rs"]
 mod issue1312_named_object_dispatch;
+
+/// Issues #1331 / #1332 — cross-file command resolution in the diagnostics
+/// path, and the facts a `source`d file contributes.
+#[path = "e2e/issue1331_crossfile_diagnostics.rs"]
+mod issue1331_crossfile_diagnostics;
 #[path = "e2e/issue923_class_refs.rs"]
 mod issue923_class_refs;
 #[path = "e2e/issue923_crossdoc.rs"]
