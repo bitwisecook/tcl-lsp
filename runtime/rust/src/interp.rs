@@ -4994,6 +4994,14 @@ impl Interp {
             n.into_bytes()
         });
         let mut child = Interp::new();
+        // A child interpreter is another interpreter of the *same* Tcl build,
+        // not a different release — C compiles one library in, so every child
+        // reports and behaves as its parent's release. Inherited before the
+        // globals are written, so the child's `tcl_version`/`tcl_patchLevel`
+        // and its namespace-scope variable resolution both agree with the
+        // parent (issue #1328). Resolution still runs against the child's
+        // *own* global namespace: the rule is shared, the variables are not.
+        child.set_runtime_version(self.runtime_version());
         // A (non-safe) child gets the predefined globals (`tcl_platform`, …) like
         // a real interpreter. The full `init.tcl` (package/auto-load) is deferred.
         child.set_startup_globals();
