@@ -785,6 +785,8 @@ echo "==> Watching for screenshot signals..."
 
 TIMEOUT=$((SECONDS + 360))  # 6-minute overall timeout (AI scenes need extra time)
 
+FIFO_PARTIAL=""
+
 capture_one() {
   local scene_name="$1"
   local output_path="$OUTPUT_DIR/${scene_name}.png"
@@ -803,14 +805,26 @@ while [[ $SECONDS -lt $TIMEOUT ]]; do
   if [[ "$USE_FIFO" == "1" ]]; then
     # Blocks until the extension sends a scene name. The timeout keeps the
     # overall deadline enforceable and lets the `.done` check above run.
-    scene_name=""
-    if read -r -t 2 -u 8 scene_name && [[ -n "$scene_name" ]]; then
-      if [[ "$scene_name" == "__done__" ]]; then
-        echo "==> All screenshots captured."
-        break
+    # `read -t` saves whatever it read into the variable when it times out, so
+    # a name split across the timeout boundary must be carried over — dropping
+    # it made the next read see only the tail and capture e.g. "0-ai-review"
+    # instead of "30-ai-review", leaving a truncated duplicate PNG behind.
+    chunk=""
+    if read -r -t 2 -u 8 chunk; then
+      scene_name="$FIFO_PARTIAL$chunk"
+      FIFO_PARTIAL=""
+      if [[ -n "$scene_name" ]]; then
+        if [[ "$scene_name" == "__done__" ]]; then
+          echo "==> All screenshots captured."
+          break
+        fi
+        capture_one "$scene_name"
+        printf '%s\n' "ok" >&9
       fi
-      capture_one "$scene_name"
-      printf '%s\n' "ok" >&9
+    else
+      # Non-zero is either a timeout (>128) or EOF; only a timeout can carry
+      # partial data worth keeping.
+      (( $? > 128 )) && FIFO_PARTIAL="$FIFO_PARTIAL$chunk"
     fi
     continue
   fi
