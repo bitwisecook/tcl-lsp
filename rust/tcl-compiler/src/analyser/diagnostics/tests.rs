@@ -252,20 +252,20 @@ fn w108_comment_prose_is_not_flagged() {
 }
 
 #[test]
-fn w108_comment_bidi_control_still_flags() {
-    // TP: a bidi override in a comment is the trojan-source attack shape —
-    // it can make the comment (and what follows it) render as different
-    // code than what compiles. Always flagged.
+fn w108_leaves_comment_bidi_controls_to_w305() {
+    // A bidi override in a comment is the trojan-source attack shape, and it
+    // *is* still flagged — by W305, at error severity, from the whole-file
+    // scan in `tcl_lsp_core::source_decode` (issue #1326).  W108 must not
+    // report it as well: one character, one code, and a generic "non-ASCII
+    // character" warning materially understates what a bidi override does.
+    // The positive assertions live in `source_decode`'s own suite and in
+    // `issue1326_encoding.rs`.
     let hits = w108(
         "proc f {} {\n    # ok \u{202e}live\n    set y 1\n    puts $y\n}\nf\n",
         "tcl8.6",
     );
-    assert_eq!(
-        hits.len(),
-        1,
-        "bidi override in comment must flag: {hits:?}"
-    );
-    assert_eq!(hits[0].0, 0x202e);
+    assert!(hits.is_empty(), "W305 owns the bidi set now: {hits:?}");
+    assert!(crate::analyser::confusables_table::is_bidi_control('\u{202e}'));
 }
 
 #[test]
@@ -299,12 +299,22 @@ fn w108_strict_mode_still_flags_comment_prose() {
 }
 
 #[test]
-fn w108_bidi_control_in_code_flags_in_confusables_mode() {
-    // The trojan-source set bypasses the confusables-table gate in code
-    // too: U+202E has no table entry but is a review hazard anywhere.
+fn w108_leaves_code_bidi_controls_to_w305() {
+    // Same hand-off as in comments (issue #1326): the character is still
+    // reported, just under the code that describes what it actually does.
     let hits = w108("set x a\u{202e}b\n", "tcl8.6");
-    assert_eq!(hits.len(), 1, "bidi override in code must flag: {hits:?}");
-    assert_eq!(hits[0].0, 0x202e);
+    assert!(hits.is_empty(), "W305 owns the bidi set now: {hits:?}");
+    // ...and the neighbouring invisible characters that are *not* bidi
+    // controls stay with W108, which is the boundary that matters.
+    assert!(!crate::analyser::confusables_table::is_bidi_control('\u{200b}'));
+    assert_eq!(
+        w108_mode(
+            "set x a\u{200b}b\n",
+            "tcl8.6",
+            crate::analyser::NonAsciiMode::Common
+        ),
+        vec![0x200b]
+    );
 }
 
 fn codes_for_dialect(src: &str, dialect: &str) -> Vec<String> {
@@ -810,10 +820,10 @@ fn w108_common_mode_flags_confusables_and_non_benign() {
         w108_mode("set x a\u{200b}b\n", "tcl8.6", Common),
         vec![0x200b]
     ); // ZWSP (Cf)
-    assert_eq!(
-        w108_mode("set x a\u{202e}b\n", "tcl8.6", Common),
-        vec![0x202e]
-    ); // RLO (Cf)
+    // U+202E RLO is *not* here: bidi controls moved to W305 (issue #1326),
+    // so `common` mode reports the zero-width and control characters it was
+    // always meant to catch and leaves the direction-altering set alone.
+    assert!(w108_mode("set x a\u{202e}b\n", "tcl8.6", Common).is_empty());
 }
 
 #[test]

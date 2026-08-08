@@ -308,7 +308,7 @@ fn scan_utf8_errors(bytes: &[u8]) -> (Option<Utf8Error>, usize) {
                 if first.is_none() {
                     first = Some(Utf8Error {
                         byte_offset: at,
-                        fault: classify_fault(&bytes[at..], e.error_len()),
+                        fault: classify_fault(&bytes[at..]),
                     });
                 }
                 // `error_len() == None` means "ran off the end": nothing left
@@ -326,11 +326,13 @@ fn scan_utf8_errors(bytes: &[u8]) -> (Option<Utf8Error>, usize) {
 
 /// Classify the ill-formed sequence starting at `at[0]`.
 ///
-/// `error_len` is `None` when the sequence was cut off by the end of the
-/// buffer, which is unambiguously [`Utf8Fault::Truncated`]. Otherwise the lead
-/// byte (and, where the lead byte alone is not decisive, the byte after it)
-/// picks the class, following the Unicode 15 well-formed-byte-sequence table.
-fn classify_fault(at: &[u8], error_len: Option<usize>) -> Utf8Fault {
+/// The lead byte — and, where the lead byte alone is not decisive, the byte
+/// after it — picks the class, following the Unicode 15 well-formed
+/// byte-sequence table (§3.9, Table 3-7). Anything left over is a well-formed
+/// lead byte that was not followed by the continuation bytes it needs, which
+/// is [`Utf8Fault::Truncated`] whether the file ran out or the next byte was
+/// simply not a continuation.
+fn classify_fault(at: &[u8]) -> Utf8Fault {
     let Some(&lead) = at.first() else {
         return Utf8Fault::Truncated;
     };
@@ -348,9 +350,6 @@ fn classify_fault(at: &[u8], error_len: Option<usize>) -> Utf8Fault {
         // F4 90..BF would exceed U+10FFFF, as does any lead byte above F4.
         0xF4 if matches!(next, Some(0x90..=0xBF)) => Utf8Fault::OutOfRange,
         0xF5..=0xFF => Utf8Fault::OutOfRange,
-        // A well-formed lead byte that was not followed by the continuation
-        // bytes it needs.
-        _ if error_len.is_none() => Utf8Fault::Truncated,
         _ => Utf8Fault::Truncated,
     }
 }
@@ -452,11 +451,18 @@ pub fn encoding_integrity_diagnostics(
 
     // ---- W107: valid text, but not the bytes on disk -----------------------
     match report {
-        // Proven valid UTF-8: any U+FFFD in the text is genuine content.
-        Some(r) if r.first_error.is_none() => {}
-        Some(r) => {
-            let err = r.first_error.expect("matched Some above");
-            let plural = if r.error_count == 1 { "" } else { "s" };
+        // Proven valid UTF-8: any U+FFFD in the text is genuine content, so
+        // this is the one case where having the bytes changes the verdict and
+        // not merely the precision.
+        Some(DecodeReport {
+            first_error: None, ..
+        }) => {}
+        Some(&DecodeReport {
+            first_error: Some(err),
+            error_count,
+            ..
+        }) => {
+            let plural = if error_count == 1 { "" } else { "s" };
             out.push(StyleDiagnostic {
                 // The lossy decode put a U+FFFD where the bad bytes were, so
                 // the byte offset into the *original* buffer is not an offset
@@ -470,7 +476,7 @@ pub fn encoding_integrity_diagnostics(
                      Tcl 9 refuses to read such a file at all.",
                     err.fault.label(),
                     err.byte_offset,
-                    r.error_count,
+                    error_count,
                     plural,
                 ),
                 severity: StyleSeverity::Warning,
