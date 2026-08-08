@@ -472,7 +472,11 @@ mod tests {
                 assert_eq!(i.eval_str(b"set ::g"), Code::Ok);
                 assert_eq!(
                     i.result_bytes(),
-                    if falls_back { &b"W"[..] } else { &b"GLOBAL"[..] },
+                    if falls_back {
+                        &b"W"[..]
+                    } else {
+                        &b"GLOBAL"[..]
+                    },
                     "{version:?}: the global's value"
                 );
                 i.eval_str(b"unset -nocomplain ::g ::foo::g");
@@ -567,10 +571,7 @@ mod tests {
     /// existing namespace variable shadows the global in *both* releases.
     #[test]
     fn the_fallback_never_walks_intermediate_parents() {
-        for version in [
-            tcl_dialect::TclVersion::V8_6,
-            tcl_dialect::TclVersion::V9_0,
-        ] {
+        for version in [tcl_dialect::TclVersion::V8_6, tcl_dialect::TclVersion::V9_0] {
             leak_free(|i| {
                 i.set_runtime_version(version);
                 // A parent namespace's variable is never found from a child.
@@ -610,10 +611,7 @@ mod tests {
     /// subcommand yet.)
     #[test]
     fn namespace_upvar_is_explicit_in_both_releases() {
-        for version in [
-            tcl_dialect::TclVersion::V8_6,
-            tcl_dialect::TclVersion::V9_0,
-        ] {
+        for version in [tcl_dialect::TclVersion::V8_6, tcl_dialect::TclVersion::V9_0] {
             leak_free(|i| {
                 i.set_runtime_version(version);
                 i.eval_str(b"set g G");

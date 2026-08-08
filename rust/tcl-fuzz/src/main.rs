@@ -271,7 +271,11 @@ fn run_campaign(
     // campaign records carries the releases it was produced against, and a
     // skewed pair announces itself up front (issue #1328).
     let versions = version::PairVersions {
-        reference: version::EngineVersion::probe(&pair.reference_bin, &pair.reference_args, timeout),
+        reference: version::EngineVersion::probe(
+            &pair.reference_bin,
+            &pair.reference_args,
+            timeout,
+        ),
         subject: version::EngineVersion::probe(&pair.subject_bin, &pair.subject_args, timeout),
     };
     let describe = |v: &Option<version::EngineVersion>| {

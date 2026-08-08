@@ -217,15 +217,17 @@ impl Registry {
 mod tests {
     use super::*;
 
-    fn tmp() -> PathBuf {
-        let p = std::env::temp_dir().join(format!("tcl-fuzz-test-{}", std::process::id()));
+    /// A registry directory unique to `name` as well as the process, so tests
+    /// running in parallel never share (or wipe) one another's registry.
+    fn tmp(name: &str) -> PathBuf {
+        let p = std::env::temp_dir().join(format!("tcl-fuzz-test-{}-{name}", std::process::id()));
         let _ = std::fs::remove_dir_all(&p);
         p
     }
 
     #[test]
     fn record_dedups_and_summarises() {
-        let dir = tmp();
+        let dir = tmp("dedup");
         let reg = Registry::open(&dir).unwrap();
         let f = Finding::new(
             7,
@@ -241,6 +243,7 @@ mod tests {
                 stderr: String::new(),
                 errored: false,
             },
+            &crate::version::PairVersions::default(),
         );
         assert!(reg.record(&f).unwrap());
         assert!(
@@ -249,6 +252,38 @@ mod tests {
         );
         assert_eq!(reg.summary().get(&Category::StdoutMismatch), Some(&1));
         assert_eq!(reg.load(7).unwrap().subject_stdout, "2\n");
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// Every finding carries the releases it was produced against, and they
+    /// survive the round trip to disk — the whole point of issue #1328's
+    /// harness change: a version-skewed campaign must be recognisable from
+    /// the registry alone, long after the run.
+    #[test]
+    fn a_finding_records_both_engines_versions_and_the_skew_flag() {
+        let dir = tmp("versions");
+        let reg = Registry::open(&dir).unwrap();
+        let ran = |s: &str| Outcome::Ran {
+            stdout: s.to_owned(),
+            stderr: String::new(),
+            errored: false,
+        };
+        let f = Finding::new(
+            11,
+            Category::StatusMismatch,
+            "namespace eval n { append i baz }",
+            &ran("a\n"),
+            &ran("b\n"),
+            &crate::version::PairVersions {
+                reference: Some(crate::version::EngineVersion::parse("8.6.16")),
+                subject: Some(crate::version::EngineVersion::parse("9.0.4")),
+            },
+        );
+        assert!(reg.record(&f).unwrap());
+        let back = reg.load(11).unwrap();
+        assert_eq!(back.reference_version.as_deref(), Some("8.6.16"));
+        assert_eq!(back.subject_version.as_deref(), Some("9.0.4"));
+        assert!(back.version_skew, "8.6 oracle vs 9.0 subject is skew");
         let _ = std::fs::remove_dir_all(&dir);
     }
 }

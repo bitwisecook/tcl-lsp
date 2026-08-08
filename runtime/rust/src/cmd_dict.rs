@@ -643,7 +643,9 @@ fn dict_path_set(
         chain.push((cur, head, sub, sub_fresh));
         cur = sub;
     }
-    let last = *keys.last().expect("keys is non-empty: the [last] case above handles len 1");
+    let last = *keys
+        .last()
+        .expect("keys is non-empty: the [last] case above handles len 1");
     if let Err(e) = dict::dict_set(cur, last, value) {
         // A freshly duplicated/created `sub` (rc 0) at any level is only
         // retained once re-bound into its parent below; nothing in `chain` has
@@ -757,7 +759,9 @@ fn dict_path_unset(dict: *mut TclObj, keys: &[*mut TclObj]) -> Result<(), PathEr
         chain.push((cur, head, sub, sub_fresh));
         cur = sub;
     }
-    let last = *keys.last().expect("keys is non-empty: the [last] case above handles len 1");
+    let last = *keys
+        .last()
+        .expect("keys is non-empty: the [last] case above handles len 1");
     // Drop a freshly duplicated `sub` still in `chain` if this (or the descent
     // above) errors before the re-bind loop below retains it.
     if let Err(e) = dict::dict_unset(cur, &obj_bytes(last)) {
@@ -1220,9 +1224,8 @@ mod tests {
         const DEPTH: usize = 3800;
         let set_src = format!("dict set d {{*}}[lrepeat {DEPTH} k] v");
         ok(set_src.as_bytes());
-        let unset_src = format!(
-            "dict set d {{*}}[lrepeat {DEPTH} k] v; dict unset d {{*}}[lrepeat {DEPTH} k]"
-        );
+        let unset_src =
+            format!("dict set d {{*}}[lrepeat {DEPTH} k] v; dict unset d {{*}}[lrepeat {DEPTH} k]");
         ok(unset_src.as_bytes());
     }
 
@@ -1368,7 +1371,8 @@ mod tests {
         );
         // dict -> string -> list -> dict round trip: appending " c" makes it
         // odd, and `llength` forces a list intrep before `dict lappend` sees it.
-        let (c3, b3) = run(b"set v [dict create a 1 b 2]; append v { c}; llength $v; dict lappend v k x");
+        let (c3, b3) =
+            run(b"set v [dict create a 1 b 2]; append v { c}; llength $v; dict lappend v k x");
         assert_eq!(c3, Code::Error);
         assert_eq!(b3, b"missing value to go with key");
         // A value that already has a dict intrep stays valid after `llength`

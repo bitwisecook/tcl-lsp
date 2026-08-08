@@ -139,8 +139,14 @@ impl Campaign<'_> {
             Verdict::Timeout => stats.timeout += 1,
         }
         if let Some(category) = Category::from_verdict(verdict) {
-            let finding =
-                Finding::new(seed, category, &script, &reference, &subject, &self.versions);
+            let finding = Finding::new(
+                seed,
+                category,
+                &script,
+                &reference,
+                &subject,
+                &self.versions,
+            );
             if self.registry.record(&finding).unwrap_or(false) {
                 stats.new_findings += 1;
             }
