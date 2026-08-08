@@ -1,0 +1,247 @@
+name: Performance
+
+# Release-performance monitoring: runs the deterministic benchmark suite
+# (`scripts/perf/`) against the server built from this ref, publishes the
+# graphs and the raw result JSON as artefacts, and writes the summary table
+# into the job summary.
+#
+# Deliberately a separate workflow from `ci.yml`: it is slower than the
+# gates, it is the only job that needs network access to third-party repos
+# (the pinned corpus), and it should be re-runnable on its own from the
+# Actions tab without dragging the whole release graph along.
+#
+# NOT GATING YET. The suite reports and warns; it does not fail the build on
+# a slow check. Wall time on a shared runner is not comparable to the
+# maintainer laptop the committed `results/` were measured on, so a
+# threshold would be arbitrary until this job has established its own
+# baseline over a few runs. `bench.py --fail-on-failed-check` is wired and
+# commented out below — flip it on once the baseline exists.
+
+on:
+  push:
+    # `rust` and `main` give the running trend — every merge is a data point,
+    # which is what makes a release number interpretable rather than a lone
+    # figure. `v*` gives the release record: those runs publish the graphs
+    # that go into the release notes and READMEs.
+    branches: [main, rust]
+    tags: ["v*"]
+  pull_request:
+    branches: [main, rust]
+    paths:
+      # Only the things that can move the numbers, plus the harness itself.
+      # A docs-only PR should not spend ten minutes cloning tcllib.
+      - "rust/**"
+      - "Cargo.toml"
+      - "Cargo.lock"
+      - "scripts/perf/**"
+      - ".github/workflows/perf.yml"
+  schedule:
+    # Nightly on the default line, so the trend keeps accumulating even
+    # through weeks where nothing touches `rust/`.
+    - cron: "17 4 * * *"
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  benchmark:
+    runs-on: ubuntu-26.04
+    timeout-minutes: 60
+    permissions:
+      # Only the `v*` tag path uses this, to attach the release graphs to the
+      # GitHub Release. Every other trigger leaves the token unused.
+      contents: write
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        with:
+          fetch-depth: 1
+
+      - name: Set up Rust
+        uses: actions-rust-lang/setup-rust-toolchain@46268bd060767258de96ed93c1251119784f2ab6 # v1.16.1
+        with:
+          toolchain: stable
+          cache-key: perf-benchmark
+
+      - name: Build tcl-lsp-server (release)
+        run: cargo build -p tcl-lsp-server --release
+
+      # tomllib, so 3.11+. The runner image ships 3.12; assert rather than
+      # assume, because the failure mode otherwise is a confusing ImportError
+      # deep inside the harness.
+      - name: Check Python version
+        run: |
+          python3 -c 'import sys; assert sys.version_info >= (3, 11), sys.version' \
+            && python3 --version
+
+      # The corpus is third-party source pinned to exact commits. Cached on
+      # the manifest hash: a pin change is a new cache key, which is exactly
+      # when the corpus must be re-fetched.
+      - name: Cache pinned corpus
+        id: corpus-cache
+        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+        with:
+          path: scripts/perf/corpus
+          key: perf-corpus-small-${{ hashFiles('scripts/perf/MANIFEST.toml') }}
+
+      - name: Fetch corpus
+        working-directory: scripts/perf
+        run: python3 fetch_corpus.py --scope small
+
+      # Belt and braces: a cache restore could in principle hand back a tree
+      # that no longer matches the pins. Verify offline before measuring, so
+      # a drifted corpus is a loud failure rather than a silently
+      # incomparable data point.
+      - name: Verify corpus pins
+        working-directory: scripts/perf
+        run: python3 fetch_corpus.py --scope small --verify-only
+
+      # A tag is a release record and is labelled with its version, so it
+      # lands in `report.py`'s semantic ordering alongside the other
+      # releases. Anything else is a trend point labelled by sha; a
+      # non-numeric label sorts ahead of the numbered releases, so the
+      # current ref reads as the first row and first legend entry.
+      - name: Resolve the result label
+        id: label
+        run: |
+          if [[ "$GITHUB_REF" == refs/tags/v* ]]; then
+            label="${GITHUB_REF#refs/tags/v}"
+            echo "release=true" >> "$GITHUB_OUTPUT"
+          else
+            label="ci-${GITHUB_SHA:0:12}"
+            echo "release=false" >> "$GITHUB_OUTPUT"
+          fi
+          echo "label=$label" >> "$GITHUB_OUTPUT"
+          echo "labelling this run: $label"
+
+      - name: Run the benchmark suite
+        working-directory: scripts/perf
+        run: |
+          python3 bench.py \
+            --server ../../target/release/tcl-lsp-server \
+            --version "${{ steps.label.outputs.label }}" \
+            --scope small \
+            --out ci-results
+          # Once a runner baseline exists, add: --fail-on-failed-check
+          # (branch runs only — a perf hiccup must never block a release).
+
+      # Rendered against the committed release results as well as this run,
+      # so the graph shows where the current ref sits in the trend rather
+      # than as a lone line with nothing to compare against.
+      - name: Render graphs against the release history
+        working-directory: scripts/perf
+        run: |
+          # `cp -n`: on a tag whose version is already committed to
+          # `results/` (a re-run, or a re-cut tag), the freshly measured file
+          # must win over the stored one rather than be silently overwritten
+          # by it.
+          cp -n results/*.json ci-results/ || true
+          python3 report.py --results ci-results --out ci-graphs
+
+      - name: Job summary
+        working-directory: scripts/perf
+        run: |
+          {
+            echo "### Benchmark — \`${GITHUB_REF_NAME}\` @ \`${GITHUB_SHA:0:12}\`"
+            echo
+            echo "Runner: \`${RUNNER_OS}\` \`$(nproc)\` cores. **Wall times are not"
+            echo "comparable to the committed laptop results** — compare CI runs"
+            echo "to other CI runs."
+            echo
+            cat ci-graphs/summary.md
+            echo
+            echo "<details><summary>Documents benchmarked</summary>"
+            echo
+            python3 - <<'PY'
+          import json, pathlib
+          d = json.loads(pathlib.Path(
+              "ci-results/${{ steps.label.outputs.label }}.json").read_text())
+          print("| document | bytes | nav positions |")
+          print("| --- | ---: | ---: |")
+          for m in d.get("documents", []):
+              print(f"| `{m['path']}` | {m['bytes']} | {m['positions']} |")
+          print()
+          print(f"Anchors: {d.get('anchors') or 'none'}")
+          PY
+            echo
+            echo "</details>"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      # Warnings, not failures — see the header. Surfaces the two things that
+      # would matter once this gates: a check that did not complete, and one
+      # that took absurdly long even allowing for a slow shared runner.
+      - name: Flag failed or very slow checks
+        working-directory: scripts/perf
+        run: |
+          python3 - <<'PY'
+          import json, pathlib
+          SLOW_S = 20.0
+          for f in sorted(pathlib.Path("ci-results").glob("ci-*.json")):
+              data = json.loads(f.read_text())
+              for c in data["checks"]:
+                  if not c["ok"]:
+                      print(f"::warning title=Benchmark check failed::"
+                            f"{c['id']} ({c['label']}) did not complete: {c['note']}")
+                  elif c["wall_s"] >= SLOW_S:
+                      print(f"::warning title=Benchmark check slow::"
+                            f"{c['id']} ({c['label']}) took {c['wall_s']:.1f}s")
+          PY
+
+      # Unconditional and before the release upload: whatever else happens,
+      # the measurement survives and can be attached by hand.
+      - name: Upload benchmark results and graphs
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: perf-${{ steps.label.outputs.label || github.run_id }}
+          path: |
+            scripts/perf/ci-results
+            scripts/perf/ci-graphs
+          if-no-files-found: error
+          # Release records are the ones worth keeping; trend points age out.
+          retention-days: ${{ steps.label.outputs.release == 'true' && 90 || 30 }}
+
+      # Tag only: attach the graphs to the GitHub Release so the release
+      # notes and READMEs have a stable URL to point at, e.g.
+      #   https://github.com/<repo>/releases/download/v2.1.17/perf-memory.svg
+      #
+      # `create-release` lives in ci.yml and is gated on the whole cargo test
+      # surface, so on a tag push it can land well after this job finishes —
+      # hence the bounded wait rather than assuming the release exists.
+      # Never fatal: a release that never appears means ci.yml failed, and
+      # this job reporting red on top of that would only obscure the real
+      # failure. The artefact above is the fallback.
+      - name: Attach graphs to the GitHub Release
+        if: steps.label.outputs.release == 'true'
+        working-directory: scripts/perf
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          set -uo pipefail
+          tag="${GITHUB_REF#refs/tags/}"
+          mkdir -p out
+          for f in memory cpu walltime; do
+            cp "ci-graphs/$f.svg" "out/perf-$f.svg"
+          done
+          cp ci-graphs/summary.md "out/perf-summary.md"
+          cp "ci-results/${{ steps.label.outputs.label }}.json" \
+             "out/perf-${{ steps.label.outputs.label }}.json"
+
+          for attempt in $(seq 1 40); do
+            if gh release view "$tag" >/dev/null 2>&1; then
+              gh release upload "$tag" out/* --clobber && {
+                echo "attached $(ls out | tr '\n' ' ')to $tag"
+                exit 0
+              }
+              echo "::warning title=Perf graphs not attached::upload to $tag failed"
+              exit 0
+            fi
+            echo "waiting for release $tag to exist (attempt $attempt/40)"
+            sleep 30
+          done
+          echo "::warning title=Perf graphs not attached::release $tag did not appear within 20 minutes; the graphs are in this run's artefact"
