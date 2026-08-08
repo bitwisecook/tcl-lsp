@@ -350,6 +350,29 @@ const DIAGNOSTICS_FAST_TIER_BUDGET: std::time::Duration = std::time::Duration::f
 /// multi-thousand-line documents #844 targets.
 const DIAGNOSTICS_FAST_TIER_MIN_LINES: usize = 500;
 
+/// How long to wait for the editor to answer a *server-to-client* request
+/// before giving up on it.
+///
+/// This is a liveness guard, and it is load-bearing rather than cosmetic.
+/// A handler parked on `client.configuration(..).await` is waiting for a reply
+/// that arrives on **stdin**, and only the transport's single `read_input`
+/// future can deliver it. That future parks once the task queue behind it
+/// fills, which happens as soon as
+/// `buffer_unordered(DEFAULT_MAX_CONCURRENCY)`'s four slots are occupied by
+/// handlers that never finish. Four parked config pulls with a burst behind
+/// them therefore close a cycle: the handlers wait for replies the parked
+/// reader will never read, and the session wedges with a perfectly healthy
+/// stdout. That is #1334 / #1294 reached by a route
+/// [`stdio_pump`](crate::stdio_pump) cannot cover, and
+/// `tests/stdio_deadlock.rs` demonstrates the mechanism.
+///
+/// Bounding the wait converts that permanent deadlock into a bounded stall:
+/// the handler returns, its slot frees, the queue drains and the reader
+/// resumes. Sized generously — a conforming client answers
+/// `workspace/configuration` in milliseconds, so ten seconds only ever fires
+/// for a client that is not going to answer.
+const CLIENT_REQUEST_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(10);
+
 /// The iRules dialect key.  A BIG-IP config's `ltm rule { … }` bodies are iRules
 /// code, so they are tokenised against this registry rather than the config's
 /// own `f5-bigip` one.
@@ -10295,15 +10318,48 @@ impl Backend {
         self.reresolve_open_document_dialects().await;
     }
 
+    /// `workspace/configuration`, bounded by [`CLIENT_REQUEST_TIMEOUT`].
+    ///
+    /// The timeout is a **liveness** guard, not politeness, and it is
+    /// load-bearing — see the constant. A client that never answers would
+    /// otherwise park this handler forever, and enough parked handlers stop the
+    /// server reading stdin at all, which is the wedge in #1334 / #1294 reached
+    /// by a route the stdout pump cannot cover.
+    ///
+    /// A timeout is reported as `Err(())`, the same shape as a client that
+    /// declines, so every caller's existing early-return path handles it: the
+    /// server keeps the config it already had rather than acting on a partial
+    /// pull.
+    async fn request_configuration(
+        &self,
+        items: Vec<ConfigurationItem>,
+    ) -> Result<Vec<serde_json::Value>, ()> {
+        match tokio::time::timeout(CLIENT_REQUEST_TIMEOUT, self.client.configuration(items)).await {
+            Ok(Ok(values)) => Ok(values),
+            Ok(Err(_)) => Err(()),
+            Err(_elapsed) => {
+                let message = format!(
+                    "tcl-lsp: the editor did not answer workspace/configuration within {}s; \
+                     keeping the previous settings. Giving up is deliberate — waiting \
+                     indefinitely can stop the server reading its input entirely (#1334).",
+                    CLIENT_REQUEST_TIMEOUT.as_secs()
+                );
+                eprintln!("{message}");
+                self.client.log_message(MessageType::WARNING, message).await;
+                Err(())
+            }
+        }
+    }
+
     /// The pull-and-apply body of [`Self::pull_and_apply_config`], without the
     /// trailing dialect re-resolve. Returns early when the client declines the
-    /// `workspace/configuration` request.
+    /// `workspace/configuration` request, or does not answer it in time.
     async fn pull_and_apply_config_values(&self) {
         let items = vec![ConfigurationItem {
             scope_uri: None,
             section: Some("tclLsp".to_owned()),
         }];
-        let Ok(values) = self.client.configuration(items).await else {
+        let Ok(values) = self.request_configuration(items).await else {
             return;
         };
         let Some(cfg) = values.into_iter().next() else {
@@ -10361,7 +10417,7 @@ impl Backend {
                     section: Some("tclLsp".to_owned()),
                 })
                 .collect();
-            if let Ok(values) = self.client.configuration(items).await {
+            if let Ok(values) = self.request_configuration(items).await {
                 let parsed: Vec<(Uri, FolderConfig)> = folders
                     .into_iter()
                     .zip(values)
