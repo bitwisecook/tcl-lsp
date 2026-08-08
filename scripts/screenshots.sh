@@ -260,6 +260,26 @@ fi
 pkill -f "vscode-test.*Electron" 2>/dev/null || true
 sleep 0.5
 
+# Capture channel — must exist and be exported BEFORE VS Code is spawned, so
+# the extension host inherits the paths. Created late, the extension would fall
+# back to marker files while this script waited on the FIFO: a deadlock.
+REQ_FIFO="$OUTPUT_DIR/.capture-req"
+ACK_FIFO="$OUTPUT_DIR/.capture-ack"
+USE_FIFO=0
+rm -f "$REQ_FIFO" "$ACK_FIFO"
+if mkfifo "$REQ_FIFO" "$ACK_FIFO" 2>/dev/null; then
+  USE_FIFO=1
+  export TCL_LSP_SCREENSHOT_REQ_FIFO="$REQ_FIFO"
+  export TCL_LSP_SCREENSHOT_ACK_FIFO="$ACK_FIFO"
+  # Hold both ends open for the life of the loop so neither side sees EOF
+  # between scenes (a FIFO returns EOF as soon as the last writer closes).
+  exec 8<>"$REQ_FIFO"
+  exec 9<>"$ACK_FIFO"
+  echo "==> Capture channel: FIFO (no polling)"
+else
+  echo "==> Capture channel: marker files (mkfifo unavailable)"
+fi
+
 # Launch VS Code in screenshot mode
 
 echo "==> Launching VS Code for screenshot capture..."
@@ -749,7 +769,14 @@ capture_window() {
   fi
 }
 
-# Screenshot capture loop - watch for .ready files from the extension
+# Screenshot capture loop.
+#
+# The extension and this script hand off over a FIFO pair rather than by
+# polling for marker files: the extension writes a scene name the moment its
+# window is composed, `read` here wakes immediately, captures, and writes back.
+# No poll interval on either side, so a scene costs its render time and nothing
+# more.  `.ready`/`.captured` marker files remain as the fallback path when
+# mkfifo is unavailable (see captureScreenshot in screenshotDemo.ts).
 
 # Signal the extension that we're ready to start capturing.
 touch "$OUTPUT_DIR/.shell-ready"
@@ -757,6 +784,13 @@ touch "$OUTPUT_DIR/.shell-ready"
 echo "==> Watching for screenshot signals..."
 
 TIMEOUT=$((SECONDS + 360))  # 6-minute overall timeout (AI scenes need extra time)
+
+capture_one() {
+  local scene_name="$1"
+  local output_path="$OUTPUT_DIR/${scene_name}.png"
+  echo "  Capturing: $scene_name"
+  capture_window "$output_path"
+}
 
 while [[ $SECONDS -lt $TIMEOUT ]]; do
   # Check if the extension is done.
@@ -766,24 +800,34 @@ while [[ $SECONDS -lt $TIMEOUT ]]; do
     break
   fi
 
-  # Check for .ready signals from the extension.
+  if [[ "$USE_FIFO" == "1" ]]; then
+    # Blocks until the extension sends a scene name. The timeout keeps the
+    # overall deadline enforceable and lets the `.done` check above run.
+    scene_name=""
+    if read -r -t 2 -u 8 scene_name && [[ -n "$scene_name" ]]; then
+      if [[ "$scene_name" == "__done__" ]]; then
+        echo "==> All screenshots captured."
+        break
+      fi
+      capture_one "$scene_name"
+      printf '%s\n' "ok" >&9
+    fi
+    continue
+  fi
+
+  # Fallback: poll for .ready signals from the extension.
   for ready_file in "$OUTPUT_DIR"/*.ready; do
     [[ -f "$ready_file" ]] || continue
-
     scene_name="$(basename "$ready_file" .ready)"
-    output_path="$OUTPUT_DIR/${scene_name}.png"
-
-    echo "  Capturing: $scene_name"
-
-    capture_window "$output_path"
-
-    # Signal back to the extension.
+    capture_one "$scene_name"
     rm -f "$ready_file"
     touch "$OUTPUT_DIR/${scene_name}.captured"
   done
 
   sleep 0.05  # 50ms poll
 done
+
+rm -f "$REQ_FIFO" "$ACK_FIFO"
 
 # Wait for VS Code to exit.
 wait "$VSCODE_PID" 2>/dev/null || true

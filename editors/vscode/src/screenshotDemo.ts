@@ -155,17 +155,74 @@ async function awaitAiRequestStarted(timeoutMs = 10_000): Promise<void> {
  *   2. Shell   writes    OUTPUT_DIR/<name>.captured  (and removes .ready)
  *   3. Extension removes .captured and proceeds
  */
+/**
+ * Read one message from a FIFO, resolving on the first chunk rather than EOF.
+ *
+ * The writer holds its end open across the whole run, so there is no EOF to
+ * wait for; `readFile` would hang until the run finished.
+ */
+function readLineFromFifo(fifo: string, timeoutMs: number): Promise<string | null> {
+  return new Promise((resolve) => {
+    let settled = false;
+    const finish = (value: string | null) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      try {
+        stream.destroy();
+      } catch {}
+      resolve(value);
+    };
+    const timer = setTimeout(() => finish(null), timeoutMs);
+    const stream = fs.createReadStream(fifo, { encoding: "utf8" });
+    stream.on("data", (chunk) => finish(String(chunk).trim()));
+    stream.on("error", () => finish(null));
+  });
+}
+
+const REQ_FIFO = process.env.TCL_LSP_SCREENSHOT_REQ_FIFO ?? "";
+const ACK_FIFO = process.env.TCL_LSP_SCREENSHOT_ACK_FIFO ?? "";
+
+/**
+ * Ask the shell to capture, over the FIFO pair it set up.
+ *
+ * Writing the scene name wakes the shell's blocked `read` immediately, and the
+ * single line it writes back wakes us — no poll interval on either side, so a
+ * scene costs its render time and nothing else. Returns false when the channel
+ * is unavailable, so the caller can fall back to marker files.
+ */
+async function captureViaFifo(sceneName: string): Promise<boolean> {
+  if (!REQ_FIFO || !ACK_FIFO) return false;
+  try {
+    fs.writeFileSync(REQ_FIFO, `${sceneName}\n`, "utf8");
+  } catch (err) {
+    console.error(`[screenshot-demo] FIFO write failed (${sceneName}):`, err);
+    return false;
+  }
+  // Resolve on the shell's first byte, not on EOF: it holds the write end open
+  // for the whole run (so the channel survives between scenes), which means a
+  // plain readFile would block until the run ended.
+  const ack = await readLineFromFifo(ACK_FIFO, 15_000);
+  if (ack === null) {
+    console.error(`[screenshot-demo] Timeout waiting for capture: ${sceneName}`);
+  }
+  return true; // the request was sent; never double-capture via markers
+}
+
 async function captureScreenshot(sceneName: string): Promise<void> {
   fs.mkdirSync(OUTPUT_DIR, { recursive: true });
-
-  const readyFile = path.join(OUTPUT_DIR, `${sceneName}.ready`);
-  const capturedFile = path.join(OUTPUT_DIR, `${sceneName}.captured`);
-
-  // Signal readiness.
-  fs.writeFileSync(readyFile, "", "utf8");
   console.log(`[screenshot-demo] Signalled: ${sceneName}`);
 
-  // Wait for the shell to capture (poll every 50ms, timeout 15s).
+  if (await captureViaFifo(sceneName)) {
+    console.log(`[screenshot-demo] Captured: ${sceneName}`);
+    return;
+  }
+
+  // Fallback: marker files, polled.
+  const readyFile = path.join(OUTPUT_DIR, `${sceneName}.ready`);
+  const capturedFile = path.join(OUTPUT_DIR, `${sceneName}.captured`);
+  fs.writeFileSync(readyFile, "", "utf8");
+
   const deadline = Date.now() + 15_000;
   while (Date.now() < deadline) {
     if (fs.existsSync(capturedFile)) {
@@ -175,7 +232,7 @@ async function captureScreenshot(sceneName: string): Promise<void> {
       console.log(`[screenshot-demo] Captured: ${sceneName}`);
       return;
     }
-    await sleep(50);
+    await sleep(25);
   }
   console.error(`[screenshot-demo] Timeout waiting for capture: ${sceneName}`);
 }
@@ -1908,12 +1965,16 @@ async function runDemo(): Promise<void> {
 
   console.log(`[screenshot-demo] Starting ${scenes.length} scenes`);
   console.log(`[screenshot-demo] Output: ${OUTPUT_DIR}`);
+
+  // Settle the AI sign-in first, before any capture setup. It is the only step
+  // that can need a human, so asking up front means an unattended run either
+  // proceeds immediately or is told to skip — rather than getting most of the
+  // way through the scenes and then stopping on a modal.
+  const hasAiScenes = scenes.some((scene) => scene.requiresAi);
+  aiScenesEnabled = hasAiScenes ? await prepareAiScenes() : false;
+
   writeProcessMarkers();
   await configureScreenshotCursor();
-
-  const hasAiScenes = scenes.some((scene) => scene.requiresAi);
-  // Ensure AI is genuinely ready before attempting AI scenes.
-  aiScenesEnabled = hasAiScenes ? await prepareAiScenes() : false;
 
   // Clean up UI chrome before first capture.
   await cleanUpUI();
@@ -1926,6 +1987,7 @@ async function runDemo(): Promise<void> {
       console.log(`[screenshot-demo] Skipping ${scene.name} (AI unavailable)`);
       continue;
     }
+    const sceneStartedAt = Date.now();
     console.log(`[screenshot-demo] Scene: ${scene.name}`);
     // Close all editors and the compiler explorer so only the current
     // file is visible — the compiler explorer reads from the active
@@ -1941,6 +2003,7 @@ async function runDemo(): Promise<void> {
     }
     try {
       await scene.run();
+      console.log(`[screenshot-demo] Scene ${scene.name} took ${Date.now() - sceneStartedAt}ms`);
     } catch (err) {
       console.error(`[screenshot-demo] Scene ${scene.name} failed:`, err);
       continue;
