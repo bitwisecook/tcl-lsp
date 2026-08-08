@@ -53,7 +53,7 @@ indexmap = "2"
 # Basic-auth encoding, and UTC fetch timestamps. All pure-Rust / unsafe-free and
 # already present in the workspace lockfile.
 ureq = "3"
-base64 = "0.22"
+base64 = "0.23"
 chrono = { version = "0.4", default-features = false, features = ["clock", "std"] }
 rpassword = "7"
 # SSH fetch transport: the pure-Rust `russh` client + `russh-sftp` subsystem,

@@ -42,12 +42,12 @@ tar = "0.4"
 # Pure-Rust RustCrypto stack (NO shelling out to gpg). The block cipher comes
 # from the audited `aes` crate; everything around it (packet framing, S2K,
 # OpenPGP-CFB, quick-check + SHA-1 MDC) is implemented here.
-aes = "0.8"
-digest = "0.10"
-md-5 = "0.10"
-sha1 = "0.10"
-sha2 = "0.10"
-ripemd = "0.1"
+aes = "0.9"
+digest = "0.11"
+md-5 = "0.11"
+sha1 = "0.11"
+sha2 = "0.11"
+ripemd = "0.2"
 
 [dev-dependencies]
 temp-env = "0.3"

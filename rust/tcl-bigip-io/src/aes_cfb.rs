@@ -24,8 +24,10 @@
 //! the thin key-length dispatch + CFB feedback loop on top of
 //! `AES.encrypt_block`.
 
-use aes::cipher::generic_array::GenericArray;
-use aes::cipher::{BlockEncrypt, KeyInit};
+// `aes` 0.9 moved off `generic-array` onto `hybrid-array`'s `Array`, and
+// renamed `BlockEncrypt` to `BlockCipherEncrypt`. Same operation, new names.
+use aes::cipher::array::Array;
+use aes::cipher::{BlockCipherEncrypt, KeyInit};
 use aes::{Aes128, Aes192, Aes256};
 
 const BLOCK: usize = 16;
@@ -42,22 +44,22 @@ impl Aes {
     /// Key an AES cipher; `key` must be 16, 24, or 32 bytes (AES-128/192/256).
     pub(crate) fn new(key: &[u8]) -> Result<Self, String> {
         match key.len() {
-            16 => Ok(Aes::A128(Box::new(Aes128::new(GenericArray::from_slice(
-                key,
-            ))))),
-            24 => Ok(Aes::A192(Box::new(Aes192::new(GenericArray::from_slice(
-                key,
-            ))))),
-            32 => Ok(Aes::A256(Box::new(Aes256::new(GenericArray::from_slice(
-                key,
-            ))))),
+            16 => Ok(Aes::A128(Box::new(Aes128::new(
+                &Array::try_from(key).map_err(|_| "AES key length mismatch".to_owned())?,
+            )))),
+            24 => Ok(Aes::A192(Box::new(Aes192::new(
+                &Array::try_from(key).map_err(|_| "AES key length mismatch".to_owned())?,
+            )))),
+            32 => Ok(Aes::A256(Box::new(Aes256::new(
+                &Array::try_from(key).map_err(|_| "AES key length mismatch".to_owned())?,
+            )))),
             n => Err(format!("AES key must be 16/24/32 bytes, got {n}")),
         }
     }
 
     /// Encrypt a single 16-byte block (the keystream generator for CFB).
     fn encrypt_block(&self, block: &[u8; BLOCK]) -> [u8; BLOCK] {
-        let mut b = GenericArray::clone_from_slice(block);
+        let mut b = Array(*block);
         match self {
             Aes::A128(c) => c.encrypt_block(&mut b),
             Aes::A192(c) => c.encrypt_block(&mut b),

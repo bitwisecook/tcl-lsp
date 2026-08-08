@@ -62,15 +62,15 @@ sha-crypt = "0.6"
 # `crypt.rs` on top of the plain MD5 digest — the algorithm has no established
 # maintained pure-Rust crate, but is small, has no randomness, and is
 # unit-tested against real `crypt(3)` output.
-md-5 = "0.10"
+md-5 = "0.11"
 regex = "1"
 ipnet = "2"
-base64 = "0.22"
+base64 = "0.23"
 # CommonMark + GFM for the user-supplied report front-matter, rendered to HTML at
 # generation time (shared by the Python, Rust and wasm backends via one impl).
 # `default-features = false` keeps the wasm build lean; raw HTML is stripped in
 # `markdown.rs` so front-matter can't break the single-file document.
-pulldown-cmark = { version = "0.12", default-features = false, features = ["html"] }
+pulldown-cmark = { version = "0.13", default-features = false, features = ["html"] }
 # Parse the x509 ISO validity strings to an epoch (for the live countdown) and a
 # human date. `default-features = false` — no clock; a report is time-free.
 chrono = { version = "0.4", default-features = false }

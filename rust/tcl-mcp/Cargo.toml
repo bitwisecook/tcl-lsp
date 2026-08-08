@@ -46,7 +46,7 @@ f5-xc = { path = "../f5-xc" }
 f5-cli = { path = "../f5-cli" }
 serde_json = { version = "1", features = ["preserve_order"] }
 regex = "1"
-rmcp = { version = "2", features = ["server", "transport-io"] }
+rmcp = { version = "3", features = ["server", "transport-io"] }
 tokio = { version = "1.52.3", features = ["rt-multi-thread", "macros", "io-std"] }
 
 [lints]

@@ -57,7 +57,7 @@ tcl-registry = { path = "../tcl-registry" }
 tcl-vm = { path = "../tcl-vm" }
 # Core-wasm embedding only (compile + run with host funcs) — the heavy default
 # features (component-model, async, gc, cache, …) are off.
-wasmtime = { version = "46", default-features = false, features = ["cranelift", "runtime", "gc-drc"] }
+wasmtime = { version = "47", default-features = false, features = ["cranelift", "runtime", "gc-drc"] }
 
 [lints]
 workspace = true
