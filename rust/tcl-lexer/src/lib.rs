@@ -29,10 +29,13 @@
 //!   [`Span`] and asks a [`SourceMap`] for text or positions on
 //!   demand.
 //! - [`word_closer_offset`], [`word_end_position`],
-//!   [`word_append_offset`] — source-aware
+//!   [`word_append_offset`], [`word_span`] — source-aware
 //!   authoritative closer accessors for delimited word tokens, derived
 //!   from the lexer's content geometry (correct for empty `{}` / `[]` /
-//!   `""` and backslash-bearing quoted words).
+//!   `""` and backslash-bearing quoted words).  [`word_span`] is the one
+//!   a caller anchoring a diagnostic or slicing a word's raw text wants:
+//!   it returns the whole written word, closing delimiter included, where
+//!   [`Token::span`] alone stops at the end of the word's *content*.
 //! - [`Lexer`], [`LexerConfig`], [`LexError`] — the lexer itself.
 //!   Handles EOF, SEP, EOL, COMMENT, and plain ESC tokens; every other
 //!   construct is surfaced as a `SyntaxError` (in strict-quoting mode)
@@ -63,7 +66,7 @@ pub use highlight::{
 };
 pub use lexer::{LeadingBom, LexError, LexWarning, Lexer, LexerConfig, UTF8_BOM};
 pub use line_index::{LineIndex, normalise_lone_cr};
-pub use ranges::{word_append_offset, word_closer_offset, word_end_position};
+pub use ranges::{word_append_offset, word_closer_offset, word_end_position, word_span};
 pub use source_map::SourceMap;
 pub use span::Span;
 pub use structural_index::{

@@ -141,6 +141,81 @@ pub fn word_append_offset(sm: &SourceMap<'_>, tok: Token) -> u32 {
     }
 }
 
+/// The **whole written word** *tok* denotes, closing delimiter included.
+///
+/// # Why this exists — the inner-end trap, in plain English
+///
+/// A [`Token`]'s own `span` does *not* cover the word's closing delimiter.
+/// The lexer records where the word's **content** ends, not where the word
+/// ends, so for `[foo]`, `{foo}` and `"foo"` the `]` / `}` / `"` sits one
+/// byte *past* `tok.span.end()`.  Slicing the source with the raw span
+/// therefore yields a word with its tail lopped off, and any diagnostic
+/// anchored on the raw span underlines one character short — or, when the
+/// word is written across a line continuation, underlines a region that
+/// stops mid-word on the wrong line (issue #1330).
+///
+/// Worked example — the source `[Dog new] bark`, with byte offsets:
+///
+/// ```text
+///   offset:  0 1 2 3 4 5 6 7 8 9 …
+///   byte:    [ D o g _ n e w ] _ b a r k
+///                            ^
+///                            the `]` lives at offset 8
+///
+///   tok.span            == 0..8    →  source[0..8] == "[Dog new"    <- wrong
+///   word_span(sm, tok)  == 0..9    →  source[0..9] == "[Dog new]"   <- right
+/// ```
+///
+/// The naive fix — "just add one" — is wrong twice over, which is exactly
+/// why this helper exists instead of a `+ 1` at each call site:
+///
+/// * An **empty** group (`{}` / `[]` / `""`) is the exception: the lexer
+///   already extends its span over the closer, so `+ 1` overshoots into
+///   whatever follows.  A trailing empty `{}` would swallow the enclosing
+///   body's own `}`.
+/// * A word whose last *inner* byte happens to be a closer (`{a\}}`) fools
+///   a naive "does the text already end with the closer?" check into
+///   skipping the widening it really does need.
+///
+/// [`word_closer_offset`] settles both cases from the lexer's own content
+/// geometry; this is the [`Span`]-returning wrapper over it.  For a bare
+/// word, or a word left unterminated at end of input, the token span is
+/// already the whole word and is returned unchanged.
+///
+/// # Known gap: `${name}`
+///
+/// [`word_closer_offset`] keys the closer off the word's **opening byte**,
+/// and a braced *variable* word opens with `$`, not with a delimiter — so a
+/// `${name}` word's closing `}` is not recovered here and its span comes
+/// back one byte short.  The distinguishing fact is on the token
+/// (`content_offset == 2` means `${` was stripped), so this is fixable, but
+/// [`word_closer_offset`] is also the anchor several quick-fixes splice
+/// against and widening it is a change in its own right — tracked
+/// separately rather than smuggled in.  Callers that must handle `${name}`
+/// today do it themselves (see `value_shapes`'s `orphaned_closer` step).
+///
+/// *tok* and *sm* must share a coordinate frame.
+///
+/// ```
+/// use tcl_lexer::{Lexer, SourceMap, TokenType, word_span};
+/// let src = "[Dog new] bark";
+/// let sm = SourceMap::new(src);
+/// let tok = Lexer::new(src)
+///     .tokenise_all()
+///     .unwrap()
+///     .into_iter()
+///     .find(|t| t.kind == TokenType::Cmd)
+///     .unwrap();
+/// assert_eq!(&src[tok.span.as_range()], "[Dog new");
+/// assert_eq!(&src[word_span(&sm, tok).as_range()], "[Dog new]");
+/// ```
+///
+/// [`Span`]: crate::Span
+#[must_use]
+pub fn word_span(sm: &SourceMap<'_>, tok: Token) -> crate::Span {
+    crate::Span::new(tok.span.start(), word_append_offset(sm, tok))
+}
+
 /// Inclusive end [`SourcePosition`] covering *tok*'s closing delimiter.
 ///
 /// The position-returning sibling of [`word_closer_offset`], for callers

@@ -68,7 +68,7 @@
 //! decision, not an oversight.
 
 use tcl_registry::arity::Arity;
-use tcl_registry::definer::{DefinitionBodyGrammar, MemberBodyCommand};
+use tcl_registry::definer::{BuiltinObjectMethod, DefinitionBodyGrammar, MemberBodyCommand};
 use tcl_registry::handle_binding::{HandleBindingSpec, HandleKeyword};
 use tcl_registry::hooks::ArgTypeHint;
 use tcl_registry::hover::{ArgValue, FormSpec, HoverSnippet, OptionArg, OptionSpec};
@@ -892,6 +892,7 @@ pub fn witness_definition_body_grammar(grammar: &DefinitionBodyGrammar) {
         implicit_vars: _,
         member_body_namespace_path: _,
         builtin_type_methods: _,
+        builtin_object_methods: _,
         member_body_commands: _,
         bare_word_construction: _,
     } = grammar;
@@ -907,8 +908,27 @@ pub const DEFINITION_BODY_GRAMMAR: &[Field] = &[
         Surface::Excluded(NAMED_CONSTANT),
     ),
     f("builtin_type_methods", Surface::Excluded(NAMED_CONSTANT)),
+    f("builtin_object_methods", Surface::Excluded(NAMED_CONSTANT)),
     f("member_body_commands", Surface::Excluded(NAMED_CONSTANT)),
     f("bare_word_construction", Surface::Excluded(NAMED_CONSTANT)),
+];
+
+/// Compile-time witness for [`BUILTIN_OBJECT_METHOD`].
+pub fn witness_builtin_object_method(method: &BuiltinObjectMethod) {
+    let BuiltinObjectMethod {
+        name: _,
+        visibility: _,
+        receiver: _,
+        detail: _,
+    } = method;
+}
+
+/// Where the studio surfaces each [`BuiltinObjectMethod`] field.
+pub const BUILTIN_OBJECT_METHOD: &[Field] = &[
+    f("name", Surface::Excluded(NAMED_CONSTANT)),
+    f("visibility", Surface::Excluded(NAMED_CONSTANT)),
+    f("receiver", Surface::Excluded(NAMED_CONSTANT)),
+    f("detail", Surface::Excluded(NAMED_CONSTANT)),
 ];
 
 /// Compile-time witness for [`MEMBER_BODY_COMMAND`].
@@ -1188,6 +1208,11 @@ mod tests {
                 .member_body_command("install")
                 .expect("snit injects `install` into every member body"),
         );
+        witness_builtin_object_method(
+            tcl_registry::definer::TCLOO_GRAMMAR
+                .builtin_object_method("variable", tcl_registry::definer::MethodReach::SelfDispatch)
+                .expect("`my variable` reaches oo::object's unexported member"),
+        );
         witness_object_class_spec(&ObjectClassSpec {
             class_name: "",
             instance_methods: &[],
@@ -1198,6 +1223,7 @@ mod tests {
         for (what, table) in [
             ("DefinitionBodyGrammar", DEFINITION_BODY_GRAMMAR),
             ("MemberBodyCommand", MEMBER_BODY_COMMAND),
+            ("BuiltinObjectMethod", BUILTIN_OBJECT_METHOD),
             ("ObjectClassSpec", OBJECT_CLASS_SPEC),
             ("CaseListSpec", CASE_LIST_SPEC),
         ] {

@@ -213,34 +213,22 @@ pub(crate) fn command_span(tokens: &[Token], sm: &SourceMap<'_>) -> Span {
 /// Exclusive end offset of `tok` including its closing delimiter, for the
 /// braced / bracketed word forms. See [`command_span`].
 ///
-/// The lexer follows the
-/// inner-end convention, so a non-empty `{…}` / `[…]` word's span ends one
-/// byte *before* its closer and the command range must widen by one to cover
-/// it.  An empty `{}` / `[]` is the exception — the lexer extends its span to
-/// cover the closer, so the closer is *already inside* the span and widening
-/// would overshoot into whatever follows (a trailing empty `{}`
-/// swallowing the enclosing body's `}`).  The discriminator is the token
-/// *text* (empty ⟺ the closer is already covered), not a source byte: a byte
-/// check at `span.end()` is fooled by an enclosing closer immediately after
-/// an empty `{}` (`a {}}`) and by a backslash-escaped inner closer (`{a\}}`).
-/// Quoted `"…"` words are deliberately **not** widened here — their closer
-/// cannot be derived from the token *type*, and `cmd.range` consumers (W105
-/// unbraced-body detection, segmenter tiling) rely on the inner-end for them.
+/// The inner-end convention itself — and every trap in widening past it (the
+/// empty `{}` / `[]` whose span *already* covers its closer, the
+/// backslash-escaped inner closer of `{a\}}`) — lives once in
+/// [`tcl_lexer::word_span`], the one authoritative "whole written word"
+/// helper; this is only the `cmd.range`-specific *policy* layered on top.
+///
+/// That policy is the braced/bracketed **type gate**: quoted `"…"` words are
+/// deliberately not widened here, because `cmd.range` consumers (W105
+/// unbraced-body detection, segmenter tiling) rely on the inner-end for
+/// them. Anything that wants the whole word regardless of kind must call
+/// [`tcl_lexer::word_span`] directly rather than reach for this.
 fn widen_word_end(tok: Token, sm: &SourceMap<'_>) -> u32 {
-    let Some(closer) = tok.kind.group_closer() else {
+    if tok.kind.group_closer().is_none() {
         return tok.span.end();
-    };
-    let closer = closer as u8;
-    let end = tok.span.end();
-    if sm.token_text(tok).is_empty() {
-        // Empty `{}` / `[]`: span already covers the closer — don't widen.
-        return end;
     }
-    if sm.source().as_bytes().get(end as usize) == Some(&closer) {
-        end + 1
-    } else {
-        end
-    }
+    tcl_lexer::word_span(sm, tok).end()
 }
 
 /// Segment a token stream into per-command structures at EOL boundaries.

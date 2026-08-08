@@ -110,6 +110,21 @@ struct VarOrCmdSite<'a> {
     scope_path: &'a [usize],
 }
 
+/// Bundled arguments for [`Analyser::record_bareword_dispatch_site`] — the
+/// `Esc`-head slice of [`VarOrCmdSite`], destructured back into locals in
+/// the body.  `Copy` for the same reason [`VarOrCmdSite`] is: every field is
+/// a reference or a `Copy` `Token`, so it passes by value with no
+/// `needless_pass_by_value` lint to work around.
+#[derive(Clone, Copy)]
+struct BarewordDispatch<'a> {
+    cmd_name: &'a str,
+    cmd_tok: Token,
+    args: &'a [String],
+    method_span: Option<tcl_lexer::Span>,
+    in_method: bool,
+    arg_expand: &'a [bool],
+}
+
 /// One resolved analyser-hook dispatch: the hook the head resolved to, plus
 /// the composed traits (`spec.traits | sub.traits`) of the concrete spec /
 /// subcommand it resolved to.
@@ -3421,6 +3436,42 @@ impl Analyser {
     /// method ...``) or command-substitution-as-command
     /// (``[expr ...] args``) call site so the post-walk W307 /
     /// W308 emitters can resolve them.
+    ///
+    /// # Dispatch-site shapes
+    ///
+    /// Four command-head shapes name an object to dispatch on, and every
+    /// one of them is recognised **structurally or from the registry** —
+    /// never by spelling a command name here:
+    ///
+    /// | Written head | Token kind | Recorded as |
+    /// |---|---|---|
+    /// | `$obj method` | [`TokenType::Var`] | [`DispatchReceiver::Variable`] |
+    /// | `[Dog new] method` | [`TokenType::Cmd`] | a [`CmdCommandSite`] |
+    /// | `objcmd method` (from `CLASS create objcmd`) | [`TokenType::Esc`] | [`DispatchReceiver::InstanceCommand`] |
+    /// | `my method` | [`TokenType::Esc`] | [`DispatchReceiver::SelfDispatch`] |
+    ///
+    /// The last two share the bareword arm and are told apart by
+    /// [`Self::record_bareword_dispatch_site`]: a registry-declared
+    /// self-dispatch keyword first, the `CLASS create NAME` binding
+    /// otherwise.
+    ///
+    /// # Span conventions
+    ///
+    /// Both spans a site carries are the *whole written word*, so a
+    /// diagnostic anchored on either underlines exactly what the user
+    /// typed. That takes deliberate work in both directions, because a
+    /// token's raw span is neither:
+    ///
+    /// * `method_span` **trims the opening delimiter** — `content_offset`
+    ///   bytes of `{` / `"` / `[` — so `{badmethod}` anchors on
+    ///   `badmethod`.
+    /// * `cmd_span` **adds the closing delimiter back**, via
+    ///   [`tcl_lexer::word_span`], because a `Cmd` / `Str` token's span
+    ///   stops at the end of its content: the raw span of `[Dog new]` is
+    ///   `[Dog new` (issue #1330).
+    ///
+    /// [`CmdCommandSite`]: super::state::CmdCommandSite
+    /// [`DispatchReceiver`]: super::state::DispatchReceiver
     fn record_var_or_cmd_command_site(&mut self, site: VarOrCmdSite<'_>) {
         let VarOrCmdSite {
             cmd_name,
@@ -3482,11 +3533,14 @@ impl Analyser {
                     var_name,
                     method_name,
                     method_span,
-                    cmd_span: cmd_tok.span,
+                    // Whole written word, so a braced `${obj}` head anchors
+                    // on `${obj}` rather than `${obj` — see this function's
+                    // "Span conventions".
+                    cmd_span: tcl_lexer::word_span(&sm, cmd_tok),
                     in_method,
                     argc: args.len(),
                     has_expand: arg_expand.iter().any(|&e| e),
-                    is_dollar: true,
+                    receiver: super::state::DispatchReceiver::Variable,
                 });
             }
             TokenType::Cmd => {
@@ -3501,26 +3555,49 @@ impl Analyser {
                     cmd_text,
                     method_name,
                     method_span,
-                    cmd_span: cmd_tok.span,
+                    cmd_span: tcl_lexer::word_span(&sm, cmd_tok),
                     in_method,
                 });
             }
-            TokenType::Esc => self.record_bareword_instance_dispatch_site(
+            TokenType::Esc => self.record_bareword_dispatch_site(BarewordDispatch {
                 cmd_name,
                 cmd_tok,
                 args,
                 method_span,
                 in_method,
                 arg_expand,
-            ),
+            }),
             _ => {}
         }
     }
 
     /// The [`TokenType::Esc`] arm of [`Self::record_var_or_cmd_command_site`]:
-    /// a bareword head bound to an instance by `CLASS create NAME` (issue
-    /// #1312) — the named-object dispatch form.  Split out to keep the
-    /// caller within the line budget.
+    /// a **bareword** command head that names an object to dispatch on.
+    ///
+    /// Two shapes reach here, and neither is recognised by spelling a
+    /// command name — that is the whole point of the split:
+    ///
+    /// 1. A **registry-declared self-dispatch keyword**
+    ///    (`CommandRegistry::method_dispatch_keyword` answering
+    ///    [`MethodDispatchKind::SelfDispatch`] — `my` today, issue #1050).
+    ///    The receiver is whatever object's method body encloses the call,
+    ///    so no name resolution happens at all and the site is recorded
+    ///    unconditionally; the enclosing class is settled at diagnosis time
+    ///    by `Analyser::enclosing_class_at_offset` (issue #1329).  A dialect
+    ///    that gains another such keyword — or loses `my` — propagates
+    ///    through the registry, never through an edit here.
+    /// 2. A **named instance command** bound by `CLASS create NAME`
+    ///    (issue #1312), gated below.
+    ///
+    /// `next` / `nextto` deliberately do **not** reach case 1: the registry
+    /// classifies them [`MethodDispatchKind::NextChain`], and they re-invoke
+    /// the *currently executing* method rather than naming one, so no word
+    /// of theirs is a method name to validate.  Nor does `self`, which is
+    /// [`MethodDispatchKind::Introspection`] — its argument is a closed
+    /// subcommand set.  `[self] method` is a different shape entirely (a
+    /// `Cmd` head; see `Analyser::w308_for_self_receiver`).
+    ///
+    /// # Case 2's gate
     ///
     /// The real gate — `created_instance_commands` *and* an
     /// `instance_classes` entry, exactly like the LSP's
@@ -3541,25 +3618,94 @@ impl Analyser {
     /// and, unlike `argv_texts`, is not guaranteed to line up with a
     /// hand-built `self.source` in unit tests that construct tokens
     /// directly.
-    fn record_bareword_instance_dispatch_site(
-        &mut self,
-        cmd_name: &str,
-        cmd_tok: Token,
-        args: &[String],
-        method_span: Option<tcl_lexer::Span>,
-        in_method: bool,
-        arg_expand: &[bool],
-    ) {
-        let site = || super::state::VarCommandSite {
+    ///
+    /// [`MethodDispatchKind::SelfDispatch`]: tcl_registry::MethodDispatchKind::SelfDispatch
+    /// [`MethodDispatchKind::NextChain`]: tcl_registry::MethodDispatchKind::NextChain
+    /// [`MethodDispatchKind::Introspection`]: tcl_registry::MethodDispatchKind::Introspection
+    fn record_bareword_dispatch_site(&mut self, d: BarewordDispatch<'_>) {
+        let BarewordDispatch {
+            cmd_name,
+            cmd_tok,
+            args,
+            method_span,
+            in_method,
+            arg_expand,
+        } = d;
+        let site = |receiver| super::state::VarCommandSite {
             var_name: cmd_name.to_string(),
             method_name: args.first().cloned(),
             method_span,
+            // A bareword head has no closing delimiter, so its token span
+            // already is the whole word.
             cmd_span: cmd_tok.span,
             in_method,
             argc: args.len(),
             has_expand: arg_expand.iter().any(|&e| e),
-            is_dollar: false,
+            receiver,
         };
+        if self.head_is_self_dispatch_keyword(cmd_name) {
+            // Recorded whether or not a class encloses this offset: the walk
+            // does not yet know (an isolated per-item body has no classes at
+            // all), and abstaining is the diagnosis-time job of
+            // `enclosing_class_at_offset` returning `None`.
+            self.var_command_sites
+                .push(site(super::state::DispatchReceiver::SelfDispatch));
+            return;
+        }
+        self.record_bareword_instance_dispatch_site(cmd_name, site);
+    }
+
+    /// Whether `head`, written bare in command position, is a
+    /// registry-declared `TclOO` self-dispatch keyword whose next word
+    /// therefore names a method on the enclosing object.
+    ///
+    /// Registry-first and dialect-aware: `method_dispatch_keyword` answers
+    /// under the active profile's availability mask, so a `tcl8.4` /
+    /// `tcl8.5` document — with no `TclOO` at all — answers `false` for
+    /// every spelling, and it resolves the `::`-qualified form itself.
+    ///
+    /// Purely a *shape* question, deliberately: whether this document goes
+    /// on to rename, alias, delete or shadow the keyword is order-dependent
+    /// and cannot be settled mid-walk, so it is asked once, post-walk, by
+    /// `Analyser::self_dispatch_keyword_disturbed`.
+    fn head_is_self_dispatch_keyword(&self, head: &str) -> bool {
+        self.registry.is_some_and(|registry| {
+            registry.method_dispatch_keyword(head)
+                == Some(tcl_registry::MethodDispatchKind::SelfDispatch)
+        })
+    }
+
+    /// Case 2 of [`Self::record_bareword_dispatch_site`]: a bareword head
+    /// bound to an instance by `CLASS create NAME` (issue #1312) — the
+    /// named-object dispatch form.  Split out to keep the caller within the
+    /// line budget.
+    ///
+    /// The real gate — `created_instance_commands` *and* an
+    /// `instance_classes` entry, exactly like the LSP's
+    /// `receiver_instance_class`: `created_instance_commands` alone also
+    /// covers coroutine / `interp create` / registry naming-factory names,
+    /// none of which bind a class — cannot be evaluated straight off
+    /// `self.result` while a shell/body pass is deferring:
+    /// `record_instance_creation`'s Pattern B defers a `CLASS create NAME`
+    /// creation into `pending_instances` rather than resolving it
+    /// immediately, so neither map is populated yet for a name created
+    /// earlier in this same pass (they fill in later, post-graft, in
+    /// `Analyser::replay_deferred_instances`).
+    ///
+    /// `cmd_name` is the caller's already-extracted head text
+    /// (`argv_texts[0]`) — reused rather than re-deriving it via
+    /// `SourceMap::token_text`, which costs a real slice on every plain
+    /// command call otherwise (nearly every Tcl command head is `Esc`-kind)
+    /// and, unlike `argv_texts`, is not guaranteed to line up with a
+    /// hand-built `self.source` in unit tests that construct tokens
+    /// directly.  `site` builds the site record for a given receiver kind,
+    /// shared with the self-dispatch case so the two cannot drift.
+    fn record_bareword_instance_dispatch_site(
+        &mut self,
+        cmd_name: &str,
+        site: impl Fn(super::state::DispatchReceiver) -> super::state::VarCommandSite,
+    ) {
+        let site = || site(super::state::DispatchReceiver::InstanceCommand);
         if let Some(pending) = self.pending_bareword_dispatch_sites.as_mut() {
             // Cheap necessary (not sufficient) pre-filter, bounding the
             // candidate list to names some pending `create`-shaped record

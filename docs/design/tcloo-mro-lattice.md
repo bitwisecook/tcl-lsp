@@ -109,9 +109,45 @@ strictly worse than ⊙ abstention.
 - `ClassValue::Top(reason)` → `Abstain(reason)`.
 - `ClassValue::{Concrete,Set}` → `Resolved { classes, providers,
   method_known }`, where `method_known` is `false` exactly when a named
-  class services neither the method directly, nor via an OO builtin
-  (`new`/`create`/`destroy`/`configure`/`cget`), an inherited `unknown`
-  handler, or an unindexed external superclass — i.e. the W308 candidate.
+  class services neither the method directly, nor via a **built-in object
+  method** of its class system, an inherited `unknown` handler, or an
+  unindexed external superclass — i.e. the W308 candidate.
+
+The built-in set is registry data, not a name list in the analyser:
+`DefinitionBodyGrammar::builtin_object_methods` carries it per definer
+family (`TclOO`'s inherited `oo::object` surface, snit's
+`configure`/`cget`/`info`, itcl's own), and each entry carries its
+`MemberVisibility`.  That visibility is load-bearing, because it decides
+which *dispatch spellings* can reach the member — see the dispatch-receiver
+taxonomy below.
+
+## The four dispatch spellings, and what each can reach
+
+Every same-object dispatch the analyser records is one of four shapes.
+They differ in where the receiver's class comes from **and** in which of
+its methods the call can reach, and both differences are recorded facts
+rather than re-derived guesses (`analyser::state::DispatchReceiver`,
+`CmdCommandSite`):
+
+| written | class evidence | reach |
+|---|---|---|
+| `$obj method` | SSA type lattice / constructor harvest | object command — exported only |
+| `[Dog new] method` | the substitution's return type | object command — exported only |
+| `objcmd method` (from `CLASS create objcmd`) | `instance_classes`, gated on `created_instance_commands` (#1312) | object command — exported only |
+| `my method` | the **enclosing** class body containing the offset (#1329) | self-dispatch — exported *and* unexported |
+
+`[self] method` and `[self object] method` (#1322 / #1324) name the same
+receiver `my` does, but resolve as the *object command* row: the
+substitution yields the object's own command, which filters exports.
+tclsh 9.0.4 and 8.6.16 both agree — `my varname v` works where `[self]
+varname v` and `$obj varname v` are `unknown method "varname"`.
+
+The keyword in the last row is never spelled in the walker:
+`CommandRegistry::method_dispatch_keyword` answering
+`MethodDispatchKind::SelfDispatch` is what identifies it, so a dialect
+that gains or loses one propagates through the registry.  `next` /
+`nextto` (`NextChain`) and `self` (`Introspection`) are deliberately not
+dispatch sites: neither names a method in any of its words.
 
 ⊤-rate = `Abstain` sites / all sites is the make-or-break number.
 

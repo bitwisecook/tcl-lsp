@@ -1917,15 +1917,20 @@ fn rebase_fragment_pending(frag: &mut BodyFragment, d: u32) {
     for cand in &mut frag.pending_next_arity {
         cand.full_span = shift(cand.full_span, d);
     }
+    // Every dispatch site rebases through its own `rebase`, which owns the
+    // full list of spans it carries.  Spelling the fields out here is what
+    // let `method_span` go un-rebased on two of these three lists, so W308
+    // inside any proc or method body reported — and anchored its quick-fix
+    // on — the *fragment's* offsets once the per-item path was in use
+    // (issue #1330).
     for s in &mut frag.var_sites {
-        s.cmd_span = shift(s.cmd_span, d);
+        s.rebase(d);
     }
     for s in &mut frag.bareword_dispatch_sites {
-        s.cmd_span = shift(s.cmd_span, d);
-        s.method_span = s.method_span.map(|sp| shift(sp, d));
+        s.rebase(d);
     }
     for s in &mut frag.cmd_sites {
-        s.cmd_span = shift(s.cmd_span, d);
+        s.rebase(d);
     }
     for s in &mut frag.widget_sites {
         s.subcommand_span = shift(s.subcommand_span, d);

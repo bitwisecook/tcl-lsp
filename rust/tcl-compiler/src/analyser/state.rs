@@ -194,6 +194,52 @@ pub(super) struct InterpFrame {
     pub resolved: bool,
 }
 
+/// How a [`VarCommandSite`]'s command head names the object it dispatches
+/// on — the axis that decides *where the receiver's class comes from* and
+/// *which of its methods the call can reach*.
+///
+/// Every dispatch site the walker records is one of these three; adding a
+/// fourth spelling means adding a variant here and a resolution arm beside
+/// the others, never a name test in the walker.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum DispatchReceiver {
+    /// `$obj method` — the head is a variable whose *value* is an object
+    /// handle.  A `$var` can hold anything at run time, so its class
+    /// evidence comes from the SSA type lattice / constructor harvest only.
+    Variable,
+    /// `objcmd method` — a bareword *named* instance command bound by
+    /// `CLASS create NAME` (issue #1312).  Its class comes from
+    /// `AnalysisResult::instance_classes` gated on
+    /// `AnalysisResult::created_instance_commands` — the same contract the
+    /// LSP's `receiver_instance_class` uses for hover/definition/completion.
+    InstanceCommand,
+    /// `my method` — a bareword head the registry declares a **self-dispatch
+    /// keyword** (`CommandRegistry::method_dispatch_keyword` answering
+    /// `SelfDispatch`, issue #1050).  The receiver is the object whose
+    /// method body encloses the call, so the class comes from
+    /// `Analyser::enclosing_class_at_offset` with no name resolution at all
+    /// — and, uniquely among the three, the dispatch bypasses export
+    /// filtering, so it can reach unexported members (issue #1329).
+    SelfDispatch,
+}
+
+impl DispatchReceiver {
+    /// How this head reaches the receiver, for the registry's built-in
+    /// object-method visibility rule.
+    ///
+    /// Only [`Self::SelfDispatch`] bypasses export filtering.  A bareword
+    /// instance command is still the object's *own command*, so it sees
+    /// exactly what `$obj` sees.
+    pub(crate) fn method_reach(self) -> tcl_registry::definer::MethodReach {
+        match self {
+            Self::SelfDispatch => tcl_registry::definer::MethodReach::SelfDispatch,
+            Self::Variable | Self::InstanceCommand => {
+                tcl_registry::definer::MethodReach::ObjectCommand
+            }
+        }
+    }
+}
+
 /// One entry in [`Analyser::var_command_sites`] —
 /// `(var_name, method_name?, cmd_token_span, in_method)`.
 ///
@@ -223,18 +269,30 @@ pub struct VarCommandSite {
     /// entirely when this is set, matching every other arity check's
     /// `{*}`-expansion convention.
     pub has_expand: bool,
-    /// True for a `$var method` dispatch, false for a bareword
-    /// `objcmd method` dispatch (`CLASS create NAME` idiom — issue #1312).
-    /// A `$var` can hold any object at run time, so its class evidence comes
-    /// from the SSA type lattice / constructor harvest only; a bareword head
-    /// is instead a *named* instance command, so its class comes from
-    /// `AnalysisResult::instance_classes` gated on
-    /// `AnalysisResult::created_instance_commands` — the same contract the
-    /// LSP's `receiver_instance_class` uses for hover/definition/completion.
-    /// Kept as an explicit flag rather than re-deriving it from the site's
-    /// shape so the diagnostic and the LSP's shared resolver can never
-    /// disagree about which sites the bareword lookup applies to.
-    pub is_dollar: bool,
+    /// Which spelling named the receiver — see [`DispatchReceiver`].
+    ///
+    /// Kept as an explicit recorded fact rather than re-derived from the
+    /// site's shape at diagnosis time, so the diagnostic and the LSP's
+    /// shared resolver can never disagree about which sites a given
+    /// receiver lookup applies to.
+    pub receiver: DispatchReceiver,
+}
+
+impl VarCommandSite {
+    /// Shift every span this site carries by `delta`.
+    ///
+    /// The **one** place a `VarCommandSite`'s spans are relocated from a
+    /// per-item body fragment's local offsets into the whole document's, so
+    /// a span field added later cannot be silently left un-rebased.  It once
+    /// could: `method_span` was omitted from the hand-written rebase loop,
+    /// and every W308 raised inside a proc or method body on the incremental
+    /// path was reported — and its "did you mean" quick-fix anchored — at
+    /// the *fragment's* offsets, landing on unrelated text elsewhere in the
+    /// file (issue #1330).
+    pub(crate) fn rebase(&mut self, delta: u32) {
+        self.cmd_span = shift_span(self.cmd_span, delta);
+        self.method_span = self.method_span.map(|sp| shift_span(sp, delta));
+    }
 }
 
 /// One entry in [`Analyser::cmd_command_sites`] —
@@ -251,10 +309,36 @@ pub struct CmdCommandSite {
     /// Content span of the method-name word (delimiters trimmed), when
     /// [`Self::method_name`] is present — the tight anchor for W308.
     pub method_span: Option<Span>,
-    /// Span of the command-head token.
+    /// Span of the whole `[…]` command-substitution head word, closing
+    /// bracket included.
+    ///
+    /// Widened past the head token's own span with
+    /// [`tcl_lexer::word_span`]: a `Cmd` token's raw span stops at the end
+    /// of its *content*, so anchoring a diagnostic on it underlines
+    /// `[Dog new` rather than `[Dog new]`, and on a head written across a
+    /// line continuation it underlines a region that ends mid-word on the
+    /// next line (issue #1330).  Only the end moves — every consumer that
+    /// keys off `cmd_span.start()` (enclosing class, child-interp
+    /// containment, head return type) is unaffected.
     pub cmd_span: Span,
     /// True when inside a class method body.
     pub in_method: bool,
+}
+
+impl CmdCommandSite {
+    /// Shift every span this site carries by `delta` — see
+    /// [`VarCommandSite::rebase`] for why this is a method rather than a
+    /// per-field loop at the call site.
+    pub(crate) fn rebase(&mut self, delta: u32) {
+        self.cmd_span = shift_span(self.cmd_span, delta);
+        self.method_span = self.method_span.map(|sp| shift_span(sp, delta));
+    }
+}
+
+/// Shift `span` right by `delta` — the primitive
+/// [`VarCommandSite::rebase`] / [`CmdCommandSite::rebase`] are built from.
+fn shift_span(span: Span, delta: u32) -> Span {
+    Span::new(span.start() + delta, span.end() + delta)
 }
 
 /// Single-pass Tcl analyser.
