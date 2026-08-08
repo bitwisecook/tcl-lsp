@@ -54,11 +54,44 @@ Global flags: `--findings DIR` (registry location), `--timeout-ms MS`
 
 | Command | Arguments | What it does |
 |---|---|---|
-| `run` | `--iterations N [--seed S] [--verbose] [--reference E] [--subject E] [--compare-error-text]` | Run a campaign of N generated scripts over the `--subject`/`--reference` pair (default `tclvm` subject / `tclsh` reference); new divergences are appended to the pair's registry |
+| `run` | `--iterations N [--seed S] [--verbose] [--reference E] [--subject E] [--compare-error-text] [--subject-tcl-version X.Y]` | Run a campaign of N generated scripts over the `--subject`/`--reference` pair (default `tclvm` subject / `tclsh` reference); new divergences are appended to the pair's registry |
 | `summary` | `[--reference E] [--subject E]` | Print a pair's registry finding counts grouped by category (defaults to the same `tclsh`/`tclvm` pair as `run`) |
 | `replay` | `SEED [--reference E] [--subject E]` | Regenerate seed S, run both engines, and print their output side by side including stderr (triage / confirm-a-fix) |
 | `wasm-check` | `--iterations N [--seed S] [--verbose]` | WASM-runnability arm: compile each program to the eval-fallback WASM module and flag codegen panics / instantiation failures / traps |
 | `wasm-diff` | `--iterations N [--seed S] [--verbose]` | WASM value-differential arm: compare compiled-WASM control flow (hosted by `tcl-vm`) against direct `tcl-vm`, isolating control-flow miscompiles |
+
+## Match the reference `tclsh`'s version, or read every finding twice
+
+**A divergence is evidence of a bug only when both engines speak the same
+version of Tcl.** Issue #1328 was filed as two `runtime/rust` bugs from a
+200-iteration campaign against `tclsh8.6`. Re-run against `tclsh9.0.4`, **all
+eight** of that campaign's findings disappear — every one was a deliberate
+8.6-vs-9.0 language change, not a defect:
+
+| Cause | Seeds | What differs |
+|---|---|---|
+| TIP 461 `lt`/`gt`/`le`/`ge` string-comparison operators (9.0+) | 90040, 90061, 90091, 90104, 90112 | 8.6 rejects `expr {{a} lt {b}}` as `invalid bareword "lt"` |
+| TIP 521 `isfinite()`/`isinf()`/`isnan()` (9.0+) | 90119 | 8.6: `invalid command name "tcl::mathfunc::isfinite"` |
+| Namespace-scope global fallback for relative variable names, removed in 9.0 (TIP 278) | 90022, 90188 | see the [KCS note](../../../docs/kcs/kcs-qa-why-does-a-namespace-variable-behave-differently-on-tcl-8-and-9.md) |
+
+Every campaign now prints both engines' releases before it starts and warns
+when they differ, and every finding records `reference_version`,
+`subject_version` and `version_skew`. Check those before triaging.
+
+To run version-matched against an older reference, pin the subject:
+
+```bash
+# runtime-rust emulating 8.6, against an 8.6 tclsh
+cargo run -q -p tcl-fuzz -- --tclsh /path/to/tclsh8.6 \
+  run --subject runtime-rust --reference tclsh --subject-tcl-version 8.6 \
+  --iterations 200 --seed 90000
+```
+
+Only `runtime-rust` can be pinned today (it takes `--tcl-version`); pinning
+`tclsh` or `tclvm` is refused with a message rather than silently ignored. With
+the subject pinned to 8.6 the two variable-resolution findings above vanish; the
+six `expr`-surface ones remain, because neither engine gates its `expr`
+operator/mathfunc surface by release yet.
 
 `--compare-error-text` (on `run`) additionally flags an `ErrorTextMismatch`
 finding when both engines error but their stderr text differs — off by
@@ -80,8 +113,11 @@ excluded by the build script's file filter; 1.3.0 defines it directly in
 `bn_mp_expt_n.c`) before building:
 
 ```bash
-# The session-fetched tree is the default, but it is not always present;
-# a shallow tag checkout is enough and needs no build of its own.
+# The Tcl 9.0.4 source tarball already ships libtommath 1.3.0 at
+# tmp/tcl9.0.4/libtommath, so extracting it (which building a 9.0 oracle
+# does anyway) is usually enough — check for that directory FIRST.
+# Only if it is genuinely absent, a shallow tag checkout also works and
+# needs no build of its own:
 git clone --depth 1 --branch v1.3.0 \
   https://github.com/libtom/libtommath tmp/libtommath-1.3.0
 
@@ -162,9 +198,17 @@ Each finding is one JSON record (`rust/tcl-fuzz/src/findings.rs`):
   "reference_errored": false,
   "subject_errored": false,
   "reference_stderr": "",
-  "subject_stderr": ""
+  "subject_stderr": "",
+  "reference_version": "9.0.4",
+  "subject_version": "9.0.4",
+  "version_skew": false
 }
 ```
+
+`reference_version`/`subject_version` are each engine's `[info patchlevel]`,
+probed once per campaign (`null` if the probe failed). `version_skew` is true
+when the two engines emulate different release *lines* — treat every finding in
+a skewed run as suspect until the version difference is ruled out.
 
 `reference_stderr`/`subject_stderr` are always captured when the engine ran
 (independent of `--compare-error-text`), so a triager always has both

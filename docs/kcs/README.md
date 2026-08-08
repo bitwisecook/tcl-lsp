@@ -155,6 +155,10 @@ a design doc. Put it under [`../design/`](../design/README.md) instead.
 - [kcs-qa-how-are-command-names-resolved.md](kcs-qa-how-are-command-names-resolved.md)
   — which definition a bare, relative, or absolute command name
   dispatches to, and the one shared algorithm every backend conforms to.
+- [kcs-qa-why-does-a-namespace-variable-behave-differently-on-tcl-8-and-9.md](kcs-qa-why-does-a-namespace-variable-behave-differently-on-tcl-8-and-9.md)
+  — why an unqualified variable name inside `namespace eval` reaches a
+  global on Tcl 8.x but creates a namespace variable on Tcl 9, which
+  commands the rule governs, and how each engine gates it by release.
 - [kcs-qa-when-does-a-cross-file-namespace-import-count.md](kcs-qa-when-does-a-cross-file-namespace-import-count.md)
   — when a `namespace export` / `import` / `forget` written in another
   file counts, the two things that prove a run order (`source` exactly,
