@@ -818,11 +818,33 @@ suite("Configuration Settings", () => {
     }
   });
 
-  const documentSymbolsOf = async (
-    docUri: vscode.Uri,
-  ): Promise<vscode.DocumentSymbol[] | undefined> =>
-    (await vscode.commands.executeCommand("vscode.executeDocumentSymbolProvider", docUri)) as
-      vscode.DocumentSymbol[] | undefined;
+  /** Shape of a raw `textDocument/documentSymbol` response entry -- enough of
+   *  it for this test's purposes (name + nesting), not the full LSP type. */
+  interface RawDocumentSymbol {
+    name: string;
+    children?: RawDocumentSymbol[];
+  }
+
+  /**
+   * Raw `textDocument/documentSymbol` request, bypassing
+   * `vscode.executeDocumentSymbolProvider`. That command is unsuitable for
+   * the toggle test below for the same reason `foldingRangeViaLsp` bypasses
+   * `executeFoldingRangeProvider`: confirmed by a throwaway diagnostic run
+   * (comparing both paths side by side after disabling the feature), VS
+   * Code's own outline/breadcrumbs model caches the last
+   * `executeDocumentSymbolProvider` answer for a document and does not
+   * invalidate it on a bare config change with no document edit -- so the
+   * command kept returning the pre-toggle symbols indefinitely while the raw
+   * request correctly returned `null`, matching the passing server-side e2e
+   * contract test (`rust/tcl-lsp-server/tests/e2e/config.rs`,
+   * `disabling_document_symbols_suppresses_provider`). The raw request is
+   * what the LSP client's registered DocumentSymbolProvider actually
+   * receives from the server.
+   */
+  const documentSymbolsViaLsp = (docUri: vscode.Uri): Promise<RawDocumentSymbol[] | null> =>
+    getClient().sendRequest("textDocument/documentSymbol", {
+      textDocument: { uri: docUri.toString() },
+    }) as Promise<RawDocumentSymbol[] | null>;
 
   test("disabling features.documentSymbols removes LSP document symbols", async () => {
     const docUri = getDocUri("procs.tcl");
@@ -839,8 +861,8 @@ suite("Configuration Settings", () => {
     // false) premise held, the bug was invisible because the test never
     // actually asserted anything.
     const before = await pollUntil(
-      () => documentSymbolsOf(docUri),
-      (r): r is vscode.DocumentSymbol[] => Array.isArray(r) && r.some((s) => s.name === "fib"),
+      () => documentSymbolsViaLsp(docUri),
+      (r): r is RawDocumentSymbol[] => Array.isArray(r) && r.some((s) => s.name === "fib"),
       { timeout: 10_000, label: "document symbols before disable (feature)" },
     );
     assert.ok(
@@ -865,12 +887,12 @@ suite("Configuration Settings", () => {
       // silently never runs.
       const after = await waitForProviderResult(
         docUri,
-        () => documentSymbolsOf(docUri),
+        () => documentSymbolsViaLsp(docUri),
         (r) => !r || r.length === 0,
         {
           timeout: 10_000,
           label: "document symbols to disappear after disabling the feature",
-          describe: (r) => (r === undefined ? "<undefined>" : `${r.length} symbol(s)`),
+          describe: (r) => (r === null || r === undefined ? "<none>" : `${r.length} symbol(s)`),
         },
       );
       assert.ok(
