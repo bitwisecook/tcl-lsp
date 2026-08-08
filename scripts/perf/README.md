@@ -122,11 +122,49 @@ Two design points worth knowing:
 
 ## Corpus scopes
 
+`python3 fetch_corpus.py --list` prints the groups and scopes; the manifest is
+the source of truth.
+
 `small` (georgtree, ~113 files) is the default and the right one for routine
 release tracking: seconds to run, and it still contains `SpiceGenTcl`, the
 smallest corpus member that builds a `source` forest and package edges at
 once — the shape behind #1297. `medium` and `full` (~2400 files) exist for
 scan-cost and steady-state memory work.
+
+`irules` (14 repos, 217 source files) is the iRules corpus. It is **not** a
+benchmark scope — the check suite's anchors and seeded document selection are
+tuned for the Tcl corpus — but it is the right one for dialect work:
+diagnostics, the command registry, `when` blocks. `everything` is both
+dialects, for sweeps that want maximum surface (fuzzing, parser crash hunts,
+false-positive audits) rather than comparable timings.
+
+Two things to know before sweeping the iRules tree:
+
+- **iRule sources are often not `.tcl`.** Across these repos it is roughly 147
+  `.tcl`, 63 `.irule`, 7 `.tmsh` and 198 `.txt` — DevCentral publishes iRules
+  as plain text. Globbing `*.tcl` silently drops most of the corpus, so
+  `fetch_corpus.py` counts `.tcl`/`.irule`/`.tmsh` and reports which suffixes
+  it counted.
+- **The iRules groups are outside every existing benchmark scope, on
+  purpose.** Stored results only compare within one `corpus.revision`, so
+  adding files to `small`/`medium`/`full` would invalidate every measurement
+  taken so far. No existing pin moved when they were added, so
+  `corpus.revision` did not change either.
+
+`everything-private` additionally pulls `bitwisecook/tcl-lsp-testsrc` (~620
+publicly-sourced iRules gathered from 60+ upstream repos). That repo is
+private, so the entry needs `--include-private` and credentials; without them
+the fetcher prints a `skipped` line rather than failing, because a private
+entry quietly dropped from a corpus is indistinguishable from one that was
+never there.
+
+## Growing the corpus
+
+Add a `[[repo]]` block with an exact `commit` and put its `group` in a scope.
+Pin to a SHA, never a branch — the whole point is that a run a year from now
+measures the same bytes. Advancing an *existing* pin is a different act: it
+invalidates every stored benchmark result, so bump `corpus.revision`, re-run
+the sweep, and say so in the release notes.
 
 ## Version coverage
 

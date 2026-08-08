@@ -168,6 +168,132 @@ url = "https://github.com/OSVVM/OSVVM-Scripts"
 commit = "60a2751c1d2087e6e58671585d3649cd5eb0b93d"
 group = "other"
 
+# --- iRules corpus (issue #1181) ----------------------------------------------
+#
+# The iRules dialect had no pinned corpus at all: everything above is plain
+# Tcl/TclOO, so nothing here exercised `when` blocks, the `HTTP::`/`LB::`/`TCP::`
+# command namespaces, `class match`, or the RULE_INIT/event split. These groups
+# fill that gap from public sources.
+#
+# Deliberately *not* added to any existing `[scope.*]`. The benchmark's stored
+# results are only comparable within one `corpus.revision`, and adding files to
+# `small`/`medium`/`full` would invalidate every measurement taken so far for no
+# benefit. These groups are reachable through the new `irules` and `everything`
+# scopes below, and `corpus.revision` is therefore left alone — no existing pin
+# moved, so no existing result changed meaning.
+#
+# One caveat that bites anyone sweeping this tree: iRule sources are **not**
+# reliably `.tcl`. Across these repos the split is roughly 147 `.tcl`, 63
+# `.irule`, 7 `.tmsh` and 198 `.txt` — DevCentral publishes them as plain text.
+# Filtering on `*.tcl` silently drops most of the corpus.
+
+# KaiWilke — the deepest single-author iRule work that is public: full RADIUS
+# client/server stacks implemented in iRules, plus a natural-language expression
+# compiler. Long procedures, heavy binary scan/format, deep nesting.
+[[repo]]
+name = "F5-iRule-RADIUS-Server-Stack"
+url = "https://github.com/KaiWilke/F5-iRule-RADIUS-Server-Stack"
+commit = "d69925554c45d1010a8dbb58bf5a98d275d005ca"
+group = "irules-kaiwilke"
+
+[[repo]]
+name = "F5-iRule-RADIUS-Client-Stack"
+url = "https://github.com/KaiWilke/F5-iRule-RADIUS-Client-Stack"
+commit = "2689ed3c55ff5b84620851231d199d6cdfb69d2a"
+group = "irules-kaiwilke"
+
+[[repo]]
+name = "F5-Natural-Speech-Expression"
+url = "https://github.com/KaiWilke/F5-Natural-Speech-Expression"
+commit = "2f73abbb2692063d4f05b2b344129c4a8c9535eb"
+group = "irules-kaiwilke"
+
+[[repo]]
+name = "F5CrowdSRC"
+url = "https://github.com/KaiWilke/F5CrowdSRC"
+commit = "aad8a81d5338681ce9045cb45fddfbfc4e29918e"
+group = "irules-kaiwilke"
+
+# Not Tcl itself — a Prism.js grammar for iRules. Kept because it is an
+# independent, maintained answer to "which words are iRule keywords", which is
+# the same question our TextMate grammar and command registry answer.
+[[repo]]
+name = "F5-PrismJS-iRule-Language-Definition"
+url = "https://github.com/KaiWilke/F5-PrismJS-iRule-Language-Definition"
+commit = "c6fc0072983d05cbfafdc1963d92e4013cf199f3"
+group = "irules-kaiwilke"
+
+# f5devcentral — vendor-published teaching and reference material.
+[[repo]]
+name = "f5-agility-labs-irules"
+url = "https://github.com/f5devcentral/f5-agility-labs-irules"
+commit = "2c2119606c6e039c5285184c7fc1f90d4b8cc07c"
+group = "irules-f5devcentral"
+
+[[repo]]
+name = "irules-toolbox"
+url = "https://github.com/f5devcentral/irules-toolbox"
+commit = "b8b13de8550effbfa06428cc79fa789d20ebe3c8"
+group = "irules-f5devcentral"
+
+# Community. `TesTcl` is the odd one out and is here on purpose: it is an iRule
+# *unit-testing* library, so it contains both iRules and Tcl that mocks the
+# iRule command surface — the iRules themselves live under `TesTcl/irules/`.
+[[repo]]
+name = "TesTcl"
+url = "https://github.com/landro/TesTcl"
+commit = "e31743809b976ba39da39138aeebf36f8d264fd9"
+group = "irules-community"
+
+[[repo]]
+name = "f5"
+url = "https://github.com/e-XpertSolutions/f5"
+commit = "702f20826ea475201f825e469f287ee593b5da14"
+group = "irules-community"
+
+[[repo]]
+name = "iRules"
+url = "https://github.com/megamattzilla/iRules"
+commit = "078f45638bad19dedf8d2f52f0e374d01cab6eac"
+group = "irules-community"
+
+[[repo]]
+name = "f5-irules-json"
+url = "https://github.com/JuergenMang/f5-irules-json"
+commit = "a8d9e0ffa7f4227f8696523f1551e304025b467a"
+group = "irules-community"
+
+[[repo]]
+name = "simple-sideband"
+url = "https://github.com/pwhitef5/simple-sideband"
+commit = "95b13e0e323919330cabe1dcbba7bb966173b9cd"
+group = "irules-community"
+
+[[repo]]
+name = "HTTP_Debug_iRule"
+url = "https://github.com/0xHiteshPatel/HTTP_Debug_iRule"
+commit = "f86aff4adab021fba7b158914b8c1ae0f7f8b142"
+group = "irules-community"
+
+[[repo]]
+name = "f5-irules"
+url = "https://github.com/erkac/f5-irules"
+commit = "96ce76edde28e1295b5b50888cacaee149d48d29"
+group = "irules-community"
+
+# --- private corpus -----------------------------------------------------------
+#
+# Publicly *sourced* (≈620 iRules gathered from 60+ upstream repos) but held in
+# a private repo, so it is skipped unless `--include-private` is passed and the
+# caller has credentials. Listed here rather than left as tribal knowledge: a
+# corpus you cannot enumerate is one you cannot tell is missing.
+[[repo]]
+name = "tcl-lsp-testsrc"
+url = "https://github.com/bitwisecook/tcl-lsp-testsrc"
+commit = "7bbe00d8e2b7c9c7ffa38497a298a23ad2c1c80a"
+group = "private"
+visibility = "private"
+
 # --- benchmark scopes ---------------------------------------------------------
 #
 # The full corpus is ~2400 .tcl files, which is the right scale for the
@@ -198,6 +324,31 @@ groups = ["georgtree", "nico-robert", "aplsimple"]
 
 [scope.full]
 groups = ["georgtree", "nico-robert", "aplsimple", "tcltk", "other"]
+
+# iRules only. Not a benchmark scope — the check suite's anchors and seeded
+# document selection are tuned for the Tcl corpus — but the right scope for
+# dialect work: diagnostics, the command registry, `when` handling.
+[scope.irules]
+groups = ["irules-kaiwilke", "irules-f5devcentral", "irules-community"]
+
+# Everything public, both dialects. For sweeps that want maximum surface
+# (fuzzing, parser crash hunts, false-positive audits) rather than comparable
+# timings.
+[scope.everything]
+groups = [
+  "georgtree", "nico-robert", "aplsimple", "tcltk", "other",
+  "irules-kaiwilke", "irules-f5devcentral", "irules-community",
+]
+
+# Adds the private aggregate on top of `everything`. Needs `--include-private`
+# *and* credentials; without them `fetch_corpus.py` skips the entry and says so
+# rather than failing the run.
+[scope.everything-private]
+groups = [
+  "georgtree", "nico-robert", "aplsimple", "tcltk", "other",
+  "irules-kaiwilke", "irules-f5devcentral", "irules-community",
+  "private",
+]
 
 # --- versions under test ------------------------------------------------------
 #
