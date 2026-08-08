@@ -45,7 +45,12 @@ function rangeOfWord(doc: vscode.TextDocument, word: string): vscode.Range {
 
 function describe(doc: vscode.TextDocument, diags: vscode.Diagnostic[]): string {
   return JSON.stringify(
-    diags.map((d) => [codeOf(d), doc.getText(d.range), d.range.start.line, d.range.start.character]),
+    diags.map((d) => [
+      codeOf(d),
+      doc.getText(d.range),
+      d.range.start.line,
+      d.range.start.character,
+    ]),
   );
 }
 
@@ -80,10 +85,7 @@ suite("Issue #1329 / #1330 self-dispatch W308 and dispatch-site ranges", () => {
     const w308 = diags.filter((d) => codeOf(d) === "W308");
     const expected = rangeOfWord(doc, "nosuchissue1329bark");
     const hit = w308.find((d) => d.range.isEqual(expected));
-    assert.ok(
-      hit,
-      `W308 must underline \`nosuchissue1329bark\` alone; got ${describe(doc, w308)}`,
-    );
+    assert.ok(hit, `W308 must underline \`nosuchissue1329bark\` alone; got ${describe(doc, w308)}`);
     assert.strictEqual(
       hit!.range.start.line,
       hit!.range.end.line,
