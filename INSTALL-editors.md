@@ -3,15 +3,17 @@
 Install the editor-specific artefact from
 [GitHub Releases](https://github.com/bitwisecook/tcl-lsp/releases/latest).
 
-**VS Code (and VS Code-compatible editors) need no Python** — the
-`.vsix` bundles a self-contained native `tcl-lsp-server` binary for
-each platform (macOS/Linux/Windows on x64 and arm64, plus Linux
-riscv64) and runs the one matching your machine.
+**No editor needs Python.** The server is a self-contained native
+`tcl-lsp-server` binary. The VS Code `.vsix`, the JetBrains `.zip`, and
+the Sublime Text `.sublime-package` each bundle one binary per platform
+(macOS/Linux/Windows on x64 and arm64, plus Linux riscv64) and run the one
+matching your machine. The Zed extension downloads the matching binary on
+first use.
 
-Every **other** editor still needs Python 3.10+ on the host: the
-`.sublime-package` and JetBrains `.zip` bundle the Python server, and
-the standalone editors (Neovim/Emacs/Helix) point at
-`tcl-lsp-server-<version>.pyz` instead.
+The standalone editors (Neovim, Emacs, Helix, and any other LSP-capable
+editor) need the `tcl-lsp-server-<target-triple>` binary from
+[Releases](https://github.com/bitwisecook/tcl-lsp/releases/latest) — see
+[The server binary](#the-server-binary) below.
 
 | Editor | Artefact | Install |
 |--------|----------|---------|
@@ -19,9 +21,9 @@ the standalone editors (Neovim/Emacs/Helix) point at
 | [Cursor / Windsurf / VSCodium / Theia / code-server / Gitpod / Codespaces](#vs-code) | `tcl-lsp-vscode-<v>-universal.vsix` | Sideload the `.vsix` (`code --install-extension` style) |
 | [Sublime Text](#sublime-text) | `Tcl.sublime-package` | Package Control: install **Tcl-LSP**, or copy into `Installed Packages/` |
 | [JetBrains](#jetbrains) | `tcl-lsp-jetbrains-<v>.zip` | Settings > Plugins > Install from Disk |
-| [Neovim](#neovim) | `tcl-lsp-server-<v>.pyz` | Lua config |
-| [Emacs](#emacs) | `tcl-lsp-server-<v>.pyz` | eglot / lsp-mode |
-| [Helix](#helix) | `tcl-lsp-server-<v>.pyz` | `languages.toml` |
+| [Neovim](#neovim) | `tcl-lsp-server-<triple>` | Lua config |
+| [Emacs](#emacs) | `tcl-lsp-server-<triple>` | eglot / lsp-mode |
+| [Helix](#helix) | `tcl-lsp-server-<triple>` | `languages.toml` |
 | [Zed](#zed) | extension registry | `zed: extensions` |
 
 **[VS Code-compatible editors](#vs-code-compatible-editors)** (Cursor,
@@ -30,25 +32,41 @@ install the same `.vsix` unchanged.
 
 **[Other LSP-capable editors](#other-lsp-capable-editors)** (Vim,
 Kate, Kakoune, Notepad++, Geany, Lite XL, micro, CudaText,
-JupyterLab) point a generic LSP client at the `.pyz` server.
+JupyterLab) point a generic LSP client at the `tcl-lsp-server` binary.
 
-## Python
+## The server binary
 
-Not required for VS Code or VS Code-compatible editors — skip this
-section if that is all you use. For every other editor, `python3
---version` must report 3.10 or newer:
+Skip this section for VS Code, VS Code-compatible editors, JetBrains,
+Sublime Text, and Zed — those all obtain the server for you.
+
+Every other editor needs the `tcl-lsp-server` binary on the host. Download
+the asset for your platform from
+[Releases](https://github.com/bitwisecook/tcl-lsp/releases/latest); assets
+are named `tcl-lsp-server-<target-triple>` (`.exe` on Windows), with no
+version in the filename.
+
+| Platform | Asset |
+|---|---|
+| macOS arm64 | `tcl-lsp-server-aarch64-apple-darwin` |
+| macOS x86_64 | `tcl-lsp-server-x86_64-apple-darwin` |
+| Linux x86_64 | `tcl-lsp-server-x86_64-unknown-linux-gnu` |
+| Linux arm64 | `tcl-lsp-server-aarch64-unknown-linux-gnu` |
+| Linux riscv64 | `tcl-lsp-server-riscv64gc-unknown-linux-gnu` |
+| Windows x86_64 | `tcl-lsp-server-x86_64-pc-windows-msvc.exe` |
+| Windows arm64 | `tcl-lsp-server-aarch64-pc-windows-msvc.exe` |
+
+For macOS on Apple silicon:
 
 ```sh
-brew install python@3.14            # macOS
-sudo apt install python3            # Debian/Ubuntu 22.04+
-sudo dnf install python3.11         # RHEL/Rocky/Alma 9 (system python3 is 3.9)
-sudo dnf install python3            # Fedora
-sudo pacman -S python               # Arch
-sudo apk add python3                # Alpine
+base=https://github.com/bitwisecook/tcl-lsp/releases/latest/download
+curl -fLO "$base/tcl-lsp-server-aarch64-apple-darwin"
+install -m 0755 tcl-lsp-server-aarch64-apple-darwin ~/bin/tcl-lsp-server
 ```
 
-Each editor has a setting for pinning the interpreter when multiple
-are installed — see the per-editor sections below.
+Verify it against the release `SHA256SUMS` (see
+[INSTALL-cli.md](INSTALL-cli.md#verify-downloads)), then use
+`~/bin/tcl-lsp-server` as the command in the snippets below. The examples
+use that path throughout; substitute your own.
 
 ## VS Code
 
@@ -116,13 +134,14 @@ Language Server**.
 
 ## Neovim
 
-Drop `tcl-lsp-server-<v>.pyz` at `~/bin/tcl-lsp-server.pyz`.
+Install the server binary at `~/bin/tcl-lsp-server` (see
+[The server binary](#the-server-binary)).
 
 `~/.config/nvim/server/tcl_lsp.lua`:
 
 ```lua
 return {
-  cmd = { 'python3', vim.fn.expand('~/bin/tcl-lsp-server.pyz') },
+  cmd = { vim.fn.expand('~/bin/tcl-lsp-server') },
   filetypes = { 'tcl' },
   settings = { tclLsp = { dialect = 'tcl8.6' } },
 }
@@ -148,7 +167,7 @@ nvim-lspconfig and autocommand variants.
 ```elisp
 (with-eval-after-load 'eglot
   (add-to-list 'eglot-server-programs
-               '(tcl-mode . ("python3" "/path/to/tcl-lsp-server.pyz"))))
+               '(tcl-mode . ("~/bin/tcl-lsp-server"))))
 (add-hook 'tcl-mode-hook #'eglot-ensure)
 ```
 
@@ -159,7 +178,7 @@ nvim-lspconfig and autocommand variants.
   (lsp-register-client
    (make-lsp-client
     :new-connection (lsp-stdio-connection
-                     '("python3" "/path/to/tcl-lsp-server.pyz"))
+                     '("~/bin/tcl-lsp-server"))
     :activation-fn (lsp-activate-on "tcl")
     :server-id 'tcl-lsp)))
 (add-hook 'tcl-mode-hook #'lsp)
@@ -171,8 +190,7 @@ nvim-lspconfig and autocommand variants.
 
 ```toml
 [language-server.tcl-lsp]
-command = "python3"
-args = ["/path/to/tcl-lsp-server.pyz"]
+command = "/home/you/bin/tcl-lsp-server"
 
 [[language]]
 name = "tcl"
@@ -212,21 +230,21 @@ is involved.
 ## Other LSP-capable editors
 
 These editors have a built-in or third-party generic LSP client.
-Drop `tcl-lsp-server-<v>.pyz` somewhere stable (the examples below
-use `~/bin/tcl-lsp-server.pyz`) and paste the snippet into the
-editor's config.
+Install the `tcl-lsp-server` binary somewhere stable (the examples below
+use `~/bin/tcl-lsp-server` — see [The server binary](#the-server-binary))
+and paste the snippet into the editor's config.
 
 ### Vim (classic, non-Neovim)
 
 **vim-lsp** (`prabirshrestha/vim-lsp`) in `~/.vimrc`:
 
 ```vim
-if executable('python3')
+if executable(expand('~/bin/tcl-lsp-server'))
     augroup tcl_lsp_register
         au!
         au User lsp_setup call lsp#register_server({
             \ 'name': 'tcl-lsp',
-            \ 'cmd': {server_info->['python3', expand('~/bin/tcl-lsp-server.pyz')]},
+            \ 'cmd': {server_info->[expand('~/bin/tcl-lsp-server')]},
             \ 'allowlist': ['tcl'],
             \ 'workspace_config': {'tclLsp': {'dialect': 'tcl8.6'}},
             \ })
@@ -243,8 +261,7 @@ au BufRead,BufNewFile *.tcl,*.tk,*.itcl,*.tm,*.irul,*.irule,*.iapp,*.iappimpl,*.
 {
   "languageserver": {
     "tcl-lsp": {
-      "command": "python3",
-      "args": ["/home/you/bin/tcl-lsp-server.pyz"],
+      "command": "/home/you/bin/tcl-lsp-server",
       "filetypes": ["tcl"],
       "settings": { "tclLsp": { "dialect": "tcl8.6" } }
     }
@@ -271,7 +288,7 @@ Configure Kate > LSP Client > User Server Settings** and paste:
 {
   "servers": {
     "tcl": {
-      "command": ["python3", "/home/you/bin/tcl-lsp-server.pyz"],
+      "command": ["/home/you/bin/tcl-lsp-server"],
       "rootIndicationFileNames": ["pkgIndex.tcl", ".git"],
       "highlightingModeRegex": "^Tcl/Tk$",
       "settings": { "tclLsp": { "dialect": "tcl8.6" } }
@@ -289,8 +306,7 @@ then in `~/.config/kak-lsp/kak-lsp.toml`:
 [language.tcl]
 filetypes = ["tcl"]
 roots = ["pkgIndex.tcl", ".git"]
-command = "python3"
-args = ["/home/you/bin/tcl-lsp-server.pyz"]
+command = "/home/you/bin/tcl-lsp-server"
 settings_section = "tclLsp"
 
 [language.tcl.settings.tclLsp]
@@ -314,8 +330,8 @@ hook global WinSetOption filetype=tcl %{ lsp-enable-window }
   "servers": {
     "tcl": {
       "name": "tcl-lsp",
-      "executable": "python3",
-      "args": "C:\\Users\\you\\tcl-lsp-server.pyz",
+      "executable": "C:\\Users\\you\\tcl-lsp-server.exe",
+      "args": "",
       "fileExtensions": [".tcl", ".tk", ".itcl", ".tm", ".irul", ".irule", ".iapp", ".iappimpl", ".impl"],
       "initOptions": { "tclLsp": { "dialect": "tcl8.6" } }
     }
@@ -333,7 +349,7 @@ Manager > LSP Client**, then edit
 
 ```ini
 [Tcl]
-cmd=python3 /home/you/bin/tcl-lsp-server.pyz
+cmd=/home/you/bin/tcl-lsp-server
 use=true
 rpc-log=
 initialization-options-file=
@@ -351,7 +367,7 @@ lsp.add_server {
   name = "tcl-lsp",
   language = "tcl",
   file_patterns = { "%.tcl$", "%.tk$", "%.itcl$", "%.tm$", "%.irul$", "%.irule$", "%.iapp$", "%.iappimpl$", "%.impl$" },
-  command = { "python3", "/home/you/bin/tcl-lsp-server.pyz" },
+  command = { "/home/you/bin/tcl-lsp-server" },
   settings = { tclLsp = { dialect = "tcl8.6" } },
 }
 ```
@@ -363,7 +379,7 @@ via `> plugin install lsp`, then in `~/.config/micro/settings.json`:
 
 ```json
 {
-  "lsp.server": "tcl=python3 /home/you/bin/tcl-lsp-server.pyz",
+  "lsp.server": "tcl=/home/you/bin/tcl-lsp-server",
   "lsp.formatOnSave": false
 }
 ```
@@ -377,8 +393,8 @@ settings folder:
 ```json
 {
   "lexers": { "Tcl": "tcl" },
-  "cmd_unix": ["python3", "/home/you/bin/tcl-lsp-server.pyz"],
-  "cmd_windows": ["python3", "C:\\Users\\you\\tcl-lsp-server.pyz"],
+  "cmd_unix": ["/home/you/bin/tcl-lsp-server"],
+  "cmd_windows": ["C:\\Users\\you\\tcl-lsp-server.exe"],
   "work_dir": "",
   "tcp_port": 0
 }
@@ -396,7 +412,7 @@ Then in `~/.jupyter/jupyter_server_config.py`:
 c.LanguageServerManager.language_servers = {
     "tcl-lsp": {
         "version": 2,
-        "argv": ["python3", "/home/you/bin/tcl-lsp-server.pyz"],
+        "argv": ["/home/you/bin/tcl-lsp-server"],
         "languages": ["tcl"],
         "mime_types": ["text/x-tcl", "text/tcl"],
         "display_name": "Tcl LSP",

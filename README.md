@@ -2652,7 +2652,7 @@ Run `make help` to see all targets:
 | `make install` | Build and install the universal .vsix into VS Code |
 | `make package-vsix` | Package the universal VSIX (skip lint/test, for CI) |
 | `make package-vsix-targets` | Package the six platform-targeted VSIXes (skip lint/test, for CI) |
-| `make test` | Run all tests (Rust workspace + VS Code extension) |
+| `make test` | Run all tests (Rust workspace + VS Code extension + the `runtime/rust` port + the Zed query check) |
 | `make test-rust` | Run the Rust workspace tests (incl. the native LSP e2e suite) |
 | `make test-ext` | Run VS Code extension integration tests |
 | `make lint` | Run all lint and style checks |
@@ -2785,7 +2785,8 @@ See `editors/` for per-editor setup instructions.
 ### Running tests
 
 ```sh
-# Via make (Rust workspace + extension)
+# Via make — the whole suite: Rust workspace, VS Code extension
+# (single- and multi-root), the runtime/rust port, Zed query check
 make test
 
 # Rust workspace only (incl. the native LSP e2e suite)

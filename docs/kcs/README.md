@@ -4,7 +4,8 @@ This folder holds Knowledge-Centered Service (KCS) notes. A KCS note is a
 small, searchable answer to one question, written in plain English for a
 named audience.
 
-Every KCS note belongs to one of six categories:
+Every KCS note belongs to one of six categories (the templates and the full
+rules live in [`STYLE.md`](STYLE.md)):
 
 - **Issue** — "Why is X not working, and how do I fix it?"
 - **Q&A** — "What is X?" / "When should I use Y?"
@@ -18,6 +19,17 @@ If your content does not fit one of these six categories, you are writing
 a design doc. Put it under [`../design/`](../design/README.md) instead.
 
 ## How to write a KCS note
+
+Before you start, check the note is worth writing at all. A KCS note has to
+change what the reader does. **If a bug is fixed and the only thing anyone
+has to do is be on a current build, do not write a note** — that is a
+changelog and release-notes entry. A knowledge base full of problems that no
+longer exist is worse than a smaller one: a reader who finds such a note
+cannot tell a historical fault from a live one. Write the note when
+something survives the fix — a version range or restart/setting/cache step
+the reader must act on, a boundary that still reports in nearby cases, or a
+symptom with several possible causes worth telling apart. See rule 13 in
+[`STYLE.md`](STYLE.md).
 
 1. Pick a category and copy the matching template from
    [`templates/`](templates/README.md).
@@ -45,9 +57,6 @@ a design doc. Put it under [`../design/`](../design/README.md) instead.
 - [kcs-issue-memory-grows-while-editing.md](kcs-issue-memory-grows-while-editing.md)
   — the language server's memory use climbs with every keystroke and never
   comes back down.
-- [kcs-issue-problems-not-retained-after-closing-files.md](kcs-issue-problems-not-retained-after-closing-files.md)
-  — a file's problems and File Explorer badge vanish after its editor
-  tab is closed.
 - [kcs-issue-range-drift.md](kcs-issue-range-drift.md) — diagnostic or
   hover ranges point at the wrong span.
 - [kcs-issue-highlight-drops-closing-delimiter.md](kcs-issue-highlight-drops-closing-delimiter.md)
@@ -171,6 +180,10 @@ a design doc. Put it under [`../design/`](../design/README.md) instead.
 - [kcs-qa-tcltest-package-support.md](kcs-qa-tcltest-package-support.md) —
   how the server models the `tcltest` package, its `test` / `configure`
   options, and their per-version availability across Tcl 8.4-9.0.
+- [kcs-qa-which-files-keep-their-problems.md](kcs-qa-which-files-keep-their-problems.md)
+  — which files keep their problems once their editor tab is closed, and
+  why a closed file's badge reflects what is on disk rather than an
+  unsaved buffer.
 - [kcs-qa-why-diagnostics-appear-progressively.md](kcs-qa-why-diagnostics-appear-progressively.md)
   — why a large file's diagnostics arrive in two waves (a fast tier of
   single-file checks, then the complete deep tier), and why W120/W123 are

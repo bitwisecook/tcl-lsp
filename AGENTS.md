@@ -189,13 +189,12 @@ The project uses GNU Make. Key targets:
 | `make ensure-rust-deps` | Install Rust/rustup + the `wasm32-wasip2` target needed by `check-rust` / the WASM build. |
 | `make check-rust`  | Rust format check + clippy across the workspace (and the Zed extension). Skip with `SKIP_CHECK_RUST=1`. |
 | `make prep-pr`     | Pre-PR formatting + fast checks: auto-formats code, runs codegen, lint/typecheck, and `test-rust`. Run the heavier suites (`test-ext`, `runtime-rust-test`, `test-emacs`) separately before opening a PR — see "Before opening a PR" below. |
-| `make test`        | Run all tests — Rust workspace + VS Code extension + Rust runtime port (`test-rust test-ext runtime-rust-test`) |
+| `make test`        | **The one-shot test gate** — everything except Emacs: `test-rust` + `test-ext` + `runtime-rust-test` + `zed-query-check` |
 | `make test-rust`   | `cargo test --workspace --all-features` — includes the native lsp_e2e suite (`rust/tcl-lsp-server/tests/*_e2e.rs`); skip with `SKIP_TEST_RUST=1` |
 | `make test-ext`    | VS Code extension integration tests — the single-root suite **and** the multi-root (`test:multi-folder`) suite (xvfb on headless Linux) |
 | `make lint-py`     | `ruff format --check` + `ruff check` over every tracked `.py` (versions pinned in the Makefile) |
 | `make format-py`   | `ruff format` over every tracked `.py` |
 | `make typecheck-py`| `ty` + `pyright` over every tracked `.py`.  Builds `.venv-typecheck`, which installs `f5report` (maturin-compiling the native `_engine`) plus pytest, so both checkers resolve every import for real.  Sublime host APIs are declared by stubs under `typings/`. |
-| `make test-ext-rust` | Build `rust-server`, then run the VS Code extension tests against the native Rust server (`TCL_LSP_SERVER_KIND=rust`, `TCL_LSP_SERVER_BIN` set) |
 | `make lint`        | Lint / style checks — TypeScript only (`lint-ts`: ESLint + Prettier) |
 | `make format`      | Format TypeScript (`format-ts`, Prettier) |
 | `make rust-server` | Build the native `tcl-lsp-server` binary (`cargo build -p tcl-lsp-server`; `PROFILE=release|debug`) |
@@ -361,8 +360,8 @@ heavier test suites to run individually before opening a PR:
 | Gate | Required before | What runs | Enforcement |
 |---|---|---|---|
 | **`make rust-check`** | Rust-only changes (minimum) | Rust `fmt --check` + `clippy` + `xtask-check` (generated-file / docs-index drift gates).  Mirrors GitHub Actions' `pr-gate` job | fast subset — run before `check-all` |
-| **`make check-all`** | every `git push` (minimum) | multi-language lint + typecheck across TypeScript (ESLint + Prettier + tsc), Rust (`cargo fmt --check` + `cargo clippy`) | agent rule: run before every push |
-| **`make test-rust test-ext runtime-rust-test test-emacs`** | every PR / merge request | the full Rust workspace test suite (native lsp_e2e included), the VS Code extension, the Rust runtime port, and Emacs eglot, run individually | agent rule: required before opening a PR |
+| **`make check-all`** | every `git push` (minimum) | multi-language lint + typecheck across TypeScript (ESLint + Prettier + tsc), Rust (`cargo fmt --check` + `cargo clippy`), and the remaining Python (`ruff` + `ty` + `pyright` over `f5report`, the Claude skills, and the Sublime plugin) | agent rule: run before every push |
+| **`make test`** (+ `make test-emacs`) | every PR / merge request | `make test` runs the full Rust workspace suite (native lsp_e2e included), the VS Code extension (single- and multi-root), the Rust runtime port, and the Zed query check.  `test-emacs` is separate — it is the only suite `make test` leaves out | agent rule: required before opening a PR |
 
 GitHub Actions runs only the fast gate on PRs (the `pr-gate` job, mirrored by
 `make rust-check` + the TS lint in `check-all`).  Everything else is the
@@ -391,16 +390,14 @@ drift" failure on this repo's PRs has been a `push` that skipped this step.
 
 ### Before opening a PR
 
-**Rebase off `main`, fix conflicts, then run `make prep-pr` followed by the
-heavier suites individually:**
+**Rebase off the branch you are targeting (`rust` for 2.x work, `main` for 1.x
+stable), fix conflicts, then run the gate:**
 
 ```
-make prep-pr                                    # format + codegen + lint/typecheck + test-rust
-make check-rust                                  # Rust lint/typecheck
-make test-ext                                    # VS Code extension — xvfb if no DISPLAY
-make test-emacs                                  # Emacs eglot
-make runtime-rust-test                           # the standalone runtime/rust crate — excluded
-                                                  # from the workspace, so test-rust misses it
+make prep-pr        # format + codegen + lint/typecheck + test-rust
+make check-rust     # Rust lint/typecheck
+make test           # every test suite but Emacs (see below)
+make test-emacs     # Emacs eglot — the one suite `make test` does not run
 ```
 
 - **prep-pr** — format (Prettier) + codegen (`cargo xtask`) + lint + typecheck
@@ -408,10 +405,12 @@ make runtime-rust-test                           # the standalone runtime/rust c
   --workspace --all-features`, including the native lsp_e2e suite
   `rust/tcl-lsp-server/tests/*_e2e.rs`)
 - **check-rust** — Rust lint/typecheck
-- **test-ext** — VS Code extension integration tests, single-root and multi-root
+- **test** — `test-rust` (Rust workspace) + `test-ext` (VS Code extension,
+  single-root and multi-root) + `runtime-rust-test` (the standalone
+  `runtime/rust` crate, which is excluded from the workspace, so `test-rust`
+  misses it) + `zed-query-check` (generated Zed highlight queries against the
+  pinned tree-sitter grammar)
 - **test-emacs** — Emacs eglot integration tests
-- **runtime-rust-test** — the leak round-trip + parse/eval unit suite for
-  the standalone `runtime/rust` crate
 
 Skip variables for missing tooling: `SKIP_TEST_EMACS=1`,
 `SKIP_TEST_RUST=1`.  Use these only when the tool genuinely isn't available
@@ -489,9 +488,9 @@ person would ask out loud, it is a KCS note; if it describes how a module is
 structured, what its contract is, or what data flows through it, it is a
 design doc.
 
-### KCS — the four categories
+### KCS — the six categories
 
-Every KCS note is exactly one of these four types. Pick the category first,
+Every KCS note is exactly one of these six types. Pick the category first,
 then copy the matching template from [`docs/kcs/templates/`](docs/kcs/templates/README.md).
 
 | Type | The question it answers | Template |
@@ -500,6 +499,8 @@ then copy the matching template from [`docs/kcs/templates/`](docs/kcs/templates/
 | **Q&A** | What is X? / When should I use Y? | [`kcs-template-qa.md`](docs/kcs/templates/kcs-template-qa.md) |
 | **How-To** | How do I do X? | [`kcs-template-how-to.md`](docs/kcs/templates/kcs-template-how-to.md) |
 | **Functionality** | What does command/feature/tool X do, and how do I use it? | [`kcs-template-functionality.md`](docs/kcs/templates/kcs-template-functionality.md) |
+| **Diagnostic** | Per-code page for an E/W/S/T/IRULE diagnostic. | [`kcs-template-diagnostic.md`](docs/kcs/templates/kcs-template-diagnostic.md) |
+| **Optimisation** | Per-code page for an O-code optimiser rewrite. | [`kcs-template-optimisation.md`](docs/kcs/templates/kcs-template-optimisation.md) |
 
 Every KCS note starts with a blockquote header naming its audience and
 type:
@@ -508,7 +509,7 @@ type:
 # KCS: <short title>
 
 > **Audience:** User | Contributor | Maintainer
-> **Type:** Issue | Q&A | How-To | Functionality
+> **Type:** Issue | Q&A | How-To | Functionality | Diagnostic | Optimisation
 ```
 
 ### KCS style rules
@@ -564,6 +565,16 @@ type:
     sub-headings** under the answer section, in the same order as
     `## Applies to`. Do not bury per-editor differences in inline
     asides.
+14. **A fixed bug that needs no reader action is not a KCS note.** If the
+    only thing anyone has to do is be on a current build, the fix belongs
+    in the changelog and the release notes — not in the knowledge base,
+    where it leaves a reader unable to tell a historical fault from a live
+    one. Write the note only when something survives the fix: a version
+    range or restart/setting/cache step the reader must act on, a boundary
+    that still reports nearby (say which, and why), or a symptom with
+    several possible causes the note helps tell apart. The test: delete
+    every sentence that only says the bug is fixed, and see whether
+    anything actionable is left.
 
 For the full style guide with worked examples, see
 [`docs/kcs/STYLE.md`](docs/kcs/STYLE.md).
@@ -801,10 +812,9 @@ layers — not just the one closest to the symptom.
   harness.
 - Rust tests: `make test-rust` (`cargo test --workspace --all-features`).
 - The native LSP end-to-end suite lives at
-  `rust/tcl-lsp-server/tests/*_e2e.rs` (30 suites, run by `cargo test`) — it is
-  **not** pytest, and there is no zipapp build step. VS Code extension tests:
-  `make test-ext` (or `make test-ext-rust` to drive the native server via
-  `TCL_LSP_SERVER_KIND=rust`).
+  `rust/tcl-lsp-server/tests/*_e2e.rs` (30 suites, run by `cargo test`). VS Code
+  extension tests: `make test-ext`, which builds the native `tcl-lsp-server` and
+  points the extension at it via `TCL_LSP_SERVER_BIN`.
 - **Registry contract & behaviour tests**
   (`rust/tcl-registry/tests/registry_sweep.rs`,
   `rust/tcl-registry/tests/registry_commands.rs`): coverage of the whole
