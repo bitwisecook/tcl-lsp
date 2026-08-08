@@ -73,3 +73,6 @@ backstop for a run that never stalls but also never finishes.
 - [Glossary](../GLOSSARY.md)
 - [a VS Code test timed out draining `didOpen`](kcs-issue-vscode-test-timed-out-on-didopen.md)
   — a different, per-test wait timeout with its own three-way verdict.
+- [a feature-toggle test samples the provider once and is flaky](kcs-issue-vscode-test-feature-toggle-sampled-once.md)
+  — the companion fix (issue #1295) for a single-sample "after" read racing
+  an unobserved config transition.

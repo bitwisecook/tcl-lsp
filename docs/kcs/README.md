@@ -113,6 +113,9 @@ a design doc. Put it under [`../design/`](../design/README.md) instead.
 - [kcs-issue-vscode-test-runner-reports-false-hang.md](kcs-issue-vscode-test-runner-reports-false-hang.md)
   — `make test-ext` reports "mocha never completed (likely hung)" on a run
   that actually passed every test.
+- [kcs-issue-vscode-test-feature-toggle-sampled-once.md](kcs-issue-vscode-test-feature-toggle-sampled-once.md)
+  — a feature-toggle test samples the provider once right after disabling it
+  and is flaky (or fails deterministically) instead of waiting on the result.
 - [kcs-issue-runtime-string-subcommands-corrupt-binary-values.md](kcs-issue-runtime-string-subcommands-corrupt-binary-values.md)
   — `string index`/`range`/`replace`/`toupper` under the WASM runtime used to
   replace non-UTF-8 bytes from `binary format`/a binary channel read with
