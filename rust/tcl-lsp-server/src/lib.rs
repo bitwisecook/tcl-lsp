@@ -20221,6 +20221,388 @@ mod tests {
         assert_eq!(inherited, vec!["Tk".to_owned()]);
     }
 
+    // ---- #1331 cross-file command resolution + arity ----------------------
+    //
+    // The two-file shape from the issue, which single-file coverage could
+    // never have caught: `deflib.tcl` defines `proc libtest {a b c}` and
+    // `plaincaller.tcl` calls `libtest 1 2`. Go-to-definition already
+    // resolved it; diagnostics called it unknown.
+    //
+    // Oracle, C Tcl 9.0.4:
+    //
+    // ```
+    // % cat deflib.tcl
+    // proc libtest {a b c} { return [expr {$a + $b + $c}] }
+    // % tclsh9.0
+    // % source deflib.tcl ; libtest 1 2
+    // wrong # args: should be "libtest a b c"
+    // ```
+
+    /// Settle `caller_src`'s call sites against an index built from `others`.
+    fn settle(
+        caller_uri: &Uri,
+        caller_src: &str,
+        others: &[(&Uri, &str)],
+    ) -> (tcl_compiler::analyser::AnalysisResult, CrossFileCalls) {
+        let analysis = tcl_compiler::analyser::Analyser::new()
+            .analyse(caller_src, "tcl8.6")
+            .clone();
+        let index = ws_index(others);
+        let registry = tcl_registry::registry_for_dialect("tcl8.6");
+        let settled = settle_cross_file_calls(&index, &analysis, registry, caller_uri.as_str());
+        (analysis, settled)
+    }
+
+    /// The E002/E003 codes `cross_file_arity_diagnostics` reports, in order.
+    fn arity_codes(
+        analysis: &tcl_compiler::analyser::AnalysisResult,
+        settled: &CrossFileCalls,
+    ) -> Vec<String> {
+        cross_file_arity_diagnostics(analysis, settled, |_| false)
+            .iter()
+            .map(|d| d.code.as_str().to_owned())
+            .collect()
+    }
+
+    fn caller_uri() -> Uri {
+        Uri::from_file_path("/proj/plaincaller.tcl").unwrap()
+    }
+
+    fn deflib() -> Uri {
+        Uri::from_file_path("/proj/deflib.tcl").unwrap()
+    }
+
+    /// **TP — the reported bug.** The cross-file call resolves (so its W123 is
+    /// suppressed) *and* its wrong argument count is reported.
+    #[test]
+    fn cross_file_call_resolves_and_arity_checks() {
+        let (analysis, settled) = settle(
+            &caller_uri(),
+            "libtest 1 2\n",
+            &[(&deflib(), "proc libtest {a b c} { return 1 }\n")],
+        );
+        assert_eq!(
+            settled.resolved.len(),
+            1,
+            "a workspace proc must settle the call: {settled:?}",
+        );
+        assert_eq!(
+            arity_codes(&analysis, &settled),
+            ["E002"],
+            "tclsh: `wrong # args: should be \"libtest a b c\"`",
+        );
+    }
+
+    /// **TP.** Too many arguments is the other half of the same check.
+    #[test]
+    fn cross_file_call_reports_too_many_arguments() {
+        let (analysis, settled) = settle(
+            &caller_uri(),
+            "libtest 1 2 3 4\n",
+            &[(&deflib(), "proc libtest {a b c} { return 1 }\n")],
+        );
+        assert_eq!(arity_codes(&analysis, &settled), ["E003"]);
+    }
+
+    /// **TP.** A correct call draws nothing — the check is not simply
+    /// "anything cross-file is an error".
+    #[test]
+    fn cross_file_call_with_a_fitting_count_is_silent() {
+        let (analysis, settled) = settle(
+            &caller_uri(),
+            "libtest 1 2 3\n",
+            &[(&deflib(), "proc libtest {a b c} { return 1 }\n")],
+        );
+        assert_eq!(settled.resolved.len(), 1, "still resolves: {settled:?}");
+        assert!(arity_codes(&analysis, &settled).is_empty());
+    }
+
+    /// **FP guard — the precision that lets this tier be on by default.** A
+    /// bare `buried` called at global scope has candidates `::buried` only; a
+    /// `proc ::deep::buried` matches none of them, so the call must NOT
+    /// resolve. This is exactly the bare-tail match that made the opt-in tier
+    /// silence 197 justified W123s over tcllib.
+    #[test]
+    fn a_namespaced_proc_does_not_settle_a_bare_global_call() {
+        let (analysis, settled) = settle(
+            &caller_uri(),
+            "buried 1\n",
+            &[(
+                &deflib(),
+                "namespace eval ::deep { proc buried {x} { return $x } }\n",
+            )],
+        );
+        assert!(
+            settled.resolved.is_empty(),
+            "`buried` at global scope reaches `::buried`, which nothing \
+             defines — tclsh: `invalid command name \"buried\"`: {settled:?}",
+        );
+        assert!(arity_codes(&analysis, &settled).is_empty());
+    }
+
+    /// **FN guard.** A command nothing in the workspace defines still does not
+    /// resolve, so its W123 survives every tier.
+    #[test]
+    fn a_genuinely_unknown_command_never_resolves() {
+        let (_, settled) = settle(
+            &caller_uri(),
+            "totallyUnknownCommand 1 2\n",
+            &[(&deflib(), "proc libtest {a b c} { return 1 }\n")],
+        );
+        assert!(settled.resolved.is_empty(), "{settled:?}");
+    }
+
+    /// **TN — `args` tail.** An unbounded signature accepts any count above
+    /// its minimum, so no argument count draws an error.
+    #[test]
+    fn arity_abstains_for_an_args_tailed_signature() {
+        let (analysis, settled) = settle(
+            &caller_uri(),
+            "argstail 1 2 3 4 5 6 7\n",
+            &[(&deflib(), "proc argstail {a args} { return $a }\n")],
+        );
+        assert_eq!(settled.resolved.len(), 1, "still resolves: {settled:?}");
+        assert!(
+            arity_codes(&analysis, &settled).is_empty(),
+            "a trailing `args` is unbounded (tclsh accepts every count >= 1)",
+        );
+    }
+
+    /// **TN — `args` tail, below the minimum.** The minimum is still enforced:
+    /// abstention is about the *upper* bound, not a blanket exemption.
+    #[test]
+    fn arity_still_enforces_the_minimum_of_an_args_tailed_signature() {
+        let (analysis, settled) = settle(
+            &caller_uri(),
+            "argstail\n",
+            &[(&deflib(), "proc argstail {a args} { return $a }\n")],
+        );
+        assert_eq!(arity_codes(&analysis, &settled), ["E002"]);
+    }
+
+    /// **TN — defaulted parameter.** A default lowers the minimum, so both the
+    /// short and the full call are accepted.
+    #[test]
+    fn arity_abstains_across_a_defaulted_parameter() {
+        for call in ["defaulted 1\n", "defaulted 1 2\n"] {
+            let (analysis, settled) = settle(
+                &caller_uri(),
+                call,
+                &[(&deflib(), "proc defaulted {a {b 2}} { return $a }\n")],
+            );
+            assert!(
+                arity_codes(&analysis, &settled).is_empty(),
+                "`{call}` is accepted by tclsh",
+            );
+        }
+    }
+
+    /// **TN — computed parameter list.** `proc p $params {…}` declares an
+    /// unknown number of formals; reading the empty recorded list as "takes no
+    /// arguments" is what drew a false E003 in issue #1107, so the arity must
+    /// be fully open.
+    #[test]
+    fn arity_abstains_for_a_computed_parameter_list() {
+        let (analysis, settled) = settle(
+            &caller_uri(),
+            "computed 1 2 3\n",
+            &[(
+                &deflib(),
+                "set params {a b}\nproc computed $params { return 1 }\n",
+            )],
+        );
+        assert!(arity_codes(&analysis, &settled).is_empty(), "{settled:?}");
+    }
+
+    /// **TN — a class shares the name.** The call may dispatch to the
+    /// arity-less class command, so the name resolves (no W123) but draws no
+    /// arity error.
+    #[test]
+    fn arity_abstains_when_a_class_shares_the_name() {
+        let (analysis, settled) = settle(
+            &caller_uri(),
+            "Widget 1 2 3 4 5\n",
+            &[(&deflib(), "oo::class create Widget {}\n")],
+        );
+        assert_eq!(
+            settled.resolved.len(),
+            1,
+            "the class command resolves the name: {settled:?}",
+        );
+        assert!(
+            arity_codes(&analysis, &settled).is_empty(),
+            "a class command has no fixed arity",
+        );
+    }
+
+    /// **TN — dynamic providers.** `namespace unknown` makes resolution
+    /// unknowable, and the analyser records no unresolved sites at all, so
+    /// both the suppression and the arity check abstain together.
+    #[test]
+    fn nothing_settles_when_the_document_has_dynamic_providers() {
+        let (analysis, settled) = settle(
+            &caller_uri(),
+            "namespace unknown myhandler\nlibtest 1 2\n",
+            &[(&deflib(), "proc libtest {a b c} { return 1 }\n")],
+        );
+        assert!(
+            analysis.has_dynamic_providers,
+            "`namespace unknown` must widen to dynamic providers",
+        );
+        assert!(settled.resolved.is_empty(), "{settled:?}");
+        assert!(arity_codes(&analysis, &settled).is_empty());
+    }
+
+    /// **TN — a `{*}`-expanded call.** The true argument count is a runtime
+    /// fact, so no arity claim can be made.
+    #[test]
+    fn arity_abstains_for_an_expanded_call() {
+        let (analysis, settled) = settle(
+            &caller_uri(),
+            "set a {1 2}\nlibtest {*}$a\n",
+            &[(&deflib(), "proc libtest {a b c} { return 1 }\n")],
+        );
+        assert!(arity_codes(&analysis, &settled).is_empty(), "{settled:?}");
+    }
+
+    /// A disabled code is honoured — the arity diagnostics are synthesised
+    /// after the analyser applied its own filter, so this path must replicate
+    /// it or a user who turned E002 off still sees it.
+    #[test]
+    fn cross_file_arity_honours_a_disabled_code() {
+        let (analysis, settled) = settle(
+            &caller_uri(),
+            "libtest 1 2\n",
+            &[(&deflib(), "proc libtest {a b c} { return 1 }\n")],
+        );
+        let out = cross_file_arity_diagnostics(&analysis, &settled, |code| code == "E002");
+        assert!(out.is_empty(), "{out:?}");
+    }
+
+    // ---- #1332 the `source` up direction, position-gated -------------------
+
+    /// A `source`d file's `package require` is available *after* the statement
+    /// and not before it — the C Tcl 9.0.4 behaviour recorded on
+    /// `source_graph::descendant_requires`.
+    #[test]
+    fn placed_requires_are_only_available_after_the_source_statement() {
+        let inheritance = SourceInheritance {
+            ambient: Vec::new(),
+            placed: vec![tcl_lsp_core::source_graph::PlacedRequire {
+                name: "Tk".to_owned(),
+                at: 20,
+                enclosing_body: None,
+            }],
+            unresolvable_source: false,
+        };
+        assert!(
+            inheritance.available_at(5, None).is_empty(),
+            "a call above the `source` runs before it",
+        );
+        assert_eq!(
+            inheritance.available_at(40, None),
+            vec!["Tk".to_owned()],
+            "a call below the `source` runs after it",
+        );
+    }
+
+    /// A load-level `source` counts for a call written inside *any* proc body,
+    /// wherever that body sits — the whole file loads before any body runs.
+    #[test]
+    fn a_load_level_source_covers_a_call_inside_a_proc_body() {
+        let inheritance = SourceInheritance {
+            ambient: Vec::new(),
+            placed: vec![tcl_lsp_core::source_graph::PlacedRequire {
+                name: "Tk".to_owned(),
+                at: 90,
+                enclosing_body: None,
+            }],
+            unresolvable_source: false,
+        };
+        // A call at offset 40 inside a body spanning 30..60 — textually above
+        // the `source` at 90, but it cannot run until the body is invoked.
+        let body = tcl_lexer::Span::new(30, 60);
+        assert_eq!(
+            inheritance.available_at(40, Some(body)),
+            vec!["Tk".to_owned()],
+        );
+    }
+
+    /// The whole up direction is inert for a document that `source`s nothing,
+    /// which is the shape of almost every file — and the abstention flag stays
+    /// down, so W120/W123 keep working normally.
+    #[test]
+    fn a_document_that_sources_nothing_inherits_nothing_and_does_not_abstain() {
+        let uri = Uri::from_file_path("/proj/solo.tcl").unwrap();
+        let analysis = tcl_compiler::analyser::Analyser::new()
+            .analyse("winfo exists .l\n", "tcl8.6")
+            .clone();
+        let index = ws_index(&[(&uri, "winfo exists .l\n")]);
+        let got = compute_source_inheritance(&index, &uri, &analysis, &[], None);
+        assert!(got.placed.is_empty());
+        assert!(!got.unresolvable_source);
+        assert!(got.is_empty());
+    }
+
+    /// A `source` whose target is not an indexed document — outside the
+    /// workspace, absent, or a path no static fold can prove — sets the
+    /// abstention flag, and W120/W123 then go quiet document-wide.
+    #[test]
+    fn an_unfollowable_source_sets_the_abstention_flag() {
+        let uri = Uri::from_file_path("/proj/main.tcl").unwrap();
+        let src = "source nosuchfile.tcl\nwinfo exists .l\n";
+        let analysis = tcl_compiler::analyser::Analyser::new()
+            .analyse(src, "tcl8.6")
+            .clone();
+        let index = ws_index(&[(&uri, src)]);
+        let got = compute_source_inheritance(&index, &uri, &analysis, &[], None);
+        assert!(
+            got.unresolvable_source,
+            "a `source` of a file the workspace does not hold is unknowable",
+        );
+    }
+
+    /// The followable case: `main.tcl` sources `tkFile.tcl`, which requires
+    /// Tk. Tk arrives in `main.tcl`, and the abstention flag stays down —
+    /// option (1) of issue #1332, not option (2).
+    #[test]
+    fn a_followable_source_contributes_its_requires_without_abstaining() {
+        let main = Uri::from_file_path("/proj/main.tcl").unwrap();
+        let tk = Uri::from_file_path("/proj/tkFile.tcl").unwrap();
+        let src = "source tkFile.tcl\nwinfo exists .l\n";
+        let analysis = tcl_compiler::analyser::Analyser::new()
+            .analyse(src, "tcl8.6")
+            .clone();
+        let index = ws_index(&[(&main, src), (&tk, "package require Tk\n")]);
+        let got = compute_source_inheritance(&index, &main, &analysis, &[], None);
+        assert!(
+            !got.unresolvable_source,
+            "a literal `source` of an indexed file is followable",
+        );
+        assert_eq!(
+            got.placed.iter().map(|p| p.name.as_str()).collect::<Vec<_>>(),
+            ["Tk"],
+            "{got:?}",
+        );
+    }
+
+    /// **TN.** Sourcing a file that requires nothing contributes nothing, so a
+    /// Tk-command W120 in the sourcing file still stands. Option (2) must not
+    /// have been applied globally.
+    #[test]
+    fn sourcing_a_non_tk_file_contributes_nothing() {
+        let main = Uri::from_file_path("/proj/main.tcl").unwrap();
+        let plain = Uri::from_file_path("/proj/plain.tcl").unwrap();
+        let src = "source plain.tcl\nwinfo exists .l\n";
+        let analysis = tcl_compiler::analyser::Analyser::new()
+            .analyse(src, "tcl8.6")
+            .clone();
+        let index = ws_index(&[(&main, src), (&plain, "proc helper {} { return 1 }\n")]);
+        let got = compute_source_inheritance(&index, &main, &analysis, &[], None);
+        assert!(!got.unresolvable_source);
+        assert!(got.placed.is_empty(), "{got:?}");
+    }
+
     #[test]
     fn entry_point_paths_resolve_relative_and_absolute() {
         let root = PathBuf::from("/proj");
