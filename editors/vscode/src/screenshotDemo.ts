@@ -1833,6 +1833,12 @@ async function prepareAiScenes(): Promise<boolean> {
     }
   }
 
+  // How long to keep offering the sign-in prompt before giving up and running
+  // without the AI scenes. Long enough for a person to complete a GitHub sign-in
+  // in the browser; short enough that an unattended run still finishes.
+  const AI_LOGIN_GRACE_MS = 3 * 60_000;
+  const aiLoginDeadline = Date.now() + AI_LOGIN_GRACE_MS;
+
   for (let attempt = 0; attempt < 3; attempt++) {
     // Re-check availability each attempt in case extension activation/login
     // finished after startup.
@@ -1856,23 +1862,28 @@ async function prepareAiScenes(): Promise<boolean> {
     console.log(
       `[screenshot-demo] Showing AI login prompt (attempt ${attempt + 1}/3, copilotDetected=${Boolean(copilot)})`,
     );
-    // Modal, not a toast. VS Code auto-hides information notifications, and a
-    // dismissed one was treated as "ask again" — so the prompt could flash past
-    // without ever pausing, which is the opposite of what it is for. A modal
-    // blocks until a button is chosen, so the run genuinely waits for the
-    // sign-in to be done.
+    // A toast, deliberately not a modal: VS Code's DialogService refuses modal
+    // dialogs under the test host ("refused to show dialog in tests"), so a
+    // modal here is silently swallowed and the operator sees nothing at all.
+    //
+    // Toasts auto-hide, so re-show on dismissal to keep a clickable prompt in
+    // front of whoever is watching — but stop once AI_LOGIN_GRACE_MS has passed
+    // so an unattended run skips the AI scenes instead of hanging forever.
     const choice = await vscode.window.showInformationMessage(
       message,
-      { modal: true },
       verifyLabel,
       "Open Sign-In",
       "Skip AI Screenshots",
     );
     if (!choice) {
-      // Escape / Cancel on a modal is a deliberate "no" — take it as skip
-      // rather than reprompting forever.
-      console.log("[screenshot-demo] AI login dialog cancelled — skipping AI scenes");
-      return false;
+      if (Date.now() >= aiLoginDeadline) {
+        console.log("[screenshot-demo] AI login prompt went unanswered — skipping AI scenes");
+        return false;
+      }
+      console.log("[screenshot-demo] AI login toast dismissed — prompting again");
+      await sleep(400);
+      attempt -= 1; // a dismissed toast is not a failed attempt
+      continue;
     }
     if (choice === "Open Sign-In") {
       const started = await openAnyAvailableSignInFlow();
