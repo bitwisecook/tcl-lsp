@@ -5079,6 +5079,172 @@ mod class_factories {
         }
     }
 
+    /// tcllib's `oo::dialect` shape, reduced to its mechanism: the metaclass
+    /// is created under a name composed from a proc parameter, and the one
+    /// call site passes a literal.
+    ///
+    /// tclsh 9.0.4: the whole three-file chain really runs — `::T::mkdialect
+    /// ::T::D` then `::T::D::class create ::T::W {method go {} {return went}}`
+    /// then `[[::T::W new] go]` answers `went`.
+    const COMPUTED_METACLASS: &str = concat!(
+        "namespace eval ::T {}\n",
+        "oo::class create ::T::Mother { superclass oo::class }\n",
+        "proc ::T::mkdialect {ns} {\n",
+        "    ::T::Mother create ${ns}::class { superclass ::T::Mother }\n",
+        "}\n",
+        "::T::mkdialect ::T::D\n",
+    );
+
+    #[test]
+    fn a_computed_metaclass_name_resolves_through_a_literal_call_site() {
+        // TP (#1306) — the literal argument proves `${ns}::class` is
+        // `::T::D::class`, so the metaclass enters the factory index and
+        // everything it later manufactures becomes visible.
+        let result = analysis(COMPUTED_METACLASS, "tcl9.0");
+        assert!(
+            result.all_classes.contains_key("::T::D::class"),
+            "expected ::T::D::class; got {:?}",
+            result.all_classes.keys().collect::<Vec<_>>()
+        );
+        assert!(
+            result.class_factories().contains_key("::T::D::class"),
+            "the resolved metaclass must publish a factory"
+        );
+    }
+
+    #[test]
+    fn the_unresolvable_record_is_retracted_once_a_real_name_is_proved() {
+        // FP guard (#1306) — a class literally named `::T::${ns}::class`
+        // exists in no interpreter, so once the real name is proved the
+        // phantom must not remain beside it in the class index.
+        let result = analysis(COMPUTED_METACLASS, "tcl9.0");
+        assert!(
+            !result.all_classes.contains_key("::T::${ns}::class"),
+            "the unresolved placeholder must be retracted; got {:?}",
+            result.all_classes.keys().collect::<Vec<_>>()
+        );
+    }
+
+    #[test]
+    fn each_literal_call_site_proves_its_own_metaclass() {
+        // TP (#1306) — two call sites, two literals, two real metaclasses.
+        // This is the clay / practcl shape: one `oo::dialect::create` proc
+        // manufacturing a per-dialect metaclass for each caller.
+        let src = concat!(
+            "namespace eval ::T {}\n",
+            "oo::class create ::T::Mother { superclass oo::class }\n",
+            "proc ::T::mkdialect {ns} {\n",
+            "    ::T::Mother create ${ns}::class { superclass ::T::Mother }\n",
+            "}\n",
+            "::T::mkdialect ::T::D\n",
+            "::T::mkdialect ::T::E\n",
+        );
+        let result = analysis(src, "tcl9.0");
+        for want in ["::T::D::class", "::T::E::class"] {
+            assert!(
+                result.all_classes.contains_key(want),
+                "expected {want}; got {:?}",
+                result.all_classes.keys().collect::<Vec<_>>()
+            );
+        }
+    }
+
+    #[test]
+    fn a_dynamic_call_site_argument_proves_nothing() {
+        // TN (#1306) — the sole call site passes a runtime value, so no name
+        // is knowable and the pass must record nothing. Abstention is the
+        // documented contract; a guess here would invent a class.
+        let src = concat!(
+            "namespace eval ::T {}\n",
+            "oo::class create ::T::Mother { superclass oo::class }\n",
+            "proc ::T::mkdialect {ns} {\n",
+            "    ::T::Mother create ${ns}::class { superclass ::T::Mother }\n",
+            "}\n",
+            "set target [getNamespace]\n",
+            "::T::mkdialect $target\n",
+        );
+        let result = analysis(src, "tcl9.0");
+        let recorded: Vec<&String> = result
+            .all_classes
+            .keys()
+            .filter(|k| k.ends_with("::class") && !k.contains("${"))
+            .collect();
+        assert!(
+            recorded.is_empty(),
+            "a dynamic call-site argument must prove no class name; got {recorded:?}"
+        );
+    }
+
+    #[test]
+    fn a_call_site_inside_another_proc_body_proves_nothing() {
+        // TN (#1306) — the call runs at *call* time, if the enclosing proc is
+        // ever invoked, so sourcing the file creates nothing. Same load-level
+        // rule the destruction filter applies.
+        let src = concat!(
+            "namespace eval ::T {}\n",
+            "oo::class create ::T::Mother { superclass oo::class }\n",
+            "proc ::T::mkdialect {ns} {\n",
+            "    ::T::Mother create ${ns}::class { superclass ::T::Mother }\n",
+            "}\n",
+            "proc ::T::setup {} { ::T::mkdialect ::T::D }\n",
+        );
+        assert!(
+            !analysis(src, "tcl9.0")
+                .all_classes
+                .contains_key("::T::D::class"),
+            "a call inside a proc body must not prove a load-time creation"
+        );
+    }
+
+    #[test]
+    fn a_relative_computed_name_still_abstains() {
+        // TN (#1306) — the resolved name has no absolute written form, so
+        // homing it needs the call site's namespace, which this pass does not
+        // model. Abstaining beats homing it into the wrong namespace.
+        let src = concat!(
+            "namespace eval ::T {}\n",
+            "oo::class create ::T::Mother { superclass oo::class }\n",
+            "proc ::T::mkdialect {ns} {\n",
+            "    ::T::Mother create ${ns}::class { superclass ::T::Mother }\n",
+            "}\n",
+            "::T::mkdialect Rel\n",
+        );
+        let result = analysis(src, "tcl9.0");
+        let recorded: Vec<&String> = result
+            .all_classes
+            .keys()
+            .filter(|k| k.contains("Rel"))
+            .collect();
+        assert!(
+            recorded.is_empty(),
+            "a relative resolved name must abstain; got {recorded:?}"
+        );
+    }
+
+    #[test]
+    fn a_proc_nobody_calls_proves_nothing() {
+        // TN (#1306) — no call site, no binding, nothing proved. The
+        // regression guard for the whole pass: a workspace whose procs are
+        // never called must analyse exactly as it did before.
+        let src = concat!(
+            "namespace eval ::T {}\n",
+            "oo::class create ::T::Mother { superclass oo::class }\n",
+            "proc ::T::mkdialect {ns} {\n",
+            "    ::T::Mother create ${ns}::class { superclass ::T::Mother }\n",
+            "}\n",
+        );
+        let result = analysis(src, "tcl9.0");
+        let recorded: Vec<&String> = result
+            .all_classes
+            .keys()
+            .filter(|k| !k.contains("${") && k.ends_with("::class"))
+            .collect();
+        assert!(
+            recorded.is_empty(),
+            "an uncalled proc must prove no class name; got {recorded:?}"
+        );
+    }
+
     #[test]
     fn oo_define_over_a_dynamic_list_still_abstains() {
         // TN — the element list is a runtime value, so no class name is

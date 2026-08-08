@@ -371,6 +371,7 @@ impl Analyser {
         }
 
         // --- tail (cross-item passes; canonicalises order) ---
+        self.record_literal_parameter_definitions();
         self.run_diagnostic_emitters(source);
 
         // Correctness backstop: a syntax error

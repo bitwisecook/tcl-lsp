@@ -702,10 +702,21 @@ impl CommandRegistry {
     /// that answer is exact, this one is a union.
     #[must_use]
     pub fn is_manufacturer_method(&self, word: &str) -> bool {
+        self.manufacturer_methods(word).next().is_some()
+    }
+
+    /// Every definer family's declaration of the manufacturer method `word`
+    /// — the iterator behind [`Self::is_manufacturer_method`], for a consumer
+    /// that needs the layout (which argument names the instance) and not just
+    /// the yes/no.
+    pub fn manufacturer_methods<'a>(
+        &'a self,
+        word: &'a str,
+    ) -> impl Iterator<Item = &'static crate::definer::ManufacturerMethod> + 'a {
         self.by_name
             .values()
             .filter_map(|specs| specs.last()?.definition_body)
-            .any(|grammar| grammar.manufacturer(word).is_some())
+            .filter_map(move |grammar| grammar.manufacturer(word))
     }
 
     /// Whether `head` binds bareword aliases for methods of the current

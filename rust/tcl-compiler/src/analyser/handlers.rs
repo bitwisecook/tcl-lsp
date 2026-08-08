@@ -295,6 +295,83 @@ impl ManufacturerLayout {
 /// stopping early can only *lose* evidence, which abstains.
 const MAX_UNKNOWN_BODY_DEPTH: u32 = 8;
 
+/// One creation call inside a proc body whose name word reads a parameter —
+/// see [`Analyser::record_literal_parameter_definitions`].
+struct ParameterisedCreation {
+    /// Qualified name of the proc whose body holds the call.
+    proc_qname: String,
+    /// That proc's parameter names, in declaration order.
+    params: Vec<String>,
+    /// The creation call's head word, as written.
+    cmd_name: String,
+    /// The name word, as written (`${ns}::class`).
+    name_word: String,
+    /// Its index among the call's arguments.
+    name_arg: usize,
+    /// Every argument word of the call.
+    args: Vec<String>,
+    /// The parallel argument tokens, which stay pointing at the real source
+    /// so the recorded class's `name_span` is the word the author wrote.
+    arg_tokens: Vec<Token>,
+    /// The call's own head token.
+    cmd_tok: Token,
+}
+
+/// Which argument of a manufacturer call names the new instance, taken as the
+/// union over the definer families that declare `keyword`.
+///
+/// The union is safe because the caller only uses it to *find* a candidate
+/// site: [`Analyser::handle_oo_class_command`] re-derives the real layout from
+/// the metaclass it resolves, so a family whose `create` put the name
+/// elsewhere would be classified by that handler, not by this.
+fn manufacturer_name_arg(registry: &tcl_registry::CommandRegistry, keyword: &str) -> Option<usize> {
+    registry
+        .manufacturer_methods(keyword)
+        .find_map(|m| m.names_instance_at)
+        .map(usize::from)
+}
+
+/// `word` with each `$name` / `${name}` reading one of `params` replaced by
+/// the call site's argument at that parameter's position.
+///
+/// `None` — abstain — when the word carries a command substitution or a
+/// backslash escape (whose value this cannot compute), when an interpolation
+/// names something other than a parameter, or when the call site supplied no
+/// argument for the parameter it does name.
+fn substitute_bound_words(word: &str, params: &[String], args: &[String]) -> Option<String> {
+    if word.contains('[') || word.contains('\\') {
+        return None;
+    }
+    let mut out = String::with_capacity(word.len());
+    let mut rest = word;
+    while let Some(dollar) = rest.find('$') {
+        out.push_str(&rest[..dollar]);
+        let after = &rest[dollar + 1..];
+        let (name, tail) = if let Some(braced) = after.strip_prefix('{') {
+            let close = braced.find('}')?;
+            (&braced[..close], &braced[close + 1..])
+        } else {
+            let len = after
+                .find(|c: char| !(c.is_alphanumeric() || c == '_' || c == ':'))
+                .unwrap_or(after.len());
+            if len == 0 {
+                return None;
+            }
+            (&after[..len], &after[len..])
+        };
+        let idx = params.iter().position(|p| p == name)?;
+        let value = args.get(idx)?;
+        // A call site whose own argument is itself dynamic proves nothing.
+        if tcl_syntax::naming::is_dynamic_word(value) {
+            return None;
+        }
+        out.push_str(value);
+        rest = tail;
+    }
+    out.push_str(rest);
+    Some(out)
+}
+
 /// What one statement of an unknown-dispatch body proves — see
 /// [`Analyser::unknown_dispatch_binds_instance`].
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -5769,6 +5846,236 @@ impl Analyser {
             }
             out.push(seg);
         }
+    }
+
+    /// Record the classes a proc manufactures under a **computed name** whose
+    /// value a literal call-site argument proves (issue #1306).
+    ///
+    /// tcllib's `oo::dialect` — and so clay, practcl, and every per-language
+    /// dialect built on them — creates its metaclass as
+    /// `::oo::class create ${NSPACE}::class {…}` inside
+    /// `proc ::oo::dialect::create {name …}`. The name word is written
+    /// dynamically, so the walk abstains, and the metaclass never enters the
+    /// class-factory index: every class *it* later manufactures is invisible.
+    /// Yet nothing about the name is unknowable — `::oo::dialect::create
+    /// ::clay` passes a literal, so `${NSPACE}::class` is `::clay::class` and
+    /// has been since the file was written.
+    ///
+    /// This pass follows exactly that: a **literal argument at a load-time
+    /// call site**, through the parameter binding, into the creation call's
+    /// name word. It is the const/literal propagation the `foreach`
+    /// simulation already does for a literal list
+    /// ([`Analyser::simulate_remaining_foreach_iterations`]), with the call
+    /// site rather than the list supplying the values, and it re-dispatches
+    /// the same handler so a class recorded this way is byte-identical to one
+    /// written out longhand.
+    ///
+    /// **What it proves, and what it does not.** Each literal call site is
+    /// independent evidence: `mkdialect ::T::D` really does create
+    /// `::T::D::class`, and a *different* call site passing `$x` neither adds
+    /// to nor subtracts from that. So a mixed set of call sites yields
+    /// exactly the classes the literal ones prove, and nothing for the
+    /// others — no guess anywhere. What is deliberately **not** claimed:
+    ///
+    /// * a call site the pass cannot read as naming this proc (a bare
+    ///   relative spelling resolved through a `namespace path`, a
+    ///   `{*}`-expanded argument list, an `interp alias`) contributes
+    ///   nothing, so the class it would have proved stays unrecorded — the
+    ///   abstaining direction;
+    /// * only **load-time** call sites count. A call written inside another
+    ///   proc's or class's body runs at *call* time, if ever, and the same
+    ///   `offset_is_inside_any_definition_body` rule the load-level
+    ///   destruction filter uses applies here;
+    /// * the resolved name must be **absolute**. A relative one would have to
+    ///   be homed against the call site's namespace, which this pass does not
+    ///   model, so it abstains instead of homing it wrongly;
+    /// * a name word carrying a command substitution, a backslash escape, or
+    ///   an unbound interpolation resolves to nothing.
+    ///
+    /// No command is named here and no framework is special-cased: the
+    /// manufacturer words come from the registry
+    /// ([`tcl_registry::CommandRegistry::is_manufacturer_method`]) and the
+    /// creation itself is classified by
+    /// [`Self::handle_oo_class_command`] exactly as always — which is what
+    /// keeps `oo::dialect` from needing to be known by name.
+    pub(super) fn record_literal_parameter_definitions(&mut self) {
+        let Some(registry) = self.registry else {
+            return;
+        };
+        let candidates = self.parameterised_creation_sites(registry);
+        if candidates.is_empty() {
+            return;
+        }
+        let calls = self.load_time_call_arguments();
+        for candidate in candidates {
+            let Some(values) = calls.get(&candidate.proc_qname) else {
+                continue;
+            };
+            let mut seen: std::collections::HashSet<String> = std::collections::HashSet::new();
+            for binding in values {
+                let Some(resolved) =
+                    substitute_bound_words(&candidate.name_word, &candidate.params, binding)
+                else {
+                    continue;
+                };
+                // Only an absolute name is homed without a namespace model —
+                // see the doc comment.
+                if !resolved.starts_with("::") || !seen.insert(resolved.clone()) {
+                    continue;
+                }
+                let mut args = candidate.args.clone();
+                args[candidate.name_arg] = resolved;
+                self.handle_oo_class_command(
+                    &candidate.cmd_name,
+                    &args,
+                    &candidate.arg_tokens,
+                    &[],
+                    candidate.cmd_tok,
+                );
+            }
+            if !seen.is_empty() {
+                self.retract_unresolved_class(&candidate);
+            }
+        }
+    }
+
+    /// Drop the record the walk made for a creation whose name it could not
+    /// resolve, now that the call sites have named the classes it really
+    /// makes.
+    ///
+    /// The walk records `::T::${ns}::class` verbatim — a class of that name
+    /// exists in no interpreter, and leaving it would show a phantom entry in
+    /// the outline beside the real one and put a nonsense key in the
+    /// workspace class index. Only removed when at least one real name was
+    /// proved for that same site, so a creation nothing could settle keeps
+    /// exactly the record it had before.
+    fn retract_unresolved_class(&mut self, candidate: &ParameterisedCreation) {
+        let owner_ns = candidate
+            .proc_qname
+            .rsplit_once("::")
+            .map_or("", |(head, _)| head);
+        let unresolved = crate::naming::qualify(owner_ns, &candidate.name_word);
+        if !tcl_syntax::naming::is_dynamic_word(&unresolved) {
+            return;
+        }
+        self.result.all_classes.remove(&unresolved);
+        self.result
+            .class_body_spans
+            .retain(|(qname, _)| qname != &unresolved);
+    }
+
+    /// Every creation call written inside a proc body whose **name word**
+    /// interpolates one of that proc's parameters — the sites
+    /// [`Self::record_literal_parameter_definitions`] can settle.
+    ///
+    /// Cheap by construction: the manufacturer-word test is a registry
+    /// lookup on the call's first argument, so a body with no `create` /
+    /// `new` / `createWithNamespace` in it is rejected before anything is
+    /// segmented twice.
+    fn parameterised_creation_sites(
+        &self,
+        registry: &tcl_registry::CommandRegistry,
+    ) -> Vec<ParameterisedCreation> {
+        let mut out = Vec::new();
+        for (qname, proc_def) in &self.result.all_procs {
+            if proc_def.params_computed || proc_def.params.is_empty() {
+                continue;
+            }
+            let params: Vec<String> = proc_def.params.iter().map(|p| p.name.clone()).collect();
+            let Some(body) = self.statements_in_span(proc_def.body_span) else {
+                continue;
+            };
+            for seg in body {
+                let args = seg.args().to_vec();
+                let Some(first) = args.first() else { continue };
+                if !registry.is_manufacturer_method(first) {
+                    continue;
+                }
+                // Which word names the instance is registry data; the union
+                // over families is enough here because
+                // `handle_oo_class_command` re-derives the real layout from
+                // the metaclass it resolves.
+                let Some(name_arg) = manufacturer_name_arg(registry, first) else {
+                    continue;
+                };
+                let Some(name_word) = args.get(name_arg) else {
+                    continue;
+                };
+                if !interpolated_var_names(name_word)
+                    .iter()
+                    .any(|n| params.iter().any(|p| p == n))
+                {
+                    continue;
+                }
+                let Some(&cmd_tok) = seg.argv.first() else {
+                    continue;
+                };
+                out.push(ParameterisedCreation {
+                    proc_qname: qname.clone(),
+                    params: params.clone(),
+                    cmd_name: seg.name().to_owned(),
+                    name_word: name_word.clone(),
+                    name_arg,
+                    args,
+                    arg_tokens: seg.arg_tokens().to_vec(),
+                    cmd_tok,
+                });
+            }
+        }
+        out
+    }
+
+    /// The **load-time** call sites in this document, keyed by the qualified
+    /// name the head word spells, each carrying its argument words.
+    ///
+    /// A call inside a proc or class body is excluded: it runs at call time,
+    /// if ever, so it proves nothing about what sourcing this file creates —
+    /// the same rule [`Self::publish_load_level_destructions`] applies.
+    fn load_time_call_arguments(&self) -> std::collections::HashMap<String, Vec<Vec<String>>> {
+        let mut out: std::collections::HashMap<String, Vec<Vec<String>>> =
+            std::collections::HashMap::new();
+        let Some(statements) = self.statements_in_span(Span::new(
+            0,
+            u32::try_from(self.source.len()).unwrap_or(u32::MAX),
+        )) else {
+            return out;
+        };
+        for seg in statements {
+            if self
+                .result
+                .offset_is_inside_any_definition_body(seg.span.start())
+            {
+                continue;
+            }
+            let head = crate::naming::normalise_qualified_name(seg.name());
+            if head.is_empty() {
+                continue;
+            }
+            let qualified = format!("::{}", head.trim_start_matches("::"));
+            out.entry(qualified).or_default().push(seg.args().to_vec());
+        }
+        out
+    }
+
+    /// The statements of the script at `span`, plus those of every nested
+    /// script word, re-segmented from the document's own bytes.
+    ///
+    /// `span` may be a body **word**'s span (whose start sits on the opening
+    /// delimiter) or a plain script range; the delimiter is stripped when
+    /// present, matching [`Self::manufacturer_next_call`].
+    fn statements_in_span(&self, span: Span) -> Option<Vec<SegmentedCommand>> {
+        let start = span.start() as usize;
+        let end = span.end() as usize;
+        if start >= end || end > self.source.len() {
+            return None;
+        }
+        let raw = self.source.get(start..end)?;
+        let (body, base) = raw
+            .strip_prefix(['{', '"'])
+            .map_or((raw, start), |inner| (inner, start.saturating_add(1)));
+        let mut out = Vec::new();
+        self.collect_nested_statements(body, u32::try_from(base).unwrap_or(0), 0, &mut out);
+        Some(out)
     }
 
     /// Which of the creation call's argument words carry the new class's

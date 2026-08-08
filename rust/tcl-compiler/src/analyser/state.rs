@@ -1578,6 +1578,12 @@ impl Analyser {
         // Structure-only mode (item_tree extraction) skips the entire
         // diagnostic-emission tail — the unresolved/arity/variable/CFG-SSA
         // emitters are the dominant cost and produce no structural facts.
+        // Record the classes a proc manufactures under a computed name whose
+        // value a literal call-site argument proves (issue #1306).  A
+        // *structural* fact, so it runs on the item-tree path too — that is
+        // the path the workspace class-factory index is computed from, and a
+        // metaclass missing there is invisible to every other document.
+        self.record_literal_parameter_definitions();
         if !self.structure_only {
             self.run_diagnostic_emitters(source);
         }
@@ -1883,7 +1889,8 @@ impl Analyser {
             self.body_scope_stack.pop();
         }
 
-        // Same diagnostic-emission tail as ``analyse``.
+        // Same structural + diagnostic-emission tail as ``analyse``.
+        self.record_literal_parameter_definitions();
         self.run_diagnostic_emitters(source);
 
         let result = std::mem::take(&mut self.result);
@@ -1970,6 +1977,7 @@ impl Analyser {
         }
 
         if finalise {
+            self.record_literal_parameter_definitions();
             self.run_diagnostic_emitters(source);
         }
 
