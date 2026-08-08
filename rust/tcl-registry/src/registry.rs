@@ -689,6 +689,25 @@ impl CommandRegistry {
             .is_some_and(|spec| spec.traits.contains(Traits::TCLOO_REQUIRES_METHOD_FRAME))
     }
 
+    /// Whether `word` is a **manufacturer method** of any definer family the
+    /// registry models — `create` / `new` / `createWithNamespace` for
+    /// `TclOO`, `create` for snit.
+    ///
+    /// The union over every definer grammar, for the one consumer that has a
+    /// class name but not the family it belongs to: a *pure consumer*
+    /// document holding `set w [Widget create x]` where `Widget` is declared
+    /// in another file (issue #1303). A consumer that knows the family must
+    /// ask its grammar
+    /// ([`crate::definer::DefinitionBodyGrammar::manufacturer`]) instead —
+    /// that answer is exact, this one is a union.
+    #[must_use]
+    pub fn is_manufacturer_method(&self, word: &str) -> bool {
+        self.by_name
+            .values()
+            .filter_map(|specs| specs.last()?.definition_body)
+            .any(|grammar| grammar.manufacturer(word).is_some())
+    }
+
     /// Whether `head` binds bareword aliases for methods of the current
     /// object — `TclOO`'s `link`; see [`Traits::TCLOO_BINDS_METHOD_ALIAS`].
     ///

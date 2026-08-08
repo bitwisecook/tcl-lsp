@@ -287,6 +287,64 @@ impl ManufacturerLayout {
     }
 }
 
+/// How deep [`Analyser::collect_nested_statements`] descends into nested
+/// script words before giving up.
+///
+/// A metaclass's unknown-dispatch member is a handful of lines in every real
+/// corpus instance; the cap only bounds a pathological or generated body, and
+/// stopping early can only *lose* evidence, which abstains.
+const MAX_UNKNOWN_BODY_DEPTH: u32 = 8;
+
+/// What one statement of an unknown-dispatch body proves — see
+/// [`Analyser::unknown_dispatch_binds_instance`].
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum UnknownBodyEvidence {
+    /// It constructs an object named from the fallback's first parameter.
+    Constructs,
+    /// It completes the member with exactly that parameter.
+    ReturnsWord,
+    /// It completes the member with something else — fatal to the proof.
+    ReturnsSomethingElse,
+    /// It says nothing either way.
+    Nothing,
+}
+
+/// Whether `word` is exactly one variable read of `name` and nothing else —
+/// `$w` / `${w}`, but not `$w.x`, not `[f $w]`, not `x$w`.
+///
+/// The strictness is the point: this decides whether a body's result *is* the
+/// caller's word, so anything wrapped around the read makes the answer no.
+fn reads_exactly(word: &str, name: &str) -> bool {
+    let Some(rest) = word.strip_prefix('$') else {
+        return false;
+    };
+    rest.strip_prefix('{')
+        .and_then(|b| b.strip_suffix('}'))
+        .map_or(rest == name, |braced| braced == name)
+}
+
+/// Whether `head` is a bracketed self-receiver word — `[self]` / `[self
+/// object]` written as a command head, which dispatches on the current object
+/// exactly as `my` does.
+///
+/// Registry data via [`tcl_registry::CommandRegistry::is_self_receiver_call`];
+/// the bracket peeling is this function's whole contribution.
+fn bracketed_self_receiver(registry: &tcl_registry::CommandRegistry, head: &str) -> bool {
+    let Some(inner) = head
+        .strip_prefix('[')
+        .and_then(|h| h.strip_suffix(']'))
+        .map(str::trim)
+    else {
+        return false;
+    };
+    let mut words = inner.split_whitespace();
+    let Some(cmd) = words.next() else {
+        return false;
+    };
+    let arg = words.next();
+    words.next().is_none() && registry.is_self_receiver_call(cmd, arg)
+}
+
 /// Every `$name` / `${name}` variable reference in `word`, in written order.
 ///
 /// A deliberately syntactic scan: the callers need the *names* a template
@@ -5502,10 +5560,215 @@ impl Analyser {
                 )
             })
             .collect();
+        let unknown_binds_instance = self.unknown_dispatch_binds_instance(&meta, class);
         Some(ClassFactory {
             root_metaclass: meta.root_command,
             overrides,
+            unknown_binds_instance,
         })
+    }
+
+    /// Whether this metaclass's **unrecognised-word fallback member** proves
+    /// that calling one of the classes it makes with a bare word both
+    /// constructs an object and hands that same word back — Tk's
+    /// `::tk::IconList .il` idiom (issue #1303).
+    ///
+    /// Two facts have to hold, and both are read off the metaclass's own
+    /// body, where they are provable:
+    ///
+    /// 1. it declares the family's unknown-dispatch member
+    ///    ([`DefinitionBodyGrammar::unknown_dispatch_method`], registry data —
+    ///    `unknown` for `TclOO`) with at least one parameter, so an
+    ///    unrecognised first word reaches code at all; and
+    /// 2. that body **constructs** an object named from the first parameter
+    ///    (a manufacturer call — again registry data — whose instance-name
+    ///    word interpolates the parameter) **and** completes with exactly
+    ///    that parameter, proved through
+    ///    [`tcl_registry::ArgRole::Result`] rather than assumed.
+    ///
+    /// Fact 2 is the one the issue insists on: an `unknown` that returns
+    /// something else — `return [self]`, a formatted string, a bare `next`
+    /// fall-through — must **not** be read this way, because the value the
+    /// caller binds is then not an object handle at all. Every `Result` word
+    /// in the body must be the first parameter; one that is not collapses the
+    /// whole proof to `false`, and so does a body with no `Result` word.
+    ///
+    /// Deliberate residuals, both in the abstaining direction except where
+    /// noted:
+    ///
+    /// * a body that also falls through to `next` (Tk's does, for a word that
+    ///   is not a widget path) is still accepted. The fall-through reaches the
+    ///   inherited `unknown`, which raises `unknown method "…"` on tclsh 9.0.4
+    ///   and 8.6.16, so it never returns a value that could be mistaken for a
+    ///   handle. A metaclass whose fall-through *does* return normally would
+    ///   have that path's value treated as the word — the one over-approximation
+    ///   here, and it needs a `return` on the constructing path to be reached
+    ///   at all;
+    /// * a construction written through a variable holding the name
+    ///   (`set n $w; [self] create $n`) is not followed, and abstains;
+    /// * the member is looked up on the **metaclass**, because it is
+    ///   *instances* of the metaclass — the manufactured classes — that
+    ///   dispatch through it. An `unknown` on an ordinary class governs that
+    ///   class's own instances, which is a different question this does not
+    ///   answer.
+    ///
+    /// [`DefinitionBodyGrammar::unknown_dispatch_method`]: tcl_registry::definer::DefinitionBodyGrammar::unknown_dispatch_method
+    fn unknown_dispatch_binds_instance(&self, meta: &UserMetaclass, class: &ClassDef) -> bool {
+        let Some(keyword) = meta.grammar.unknown_dispatch_method else {
+            return false;
+        };
+        let Some(member) = class.methods.get(keyword) else {
+            return false;
+        };
+        if member.params_computed {
+            return false;
+        }
+        let Some(word_param) = member.params.first().map(|p| p.name.as_str()) else {
+            return false;
+        };
+        let Some(body) = self.member_body_commands(member) else {
+            return false;
+        };
+        let mut constructs = false;
+        let mut returns_word = false;
+        for seg in &body {
+            match self.unknown_body_evidence(meta, seg, word_param) {
+                UnknownBodyEvidence::Constructs => constructs = true,
+                UnknownBodyEvidence::ReturnsWord => returns_word = true,
+                UnknownBodyEvidence::ReturnsSomethingElse => return false,
+                UnknownBodyEvidence::Nothing => {}
+            }
+        }
+        constructs && returns_word
+    }
+
+    /// What one statement of an unknown-dispatch body contributes to
+    /// [`Self::unknown_dispatch_binds_instance`]'s proof.
+    fn unknown_body_evidence(
+        &self,
+        meta: &UserMetaclass,
+        seg: &SegmentedCommand,
+        word_param: &str,
+    ) -> UnknownBodyEvidence {
+        let Some(registry) = self.registry.as_ref() else {
+            return UnknownBodyEvidence::Nothing;
+        };
+        let args: Vec<&str> = seg.args().iter().map(String::as_str).collect();
+        // The command's own result word, when it has one — registry data
+        // (`return`'s resolver stamps `ArgRole::Result` on the bare form), so
+        // `return` is never named here and `::return` classifies identically.
+        if let Some(idx) = registry
+            .arg_indices_for_role(seg.name(), &args, tcl_registry::ArgRole::Result)
+            .first()
+            .copied()
+            && let Some(word) = args.get(idx)
+        {
+            return if reads_exactly(word, word_param) {
+                UnknownBodyEvidence::ReturnsWord
+            } else {
+                UnknownBodyEvidence::ReturnsSomethingElse
+            };
+        }
+        // A construction on this very class: `[self] create $w …` / `my
+        // create $w …`. The receiver is registry data
+        // (`is_self_receiver_call` / `method_dispatch_keyword`), and so is the
+        // manufacturer word and which of its arguments names the instance.
+        let head = seg.name();
+        let receiver_is_self = registry
+            .method_dispatch_keyword(head)
+            .is_some_and(|kind| kind == tcl_registry::registry::MethodDispatchKind::SelfDispatch)
+            || bracketed_self_receiver(registry, head);
+        if !receiver_is_self {
+            return UnknownBodyEvidence::Nothing;
+        }
+        let Some(manufacturer) = args.first().and_then(|kw| meta.grammar.manufacturer(kw)) else {
+            return UnknownBodyEvidence::Nothing;
+        };
+        let Some(name_arg) = manufacturer.names_instance_at else {
+            return UnknownBodyEvidence::Nothing;
+        };
+        // The instance-name word must read the fallback's own first parameter.
+        // It need not read *only* it: Tk-style code writes `::$w` so the new
+        // command lands in the global namespace rather than the calling
+        // method's, and that is still the caller's word.
+        if args
+            .get(name_arg as usize)
+            .is_some_and(|word| interpolated_var_names(word).contains(&word_param))
+        {
+            UnknownBodyEvidence::Constructs
+        } else {
+            UnknownBodyEvidence::Nothing
+        }
+    }
+
+    /// Every top-level statement of `member`'s body, plus the statements of
+    /// every script word nested inside them — an `if`/`switch` arm is part of
+    /// the body for proof purposes, so `[self] create $w` guarded by a
+    /// `string match` still counts.
+    ///
+    /// Registry-driven descent: a word is recursed into only when its role
+    /// [`carries_script`](tcl_registry::ArgRole::carries_script), so no
+    /// command word is named here.
+    fn member_body_commands(
+        &self,
+        member: &super::types::MethodDef,
+    ) -> Option<Vec<SegmentedCommand>> {
+        let start = member.body_span.start() as usize;
+        let end = member.body_span.end() as usize;
+        let raw = self.source.get(start..end)?;
+        // `MethodDef` keeps the body **word**'s span, whose start sits on the
+        // opening delimiter; the script is its content.
+        let (body, base) = raw
+            .strip_prefix(['{', '"'])
+            .map_or((raw, start), |inner| (inner, start.saturating_add(1)));
+        let mut out = Vec::new();
+        self.collect_nested_statements(body, u32::try_from(base).unwrap_or(0), 0, &mut out);
+        Some(out)
+    }
+
+    /// Recursive worker for [`Self::member_body_commands`].
+    fn collect_nested_statements(
+        &self,
+        text: &str,
+        base: u32,
+        depth: u32,
+        out: &mut Vec<SegmentedCommand>,
+    ) {
+        if depth >= MAX_UNKNOWN_BODY_DEPTH {
+            return;
+        }
+        let Some(registry) = self.registry.as_ref() else {
+            return;
+        };
+        for seg in crate::segmenter::segment_commands_with_offset_and_config(
+            text,
+            base,
+            self.lexer_config(),
+        ) {
+            let args: Vec<&str> = seg.args().iter().map(String::as_str).collect();
+            for idx in tcl_registry::ArgRole::ALL
+                .iter()
+                .filter(|role| role.carries_script())
+                .flat_map(|&role| registry.arg_indices_for_role(seg.name(), &args, role))
+            {
+                let (Some(word), Some(tok)) = (seg.args().get(idx), seg.argv.get(idx + 1)) else {
+                    continue;
+                };
+                // Only a braced word is a script whose text is exactly what
+                // runs; a substituted or quoted one is composed at run time
+                // and re-segmenting its written form would read code Tcl
+                // never evaluates.
+                if tok.kind != TokenType::Str {
+                    continue;
+                }
+                let inner_base = tok
+                    .span
+                    .start()
+                    .saturating_add(u32::from(tok.content_offset));
+                self.collect_nested_statements(word, inner_base, depth + 1, out);
+            }
+            out.push(seg);
+        }
     }
 
     /// Which of the creation call's argument words carry the new class's
@@ -6070,6 +6333,14 @@ impl Analyser {
         // instead of re-walking the superclass chain and re-segmenting the
         // manufacturer override per call site (issue #1276).
         class.factory = self.class_factory_of(&qualified, &class);
+        // …and does the *manufacturer* let this class be constructed by a
+        // bare word (Tk's `::tk::IconList .il`)?  Settled here too, for the
+        // same reason: the proof lives on the metaclass, which a consuming
+        // document may never see, so the answer travels on the class rather
+        // than the question (issue #1303).
+        class.bare_word_construction = user_factory
+            .as_ref()
+            .is_some_and(|factory| factory.unknown_binds_instance);
         // Register globally and in the current scope, the same as
         // the proc registration path: ``result.all_classes`` is keyed
         // by the fully-qualified name; the per-scope

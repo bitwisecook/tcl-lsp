@@ -3914,19 +3914,21 @@ impl Analyser {
         None
     }
 
-    /// Parse a `[CLASS new ...]` / `[CLASS create ...]`
-    /// command-substitution value and return the qualified
-    /// class name when `CLASS` is a user-defined class and the
-    /// subcommand is a constructor (`new` / `create`).
+    /// Parse a `[CLASS ...]` command-substitution value and return the
+    /// qualified class name when `CLASS` is a user-defined class and the
+    /// call really constructs one of its instances.
+    ///
+    /// Which words construct is [`Self::class_command_constructs_with`]'s
+    /// question, and it is answered from registry + proved-factory data —
+    /// never from the `new` / `create` spelling this used to match.
     fn class_from_constructor_subst(&self, value: &str) -> Option<String> {
         let inner = value.trim();
         let inner = inner.strip_prefix('[')?.strip_suffix(']')?;
         let mut words = inner.split_whitespace();
         let class = words.next()?;
-        // TclOO constructor: `set g [Class new|create ...]`.
         if let Some(subcmd) = words.next()
-            && (subcmd == "new" || subcmd == "create")
             && let Some(uc) = self.resolve_user_class(class)
+            && self.class_command_constructs_with(&uc, subcmd)
         {
             return Some(uc);
         }
@@ -3944,6 +3946,148 @@ impl Analyser {
             return Some(class.to_string());
         }
         None
+    }
+
+    /// Whether invoking the class command of `class_q` with `word` as its
+    /// first argument constructs an instance.
+    ///
+    /// Two sources, both data proved elsewhere:
+    ///
+    /// * `word` names one of the definer family's **manufacturer methods**
+    ///   ([`DefinitionBodyGrammar::manufacturers`], registry data — `create`
+    ///   / `new` / `createWithNamespace` for `TclOO`). This replaces the
+    ///   `subcmd == "new" || subcmd == "create"` literal the walk used to
+    ///   carry, so a family manufacturing under another word needs no walker
+    ///   edit;
+    /// * the class's **metaclass** proves its unrecognised-word fallback both
+    ///   constructs and returns the word
+    ///   (`ClassFactory::unknown_binds_instance`, issue #1303) — Tk's
+    ///   `::tk::IconList .il`. A word the class command would actually
+    ///   *recognise* never reaches that fallback, so a manufacturer, a
+    ///   family built-in ([`DefinitionBodyGrammar::builtin_type_methods`]),
+    ///   and any member the metaclass chain declares are all excluded first.
+    ///
+    /// Everything else answers `false`: an unproved factory is never treated
+    /// as one.
+    ///
+    /// [`DefinitionBodyGrammar::manufacturers`]: tcl_registry::definer::DefinitionBodyGrammar::manufacturers
+    /// [`DefinitionBodyGrammar::builtin_type_methods`]: tcl_registry::definer::DefinitionBodyGrammar::builtin_type_methods
+    fn class_command_constructs_with(&self, class_q: &str, word: &str) -> bool {
+        let Some(grammar) = self.class_definer_grammar(class_q) else {
+            // No local record at all — a *pure consumer* document, where the
+            // class's own file settled the question and published the answer
+            // (issue #1303). The published set is proved, so no grammar of
+            // our own is needed to read it; the manufacturer words are still
+            // checked, from the family the workspace class is known under.
+            return self.workspace_manufacturer_word(word)
+                || (self.workspace_bare_word_classes.contains(class_q)
+                    && is_plain_created_name(word));
+        };
+        if grammar.manufacturer(word).is_some() {
+            return true;
+        }
+        if grammar.is_builtin_type_method(word) || !is_plain_created_name(word) {
+            return false;
+        }
+        if self
+            .result
+            .all_classes
+            .get(class_q)
+            .is_some_and(|c| c.bare_word_construction)
+        {
+            return true;
+        }
+        let Some(meta) = self.metaclass_def(class_q) else {
+            return false;
+        };
+        meta.factory
+            .as_ref()
+            .is_some_and(|f| f.unknown_binds_instance)
+            && !self.metaclass_chain_declares_method(meta, word)
+    }
+
+    /// Whether `word` is a manufacturer method of **any** definer family the
+    /// registry models — the fallback for a workspace class whose own
+    /// document this analysis has not seen, so its family is unknown here.
+    ///
+    /// Over-approximate by exactly the union of the families' manufacturer
+    /// words (`create` / `new` / `createWithNamespace`), which is what the
+    /// `subcmd == "new" || subcmd == "create"` literal this replaces already
+    /// assumed — and still registry data, so a new family widens it without
+    /// a walker edit.
+    fn workspace_manufacturer_word(&self, word: &str) -> bool {
+        self.registry
+            .is_some_and(|registry| registry.is_manufacturer_method(word))
+    }
+
+    /// The definition-body grammar governing `class_q`'s definer family.
+    ///
+    /// A registry metaclass (`oo::class`, `snit::type`) carries the grammar
+    /// on its own spec.  A **user** metaclass has no spec, so the grammar is
+    /// the registry metaclass at the root of its superclass chain — recorded
+    /// on the factory when the metaclass was written, which is the only place
+    /// it is provable.
+    fn class_definer_grammar(
+        &self,
+        class_q: &str,
+    ) -> Option<&'static tcl_registry::definer::DefinitionBodyGrammar> {
+        let class = self.result.all_classes.get(class_q)?;
+        if let Some(grammar) = self.definition_grammar(&class.metaclass) {
+            return Some(grammar);
+        }
+        let meta = self.metaclass_def(class_q)?;
+        self.definition_grammar(&meta.factory.as_ref()?.root_metaclass)
+    }
+
+    /// The recorded `ClassDef` of `class_q`'s metaclass, when the metaclass
+    /// is itself a class this document knows.
+    ///
+    /// Resolved through the shared owner-aware class-name resolver, so a
+    /// bare metaclass word resolves exactly as a `superclass` word in the
+    /// same position would — and abstains on an ambiguous tail rather than
+    /// picking one.
+    fn metaclass_def(&self, class_q: &str) -> Option<&super::types::ClassDef> {
+        let class = self.result.all_classes.get(class_q)?;
+        let tail_index = super::class_hierarchy::build_tail_index(self.result.all_classes.keys());
+        let resolved = super::class_hierarchy::resolve_class_name(
+            &class.metaclass,
+            class_q,
+            |candidate| self.result.all_classes.contains_key(candidate),
+            &tail_index,
+        )?;
+        self.result.all_classes.get(&resolved)
+    }
+
+    /// Whether `method` is declared as an instance method anywhere in
+    /// `meta`'s own superclass chain — the members a **class command**
+    /// dispatch really finds, because a class is an instance of its
+    /// metaclass.
+    ///
+    /// Bounded by the recorded class count: every class is visited once.
+    fn metaclass_chain_declares_method(&self, meta: &super::types::ClassDef, method: &str) -> bool {
+        let tail_index = super::class_hierarchy::build_tail_index(self.result.all_classes.keys());
+        let mut visited: std::collections::HashSet<String> = std::collections::HashSet::new();
+        let mut queue: Vec<&super::types::ClassDef> = vec![meta];
+        while let Some(class) = queue.pop() {
+            if !visited.insert(class.qualified_name.clone()) {
+                continue;
+            }
+            if class.methods.contains_key(method) {
+                return true;
+            }
+            for parent in &class.superclasses {
+                if let Some(resolved) = super::class_hierarchy::resolve_class_name(
+                    parent,
+                    &class.qualified_name,
+                    |candidate| self.result.all_classes.contains_key(candidate),
+                    &tail_index,
+                ) && let Some(def) = self.result.all_classes.get(&resolved)
+                {
+                    queue.push(def);
+                }
+            }
+        }
+        false
     }
 
     /// When a `set VAR [... new|create ...]` constructor call's class head

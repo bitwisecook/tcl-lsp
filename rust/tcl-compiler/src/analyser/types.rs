@@ -1100,6 +1100,22 @@ pub struct ClassFactory {
     /// runs the inherited manufacturer, i.e. the builtin `create Name Body`
     /// layout with nothing injected.
     pub overrides: BTreeMap<String, ManufacturerSpec>,
+    /// Whether calling one of the classes this factory makes with a **bare
+    /// unrecognised word** both constructs an object and returns that word —
+    /// Tk's `::tk::IconList .il` idiom (issue #1303).
+    ///
+    /// Proved where the metaclass is written, from its unrecognised-word
+    /// fallback member (`TclOO`'s `unknown`), and `false` whenever the proof
+    /// does not go through: no such member, a member that constructs but
+    /// returns something else, or one that returns the word without
+    /// constructing anything. See
+    /// `Analyser::unknown_dispatch_binds_instance` for the exact rule and its
+    /// residuals.
+    ///
+    /// A consumer reads this to decide whether `set w [Widget .w]` binds `w`
+    /// to an instance of `Widget`; `false` means "not proved", so the handle
+    /// stays untyped rather than being guessed.
+    pub unknown_binds_instance: bool,
 }
 
 impl ClassFactory {
@@ -1135,6 +1151,9 @@ impl ClassFactory {
         Self {
             root_metaclass: self.root_metaclass.clone(),
             overrides,
+            // A property of the metaclass's own body, carrying no token, so
+            // it crosses a document boundary unchanged.
+            unknown_binds_instance: self.unknown_binds_instance,
         }
     }
 }
@@ -1346,6 +1365,22 @@ pub struct ClassDef {
     /// they do for one whose superclass lives outside the workspace index —
     /// a method it inherits is not one it is missing (issue #923 idx 96/97).
     pub inheritance_unknown: bool,
+    /// `true` when calling **this class's own command** with a bare,
+    /// unrecognised first word constructs an instance and yields its name —
+    /// Tk's `::tk::IconList .il` (issue #1303).
+    ///
+    /// Proved where the class is written, from its metaclass's
+    /// unrecognised-word fallback member
+    /// ([`ClassFactory::unknown_binds_instance`]), so a consumer in another
+    /// document reads a settled fact instead of needing the metaclass's own
+    /// body. `false` is "not proved", never "proved not to" — the abstaining
+    /// direction, which leaves a handle untyped rather than mistyped.
+    ///
+    /// Distinct from the *family-wide*
+    /// [`DefinitionBodyGrammar::bare_word_construction`](tcl_registry::definer::DefinitionBodyGrammar::bare_word_construction)
+    /// flag snit carries: that one is true of every snit type by definition,
+    /// this one is true only of the classes a particular metaclass makes.
+    pub bare_word_construction: bool,
     /// `true` when the class's definition body installs members the analyser
     /// could not read, so the recorded member tables are a **lower bound**
     /// on what the class really has (issue #923 idx 53).
@@ -1424,6 +1459,7 @@ impl Default for ClassDef {
             doc: String::new(),
             via_define: false,
             inheritance_unknown: false,
+            bare_word_construction: false,
             member_set_incomplete: false,
             factory: None,
         }

@@ -68,7 +68,7 @@
 //! decision, not an oversight.
 
 use tcl_registry::arity::Arity;
-use tcl_registry::definer::{DefinitionBodyGrammar, MemberBodyCommand};
+use tcl_registry::definer::{DefinitionBodyGrammar, ManufacturerMethod, MemberBodyCommand};
 use tcl_registry::handle_binding::{HandleBindingSpec, HandleKeyword};
 use tcl_registry::hooks::ArgTypeHint;
 use tcl_registry::hover::{ArgValue, FormSpec, HoverSnippet, OptionArg, OptionSpec};
@@ -894,6 +894,8 @@ pub fn witness_definition_body_grammar(grammar: &DefinitionBodyGrammar) {
         builtin_type_methods: _,
         member_body_commands: _,
         bare_word_construction: _,
+        manufacturers: _,
+        unknown_dispatch_method: _,
     } = grammar;
 }
 
@@ -909,6 +911,8 @@ pub const DEFINITION_BODY_GRAMMAR: &[Field] = &[
     f("builtin_type_methods", Surface::Excluded(NAMED_CONSTANT)),
     f("member_body_commands", Surface::Excluded(NAMED_CONSTANT)),
     f("bare_word_construction", Surface::Excluded(NAMED_CONSTANT)),
+    f("manufacturers", Surface::Excluded(NAMED_CONSTANT)),
+    f("unknown_dispatch_method", Surface::Excluded(NAMED_CONSTANT)),
 ];
 
 /// Compile-time witness for [`MEMBER_BODY_COMMAND`].
@@ -919,6 +923,20 @@ pub fn witness_member_body_command(command: &MemberBodyCommand) {
         binds_handle: _,
     } = command;
 }
+
+/// Compile-time witness for [`MANUFACTURER_METHOD`].
+pub fn witness_manufacturer_method(manufacturer: &ManufacturerMethod) {
+    let ManufacturerMethod {
+        keyword: _,
+        names_instance_at: _,
+    } = manufacturer;
+}
+
+/// Where the studio surfaces each [`ManufacturerMethod`] field.
+pub const MANUFACTURER_METHOD: &[Field] = &[
+    f("keyword", Surface::Excluded(NAMED_CONSTANT)),
+    f("names_instance_at", Surface::Excluded(NAMED_CONSTANT)),
+];
 
 /// Where the studio surfaces each [`MemberBodyCommand`] field.
 pub const MEMBER_BODY_COMMAND: &[Field] = &[
@@ -1188,6 +1206,11 @@ mod tests {
                 .member_body_command("install")
                 .expect("snit injects `install` into every member body"),
         );
+        witness_manufacturer_method(
+            tcl_registry::definer::TCLOO_GRAMMAR
+                .manufacturer("create")
+                .expect("TclOO manufactures through `create`"),
+        );
         witness_object_class_spec(&ObjectClassSpec {
             class_name: "",
             instance_methods: &[],
@@ -1198,6 +1221,7 @@ mod tests {
         for (what, table) in [
             ("DefinitionBodyGrammar", DEFINITION_BODY_GRAMMAR),
             ("MemberBodyCommand", MEMBER_BODY_COMMAND),
+            ("ManufacturerMethod", MANUFACTURER_METHOD),
             ("ObjectClassSpec", OBJECT_CLASS_SPEC),
             ("CaseListSpec", CASE_LIST_SPEC),
         ] {

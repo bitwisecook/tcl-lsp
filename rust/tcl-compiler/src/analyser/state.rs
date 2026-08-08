@@ -824,6 +824,16 @@ pub struct Analyser {
     /// class (e.g. method-existence checks) are unaffected — only the opt-in
     /// cross-file re-analysis populates it.
     pub workspace_classes: std::collections::HashSet<String>,
+    /// The qualified names of workspace classes whose **own command**
+    /// constructs an instance from a bare unrecognised word and yields its
+    /// name — Tk's `::tk::IconList .il` (issue #1303).
+    ///
+    /// A strict subset of [`Self::workspace_classes`], carried separately
+    /// because the proof lives on the class's *metaclass*, which a pure
+    /// consumer document never sees. Each entry was proved where the class
+    /// was written; an empty set (the overwhelmingly common case) leaves
+    /// every consumer behaving exactly as it did before.
+    pub workspace_bare_word_classes: std::collections::HashSet<String>,
     /// Class **factories** — user-defined `TclOO` metaclasses — declared
     /// elsewhere in the workspace, keyed by fully-qualified name.
     ///
@@ -1250,6 +1260,7 @@ impl Analyser {
             non_ascii_mode: NonAsciiMode::Default,
             structure_only: false,
             workspace_classes: std::collections::HashSet::new(),
+            workspace_bare_word_classes: std::collections::HashSet::new(),
             workspace_class_factories: None,
             defer_proc_bodies: false,
             structural_rebind: false,
@@ -1314,6 +1325,17 @@ impl Analyser {
     #[must_use]
     pub fn structure_only(mut self) -> Self {
         self.structure_only = true;
+        self
+    }
+
+    /// The workspace classes whose command bare-word-constructs — see
+    /// [`Self::workspace_bare_word_classes`] (issue #1303).
+    #[must_use]
+    pub fn with_workspace_bare_word_classes(
+        mut self,
+        classes: std::collections::HashSet<String>,
+    ) -> Self {
+        self.workspace_bare_word_classes = classes;
         self
     }
 

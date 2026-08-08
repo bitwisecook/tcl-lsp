@@ -92,6 +92,7 @@ pub const ARG_ROLES: &[Variant] = &[
         "NumericOrBoolean",
         "consumed as a number or a boolean (`-validate 0`/`yes`)",
     ),
+    v("Result", "becomes the command's own result (`return $w`)"),
 ];
 
 /// [`TclType`] — the intrep a value carries.
@@ -755,7 +756,8 @@ mod tests {
             | ArgRole::LambdaLiteral
             | ArgRole::NamespaceName
             | ArgRole::Boolean
-            | ArgRole::NumericOrBoolean => true,
+            | ArgRole::NumericOrBoolean
+            | ArgRole::Result => true,
         }
     }
 

@@ -4878,6 +4878,149 @@ mod class_factories {
         assert!(!cd.inheritance_unknown, "{cd:?}");
     }
 
+    /// The Tk `library/megawidget.tcl` unknown-dispatch constructor, reduced
+    /// to its mechanism: an unrecognised first word is a widget path, so the
+    /// metaclass constructs the object and hands the path straight back.
+    ///
+    /// tclsh 9.0.4 confirms the return value really is the word — with the
+    /// construction made globally (`[self] create ::$w`, which is what makes
+    /// the created command reachable from the caller's namespace rather than
+    /// the method's own), `set w [::D::Widget .w]; $w go` answers `went`.
+    const UNKNOWN_CTOR: &str = concat!(
+        "oo::class create Meta {\n",
+        "    superclass oo::class\n",
+        "    method unknown {w args} {\n",
+        "        if {[string match .* $w]} {\n",
+        "            [self] create ::$w {*}$args\n",
+        "            return $w\n",
+        "        }\n",
+        "        next $w {*}$args\n",
+        "    }\n",
+        "    unexport new unknown\n",
+        "}\n",
+    );
+
+    fn factory_of(src: &str, qn: &str) -> tcl_compiler::analyser::ClassFactory {
+        class(src, qn)
+            .factory
+            .unwrap_or_else(|| panic!("{qn} is a class factory"))
+    }
+
+    #[test]
+    fn unknown_dispatch_that_constructs_and_returns_the_word_is_proved() {
+        // TP (#1303) — the Tk idiom. The metaclass declares `unknown`, that
+        // body constructs an object named from its first parameter, and it
+        // returns exactly that parameter, so a bare `Widget .w` call binds an
+        // instance.
+        assert!(
+            factory_of(UNKNOWN_CTOR, "::Meta").unknown_binds_instance,
+            "the Tk megawidget unknown-dispatch constructor must be proved"
+        );
+    }
+
+    #[test]
+    fn unknown_dispatch_returning_something_else_abstains() {
+        // TN (#1303) — it constructs, but hands back the *class*, so the
+        // caller's variable is not the new object's name. Guessing here would
+        // type a handle that does not exist.
+        let src = concat!(
+            "oo::class create Meta {\n",
+            "    superclass oo::class\n",
+            "    method unknown {w args} {\n",
+            "        [self] create ::$w {*}$args\n",
+            "        return [self]\n",
+            "    }\n",
+            "}\n",
+        );
+        assert!(
+            !factory_of(src, "::Meta").unknown_binds_instance,
+            "an unknown that returns the class must not be read as returning the object"
+        );
+    }
+
+    #[test]
+    fn unknown_dispatch_that_does_not_construct_abstains() {
+        // TN (#1303) — an `unknown` that merely echoes its argument creates
+        // no object at all, so binding a handle to it would be a fabrication.
+        let src = concat!(
+            "oo::class create Meta {\n",
+            "    superclass oo::class\n",
+            "    method unknown {w args} { return $w }\n",
+            "}\n",
+        );
+        assert!(
+            !factory_of(src, "::Meta").unknown_binds_instance,
+            "an unknown that constructs nothing must abstain"
+        );
+    }
+
+    #[test]
+    fn unknown_dispatch_with_no_return_abstains() {
+        // TN (#1303) — a pure delegation to `next` proves nothing about the
+        // value the call yields.
+        let src = concat!(
+            "oo::class create Meta {\n",
+            "    superclass oo::class\n",
+            "    method unknown {w args} { next $w {*}$args }\n",
+            "}\n",
+        );
+        assert!(
+            !factory_of(src, "::Meta").unknown_binds_instance,
+            "an unknown with no proved result must abstain"
+        );
+    }
+
+    #[test]
+    fn unknown_dispatch_returning_a_derived_word_abstains() {
+        // TN (#1303) — `return $w.hull` is not the caller's word, and a
+        // consumer binding the caller's variable to the class would be wrong.
+        let src = concat!(
+            "oo::class create Meta {\n",
+            "    superclass oo::class\n",
+            "    method unknown {w args} {\n",
+            "        [self] create ::$w {*}$args\n",
+            "        return $w.hull\n",
+            "    }\n",
+            "}\n",
+        );
+        assert!(
+            !factory_of(src, "::Meta").unknown_binds_instance,
+            "a derived return word must abstain"
+        );
+    }
+
+    #[test]
+    fn a_metaclass_without_unknown_dispatch_abstains() {
+        // TN (#1303) — regression guard: the ordinary metaclass shape must
+        // keep answering `false`, so nothing that used to need `create`
+        // silently starts binding bare words.
+        let src = concat!(
+            "oo::class create Meta {\n",
+            "    superclass oo::class\n",
+            "}\n",
+        );
+        assert!(
+            !factory_of(src, "::Meta").unknown_binds_instance,
+            "a metaclass with no unknown member must abstain"
+        );
+    }
+
+    #[test]
+    fn unknown_dispatch_proof_survives_the_cross_document_rehome() {
+        // The fact is a property of the metaclass's body and carries no
+        // token, so it must cross a document boundary unchanged — otherwise
+        // the Tk shape would resolve only in the file that declares the
+        // metaclass (issues #1303 and #1276).
+        let elsewhere =
+            tcl_lexer::Token::new(tcl_lexer::TokenType::Esc, tcl_lexer::Span::new(0, 1));
+        assert!(
+            factory_of(UNKNOWN_CTOR, "::Meta")
+                .resolve_in_other_document(elsewhere, &|_| false)
+                .unknown_binds_instance,
+            "the proof must survive `resolve_in_other_document`"
+        );
+    }
+
     #[test]
     fn oo_define_over_a_literal_foreach_list_extends_every_named_class() {
         // TP — idx 55: the ticklecharts `etsb.tcl` monkey-patch.  Each

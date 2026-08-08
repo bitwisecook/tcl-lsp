@@ -151,6 +151,25 @@ fn errorstack_value(args: &[&str], start: usize) -> OptionValueOutcome {
 /// (`DevCentral`, "Advanced iRules: Getting Started with iRules
 /// Procedures"), so `self.current_event` is naturally `None` inside one
 /// and this gate never fires there.
+/// `return`'s argument roles: the bare `return VALUE` form's single word is
+/// the command's own [`ArgRole::Result`], and nothing else is.
+///
+/// Restricted to that one shape on purpose (issue #1303).  With options in
+/// play the word is no longer simply "this command's result": `return -code
+/// error $msg` completes exceptionally with `$msg` as the error payload, and
+/// `return -level 0 $v` completes the *caller's* frame.  A leading `-` is
+/// therefore rejected even at arity 1, where real Tcl would treat it as the
+/// result — an unpaired option word is far likelier to be a truncated call
+/// than a deliberate result, and abstaining costs nothing.
+///
+/// tclsh 9.0.4 / 8.6.16: `proc p {} { return abc }; p` → `abc`.
+pub(crate) fn return_arg_roles(args: &[&str]) -> Vec<(u8, ArgRole)> {
+    match args {
+        [only] if !only.starts_with('-') => vec![(0, ArgRole::Result)],
+        _ => Vec::new(),
+    }
+}
+
 fn return_context_gate(args: &[&str], in_event_body: bool) -> Option<&'static str> {
     (in_event_body && !args.is_empty()).then_some(
         "`return` takes no arguments directly inside an iRules event body; \
@@ -208,6 +227,7 @@ pub fn spec() -> CommandSpec {
             | Traits::TERMINATES_BLOCK
             | Traits::NEEDS_START_CMD,
         arity: Arity::any(),
+        arg_role_resolver: Some(return_arg_roles),
         return_type: Some(TclType::String),
         side_effects: SIDE_EFFECTS,
         hover: Some(HoverSnippet {

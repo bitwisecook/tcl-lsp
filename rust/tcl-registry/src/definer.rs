@@ -658,6 +658,48 @@ pub struct DefinitionBodyGrammar {
     /// deciding whether `set w [Foo $win.a]` binds an object handle reads
     /// this rather than testing the metaclass name for a `snit::` prefix.
     pub bare_word_construction: bool,
+
+    /// The methods of this family's **class command** that manufacture an
+    /// instance — `TclOO`'s `create` / `new` / `createWithNamespace`.
+    ///
+    /// The registry half of "is `X create Name Body` a class creation?".  The
+    /// analyser used to carry those three keywords as a literal `matches!`,
+    /// so a family manufacturing under a different word could not be added
+    /// without editing the walker (issue #1303).  Empty for a family whose
+    /// class command manufactures only through
+    /// [`Self::bare_word_construction`] or a
+    /// [`CommandSpec::creates_instance_at`](crate::spec::CommandSpec::creates_instance_at)
+    /// spec.
+    pub manufacturers: &'static [ManufacturerMethod],
+
+    /// The method an object of this class system dispatches an **unrecognised
+    /// first word** to — `TclOO`'s `unknown` (`object.n`: "if the method is
+    /// not found … the `unknown` method is invoked, with the name of the
+    /// method as its first argument").
+    ///
+    /// Declaring one says only that an unrecognised word still reaches code.
+    /// Whether such a call *constructs*, and whether its result is the new
+    /// object's name, is **not** implied and must be proved from the body —
+    /// see `ClassFactory::unknown_binds_instance` in the analyser, which
+    /// abstains whenever it cannot.
+    ///
+    /// `None` for snit and [incr Tcl].  snit's type command does treat an
+    /// unrecognised *first* word as an instance name, but that is
+    /// [`Self::bare_word_construction`] — a documented property of the type
+    /// command, not a user-written fallback member.
+    pub unknown_dispatch_method: Option<&'static str>,
+}
+
+/// One method of a class system's **class command** that manufactures an
+/// instance — see [`DefinitionBodyGrammar::manufacturers`].
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ManufacturerMethod {
+    /// The method word as invoked on the class command (`create`).
+    pub keyword: &'static str,
+    /// Index — among the call's arguments, argument 0 being the manufacturer
+    /// keyword itself — of the word naming the new instance, or `None` when
+    /// the manufacturer generates the name itself (`new`).
+    pub names_instance_at: Option<u8>,
 }
 
 /// One command a class system injects into every member body — see
@@ -699,6 +741,17 @@ impl DefinitionBodyGrammar {
             .iter()
             .position(|c| c.name == name)?;
         Some(&self.member_body_commands[idx])
+    }
+
+    /// The manufacturer method `keyword` names, if this family's class
+    /// command has one (see [`Self::manufacturers`]).
+    #[must_use]
+    pub fn manufacturer(&self, keyword: &str) -> Option<&'static ManufacturerMethod> {
+        let idx = self
+            .manufacturers
+            .iter()
+            .position(|m| m.keyword == keyword)?;
+        Some(&self.manufacturers[idx])
     }
 
     /// Whether `keyword` is a recognised member sub-keyword.
@@ -824,9 +877,15 @@ pub const TCLOO_GRAMMAR: DefinitionBodyGrammar = DefinitionBodyGrammar {
     members: TCLOO_MEMBERS,
     implicit_vars: &[],
     member_body_namespace_path: TCLOO_MEMBER_BODY_NAMESPACE_PATH,
-    // TclOO's class-level surface is `oo::define`/`oo::objdefine`, not a set
-    // of built-in typemethods on the class command.
-    builtin_type_methods: &[],
+    // The class command's own built-in, non-manufacturing surface. tclsh
+    // 9.0.4 and 8.6.16 agree byte for byte:
+    //   oo::class create C {}
+    //   info object methods ::C -all   ->  create destroy new
+    // `create` / `new` are manufacturers and live in `manufacturers`; what
+    // is left is `destroy`. The definition surface proper
+    // (`oo::define`/`oo::objdefine`) is a separate command, not a method
+    // here.
+    builtin_type_methods: &["destroy"],
     // TclOO injects no extra *commands* into a method body — its helpers
     // (`my` / `next` / `self` / `link` / `classvariable`) are real global
     // commands in `::oo::Helpers` with their own specs, reached through
@@ -836,7 +895,42 @@ pub const TCLOO_GRAMMAR: DefinitionBodyGrammar = DefinitionBodyGrammar {
     // constructs through `create` / `new` (tclsh 9.0.4: `::C x` →
     // `unknown method "x"`).
     bare_word_construction: false,
+    manufacturers: TCLOO_MANUFACTURERS,
+    // `object.n`: an unrecognised method name is dispatched to `unknown`.
+    // This is what makes `::C x` above *reachable* rather than fatal once a
+    // class (or its metaclass) declares one.
+    unknown_dispatch_method: Some("unknown"),
 };
+
+/// `TclOO`'s class-command manufacturers — see
+/// [`DefinitionBodyGrammar::manufacturers`].
+///
+/// `class.n` (9.0.4): `create name ?definition?`, `new ?definition?`,
+/// `createWithNamespace name nsName ?definition?`.  Only `create` and
+/// `createWithNamespace` name the instance; `new` generates the name.
+const TCLOO_MANUFACTURERS: &[ManufacturerMethod] = &[
+    ManufacturerMethod {
+        keyword: "create",
+        names_instance_at: Some(1),
+    },
+    ManufacturerMethod {
+        keyword: "new",
+        names_instance_at: None,
+    },
+    ManufacturerMethod {
+        keyword: "createWithNamespace",
+        names_instance_at: Some(1),
+    },
+];
+
+/// snit's single class-command manufacturer — snit(n), "The Type Command":
+/// `$type create name ?option value…?`.  There is no `new`: a snit instance
+/// is always named, either explicitly or through the `%AUTO%` substitution
+/// in the name itself.
+const SNIT_MANUFACTURERS: &[ManufacturerMethod] = &[ManufacturerMethod {
+    keyword: "create",
+    names_instance_at: Some(1),
+}];
 
 /// The `namespace path` a `TclOO` member body runs with — see
 /// [`DefinitionBodyGrammar::member_body_namespace_path`].
@@ -929,6 +1023,12 @@ pub const SNIT_GRAMMAR: DefinitionBodyGrammar = DefinitionBodyGrammar {
     // snit(n), "The Type Command": `$type name ?args?` with a non-typemethod
     // first word is `$type create name ?args?`.
     bare_word_construction: true,
+    manufacturers: SNIT_MANUFACTURERS,
+    // snit dispatches an unrecognised *method* through `delegate method *`
+    // when the type declares one, which is a declared delegation target
+    // rather than a member body this analysis can read; there is no snit
+    // counterpart of TclOO's `unknown`.
+    unknown_dispatch_method: None,
 };
 
 /// The definition-body grammar for snit `widget` / `widgetadaptor`: the same
@@ -950,6 +1050,12 @@ pub const SNIT_WIDGET_GRAMMAR: DefinitionBodyGrammar = DefinitionBodyGrammar {
     // snit(n), "The Type Command": `$type name ?args?` with a non-typemethod
     // first word is `$type create name ?args?`.
     bare_word_construction: true,
+    manufacturers: SNIT_MANUFACTURERS,
+    // snit dispatches an unrecognised *method* through `delegate method *`
+    // when the type declares one, which is a declared delegation target
+    // rather than a member body this analysis can read; there is no snit
+    // counterpart of TclOO's `unknown`.
+    unknown_dispatch_method: None,
 };
 
 // ---------------------------------------------------------------------------
@@ -1006,6 +1112,11 @@ pub const ITCL_GRAMMAR: DefinitionBodyGrammar = DefinitionBodyGrammar {
     // handle scan reaches through `creates_instance_at`, not through this
     // snit-specific bare-word shorthand.
     bare_word_construction: false,
+    // Reached through `creates_instance_at` (see above), not a named
+    // manufacturer method on the class command.
+    manufacturers: &[],
+    // [incr Tcl] has no user-writable unrecognised-method fallback member.
+    unknown_dispatch_method: None,
 };
 
 #[cfg(test)]

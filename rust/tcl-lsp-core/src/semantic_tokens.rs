@@ -5626,11 +5626,21 @@ fn bind_object_handle(
 /// instance name** (`$type $name`), rather than only through an explicit
 /// `create` / `new`.
 ///
-/// Registry data — the class's metaclass spec's definition-body grammar
-/// declares it ([`DefinitionBodyGrammar::bare_word_construction`]) — replacing
-/// the `metaclass.starts_with("snit::")` spelling test the scan used to make
-/// (issue #1185).  A class whose metaclass is not in the registry answers
-/// `false`: abstention, so an unknown factory is never treated as one.
+/// Two independent sources, both **data** rather than a shape matched here:
+///
+/// * the class's metaclass spec's definition-body grammar declares it
+///   ([`DefinitionBodyGrammar::bare_word_construction`]) — snit's `$type
+///   $name` shorthand — replacing the `metaclass.starts_with("snit::")`
+///   spelling test the scan used to make (issue #1185); or
+/// * the class's metaclass is a **user** metaclass whose recorded class
+///   factory proves its unrecognised-word fallback both constructs an object
+///   and returns that word (`ClassFactory::unknown_binds_instance`) — Tk's
+///   `::tk::IconList .il` idiom (issue #1303). The proof is made once, where
+///   the metaclass is written, so this reads a fact rather than re-deriving
+///   one from the call's shape.
+///
+/// A class whose metaclass is neither answers `false`: abstention, so an
+/// unproved factory is never treated as one.
 ///
 /// [`DefinitionBodyGrammar::bare_word_construction`]: tcl_registry::definer::DefinitionBodyGrammar::bare_word_construction
 fn family_constructs_by_bare_word(
@@ -5638,12 +5648,19 @@ fn family_constructs_by_bare_word(
     registry: &CommandRegistry,
     class: &str,
 ) -> bool {
-    hierarchy
-        .classes
-        .get(class)
-        .and_then(|cd| registry.get(&cd.metaclass))
+    let Some(class_def) = hierarchy.classes.get(class) else {
+        return false;
+    };
+    if registry
+        .get(&class_def.metaclass)
         .and_then(|spec| spec.definition_body)
         .is_some_and(|grammar| grammar.bare_word_construction)
+    {
+        return true;
+    }
+    resolve_class_in_hierarchy(hierarchy, &class_def.metaclass)
+        .and_then(|meta| hierarchy.classes.get(&meta)?.factory.as_ref())
+        .is_some_and(|factory| factory.unknown_binds_instance)
 }
 
 /// Whether `name` is a type-command call (typemethod) on class `class` — one
