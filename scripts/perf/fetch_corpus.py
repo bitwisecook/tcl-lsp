@@ -16,7 +16,7 @@
 #
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
-"""Deterministically reconstitute the benchmark corpus from `MANIFEST.toml`.
+"""Deterministically reconstitute the corpus from `MANIFEST.toml`.
 
 Idempotent: an already-correct checkout is left alone. The important
 property is not speed but *pinning* — a cross-version graph is only
@@ -24,8 +24,16 @@ meaningful if every version measured the same bytes, so a checkout that
 does not match its pinned commit is a hard error, never a silent
 "benchmark whatever is on disk".
 
+The same pinning makes this the general corpus fetcher, not just the
+benchmark's: `--scope irules` reconstitutes the iRules corpus, and
+`--scope everything` both dialects. To grow the set, add a `[[repo]]`
+block with an exact `commit` and put its `group` in a scope. Advancing an
+existing pin invalidates stored benchmark results — see the header of
+`MANIFEST.toml`.
+
 Usage:
-    fetch_corpus.py [--scope small|medium|full] [--dest DIR] [--verify-only]
+    fetch_corpus.py [--scope NAME] [--dest DIR] [--verify-only]
+    fetch_corpus.py --list
 """
 
 from __future__ import annotations
@@ -125,6 +133,27 @@ def scope_groups(manifest: dict, scope: str) -> list[str]:
     return list(scopes[scope]["groups"])
 
 
+# iRule sources are published as often in `.txt` (DevCentral) or `.irule` as
+# in `.tcl`, so counting only `*.tcl` under-reports the iRules corpus by
+# roughly three quarters and makes a half-fetched tree look complete.
+SOURCE_SUFFIXES = ("*.tcl", "*.irule", "*.tmsh")
+
+
+def describe(manifest: dict) -> None:
+    """Print the groups and scopes on offer, so `--scope` is discoverable."""
+    counts: dict[str, int] = {}
+    for entry in manifest["repo"]:
+        counts[entry["group"]] = counts.get(entry["group"], 0) + 1
+    print("groups:")
+    for group in sorted(counts):
+        print(f"  {group:<24} {counts[group]:>3} repo(s)")
+    print("\nscopes:")
+    for scope in sorted(manifest.get("scope", {})):
+        groups = manifest["scope"][scope]["groups"]
+        repos = sum(counts.get(g, 0) for g in groups)
+        print(f"  {scope:<24} {repos:>3} repo(s)  ({', '.join(groups)})")
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--manifest", type=Path, default=HERE / "MANIFEST.toml")
@@ -135,26 +164,54 @@ def main() -> int:
         action="store_true",
         help="check pins without network access; exit non-zero on drift",
     )
+    ap.add_argument(
+        "--include-private",
+        action="store_true",
+        help='also fetch entries marked `visibility = "private"`, which need credentials',
+    )
+    ap.add_argument(
+        "--list",
+        action="store_true",
+        help="print the available groups and scopes, then exit",
+    )
     args = ap.parse_args()
 
     manifest = load_manifest(args.manifest)
+    if args.list:
+        describe(manifest)
+        return 0
+
     groups = set(scope_groups(manifest, args.scope))
     # Sorted so the log is stable run to run, like everything else here.
     entries = sorted(
         (e for e in manifest["repo"] if e["group"] in groups),
         key=lambda e: (e["group"], e["name"]),
     )
+    # Skipping is reported, never silent: a private entry quietly dropped from
+    # a corpus is indistinguishable from one that was never there.
+    skipped = [e for e in entries if e.get("visibility") == "private"]
+    if not args.include_private:
+        entries = [e for e in entries if e.get("visibility") != "private"]
+    else:
+        skipped = []
 
     failures = 0
     for entry in entries:
         ok, msg = ensure_repo(entry, args.dest, verify_only=args.verify_only)
         print(msg)
         failures += not ok
+    for entry in skipped:
+        print(
+            f"skipped  {entry['group']}/{entry['name']} (private; --include-private to fetch)"
+        )
 
-    tcl_files = sum(1 for _ in args.dest.rglob("*.tcl")) if args.dest.exists() else 0
+    files = 0
+    if args.dest.exists():
+        files = sum(len(list(args.dest.rglob(pat))) for pat in SOURCE_SUFFIXES)
     print(
         f"\nscope={args.scope} repos={len(entries)} "
-        f"corpus_revision={manifest['corpus']['revision']} .tcl files={tcl_files}"
+        f"corpus_revision={manifest['corpus']['revision']} "
+        f"source files={files} ({', '.join(SOURCE_SUFFIXES)})"
     )
     if failures:
         print(f"{failures} repo(s) not at their pin", file=sys.stderr)
