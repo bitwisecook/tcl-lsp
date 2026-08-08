@@ -308,14 +308,14 @@ symptom with several possible causes worth telling apart. See rule 13 in
 
 ## Functionality (commands, features, and tools)
 
-81 per-feature KCS notes live under [`features/`](features/README.md).
+86 per-feature KCS notes live under [`features/`](features/README.md).
 The `help` subcommand, the MCP `help` tool, and the VS Code `/help`
 chat command all read these files at runtime to build their feature
 catalogues.
 
 ## Diagnostics and optimisations (per-code pages)
 
-156 per-code KCS notes live under [`codes/`](codes/README.md) — 125
+158 per-code KCS notes live under [`codes/`](codes/README.md) — 127
 diagnostic pages (E, W, S, T, and IRULE families) and 31 optimisation
 pages (O family). Each page follows the diagnostic or optimisation
 template, tags the compiler pass that produces it, explains in plain

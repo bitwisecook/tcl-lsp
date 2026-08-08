@@ -82,7 +82,26 @@ ltm virtual /Common/my_vs {
 # "Extract All iRules to Files..." exports every iRule to separate .tcl files
 ```
 
-**`f5` CLI tool with a `cleanup` verb** — find every object the
+## The `f5` CLI
+
+The `f5` binary (`f5-query` in release assets) is the F5-side counterpart to
+the `tcl` CLI. Verbs:
+
+| Verb | What it does |
+|---|---|
+| `query` | The jq-shaped query/transform DSL over a config — see below |
+| `cleanup` | Emit a `tmsh delete` script for every unreferenced object |
+| `grep` | Walk the reference graph around an object, name, regex, or CIDR |
+| `irule` | iRules-specific analysis (events, commands, references) |
+| `report` | Generate the standalone HTML BIG-IP report |
+| `extract` / `convert` | Read UCS/SCF archives, including passphrase-protected ones |
+
+Install it with the [one-line installer](INSTALL-cli.md), or build it from
+source with `make rust-f5`.
+
+### The verbs in detail
+
+**`f5 cleanup`** — find every object the
 configuration defines but no virtual server (or wide-IP) references,
 and emit a `tmsh delete` script in reverse-topological order so each
 delete runs only after the objects that reference its target have
@@ -100,7 +119,7 @@ f5 cleanup --keep /Common/critical_pool bigip.conf
 f5 cleanup --json bigip.conf > report.json
 ```
 
-**`f5 grep` verb** — find every BIG-IP object related to a given
+**`f5 grep`** — find every BIG-IP object related to a given
 object name (or regex, or CIDR) by walking the same
 forward-and-reverse reference graph the cleanup analysis uses.  By
 default the BFS traverses both directions, so a single command
@@ -131,7 +150,7 @@ skip it and return only the objects that directly match the
 pattern (`-r` / `--recurse` toggle it explicitly back on).  This
 applies to every match mode: substring, `--regex`, and `--cidr`.
 
-**`f5 irule` verb group** — iRules-specific analysis with
+**`f5 irule`** — iRules-specific analysis with
 `event-order` and `event-info` sub-actions, defaulting to the
 `f5-irules` dialect:
 
@@ -260,23 +279,6 @@ Cleanup Script** while a `bigip.conf` is open; the script and its JSON
 metadata report open side-by-side.  See
 [KCS: feature — BIG-IP Config Cleanup](docs/kcs/features/kcs-feature-bigip-cleanup.md)
 for the full options reference.
-
-## The `f5` CLI
-
-The `f5` binary (`f5-query` in release assets) is the F5-side counterpart to
-the `tcl` CLI. Verbs:
-
-| Verb | What it does |
-|---|---|
-| `query` | The jq-shaped query/transform DSL over a config — see below |
-| `cleanup` | Emit a `tmsh delete` script for every unreferenced object |
-| `grep` | Walk the reference graph around an object, name, regex, or CIDR |
-| `irule` | iRules-specific analysis (events, commands, references) |
-| `report` | Generate the standalone HTML BIG-IP report |
-| `extract` / `convert` | Read UCS/SCF archives, including passphrase-protected ones |
-
-Install it with the [one-line installer](INSTALL-cli.md), or build it from
-source with `make rust-f5`.
 
 ## `f5 query` — the query DSL
 

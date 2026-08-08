@@ -76,4 +76,4 @@ via `tclLsp.diagnostics.disabled`.
 ## Related
 
 - [KCS codes index](README.md)
-- [TclOO support in the README](../../../README.md#tcloo-support)
+- [Type navigation (TclOO)](../features/kcs-feature-type-navigation.md)

@@ -26,6 +26,32 @@ The server is a native Rust binary (`tcl-lsp-server`). It speaks LSP over
 stdio, so it works with any LSP client. (The VS Code extension always launches
 the bundled `tcl-lsp-server` binary.)
 
+## Contents
+
+**Start here** — [Install](#install) ·
+[The seven you will use most](#the-seven-you-will-use-most) ·
+[Full feature index](#full-feature-index)
+
+**The language** — [Dialects, languages, and packages](#dialects-languages-and-packages) ·
+[F5 BIG-IP](#f5-big-ip) ·
+[Diagnostic and optimiser codes](#diagnostic-and-optimiser-codes)
+
+**Tools** — [Compiler explorer](#compiler-explorer) ·
+[Command registry spec studio](#command-registry-spec-studio) ·
+[WASM, the bytecode VM, and eBPF](#compiling-tcl-wasm-the-bytecode-vm-and-ebpf) ·
+[AI tooling](#ai-tooling) ·
+[CLI tools](#cli-tools) ·
+[Packaging & environments](#packaging--environments)
+
+**Tuning it** — [Suppressing diagnostics](#suppressing-diagnostics) ·
+[Diagnostic prominence](#changing-how-prominent-a-diagnostic-is) ·
+[Multi-file projects](#multi-file-projects-and-package-require) ·
+[Configuration](#configuration)
+
+**Contributing** — [Building and contributing](#building-and-contributing) ·
+[Screenshots](#screenshots) ·
+[Licence](#license)
+
 ## Install
 
 Grab the artefact for your editor from
@@ -78,6 +104,55 @@ drawing unknown-command warnings.
 Full per-editor instructions, including every VS Code-compatible and generic
 LSP editor, live in **[INSTALL-editors.md](INSTALL-editors.md)**. For the `tcl`
 and `f5` command-line tools, see **[INSTALL-cli.md](INSTALL-cli.md)**.
+
+### VS Code
+
+Install from the
+[Marketplace](https://marketplace.visualstudio.com/items?itemName=bitwisecook.tcl-lsp),
+which serves your platform's package automatically, or sideload the
+`-universal` `.vsix` from Releases:
+
+```sh
+code --install-extension tcl-lsp-vscode-<version>-universal.vsix
+```
+
+The extension bundles the native server — nothing else to install. Settings
+live under **Settings > Extensions > Tcl**.
+
+### Neovim
+
+Copy [`tcl_lsp.lua`](editors/neovim/) to `~/.config/nvim/server/` and enable it
+(`vim.lsp.enable('tcl_lsp')`) — no plugin needed on Neovim 0.11+. Point `cmd`
+at your `tcl-lsp-server` binary.
+
+### Zed
+
+Command Palette > **`zed: extensions`** > search **Tcl**. The extension
+downloads the matching `tcl-lsp-server` release binary on first use.
+
+### Emacs
+
+Register the server with eglot (Emacs 29+) or lsp-mode, pointing at your
+`tcl-lsp-server` binary — snippets for both are in
+[editors/emacs/](editors/emacs/).
+
+### Helix
+
+Add a `[language-server.tcl-lsp]` block naming the `tcl-lsp-server` binary to
+`~/.config/helix/languages.toml` — see [editors/helix/](editors/helix/).
+
+### Sublime Text
+
+Install **Tcl-LSP** from Package Control, or drop `Tcl.sublime-package` into
+`Installed Packages/`. The package bundles the native server. Install the
+**LSP** package first for language-server features.
+
+### JetBrains
+
+**Settings > Plugins > gear > Install Plugin from Disk…**, select
+`tcl-lsp-jetbrains-<version>.zip`, restart. The plugin bundles the native
+server for every platform. Requires IDEA Ultimate 2024.1+ (free editions from
+2025.3).
 
 ## The seven you will use most
 
@@ -245,6 +320,25 @@ package require argparse
 proc ::argparse {args} { ... }   ;# no W113: argparse is package-gated, not a core built-in
 proc ::set {a b} { ... }         ;# W113: 'set' is a genuine core built-in
 ```
+
+#### What the analyser checks
+
+Seven families of finding, each code with its own page explaining why the check
+exists, a triggering example, and the fix:
+
+| Family | Covers |
+|---|---|
+| **E** | Errors — syntax, arity, unknown subcommands |
+| **W** | Warnings — style, variables, security, packages |
+| **I** | Hints — constant conditions, unreachable arms |
+| **S** | [Shimmer detection](docs/kcs/codes/README.md) — values repeatedly converted between representations in hot paths, including [byte-array corruption](docs/kcs/features/kcs-feature-byte-array-corruption.md) (S110) |
+| **T** | [Taint analysis](docs/kcs/codes/README.md) — untrusted data reaching dangerous sinks, option positions, regex patterns, and network addresses |
+| **O** | [Optimiser](docs/kcs/features/kcs-feature-optimiser.md) suggestions — constant folding, propagation, dead code, LICM, strength reduction |
+| **IRULE** | iRules-only checks — see [README-f5.md](README-f5.md#irules-diagnostic-codes) |
+
+Full tables: [diagnostic codes](docs/generated/diagnostic_codes.md) ·
+[optimiser codes](docs/generated/optimisation_codes.md) ·
+[per-code pages](docs/kcs/codes/README.md).
 
 ### 2. Dialect-aware semantic highlighting
 

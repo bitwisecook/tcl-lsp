@@ -8,12 +8,14 @@
 // is never mistaken for a heading).
 //
 // Heading conventions (the source README must follow these):
-//   1. Editor subsections under `## Editor support` are named `### EditorName`
-//      (e.g. `### VS Code`). Only the target editor's subsection is kept.
+//   1. Editor subsections under `## Install` (or the older `## Editor support`)
+//      are named `### EditorName` (e.g. `### VS Code`). Only the target
+//      editor's subsection is kept.
 //   2. Sections tagged with `(EditorName ...)` at the end of the heading are
 //      kept only for the matching editor, with the parenthetical removed.
 //   3. A `### All editors` section (multi-editor only, e.g. the comparison
-//      table) is stripped for all single-editor builds.
+//      table) is stripped for all single-editor builds. It must sit under the
+//      `## Install` heading for that rule to fire.
 //   4. Lines containing `<!-- editors:Name1,Name2 -->` are kept only when the
 //      target editor appears in the comma-separated list.
 //
@@ -83,7 +85,9 @@ function filterReadme(text, editor) {
         }
       }
 
-      if (level === 2) inEditorSupport = title === "Editor support";
+      // The section holding the per-editor subsections. Named "Install"
+      // since the README restructure; "Editor support" is the older name.
+      if (level === 2) inEditorSupport = title === "Install" || title === "Editor support";
 
       // Rule 3: `### All editors` under `## Editor support` — strip entirely.
       if (inEditorSupport && level === 3 && title === "All editors") {
