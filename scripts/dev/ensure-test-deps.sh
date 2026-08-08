@@ -772,6 +772,36 @@ ensure_wasi_sdk() {
         *) echo "ERROR: unsupported architecture for wasi-sdk: $ARCH" >&2; return 1 ;;
     esac
 
+    # Integrity pins, per platform, matching what every other tool here carries.
+    #
+    # Why pinned rather than verified against an upstream sidecar: wasi-sdk
+    # publishes **no checksums at all**.  There is no `SHA256SUMS` asset on the
+    # `wasi-sdk-25` release (the URL 404s), no per-asset `.sha256`, no hashes in
+    # the release body, and the GitHub API reports `digest: null` for the
+    # assets.  The same is true of every wasi-sdk release, so the sidecar this
+    # function used to fetch could never have existed — the fail-closed branch
+    # fired on every run and wasi-sdk was simply never installable.
+    #
+    # These values were computed from the published tarballs and then
+    # corroborated against independent third parties that pin the same
+    # artefacts, so they are not merely trust-on-first-use from one download:
+    # `spack/spack-packages` records the identical sha256 for 25.0 x86_64-linux,
+    # and `wevm/ox`'s `wasm/toolchain.json` records all four.
+    #
+    # To move `WASI_SDK_VERSION`: download each tarball, hash it, and replace
+    # the four values below — mismatches are fatal by design.
+    local expected_sha
+    case "${sdk_arch}-${sdk_os}" in
+        x86_64-linux) expected_sha="52640dde13599bf127a95499e61d6d640256119456d1af8897ab6725bcf3d89c" ;;
+        arm64-linux)  expected_sha="47fccad8b2498f2239e05e1115c3ffc652bf37e7de2f88fb64b2d663c976ce2d" ;;
+        x86_64-macos) expected_sha="55e3ff3fee1a15678a16eeccba0129276c9f6be481bc9c283e7f9f65bf055c11" ;;
+        arm64-macos)  expected_sha="e1e529ea226b1db0b430327809deae9246b580fa3cae32d31c82dfe770233587" ;;
+        *)
+            echo "ERROR: no wasi-sdk sha256 pin for ${sdk_arch}-${sdk_os}" >&2
+            return 1
+            ;;
+    esac
+
     ensure_download_tools
     local major="${WASI_SDK_VERSION%%.*}"
     local tarball="wasi-sdk-${WASI_SDK_VERSION}-${sdk_arch}-${sdk_os}.tar.gz"
@@ -784,27 +814,15 @@ ensure_wasi_sdk() {
     info "Downloading wasi-sdk ${WASI_SDK_VERSION} (${sdk_arch}-${sdk_os})"
     fetch_with_retry "${base}/${tarball}" "$tmpdir/$tarball"
 
-    # Integrity: verify against the release's published SHA256SUMS.  (A hardcoded
-    # per-arch pin, like the other tools carry, is a follow-up once the canonical
-    # version is fixed for this branch.)  Fail closed: a missing sidecar or a
-    # sidecar with no entry for this tarball means the artifact is unverified,
-    # so refuse it rather than installing on trust.
-    if ! fetch_with_retry "${base}/SHA256SUMS" "$tmpdir/SHA256SUMS" 2>/dev/null; then
-        echo "ERROR: could not fetch wasi-sdk SHA256SUMS; refusing to install unverified" >&2
+    # Still fail closed: a tarball that does not match its pin is refused rather
+    # than installed on trust.
+    local actual_sha
+    actual_sha="$(sha256_file "$tmpdir/$tarball")"
+    if [ "$actual_sha" != "$expected_sha" ]; then
+        echo "ERROR: wasi-sdk sha256 mismatch (expected $expected_sha, got $actual_sha)" >&2
         return 1
     fi
-    local expected actual
-    expected="$(awk -v f="$tarball" '{ n=$2; sub(/^\*/,"",n); if (n==f) { print $1; exit } }' "$tmpdir/SHA256SUMS")"
-    actual="$(sha256_file "$tmpdir/$tarball")"
-    if [ -z "$expected" ]; then
-        echo "ERROR: wasi-sdk SHA256SUMS has no entry for ${tarball}; refusing to install unverified" >&2
-        return 1
-    fi
-    if [ "$expected" != "$actual" ]; then
-        echo "ERROR: wasi-sdk sha256 mismatch (expected $expected, got $actual)" >&2
-        return 1
-    fi
-    info "wasi-sdk checksum verified against SHA256SUMS"
+    info "wasi-sdk checksum verified against the pin for ${sdk_arch}-${sdk_os}"
 
     local prefix="/opt/wasi-sdk-${WASI_SDK_VERSION}"
     $SUDO rm -rf "$prefix"
