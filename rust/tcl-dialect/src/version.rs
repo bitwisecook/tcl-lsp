@@ -96,6 +96,33 @@ impl TclVersion {
         }
     }
 
+    /// The full `major.minor.patch` string an engine emulating this release
+    /// reports as `[info patchlevel]` / `$tcl_patchLevel`.
+    ///
+    /// [`Self::version_string`] answers the two-component question every
+    /// `package vsatisfies` comparison actually asks; this answers the
+    /// *reporting* question, which needs a third component because C Tcl
+    /// always has one and scripts parse it.  The patch digit names the
+    /// upstream release each of this project's engines was re-derived from —
+    /// the tarballs under `tmp/` — so `tcl-vm` and `runtime/rust` cannot
+    /// report different patch levels for the same emulated release by each
+    /// keeping their own table (issue #1328's centralisation finding).
+    ///
+    /// A release line the engines have no pinned reference build for reports
+    /// `.0`, which is the honest answer: the line's semantics are modelled,
+    /// no specific build is.
+    #[must_use]
+    pub fn patchlevel(self) -> &'static str {
+        match self {
+            Self::V8_4 => "8.4.20",
+            Self::V8_5 => "8.5.19",
+            Self::V8_6 => "8.6.16",
+            Self::V9_0 => "9.0.4",
+            // No 9.1 tarball is pinned yet — see `fetch-tcl-source`.
+            Self::V9_1 => "9.1.0",
+        }
+    }
+
     /// Does this release **definitely** satisfy any of `requirements` — the
     /// answer `package vsatisfies [package provide Tcl] REQ ?REQ …?` gives on
     /// every build of the release line?

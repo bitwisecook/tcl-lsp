@@ -55,6 +55,10 @@ tcl-bytecode = { path = "../tcl-bytecode" }
 tcl-compiler = { path = "../tcl-compiler" }
 tcl-registry = { path = "../tcl-registry" }
 tcl-vm = { path = "../tcl-vm" }
+# The ordered Tcl release enum, for recording (and comparing) which release
+# each engine in a differential pair emulates — see `src/version.rs` and
+# issue #1328.
+tcl-dialect = { path = "../tcl-dialect" }
 # Core-wasm embedding only (compile + run with host funcs) — the heavy default
 # features (component-model, async, gc, cache, …) are off.
 wasmtime = { version = "46", default-features = false, features = ["cranelift", "runtime", "gc-drc"] }

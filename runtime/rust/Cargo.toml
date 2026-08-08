@@ -69,6 +69,12 @@ wasm_stdlib = []
 [dependencies]
 tcl-lexer = { path = "../../rust/tcl-lexer" }
 tcl-syntax = { path = "../../rust/tcl-syntax" }
+# The ordered Tcl release enum (`TclVersion`) this runtime's release-dependent
+# semantics key off — the same type `tcl-vm` threads through
+# `set_runtime_version`, so both engines gate on one shared vocabulary instead
+# of each inventing its own version notion (issue #1328). Pure data with a
+# single `bitflags` dependency and no I/O, so it is wasm32-clean.
+tcl-dialect = { path = "../../rust/tcl-dialect" }
 # Dependency-free shared vocabulary — pulled in directly (previously only a
 # transitive dependency via `tcl-lexer`/`tcl-syntax`) for `RecursionLimit`/
 # `RecursionGuard` (issue #996's shared native-stack safety-net primitive; see

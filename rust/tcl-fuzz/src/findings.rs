@@ -84,6 +84,25 @@ pub struct Finding {
     /// Subject engine's stderr, when it ran.
     #[serde(default)]
     pub subject_stderr: String,
+    /// The Tcl release the **reference** engine reported
+    /// (`[info patchlevel]`), when it could be probed.
+    ///
+    /// A divergence is evidence of a bug only when both engines speak the same
+    /// version of the language. Issue #1328 filed eight findings against a
+    /// `tclsh8.6` oracle; re-run against 9.0.4 every one of them vanished,
+    /// each being a deliberate cross-version change rather than a defect. The
+    /// registry recorded nothing about the oracle, so that was invisible and
+    /// had to be re-derived by hand. It is recorded now.
+    #[serde(default)]
+    pub reference_version: Option<String>,
+    /// The Tcl release the **subject** engine reported.
+    #[serde(default)]
+    pub subject_version: Option<String>,
+    /// Whether the two engines emulate different Tcl release *lines*. `true`
+    /// makes this finding suspect: read it as "the engines disagree" only
+    /// after ruling out "the versions disagree".
+    #[serde(default)]
+    pub version_skew: bool,
 }
 
 impl Finding {
@@ -95,6 +114,7 @@ impl Finding {
         script: &str,
         reference: &Outcome,
         subject: &Outcome,
+        versions: &crate::version::PairVersions,
     ) -> Self {
         let (reference_stdout, reference_stderr, reference_errored) = unpack(reference);
         let (subject_stdout, subject_stderr, subject_errored) = unpack(subject);
@@ -108,6 +128,9 @@ impl Finding {
             subject_errored,
             reference_stderr,
             subject_stderr,
+            reference_version: versions.reference.as_ref().map(|v| v.patchlevel.clone()),
+            subject_version: versions.subject.as_ref().map(|v| v.patchlevel.clone()),
+            version_skew: versions.skewed(),
         }
     }
 }

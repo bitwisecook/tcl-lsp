@@ -183,6 +183,67 @@ const VECTORS: &[Vector] = &[
         want_8x: "can't read \"g\": no such variable",
         want_90: "can't read \"g\": no such variable",
     },
+    // --- issue #1328: the rule governs *relative variable resolution*, so it
+    // reaches every command that resolves a relative name, not just `append`.
+    Vector {
+        name: "append reaches the global in 8.x (the shape issue #1328 was filed on)",
+        script: "set g foo\nnamespace eval n { append g baz }\nputs [set ::g]:[info exists ::n::g]\n",
+        want_8x: "foobaz:0",
+        want_90: "foo:1",
+    },
+    Vector {
+        name: "lappend reaches the global in 8.x",
+        script: "set g a\nnamespace eval n { lappend g b }\nputs [set ::g]:[info exists ::n::g]\n",
+        want_8x: "a b:0",
+        want_90: "a:1",
+    },
+    Vector {
+        name: "$-substitution falls back in 8.x",
+        script: "set g VAL\nnamespace eval n { puts [catch {set x \"<$g>\"} m]:$m }\n",
+        want_8x: "0:<VAL>",
+        want_90: "1:can't read \"g\": no such variable",
+    },
+    Vector {
+        name: "an array-element write reaches the global array in 8.x",
+        script: "array set A {k v}\nnamespace eval n { set A(k) NEW }\nputs [array get ::A]:[info exists ::n::A]\n",
+        want_8x: "k NEW:0",
+        want_90: "k v:1",
+    },
+    // The fallback is "current, then global" — never the intermediate parents.
+    // Both halves matter: a nested namespace still reaches the *global* (so the
+    // depth of nesting is irrelevant), and a parent's variable is never found.
+    Vector {
+        name: "a nested namespace still falls back to the global in 8.x",
+        script: "set g G\nnamespace eval outer { namespace eval inner { puts [catch {set g} m]:$m } }\n",
+        want_8x: "0:G",
+        want_90: "1:can't read \"g\": no such variable",
+    },
+    Vector {
+        name: "an intermediate parent's variable is never found, in either release",
+        script: "namespace eval P { variable pv PARENT\n  namespace eval C { puts [catch {set pv} m]:$m } }\n",
+        want_8x: "1:can't read \"pv\": no such variable",
+        want_90: "1:can't read \"pv\": no such variable",
+    },
+    Vector {
+        name: "an existing namespace variable shadows the global in both releases",
+        script: "set g GLOBAL\nnamespace eval n { variable g NS }\nnamespace eval n { puts [set g]:[set ::g] }\n",
+        want_8x: "NS:GLOBAL",
+        want_90: "NS:GLOBAL",
+    },
+    // NOTE: `namespace upvar` — which is explicit and so must be unaffected by
+    // the fallback in either release — is covered on the `runtime/rust` side
+    // (`cmd_var.rs`) rather than here: this VM's `namespace` ensemble does not
+    // implement the `upvar` subcommand at all yet, which is a separate gap
+    // from the resolution rule under test.
+    //
+    // The user-visible consequence of getting this wrong: under 8.x the write
+    // reaches the global, so the *global's* write trace must fire.
+    Vector {
+        name: "a write through the 8.x fallback fires the global's write trace",
+        script: "proc log {n1 n2 op} { puts \"trace:$n1:$op\" }\nset g foo\ntrace add variable g write log\nnamespace eval n { set g X }\nputs [set ::g]\n",
+        want_8x: "trace:g:write\nX",
+        want_90: "foo",
+    },
 ];
 
 #[test]

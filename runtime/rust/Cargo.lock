@@ -145,6 +145,7 @@ dependencies = [
  "flate2",
  "tcl-cmd-core",
  "tcl-core-types",
+ "tcl-dialect",
  "tcl-host-native",
  "tcl-lexer",
  "tcl-platform",

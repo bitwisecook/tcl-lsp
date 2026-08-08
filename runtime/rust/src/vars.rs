@@ -232,12 +232,36 @@ pub(crate) fn home_namespace(
     current_ns: NsId,
     name: &[u8],
 ) -> Option<NsId> {
+    home_namespace_and_base(frames, ns, current_ns, name).0
+}
+
+/// [`home_namespace`], plus the **simple** (unqualified) name the variable is
+/// filed under in that home.
+///
+/// A variable trace must be keyed by the variable it resolves to, not by the
+/// spelling used to register it: C Tcl hangs the trace off the `Var` struct
+/// (`tclTrace.c`'s `TraceVarProc`), so `trace add variable ::v write …`
+/// fires for a later `set v X` in the global namespace, and — under the 8.x
+/// namespace-scope fallback — for a `set v X` inside `namespace eval` that
+/// reaches the same global.  Keying on the raw spelling instead makes a trace
+/// silently miss (issue #1328).
+///
+/// Returning both halves from the one `resolve` call keeps registration and
+/// firing on exactly the same rule, including the dialect-gated fallback.
+pub(crate) fn home_namespace_and_base(
+    frames: &FrameStack,
+    ns: &Namespaces,
+    current_ns: NsId,
+    name: &[u8],
+) -> (Option<NsId>, Vec<u8>) {
     match resolve(frames, ns, current_ns, name) {
         Resolved::Place(p) => match p.home {
-            VarHome::Namespace(id) => Some(id),
-            VarHome::Frame(_) => None,
+            VarHome::Namespace(id) => (Some(id), p.name),
+            VarHome::Frame(_) => (None, p.name),
         },
-        Resolved::NoNamespace => None,
+        // Unresolvable (a qualified name into a missing namespace): keep the
+        // caller's spelling so `trace info` still round-trips it.
+        Resolved::NoNamespace => (None, name.to_vec()),
     }
 }
 

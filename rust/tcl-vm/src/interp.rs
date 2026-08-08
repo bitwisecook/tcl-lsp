@@ -1181,25 +1181,27 @@ impl Vm {
         self.rand_seed as f64 / IP as f64
     }
 
-    /// Populate the predefined global variables a fresh interpreter exposes:
-    /// the `tcl_platform`/`env` arrays and the `argv`/`argv0`/`argc` scalars,
-    /// so library scripts (tcltest) that read them at load time work.
     /// Write the release-reporting globals derived from the threaded
-    /// runtime version. The patch digit is the 9.0.4 reference the VM's
-    /// semantics were re-derived from; a future non-9.0 runtime
-    /// (VM-parity M16) must pin its own reference release.
+    /// runtime version.
+    ///
+    /// The patch digit comes from [`tcl_dialect::TclVersion::patchlevel`] —
+    /// the one table both this VM and `runtime/rust` read, so the two engines
+    /// cannot report different patch levels for the same emulated release
+    /// (issue #1328's centralisation finding).
     fn write_release_globals(&mut self) {
         self.write_scalar_raw(
             "tcl_version",
             Value::string(self.runtime_version.as_package_version()),
         );
-        let patch_level = match self.runtime_version {
-            tcl_dialect::TclVersion::V9_0 => "9.0.4".to_owned(),
-            other => format!("{}.0", other.as_package_version()),
-        };
-        self.write_scalar_raw("tcl_patchLevel", Value::string(patch_level));
+        self.write_scalar_raw(
+            "tcl_patchLevel",
+            Value::string(self.runtime_version.patchlevel()),
+        );
     }
 
+    /// Populate the predefined global variables a fresh interpreter exposes:
+    /// the `tcl_platform`/`env` arrays and the `argv`/`argv0`/`argc` scalars,
+    /// so library scripts (tcltest) that read them at load time work.
     fn bootstrap_globals(&mut self) {
         use tcl_platform::backend::{self, key};
         let plat = [
@@ -3047,7 +3049,32 @@ impl Vm {
         {
             return name.to_string();
         }
-        format!("{cur}::{name}")
+        let qualified = format!("{cur}::{name}");
+        // Under the 8.x fallback the bare name resolves to the GLOBAL
+        // variable, so the trace must be keyed on the global — keying it on
+        // `ns::name` here would make a write through the fallback silently
+        // miss the global's trace (issue #1328).  Shares one predicate with
+        // `locate`, so the two cannot drift.
+        if self.ns_fallback_targets_global(&qualified, name) {
+            return name.to_string();
+        }
+        qualified
+    }
+
+    /// Does the Tcl 8.x namespace-scope fallback send bare `name` (whose
+    /// namespace-qualified spelling is `qualified`) to the **global**
+    /// variable?
+    ///
+    /// True only under an 8.x runtime, when the namespace has no such variable
+    /// but the global namespace does.  The single definition of the rule —
+    /// [`Self::locate`] applies it to resolve an access, `trace_qualify`
+    /// applies it to key a trace, and they must agree or a trace fires on the
+    /// wrong variable (issue #1328).
+    fn ns_fallback_targets_global(&self, qualified: &str, name: &str) -> bool {
+        self.ns_var_global_fallback()
+            && self.frames.first().is_some_and(|global| {
+                !global.locals.contains_key(qualified) && global.locals.contains_key(name)
+            })
     }
 
     /// Register a `trace add variable` callback.
@@ -3852,11 +3879,7 @@ impl Vm {
             // `variable` declaration installs a link above, so a declared
             // name never reaches this redirect and correctly blocks the
             // fallback).  9.0 always binds in the namespace (TIP 278).
-            if self.ns_var_global_fallback()
-                && let Some(global) = self.frames.first()
-                && !global.locals.contains_key(&qualified)
-                && global.locals.contains_key(&nm)
-            {
+            if self.ns_fallback_targets_global(&qualified, &nm) {
                 return (0, nm);
             }
             return (0, qualified);
