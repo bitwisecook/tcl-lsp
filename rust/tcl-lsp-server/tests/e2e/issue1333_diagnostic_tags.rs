@@ -41,7 +41,7 @@ fn code_str(d: &Value) -> Option<&str> {
 /// The raw `tags` array of the diagnostic carrying `code`, as sent on the
 /// wire. `None` distinguishes "the field is absent" (what the server sent
 /// before this fix) from "the field is an empty array".
-fn tags_of<'a>(diags: &'a [Value], code: &str) -> Option<Vec<i64>> {
+fn tags_of(diags: &[Value], code: &str) -> Option<Vec<i64>> {
     let d = diags.iter().find(|d| code_str(d) == Some(code))?;
     Some(
         d.get("tags")?
@@ -66,7 +66,8 @@ fn with_code(diags: &[Value], code: &str) -> Vec<Value> {
 // ---------------------------------------------------------------------------
 
 /// nico's exact repro from the issue.
-const UNUSED_PARAM: &str = "proc test {a b c} {\n    set result [expr {$a + $b}]\n    return $result\n}\ntest 1 2 3\n";
+const UNUSED_PARAM: &str =
+    "proc test {a b c} {\n    set result [expr {$a + $b}]\n    return $result\n}\ntest 1 2 3\n";
 
 #[test]
 fn w214_unused_parameter_carries_tags_1_on_the_wire() {
@@ -98,7 +99,9 @@ fn w214_keeps_hint_severity_once_tagged() {
     // ...and the span is still the one character, so the fade is the only
     // thing a user can reasonably notice.
     assert_eq!(
-        w214[0].pointer("/range/start/character").and_then(Value::as_i64),
+        w214[0]
+            .pointer("/range/start/character")
+            .and_then(Value::as_i64),
         Some(15)
     );
 }
@@ -108,7 +111,11 @@ fn w211_unused_variable_carries_tags_1_on_the_wire() {
     let mut lsp = Lsp::tcl();
     let uri = unique_uri("tcl");
     let diags = lsp.open_ready(&uri, "proc p {} {\n    set unused 1\n    return 2\n}\np\n");
-    assert_eq!(tags_of(&diags, "W211"), Some(vec![UNNECESSARY]), "{diags:?}");
+    assert_eq!(
+        tags_of(&diags, "W211"),
+        Some(vec![UNNECESSARY]),
+        "{diags:?}"
+    );
 }
 
 // ---------------------------------------------------------------------------
@@ -126,7 +133,11 @@ fn deprecated_irules_command_carries_tags_2_on_the_wire() {
         &uri,
         "when HTTP_REQUEST priority 500 {\n    if { [HTTP::class match [HTTP::uri] equals dg] } {\n        log local0. \"hit\"\n    }\n}\n",
     );
-    assert_eq!(tags_of(&diags, "IRULE2002"), Some(vec![DEPRECATED]), "{diags:?}");
+    assert_eq!(
+        tags_of(&diags, "IRULE2002"),
+        Some(vec![DEPRECATED]),
+        "{diags:?}"
+    );
 }
 
 // ---------------------------------------------------------------------------

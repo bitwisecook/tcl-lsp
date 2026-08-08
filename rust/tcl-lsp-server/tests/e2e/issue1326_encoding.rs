@@ -55,8 +55,7 @@ fn with_code(diags: &[Value], code: &str) -> Vec<Value> {
 }
 
 /// The shared iRule body every case wraps, so counts are comparable.
-const BODY: &str =
-    "when HTTP_REQUEST priority 500 {\n    if { [HTTP::uri] eq \"/a\" } {\n        log local0. \"hit\"\n    }\n}\n";
+const BODY: &str = "when HTTP_REQUEST priority 500 {\n    if { [HTTP::uri] eq \"/a\" } {\n        log local0. \"hit\"\n    }\n}\n";
 
 // ---------------------------------------------------------------------------
 // W107 — the file is not valid UTF-8.
@@ -116,7 +115,9 @@ fn w109_fires_on_nul_interleaved_text_and_suppresses_the_nonsense() {
         "abstention should leave exactly one accurate finding, got {diags:?}"
     );
     assert_eq!(
-        diags[0].pointer("/range/start/line").and_then(Value::as_i64),
+        diags[0]
+            .pointer("/range/start/line")
+            .and_then(Value::as_i64),
         Some(0),
         "W109 is a file-level finding"
     );

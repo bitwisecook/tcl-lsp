@@ -114,7 +114,9 @@ class TclLspSettingsPanel {
     private val diagW104 = JBCheckBox("W104: String concatenation for list building")
     private val diagW105 = JBCheckBox("W105: Unbraced code block or missing variable declaration ...")
     private val diagW106 = JBCheckBox("W106: Dangerous unbraced switch body")
+    private val diagW107 = JBCheckBox("W107: Source is not valid UTF-8")
     private val diagW108 = JBCheckBox("W108: Non-ASCII characters in token content")
+    private val diagW109 = JBCheckBox("W109: Source does not look like UTF-8 text")
     private val diagW110 = JBCheckBox("W110: Use eq/ne instead of ==/!= for string comparison")
     private val diagW111 = JBCheckBox("W111: Line exceeds maximum length (see tclLsp.style.lineLe...")
     private val diagW112 = JBCheckBox("W112: Trailing whitespace")
@@ -177,6 +179,7 @@ class TclLspSettingsPanel {
     private val diagW302 = JBCheckBox("W302: catch without result variable")
     private val diagW303 = JBCheckBox("W303: Regexp vulnerable to catastrophic backtracking (ReDoS)")
     private val diagW304 = JBCheckBox("W304: Missing option terminator -- on option-bearing commands")
+    private val diagW305 = JBCheckBox("W305: Bidirectional formatting control character in source...")
     private val diagW306 = JBCheckBox("W306: Substitution in literal-expected argument position")
     private val diagW307 = JBCheckBox("W307: Non-literal command name")
     private val diagW309 = JBCheckBox("W309: eval/uplevel with subst")
@@ -374,14 +377,14 @@ class TclLspSettingsPanel {
         val diagWarnPanel = JPanel(java.awt.GridLayout(0, 2, 8, 2))
         listOf(
             diagW001, diagW002, diagW003, diagW004, diagW100, diagW104,
-            diagW105, diagW106, diagW108, diagW110, diagW111, diagW112,
-            diagW113, diagW114, diagW115, diagW116, diagW117, diagW118,
-            diagW120, diagW121, diagW124, diagW125, diagW126, diagW127,
-            diagW128, diagW129, diagW135, diagW136, diagW137, diagW138,
-            diagW139, diagW140, diagW141, diagW142, diagW143, diagW144,
-            diagW145, diagW200, diagW201, diagW230, diagW231, diagW232,
-            diagW233, diagW240, diagW241, diagW250, diagW308, diagW314,
-            diagW315,
+            diagW105, diagW106, diagW107, diagW108, diagW109, diagW110,
+            diagW111, diagW112, diagW113, diagW114, diagW115, diagW116,
+            diagW117, diagW118, diagW120, diagW121, diagW124, diagW125,
+            diagW126, diagW127, diagW128, diagW129, diagW135, diagW136,
+            diagW137, diagW138, diagW139, diagW140, diagW141, diagW142,
+            diagW143, diagW144, diagW145, diagW200, diagW201, diagW230,
+            diagW231, diagW232, diagW233, diagW240, diagW241, diagW250,
+            diagW308, diagW314, diagW315,
         ).forEach { diagWarnPanel.add(it) }
         builder.addComponent(diagWarnPanel)
 
@@ -397,7 +400,8 @@ class TclLspSettingsPanel {
         val diagSecPanel = JPanel(java.awt.GridLayout(0, 2, 8, 2))
         listOf(
             diagW101, diagW102, diagW103, diagW300, diagW301, diagW302,
-            diagW303, diagW304, diagW306, diagW307, diagW309, diagW313,
+            diagW303, diagW304, diagW305, diagW306, diagW307, diagW309,
+            diagW313,
         ).forEach { diagSecPanel.add(it) }
         builder.addComponent(diagSecPanel)
 
@@ -563,7 +567,9 @@ class TclLspSettingsPanel {
             diagW104.isSelected != s.diagnosticW104 ||
             diagW105.isSelected != s.diagnosticW105 ||
             diagW106.isSelected != s.diagnosticW106 ||
+            diagW107.isSelected != s.diagnosticW107 ||
             diagW108.isSelected != s.diagnosticW108 ||
+            diagW109.isSelected != s.diagnosticW109 ||
             diagW110.isSelected != s.diagnosticW110 ||
             diagW111.isSelected != s.diagnosticW111 ||
             diagW112.isSelected != s.diagnosticW112 ||
@@ -622,6 +628,7 @@ class TclLspSettingsPanel {
             diagW302.isSelected != s.diagnosticW302 ||
             diagW303.isSelected != s.diagnosticW303 ||
             diagW304.isSelected != s.diagnosticW304 ||
+            diagW305.isSelected != s.diagnosticW305 ||
             diagW306.isSelected != s.diagnosticW306 ||
             diagW307.isSelected != s.diagnosticW307 ||
             diagW309.isSelected != s.diagnosticW309 ||
@@ -803,7 +810,9 @@ class TclLspSettingsPanel {
         s.diagnosticW104 = diagW104.isSelected
         s.diagnosticW105 = diagW105.isSelected
         s.diagnosticW106 = diagW106.isSelected
+        s.diagnosticW107 = diagW107.isSelected
         s.diagnosticW108 = diagW108.isSelected
+        s.diagnosticW109 = diagW109.isSelected
         s.diagnosticW110 = diagW110.isSelected
         s.diagnosticW111 = diagW111.isSelected
         s.diagnosticW112 = diagW112.isSelected
@@ -862,6 +871,7 @@ class TclLspSettingsPanel {
         s.diagnosticW302 = diagW302.isSelected
         s.diagnosticW303 = diagW303.isSelected
         s.diagnosticW304 = diagW304.isSelected
+        s.diagnosticW305 = diagW305.isSelected
         s.diagnosticW306 = diagW306.isSelected
         s.diagnosticW307 = diagW307.isSelected
         s.diagnosticW309 = diagW309.isSelected
@@ -1060,7 +1070,9 @@ class TclLspSettingsPanel {
         diagW104.isSelected = s.diagnosticW104
         diagW105.isSelected = s.diagnosticW105
         diagW106.isSelected = s.diagnosticW106
+        diagW107.isSelected = s.diagnosticW107
         diagW108.isSelected = s.diagnosticW108
+        diagW109.isSelected = s.diagnosticW109
         diagW110.isSelected = s.diagnosticW110
         diagW111.isSelected = s.diagnosticW111
         diagW112.isSelected = s.diagnosticW112
@@ -1119,6 +1131,7 @@ class TclLspSettingsPanel {
         diagW302.isSelected = s.diagnosticW302
         diagW303.isSelected = s.diagnosticW303
         diagW304.isSelected = s.diagnosticW304
+        diagW305.isSelected = s.diagnosticW305
         diagW306.isSelected = s.diagnosticW306
         diagW307.isSelected = s.diagnosticW307
         diagW309.isSelected = s.diagnosticW309

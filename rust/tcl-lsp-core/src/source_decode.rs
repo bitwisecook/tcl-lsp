@@ -228,27 +228,25 @@ const NUL_COUNT_FLOOR: usize = 8;
 #[must_use]
 pub fn decode_source(bytes: &[u8]) -> (String, DecodeReport) {
     let non_text = detect_non_text(bytes);
-    match core::str::from_utf8(bytes) {
-        Ok(text) => (
-            text.to_owned(),
+    let Ok(text) = core::str::from_utf8(bytes) else {
+        let (first_error, error_count) = scan_utf8_errors(bytes);
+        return (
+            String::from_utf8_lossy(bytes).into_owned(),
             DecodeReport {
-                first_error: None,
-                error_count: 0,
+                first_error,
+                error_count,
                 non_text,
             },
-        ),
-        Err(_) => {
-            let (first_error, error_count) = scan_utf8_errors(bytes);
-            (
-                String::from_utf8_lossy(bytes).into_owned(),
-                DecodeReport {
-                    first_error,
-                    error_count,
-                    non_text,
-                },
-            )
-        }
-    }
+        );
+    };
+    (
+        text.to_owned(),
+        DecodeReport {
+            first_error: None,
+            error_count: 0,
+            non_text,
+        },
+    )
 }
 
 /// Read a source file and decode it through [`decode_source`].
@@ -281,7 +279,10 @@ fn detect_non_text(bytes: &[u8]) -> Option<NonTextEncoding> {
     if bytes.starts_with(&[0xFF, 0xFE]) || bytes.starts_with(&[0xFE, 0xFF]) {
         return Some(NonTextEncoding::Utf16Bom);
     }
-    let nuls = bytes.iter().filter(|&&b| b == 0).count();
+    // A fold rather than `filter(..).count()`: the latter is the shape
+    // `clippy::naive_bytecount` flags, and its suggested fix is a new
+    // dependency this crate does not need for one count on a cold path.
+    let nuls = bytes.iter().fold(0usize, |n, &b| n + usize::from(b == 0));
     #[expect(
         clippy::cast_precision_loss,
         reason = "a ratio of two counts; f64 has 53 bits of mantissa, so the \

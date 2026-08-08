@@ -265,7 +265,9 @@ fn w108_leaves_comment_bidi_controls_to_w305() {
         "tcl8.6",
     );
     assert!(hits.is_empty(), "W305 owns the bidi set now: {hits:?}");
-    assert!(crate::analyser::confusables_table::is_bidi_control('\u{202e}'));
+    assert!(crate::analyser::confusables_table::is_bidi_control(
+        '\u{202e}'
+    ));
 }
 
 #[test]
@@ -306,7 +308,9 @@ fn w108_leaves_code_bidi_controls_to_w305() {
     assert!(hits.is_empty(), "W305 owns the bidi set now: {hits:?}");
     // ...and the neighbouring invisible characters that are *not* bidi
     // controls stay with W108, which is the boundary that matters.
-    assert!(!crate::analyser::confusables_table::is_bidi_control('\u{200b}'));
+    assert!(!crate::analyser::confusables_table::is_bidi_control(
+        '\u{200b}'
+    ));
     assert_eq!(
         w108_mode(
             "set x a\u{200b}b\n",
