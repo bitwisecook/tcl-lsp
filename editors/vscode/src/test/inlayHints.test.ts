@@ -18,7 +18,19 @@
 
 import * as assert from "assert";
 import * as vscode from "vscode";
-import { getDocUri, activate } from "./helper";
+import { getDocUri, activate, pollUntil } from "./helper";
+
+/** Raw `vscode.executeInlayHintProvider` pull, shared by every test below so
+ *  the polling loops that wait on it (via `pollUntil`) do not each redeclare
+ *  the same `executeCommand` call. */
+function inlayHintsOf(
+  uri: vscode.Uri,
+  range: vscode.Range,
+): Thenable<vscode.InlayHint[] | undefined> {
+  return vscode.commands.executeCommand("vscode.executeInlayHintProvider", uri, range) as Thenable<
+    vscode.InlayHint[] | undefined
+  >;
+}
 
 suite("Inlay Hints", () => {
   const docUri = getDocUri("simple.tcl");
@@ -57,22 +69,17 @@ suite("Inlay Hints", () => {
       });
       await vscode.window.showTextDocument(doc);
 
-      // Poll for the server to process the change (up to 10s).
+      // Poll for the server to process the change (up to 10s). Accept either
+      // `undefined` (server hasn't produced yet) or a valid array -- this
+      // wait only needs the provider to have settled *some* answer, not a
+      // non-empty one, so it stops the instant that happens rather than
+      // sleeping out the interval like the hand-rolled loop this replaced.
       const fullRange = new vscode.Range(new vscode.Position(0, 0), new vscode.Position(10, 0));
-      let hints: vscode.InlayHint[] | undefined;
-      const deadline = Date.now() + 10_000;
-      while (Date.now() < deadline) {
-        hints = (await vscode.commands.executeCommand(
-          "vscode.executeInlayHintProvider",
-          doc.uri,
-          fullRange,
-        )) as vscode.InlayHint[] | undefined;
-        // Accept either null (server hasn't produced yet) or a valid array.
-        if (hints !== undefined) {
-          break;
-        }
-        await new Promise((r) => setTimeout(r, 250));
-      }
+      const hints = await pollUntil(
+        () => inlayHintsOf(doc.uri, fullRange),
+        (r) => r !== undefined,
+        { timeout: 10_000, label: "inlay hints to settle with inlayTypeHints enabled" },
+      ).catch(() => undefined); // No signal ever settling is itself a valid (if unlikely) outcome here.
 
       // When enabled, the server may or may not produce inlay hints
       // depending on the analysis; just verify no error.
@@ -105,21 +112,11 @@ suite("Inlay Hints", () => {
       await vscode.window.showTextDocument(doc);
 
       const fullRange = new vscode.Range(new vscode.Position(0, 0), new vscode.Position(10, 0));
-      let hints: vscode.InlayHint[] | undefined;
-      const deadline = Date.now() + 10_000;
-      while (Date.now() < deadline) {
-        hints = (await vscode.commands.executeCommand(
-          "vscode.executeInlayHintProvider",
-          doc.uri,
-          fullRange,
-        )) as vscode.InlayHint[] | undefined;
-        if (hints && hints.length > 0) {
-          break;
-        }
-        await new Promise((r) => setTimeout(r, 250));
-      }
-
-      assert.ok(hints && hints.length > 0, "expected inlay hints with the feature enabled");
+      const hints = await pollUntil(
+        () => inlayHintsOf(doc.uri, fullRange),
+        (r): r is vscode.InlayHint[] => !!r && r.length > 0,
+        { timeout: 10_000, label: "inlay hints with inlayParameterHints enabled" },
+      );
 
       const labelText = (hint: vscode.InlayHint): string =>
         typeof hint.label === "string" ? hint.label : hint.label.map((p) => p.value).join("");
@@ -179,34 +176,26 @@ suite("Inlay Hints", () => {
       });
       await vscode.window.showTextDocument(doc);
 
+      // Wait for the *steady state* after both config changes propagate to the
+      // server: the parameter hint present AND the type hint gone. Resolving
+      // the moment a parameter hint appears would race the
+      // `inlayTypeHints=false` change — a previous test may have left type
+      // hints on, and they linger until the config update lands.
       const fullRange = new vscode.Range(new vscode.Position(0, 0), new vscode.Position(10, 0));
-      let hints: vscode.InlayHint[] | undefined;
-      const deadline = Date.now() + 10_000;
-      while (Date.now() < deadline) {
-        hints = (await vscode.commands.executeCommand(
-          "vscode.executeInlayHintProvider",
-          doc.uri,
-          fullRange,
-        )) as vscode.InlayHint[] | undefined;
-        // Wait for the *steady state* after both config changes propagate to
-        // the server: the parameter hint present AND the type hint gone.
-        // Breaking the moment a parameter hint appears would race the
-        // `inlayTypeHints=false` change — a previous test may have left type
-        // hints on, and they linger until the config update lands.
-        const hasParam = hints?.some((h) => h.kind === vscode.InlayHintKind.Parameter) ?? false;
-        const hasType = hints?.some((h) => h.kind === vscode.InlayHintKind.Type) ?? false;
-        if (hasParam && !hasType) {
-          break;
-        }
-        await new Promise((r) => setTimeout(r, 250));
-      }
+      const hints = await pollUntil(
+        () => inlayHintsOf(doc.uri, fullRange),
+        (r): r is vscode.InlayHint[] =>
+          (r?.some((h) => h.kind === vscode.InlayHintKind.Parameter) ?? false) &&
+          !(r?.some((h) => h.kind === vscode.InlayHintKind.Type) ?? false),
+        { timeout: 10_000, label: "inlay hints to settle with only inlayParameterHints enabled" },
+      );
 
       assert.ok(
-        hints && hints.some((h) => h.kind === vscode.InlayHintKind.Parameter),
+        hints.some((h) => h.kind === vscode.InlayHintKind.Parameter),
         "expected a parameter-kind hint with inlayParameterHints enabled",
       );
       assert.ok(
-        !hints!.some((h) => h.kind === vscode.InlayHintKind.Type),
+        !hints.some((h) => h.kind === vscode.InlayHintKind.Type),
         "type hints must stay off when only inlayParameterHints is enabled",
       );
     } finally {
@@ -233,33 +222,25 @@ suite("Inlay Hints", () => {
       });
       await vscode.window.showTextDocument(doc);
 
+      // Wait for the *steady state*: the type hint present AND parameter
+      // labels gone. Resolving the moment a type hint appears would race the
+      // `inlayParameterHints=false` change — a previous test may have left
+      // parameter labels on until the config update propagates.
       const fullRange = new vscode.Range(new vscode.Position(0, 0), new vscode.Position(10, 0));
-      let hints: vscode.InlayHint[] | undefined;
-      const deadline = Date.now() + 10_000;
-      while (Date.now() < deadline) {
-        hints = (await vscode.commands.executeCommand(
-          "vscode.executeInlayHintProvider",
-          doc.uri,
-          fullRange,
-        )) as vscode.InlayHint[] | undefined;
-        // Wait for the *steady state*: the type hint present AND parameter
-        // labels gone.  Breaking the moment a type hint appears would race
-        // the `inlayParameterHints=false` change — a previous test may have
-        // left parameter labels on until the config update propagates.
-        const hasType = hints?.some((h) => h.kind === vscode.InlayHintKind.Type) ?? false;
-        const hasParam = hints?.some((h) => h.kind === vscode.InlayHintKind.Parameter) ?? false;
-        if (hasType && !hasParam) {
-          break;
-        }
-        await new Promise((r) => setTimeout(r, 250));
-      }
+      const hints = await pollUntil(
+        () => inlayHintsOf(doc.uri, fullRange),
+        (r): r is vscode.InlayHint[] =>
+          (r?.some((h) => h.kind === vscode.InlayHintKind.Type) ?? false) &&
+          !(r?.some((h) => h.kind === vscode.InlayHintKind.Parameter) ?? false),
+        { timeout: 10_000, label: "inlay hints to settle with only inlayTypeHints enabled" },
+      );
 
       assert.ok(
-        hints && hints.some((h) => h.kind === vscode.InlayHintKind.Type),
+        hints.some((h) => h.kind === vscode.InlayHintKind.Type),
         "expected a type-kind hint with inlayTypeHints enabled",
       );
       assert.ok(
-        !hints!.some((h) => h.kind === vscode.InlayHintKind.Parameter),
+        !hints.some((h) => h.kind === vscode.InlayHintKind.Parameter),
         "parameter labels must stay off when only inlayTypeHints is enabled",
       );
     } finally {

@@ -258,7 +258,18 @@ suite("Configuration Settings", () => {
       // data" from "the folding UI is off for this editor". The raw request
       // is what the LSP client's registered FoldingRangeProvider (and, in
       // turn, sticky scroll) actually sees.
-      const after = await foldingRangeViaLsp(docUri);
+      //
+      // Bounded wait, not a single sample (issue #1295's shape): the toggle
+      // barrier above only proves the server's effective config round-tripped
+      // back to true, not that a request issued right now sees it. This test
+      // expects the *same* answer as the baseline, so in the common case the
+      // wait resolves on its first poll; it only matters if there is ever a
+      // transient dip immediately after the editor.folding change propagates.
+      const after = await pollUntil(
+        () => foldingRangeViaLsp(docUri),
+        (r) => Array.isArray(r) && r.length > 0,
+        { timeout: 10_000, label: "folding after editor.folding=false (issue #1122)" },
+      );
       assert.ok(
         Array.isArray(after) && after.length > 0,
         `LSP folding provider should stay enabled when editor.folding=false (issue #1122), got ${JSON.stringify(after)}`,
@@ -807,39 +818,65 @@ suite("Configuration Settings", () => {
     }
   });
 
-  test("disabling features.documentSymbols reduces symbol detail", async () => {
+  const documentSymbolsOf = async (
+    docUri: vscode.Uri,
+  ): Promise<vscode.DocumentSymbol[] | undefined> =>
+    (await vscode.commands.executeCommand("vscode.executeDocumentSymbolProvider", docUri)) as
+      vscode.DocumentSymbol[] | undefined;
+
+  test("disabling features.documentSymbols removes LSP document symbols", async () => {
     const docUri = getDocUri("procs.tcl");
     await activate(docUri);
 
-    // Baseline: our LSP provides rich proc symbols with children/detail
-    const before = (await pollUntil(
-      () => vscode.commands.executeCommand("vscode.executeDocumentSymbolProvider", docUri),
-      (r) => Array.isArray(r) && (r as vscode.DocumentSymbol[]).some((s) => s.name === "fib"),
+    // Baseline: our LSP provides a 'fib' symbol by default. `fib`'s body has
+    // no nested proc/class/tcltest construct, so its `children` array is
+    // legitimately empty even when our provider is fully active -- proc
+    // parameters live in `.detail`, not `.children` (see `proc_symbol` in
+    // `rust/tcl-lsp-core/src/document_symbols.rs`). A previous version of
+    // this test asserted on `.children` richness instead of presence, which
+    // was wrong about what the provider actually returns; wrapped in a
+    // guard that only ran the "after" assertion when that (near-always
+    // false) premise held, the bug was invisible because the test never
+    // actually asserted anything.
+    const before = await pollUntil(
+      () => documentSymbolsOf(docUri),
+      (r): r is vscode.DocumentSymbol[] => Array.isArray(r) && r.some((s) => s.name === "fib"),
       { timeout: 10_000, label: "document symbols before disable (feature)" },
-    )) as vscode.DocumentSymbol[];
-    const fibBefore = before.find((s) => s.name === "fib");
-    assert.ok(fibBefore, "LSP should provide 'fib' symbol by default");
-    // Our LSP symbols have children (proc parameters, body elements)
-    const richBefore = fibBefore.children && fibBefore.children.length > 0;
+    );
+    assert.ok(
+      before.some((s) => s.name === "fib"),
+      "LSP should provide a 'fib' symbol by default",
+    );
 
     const config = vscode.workspace.getConfiguration("tclLsp.features");
     try {
       await config.update("documentSymbols", false, undefined);
       await waitForFeatureToggle(docUri, "documentSymbols", false);
 
-      const after = (await vscode.commands.executeCommand(
-        "vscode.executeDocumentSymbolProvider",
+      // Wait on the *result*, not on a single sample of it (issue #1295):
+      // the toggle barrier above only proves the server's effective config
+      // moved, not that a request issued now is answered under the new
+      // config. The server's `document_symbol` handler returns `None` when
+      // the feature is off (`rust/tcl-lsp-server/src/lib.rs`) and there is
+      // no other outline provider registered for Tcl, so the answer should
+      // become empty entirely -- and because the wait rejects rather than
+      // resolving, a feature that genuinely never stops answering fails
+      // here loudly and deterministically instead of an assertion that
+      // silently never runs.
+      const after = await waitForProviderResult(
         docUri,
-      )) as vscode.DocumentSymbol[];
-      if (richBefore && after && after.length > 0) {
-        // When our provider is disabled, VS Code's built-in may still
-        // find symbols but without the rich children our LSP provides.
-        const fibAfter = after.find((s) => s.name === "fib");
-        if (fibAfter) {
-          const richAfter = fibAfter.children && fibAfter.children.length > 0;
-          assert.ok(!richAfter, "LSP 'fib' symbol should lose children when provider disabled");
-        }
-      }
+        () => documentSymbolsOf(docUri),
+        (r) => !r || r.length === 0,
+        {
+          timeout: 10_000,
+          label: "document symbols to disappear after disabling the feature",
+          describe: (r) => (r === undefined ? "<undefined>" : `${r.length} symbol(s)`),
+        },
+      );
+      assert.ok(
+        !after || after.length === 0,
+        `Document symbols should be suppressed when disabled, got ${after?.length ?? 0}`,
+      );
     } finally {
       await config.update("documentSymbols", undefined, undefined);
       await waitForFeatureToggle(docUri, "documentSymbols", true);
