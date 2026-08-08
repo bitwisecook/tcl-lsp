@@ -1968,9 +1968,11 @@ fn scan_my_method_region(
         }) {
             let switch_arg_tokens: Vec<tcl_lexer::Token> =
                 cmd.argv.iter().skip(1).copied().collect();
-            for (_, body_tok) in
-                tcl_compiler::analyser::commands::switch_arm_bodies(cmd.args(), &switch_arg_tokens)
-            {
+            for (_, body_tok) in tcl_compiler::analyser::commands::switch_arm_bodies(
+                source,
+                cmd.args(),
+                &switch_arg_tokens,
+            ) {
                 scan_my_method_body(ctx, body_tok.span, sink);
             }
         }
@@ -3343,7 +3345,7 @@ fn case_list_clause_body_regions(
     let (Some(text), Some(tok)) = (cmd.texts.get(i + 1), cmd.argv.get(i + 1).copied()) else {
         return Some(Vec::new());
     };
-    let elements = tcl_compiler::segmenter::flatten_clause_list_elements(text, tok);
+    let elements = tcl_compiler::segmenter::flatten_clause_list_elements(source, text, tok);
     let mut out = Vec::new();
     let mut j = 0;
     while j + 1 < elements.len() {

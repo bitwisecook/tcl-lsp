@@ -149,6 +149,13 @@ impl Analyser {
         // therefore yields the inner command directly.
         let src_start = insert_off as usize;
         let bracket_char_offset = bracket_off as usize;
+        // Computed before the first splice so an unusable span leaves `cmd`
+        // untouched rather than half-rewritten.
+        let Some(inner) = Analyser::source_slice(&self.source, src_start, bracket_char_offset)
+        else {
+            return;
+        };
+        let virtual_text = format!("[{inner}]");
         let virtual_span = Span::new(insert_off, bracket_off);
         let virtual_cmd = Token::with_content_offset(TokenType::Cmd, virtual_span, 0);
 
@@ -157,7 +164,6 @@ impl Analyser {
             .splice(cmd_start_all_idx..=bracket_tok_idx, [virtual_cmd]);
 
         // Splice argv / texts / single_token_word.
-        let virtual_text = format!("[{}]", &self.source[src_start..bracket_char_offset]);
         cmd.argv
             .splice(cmd_start_argv_idx..=bracket_argv_idx, [virtual_cmd]);
         cmd.texts
@@ -424,10 +430,9 @@ impl Analyser {
         // content.
         let start = body_tok.span.start() as usize + body_tok.content_offset as usize;
         let end = body_tok.span.end() as usize;
-        if start >= end || end > self.source.len() {
+        let Some(text) = Analyser::source_slice(&self.source, start, end).map(str::to_owned) else {
             return false;
-        }
-        let text = self.source[start..end].to_string();
+        };
         if text.is_empty() {
             return false;
         }

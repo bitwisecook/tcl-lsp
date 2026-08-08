@@ -99,7 +99,9 @@ impl Analyser {
         if start >= end {
             return false;
         }
-        let mut bt = self.source[start..end].trim();
+        let Some(mut bt) = Analyser::source_slice(&self.source, start, end).map(str::trim) else {
+            return false;
+        };
         // Strip one layer of surrounding braces.
         if let Some(inner) = bt.strip_prefix('{') {
             bt = inner.trim_end();

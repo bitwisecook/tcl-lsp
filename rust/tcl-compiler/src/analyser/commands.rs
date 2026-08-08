@@ -202,6 +202,15 @@ impl Analyser {
             return;
         }
         let base_offset = body_tok.span.start() + u32::from(body_tok.content_offset);
+        // The rebase below only produces truthful absolute spans while
+        // `body_text` maps 1:1 onto its source region; clamp it to the part
+        // that actually does (issue #1325).
+        let body_text = crate::segmenter::body_text_in_region(
+            &self.source,
+            base_offset as usize,
+            body_tok.span.end() as usize,
+            body_text,
+        );
         // Absolute byte offset at which this body region ends. The E202 /
         // E203 detectors test "reaches end of region" against this, not the
         // whole document — the body's tokens are absolute spans into
@@ -2717,7 +2726,12 @@ impl Analyser {
                 // scan.  Clone the slice into an owned ``String`` so the
                 // helper can take ``&mut self`` without conflicting with the
                 // source borrow.
-                let arg_src = self.source[arg_start as usize..arg_end].to_string();
+                let Some(arg_src) =
+                    Analyser::source_slice(&self.source, arg_start as usize, arg_end)
+                        .map(str::to_owned)
+                else {
+                    continue;
+                };
                 self.record_invocations_from_word_token(*arg_tok, &arg_src, arg_start, scope_path);
             }
         }
@@ -2883,7 +2897,9 @@ impl Analyser {
                     // skipped; braced *expr* args are covered by
                     // `run_nested_expr_diagnostics`.
                     TokenType::Esc => {
-                        let arg_src = &self.source[start..end];
+                        let Some(arg_src) = Analyser::source_slice(&self.source, start, end) else {
+                            continue;
+                        };
                         if !arg_src.contains('[') {
                             continue;
                         }
@@ -3185,25 +3201,27 @@ impl Analyser {
     fn cmd_fragments(&self, arg_tok: Token, config: LexerConfig) -> Vec<Token> {
         let start = arg_tok.span.start() as usize;
         let end = arg_tok.span.end() as usize;
-        if start >= self.source.len() || end > self.source.len() || start >= end {
+        if start >= end {
             return vec![arg_tok];
         }
+        let Some(word_src) = Analyser::source_slice(&self.source, start, end) else {
+            return vec![arg_tok];
+        };
         let base = arg_tok.span.start();
-        let frags: Vec<Token> =
-            Lexer::with_source_map(SourceMap::new(&self.source[start..end]), config)
-                .tokenise_all()
-                .map(|toks| {
-                    toks.into_iter()
-                        .filter(|t| t.kind == TokenType::Cmd)
-                        .map(|t| Token {
-                            kind: t.kind,
-                            span: Span::new(t.span.start() + base, t.span.end() + base),
-                            content_offset: t.content_offset,
-                            in_quote: t.in_quote,
-                        })
-                        .collect()
-                })
-                .unwrap_or_default();
+        let frags: Vec<Token> = Lexer::with_source_map(SourceMap::new(word_src), config)
+            .tokenise_all()
+            .map(|toks| {
+                toks.into_iter()
+                    .filter(|t| t.kind == TokenType::Cmd)
+                    .map(|t| Token {
+                        kind: t.kind,
+                        span: Span::new(t.span.start() + base, t.span.end() + base),
+                        content_offset: t.content_offset,
+                        in_quote: t.in_quote,
+                    })
+                    .collect()
+            })
+            .unwrap_or_default();
         if frags.is_empty() {
             vec![arg_tok]
         } else {
@@ -3259,10 +3277,9 @@ impl Analyser {
     ) -> Vec<(String, Span, usize)> {
         let content_start = expr_tok.span.start() + u32::from(expr_tok.content_offset);
         let (start, end) = (content_start as usize, expr_tok.span.end() as usize);
-        if start > end || end > self.source.len() {
+        let Some(expr_text) = Analyser::source_slice(&self.source, start, end) else {
             return Vec::new();
-        }
-        let expr_text = &self.source[start..end];
+        };
         let trimmed = expr_text.trim();
         if trimmed.is_empty() {
             return Vec::new();
@@ -4220,8 +4237,11 @@ fn record_command_invocations(
         };
         for body in bodies {
             if switch_list_idx == Some(body.index) {
-                let elements =
-                    crate::segmenter::flatten_clause_list_elements(&body.text, body.token);
+                let elements = crate::segmenter::flatten_clause_list_elements(
+                    sm.source(),
+                    &body.text,
+                    body.token,
+                );
                 // Elements alternate pattern, body, pattern, body, … —
                 // descend the (odd-indexed) arm bodies only; a `-`
                 // fall-through has no body of its own.
@@ -4439,7 +4459,11 @@ fn switch_list_body_index(args: &[&str]) -> Option<usize> {
 /// { my AddBarSeries {*}$args } ... }` — mines exactly this shape from
 /// nico-robert/ticklecharts).
 #[must_use]
-pub fn switch_arm_bodies(args: &[String], arg_tokens: &[Token]) -> Vec<(String, Token)> {
+pub fn switch_arm_bodies(
+    source: &str,
+    args: &[String],
+    arg_tokens: &[Token],
+) -> Vec<(String, Token)> {
     let mut out = Vec::new();
     if args.len() < 2 {
         return out;
@@ -4461,7 +4485,7 @@ pub fn switch_arm_bodies(args: &[String], arg_tokens: &[Token]) -> Vec<(String, 
         let Some(body_tok) = arg_tokens.get(i).copied() else {
             return out;
         };
-        let elements = crate::segmenter::flatten_clause_list_elements(&args[i], body_tok);
+        let elements = crate::segmenter::flatten_clause_list_elements(source, &args[i], body_tok);
         let mut j = 1;
         while j < elements.len() {
             let (body_text, body_tok) = &elements[j];
@@ -5153,7 +5177,7 @@ mod tests {
             esc_tok(span(24, 25)),
             str_tok(span(27, 36)),
         ];
-        let bodies = switch_arm_bodies(&args, &arg_tokens);
+        let bodies = switch_arm_bodies("switch $x a {set y 1} b {set z 2}", &args, &arg_tokens);
         let texts: Vec<&str> = bodies.iter().map(|(t, _)| t.as_str()).collect();
         assert_eq!(texts, vec!["set y 1", "set z 2"]);
     }
@@ -5163,10 +5187,11 @@ mod tests {
         // Form 2: `switch $x { a {set y 1} b {set z 2} }` — the same
         // shape `handle_switch_form2_braced_body_walks_each_arm`
         // (handlers.rs) proves gets walked.
+        let source = "switch $x { a {set y 1} b {set z 2} }";
         let body_text = " a {set y 1} b {set z 2} ".to_string();
         let args = vec!["$x".to_string(), body_text];
         let arg_tokens = vec![esc_tok(span(7, 9)), str_tok(span(10, 37))];
-        let bodies = switch_arm_bodies(&args, &arg_tokens);
+        let bodies = switch_arm_bodies(source, &args, &arg_tokens);
         let texts: Vec<&str> = bodies.iter().map(|(t, _)| t.as_str()).collect();
         assert_eq!(texts, vec!["set y 1", "set z 2"]);
     }
@@ -5190,15 +5215,15 @@ mod tests {
             esc_tok(span(14, 15)),
             str_tok(span(17, 26)),
         ];
-        let bodies = switch_arm_bodies(&args, &arg_tokens);
+        let bodies = switch_arm_bodies("switch $x a - b {set y 1}", &args, &arg_tokens);
         let texts: Vec<&str> = bodies.iter().map(|(t, _)| t.as_str()).collect();
         assert_eq!(texts, vec!["set y 1"]);
     }
 
     #[test]
     fn switch_arm_bodies_too_few_args_is_empty() {
-        assert!(switch_arm_bodies(&["$x".to_string()], &[]).is_empty());
-        assert!(switch_arm_bodies(&[], &[]).is_empty());
+        assert!(switch_arm_bodies("switch $x", &["$x".to_string()], &[]).is_empty());
+        assert!(switch_arm_bodies("", &[], &[]).is_empty());
     }
 
     #[test]

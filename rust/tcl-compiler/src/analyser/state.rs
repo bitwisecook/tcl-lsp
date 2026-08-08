@@ -1114,6 +1114,41 @@ impl Analyser {
         }
     }
 
+    /// [`Self::source`] sliced by absolute byte offsets, or `None` when the
+    /// range is inverted, out of bounds, **or lands inside a multi-byte UTF-8
+    /// sequence**.
+    ///
+    /// The one sanctioned way for a handler to turn a token span back into
+    /// source text.  A bare `&self.source[start..end]` panics on a span whose
+    /// end is not a `char` boundary, which is reachable from real-world input:
+    /// a body word of the shape `{…}x` (Tcl's "extra characters after
+    /// close-brace", which this analyser accepts leniently) has its closing
+    /// `}` dropped from the segmenter's word *value*, so rebasing that value
+    /// by a single offset shifts every token after the brace one byte left —
+    /// harmless-looking on ASCII, mid-character on anything else.  An iRule
+    /// carrying zero-width spaces (`U+200B`, the usual residue of a
+    /// copy-paste from a web page) hit exactly that and aborted `fp-sweep`
+    /// outright, while the LSP lost **every** diagnostic for the file and
+    /// showed it as clean (issue #1325).
+    ///
+    /// [`crate::analyser::utils::contiguous_prefix`] fixes that producer, but
+    /// spans reach these slices from the lexer, the segmenter, the CST, and
+    /// the analyser's own arithmetic, so the consumer stays defensive: a span
+    /// this rejects means "no text here", never an abort.
+    ///
+    /// A free function taking `source` explicitly, **not** a `&self` method,
+    /// for the same reason as [`Self::source_map`]: a method call borrows all
+    /// of `self`, which would tie up `self.result` for the returned slice's
+    /// lifetime and break every call site that slices and then pushes a
+    /// diagnostic in the same scope.
+    pub(in crate::analyser) fn source_slice(
+        source: &str,
+        start: usize,
+        end: usize,
+    ) -> Option<&str> {
+        source.get(start..end)
+    }
+
     /// The active dialect's canonical name — the string that round-trips
     /// through configuration and the providers (`self.profile.name`).
     #[must_use]

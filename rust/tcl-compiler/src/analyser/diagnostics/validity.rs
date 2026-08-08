@@ -2713,18 +2713,25 @@ impl Analyser {
         // (Body-local: the fix text is the argument's own source slice, so it is
         // computable in an isolated body and rebased by the graft.)
         let (fix_span, diag_end) = self.compute_w304_fix_span(tok);
-        let fix_text = format!(
-            "-- {}",
-            &self.source[fix_span.start() as usize..fix_span.end() as usize]
-        );
-        let fixes = vec![super::types::CodeFix {
-            span: fix_span,
-            new_text: fix_text,
-            description: "Insert '--' option terminator".to_string(),
-            // W304: `--` stops the following word being read as an option,
-            // which is the whole point — a call that meant it as one changes.
-            safety: crate::irules_checks::FixSafety::BehaviourHardening,
-        }];
+        // The *fix* needs the argument's own source text; the *warning* does
+        // not.  A span that cannot be sliced costs the fix, never the finding.
+        let fixes = Analyser::source_slice(
+            &self.source,
+            fix_span.start() as usize,
+            fix_span.end() as usize,
+        )
+        .map(|fix_src| {
+            vec![super::types::CodeFix {
+                span: fix_span,
+                new_text: format!("-- {fix_src}"),
+                description: "Insert '--' option terminator".to_string(),
+                // W304: `--` stops the following word being read as an
+                // option, which is the whole point — a call that meant it
+                // as one changes.
+                safety: crate::irules_checks::FixSafety::BehaviourHardening,
+            }]
+        })
+        .unwrap_or_default();
         let diag_span = tcl_lexer::Span::new(tok.span.start(), diag_end);
         // Suppress unused-warning on the rare path where `cmd_tok`
         // isn't needed (the diagnostic anchors at the positional
@@ -2811,15 +2818,23 @@ impl Analyser {
         let diag_span = tcl_lexer::Span::new(first.span.start(), last.span.end());
         // Fix: prepend `--` to the first option word so every following word —
         // including a `-`-named variable — is unset as a variable name.
-        let slice = &self.source[first.span.start() as usize..first.span.end() as usize];
-        let fixes = vec![super::types::CodeFix {
-            span: first.span,
-            new_text: format!("-- {slice}"),
-            description: "Insert '--' so the following words are variable names".to_string(),
-            // W217: as W304 — `--` re-reads the following words as variable
-            // names rather than options.
-            safety: crate::irules_checks::FixSafety::BehaviourHardening,
-        }];
+        // As W304 above: an unusable span costs the fix, not the warning.
+        let fixes = Analyser::source_slice(
+            &self.source,
+            first.span.start() as usize,
+            first.span.end() as usize,
+        )
+        .map(|slice| {
+            vec![super::types::CodeFix {
+                span: first.span,
+                new_text: format!("-- {slice}"),
+                description: "Insert '--' so the following words are variable names".to_string(),
+                // W217: as W304 — `--` re-reads the following words as
+                // variable names rather than options.
+                safety: crate::irules_checks::FixSafety::BehaviourHardening,
+            }]
+        })
+        .unwrap_or_default();
         self.result.diagnostics.push(super::types::Diagnostic {
             code: DiagCode::W217,
             span: diag_span,
@@ -3181,17 +3196,16 @@ options. To unset a variable whose name begins with `-`, put `--` before it \
         let word_end = |t: &tcl_lexer::Token| {
             crate::optimiser::helpers::spans::full_rewrite_span(&self.source, t.span).end()
         };
+        // One unusable span drops the whole rewrite: a fix assembled from a
+        // partial argument list would corrupt the command.
         let raw = |t: &tcl_lexer::Token| {
-            self.source[t.span.start() as usize..word_end(t) as usize].to_string()
+            Analyser::source_slice(&self.source, t.span.start() as usize, word_end(t) as usize)
+                .map(str::to_owned)
         };
-        let new_text = match arg_tokens {
-            [item, cls] => Some(format!("class match {} equals {}", raw(item), raw(cls))),
-            [item, operator, cls] => Some(format!(
-                "class match {} {} {}",
-                raw(item),
-                raw(operator),
-                raw(cls)
-            )),
+        let raws: Option<Vec<String>> = arg_tokens.iter().map(raw).collect();
+        let new_text = match raws.as_deref() {
+            Some([item, cls]) => Some(format!("class match {item} equals {cls}")),
+            Some([item, operator, cls]) => Some(format!("class match {item} {operator} {cls}")),
             _ => None,
         };
         let fixes = new_text
@@ -3643,10 +3657,9 @@ in the active dialect ({}).",
     ) {
         let start = content_span.start() as usize;
         let end = content_span.end() as usize;
-        if start > end || end > self.source.len() {
+        let Some(expr_text) = Analyser::source_slice(&self.source, start, end) else {
             return;
-        }
-        let expr_text = &self.source[start..end];
+        };
         // Quick lexical bail-out — the gated operators are short
         // word-shaped keywords; if none appear as a whole word we
         // can skip the parse.  Boundary check uses ASCII identifier

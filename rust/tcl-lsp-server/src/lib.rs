@@ -1391,6 +1391,37 @@ struct SalsaAnalysisCtx<'a> {
     dialect: &'a str,
 }
 
+/// Report an analysis-worker panic to **both** the server log and the editor.
+///
+/// A panic in the analysis pipeline costs the document every diagnostic it
+/// would have had, and the document is then presented as clean.  Silence there
+/// is the worst possible failure mode: a reviewer reads "no findings" as "no
+/// problems" — issue #1325's zero-width-space iRule lost a `WARNING IRULE3102`
+/// URL-evasion finding exactly this way, with nothing shown anywhere the user
+/// could see.  `eprintln!` alone reaches only the server's stderr, which no
+/// editor surfaces.
+///
+/// `window/logMessage` at `ERROR` puts it in the language-server output channel
+/// every LSP client exposes, which is what
+/// [`publish_diagnostics_result`] already does for a *lift*-worker panic; this
+/// makes the analysis worker say the same thing rather than fail quietly.
+async fn report_analysis_worker_panic(
+    client: &Client,
+    uri: &Uri,
+    stage: &str,
+    err: &tokio::task::JoinError,
+) {
+    let message = format!(
+        "tcl-lsp: the {stage} diagnostics worker panicked analysing {} (is_panic={}). \
+         No diagnostics are published for this document — it is NOT known to be clean. \
+         Please report this with the file that triggered it.",
+        uri.as_str(),
+        err.is_panic(),
+    );
+    eprintln!("{message}");
+    client.log_message(MessageType::ERROR, message).await;
+}
+
 /// Base analysis: the cancellable salsa `file_analysis_incremental` query
 /// (slice 5), off the LSP event loop — the whole-file per-item walk that
 /// dominates the deep pass and feeds *both* the workspace-independent fast tier
@@ -1405,6 +1436,7 @@ struct SalsaAnalysisCtx<'a> {
 /// latest state), `Break(true)` on a deterministic worker panic (settle rather
 /// than livelock the debounce loop).
 async fn compute_base_analysis(
+    client: &Client,
     ctx: &SalsaAnalysisCtx<'_>,
     disabled: &HashSet<String>,
     extra_commands: &HashSet<String>,
@@ -1446,12 +1478,7 @@ async fn compute_base_analysis(
         {
             Ok(analysis) => ControlFlow::Continue(Arc::new(analysis)),
             Err(e) => {
-                eprintln!(
-                    "tcl-lsp: recovery-path diagnostics worker panicked for {} (is_panic={}); \
-                     skipping this document's diagnostics to avoid a retry livelock",
-                    uri.as_str(),
-                    e.is_panic(),
-                );
+                report_analysis_worker_panic(client, uri, "recovery-path", &e).await;
                 ControlFlow::Break(true)
             }
         };
@@ -1482,12 +1509,7 @@ async fn compute_base_analysis(
             // re-marking the slot dirty; the document keeps its prior
             // diagnostics rather than spinning the CPU.
             Err(e) => {
-                eprintln!(
-                    "tcl-lsp: diagnostics worker panicked for {} (is_panic={}); \
-                     skipping this document's diagnostics to avoid a retry livelock",
-                    uri.as_str(),
-                    e.is_panic(),
-                );
+                report_analysis_worker_panic(client, uri, "incremental", &e).await;
                 ControlFlow::Break(true)
             }
         }
@@ -2666,6 +2688,7 @@ async fn run_diagnostics_analyser_path(
         package_resolver: inputs.package_resolver,
     };
     let base = compute_base_analysis(
+        delivery.client,
         salsa_ctx,
         lift_inputs.disabled,
         inputs.extra_commands,

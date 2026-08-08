@@ -1949,8 +1949,11 @@ impl Analyser {
     ) -> Option<Vec<(Token, String)>> {
         let one_hop = |word_tok: Token| -> Option<(Token, String)> {
             if word_tok.kind != TokenType::Var {
-                let word_text =
-                    &self.source[word_tok.span.start() as usize..word_tok.span.end() as usize];
+                let word_text = Analyser::source_slice(
+                    &self.source,
+                    word_tok.span.start() as usize,
+                    word_tok.span.end() as usize,
+                )?;
                 return Some((word_tok, word_text.to_string()));
             }
             let sm = tcl_lexer::SourceMap::new(&self.source);
@@ -3994,7 +3997,8 @@ impl Analyser {
             let Some(body_tok) = arg_tokens.get(i).copied() else {
                 return true;
             };
-            let elements = crate::segmenter::flatten_clause_list_elements(&body_text, body_tok);
+            let elements =
+                crate::segmenter::flatten_clause_list_elements(&self.source, &body_text, body_tok);
             let mut j = 0;
             while j + 1 < elements.len() {
                 let (pat_text, pat_tok) = &elements[j];
