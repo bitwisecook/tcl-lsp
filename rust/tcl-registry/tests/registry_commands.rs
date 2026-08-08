@@ -2837,7 +2837,7 @@ fn bare_word_construction_is_declared_per_definer_family() {
 /// $obj varname v    -> unknown method "varname": must be destroy or probe
 /// ```
 ///
-/// That last pair is the guard for issue #1329: `my` bypasses TclOO's export
+/// That last pair is the guard for issue #1329: `my` bypasses `TclOO`'s export
 /// filter and the object's own command does not, so a consumer diagnosing an
 /// unknown method must ask with the right `MethodReach` or it will either
 /// false-positive on the idiomatic `my variable v` or wave through the real

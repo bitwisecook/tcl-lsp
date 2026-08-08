@@ -1357,53 +1357,68 @@ impl Analyser {
             tainted_by_scope: &tainted_by_scope,
         };
 
-        for site in &sites {
-            // **Self-dispatch path** (`my <method>` — issue #1329).  The
-            // receiver is the enclosing object, not a variable and not a
-            // resolvable command name, so W307's "non-literal command name"
-            // question never arises for it: this arm always consumes the
-            // site rather than falling through.
-            if site.receiver == crate::analyser::state::DispatchReceiver::SelfDispatch {
-                if let Some(diag) = self.w308_for_self_dispatch(site, hierarchy.as_ref()) {
-                    self.result.diagnostics.push(diag);
-                }
-                continue;
-            }
-
-            // **W308 path.**  Variable known to hold an Object — validate the
-            // method against the hierarchy and emit W308 when it isn't found.
-            // The W307 path never fires for a known-Object var, so `continue`.
-            //
-            let live_classes = self.live_classes_at_dispatch(&all_object_types, site);
-            if !live_classes.is_empty() {
-                if let Some(diag) = self.w308_for_object_var(
+        // Collected rather than pushed in the loop: `w307_ctx` borrows out of
+        // `self.result`, so the per-site decision has to run against `&self`.
+        let emitted: Vec<super::types::Diagnostic> = sites
+            .iter()
+            .filter_map(|site| {
+                self.diagnose_var_command_site(
                     site,
-                    &live_classes,
+                    &all_object_types,
                     hierarchy.as_ref(),
                     &objdefined_vars,
-                ) {
-                    self.result.diagnostics.push(diag);
-                }
-                continue;
-            }
-
-            // **W307 path.**  Variable not a known Object.
-            if !self.w307_site_suppressed(site, &w307_ctx) {
-                self.result.diagnostics.push(super::types::Diagnostic {
-                    code: DiagCode::W307,
-                    span: site.cmd_span,
-                    message: "Non-literal command name — cannot statically analyze".to_string(),
-                    severity: Severity::Warning,
-                    fixes: Vec::new(),
-                });
-            }
-        }
+                    &w307_ctx,
+                )
+            })
+            .collect();
+        self.result.diagnostics.extend(emitted);
         // Restore the sites list — snapshot/restore expects it
         // to round-trip independently of emission.
         self.var_command_sites = sites;
 
         // ``[cmd] method`` sites — W307/W308 on command-substitution heads.
         self.emit_cmd_command_diagnostics(registry, hierarchy.as_ref());
+    }
+
+    /// The diagnostic one recorded dispatch site draws, if any — the body of
+    /// [`Self::emit_var_command_diagnostics`]'s per-site loop, split out so
+    /// the three mutually exclusive paths a site can take are visible as
+    /// three arms rather than buried in a page of setup.
+    ///
+    /// Exactly one arm claims each site:
+    ///
+    /// * **self-dispatch** (`my <method>`, issue #1329) — the receiver is the
+    ///   enclosing object, so it is neither a variable nor a resolvable
+    ///   command name and W307's "non-literal command name" question never
+    ///   arises. This arm always consumes the site;
+    /// * **W308** — the receiver's class is known, so the method word is
+    ///   validated against the hierarchy;
+    /// * **W307** — no usable object type, and the head could not be proved
+    ///   to reach a finite set of known command names.
+    fn diagnose_var_command_site(
+        &self,
+        site: &crate::analyser::state::VarCommandSite,
+        all_object_types: &HashMap<String, HashSet<String>>,
+        hierarchy: Option<&super::class_hierarchy::ClassHierarchy>,
+        objdefined_vars: &HashSet<String>,
+        w307_ctx: &W307Ctx<'_>,
+    ) -> Option<super::types::Diagnostic> {
+        if site.receiver == crate::analyser::state::DispatchReceiver::SelfDispatch {
+            return self.w308_for_self_dispatch(site, hierarchy);
+        }
+
+        let live_classes = self.live_classes_at_dispatch(all_object_types, site);
+        if !live_classes.is_empty() {
+            return self.w308_for_object_var(site, &live_classes, hierarchy, objdefined_vars);
+        }
+
+        (!self.w307_site_suppressed(site, w307_ctx)).then(|| super::types::Diagnostic {
+            code: DiagCode::W307,
+            span: site.cmd_span,
+            message: "Non-literal command name — cannot statically analyze".to_string(),
+            severity: Severity::Warning,
+            fixes: Vec::new(),
+        })
     }
 
     /// Whether `site` is a `[cmd]::method` namespaced-ensemble dispatch
