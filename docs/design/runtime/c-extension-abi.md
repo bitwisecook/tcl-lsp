@@ -116,7 +116,8 @@ needs a Unicode-character view of that buffer regardless of which case it is;
 `runtime/rust/src/value_ops.rs`'s `bytes_to_str`/`str_to_bytes` are the seam
 that reconciles the two — see
 [the KCS note](../../kcs/kcs-issue-runtime-string-subcommands-corrupt-binary-values.md)
-for the escape convention and its one known trade-off (issue #1309).
+for the escape convention and its one known trade-off (issue #1347; the
+original lossy-`as_str` corruption was #1309, now fixed).
 
 ### 4.3 Calls: direct imports
 
