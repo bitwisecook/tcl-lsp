@@ -28,6 +28,9 @@
 
 use tcl_lsp_server::Backend;
 use tcl_lsp_server::stdio_pump;
+use tcl_lsp_server::transport_liveness::{
+    DEFAULT_HANDLER_CONCURRENCY, DeferredConcurrency, UNBOUNDED_TRANSPORT_CONCURRENCY,
+};
 use tcl_lsp_server::uri_norm::normalise_uris_in_params;
 use tower::ServiceExt as _;
 use tower_lsp_server::jsonrpc::{Request, Response};
@@ -172,7 +175,15 @@ async fn serve() {
     //      the send). Concurrent publishes would reorder, and a
     //      state-gated/disconnected drop would go unnoticed. Delivery MUST stay
     //      an inline `.await`.
-    Server::new(stdin, stdout, socket).serve(service).await;
+    // Keep stdin routing independent of handler progress. The transport's
+    // queue is always drained into pending futures, while the wrapper retains
+    // the original four-handler application concurrency for ordinary work.
+    // Exit and cancellation remain immediate transport controls.
+    let service = DeferredConcurrency::new(service, DEFAULT_HANDLER_CONCURRENCY);
+    Server::new(stdin, stdout, socket)
+        .concurrency_level(UNBOUNDED_TRANSPORT_CONCURRENCY)
+        .serve(service)
+        .await;
     // `serve` has returned, so the transport's `FramedWrite` — and with it the
     // pump's sender — has been dropped, which is what lets the drain task
     // finish. Awaiting it here is what stops a burst of diagnostics sitting in

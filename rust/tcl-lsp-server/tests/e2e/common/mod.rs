@@ -462,6 +462,10 @@ struct Shared {
     /// no entry falls back to `tcllsp_config`, so single-root tests are
     /// unaffected.
     folder_configs: Mutex<HashMap<String, Value>>,
+    /// Test-controlled delay before replying to `workspace/configuration`.
+    /// Zero in every ordinary test; the transport-liveness regression uses a
+    /// short delay to put four handlers in the reply-waiting state at once.
+    configuration_reply_delay: Mutex<Duration>,
     /// Captured stderr text.
     stderr: Mutex<String>,
 }
@@ -599,6 +603,7 @@ impl Lsp {
             requests_cv: Condvar::new(),
             tcllsp_config: Mutex::new(config),
             folder_configs: Mutex::new(HashMap::new()),
+            configuration_reply_delay: Mutex::new(Duration::ZERO),
             stderr: Mutex::new(String::new()),
         });
 
@@ -756,12 +761,26 @@ impl Lsp {
     /// refusal *as* an error (a `null` result would read as "nothing to
     /// rename here"), so its tests need the error itself.
     pub fn request_response(&mut self, method: &str, params: Value, timeout: Duration) -> Value {
+        let id = self.send_request_no_wait(method, params);
+        self.await_response(id, method, timeout)
+    }
+
+    /// Send a request without waiting for its response, returning its id.
+    ///
+    /// This models an editor's concurrent request burst. Most tests should use
+    /// [`Self::request`]; transport tests deliberately need more than the
+    /// server's internal queue in flight before they wait.
+    pub fn send_request_no_wait(&mut self, method: &str, params: Value) -> i64 {
         let id = self.next_id;
         self.next_id += 1;
         let mut msg = json!({ "jsonrpc": "2.0", "id": id, "method": method });
         msg["params"] = params;
         self.send(&msg);
+        id
+    }
 
+    /// Wait for a previously-sent request id.
+    pub fn await_response(&self, id: i64, method: &str, timeout: Duration) -> Value {
         let deadline = Instant::now() + scaled_timeout(timeout);
         loop {
             {
@@ -1357,9 +1376,10 @@ impl Lsp {
     ///
     /// So this converges the way the client contract says to, driven by the
     /// server's own settled marker rather than by sleeps: request, wait for the
-    /// convergence decision to be logged, and re-request when it says a refresh
-    /// was warranted (or when it says the enriched read was cancelled outright,
-    /// in which case nothing was compared and the next request re-races).
+    /// convergence decision to be logged, and re-request when it says a
+    /// refresh was warranted. A cancelled read or a repeat-suppressed refresh
+    /// also re-races: neither has served the enriched stream. Only a response
+    /// marked `served-enriched`, `compared-equal`, or `no-analysis` is final.
     /// Returns the last response, so a genuine content divergence is still
     /// reported by the caller's assertion rather than hanging here.
     pub fn semantic_tokens_settled(&mut self, uri: &str) -> Value {
@@ -1382,9 +1402,10 @@ impl Lsp {
             ) else {
                 return response;
             };
-            if settled.contains("refresh=true") {
-                // The refresh is already scheduled; wait for it so the
-                // re-request below sees the landed enriched stream.
+            if settled.contains("refresh=true") || settled.contains("outcome=coalesced") {
+                // A coalesced request's holder schedules the refresh when it
+                // releases its claim, so wait for that just as we do a refresh
+                // already recorded by this request's own continuation.
                 let remaining = deadline.saturating_duration_since(Instant::now());
                 if self
                     .try_await_server_request(
@@ -1396,13 +1417,19 @@ impl Lsp {
                 {
                     return response;
                 }
-            } else if !settled.contains("enriched=cancelled") {
-                // Settled with the enriched stream in hand (`landed`) or with
-                // no analysis to converge to (`no-analysis`): this response is
-                // final.
+            } else if settled.contains("outcome=served-enriched")
+                || settled.contains("outcome=compared-equal")
+                || settled.contains("outcome=no-analysis")
+            {
+                // These are the only outcomes whose response is known to be
+                // final. In particular, `refresh-suppressed` has a differing
+                // enriched stream, but the server deliberately will not emit a
+                // second workspace-wide refresh for those same bytes.
                 return response;
             }
-            // Otherwise the enriched read was cancelled — loop and re-race.
+            // A cancelled read, a repeat-suppressed refresh, or an unexpected
+            // marker has not established that this response is enriched. Loop
+            // and re-race under the existing overall deadline.
         }
     }
 
@@ -1552,6 +1579,11 @@ impl Lsp {
     /// actually makes.
     pub fn set_config(&mut self, config: Value) {
         *self.shared.tcllsp_config.lock().unwrap() = config;
+    }
+
+    /// Delay configuration replies for a transport-liveness scenario.
+    pub fn set_configuration_reply_delay(&self, delay: Duration) {
+        *self.shared.configuration_reply_delay.lock().unwrap() = delay;
     }
 
     pub fn apply_configuration(&mut self, config: Value) -> Value {
@@ -1738,6 +1770,10 @@ fn route(msg: &Value, shared: &Arc<Shared>) {
 fn auto_reply(msg: &Value, shared: &Arc<Shared>) {
     let method = msg.get("method").and_then(Value::as_str).unwrap_or("");
     let result = if method == "workspace/configuration" {
+        let delay = *shared.configuration_reply_delay.lock().unwrap();
+        if !delay.is_zero() {
+            std::thread::sleep(delay);
+        }
         let items = msg
             .get("params")
             .and_then(|p| p.get("items"))

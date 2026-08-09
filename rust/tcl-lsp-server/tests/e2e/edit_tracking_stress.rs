@@ -42,11 +42,11 @@
 //! insert/delete/replace/newline/astral edits is.
 
 use crate::common::helpers::*;
-use crate::common::{Lsp, Rng, scaled_timeout, unique_uri};
+use crate::common::{Lsp, Rng, unique_uri};
 
 use serde_json::{Value, json};
 use std::fmt::Write as _;
-use std::time::{Duration, Instant};
+use std::time::Duration;
 
 // --------------------------------------------------------------------------- #
 // Client-side text mirror (native port of tests/lsp_e2e/_textmirror.py).
@@ -350,8 +350,8 @@ fn assert_buffer_equiv(
         (edited_first, fresh_first)
     } else {
         (
-            settled_tokens(lsp, edited_uri),
-            settled_tokens(lsp, fresh_uri),
+            decode_semantic_tokens(&lsp.semantic_tokens_settled(edited_uri)),
+            decode_semantic_tokens(&lsp.semantic_tokens_settled(fresh_uri)),
         )
     };
     assert_eq!(
@@ -367,54 +367,6 @@ fn assert_buffer_equiv(
         edited_syms == fresh_syms,
         "document-symbol tree diverged (content or position drift)"
     );
-}
-
-/// Fetch `uri`'s semantic tokens, converging onto the settled *enriched* stream.
-///
-/// `semanticTokens/full` may serve the cheap coarse tier when the enriched
-/// (SSA/SCCP-informed) computation overruns its 40 ms fast-path budget, then
-/// fire `workspace/semanticTokens/refresh` once the enriched stream lands — and
-/// it fires that refresh *iff* the enriched stream differs from the one just
-/// served (`deliver_if_changed`). So a request that draws no follow-up refresh
-/// was already the enriched stream; one that does is re-pulled. Looping until a
-/// request draws no refresh converges on the enriched tier the way a conformant
-/// client (and the `semantic_tokens_reference_client` suite) does, whichever
-/// tier won the first race — the deterministic input an oracle comparison needs.
-///
-/// If the enriched stream is starved past the deadline the last response is
-/// returned unchanged, so a genuine divergence is reported by the caller's
-/// assertion rather than the test hanging.
-///
-/// The deadline is load-scaled for the same reason as
-/// `semantic_tokens_reference_client::converge_via_refresh` (review of #1089):
-/// the per-round `try_await_server_request` below multiplies its argument by
-/// `load_factor` internally, so an unscaled outer deadline would be
-/// inconsistent with the rounds it bounds — one legitimate round could exhaust
-/// it, and this loop's expiry is silent (it returns the coarse stream), turning
-/// a busy machine into a *content* assertion failure at the caller.
-fn settled_tokens(lsp: &mut Lsp, uri: &str) -> Vec<SemToken> {
-    let deadline = Instant::now() + scaled_timeout(Duration::from_secs(20));
-    loop {
-        let since = lsp.server_request_cursor();
-        let current = decode_semantic_tokens(&lsp.semantic_tokens(uri));
-        let remaining = deadline.saturating_duration_since(Instant::now());
-        if remaining.is_zero() {
-            return current;
-        }
-        // A follow-up refresh means the stream just served was the coarse tier
-        // and a better (enriched) one has landed — re-pull. No refresh within the
-        // grace means the served stream is already the enriched tier.
-        if lsp
-            .try_await_server_request(
-                "workspace/semanticTokens/refresh",
-                remaining.min(Duration::from_secs(2)),
-                since,
-            )
-            .is_none()
-        {
-            return current;
-        }
-    }
 }
 
 /// A comparable tuple form of a decoded semantic token.
