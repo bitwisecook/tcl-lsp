@@ -19,7 +19,7 @@
 import * as assert from "assert";
 import * as vscode from "vscode";
 import { LanguageClient, State } from "vscode-languageclient/node";
-import { activate, getDocUri, scaledTimeout } from "./helper";
+import { activate, bounded, getDocUri, scaledTimeout } from "./helper";
 
 interface TclLspApi {
   getClient(): LanguageClient;
@@ -79,5 +79,28 @@ suite("Server Health", () => {
     await activate(docUri);
     // activate() sends a hover request serialised behind didOpen.
     // Reaching here means the server processed both successfully.
+  });
+
+  test("server remains responsive past the transport queue size", async function () {
+    this.timeout(scaledTimeout(30_000));
+    const docUri = getDocUri("simple.tcl");
+    await activate(docUri);
+    const client = getApi().getClient();
+    // Negative control for the new admission wrapper: ordinary provider work
+    // still drains when the burst is larger than the transport's old queue.
+    // The Rust transport/E2E fixtures inject the delayed client reply which
+    // VS Code's built-in configuration handler does not expose here.
+    const requests = Array.from({ length: 240 }, () =>
+      client.sendRequest("textDocument/hover", {
+        textDocument: { uri: docUri.toString() },
+        position: { line: 0, character: 0 },
+      }),
+    );
+
+    const results = await bounded(Promise.all(requests), "240 concurrent hover responses", {
+      timeout: 10_000,
+    });
+    assert.strictEqual(results.length, 240);
+    assert.strictEqual(client.state, State.Running);
   });
 });

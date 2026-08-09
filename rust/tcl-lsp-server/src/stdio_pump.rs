@@ -50,6 +50,12 @@
 //! handlers fill `buffer_unordered(DEFAULT_MAX_CONCURRENCY)` and the pipeline
 //! seizes without the 100-slot queue ever filling.
 //!
+//! A distinct input-side cycle exists when handlers await server-to-client
+//! replies: their responses arrive on stdin, but the bounded handler queue can
+//! stop the sole stdin reader before it reaches them. The stdout pump cannot
+//! affect that path. [`crate::transport_liveness`] removes it by separating
+//! unbounded input admission from bounded application-handler polling.
+//!
 //! # Why unbounded is the right shape here
 //!
 //! Both paths reduce to one property: the server cannot make progress reading

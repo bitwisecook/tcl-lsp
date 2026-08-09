@@ -32,6 +32,7 @@
 
 pub mod config_ini;
 pub mod stdio_pump;
+pub mod transport_liveness;
 pub mod uri_norm;
 
 use std::collections::{HashMap, HashSet, VecDeque};
@@ -353,24 +354,12 @@ const DIAGNOSTICS_FAST_TIER_MIN_LINES: usize = 500;
 /// How long to wait for the editor to answer a *server-to-client* request
 /// before giving up on it.
 ///
-/// This is a liveness guard, and it is load-bearing rather than cosmetic.
-/// A handler parked on `client.configuration(..).await` is waiting for a reply
-/// that arrives on **stdin**, and only the transport's single `read_input`
-/// future can deliver it. That future parks once the task queue behind it
-/// fills, which happens as soon as
-/// `buffer_unordered(DEFAULT_MAX_CONCURRENCY)`'s four slots are occupied by
-/// handlers that never finish. Four parked config pulls with a burst behind
-/// them therefore close a cycle: the handlers wait for replies the parked
-/// reader will never read, and the session wedges with a perfectly healthy
-/// stdout. That is #1334 / #1294 reached by a route
-/// [`stdio_pump`](crate::stdio_pump) cannot cover, and
-/// `tests/stdio_deadlock.rs` demonstrates the mechanism.
-///
-/// Bounding the wait converts that permanent deadlock into a bounded stall:
-/// the handler returns, its slot frees, the queue drains and the reader
-/// resumes. Sized generously — a conforming client answers
-/// `workspace/configuration` in milliseconds, so ten seconds only ever fires
-/// for a client that is not going to answer.
+/// The transport keeps stdin routing independent of handler progress (see
+/// [`transport_liveness`](crate::transport_liveness)), so this timeout is
+/// defence in depth rather than the session's deadlock breaker. It bounds the
+/// existing configuration pull only; other server-to-client requests retain
+/// their own lifecycle until the dependency provides cancellation-safe pending
+/// request tracking.
 const CLIENT_REQUEST_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(10);
 
 /// The iRules dialect key.  A BIG-IP config's `ltm rule { … }` bodies are iRules
@@ -10320,11 +10309,10 @@ impl Backend {
 
     /// `workspace/configuration`, bounded by [`CLIENT_REQUEST_TIMEOUT`].
     ///
-    /// The timeout is a **liveness** guard, not politeness, and it is
-    /// load-bearing — see the constant. A client that never answers would
-    /// otherwise park this handler forever, and enough parked handlers stop the
-    /// server reading stdin at all, which is the wedge in #1334 / #1294 reached
-    /// by a route the stdout pump cannot cover.
+    /// The timeout bounds this request's lifetime and lets later pulls retry.
+    /// The transport independently guarantees that a parked handler cannot
+    /// stop stdin from routing its eventual reply; see
+    /// [`crate::transport_liveness`].
     ///
     /// A timeout is reported as `Err(())`, the same shape as a client that
     /// declines, so every caller's existing early-return path handles it: the
@@ -10340,8 +10328,7 @@ impl Backend {
             Err(_elapsed) => {
                 let message = format!(
                     "tcl-lsp: the editor did not answer workspace/configuration within {}s; \
-                     keeping the previous settings. Giving up is deliberate — waiting \
-                     indefinitely can stop the server reading its input entirely (#1334).",
+                     keeping the previous settings so a later pull can retry.",
                     CLIENT_REQUEST_TIMEOUT.as_secs()
                 );
                 eprintln!("{message}");

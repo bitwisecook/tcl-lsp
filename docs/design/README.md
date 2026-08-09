@@ -398,6 +398,8 @@ are its rules, and what are the failure modes". One contract per file.
   invariant, and the release flow.
 - [lsp-feature-providers.md](contracts/lsp-feature-providers.md) —
   non-diagnostics LSP provider contracts and failure modes.
+- [lsp-transport-liveness.md](contracts/lsp-transport-liveness.md) — stdin,
+  handler-admission, and stdout liveness boundaries for the LSP transport.
 - [workspace-indexing.md](contracts/workspace-indexing.md) — workspace
   cache, index, and scanner contracts.
 - [package-loading.md](contracts/package-loading.md) — stdlib, tcllib,

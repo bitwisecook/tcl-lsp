@@ -16,13 +16,14 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! Regression test for the stdio deadlock in issue #1334 (client side: #1294).
+//! Regression tests for the stdio deadlocks in issues #1334 and #1345
+//! (client side: #1294).
 //!
 //! Drives the real `tower_lsp_server::Server` transport against a stdout that
 //! never accepts a byte — a client that has stopped reading — and asserts the
-//! server keeps draining stdin anyway. The control case runs the same traffic
-//! straight at the stalled sink and shows the transport wedging on its own,
-//! which is what makes the assertion meaningful rather than vacuous.
+//! server keeps draining stdin anyway. Separate controls cover blocked stdout
+//! and handlers awaiting client replies, so each production assertion first
+//! proves its fixture reaches the corresponding vulnerable topology.
 
 use std::convert::Infallible;
 use std::future::{Future, Ready, ready};
@@ -32,13 +33,17 @@ use std::sync::Arc;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::task::{Context, Poll};
 
-use futures_util::{sink, stream};
+use futures_util::{Sink, sink, stream};
 use tokio::io::AsyncRead;
+use tokio::sync::Semaphore;
 use tower::Service;
 use tower_lsp_server::jsonrpc::{Request, Response};
 use tower_lsp_server::{Loopback, Server};
 
 use tcl_lsp_server::stdio_pump;
+use tcl_lsp_server::transport_liveness::{
+    DEFAULT_HANDLER_CONCURRENCY, DeferredConcurrency, UNBOUNDED_TRANSPORT_CONCURRENCY,
+};
 
 /// Requests fed to the server. Comfortably past both bounds in the transport
 /// that can seize: `DEFAULT_MAX_CONCURRENCY` (4) and `MESSAGE_QUEUE_SIZE`
@@ -47,6 +52,9 @@ const REQUESTS: usize = 400;
 
 /// How long a healthy server gets to drain `REQUESTS` messages.
 const DRAIN_BUDGET: std::time::Duration = std::time::Duration::from_secs(10);
+
+/// Observation window for a fixture which is expected to remain wedged.
+const STALL_OBSERVATION: std::time::Duration = std::time::Duration::from_secs(1);
 
 // ---------------------------------------------------------------- test doubles
 
@@ -130,6 +138,40 @@ struct SlowService {
     delay: std::time::Duration,
 }
 
+/// Handlers wait for a client response routed through `ReleaseSink`.
+#[derive(Debug, Clone)]
+struct ReplyWaitingService {
+    releases: Arc<Semaphore>,
+    started: Arc<AtomicUsize>,
+    completed: Arc<AtomicUsize>,
+}
+
+impl Service<Request> for ReplyWaitingService {
+    type Response = Option<Response>;
+    type Error = Infallible;
+    type Future = Pin<Box<dyn Future<Output = Result<Self::Response, Self::Error>> + Send>>;
+
+    fn poll_ready(&mut self, _: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
+        Poll::Ready(Ok(()))
+    }
+
+    fn call(&mut self, _req: Request) -> Self::Future {
+        let releases = Arc::clone(&self.releases);
+        let started = Arc::clone(&self.started);
+        let completed = Arc::clone(&self.completed);
+        Box::pin(async move {
+            started.fetch_add(1, Ordering::SeqCst);
+            let permit = releases
+                .acquire_owned()
+                .await
+                .expect("the response sink owns the release semaphore");
+            permit.forget();
+            completed.fetch_add(1, Ordering::SeqCst);
+            Ok(None)
+        })
+    }
+}
+
 impl Service<Request> for SlowService {
     type Response = Option<Response>;
     type Error = Infallible;
@@ -180,6 +222,41 @@ impl Loopback for NoLoopback {
     }
 }
 
+/// Routes one client response into enough permits to release every handler.
+struct ReleaseLoopback(Arc<Semaphore>);
+
+impl Loopback for ReleaseLoopback {
+    type RequestStream = stream::Pending<Request>;
+    type ResponseSink = ReleaseSink;
+
+    fn split(self) -> (Self::RequestStream, Self::ResponseSink) {
+        (stream::pending(), ReleaseSink(self.0))
+    }
+}
+
+struct ReleaseSink(Arc<Semaphore>);
+
+impl Sink<Response> for ReleaseSink {
+    type Error = Infallible;
+
+    fn poll_ready(self: Pin<&mut Self>, _: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
+        Poll::Ready(Ok(()))
+    }
+
+    fn start_send(self: Pin<&mut Self>, _response: Response) -> Result<(), Self::Error> {
+        self.0.add_permits(REQUESTS);
+        Ok(())
+    }
+
+    fn poll_flush(self: Pin<&mut Self>, _: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
+        Poll::Ready(Ok(()))
+    }
+
+    fn poll_close(self: Pin<&mut Self>, _: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
+        Poll::Ready(Ok(()))
+    }
+}
+
 // ---------------------------------------------------------------- helpers
 
 /// `REQUESTS` framed JSON-RPC requests, back to back.
@@ -193,8 +270,17 @@ fn burst() -> Vec<u8> {
     out
 }
 
-/// Run the transport until it drains `REQUESTS` or `DRAIN_BUDGET` expires,
-/// and report how many requests got through.
+/// A saturated request burst followed by the client response every handler is
+/// waiting for. A bounded input queue never reaches the final frame.
+fn burst_then_client_response() -> Vec<u8> {
+    let mut out = burst();
+    let body = r#"{"jsonrpc":"2.0","result":null,"id":"release"}"#;
+    out.extend_from_slice(format!("Content-Length: {}\r\n\r\n{body}", body.len()).as_bytes());
+    out
+}
+
+/// Observe the raw transport for [`STALL_OBSERVATION`] and report how many
+/// requests got through.
 async fn drained_within_budget<W>(stdout: W) -> usize
 where
     W: tokio::io::AsyncWrite + Unpin,
@@ -204,7 +290,7 @@ where
     let served = Server::new(BurstThenIdle(burst()), stdout, NoLoopback).serve(service);
     // `serve` never returns here — stdin stays open by construction — so the
     // timeout is the exit path for both the healthy and the wedged case.
-    let _ = tokio::time::timeout(DRAIN_BUDGET, served).await;
+    let _ = tokio::time::timeout(STALL_OBSERVATION, served).await;
     calls.load(Ordering::SeqCst)
 }
 
@@ -263,8 +349,8 @@ async fn pumped_stdout_keeps_the_stdin_reader_running() {
 /// cycle the stdout fix cannot open: the handlers wait for replies that the
 /// parked reader will never read.
 ///
-/// This asserts the mechanism (stuck handlers stop the reader), not the
-/// LSP-level scenario. It is why `client.configuration` needs a timeout.
+/// This is the vulnerable-topology control. The production-topology test below
+/// must reach the client response beyond the same saturated queue.
 #[tokio::test]
 async fn stuck_handlers_wedge_the_stdin_reader_even_with_a_healthy_stdout() {
     let calls = Arc::new(AtomicUsize::new(0));
@@ -274,7 +360,7 @@ async fn stuck_handlers_wedge_the_stdin_reader_even_with_a_healthy_stdout() {
     // A sink that accepts everything: stdout is explicitly not the problem.
     let (stdout, _drain) = stdio_pump::pump(tokio::io::sink());
     let served = Server::new(BurstThenIdle(burst()), stdout, NoLoopback).serve(service);
-    let _ = tokio::time::timeout(DRAIN_BUDGET, served).await;
+    let _ = tokio::time::timeout(STALL_OBSERVATION, served).await;
 
     let drained = calls.load(Ordering::SeqCst);
     println!("with stuck handlers, the reader drained {drained}/{REQUESTS}");
@@ -284,15 +370,100 @@ async fn stuck_handlers_wedge_the_stdin_reader_even_with_a_healthy_stdout() {
     );
 }
 
-/// The property `CLIENT_REQUEST_TIMEOUT` buys: handlers that are *bounded*
-/// cannot wedge the reader, only slow it down.
+/// The exact response-behind-burst fixture wedges under the upstream default
+/// topology: four handlers start, the queue fills, and the reader never reaches
+/// the response which would release them.
+#[tokio::test]
+async fn upstream_topology_strands_client_reply_behind_saturated_handlers() {
+    let releases = Arc::new(Semaphore::new(0));
+    let started = Arc::new(AtomicUsize::new(0));
+    let completed = Arc::new(AtomicUsize::new(0));
+    let service = ReplyWaitingService {
+        releases: Arc::clone(&releases),
+        started: Arc::clone(&started),
+        completed: Arc::clone(&completed),
+    };
+    let loopback = ReleaseLoopback(releases);
+    let (stdout, _drain) = stdio_pump::pump(tokio::io::sink());
+    let served = Server::new(
+        BurstThenIdle(burst_then_client_response()),
+        stdout,
+        loopback,
+    )
+    .serve(service);
+    let _ = tokio::time::timeout(STALL_OBSERVATION, served).await;
+
+    assert_eq!(
+        started.load(Ordering::SeqCst),
+        DEFAULT_HANDLER_CONCURRENCY,
+        "the control must saturate every upstream handler slot"
+    );
+    assert_eq!(
+        completed.load(Ordering::SeqCst),
+        0,
+        "the reply beyond the bounded queue must remain stranded in the control"
+    );
+}
+
+/// The full cycle-break property: a response located beyond more queued
+/// requests than the upstream bounded transport can hold is still routed, and
+/// releases the handlers that were saturating the application pool.
+#[tokio::test]
+async fn production_topology_routes_client_reply_past_saturated_handlers() {
+    let releases = Arc::new(Semaphore::new(0));
+    let started = Arc::new(AtomicUsize::new(0));
+    let completed = Arc::new(AtomicUsize::new(0));
+    let service = DeferredConcurrency::new(
+        ReplyWaitingService {
+            releases: Arc::clone(&releases),
+            started: Arc::clone(&started),
+            completed: Arc::clone(&completed),
+        },
+        DEFAULT_HANDLER_CONCURRENCY,
+    );
+    let loopback = ReleaseLoopback(releases);
+    let (stdout, _drain) = stdio_pump::pump(tokio::io::sink());
+    let served = Server::new(
+        BurstThenIdle(burst_then_client_response()),
+        stdout,
+        loopback,
+    )
+    .concurrency_level(UNBOUNDED_TRANSPORT_CONCURRENCY)
+    .serve(service);
+    let observe_completion = async {
+        while completed.load(Ordering::SeqCst) != REQUESTS {
+            tokio::time::sleep(std::time::Duration::from_millis(1)).await;
+        }
+    };
+    tokio::pin!(served);
+    tokio::time::timeout(DRAIN_BUDGET, async {
+        tokio::select! {
+            () = observe_completion => {}
+            () = &mut served => panic!("transport stopped before routing the client response"),
+        }
+    })
+    .await
+    .expect("client response was stranded behind the handler queue");
+
+    assert_eq!(
+        started.load(Ordering::SeqCst),
+        REQUESTS,
+        "every queued handler must eventually start after the reply is routed"
+    );
+    assert_eq!(
+        completed.load(Ordering::SeqCst),
+        REQUESTS,
+        "the response beyond the saturated queue must release every handler"
+    );
+}
+
+/// A finite handler wait is still useful for request-local responsiveness, even
+/// though the production topology no longer needs it to keep stdin moving.
 ///
 /// This is the counterpart to
 /// `stuck_handlers_wedge_the_stdin_reader_even_with_a_healthy_stdout`. The only
-/// difference is that these handlers finish. Every request still gets through,
-/// which is why bounding `client.configuration(..)` turns a permanent deadlock
-/// into a bounded stall: the handler returns, its `buffer_unordered` slot
-/// frees, the queue drains, and `read_input` resumes.
+/// difference is that these handlers finish. Every request gets through on the
+/// upstream control topology once a slot eventually frees.
 ///
 /// The delay here is short so the test is quick; in the server the bound is
 /// `CLIENT_REQUEST_TIMEOUT`. What is under test is the shape, not the number.
@@ -305,7 +476,20 @@ async fn bounded_handlers_only_slow_the_stdin_reader_down() {
     };
     let (stdout, _drain) = stdio_pump::pump(tokio::io::sink());
     let served = Server::new(BurstThenIdle(burst()), stdout, NoLoopback).serve(service);
-    let _ = tokio::time::timeout(DRAIN_BUDGET, served).await;
+    let observe_completion = async {
+        while calls.load(Ordering::SeqCst) != REQUESTS {
+            tokio::time::sleep(std::time::Duration::from_millis(1)).await;
+        }
+    };
+    tokio::pin!(served);
+    tokio::time::timeout(DRAIN_BUDGET, async {
+        tokio::select! {
+            () = observe_completion => {}
+            () = &mut served => panic!("transport stopped before finite handlers completed"),
+        }
+    })
+    .await
+    .expect("finite handlers did not drain within the healthy-server budget");
 
     assert_eq!(
         calls.load(Ordering::SeqCst),
