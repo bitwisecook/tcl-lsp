@@ -17,7 +17,10 @@ Why does the analyser report that a data event handler has no matching `collect`
 
 ## Why
 
-The data event only fires after `collect` has been called in an earlier event. Without a preceding `collect`, the data handler never executes and all its code is dead.
+Some data events only fire after their protocol's `collect` command has run
+in an earlier event. Without that call, the data handler never executes and
+all its code is dead. The analyser reports this only where the selected
+protocol is known to require collection.
 
 ## Symptoms
 
@@ -26,19 +29,27 @@ The data event only fires after `collect` has been called in an earlier event. W
 ## Example that triggers it
 
 ```tcl
-when CLIENT_DATA { log [TCP::payload] }
+when HTTP_REQUEST_DATA { log [HTTP::payload] }
 ```
 
-The analyser reports **`IRULE1005`** because no `TCP::collect` call exists in `CLIENT_ACCEPTED`.
+The analyser reports **`IRULE1005`** because no `HTTP::collect` call exists in
+`HTTP_REQUEST`.
 
 ## Fix
 
-Add a `TCP::collect` call in the connection-setup event:
+Add an `HTTP::collect` call in the matching request event:
 
 ```tcl
-when CLIENT_ACCEPTED { TCP::collect 1024 }
-when CLIENT_DATA { log [TCP::payload] }
+when HTTP_REQUEST { HTTP::collect 1024 }
+when HTTP_REQUEST_DATA { log [HTTP::payload] }
 ```
+
+## Limits
+
+`CLIENT_DATA` and `SERVER_DATA` can represent either TCP or UDP traffic. UDP
+delivers each datagram without a `collect` call, so the analyser does not warn
+for those ambiguous event names. It cannot prove data flow through dynamic
+event names, aliases, or commands assembled with `eval`.
 
 ## How to suppress
 

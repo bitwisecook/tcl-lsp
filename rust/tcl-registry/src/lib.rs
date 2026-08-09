@@ -119,7 +119,12 @@ pub mod prelude {
         MemberSpec, MemberVisibility, RetractionWords,
     };
     pub use crate::dialects::DialectSet;
-    pub use crate::events::{EventRequirementForm, EventRequires};
+    pub use crate::events::{
+        ASM_PAYLOAD, BIGIP_EVENT_HANDLER_PRIORITY, DataCollectionAction, DataCollectionOperation,
+        EventHandlerPriority, EventRequirementForm, EventRequires, HTTP_COLLECT, HTTP_PAYLOAD,
+        HTTP_RELEASE, SSL_COLLECT, SSL_PAYLOAD, SSL_RELEASE, TCP_COLLECT, TCP_PAYLOAD, TCP_RELEASE,
+        UDP_PAYLOAD,
+    };
     pub use crate::forms::{CommandForm, SubCommandForm};
     pub use crate::frame_effect::{FrameArgLayout, FrameEffectSpec, FrameLevel, FrameLevelWord};
     pub use crate::handle_binding::{
@@ -138,7 +143,9 @@ pub mod prelude {
     pub use crate::presentation::ArgPresentation;
     pub use crate::repeated::RepeatedArgLayout;
     pub use crate::scoped::{ScopedCommand, ScopedCommandEnv};
-    pub use crate::side_effects::{ConnectionSide, SideEffect, SideEffectTarget, StorageType};
+    pub use crate::side_effects::{
+        ConnectionSide, SideEffect, SideEffectTarget, SideSwitchTarget, StorageType,
+    };
     pub use crate::spec::{
         BytePayloadSpec, CaseListSpec, CommandSpec, ContextGate, DefaultFormFirstWord,
         ObjectClassSpec, OoContextFact, SubCommand, SubSubCommand, VersionedArgValue,
@@ -162,6 +169,10 @@ pub use dialects::{
     DETECT_SCAN_BYTES, KNOWN_DIALECTS, available_dialects, detect_dialect,
     detect_dialect_directive, detect_dialect_from_source, dialect_from_extension,
 };
+pub use events::{
+    CollectionReleaseRequirement, DataCollectionAction, DataCollectionOperation,
+    DataCollectionProtocol, EventHandlerPriority, PayloadCollectionRequirement,
+};
 pub use frame_effect::{FrameArgLayout, FrameEffectSpec, FrameLevel, FrameLevelWord};
 pub use handle_binding::{
     BoundHandle, HandleBindingSpec, HandleClassSource, HandleKeyword, HandleName,
@@ -174,6 +185,7 @@ pub use registry::{
     CommandRegistry, FormatStringArg, MethodDispatchKind, ResolvedCall, ResolvedTerminator,
 };
 pub use repeated::RepeatedArgLayout;
+pub use side_effects::SideSwitchTarget;
 pub use spec::{
     BytePayloadSpec, CaseListSpec, CommandSpec, ContextGate, DefaultFormFirstWord, ObjectClassSpec,
     OoContextFact, SubCommand, SubSubCommand, VersionedArgValue,

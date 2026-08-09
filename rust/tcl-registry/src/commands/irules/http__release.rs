@@ -24,6 +24,7 @@ pub const fn spec() -> CommandSpec {
         traits: Traits::DIAGRAM_ACTION,
         dialects: Some(DialectSet::IRULES),
         arity: Arity::at_least(0),
+        data_collection: Some(HTTP_RELEASE),
         hover: Some(HoverSnippet {
             summary: "Releases the data collected via HTTP::collect.",
             synopsis: &["HTTP::release"],

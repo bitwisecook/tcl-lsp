@@ -139,6 +139,38 @@ pub enum ConnectionSide {
     Global,
 }
 
+/// The side context a nesting-script command establishes.
+///
+/// This is separate from [`ConnectionSide`]: `Peer` is a direction relative
+/// to the enclosing event rather than a fixed side.  It is attached to the
+/// command spec so consumers can descend into `clientside`, `serverside`, or
+/// future side-switch commands without matching command names.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum SideSwitchTarget {
+    /// Evaluate the body as client-side traffic.
+    Client,
+    /// Evaluate the body as server-side traffic.
+    Server,
+    /// Evaluate the body on the opposite side of the enclosing event.
+    Peer,
+}
+
+impl SideSwitchTarget {
+    /// Resolve the execution side selected by this registered command.
+    ///
+    /// `peer` runs on the side opposite the current event; the other two
+    /// commands select their named side. Consumers use this method instead of
+    /// interpreting command spellings or enum variants themselves.
+    #[must_use]
+    pub fn execution_side(self, current_side: &str) -> &'static str {
+        if self == Self::Server || (self == Self::Peer && current_side == "client") {
+            "server"
+        } else {
+            "client"
+        }
+    }
+}
+
 /// Structured side-effect declaration for a command or subcommand.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct SideEffect {

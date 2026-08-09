@@ -23,6 +23,7 @@ pub const fn spec() -> CommandSpec {
         name: "SSL::release",
         dialects: Some(DialectSet::IRULES),
         arity: Arity::at_least(0),
+        data_collection: Some(SSL_RELEASE),
         hover: Some(HoverSnippet {
             summary: "Releases the collected plaintext data.",
             synopsis: &["SSL::release (LENGTH)?"],

@@ -10,11 +10,11 @@ minimal repro, verify against **C tclsh 9.0.3**, and either (a) fix the FP with
 paired TP/FP regression tests, or (b) record "confirmed true-positive / no
 change" with the reasoning.
 
-> **The harness no longer exists.** The method above was built on
-> `bench/fp_snippets.py`, which went with the Python retirement; `bench/` is not
-> present on this branch and `xtask` has no replacement sweep. The 40 `[ ]` rows
-> below therefore cannot be picked up as written. Rebuilding the sweep as
-> `xtask fp-sweep` is tracked in **issue #1316**.
+> **The native harness is available.** Python's `bench/fp_snippets.py` was
+> retired with the Python product, but `cargo xtask fp-sweep` replaces it. It
+> runs the Rust analyser and compiler checks with the same dialect selection as
+> the LSP. Use the command shown below rather than reviving a second sweep
+> implementation.
 
 > **Harness correctness note (learned this round):** a raw `get_diagnostics(src)`
 > uses the default dialect `tcl8.6`. The corpus must be swept *dialect-aware* —
@@ -56,7 +56,7 @@ CODE...] --corpus PATH [--corpus PATH...] [--examples N]`
   first, matching the resolved entries' own style below
   ("corpus 3641 → ~700-900").
 
-**Corpus available this session:** the canonical corpus (tcllib 2.0, Tcl
+**Corpus available in the initial rebuild:** the canonical corpus (tcllib 2.0, Tcl
 9.0.3 stdlib, tklib 0.9, tdom, SpiceGenTcl) could not be fetched — this
 sandbox's egress policy blocks `codeload.github.com` (403, confirmed via the
 agent-proxy's own guidance not to retry/route around a policy denial), the
@@ -141,6 +141,47 @@ per-code sweeps, and are annotated with a recommendation rather than closed
 outright.
 
 ---
+
+## 2026-08 follow-up: iRules lifecycle and residual arity audit
+
+The native sweep was re-run over 304 committed Tcl sources for the formerly
+unswept E001/E002/E003 group, and over 204 runnable iRules files from seven
+public example repositories fetched by `scripts/dev/fetch-irules-corpus.sh`.
+The iRules run produced 837 findings. Counts are triage leads, not proof: an
+iRule can depend on a virtual server profile, traffic direction, or another
+rule that is not present in one file, so every change below has a reduced
+reproducer and registry-level regression test.
+
+- **IRULE1004 (297 findings)** was an unconditional false positive. BIG-IP
+  accepts `when EVENT { ... }` and supplies priority 500. The registry now
+  records that default and the analyser abstains unless a dialect's
+  event-handler policy explicitly requires a priority. An explicit priority
+  remains useful when a deployment needs a deliberate rule order.
+- **IRULE1006 (four findings)** used a `*::payload` spelling rule. That
+  incorrectly required a non-existent `UDP::collect` and an ASM collect step.
+  Payload availability is now declared per command in the command registry:
+  TCP, HTTP, and SSL require collection; UDP and ASM do not.
+- **IRULE1007 (four findings)** required `HTTP::release` after every
+  `HTTP::collect`. BIG-IP implicitly releases HTTP data at the matching data
+  event unless a new collect starts. That release policy is registry data and
+  the cross-event checker consumes it generically; TCP and SSL still require
+  an explicit release.
+- **E003 `source -nopkg`** is a Tcl 9 flag used by the vendored Tcl 9 library.
+  The command spec now gates it to Tcl 9.0+. C Tcl 9 also accepts the lower-case
+  `package require tcl 9.0.3` spelling used by its own `init.tcl`; dialect
+  detection recognises that exact Tcl-9-only alias without treating arbitrary
+  package-name casing as a match. A standalone extracted Tcl 9 file with no
+  directive, shebang, or version guard still defaults to Tcl 8.6 by design, so
+  add `# tcl-dialect: tcl9.0` in that case.
+- **E001 in `tcltest.tcl`** is a remaining conservative limitation, not a
+  proved command-arity defect: tcltest creates a command through a dynamically
+  computed `proc` name. The runtime command exists after initialisation, but a
+  static call graph cannot prove the name without executing package setup.
+
+The sweep also found advisory-heavy families that need configuration-aware
+evidence before they can be changed safely (`IRULE1202`, taint warnings,
+variable scope checks, logging, and top-level event-context calls). They are
+not declared true or false from corpus count alone.
 
 # Status note (2026-05-30): all resolved items below now have formal
 # FP.md catalog entries with reproducers, evidence, and paired TP+FP

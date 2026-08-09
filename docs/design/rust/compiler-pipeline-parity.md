@@ -980,7 +980,7 @@ Rust: `rust/tcl-compiler/src/analyser/*`, `compiler_checks.rs`, `irules_checks.r
 | IRULE1001 | Command invalid/ineffective in this event | irules_checks.py:72 | — | ❌ | **High-impact gap.** Registry legality-matrix in Python; only a doc comment in Rust (spec.rs:152), not wired in dispatch. |
 | IRULE1002 | `when` references unknown event | checks/_domain.py:443 | irules_event_checks.rs:234 | ✅ | |
 | IRULE1003 | Deprecated iRules event | irules_checks.py:524 | irules_event_checks.rs:309 | ✅ | |
-| IRULE1004 | `when` missing explicit `priority` | irules_checks.py:557 | irules_event_checks.rs:334 | ✅ | |
+| IRULE1004 | Explicit event priority required by registry policy | irules_checks.py:557 | irules_event_checks.rs | ✅ | BIG-IP `when` defaults to priority 500, so omission correctly abstains. |
 | IRULE1005 | `*_DATA` event without matching `*::collect` | irules_flow.py:741 | irules_checks.rs:561 | ⚠️ | Rust anchors span on body entry vs Python `when` token. |
 | IRULE1006 | `*::payload` without `*::collect` | irules_flow.py:762 | irules_checks.rs:604 | ✅ | |
 | IRULE1007 | `*::collect` without `*::release` | irules_flow.py:777 | irules_checks.rs:618 | ✅ | |

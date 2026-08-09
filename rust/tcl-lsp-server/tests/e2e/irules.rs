@@ -342,31 +342,29 @@ fn argument_value_has_documentation() {
 // -- TestIrulesCollectCodeActions ----------------------------------------
 
 #[test]
-fn irule1005_adds_collect_bootstrap_options() {
+fn irule1005_adds_only_registered_collect_bootstrap() {
     let mut lsp = Lsp::irules();
     let uri = open_irule(
         &mut lsp,
-        "when CLIENT_DATA {\n    set payload [TCP::payload]\n}\n",
+        "when HTTP_REQUEST_DATA {\n    set payload [HTTP::payload]\n}\n",
     );
     let d = diag(
         "IRULE1005",
-        "'CLIENT_DATA' will never fire without a TCP::collect or UDP::collect call in another event.",
+        "'HTTP_REQUEST_DATA' will never fire without a client HTTP::collect call in another event.",
         (0, 5),
-        (0, 16),
+        (0, 22),
     );
-    let actions = lsp.code_actions(&uri, range((0, 5), (0, 16)), json!([d]));
+    let actions = lsp.code_actions(&uri, range((0, 5), (0, 22)), json!([d]));
     let snippets = ca_new_texts(&actions);
     assert!(
         snippets
             .iter()
-            .any(|s| s.contains("when CLIENT_ACCEPTED") && s.contains("TCP::collect")),
+            .any(|s| s.contains("when HTTP_REQUEST") && s.contains("HTTP::collect")),
         "{snippets:?}"
     );
     assert!(
-        snippets
-            .iter()
-            .any(|s| s.contains("when CLIENT_ACCEPTED") && s.contains("UDP::collect")),
-        "{snippets:?}"
+        snippets.iter().all(|s| !s.contains("UDP::collect")),
+        "only registry-declared collect commands are offered: {snippets:?}",
     );
 }
 
@@ -1435,8 +1433,9 @@ fn i230_fires_on_irules_word_operator_condition() {
 
 /// FP guard: neither operand of `$x contains $y` is knowable here, so the
 /// condition is not constant and I230 must stay silent — the fold is proven,
-/// not assumed from the operator. `IRULE1004` (the missing-priority hint on the
-/// `when` handler) is the settle marker.
+/// not assumed from the operator. `IRULE3102` (the unnormalised URI getter)
+/// is the deep-diagnostic settle marker; a bare `when` uses BIG-IP's valid
+/// default priority and does not manufacture IRULE1004.
 #[test]
 fn i230_silent_on_non_constant_irules_word_operator_condition() {
     let mut lsp = Lsp::irules();
@@ -1447,7 +1446,7 @@ fn i230_silent_on_non_constant_irules_word_operator_condition() {
         \x20   set x [HTTP::host]\n\
         \x20   if {$x contains $y} { HTTP::respond 200 }\n\
         }\n",
-        "IRULE1004",
+        "IRULE3102",
     );
     assert!(
         !irules_codes(&diags).contains("I230"),

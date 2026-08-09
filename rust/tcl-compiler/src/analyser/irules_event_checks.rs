@@ -29,7 +29,8 @@
 //!
 //! - **IRULE1002** (WARNING): unknown iRules event name.
 //! - **IRULE1003** (WARNING): deprecated iRules event.
-//! - **IRULE1004** (HINT): `when` block missing explicit `priority`.
+//! - **IRULE1004** (HINT): event-handler priority omitted where that
+//!   handler's registry policy requires an explicit value.
 //! - **IRULE2003** (ERROR): unsafe iRules command (context escalation).
 //! - **IRULE3102** (WARNING): `HTTP::path`/`uri`/`query` getter without `-normalized`.
 //! - **IRULE2101** (HINT): heavy `regexp` in a hot event.
@@ -220,7 +221,7 @@ impl Analyser {
         }
         self.emit_irule1002_unknown_event(cmd_name, args, arg_tokens);
         self.emit_irule1003_deprecated_event(cmd_name, args, arg_tokens);
-        self.emit_irule1004_when_missing_priority(cmd_name, args, cmd_tok);
+        self.emit_irule1004_event_handler_missing_priority(cmd_name, args, cmd_tok);
         self.emit_irule2003_unsafe_command(cmd_name, cmd_tok);
         self.emit_irule3102_unnormalised_getter(cmd_name, args, cmd_tok);
         self.emit_irule2101_heavy_regex(cmd_name, cmd_tok, event_ref);
@@ -620,27 +621,30 @@ impl Analyser {
         });
     }
 
-    /// **IRULE1004.** `when` block missing an explicit `priority`.
-    fn emit_irule1004_when_missing_priority(
+    /// **IRULE1004.** An event-handler command whose registry policy requires
+    /// an explicit priority has omitted its priority keyword.
+    fn emit_irule1004_event_handler_missing_priority(
         &mut self,
         cmd_name: &str,
         args: &[String],
         cmd_tok: Token,
     ) {
-        if cmd_name != "when" {
+        let Some(policy) = self
+            .registry
+            .and_then(|registry| registry.event_handler_priority(cmd_name))
+        else {
             return;
-        }
-        // when EVENT { body }            → args = [EVENT, body]
-        // when EVENT priority N { body } → args = [EVENT, "priority", N, body]
-        if args.len() >= 2 && args[1] == "priority" {
+        };
+        if !policy.warn_when_implicit || args.iter().skip(1).any(|arg| arg == policy.keyword) {
             return;
         }
         self.result.diagnostics.push(Diagnostic {
             code: DiagCode::Irule1004,
             span: cmd_tok.span,
-            message:
-                "'when' missing an explicit priority. Add 'priority <N>' to control execution order."
-                    .to_string(),
+            message: format!(
+                "'{cmd_name}' missing an explicit {}. Add '{} <N>' to control execution order.",
+                policy.keyword, policy.keyword,
+            ),
             severity: Severity::Hint,
             fixes: Vec::new(),
         });
@@ -1149,8 +1153,10 @@ mod tests {
     }
 
     #[test]
-    fn irule1004_fires_for_when_without_priority() {
-        assert!(has("when HTTP_REQUEST { set x 1 }", "IRULE1004"));
+    fn irule1004_is_quiet_for_bigip_default_priority() {
+        // BIG-IP gives every `when` handler priority 500 when the clause is
+        // omitted, so a bare handler is valid and must not produce a hint.
+        assert!(!has("when HTTP_REQUEST { set x 1 }", "IRULE1004"));
     }
 
     #[test]

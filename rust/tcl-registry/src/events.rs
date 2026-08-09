@@ -27,6 +27,237 @@ use rustc_hash::{FxHashMap, FxHashSet};
 use crate::lifecycle::{Lifecycle, LifecycleState};
 use crate::side_effects::ConnectionSide;
 
+/// How a command participates in an iRules data-collection lifecycle.
+///
+/// This is attached to the relevant [`crate::spec::CommandSpec`] rather than
+/// inferred from a `::collect`, `::release`, or `::payload` spelling.  That
+/// keeps the compiler correct for protocol families such as UDP and ASM,
+/// which expose a payload but do not require an explicit collect command.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum DataCollectionAction {
+    /// Starts collection for a protocol.
+    Collect,
+    /// Releases previously collected data.
+    Release,
+    /// Reads or changes a protocol payload.
+    Payload,
+}
+
+/// Whether a protocol payload is available only after an explicit collect.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PayloadCollectionRequirement {
+    /// A preceding matching `collect` operation is required.
+    ExplicitCollect,
+    /// The payload is supplied by the protocol or profile without a collect.
+    NotRequired,
+}
+
+/// How an explicit collection is released.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CollectionReleaseRequirement {
+    /// A matching explicit `release` operation is required.
+    ExplicitRelease,
+    /// A matching `*_DATA` event releases the data when no new collect starts.
+    ImplicitInDataEvent,
+    /// This protocol does not have an explicit collection lifecycle.
+    NotApplicable,
+}
+
+/// Registry data shared by all collection operations in one protocol family.
+///
+/// The protocol's setup event belongs here because it describes the event
+/// surface, not a compiler or editor special case.  `bootstrap_event_for`
+/// selects the appropriate setup event for a diagnostic's enclosing event.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct DataCollectionProtocol {
+    /// Upper-case protocol-family name shown in diagnostics.
+    pub name: &'static str,
+    /// Whether payload access needs a preceding collect.
+    pub payload_requirement: PayloadCollectionRequirement,
+    /// How a collection is released.
+    pub release_requirement: CollectionReleaseRequirement,
+    /// Event-prefix-to-setup-event mapping used by the generic quick fix.
+    pub bootstrap_events: &'static [DataCollectionBootstrap],
+}
+
+impl DataCollectionProtocol {
+    /// Return the setup event for a command used in `event`.
+    #[must_use]
+    pub fn bootstrap_event_for(&self, event: &str) -> Option<&'static str> {
+        let event = event.to_ascii_uppercase();
+        self.bootstrap_events
+            .iter()
+            .find(|entry| event.starts_with(entry.event_prefix))
+            .or_else(|| self.bootstrap_events.last())
+            .map(|entry| entry.setup_event)
+    }
+}
+
+/// One event-prefix-to-setup-event mapping for a data collection protocol.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct DataCollectionBootstrap {
+    /// Upper-case event prefix used to select this mapping.
+    pub event_prefix: &'static str,
+    /// Event where the collect should be placed.
+    pub setup_event: &'static str,
+}
+
+/// A data-collection fact attached to an individual command spec.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct DataCollectionOperation {
+    /// Protocol family whose lifecycle this command participates in.
+    pub protocol: DataCollectionProtocol,
+    /// The command's operation in that lifecycle.
+    pub action: DataCollectionAction,
+}
+
+/// How an iRules event-handler command treats an omitted priority clause.
+///
+/// BIG-IP gives `when` handlers a documented default priority of 500, so an
+/// omitted clause is valid and does not itself justify a diagnostic. A
+/// dialect can opt into an explicit-priority policy without teaching the
+/// analyser a handler command name.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct EventHandlerPriority {
+    /// Keyword that introduces an explicit priority value.
+    pub keyword: &'static str,
+    /// Priority used by the runtime when the keyword is omitted.
+    pub default_priority: u16,
+    /// Whether an omitted priority is reportable in this dialect.
+    pub warn_when_implicit: bool,
+}
+
+/// BIG-IP's `when` priority policy: priority defaults to 500.
+pub const BIGIP_EVENT_HANDLER_PRIORITY: EventHandlerPriority = EventHandlerPriority {
+    keyword: "priority",
+    default_priority: 500,
+    warn_when_implicit: false,
+};
+
+const HTTP_BOOTSTRAP_EVENTS: &[DataCollectionBootstrap] = &[
+    DataCollectionBootstrap {
+        event_prefix: "HTTP_RESPONSE",
+        setup_event: "HTTP_RESPONSE",
+    },
+    DataCollectionBootstrap {
+        event_prefix: "HTTP",
+        setup_event: "HTTP_REQUEST",
+    },
+];
+
+const SSL_BOOTSTRAP_EVENTS: &[DataCollectionBootstrap] = &[
+    DataCollectionBootstrap {
+        event_prefix: "SERVERSSL",
+        setup_event: "SERVERSSL_HANDSHAKE",
+    },
+    DataCollectionBootstrap {
+        event_prefix: "SSL",
+        setup_event: "CLIENTSSL_HANDSHAKE",
+    },
+];
+
+const TCP_BOOTSTRAP_EVENTS: &[DataCollectionBootstrap] = &[
+    DataCollectionBootstrap {
+        event_prefix: "SERVER",
+        setup_event: "SERVER_CONNECTED",
+    },
+    DataCollectionBootstrap {
+        event_prefix: "",
+        setup_event: "CLIENT_ACCEPTED",
+    },
+];
+
+const HTTP_COLLECTION: DataCollectionProtocol = DataCollectionProtocol {
+    name: "HTTP",
+    payload_requirement: PayloadCollectionRequirement::ExplicitCollect,
+    release_requirement: CollectionReleaseRequirement::ImplicitInDataEvent,
+    bootstrap_events: HTTP_BOOTSTRAP_EVENTS,
+};
+
+const TCP_COLLECTION: DataCollectionProtocol = DataCollectionProtocol {
+    name: "TCP",
+    payload_requirement: PayloadCollectionRequirement::ExplicitCollect,
+    release_requirement: CollectionReleaseRequirement::ExplicitRelease,
+    bootstrap_events: TCP_BOOTSTRAP_EVENTS,
+};
+
+const SSL_COLLECTION: DataCollectionProtocol = DataCollectionProtocol {
+    name: "SSL",
+    payload_requirement: PayloadCollectionRequirement::ExplicitCollect,
+    release_requirement: CollectionReleaseRequirement::ExplicitRelease,
+    bootstrap_events: SSL_BOOTSTRAP_EVENTS,
+};
+
+const UDP_COLLECTION: DataCollectionProtocol = DataCollectionProtocol {
+    name: "UDP",
+    payload_requirement: PayloadCollectionRequirement::NotRequired,
+    release_requirement: CollectionReleaseRequirement::NotApplicable,
+    bootstrap_events: &[],
+};
+
+const ASM_COLLECTION: DataCollectionProtocol = DataCollectionProtocol {
+    name: "ASM",
+    payload_requirement: PayloadCollectionRequirement::NotRequired,
+    release_requirement: CollectionReleaseRequirement::NotApplicable,
+    bootstrap_events: &[],
+};
+
+/// `HTTP::collect` data-collection metadata.
+pub const HTTP_COLLECT: DataCollectionOperation = DataCollectionOperation {
+    protocol: HTTP_COLLECTION,
+    action: DataCollectionAction::Collect,
+};
+/// `HTTP::release` data-collection metadata.
+pub const HTTP_RELEASE: DataCollectionOperation = DataCollectionOperation {
+    protocol: HTTP_COLLECTION,
+    action: DataCollectionAction::Release,
+};
+/// `HTTP::payload` data-collection metadata.
+pub const HTTP_PAYLOAD: DataCollectionOperation = DataCollectionOperation {
+    protocol: HTTP_COLLECTION,
+    action: DataCollectionAction::Payload,
+};
+/// `TCP::collect` data-collection metadata.
+pub const TCP_COLLECT: DataCollectionOperation = DataCollectionOperation {
+    protocol: TCP_COLLECTION,
+    action: DataCollectionAction::Collect,
+};
+/// `TCP::release` data-collection metadata.
+pub const TCP_RELEASE: DataCollectionOperation = DataCollectionOperation {
+    protocol: TCP_COLLECTION,
+    action: DataCollectionAction::Release,
+};
+/// `TCP::payload` data-collection metadata.
+pub const TCP_PAYLOAD: DataCollectionOperation = DataCollectionOperation {
+    protocol: TCP_COLLECTION,
+    action: DataCollectionAction::Payload,
+};
+/// `SSL::collect` data-collection metadata.
+pub const SSL_COLLECT: DataCollectionOperation = DataCollectionOperation {
+    protocol: SSL_COLLECTION,
+    action: DataCollectionAction::Collect,
+};
+/// `SSL::release` data-collection metadata.
+pub const SSL_RELEASE: DataCollectionOperation = DataCollectionOperation {
+    protocol: SSL_COLLECTION,
+    action: DataCollectionAction::Release,
+};
+/// `SSL::payload` data-collection metadata.
+pub const SSL_PAYLOAD: DataCollectionOperation = DataCollectionOperation {
+    protocol: SSL_COLLECTION,
+    action: DataCollectionAction::Payload,
+};
+/// `UDP::payload` data-collection metadata.
+pub const UDP_PAYLOAD: DataCollectionOperation = DataCollectionOperation {
+    protocol: UDP_COLLECTION,
+    action: DataCollectionAction::Payload,
+};
+/// `ASM::payload` data-collection metadata.
+pub const ASM_PAYLOAD: DataCollectionOperation = DataCollectionOperation {
+    protocol: ASM_COLLECTION,
+    action: DataCollectionAction::Payload,
+};
+
 /// Per-event protocol stack properties.
 ///
 /// Describes which connection side an event fires on, what transport
@@ -58,11 +289,14 @@ pub struct EventProps {
     pub common: bool,
     /// Parent event for data events (e.g. `HTTP_REQUEST` for `HTTP_REQUEST_DATA`).
     pub setup_event: Option<&'static str>,
-    /// For a collect-gated `*_DATA` event: the protocol collect-command
-    /// namespaces (`TCP`, `UDP`, `HTTP`, `SSL`, …) whose `<proto>::collect`
-    /// — issued on [`Self::data_collect_side`] — lets the event fire.
-    /// Empty when the event is not collect-gated. (`HTTP_REQUEST_DATA` ⇒
-    /// `["HTTP"]`: it never fires without a client-side `HTTP::collect`.)
+    /// For a data `*_DATA` event: protocol families that can make it fire.
+    ///
+    /// A family whose registry descriptor requires an explicit collect (TCP,
+    /// HTTP, SSL) needs that operation on [`Self::data_collect_side`]. A
+    /// family such as UDP can supply payload without a collect, so its
+    /// presence is a valid non-collect alternative. Empty means this is not a
+    /// data-collection event. (`HTTP_REQUEST_DATA` ⇒ `["HTTP"]`: it has no
+    /// non-collect alternative.)
     pub data_collect_protocols: &'static [&'static str],
     /// The connection side that must issue the collect for a collect-gated
     /// `*_DATA` event; `None` when not collect-gated. (Held explicitly
@@ -315,13 +549,15 @@ impl EventRegistry {
         self.props.get(name)
     }
 
-    /// The collect requirement of a collect-gated `*_DATA` event: the
-    /// protocol collect namespaces and the side (`"client"` / `"server"`)
-    /// whose `<proto>::collect` lets the event fire. `None` when `event`
-    /// is unknown or not collect-gated.
+    /// The data-collection alternatives of a `*_DATA` event: protocol
+    /// families and the side (`"client"` / `"server"`) where an explicit
+    /// collection would run. `None` when `event` is unknown or does not have
+    /// a data-collection lifecycle.
     ///
-    /// Drives the IRULE1005 "data event never fires" check from the
-    /// registry rather than a hardcoded table in the compiler.
+    /// Drives IRULE1005 from the registry rather than a hardcoded compiler
+    /// table. Consumers must also consult the protocol descriptor: UDP, for
+    /// example, is an implicit alternative rather than a nonexistent
+    /// `UDP::collect` command.
     #[must_use]
     pub fn data_collect_requirement(
         &self,

@@ -39,7 +39,9 @@ use tcl_core_types::DiagCode;
 
 use tcl_lexer::Span;
 use tcl_registry::CommandRegistry;
-use tcl_registry::events::EventRegistry;
+use tcl_registry::events::{
+    CollectionReleaseRequirement, DataCollectionAction, EventRegistry, PayloadCollectionRequirement,
+};
 use tcl_registry::side_effects::SideEffectTarget;
 
 use crate::cfg_builder::build_cfg;
@@ -592,16 +594,17 @@ pub fn find_unguarded_drop_warnings(
 
 // IRULE1005 / IRULE1006 / IRULE1007 / IRULE1008 — collect/release/payload
 //
-// Cross-event analysis: classifies every `*::collect` / `*::release` /
-// `*::payload` call across every `::when::*` proc body, then emits:
+// Cross-event analysis: classifies registry-declared collection operations
+// across every `::when::*` proc body, then emits:
 //
 //   * IRULE1005 — `*_DATA` event handler exists but no matching
 //     `*::collect` for the corresponding protocol.
-//   * IRULE1006 — `*::payload` access without matching `*::collect`.
-//   * IRULE1007 — `*::collect` without matching `*::release` on the
-//     same connection side.
-//   * IRULE1008 — `*::release` without matching `*::collect` on the
-//     same connection side.
+//   * IRULE1006 — a payload that requires collection without a matching
+//     collect (not UDP or ASM payloads, which are immediately available).
+//   * IRULE1007 — a collection without an explicit or registry-declared
+//     implicit release on the same connection side.
+//   * IRULE1008 — a release without matching collection on the same
+//     connection side.
 //
 // Side awareness: events starting with SERVER prefer the server side;
 // CLIENT prefer client; `_RESPONSE` events default to server, `_REQUEST`
@@ -633,32 +636,81 @@ struct CollectFlowState {
     collected: std::collections::HashMap<String, std::collections::HashSet<String>>,
     /// Same shape for release calls.
     released: std::collections::HashMap<String, std::collections::HashSet<String>>,
-    /// `(protocol, side, span)` for every collect call.
-    collect_calls: Vec<(String, String, Span)>,
-    release_calls: Vec<(String, String, Span)>,
-    payload_calls: Vec<(String, String, Span)>,
+    /// Each collect call, including the release policy declared by its spec.
+    collect_calls: Vec<CollectionCall>,
+    /// Each release call.
+    release_calls: Vec<CollectionCall>,
+    /// Each payload call, including whether its spec requires a collect.
+    payload_calls: Vec<PayloadCall>,
 }
 
-fn classify_collect_command(cmd: &str, side: &str, span: Span, state: &mut CollectFlowState) {
-    if let Some(proto) = cmd.strip_suffix("::collect") {
-        let p = proto.to_ascii_uppercase();
-        state
-            .collected
-            .entry(p.clone())
-            .or_default()
-            .insert(side.to_string());
-        state.collect_calls.push((p, side.to_string(), span));
-    } else if let Some(proto) = cmd.strip_suffix("::release") {
-        let p = proto.to_ascii_uppercase();
-        state
-            .released
-            .entry(p.clone())
-            .or_default()
-            .insert(side.to_string());
-        state.release_calls.push((p, side.to_string(), span));
-    } else if let Some(proto) = cmd.strip_suffix("::payload") {
-        let p = proto.to_ascii_uppercase();
-        state.payload_calls.push((p, side.to_string(), span));
+/// One collect or release operation observed in a `when` body.
+struct CollectionCall {
+    protocol: String,
+    side: String,
+    span: Span,
+    release_requirement: CollectionReleaseRequirement,
+}
+
+/// One payload operation observed in a `when` body.
+struct PayloadCall {
+    protocol: String,
+    side: String,
+    span: Span,
+    collection_requirement: PayloadCollectionRequirement,
+}
+
+/// Record a registry-declared data-collection operation.
+///
+/// This deliberately does not infer semantics from a `::payload` suffix:
+/// `UDP::payload` and `ASM::payload` are immediately available, while TCP,
+/// HTTP, and SSL payloads require collection.  New protocol commands join the
+/// analysis by declaring [`tcl_registry::DataCollectionOperation`] in their
+/// command specs.
+fn classify_collect_command(
+    command: &str,
+    side: &str,
+    span: Span,
+    state: &mut CollectFlowState,
+    registry: &CommandRegistry,
+) {
+    let Some(operation) = registry.data_collection_operation(command) else {
+        return;
+    };
+    let protocol = operation.protocol.name.to_string();
+    match operation.action {
+        DataCollectionAction::Collect => {
+            state
+                .collected
+                .entry(protocol.clone())
+                .or_default()
+                .insert(side.to_string());
+            state.collect_calls.push(CollectionCall {
+                protocol,
+                side: side.to_string(),
+                span,
+                release_requirement: operation.protocol.release_requirement,
+            });
+        }
+        DataCollectionAction::Release => {
+            state
+                .released
+                .entry(protocol.clone())
+                .or_default()
+                .insert(side.to_string());
+            state.release_calls.push(CollectionCall {
+                protocol,
+                side: side.to_string(),
+                span,
+                release_requirement: operation.protocol.release_requirement,
+            });
+        }
+        DataCollectionAction::Payload => state.payload_calls.push(PayloadCall {
+            protocol,
+            side: side.to_string(),
+            span,
+            collection_requirement: operation.protocol.payload_requirement,
+        }),
     }
 }
 
@@ -730,32 +782,26 @@ fn classify_stmt_for_collect_flow(
             ..
         } => {
             // Normalise to the resolved/canonical head and strip a leading
-            // `::`: IR can legally carry `::clientside` or an alias, and the
-            // bare-name `is_side_switch` lookup + the side-flip `match` would
-            // otherwise miss it (and the `match`'s `_ => peer` arm would treat
-            // an unrecognised side-switch head as `peer`).
+            // `::`: IR can legally carry a global spelling or an alias. The
+            // registry owns both the side-switch membership and the exact
+            // client/server/peer transition, so this walker has no command
+            // spelling knowledge.
             let head = canonical_command
                 .as_deref()
                 .unwrap_or(command)
                 .trim_start_matches(':');
-            if registry.is_side_switch(head) {
-                let inner_side = match head {
-                    "clientside" => "client",
-                    "serverside" => "server",
-                    // peer — the opposite-side context.
-                    _ if side == "client" => "server",
-                    _ => "client",
-                };
+            if let Some(target) = registry.side_switch_target(head) {
+                let inner_side = target.execution_side(side);
                 if let Some(body) = args.first() {
                     scan_side_switch_body(body, inner_side, state, registry);
                 }
             } else {
-                classify_collect_command(command, side, abs(*span), state);
+                classify_collect_command(head, side, abs(*span), state, registry);
             }
         }
         Statement::AssignValue { value, span, .. } => {
             if let Some((cmd, _)) = parse_command_substitution(value.trim()) {
-                classify_collect_command(&cmd, side, abs(*span), state);
+                classify_collect_command(&cmd, side, abs(*span), state, registry);
             }
         }
         _ => {}
@@ -800,11 +846,24 @@ pub fn find_collect_flow_warnings(
     registry: &CommandRegistry,
     dialect: Option<&str>,
 ) -> Vec<IrulesCheckWarning> {
-    let mut out = Vec::new();
     if !is_irules_dialect(dialect) {
-        return out;
+        return Vec::new();
     }
-    // Pass 1: classify across all when bodies.
+    let (state, events_seen) = collect_flow_state(cu, registry);
+    let events = EventRegistry::build();
+    let mut out = Vec::new();
+    emit_missing_data_collect_warnings(cu, registry, &events, &events_seen, &state, &mut out);
+    emit_payload_without_collect_warnings(&state, &mut out);
+    emit_collect_without_release_warnings(&events, &events_seen, &state, &mut out);
+    emit_release_without_collect_warnings(&state, &mut out);
+    out
+}
+
+/// Classify each iRules event handler and retain its bare event name.
+fn collect_flow_state(
+    cu: &CompilationUnit,
+    registry: &CommandRegistry,
+) -> (CollectFlowState, Vec<String>) {
     let mut state = CollectFlowState::default();
     let mut events_seen: Vec<String> = Vec::new();
     for fu in cu.analysable_functions() {
@@ -815,47 +874,57 @@ pub fn find_collect_flow_warnings(
             scan_when_body_for_collect_flow(fu, side, &mut state, registry);
         }
     }
+    (state, events_seen)
+}
 
-    // Pass 2: emit per-event IRULE1005 (using the first when proc as
-    // anchor span; finer span resolution requires the `when` event-token
-    // span which the analyser layer carries). The collect requirement of
-    // each `*_DATA` event (protocols + side) comes from the event
-    // registry's `EventProps`, not a table here.
-    let events = EventRegistry::build();
+/// Emit IRULE1005 for data-event protocols that are certainly not collected.
+fn emit_missing_data_collect_warnings(
+    cu: &CompilationUnit,
+    registry: &CommandRegistry,
+    events: &EventRegistry,
+    events_seen: &[String],
+    state: &CollectFlowState,
+    out: &mut Vec<IrulesCheckWarning>,
+) {
+    // The event table owns protocol and side requirements. The first event
+    // statement is a fallback anchor until the analyser exposes event-token
+    // spans directly to this flow pass.
     let mut emitted_events: std::collections::HashSet<&str> = std::collections::HashSet::new();
-    for event in &events_seen {
+    for event in events_seen {
         let Some((protocols, required_side)) = events.data_collect_requirement(event) else {
             continue;
         };
         if !emitted_events.insert(event.as_str()) {
             continue;
         }
-        let satisfied = protocols.iter().any(|p| {
-            state
-                .collected
-                .get(&p.to_ascii_uppercase())
-                .is_some_and(|s| s.contains(required_side))
+        let satisfied = protocols.iter().any(|protocol_name| {
+            let Some(protocol) = registry.data_collection_protocol(protocol_name) else {
+                // The event table must not be treated as proof for a protocol
+                // whose command surface is absent from this registry profile.
+                return false;
+            };
+            protocol.payload_requirement == PayloadCollectionRequirement::NotRequired
+                || state
+                    .collected
+                    .get(protocol.name)
+                    .is_some_and(|s| s.contains(required_side))
         });
         if satisfied {
             continue;
         }
-        // Anchor on the first statement of the event's CFG.
-        let qname = format!("::when::{event}");
-        let anchor_span = cu
-            .functions()
-            .find(|fu| fu.name == qname || fu.name.starts_with(&format!("{qname}#")))
-            .and_then(|fu| {
-                let s = fu
-                    .cfg
-                    .blocks
-                    .get(&fu.cfg.entry)
-                    .and_then(|b| b.statements.first().map(crate::ir::Statement::span))?;
-                Some(fu.abs_span(s))
-            })
-            .unwrap_or(Span::new(0, 0));
-        let proto_hint: Vec<String> = protocols.iter().map(|p| format!("{p}::collect")).collect();
+        let proto_hint: Vec<&str> = protocols
+            .iter()
+            .filter_map(|protocol| registry.data_collection_collect_command(protocol))
+            .map(|spec| spec.name)
+            .collect();
+        if proto_hint.is_empty() {
+            // The registry says each applicable protocol supplies payload
+            // without an explicit collect, so the source cannot be proved to
+            // miss one. This is intentionally an abstention, not a warning.
+            continue;
+        }
         out.push(IrulesCheckWarning {
-            span: anchor_span,
+            span: event_anchor_span(cu, event),
             code: DiagCode::Irule1005,
             message: format!(
                 "'{event}' will never fire without a {required_side} {} call in another event.",
@@ -865,56 +934,113 @@ pub fn find_collect_flow_warnings(
             fixes: Vec::new(),
         });
     }
+}
 
-    // IRULE1006: payload without matching collect on same side.
-    for (proto, side, span) in &state.payload_calls {
-        let matched = state.collected.get(proto).is_some_and(|s| s.contains(side));
-        if !matched {
+/// Return the first statement span in `event`, or a stable zero-width fallback.
+fn event_anchor_span(cu: &CompilationUnit, event: &str) -> Span {
+    let qname = format!("::when::{event}");
+    cu.functions()
+        .find(|fu| fu.name == qname || fu.name.starts_with(&format!("{qname}#")))
+        .and_then(|fu| {
+            let span = fu
+                .cfg
+                .blocks
+                .get(&fu.cfg.entry)
+                .and_then(|b| b.statements.first().map(crate::ir::Statement::span))?;
+            Some(fu.abs_span(span))
+        })
+        .unwrap_or(Span::new(0, 0))
+}
+
+/// Emit IRULE1006 for payload commands that explicitly require collection.
+fn emit_payload_without_collect_warnings(
+    state: &CollectFlowState,
+    out: &mut Vec<IrulesCheckWarning>,
+) {
+    for payload in &state.payload_calls {
+        let matched = state
+            .collected
+            .get(&payload.protocol)
+            .is_some_and(|s| s.contains(&payload.side));
+        if payload.collection_requirement == PayloadCollectionRequirement::ExplicitCollect
+            && !matched
+        {
             out.push(IrulesCheckWarning {
-                span: *span,
+                span: payload.span,
                 code: DiagCode::Irule1006,
                 message: format!(
-                    "'{proto}::payload' without a {side} {proto}::collect call. The payload buffer will be empty.",
+                    "'{}::payload' without a {} {}::collect call. The payload buffer will be empty.",
+                    payload.protocol, payload.side, payload.protocol,
                 ),
                 replacement: None,
                 fixes: Vec::new(),
             });
         }
     }
+}
 
-    // IRULE1007: collect without matching release on same side.
-    for (proto, side, span) in &state.collect_calls {
-        let matched = state.released.get(proto).is_some_and(|s| s.contains(side));
-        if !matched {
+/// Emit IRULE1007 for registered collection lifecycles not released by code or event.
+fn emit_collect_without_release_warnings(
+    events: &EventRegistry,
+    events_seen: &[String],
+    state: &CollectFlowState,
+    out: &mut Vec<IrulesCheckWarning>,
+) {
+    for collect in &state.collect_calls {
+        let needs_release =
+            collect.release_requirement != CollectionReleaseRequirement::NotApplicable;
+        let released = state
+            .released
+            .get(&collect.protocol)
+            .is_some_and(|s| s.contains(&collect.side));
+        let implicitly_released = collect.release_requirement
+            == CollectionReleaseRequirement::ImplicitInDataEvent
+            && events_seen.iter().any(|event| {
+                events
+                    .data_collect_requirement(event)
+                    .is_some_and(|(protocols, required_side)| {
+                        required_side == collect.side.as_str()
+                            && protocols.contains(&collect.protocol.as_str())
+                    })
+            });
+        if needs_release && !released && !implicitly_released {
             out.push(IrulesCheckWarning {
-                span: *span,
+                span: collect.span,
                 code: DiagCode::Irule1007,
                 message: format!(
-                    "{proto}::collect without matching {proto}::release on the {side} side; collected data is never released",
+                    "{}::collect without matching {}::release on the {} side; collected data is never released",
+                    collect.protocol, collect.protocol, collect.side,
                 ),
                 replacement: None,
                 fixes: Vec::new(),
             });
         }
     }
+}
 
-    // IRULE1008: release without matching collect on same side.
-    for (proto, side, span) in &state.release_calls {
-        let matched = state.collected.get(proto).is_some_and(|s| s.contains(side));
+/// Emit IRULE1008 for a release whose registered protocol was never collected.
+fn emit_release_without_collect_warnings(
+    state: &CollectFlowState,
+    out: &mut Vec<IrulesCheckWarning>,
+) {
+    for release in &state.release_calls {
+        let matched = state
+            .collected
+            .get(&release.protocol)
+            .is_some_and(|s| s.contains(&release.side));
         if !matched {
             out.push(IrulesCheckWarning {
-                span: *span,
+                span: release.span,
                 code: DiagCode::Irule1008,
                 message: format!(
-                    "{proto}::release without matching {proto}::collect on the {side} side; no data was collected",
+                    "{}::release without matching {}::collect on the {} side; no data was collected",
+                    release.protocol, release.protocol, release.side,
                 ),
                 replacement: None,
                 fixes: Vec::new(),
             });
         }
     }
-
-    out
 }
 
 // IRULE1201 / IRULE1202 — HTTP-after-respond / multi-respond
@@ -1882,9 +2008,10 @@ mod tests {
     }
 
     #[test]
-    fn irule1005_data_event_without_collect_fires() {
-        // CLIENT_DATA needs a TCP::collect or UDP::collect somewhere.
-        let ws = flow_warnings("when CLIENT_DATA { log local0. \"data\" }");
+    fn irule1005_http_data_event_without_collect_fires() {
+        // HTTP_REQUEST_DATA has no transport alternative: HTTP::collect is
+        // required for it to fire.
+        let ws = flow_warnings("when HTTP_REQUEST_DATA { log local0. \"data\" }");
         assert!(
             ws.iter().any(|w| w.code == DiagCode::Irule1005),
             "expected IRULE1005, got {ws:?}",
@@ -1893,12 +2020,11 @@ mod tests {
 
     #[test]
     fn irule1005_satisfied_by_matching_collect() {
-        // CLIENT_ACCEPTED issues TCP::collect (client side); that
-        // satisfies CLIENT_DATA's IRULE1005.
+        // HTTP_REQUEST issues a client-side HTTP::collect, satisfying the
+        // HTTP_REQUEST_DATA requirement.
         let ws = flow_warnings(
-            "when CLIENT_ACCEPTED { TCP::collect }
-             when CLIENT_DATA { log local0. \"data\" }
-             when SERVER_CONNECTED { TCP::release }",
+            "when HTTP_REQUEST { HTTP::collect }
+             when HTTP_REQUEST_DATA { log local0. \"data\" }",
         );
         assert!(
             !ws.iter().any(|w| w.code == DiagCode::Irule1005),
@@ -1912,6 +2038,25 @@ mod tests {
         assert!(
             ws.iter().any(|w| w.code == DiagCode::Irule1006),
             "expected IRULE1006 on HTTP::payload without HTTP::collect, got {ws:?}",
+        );
+    }
+
+    #[test]
+    fn udp_and_asm_payloads_do_not_require_collect() {
+        // F5 exposes every UDP datagram to UDP::payload, and ASM owns the
+        // payload in ASM events. Neither protocol has a corresponding
+        // `::collect` command, so suffix-based classification was a false
+        // positive for both.
+        let udp = flow_warnings("when CLIENT_DATA { UDP::payload }");
+        assert!(
+            !udp.iter()
+                .any(|w| w.code == DiagCode::Irule1005 || w.code == DiagCode::Irule1006),
+            "UDP data is available without collect, got {udp:?}",
+        );
+        let asm = flow_warnings("when ASM_REQUEST_VIOLATION { ASM::payload }");
+        assert!(
+            !asm.iter().any(|w| w.code == DiagCode::Irule1006),
+            "ASM owns its payload, got {asm:?}",
         );
     }
 
@@ -1950,18 +2095,33 @@ mod tests {
         );
     }
 
+    #[test]
+    fn http_data_event_implicitly_releases_collection() {
+        // F5 releases HTTP collection when the matching DATA event completes
+        // unless another HTTP::collect starts. An explicit HTTP::release here
+        // is optional, unlike TCP and SSL.
+        let ws = flow_warnings(
+            "when HTTP_REQUEST { HTTP::collect }
+             when HTTP_REQUEST_DATA { set payload [HTTP::payload] }",
+        );
+        assert!(
+            !ws.iter().any(|w| w.code == DiagCode::Irule1007),
+            "HTTP data event supplies the release, got {ws:?}",
+        );
+    }
+
     // -- side-switch body descent + peer flip -----
 
     #[test]
     fn collect_inside_clientside_body_is_seen() {
         // The collect lives inside a `clientside { ... }` nesting script.
         // With the BODY role set, the flow check descends into the body
-        // and registers the (client-side) collect, so CLIENT_DATA's
+        // and registers the (client-side) collect, so CLIENTSSL_DATA's
         // IRULE1005 requirement is satisfied.  Without the descent the
-        // collect was invisible and CLIENT_DATA wrongly fired IRULE1005.
+        // collect was invisible and CLIENTSSL_DATA wrongly fired IRULE1005.
         let ws = flow_warnings(
-            "when CLIENT_ACCEPTED { clientside { TCP::collect } }
-             when CLIENT_DATA { log local0. \"data\" }",
+            "when CLIENTSSL_HANDSHAKE { clientside { SSL::collect } }
+             when CLIENTSSL_DATA { log local0. \"data\" }",
         );
         assert!(
             !ws.iter().any(|w| w.code == DiagCode::Irule1005),
@@ -1971,14 +2131,14 @@ mod tests {
 
     #[test]
     fn peer_flips_side_for_collect_flow() {
-        // `peer { TCP::collect }` evaluates under the *opposite* side of
-        // the surrounding event.  In the client-side CLIENT_ACCEPTED it
-        // issues a *server*-side collect, so it satisfies SERVER_DATA but
-        // NOT CLIENT_DATA — the inverse of a plain `clientside` collect.
+        // `peer { SSL::collect }` evaluates under the *opposite* side of
+        // the surrounding client-side event. It therefore satisfies
+        // SERVERSSL_DATA but not CLIENTSSL_DATA — the inverse of a plain
+        // client-side collection.
         let ws = flow_warnings(
-            "when CLIENT_ACCEPTED { peer { TCP::collect } }
-             when CLIENT_DATA { log local0. \"c\" }
-             when SERVER_DATA { log local0. \"s\" }",
+            "when CLIENTSSL_HANDSHAKE { peer { SSL::collect } }
+             when CLIENTSSL_DATA { log local0. \"c\" }
+             when SERVERSSL_DATA { log local0. \"s\" }",
         );
         let irule1005: Vec<&str> = ws
             .iter()
@@ -1988,11 +2148,11 @@ mod tests {
         assert_eq!(
             irule1005.len(),
             1,
-            "expected exactly one IRULE1005 (CLIENT_DATA only), got {ws:?}",
+            "expected exactly one IRULE1005 (CLIENTSSL_DATA only), got {ws:?}",
         );
         assert!(
-            irule1005[0].contains("CLIENT_DATA"),
-            "the surviving IRULE1005 must be CLIENT_DATA (peer flipped the collect to the server side), got {irule1005:?}",
+            irule1005[0].contains("CLIENTSSL_DATA"),
+            "the surviving IRULE1005 must be CLIENTSSL_DATA (peer flipped the collect to the server side), got {irule1005:?}",
         );
     }
 
@@ -2002,6 +2162,10 @@ mod tests {
         let r = registry();
         for cmd in ["clientside", "serverside", "peer"] {
             assert!(r.is_side_switch(cmd), "{cmd} must be a side-switch");
+            assert!(
+                r.side_switch_target(cmd).is_some(),
+                "{cmd} must declare its side-switch target",
+            );
             assert_eq!(
                 r.arg_indices_for_role(cmd, &["{ TCP::collect }"], tcl_registry::ArgRole::Body),
                 vec![0],

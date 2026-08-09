@@ -32,11 +32,15 @@ use crate::arity::Arity;
 use crate::body_kind::BodyKind;
 use crate::command_table::CommandTableEffect;
 use crate::dialects::DialectSet;
+use crate::events::{
+    DataCollectionAction, DataCollectionOperation, DataCollectionProtocol, EventHandlerPriority,
+};
 use crate::forms::CommandForm;
 use crate::hooks::{
     AnalyserHookId, CodegenHookId, InlineCodegenHookId, LoweringHookId, WasmCodegenHookId,
 };
 use crate::lifecycle::{Lifecycle, LifecycleState};
+use crate::side_effects::SideSwitchTarget;
 use crate::spec::{BytePayloadSpec, CommandSpec, SubCommand};
 use crate::traits::Traits;
 use crate::types::VarWriteTyping;
@@ -1794,6 +1798,66 @@ impl CommandRegistry {
                 .iter()
                 .any(|s| s.traits.contains(Traits::IS_SIDE_SWITCH))
         })
+    }
+
+    /// Return the side context selected by `name`'s nesting-script body.
+    ///
+    /// This is more precise than [`Self::is_side_switch`]: callers that need
+    /// to recurse into a body use the declared fixed/client/server/peer
+    /// behaviour instead of matching a command spelling.
+    #[must_use]
+    pub fn side_switch_target(&self, name: &str) -> Option<SideSwitchTarget> {
+        self.get(name)?.side_switch_target
+    }
+
+    /// Return the data-collection lifecycle fact declared by `name`.
+    ///
+    /// This is the only lookup consumers need for collect/release/payload
+    /// analysis: command files opt in explicitly, so a similarly named custom
+    /// command is never mistaken for an iRules buffer operation.
+    #[must_use]
+    pub fn data_collection_operation(&self, name: &str) -> Option<DataCollectionOperation> {
+        self.get(name)?.data_collection
+    }
+
+    /// Return the declared protocol facts for `protocol`.
+    ///
+    /// A protocol can be known even when it has no `collect` command (UDP and
+    /// ASM payloads are immediately available), so this scans all declared
+    /// lifecycle operations rather than only collect commands.
+    #[must_use]
+    pub fn data_collection_protocol(&self, protocol: &str) -> Option<DataCollectionProtocol> {
+        self.by_name
+            .values()
+            .flatten()
+            .filter_map(|spec| spec.data_collection)
+            .find(|operation| operation.protocol.name.eq_ignore_ascii_case(protocol))
+            .map(|operation| operation.protocol)
+    }
+
+    /// Return the registered collect command for `protocol`, if it has one.
+    ///
+    /// Editor quick fixes use this to offer only commands that really exist;
+    /// for example, UDP payload access deliberately returns `None` because
+    /// BIG-IP provides each datagram without a `UDP::collect` command.
+    #[must_use]
+    pub fn data_collection_collect_command(&self, protocol: &str) -> Option<&CommandSpec> {
+        self.by_name.values().flatten().find(|spec| {
+            spec.data_collection.is_some_and(|operation| {
+                operation.action == DataCollectionAction::Collect
+                    && operation.protocol.name.eq_ignore_ascii_case(protocol)
+            })
+        })
+    }
+
+    /// Return the event-handler priority policy declared by `name`.
+    ///
+    /// BIG-IP's `when` handler has a runtime default priority, so the policy
+    /// records that omission is valid. Consumers can still honour a stricter
+    /// policy for a dialect whose handler spec opts into one.
+    #[must_use]
+    pub fn event_handler_priority(&self, name: &str) -> Option<EventHandlerPriority> {
+        self.get(name)?.event_handler_priority
     }
 
     /// Whether `name` is **frame-sensitive**: its meaning depends on the

@@ -24,6 +24,7 @@ pub const fn spec() -> CommandSpec {
         traits: Traits::DIAGRAM_ACTION,
         dialects: Some(DialectSet::IRULES),
         arity: Arity::at_least(0),
+        data_collection: Some(HTTP_COLLECT),
         hover: Some(HoverSnippet {
             summary: "Collects an amount of HTTP body data that you specify.",
             synopsis: &["HTTP::collect (CONTENT_LENGTH)?"],

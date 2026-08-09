@@ -23,6 +23,7 @@ pub const fn spec() -> CommandSpec {
         name: "UDP::payload",
         dialects: Some(DialectSet::IRULES),
         arity: Arity::at_least(0),
+        data_collection: Some(UDP_PAYLOAD),
         hover: Some(HoverSnippet {
             summary: "Returns the content or length of the current UDP payload.",
             synopsis: &[

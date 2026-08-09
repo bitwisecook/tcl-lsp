@@ -24,6 +24,7 @@ pub const fn spec() -> CommandSpec {
         traits: Traits::DIAGRAM_ACTION,
         dialects: Some(DialectSet::IRULES),
         arity: Arity::at_least(0),
+        data_collection: Some(TCP_RELEASE),
         hover: Some(HoverSnippet {
             summary: "Release data gathered by TCP::collect to the upper layer.",
             synopsis: &["TCP::release (LENGTH)?"],

@@ -228,35 +228,52 @@ fn match_version_command(cmd: &[ScanWord], depth: u8) -> Option<String> {
         return None;
     }
     match cmd.get(1).map(|w| w.text.as_str()) {
-        // `package require ?-exact? Tcl <x.y>`.
+        // `package require ?-exact? Tcl <x.y>`. C Tcl 9 also registers its
+        // core package under the lower-case `tcl` alias; that spelling was not
+        // accepted by Tcl 8.x, so it is only a version signal from 9.0 onward.
         Some("require") => {
             let mut i = 2;
             if cmd.get(i).map(|w| w.text.as_str()) == Some("-exact") {
                 i += 1;
             }
-            // `Tcl` is matched case-sensitively — `tcl` / `Tk` are other packages.
-            if cmd.get(i).map(|w| w.text.as_str()) != Some("Tcl") {
+            let Some(version) = cmd.get(i + 1).and_then(|w| extract_major_minor(&w.text)) else {
+                return None;
+            };
+            if !is_tcl_core_package(cmd.get(i).map(|w| w.text.as_str()), &version) {
                 return None;
             }
-            cmd.get(i + 1).and_then(|w| extract_major_minor(&w.text))
+            Some(version)
         }
         // `package vsatisfies [package require Tcl] <x.y>` — the subject must be
         // a `[package require Tcl]` substitution so a `vsatisfies` over some
         // other package can't select a Tcl dialect.
         Some("vsatisfies") => {
             let subject = cmd.get(2)?;
-            if subject.kind != tcl_lexer::TokenType::Cmd || !is_package_require_tcl(&subject.text) {
+            let version = cmd.get(3).and_then(|w| extract_major_minor(&w.text))?;
+            if subject.kind != tcl_lexer::TokenType::Cmd
+                || !is_package_require_tcl(&subject.text, &version)
+            {
                 return None;
             }
-            cmd.get(3).and_then(|w| extract_major_minor(&w.text))
+            Some(version)
         }
         _ => None,
     }
 }
 
-/// Whether `s` tokenises to exactly the command `package require Tcl` — the
-/// subject of a `vsatisfies` Tcl-version guard.
-fn is_package_require_tcl(s: &str) -> bool {
+/// Whether `name` is C Tcl's core package for the requested minimum version.
+///
+/// `Tcl` is the package name in every supported C Tcl. Tcl 9 additionally
+/// exposes the lower-case `tcl` alias (used by its shipped `init.tcl`), while
+/// Tcl 8 rejects that alias. Do not use case-insensitive matching: `TCL` is
+/// not a C Tcl core package spelling.
+fn is_tcl_core_package(name: Option<&str>, version: &str) -> bool {
+    name == Some("Tcl") || (name == Some("tcl") && version.starts_with("9."))
+}
+
+/// Whether `s` tokenises to exactly `package require Tcl` (or Tcl 9's lower
+/// `tcl` alias) — the subject of a `vsatisfies` Tcl-version guard.
+fn is_package_require_tcl(s: &str, requested_version: &str) -> bool {
     let Ok(tokens) = tcl_lexer::Lexer::new(s).tokenise_all() else {
         return false;
     };
@@ -274,7 +291,10 @@ fn is_package_require_tcl(s: &str) -> bool {
         })
         .map(|t| sm.token_text(*t))
         .collect();
-    words.as_slice() == ["package", "require", "Tcl"]
+    words.first().copied() == Some("package")
+        && words.get(1).copied() == Some("require")
+        && words.len() == 3
+        && is_tcl_core_package(words.get(2).copied(), requested_version)
 }
 
 /// Return the dialect named by a `# tcl-dialect: <dialect>` comment directive in

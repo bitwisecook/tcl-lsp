@@ -338,8 +338,8 @@ suite("Code Actions", () => {
         actions.some(
           (a) =>
             typeof a.title === "string" &&
-            a.title.includes("collect") &&
-            a.title.includes("CLIENT_ACCEPTED"),
+            a.title.includes("HTTP::collect") &&
+            a.title.includes("HTTP_REQUEST"),
         ),
       { timeout: 10_000, label: "IRULE1005 collect bootstrap quick fix" },
     );
@@ -347,8 +347,8 @@ suite("Code Actions", () => {
     const collectFix = actions.find(
       (a) =>
         typeof a.title === "string" &&
-        a.title.includes("collect") &&
-        a.title.includes("CLIENT_ACCEPTED"),
+        a.title.includes("HTTP::collect") &&
+        a.title.includes("HTTP_REQUEST"),
     );
     assert.ok(collectFix, "Should provide a collect bootstrap quick fix");
   });

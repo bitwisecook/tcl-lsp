@@ -50,7 +50,8 @@ use tcl_registry::arity::Arity;
 use tcl_registry::events::EventRegistry;
 use tcl_registry::profiles::ProfileRegistry;
 use tcl_registry::{
-    ArgRole, CommandRegistry, KNOWN_DIALECTS, MethodDispatchKind, Traits, available_dialects,
+    ArgRole, CommandRegistry, DataCollectionAction, KNOWN_DIALECTS, MethodDispatchKind,
+    PayloadCollectionRequirement, SideSwitchTarget, Traits, available_dialects,
     registry_for_dialect,
 };
 
@@ -947,6 +948,67 @@ fn irules_side_switches_are_flagged() {
     assert!(!reg.is_side_switch("set"));
 }
 
+/// Collect/release/payload and side-switch behaviour is explicit registry
+/// data. In particular, `UDP::payload` is available per datagram and must not
+/// lead a generic consumer to invent a nonexistent `UDP::collect` command.
+///
+/// f5-dialect + registry-metadata.
+#[test]
+fn irules_collection_and_side_switch_facts_are_registry_driven() {
+    let (reg, _) = reg_and_set("f5-irules");
+    let http_payload = reg
+        .data_collection_operation("HTTP::payload")
+        .expect("HTTP payload lifecycle fact");
+    assert_eq!(http_payload.action, DataCollectionAction::Payload);
+    assert_eq!(http_payload.protocol.name, "HTTP");
+    assert_eq!(
+        http_payload.protocol.payload_requirement,
+        PayloadCollectionRequirement::ExplicitCollect
+    );
+    assert_eq!(
+        reg.data_collection_collect_command("HTTP")
+            .expect("HTTP collect command")
+            .name,
+        "HTTP::collect"
+    );
+
+    let udp = reg
+        .data_collection_operation("UDP::payload")
+        .expect("UDP payload lifecycle fact");
+    assert_eq!(
+        udp.protocol.payload_requirement,
+        PayloadCollectionRequirement::NotRequired
+    );
+    assert!(
+        reg.data_collection_collect_command("UDP").is_none(),
+        "UDP has no explicit collect command"
+    );
+
+    assert_eq!(
+        reg.side_switch_target("clientside"),
+        Some(SideSwitchTarget::Client)
+    );
+    assert_eq!(
+        reg.side_switch_target("serverside"),
+        Some(SideSwitchTarget::Server)
+    );
+    assert_eq!(reg.side_switch_target("peer"), Some(SideSwitchTarget::Peer));
+    assert_eq!(SideSwitchTarget::Client.execution_side("server"), "client");
+    assert_eq!(SideSwitchTarget::Server.execution_side("client"), "server");
+    assert_eq!(SideSwitchTarget::Peer.execution_side("client"), "server");
+    assert_eq!(SideSwitchTarget::Peer.execution_side("server"), "client");
+
+    let priority = reg
+        .event_handler_priority("when")
+        .expect("when priority policy");
+    assert_eq!(priority.keyword, "priority");
+    assert_eq!(priority.default_priority, 500);
+    assert!(
+        !priority.warn_when_implicit,
+        "BIG-IP accepts an omitted priority"
+    );
+}
+
 /// `test_clientside_serverside_arity_is_zero_or_one` /
 /// `peer` requires its script — arity bounds.
 ///
@@ -1548,6 +1610,27 @@ fn regsub_switches_are_version_gated() {
     );
     let in_90 = regsub.switch_names(Some(DialectSet::TCL90));
     assert!(in_90.contains(&"-command"), "9.0: {in_90:?}");
+}
+
+/// C-Tcl: `source -nopkg` is a Tcl 9.0-only flag.
+///
+/// tclsh8.6: `catch {source -nopkg missing.tcl} message` reports a wrong
+/// number of arguments. tclsh9.0 accepts the flag, then reports that the file
+/// does not exist. The different errors establish both the parser contract and
+/// the version boundary without needing a source file.
+#[test]
+fn source_nopkg_is_version_gated() {
+    let reg = CommandRegistry::build_default();
+    let source = reg.get("source").expect("source registered");
+    let in_86 = source.switch_names(Some(DialectSet::TCL86));
+    assert!(
+        !in_86.contains(&"-nopkg"),
+        "Tcl 9-only -nopkg leaked into 8.6: {in_86:?}"
+    );
+    let in_90 = source.switch_names(Some(DialectSet::TCL90));
+    assert!(in_90.contains(&"-nopkg"), "9.0: {in_90:?}");
+    let in_91 = source.switch_names(Some(DialectSet::TCL91));
+    assert!(in_91.contains(&"-nopkg"), "9.1: {in_91:?}");
 }
 
 /// C-Tcl: `const` is a Tcl 9.0 builtin, present in 9.0.

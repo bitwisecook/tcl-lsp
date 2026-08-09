@@ -68,6 +68,8 @@ use rustc_hash::FxHashSet;
 use tcl_compiler::analyser::AnalysisResult;
 use tcl_compiler::compiler_checks::DiagCode;
 use tcl_lexer::{LineIndex, Utf16Col};
+use tcl_registry::events::{DataCollectionAction, EventRegistry};
+use tcl_registry::registry_for_dialect;
 
 use crate::definition::{LspRange, utf16_col_to_char_col};
 
@@ -1922,36 +1924,38 @@ pub fn context_diagnostic_actions(source: &str, diags: &[ContextDiagnostic]) -> 
     out
 }
 
-/// Protocol names `X` for which `X::<suffix>` appears in `message`.
-fn protocols_before(message: &str, suffix: &str) -> Vec<String> {
-    let mut out = Vec::new();
-    let bytes = message.as_bytes();
-    let mut search = 0;
-    while let Some(rel) = message[search..].find(suffix) {
-        let end = search + rel;
-        let mut start = end;
-        while start > 0 && (bytes[start - 1].is_ascii_alphanumeric() || bytes[start - 1] == b'_') {
-            start -= 1;
-        }
-        if start < end {
-            out.push(message[start..end].to_ascii_uppercase());
-        }
-        search = end + suffix.len();
+/// Source text covered by a single-line diagnostic range.
+///
+/// Collection diagnostics point at one command or one `when` event token. A
+/// range crossing lines is not a useful command selector, so return `None`
+/// and deliberately offer no speculative quick fix in that case.
+fn diagnostic_text_on_line(source: &str, range: &LspRange) -> Option<String> {
+    if range.start_line != range.end_line {
+        return None;
     }
-    out
+    let line = source.split('\n').nth(range.start_line as usize)?;
+    let chars: Vec<char> = line.chars().collect();
+    let start = (range.start_character as usize).min(chars.len());
+    let end = (range.end_character as usize).min(chars.len());
+    (start < end).then(|| chars[start..end].iter().collect())
 }
 
-/// The `when`-event setup event a `protocol::collect` bootstrap belongs in.
-fn setup_event_for(protocol: &str, event: &str) -> String {
-    let ev = event.to_ascii_uppercase();
-    match protocol {
-        "HTTP" if ev.starts_with("HTTP_RESPONSE") => "HTTP_RESPONSE".to_string(),
-        "HTTP" => "HTTP_REQUEST".to_string(),
-        "SSL" if ev.starts_with("SERVERSSL") => "SERVERSSL_HANDSHAKE".to_string(),
-        "SSL" => "CLIENTSSL_HANDSHAKE".to_string(),
-        _ if ev.starts_with("SERVER") => "SERVER_CONNECTED".to_string(),
-        _ => "CLIENT_ACCEPTED".to_string(),
-    }
+/// Registry-declared payload operation mentioned by a diagnostic range.
+///
+/// Most diagnostics cover the command head exactly. If a producer supplies a
+/// wider statement span, scan its Tcl-shaped words and accept exactly one
+/// registered payload command. This stays data-driven and avoids deriving
+/// command behaviour from the diagnostic prose.
+fn payload_operation_at_diagnostic(
+    source: &str,
+    range: &LspRange,
+) -> Option<tcl_registry::DataCollectionOperation> {
+    let text = diagnostic_text_on_line(source, range)?;
+    let registry = registry_for_dialect("f5-irules");
+    text.split(|ch: char| !(ch.is_ascii_alphanumeric() || ch == ':' || ch == '_'))
+        .filter(|word| !word.is_empty())
+        .filter_map(|word| registry.data_collection_operation(word))
+        .find(|operation| operation.action == DataCollectionAction::Payload)
 }
 
 /// Line index of the `when` block enclosing `line` (scanning upward), or 0.
@@ -1968,6 +1972,10 @@ fn enclosing_when_line(source: &str, line: u32) -> u32 {
 
 /// IRULE1005 / IRULE1006 "missing collect" quick-fixes: insert a
 /// `when <setup> priority 500 { <proto>::collect }` bootstrap block.
+///
+/// The command name, whether collection is actually required, and the setup
+/// event are all registry facts. The diagnostic message is presentation only;
+/// it is never parsed to construct code.
 fn collect_bootstrap_actions(source: &str, d: &ContextDiagnostic) -> Vec<CodeAction> {
     if d.code != "IRULE1005" && d.code != "IRULE1006" {
         return Vec::new();
@@ -1977,51 +1985,66 @@ fn collect_bootstrap_actions(source: &str, d: &ContextDiagnostic) -> Vec<CodeAct
         crate::irules_context::find_enclosing_when_event(source, d.range.start_line, "f5-irules")
             .unwrap_or_default();
 
-    let (protocols, setup_event) = if d.code == "IRULE1005" {
-        // The data event is the word in the diag range; collect protocols from
-        // the "X::collect" mentions in the message.
-        let data_event = {
-            let line = source
-                .split('\n')
-                .nth(d.range.start_line as usize)
-                .unwrap_or("");
-            let chars: Vec<char> = line.chars().collect();
-            let s = (d.range.start_character as usize).min(chars.len());
-            let e = (d.range.end_character as usize).min(chars.len());
-            chars[s..e].iter().collect::<String>().to_ascii_uppercase()
+    let registry = registry_for_dialect("f5-irules");
+    let events = EventRegistry::build();
+    let choices: Vec<(&str, &str)> = if d.code == "IRULE1005" {
+        let Some(data_event) = diagnostic_text_on_line(source, &d.range) else {
+            return Vec::new();
         };
-        (protocols_before(&d.message, "::collect"), data_event)
+        let data_event = data_event.to_ascii_uppercase();
+        let Some(setup_event) = events
+            .get_props(&data_event)
+            .and_then(|props| props.setup_event)
+        else {
+            return Vec::new();
+        };
+        let Some((protocols, _)) = events.data_collect_requirement(&data_event) else {
+            return Vec::new();
+        };
+        protocols
+            .iter()
+            .filter_map(|protocol| {
+                registry
+                    .data_collection_collect_command(protocol)
+                    .map(|spec| (spec.name, setup_event))
+            })
+            .collect()
     } else {
-        // IRULE1006 — the buffer command is `X::payload`.
-        (protocols_before(&d.message, "::payload"), event)
+        let Some(operation) = payload_operation_at_diagnostic(source, &d.range) else {
+            return Vec::new();
+        };
+        let Some(setup_event) = operation.protocol.bootstrap_event_for(&event) else {
+            return Vec::new();
+        };
+        registry
+            .data_collection_collect_command(operation.protocol.name)
+            .map(|spec| vec![(spec.name, setup_event)])
+            .unwrap_or_default()
     };
 
-    let mut unique: Vec<String> = Vec::new();
-    for p in protocols {
-        if !unique.contains(&p) {
-            unique.push(p);
+    let mut unique: Vec<(&str, &str)> = Vec::new();
+    for choice in choices {
+        if !unique.contains(&choice) {
+            unique.push(choice);
         }
     }
     unique
         .into_iter()
-        .map(|proto| {
-            let setup = setup_event_for(&proto, &setup_event);
-            CodeAction {
-                title: format!("Add '{proto}::collect' bootstrap in '{setup}'"),
-                edits: vec![crate::rename::TextEdit {
-                    range: LspRange {
-                        start_line: anchor,
-                        start_character: 0,
-                        end_line: anchor,
-                        end_character: 0,
-                    },
-                    new_text: format!("when {setup} priority 500 {{\n    {proto}::collect\n}}\n\n"),
-                }],
-                kind: ActionKind::QuickFix,
-                command: None,
-                data_group_definition: None,
-                disabled: None,
-            }
+        .map(|(collect_command, setup)| CodeAction {
+            title: format!("Add '{collect_command}' bootstrap in '{setup}'"),
+            edits: vec![crate::rename::TextEdit {
+                range: LspRange {
+                    start_line: anchor,
+                    start_character: 0,
+                    end_line: anchor,
+                    end_character: 0,
+                },
+                new_text: format!("when {setup} priority 500 {{\n    {collect_command}\n}}\n\n"),
+            }],
+            kind: ActionKind::QuickFix,
+            command: None,
+            data_group_definition: None,
+            disabled: None,
         })
         .collect()
 }

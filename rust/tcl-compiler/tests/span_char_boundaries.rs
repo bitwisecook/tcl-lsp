@@ -117,12 +117,10 @@ fn the_zero_width_irule_still_reports_its_security_finding() {
         .iter()
         .map(|d| d.code.to_string())
         .collect();
-    for expected in ["IRULE3102", "IRULE1004"] {
-        assert!(
-            codes.iter().any(|c| c == expected),
-            "{expected} missing from {codes:?}",
-        );
-    }
+    assert!(
+        codes.iter().any(|c| c == "IRULE3102"),
+        "IRULE3102 missing from {codes:?}",
+    );
 }
 
 #[test]

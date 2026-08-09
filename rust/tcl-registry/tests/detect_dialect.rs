@@ -124,12 +124,17 @@ fn package_require_tcl_version() {
         Some("tcl8.6")
     );
     assert_eq!(detect("package require -exact Tcl 9.0\n"), Some("tcl9.0"));
+    // C Tcl 9 registers its core package under both `Tcl` and lower-case
+    // `tcl`; its own bundled init.tcl uses the latter spelling.
+    assert_eq!(detect("package require -exact tcl 9.0.3\n"), Some("tcl9.0"));
 }
 
 #[test]
 fn package_require_non_tcl_ignored() {
-    // Lowercase `tcl` is not the Tcl core package (matched case-sensitively).
+    // Tcl 8 rejects lower-case `tcl`, and C Tcl does not accept arbitrary
+    // case-folding (`TCL` remains a different package name).
     assert_eq!(detect("package require tcl 8.6\n"), None);
+    assert_eq!(detect("package require TCL 9.0\n"), None);
     assert_eq!(detect("package require Tk 8.6\n"), None);
 }
 
@@ -145,6 +150,10 @@ fn package_vsatisfies_tcl_version() {
     assert_eq!(
         detect("[package vsatisfies [package require Tcl] 9.1]\n"),
         Some("tcl9.1")
+    );
+    assert_eq!(
+        detect("[package vsatisfies [package require tcl] 9.0]\n"),
+        Some("tcl9.0")
     );
     // Nested inside an `if` condition (the tclshrc shape) is still found.
     assert_eq!(

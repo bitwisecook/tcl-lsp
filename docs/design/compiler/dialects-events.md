@@ -153,6 +153,31 @@ Mismatches produce diagnostic `IRULE1001`.
 `CommandSpec.excluded_events` lists events where a command is explicitly
 forbidden.
 
+### Data collection and side context
+
+The command registry also records a `DataCollectionOperation` for commands
+that participate in an iRules payload lifecycle. A consumer does not infer
+meaning from a name ending in `::collect`, `::release`, or `::payload`.
+That distinction matters: TCP, HTTP, and SSL payloads need collection; UDP
+and ASM payloads are supplied by BIG-IP without an explicit collect command.
+HTTP collection is released implicitly when its matching data event completes,
+whereas TCP and SSL require an explicit release.
+
+`EventProps.data_collect_protocols` lists the protocol alternatives for a data
+event. `CLIENT_DATA` and `SERVER_DATA` include UDP as an implicit alternative,
+so a standalone handler cannot be proved never to fire merely because it has
+no `TCP::collect`. The analyser stays silent until the source gives stronger
+evidence, such as a TCP payload access.
+
+Nesting-script side changes are likewise declared through
+`CommandSpec.side_switch_target` (`Client`, `Server`, or `Peer`). The flow
+checker uses the descriptor while it recurses, so adding a side-switch command
+does not require a compiler command-name branch.
+
+Finally, `EventHandlerPriority` records whether an event handler has a runtime
+default. BIG-IP's `when` default is priority 500; omitting `priority` is valid
+and only an explicitly stricter dialect policy can request IRULE1004.
+
 ### How dialects feed the compiler
 
 | Stage | Effect |

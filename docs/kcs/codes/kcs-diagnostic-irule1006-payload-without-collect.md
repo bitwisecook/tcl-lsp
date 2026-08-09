@@ -17,7 +17,9 @@ Why does the analyser report that payload data is accessed without a preceding `
 
 ## Why
 
-Payload is empty because no `collect` call reserved the data. The command returns an empty string or raises an error at runtime.
+HTTP, TCP, and SSL payload access needs an earlier matching `collect` call.
+Without it, the payload may be empty or the command may fail at runtime. The
+analyser takes this requirement from the command registry.
 
 ## Symptoms
 
@@ -39,6 +41,12 @@ Call `HTTP::collect` before accessing the payload:
 when HTTP_REQUEST { HTTP::collect 1024 }
 when HTTP_REQUEST_DATA { set p [HTTP::payload] }
 ```
+
+## Limits
+
+`UDP::payload` is the current datagram and `ASM::payload` does not use the
+HTTP/TCP/SSL collection lifecycle, so neither command produces this warning.
+The analyser is conservative around dynamic command names and indirect calls.
 
 ## How to suppress
 

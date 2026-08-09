@@ -23,6 +23,7 @@ pub const fn spec() -> CommandSpec {
         name: "ASM::payload",
         dialects: Some(DialectSet::IRULES),
         arity: Arity::at_least(0),
+        data_collection: Some(ASM_PAYLOAD),
         hover: Some(HoverSnippet {
             summary: "Retrieves or replaces the payload collected by ASM.",
             synopsis: &[

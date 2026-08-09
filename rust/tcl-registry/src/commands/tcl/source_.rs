@@ -35,8 +35,9 @@
 //! `-encoding` assumes the platform's *system* encoding. Tcl 8.6's
 //! source.htm is textually identical to 8.5's source.html (same two
 //! forms, same BOM wording "(utf-8, unicode)", same system-encoding
-//! default). Tcl 9.0 keeps the same two forms and the same `-encoding`
-//! option, but its prose shifts in two ways: the BOM paragraph spells
+//! default). Tcl 9.0 adds `-nopkg`, which sources a library file without
+//! package initialisation. It keeps the existing `-encoding` option, but its
+//! prose shifts in two ways: the BOM paragraph spells
 //! out the unicode-family encodings explicitly, "(utf-8, utf-16,
 //! ucs-2)", instead of 8.5/8.6's vaguer "(utf-8, unicode)"; and — the one
 //! genuine behavioural delta — omitting `-encoding` now assumes utf-8
@@ -81,6 +82,11 @@ const FORMS: &[FormSpec] = &[
         kind: FormKind::Default,
         synopsis: "source -encoding encodingName fileName",
         dialects: Some(DialectSet::TCL85_PLUS),
+    },
+    FormSpec {
+        kind: FormKind::Default,
+        synopsis: "source ?-encoding encodingName? ?-nopkg? fileName",
+        dialects: Some(DialectSet::TCL90_PLUS),
     },
     FormSpec {
         kind: FormKind::Default,
@@ -177,16 +183,15 @@ pub fn spec() -> CommandSpec {
             // from this same trait.
             | Traits::CREATES_BARRIER,
         // Positional-only count: always exactly 1 (fileName). Every
-        // fetched SYNOPSIS (8.4 through 9.1) documents only two shapes —
-        // `source fileName` (1 word) and, 8.5+, `source -encoding
-        // encodingName fileName` (3 words) — with no valid 2-word or
-        // 4-or-more-word call; this project's own bytecode-VM `cmd_source`
-        // (`tcl-vm/src/command.rs`) implements exactly that same
-        // 1-or-3-word shape and rejects everything else, so
+        // fetched SYNOPSIS adds a Tcl 9 `-nopkg` flag to the plain and
+        // `-encoding` forms. Every accepted modern shape still has exactly
+        // one fileName positional word; this project's bytecode-VM
+        // `cmd_source` (`tcl-vm/src/command.rs`) implements that contract and
+        // rejects a second file name, so
         // `source somefile.tcl otherfile.tcl` is just as invalid as
         // `source -encoding` alone. The registry's arity checker skips a
-        // recognised *leading* option (`-encoding`, declared below,
-        // gated `TCL85_PLUS`) together with its value word before
+        // recognised *leading* options (`-encoding` and Tcl 9's `-nopkg`,
+        // declared below) together with any value word before
         // counting positionals, so both accepted shapes reduce to this
         // same single positional. Tcl 8.4's SYNOPSIS additionally allows
         // an *optional* trailing fileName after `-rsrc`/`-rsrcid`
@@ -200,26 +205,58 @@ pub fn spec() -> CommandSpec {
         return_type: Some(TclType::String),
         side_effects: SIDE_EFFECTS,
         options: const {
-            &[OptionSpec {
-                name: "-encoding",
-                value: OptionValue::value("encodingName"),
-                detail: "The character encoding of fileName's contents. Added in Tcl 8.5 — Tcl 8.4's source has no -encoding option. When omitted, Tcl 8.5 and 8.6 assume the platform's system encoding (see encoding system); Tcl 9.0 and 9.1 instead always assume utf-8.",
-                dialects: Some(DialectSet::TCL85_PLUS),
-                aliases: &[],
-                lifecycle: Lifecycle::UNSPECIFIED,
-                min_abbrev: None,
-            }]
+            &[
+                OptionSpec {
+                    name: "-encoding",
+                    value: OptionValue::value("encodingName"),
+                    detail: "The character encoding of fileName's contents. Added in Tcl 8.5 — Tcl 8.4's source has no -encoding option. When omitted, Tcl 8.5 and 8.6 assume the platform's system encoding (see encoding system); Tcl 9.0 and 9.1 instead always assume utf-8.",
+                    dialects: Some(DialectSet::TCL85_PLUS),
+                    aliases: &[],
+                    lifecycle: Lifecycle::UNSPECIFIED,
+                    min_abbrev: None,
+                },
+                OptionSpec {
+                    name: "-nopkg",
+                    value: OptionValue::flag(),
+                    detail: "Source the file without package initialisation. Added in Tcl 9.0; unavailable in Tcl 8.x.",
+                    dialects: Some(DialectSet::TCL90_PLUS),
+                    aliases: &[],
+                    lifecycle: Lifecycle::UNSPECIFIED,
+                    min_abbrev: None,
+                },
+            ]
         },
         hover: Some(HoverSnippet {
             summary: "Evaluate a file or resource as a Tcl script.",
-            synopsis: &["source fileName", "source -encoding encodingName fileName"],
-            snippet: "Reads fileName from disk and evaluates its contents as a Tcl script in the caller's own context — inside a proc body, the file's top-level commands run in that proc's frame exactly as if they had been typed there directly, so a top-level `set` in the file can create or overwrite a local variable of the calling proc. The command's own result is the result of the last command executed in the file; if the file raises an error, source propagates it unchanged. A return at the file's top level does not unwind past source itself — it only ends the file early, and source returns normally with the returned value, letting a sourced file guard itself with an early return (e.g. a compatibility check) without also unwinding the caller. Inside the sourced file, info script reports the path currently being sourced.\n\nReading stops at the first ASCII ^Z (0x1A) byte on every platform, so a Tcl script can be followed by arbitrary binary or data content in the same file (a \"scripted document\"); read and gets have no such restriction.\n\nSince Tcl 8.5, -encoding selects the character encoding fileName is decoded with, and a leading byte-order mark is silently stripped whenever the effective encoding is a Unicode one. When -encoding is omitted, Tcl 8.5 and 8.6 fall back to the platform's system encoding; Tcl 9.0 and 9.1 instead always assume utf-8. Tcl 8.4 has no -encoding option at all, and instead supports two Macintosh-only forms, source -rsrc resourceName ?fileName? and source -rsrcid resourceId ?fileName?, for sourcing code out of a classic Mac OS resource fork; both were dropped in Tcl 8.5.\n\n**Security**: fileName is read and executed unconditionally, so attacker influence over the path lets a caller redirect execution to a file of its own choosing — treat a non-literal fileName the same as eval of arbitrary code, and validate it against a known-good set before sourcing.",
+            synopsis: &[
+                "source fileName",
+                "source -encoding encodingName fileName",
+                "source ?-encoding encodingName? ?-nopkg? fileName",
+            ],
+            snippet: "Reads fileName from disk and evaluates its contents as a Tcl script in the caller's own context — inside a proc body, the file's top-level commands run in that proc's frame exactly as if they had been typed there directly, so a top-level `set` in the file can create or overwrite a local variable of the calling proc. The command's own result is the result of the last command executed in the file; if the file raises an error, source propagates it unchanged. A return at the file's top level does not unwind past source itself — it only ends the file early, and source returns normally with the returned value, letting a sourced file guard itself with an early return (e.g. a compatibility check) without also unwinding the caller. Inside the sourced file, info script reports the path currently being sourced.\n\nReading stops at the first ASCII ^Z (0x1A) byte on every platform, so a Tcl script can be followed by arbitrary binary or data content in the same file (a \"scripted document\"); read and gets have no such restriction.\n\nSince Tcl 8.5, -encoding selects the character encoding fileName is decoded with, and a leading byte-order mark is silently stripped whenever the effective encoding is a Unicode one. When -encoding is omitted, Tcl 8.5 and 8.6 fall back to the platform's system encoding; Tcl 9.0 and 9.1 instead always assume utf-8. Tcl 9.0 also adds -nopkg for library sourcing that must bypass package initialisation. Tcl 8.4 has no -encoding option at all, and instead supports two Macintosh-only forms, source -rsrc resourceName ?fileName? and source -rsrcid resourceId ?fileName?, for sourcing code out of a classic Mac OS resource fork; both were dropped in Tcl 8.5.\n\n**Security**: fileName is read and executed unconditionally, so attacker influence over the path lets a caller redirect execution to a file of its own choosing — treat a non-literal fileName the same as eval of arbitrary code, and validate it against a known-good set before sourcing.",
             source: "Tcl source(n)",
-            examples: "source config.tcl\nsource -encoding utf-8 helpers.tcl\n\nforeach lib {utils.tcl widgets.tcl} {\n    source $lib\n}",
+            examples: "source config.tcl\nsource -encoding utf-8 helpers.tcl\n# Tcl 9 library loader: do not re-enter package initialisation.\nsource -nopkg library.tcl\n\nforeach lib {utils.tcl widgets.tcl} {\n    source $lib\n}",
             return_value: "The result of the last command executed in the sourced file, or the value a top-level return in that file supplied (without unwinding past source itself). Propagates any error the script raises.",
         }),
         forms: FORMS,
         analyser_hook: Some(crate::hooks::AnalyserHookId::Source),
         ..CommandSpec::DEFAULT
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn nopkg_is_a_tcl9_only_flag_without_a_value() {
+        let source = spec();
+        let nopkg = source
+            .options
+            .iter()
+            .find(|option| option.name == "-nopkg")
+            .expect("Tcl 9 source -nopkg option");
+        assert!(matches!(nopkg.value, OptionValue::Flag));
+        assert_eq!(nopkg.dialects, Some(DialectSet::TCL90_PLUS));
     }
 }

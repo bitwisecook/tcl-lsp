@@ -754,6 +754,27 @@ pub struct CommandSpec {
     /// have different legal event surfaces without a compiler-side name check.
     pub event_requirement_forms: &'static [EventRequirementForm],
 
+    /// Data-collection lifecycle fact for an iRules protocol command.
+    ///
+    /// Consumers use this descriptor rather than inferring behaviour from a
+    /// command spelling such as `HTTP::payload`. `None` means the command is
+    /// not part of a collect/release/payload lifecycle.
+    pub data_collection: Option<crate::events::DataCollectionOperation>,
+
+    /// Connection-side context selected for this command's body argument.
+    ///
+    /// `None` means the command does not switch the iRules connection side.
+    /// Commands carrying this fact also declare [`Traits::IS_SIDE_SWITCH`]
+    /// for trait-based consumers.
+    pub side_switch_target: Option<crate::side_effects::SideSwitchTarget>,
+
+    /// Priority policy for an iRules event-handler command.
+    ///
+    /// `None` means this is not an event-handler priority grammar. The
+    /// registry describes both the runtime default and whether omission is a
+    /// diagnostic, so consumers do not assume an explicit priority is needed.
+    pub event_handler_priority: Option<crate::events::EventHandlerPriority>,
+
     /// Options declared on the command (for completion and arity adjustment).
     pub options: &'static [OptionSpec],
 
@@ -1277,6 +1298,9 @@ impl CommandSpec {
         closed_value_args: &[],
         event_requires: None,
         event_requirement_forms: &[],
+        data_collection: None,
+        side_switch_target: None,
+        event_handler_priority: None,
         options: &[],
         reserved_trailing_words: 0,
         arg_values: &[],
