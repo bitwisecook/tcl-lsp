@@ -4327,6 +4327,7 @@ dependencies = [
  "serde_json",
  "tcl-bigip",
  "tcl-compiler",
+ "tcl-core-types",
  "tcl-dialect",
  "tcl-explorer",
  "tcl-lexer",

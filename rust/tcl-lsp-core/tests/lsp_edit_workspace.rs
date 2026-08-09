@@ -730,6 +730,7 @@ fn style_orchestrator_merges_checks_and_respects_disabled_set() {
         DEFAULT_LINE_ENDING,
         &no_disable(),
         &no_suppress(),
+        None,
     );
     let codes: HashSet<&str> = all.iter().map(|d| d.code).collect();
     assert!(codes.contains("W111"), "{all:?}");
@@ -743,6 +744,7 @@ fn style_orchestrator_merges_checks_and_respects_disabled_set() {
         DEFAULT_LINE_ENDING,
         &disabled,
         &no_suppress(),
+        None,
     );
     assert!(filtered.iter().all(|d| d.code != "W112"), "{filtered:?}");
     assert!(
@@ -763,6 +765,7 @@ fn style_orchestrator_honours_line_suppression_for_line_codes() {
         DEFAULT_LINE_ENDING,
         &no_disable(),
         &suppressed,
+        None,
     );
     assert!(
         diags.iter().all(|d| d.code != "W112"),

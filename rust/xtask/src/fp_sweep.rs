@@ -183,9 +183,13 @@ fn sweep_document(doc: &InputDocument, wanted: &[DiagCode], out: &mut Vec<Firing
         push(o.code, o.span, o.message);
     }
 
-    // (3) Pure-text style checks — no suppression / user-disabled set, since
-    // the sweep wants every firing regardless of what a hypothetical editor
-    // config would silence.
+    // (3) Pure-text checks — the style lints plus the byte-backed W107 / W109
+    // encoding-integrity set. W305 was already collected from the canonical
+    // analyser producer in (1). No suppression / user-disabled set, since the
+    // sweep wants every firing regardless of what a hypothetical editor config
+    // would silence.  The corpus is read through `read_input_documents`, so the
+    // document carries the byte-level decode report and the encoding findings
+    // come out at full precision (issue #1326).
     let no_disabled: std::collections::HashSet<String> = std::collections::HashSet::new();
     let no_suppressed: std::collections::HashMap<i32, std::collections::HashSet<String>> =
         std::collections::HashMap::new();
@@ -195,6 +199,7 @@ fn sweep_document(doc: &InputDocument, wanted: &[DiagCode], out: &mut Vec<Firing
         DEFAULT_LINE_ENDING,
         &no_disabled,
         &no_suppressed,
+        Some(&doc.decode),
     ) {
         let Ok(code) = DiagCode::from_str(d.code) else {
             continue;

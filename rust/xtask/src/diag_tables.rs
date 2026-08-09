@@ -64,6 +64,9 @@ fn diagnostic_rows() -> Vec<(DiagCode, DiagSection, bool, &'static str)> {
                 description,
                 internal: _,
                 reserved: _,
+                // The presentation tag is an editor-rendering concern, not a
+                // published-table column; see `DiagCode::lsp_tag`.
+                tag: _,
             } => Some((c, section, default_on, description)),
             DocRow::Optimisation { .. } => None,
         })
@@ -81,6 +84,7 @@ fn optimisation_rows() -> Vec<(DiagCode, OptCategory, &'static str)> {
             DocRow::Optimisation {
                 category,
                 description,
+                tag: _,
             } => Some((c, category, description)),
             DocRow::Diagnostic { .. } => None,
         })

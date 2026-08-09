@@ -187,6 +187,7 @@ fn diags_by_section() -> Vec<(&'static str, Vec<DiagRow>)> {
             internal: false,
             reserved: false,
             description,
+            tag: _,
         } = c.doc_row()
         {
             let key = section.as_str();

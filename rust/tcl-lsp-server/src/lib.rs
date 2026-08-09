@@ -206,6 +206,11 @@ struct DocumentState {
     /// uses this to decide whether [`tcl_lexer::LineIndex::apply_edit`] remains
     /// sound for the next incremental edit (see [`apply_content_change_indexed`]).
     has_bare_cr: bool,
+    /// Byte-level decoding evidence retained only when the backing file
+    /// lossily decoded to this exact buffer at `didOpen`. It is cleared by an
+    /// edit: LSP carries text, not source bytes, so an edited buffer must not
+    /// inherit a verdict about an older on-disk version.
+    decode_report: Option<tcl_lsp_core::source_decode::DecodeReport>,
     dialect: String,
     /// The LSP `languageId` the client opened this document with (empty
     /// for documents materialised from disk by the folder scan).  Retained
@@ -244,6 +249,7 @@ impl DocumentState {
             raw_text: None,
             line_index,
             has_bare_cr,
+            decode_report: None,
             dialect,
             language_id: String::new(),
             revision: 0,
@@ -260,6 +266,7 @@ impl DocumentState {
             raw_text: None,
             line_index,
             has_bare_cr,
+            decode_report: None,
             dialect,
             language_id: String::new(),
             revision: 0,
@@ -493,6 +500,9 @@ struct DiagJob {
     /// a copy of the buffer, so scheduling a diagnostics run for a large file
     /// costs nothing in memory (issue #1184).
     text: Arc<str>,
+    /// Decoding evidence for precisely this text, when it came from matching
+    /// on-disk bytes. See [`DocumentState::decode_report`].
+    decode_report: Option<tcl_lsp_core::source_decode::DecodeReport>,
     dialect: String,
     /// The document's editor `language_id`, carried so the diagnostics worker
     /// can dispatch F5 dialect documents (iApp APL presentations are detected
@@ -1100,11 +1110,12 @@ impl DiagInputs {
     /// out-of-order edit processing: it always analyses the latest committed
     /// state.  `None` when the document is not open.
     async fn capture_job(&self, uri: &Uri) -> Option<DiagJob> {
-        let (text, dialect, language_id, revision, version) = {
+        let (text, decode_report, dialect, language_id, revision, version) = {
             let docs = self.documents.lock().await;
             let doc = docs.get(uri)?;
             (
                 doc.text.clone(),
+                doc.decode_report,
                 doc.dialect.clone(),
                 doc.language_id.clone(),
                 doc.revision,
@@ -1124,6 +1135,7 @@ impl DiagInputs {
         };
         Some(DiagJob {
             text,
+            decode_report,
             dialect,
             language_id,
             currency: DiagCurrency::Open(revision),
@@ -1398,20 +1410,39 @@ async fn run_diagnostics_master_off(delivery: &DeliveryCtx<'_>) -> bool {
 /// the document is an F5 model dialect; `None` to continue to the Tcl analyser.
 async fn run_diagnostics_f5_dialect(
     delivery: &DeliveryCtx<'_>,
-    disabled: &HashSet<String>,
-    text: &str,
-    dialect: &str,
+    inputs: &LiftInputs<'_>,
+    analysis_text: &str,
     language_id: &str,
 ) -> Option<bool> {
-    let diags = f5_dialect_diagnostics(
-        delivery.uri,
-        text,
-        dialect,
-        language_id,
-        disabled,
-        delivery.documents,
-    )
-    .await?;
+    if !Backend::is_bigip_dialect(inputs.dialect) && !is_apl_source(delivery.uri, language_id) {
+        return None;
+    }
+    let encoding_abstains = inputs
+        .decode_report
+        .is_some_and(|r| r.requires_abstention());
+    // A non-text byte signature makes every parser/model verdict untrustworthy.
+    // Skip the validator entirely rather than computing diagnostics that the
+    // report-driven abstention below would then discard.
+    let mut diags = if encoding_abstains {
+        Vec::new()
+    } else {
+        f5_dialect_diagnostics(
+            delivery.uri,
+            analysis_text,
+            inputs.dialect,
+            language_id,
+            inputs.disabled,
+            delivery.documents,
+        )
+        .await
+        .unwrap_or_default()
+    };
+    diags.extend(lift_f5_source_integrity_diagnostics(
+        inputs.text,
+        inputs.decode_report.as_ref(),
+        inputs.disabled,
+    ));
+    finalise_diagnostics(&mut diags, inputs.severity_overrides, encoding_abstains);
     // Publish only when this version is still current (the same revision
     // guard the analyser path applies before publishing), and keep the
     // pull-diagnostic cache in lock-step so `textDocument/diagnostic`
@@ -1714,8 +1745,10 @@ async fn widen_recovery_extra_commands(
             &key.requires,
             target,
             &|path| {
-                std::fs::read_to_string(path)
-                    .map(|text| defined_command_tails(&text, dialect))
+                // Shared decoder: a package implementation file with a stray
+                // high byte should still contribute its command names.
+                tcl_lsp_core::source_decode::read_source_file(path)
+                    .map(|(text, _)| defined_command_tails(&text, dialect))
                     .unwrap_or_default()
             },
         );
@@ -2570,6 +2603,7 @@ async fn run_diagnostics_core(inputs: DiagInputs, uri: &Uri, job: DiagJob) -> bo
     } = inputs;
     let DiagJob {
         text,
+        decode_report,
         dialect,
         language_id,
         currency,
@@ -2602,9 +2636,19 @@ async fn run_diagnostics_core(inputs: DiagInputs, uri: &Uri, job: DiagJob) -> bo
         return run_diagnostics_master_off(&delivery).await;
     }
 
+    let lift_inputs = LiftInputs {
+        text: &text,
+        decode_report,
+        dialect: &dialect,
+        disabled: &disabled,
+        severity_overrides: &severity_overrides,
+        opt_disabled: &opt_disabled,
+        optimiser_enabled: toggles.optimiser_enabled,
+        style_line_length,
+        xc_diagnostics: toggles.xc.xc_diagnostics,
+    };
     if let Some(settled) =
-        run_diagnostics_f5_dialect(&delivery, &disabled, &analysis_text, &dialect, &language_id)
-            .await
+        run_diagnostics_f5_dialect(&delivery, &lift_inputs, &analysis_text, &language_id).await
     {
         return settled;
     }
@@ -2616,16 +2660,6 @@ async fn run_diagnostics_core(inputs: DiagInputs, uri: &Uri, job: DiagJob) -> bo
         config,
         text: &analysis_text,
         dialect: &dialect,
-    };
-    let lift_inputs = LiftInputs {
-        text: &text,
-        dialect: &dialect,
-        disabled: &disabled,
-        severity_overrides: &severity_overrides,
-        opt_disabled: &opt_disabled,
-        optimiser_enabled: toggles.optimiser_enabled,
-        style_line_length,
-        xc_diagnostics: toggles.xc.xc_diagnostics,
     };
     run_diagnostics_analyser_path(
         &delivery,
@@ -2952,17 +2986,23 @@ async fn publish_fast_tier(
     let analysis_lifts = Arc::clone(analysis);
     let text = lift_inputs.text.to_owned();
     let disabled = lift_inputs.disabled.clone();
+    let decode_report = lift_inputs.decode_report;
     let severity_overrides = lift_inputs.severity_overrides.clone();
     let style_line_length = lift_inputs.style_line_length;
     let lifted = tokio::task::spawn_blocking(move || {
         let mut diagnostics = lift_analyser_diagnostics(&text, &fast);
         diagnostics.extend(lift_source_style_diagnostics(
             &text,
+            decode_report.as_ref(),
             &analysis_lifts.suppressed_lines,
             &disabled,
             style_line_length as usize,
         ));
-        apply_severity_overrides(&mut diagnostics, &severity_overrides);
+        finalise_diagnostics(
+            &mut diagnostics,
+            &severity_overrides,
+            decode_report.is_some_and(|r| r.requires_abstention()),
+        );
         diagnostics
     })
     .await;
@@ -2975,6 +3015,7 @@ async fn publish_fast_tier(
 /// one `run_diagnostics_core` call.
 struct LiftInputs<'a> {
     text: &'a str,
+    decode_report: Option<tcl_lsp_core::source_decode::DecodeReport>,
     dialect: &'a str,
     disabled: &'a HashSet<String>,
     /// `tclLsp.diagnosticSeverity.<CODE>` per-code LSP severity overrides,
@@ -3052,6 +3093,7 @@ async fn refine_and_lift_diagnostics(
     let analysis_lifts = Arc::clone(analysis);
     let lift_text = inputs.text.to_owned();
     let disabled = inputs.disabled.clone();
+    let decode_report = inputs.decode_report;
     let severity_overrides = inputs.severity_overrides.clone();
     let opt_disabled = inputs.opt_disabled.clone();
     let optimiser_enabled = inputs.optimiser_enabled;
@@ -3073,6 +3115,7 @@ async fn refine_and_lift_diagnostics(
         ));
         diagnostics.extend(lift_source_style_diagnostics(
             &lift_text,
+            decode_report.as_ref(),
             &analysis_lifts.suppressed_lines,
             &disabled,
             style_line_length as usize,
@@ -3086,7 +3129,11 @@ async fn refine_and_lift_diagnostics(
                 &analysis_lifts.suppressed_lines,
             ));
         }
-        apply_severity_overrides(&mut diagnostics, &severity_overrides);
+        finalise_diagnostics(
+            &mut diagnostics,
+            &severity_overrides,
+            decode_report.is_some_and(|r| r.requires_abstention()),
+        );
         diagnostics
     })
     .await
@@ -5240,15 +5287,38 @@ impl Backend {
         // paths fall through to `None`.  `to_file_path` yields a borrowed
         // `Cow<Path>`; take ownership so the path can move into the blocking task.
         let path = url.to_file_path()?.into_owned();
-        let text = tokio::task::spawn_blocking(move || std::fs::read_to_string(path))
-            .await
-            .ok()?
-            .ok()?;
+        // Through the shared decoder, not `read_to_string`: a closed file with
+        // one ill-formed byte must still resolve its spans rather than vanish
+        // from cross-document navigation (issue #1326).
+        let (text, _) = tokio::task::spawn_blocking(move || {
+            tcl_lsp_core::source_decode::read_source_file(&path)
+        })
+        .await
+        .ok()?
+        .ok()?;
         let dialect = match self.resolve_folder_dialect(url).await {
             Some(d) => d,
             None => self.session_dialect().await,
         };
         Some(DocumentState::new(text, dialect).normalised_for_analysis())
+    }
+
+    /// Return byte-level decoding evidence only when `text` is exactly the
+    /// lossy decoding of `uri`'s current on-disk bytes. LSP synchronisation
+    /// transports Unicode text rather than those bytes, so this equality is
+    /// the boundary between a fact (safe to diagnose) and a guess (not safe).
+    async fn decode_report_for_matching_disk_text(
+        uri: &Uri,
+        text: &str,
+    ) -> Option<tcl_lsp_core::source_decode::DecodeReport> {
+        let path = uri.to_file_path()?.into_owned();
+        let (decoded, report) = tokio::task::spawn_blocking(move || {
+            tcl_lsp_core::source_decode::read_source_file(&path)
+        })
+        .await
+        .ok()?
+        .ok()?;
+        (decoded == text).then_some(report)
     }
 
     /// Cross-file super/subtype targets for the type-hierarchy walk, resolved
@@ -5738,8 +5808,12 @@ impl Backend {
             // input and diagnostics describe the same script the editor would
             // see once the file is opened (issue: background and interactive
             // paths must not disagree about where a lone `\r` breaks a line).
-            let text =
-                tcl_lexer::normalise_lone_cr(&std::fs::read_to_string(&path).ok()?).into_owned();
+            // Read through the shared decoder (issue #1326): `read_to_string`
+            // would fail on ill-formed UTF-8 and `.ok()?` would then drop the
+            // whole file — its procs, its `source` edges, its symbols — out of
+            // the index with nothing said about it.
+            let (raw, _) = tcl_lsp_core::source_decode::read_source_file(&path).ok()?;
+            let text = tcl_lexer::normalise_lone_cr(&raw).into_owned();
             let dialect =
                 Self::dialect_for_closed_sync(&uri, &text, &folder_dialects, &default_dialect);
             let analysis = Analyser::new().analyse(&text, &dialect);
@@ -5923,6 +5997,9 @@ impl Backend {
         // closed BIG-IP config or a version-pinned Tcl file keeps the dialect it
         // had while open instead of being re-analysed as generic Tcl.
         let dialect = self.dialect_for_closed(uri, &text).await;
+        // Closed diagnostics are also backed by the exact on-disk text, so the
+        // same byte-evidence contract used at `didOpen` applies here.
+        let decode_report = Self::decode_report_for_matching_disk_text(uri, &text).await;
         // Bump this URI's closed-run generation and capture it, so a newer close
         // / watched-change refresh supersedes this run at publish time.
         let generation = self.next_closed_diag_generation(uri).await;
@@ -5932,6 +6009,7 @@ impl Backend {
             // A closed file's text comes from the salsa input, not from an open
             // snapshot, so this is where its shared handle is minted.
             text: Arc::from(text),
+            decode_report,
             dialect,
             // A closed file carries no editor `language_id`; F5 model dialects are
             // routed by the resolved `dialect` + basename resolved above.
@@ -11534,6 +11612,16 @@ impl Backend {
         }
         let (disabled, _non_ascii_mode, optimiser_enabled, opt_disabled) =
             self.resolved_analysis_settings(uri).await;
+        // Match the push worker's exact snapshot contract. A pull can race the
+        // debounced push before its cache is primed, so it must carry the same
+        // byte evidence itself rather than relying on a prior publish.
+        let decode_report = {
+            let docs = self.documents.lock().await;
+            docs.get(uri)
+                .filter(|doc| doc.text.as_ref() == text.as_ref())
+                .and_then(|doc| doc.decode_report)
+        };
+        let severity_overrides = self.resolved_severity_overrides(uri).await;
         // `text` is the client's exact buffer and `analysis_text` its analysis
         // form (lone `\r` → `\n`), exactly as `run_diagnostics_core` splits
         // them on the push path: the parser sees the script `tclsh` would, the
@@ -11549,17 +11637,29 @@ impl Backend {
         // presentation documents have model-level validators, not the Tcl
         // analyser — mirror the push path's dispatch so a pull-mode editor
         // receives the same BIGIP/IAPP diagnostics.
-        if let Some(diags) = f5_dialect_diagnostics(
-            uri,
-            &analysis_text,
-            &dialect,
-            language_id,
-            &disabled,
-            &self.documents,
-        )
-        .await
-        {
-            return diags;
+        if Self::is_bigip_dialect(&dialect) || is_apl_source(uri, language_id) {
+            let encoding_abstains = decode_report.is_some_and(|r| r.requires_abstention());
+            let mut diagnostics = if encoding_abstains {
+                Vec::new()
+            } else {
+                f5_dialect_diagnostics(
+                    uri,
+                    &analysis_text,
+                    &dialect,
+                    language_id,
+                    &disabled,
+                    &self.documents,
+                )
+                .await
+                .unwrap_or_default()
+            };
+            diagnostics.extend(lift_f5_source_integrity_diagnostics(
+                &text,
+                decode_report.as_ref(),
+                &disabled,
+            ));
+            finalise_diagnostics(&mut diagnostics, &severity_overrides, encoding_abstains);
+            return diagnostics;
         }
         let analysis = self
             .analysis_for(uri, analysis_text.clone(), dialect.clone())
@@ -11581,7 +11681,6 @@ impl Backend {
             .published_analyser_diagnostics(uri, &analysis, &dialect, registry, &disabled)
             .await;
         let style_line_length = self.resolved_style_line_length(uri).await;
-        let severity_overrides = self.resolved_severity_overrides(uri).await;
         tokio::task::spawn_blocking(move || {
             let mut diagnostics = lift_analyser_diagnostics(&analysis_text, &analyser_diags);
             append_brace_expr_perf_hints(&mut diagnostics, optimiser_enabled, &opt_disabled);
@@ -11595,6 +11694,7 @@ impl Backend {
             ));
             diagnostics.extend(lift_source_style_diagnostics(
                 &text,
+                decode_report.as_ref(),
                 &analysis.suppressed_lines,
                 &disabled,
                 style_line_length as usize,
@@ -11609,7 +11709,11 @@ impl Backend {
                     &analysis.suppressed_lines,
                 ));
             }
-            apply_severity_overrides(&mut diagnostics, &severity_overrides);
+            finalise_diagnostics(
+                &mut diagnostics,
+                &severity_overrides,
+                decode_report.is_some_and(|r| r.requires_abstention()),
+            );
             diagnostics
         })
         .await
@@ -12341,8 +12445,11 @@ impl Backend {
                         return None;
                     }
                     // Analysis form, matching `read_document` / `scan_disk_file`.
-                    let text = tcl_lexer::normalise_lone_cr(&std::fs::read_to_string(&path).ok()?)
-                        .into_owned();
+                    // Shared decoder, for the same reason `scan_disk_file`
+                    // uses it: an ill-formed byte must not silently remove the
+                    // file from the workspace index (issue #1326).
+                    let (raw, _) = tcl_lsp_core::source_decode::read_source_file(&path).ok()?;
+                    let text = tcl_lexer::normalise_lone_cr(&raw).into_owned();
                     let dialect = folder_dialect_for(&uri, &folder_dialects)
                         .unwrap_or_else(|| default_dialect.clone());
                     let mut analyser = Analyser::new();
@@ -13003,7 +13110,7 @@ impl LanguageServer for Backend {
         // Apply document-sync mutations in arrival order (see `EditOrder`). The
         // ticket must be drawn before the first await.
         let ticket = self.edit_order.take_ticket();
-        let _turn = self.edit_order.wait_turn(ticket).await;
+        let turn = self.edit_order.wait_turn(ticket).await;
         let dialect = self
             .dialect_for_open(
                 &params.text_document.uri,
@@ -13034,6 +13141,20 @@ impl LanguageServer for Backend {
                 .await
                 .remove_document(uri.as_str());
             drop(docs);
+        }
+        // Do not keep the global document-sync turn across disk I/O. If a
+        // change lands while this runs, the version/text check below refuses
+        // to attach facts about the file that was opened to the edited buffer.
+        drop(turn);
+        let decode_report = Self::decode_report_for_matching_disk_text(&uri, &text).await;
+        if let Some(decode_report) = decode_report {
+            let mut docs = self.documents.lock().await;
+            if let Some(doc) = docs.get_mut(&uri)
+                && doc.version == Some(version)
+                && doc.text.as_ref() == text
+            {
+                doc.decode_report = Some(decode_report);
+            }
         }
         // Opening a document is a config-context boundary, not an edit. A closed
         // URI keeps its `DiagSlot` (only the live document + index entry are
@@ -13117,6 +13238,10 @@ impl LanguageServer for Backend {
             entry.text = Arc::clone(&text);
             entry.line_index = index;
             entry.has_bare_cr = has_bare_cr;
+            // The client supplied text for this revision, not the on-disk
+            // bytes that established the old report. Do not carry an encoding
+            // verdict across even a no-op-looking edit.
+            entry.decode_report = None;
             entry.bump_revision(change_version);
             let dialect = entry.dialect.clone();
             let language_id = entry.language_id.clone();
@@ -17833,8 +17958,10 @@ fn refine_w123_diagnostics(
         HashSet::new()
     } else {
         resolver.package_defined_commands(available, target, &|path| {
-            std::fs::read_to_string(path)
-                .map(|text| defined_command_tails(&text, dialect))
+            // Shared decoder: a package implementation file with a stray high
+            // byte should still contribute its command names.
+            tcl_lsp_core::source_decode::read_source_file(path)
+                .map(|(text, _)| defined_command_tails(&text, dialect))
                 .unwrap_or_default()
         })
     };
@@ -18199,6 +18326,90 @@ fn append_brace_expr_perf_hints(
     diagnostics.extend(hints);
 }
 
+/// Finalise a lifted diagnostic set for publication: attach the LSP
+/// `DiagnosticTag`s the code table declares, then apply the user's severity
+/// overrides.
+///
+/// Every path that publishes diagnostics — the fast tier, the deep push, and
+/// the pull provider — goes through this one call, which is what makes the
+/// three agree on tags without each remembering to ask for them.  Order
+/// matters only in that tags are attached from the code, so a severity
+/// override changes how loud a diagnostic is and never what it is tagged as.
+fn finalise_diagnostics(
+    diagnostics: &mut Vec<tower_lsp_server::ls_types::Diagnostic>,
+    overrides: &std::collections::HashMap<String, tower_lsp_server::ls_types::DiagnosticSeverity>,
+    encoding_abstains: bool,
+) {
+    apply_encoding_abstention(diagnostics, encoding_abstains);
+    apply_diagnostic_tags(diagnostics);
+    apply_severity_overrides(diagnostics, overrides);
+}
+
+/// Abstain from everything but source-integrity findings when the byte decode
+/// report proves that the document is not UTF-8 text (issue #1326).
+///
+/// A three-line UTF-16 iRule used to publish 87 diagnostics — `E102`s about
+/// braces that are really NUL bytes, `W108`s about characters that are half of
+/// a UTF-16 code unit, `W123`s about commands whose names are interleaved with
+/// NULs.  Every one of them is a statement about decoding artefacts rather than
+/// about the user's code, and each is *wrong* in the specific sense that
+/// matters: it points at a position that does not correspond to anything in
+/// the file.  Publishing one accurate finding and stopping is the honest
+/// answer.
+///
+/// This is driven by byte evidence rather than the displayed W109 diagnostic.
+/// Disabling W109 can hide the explanation, but it cannot make analysis of the
+/// same malformed bytes sound. The source-integrity codes survive when enabled.
+///
+/// Applied here, at the one point every publish path funnels through, so the
+/// fast tier, the deep push and the pull provider cannot disagree about it.
+fn apply_encoding_abstention(
+    diagnostics: &mut Vec<tower_lsp_server::ls_types::Diagnostic>,
+    encoding_abstains: bool,
+) {
+    use tower_lsp_server::ls_types::NumberOrString;
+    let code_of = |d: &tower_lsp_server::ls_types::Diagnostic| match &d.code {
+        Some(NumberOrString::String(c)) => Some(c.clone()),
+        _ => None,
+    };
+    if !encoding_abstains {
+        return;
+    }
+    diagnostics.retain(|d| matches!(code_of(d).as_deref(), Some("W107" | "W109" | "W305")));
+}
+
+/// Attach `Diagnostic.tags` from the diagnostic-code table (issue #1333).
+///
+/// The mapping lives in `tcl_core_types::DiagCode::lsp_tag` — declared next to
+/// each code, alongside its section and description — so tagging a diagnostic
+/// is a table edit and this function never changes.  In particular the
+/// *deprecated-command* diagnostics get their strikethrough because the code
+/// they carry is tagged, and which commands are deprecated is registry data;
+/// there is no command-name list here or anywhere else in the server.
+///
+/// A code the table does not tag keeps `tags: None` rather than an empty
+/// array: an empty `tags` is legal LSP but tells a client nothing, and `None`
+/// is what every untagged diagnostic in the server has always sent.
+fn apply_diagnostic_tags(diagnostics: &mut [tower_lsp_server::ls_types::Diagnostic]) {
+    use core::str::FromStr as _;
+    use tower_lsp_server::ls_types::{DiagnosticTag, NumberOrString};
+    for d in diagnostics.iter_mut() {
+        let Some(NumberOrString::String(code)) = &d.code else {
+            continue;
+        };
+        let Some(tag) = tcl_core_types::DiagCode::from_str(code)
+            .ok()
+            .and_then(tcl_core_types::DiagCode::lsp_tag)
+        else {
+            continue;
+        };
+        d.tags = Some(vec![match tag {
+            tcl_core_types::DiagTag::Unnecessary => DiagnosticTag::UNNECESSARY,
+            tcl_core_types::DiagTag::Deprecated => DiagnosticTag::DEPRECATED,
+        }]);
+    }
+}
+
 /// Apply user severity overrides (`tclLsp.diagnosticSeverity.<CODE>`) to the
 /// lifted diagnostics: a code present in `overrides` is re-published at the
 /// chosen [`DiagnosticSeverity`], leaving its range/message/code untouched.
@@ -18221,11 +18432,11 @@ fn apply_severity_overrides(
     }
 }
 
-/// Lift the source-style pass (W111 line length,
-/// W112 trailing whitespace, W115 comment continuation, W118 line
-/// endings) into LSP diagnostics.  These are pure source-text
-/// checks (no analyser / compiler unit needed); see
-/// `tcl_lsp_core::source_style`.
+/// Lift the source-text pass (W111 line length, W112 trailing whitespace,
+/// W115 comment continuation, W118 line endings, plus the byte-backed W107 /
+/// W109 encoding-integrity checks) into LSP diagnostics. These are pure
+/// source-text checks (no analyser / compiler unit needed); see
+/// `tcl_lsp_core::source_style` and `tcl_lsp_core::source_decode`.
 ///
 /// `suppressed` is the analyser's `suppressed_lines` map — it
 /// carries both inline `# noqa` line suppressions and the
@@ -18234,14 +18445,19 @@ fn apply_severity_overrides(
 /// do.  The checks run with default settings (line length 120,
 /// expected line ending `\n`); there is no per-check feature-config
 /// surface.
+///
+/// `decode_report` is present only when the bytes currently on disk lossily
+/// decode to exactly the buffer sent in `didOpen`. An unsaved LSP buffer has no
+/// byte evidence, so W107/W109 abstain rather than infer a decode failure from
+/// valid Unicode text such as a literal `U+FFFD`.
 fn lift_source_style_diagnostics(
     text: &str,
+    decode_report: Option<&tcl_lsp_core::source_decode::DecodeReport>,
     suppressed: &std::collections::HashMap<i32, std::collections::HashSet<String>>,
     user_disabled: &std::collections::HashSet<String>,
     line_length: usize,
 ) -> Vec<tower_lsp_server::ls_types::Diagnostic> {
-    use tcl_lsp_core::source_style::{DEFAULT_LINE_ENDING, StyleSeverity, style_diagnostics};
-    use tower_lsp_server::ls_types::{DiagnosticSeverity, NumberOrString};
+    use tcl_lsp_core::source_style::{DEFAULT_LINE_ENDING, style_diagnostics};
 
     // The file-level (`-1`) directive bucket doubles as a per-code
     // disabled set (mirrors how the Rust analyser folds a
@@ -18252,38 +18468,76 @@ fn lift_source_style_diagnostics(
     let mut disabled = suppressed.get(&-1).cloned().unwrap_or_default();
     disabled.extend(user_disabled.iter().cloned());
 
-    style_diagnostics(
+    lift_style_diagnostics(style_diagnostics(
         text,
         line_length,
         DEFAULT_LINE_ENDING,
         &disabled,
         suppressed,
-    )
-    .into_iter()
-    .map(|d| tower_lsp_server::ls_types::Diagnostic {
-        range: Range {
-            start: Position {
-                line: d.range.start_line,
-                character: d.range.start_character,
+        decode_report,
+    ))
+}
+
+/// Lift source-style records into the LSP wire type.
+///
+/// Kept separate from the style pass so the non-Tcl F5 adapters can append the
+/// shared byte-integrity findings without running Tcl-specific style checks.
+fn lift_style_diagnostics(
+    diagnostics: Vec<tcl_lsp_core::source_style::StyleDiagnostic>,
+) -> Vec<tower_lsp_server::ls_types::Diagnostic> {
+    use tcl_lsp_core::source_style::StyleSeverity;
+    use tower_lsp_server::ls_types::{DiagnosticSeverity, NumberOrString};
+
+    diagnostics
+        .into_iter()
+        .map(|d| tower_lsp_server::ls_types::Diagnostic {
+            range: Range {
+                start: Position {
+                    line: d.range.start_line,
+                    character: d.range.start_character,
+                },
+                end: Position {
+                    line: d.range.end_line,
+                    character: d.range.end_character,
+                },
             },
-            end: Position {
-                line: d.range.end_line,
-                character: d.range.end_character,
-            },
-        },
-        severity: Some(match d.severity {
-            StyleSeverity::Warning => DiagnosticSeverity::WARNING,
-            StyleSeverity::Hint => DiagnosticSeverity::HINT,
-        }),
-        code: Some(NumberOrString::String(d.code.to_string())),
-        code_description: None,
-        source: Some("tcl-lsp".to_string()),
-        message: d.message,
-        related_information: None,
-        tags: None,
-        data: None,
-    })
-    .collect()
+            severity: Some(match d.severity {
+                StyleSeverity::Warning => DiagnosticSeverity::WARNING,
+                StyleSeverity::Hint => DiagnosticSeverity::HINT,
+            }),
+            code: Some(NumberOrString::String(d.code.to_string())),
+            code_description: None,
+            source: Some("tcl-lsp".to_string()),
+            message: d.message,
+            related_information: None,
+            tags: None,
+            data: None,
+        })
+        .collect()
+}
+
+/// Source-integrity findings shared by BIG-IP configuration and iApp APL.
+///
+/// Those document families bypass the Tcl analyser for their model validators,
+/// so W107/W109 are lifted directly from byte evidence and W305 is taken from
+/// the compiler's canonical whole-source producer. This is deliberately not
+/// the full Tcl style pass: W111/W112/W115/W118 have separate syntax-policy
+/// questions, while source integrity applies to every text language.
+fn lift_f5_source_integrity_diagnostics(
+    text: &str,
+    decode_report: Option<&tcl_lsp_core::source_decode::DecodeReport>,
+    user_disabled: &std::collections::HashSet<String>,
+) -> Vec<tower_lsp_server::ls_types::Diagnostic> {
+    let mut disabled = tcl_compiler::analyser::utils::parse_file_suppression(text);
+    disabled.extend(user_disabled.iter().cloned());
+    let encoding = tcl_lsp_core::source_decode::encoding_integrity_diagnostics(text, decode_report)
+        .into_iter()
+        .filter(|d| !disabled.contains("*") && !disabled.contains(d.code))
+        .collect();
+    let mut diagnostics = lift_style_diagnostics(encoding);
+    let bidi = tcl_compiler::analyser::filtered_bidi_control_diagnostics(text, user_disabled);
+    diagnostics.extend(lift_analyser_diagnostics(text, &bidi));
+    diagnostics
 }
 
 /// Lift the compiler-checks pipeline (GVN redundancies,
@@ -21292,6 +21546,7 @@ mod tests {
         let src = format!("{long}  \r\nputs ok\r\n");
         let diags = lift_source_style_diagnostics(
             &src,
+            None,
             &std::collections::HashMap::new(),
             &std::collections::HashSet::new(),
             tcl_lsp_core::source_style::DEFAULT_LINE_LENGTH,
@@ -21325,6 +21580,7 @@ mod tests {
         suppressed.insert(-1, std::iter::once("W111".to_string()).collect());
         let diags = lift_source_style_diagnostics(
             &src,
+            None,
             &suppressed,
             &std::collections::HashSet::new(),
             tcl_lsp_core::source_style::DEFAULT_LINE_LENGTH,
@@ -21465,6 +21721,97 @@ mod tests {
         assert!(
             codes.iter().any(|c| c == "BIGIP6002"),
             "expected BIGIP6002 via the pull path, got: {codes:?}",
+        );
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn f5_pull_paths_compose_byte_and_bidi_integrity_with_model_diagnostics() {
+        for (uri_text, dialect, language_id, model_code, mut bytes) in [
+            (
+                "file:///Common/bigip.conf",
+                "f5-bigip",
+                "tcl-bigip",
+                "BIGIP6002",
+                "ltm rule /Common/r {\n  when HTTP_REQUEST {\n    # \u{202e}hidden\n    pool /Common/no_such_pool\n  }\n}\n"
+                    .as_bytes()
+                    .to_vec(),
+            ),
+            (
+                "file:///app/presentation.apl",
+                "f5-iapps",
+                "tcl-apl",
+                "IAPP7003",
+                "# \u{202e}hidden\n#include \"missing.apl\"\nsection basic {\n  string addr\n}\n"
+                    .as_bytes()
+                    .to_vec(),
+            ),
+        ] {
+            // Keep the malformed byte inside a comment. The model remains
+            // structurally readable, proving that W107 composes with the
+            // dialect validator instead of replacing it.
+            let insert_at = bytes
+                .windows(b"hidden".len())
+                .position(|window| window == b"hidden")
+                .map(|start| start + b"hidden".len())
+                .unwrap();
+            bytes.insert(insert_at, 0xff);
+            let (text, report) = tcl_lsp_core::source_decode::decode_source(&bytes);
+            let backend = test_backend();
+            let uri = Uri::from_str(uri_text).unwrap();
+            let mut doc = DocumentState::with_version(text.clone(), dialect.to_owned(), 1)
+                .with_language_id(language_id.to_owned());
+            doc.decode_report = Some(report);
+            backend.documents.lock().await.insert(uri.clone(), doc);
+            let diagnostics = backend
+                .full_diagnostics_for(
+                    &uri,
+                    Arc::from(text),
+                    dialect.to_owned(),
+                    language_id,
+                )
+                .await;
+            let codes = diag_codes(&diagnostics);
+            assert!(codes.iter().any(|c| c == "W107"), "{codes:?}");
+            assert!(codes.iter().any(|c| c == "W305"), "{codes:?}");
+            assert!(codes.iter().any(|c| c == model_code), "{codes:?}");
+        }
+    }
+
+    #[test]
+    fn report_driven_abstention_survives_a_disabled_w109() {
+        let bytes: Vec<u8> = "ltm pool /Common/p { members { /Common/a:80 {} } }\n"
+            .encode_utf16()
+            .flat_map(u16::to_le_bytes)
+            .collect();
+        let (text, report) = tcl_lsp_core::source_decode::decode_source(&bytes);
+        assert!(report.requires_abstention());
+        let disabled = ["W109".to_owned()].into_iter().collect();
+        let mut diagnostics = vec![tower_lsp_server::ls_types::Diagnostic {
+            range: Range::default(),
+            severity: Some(tower_lsp_server::ls_types::DiagnosticSeverity::WARNING),
+            code: Some(tower_lsp_server::ls_types::NumberOrString::String(
+                "BIGIP6002".to_owned(),
+            )),
+            code_description: None,
+            source: Some("tcl-lsp".to_owned()),
+            message: "derived from mis-decoded bytes".to_owned(),
+            related_information: None,
+            tags: None,
+            data: None,
+        }];
+        diagnostics.extend(lift_f5_source_integrity_diagnostics(
+            &text,
+            Some(&report),
+            &disabled,
+        ));
+        finalise_diagnostics(
+            &mut diagnostics,
+            &std::collections::HashMap::new(),
+            report.requires_abstention(),
+        );
+        assert!(
+            diagnostics.is_empty(),
+            "hiding W109 must still remove derived findings: {diagnostics:?}"
         );
     }
 
@@ -24788,6 +25135,61 @@ mod tests {
         assert!(
             !has_o100(&analyser_only),
             "the analyser-only path should not emit O100 (sanity)",
+        );
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn pull_diagnostics_share_the_push_paths_byte_evidence_contract() {
+        let backend = test_backend();
+        let proven_uri = Uri::from_str("file:///pull-bad-utf8.tcl").unwrap();
+        let (proven_text, report) = tcl_lsp_core::source_decode::decode_source(b"puts \xff\n");
+        let mut proven = DocumentState::with_version(proven_text.clone(), "tcl9.0".into(), 1);
+        proven.decode_report = Some(report);
+        backend
+            .documents
+            .lock()
+            .await
+            .insert(proven_uri.clone(), proven);
+
+        let proven_diags = backend
+            .full_diagnostics_for(
+                &proven_uri,
+                Arc::from(proven_text),
+                "tcl9.0".to_owned(),
+                "tcl",
+            )
+            .await;
+        assert!(
+            proven_diags.iter().any(|d| {
+                matches!(
+                    &d.code,
+                    Some(tower_lsp_server::ls_types::NumberOrString::String(code))
+                        if code == "W107"
+                )
+            }),
+            "a synchronous pull before the push cache is primed must retain W107"
+        );
+
+        // FP/TN: the same Unicode character in an unsaved buffer is valid Tcl
+        // text. With no matching bytes, pull and push both abstain.
+        let literal_uri = Uri::from_str("file:///pull-literal-fffd.tcl").unwrap();
+        let literal = "puts \u{fffd}\n";
+        backend.documents.lock().await.insert(
+            literal_uri.clone(),
+            DocumentState::with_version(literal.to_owned(), "tcl9.0".into(), 1),
+        );
+        let literal_diags = backend
+            .full_diagnostics_for(&literal_uri, Arc::from(literal), "tcl9.0".to_owned(), "tcl")
+            .await;
+        assert!(
+            literal_diags.iter().all(|d| {
+                !matches!(
+                    &d.code,
+                    Some(tower_lsp_server::ls_types::NumberOrString::String(code))
+                        if code == "W107"
+                )
+            }),
+            "a literal U+FFFD must not be inferred to be malformed bytes"
         );
     }
 

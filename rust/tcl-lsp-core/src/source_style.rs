@@ -16,9 +16,10 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! Source-level style diagnostics — the line/text style checks.
+//! Source-level text diagnostics — the line/text checks, and the orchestrator
+//! every one of them reaches the editor through.
 //!
-//! These five style codes are *source-text* checks: they read the
+//! These style codes are *source-text* checks: they read the
 //! raw document, not the lexer / segmenter / CST, because the
 //! questions they answer ("is this line too long", "does this line
 //! have trailing whitespace", "what line endings does the file
@@ -35,6 +36,12 @@
 //!   line, with a convert-to-per-line-comments quick-fix.
 //! * **W118** — inconsistent line endings, a single file-level
 //!   diagnostic.
+//!
+//! [`style_diagnostics`] additionally runs the byte-backed integrity checks in
+//! [`crate::source_decode`] — **W107** (the source is not valid UTF-8) and
+//! **W109** (the source is not UTF-8 text at all). **W305** is a Unicode-text
+//! analyser diagnostic instead, so analyser-only consumers such as MCP see the
+//! same whole-source security finding without depending on an LSP style pass.
 //!
 //! The orchestrator ([`style_diagnostics`]) wires into the native
 //! server's `publish_analyser_diagnostics` so these source-style
@@ -64,8 +71,8 @@ use std::hash::BuildHasher;
 
 use crate::definition::{LspRange, utf16_len};
 
-/// Severity of a source-style diagnostic.  W111 / W115 are
-/// warnings; W112 / W118 are hints.
+/// Severity of a source-text diagnostic. W111 / W115 / W107 / W109 are
+/// warnings, and W112 / W118 are hints.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum StyleSeverity {
     /// LSP `Warning`.
@@ -374,18 +381,23 @@ pub fn check_comment_continuation(source: &str) -> Vec<StyleDiagnostic> {
     out
 }
 
-/// Run every source-style check and return the merged, suppression-
-/// filtered diagnostics.
+/// Run every source-text check and return the merged, suppression-filtered
+/// diagnostics.
 ///
 /// Suppression and gating rules:
 ///
 /// * W111 / W112 / W115 honour inline `# noqa` / file-level
 ///   suppression (keyed by `suppressed`, the analyser's
 ///   `suppressed_lines`).
-/// * W118 is a file-level check and is *not* line-suppressed; it is
-///   only gated by the `disabled` set.
+/// * W118 / W107 / W109 are file-level checks and are *not* line-suppressed;
+///   they are only gated by the `disabled` set.
 /// * Each code is skipped entirely when it appears in `disabled`
 ///   (the LSP user-config disabled-diagnostics set).
+///
+/// `decode` is the byte-level decoder's report when the caller can prove the
+/// bytes belong to this exact text. `None` means only Unicode text is
+/// available, so W107/W109 abstain rather than infer malformed bytes from a
+/// valid character such as a literal `U+FFFD`.
 #[must_use]
 pub fn style_diagnostics<SD: BuildHasher, H: BuildHasher, I: BuildHasher>(
     source: &str,
@@ -393,6 +405,7 @@ pub fn style_diagnostics<SD: BuildHasher, H: BuildHasher, I: BuildHasher>(
     line_ending: &str,
     disabled: &HashSet<String, SD>,
     suppressed: &HashMap<i32, HashSet<String, I>, H>,
+    decode: Option<&crate::source_decode::DecodeReport>,
 ) -> Vec<StyleDiagnostic> {
     let mut out = Vec::new();
 
@@ -435,6 +448,14 @@ pub fn style_diagnostics<SD: BuildHasher, H: BuildHasher, I: BuildHasher>(
         out.extend(check_line_endings(source, line_ending));
     }
 
+    // Source-text *integrity* (issue #1326).  These run on `source`, not
+    // `lines_source`: a mis-decoded file's byte offsets must not be shifted by
+    // a lone-CR rewrite.
+    for d in crate::source_decode::encoding_integrity_diagnostics(source, decode) {
+        if enabled(d.code) {
+            out.push(d);
+        }
+    }
     out
 }
 
@@ -550,7 +571,7 @@ mod tests {
         // trailing whitespace on the second one is a line-1 diagnostic — not
         // a column deep inside a single 30-character line.
         let src = "set a 1\rset b 2   \rset c 3\r";
-        let diags = style_diagnostics(src, 120, "\n", &no_disable(), &no_suppress());
+        let diags = style_diagnostics(src, 120, "\n", &no_disable(), &no_suppress(), None);
         let w112: Vec<_> = diags.iter().filter(|d| d.code == "W112").collect();
         assert_eq!(w112.len(), 1, "{diags:?}");
         assert_eq!(w112[0].range.start_line, 1);
@@ -608,6 +629,7 @@ mod tests {
             DEFAULT_LINE_ENDING,
             &disabled,
             &no_suppress(),
+            None,
         );
         assert!(diags.iter().all(|d| d.code != "W112"));
     }
@@ -625,6 +647,7 @@ mod tests {
             DEFAULT_LINE_ENDING,
             &no_disable(),
             &suppressed,
+            None,
         );
         assert!(diags.is_empty());
     }
@@ -643,6 +666,7 @@ mod tests {
             DEFAULT_LINE_ENDING,
             &no_disable(),
             &suppressed,
+            None,
         );
         assert!(diags.iter().all(|d| d.code != "W112"));
     }
@@ -659,6 +683,7 @@ mod tests {
             DEFAULT_LINE_ENDING,
             &no_disable(),
             &suppressed,
+            None,
         );
         assert!(diags.iter().any(|d| d.code == "W118"));
     }

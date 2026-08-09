@@ -18,9 +18,10 @@
 
 //! Diagnostic categorisation metadata.
 //!
-//! The canonical source of the diagnostic code→category mapping and category
-//! ordering, owned by this crate (`rust/tcl-mcp/diagnostics.json`) and
-//! compiled in via `include_str!`. The MCP server owns its own copy.
+//! The diagnostic code→category mapping and category ordering are compiled
+//! from `rust/tcl-mcp/diagnostics.json`. That packaged catalogue is generated
+//! from the canonical diagnostic table by `cargo xtask gen-ai-diagnostics`,
+//! alongside `ai/shared/diagnostics.json`; the drift gate checks both files.
 //!
 //! The convertible-code set and conversion map used to be a second copy
 //! here too (byte-identical to `tcl-cli`'s `find-legacy` table) — that data

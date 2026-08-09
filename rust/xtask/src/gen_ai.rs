@@ -16,9 +16,8 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! Generate the AI shared data file `ai/shared/diagnostics.json` from the
-//! `DiagCode` catalogue — the JSON half of the AI-file generation in
-//! `scripts/codegen/editor_settings.py`.
+//! Generate the shared diagnostic category catalogue from `DiagCode`, package
+//! identical copies for AI prompts and MCP, and render the prompt/skill files.
 //!
 //! The diagnostic → AI-category classification is `ai_category` override
 //! (per-code) else the section's default category; the small metadata tables
@@ -36,6 +35,9 @@ use tcl_registry::ProfileQueries;
 use crate::util::repo_root;
 
 const DIAGNOSTICS_JSON: &str = "ai/shared/diagnostics.json";
+/// The native MCP binary packages the same catalogue inside its crate. It is
+/// generated from the identical content so category membership cannot drift.
+const MCP_DIAGNOSTICS_JSON: &str = "rust/tcl-mcp/diagnostics.json";
 
 /// AI prompt/skill templates: `(template, output)` relative paths.
 const AI_TEMPLATES: &[(&str, &str)] = &[
@@ -370,7 +372,11 @@ fn render_template(template: &str, ctx: &AiContext) -> String {
 
 /// Every AI artifact: `(relative-path, content)`.
 fn artifacts() -> Result<Vec<(String, String)>> {
-    let mut out = vec![(DIAGNOSTICS_JSON.to_owned(), diagnostics_json())];
+    let diagnostic_catalogue = diagnostics_json();
+    let mut out = vec![
+        (DIAGNOSTICS_JSON.to_owned(), diagnostic_catalogue.clone()),
+        (MCP_DIAGNOSTICS_JSON.to_owned(), diagnostic_catalogue),
+    ];
     let ctx = ai_context();
     for (tmpl, output) in AI_TEMPLATES {
         let tpath = repo_root().join(tmpl);
@@ -381,7 +387,7 @@ fn artifacts() -> Result<Vec<(String, String)>> {
     Ok(out)
 }
 
-/// Write (or, with `check`, verify) the AI shared data + prompt/skill files.
+/// Write (or, with `check`, verify) the shared catalogues and prompt/skill files.
 pub fn run(check: bool) -> Result<ExitCode> {
     let root = repo_root();
     let mut drift = Vec::new();
@@ -401,7 +407,7 @@ pub fn run(check: bool) -> Result<ExitCode> {
     }
     if check && !drift.is_empty() {
         eprintln!(
-            "{} AI file(s) are stale — run `cargo xtask gen-ai-diagnostics`:",
+            "{} generated diagnostic/prompt file(s) are stale — run `cargo xtask gen-ai-diagnostics`:",
             drift.len()
         );
         for rel in &drift {
@@ -410,7 +416,7 @@ pub fn run(check: bool) -> Result<ExitCode> {
         return Ok(ExitCode::from(1));
     }
     if check {
-        eprintln!("OK: AI shared data + prompt files are in sync with the registries.");
+        eprintln!("OK: MCP/AI diagnostic catalogues and prompt files are in sync.");
     }
     Ok(ExitCode::SUCCESS)
 }
@@ -420,7 +426,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn committed_ai_files_match_generated() {
+    fn committed_catalogues_and_prompt_files_match_generated() {
         for (rel, content) in artifacts().expect("build AI artifacts") {
             let current = std::fs::read_to_string(repo_root().join(&rel))
                 .unwrap_or_else(|e| panic!("reading {rel}: {e}"));

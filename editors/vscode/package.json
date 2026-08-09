@@ -4240,12 +4240,40 @@
             "markdownDescription": "Display severity for **W106:** Dangerous unbraced `switch` body — risks double substitution.",
             "order": 7
           },
+          "tclLsp.diagnostics.W107": {
+            "scope": "resource",
+            "type": "boolean",
+            "default": true,
+            "markdownDescription": "**W107:** Source is not valid UTF-8 — ill-formed bytes were replaced with U+FFFD before analysis, so the analysed text is not the file on disk.",
+            "order": 8
+          },
+          "tclLsp.diagnosticSeverity.W107": {
+            "scope": "resource",
+            "type": "string",
+            "default": "default",
+            "enum": [
+              "default",
+              "error",
+              "warning",
+              "information",
+              "hint"
+            ],
+            "enumDescriptions": [
+              "Use the analyser's built-in severity",
+              "Report as an error",
+              "Report as a warning",
+              "Report as information",
+              "Report as a hint (faded)"
+            ],
+            "markdownDescription": "Display severity for **W107:** Source is not valid UTF-8 — ill-formed bytes were replaced with U+FFFD before analysis, so the analysed text is not the file on disk.",
+            "order": 8
+          },
           "tclLsp.diagnostics.W108": {
             "scope": "resource",
             "type": "boolean",
             "default": true,
             "markdownDescription": "**W108:** Non-ASCII characters in token content.",
-            "order": 8
+            "order": 9
           },
           "tclLsp.diagnosticSeverity.W108": {
             "scope": "resource",
@@ -4266,14 +4294,42 @@
               "Report as a hint (faded)"
             ],
             "markdownDescription": "Display severity for **W108:** Non-ASCII characters in token content.",
-            "order": 8
+            "order": 9
+          },
+          "tclLsp.diagnostics.W109": {
+            "scope": "resource",
+            "type": "boolean",
+            "default": true,
+            "markdownDescription": "**W109:** Source does not look like UTF-8 text — it appears to be UTF-16/UTF-32 or binary; the rest of the analysis abstains rather than reporting findings derived from mis-decoded bytes.",
+            "order": 10
+          },
+          "tclLsp.diagnosticSeverity.W109": {
+            "scope": "resource",
+            "type": "string",
+            "default": "default",
+            "enum": [
+              "default",
+              "error",
+              "warning",
+              "information",
+              "hint"
+            ],
+            "enumDescriptions": [
+              "Use the analyser's built-in severity",
+              "Report as an error",
+              "Report as a warning",
+              "Report as information",
+              "Report as a hint (faded)"
+            ],
+            "markdownDescription": "Display severity for **W109:** Source does not look like UTF-8 text — it appears to be UTF-16/UTF-32 or binary; the rest of the analysis abstains rather than reporting findings derived from mis-decoded bytes.",
+            "order": 10
           },
           "tclLsp.diagnostics.W110": {
             "scope": "resource",
             "type": "boolean",
             "default": true,
             "markdownDescription": "**W110:** Use `eq`/`ne` instead of `==`/`!=` for string comparison.",
-            "order": 9
+            "order": 11
           },
           "tclLsp.diagnosticSeverity.W110": {
             "scope": "resource",
@@ -4294,14 +4350,14 @@
               "Report as a hint (faded)"
             ],
             "markdownDescription": "Display severity for **W110:** Use `eq`/`ne` instead of `==`/`!=` for string comparison.",
-            "order": 9
+            "order": 11
           },
           "tclLsp.diagnostics.W111": {
             "scope": "resource",
             "type": "boolean",
             "default": true,
             "markdownDescription": "**W111:** Line exceeds maximum length (see `tclLsp.style.lineLength`).",
-            "order": 10
+            "order": 12
           },
           "tclLsp.diagnosticSeverity.W111": {
             "scope": "resource",
@@ -4322,14 +4378,14 @@
               "Report as a hint (faded)"
             ],
             "markdownDescription": "Display severity for **W111:** Line exceeds maximum length (see `tclLsp.style.lineLength`).",
-            "order": 10
+            "order": 12
           },
           "tclLsp.diagnostics.W112": {
             "scope": "resource",
             "type": "boolean",
             "default": true,
             "markdownDescription": "**W112:** Trailing whitespace.",
-            "order": 11
+            "order": 13
           },
           "tclLsp.diagnosticSeverity.W112": {
             "scope": "resource",
@@ -4350,14 +4406,14 @@
               "Report as a hint (faded)"
             ],
             "markdownDescription": "Display severity for **W112:** Trailing whitespace.",
-            "order": 11
+            "order": 13
           },
           "tclLsp.diagnostics.W113": {
             "scope": "resource",
             "type": "boolean",
             "default": true,
             "markdownDescription": "**W113:** Procedure shadows built-in command.",
-            "order": 12
+            "order": 14
           },
           "tclLsp.diagnosticSeverity.W113": {
             "scope": "resource",
@@ -4378,14 +4434,14 @@
               "Report as a hint (faded)"
             ],
             "markdownDescription": "Display severity for **W113:** Procedure shadows built-in command.",
-            "order": 12
+            "order": 14
           },
           "tclLsp.diagnostics.W114": {
             "scope": "resource",
             "type": "boolean",
             "default": true,
             "markdownDescription": "**W114:** Redundant nested `[expr {...}]` — already in expression context.",
-            "order": 13
+            "order": 15
           },
           "tclLsp.diagnosticSeverity.W114": {
             "scope": "resource",
@@ -4406,14 +4462,14 @@
               "Report as a hint (faded)"
             ],
             "markdownDescription": "Display severity for **W114:** Redundant nested `[expr {...}]` — already in expression context.",
-            "order": 13
+            "order": 15
           },
           "tclLsp.diagnostics.W115": {
             "scope": "resource",
             "type": "boolean",
             "default": true,
             "markdownDescription": "**W115:** Backslash-newline in comment silently swallows the next line.",
-            "order": 14
+            "order": 16
           },
           "tclLsp.diagnosticSeverity.W115": {
             "scope": "resource",
@@ -4434,14 +4490,14 @@
               "Report as a hint (faded)"
             ],
             "markdownDescription": "Display severity for **W115:** Backslash-newline in comment silently swallows the next line.",
-            "order": 14
+            "order": 16
           },
           "tclLsp.diagnostics.W116": {
             "scope": "resource",
             "type": "boolean",
             "default": true,
             "markdownDescription": "**W116:** Stub command shadows built-in command.",
-            "order": 15
+            "order": 17
           },
           "tclLsp.diagnosticSeverity.W116": {
             "scope": "resource",
@@ -4462,14 +4518,14 @@
               "Report as a hint (faded)"
             ],
             "markdownDescription": "Display severity for **W116:** Stub command shadows built-in command.",
-            "order": 15
+            "order": 17
           },
           "tclLsp.diagnostics.W117": {
             "scope": "resource",
             "type": "boolean",
             "default": true,
             "markdownDescription": "**W117:** Stub expression definition shadows built-in function or operator.",
-            "order": 16
+            "order": 18
           },
           "tclLsp.diagnosticSeverity.W117": {
             "scope": "resource",
@@ -4490,14 +4546,14 @@
               "Report as a hint (faded)"
             ],
             "markdownDescription": "Display severity for **W117:** Stub expression definition shadows built-in function or operator.",
-            "order": 16
+            "order": 18
           },
           "tclLsp.diagnostics.W118": {
             "scope": "resource",
             "type": "boolean",
             "default": true,
             "markdownDescription": "**W118:** Inconsistent line endings.",
-            "order": 17
+            "order": 19
           },
           "tclLsp.diagnosticSeverity.W118": {
             "scope": "resource",
@@ -4518,14 +4574,14 @@
               "Report as a hint (faded)"
             ],
             "markdownDescription": "Display severity for **W118:** Inconsistent line endings.",
-            "order": 17
+            "order": 19
           },
           "tclLsp.diagnostics.W120": {
             "scope": "resource",
             "type": "boolean",
             "default": true,
             "markdownDescription": "**W120:** Command used without a corresponding `package require`.",
-            "order": 18
+            "order": 20
           },
           "tclLsp.diagnosticSeverity.W120": {
             "scope": "resource",
@@ -4546,14 +4602,14 @@
               "Report as a hint (faded)"
             ],
             "markdownDescription": "Display severity for **W120:** Command used without a corresponding `package require`.",
-            "order": 18
+            "order": 20
           },
           "tclLsp.diagnostics.W121": {
             "scope": "resource",
             "type": "boolean",
             "default": true,
             "markdownDescription": "**W121:** Subnet mask has non-contiguous bits.",
-            "order": 19
+            "order": 21
           },
           "tclLsp.diagnosticSeverity.W121": {
             "scope": "resource",
@@ -4574,14 +4630,14 @@
               "Report as a hint (faded)"
             ],
             "markdownDescription": "Display severity for **W121:** Subnet mask has non-contiguous bits.",
-            "order": 19
+            "order": 21
           },
           "tclLsp.diagnostics.W124": {
             "scope": "resource",
             "type": "boolean",
             "default": true,
             "markdownDescription": "**W124:** Invalid IP address literal.",
-            "order": 20
+            "order": 22
           },
           "tclLsp.diagnosticSeverity.W124": {
             "scope": "resource",
@@ -4602,14 +4658,14 @@
               "Report as a hint (faded)"
             ],
             "markdownDescription": "Display severity for **W124:** Invalid IP address literal.",
-            "order": 20
+            "order": 22
           },
           "tclLsp.diagnostics.W125": {
             "scope": "resource",
             "type": "boolean",
             "default": true,
             "markdownDescription": "**W125:** Orphaned control-flow keyword used as standalone command.",
-            "order": 21
+            "order": 23
           },
           "tclLsp.diagnosticSeverity.W125": {
             "scope": "resource",
@@ -4630,14 +4686,14 @@
               "Report as a hint (faded)"
             ],
             "markdownDescription": "Display severity for **W125:** Orphaned control-flow keyword used as standalone command.",
-            "order": 21
+            "order": 23
           },
           "tclLsp.diagnostics.W126": {
             "scope": "resource",
             "type": "boolean",
             "default": true,
             "markdownDescription": "**W126:** Non-channel value in channel argument position.",
-            "order": 22
+            "order": 24
           },
           "tclLsp.diagnosticSeverity.W126": {
             "scope": "resource",
@@ -4658,14 +4714,14 @@
               "Report as a hint (faded)"
             ],
             "markdownDescription": "Display severity for **W126:** Non-channel value in channel argument position.",
-            "order": 22
+            "order": 24
           },
           "tclLsp.diagnostics.W127": {
             "scope": "resource",
             "type": "boolean",
             "default": true,
             "markdownDescription": "**W127:** Value not in the command's allowed set.",
-            "order": 23
+            "order": 25
           },
           "tclLsp.diagnosticSeverity.W127": {
             "scope": "resource",
@@ -4686,14 +4742,14 @@
               "Report as a hint (faded)"
             ],
             "markdownDescription": "Display severity for **W127:** Value not in the command's allowed set.",
-            "order": 23
+            "order": 25
           },
           "tclLsp.diagnostics.W128": {
             "scope": "resource",
             "type": "boolean",
             "default": true,
             "markdownDescription": "**W128:** Command called after it was renamed or deleted earlier in this file; the call falls through to the `unknown` handler.",
-            "order": 24
+            "order": 26
           },
           "tclLsp.diagnosticSeverity.W128": {
             "scope": "resource",
@@ -4714,14 +4770,14 @@
               "Report as a hint (faded)"
             ],
             "markdownDescription": "Display severity for **W128:** Command called after it was renamed or deleted earlier in this file; the call falls through to the `unknown` handler.",
-            "order": 24
+            "order": 26
           },
           "tclLsp.diagnostics.W129": {
             "scope": "resource",
             "type": "boolean",
             "default": true,
             "markdownDescription": "**W129:** Command is hidden in a safe interpreter — the call raises `invalid command name` unless it is exposed or reached via `interp invokehidden`.",
-            "order": 25
+            "order": 27
           },
           "tclLsp.diagnosticSeverity.W129": {
             "scope": "resource",
@@ -4742,14 +4798,14 @@
               "Report as a hint (faded)"
             ],
             "markdownDescription": "Display severity for **W129:** Command is hidden in a safe interpreter — the call raises `invalid command name` unless it is exposed or reached via `interp invokehidden`.",
-            "order": 25
+            "order": 27
           },
           "tclLsp.diagnostics.W135": {
             "scope": "resource",
             "type": "boolean",
             "default": true,
             "markdownDescription": "**W135:** Command requires a newer package version than the resolved `package require`.",
-            "order": 26
+            "order": 28
           },
           "tclLsp.diagnosticSeverity.W135": {
             "scope": "resource",
@@ -4770,14 +4826,14 @@
               "Report as a hint (faded)"
             ],
             "markdownDescription": "Display severity for **W135:** Command requires a newer package version than the resolved `package require`.",
-            "order": 26
+            "order": 28
           },
           "tclLsp.diagnostics.W136": {
             "scope": "resource",
             "type": "boolean",
             "default": true,
             "markdownDescription": "**W136:** Option requires a newer package version than the resolved `package require`.",
-            "order": 27
+            "order": 29
           },
           "tclLsp.diagnosticSeverity.W136": {
             "scope": "resource",
@@ -4798,14 +4854,14 @@
               "Report as a hint (faded)"
             ],
             "markdownDescription": "Display severity for **W136:** Option requires a newer package version than the resolved `package require`.",
-            "order": 27
+            "order": 29
           },
           "tclLsp.diagnostics.W137": {
             "scope": "resource",
             "type": "boolean",
             "default": true,
             "markdownDescription": "**W137:** Argument value requires a newer Tcl version than the dialect provides.",
-            "order": 28
+            "order": 30
           },
           "tclLsp.diagnosticSeverity.W137": {
             "scope": "resource",
@@ -4826,14 +4882,14 @@
               "Report as a hint (faded)"
             ],
             "markdownDescription": "Display severity for **W137:** Argument value requires a newer Tcl version than the dialect provides.",
-            "order": 28
+            "order": 30
           },
           "tclLsp.diagnostics.W138": {
             "scope": "resource",
             "type": "boolean",
             "default": true,
             "markdownDescription": "**W138:** Format/scan conversion requires a newer Tcl version than the dialect provides.",
-            "order": 29
+            "order": 31
           },
           "tclLsp.diagnosticSeverity.W138": {
             "scope": "resource",
@@ -4854,14 +4910,14 @@
               "Report as a hint (faded)"
             ],
             "markdownDescription": "Display severity for **W138:** Format/scan conversion requires a newer Tcl version than the dialect provides.",
-            "order": 29
+            "order": 31
           },
           "tclLsp.diagnostics.W139": {
             "scope": "resource",
             "type": "boolean",
             "default": true,
             "markdownDescription": "**W139:** Command/option retired at the resolved package version — the retiring release is exclusive, so the item is gone from that release onward.",
-            "order": 30
+            "order": 32
           },
           "tclLsp.diagnosticSeverity.W139": {
             "scope": "resource",
@@ -4882,14 +4938,14 @@
               "Report as a hint (faded)"
             ],
             "markdownDescription": "Display severity for **W139:** Command/option retired at the resolved package version — the retiring release is exclusive, so the item is gone from that release onward.",
-            "order": 30
+            "order": 32
           },
           "tclLsp.diagnostics.W140": {
             "scope": "resource",
             "type": "boolean",
             "default": true,
             "markdownDescription": "**W140:** `interp eval` / `interp` subcommand targets an interpreter path never created in this file — the call raises `could not find interpreter` at run time.",
-            "order": 31
+            "order": 33
           },
           "tclLsp.diagnosticSeverity.W140": {
             "scope": "resource",
@@ -4910,14 +4966,14 @@
               "Report as a hint (faded)"
             ],
             "markdownDescription": "Display severity for **W140:** `interp eval` / `interp` subcommand targets an interpreter path never created in this file — the call raises `could not find interpreter` at run time.",
-            "order": 31
+            "order": 33
           },
           "tclLsp.diagnostics.W141": {
             "scope": "resource",
             "type": "boolean",
             "default": true,
             "markdownDescription": "**W141:** Option value fails a declared shape/content check (e.g. `-errorstack` must be an even-sized list) — the option-value sibling of W127 for a value that is structurally malformed rather than outside a closed set.",
-            "order": 32
+            "order": 34
           },
           "tclLsp.diagnosticSeverity.W141": {
             "scope": "resource",
@@ -4938,14 +4994,14 @@
               "Report as a hint (faded)"
             ],
             "markdownDescription": "Display severity for **W141:** Option value fails a declared shape/content check (e.g. `-errorstack` must be an even-sized list) — the option-value sibling of W127 for a value that is structurally malformed rather than outside a closed set.",
-            "order": 32
+            "order": 34
           },
           "tclLsp.diagnostics.W142": {
             "scope": "resource",
             "type": "boolean",
             "default": true,
             "markdownDescription": "**W142:** Command invalid in its current lexical/dispatch context (e.g. `return` with arguments directly inside an iRules event body).",
-            "order": 33
+            "order": 35
           },
           "tclLsp.diagnosticSeverity.W142": {
             "scope": "resource",
@@ -4966,14 +5022,14 @@
               "Report as a hint (faded)"
             ],
             "markdownDescription": "Display severity for **W142:** Command invalid in its current lexical/dispatch context (e.g. `return` with arguments directly inside an iRules event body).",
-            "order": 33
+            "order": 35
           },
           "tclLsp.diagnostics.W143": {
             "scope": "resource",
             "type": "boolean",
             "default": true,
             "markdownDescription": "**W143:** Direct call into a private `::tcl::` implementation namespace (e.g. `::tcl::dict::create`) — use the public ensemble command instead (`dict create`).",
-            "order": 34
+            "order": 36
           },
           "tclLsp.diagnosticSeverity.W143": {
             "scope": "resource",
@@ -4994,14 +5050,14 @@
               "Report as a hint (faded)"
             ],
             "markdownDescription": "Display severity for **W143:** Direct call into a private `::tcl::` implementation namespace (e.g. `::tcl::dict::create`) — use the public ensemble command instead (`dict create`).",
-            "order": 34
+            "order": 36
           },
           "tclLsp.diagnostics.W144": {
             "scope": "resource",
             "type": "boolean",
             "default": true,
             "markdownDescription": "**W144:** Command/subcommand/option/argument value is deprecated at the resolved package version — still available, but the registry records a deprecating release.",
-            "order": 35
+            "order": 37
           },
           "tclLsp.diagnosticSeverity.W144": {
             "scope": "resource",
@@ -5022,14 +5078,14 @@
               "Report as a hint (faded)"
             ],
             "markdownDescription": "Display severity for **W144:** Command/subcommand/option/argument value is deprecated at the resolved package version — still available, but the registry records a deprecating release.",
-            "order": 35
+            "order": 37
           },
           "tclLsp.diagnostics.W145": {
             "scope": "resource",
             "type": "boolean",
             "default": true,
             "markdownDescription": "**W145:** Ambiguous keyword abbreviation — the prefix matches more than one subcommand or option, which is a runtime error in Tcl.",
-            "order": 36
+            "order": 38
           },
           "tclLsp.diagnosticSeverity.W145": {
             "scope": "resource",
@@ -5050,14 +5106,14 @@
               "Report as a hint (faded)"
             ],
             "markdownDescription": "Display severity for **W145:** Ambiguous keyword abbreviation — the prefix matches more than one subcommand or option, which is a runtime error in Tcl.",
-            "order": 36
+            "order": 38
           },
           "tclLsp.diagnostics.W200": {
             "scope": "resource",
             "type": "boolean",
             "default": true,
             "markdownDescription": "**W200:** `exec` result not captured or binary format modifier requires newer Tcl.",
-            "order": 37
+            "order": 39
           },
           "tclLsp.diagnosticSeverity.W200": {
             "scope": "resource",
@@ -5078,14 +5134,14 @@
               "Report as a hint (faded)"
             ],
             "markdownDescription": "Display severity for **W200:** `exec` result not captured or binary format modifier requires newer Tcl.",
-            "order": 37
+            "order": 39
           },
           "tclLsp.diagnostics.W201": {
             "scope": "resource",
             "type": "boolean",
             "default": true,
             "markdownDescription": "**W201:** Manual path concatenation — use `file join` instead.",
-            "order": 38
+            "order": 40
           },
           "tclLsp.diagnosticSeverity.W201": {
             "scope": "resource",
@@ -5106,14 +5162,14 @@
               "Report as a hint (faded)"
             ],
             "markdownDescription": "Display severity for **W201:** Manual path concatenation — use `file join` instead.",
-            "order": 38
+            "order": 40
           },
           "tclLsp.diagnostics.W230": {
             "scope": "resource",
             "type": "boolean",
             "default": true,
             "markdownDescription": "**W230:** Constant list index out of range — lindex/lrange/lreplace silently return empty or clamp.",
-            "order": 39
+            "order": 41
           },
           "tclLsp.diagnosticSeverity.W230": {
             "scope": "resource",
@@ -5134,14 +5190,14 @@
               "Report as a hint (faded)"
             ],
             "markdownDescription": "Display severity for **W230:** Constant list index out of range — lindex/lrange/lreplace silently return empty or clamp.",
-            "order": 39
+            "order": 41
           },
           "tclLsp.diagnostics.W231": {
             "scope": "resource",
             "type": "boolean",
             "default": true,
             "markdownDescription": "**W231:** Constant list index out of range — lset raises a runtime error.",
-            "order": 40
+            "order": 42
           },
           "tclLsp.diagnosticSeverity.W231": {
             "scope": "resource",
@@ -5162,14 +5218,14 @@
               "Report as a hint (faded)"
             ],
             "markdownDescription": "Display severity for **W231:** Constant list index out of range — lset raises a runtime error.",
-            "order": 40
+            "order": 42
           },
           "tclLsp.diagnostics.W232": {
             "scope": "resource",
             "type": "boolean",
             "default": true,
             "markdownDescription": "**W232:** Constant string index out of range — string index/range/replace/insert silently return empty or no-op.",
-            "order": 41
+            "order": 43
           },
           "tclLsp.diagnosticSeverity.W232": {
             "scope": "resource",
@@ -5190,14 +5246,14 @@
               "Report as a hint (faded)"
             ],
             "markdownDescription": "Display severity for **W232:** Constant string index out of range — string index/range/replace/insert silently return empty or no-op.",
-            "order": 41
+            "order": 43
           },
           "tclLsp.diagnostics.W233": {
             "scope": "resource",
             "type": "boolean",
             "default": true,
             "markdownDescription": "**W233:** Division or modulo by a provably-zero divisor — raises 'divide by zero' at runtime.",
-            "order": 42
+            "order": 44
           },
           "tclLsp.diagnosticSeverity.W233": {
             "scope": "resource",
@@ -5218,14 +5274,14 @@
               "Report as a hint (faded)"
             ],
             "markdownDescription": "Display severity for **W233:** Division or modulo by a provably-zero divisor — raises 'divide by zero' at runtime.",
-            "order": 42
+            "order": 44
           },
           "tclLsp.diagnostics.W240": {
             "scope": "resource",
             "type": "boolean",
             "default": true,
             "markdownDescription": "**W240:** Loop condition is a constant false — body never executes.",
-            "order": 43
+            "order": 45
           },
           "tclLsp.diagnosticSeverity.W240": {
             "scope": "resource",
@@ -5246,14 +5302,14 @@
               "Report as a hint (faded)"
             ],
             "markdownDescription": "Display severity for **W240:** Loop condition is a constant false — body never executes.",
-            "order": 43
+            "order": 45
           },
           "tclLsp.diagnostics.W241": {
             "scope": "resource",
             "type": "boolean",
             "default": true,
             "markdownDescription": "**W241:** Loop is provably infinite — constant-true condition with no break/return, zero/wrong-direction counter step.",
-            "order": 44
+            "order": 46
           },
           "tclLsp.diagnosticSeverity.W241": {
             "scope": "resource",
@@ -5274,14 +5330,14 @@
               "Report as a hint (faded)"
             ],
             "markdownDescription": "Display severity for **W241:** Loop is provably infinite — constant-true condition with no break/return, zero/wrong-direction counter step.",
-            "order": 44
+            "order": 46
           },
           "tclLsp.diagnostics.W250": {
             "scope": "resource",
             "type": "boolean",
             "default": true,
             "markdownDescription": "**W250:** Instantiating an `oo::abstract` class — abstract classes cannot be created directly; use a concrete subclass.",
-            "order": 45
+            "order": 47
           },
           "tclLsp.diagnosticSeverity.W250": {
             "scope": "resource",
@@ -5302,14 +5358,14 @@
               "Report as a hint (faded)"
             ],
             "markdownDescription": "Display severity for **W250:** Instantiating an `oo::abstract` class — abstract classes cannot be created directly; use a concrete subclass.",
-            "order": 45
+            "order": 47
           },
           "tclLsp.diagnostics.W308": {
             "scope": "resource",
             "type": "boolean",
             "default": true,
             "markdownDescription": "**W308:** Unknown TclOO method — the method is not defined on the receiver's statically-known class or any of its superclasses.",
-            "order": 46
+            "order": 48
           },
           "tclLsp.diagnosticSeverity.W308": {
             "scope": "resource",
@@ -5330,14 +5386,14 @@
               "Report as a hint (faded)"
             ],
             "markdownDescription": "Display severity for **W308:** Unknown TclOO method — the method is not defined on the receiver's statically-known class or any of its superclasses.",
-            "order": 46
+            "order": 48
           },
           "tclLsp.diagnostics.W314": {
             "scope": "resource",
             "type": "boolean",
             "default": true,
             "markdownDescription": "**W314:** Definition has no absolute (fully-qualified) name — an all-colon name or namespace segment (e.g. a proc or namespace named `:`) is reachable only by relative lookup.",
-            "order": 47
+            "order": 49
           },
           "tclLsp.diagnosticSeverity.W314": {
             "scope": "resource",
@@ -5358,14 +5414,14 @@
               "Report as a hint (faded)"
             ],
             "markdownDescription": "Display severity for **W314:** Definition has no absolute (fully-qualified) name — an all-colon name or namespace segment (e.g. a proc or namespace named `:`) is reachable only by relative lookup.",
-            "order": 47
+            "order": 49
           },
           "tclLsp.diagnostics.W315": {
             "scope": "resource",
             "type": "boolean",
             "default": true,
             "markdownDescription": "**W315:** Class or object definition cannot run — a `deletemethod`/`renamemethod` names a member that does not exist on the side it is scoped to (for `oo::objdefine`, on the object's own table), or renames onto a name already taken, which aborts the whole definition.",
-            "order": 48
+            "order": 50
           },
           "tclLsp.diagnosticSeverity.W315": {
             "scope": "resource",
@@ -5386,7 +5442,7 @@
               "Report as a hint (faded)"
             ],
             "markdownDescription": "Display severity for **W315:** Class or object definition cannot run — a `deletemethod`/`renamemethod` names a member that does not exist on the side it is scoped to (for `oo::objdefine`, on the object's own table), or renames onto a name already taken, which aborts the whole definition.",
-            "order": 48
+            "order": 50
           }
         }
       },
@@ -5904,12 +5960,40 @@
             "markdownDescription": "Display severity for **W304:** Missing option terminator `--` on option-bearing commands.",
             "order": 7
           },
+          "tclLsp.diagnostics.W305": {
+            "scope": "resource",
+            "type": "boolean",
+            "default": true,
+            "markdownDescription": "**W305:** Bidirectional formatting control character in source (Trojan Source) — the code renders to a reviewer in a different order from the one it is parsed and executed in.",
+            "order": 8
+          },
+          "tclLsp.diagnosticSeverity.W305": {
+            "scope": "resource",
+            "type": "string",
+            "default": "default",
+            "enum": [
+              "default",
+              "error",
+              "warning",
+              "information",
+              "hint"
+            ],
+            "enumDescriptions": [
+              "Use the analyser's built-in severity",
+              "Report as an error",
+              "Report as a warning",
+              "Report as information",
+              "Report as a hint (faded)"
+            ],
+            "markdownDescription": "Display severity for **W305:** Bidirectional formatting control character in source (Trojan Source) — the code renders to a reviewer in a different order from the one it is parsed and executed in.",
+            "order": 8
+          },
           "tclLsp.diagnostics.W306": {
             "scope": "resource",
             "type": "boolean",
             "default": true,
             "markdownDescription": "**W306:** Substitution in literal-expected argument position.",
-            "order": 8
+            "order": 9
           },
           "tclLsp.diagnosticSeverity.W306": {
             "scope": "resource",
@@ -5930,14 +6014,14 @@
               "Report as a hint (faded)"
             ],
             "markdownDescription": "Display severity for **W306:** Substitution in literal-expected argument position.",
-            "order": 8
+            "order": 9
           },
           "tclLsp.diagnostics.W307": {
             "scope": "resource",
             "type": "boolean",
             "default": true,
             "markdownDescription": "**W307:** Non-literal command name — variable or command substitution as command.",
-            "order": 9
+            "order": 10
           },
           "tclLsp.diagnosticSeverity.W307": {
             "scope": "resource",
@@ -5958,14 +6042,14 @@
               "Report as a hint (faded)"
             ],
             "markdownDescription": "Display severity for **W307:** Non-literal command name — variable or command substitution as command.",
-            "order": 9
+            "order": 10
           },
           "tclLsp.diagnostics.W309": {
             "scope": "resource",
             "type": "boolean",
             "default": true,
             "markdownDescription": "**W309:** `eval`/`uplevel` with `subst` — double substitution risk.",
-            "order": 10
+            "order": 11
           },
           "tclLsp.diagnosticSeverity.W309": {
             "scope": "resource",
@@ -5986,14 +6070,14 @@
               "Report as a hint (faded)"
             ],
             "markdownDescription": "Display severity for **W309:** `eval`/`uplevel` with `subst` — double substitution risk.",
-            "order": 10
+            "order": 11
           },
           "tclLsp.diagnostics.W313": {
             "scope": "resource",
             "type": "boolean",
             "default": true,
             "markdownDescription": "**W313:** Destructive file operation with variable path — path-traversal risk.",
-            "order": 11
+            "order": 12
           },
           "tclLsp.diagnosticSeverity.W313": {
             "scope": "resource",
@@ -6014,7 +6098,7 @@
               "Report as a hint (faded)"
             ],
             "markdownDescription": "Display severity for **W313:** Destructive file operation with variable path — path-traversal risk.",
-            "order": 11
+            "order": 12
           }
         }
       },

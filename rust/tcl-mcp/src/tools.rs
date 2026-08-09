@@ -1753,6 +1753,57 @@ pub fn dispatch(name: &str, args: &Value) -> Option<Value> {
 }
 
 #[cfg(test)]
+mod source_integrity_tests {
+    use super::*;
+
+    fn diagnostic_codes(result: &Value) -> Vec<&str> {
+        result["diagnostics"]
+            .as_array()
+            .into_iter()
+            .flatten()
+            .filter_map(|d| d["code"].as_str())
+            .collect()
+    }
+
+    #[test]
+    fn analyse_reports_bidi_controls_as_security_without_w108_duplication() {
+        let source = "puts \"a\u{202e}b\"\n";
+        let result = dispatch("analyze", &json!({ "source": source, "dialect": "tcl9.0" }))
+            .expect("analyze tool");
+        let diagnostics = result["diagnostics"].as_array().expect("diagnostics");
+        let w305: Vec<_> = diagnostics.iter().filter(|d| d["code"] == "W305").collect();
+        assert_eq!(w305.len(), 1, "{result}");
+        assert_eq!(w305[0]["category"], "security");
+        assert_eq!(w305[0]["severity"], "error");
+        assert_eq!(w305[0].pointer("/range/start/character"), Some(&json!(7)));
+        assert!(!diagnostic_codes(&result).contains(&"W108"), "{result}");
+    }
+
+    #[test]
+    fn validate_and_review_include_w305_in_the_security_group() {
+        let args = json!({ "source": "# \u{202e}hidden\n", "dialect": "tcl9.0" });
+        let validate = dispatch("validate", &args).expect("validate tool");
+        assert_eq!(
+            validate.pointer("/categories/security/items/0/code"),
+            Some(&json!("W305")),
+            "{validate}"
+        );
+        let review = dispatch("review", &args).expect("review tool");
+        assert_eq!(review.pointer("/security/0/code"), Some(&json!("W305")));
+    }
+
+    #[test]
+    fn ordinary_right_to_left_text_is_not_a_w305_finding() {
+        let result = dispatch(
+            "analyze",
+            &json!({ "source": "puts \"مرحبا بالعالم\"\n", "dialect": "tcl9.0" }),
+        )
+        .expect("analyze tool");
+        assert!(!diagnostic_codes(&result).contains(&"W305"), "{result}");
+    }
+}
+
+#[cfg(test)]
 mod docstring_tests {
     use super::*;
 

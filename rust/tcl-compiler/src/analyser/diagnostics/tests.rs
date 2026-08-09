@@ -252,20 +252,22 @@ fn w108_comment_prose_is_not_flagged() {
 }
 
 #[test]
-fn w108_comment_bidi_control_still_flags() {
-    // TP: a bidi override in a comment is the trojan-source attack shape —
-    // it can make the comment (and what follows it) render as different
-    // code than what compiles. Always flagged.
+fn w108_leaves_comment_bidi_controls_to_w305() {
+    // A bidi override in a comment is the trojan-source attack shape, and it
+    // *is* still flagged — by W305, at error severity, from the whole-file
+    // scan in `tcl_lsp_core::source_decode` (issue #1326).  W108 must not
+    // report it as well: one character, one code, and a generic "non-ASCII
+    // character" warning materially understates what a bidi override does.
+    // The positive assertions live in `source_decode`'s own suite and in
+    // `issue1326_encoding.rs`.
     let hits = w108(
         "proc f {} {\n    # ok \u{202e}live\n    set y 1\n    puts $y\n}\nf\n",
         "tcl8.6",
     );
-    assert_eq!(
-        hits.len(),
-        1,
-        "bidi override in comment must flag: {hits:?}"
-    );
-    assert_eq!(hits[0].0, 0x202e);
+    assert!(hits.is_empty(), "W305 owns the bidi set now: {hits:?}");
+    assert!(crate::analyser::confusables_table::is_bidi_control(
+        '\u{202e}'
+    ));
 }
 
 #[test]
@@ -299,12 +301,129 @@ fn w108_strict_mode_still_flags_comment_prose() {
 }
 
 #[test]
-fn w108_bidi_control_in_code_flags_in_confusables_mode() {
-    // The trojan-source set bypasses the confusables-table gate in code
-    // too: U+202E has no table entry but is a review hazard anywhere.
+fn w108_leaves_code_bidi_controls_to_w305() {
+    // Same hand-off as in comments (issue #1326): the character is still
+    // reported, just under the code that describes what it actually does.
     let hits = w108("set x a\u{202e}b\n", "tcl8.6");
-    assert_eq!(hits.len(), 1, "bidi override in code must flag: {hits:?}");
-    assert_eq!(hits[0].0, 0x202e);
+    assert!(hits.is_empty(), "W305 owns the bidi set now: {hits:?}");
+    // ...and the neighbouring invisible characters that are *not* bidi
+    // controls stay with W108, which is the boundary that matters.
+    assert!(!crate::analyser::confusables_table::is_bidi_control(
+        '\u{200b}'
+    ));
+    assert_eq!(
+        w108_mode(
+            "set x a\u{200b}b\n",
+            "tcl8.6",
+            crate::analyser::NonAsciiMode::Common
+        ),
+        vec![0x200b]
+    );
+}
+
+#[test]
+fn w305_analyser_reports_every_bidi_control_without_w108_duplication() {
+    for (ch, name) in crate::analyser::confusables_table::BIDI_CONTROLS {
+        let src = format!("set marker \"a{ch}b\"\n");
+        let mut analyser = crate::analyser::Analyser::new()
+            .with_non_ascii_mode(crate::analyser::NonAsciiMode::Off);
+        let result = analyser.analyse(&src, "tcl9.0");
+        let w305: Vec<_> = result
+            .diagnostics
+            .iter()
+            .filter(|d| d.code == tcl_core_types::DiagCode::W305)
+            .collect();
+        assert_eq!(w305.len(), 1, "U+{:04X}", *ch as u32);
+        assert_eq!(w305[0].severity, tcl_core_types::Severity::Error);
+        assert!(w305[0].message.contains(name));
+        assert!(w305[0].message.contains("Trojan Source"));
+        assert!(
+            result
+                .diagnostics
+                .iter()
+                .all(|d| d.code != tcl_core_types::DiagCode::W108),
+            "W108 must not duplicate W305 for U+{:04X}",
+            *ch as u32
+        );
+    }
+}
+
+#[test]
+fn w305_analyser_finds_comments_and_command_positions() {
+    for src in [
+        "# \u{202e} a comment that renders backwards\n",
+        "\u{2066}puts hello\n",
+        "proc \u{202d}name {} {}\n",
+    ] {
+        let result = crate::analyser::Analyser::new().analyse(src, "tcl9.0");
+        assert_eq!(
+            result
+                .diagnostics
+                .iter()
+                .filter(|d| d.code == tcl_core_types::DiagCode::W305)
+                .count(),
+            1,
+            "{src:?}"
+        );
+    }
+}
+
+#[test]
+fn w305_analyser_is_silent_on_ordinary_rtl_and_directional_marks() {
+    for src in [
+        "puts \"مرحبا بالعالم\"\n",
+        "puts \"שלום עולם\"\n",
+        "# تعليق عربي عادي\n",
+        "puts \"\u{200e}1\u{200f}2\u{61c}3\"\n",
+        "",
+    ] {
+        let result = crate::analyser::Analyser::new().analyse(src, "tcl9.0");
+        assert!(
+            result
+                .diagnostics
+                .iter()
+                .all(|d| d.code != tcl_core_types::DiagCode::W305),
+            "false positive on {src:?}"
+        );
+    }
+}
+
+#[test]
+fn w305_analyser_honours_code_and_line_suppression() {
+    let disabled = ["W305".to_owned()].into_iter().collect();
+    let result = crate::analyser::Analyser::with_disabled_diagnostics(disabled)
+        .analyse("puts \"\u{202e}x\"\n", "tcl9.0");
+    assert!(
+        result
+            .diagnostics
+            .iter()
+            .all(|d| d.code != tcl_core_types::DiagCode::W305)
+    );
+
+    let file_disabled = "# tcl-lsp: disable=W305\nputs \"\u{202e}x\"\n";
+    let result = crate::analyser::Analyser::new().analyse(file_disabled, "tcl9.0");
+    assert!(
+        result
+            .diagnostics
+            .iter()
+            .all(|d| d.code != tcl_core_types::DiagCode::W305),
+        "file suppression failed: {result:?}"
+    );
+
+    for (src, suppressed) in [
+        ("# noqa: W305\nputs \"\u{202e}x\"\n", true),
+        ("# noqa: W108\nputs \"\u{202e}x\"\n", false),
+    ] {
+        let result = crate::analyser::Analyser::new().analyse(src, "tcl9.0");
+        assert_eq!(
+            result
+                .diagnostics
+                .iter()
+                .all(|d| d.code != tcl_core_types::DiagCode::W305),
+            suppressed,
+            "line-local suppression mismatch for {src:?}"
+        );
+    }
 }
 
 fn codes_for_dialect(src: &str, dialect: &str) -> Vec<String> {
@@ -810,10 +929,10 @@ fn w108_common_mode_flags_confusables_and_non_benign() {
         w108_mode("set x a\u{200b}b\n", "tcl8.6", Common),
         vec![0x200b]
     ); // ZWSP (Cf)
-    assert_eq!(
-        w108_mode("set x a\u{202e}b\n", "tcl8.6", Common),
-        vec![0x202e]
-    ); // RLO (Cf)
+    // U+202E RLO is *not* here: bidi controls moved to W305 (issue #1326),
+    // so `common` mode reports the zero-width and control characters it was
+    // always meant to catch and leaves the direction-altering set alone.
+    assert!(w108_mode("set x a\u{202e}b\n", "tcl8.6", Common).is_empty());
 }
 
 #[test]
