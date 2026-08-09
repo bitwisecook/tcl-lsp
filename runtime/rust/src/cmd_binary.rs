@@ -33,7 +33,7 @@
 //! target). Also: the `u` unsigned scan modifier, and `binary encode`/`decode`
 //! (`hex`/`base64`/`uuencode`). Verified against tclsh 9.0.
 
-use crate::interp::{new_string, obj_bytes, Code, Interp};
+use crate::interp::{obj_bytes, Code, Interp};
 use crate::obj::{self, TclObj};
 
 /// Register `binary`.
@@ -76,7 +76,11 @@ fn binary_encode(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
             if argv.len() != 4 {
                 return interp.wrong_args(b"binary encode hex data");
             }
-            let out = tcl_cmd_core::binary::hex_encode(&obj_bytes(argv[3]));
+            let data = match interp.binary_bytes(argv[3]) {
+                Ok(data) => data,
+                Err(code) => return code,
+            };
+            let out = tcl_cmd_core::binary::hex_encode(&data);
             interp.set_result_bytes(&out);
             Code::Ok
         }
@@ -117,7 +121,10 @@ fn binary_encode_wrapped(interp: &mut Interp, argv: &[*mut TclObj], uu: bool) ->
     if argv.len() - i != 1 {
         return interp.wrong_args(b"binary encode format ?options? data");
     }
-    let data = obj_bytes(argv[i]);
+    let data = match interp.binary_bytes(argv[i]) {
+        Ok(data) => data,
+        Err(code) => return code,
+    };
     let out = if uu {
         tcl_cmd_core::binary::uu_encode(&data, maxlen, &wrapchar)
     } else {
@@ -141,7 +148,7 @@ fn binary_decode(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
             }
             match tcl_cmd_core::binary::hex_decode(&obj_bytes(argv[3])) {
                 Ok(out) => {
-                    interp.set_result_bytes(&out);
+                    interp.set_result_byte_array(&out);
                     Code::Ok
                 }
                 Err(e) => decode_invalid(interp, b"hexadecimal digit", e),
@@ -183,7 +190,7 @@ fn binary_decode_b64(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     }
     match tcl_cmd_core::binary::base64_decode(&obj_bytes(argv[i]), strict) {
         Ok(out) => {
-            interp.set_result_bytes(&out);
+            interp.set_result_byte_array(&out);
             Code::Ok
         }
         Err(e) => decode_invalid(interp, b"base64 character", e),
@@ -202,7 +209,7 @@ fn binary_decode_uu(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         return interp.wrong_args(b"binary decode format ?options? data");
     }
     let out = tcl_cmd_core::binary::uu_decode(&obj_bytes(argv[i]));
-    interp.set_result_bytes(&out);
+    interp.set_result_byte_array(&out);
     Code::Ok
 }
 
@@ -211,11 +218,18 @@ fn binary_format(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         return interp.wrong_args(b"binary format formatString ?arg ...?");
     }
     let fmt = obj_bytes(argv[2]);
-    let args: Vec<Vec<u8>> = argv[3..].iter().map(|&a| obj_bytes(a)).collect();
+    let mut args = Vec::with_capacity(argv.len().saturating_sub(3));
+    for &arg in &argv[3..] {
+        let bytes = match interp.binary_bytes(arg) {
+            Ok(bytes) => bytes,
+            Err(code) => return code,
+        };
+        args.push(bytes);
+    }
     let refs: Vec<&[u8]> = args.iter().map(Vec::as_slice).collect();
     match tcl_cmd_core::binary::format(&fmt, &refs) {
         Ok(out) => {
-            interp.set_result_bytes(&out);
+            interp.set_result_byte_array(&out);
             Code::Ok
         }
         Err(e) => interp.set_error(e.message().as_bytes()),
@@ -228,7 +242,10 @@ fn binary_scan(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     if argv.len() < 4 {
         return interp.wrong_args(b"binary scan string formatString ?varName ...?");
     }
-    let data = obj_bytes(argv[2]);
+    let data = match interp.binary_bytes(argv[2]) {
+        Ok(data) => data,
+        Err(code) => return code,
+    };
     let fmt = obj_bytes(argv[3]);
     let vars = &argv[4..];
     // The unpack grammar is shared; the variable assignment (Family-B) stays here.
@@ -241,7 +258,7 @@ fn binary_scan(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
             return err(interp, b"not enough arguments for all format specifiers");
         };
         let name = obj_bytes(var);
-        let o = new_string(val);
+        let o = crate::bytearray::new_byte_array(val);
         if let Err(e) = interp.var_set(&name, o) {
             crate::interp::drop_fresh(o);
             return crate::builtins::var_error(interp, &name, e);
@@ -357,6 +374,67 @@ mod tests {
             // `a*` takes the rest
             assert_eq!(ok(i, b"binary scan abcdef a* v; set v"), b"abcdef");
             i.eval_str(b"unset -nocomplain v x y");
+        });
+    }
+
+    /// C Tcl 8.6 and 9.0 agree that a byte-array has a Unicode string view,
+    /// but they intentionally differ when that view is converted back to bytes
+    /// after case mapping. This is the TP/FP/TN/FN matrix for the dual-port
+    /// representation, pinned against both installed C oracles.
+    #[test]
+    fn byte_array_string_shimmer_uses_the_release_selected_byte_policy() {
+        use tcl_dialect::TclVersion;
+
+        // TP: Tcl 8's legacy conversion keeps the low byte of U+0178 (Ÿ).
+        leak_free(|i| {
+            i.set_runtime_version(TclVersion::V8_6);
+            assert_eq!(
+                ok(
+                    i,
+                    br#"binary encode hex [string toupper [binary format H* 41ff42]]"#,
+                ),
+                b"417842"
+            );
+            // TN: ASCII never reaches the version-specific boundary.
+            assert_eq!(
+                ok(
+                    i,
+                    br#"binary encode hex [string toupper [binary format H* 4162]]"#
+                ),
+                b"4142"
+            );
+        });
+
+        // FN: Tcl 9 must not silently preserve or truncate the wide character.
+        leak_free(|i| {
+            i.set_runtime_version(TclVersion::V9_0);
+            assert_eq!(
+                i.eval_str(br#"binary encode hex [string toupper [binary format H* 41ff42]]"#),
+                Code::Error
+            );
+            assert_eq!(
+                i.result_bytes(),
+                b"expected code point values below 0xff but value at byte offset 1 was 0x178"
+            );
+            assert_eq!(i.eval_str(b"set ::errorCode"), Code::Ok);
+            assert_eq!(i.result_bytes(), b"TCL VALUE BYTES");
+
+            // FP: a real Unicode character inside the byte domain remains a
+            // normal string and converts correctly; it is not confused with a
+            // raw byte solely because both spellings look Latin-1-like.
+            assert_eq!(
+                ok(i, "binary encode hex [string toupper café]".as_bytes()),
+                b"434146c9"
+            );
+            // `tolower` stays within U+00FF for the byte-array case and must
+            // succeed on Tcl 9 as well.
+            assert_eq!(
+                ok(
+                    i,
+                    br#"binary encode hex [string tolower [binary format H* 41ff42]]"#,
+                ),
+                b"61ff62"
+            );
         });
     }
 }

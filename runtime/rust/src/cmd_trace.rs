@@ -445,7 +445,16 @@ fn trace_var_add_remove(interp: &mut Interp, argv: &[*mut TclObj], is_add: bool)
             return interp.set_error(&m);
         }
         let frame_level = interp.local_trace_level(&base);
-        let ns = interp.trace_var_ns(&base);
+        // Key the trace by the variable it *resolves to*, not by the spelling
+        // used to register it, so `trace add variable ::v write …` fires for a
+        // later `set v X` in the same namespace — and, under the 8.x
+        // namespace-scope fallback, for a write from inside `namespace eval`
+        // that reaches that same global (issue #1328).  C hangs the trace off
+        // the `Var` struct, so every spelling resolving to it fires.
+        //
+        // `name` keeps the original spelling: `trace info` / `trace remove`
+        // match textually in C too.
+        let (ns, base) = interp.trace_var_key(&base);
         interp.traces.borrow_mut().traces.push(VarTrace {
             name,
             base,

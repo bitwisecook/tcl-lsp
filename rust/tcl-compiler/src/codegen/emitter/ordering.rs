@@ -288,9 +288,11 @@ pub fn reorder_bottom_tested(cfg: &CfgFunction, order: Vec<String>) -> Vec<Strin
 
 /// Map each loop-body block to its `(continue_target, break_target)`.
 ///
-/// For `for` loops, continue jumps to the step block; for `while` and
-/// `foreach` loops, continue jumps to the header. Break always jumps
-/// to the end block.
+/// For `for` loops, continue jumps to the step block; for `while` loops it
+/// jumps to the header. Foreach targets initially name the header/end CFG
+/// blocks; the foreach opcode-layout pass replaces them with the paired
+/// `FOREACH_STEP`/`FOREACH_END` labels before emission. Break always initially
+/// names the end block.
 ///
 /// The continue target is `None` for a `for` loop's *step* block: a
 /// `continue` in the `next` script propagates out of the loop rather than

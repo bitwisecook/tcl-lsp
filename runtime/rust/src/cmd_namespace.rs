@@ -1687,33 +1687,12 @@ mod tests {
     }
 
     #[test]
-    fn inscope_non_utf8_script_treats_both_arms_consistently() {
-        // The script is a raw-byte *value* holding a non-UTF-8 byte
-        // (`0x80`) — produced via `binary format`'s `c` (raw byte)
-        // directive, not a `\xHH` escape (which substitutes a *Unicode
-        // code point* and this runtime stores as valid UTF-8, `0xC2 0x80`
-        // — not a genuinely invalid byte, so it would not exercise the
-        // bug).
-        //
-        // `namespace inscope`/`eval` scripts are themselves re-parsed as a
-        // fresh script (`parse::parse_script` — see its doc comment: "the
-        // UTF-8 internal-rep invariant"), so a script value that is not
-        // valid UTF-8 parses to no commands and evaluates as a harmless
-        // no-op (`Code::Ok`, empty result) — a separate, pre-existing
-        // `parse_script` limitation this fix does not touch, and unrelated
-        // to `list::append_list_element`'s (byte-exact, unaffected)
-        // quoting of the tail.
-        //
-        // What the fix DOES change: before it, the tail arm converted the
-        // script half to `&str` via `String::from_utf8_lossy`, silently
-        // replacing the invalid byte with the *valid*-UTF-8 3-byte U+FFFD
-        // sequence — so the composed script could flip from "not valid
-        // UTF-8" (parses to nothing, `Code::Ok`, empty) to "accidentally
-        // valid UTF-8" (parses fine, dispatches to a different,
-        // non-existent command, `Code::Error`) purely because a tail arg
-        // was appended. The zero-tail and tail arms must treat the exact
-        // same script bytes identically; [`list::trim_concat_element_bytes`]
-        // never performs that lossy conversion, so both arms agree here.
+    fn inscope_uses_a_byte_arrays_string_rep_in_both_arms() {
+        // `binary format` returns a typed byte array. When it becomes a script,
+        // C Tcl first asks for its string representation: byte 0x80 becomes
+        // U+0080 (`C2 80` in UTF-8), not an invalid byte and never U+FFFD.
+        // Both `namespace inscope` forms must therefore resolve the same
+        // unknown command, as Tcl 8.6 and 9.0 do.
         leak_free(|i| {
             assert_eq!(
                 i.eval_str(b"set name [binary format a3c cmd 128]"),
@@ -1721,30 +1700,30 @@ mod tests {
             );
             assert_eq!(
                 i.result_bytes(),
-                [b'c', b'm', b'd', 0x80],
-                "binary format should produce the raw 0x80 byte"
+                [b'c', b'm', b'd', 0xC2, 0x80],
+                "the byte array's string rep is valid UTF-8"
             );
 
             assert_eq!(
                 i.eval_str(b"namespace inscope :: $name"),
-                Code::Ok,
+                Code::Error,
                 "zero-tail arm"
             );
             assert_eq!(
                 i.result_bytes(),
-                b"",
-                "zero-tail arm: an invalid-UTF-8 script is a harmless no-op"
+                b"invalid command name \"cmd\xc2\x80\"",
+                "zero-tail arm's UTF-8 command name"
             );
 
             assert_eq!(
                 i.eval_str(b"namespace inscope :: $name extra"),
-                Code::Ok,
-                "tail arm must agree with the zero-tail arm, not error on a mangled name"
+                Code::Error,
+                "tail arm must agree with the zero-tail arm"
             );
             assert_eq!(
                 i.result_bytes(),
-                b"",
-                "tail arm: must stay a no-op, exactly like the zero-tail arm"
+                b"invalid command name \"cmd\xc2\x80\"",
+                "tail arm keeps the same string representation"
             );
 
             i.eval_str(b"unset name");

@@ -110,6 +110,12 @@ struct ForeachData {
     info: HashMap<String, ForeachInfo>,
     /// Body blocks of simple foreach loops.
     bodies: HashSet<String>,
+    /// Synthetic loop-control landing pads for simple loops, keyed by their
+    /// body block.  A `continue` must run `FOREACH_STEP`, rather than re-enter
+    /// `FOREACH_START` and reset the iterator; a `break` must run
+    /// `FOREACH_END` to release the iterator state.  These are data about the
+    /// opcode layout, not command-specific behaviour in the VM.
+    simple_control: HashMap<String, SimpleForeachControl>,
     /// Complex foreach loops (bodies with a Branch terminator) keyed by header.
     complex: HashMap<String, ComplexForeach>,
     /// `foreach_end` block name → its header block name (complex only).
@@ -125,9 +131,18 @@ struct ForeachData {
     collect_ends: HashSet<String>,
 }
 
-/// Detect simple and complex foreach loops, allocate their synthetic
-/// step/break labels on `ctx`, and redirect `loop_ctx` so complex body
-/// blocks route continue/break through those labels.
+/// Synthetic landing pads for one straight-line foreach body.
+#[derive(Clone)]
+struct SimpleForeachControl {
+    /// Label immediately before `FOREACH_STEP`.
+    step_label: String,
+    /// Label immediately before `FOREACH_END`.
+    break_label: String,
+}
+
+/// Detect foreach loops, allocate their opcode-layout control labels on `ctx`,
+/// and redirect `loop_ctx` so every body reaches the appropriate step/end
+/// opcode for a non-local loop completion.
 fn setup_foreach(
     ctx: &mut CodegenCtx,
     cfg: &CfgFunction,
@@ -188,9 +203,39 @@ fn setup_foreach(
         }
     }
 
+    // Straight-line bodies emit their paired opcodes inline.  They still need
+    // synthetic targets: the CFG header would run `FOREACH_START` again, which
+    // reconstructs the iterator at element zero, and the CFG end would skip
+    // `FOREACH_END`, which owns the iterator teardown.  Keeping the targets in
+    // this shared layout descriptor also makes literal and command-produced
+    // `break`/`continue` take the same route.
+    let mut simple_control = HashMap::new();
+    for (header, foreach) in &info {
+        if complex.contains_key(header) {
+            continue;
+        }
+        let control = SimpleForeachControl {
+            step_label: ctx.fresh_label("foreach_continue"),
+            break_label: ctx.fresh_label("foreach_break"),
+        };
+        if let Some((cont, _)) = loop_ctx.get(&foreach.body)
+            && cont.as_deref() == Some(header.as_str())
+        {
+            loop_ctx.insert(
+                foreach.body.clone(),
+                (
+                    Some(control.step_label.clone()),
+                    control.break_label.clone(),
+                ),
+            );
+        }
+        simple_control.insert(foreach.body.clone(), control);
+    }
+
     ForeachData {
         info,
         bodies,
+        simple_control,
         complex,
         end_to_header,
         complex_body_blocks,
@@ -447,7 +492,13 @@ fn emit_foreach_body(
         }
         ctx.emit(Op::LMAP_COLLECT, vec![]);
     }
+    let control = fe
+        .simple_control
+        .get(bname)
+        .expect("every simple foreach body has loop-control labels");
+    ctx.place_label(&control.step_label);
     ctx.emit(Op::FOREACH_STEP, vec![]);
+    ctx.place_label(&control.break_label);
     ctx.emit(Op::FOREACH_END, vec![]);
     true
 }

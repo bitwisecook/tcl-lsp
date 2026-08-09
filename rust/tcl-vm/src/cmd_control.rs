@@ -34,6 +34,7 @@
 
 use tcl_runtime_api::{Code, Completion};
 
+use crate::command::completion_from_tcl_error;
 use crate::interp::{Vm, err, ok};
 use crate::value::Value;
 
@@ -51,7 +52,7 @@ pub(crate) fn register(vm: &mut Vm) {
 fn cond_bool(vm: &mut Vm, cond: &Value) -> Result<bool, Completion<Value>> {
     match vm.eval_expr(&cond.to_str()) {
         Ok(v) => v.as_bool().map_err(|e| err(e.message)),
-        Err(e) => Err(err(e.message)),
+        Err(e) => Err(completion_from_tcl_error(e)),
     }
 }
 
@@ -68,7 +69,7 @@ fn eval_body(vm: &mut Vm, body: &Value) -> Completion<Value> {
     }
     let result = match vm.eval_source(&body.to_str()) {
         Ok(c) => c,
-        Err(e) => err(e.message),
+        Err(e) => completion_from_tcl_error(e),
     };
     vm.exit_control_fallback();
     result

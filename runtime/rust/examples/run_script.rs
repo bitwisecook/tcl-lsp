@@ -21,6 +21,7 @@
 //!
 //! Usage: `cargo run --example run_script -- path/to/script.tcl`
 //!        `echo 'puts [expr {2+2}]' | cargo run --example run_script`
+//!        `cargo run --example run_script -- --tcl-version 8.6 script.tcl`
 //!
 //! This is the end-to-end "execute a simple script" path: parse → eval loop →
 //! builtins (`set`/`expr`/`if`/`while`/`for`/`foreach`/`proc`/`puts`/…). `puts`
@@ -65,6 +66,7 @@ fn run() -> i32 {
     // in either order, ahead of the path/stdin argument.
     let mut init = false;
     let mut quiet = false;
+    let mut version = None;
     loop {
         match args.get(1).map(String::as_str) {
             Some("--init") => {
@@ -74,6 +76,29 @@ fn run() -> i32 {
             Some("--quiet") => {
                 quiet = true;
                 args.remove(1);
+            }
+            // `--tcl-version X.Y` pins the Tcl release the interpreter
+            // emulates (issue #1328). Without it the runtime keeps its 9.0
+            // default. The differential fuzzer passes it so a `runtime-rust`
+            // ↔ `tclsh` pair can be run *version-matched* against an 8.6
+            // `tclsh`, instead of recording every deliberate 8.6-vs-9.0
+            // semantic difference as a divergence.
+            Some("--tcl-version") => {
+                args.remove(1);
+                let Some(raw) = args.get(1).cloned() else {
+                    eprintln!("run_script: --tcl-version needs a value (e.g. 8.6)");
+                    return 2;
+                };
+                args.remove(1);
+                match tcl_dialect::TclVersion::from_package_version(&raw) {
+                    Some(v) => version = Some(v),
+                    None => {
+                        eprintln!(
+                            "run_script: unknown --tcl-version {raw:?} (want 8.4, 8.5, 8.6, 9.0 or 9.1)"
+                        );
+                        return 2;
+                    }
+                }
             }
             _ => break,
         }
@@ -96,6 +121,11 @@ fn run() -> i32 {
     };
 
     let mut interp = Interp::new();
+    // Before `init_library`, so the release the stdlib sees matches the one
+    // the script will run under.
+    if let Some(v) = version {
+        interp.set_runtime_version(v);
+    }
     if init && interp.init_library() == Code::Error {
         eprintln!(
             "init error: {}",

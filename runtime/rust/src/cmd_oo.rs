@@ -7814,7 +7814,10 @@ mod tests {
     #[test]
     fn moderately_nested_mixin_chain_still_behaves_identically() {
         leak_free(|i| {
-            ok(i, b"oo::class create C0 { method foo {} { return from-c0 } }");
+            ok(
+                i,
+                b"oo::class create C0 { method foo {} { return from-c0 } }",
+            );
             ok(i, b"oo::class create C1 { mixin C0 }");
             ok(i, b"oo::class create C2 { mixin C1 }");
             ok(i, b"oo::class create C3 { mixin C2 }");
@@ -7822,7 +7825,10 @@ mod tests {
             assert_eq!(ok(i, b"obj foo"), b"from-c0");
             ok(i, b"obj destroy");
 
-            ok(i, b"oo::configurable create Base { property p0 -kind readable }");
+            ok(
+                i,
+                b"oo::configurable create Base { property p0 -kind readable }",
+            );
             ok(
                 i,
                 b"oo::configurable create P1 { mixin Base; property p1 -kind readable }",

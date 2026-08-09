@@ -78,6 +78,27 @@ fn mathfunc(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         return interp.set_error(b"unknown math function");
     };
 
+    // The interpreter registers one dispatch hook for the complete known
+    // catalogue, but its public builtin surface is profile-selected by the
+    // CommandRegistry. A user proc or alias replacing this entry never reaches
+    // this handler, so version-gating the builtin preserves Tcl's open,
+    // overridable `tcl::mathfunc` namespace.
+    if tcl_registry::expr_surface::RuntimeExprSurface::for_tcl_version(
+        interp.runtime_version(),
+    )
+    .builtin_math_function(fname)
+    .is_none()
+    {
+        let mut command = b"tcl::mathfunc::".to_vec();
+        command.extend_from_slice(tail);
+        let mut message = b"invalid command name \"".to_vec();
+        message.extend_from_slice(&command);
+        message.push(b'\"');
+        let mut error_code = b"TCL LOOKUP COMMAND ".to_vec();
+        error_code.extend_from_slice(&command);
+        return interp.error_with_code(&message, &error_code);
+    }
+
     // Argument-count check first (C reports this before operand conversion), with
     // `-errorcode TCL WRONGARGS`.
     let lname = fname.to_ascii_lowercase();
@@ -212,6 +233,62 @@ mod tests {
             assert_eq!(i.result_bytes(), b"7");
             assert_eq!(i.eval_str(b"::tcl::mathfunc::max 1 9 3"), Code::Ok);
             assert_eq!(i.result_bytes(), b"9");
+        });
+    }
+
+    #[test]
+    fn builtin_mathfunc_surface_tracks_the_registry_selected_release() {
+        leak_free(|i| {
+            i.set_runtime_version(tcl_dialect::TclVersion::V8_6);
+
+            // FN: TIP 461's string-ordering operators are Tcl 9 grammar, not
+            // a 8.x runtime comparison. The registry supplies both the floor
+            // and C Tcl's BAREWORD error classification.
+            assert_eq!(i.eval_str(b"expr {{a} lt {b}}"), Code::Error);
+            assert_eq!(
+                i.result_bytes(),
+                b"invalid bareword \"lt\"\nin expression \"{a} lt {b}\";\nshould be \"$lt\" or \"{lt}\" or \"lt(...)\" or ..."
+            );
+            assert_eq!(
+                i.var_get(b"::errorCode").map(crate::interp::obj_bytes),
+                Some(b"TCL PARSE EXPR BAREWORD".to_vec())
+            );
+
+            // FN: the 9.0 builtin is no longer supplied by the 8.6 surface.
+            assert_eq!(i.eval_str(b"expr {isfinite(1.0)}"), Code::Error);
+            assert_eq!(
+                i.result_bytes(),
+                b"invalid command name \"tcl::mathfunc::isfinite\""
+            );
+            // The outermost eval publishes the error state to the Tcl global
+            // before resetting its transient accumulator.
+            assert_eq!(
+                i.var_get(b"::errorCode").map(crate::interp::obj_bytes),
+                Some(b"TCL LOOKUP COMMAND tcl::mathfunc::isfinite".to_vec())
+            );
+
+            // TP: older builtins retain their registry-backed handler.
+            assert_eq!(i.eval_str(b"expr {sqrt(4)}"), Code::Ok);
+            assert_eq!(i.result_bytes(), b"2.0");
+
+            // TP/FP: at the Tcl 9.0 boundary the registry admits both the
+            // operator and the classification builtin; its normal false value
+            // remains distinguishable from a version rejection.
+            i.set_runtime_version(tcl_dialect::TclVersion::V9_0);
+            assert_eq!(i.eval_str(b"expr {{a} lt {b}}"), Code::Ok);
+            assert_eq!(i.result_bytes(), b"1");
+            assert_eq!(i.eval_str(b"expr {isfinite(1.0 / 0.0)}"), Code::Ok);
+            assert_eq!(i.result_bytes(), b"0");
+
+            // FP: a user definition in the open namespace remains callable;
+            // the registry gates the builtin, not command indirection.
+            i.set_runtime_version(tcl_dialect::TclVersion::V8_6);
+            assert_eq!(
+                i.eval_str(b"proc ::tcl::mathfunc::isfinite {x} { return custom }"),
+                Code::Ok
+            );
+            assert_eq!(i.eval_str(b"expr {isfinite(1.0)}"), Code::Ok);
+            assert_eq!(i.result_bytes(), b"custom");
         });
     }
 

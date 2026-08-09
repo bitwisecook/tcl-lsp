@@ -129,21 +129,11 @@ pub(crate) struct Frame {
     /// activation for the next phase or deliver the construct's final
     /// completion (issue #1311).
     ///
-    /// Deliberately **not** `is_script`: an unhandled `break`/`continue`
-    /// completion from a phase does not get the `eval`/`uplevel`-style
-    /// transparent redirect to the caller's enclosing loop. `try`'s body
-    /// genuinely is transparent to `break`/`continue` in real Tcl, but a
-    /// simple (single-opaque-command-body) inline `foreach`/`while`/`for`'s
-    /// compiled `loop_targets` entry is keyed to the *whole loop body's* pc
-    /// range regardless of what that one command is, and redirecting through
-    /// it here loops forever instead of resuming the next iteration — a
-    /// pre-existing compiler gap (see the KCS note for issue #1311) that
-    /// already makes a bare `return -code continue` from a called proc report
-    /// "invoked continue outside of a loop" instead of correctly continuing,
-    /// rather than a regression this change introduces. Falling through the
-    /// ordinary (non-transparent) unwind path — the same one an unhandled
-    /// `break`/`continue` from a proc call already takes — keeps this
-    /// terminating instead of hanging.
+    /// A completed phase is transparent to the caller's enclosing loop when
+    /// no handler/finally clause consumes its `break`/`continue`, just like an
+    /// `eval` body. The common unwind hand-off below owns that decision for all
+    /// child activations, including a proc boundary that turned
+    /// `return -code continue` into `TCL_CONTINUE`.
     try_ctx: Option<Box<crate::cmd_try::TryState>>,
     /// Execution-trace leave contexts this activation settles on completion
     /// (M16.3): each traced dispatch that deferred its body to this frame.  A
@@ -1221,12 +1211,15 @@ impl Vm {
                         parent.stack.push(c.result);
                         return None;
                     }
-                    // A transparent script activation (`eval`/`uplevel`/… body run
-                    // on the explicit stack) delivers `break`/`continue` to the
-                    // enclosing frame's loop, exactly as an inline `[break]` in
-                    // that frame would — it does not unwind through the frame.
-                    if act.is_script
-                        && matches!(c.code, Code::Break | Code::Continue)
+                    // A child activation that leaves an unhandled
+                    // `break`/`continue` delivers it to the enclosing frame's
+                    // loop exactly as an inline completion would. This covers
+                    // transparent script bodies, unhandled `try` phases, and a
+                    // proc boundary after `return -code break|continue` has
+                    // lowered the carried return to its requested completion.
+                    // `catch`, `subst`, and runtime-fallback each-loops consume
+                    // their own completions above before reaching this hand-off.
+                    if matches!(c.code, Code::Break | Code::Continue)
                         && Self::catch_loop_completion(parent, c.code)
                     {
                         return None;
@@ -1658,7 +1651,7 @@ impl Vm {
                 let name = pop(f).to_str();
                 match amount.as_int() {
                     Ok(a) => try_op!(self.incr_var(f, &name, a)),
-                    Err(e) => return Tick::Return(err(e.message)),
+                    Err(e) => return Tick::Return(crate::command::completion_from_tcl_error(e)),
                 }
             }
 

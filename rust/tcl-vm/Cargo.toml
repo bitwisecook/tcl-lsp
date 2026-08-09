@@ -50,6 +50,7 @@ tcl-cmd-core = { path = "../tcl-cmd-core" }
 tcl-platform = { path = "../tcl-platform" }
 tcl-host-native = { path = "../tcl-host-native" }
 tcl-regex = { path = "../tcl-regex", features = ["cmd-core"] }
+tcl-registry = { path = "../tcl-registry" }
 # Arbitrary-precision integers for the `expr` tower: the VM is
 # pure Rust (no libtommath), so `num-bigint` is its bignum backend once a result
 # outgrows the `i128` fast path. `num-integer`/`num-traits` supply floor
@@ -64,7 +65,6 @@ num-traits = "0.2"
 # End-to-end tests compile real Tcl to bytecode then run it. Dev-only, so the
 # library itself stays off the compiler (CompileService is the runtime seam).
 tcl-compiler = { path = "../tcl-compiler" }
-tcl-registry = { path = "../tcl-registry" }
 
 [lints]
 workspace = true

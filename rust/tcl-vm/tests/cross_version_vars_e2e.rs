@@ -34,7 +34,7 @@ use std::rc::Rc;
 
 use tcl_compiler::cfg_builder::build_cfg_codegen;
 use tcl_compiler::codegen::codegen_module;
-use tcl_compiler::lowering::lower_to_ir;
+use tcl_compiler::lowering::lower_to_ir_for_bytecode as lower_to_ir;
 use tcl_dialect::TclVersion;
 use tcl_registry::CommandRegistry;
 use tcl_vm::{CompileError, CompileService, Vm};
@@ -183,6 +183,67 @@ const VECTORS: &[Vector] = &[
         want_8x: "can't read \"g\": no such variable",
         want_90: "can't read \"g\": no such variable",
     },
+    // --- issue #1328: the rule governs *relative variable resolution*, so it
+    // reaches every command that resolves a relative name, not just `append`.
+    Vector {
+        name: "append reaches the global in 8.x (the shape issue #1328 was filed on)",
+        script: "set g foo\nnamespace eval n { append g baz }\nputs [set ::g]:[info exists ::n::g]\n",
+        want_8x: "foobaz:0",
+        want_90: "foo:1",
+    },
+    Vector {
+        name: "lappend reaches the global in 8.x",
+        script: "set g a\nnamespace eval n { lappend g b }\nputs [set ::g]:[info exists ::n::g]\n",
+        want_8x: "a b:0",
+        want_90: "a:1",
+    },
+    Vector {
+        name: "$-substitution falls back in 8.x",
+        script: "set g VAL\nnamespace eval n { puts [catch {set x \"<$g>\"} m]:$m }\n",
+        want_8x: "0:<VAL>",
+        want_90: "1:can't read \"g\": no such variable",
+    },
+    Vector {
+        name: "an array-element write reaches the global array in 8.x",
+        script: "array set A {k v}\nnamespace eval n { set A(k) NEW }\nputs [array get ::A]:[info exists ::n::A]\n",
+        want_8x: "k NEW:0",
+        want_90: "k v:1",
+    },
+    // The fallback is "current, then global" — never the intermediate parents.
+    // Both halves matter: a nested namespace still reaches the *global* (so the
+    // depth of nesting is irrelevant), and a parent's variable is never found.
+    Vector {
+        name: "a nested namespace still falls back to the global in 8.x",
+        script: "set g G\nnamespace eval outer { namespace eval inner { puts [catch {set g} m]:$m } }\n",
+        want_8x: "0:G",
+        want_90: "1:can't read \"g\": no such variable",
+    },
+    Vector {
+        name: "an intermediate parent's variable is never found, in either release",
+        script: "namespace eval P { variable pv PARENT\n  namespace eval C { puts [catch {set pv} m]:$m } }\n",
+        want_8x: "1:can't read \"pv\": no such variable",
+        want_90: "1:can't read \"pv\": no such variable",
+    },
+    Vector {
+        name: "an existing namespace variable shadows the global in both releases",
+        script: "set g GLOBAL\nnamespace eval n { variable g NS }\nnamespace eval n { puts [set g]:[set ::g] }\n",
+        want_8x: "NS:GLOBAL",
+        want_90: "NS:GLOBAL",
+    },
+    // NOTE: `namespace upvar` — which is explicit and so must be unaffected by
+    // the fallback in either release — is covered on the `runtime/rust` side
+    // (`cmd_var.rs`) rather than here: this VM's `namespace` ensemble does not
+    // implement the `upvar` subcommand at all yet, which is a separate gap
+    // from the resolution rule under test.
+    //
+    // The user-visible consequence of getting this wrong: under 8.x the write
+    // reaches the global, so the *global's* write trace must fire.
+    Vector {
+        name: "a write through the 8.x fallback fires the global's write trace",
+        script: "proc log {n1 n2 op} { puts \"trace:$n1:$op\" }\nset g foo\ntrace add variable g write log\nnamespace eval n { set g X }\nputs [set ::g]\n",
+        want_8x: "trace:g:write\nX",
+        want_90: "foo",
+    },
 ];
 
 #[test]
@@ -248,5 +309,110 @@ fn namespace_path_resolution_tier_is_8_5_plus_m10() {
             "MYMOD",
             "8.5+ resolves through the namespace path"
         );
+    }
+}
+
+/// Completion vectors exercise the shared compiler/VM hand-off instead of a
+/// command implementation.  C Tcl 8.6 and 9.0 agree on every vector, so an
+/// unhandled completion produced by a proc or `try` phase must be caught by the
+/// enclosing foreach's opcode-layout targets.
+struct CompletionVector {
+    /// TP/TN/FP category, retained in failures so a changed completion path is
+    /// immediately distinguishable from a changed loop result.
+    category: &'static str,
+    name: &'static str,
+    script: &'static str,
+    want: &'static str,
+}
+
+const COMPLETION_VECTORS: &[CompletionVector] = &[
+    CompletionVector {
+        category: "TP",
+        name: "a proc-returned continue advances the existing foreach iterator",
+        script: "proc skip {} { return -code continue }\nforeach i {1 2 3} { if {$i == 2} { skip }; puts $i }\n",
+        want: "1\n3",
+    },
+    CompletionVector {
+        category: "TP",
+        name: "an unhandled try continue advances the existing foreach iterator",
+        script: "foreach i {1 2 3} { try { if {$i == 2} { continue }; puts $i } }\n",
+        want: "1\n3",
+    },
+    CompletionVector {
+        category: "TP",
+        name: "an unhandled try break clears the iterator and exits the foreach",
+        script: "foreach i {1 2 3} { try { if {$i == 2} { break }; puts $i } }\n",
+        want: "1",
+    },
+    CompletionVector {
+        category: "TP",
+        name: "a directly nested foreach keeps the outer iterator state",
+        script: "foreach outer {A B} { foreach inner {1 2} { puts \"$outer$inner\" } }\n",
+        want: "A1\nA2\nB1\nB2",
+    },
+    CompletionVector {
+        category: "TP",
+        name: "lmap continue skips collection and advances its iterator",
+        script: "puts [lmap i {1 2 3} { if {$i == 2} { continue }; set i }]\n",
+        want: "1 3",
+    },
+    CompletionVector {
+        category: "TP",
+        name: "lmap break retains only completed iterations",
+        script: "puts [lmap i {1 2 3} { if {$i == 2} { break }; set i }]\n",
+        want: "1",
+    },
+    CompletionVector {
+        category: "TN",
+        name: "a normal foreach fall-through still visits every element",
+        script: "foreach i {1 2 3} { puts $i }\n",
+        want: "1\n2\n3",
+    },
+    CompletionVector {
+        category: "FP",
+        name: "a try on-continue handler consumes its own completion",
+        script: "foreach i {1 2 3} {\n  try { if {$i == 2} { continue }; puts $i } on continue {} { puts handled }\n}\n",
+        want: "1\nhandled\n3",
+    },
+];
+
+#[test]
+fn foreach_completion_handoff_matches_c_tcl_8_and_9() {
+    for vector in COMPLETION_VECTORS {
+        for version in [TclVersion::V8_6, TclVersion::V9_0] {
+            assert_eq!(
+                vm_output(vector.script, version),
+                vector.want,
+                "[{}] [{version:?}] {}",
+                vector.category,
+                vector.name,
+            );
+        }
+    }
+}
+
+#[test]
+fn foreach_completion_vectors_match_real_tclsh() {
+    let mut ran = 0;
+    for vector in COMPLETION_VECTORS {
+        if let Some(got) = tclsh_output("TCL_LSP_TCLSH86", &["tclsh8.6"], vector.script) {
+            assert_eq!(
+                got, vector.want,
+                "[tclsh8.6] [{}] {}",
+                vector.category, vector.name
+            );
+            ran += 1;
+        }
+        if let Some(got) = tclsh_output("TCL_LSP_TCLSH90", &["tclsh9.0"], vector.script) {
+            assert_eq!(
+                got, vector.want,
+                "[tclsh9.0] [{}] {}",
+                vector.category, vector.name
+            );
+            ran += 1;
+        }
+    }
+    if ran == 0 {
+        eprintln!("skipping: neither tclsh8.6 nor tclsh9.0 found");
     }
 }

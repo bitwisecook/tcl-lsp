@@ -66,6 +66,7 @@ pub mod bignum;
 pub mod builtins;
 #[cfg(all(target_arch = "wasm32", target_os = "unknown", have_tommath))]
 mod c_alloc;
+pub mod bytearray;
 pub mod capi;
 pub mod cmd_alias;
 pub mod cmd_array;

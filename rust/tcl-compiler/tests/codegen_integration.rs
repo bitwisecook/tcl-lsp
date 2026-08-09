@@ -458,6 +458,49 @@ fn foreach_synthetic_ops_carry_no_source_span() {
 }
 
 #[test]
+fn simple_foreach_command_completion_targets_the_paired_opcodes() {
+    // A completion returned by an invoked command is caught through the
+    // per-instruction loop-target table, not by the literal `break`/`continue`
+    // emitter.  The old CFG targets jumped to `FOREACH_START` (restarting an
+    // iterator on `continue`) or past `FOREACH_END` (leaking its state on
+    // `break`).  The two synthetic labels must instead resolve to the paired
+    // step/end opcodes for every straight-line foreach body.
+    use tcl_compiler::cfg_builder::build_cfg_codegen;
+    use tcl_compiler::lowering::lower_to_ir_for_bytecode;
+
+    let registry = CommandRegistry::build_default();
+    let ir = lower_to_ir_for_bytecode("foreach x {1 2} { $completion }", &registry);
+    let cfg = build_cfg_codegen(&ir, false);
+    let asm = codegen_module(&cfg, &ir, &registry);
+    let function = &asm.top_level;
+
+    let step_offset = function
+        .instructions
+        .iter()
+        .find(|instruction| instruction.op == Op::FOREACH_STEP)
+        .expect("FOREACH_STEP")
+        .offset;
+    let end_offset = function
+        .instructions
+        .iter()
+        .find(|instruction| instruction.op == Op::FOREACH_END)
+        .expect("FOREACH_END")
+        .offset;
+    let invoke_idx = function
+        .instructions
+        .iter()
+        .position(|instruction| matches!(instruction.op, Op::INVOKE_STK1 | Op::INVOKE_STK4))
+        .expect("dynamic command invoke inside foreach body");
+
+    let &(break_target, continue_target) = function
+        .loop_targets
+        .get(&invoke_idx)
+        .expect("loop target for body command");
+    assert_eq!(continue_target, Some(step_offset));
+    assert_eq!(break_target, Some(end_offset));
+}
+
+#[test]
 fn switch_glob_emits_generic_invoke_not_jump_table() {
     use tcl_compiler::cfg_builder::build_cfg_function;
     use tcl_compiler::ir::{SwitchArm, SwitchMode};

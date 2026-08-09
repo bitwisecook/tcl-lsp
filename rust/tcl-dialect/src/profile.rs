@@ -223,9 +223,11 @@ pub struct DialectProfile {
     /// may shorten subcommands to unambiguous prefixes. Exactly the F5
     /// family `{f5-irules, f5-iapps, f5-bigip}` — NOT f5-tmsh (§7.1).
     pub has_fixed_ensembles: bool,
-    /// The Tcl version whose number/expr grammar the bytecode VM emulates
-    /// when executing this dialect. Defaults to `V9_0` everywhere until
-    /// the VM-parity milestone threads it (M8 / VM parity M16).
+    /// The Tcl release the bytecode VM emulates when executing this dialect.
+    /// This stays aligned with [`Self::runtime_base`] for every Tcl profile;
+    /// the inert config-only and permissive profiles retain the V9.0 default.
+    /// Keeping the selected release on the profile lets all runtime consumers
+    /// share one version decision rather than interpreting a dialect name.
     pub vm_runtime_version: TclVersion,
 
     // AXIS C: versioned libraries (§7.1, D5 — Milestone 6).
@@ -300,7 +302,7 @@ static CATALOG: [DialectProfile; 16] = [
         operators_as_commands: false,
         tcloo: false,
         has_fixed_ensembles: false,
-        vm_runtime_version: TclVersion::V9_0,
+        vm_runtime_version: TclVersion::V8_4,
         libraries: &[
             LibraryPin {
                 package: "sdc",
@@ -356,7 +358,7 @@ static CATALOG: [DialectProfile; 16] = [
         operators_as_commands: true,
         tcloo: true,
         has_fixed_ensembles: false,
-        vm_runtime_version: TclVersion::V9_0,
+        vm_runtime_version: TclVersion::V8_6,
         libraries: &[LibraryPin {
             package: "Expect",
             version: LibraryVersion::Pinned("5.45.4"),
@@ -413,7 +415,7 @@ static CATALOG: [DialectProfile; 16] = [
         operators_as_commands: true,
         tcloo: false,
         has_fixed_ensembles: true,
-        vm_runtime_version: TclVersion::V9_0,
+        vm_runtime_version: TclVersion::V8_5,
         libraries: &[LibraryPin {
             package: "f5-iapps-cmds",
             version: LibraryVersion::Keyed(VersionKey::BigipVersion),
@@ -447,7 +449,7 @@ static CATALOG: [DialectProfile; 16] = [
         operators_as_commands: false,
         tcloo: false,
         has_fixed_ensembles: true,
-        vm_runtime_version: TclVersion::V9_0,
+        vm_runtime_version: TclVersion::V8_4,
         libraries: &[LibraryPin {
             package: "f5-irules-cmds",
             version: LibraryVersion::Keyed(VersionKey::BigipVersion),
@@ -477,7 +479,7 @@ static CATALOG: [DialectProfile; 16] = [
         operators_as_commands: true,
         tcloo: false,
         has_fixed_ensembles: false,
-        vm_runtime_version: TclVersion::V9_0,
+        vm_runtime_version: TclVersion::V8_5,
         libraries: &[LibraryPin {
             package: "f5-tmsh-cmds",
             version: LibraryVersion::Keyed(VersionKey::BigipVersion),
@@ -501,7 +503,7 @@ static CATALOG: [DialectProfile; 16] = [
         operators_as_commands: true,
         tcloo: false,
         has_fixed_ensembles: false,
-        vm_runtime_version: TclVersion::V9_0,
+        vm_runtime_version: TclVersion::V8_5,
         libraries: &[
             LibraryPin {
                 package: "sdc",
@@ -565,7 +567,7 @@ static CATALOG: [DialectProfile; 16] = [
         operators_as_commands: true,
         tcloo: true,
         has_fixed_ensembles: false,
-        vm_runtime_version: TclVersion::V9_0,
+        vm_runtime_version: TclVersion::V8_6,
         libraries: &[
             LibraryPin {
                 package: "sdc",
@@ -606,7 +608,7 @@ static CATALOG: [DialectProfile; 16] = [
         operators_as_commands: true,
         tcloo: true,
         has_fixed_ensembles: false,
-        vm_runtime_version: TclVersion::V9_0,
+        vm_runtime_version: TclVersion::V8_6,
         libraries: &[
             LibraryPin {
                 package: "sdc",
@@ -672,7 +674,7 @@ static CATALOG: [DialectProfile; 16] = [
         operators_as_commands: false,
         tcloo: false,
         has_fixed_ensembles: false,
-        vm_runtime_version: TclVersion::V9_0,
+        vm_runtime_version: TclVersion::V8_4,
         libraries: LIBS_TCL84_85,
         help_terms: &["tcl", "tk"],
     },
@@ -696,7 +698,7 @@ static CATALOG: [DialectProfile; 16] = [
         operators_as_commands: true,
         tcloo: false,
         has_fixed_ensembles: false,
-        vm_runtime_version: TclVersion::V9_0,
+        vm_runtime_version: TclVersion::V8_5,
         libraries: LIBS_TCL84_85,
         help_terms: &["tcl", "tk"],
     },
@@ -720,7 +722,7 @@ static CATALOG: [DialectProfile; 16] = [
         operators_as_commands: true,
         tcloo: true,
         has_fixed_ensembles: false,
-        vm_runtime_version: TclVersion::V9_0,
+        vm_runtime_version: TclVersion::V8_6,
         libraries: LIBS_TCL86_PLUS,
         help_terms: &["tcl", "tk"],
     },
@@ -770,7 +772,7 @@ static CATALOG: [DialectProfile; 16] = [
         operators_as_commands: true,
         tcloo: true,
         has_fixed_ensembles: false,
-        vm_runtime_version: TclVersion::V9_0,
+        vm_runtime_version: TclVersion::V9_1,
         libraries: LIBS_TCL86_PLUS,
         help_terms: &["tcl", "tk"],
     },
@@ -790,7 +792,7 @@ static CATALOG: [DialectProfile; 16] = [
         operators_as_commands: true,
         tcloo: false,
         has_fixed_ensembles: false,
-        vm_runtime_version: TclVersion::V9_0,
+        vm_runtime_version: TclVersion::V8_5,
         libraries: &[
             LibraryPin {
                 package: "sdc",
@@ -1417,6 +1419,21 @@ mod tests {
         // runtime, not the signature surface.
         for p in all_with_fallback() {
             assert_eq!(p.expr_grammar_base, p.runtime_base, "{}", p.name);
+        }
+    }
+
+    #[test]
+    fn vm_runtime_version_tracks_the_profile_runtime_base() {
+        // The VM must not silently execute a vendor or versioned profile with
+        // Tcl 9 semantics.  A non-Tcl / permissive profile has no runtime base,
+        // so its deliberately documented fallback stays the C Tcl 9.0 oracle.
+        for p in all_with_fallback() {
+            assert_eq!(
+                p.vm_runtime_version,
+                p.runtime_base.unwrap_or(TclVersion::V9_0),
+                "{}",
+                p.name
+            );
         }
     }
 

@@ -86,6 +86,11 @@ pub struct Campaign<'a> {
     /// Whether to additionally compare error message text when both engines
     /// error (see `harness::compare_outcomes`). Off by default.
     pub compare_error_text: bool,
+    /// Which Tcl release each engine emulates, probed once before the
+    /// campaign starts. Stamped onto every finding so a version-skewed pair
+    /// can never again masquerade as a bug list (issue #1328 — see
+    /// [`crate::version`]).
+    pub versions: crate::version::PairVersions,
 }
 
 impl Campaign<'_> {
@@ -134,7 +139,14 @@ impl Campaign<'_> {
             Verdict::Timeout => stats.timeout += 1,
         }
         if let Some(category) = Category::from_verdict(verdict) {
-            let finding = Finding::new(seed, category, &script, &reference, &subject);
+            let finding = Finding::new(
+                seed,
+                category,
+                &script,
+                &reference,
+                &subject,
+                &self.versions,
+            );
             if self.registry.record(&finding).unwrap_or(false) {
                 stats.new_findings += 1;
             }
