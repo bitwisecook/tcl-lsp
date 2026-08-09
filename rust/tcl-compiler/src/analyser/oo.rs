@@ -5715,13 +5715,15 @@ mod tests {
     }
 
     #[test]
-    fn oo_class_create_with_namespace_is_recognised() {
-        // The `createWithNamespace` class-command variant introduces a class.
+    fn oo_class_create_with_namespace_is_not_exported() {
+        // C Tcl 9.0.4 and 8.6 both reject this ordinary command dispatch:
+        // createWithNamespace exists internally but is not exported on
+        // oo::class. A rejected call cannot introduce a class.
         let mut a = Analyser::new();
         let r = a.analyse("oo::class createWithNamespace MyCls ::ns { }", "tcl8.6");
         assert!(
-            r.all_classes.keys().any(|k| k.contains("MyCls")),
-            "createWithNamespace should record a class: {:?}",
+            !r.all_classes.keys().any(|k| k.contains("MyCls")),
+            "an unexported manufacturer must not record a class: {:?}",
             r.all_classes.keys().collect::<Vec<_>>()
         );
     }

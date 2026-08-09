@@ -72,6 +72,10 @@ pub(super) struct ConstDispatchSite {
 pub(super) struct PendingInstanceClassSite {
     /// The class-naming variable's name (no leading `$`).
     pub class_var: String,
+    /// The word dispatched on the class command.  It is retained until the
+    /// class variable resolves so that class's registry grammar can decide
+    /// whether the word is a manufacturer.
+    pub manufacturer_word: String,
     /// Span of the `$class` head, for the SSA use-position lookup.
     pub span: Span,
     /// The `instance_classes` key to bind once `class_var` resolves to a
@@ -194,6 +198,52 @@ pub(super) struct InterpFrame {
     pub resolved: bool,
 }
 
+/// How a [`VarCommandSite`]'s command head names the object it dispatches
+/// on — the axis that decides *where the receiver's class comes from* and
+/// *which of its methods the call can reach*.
+///
+/// Every dispatch site the walker records is one of these three; adding a
+/// fourth spelling means adding a variant here and a resolution arm beside
+/// the others, never a name test in the walker.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum DispatchReceiver {
+    /// `$obj method` — the head is a variable whose *value* is an object
+    /// handle.  A `$var` can hold anything at run time, so its class
+    /// evidence comes from the SSA type lattice / constructor harvest only.
+    Variable,
+    /// `objcmd method` — a bareword *named* instance command bound by
+    /// `CLASS create NAME` (issue #1312).  Its class comes from
+    /// `AnalysisResult::instance_classes` gated on
+    /// `AnalysisResult::created_instance_commands` — the same contract the
+    /// LSP's `receiver_instance_class` uses for hover/definition/completion.
+    InstanceCommand,
+    /// `my method` — a bareword head the registry declares a **self-dispatch
+    /// keyword** (`CommandRegistry::method_dispatch_keyword` answering
+    /// `SelfDispatch`, issue #1050).  The receiver is the object whose
+    /// method body encloses the call, so the class comes from
+    /// `Analyser::enclosing_class_at_offset` with no name resolution at all
+    /// — and, uniquely among the three, the dispatch bypasses export
+    /// filtering, so it can reach unexported members (issue #1329).
+    SelfDispatch,
+}
+
+impl DispatchReceiver {
+    /// How this head reaches the receiver, for the registry's built-in
+    /// object-method visibility rule.
+    ///
+    /// Only [`Self::SelfDispatch`] bypasses export filtering.  A bareword
+    /// instance command is still the object's *own command*, so it sees
+    /// exactly what `$obj` sees.
+    pub(crate) fn method_reach(self) -> tcl_registry::definer::MethodReach {
+        match self {
+            Self::SelfDispatch => tcl_registry::definer::MethodReach::SelfDispatch,
+            Self::Variable | Self::InstanceCommand => {
+                tcl_registry::definer::MethodReach::ObjectCommand
+            }
+        }
+    }
+}
+
 /// One entry in [`Analyser::var_command_sites`] —
 /// `(var_name, method_name?, cmd_token_span, in_method)`.
 ///
@@ -223,18 +273,30 @@ pub struct VarCommandSite {
     /// entirely when this is set, matching every other arity check's
     /// `{*}`-expansion convention.
     pub has_expand: bool,
-    /// True for a `$var method` dispatch, false for a bareword
-    /// `objcmd method` dispatch (`CLASS create NAME` idiom — issue #1312).
-    /// A `$var` can hold any object at run time, so its class evidence comes
-    /// from the SSA type lattice / constructor harvest only; a bareword head
-    /// is instead a *named* instance command, so its class comes from
-    /// `AnalysisResult::instance_classes` gated on
-    /// `AnalysisResult::created_instance_commands` — the same contract the
-    /// LSP's `receiver_instance_class` uses for hover/definition/completion.
-    /// Kept as an explicit flag rather than re-deriving it from the site's
-    /// shape so the diagnostic and the LSP's shared resolver can never
-    /// disagree about which sites the bareword lookup applies to.
-    pub is_dollar: bool,
+    /// Which spelling named the receiver — see [`DispatchReceiver`].
+    ///
+    /// Kept as an explicit recorded fact rather than re-derived from the
+    /// site's shape at diagnosis time, so the diagnostic and the LSP's
+    /// shared resolver can never disagree about which sites a given
+    /// receiver lookup applies to.
+    pub receiver: DispatchReceiver,
+}
+
+impl VarCommandSite {
+    /// Shift every span this site carries by `delta`.
+    ///
+    /// The **one** place a `VarCommandSite`'s spans are relocated from a
+    /// per-item body fragment's local offsets into the whole document's, so
+    /// a span field added later cannot be silently left un-rebased.  It once
+    /// could: `method_span` was omitted from the hand-written rebase loop,
+    /// and every W308 raised inside a proc or method body on the incremental
+    /// path was reported — and its "did you mean" quick-fix anchored — at
+    /// the *fragment's* offsets, landing on unrelated text elsewhere in the
+    /// file (issue #1330).
+    pub(crate) fn rebase(&mut self, delta: u32) {
+        self.cmd_span = shift_span(self.cmd_span, delta);
+        self.method_span = self.method_span.map(|sp| shift_span(sp, delta));
+    }
 }
 
 /// One entry in [`Analyser::cmd_command_sites`] —
@@ -251,10 +313,36 @@ pub struct CmdCommandSite {
     /// Content span of the method-name word (delimiters trimmed), when
     /// [`Self::method_name`] is present — the tight anchor for W308.
     pub method_span: Option<Span>,
-    /// Span of the command-head token.
+    /// Span of the whole `[…]` command-substitution head word, closing
+    /// bracket included.
+    ///
+    /// Widened past the head token's own span with
+    /// [`tcl_lexer::word_span`]: a `Cmd` token's raw span stops at the end
+    /// of its *content*, so anchoring a diagnostic on it underlines
+    /// `[Dog new` rather than `[Dog new]`, and on a head written across a
+    /// line continuation it underlines a region that ends mid-word on the
+    /// next line (issue #1330).  Only the end moves — every consumer that
+    /// keys off `cmd_span.start()` (enclosing class, child-interp
+    /// containment, head return type) is unaffected.
     pub cmd_span: Span,
     /// True when inside a class method body.
     pub in_method: bool,
+}
+
+impl CmdCommandSite {
+    /// Shift every span this site carries by `delta` — see
+    /// [`VarCommandSite::rebase`] for why this is a method rather than a
+    /// per-field loop at the call site.
+    pub(crate) fn rebase(&mut self, delta: u32) {
+        self.cmd_span = shift_span(self.cmd_span, delta);
+        self.method_span = self.method_span.map(|sp| shift_span(sp, delta));
+    }
+}
+
+/// Shift `span` right by `delta` — the primitive
+/// [`VarCommandSite::rebase`] / [`CmdCommandSite::rebase`] are built from.
+fn shift_span(span: Span, delta: u32) -> Span {
+    Span::new(span.start() + delta, span.end() + delta)
 }
 
 /// Single-pass Tcl analyser.
@@ -791,9 +879,9 @@ pub struct Analyser {
     /// same post-walk pass as [`Self::pending_arity`]
     /// ([`Self::flush_arity_diagnostics`]).
     pub pending_user_call_arity: Vec<super::types::PendingUserCallArity>,
-    /// `TclOO` constructor-call (`ClassName new` / `ClassName create`)
-    /// arity candidates — see [`super::types::PendingCtorArity`]. Queued
-    /// whenever a call's first word is literally `new`/`create` and
+    /// Registry-declared class-constructor arity candidates — see
+    /// [`super::types::PendingCtorArity`]. Queued whenever a call's first
+    /// word has a possible manufacturer descriptor and
     /// resolved in the same post-walk pass as [`Self::pending_arity`]
     /// ([`Self::flush_ctor_arity_diagnostics`]).
     pub pending_ctor_arity: Vec<super::types::PendingCtorArity>,
@@ -824,6 +912,16 @@ pub struct Analyser {
     /// class (e.g. method-existence checks) are unaffected — only the opt-in
     /// cross-file re-analysis populates it.
     pub workspace_classes: std::collections::HashSet<String>,
+    /// The qualified names of workspace classes whose **own command**
+    /// constructs an instance from a bare unrecognised word and yields its
+    /// name — Tk's `::tk::IconList .il` (issue #1303).
+    ///
+    /// A strict subset of [`Self::workspace_classes`], carried separately
+    /// because the proof lives on the class's *metaclass*, which a pure
+    /// consumer document never sees. Each entry was proved where the class
+    /// was written; an empty set (the overwhelmingly common case) leaves
+    /// every consumer behaving exactly as it did before.
+    pub workspace_bare_word_classes: std::collections::HashSet<String>,
     /// Class **factories** — user-defined `TclOO` metaclasses — declared
     /// elsewhere in the workspace, keyed by fully-qualified name.
     ///
@@ -1250,6 +1348,7 @@ impl Analyser {
             non_ascii_mode: NonAsciiMode::Default,
             structure_only: false,
             workspace_classes: std::collections::HashSet::new(),
+            workspace_bare_word_classes: std::collections::HashSet::new(),
             workspace_class_factories: None,
             defer_proc_bodies: false,
             structural_rebind: false,
@@ -1314,6 +1413,17 @@ impl Analyser {
     #[must_use]
     pub fn structure_only(mut self) -> Self {
         self.structure_only = true;
+        self
+    }
+
+    /// The workspace classes whose command bare-word-constructs — see
+    /// [`Self::workspace_bare_word_classes`] (issue #1303).
+    #[must_use]
+    pub fn with_workspace_bare_word_classes(
+        mut self,
+        classes: std::collections::HashSet<String>,
+    ) -> Self {
+        self.workspace_bare_word_classes = classes;
         self
     }
 
@@ -1556,6 +1666,12 @@ impl Analyser {
         // Structure-only mode (item_tree extraction) skips the entire
         // diagnostic-emission tail — the unresolved/arity/variable/CFG-SSA
         // emitters are the dominant cost and produce no structural facts.
+        // Record the classes a proc manufactures under a computed name whose
+        // value a literal call-site argument proves (issue #1306).  A
+        // *structural* fact, so it runs on the item-tree path too — that is
+        // the path the workspace class-factory index is computed from, and a
+        // metaclass missing there is invisible to every other document.
+        self.record_literal_parameter_definitions();
         if !self.structure_only {
             self.run_diagnostic_emitters(source);
         }
@@ -1861,7 +1977,8 @@ impl Analyser {
             self.body_scope_stack.pop();
         }
 
-        // Same diagnostic-emission tail as ``analyse``.
+        // Same structural + diagnostic-emission tail as ``analyse``.
+        self.record_literal_parameter_definitions();
         self.run_diagnostic_emitters(source);
 
         let result = std::mem::take(&mut self.result);
@@ -1948,6 +2065,7 @@ impl Analyser {
         }
 
         if finalise {
+            self.record_literal_parameter_definitions();
             self.run_diagnostic_emitters(source);
         }
 
@@ -2827,6 +2945,43 @@ mod tests {
         assert_eq!(
             r.instance_classes.get("obj").map(String::as_str),
             Some("::Dog"),
+            "{:?}",
+            r.instance_classes
+        );
+    }
+
+    #[test]
+    fn analyse_rejects_a_var_headed_non_manufacturer_word() {
+        // FP guard: the shape parser accepts any literal method so that the
+        // registry can decide after `$class` resolves. A normal method must
+        // not become a constructor merely because it follows a class handle.
+        let mut a = Analyser::new();
+        let r = a.analyse(
+            "oo::class create Dog { method inspect {} { return value } }\nset class Dog\nset obj [$class inspect]\n",
+            "tcl",
+        );
+        assert_eq!(
+            r.instance_classes.get("obj"),
+            None,
+            "{:?}",
+            r.instance_classes
+        );
+    }
+
+    #[test]
+    fn analyse_rejects_unexported_create_with_namespace_dispatch() {
+        // TN/FP guard pinned against tclsh 9.0.4: `Dog
+        // createWithNamespace x ::xns` fails with TCL LOOKUP METHOD. The
+        // registry retains its structural layout for self-dispatch, but an
+        // ordinary `$class` command cannot use it as construction evidence.
+        let mut a = Analyser::new();
+        let r = a.analyse(
+            "oo::class create Dog {}\nset class Dog\nset obj [$class createWithNamespace x ::xns]\n",
+            "tcl",
+        );
+        assert_eq!(
+            r.instance_classes.get("obj"),
+            None,
             "{:?}",
             r.instance_classes
         );

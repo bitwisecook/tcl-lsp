@@ -183,6 +183,20 @@ fn fold_totitle(args: &[&str]) -> Option<String> {
 
 use crate::const_fold::{clamp_range, parse_index};
 
+/// Fold `string match` for literal arguments.  The glob implementation is
+/// shared with the runtime-facing command core, so this callback is command
+/// semantics in the registry rather than a consumer-side spelling check.
+fn fold_match(args: &[&str]) -> Option<String> {
+    let (nocase, pattern, text) = match args {
+        [pattern, text] => (false, *pattern, *text),
+        [option, pattern, text] if option.len() >= 2 && "-nocase".starts_with(*option) => {
+            (true, *pattern, *text)
+        }
+        _ => return None,
+    };
+    Some(i32::from(tcl_syntax::glob::string_case_match(pattern, text, nocase)).to_string())
+}
+
 /// `string index string charIndex`.  ASCII-restricted (byte index ==
 /// char index for ASCII).
 fn fold_index(args: &[&str]) -> Option<String> {
@@ -1316,6 +1330,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         detail: "Test glob-style pattern match.",
         synopsis: "string match ?-nocase? pattern string",
         pure: true,
+        const_fold: Some(fold_match),
         return_type: Some(TclType::Boolean),
         options: const {
             &[OptionSpec {
@@ -2063,6 +2078,21 @@ mod tests {
         assert_eq!(length(&["abcde"]).as_deref(), Some("5"));
         assert_eq!(length(&[""]).as_deref(), Some("0"));
         assert_eq!(length(&["caf\u{e9}"]), None, "non-ASCII bails");
+    }
+
+    #[test]
+    fn string_match_const_fold_matches_tcl_glob_semantics() {
+        let registry = crate::CommandRegistry::build_default();
+        let spec = registry.get("string").unwrap();
+        let fold = |args: &[&str]| {
+            spec.subcommand("match")
+                .unwrap()
+                .run_const_fold(args, Some("tcl9.0"))
+        };
+        assert_eq!(fold(&["::*", "::clay"]), Some("1".to_owned()));
+        assert_eq!(fold(&["::*", "clay"]), Some("0".to_owned()));
+        assert_eq!(fold(&["-noc", "A*", "alpha"]), Some("1".to_owned()));
+        assert_eq!(fold(&["-bogus", "*", "x"]), None);
     }
 
     #[test]

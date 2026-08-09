@@ -422,6 +422,23 @@ const CTOR_SUBCOMMANDS: &[SubCommand] = &[
     },
 ];
 
+const MANUFACTURERS: &[crate::definer::ManufacturerMethod] = &[
+    crate::definer::ManufacturerMethod {
+        keyword: "new",
+        visibility: crate::definer::MemberVisibility::Exported,
+        names_instance_at: None,
+        definition_body_at: None,
+        constructor_args_from: 1,
+    },
+    crate::definer::ManufacturerMethod {
+        keyword: "create",
+        visibility: crate::definer::MemberVisibility::Exported,
+        names_instance_at: Some(1),
+        definition_body_at: None,
+        constructor_args_from: 2,
+    },
+];
+
 fn class_spec(
     name: &'static str,
     summary: &'static str,
@@ -435,6 +452,7 @@ fn class_spec(
         dialects: Some(DialectSet::ALL_TCL),
         arity: Arity::at_least(1),
         subcommands: CTOR_SUBCOMMANDS,
+        manufacturer_methods: MANUFACTURERS,
         allow_unknown_subcommands: true,
         required_package: Some("ticklecharts"),
         object_class: Some(object_class),

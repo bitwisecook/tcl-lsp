@@ -183,8 +183,8 @@ fn function_namespace(qname: &str) -> String {
     }
 }
 
-/// Type a `TclOO` / snit constructor call (`Foo new` / `Foo create x` /
-/// `Foo %AUTO%` / `Widget .path`) as `OBJECT(class)` when its head resolves
+/// Type a registry-declared class constructor call as `OBJECT(class)` when
+/// its head resolves
 /// to a known class, else `OVERDEFINED`.  The relative head is resolved as-is,
 /// `::`-prefixed, and against the call-site `namespace` (so `[Foo new]` inside
 /// `namespace eval ns` types as `OBJECT(::ns::Foo)`).
@@ -201,6 +201,7 @@ fn function_namespace(qname: &str) -> String {
 /// selection, codegen hints) are unaffected: a dead class's constructor
 /// raises at runtime, so no correct program reaches them.
 fn constructor_object_type<S: std::hash::BuildHasher>(
+    registry: &CommandRegistry,
     command: &str,
     args: &[&str],
     known_classes: &HashSet<String, S>,
@@ -208,7 +209,7 @@ fn constructor_object_type<S: std::hash::BuildHasher>(
 ) -> TypeLattice {
     let is_ctor_spelling = args
         .first()
-        .is_some_and(|a| matches!(*a, "new" | "create") || *a == "%AUTO%" || a.starts_with('.'));
+        .is_some_and(|word| registry.is_possible_class_construction_word(word));
     if is_ctor_spelling && !known_classes.is_empty() {
         if known_classes.contains(command) {
             return TypeLattice::object_of(command);
@@ -252,7 +253,7 @@ pub(crate) fn return_type_for_command<S: std::hash::BuildHasher>(
         // (`Foo new` / `Foo create x` / `Foo %AUTO%` / `Widget .path`) whose
         // head names a known class, typing it `OBJECT(::ns::Foo)` — but not
         // `object_of` from the `new` spelling alone.
-        return constructor_object_type(command, args, known_classes, namespace);
+        return constructor_object_type(registry, command, args, known_classes, namespace);
     };
 
     // Subcommand commands: check sub's return_type.

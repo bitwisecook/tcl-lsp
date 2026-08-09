@@ -109,9 +109,45 @@ strictly worse than ⊙ abstention.
 - `ClassValue::Top(reason)` → `Abstain(reason)`.
 - `ClassValue::{Concrete,Set}` → `Resolved { classes, providers,
   method_known }`, where `method_known` is `false` exactly when a named
-  class services neither the method directly, nor via an OO builtin
-  (`new`/`create`/`destroy`/`configure`/`cget`), an inherited `unknown`
-  handler, or an unindexed external superclass — i.e. the W308 candidate.
+  class services neither the method directly, nor via a **built-in object
+  method** of its class system, an inherited `unknown` handler, or an
+  unindexed external superclass — i.e. the W308 candidate.
+
+The built-in set is registry data, not a name list in the analyser:
+`DefinitionBodyGrammar::builtin_object_methods` carries it per definer
+family (`TclOO`'s inherited `oo::object` surface, snit's
+`configure`/`cget`/`info`, itcl's own), and each entry carries its
+`MemberVisibility`.  That visibility is load-bearing, because it decides
+which *dispatch spellings* can reach the member — see the dispatch-receiver
+taxonomy below.
+
+## The four dispatch spellings, and what each can reach
+
+Every same-object dispatch the analyser records is one of four shapes.
+They differ in where the receiver's class comes from **and** in which of
+its methods the call can reach, and both differences are recorded facts
+rather than re-derived guesses (`analyser::state::DispatchReceiver`,
+`CmdCommandSite`):
+
+| written | class evidence | reach |
+|---|---|---|
+| `$obj method` | SSA type lattice / constructor harvest | object command — exported only |
+| `[Dog new] method` | the substitution's return type | object command — exported only |
+| `objcmd method` (from `CLASS create objcmd`) | `instance_classes`, gated on `created_instance_commands` (#1312) | object command — exported only |
+| `my method` | the **enclosing** class body containing the offset (#1329) | self-dispatch — exported *and* unexported |
+
+`[self] method` and `[self object] method` (#1322 / #1324) name the same
+receiver `my` does, but resolve as the *object command* row: the
+substitution yields the object's own command, which filters exports.
+tclsh 9.0.4 and 8.6.16 both agree — `my varname v` works where `[self]
+varname v` and `$obj varname v` are `unknown method "varname"`.
+
+The keyword in the last row is never spelled in the walker:
+`CommandRegistry::method_dispatch_keyword` answering
+`MethodDispatchKind::SelfDispatch` is what identifies it, so a dialect
+that gains or loses one propagates through the registry.  `next` /
+`nextto` (`NextChain`) and `self` (`Introspection`) are deliberately not
+dispatch sites: neither names a method in any of its words.
 
 ⊤-rate = `Abstain` sites / all sites is the make-or-break number.
 
@@ -234,6 +270,50 @@ after each diagnostics publish — so it rides the same rails
 empty index is stored as `None`, so a workspace with no metaclass never
 moves the input off its default.
 
+The startup scan and open-buffer updates feed that same fixpoint. An unopened
+metaclass file is therefore not a weaker source of truth than an open one; an
+editor's diagnostics subscription is never a semantic prerequisite. This is
+the issue #1304 boundary: opening only a consumer still sees factories proved
+by unopened siblings.
+
+**Registry-declared manufacturers.** `DefinitionBodyGrammar::manufacturers`
+and command-level `manufacturer_methods` carry each method's name, visibility,
+instance-name position, definition-body position, and constructor-payload
+start. Consumers query those descriptors. They do not match `new`, `create`,
+or `createWithNamespace`. The distinction matters: C Tcl 9.0.4 and 8.6 hide
+`createWithNamespace` on ordinary class-command dispatch and hide `new` on
+`oo::class` itself. The registry retains those private methods for
+self-dispatch and reflective export modelling, while
+`exported_manufacturer_method` is the single external-callability query used
+by lowering, signature scanning, binding, type inference, and semantic
+tokens. A source line rejected by the interpreter cannot become a class or an
+object type merely because its words resemble a constructor.
+
+**Fallback construction.** A family may declare the method used for an
+unrecognised class-command word. TclOO declares `unknown`; snit expresses its
+different bare-word rule separately. For a user metaclass, the analyser marks
+the fallback as a constructor only when one readable script path constructs an
+object named by the method's first parameter and returns that exact parameter.
+Construction in one branch and return in another do not combine. This covers
+Tk's `::tk::IconList .il` idiom while an echoing or delegating `unknown`
+abstains (issue #1303).
+
+**Computed metaclass names.** A computed absolute name inside a proc can be
+settled from top-level call sites whose corresponding argument is literal.
+Each call site produces its own binding. A dynamic value, relative result,
+call nested in another proc, or uncalled proc proves nothing. This deliberately
+narrow load-time flow covers `oo::dialect`, clay, and practcl without pretending
+to execute arbitrary Tcl (issue #1306). The exact tcllib 2.0 path first assigns
+`NSPACE` from a namespace-normalising helper. That local result is retained only
+when generic constant/provenance evaluation proves the selected path: `string
+match` and value-returning `regsub` publish their literal folds in the command
+registry. Registry-declared command-table mutations retain the fixed fragments
+of a dynamic target name, so `${ns}::define::$method` cannot poison an
+unrelated helper, while a compatible rename or alias still rejects the proof.
+Across an unresolved multi-arm branch, a local fact survives only when no arm
+has a registry-declared variable or unknown write that can affect it. No
+consumer names the helper or the framework.
+
 `::tk::Megawidget create IconList FocusableWidget {…}` in a file that never
 mentions the metaclass's definition — Tk's own `library/iconlist.tcl` — is
 therefore recorded with the members it declares and the superclasses the
@@ -276,9 +356,9 @@ The loop is bounded, not merely expected to converge:
 - A round adds an entry only when some file **proved** it — never a guess —
   so the normal case is monotone growth over a set bounded by the project's
   literal creation calls.  Only statically resolved qualified names can enter
-  it, so a computed creation (`oo::class create ${ns}::class …`, tcllib's
-  `oo::dialect`) or a computed `oo::define` contributes nothing to any round
-  and cannot make the sequence oscillate.
+  it. A computed creation contributes only after the literal top-level call
+  binding described above resolves it to a qualified name; unresolved or
+  dynamic forms contribute nothing and cannot make the sequence oscillate.
 - A cyclic declaration (`A` made by `B` made by `A`) proves neither link, so
   it settles empty on the first round.
 - `CLASS_FACTORY_SYNC_ROUNDS` caps the loop regardless.  Hitting the cap logs
@@ -312,8 +392,8 @@ silently dropped the class.
 ## What is deliberately *not* built
 
 - No second dataflow engine — the SSA type lattice is reused.
-- No wiring into W307/W308 — zero behaviour change to shipping
-  diagnostics until the data says ship.
-- No interprocedural object-type propagation through proc/method
-  parameters — the measurements are what decide whether that (larger)
-  investment is the right next step.
+- No arbitrary interprocedural execution. Only the narrow literal, top-level
+  proc-argument binding used for computed metaclass names is modelled.
+- No proof from dynamic fallback bodies. If the fallback's construct and
+  return relationship is not readable on one script path, object typing
+  abstains and W307/W308 remain conservative.

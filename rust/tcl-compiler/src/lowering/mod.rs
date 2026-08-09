@@ -137,18 +137,21 @@ impl Lowerer<'_> {
     ) -> Option<DefinerCall> {
         let spec = self.registry.get(canonical.unwrap_or(command))?;
         let grammar = spec.definition_body?;
-        // A metaclass manufactures with `create NAME {body}` (body at argv
-        // 3); every other definer is `DEFINER TARGET {body}` (body at argv
-        // 2).  The metaclass `new {body}` / `createWithNamespace` forms name
-        // no static class, so they are left un-extracted as before.
+        // A metaclass's registry manufacturer descriptor supplies both the
+        // static class-name word and definition-body word. Every other
+        // definer is `DEFINER TARGET {body}`. Auto-naming manufacturers and
+        // forms without a definition body stay with the default lowering.
         let (name_idx, body_idx) = if spec
             .traits
             .contains(tcl_registry::prelude::Traits::IS_OO_METACLASS)
         {
-            if texts.get(1).map(String::as_str) != Some("create") {
-                return None;
-            }
-            (2usize, 3usize)
+            let method = self
+                .registry
+                .exported_manufacturer_method(canonical.unwrap_or(command), texts.get(1)?)?;
+            (
+                usize::from(method.names_instance_at?) + 1,
+                usize::from(method.definition_body_at?) + 1,
+            )
         } else {
             (1usize, 2usize)
         };

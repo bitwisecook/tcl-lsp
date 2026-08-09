@@ -576,6 +576,23 @@ fn setter_constraint_expr(entry: &Value, indent: &str) -> String {
     )
 }
 
+fn manufacturer_method_expr(entry: &Value, indent: &str) -> String {
+    let inner = format!("{indent}    ");
+    let opt_index = |key: &str| {
+        entry[key]
+            .as_u64()
+            .map_or_else(|| "None".to_owned(), |n| format!("Some({n})"))
+    };
+    format!(
+        "{indent}crate::definer::ManufacturerMethod {{\n{inner}keyword: {},\n{inner}visibility: crate::definer::MemberVisibility::{},\n{inner}names_instance_at: {},\n{inner}definition_body_at: {},\n{inner}constructor_args_from: {},\n{indent}}},",
+        rust_string(as_str(&entry["keyword"])),
+        as_str(&entry["visibility"]),
+        opt_index("names_instance_at"),
+        opt_index("definition_body_at"),
+        as_u64(&entry["constructor_args_from"]),
+    )
+}
+
 fn hover_expr(value: &Value, indent: &str) -> String {
     let inner = format!("{indent}    ");
     let synopsis = str_slice(as_array(&value["synopsis"]));
@@ -674,6 +691,9 @@ fn field_expr(field: &FieldSchema, value: &Value, default: &Value, indent: &str)
         FieldKind::SubCommands => "SUBCOMMANDS".to_owned(),
         FieldKind::SideEffects => list_expr(as_array(value), indent, side_effect_expr)?,
         FieldKind::SetterConstraints => list_expr(as_array(value), indent, setter_constraint_expr)?,
+        FieldKind::ManufacturerMethods => {
+            list_expr(as_array(value), indent, manufacturer_method_expr)?
+        }
         FieldKind::SubSubCommands => list_expr(as_array(value), indent, sub_subcommand_expr)?,
         FieldKind::Hover => {
             if value.is_null() {

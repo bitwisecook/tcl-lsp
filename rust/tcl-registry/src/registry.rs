@@ -691,6 +691,133 @@ impl CommandRegistry {
             .is_some_and(|spec| spec.traits.contains(Traits::TCLOO_REQUIRES_METHOD_FRAME))
     }
 
+    /// Whether `word` is a **manufacturer method** of any definer family the
+    /// registry models — `create` / `new` / `createWithNamespace` for
+    /// `TclOO`, `create` for snit.
+    ///
+    /// The union over every definer grammar, for the one consumer that has a
+    /// class name but not the family it belongs to: a *pure consumer*
+    /// document holding `set w [Widget create x]` where `Widget` is declared
+    /// in another file (issue #1303). A consumer that knows the family must
+    /// ask its grammar
+    /// ([`crate::definer::DefinitionBodyGrammar::manufacturer`]) instead —
+    /// that answer is exact, this one is a union.
+    #[must_use]
+    pub fn is_manufacturer_method(&self, word: &str) -> bool {
+        self.manufacturer_methods(word)
+            .any(|method| method.visibility == crate::definer::MemberVisibility::Exported)
+    }
+
+    /// Every definer family's declaration of the manufacturer method `word`
+    /// — the iterator behind [`Self::is_manufacturer_method`], for a consumer
+    /// that needs the layout (which argument names the instance) and not just
+    /// the yes/no.
+    pub fn manufacturer_methods<'a>(
+        &'a self,
+        word: &'a str,
+    ) -> impl Iterator<Item = &'static crate::definer::ManufacturerMethod> + 'a {
+        self.by_name.values().filter_map(move |specs| {
+            let spec = specs.last()?;
+            spec.manufacturer_methods
+                .iter()
+                .find(|method| method.keyword == word)
+                .or_else(|| {
+                    spec.definition_body
+                        .and_then(|grammar| grammar.manufacturer(word))
+                })
+        })
+    }
+
+    /// The exact manufacturer descriptor for registered command `head` and
+    /// method `word`. This covers both definition-body commands and package
+    /// class factories carrying standalone manufacturer data.
+    #[must_use]
+    pub fn manufacturer_method(
+        &self,
+        head: &str,
+        word: &str,
+    ) -> Option<&'static crate::definer::ManufacturerMethod> {
+        let spec = self.get(head)?;
+        if !spec.manufacturer_methods.is_empty() {
+            return spec
+                .manufacturer_methods
+                .iter()
+                .find(|method| method.keyword == word);
+        }
+        spec.definition_body
+            .and_then(|grammar| grammar.manufacturer(word))
+    }
+
+    /// The exact manufacturer descriptor when ordinary external dispatch
+    /// through registered command `head` may reach it.
+    ///
+    /// This is the call-classification counterpart of
+    /// [`Self::manufacturer_method`]. Consumers examining a real command
+    /// invocation should normally use this method; definition-body analysis
+    /// that models `self export` / `self unexport` needs the unfiltered
+    /// descriptor and applies the class-local visibility changes itself.
+    #[must_use]
+    pub fn exported_manufacturer_method(
+        &self,
+        head: &str,
+        word: &str,
+    ) -> Option<&'static crate::definer::ManufacturerMethod> {
+        self.manufacturer_method(head, word)
+            .filter(|method| method.visibility == crate::definer::MemberVisibility::Exported)
+    }
+
+    /// The first constructor-payload argument for manufacturer `word`, when
+    /// every definer family declaring that word agrees on the layout.
+    ///
+    /// Consumers that know the exact family should query its grammar
+    /// directly. Scope-blind flow analyses use this conservative union: a
+    /// future family reusing a keyword with a different layout makes the
+    /// answer `None`, so parameter flow abstains instead of skipping the
+    /// wrong structural words.
+    #[must_use]
+    pub fn uniform_manufacturer_constructor_args_from(&self, word: &str) -> Option<usize> {
+        let mut methods = self.manufacturer_methods(word);
+        let first = usize::from(methods.next()?.constructor_args_from);
+        methods
+            .all(|method| usize::from(method.constructor_args_from) == first)
+            .then_some(first)
+    }
+
+    /// The instance-name argument for manufacturer `word`, when every
+    /// definer family declaring that word agrees on the layout.
+    ///
+    /// `None` is deliberately ambiguous: the method may generate its own
+    /// name, or different families may use different layouts. Consumers
+    /// that need to distinguish those cases should use
+    /// [`Self::manufacturer_methods`] and require agreement themselves.
+    #[must_use]
+    pub fn uniform_manufacturer_names_instance_at(&self, word: &str) -> Option<usize> {
+        let mut methods = self.manufacturer_methods(word);
+        let first = methods.next()?.names_instance_at?;
+        methods
+            .all(|method| method.names_instance_at == Some(first))
+            .then_some(usize::from(first))
+    }
+
+    /// Whether `word` can conservatively identify a constructor call when a
+    /// consumer knows only that the head names some class, not which definer
+    /// family created it.
+    ///
+    /// Named manufacturer methods and family-specific bare-word naming hints
+    /// are both registry data. Exact class-aware consumers should use the
+    /// class grammar instead of this union.
+    #[must_use]
+    pub fn is_possible_class_construction_word(&self, word: &str) -> bool {
+        self.is_manufacturer_method(word)
+            || self.by_name.values().any(|specs| {
+                specs.last().is_some_and(|spec| {
+                    spec.definition_body
+                        .and_then(|grammar| grammar.bare_word_construction_hint)
+                        .is_some_and(|recognises| recognises(word))
+                })
+            })
+    }
+
     /// Whether `head` binds bareword aliases for methods of the current
     /// object — `TclOO`'s `link`; see [`Traits::TCLOO_BINDS_METHOD_ALIAS`].
     ///

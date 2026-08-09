@@ -47,6 +47,7 @@ use serde_json::{Map, Value, json};
 use tcl_dialect::DialectSet;
 use tcl_registry::arg_role::{AppendedArity, ArgRole};
 use tcl_registry::arity::Arity;
+use tcl_registry::definer::ManufacturerMethod;
 use tcl_registry::handle_binding::{
     HandleBindingSpec, HandleClassSource, HandleKeyword, HandleName,
 };
@@ -315,6 +316,16 @@ pub(crate) fn setter_constraint(constraint: &SetterConstraint) -> Value {
         "required_prefix": constraint.required_prefix,
         "code": constraint.code.as_str(),
         "message": constraint.message,
+    })
+}
+
+fn manufacturer_method(method: &ManufacturerMethod) -> Value {
+    json!({
+        "keyword": method.keyword,
+        "visibility": catalogue::variant_name(&method.visibility),
+        "names_instance_at": method.names_instance_at,
+        "definition_body_at": method.definition_body_at,
+        "constructor_args_from": method.constructor_args_from,
     })
 }
 
@@ -1065,6 +1076,18 @@ fn command_taint(d: &mut Draft, spec: &CommandSpec, lost: &mut Unrecovered) {
 }
 
 /// Deprecation, translation, and the descriptor references.
+fn command_manufacturer_methods(d: &mut Draft, spec: &CommandSpec) {
+    d.insert(
+        "manufacturer_methods".into(),
+        Value::Array(
+            spec.manufacturer_methods
+                .iter()
+                .map(manufacturer_method)
+                .collect(),
+        ),
+    );
+}
+
 fn command_advanced(d: &mut Draft, spec: &CommandSpec, lost: &mut Unrecovered) {
     d.insert(
         "pattern_type".into(),
@@ -1112,6 +1135,7 @@ fn command_advanced(d: &mut Draft, spec: &CommandSpec, lost: &mut Unrecovered) {
         "definition_body".into(),
         lost.expr("definition_body", spec.definition_body.is_some()),
     );
+    command_manufacturer_methods(d, spec);
     d.insert(
         "case_list".into(),
         lost.expr("case_list", spec.case_list.is_some()),
@@ -1180,6 +1204,7 @@ pub fn default_subcommand_draft() -> Draft {
 mod tests {
     use super::*;
     use crate::schema;
+    use tcl_registry::definer::MemberVisibility;
 
     #[test]
     fn default_draft_has_every_schema_field() {
@@ -1205,6 +1230,45 @@ mod tests {
     fn default_draft_records_no_unrecoverable_fields() {
         let draft = default_command_draft();
         assert_eq!(draft[UNRENDERABLE_KEY], json!([]));
+    }
+
+    #[test]
+    fn manufacturer_methods_round_trip_without_inventing_defaults() {
+        const METHODS: &[ManufacturerMethod] = &[ManufacturerMethod {
+            keyword: "create",
+            visibility: MemberVisibility::Unexported,
+            names_instance_at: Some(1),
+            definition_body_at: None,
+            constructor_args_from: 2,
+        }];
+
+        assert_eq!(default_command_draft()["manufacturer_methods"], json!([]));
+        let draft = from_command_spec(&CommandSpec {
+            name: "factory",
+            manufacturer_methods: METHODS,
+            ..CommandSpec::DEFAULT
+        });
+        assert_eq!(
+            draft["manufacturer_methods"],
+            json!([{
+                "keyword": "create",
+                "visibility": "Unexported",
+                "names_instance_at": 1,
+                "definition_body_at": null,
+                "constructor_args_from": 2,
+            }])
+        );
+        assert!(
+            !draft[UNRENDERABLE_KEY]
+                .as_array()
+                .is_some_and(|keys| keys.iter().any(|key| key == "manufacturer_methods"))
+        );
+
+        let rendered = crate::render_rs::render(&draft);
+        assert!(rendered.contains("manufacturer_methods: &["));
+        assert!(rendered.contains("keyword: \"create\""));
+        assert!(rendered.contains("visibility: crate::definer::MemberVisibility::Unexported"));
+        assert!(rendered.contains("definition_body_at: None"));
     }
 
     #[test]

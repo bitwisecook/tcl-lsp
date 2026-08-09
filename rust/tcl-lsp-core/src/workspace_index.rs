@@ -187,6 +187,14 @@ pub struct WorkspaceClass {
     /// `classmethod` / snit `typemethod` (dispatched as two bare words)
     /// without a local `ClassDef` to ask.
     pub metaclass: String,
+    /// Whether this class's **own command** constructs an instance from a
+    /// bare unrecognised word and yields its name — see
+    /// [`tcl_compiler::analyser::ClassDef::class_command_fallback`] (issue
+    /// #1303, Tk's `::tk::IconList .il`).
+    ///
+    /// Carried across the document boundary because the proof lives on the
+    /// class's *metaclass*, which a consuming document need never see.
+    pub bare_word_construction: bool,
     /// Byte spans of this record's `constructor` name tokens, in declaration
     /// order (`oo::configurable` admits more than one).  Constructors are not
     /// dispatchable members, so they stay out of [`Self::methods`]; they are
@@ -1385,6 +1393,9 @@ impl DocumentRecords {
                 retracted_members: class_def.retracted_members.clone(),
                 via_define: class_def.via_define,
                 metaclass: class_def.metaclass.clone(),
+                bare_word_construction: class_def
+                    .class_command_fallback
+                    .constructs_named_instance(),
                 constructor_spans: class_def.constructors.iter().map(|c| c.name_span).collect(),
             });
         }
@@ -3681,6 +3692,20 @@ impl WorkspaceIndex {
     #[must_use]
     pub fn all_class_qnames(&self) -> std::collections::HashSet<String> {
         self.classes().map(|c| c.qualified_name.clone()).collect()
+    }
+
+    /// The qualified names of indexed classes whose own command constructs an
+    /// instance from a bare unrecognised word — the workspace half of Tk's
+    /// `::tk::IconList .il` idiom (issue #1303).
+    ///
+    /// Empty for every workspace with no such metaclass, which is nearly all
+    /// of them, so a consumer given it behaves exactly as before.
+    #[must_use]
+    pub fn bare_word_construction_class_qnames(&self) -> std::collections::HashSet<String> {
+        self.classes()
+            .filter(|c| c.bare_word_construction)
+            .map(|c| c.qualified_name.clone())
+            .collect()
     }
 
     /// The URIs of documents that invoke (a constructor of) any class in

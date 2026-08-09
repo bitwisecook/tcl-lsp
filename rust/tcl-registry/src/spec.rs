@@ -814,6 +814,12 @@ pub struct CommandSpec {
     /// `match cmd_name` logic in the compiler / analyser / LSP.
     pub definition_body: Option<&'static crate::definer::DefinitionBodyGrammar>,
 
+    /// Manufacturer methods exposed by this command when it is a registered
+    /// class factory but not itself a definition-body command.  Package
+    /// classes such as `ticklecharts::chart` use ordinary `TclOO` `new` /
+    /// `create` dispatch without carrying a class-definition grammar.
+    pub manufacturer_methods: &'static [crate::definer::ManufacturerMethod],
+
     /// The `{pattern body pattern body …}` clause list this command takes as its
     /// final braced word — `switch … { pat body … }` and Expect's
     /// `expect { pat body … }`.
@@ -1132,6 +1138,7 @@ impl CommandSpec {
         byte_array_payload: None,
         byte_array_effect: crate::byte_array_effect::ByteArrayEffect::None,
         definition_body: None,
+        manufacturer_methods: &[],
         case_list: None,
         object_class: None,
         defines_symbol: None,

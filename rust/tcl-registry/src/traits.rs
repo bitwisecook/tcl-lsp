@@ -375,6 +375,10 @@ declare_traits! {
     /// `metaclass == "oo::configurable"` spelling test the method-resolution
     /// scan used to make (issue #1275).
     ConfiguresByProperty => CONFIGURES_BY_PROPERTY;
+    /// A metaclass whose manufactured classes cannot themselves manufacture
+    /// instances. Tcl 9.0's `oo::abstract` unexports every manufacturer from
+    /// the classes it creates.
+    AbstractClassFactory => ABSTRACT_CLASS_FACTORY;
 
     // Codegen/diagram
     /// Included in diagram extraction.

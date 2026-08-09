@@ -2071,10 +2071,20 @@ async fn refresh_cross_file_evidence(
         slots,
         self_uri: uri,
     };
-    for uri in sync_workspace_class_factories(handles, Some(wake)).await {
+    let factory_moved = sync_workspace_class_factories(handles, Some(wake)).await;
+    let oracle_moved = !factory_moved.is_empty();
+    for uri in factory_moved {
         if !changed.contains(&uri) {
             changed.push(uri);
         }
+    }
+    // An edit that adds or removes a metaclass changes what *unopened*
+    // documents manufacture too, and `reschedule_peers` below can only reach
+    // documents that have a diagnostics slot — i.e. open ones (issue #1304).
+    // Only when the oracle actually moved: an unchanged oracle re-indexes
+    // nothing, so the ordinary editing loop pays nothing for this.
+    if oracle_moved {
+        reindex_unopened_factory_consumers(handles).await;
     }
     // Re-analyse *this* document only when the refresh gave it evidence
     // that can actually change its result: a non-empty table means some
@@ -2099,6 +2109,114 @@ async fn refresh_cross_file_evidence(
     // peer's own run re-syncs, finds nothing changed
     // (compare-then-set), and reschedules nobody.
     reschedule_peers(slots, uri, changed).await;
+}
+
+/// Re-index the **unopened** workspace documents whose analysis the
+/// class-factory oracle can change, now that the oracle has been
+/// published (issue #1304).
+///
+/// The startup scan analyses every file with a bare `Analyser::new()` and
+/// merges the result into `workspace_index` *before*
+/// [`sync_workspace_class_factories`] has anything to publish — it cannot
+/// be otherwise, because the oracle is computed **from** those files. So
+/// a document holding `Meta create Widget {…}` was indexed as if `Meta`
+/// were an unknown command, and every class it manufactures was missing
+/// from the index the navigation providers read. An **open** document
+/// recovered: `reschedule_peers` marks it dirty and its diagnostics
+/// worker re-analyses it with the oracle in hand. An unopened one has no
+/// diagnostics slot to mark, so nothing ever re-indexed it — which is why
+/// a plain `oo::class` resolved unopened and a manufactured class did
+/// not.
+///
+/// Scoped to the documents that can actually be affected: a document
+/// qualifies only when one of its recorded invocations resolves to a
+/// metaclass the oracle names ([`core_workspace_index::WorkspaceIndex::documents_invoking_classes`]),
+/// so a workspace with no metaclass re-indexes nothing and a workspace
+/// with one re-indexes its handful of consumers, not all 113 files.
+///
+/// One pass suffices however deep the metaclass chain is: the oracle is
+/// already a fixpoint over the whole project when this runs, so every
+/// link is known before the first document is re-analysed. Re-indexing
+/// can add manufactured **classes** to the index, never new *factories* —
+/// those come from salsa's own fixpoint, which this does not feed.
+///
+/// Lock order is the global one — `rehoming_gate` → `documents` → `db` →
+/// `workspace_index`.
+async fn reindex_unopened_factory_consumers(handles: &EvidenceHandles) {
+    let (oracle, texts) = {
+        let db = handles.db.lock().await;
+        let files = handles.db_files.lock().await;
+        let Some(oracle) = Backend::published_class_factories(&db, &files) else {
+            return;
+        };
+        if oracle.is_empty() {
+            return;
+        }
+        let texts: HashMap<Uri, (String, String)> = files
+            .iter()
+            .map(|(uri, &file)| {
+                (
+                    uri.clone(),
+                    (file.text(&*db).clone(), file.dialect(&*db).clone()),
+                )
+            })
+            .collect();
+        (oracle, texts)
+    };
+    let keys: HashSet<&str> = oracle
+        .keys()
+        .map(|k| k.trim_start_matches("::"))
+        .collect::<HashSet<&str>>();
+    let candidates = handles
+        .workspace_index
+        .read()
+        .await
+        .documents_invoking_classes(&keys);
+    if candidates.is_empty() {
+        return;
+    }
+    let _rehoming_guard = handles.rehoming_gate.lock().await;
+    let open: HashSet<String> = handles
+        .documents
+        .lock()
+        .await
+        .keys()
+        .map(|u| u.as_str().to_owned())
+        .collect();
+    let mut work: Vec<(Uri, String, String)> = Vec::new();
+    for uri_str in candidates {
+        if open.contains(&uri_str) {
+            continue;
+        }
+        let Ok(uri) = Uri::from_str(&uri_str) else {
+            continue;
+        };
+        if let Some((text, dialect)) = texts.get(&uri) {
+            work.push((uri, text.clone(), dialect.clone()));
+        }
+    }
+    if work.is_empty() {
+        return;
+    }
+    let oracle_for_task = Arc::clone(&oracle);
+    let analysed = tokio::task::spawn_blocking(move || {
+        work.into_iter()
+            .map(|(uri, text, dialect)| {
+                let analysis = Analyser::new()
+                    .with_workspace_class_factories(Some(Arc::clone(&oracle_for_task)))
+                    .analyse(&text, &dialect)
+                    .clone();
+                (uri, analysis)
+            })
+            .collect::<Vec<_>>()
+    })
+    .await
+    .unwrap_or_default();
+    let mut index = handles.workspace_index.write().await;
+    for (uri, analysis) in &analysed {
+        index.remove_document(uri.as_str());
+        index.add_document(uri.as_str(), analysis);
+    }
 }
 
 /// Mark each peer dirty and start its worker if one is not already draining
@@ -2171,6 +2289,13 @@ struct EvidenceHandles {
     db_files: Arc<Mutex<HashMap<Uri, tcl_lsp_db::SourceFile>>>,
     db_project: Arc<Mutex<Option<tcl_lsp_db::Project>>>,
     workspace_index: Arc<RwLock<core_workspace_index::WorkspaceIndex>>,
+    /// The open-document map, so the unopened-consumer re-index (issue #1304)
+    /// can tell an open buffer — whose own diagnostics worker republishes it —
+    /// from a disk-backed file that nothing else will ever revisit.
+    documents: Arc<Mutex<HashMap<Uri, DocumentState>>>,
+    /// Serialises that re-index with source-site reconciliation, exactly as
+    /// [`Backend::merge_workspace_scan_results`] does.
+    rehoming_gate: Arc<tokio::sync::Mutex<()>>,
 }
 
 impl EvidenceHandles {
@@ -2180,6 +2305,8 @@ impl EvidenceHandles {
             db_files: Arc::clone(&inputs.db_files),
             db_project: Arc::clone(&inputs.db_project),
             workspace_index: Arc::clone(&inputs.workspace_index),
+            documents: Arc::clone(&inputs.documents),
+            rehoming_gate: Arc::clone(&inputs.rehoming_gate),
         }
     }
 }
@@ -7907,7 +8034,13 @@ impl Backend {
         source: &str,
         dialect: &str,
     ) -> Arc<AnalysisResult> {
-        let workspace_classes = self.workspace_index.read().await.all_class_qnames();
+        let (workspace_classes, workspace_bare_word_classes) = {
+            let index = self.workspace_index.read().await;
+            (
+                index.all_class_qnames(),
+                index.bare_word_construction_class_qnames(),
+            )
+        };
         // The class-factory oracle travels with the class-name set (issue
         // #1276): without it this tier would not see a class the document
         // manufactures through a cross-file metaclass at all, and a method
@@ -7932,6 +8065,7 @@ impl Backend {
             Arc::new(
                 tcl_compiler::analyser::Analyser::new()
                     .with_workspace_classes(workspace_classes)
+                    .with_workspace_bare_word_classes(workspace_bare_word_classes)
                     .with_workspace_class_factories(workspace_class_factories)
                     .analyse(&owned_source, &owned_dialect)
                     .clone(),
@@ -12372,16 +12506,20 @@ impl Backend {
         // navigation come back empty for every class a cross-file metaclass
         // manufactures — the exact symptom the issue reports — until some
         // later edit happens to re-run the diagnostics worker.
-        sync_workspace_class_factories(
-            &EvidenceHandles {
-                db: Arc::clone(&self.db),
-                db_files: Arc::clone(&self.db_files),
-                db_project: Arc::clone(&self.db_project),
-                workspace_index: Arc::clone(&self.workspace_index),
-            },
-            None,
-        )
-        .await;
+        let scan_handles = EvidenceHandles {
+            db: Arc::clone(&self.db),
+            db_files: Arc::clone(&self.db_files),
+            db_project: Arc::clone(&self.db_project),
+            workspace_index: Arc::clone(&self.workspace_index),
+            documents: Arc::clone(&self.documents),
+            rehoming_gate: Arc::clone(&self.rehoming_gate),
+        };
+        sync_workspace_class_factories(&scan_handles, None).await;
+        // …then re-index the unopened documents that oracle can change
+        // (issue #1304). Must follow the publish: the classes a cross-file
+        // metaclass manufactures only exist in an analysis that carried the
+        // oracle, and the scan's own pass could not have.
+        reindex_unopened_factory_consumers(&scan_handles).await;
         // In-process readiness signal, released before the log line so a
         // handler waiting on it is not held up by a client round-trip.
         self.workspace_scan_ready.mark_complete();
@@ -24564,6 +24702,8 @@ mod tests {
             db_files: Arc::clone(&backend.db_files),
             db_project: Arc::clone(&backend.db_project),
             workspace_index: Arc::clone(&backend.workspace_index),
+            documents: Arc::clone(&backend.documents),
+            rehoming_gate: Arc::clone(&backend.rehoming_gate),
         };
 
         let first = sync_cross_file_evidence(&handles).await;
