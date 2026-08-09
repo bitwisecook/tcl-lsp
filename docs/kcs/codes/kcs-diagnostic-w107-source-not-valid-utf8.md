@@ -39,8 +39,9 @@ character.
 
 ## Symptoms
 
-- One warning at the first `U+FFFD` in the file: "Source is not valid UTF-8:
-  *&lt;kind&gt;* at byte offset *N*".
+- One warning at the first replacement **inserted by the decoder**: "Source is
+  not valid UTF-8: *&lt;kind&gt;* at byte offset *N*". If the file already contains
+  a valid, authored `U+FFFD`, that earlier character is not selected.
 - Replacement characters (�) visible in the editor where accented or
   non-Latin text should be.
 - W108 (non-ASCII character) firing on those same positions — it is describing
@@ -90,6 +91,9 @@ The check reports the **first** ill-formed sequence and names its class:
 truncated multi-byte sequence, overlong encoding, lone surrogate (CESU-8 /
 WTF-8), out-of-range lead byte, or stray continuation byte. It counts all of
 them, but reports once — a mis-decoded file has one problem, not one per byte.
+Its range comes from the decoder's recorded insertion offset and is converted
+to the editor's UTF-16 column, so an astral character or an earlier literal
+`U+FFFD` cannot move the squiggle onto the wrong character.
 
 It cannot detect a legacy 8-bit file whose high bytes happen to *form* valid
 UTF-8 sequences; that file is indistinguishable from a UTF-8 file containing

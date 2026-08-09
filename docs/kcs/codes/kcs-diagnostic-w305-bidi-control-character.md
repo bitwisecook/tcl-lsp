@@ -5,7 +5,7 @@
 
 ## Applies to
 
-all-editors, diagnostic, lexing
+all-editors, mcp, diagnostic, lexing
 
 ## Profiles
 
@@ -64,6 +64,10 @@ when HTTP_REQUEST priority 500 {
 
 The analyser reports **`W305`** on the invisible character itself, immediately
 after the `#`.
+
+The same whole-source check runs in Tcl analysis, MCP `analyze`, `validate`, and
+`review`, BIG-IP configuration files, and iApp APL files. These surfaces share
+one producer, character table, message, and suppression rule.
 
 ## Fix
 
@@ -126,7 +130,7 @@ overlap.
 
 ## How to suppress
 
-Add `# noqa: W305` at the end of the offending line, set
+Add `# noqa: W305` on the line before the offending line, set
 `tclLsp.diagnostics.W305` to `false`, or add `# tcl-lsp: disable=W305` at the
 top of the file.
 

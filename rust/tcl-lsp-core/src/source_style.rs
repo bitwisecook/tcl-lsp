@@ -37,15 +37,11 @@
 //! * **W118** — inconsistent line endings, a single file-level
 //!   diagnostic.
 //!
-//! [`style_diagnostics`] additionally runs the *source-text integrity* checks
-//! that live in [`crate::source_decode`] — **W107** (the source is not valid
-//! UTF-8), **W109** (the source is not UTF-8 text at all), and **W305** (a
-//! bidirectional formatting control, i.e. Trojan Source).  They belong here
-//! for the same reason the style checks do: they are questions about the raw
-//! document with no structural Tcl representation, and routing them through
-//! this one orchestrator is what makes them honour the same `# noqa` /
-//! `tclLsp.diagnostics.<CODE>` suppression as everything else, on every path
-//! the server publishes from.
+//! [`style_diagnostics`] additionally runs the byte-backed integrity checks in
+//! [`crate::source_decode`] — **W107** (the source is not valid UTF-8) and
+//! **W109** (the source is not UTF-8 text at all). **W305** is a Unicode-text
+//! analyser diagnostic instead, so analyser-only consumers such as MCP see the
+//! same whole-source security finding without depending on an LSP style pass.
 //!
 //! The orchestrator ([`style_diagnostics`]) wires into the native
 //! server's `publish_analyser_diagnostics` so these source-style
@@ -75,13 +71,10 @@ use std::hash::BuildHasher;
 
 use crate::definition::{LspRange, utf16_len};
 
-/// Severity of a source-text diagnostic.  W111 / W115 / W107 / W109 are
-/// warnings; W112 / W118 are hints; W305 is an error.
+/// Severity of a source-text diagnostic. W111 / W115 / W107 / W109 are
+/// warnings, and W112 / W118 are hints.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum StyleSeverity {
-    /// LSP `Error`.  Used only by W305 (Trojan Source): a bidi override makes
-    /// the file lie to its reviewer, which is not a matter of taste.
-    Error,
     /// LSP `Warning`.
     Warning,
     /// LSP `Hint`.
@@ -393,7 +386,7 @@ pub fn check_comment_continuation(source: &str) -> Vec<StyleDiagnostic> {
 ///
 /// Suppression and gating rules:
 ///
-/// * W111 / W112 / W115 / W305 honour inline `# noqa` / file-level
+/// * W111 / W112 / W115 honour inline `# noqa` / file-level
 ///   suppression (keyed by `suppressed`, the analyser's
 ///   `suppressed_lines`).
 /// * W118 / W107 / W109 are file-level checks and are *not* line-suppressed;
@@ -457,19 +450,12 @@ pub fn style_diagnostics<SD: BuildHasher, H: BuildHasher, I: BuildHasher>(
 
     // Source-text *integrity* (issue #1326).  These run on `source`, not
     // `lines_source`: a mis-decoded file's byte offsets must not be shifted by
-    // a lone-CR rewrite, and W305 anchors on a character, not a line.
+    // a lone-CR rewrite.
     for d in crate::source_decode::encoding_integrity_diagnostics(source, decode) {
         if enabled(d.code) {
             out.push(d);
         }
     }
-    if enabled("W305") {
-        push_line_suppressed(
-            crate::source_decode::bidi_control_diagnostics(&lines_source),
-            &mut out,
-        );
-    }
-
     out
 }
 

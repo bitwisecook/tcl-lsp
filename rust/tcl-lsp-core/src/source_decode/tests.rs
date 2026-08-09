@@ -182,6 +182,28 @@ fn w107_anchors_on_the_first_replacement_character() {
 }
 
 #[test]
+fn w107_anchors_on_the_decoder_insertion_after_an_authored_replacement_character() {
+    // The first U+FFFD is valid source text. The second one is the decoder's
+    // replacement for the bad byte and is the only honest W107 anchor.
+    let mut bytes = "set authored \u{fffd}\nputs 𝄞".as_bytes().to_vec();
+    bytes.push(0xff);
+    bytes.push(b'\n');
+    let (text, diags) = from_bytes(&bytes);
+    assert_eq!(text, "set authored \u{fffd}\nputs 𝄞\u{fffd}\n");
+    assert_eq!(diags[0].range.start_line, 1);
+    // `puts ` is five UTF-16 units and U+1D11E is two.
+    assert_eq!(diags[0].range.start_character, 7);
+    assert_eq!(diags[0].range.end_character, 8);
+    let report = decode_source(&bytes).1;
+    let err = report.first_error.expect("bad byte report");
+    assert_eq!(
+        text.get(err.replacement_text_offset..)
+            .and_then(|tail| tail.chars().next()),
+        Some('\u{fffd}')
+    );
+}
+
+#[test]
 fn positions_are_utf16_code_units_not_bytes_or_chars() {
     // `𝄞` is one char, two UTF-16 code units, four UTF-8 bytes. An LSP
     // character offset must count the middle one.
@@ -233,8 +255,8 @@ fn w109_fires_on_utf16_with_and_without_a_bom() {
         // W109 suppresses W107: a file that is not UTF-8 at all would
         // otherwise say the same thing twice.
         assert!(diags[0].message.contains("does not look like UTF-8"));
-        let (text, report) = decode_source(&bytes);
-        assert!(should_abstain(&text, Some(&report)), "{label}");
+        let (_, report) = decode_source(&bytes);
+        assert!(should_abstain(Some(&report)), "{label}");
     }
 }
 
@@ -245,7 +267,7 @@ fn w109_does_not_guess_from_nul_interleaved_lsp_text() {
     let (text, _) = decode_source(&utf16le(BODY));
     let diags = encoding_integrity_diagnostics(&text, None);
     assert!(diags.is_empty(), "text-only: {:?}", codes(&diags));
-    assert!(!should_abstain(&text, None));
+    assert!(!should_abstain(None));
 }
 
 #[test]
@@ -256,14 +278,14 @@ fn w109_silent_on_valid_utf8_containing_occasional_nuls() {
     src.push_str("# marker \u{0}\u{0}\u{0}\n");
     let (_, diags) = from_bytes(src.as_bytes());
     assert!(diags.is_empty(), "{:?}", codes(&diags));
-    assert!(!should_abstain(&src, None));
+    assert!(!should_abstain(None));
 }
 
 #[test]
 fn w109_silent_on_ordinary_source_and_on_an_empty_file() {
     for src in ["", BODY, "puts \"héllo\"\n"] {
-        let (text, report) = decode_source(src.as_bytes());
-        assert!(!should_abstain(&text, Some(&report)), "{src:?}");
+        let (_text, report) = decode_source(src.as_bytes());
+        assert!(!should_abstain(Some(&report)), "{src:?}");
     }
 }
 
@@ -271,93 +293,15 @@ fn w109_silent_on_ordinary_source_and_on_an_empty_file() {
 fn w109_needs_both_a_nul_floor_and_a_ratio() {
     // Below the absolute floor, ratio alone is not enough — a two-byte file
     // that is 50% NUL is not evidence of anything.
-    let (text, report) = decode_source(b"a\x00");
+    let (_, report) = decode_source(b"a\x00");
     assert_eq!(report.non_text, None);
-    assert!(!should_abstain(&text, Some(&report)));
+    assert!(!should_abstain(Some(&report)));
     // Above the floor but below the ratio, likewise.
     let mut bytes = vec![b'x'; 200];
     bytes.extend(std::iter::repeat_n(0u8, 10));
-    let (text, report) = decode_source(&bytes);
+    let (_, report) = decode_source(&bytes);
     assert_eq!(report.non_text, None);
-    assert!(!should_abstain(&text, Some(&report)));
-}
-
-// ---------------------------------------------------------------------------
-// W305 — bidi controls (Trojan Source).
-// ---------------------------------------------------------------------------
-
-#[test]
-fn w305_fires_on_every_bidi_control() {
-    for (ch, name) in tcl_compiler::analyser::confusables_table::BIDI_CONTROLS {
-        let src = format!("log local0. \"a{ch}b\"\n");
-        let diags = bidi_control_diagnostics(&src);
-        assert_eq!(codes(&diags), ["W305"], "U+{:04X}", *ch as u32);
-        assert_eq!(diags[0].severity, StyleSeverity::Error);
-        assert!(diags[0].message.contains(name));
-        assert!(diags[0].message.contains("Trojan Source"));
-    }
-}
-
-#[test]
-fn w305_reports_each_control_separately_and_anchors_on_the_character() {
-    // The override/pop pair a real attack uses.
-    let src = "log local0. \"\u{202e}drowssap\u{202c}\"\n";
-    let diags = bidi_control_diagnostics(src);
-    assert_eq!(codes(&diags), ["W305", "W305"]);
-    assert_eq!(diags[0].range.start_line, 0);
-    assert_eq!(diags[0].range.start_character, 13);
-    assert_eq!(diags[0].range.end_character, 14);
-    assert!(diags[1].range.start_character > diags[0].range.start_character);
-}
-
-#[test]
-fn w305_finds_controls_in_comments_and_command_position_too() {
-    // The whole point is that a bidi control changes how *surrounding* text
-    // renders, so restricting the scan to argument tokens would miss the
-    // classic comment-based attack outright.
-    for src in [
-        "# \u{202e} a comment that renders backwards\n",
-        "\u{2066}puts hello\n",
-        "proc \u{202d}name {} {}\n",
-    ] {
-        assert_eq!(codes(&bidi_control_diagnostics(src)), ["W305"], "{src:?}");
-    }
-}
-
-#[test]
-fn w305_silent_on_rtl_content_with_no_override() {
-    // The false-positive guard that matters most: Arabic or Hebrew *content*
-    // is not a Trojan Source attack, and neither are the directional *marks*
-    // that legitimate bidirectional text uses.
-    for src in [
-        "log local0. \"مرحبا بالعالم\"\n",
-        "log local0. \"שלום עולם\"\n",
-        "# تعليق عربي عادي\n",
-        // U+200E/U+200F LRM/RLM and U+061C ALM — marks, not overrides.
-        "log local0. \"\u{200e}1\u{200f}2\u{61c}3\"\n",
-        // Zero-width characters stay with W108.
-        "set a\u{200b}b 1\n",
-        "puts hello\n",
-        "",
-    ] {
-        assert!(
-            bidi_control_diagnostics(src).is_empty(),
-            "false positive on {src:?}"
-        );
-    }
-}
-
-#[test]
-fn w305_and_w107_are_independent() {
-    // A bidi control is well-formed UTF-8, so it must not be reported as a
-    // decode failure, and a decode failure must not be reported as bidi.
-    let src = "log local0. \"\u{202e}x\"\n";
-    let (_, diags) = from_bytes(src.as_bytes());
-    assert!(diags.is_empty(), "{:?}", codes(&diags));
-    assert_eq!(codes(&bidi_control_diagnostics(src)), ["W305"]);
-
-    let (text, _) = decode_source(b"puts \xff\n");
-    assert!(bidi_control_diagnostics(&text).is_empty());
+    assert!(!should_abstain(Some(&report)));
 }
 
 // ---------------------------------------------------------------------------

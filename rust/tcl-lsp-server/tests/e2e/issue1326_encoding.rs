@@ -25,7 +25,7 @@
 
 use crate::common::{Lsp, unique_uri};
 
-use serde_json::Value;
+use serde_json::{Value, json};
 
 /// A diagnostic's `code`, as a string.
 fn code_str(d: &Value) -> Option<&str> {
@@ -85,6 +85,22 @@ fn w107_fires_when_matching_on_disk_bytes_prove_a_decode_failure() {
             .is_some_and(|m| m.contains("byte offset")),
         "matching bytes should retain the exact byte evidence: {w107:?}"
     );
+}
+
+#[test]
+fn w107_range_selects_the_decoder_insertion_not_an_earlier_literal_replacement() {
+    let mut bytes = "set authored \u{fffd}\nputs ".as_bytes().to_vec();
+    bytes.push(0xff);
+    bytes.push(b'\n');
+    let (uri, path, text) = malformed_file(&bytes, "range.tcl");
+    let mut lsp = Lsp::tcl();
+    let diags = lsp.open_ready(&uri, &text);
+    std::fs::remove_file(path).expect("remove encoding fixture");
+    let w107 = with_code(&diags, "W107");
+    assert_eq!(w107.len(), 1, "{diags:?}");
+    assert_eq!(w107[0].pointer("/range/start/line"), Some(&json!(1)));
+    assert_eq!(w107[0].pointer("/range/start/character"), Some(&json!(5)));
+    assert_eq!(w107[0].pointer("/range/end/character"), Some(&json!(6)));
 }
 
 #[test]
@@ -168,6 +184,49 @@ fn w109_does_not_guess_from_an_unsaved_nul_interleaved_buffer() {
     assert!(with_code(&diags, "W109").is_empty(), "{diags:?}");
 }
 
+#[test]
+fn w109_disabled_still_abstains_for_bigip_and_apl_documents() {
+    let cases = [
+        (
+            "utf16le.conf",
+            "tcl-bigip",
+            "ltm rule /Common/r {\n  when HTTP_REQUEST { pool /Common/missing }\n}\n",
+        ),
+        (
+            "utf16le.apl",
+            "tcl-apl",
+            "section basic {\n  string unused\n}\n",
+        ),
+    ];
+    for (suffix, language_id, source) in cases {
+        let bytes: Vec<u8> = source.encode_utf16().flat_map(u16::to_le_bytes).collect();
+        let (uri, path, text) = malformed_file(&bytes, suffix);
+        let mut lsp = Lsp::tcl();
+        lsp.apply_configuration_settle(
+            json!({
+                "features": { "linkedEditingRange": true },
+                "diagnostics": { "W109": false }
+            }),
+            &uri,
+            |config| {
+                config["disabled_diagnostics"]
+                    .as_array()
+                    .is_some_and(|codes| codes.iter().any(|code| code == "W109"))
+            },
+        );
+        lsp.open_document_lang(&uri, &text, language_id, 1);
+        let pushed =
+            lsp.await_diagnostics_version(&uri, Some(1), std::time::Duration::from_secs(30));
+        let pulled = lsp.pull_diagnostics(&uri);
+        std::fs::remove_file(path).expect("remove encoding fixture");
+        assert!(
+            pushed.is_empty() && pulled.is_empty(),
+            "disabling W109 hides its message but must not publish derived findings: \
+             pushed={pushed:?}, pulled={pulled:?}"
+        );
+    }
+}
+
 // ---------------------------------------------------------------------------
 // W305 — bidi controls (Trojan Source).
 // ---------------------------------------------------------------------------
@@ -229,6 +288,37 @@ fn w305_finds_a_control_in_a_comment_too() {
     let uri = unique_uri("irule");
     let diags = lsp.open_ready(&uri, &format!("# \u{202e} reversed comment\n{BODY}"));
     assert_eq!(with_code(&diags, "W305").len(), 1, "{diags:?}");
+}
+
+#[test]
+fn f5_model_documents_publish_w107_and_w305_on_push_and_pull() {
+    let cases = [
+        (
+            "integrity.conf",
+            "tcl-bigip",
+            "ltm rule /Common/r {\n  when HTTP_REQUEST {\n    # \u{202e}hidden\n    pool /Common/missing\n  }\n}\n",
+        ),
+        (
+            "integrity.apl",
+            "tcl-apl",
+            "# \u{202e}hidden\nsection basic {\n  string addr\n}\n",
+        ),
+    ];
+    for (suffix, language_id, source) in cases {
+        let mut bytes = source.as_bytes().to_vec();
+        bytes.insert(bytes.len().saturating_sub(1), 0xff);
+        let (uri, path, text) = malformed_file(&bytes, suffix);
+        let mut lsp = Lsp::tcl();
+        lsp.open_document_lang(&uri, &text, language_id, 1);
+        let pushed =
+            lsp.await_diagnostics_version(&uri, Some(1), std::time::Duration::from_secs(30));
+        let pulled = lsp.pull_diagnostics(&uri);
+        std::fs::remove_file(path).expect("remove encoding fixture");
+        for diagnostics in [&pushed, &pulled] {
+            assert_eq!(with_code(diagnostics, "W107").len(), 1, "{diagnostics:?}");
+            assert_eq!(with_code(diagnostics, "W305").len(), 1, "{diagnostics:?}");
+        }
+    }
 }
 
 // ---------------------------------------------------------------------------

@@ -63,13 +63,19 @@ describe genuine defects, and fading a defect hides it.
 
 ### Encoding integrity and abstention (issue #1326)
 
-`W107` / `W109` / `W305` answer "are the bytes on disk the text we analysed?"
-and are published through the same source-text orchestrator as `W111`/`W112`/
-`W115`/`W118` (`tcl_lsp_core::source_style::style_diagnostics`), so they honour
-the same `# noqa` / `tclLsp.diagnostics.<CODE>` suppression.
+`W107` and `W109` answer "are the bytes on disk the text we analysed?". They
+come from `DecodeReport`, which records byte evidence and the exact replacement
+inserted into lossy text. `W305` answers the related Unicode-text question
+"does this source render in a different order from the one Tcl executes?". Its
+one canonical producer belongs to the analyser, so LSP, CLI, and MCP consumers
+receive it automatically. BIG-IP configuration and iApp APL adapters call the
+same pure producer because those formats do not run the Tcl analyser.
 
-When `W109` fires — the file is UTF-16/UTF-32 or binary, not UTF-8 text —
-`apply_encoding_abstention` drops every diagnostic except the encoding set.
+When the decode report identifies UTF-16, UTF-32, or binary input,
+`apply_encoding_abstention` drops every diagnostic except the source-integrity
+set. The decision uses the report, not whether W109 was emitted. Disabling W109
+therefore hides the explanation but never re-enables claims about mis-decoded
+content.
 That is a deliberate abstention, not a degradation: findings derived from
 mis-decoded bytes point at positions that do not exist in the file, and one
 accurate diagnostic beats 87 confident wrong ones.
@@ -89,7 +95,9 @@ resembles lossy decoding.
 - `rust/tcl-core-types/src/diag_code.rs` — the code table, `DiagTag`,
   `DiagCode::lsp_tag`
 - `rust/tcl-lsp-core/src/source_decode.rs` — the byte → text decoding
-  contract and the W107 / W109 / W305 producers
+  contract and the W107 / W109 producers
+- `rust/tcl-compiler/src/analyser/source_integrity.rs` — the canonical W305
+  producer and suppression filter for non-Tcl adapters
 - `rust/tcl-lsp-core/src/source_style.rs` — the source-text orchestrator
 
 ## Failure modes

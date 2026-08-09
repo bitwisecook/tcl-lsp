@@ -2165,6 +2165,16 @@ impl Analyser {
     }
 
     pub(super) fn run_diagnostic_emitters(&mut self, source: &str) {
+        // Whole-source security checks belong in the analyser result so direct
+        // consumers receive the same verdict as the LSP and CLI adapters. The
+        // pure producer is also reused by non-Tcl F5 document adapters.
+        self.result.diagnostics.extend(
+            super::source_integrity::bidi_control_diagnostics_with_suppressions(
+                source,
+                &self.disabled_diagnostics,
+                &self.result.suppressed_lines,
+            ),
+        );
         // Replay the `<ensemble> <subcommand>` call sites the shell pass met
         // before the deferred body that declares the ensemble was walked
         // (issue #923 idx 85) — before `finalise_invocation_resolutions`, so

@@ -206,10 +206,11 @@ fn collect_rows(
     let line_index = LineIndex::new(source);
     let mut rows: Vec<Row> = Vec::new();
 
-    // Source-text integrity first (issue #1326): W107 / W109 / W305 say whether
+    // Byte-backed source integrity first (issue #1326): W107 / W109 say whether
     // the text below is the file on disk at all, so they belong ahead of
-    // anything derived from it.  When the file is not UTF-8 text (W109) this is
-    // *all* we report — abstaining is the honest answer, and it is what turns a
+    // anything derived from it. W305 comes from the analyser below. When the
+    // file is not UTF-8 text, the byte-backed diagnostics are all we report —
+    // abstaining is the honest answer, and it is what turns a
     // three-line UTF-16 iRule from 87 nonsense findings into one accurate one.
     for d in document.encoding_diagnostics() {
         if disabled.contains(d.code) {
@@ -219,7 +220,6 @@ fn collect_rows(
             line: d.range.start_line + 1,
             column: d.range.start_character + 1,
             severity: match d.severity {
-                StyleSeverity::Error => Severity::Error,
                 StyleSeverity::Warning => Severity::Warning,
                 StyleSeverity::Hint => Severity::Hint,
             },

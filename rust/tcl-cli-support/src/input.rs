@@ -119,7 +119,7 @@ impl InputDocument {
     }
 
     /// The source-text integrity findings for this document — W107 (not valid
-    /// UTF-8), W109 (not UTF-8 text at all), W305 (a bidi control).
+    /// UTF-8) and W109 (not UTF-8 text at all).
     ///
     /// Shares its implementation with the LSP server's publish path. The CLI
     /// always has the source bytes. An editor can raise W107 or W109 only while
@@ -128,11 +128,7 @@ impl InputDocument {
     /// [`tcl_lsp_core::source_decode`].
     #[must_use]
     pub fn encoding_diagnostics(&self) -> Vec<StyleDiagnostic> {
-        let mut out = encoding_integrity_diagnostics(&self.source, Some(&self.decode));
-        out.extend(tcl_lsp_core::source_decode::bidi_control_diagnostics(
-            &self.source,
-        ));
-        out
+        encoding_integrity_diagnostics(&self.source, Some(&self.decode))
     }
 
     /// Whether analysis of this document should **abstain** — the bytes are not
@@ -141,7 +137,7 @@ impl InputDocument {
     /// code.
     #[must_use]
     pub fn abstains_on_encoding(&self) -> bool {
-        tcl_lsp_core::source_decode::should_abstain(&self.source, Some(&self.decode))
+        self.decode.requires_abstention()
     }
 }
 

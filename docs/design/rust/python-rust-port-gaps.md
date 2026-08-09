@@ -253,8 +253,8 @@ The designed public facade surface has **landed**
   suite are now `cargo xtask` verbs generating from the Rust registries:
   `gen-editor-catalogs`, `gen-editor-settings` (`diagnosticCatalog.ts`),
   `gen-vscode-package` (`package.json`), `gen-jetbrains-catalog` (all 3 Kotlin
-  files), `gen-ai-diagnostics` (`ai/shared/diagnostics.json` + the 4 AI
-  prompt/skill files); `gen-kcs-db` is handled natively by `tcl-cli/build.rs`.
+  files), `gen-ai-diagnostics` (identical MCP/AI diagnostic catalogues + the 4
+  AI prompt/skill files); `gen-kcs-db` is handled natively by `tcl-cli/build.rs`.
   **`scripts/codegen/editor_settings.py` is fully retired** (`render_all` empty).
   The remaining `scripts/*` are **Bucket A "retire-with-Python"** (measurement,
   Python↔Rust differentials, Python-oracle→Rust generators frozen at retirement)

@@ -321,6 +321,111 @@ fn w108_leaves_code_bidi_controls_to_w305() {
     );
 }
 
+#[test]
+fn w305_analyser_reports_every_bidi_control_without_w108_duplication() {
+    for (ch, name) in crate::analyser::confusables_table::BIDI_CONTROLS {
+        let src = format!("set marker \"a{ch}b\"\n");
+        let mut analyser = crate::analyser::Analyser::new()
+            .with_non_ascii_mode(crate::analyser::NonAsciiMode::Off);
+        let result = analyser.analyse(&src, "tcl9.0");
+        let w305: Vec<_> = result
+            .diagnostics
+            .iter()
+            .filter(|d| d.code == tcl_core_types::DiagCode::W305)
+            .collect();
+        assert_eq!(w305.len(), 1, "U+{:04X}", *ch as u32);
+        assert_eq!(w305[0].severity, tcl_core_types::Severity::Error);
+        assert!(w305[0].message.contains(name));
+        assert!(w305[0].message.contains("Trojan Source"));
+        assert!(
+            result
+                .diagnostics
+                .iter()
+                .all(|d| d.code != tcl_core_types::DiagCode::W108),
+            "W108 must not duplicate W305 for U+{:04X}",
+            *ch as u32
+        );
+    }
+}
+
+#[test]
+fn w305_analyser_finds_comments_and_command_positions() {
+    for src in [
+        "# \u{202e} a comment that renders backwards\n",
+        "\u{2066}puts hello\n",
+        "proc \u{202d}name {} {}\n",
+    ] {
+        let result = crate::analyser::Analyser::new().analyse(src, "tcl9.0");
+        assert_eq!(
+            result
+                .diagnostics
+                .iter()
+                .filter(|d| d.code == tcl_core_types::DiagCode::W305)
+                .count(),
+            1,
+            "{src:?}"
+        );
+    }
+}
+
+#[test]
+fn w305_analyser_is_silent_on_ordinary_rtl_and_directional_marks() {
+    for src in [
+        "puts \"مرحبا بالعالم\"\n",
+        "puts \"שלום עולם\"\n",
+        "# تعليق عربي عادي\n",
+        "puts \"\u{200e}1\u{200f}2\u{61c}3\"\n",
+        "",
+    ] {
+        let result = crate::analyser::Analyser::new().analyse(src, "tcl9.0");
+        assert!(
+            result
+                .diagnostics
+                .iter()
+                .all(|d| d.code != tcl_core_types::DiagCode::W305),
+            "false positive on {src:?}"
+        );
+    }
+}
+
+#[test]
+fn w305_analyser_honours_code_and_line_suppression() {
+    let disabled = ["W305".to_owned()].into_iter().collect();
+    let result = crate::analyser::Analyser::with_disabled_diagnostics(disabled)
+        .analyse("puts \"\u{202e}x\"\n", "tcl9.0");
+    assert!(
+        result
+            .diagnostics
+            .iter()
+            .all(|d| d.code != tcl_core_types::DiagCode::W305)
+    );
+
+    let file_disabled = "# tcl-lsp: disable=W305\nputs \"\u{202e}x\"\n";
+    let result = crate::analyser::Analyser::new().analyse(file_disabled, "tcl9.0");
+    assert!(
+        result
+            .diagnostics
+            .iter()
+            .all(|d| d.code != tcl_core_types::DiagCode::W305),
+        "file suppression failed: {result:?}"
+    );
+
+    for (src, suppressed) in [
+        ("# noqa: W305\nputs \"\u{202e}x\"\n", true),
+        ("# noqa: W108\nputs \"\u{202e}x\"\n", false),
+    ] {
+        let result = crate::analyser::Analyser::new().analyse(src, "tcl9.0");
+        assert_eq!(
+            result
+                .diagnostics
+                .iter()
+                .all(|d| d.code != tcl_core_types::DiagCode::W305),
+            suppressed,
+            "line-local suppression mismatch for {src:?}"
+        );
+    }
+}
+
 fn codes_for_dialect(src: &str, dialect: &str) -> Vec<String> {
     let mut a = crate::analyser::Analyser::new();
     a.analyse(src, dialect)

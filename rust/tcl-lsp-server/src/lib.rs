@@ -1410,20 +1410,39 @@ async fn run_diagnostics_master_off(delivery: &DeliveryCtx<'_>) -> bool {
 /// the document is an F5 model dialect; `None` to continue to the Tcl analyser.
 async fn run_diagnostics_f5_dialect(
     delivery: &DeliveryCtx<'_>,
-    disabled: &HashSet<String>,
-    text: &str,
-    dialect: &str,
+    inputs: &LiftInputs<'_>,
+    analysis_text: &str,
     language_id: &str,
 ) -> Option<bool> {
-    let diags = f5_dialect_diagnostics(
-        delivery.uri,
-        text,
-        dialect,
-        language_id,
-        disabled,
-        delivery.documents,
-    )
-    .await?;
+    if !Backend::is_bigip_dialect(inputs.dialect) && !is_apl_source(delivery.uri, language_id) {
+        return None;
+    }
+    let encoding_abstains = inputs
+        .decode_report
+        .is_some_and(|r| r.requires_abstention());
+    // A non-text byte signature makes every parser/model verdict untrustworthy.
+    // Skip the validator entirely rather than computing diagnostics that the
+    // report-driven abstention below would then discard.
+    let mut diags = if encoding_abstains {
+        Vec::new()
+    } else {
+        f5_dialect_diagnostics(
+            delivery.uri,
+            analysis_text,
+            inputs.dialect,
+            language_id,
+            inputs.disabled,
+            delivery.documents,
+        )
+        .await
+        .unwrap_or_default()
+    };
+    diags.extend(lift_f5_source_integrity_diagnostics(
+        inputs.text,
+        inputs.decode_report.as_ref(),
+        inputs.disabled,
+    ));
+    finalise_diagnostics(&mut diags, inputs.severity_overrides, encoding_abstains);
     // Publish only when this version is still current (the same revision
     // guard the analyser path applies before publishing), and keep the
     // pull-diagnostic cache in lock-step so `textDocument/diagnostic`
@@ -2617,9 +2636,19 @@ async fn run_diagnostics_core(inputs: DiagInputs, uri: &Uri, job: DiagJob) -> bo
         return run_diagnostics_master_off(&delivery).await;
     }
 
+    let lift_inputs = LiftInputs {
+        text: &text,
+        decode_report,
+        dialect: &dialect,
+        disabled: &disabled,
+        severity_overrides: &severity_overrides,
+        opt_disabled: &opt_disabled,
+        optimiser_enabled: toggles.optimiser_enabled,
+        style_line_length,
+        xc_diagnostics: toggles.xc.xc_diagnostics,
+    };
     if let Some(settled) =
-        run_diagnostics_f5_dialect(&delivery, &disabled, &analysis_text, &dialect, &language_id)
-            .await
+        run_diagnostics_f5_dialect(&delivery, &lift_inputs, &analysis_text, &language_id).await
     {
         return settled;
     }
@@ -2631,17 +2660,6 @@ async fn run_diagnostics_core(inputs: DiagInputs, uri: &Uri, job: DiagJob) -> bo
         config,
         text: &analysis_text,
         dialect: &dialect,
-    };
-    let lift_inputs = LiftInputs {
-        text: &text,
-        decode_report,
-        dialect: &dialect,
-        disabled: &disabled,
-        severity_overrides: &severity_overrides,
-        opt_disabled: &opt_disabled,
-        optimiser_enabled: toggles.optimiser_enabled,
-        style_line_length,
-        xc_diagnostics: toggles.xc.xc_diagnostics,
     };
     run_diagnostics_analyser_path(
         &delivery,
@@ -2980,7 +2998,11 @@ async fn publish_fast_tier(
             &disabled,
             style_line_length as usize,
         ));
-        finalise_diagnostics(&mut diagnostics, &severity_overrides);
+        finalise_diagnostics(
+            &mut diagnostics,
+            &severity_overrides,
+            decode_report.is_some_and(|r| r.requires_abstention()),
+        );
         diagnostics
     })
     .await;
@@ -3107,7 +3129,11 @@ async fn refine_and_lift_diagnostics(
                 &analysis_lifts.suppressed_lines,
             ));
         }
-        finalise_diagnostics(&mut diagnostics, &severity_overrides);
+        finalise_diagnostics(
+            &mut diagnostics,
+            &severity_overrides,
+            decode_report.is_some_and(|r| r.requires_abstention()),
+        );
         diagnostics
     })
     .await
@@ -11595,6 +11621,7 @@ impl Backend {
                 .filter(|doc| doc.text.as_ref() == text.as_ref())
                 .and_then(|doc| doc.decode_report)
         };
+        let severity_overrides = self.resolved_severity_overrides(uri).await;
         // `text` is the client's exact buffer and `analysis_text` its analysis
         // form (lone `\r` → `\n`), exactly as `run_diagnostics_core` splits
         // them on the push path: the parser sees the script `tclsh` would, the
@@ -11610,17 +11637,29 @@ impl Backend {
         // presentation documents have model-level validators, not the Tcl
         // analyser — mirror the push path's dispatch so a pull-mode editor
         // receives the same BIGIP/IAPP diagnostics.
-        if let Some(diags) = f5_dialect_diagnostics(
-            uri,
-            &analysis_text,
-            &dialect,
-            language_id,
-            &disabled,
-            &self.documents,
-        )
-        .await
-        {
-            return diags;
+        if Self::is_bigip_dialect(&dialect) || is_apl_source(uri, language_id) {
+            let encoding_abstains = decode_report.is_some_and(|r| r.requires_abstention());
+            let mut diagnostics = if encoding_abstains {
+                Vec::new()
+            } else {
+                f5_dialect_diagnostics(
+                    uri,
+                    &analysis_text,
+                    &dialect,
+                    language_id,
+                    &disabled,
+                    &self.documents,
+                )
+                .await
+                .unwrap_or_default()
+            };
+            diagnostics.extend(lift_f5_source_integrity_diagnostics(
+                &text,
+                decode_report.as_ref(),
+                &disabled,
+            ));
+            finalise_diagnostics(&mut diagnostics, &severity_overrides, encoding_abstains);
+            return diagnostics;
         }
         let analysis = self
             .analysis_for(uri, analysis_text.clone(), dialect.clone())
@@ -11642,7 +11681,6 @@ impl Backend {
             .published_analyser_diagnostics(uri, &analysis, &dialect, registry, &disabled)
             .await;
         let style_line_length = self.resolved_style_line_length(uri).await;
-        let severity_overrides = self.resolved_severity_overrides(uri).await;
         tokio::task::spawn_blocking(move || {
             let mut diagnostics = lift_analyser_diagnostics(&analysis_text, &analyser_diags);
             append_brace_expr_perf_hints(&mut diagnostics, optimiser_enabled, &opt_disabled);
@@ -11671,7 +11709,11 @@ impl Backend {
                     &analysis.suppressed_lines,
                 ));
             }
-            finalise_diagnostics(&mut diagnostics, &severity_overrides);
+            finalise_diagnostics(
+                &mut diagnostics,
+                &severity_overrides,
+                decode_report.is_some_and(|r| r.requires_abstention()),
+            );
             diagnostics
         })
         .await
@@ -18296,14 +18338,15 @@ fn append_brace_expr_perf_hints(
 fn finalise_diagnostics(
     diagnostics: &mut Vec<tower_lsp_server::ls_types::Diagnostic>,
     overrides: &std::collections::HashMap<String, tower_lsp_server::ls_types::DiagnosticSeverity>,
+    encoding_abstains: bool,
 ) {
-    apply_encoding_abstention(diagnostics);
+    apply_encoding_abstention(diagnostics, encoding_abstains);
     apply_diagnostic_tags(diagnostics);
     apply_severity_overrides(diagnostics, overrides);
 }
 
-/// Abstain from everything but the encoding findings once W109 has said the
-/// document is not UTF-8 text (issue #1326).
+/// Abstain from everything but source-integrity findings when the byte decode
+/// report proves that the document is not UTF-8 text (issue #1326).
 ///
 /// A three-line UTF-16 iRule used to publish 87 diagnostics — `E102`s about
 /// braces that are really NUL bytes, `W108`s about characters that are half of
@@ -18314,22 +18357,22 @@ fn finalise_diagnostics(
 /// the file.  Publishing one accurate finding and stopping is the honest
 /// answer.
 ///
-/// This is abstention, not silence — the file is not left un-diagnosed, it is
-/// diagnosed with the only thing that can be said about it truthfully.  The
-/// three encoding codes themselves survive, since they are the answer.
+/// This is driven by byte evidence rather than the displayed W109 diagnostic.
+/// Disabling W109 can hide the explanation, but it cannot make analysis of the
+/// same malformed bytes sound. The source-integrity codes survive when enabled.
 ///
 /// Applied here, at the one point every publish path funnels through, so the
 /// fast tier, the deep push and the pull provider cannot disagree about it.
-fn apply_encoding_abstention(diagnostics: &mut Vec<tower_lsp_server::ls_types::Diagnostic>) {
+fn apply_encoding_abstention(
+    diagnostics: &mut Vec<tower_lsp_server::ls_types::Diagnostic>,
+    encoding_abstains: bool,
+) {
     use tower_lsp_server::ls_types::NumberOrString;
     let code_of = |d: &tower_lsp_server::ls_types::Diagnostic| match &d.code {
         Some(NumberOrString::String(c)) => Some(c.clone()),
         _ => None,
     };
-    if !diagnostics
-        .iter()
-        .any(|d| code_of(d).as_deref() == Some("W109"))
-    {
+    if !encoding_abstains {
         return;
     }
     diagnostics.retain(|d| matches!(code_of(d).as_deref(), Some("W107" | "W109" | "W305")));
@@ -18390,8 +18433,8 @@ fn apply_severity_overrides(
 }
 
 /// Lift the source-text pass (W111 line length, W112 trailing whitespace,
-/// W115 comment continuation, W118 line endings, plus the W107 / W109 / W305
-/// encoding-integrity checks) into LSP diagnostics.  These are pure
+/// W115 comment continuation, W118 line endings, plus the byte-backed W107 /
+/// W109 encoding-integrity checks) into LSP diagnostics. These are pure
 /// source-text checks (no analyser / compiler unit needed); see
 /// `tcl_lsp_core::source_style` and `tcl_lsp_core::source_decode`.
 ///
@@ -18414,8 +18457,7 @@ fn lift_source_style_diagnostics(
     user_disabled: &std::collections::HashSet<String>,
     line_length: usize,
 ) -> Vec<tower_lsp_server::ls_types::Diagnostic> {
-    use tcl_lsp_core::source_style::{DEFAULT_LINE_ENDING, StyleSeverity, style_diagnostics};
-    use tower_lsp_server::ls_types::{DiagnosticSeverity, NumberOrString};
+    use tcl_lsp_core::source_style::{DEFAULT_LINE_ENDING, style_diagnostics};
 
     // The file-level (`-1`) directive bucket doubles as a per-code
     // disabled set (mirrors how the Rust analyser folds a
@@ -18426,40 +18468,76 @@ fn lift_source_style_diagnostics(
     let mut disabled = suppressed.get(&-1).cloned().unwrap_or_default();
     disabled.extend(user_disabled.iter().cloned());
 
-    style_diagnostics(
+    lift_style_diagnostics(style_diagnostics(
         text,
         line_length,
         DEFAULT_LINE_ENDING,
         &disabled,
         suppressed,
         decode_report,
-    )
-    .into_iter()
-    .map(|d| tower_lsp_server::ls_types::Diagnostic {
-        range: Range {
-            start: Position {
-                line: d.range.start_line,
-                character: d.range.start_character,
+    ))
+}
+
+/// Lift source-style records into the LSP wire type.
+///
+/// Kept separate from the style pass so the non-Tcl F5 adapters can append the
+/// shared byte-integrity findings without running Tcl-specific style checks.
+fn lift_style_diagnostics(
+    diagnostics: Vec<tcl_lsp_core::source_style::StyleDiagnostic>,
+) -> Vec<tower_lsp_server::ls_types::Diagnostic> {
+    use tcl_lsp_core::source_style::StyleSeverity;
+    use tower_lsp_server::ls_types::{DiagnosticSeverity, NumberOrString};
+
+    diagnostics
+        .into_iter()
+        .map(|d| tower_lsp_server::ls_types::Diagnostic {
+            range: Range {
+                start: Position {
+                    line: d.range.start_line,
+                    character: d.range.start_character,
+                },
+                end: Position {
+                    line: d.range.end_line,
+                    character: d.range.end_character,
+                },
             },
-            end: Position {
-                line: d.range.end_line,
-                character: d.range.end_character,
-            },
-        },
-        severity: Some(match d.severity {
-            StyleSeverity::Error => DiagnosticSeverity::ERROR,
-            StyleSeverity::Warning => DiagnosticSeverity::WARNING,
-            StyleSeverity::Hint => DiagnosticSeverity::HINT,
-        }),
-        code: Some(NumberOrString::String(d.code.to_string())),
-        code_description: None,
-        source: Some("tcl-lsp".to_string()),
-        message: d.message,
-        related_information: None,
-        tags: None,
-        data: None,
-    })
-    .collect()
+            severity: Some(match d.severity {
+                StyleSeverity::Warning => DiagnosticSeverity::WARNING,
+                StyleSeverity::Hint => DiagnosticSeverity::HINT,
+            }),
+            code: Some(NumberOrString::String(d.code.to_string())),
+            code_description: None,
+            source: Some("tcl-lsp".to_string()),
+            message: d.message,
+            related_information: None,
+            tags: None,
+            data: None,
+        })
+        .collect()
+}
+
+/// Source-integrity findings shared by BIG-IP configuration and iApp APL.
+///
+/// Those document families bypass the Tcl analyser for their model validators,
+/// so W107/W109 are lifted directly from byte evidence and W305 is taken from
+/// the compiler's canonical whole-source producer. This is deliberately not
+/// the full Tcl style pass: W111/W112/W115/W118 have separate syntax-policy
+/// questions, while source integrity applies to every text language.
+fn lift_f5_source_integrity_diagnostics(
+    text: &str,
+    decode_report: Option<&tcl_lsp_core::source_decode::DecodeReport>,
+    user_disabled: &std::collections::HashSet<String>,
+) -> Vec<tower_lsp_server::ls_types::Diagnostic> {
+    let mut disabled = tcl_compiler::analyser::utils::parse_file_suppression(text);
+    disabled.extend(user_disabled.iter().cloned());
+    let encoding = tcl_lsp_core::source_decode::encoding_integrity_diagnostics(text, decode_report)
+        .into_iter()
+        .filter(|d| !disabled.contains("*") && !disabled.contains(d.code))
+        .collect();
+    let mut diagnostics = lift_style_diagnostics(encoding);
+    let bidi = tcl_compiler::analyser::filtered_bidi_control_diagnostics(text, user_disabled);
+    diagnostics.extend(lift_analyser_diagnostics(text, &bidi));
+    diagnostics
 }
 
 /// Lift the compiler-checks pipeline (GVN redundancies,
@@ -21643,6 +21721,97 @@ mod tests {
         assert!(
             codes.iter().any(|c| c == "BIGIP6002"),
             "expected BIGIP6002 via the pull path, got: {codes:?}",
+        );
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn f5_pull_paths_compose_byte_and_bidi_integrity_with_model_diagnostics() {
+        for (uri_text, dialect, language_id, model_code, mut bytes) in [
+            (
+                "file:///Common/bigip.conf",
+                "f5-bigip",
+                "tcl-bigip",
+                "BIGIP6002",
+                "ltm rule /Common/r {\n  when HTTP_REQUEST {\n    # \u{202e}hidden\n    pool /Common/no_such_pool\n  }\n}\n"
+                    .as_bytes()
+                    .to_vec(),
+            ),
+            (
+                "file:///app/presentation.apl",
+                "f5-iapps",
+                "tcl-apl",
+                "IAPP7003",
+                "# \u{202e}hidden\n#include \"missing.apl\"\nsection basic {\n  string addr\n}\n"
+                    .as_bytes()
+                    .to_vec(),
+            ),
+        ] {
+            // Keep the malformed byte inside a comment. The model remains
+            // structurally readable, proving that W107 composes with the
+            // dialect validator instead of replacing it.
+            let insert_at = bytes
+                .windows(b"hidden".len())
+                .position(|window| window == b"hidden")
+                .map(|start| start + b"hidden".len())
+                .unwrap();
+            bytes.insert(insert_at, 0xff);
+            let (text, report) = tcl_lsp_core::source_decode::decode_source(&bytes);
+            let backend = test_backend();
+            let uri = Uri::from_str(uri_text).unwrap();
+            let mut doc = DocumentState::with_version(text.clone(), dialect.to_owned(), 1)
+                .with_language_id(language_id.to_owned());
+            doc.decode_report = Some(report);
+            backend.documents.lock().await.insert(uri.clone(), doc);
+            let diagnostics = backend
+                .full_diagnostics_for(
+                    &uri,
+                    Arc::from(text),
+                    dialect.to_owned(),
+                    language_id,
+                )
+                .await;
+            let codes = diag_codes(&diagnostics);
+            assert!(codes.iter().any(|c| c == "W107"), "{codes:?}");
+            assert!(codes.iter().any(|c| c == "W305"), "{codes:?}");
+            assert!(codes.iter().any(|c| c == model_code), "{codes:?}");
+        }
+    }
+
+    #[test]
+    fn report_driven_abstention_survives_a_disabled_w109() {
+        let bytes: Vec<u8> = "ltm pool /Common/p { members { /Common/a:80 {} } }\n"
+            .encode_utf16()
+            .flat_map(u16::to_le_bytes)
+            .collect();
+        let (text, report) = tcl_lsp_core::source_decode::decode_source(&bytes);
+        assert!(report.requires_abstention());
+        let disabled = ["W109".to_owned()].into_iter().collect();
+        let mut diagnostics = vec![tower_lsp_server::ls_types::Diagnostic {
+            range: Range::default(),
+            severity: Some(tower_lsp_server::ls_types::DiagnosticSeverity::WARNING),
+            code: Some(tower_lsp_server::ls_types::NumberOrString::String(
+                "BIGIP6002".to_owned(),
+            )),
+            code_description: None,
+            source: Some("tcl-lsp".to_owned()),
+            message: "derived from mis-decoded bytes".to_owned(),
+            related_information: None,
+            tags: None,
+            data: None,
+        }];
+        diagnostics.extend(lift_f5_source_integrity_diagnostics(
+            &text,
+            Some(&report),
+            &disabled,
+        ));
+        finalise_diagnostics(
+            &mut diagnostics,
+            &std::collections::HashMap::new(),
+            report.requires_abstention(),
+        );
+        assert!(
+            diagnostics.is_empty(),
+            "hiding W109 must still remove derived findings: {diagnostics:?}"
         );
     }
 

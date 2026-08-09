@@ -618,8 +618,8 @@ xtask-gen-jetbrains-catalog: ## Verify the JetBrains Kotlin catalog/settings/pan
 	@echo "==> Checking generated JetBrains files are in sync (cargo xtask)"
 	cd $(ROOT) && cargo xtask gen-jetbrains-catalog --check
 
-xtask-gen-ai-diagnostics: ## Verify ai/shared/diagnostics.json + AI prompt/skill files are in sync with the DiagCode catalogue (drift gate)
-	@echo "==> Checking generated AI files are in sync (cargo xtask)"
+xtask-gen-ai-diagnostics: ## Verify MCP/AI diagnostic catalogues + AI prompt/skill files are in sync with DiagCode (drift gate)
+	@echo "==> Checking generated MCP/AI diagnostic files are in sync (cargo xtask)"
 	cd $(ROOT) && cargo xtask gen-ai-diagnostics --check
 
 xtask-command-backing: ## Verify the WASM runtime backs every core-Tcl registry command (drift + gap gate)

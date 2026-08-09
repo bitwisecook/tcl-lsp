@@ -183,8 +183,9 @@ fn sweep_document(doc: &InputDocument, wanted: &[DiagCode], out: &mut Vec<Firing
         push(o.code, o.span, o.message);
     }
 
-    // (3) Pure-text checks — the style lints plus the W107 / W109 / W305
-    // encoding-integrity set.  No suppression / user-disabled set, since the
+    // (3) Pure-text checks — the style lints plus the byte-backed W107 / W109
+    // encoding-integrity set. W305 was already collected from the canonical
+    // analyser producer in (1). No suppression / user-disabled set, since the
     // sweep wants every firing regardless of what a hypothetical editor config
     // would silence.  The corpus is read through `read_input_documents`, so the
     // document carries the byte-level decode report and the encoding findings

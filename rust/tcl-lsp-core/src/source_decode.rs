@@ -61,9 +61,11 @@
 //!   UTF-32 / binary).  The caller is expected to **abstain** from the rest of
 //!   the analysis rather than publish findings derived from mis-decoded bytes:
 //!   a three-line UTF-16LE iRule used to produce 87 nonsense diagnostics.
-//! * **W305** — a bidirectional formatting control (Trojan Source).  Well-formed
-//!   UTF-8, so neither of the above catches it; see
-//!   [`tcl_compiler::analyser::confusables_table::BIDI_CONTROLS`].
+//!
+//! W305 (bidirectional formatting controls) is a Unicode-text finding rather
+//! than a byte-decoding finding. Its canonical producer lives in
+//! [`tcl_compiler::analyser::bidi_control_diagnostics`], so analyser-only and
+//! MCP consumers receive it too.
 //!
 //! # What is *not* detected, and why
 //!
@@ -84,8 +86,6 @@
 //!   real, decodable text: CRLF/mixed endings are W118's job, and a lone NUL
 //!   is left to W108.  Only a NUL *density in the raw bytes* consistent with
 //!   UTF-16 trips W109.
-
-use tcl_compiler::analyser::confusables_table::{bidi_control_name, is_bidi_control};
 
 use crate::definition::{LspRange, utf16_len};
 use crate::source_style::{StyleDiagnostic, StyleSeverity};
@@ -134,6 +134,12 @@ impl Utf8Fault {
 pub struct Utf8Error {
     /// Offset of the first ill-formed byte, in the **original** buffer.
     pub byte_offset: usize,
+    /// Offset of the `U+FFFD` inserted for this fault in the decoded text.
+    ///
+    /// This is recorded at the byte-to-text boundary rather than recovered by
+    /// searching the decoded string: a valid source file may already contain
+    /// a literal `U+FFFD` before the decoder has to insert one.
+    pub replacement_text_offset: usize,
     /// How it was ill-formed.
     pub fault: Utf8Fault,
 }
@@ -182,6 +188,17 @@ impl DecodeReport {
     #[must_use]
     pub const fn is_faithful(&self) -> bool {
         self.first_error.is_none() && self.non_text.is_none()
+    }
+
+    /// Whether consumers must abstain from analysing the decoded text.
+    ///
+    /// This is a property of the byte evidence, not of whether the user chose
+    /// to display W109. Disabling that diagnostic may hide the explanation,
+    /// but it must never turn mis-decoded UTF-16/UTF-32 bytes into analysable
+    /// Tcl source.
+    #[must_use]
+    pub const fn requires_abstention(&self) -> bool {
+        self.non_text.is_some()
     }
 }
 
@@ -294,6 +311,13 @@ fn scan_utf8_errors(bytes: &[u8]) -> (Option<Utf8Error>, usize) {
                 if first.is_none() {
                     first = Some(Utf8Error {
                         byte_offset: at,
+                        // `at` follows a completely valid UTF-8 prefix. The
+                        // lossy decoder copies that prefix byte-for-byte, so
+                        // its first inserted replacement starts at the same
+                        // byte offset in the decoded `String`. Keep the text
+                        // offset as explicit evidence so range construction
+                        // never has to guess from the string's contents.
+                        replacement_text_offset: at,
                         fault: classify_fault(&bytes[at..]),
                     });
                 }
@@ -434,11 +458,7 @@ pub fn encoding_integrity_diagnostics(
     {
         let plural = if error_count == 1 { "" } else { "s" };
         out.push(StyleDiagnostic {
-            // The lossy decode put a U+FFFD where the bad bytes were, so
-            // the byte offset into the *original* buffer is not an offset
-            // into `text`. Anchor at the first U+FFFD instead, and name the
-            // byte offset in the message where it cannot mislead.
-            range: first_replacement_range(text),
+            range: replacement_range(text, err.replacement_text_offset),
             message: format!(
                 "Source is not valid UTF-8: {} at byte offset {} ({} ill-formed sequence{} in \
                  total, each replaced with U+FFFD). The analysed text is not the file on \
@@ -457,84 +477,35 @@ pub fn encoding_integrity_diagnostics(
     out
 }
 
-/// Range of the first `U+FFFD` in `text`, or the start of the file when there
-/// is none (a decode error whose replacement the caller has already stripped).
-fn first_replacement_range(text: &str) -> LspRange {
-    text.find('\u{fffd}').map_or(
-        LspRange {
-            start_line: 0,
-            start_character: 0,
-            end_line: 0,
-            end_character: 0,
-        },
-        |i| range_at(text, i, '\u{fffd}'.len_utf8()),
-    )
+/// Range of the decoder-inserted `U+FFFD` at `offset`.
+///
+/// A mismatched report/text pair violates the caller contract. Stay
+/// best-effort in that case by returning a file-level range, but never search
+/// for a different, possibly authored, replacement character.
+fn replacement_range(text: &str, offset: usize) -> LspRange {
+    if text
+        .get(offset..)
+        .is_some_and(|tail| tail.starts_with('\u{fffd}'))
+    {
+        return range_at(text, offset, '\u{fffd}'.len_utf8());
+    }
+    LspRange {
+        start_line: 0,
+        start_character: 0,
+        end_line: 0,
+        end_character: 0,
+    }
 }
 
-/// W305 — bidirectional formatting controls anywhere in `text` (Trojan
-/// Source).
-///
-/// A whole-file scan, not a per-token one: a bidi override is a review hazard
-/// wherever it sits — in a comment, in a command name, in the whitespace
-/// between words — precisely because it changes how the *surrounding* text
-/// renders. One diagnostic per control character, each anchored on the
-/// character itself so the editor can show a reviewer where the lie starts.
-///
-/// Fires independently of `tclLsp.style.nonAscii`: that setting governs a
-/// style preference about non-ASCII characters, and a security finding must
-/// not be silenced by a style toggle. Users who need it off have
-/// `tclLsp.diagnostics.W305`.
-///
-/// ```
-/// use tcl_lsp_core::source_decode::bidi_control_diagnostics;
-///
-/// // U+202E RIGHT-TO-LEFT OVERRIDE inside a string.
-/// let diags = bidi_control_diagnostics("log local0. \"\u{202e}drowssap\"\n");
-/// assert_eq!(diags.len(), 1);
-/// assert_eq!(diags[0].code, "W305");
-///
-/// // Ordinary Arabic content is not an attack.
-/// assert!(bidi_control_diagnostics("log local0. \"مرحبا\"\n").is_empty());
-/// ```
-#[must_use]
-pub fn bidi_control_diagnostics(text: &str) -> Vec<StyleDiagnostic> {
-    let mut out = Vec::new();
-    if !text.chars().any(is_bidi_control) {
-        return out;
-    }
-    for (offset, ch) in text.char_indices() {
-        let Some(name) = bidi_control_name(ch) else {
-            continue;
-        };
-        out.push(StyleDiagnostic {
-            range: range_at(text, offset, ch.len_utf8()),
-            message: format!(
-                "Bidirectional formatting control U+{:04X} {name} — this makes the surrounding \
-                 source render in a different order from the one it is parsed and executed in, \
-                 so a reviewer can approve code that does something other than what their editor \
-                 showed them (Trojan Source, CVE-2021-42574). Remove it, or write the text with \
-                 an escape (`\\u{:04X}`) if the character is genuinely part of the data.",
-                ch as u32, ch as u32,
-            ),
-            severity: StyleSeverity::Error,
-            code: "W305",
-            fix: None,
-        });
-    }
-    out
-}
-
-/// Whether the caller should **abstain** from analysing `text` beyond the
-/// encoding diagnostics — true exactly when W109 fired.
+/// Whether the caller should **abstain** from analysing beyond the encoding
+/// diagnostics — true exactly when the byte report identifies non-UTF-8 text.
 ///
 /// Abstention here is a positive answer, not a silent degradation: the file
 /// gets one accurate diagnostic saying it is not UTF-8, instead of dozens of
 /// findings about characters that are decoding artefacts.
 #[must_use]
-pub fn should_abstain(text: &str, report: Option<&DecodeReport>) -> bool {
-    encoding_integrity_diagnostics(text, report)
-        .iter()
-        .any(|d| d.code == "W109")
+pub fn should_abstain(report: Option<&DecodeReport>) -> bool {
+    report.is_some_and(DecodeReport::requires_abstention)
 }
 
 #[cfg(test)]

@@ -60,6 +60,7 @@ pub mod per_item;
 pub mod recovery;
 pub mod scope;
 pub mod snapshot;
+pub mod source_integrity;
 pub mod state;
 pub mod syntax_checks;
 pub mod tk_checks;
@@ -83,6 +84,7 @@ pub use scope::{
     qualified_name_for_var_decl, variable_alias_links,
 };
 pub use snapshot::AnalyserSnapshot;
+pub use source_integrity::{bidi_control_diagnostics, filtered_bidi_control_diagnostics};
 pub use state::{Analyser, NonAsciiMode};
 pub use tcl_syntax::mro::{self, MroError, build_mro_map, tcloo_linearise};
 pub use types::{
