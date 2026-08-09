@@ -222,6 +222,10 @@ fn workspace_scan_clears_w123_for_a_cross_file_mathfunc() {
     let mut lsp = Lsp::at_workspace_root(&root);
     let vector = format!("file://{}", vector_path.to_string_lossy());
     lsp.open_ready(&vector, VECTOR);
+    // The genuine unknown is present both before and after the startup scan,
+    // so it is not a scan-completion barrier by itself. Wait for that control
+    // and for the scan-informed pass to retract the two false positives. This
+    // keeps the test exercising the real startup race and its reschedule.
     let diags = lsp.await_diagnostics_settled(&vector, Duration::from_secs(30), |d| {
         let names = w123_names(d);
         names.iter().any(|n| n == "NeverDefinedAnywhere")
