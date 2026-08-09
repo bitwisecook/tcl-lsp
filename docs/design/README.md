@@ -444,6 +444,10 @@ are its rules, and what are the failure modes". One contract per file.
 - [command-resolution.md](contracts/command-resolution.md) — the one
   C-Tcl command-name resolution algorithm, its consumers, and the
   tclsh-pinned conformance vector gates.
+- [cross-file-diagnostics.md](contracts/cross-file-diagnostics.md) — the
+  single cross-document command lookup diagnostics and navigation share,
+  the cross-file arity envelope, the two directions of the `source` graph,
+  and the complete list of what makes the server abstain.
 - [irule4005-racy-static-cross-event.md](contracts/irule4005-racy-static-cross-event.md)
   — IRULE4005 racy `static::` cross-event contract.
 - [dialect-detection.md](contracts/dialect-detection.md) — dialect

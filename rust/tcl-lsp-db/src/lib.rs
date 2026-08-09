@@ -1016,13 +1016,13 @@ fn cross_file_arity_diagnostic(
     })
 }
 
-/// Resolve a file's diagnostics against the project: a W123 (unknown
+/// Legacy standalone project resolution: a W123 (unknown
 /// command) whose command tail is a workspace proc is **suppressed** (resolved
 /// cross-file); if that call's arg count is known and fits **none** of the
 /// proc's arities, a cross-file arity error (`E002`/`E003`, the analyser's own
-/// codes) replaces it.  Pure; shared by the push ([`project_diagnostics`]) and
-/// pull paths so both agree.  `arities` empty ⇒ no project context ⇒ status-quo
-/// diagnostics.
+/// codes) replaces it. The server does not use this direct-call resolver: it
+/// settles direct calls once through its workspace-index oracle. `arities`
+/// empty ⇒ no project context ⇒ status-quo diagnostics.
 ///
 /// `unresolved_sites` are the call sites of unknown commands
 /// ([`AnalysisResult::unresolved_command_sites`]), recorded by the analyser
@@ -1078,6 +1078,25 @@ pub fn apply_cross_file_resolution<S: std::hash::BuildHasher>(
     out
 }
 
+/// Add only command-prefix callback arity diagnostics to a file's analyser
+/// diagnostics.
+///
+/// Direct cross-file command existence and direct-call arity are settled by
+/// the server's workspace-index oracle. Keeping this helper limited to
+/// callback metadata lets the opt-in project pass retain that independent
+/// check without competing for direct-call verdicts.
+#[must_use]
+pub fn apply_project_callback_arity<S: std::hash::BuildHasher>(
+    diags: &[tcl_compiler::analyser::types::Diagnostic],
+    invocations: &[tcl_compiler::signature_scan::types::SignatureCommandInvocation],
+    arities: &HashMap<String, Vec<(usize, usize)>, S>,
+    is_disabled: impl Fn(&str) -> bool,
+) -> Vec<tcl_compiler::analyser::types::Diagnostic> {
+    let mut out = diags.to_vec();
+    apply_callback_arity(&mut out, invocations, arities, is_disabled);
+    out
+}
+
 /// Validate command-prefix **callback** arity: for each recorded callback head
 /// (`lsort -command myCompare` → `myCompare` with `callback_arity =
 /// Exactly(2)`), check that the referenced project proc accepts the arguments
@@ -1125,10 +1144,12 @@ fn apply_callback_arity<S: std::hash::BuildHasher>(
     }
 }
 
-/// Analyser diagnostics for `file` resolved against the project:
+/// Legacy standalone analyser diagnostics for `file` resolved against the
+/// project:
 /// cross-file-resolvable W123 (unknown command) suppressed, plus a
 /// cross-file arity error (`E002`/`E003`) for calls to workspace procs with a bad
-/// arg count.
+/// arg count. Server diagnostics use the workspace index for direct calls;
+/// this query remains for the database corpus and incremental-resolution tests.
 ///
 /// Deliberately a **separate query off the paramount [`file_analysis`] path**:
 /// `file_analysis` stays project-independent (so a signature change in another
@@ -1193,6 +1214,41 @@ pub fn project_diagnostics(
     Arc::new(apply_cross_file_resolution(
         &analysis.diagnostics,
         &analysis.unresolved_command_sites,
+        &analysis.command_invocations,
+        &arities,
+        |code| disabled.iter().any(|c| c == code),
+    ))
+}
+
+/// Opt-in project diagnostics that validate command-prefix callback arity.
+///
+/// Direct command calls deliberately do not pass through this query: the
+/// server settles their existence and arity once, against the workspace index,
+/// for both settings of `crossFileResolution`. This query preserves the
+/// project-wide callback check, whose command metadata is not a direct call.
+#[salsa::tracked]
+pub fn project_callback_diagnostics(
+    db: &dyn TclDb,
+    file: SourceFile,
+    config: AnalyserConfig,
+    project: Project,
+) -> Arc<Vec<tcl_compiler::analyser::types::Diagnostic>> {
+    let disabled = config.disabled_diagnostics(db);
+    let analysis = file_analysis_incremental(db, file, config);
+    let mut tails: BTreeSet<&str> = BTreeSet::new();
+    for inv in &analysis.command_invocations {
+        if inv.callback_arity.is_some() {
+            tails.insert(inv.name.rsplit("::").next().unwrap_or(&inv.name));
+        }
+    }
+    let mut arities: HashMap<String, Vec<(usize, usize)>> = HashMap::new();
+    for tail in tails {
+        if let Some(resolved) = command_arity(db, project, CommandTail::new(db, tail.to_owned())) {
+            arities.insert(tail.to_owned(), (*resolved).clone());
+        }
+    }
+    Arc::new(apply_project_callback_arity(
+        &analysis.diagnostics,
         &analysis.command_invocations,
         &arities,
         |code| disabled.iter().any(|c| c == code),

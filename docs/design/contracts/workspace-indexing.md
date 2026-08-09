@@ -337,21 +337,21 @@ analysis per source-site namespace, and those views are several runtime
 identities of one physical file.
 
 An **edit** does not touch the index.  `did_change` commits the buffer splice
-and the salsa source only; `publish_diagnostics_result` re-indexes the
-document (remove + add) under the `documents` lock behind its `is_current`
-re-check, so it can only ever install the analysis of the revision the buffer
-actually holds.  Between the two the document contributes its *previous
-published* rows — the same staleness every other document carries between
-publishes, and strictly less misleading than a per-keystroke window in which
-the edited file contributes no procs, classes or call sites at all.
+and the salsa source only; `publish_diagnostics_result` then uses
+`replace_document` under the `documents` lock behind its `is_current` re-check,
+so it can only install the analysis of the revision the buffer actually holds.
+Replacement keeps the document's slot, its table allocations, and its
+workspace order.  It is intentionally distinct from remove + add: a temporary
+missing-definition state loses the information needed to recognise a
+body-only edit as incremental.
 
 ## Derived views and their invalidation
 
-`WorkspaceIndex::generation()` is bumped by `add_document` /
-`remove_document`, and every derived cache is dropped with it.  A whole-index
-derived view belongs *on the index*, built lazily and invalidated by that same
-mutation hook, rather than rebuilt per request by its consumer — the workspace
-command-name set the cross-file unknown-command pass consults
+`WorkspaceIndex::generation()` is bumped by `add_document`, `replace_document`,
+and `remove_document`.  A whole-index derived view belongs *on the index*,
+built lazily and invalidated by the mutation hook, rather than rebuilt per
+request by its consumer — the workspace command-name set the cross-file
+unknown-command pass consults
 (`WorkspaceIndex::command_names`) is the reference example: ~20 000 names on a
 400-file / 10 000-proc workspace, ~7 ms to build, ~120 ns to serve from the
 cache.
@@ -362,21 +362,37 @@ The rule is a single type, `Derived<T>`, rather than one hand-rolled
 `defined_command_names` readings (with and without the names links
 introduce — a consumer wants exactly one, since folding link names into the
 direct set would let rename rewrite a call that merely spells an imported
-name), the `command_link_map`, and the two `invocations_by_settled_target`
-readings.  `defined_command_names` was the motivating regression:
+name), the `command_link_map`, and the export snapshot.  `defined_command_names`
+was the motivating regression:
 `workspace_command_exists` rebuilt the whole set per call, and
 `follow_import_chain` asks it once per candidate per hop.  Measured on the
 same 400-file / 10 000-proc workspace, 10 000 existence checks take **870 µs**
 cached against **7.87 s** rebuilding per call.
 
-`invocations_by_settled_target` is the same shape one level up (issue #1152):
-settling *is* the expensive answer, so every invocation is settled once per
-generation and the results grouped by their target, rather than re-settling
-the whole workspace once per candidate.  The view stores `(document slot,
-index within that slot's invocations)` pairs, which stay valid because a
-document's invocation vector is only ever cleared and refilled wholesale, and
-anything that could invalidate a pair also bumps the generation and drops the
-view.
+The settled-target reverse index is deliberately more selective (issue #1319).
+It holds one contribution per document and a target-indexed `BTreeSet` of
+`(document slot, invocation index)` pairs.  After an edit inside a proc body,
+the server removes that document's old contribution and re-settles only its
+new call sites; a lookup for a common command does not scan every caller or
+regroup the workspace.  The insertion/removal structure keeps source order
+stable without a linear pass over that command's callers.
+
+This shortcut is valid only while the complete **settlement dependency
+surface** is unchanged: dialect, proc/class definitions, namespace declarations,
+`source` and package-order rows, command links, wildcard imports, export and
+forget events, and command deletions.  `SettlementDependencies` compares those
+records exactly, rather than by a lossy hash.  A change to any of them can
+alter another document's resolution (for example, deleting `::helper` or
+unexporting a wildcard-imported name), so it deliberately clears the reverse
+index and re-settles all documents on the next query.  Invocation rows are not
+part of that surface: changing them can affect only their own document.
+
+The tests prove both sides: a changed call body replaces exactly one document's
+contribution, while a cross-file definition or export change re-settles every
+document and removes the stale answer.  This is the before/after performance
+contract: the ordinary body-only edit changes the next references lookup from
+one whole-workspace settlement to one document settlement; an edit that can
+change another file's answer retains the necessary whole-workspace cost.
 
 ## Decision rules / contracts
 
@@ -387,7 +403,9 @@ view.
    per-document one; if a symbol kind only has meaning inside its own file,
    it does not belong here.
 5. Any whole-index derived view lives on the index, built lazily and dropped
-   by the same mutation hook that bumps `generation()`.
+   by the same mutation hook that bumps `generation()`. The settled-target
+   index is the narrow exception: it is a per-document reverse index, and it
+   retains only contributions proven independent of the edit.
 6. The extensions the background scan indexes, the
    `workspace/didChangeWatchedFiles` registration, and the `willRename` /
    `didRename` filter all come from the one `TCL_SOURCE_EXTENSIONS` list —

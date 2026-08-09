@@ -67,8 +67,9 @@ lsort -command oneArg {3 1 2}   ;# lsort appends 2 → E003 on `oneArg`
 Fix by widening the callback's parameter list (here to `{a b}`) or giving it a
 variadic tail (`{args}`) so it absorbs every appended argument.
 
-**This specific check requires cross-file diagnostics to be enabled** (the
-`crossFileResolution` setting — off by default) — see the identical note on
+**This check also works across files by default** when the call site's exact
+C Tcl resolution candidate names the proc. `crossFileResolution` is only
+needed for its broader, deliberately lossy bare-name workspace inference; see
 the [E002 page](kcs-diagnostic-e002-too-few-arguments.md#command-prefix-callback-context).
 Every other E003 case on this page fires unconditionally.
 

@@ -294,12 +294,12 @@ fn cross_file_resolution_on_keeps_the_mathfunc_verdict_and_the_action_agrees() {
 const CROSS_FILE_LIB: &str = "proc putz {a} { return $a }\n";
 const CROSS_FILE_CALLER: &str = "putz hi\nputa hi\n";
 
-/// The **project tier**, which stays opt-in: an ordinary bareword call to a
-/// proc in a sibling document. It draws W123 by default (a workspace is not
-/// automatically one program — a bare `helper` in an unrelated script is a
-/// real error), and the quick-fix is offered because the diagnostic is.
+/// The exact-candidate tier is always on: an ordinary bareword call to a proc
+/// in a sibling document resolves when `Tcl_FindCommand` would find that exact
+/// qualified name. The unrelated `puta` control remains unknown. The broader,
+/// bare-tail project tier below remains opt-in.
 #[test]
-fn a_plain_cross_file_proc_call_still_draws_w123_by_default() {
+fn a_plain_cross_file_proc_call_resolves_by_default() {
     let mut lsp = Lsp::tcl();
     let lib = unique_uri("tcl");
     lsp.open_ready(&lib, CROSS_FILE_LIB);
@@ -311,29 +311,30 @@ fn a_plain_cross_file_proc_call_still_draws_w123_by_default() {
         w123_names(d).iter().any(|n| n == "puta")
     });
     assert!(
-        w123_names(&diags).iter().any(|n| n == "putz"),
-        "the project tier is opt-in; without it a cross-file bareword call is \
-         still unknown, got: {:?}",
+        !w123_names(&diags).iter().any(|n| n == "putz"),
+        "an exact workspace candidate resolves by default, got: {:?}",
         w123_names(&diags),
     );
     let at_call = action_titles(&lsp.code_actions(&caller, caret(0, 1), json!([])));
     assert!(
-        has_replace_fix(&at_call),
-        "…and the quick-fix is offered because the diagnostic is: {at_call:?}",
+        !has_replace_fix(&at_call),
+        "the resolved call has no unknown-command quick-fix: {at_call:?}",
     );
 }
 
-/// …and with `crossFileResolution` on, **both** surfaces move together: the
-/// W123 clears and so does its quick-fix. This is the pairing the old code
-/// could not express — diagnostics consulted the workspace, code actions did
-/// not.
+/// The broader `crossFileResolution` tier remains opt-in: a same-tail proc in
+/// a namespace the call cannot resolve through is a deliberate project-wide
+/// inference, rather than the exact `Tcl_FindCommand` lookup above.
 #[test]
-fn cross_file_resolution_on_clears_a_plain_proc_w123_and_its_quick_fix() {
+fn cross_file_resolution_on_clears_a_bare_tail_match_and_its_quick_fix() {
     let mut lsp = Lsp::with_config(json!({
         "features": { "linkedEditingRange": true, "crossFileResolution": true }
     }));
     let lib = unique_uri("tcl");
-    lsp.open_ready(&lib, CROSS_FILE_LIB);
+    lsp.open_ready(
+        &lib,
+        "namespace eval ::library { proc putz {a} { return $a } }\n",
+    );
     let caller = unique_uri("tcl");
     lsp.open_ready(&caller, CROSS_FILE_CALLER);
     let diags = lsp.await_diagnostics_settled(&caller, Duration::from_secs(20), |d| {

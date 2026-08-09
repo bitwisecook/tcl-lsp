@@ -73,7 +73,7 @@
 //! on both interpreters) has no declaring row of its own, because its name is
 //! not written anywhere.
 
-use std::collections::HashSet;
+use std::collections::{BTreeSet, HashSet};
 use std::sync::Arc;
 
 use crate::namespace_import::ExportVerdict;
@@ -96,6 +96,18 @@ pub struct WorkspaceProc {
     pub qualified_name: String,
     /// Declared parameter count (for completion detail).
     pub param_count: usize,
+    /// The `(min, max)` argument arity this proc accepts, straight from
+    /// [`tcl_compiler::analyser::ProcDef::arity`] — so a trailing `args` is
+    /// unbounded, a defaulted parameter lowers the minimum, and a **computed**
+    /// parameter list (`proc p $params {…}`) abstains to the fully-open
+    /// `0..UNLIMITED` rather than reading as "takes no arguments".
+    ///
+    /// [`Self::param_count`] cannot answer an arity question: it is the raw
+    /// formal count, which says nothing about defaults or `args`. Cross-file
+    /// arity checking (issue #1331) needs the real envelope, and it needs it
+    /// from the same index that settles the call, so a caller is checked
+    /// against the command navigation says it actually reaches.
+    pub arity: tcl_registry::Arity,
     /// Byte span of the proc's name token in `uri`'s source.
     /// The server resolves this to an LSP range against the
     /// target document at query time.
@@ -933,6 +945,25 @@ pub struct WorkspaceCommandDeletion {
     pub at: u32,
 }
 
+/// One straight-line command-name retirement recorded in the index.
+///
+/// `rename OLD NEW` preserves the command object (and therefore any import
+/// aliases which hold it), but it stops `OLD` being a callable name.  A
+/// destruction has the same consequence for the name as well as ending the
+/// command object.  Keeping that narrower name-liveness fact apart from
+/// [`WorkspaceCommandDeletion`] lets the import lifecycle retain Tcl's
+/// object-identity rule while all direct command lookups consistently hide a
+/// definition after its name has been moved or destroyed.
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct WorkspaceCommandRetirement {
+    /// Document containing the lifecycle event.
+    pub uri: String,
+    /// The `::`-normalised qualified name which stopped being callable.
+    pub qualified_name: String,
+    /// Byte offset of the lifecycle statement within [`Self::uri`].
+    pub at: u32,
+}
+
 impl WorkspaceGlobImport {
     /// This import's site, for the export-snapshot gate.
     fn site(&self) -> ImportSite<'_> {
@@ -1066,10 +1097,80 @@ struct DocumentRecords {
     namespace_exports: Vec<WorkspaceNamespaceExport>,
     namespace_forgets: Vec<WorkspaceNamespaceForget>,
     command_deletions: Vec<WorkspaceCommandDeletion>,
+    command_retirements: Vec<WorkspaceCommandRetirement>,
     defined_symbols: Vec<WorkspaceDefinedSymbol>,
 }
 
+/// The complete per-document input surface the command-settlement walk reads,
+/// directly or through its three shared tables.  Keeping this as an exact
+/// value, rather than a lossy fingerprint, makes the incremental boundary a
+/// correctness property: a body edit may retain other documents' answers only
+/// when every resolution-relevant fact is byte-for-byte unchanged.
+///
+/// Invocation sites intentionally do not appear here.  Replacing them changes
+/// the one document which must be re-settled, but cannot change how another
+/// document's call resolves.
+#[derive(Clone, PartialEq, Eq)]
+struct SettlementDependencies {
+    dialect: String,
+    /// Only the facts `defined_command_names` and the nested-builtin gate
+    /// read.  Parameter edits and a shifted declaration span cannot change a
+    /// call's target, so retaining the whole `WorkspaceProc` would turn those
+    /// ordinary body edits into false full invalidations.
+    procs: Vec<(String, bool)>,
+    /// Classes contribute command existence by qualified name; their member
+    /// table is used by a different cross-file query, not settlement.
+    classes: Vec<String>,
+    /// `observable_namespaces` reads declaration identity only.  References
+    /// to a namespace and their spans do not affect an import gate.
+    declared_namespaces: Vec<String>,
+    sources: Vec<WorkspaceSource>,
+    package_requires: Vec<WorkspacePackageRequire>,
+    package_provides: Vec<WorkspacePackageProvide>,
+    package_ifneededs: Vec<WorkspacePackageIfneeded>,
+    package_prefers: Vec<WorkspacePackagePrefer>,
+    command_links: Vec<WorkspaceCommandLink>,
+    glob_imports: Vec<WorkspaceGlobImport>,
+    namespace_exports: Vec<WorkspaceNamespaceExport>,
+    namespace_forgets: Vec<WorkspaceNamespaceForget>,
+    command_deletions: Vec<WorkspaceCommandDeletion>,
+    command_retirements: Vec<WorkspaceCommandRetirement>,
+}
+
 impl DocumentRecords {
+    fn settlement_dependencies(&self) -> SettlementDependencies {
+        SettlementDependencies {
+            dialect: self.dialect.clone(),
+            procs: self
+                .procs
+                .iter()
+                .map(|proc_def| (proc_def.qualified_name.clone(), proc_def.nested))
+                .collect(),
+            classes: self
+                .classes
+                .iter()
+                .map(|class_def| class_def.qualified_name.clone())
+                .collect(),
+            declared_namespaces: self
+                .namespace_refs
+                .iter()
+                .filter(|namespace| namespace.declares)
+                .map(|namespace| namespace.qualified_name.clone())
+                .collect(),
+            sources: self.sources.clone(),
+            package_requires: self.package_requires.clone(),
+            package_provides: self.package_provides.clone(),
+            package_ifneededs: self.package_ifneededs.clone(),
+            package_prefers: self.package_prefers.clone(),
+            command_links: self.command_links.clone(),
+            glob_imports: self.glob_imports.clone(),
+            namespace_exports: self.namespace_exports.clone(),
+            namespace_forgets: self.namespace_forgets.clone(),
+            command_deletions: self.command_deletions.clone(),
+            command_retirements: self.command_retirements.clone(),
+        }
+    }
+
     /// Drop every record, keeping each table's allocation.
     ///
     /// The capacity is deliberately retained: a re-index of the same document
@@ -1099,6 +1200,7 @@ impl DocumentRecords {
             namespace_exports,
             namespace_forgets,
             command_deletions,
+            command_retirements,
             defined_symbols,
         } = self;
         dialect.clear();
@@ -1119,6 +1221,7 @@ impl DocumentRecords {
         namespace_exports.clear();
         namespace_forgets.clear();
         command_deletions.clear();
+        command_retirements.clear();
         defined_symbols.clear();
     }
 
@@ -1249,6 +1352,7 @@ impl DocumentRecords {
                 name: proc_def.name.clone(),
                 qualified_name: proc_def.qualified_name.clone(),
                 param_count: proc_def.params.len(),
+                arity: proc_def.arity(),
                 name_span: proc_def.name_span,
                 nested: analysis.offset_is_inside_any_definition_body(proc_def.name_span.start()),
             });
@@ -1425,9 +1529,15 @@ impl DocumentRecords {
         let mut destroyed: Vec<(&String, &u32)> = analysis.destroyed_commands.iter().collect();
         destroyed.sort_unstable_by(|a, b| a.1.cmp(b.1).then_with(|| a.0.cmp(b.0)));
         for (name, at) in destroyed {
+            let qualified_name = tcl_syntax::naming::normalise_qualified_name(name);
             self.command_deletions.push(WorkspaceCommandDeletion {
                 uri: uri.to_owned(),
-                qualified_name: tcl_syntax::naming::normalise_qualified_name(name),
+                qualified_name: qualified_name.clone(),
+                at: *at,
+            });
+            self.command_retirements.push(WorkspaceCommandRetirement {
+                uri: uri.to_owned(),
+                qualified_name,
                 at: *at,
             });
         }
@@ -1589,10 +1699,10 @@ impl DocumentRecords {
         // `interp alias`'s `TARGET` word above, it needs no `target_span`
         // here.
         for (new, old) in &analysis.renamed_commands {
-            let nested = analysis
-                .rename_offsets
-                .get(new)
-                .is_some_and(|&off| analysis.offset_is_inside_any_definition_body(off));
+            let Some(&at) = analysis.rename_offsets.get(new) else {
+                continue;
+            };
+            let nested = analysis.offset_is_inside_any_definition_body(at);
             self.command_links.push(WorkspaceCommandLink {
                 uri: uri.to_owned(),
                 linked_qname: normalise_qualified_name(new),
@@ -1601,6 +1711,16 @@ impl DocumentRecords {
                 nested,
                 import_gate: None,
             });
+            // A rename written in a definition body runs only if that body is
+            // called.  It introduces the same conditional link above but is
+            // not evidence that the load-level name has gone away.
+            if !nested {
+                self.command_retirements.push(WorkspaceCommandRetirement {
+                    uri: uri.to_owned(),
+                    qualified_name: normalise_qualified_name(old),
+                    at,
+                });
+            }
         }
     }
 }
@@ -1636,9 +1756,10 @@ pub struct WorkspaceIndex {
     /// [`WorkspaceIndex::command_link_map`].
     command_link_map: Derived<std::collections::HashMap<String, String>>,
     /// Every invocation's settled target, grouped by that target, with and
-    /// without link-following — see
-    /// [`WorkspaceIndex::invocations_by_settled_target`].
-    settled_invocations: [Derived<SettledTargets>; 2],
+    /// without link-following.  Unlike the other derived views this one is
+    /// updated one document at a time after a body-only edit; see
+    /// [`WorkspaceIndex::settled_sites`].
+    settled_invocations: [IncrementalSettledTargets; 2],
     /// The whole-program export oracle the single-document tier borrows — see
     /// [`WorkspaceIndex::export_snapshot`].
     export_snapshot: Derived<NamespaceExportSnapshot>,
@@ -1709,7 +1830,75 @@ impl<T> Derived<T> {
 /// (`DocumentRecords::clear` / `index_document`), never reordered in place,
 /// and any mutation that could invalidate a stored `(slot, index)` pair also
 /// bumps the generation and drops the [`Derived`] view holding it.
-type SettledTargets = std::collections::HashMap<String, Vec<(usize, usize)>>;
+/// One document's contribution to the settled-target index: target name and
+/// the invocation indices in that document which reach it.
+type DocumentSettledTargets = Vec<(String, usize)>;
+
+/// The workspace-wide reverse index used by find-references and code lenses.
+/// A `BTreeSet` permits removal of the old contribution from one changed
+/// document without scanning every caller of a popular command, while keeping
+/// the stable document-slot/source-order answer the former vector provided.
+type SettledTargets = std::collections::HashMap<String, BTreeSet<(usize, usize)>>;
+
+/// Incremental storage for one of the direct or link-following settlement
+/// modes.  It is deliberately separate from [`Derived`]: an edit in a proc
+/// body changes that document's invocation rows but not the command tables
+/// those rows resolve against, so throwing the complete reverse index away is
+/// needless work.
+#[derive(Debug, Default)]
+struct IncrementalSettledTargets {
+    state: std::sync::Mutex<IncrementalSettledState>,
+}
+
+#[derive(Debug, Default)]
+struct IncrementalSettledState {
+    /// `None` means this slot has never been settled (or has been removed).
+    by_document: Vec<Option<DocumentSettledTargets>>,
+    by_target: SettledTargets,
+    /// A resolution-input change invalidates every document.  Otherwise this
+    /// holds exactly the document slots whose own invocation rows changed.
+    rebuild_all: bool,
+    dirty_slots: BTreeSet<usize>,
+    /// Test-visible accounting for the incremental firewall.
+    settled_documents: usize,
+}
+
+impl Clone for IncrementalSettledTargets {
+    fn clone(&self) -> Self {
+        Self::default()
+    }
+}
+
+impl IncrementalSettledTargets {
+    fn invalidate_all(&self) {
+        let mut state = self
+            .state
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        state.by_document.clear();
+        state.by_target.clear();
+        state.rebuild_all = true;
+        state.dirty_slots.clear();
+    }
+
+    fn mark_document_dirty(&self, slot: usize) {
+        let mut state = self
+            .state
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        if !state.rebuild_all {
+            state.dirty_slots.insert(slot);
+        }
+    }
+
+    #[cfg(test)]
+    fn settled_documents(&self) -> usize {
+        self.state
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .settled_documents
+    }
+}
 
 impl WorkspaceIndex {
     /// Empty index.
@@ -1775,6 +1964,27 @@ impl WorkspaceIndex {
         self.docs
             .iter()
             .flat_map(|doc| doc.command_deletions.iter())
+    }
+
+    /// Whether the definition named by `qualified_name` remains callable in
+    /// its document's final command table.
+    ///
+    /// A document can define a name again after a `rename`/destruction, so
+    /// retirement is compared with the declaration's own offset rather than
+    /// being a workspace-wide tombstone.  Ordering across documents is not a
+    /// static Tcl fact; a lifecycle record therefore only retires a
+    /// definition from the same URI.
+    fn definition_name_is_live(&self, uri: &str, qualified_name: &str, at: u32) -> bool {
+        let target = qualified_name.trim_start_matches("::");
+        self.slots.get(uri).is_none_or(|&slot| {
+            !self.docs[slot]
+                .command_retirements
+                .iter()
+                .any(|retirement| {
+                    retirement.qualified_name.trim_start_matches("::") == target
+                        && retirement.at > at
+                })
+        })
     }
 
     /// [`tcl_compiler::analyser::AnalysisResult::innermost_definition_body_span`]
@@ -2048,16 +2258,29 @@ impl WorkspaceIndex {
             .collect()
     }
 
-    /// Note a mutation: bump the generation and drop every derived cache.
-    fn invalidate(&mut self) {
+    /// Note a mutation, preserving the settled-target contributions which are
+    /// still valid.  A command-resolution input change (a definition, link,
+    /// import/export lifecycle event, source/package ordering edge, or
+    /// dialect) can change any document's answer, so it deliberately requests
+    /// a full re-settlement.  An invocation-only edit dirties only its own
+    /// document contribution.
+    fn invalidate(&mut self, resolution_inputs_changed: bool, changed_slot: usize) {
         self.generation = self.generation.wrapping_add(1);
-        self.command_names = Derived::default();
-        self.live_links = Derived::default();
-        self.defined_names = <[Derived<HashSet<String>>; 2]>::default();
-        self.command_link_map = Derived::default();
-        self.settled_invocations = <[Derived<SettledTargets>; 2]>::default();
-        self.export_snapshot = Derived::default();
-        self.run_order = Derived::default();
+        if resolution_inputs_changed {
+            self.command_names = Derived::default();
+            self.live_links = Derived::default();
+            self.defined_names = <[Derived<HashSet<String>>; 2]>::default();
+            self.command_link_map = Derived::default();
+            self.export_snapshot = Derived::default();
+            self.run_order = Derived::default();
+            for settled in &self.settled_invocations {
+                settled.invalidate_all();
+            }
+        } else {
+            for settled in &self.settled_invocations {
+                settled.mark_document_dirty(changed_slot);
+            }
+        }
     }
 
     /// The command name-links that are actually installed — every `interp
@@ -2214,9 +2437,28 @@ impl WorkspaceIndex {
     /// several runtime identities of one physical file, not a replacement of
     /// each other.
     pub fn add_document(&mut self, uri: &str, analysis: &AnalysisResult) {
-        self.invalidate();
         let slot = self.slot_for(uri);
+        // `add_document` intentionally accumulates multiple source-site views
+        // for one URI.  That is a resolution-input change unless this is an
+        // empty analysis, so favour the conservative full invalidation here;
+        // editor replacements use [`Self::replace_document`] below.
         self.docs[slot].index_document(uri, analysis);
+        self.invalidate(true, slot);
+    }
+
+    /// Replace one document's records as one atomic incremental update.
+    ///
+    /// The server publishes ordinary edits through this entry point rather
+    /// than spelling them as `remove_document` then `add_document`: doing the
+    /// latter creates a transient missing-definition state and loses the fact
+    /// that a body-only edit left command-resolution inputs untouched.
+    pub fn replace_document(&mut self, uri: &str, analysis: &AnalysisResult) {
+        let slot = self.slot_for(uri);
+        let old = self.docs[slot].settlement_dependencies();
+        self.docs[slot].clear();
+        self.docs[slot].index_document(uri, analysis);
+        let changed = old != self.docs[slot].settlement_dependencies();
+        self.invalidate(changed, slot);
     }
 
     /// `uri`'s slot, allocating one — the most recently freed, else a fresh
@@ -2256,10 +2498,10 @@ impl WorkspaceIndex {
     /// Costs that document's own records, not the workspace's: its slot is
     /// cleared and handed back to the free list (issue #1149).
     pub fn remove_document(&mut self, uri: &str) {
-        self.invalidate();
         if let Some(slot) = self.slots.remove(uri) {
             self.docs[slot].clear();
             self.free_slots.push(slot);
+            self.invalidate(true, slot);
         }
     }
 
@@ -2470,9 +2712,35 @@ impl WorkspaceIndex {
         self.docs.iter().flat_map(|doc| doc.procs.iter())
     }
 
+    /// Every proc whose name was not later retired at load level in its own
+    /// document.  Cross-document command consumers should use this view;
+    /// [`Self::procs`] remains the source-record view for declaration tools.
+    pub fn live_procs(&self) -> impl Iterator<Item = &WorkspaceProc> {
+        self.procs().filter(|proc_def| {
+            self.definition_name_is_live(
+                &proc_def.uri,
+                &proc_def.qualified_name,
+                proc_def.name_span.start(),
+            )
+        })
+    }
+
     /// Every indexed class.
     pub fn classes(&self) -> impl Iterator<Item = &WorkspaceClass> {
         self.docs.iter().flat_map(|doc| doc.classes.iter())
+    }
+
+    /// Every class whose command name was not later retired at load level in
+    /// its own document.  `TclOO`'s class command is a command like any other:
+    /// `rename Dog {}` makes `Dog new` unknown, not an object construction.
+    pub fn live_classes(&self) -> impl Iterator<Item = &WorkspaceClass> {
+        self.classes().filter(|class_def| {
+            self.definition_name_is_live(
+                &class_def.uri,
+                &class_def.qualified_name,
+                class_def.name_span.start(),
+            )
+        })
     }
 
     /// Every indexed `namespace import` / `interp alias` / `rename` link.
@@ -3506,7 +3774,7 @@ impl WorkspaceIndex {
     /// ultimate target; without it, only real proc/class definitions settle a
     /// call (the direct-reference behaviour rename relies on).
     ///
-    /// A hash lookup into [`Self::invocations_by_settled_target`] plus a
+    /// A hash lookup into [`Self::settled_sites`] plus a
     /// direct index into each hit's owning document slot — the settlement
     /// walk itself (which needs [`Self::defined_command_names`],
     /// [`Self::command_link_map`] and a [`WildcardImportIndex`]) runs at most
@@ -3519,44 +3787,80 @@ impl WorkspaceIndex {
         follow_links: bool,
     ) -> Vec<&'a WorkspaceInvocation> {
         let target = qualified_name.trim_start_matches("::");
-        let by_target = self.invocations_by_settled_target(follow_links);
-        let Some(sites) = by_target.get(target) else {
-            return Vec::new();
-        };
+        let sites = self.settled_sites(target, follow_links);
         sites
             .iter()
-            .map(|&(slot, idx)| &self.docs[slot].invocations[idx])
+            .map(|(slot, idx)| &self.docs[*slot].invocations[*idx])
             .filter(|i| i.uri != exclude_uri)
             .collect()
     }
 
-    /// Every indexed invocation's settled target, `::`-stripped and grouped
-    /// into `target -> [(doc slot, index within that slot's invocations)]`
-    /// — one entry per invocation that settles to *some* command, in the
-    /// same relative order [`Self::invocations`] would visit them in.
-    /// A [`Derived`] view, one reading per `follow_links` value; see
-    /// [`SettledTargets`] for why the stored `(slot, index)` pairs stay valid
-    /// for the view's whole lifetime.
-    fn invocations_by_settled_target(&self, follow_links: bool) -> Arc<SettledTargets> {
-        self.settled_invocations[usize::from(follow_links)].get_or_build(|| {
-            // Built once per generation (both the command set and the
-            // wildcard-import index — see `WildcardImportIndex`'s own doc),
-            // then reused for every invocation in the workspace.
+    /// Return the sites settled to `target`, incrementally repairing the
+    /// changed documents first.  The cold path settles every document once.
+    /// Thereafter a replacement which did not change the command-resolution
+    /// inputs removes and re-inserts only that document's contribution in the
+    /// reverse index; querying a common target never scans its callers.
+    fn settled_sites(&self, target: &str, follow_links: bool) -> Vec<(usize, usize)> {
+        let cache = &self.settled_invocations[usize::from(follow_links)];
+        let mut state = cache
+            .state
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+
+        let slots: Vec<usize> = if state.rebuild_all || state.by_document.len() != self.docs.len() {
+            state.by_document.clear();
+            state.by_document.resize_with(self.docs.len(), || None);
+            state.by_target.clear();
+            state.rebuild_all = false;
+            state.dirty_slots.clear();
+            (0..self.docs.len()).collect()
+        } else {
+            std::mem::take(&mut state.dirty_slots).into_iter().collect()
+        };
+
+        if !slots.is_empty() {
+            // These are exactly the three workspace-wide inputs
+            // `settle_invocation` reads.  They were retained across an
+            // invocation-only replacement by `invalidate`, and are rebuilt
+            // only when `SettlementDependencies` proved they changed.
             let defined = self.defined_command_names(follow_links);
             let links = follow_links.then(|| self.command_link_map());
             let wci = WildcardImportIndex::build(self);
-            let mut by_target: SettledTargets = std::collections::HashMap::new();
-            for (slot, doc) in self.docs.iter().enumerate() {
-                for (idx, inv) in doc.invocations.iter().enumerate() {
-                    if let Some(target) =
-                        self.settle_invocation(inv, &defined, links.as_deref(), &wci)
-                    {
-                        by_target.entry(target).or_default().push((slot, idx));
+            for slot in slots {
+                if let Some(previous) = state.by_document[slot].take() {
+                    for (old_target, idx) in previous {
+                        let remove_key = (slot, idx);
+                        let empty = state.by_target.get_mut(&old_target).is_some_and(|sites| {
+                            sites.remove(&remove_key);
+                            sites.is_empty()
+                        });
+                        if empty {
+                            state.by_target.remove(&old_target);
+                        }
                     }
                 }
+                let mut contribution = Vec::new();
+                for (idx, inv) in self.docs[slot].invocations.iter().enumerate() {
+                    if let Some(resolved) =
+                        self.settle_invocation(inv, &defined, links.as_deref(), &wci)
+                    {
+                        state
+                            .by_target
+                            .entry(resolved.clone())
+                            .or_default()
+                            .insert((slot, idx));
+                        contribution.push((resolved, idx));
+                    }
+                }
+                state.by_document[slot] = Some(contribution);
+                state.settled_documents = state.settled_documents.saturating_add(1);
             }
-            by_target
-        })
+        }
+        state
+            .by_target
+            .get(target)
+            .map(|sites| sites.iter().copied().collect())
+            .unwrap_or_default()
     }
 
     /// The command `inv` settles to, `::`-stripped, or `None` when nothing in
@@ -3773,19 +4077,15 @@ impl WorkspaceIndex {
         qualified_name: &str,
         has_builtin: bool,
     ) -> bool {
-        if !has_builtin {
-            return self.workspace_command_exists(qualified_name);
-        }
         let target = qualified_name.trim_start_matches("::");
-        self.procs()
-            .any(|p| !p.nested && p.qualified_name.trim_start_matches("::") == target)
-            || self
-                .classes()
-                .any(|c| c.qualified_name.trim_start_matches("::") == target)
-            || self
-                .live_command_links()
-                .into_iter()
-                .any(|l| !l.nested && l.linked_qname.trim_start_matches("::") == target)
+        self.live_procs().any(|p| {
+            (!has_builtin || !p.nested) && p.qualified_name.trim_start_matches("::") == target
+        }) || self
+            .live_classes()
+            .any(|c| c.qualified_name.trim_start_matches("::") == target)
+            || self.live_command_links().into_iter().any(|l| {
+                (!has_builtin || !l.nested) && l.linked_qname.trim_start_matches("::") == target
+            })
     }
 
     /// The set of `::`-stripped qualified names of every indexed proc and
@@ -3798,7 +4098,7 @@ impl WorkspaceIndex {
     /// is `O(procs + classes + links)` to build, and
     /// [`Self::workspace_command_exists`] asks for it *per candidate* inside
     /// [`Self::follow_import_chain`]'s loop — and
-    /// [`Self::invocations_by_settled_target`] once per settling pass — which
+    /// [`Self::settled_sites`] once per settling pass — which
     /// turned an existence test into a workspace-wide scan. Owned (`String`,
     /// not `&str`) so the view is independent of any one call's borrow. The
     /// two `include_links` readings are two separate views because a consumer
@@ -8212,6 +8512,57 @@ mod tests {
     }
 
     #[test]
+    fn command_retirement_hides_the_vacated_name_but_keeps_the_rename_target() {
+        // TP/TN, Tcl 9.0.4: `rename helper moved` transfers one command
+        // object.  The old direct name is gone, while the new link remains
+        // callable.  The workspace view must not resurrect `helper` from its
+        // historical proc declaration when a second document asks about it.
+        let lifecycle = analyse("proc ::helper {} {}\nrename ::helper ::moved\n");
+        let index = WorkspaceIndex::from_documents([("file:///life.tcl", &lifecycle)]);
+        assert!(
+            !index.workspace_command_exists_for_call("::helper", false),
+            "the name vacated by rename is not callable",
+        );
+        assert!(
+            index.workspace_command_exists_for_call("::moved", false),
+            "the rename target keeps the command object",
+        );
+        assert!(
+            index.live_procs().all(|proc_def| proc_def.name != "helper"),
+            "the direct command view must not expose the vacated name",
+        );
+    }
+
+    #[test]
+    fn later_redefinition_revives_a_retired_command_name() {
+        // FN guard: retirement is ordered within its document, rather than a
+        // permanent workspace tombstone.  Tcl permits a fresh proc after a
+        // rename, and both the moved command and the new definition live.
+        let lifecycle = analyse(
+            "proc ::helper {} {return old}\nrename ::helper ::moved\nproc ::helper {} {return new}\n",
+        );
+        let index = WorkspaceIndex::from_documents([("file:///life.tcl", &lifecycle)]);
+        assert!(index.workspace_command_exists_for_call("::helper", false));
+        assert!(index.workspace_command_exists_for_call("::moved", false));
+        assert_eq!(index.live_procs().filter(|p| p.name == "helper").count(), 1);
+    }
+
+    #[test]
+    fn class_command_retirement_is_shared_by_command_and_class_lookups() {
+        // TP: TclOO class creation installs a command.  Deleting that command
+        // makes `Dog new` unknown; it cannot remain a class provider merely
+        // because the class body was recorded earlier in the document.
+        let lifecycle = analyse("oo::class create ::Dog {}\nrename ::Dog {}\n");
+        let index = WorkspaceIndex::from_documents([("file:///life.tcl", &lifecycle)]);
+        assert!(!index.workspace_command_exists_for_call("::Dog", false));
+        assert!(
+            index
+                .live_classes()
+                .all(|class_def| class_def.name != "Dog")
+        );
+    }
+
+    #[test]
     fn top_level_alias_workspace_command_exists_for_call_regardless_of_builtin() {
         // TP — regression for a bug found by Codex review of PR #963:
         // `workspace_command_exists_for_call`'s `has_builtin` branch dropped
@@ -8478,7 +8829,7 @@ mod tests {
         );
     }
 
-    /// Issue #1152: `invocations_of` (via `invocations_by_settled_target`)
+    /// Issue #1152: `invocations_of` (via `settled_sites`)
     /// used to re-settle every invocation in the workspace, and rebuild
     /// `WildcardImportIndex` from scratch, on every call — the cost
     /// `code_lenses` multiplied by one call per proc *and* per class in the
@@ -8486,36 +8837,130 @@ mod tests {
     /// repeated `invocations_of` calls against an unchanged index must
     /// share it rather than re-settle.
     #[test]
-    fn invocations_by_settled_target_is_cached_per_generation() {
+    fn settled_target_index_is_cached_until_its_inputs_change() {
         let a = analyse("proc helper {} {}\nproc other {} {}\n");
         let b = analyse("helper\nhelper\nother\n");
         let mut index = WorkspaceIndex::new();
         index.add_document("file:///a.tcl", &a);
         index.add_document("file:///b.tcl", &b);
 
-        let first = index.invocations_by_settled_target(false);
-        assert_eq!(first.get("helper").map(Vec::len), Some(2), "{first:?}");
-        assert!(
-            Arc::ptr_eq(&first, &index.invocations_by_settled_target(false)),
-            "an unchanged index must serve the cache, not re-settle",
-        );
         // Querying different targets against the same generation must hit
         // the same cached map, not re-settle per target.
         let helper_calls = index.invocations_of("::helper", "");
+        let after_first = index.settled_invocations[0].settled_documents();
         let other_calls = index.invocations_of("::other", "");
         assert_eq!(helper_calls.len(), 2, "{helper_calls:?}");
         assert_eq!(other_calls.len(), 1, "{other_calls:?}");
+        assert_eq!(
+            index.settled_invocations[0].settled_documents(),
+            after_first,
+            "an unchanged index must serve the settled-target cache",
+        );
 
         // A mutation invalidates the cache and the next call re-settles
         // against the new state.
         let c = analyse("helper\n");
         index.add_document("file:///c.tcl", &c);
-        let after_mutation = index.invocations_by_settled_target(false);
-        assert!(
-            !Arc::ptr_eq(&first, &after_mutation),
-            "indexing a document must drop the settled-invocations cache",
-        );
         assert_eq!(index.invocations_of("::helper", "").len(), 3);
+        assert_eq!(
+            index.settled_invocations[0].settled_documents(),
+            after_first + 3,
+            "a command-set change must re-settle all three documents",
+        );
+    }
+
+    #[test]
+    fn body_only_replacement_re_settles_only_the_changed_document() {
+        // TP + performance proof for #1319.  The replacement changes both
+        // call sites in `a.tcl`, so a cache that merely kept the old whole
+        // view would be wrong; it must remove that document's old contribution
+        // and insert its new one.  `b.tcl` supplies the same command table as
+        // before, so it must not be visited again.
+        let a = analyse("proc ::caller {} { helper }\nhelper\n");
+        let b = analyse("proc ::helper {} {}\nproc ::other {} {}\n");
+        let mut index =
+            WorkspaceIndex::from_documents([("file:///a.tcl", &a), ("file:///b.tcl", &b)]);
+        assert_eq!(index.invocations_of("::helper", "").len(), 2);
+        let cold = index.settled_invocations[0].settled_documents();
+        assert_eq!(cold, 2, "the cold read settles both documents");
+
+        let edited_a = analyse("proc ::caller {} { other }\nother\n");
+        index.replace_document("file:///a.tcl", &edited_a);
+        assert!(
+            index.invocations_of("::helper", "").is_empty(),
+            "the old contribution must be removed",
+        );
+        assert_eq!(index.invocations_of("::other", "").len(), 2);
+        assert_eq!(
+            index.settled_invocations[0].settled_documents(),
+            cold + 1,
+            "a body-only replacement must settle one document, not the workspace",
+        );
+        let wholesale =
+            WorkspaceIndex::from_documents([("file:///a.tcl", &edited_a), ("file:///b.tcl", &b)]);
+        for target in ["::helper", "::other"] {
+            assert_eq!(
+                index.invocations_of(target, "").len(),
+                wholesale.invocations_of(target, "").len(),
+                "incremental replacement must agree with a wholesale rebuild for {target}",
+            );
+        }
+    }
+
+    #[test]
+    fn resolution_input_replacement_re_settles_cross_document_callers() {
+        // FN guard: a naive document-local cache would leave `a.tcl` filed
+        // under `::helper` after `b.tcl` removes that definition.  Definitions
+        // are part of SettlementDependencies, so this intentionally takes the
+        // full path and agrees with a fresh workspace build.
+        let a = analyse("helper\n");
+        let b = analyse("proc ::helper {} {}\n");
+        let mut index =
+            WorkspaceIndex::from_documents([("file:///a.tcl", &a), ("file:///b.tcl", &b)]);
+        assert_eq!(index.invocations_of("::helper", "").len(), 1);
+        let cold = index.settled_invocations[0].settled_documents();
+
+        let edited_b = analyse("# helper was removed\n");
+        index.replace_document("file:///b.tcl", &edited_b);
+        assert!(
+            index.invocations_of("::helper", "").is_empty(),
+            "a caller in another document must be re-settled",
+        );
+        assert_eq!(
+            index.settled_invocations[0].settled_documents(),
+            cold + 2,
+            "a command-table change must re-settle every document",
+        );
+        let wholesale =
+            WorkspaceIndex::from_documents([("file:///a.tcl", &a), ("file:///b.tcl", &edited_b)]);
+        assert_eq!(
+            index.invocations_of("::helper", "").len(),
+            wholesale.invocations_of("::helper", "").len(),
+            "the cross-document invalidation must agree with a wholesale rebuild",
+        );
+    }
+
+    #[test]
+    fn export_replacement_re_settles_wildcard_import_callers() {
+        // TN/FP guard for the non-definition half of the dependency surface:
+        // an export change can make a different document's wildcard-imported
+        // call disappear, even though its own text did not change.
+        let lib = analyse(
+            "namespace eval ::lib {\n    proc helper {} {}\n    namespace export helper\n}\n",
+        );
+        let app = analyse("namespace import ::lib::*\nhelper\n");
+        let mut index =
+            WorkspaceIndex::from_documents([("file:///lib.tcl", &lib), ("file:///app.tcl", &app)]);
+        assert_eq!(index.linked_invocations_of("::lib::helper", "").len(), 1);
+        let cold = index.settled_invocations[1].settled_documents();
+
+        let edited_lib = analyse("namespace eval ::lib {\n    proc helper {} {}\n}\n");
+        index.replace_document("file:///lib.tcl", &edited_lib);
+        assert!(
+            index.linked_invocations_of("::lib::helper", "").is_empty(),
+            "the caller must not retain an export which no longer exists",
+        );
+        assert_eq!(index.settled_invocations[1].settled_documents(), cold + 2);
     }
 
     #[test]
@@ -9009,9 +9454,11 @@ mod tests {
     fn the_settled_target_view_is_served_from_cache_within_a_generation() {
         let docs = wildcard_import_heavy_workspace(8, 6, 4);
         let index = WorkspaceIndex::from_documents(docs.iter().map(|(uri, a)| (uri.as_str(), a)));
-        let first = index.invocations_by_settled_target(true);
+        let _ = index.linked_invocations_of("::Lib::missing", "");
+        let first = index.settled_invocations[1].settled_documents();
+        let _ = index.linked_invocations_of("::Lib::missing", "");
         assert!(
-            Arc::ptr_eq(&first, &index.invocations_by_settled_target(true)),
+            first == index.settled_invocations[1].settled_documents(),
             "an unchanged index must serve the settled-target cache, not rebuild it",
         );
     }

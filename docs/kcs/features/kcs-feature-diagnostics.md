@@ -55,3 +55,4 @@ The server also supports pull-model diagnostics — `textDocument/diagnostic` fo
 
 - [KCS feature index](README.md)
 - [LSP diagnostics publication](../../../docs/design/contracts/lsp-diagnostics-publication.md)
+- [kcs-feature-cross-file-diagnostics.md](kcs-feature-cross-file-diagnostics.md) — how diagnostics account for procs and `package require`s in *other* files

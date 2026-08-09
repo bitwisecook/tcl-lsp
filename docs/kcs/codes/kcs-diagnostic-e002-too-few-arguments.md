@@ -69,17 +69,14 @@ Fix by giving the extra parameters defaults (`{a b {c 0}}`) or removing them so
 the callback matches the appended-argument count. (A callback whose appended
 count is open-ended — `AtLeast(n)` — never draws `E002`.)
 
-**This specific check requires cross-file diagnostics to be enabled** (the
-`crossFileResolution` setting — off by default, since resolving it scans the
-whole workspace). Callback arity is resolved against the project-wide table
-of proc signatures, which only the cross-file pass builds; with
-`crossFileResolution` off, a mismatched callback like the `cmp` example above
-draws no diagnostic at all, in any editor, and from the `tcl` CLI's `diag`
-command. Every other E002 case on this page (same-file `proc`/alias/
-`rename`/TclOO calls, `next`/`nextto`, constructors, `apply`) fires
-unconditionally and does not need this setting. `crossFileResolution` is
-independent of `xcDiagnostics` (the unrelated, f5-irules-only XC100-301
-translatability diagnostics).
+**This check also works across files by default** when the call site's exact
+C Tcl resolution candidate names the proc. The server then reads the same
+project-wide signature table used by navigation. `crossFileResolution` is
+only needed for its broader, deliberately lossy bare-name workspace inference.
+Every other E002 case on this page (same-file `proc`/alias/`rename`/TclOO
+calls, `next`/`nextto`, constructors, `apply`) is likewise unconditional.
+`crossFileResolution` is independent of `xcDiagnostics` (the unrelated,
+f5-irules-only XC100-301 translatability diagnostics).
 
 ## TclOO `next` / `nextto` context
 
