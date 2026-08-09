@@ -35,7 +35,12 @@ pub const fn spec() -> CommandSpec {
             client_side: false,
             server_side: false,
             transport: None,
-            profiles: &["DNS"],
+            // `active_members` is valid in ordinary HTTP request handling;
+            // DNS is not a prerequisite. Keep the documented LB lifecycle
+            // events below, but do not turn an optional profile into a
+            // registry-wide legality requirement (IRULE1001 consumes this
+            // descriptor generically).
+            profiles: &[],
             also_in: &["LB_FAILED", "LB_SELECTED"],
             init_only: false,
             flow: false,

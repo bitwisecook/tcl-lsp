@@ -29,6 +29,7 @@ use crate::body_kind::BodyKind;
 use crate::clause_shape::ClauseShapeChecker;
 use crate::command_table::CommandTableEffect;
 use crate::dialects::DialectSet;
+use crate::events::{EventRequirementForm, ResolvedEventRequirements};
 use crate::forms::{CommandForm, SubCommandForm};
 use crate::frame_effect::FrameEffectSpec;
 use crate::hooks::{
@@ -747,6 +748,12 @@ pub struct CommandSpec {
     /// IRULE1001 event-validity check. `None` = no requirement.
     pub event_requires: Option<crate::events::EventRequires>,
 
+    /// Argument-prefix-specific iRules event contracts. These override
+    /// [`Self::event_requires`] for a matching literal call form, allowing a
+    /// registry spec to describe commands whose read and configuration forms
+    /// have different legal event surfaces without a compiler-side name check.
+    pub event_requirement_forms: &'static [EventRequirementForm],
+
     /// Options declared on the command (for completion and arity adjustment).
     pub options: &'static [OptionSpec],
 
@@ -1269,6 +1276,7 @@ impl CommandSpec {
         unsafe_command: false,
         closed_value_args: &[],
         event_requires: None,
+        event_requirement_forms: &[],
         options: &[],
         reserved_trailing_words: 0,
         arg_values: &[],
@@ -1559,6 +1567,32 @@ impl CommandSpec {
             None => true,
             Some(ds) => ds.intersects(dialect),
         }
+    }
+
+    /// Resolve this invocation's iRules event contract from its literal
+    /// argument words. The most-specific matching form wins; a dynamic or
+    /// otherwise unmatched call falls back to the command-level contract.
+    #[must_use]
+    pub fn event_requirements_for_args<'a>(
+        &'a self,
+        args: &[&str],
+    ) -> ResolvedEventRequirements<'a> {
+        self.event_requirement_forms
+            .iter()
+            .filter(|form| form.matches(args))
+            .max_by_key(|form| form.argument_prefix.len())
+            .map_or(
+                ResolvedEventRequirements {
+                    requires: self.event_requires.as_ref(),
+                    only_in: &[],
+                    matched_form: false,
+                },
+                |form| ResolvedEventRequirements {
+                    requires: form.requires.as_ref(),
+                    only_in: form.only_in,
+                    matched_form: true,
+                },
+            )
     }
 
     /// Declared option / switch names valid in `dialect`, in

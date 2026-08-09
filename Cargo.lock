@@ -4233,6 +4233,9 @@ dependencies = [
 name = "tcl-fuzz"
 version = "0.1.0"
 dependencies = [
+ "bpf-tcl",
+ "bpf-tcl-codegen",
+ "bpf-tcl-ir",
  "clap",
  "serde",
  "serde_json",

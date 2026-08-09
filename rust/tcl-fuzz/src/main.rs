@@ -29,11 +29,14 @@
 
 #![forbid(unsafe_code)]
 
+mod bpf_diff;
 mod campaign;
+mod characterize;
 mod engine;
 mod findings;
 mod generator;
 mod harness;
+mod linked_wasm;
 mod rng;
 mod version;
 mod wasm;
@@ -45,6 +48,7 @@ use std::time::Duration;
 use clap::{Parser, Subcommand};
 
 use campaign::{Backend, Campaign, Stats};
+use characterize::Classification;
 use engine::Engine;
 use findings::Registry;
 use generator::{GenConfig, generate};
@@ -142,6 +146,23 @@ enum Cmd {
         #[command(flatten)]
         pair: PairArgs,
     },
+    /// Characterise `tcl-vm` and `runtime/rust` against C Tcl 9. This is a
+    /// three-way campaign: agreement between the two Rust backends alone is
+    /// never treated as correctness.
+    Characterise {
+        /// Number of scripts to generate and classify.
+        #[arg(long, default_value_t = 1000)]
+        iterations: u64,
+        /// Starting seed (each iteration uses seed + i).
+        #[arg(long)]
+        seed: Option<u64>,
+        /// Print each divergent seed as it is discovered.
+        #[arg(long)]
+        verbose: bool,
+        /// Additionally compare error text when every backend errors.
+        #[arg(long)]
+        compare_error_text: bool,
+    },
     /// WASM-runnability arm: compile each generated program to the
     /// eval-fallback WASM module and run it under `wasmtime`, flagging codegen
     /// panics/errors and modules that fail to instantiate or trap. (The value
@@ -170,6 +191,34 @@ enum Cmd {
         #[arg(long)]
         seed: Option<u64>,
         /// Print each finding's seed and reason as it is discovered.
+        #[arg(long)]
+        verbose: bool,
+    },
+    /// eBPF value-differential arm: generate a registry-described BPF-Tcl
+    /// socket filter, compare its direct dialect contract with the real
+    /// lowering, eBPF emitter, and userspace eBPF VM.
+    BpfDiff {
+        /// Number of bounded packet-read programs to generate and check.
+        #[arg(long, default_value_t = 200)]
+        iterations: u64,
+        /// Starting seed (each iteration uses seed + i).
+        #[arg(long)]
+        seed: Option<u64>,
+        /// Print every mismatch or backend error as it occurs.
+        #[arg(long)]
+        verbose: bool,
+    },
+    /// Real linked-WASM differential arm: compile a generated user module,
+    /// link it against `runtime/rust`'s WASM module, and compare the result
+    /// against C Tcl 9 running the identical program.
+    LinkedWasmDiff {
+        /// Number of pure linked-runtime programs to generate and check.
+        #[arg(long, default_value_t = 50)]
+        iterations: u64,
+        /// Starting seed (each iteration uses seed + i).
+        #[arg(long)]
+        seed: Option<u64>,
+        /// Print every mismatch or backend error as it occurs.
         #[arg(long)]
         verbose: bool,
     },
@@ -372,6 +421,20 @@ fn main() -> std::process::ExitCode {
                 }
             }
         }
+        Cmd::Characterise {
+            iterations,
+            seed,
+            verbose,
+            compare_error_text,
+        } => characterise_campaign(
+            &cli,
+            &config,
+            timeout,
+            *iterations,
+            *seed,
+            *verbose,
+            *compare_error_text,
+        ),
         Cmd::WasmCheck {
             iterations,
             seed,
@@ -382,6 +445,327 @@ fn main() -> std::process::ExitCode {
             seed,
             verbose,
         } => wasm_diff_campaign(*iterations, *seed, *verbose, &config, &cli.findings),
+        Cmd::BpfDiff {
+            iterations,
+            seed,
+            verbose,
+        } => bpf_diff_campaign(*iterations, *seed, *verbose, &cli.findings),
+        Cmd::LinkedWasmDiff {
+            iterations,
+            seed,
+            verbose,
+        } => linked_wasm_diff_campaign(&cli, timeout, *iterations, *seed, *verbose),
+    }
+}
+
+/// Drive whole-program linked WASM executions against C Tcl 9. The runtime
+/// build deliberately lives in this campaign's scratch directory so it cannot
+/// collide with an ordinary Cargo worktree target directory.
+fn linked_wasm_diff_campaign(
+    cli: &Cli,
+    timeout: Duration,
+    iterations: u64,
+    seed: Option<u64>,
+    verbose: bool,
+) -> std::process::ExitCode {
+    if !linked_wasm::have_wasmtime() {
+        eprintln!("error: `wasmtime` is required for the linked-WASM arm");
+        return std::process::ExitCode::from(2);
+    }
+    let (oracle_bin, oracle_args) = match resolve_engine(Engine::Tclsh, cli) {
+        Some(resolved) => resolved,
+        None => {
+            eprintln!("error: could not find C Tcl (pass --tclsh)");
+            return std::process::ExitCode::from(2);
+        }
+    };
+    let scratch = std::env::temp_dir().join(format!("tcl-fuzz-linked-wasm-{}", std::process::id()));
+    if let Err(error) = std::fs::create_dir_all(&scratch) {
+        eprintln!("error: creating linked-WASM scratch directory: {error}");
+        return std::process::ExitCode::from(2);
+    }
+    if let Err(error) = verify_tcl9_oracle(&oracle_bin, &oracle_args, &scratch, timeout) {
+        let _ = std::fs::remove_dir_all(&scratch);
+        eprintln!("error: {error}");
+        return std::process::ExitCode::from(2);
+    }
+    let runtime = match linked_wasm::build_runtime(&scratch) {
+        Ok(runtime) => runtime,
+        Err(error) => {
+            let _ = std::fs::remove_dir_all(&scratch);
+            eprintln!("error: {error}");
+            return std::process::ExitCode::from(2);
+        }
+    };
+
+    let base_seed = seed.unwrap_or_else(time_seed);
+    let mut matched = 0u64;
+    let mut failed = 0u64;
+    eprintln!(
+        "linked-wasm-diff: {iterations} programs from seed {base_seed}\n  oracle: C Tcl 9 ({})\n  runtime: {}",
+        oracle_bin.display(),
+        runtime.display(),
+    );
+    for offset in 0..iterations {
+        let current_seed = base_seed.wrapping_add(offset);
+        let case = linked_wasm::Case::from_seed(current_seed);
+        match linked_wasm::check(
+            &case,
+            &runtime,
+            &oracle_bin,
+            &oracle_args,
+            &scratch,
+            current_seed,
+            timeout,
+        ) {
+            linked_wasm::LinkedVerdict::Match => matched += 1,
+            verdict => {
+                failed += 1;
+                if verbose {
+                    eprintln!("  finding @ seed {current_seed}: {verdict:?}");
+                }
+                let _ = std::fs::write(
+                    cli.findings.join(format!("linked-wasm-{current_seed}.tcl")),
+                    case.program(),
+                );
+            }
+        }
+    }
+    let _ = std::fs::remove_dir_all(&scratch);
+    eprintln!("\nlinked-wasm-diff complete:\n  matched {matched} | failed {failed}");
+    if failed == 0 {
+        std::process::ExitCode::SUCCESS
+    } else {
+        std::process::ExitCode::from(1)
+    }
+}
+
+/// Drive the real eBPF value-differential arm over `iterations` generated
+/// socket filters. Unlike core Tcl, BPF-Tcl has its own typed dialect runtime;
+/// the restricted shape's registry-declared packet semantics are its oracle.
+fn bpf_diff_campaign(
+    iterations: u64,
+    seed: Option<u64>,
+    verbose: bool,
+    findings_dir: &Path,
+) -> std::process::ExitCode {
+    let base_seed = seed.unwrap_or_else(time_seed);
+    let diff_findings = findings_dir.join("bpf-diff");
+    let _ = std::fs::create_dir_all(&diff_findings);
+    let (mut matched, mut failed) = (0u64, 0u64);
+
+    eprintln!("bpf-diff: {iterations} registry-described socket filters from seed {base_seed}");
+    for offset in 0..iterations {
+        let current_seed = base_seed.wrapping_add(offset);
+        let case = bpf_diff::Case::from_seed(current_seed);
+        match bpf_diff::check(case) {
+            Ok((actual, expected)) if actual == expected => matched += 1,
+            Ok((actual, expected)) => {
+                failed += 1;
+                if verbose {
+                    eprintln!(
+                        "  divergence @ seed {current_seed}: actual {actual}, expected {expected}"
+                    );
+                }
+                if let Ok(source) = bpf_diff::source(case) {
+                    let _ = std::fs::write(
+                        diff_findings.join(format!("seed-{current_seed}.bpftcl")),
+                        format!("# actual={actual}; expected={expected}\n{source}"),
+                    );
+                }
+            }
+            Err(error) => {
+                failed += 1;
+                if verbose {
+                    eprintln!("  backend error @ seed {current_seed}: {error}");
+                }
+                if let Ok(source) = bpf_diff::source(case) {
+                    let _ = std::fs::write(
+                        diff_findings.join(format!("error-{current_seed}.bpftcl")),
+                        format!("# {error}\n{source}"),
+                    );
+                }
+            }
+        }
+    }
+
+    eprintln!(
+        "\nbpf-diff complete:\n  matched {matched} | failed {failed}\n  findings: {failed} (programs in {})",
+        diff_findings.display(),
+    );
+    if failed == 0 {
+        std::process::ExitCode::SUCCESS
+    } else {
+        std::process::ExitCode::from(1)
+    }
+}
+
+/// Verify that the named C Tcl oracle is on the Tcl 9 line before trusting a
+/// three-way campaign. Tcl 8 has intentional semantic differences, so silently
+/// accepting it would turn version drift into a spurious backend finding.
+fn verify_tcl9_oracle(
+    binary: &Path,
+    args: &[String],
+    scratch: &Path,
+    timeout: Duration,
+) -> Result<String, String> {
+    let probe = write_script(scratch, u64::MAX, "puts [info patchlevel]\n")
+        .map_err(|e| format!("could not write Tcl 9 oracle probe: {e}"))?;
+    let outcome = run_backend(binary, args, &probe, timeout);
+    let _ = std::fs::remove_file(probe);
+    match outcome {
+        Outcome::Ran {
+            stdout,
+            errored: false,
+            ..
+        } => {
+            let version = stdout.trim();
+            if version.starts_with("9.") {
+                Ok(version.to_owned())
+            } else {
+                Err(format!(
+                    "the configured C Tcl oracle reports {version:?}; pass Tcl 9 with --tclsh"
+                ))
+            }
+        }
+        other => Err(format!(
+            "could not run the configured C Tcl oracle: {}",
+            render(&other)
+        )),
+    }
+}
+
+/// Drive the three-way native-runtime characterisation campaign.
+fn characterise_campaign(
+    cli: &Cli,
+    config: &GenConfig,
+    timeout: Duration,
+    iterations: u64,
+    seed: Option<u64>,
+    verbose: bool,
+    compare_error_text: bool,
+) -> std::process::ExitCode {
+    let resolve = |engine| {
+        resolve_engine(engine, cli).ok_or_else(|| {
+            format!(
+                "could not find `{}` (pass --{})",
+                engine.label(),
+                cli_flag_for(engine)
+            )
+        })
+    };
+    let (oracle_bin, oracle_args) = match resolve(Engine::Tclsh) {
+        Ok(found) => found,
+        Err(message) => {
+            eprintln!("error: {message}");
+            return std::process::ExitCode::from(2);
+        }
+    };
+    let (tclvm_bin, tclvm_args) = match resolve(Engine::Tclvm) {
+        Ok(found) => found,
+        Err(message) => {
+            eprintln!("error: {message}");
+            return std::process::ExitCode::from(2);
+        }
+    };
+    let (runtime_bin, runtime_args) = match resolve(Engine::RuntimeRust) {
+        Ok(found) => found,
+        Err(message) => {
+            eprintln!("error: {message}");
+            return std::process::ExitCode::from(2);
+        }
+    };
+
+    let scratch =
+        std::env::temp_dir().join(format!("tcl-fuzz-characterise-{}", std::process::id()));
+    if let Err(error) = std::fs::create_dir_all(&scratch) {
+        eprintln!("error: creating scratch directory: {error}");
+        return std::process::ExitCode::from(2);
+    }
+    let oracle_version = match verify_tcl9_oracle(&oracle_bin, &oracle_args, &scratch, timeout) {
+        Ok(version) => version,
+        Err(message) => {
+            let _ = std::fs::remove_dir_all(&scratch);
+            eprintln!("error: {message}");
+            return std::process::ExitCode::from(2);
+        }
+    };
+
+    let findings_dir = cli.findings.join("characterise");
+    let _ = std::fs::create_dir_all(&findings_dir);
+    let base_seed = seed.unwrap_or_else(time_seed);
+    let mut counts = std::collections::BTreeMap::<Classification, u64>::new();
+    eprintln!(
+        "characterise: {iterations} programs from seed {base_seed}\n  oracle: C Tcl {oracle_version} ({})\n  tcl-vm: {}\n  runtime/rust: {}",
+        oracle_bin.display(),
+        tclvm_bin.display(),
+        runtime_bin.display(),
+    );
+
+    for offset in 0..iterations {
+        let current_seed = base_seed.wrapping_add(offset);
+        let script = generate(current_seed, config);
+        let Ok(path) = write_script(&scratch, current_seed, &script) else {
+            *counts.entry(Classification::Incomplete).or_default() += 1;
+            continue;
+        };
+        let oracle = run_backend(&oracle_bin, &oracle_args, &path, timeout);
+        let tclvm = run_backend(&tclvm_bin, &tclvm_args, &path, timeout);
+        let runtime = run_backend(&runtime_bin, &runtime_args, &path, timeout);
+        let _ = std::fs::remove_file(path);
+        let classification = characterize::classify(&oracle, &tclvm, &runtime, compare_error_text);
+        *counts.entry(classification).or_default() += 1;
+        if classification.is_finding() {
+            if verbose {
+                eprintln!("  {classification:?} @ seed {current_seed}");
+            }
+            let _ = std::fs::write(
+                findings_dir.join(format!("{current_seed}-{classification:?}.tcl")),
+                script,
+            );
+        } else if !verbose && offset % 100 == 0 {
+            eprintln!("  {offset}/{iterations}");
+        }
+    }
+    let _ = std::fs::remove_dir_all(&scratch);
+
+    eprintln!(
+        "\ncharacterise complete:\n  all-agree {} | tcl-vm {} | runtime/rust {} | shared {} | three-way {} | incomplete {}\n  findings: {} (scripts in {})",
+        counts.get(&Classification::AllAgree).copied().unwrap_or(0),
+        counts
+            .get(&Classification::TclVmDiverges)
+            .copied()
+            .unwrap_or(0),
+        counts
+            .get(&Classification::RuntimeRustDiverges)
+            .copied()
+            .unwrap_or(0),
+        counts
+            .get(&Classification::SharedDivergence)
+            .copied()
+            .unwrap_or(0),
+        counts
+            .get(&Classification::ThreeWayDivergence)
+            .copied()
+            .unwrap_or(0),
+        counts
+            .get(&Classification::Incomplete)
+            .copied()
+            .unwrap_or(0),
+        counts
+            .iter()
+            .filter(|(classification, _)| classification.is_finding())
+            .map(|(_, count)| count)
+            .sum::<u64>(),
+        findings_dir.display(),
+    );
+    if counts
+        .iter()
+        .any(|(classification, count)| classification.is_finding() && *count > 0)
+    {
+        std::process::ExitCode::from(1)
+    } else {
+        std::process::ExitCode::SUCCESS
     }
 }
 

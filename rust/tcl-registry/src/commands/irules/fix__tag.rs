@@ -35,16 +35,34 @@ pub const fn spec() -> CommandSpec {
             examples: "when RULE_INIT {\n  # with the follow command, tag 10001 is replaced to 20001 for the messages sent by client_1\n  # before sending to pool member and reverse-replaced(20001 to 10001) to client_1\n  FIX::tag map set client_1 data_group_1\n  FIX::tag map set client_2 data_group_1\n  FIX::tag map set client_3 data_group_2\n}",
             return_value: "",
         }),
-        event_requires: Some(EventRequires {
-            client_side: false,
-            server_side: false,
-            transport: None,
-            profiles: &["FIX"],
-            also_in: &[],
-            init_only: false,
-            flow: false,
-            capability: None,
-        }),
+        // `map set` / `map delete` configure global mappings and are valid in
+        // any event. `get` reads the live FIX message and is valid only in
+        // FIX_MESSAGE. The common analyser consumes this call-form data via
+        // `CommandSpec::event_requirements_for_args`; it does not branch on
+        // `FIX::tag` or its subcommands.
+        event_requirement_forms: &[
+            EventRequirementForm {
+                argument_prefix: &["get"],
+                requires: Some(EventRequires {
+                    client_side: false,
+                    server_side: false,
+                    transport: None,
+                    profiles: &["FIX"],
+                    also_in: &[],
+                    init_only: false,
+                    flow: false,
+                    capability: None,
+                }),
+                only_in: &["FIX_MESSAGE"],
+            },
+            // An explicit no-requirements form also prevents the generic
+            // `FIX::` namespace-profile hint from applying to configuration.
+            EventRequirementForm {
+                argument_prefix: &["map"],
+                requires: None,
+                only_in: &[],
+            },
+        ],
         forms: &[FormSpec {
             kind: FormKind::Default,
             synopsis: "FIX::tag map set SENDER DATA_GROUP",

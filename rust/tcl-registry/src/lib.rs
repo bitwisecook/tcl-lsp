@@ -119,7 +119,7 @@ pub mod prelude {
         MemberSpec, MemberVisibility, RetractionWords,
     };
     pub use crate::dialects::DialectSet;
-    pub use crate::events::EventRequires;
+    pub use crate::events::{EventRequirementForm, EventRequires};
     pub use crate::forms::{CommandForm, SubCommandForm};
     pub use crate::frame_effect::{FrameArgLayout, FrameEffectSpec, FrameLevel, FrameLevelWord};
     pub use crate::handle_binding::{

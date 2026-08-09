@@ -151,6 +151,49 @@ pub struct EventRequires {
     pub capability: Option<&'static str>,
 }
 
+/// Event-validity override for one literal command-argument prefix.
+///
+/// A command's top-level [`EventRequires`] describes its ordinary form, but a
+/// few Tcl dialect commands deliberately have subforms with different event
+/// contracts. `FIX::tag get`, for example, reads a live FIX message while
+/// `FIX::tag map set` configures a mapping and is valid outside that event.
+/// Keeping the distinction in registry data lets every consumer select the
+/// right contract from the call words without knowing the command name.
+///
+/// The longest matching prefix wins. `requires: None` means that the matching
+/// form has no layer/profile requirement; `only_in` can still constrain it to
+/// named events when the dialect documentation gives a closed event set.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct EventRequirementForm {
+    /// Literal leading words after the command name that select this form.
+    pub argument_prefix: &'static [&'static str],
+    /// Layer/profile requirements for the selected form.
+    pub requires: Option<EventRequires>,
+    /// Non-empty means the selected form is legal only in these events.
+    pub only_in: &'static [&'static str],
+}
+
+impl EventRequirementForm {
+    /// Whether `args` begins with this form's literal selector.
+    #[must_use]
+    pub fn matches(&self, args: &[&str]) -> bool {
+        args.starts_with(self.argument_prefix)
+    }
+}
+
+/// The effective event contract for one resolved command call.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ResolvedEventRequirements<'a> {
+    /// Layer/profile requirements, if any.
+    pub requires: Option<&'a EventRequires>,
+    /// A closed event set, when the form has one.
+    pub only_in: &'a [&'a str],
+    /// Whether an argument-prefix form selected this contract. A matching
+    /// unrestricted form is intentional and suppresses the command-name
+    /// namespace fallback used by callers for legacy whole-command specs.
+    pub matched_form: bool,
+}
+
 /// A step in an event flow chain.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct FlowStep {
