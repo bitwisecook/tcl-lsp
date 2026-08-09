@@ -116,7 +116,9 @@ class TclLspSettings : PersistentStateComponent<TclLspSettings> {
     var diagnosticW104: Boolean = true
     var diagnosticW105: Boolean = true
     var diagnosticW106: Boolean = true
+    var diagnosticW107: Boolean = true
     var diagnosticW108: Boolean = true
+    var diagnosticW109: Boolean = true
     var diagnosticW110: Boolean = true
     var diagnosticW111: Boolean = true
     var diagnosticW112: Boolean = true
@@ -175,6 +177,7 @@ class TclLspSettings : PersistentStateComponent<TclLspSettings> {
     var diagnosticW302: Boolean = true
     var diagnosticW303: Boolean = true
     var diagnosticW304: Boolean = true
+    var diagnosticW305: Boolean = true
     var diagnosticW306: Boolean = true
     var diagnosticW307: Boolean = true
     var diagnosticW309: Boolean = true
@@ -381,7 +384,9 @@ class TclLspSettings : PersistentStateComponent<TclLspSettings> {
                 "W104" to diagnosticW104,
                 "W105" to diagnosticW105,
                 "W106" to diagnosticW106,
+                "W107" to diagnosticW107,
                 "W108" to diagnosticW108,
+                "W109" to diagnosticW109,
                 "W110" to diagnosticW110,
                 "W111" to diagnosticW111,
                 "W112" to diagnosticW112,
@@ -440,6 +445,7 @@ class TclLspSettings : PersistentStateComponent<TclLspSettings> {
                 "W302" to diagnosticW302,
                 "W303" to diagnosticW303,
                 "W304" to diagnosticW304,
+                "W305" to diagnosticW305,
                 "W306" to diagnosticW306,
                 "W307" to diagnosticW307,
                 "W309" to diagnosticW309,

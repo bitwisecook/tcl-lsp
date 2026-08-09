@@ -33,6 +33,7 @@ use tcl_compiler::compilation_unit::{CompilationUnit, UnitBuildOptions};
 use tcl_compiler::compiler_checks::run_all_checks;
 use tcl_compiler::unit_scope::CallSiteEvidence;
 use tcl_lexer::LineIndex;
+use tcl_lsp_core::source_style::StyleSeverity;
 
 use crate::cli::{DiagArgs, InputArgs};
 
@@ -204,6 +205,31 @@ fn collect_rows(
     let source = document.source.as_str();
     let line_index = LineIndex::new(source);
     let mut rows: Vec<Row> = Vec::new();
+
+    // Source-text integrity first (issue #1326): W107 / W109 / W305 say whether
+    // the text below is the file on disk at all, so they belong ahead of
+    // anything derived from it.  When the file is not UTF-8 text (W109) this is
+    // *all* we report — abstaining is the honest answer, and it is what turns a
+    // three-line UTF-16 iRule from 87 nonsense findings into one accurate one.
+    for d in document.encoding_diagnostics() {
+        if disabled.contains(d.code) {
+            continue;
+        }
+        rows.push(Row {
+            line: d.range.start_line + 1,
+            column: d.range.start_character + 1,
+            severity: match d.severity {
+                StyleSeverity::Error => Severity::Error,
+                StyleSeverity::Warning => Severity::Warning,
+                StyleSeverity::Hint => Severity::Hint,
+            },
+            code: d.code.to_owned(),
+            message: d.message,
+        });
+    }
+    if document.abstains_on_encoding() {
+        return rows;
+    }
 
     // One compilation unit for both consumers, built with whatever cross-file
     // call-site evidence the caller gathered (issue #977).  The analyser's

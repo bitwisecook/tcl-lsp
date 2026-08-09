@@ -27,7 +27,9 @@
 | W104 | warning | String concatenation for list building — use `lappend` instead. | ✓ |
 | W105 | warning | Unbraced code block or missing `variable` declaration in `namespace eval`. Escalates to Error when the block provably contains a substitution (double-substitution risk). | ✓ |
 | W106 | warning | Dangerous unbraced `switch` body — risks double substitution. | ✓ |
+| W107 | warning | Source is not valid UTF-8 — ill-formed bytes were replaced with U+FFFD before analysis, so the analysed text is not the file on disk. | ✓ |
 | W108 | warning | Non-ASCII characters in token content. | ✓ |
+| W109 | warning | Source does not look like UTF-8 text — it appears to be UTF-16/UTF-32 or binary; the rest of the analysis abstains rather than reporting findings derived from mis-decoded bytes. | ✓ |
 | W110 | warning | Use `eq`/`ne` instead of `==`/`!=` for string comparison. | ✓ |
 | W111 | warning | Line exceeds maximum length (see `tclLsp.style.lineLength`). | ✓ |
 | W112 | warning | Trailing whitespace. | ✓ |
@@ -86,6 +88,7 @@
 | W302 | security | `catch` without result variable — errors are silently swallowed. | ✓ |
 | W303 | security | Regexp vulnerable to catastrophic backtracking (ReDoS). | ✓ |
 | W304 | security | Missing option terminator `--` on option-bearing commands. | ✓ |
+| W305 | security | Bidirectional formatting control character in source (Trojan Source) — the code renders to a reviewer in a different order from the one it is parsed and executed in. | ✓ |
 | W306 | security | Substitution in literal-expected argument position. | ✓ |
 | W307 | security | Non-literal command name — variable or command substitution as command. | ✓ |
 | W309 | security | `eval`/`uplevel` with `subst` — double substitution risk. | ✓ |

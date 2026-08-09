@@ -22,6 +22,9 @@
 use std::io::{IsTerminal, Read};
 use std::path::{Path, PathBuf};
 
+use tcl_lsp_core::source_decode::{DecodeReport, decode_source, encoding_integrity_diagnostics};
+use tcl_lsp_core::source_style::StyleDiagnostic;
+
 /// Source file extensions the CLI accepts — the registry's single list, shared
 /// with the LSP server's workspace scan and the VS Code activation glob.
 ///
@@ -72,6 +75,15 @@ pub struct InputDocument {
     pub source: String,
     /// The originating file path, if any.
     pub path: Option<PathBuf>,
+    /// What the decoder had to substitute to produce [`Self::source`] from the
+    /// bytes on disk (issue #1326).
+    ///
+    /// [`DecodeReport::is_faithful`] holds for every document read from text
+    /// the caller already had — `--source`, stdin — because there were no bytes
+    /// to mis-decode; for a file it is the real verdict, and is what lets
+    /// [`encoding_diagnostics`] name a byte offset and a malformation class
+    /// instead of guessing from the U+FFFDs left behind.
+    pub decode: DecodeReport,
 }
 
 impl InputDocument {
@@ -104,6 +116,32 @@ impl InputDocument {
     /// The originating file name, for the detector's extension tier.
     fn filename(&self) -> Option<&str> {
         self.path.as_deref().and_then(Path::to_str)
+    }
+
+    /// The source-text integrity findings for this document — W107 (not valid
+    /// UTF-8), W109 (not UTF-8 text at all), W305 (a bidi control).
+    ///
+    /// Shares its implementation with the LSP server's publish path. The CLI
+    /// always has the source bytes. An editor can raise W107 or W109 only while
+    /// its Unicode buffer still exactly matches bytes the server read from
+    /// disk; otherwise those byte-level checks deliberately abstain. See
+    /// [`tcl_lsp_core::source_decode`].
+    #[must_use]
+    pub fn encoding_diagnostics(&self) -> Vec<StyleDiagnostic> {
+        let mut out = encoding_integrity_diagnostics(&self.source, Some(&self.decode));
+        out.extend(tcl_lsp_core::source_decode::bidi_control_diagnostics(
+            &self.source,
+        ));
+        out
+    }
+
+    /// Whether analysis of this document should **abstain** — the bytes are not
+    /// UTF-8 text, so every finding past the encoding one would be about
+    /// characters that are decoding artefacts rather than about the user's
+    /// code.
+    #[must_use]
+    pub fn abstains_on_encoding(&self) -> bool {
+        tcl_lsp_core::source_decode::should_abstain(&self.source, Some(&self.decode))
     }
 }
 
@@ -268,6 +306,9 @@ pub fn read_input_documents(
             label: format!("<inline:{}>", index + 1),
             source: source_text.clone(),
             path: None,
+            // `--source` text arrived as a `String` already: there were never
+            // any bytes for us to mis-decode.
+            decode: DecodeReport::default(),
         });
     }
 
@@ -278,12 +319,16 @@ pub fn read_input_documents(
         }
         let bytes = std::fs::read(&file_path)
             .map_err(|e| CliError::input(format!("failed to read {}: {e}", file_path.display())))?;
-        // Decode UTF-8 lossily (lossy replacement).
-        let source = String::from_utf8_lossy(&bytes).into_owned();
+        // The one byte -> text boundary for Tcl source: still a lossy decode
+        // (so a broken file is analysed rather than refused), but no longer a
+        // silent one — `decode` carries exactly what was substituted, and
+        // `encoding_diagnostics` turns it into a real finding. Issue #1326.
+        let (source, decode) = decode_source(&bytes);
         documents.push(InputDocument {
             label: file_path.display().to_string(),
             source,
             path: Some(file_path),
+            decode,
         });
     }
 
@@ -296,6 +341,9 @@ pub fn read_input_documents(
             label: "<stdin>".to_owned(),
             source: buf,
             path: None,
+            // `read_to_string` has already refused non-UTF-8 stdin with an
+            // `Io` error above, so anything that reaches here is faithful.
+            decode: DecodeReport::default(),
         });
     }
 

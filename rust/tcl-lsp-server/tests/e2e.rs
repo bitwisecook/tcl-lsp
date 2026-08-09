@@ -77,6 +77,10 @@ mod issue1302_import_builtin_shadow;
 mod issue1305_renamed_metaclass;
 #[path = "e2e/issue1312_named_object_dispatch.rs"]
 mod issue1312_named_object_dispatch;
+#[path = "e2e/issue1326_encoding.rs"]
+mod issue1326_encoding;
+#[path = "e2e/issue1333_diagnostic_tags.rs"]
+mod issue1333_diagnostic_tags;
 #[path = "e2e/issue1345_transport_liveness.rs"]
 mod issue1345_transport_liveness;
 #[path = "e2e/issue923_class_refs.rs"]

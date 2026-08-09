@@ -1,0 +1,10 @@
+# Fixture for the Deprecated tag (issue #1333).
+#
+# `HTTP::class` is marked deprecated in the command registry, so IRULE2002
+# fires and the code table tags it Deprecated — VS Code renders the command
+# struck through.
+when HTTP_REQUEST priority 500 {
+    if { [HTTP::class match [HTTP::uri] equals blocked_hosts] } {
+        HTTP::respond 403
+    }
+}

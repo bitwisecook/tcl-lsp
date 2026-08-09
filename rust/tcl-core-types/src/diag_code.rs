@@ -164,9 +164,56 @@ impl OptCategory {
     }
 }
 
+/// A presentation *tag* a diagnostic carries in addition to its severity —
+/// the LSP `DiagnosticTag` vocabulary (LSP 3.15+).
+///
+/// A tag says something about the *kind* of finding that the editor renders
+/// specially, orthogonally to how loud it is: VS Code fades a range tagged
+/// [`DiagTag::Unnecessary`] and strikes through one tagged
+/// [`DiagTag::Deprecated`].  That fade is the cue users actually recognise as
+/// "this identifier is unused" — a bare `hint` severity on a one-character
+/// span renders as three near-invisible dots and is effectively silent
+/// (issue #1333).
+///
+/// **The mapping is table data, not code.**  Which codes carry which tag is
+/// declared alongside the code itself in the `diagnostic_codes!` table below
+/// (`… , tag: Unnecessary`), and every consumer — the LSP server, the CLI,
+/// any future editor bridge — reads it back through [`DiagCode::lsp_tag`].
+/// Tagging a newly-added diagnostic is therefore a one-token edit to its row,
+/// never a new `match` arm in a consumer.  The same holds for the
+/// *deprecated-command* diagnostics: which commands are deprecated is
+/// registry data (`CommandSpec`'s deprecation fields drive `W144`, and the
+/// iRules registry drives `IRULE1003`/`IRULE2001`/`IRULE2002`), so marking a
+/// newly-deprecated command is a spec edit and the strikethrough follows for
+/// free.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
+pub enum DiagTag {
+    /// LSP `DiagnosticTag.Unnecessary` (`1`). Unused or unreachable code —
+    /// rendered faded/greyed-out. Correct for "you wrote this and nothing
+    /// reads it", **not** for "this is wrong": greying out a genuine defect
+    /// hides it.
+    Unnecessary,
+    /// LSP `DiagnosticTag.Deprecated` (`2`). Deprecated or obsolete — rendered
+    /// struck through.
+    Deprecated,
+}
+
+impl DiagTag {
+    /// The wire value of the LSP `DiagnosticTag` enum: `1` for
+    /// [`Self::Unnecessary`], `2` for [`Self::Deprecated`].
+    #[must_use]
+    pub const fn lsp_value(self) -> u8 {
+        match self {
+            Self::Unnecessary => 1,
+            Self::Deprecated => 2,
+        }
+    }
+}
+
 /// The published-table metadata for one [`DiagCode`]: either a diagnostic
 /// (section + default-on flag) or an optimisation (category). Both carry the
-/// one-line description the tables render.
+/// one-line description the tables render, and both may carry a presentation
+/// [`DiagTag`].
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum DocRow {
     /// A diagnostic row (`E###`/`W###`/`S###`/`T###`/`IRULE###`/…).
@@ -197,6 +244,9 @@ pub enum DocRow {
         reserved: bool,
         /// The one-line description.
         description: &'static str,
+        /// The LSP presentation tag this code carries, if any — see
+        /// [`DiagTag`] and [`DiagCode::lsp_tag`].
+        tag: Option<DiagTag>,
     },
     /// An optimisation row (`O###`).
     Optimisation {
@@ -204,6 +254,9 @@ pub enum DocRow {
         category: OptCategory,
         /// The one-line description.
         description: &'static str,
+        /// The LSP presentation tag this code carries, if any — see
+        /// [`DiagTag`] and [`DiagCode::lsp_tag`].
+        tag: Option<DiagTag>,
     },
 }
 
@@ -286,39 +339,50 @@ macro_rules! diagnostic_codes {
         }
     };
 
-    (@row diag ( $sec:ident, $default:literal, $desc:literal )) => {
+    // The `, tag: <Variant>` suffix is optional on every row form: a row
+    // without it carries no LSP presentation tag. Keeping it a trailing
+    // suffix (rather than a new positional field) is what makes the whole
+    // table's existing ~250 rows unchanged by the addition of tags.
+    (@row diag ( $sec:ident, $default:literal, $desc:literal $(, tag: $tag:ident)? )) => {
         DocRow::Diagnostic {
             section: DiagSection::$sec,
             default_on: $default,
             internal: false,
             reserved: false,
             description: $desc,
+            tag: diagnostic_codes!(@tag $($tag)?),
         }
     };
-    (@row diag_internal ( $sec:ident, $default:literal, $desc:literal )) => {
+    (@row diag_internal ( $sec:ident, $default:literal, $desc:literal $(, tag: $tag:ident)? )) => {
         DocRow::Diagnostic {
             section: DiagSection::$sec,
             default_on: $default,
             internal: true,
             reserved: false,
             description: $desc,
+            tag: diagnostic_codes!(@tag $($tag)?),
         }
     };
-    (@row diag_reserved ( $sec:ident, $default:literal, $desc:literal )) => {
+    (@row diag_reserved ( $sec:ident, $default:literal, $desc:literal $(, tag: $tag:ident)? )) => {
         DocRow::Diagnostic {
             section: DiagSection::$sec,
             default_on: $default,
             internal: false,
             reserved: true,
             description: $desc,
+            tag: diagnostic_codes!(@tag $($tag)?),
         }
     };
-    (@row opt ( $cat:ident, $desc:literal )) => {
+    (@row opt ( $cat:ident, $desc:literal $(, tag: $tag:ident)? )) => {
         DocRow::Optimisation {
             category: OptCategory::$cat,
             description: $desc,
+            tag: diagnostic_codes!(@tag $($tag)?),
         }
     };
+
+    (@tag) => { None };
+    (@tag $tag:ident) => { Some(DiagTag::$tag) };
 }
 
 diagnostic_codes! {
@@ -344,7 +408,7 @@ diagnostic_codes! {
     I231 => "I231", diag(Hint, true, "Constant switch arm condition — the arm is provably unreachable.");
     Irule1001 => "IRULE1001", diag(Irules, true, "Command invalid or ineffective in this iRules event.");
     Irule1002 => "IRULE1002", diag(Irules, true, "Unknown iRules event name.");
-    Irule1003 => "IRULE1003", diag(Irules, true, "Deprecated iRules event.");
+    Irule1003 => "IRULE1003", diag(Irules, true, "Deprecated iRules event.", tag: Deprecated);
     Irule1004 => "IRULE1004", diag(Irules, true, "`when` block missing explicit `priority`.");
     Irule1005 => "IRULE1005", diag(Irules, true, "Data event without a matching `*::collect` call.");
     Irule1006 => "IRULE1006", diag(Irules, true, "`*::payload` without a matching `*::collect` call.");
@@ -352,8 +416,8 @@ diagnostic_codes! {
     Irule1008 => "IRULE1008", diag(Irules, true, "`*::release` without a matching `*::collect` on the same connection side.");
     Irule1201 => "IRULE1201", diag(Irules, true, "HTTP command used after `HTTP::respond`/`HTTP::redirect`.");
     Irule1202 => "IRULE1202", diag(Irules, true, "Multiple `HTTP::respond`/`HTTP::redirect` on different branches.");
-    Irule2001 => "IRULE2001", diag(Irules, true, "Deprecated `matchclass` — use `class match` instead.");
-    Irule2002 => "IRULE2002", diag(Irules, true, "Deprecated iRules command.");
+    Irule2001 => "IRULE2001", diag(Irules, true, "Deprecated `matchclass` — use `class match` instead.", tag: Deprecated);
+    Irule2002 => "IRULE2002", diag(Irules, true, "Deprecated iRules command.", tag: Deprecated);
     Irule2003 => "IRULE2003", diag(Irules, true, "Unsafe iRules command.");
     Irule2101 => "IRULE2101", diag(Irules, true, "Heavy `regexp` in a high-frequency event — consider `string match` or data-group.");
     Irule3001 => "IRULE3001", diag(IrulesSecurity, true, "Tainted data in HTTP response body.");
@@ -402,7 +466,7 @@ diagnostic_codes! {
     O123 => "O123", opt(Recursion, "Detect non-tail recursion eligible for accumulator introduction (hint only).");
     O124 => "O124", opt(Dce, "Comment out unused procs in iRules (not called from any event).");
     O125 => "O125", opt(CodeMotion, "Sink side-effect-free assignments into the deepest decision block (`if`/`switch`) that uses them.");
-    O126 => "O126", opt(Dce, "Remove unused variable assignments — eliminate `set` statements for variables that are never read.");
+    O126 => "O126", opt(Dce, "Remove unused variable assignments — eliminate `set` statements for variables that are never read.", tag: Unnecessary);
     O127 => "O127", opt(CodeMotion, "Inline single-use variable assignment — eliminate redundant variable load by folding `set` into the use site.");
     O128 => "O128", opt(Readability, "Rewrite `[expr {[llength $L] - N}]` / `[expr {[string length $s] - N}]` to `end-(N-1)` when used as an index argument.");
     O129 => "O129", opt(ConstantFolding, "Fold a pure builtin command substitution with constant arguments (`[string length ...]`, `[join ...]`, `[format ...]`, `[dict get ...]`, …).");
@@ -433,7 +497,14 @@ diagnostic_codes! {
     W104 => "W104", diag(Warning, true, "String concatenation for list building — use `lappend` instead.");
     W105 => "W105", diag(Warning, true, "Unbraced code block or missing `variable` declaration in `namespace eval`. Escalates to Error when the block provably contains a substitution (double-substitution risk).");
     W106 => "W106", diag(Warning, true, "Dangerous unbraced `switch` body — risks double substitution.");
+    // W107 / W109 are the *encoding-integrity* pair (issue #1326): they answer
+    // "are the bytes on disk the text we analysed?", where W108 answers "is
+    // this character ASCII?".  A file that fails W107 makes every other
+    // diagnostic's offsets suspect, so they read as a prefix to the rest of the
+    // report rather than as ordinary lints.
+    W107 => "W107", diag(Warning, true, "Source is not valid UTF-8 — ill-formed bytes were replaced with U+FFFD before analysis, so the analysed text is not the file on disk.");
     W108 => "W108", diag(Warning, true, "Non-ASCII characters in token content.");
+    W109 => "W109", diag(Warning, true, "Source does not look like UTF-8 text — it appears to be UTF-16/UTF-32 or binary; the rest of the analysis abstains rather than reporting findings derived from mis-decoded bytes.");
     W110 => "W110", diag(Warning, true, "Use `eq`/`ne` instead of `==`/`!=` for string comparison.");
     W111 => "W111", diag(Warning, true, "Line exceeds maximum length (see `tclLsp.style.lineLength`).");
     W112 => "W112", diag(Warning, true, "Trailing whitespace.");
@@ -481,20 +552,20 @@ diagnostic_codes! {
     W141 => "W141", diag(Warning, true, "Option value fails a declared shape/content check (e.g. `-errorstack` must be an even-sized list) — the option-value sibling of W127 for a value that is structurally malformed rather than outside a closed set.");
     W142 => "W142", diag(Warning, true, "Command invalid in its current lexical/dispatch context (e.g. `return` with arguments directly inside an iRules event body).");
     W143 => "W143", diag(Warning, true, "Direct call into a private `::tcl::` implementation namespace (e.g. `::tcl::dict::create`) — use the public ensemble command instead (`dict create`).");
-    W144 => "W144", diag(Warning, true, "Command/subcommand/option/argument value is deprecated at the resolved package version — still available, but the registry records a deprecating release.");
+    W144 => "W144", diag(Warning, true, "Command/subcommand/option/argument value is deprecated at the resolved package version — still available, but the registry records a deprecating release.", tag: Deprecated);
     W145 => "W145", diag(Warning, true, "Ambiguous keyword abbreviation — the prefix matches more than one subcommand or option, which is a runtime error in Tcl.");
     W200 => "W200", diag(Warning, true, "`exec` result not captured or binary format modifier requires newer Tcl.");
     W201 => "W201", diag(Warning, true, "Manual path concatenation — use `file join` instead.");
     W210 => "W210", diag(Variable, true, "Variable read before set.");
-    W211 => "W211", diag(Variable, true, "Variable set but never used.");
+    W211 => "W211", diag(Variable, true, "Variable set but never used.", tag: Unnecessary);
     W212 => "W212", diag(Variable, true, "Variable substitution where name expected (`set $x`, `incr $x`, `info exists $x`, etc.).");
     W213 => "W213", diag(Variable, true, "Variable may not exist — use `unset -nocomplain` to suppress the error.");
-    W214 => "W214", diag(Variable, true, "Unused proc parameter — argument is declared but never read in the procedure body.");
+    W214 => "W214", diag(Variable, true, "Unused proc parameter — argument is declared but never read in the procedure body.", tag: Unnecessary);
     W215 => "W215", diag(Variable, true, "Variable name unreachable via $-substitution (creatable via set/info exists/upvar but no $-form can read it).");
     W216 => "W216", diag(Variable, true, "Broken brace-form array element reference — ``${arr}(x)`` parses as scalar+literal, ``${arr($foo)}`` does not substitute the index.");
     W217 => "W217", diag(Variable, true, "`unset` unsets nothing — every argument is consumed as an option (`-nocomplain` / `--`); prefix a `-`-named variable with `--`.");
     W218 => "W218", diag(Variable, true, "`args` in a non-final parameter position is an ordinary parameter — it only collects the rest as the last formal.");
-    W220 => "W220", diag(Variable, true, "Dead store — variable set but overwritten before use.");
+    W220 => "W220", diag(Variable, true, "Dead store — variable set but overwritten before use.", tag: Unnecessary);
     W230 => "W230", diag(Warning, true, "Constant list index out of range — lindex/lrange/lreplace silently return empty or clamp.");
     W231 => "W231", diag(Warning, true, "Constant list index out of range — lset raises a runtime error.");
     W232 => "W232", diag(Warning, true, "Constant string index out of range — string index/range/replace/insert silently return empty or no-op.");
@@ -508,6 +579,7 @@ diagnostic_codes! {
     W302 => "W302", diag(Security, true, "`catch` without result variable — errors are silently swallowed.");
     W303 => "W303", diag(Security, true, "Regexp vulnerable to catastrophic backtracking (ReDoS).");
     W304 => "W304", diag(Security, true, "Missing option terminator `--` on option-bearing commands.");
+    W305 => "W305", diag(Security, true, "Bidirectional formatting control character in source (Trojan Source) — the code renders to a reviewer in a different order from the one it is parsed and executed in.");
     W306 => "W306", diag(Security, true, "Substitution in literal-expected argument position.");
     W307 => "W307", diag(Security, true, "Non-literal command name — variable or command substitution as command.");
     W308 => "W308", diag(Warning, true, "Unknown TclOO method — the method is not defined on the receiver's statically-known class or any of its superclasses.");
@@ -603,6 +675,32 @@ impl DiagCode {
         }
     }
 
+    /// The LSP `DiagnosticTag` this code carries, if any — the single source
+    /// consumers read when populating `Diagnostic.tags` on the wire.
+    ///
+    /// See [`DiagTag`] for why this is table data rather than a `match` in the
+    /// LSP server, and for what each tag means to an editor.
+    ///
+    /// ```
+    /// use tcl_core_types::{DiagCode, DiagTag};
+    ///
+    /// // An unused proc parameter renders faded (issue #1333).
+    /// assert_eq!(DiagCode::W214.lsp_tag(), Some(DiagTag::Unnecessary));
+    /// assert_eq!(DiagCode::W214.lsp_tag().map(DiagTag::lsp_value), Some(1));
+    ///
+    /// // A deprecated iRules command renders struck through.
+    /// assert_eq!(DiagCode::Irule2002.lsp_tag(), Some(DiagTag::Deprecated));
+    ///
+    /// // "Read before set" is a real defect, not dead code — never faded.
+    /// assert_eq!(DiagCode::W210.lsp_tag(), None);
+    /// ```
+    #[must_use]
+    pub const fn lsp_tag(self) -> Option<DiagTag> {
+        match self.doc_row() {
+            DocRow::Diagnostic { tag, .. } | DocRow::Optimisation { tag, .. } => tag,
+        }
+    }
+
     /// The optimisation category, for `O###` codes (`None` for diagnostics).
     #[must_use]
     pub const fn opt_category(self) -> Option<OptCategory> {
@@ -641,6 +739,79 @@ impl fmt::Display for DiagCode {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// The complete intended tag map (issue #1333). Asserted **exhaustively**
+    /// against the table below so a stray `tag:` on an unrelated row — which
+    /// would silently fade or strike through a diagnostic the user needs to
+    /// see — fails the build.
+    const TAGGED: &[(DiagCode, DiagTag)] = &[
+        // `Unnecessary` — "you wrote this and nothing reads it".
+        (DiagCode::W211, DiagTag::Unnecessary), // variable set but never used
+        (DiagCode::W214, DiagTag::Unnecessary), // unused proc parameter
+        (DiagCode::W220, DiagTag::Unnecessary), // dead store
+        (DiagCode::O126, DiagTag::Unnecessary), // dead-assignment rewrite
+        // `Deprecated` — every code whose *producer* reads deprecation data
+        // out of the command / event registry.
+        (DiagCode::W144, DiagTag::Deprecated), // deprecated at resolved version
+        (DiagCode::Irule1003, DiagTag::Deprecated), // deprecated iRules event
+        (DiagCode::Irule2001, DiagTag::Deprecated), // deprecated `matchclass`
+        (DiagCode::Irule2002, DiagTag::Deprecated), // deprecated iRules command
+    ];
+
+    #[test]
+    fn lsp_tags_are_exactly_the_intended_set() {
+        for &(code, tag) in TAGGED {
+            assert_eq!(code.lsp_tag(), Some(tag), "{code} should carry {tag:?}");
+        }
+        for &code in DiagCode::ALL {
+            let expected = TAGGED.iter().find(|(c, _)| *c == code).map(|(_, t)| *t);
+            assert_eq!(
+                code.lsp_tag(),
+                expected,
+                "{code} carries an unintended tag — see the `TAGGED` table"
+            );
+        }
+    }
+
+    /// The false-positive guard the `Unnecessary` tag most needs: codes that
+    /// look adjacent to "unused" but describe a genuine **defect**. Fading a
+    /// defect hides it, which is the opposite of what issue #1333 asks for.
+    #[test]
+    fn defect_codes_are_never_faded() {
+        for code in [
+            DiagCode::W210, // variable read before set — a real bug
+            DiagCode::W213, // variable may not exist — a real bug
+            DiagCode::W212, // `set $x` — a real bug
+            DiagCode::W215, // name unreachable via $-substitution
+            DiagCode::E002, // too few arguments
+        ] {
+            assert_eq!(code.lsp_tag(), None, "{code} must not be faded");
+        }
+    }
+
+    #[test]
+    fn diag_tag_lsp_values_match_the_protocol() {
+        // LSP 3.15 `DiagnosticTag`: Unnecessary = 1, Deprecated = 2.
+        assert_eq!(DiagTag::Unnecessary.lsp_value(), 1);
+        assert_eq!(DiagTag::Deprecated.lsp_value(), 2);
+    }
+
+    #[test]
+    fn encoding_integrity_codes_exist_and_are_untagged() {
+        // Issue #1326: the three encoding codes are ordinary, user-toggleable
+        // diagnostics — neither internal nor reserved — and carry no
+        // presentation tag (a mis-decoded file is not "unnecessary" code).
+        for code in [DiagCode::W107, DiagCode::W109, DiagCode::W305] {
+            assert!(!code.is_internal(), "{code} should be user-configurable");
+            assert!(!code.is_reserved(), "{code} has a real producer");
+            assert_eq!(code.lsp_tag(), None);
+        }
+        assert_eq!(DiagCode::W107.diag_section(), Some(DiagSection::Warning));
+        assert_eq!(DiagCode::W109.diag_section(), Some(DiagSection::Warning));
+        // W305 is a review-integrity finding, so it groups with the security
+        // lints rather than with the W108 style check it used to hide behind.
+        assert_eq!(DiagCode::W305.diag_section(), Some(DiagSection::Security));
+    }
 
     #[test]
     fn display_and_from_str_round_trip() {

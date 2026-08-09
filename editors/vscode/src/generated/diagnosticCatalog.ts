@@ -117,9 +117,23 @@ export const DIAGNOSTICS: DiagnosticDef[] = [
     defaultEnabled: true,
   },
   {
+    code: "W107",
+    section: "warning",
+    description:
+      "Source is not valid UTF-8 — ill-formed bytes were replaced with U+FFFD before analysis, so the analysed text is not the file on disk.",
+    defaultEnabled: true,
+  },
+  {
     code: "W108",
     section: "warning",
     description: "Non-ASCII characters in token content.",
+    defaultEnabled: true,
+  },
+  {
+    code: "W109",
+    section: "warning",
+    description:
+      "Source does not look like UTF-8 text — it appears to be UTF-16/UTF-32 or binary; the rest of the analysis abstains rather than reporting findings derived from mis-decoded bytes.",
     defaultEnabled: true,
   },
   {
@@ -491,6 +505,13 @@ export const DIAGNOSTICS: DiagnosticDef[] = [
     code: "W304",
     section: "security",
     description: "Missing option terminator `--` on option-bearing commands.",
+    defaultEnabled: true,
+  },
+  {
+    code: "W305",
+    section: "security",
+    description:
+      "Bidirectional formatting control character in source (Trojan Source) — the code renders to a reviewer in a different order from the one it is parsed and executed in.",
     defaultEnabled: true,
   },
   {
