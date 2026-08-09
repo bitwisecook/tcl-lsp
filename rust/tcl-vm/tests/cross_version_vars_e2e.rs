@@ -31,7 +31,7 @@
 //!
 //! The namespace fallback and non-local loop completions here are runtime
 //! execution behaviour. They do not produce a distinct LSP request or VS Code
-//! UI state, so lsp_e2e and extension tests would only duplicate this VM
+//! UI state, so `lsp_e2e` and extension tests would only duplicate this VM
 //! oracle. Static expression availability remains covered by the
 //! registry-backed `expr_surface_e2e` suite.
 

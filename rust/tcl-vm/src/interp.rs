@@ -2715,12 +2715,12 @@ impl InterpState {
         // path walk).  Gated here at resolution time — not at `ns_path_set`
         // recording — so flipping `set_runtime_version` mid-life re-applies
         // the correct tier to paths recorded earlier.
-        let rooted: Vec<String> = if !self.runtime_version.has_namespace_path() {
-            Vec::new()
-        } else {
+        let rooted: Vec<String> = if self.runtime_version.has_namespace_path() {
             self.ns_paths
                 .get(cxt)
                 .map_or_else(Vec::new, |p| p.iter().map(|e| format!("::{e}")).collect())
+        } else {
+            Vec::new()
         };
         // Candidates from the shared resolver are rooted constructed keys;
         // the VM's table is keyed unrooted.  Strip exactly ONE root — a

@@ -850,10 +850,12 @@ fn expr_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     };
     let node = match parse_runtime_expr(interp, src) {
         Ok(node) => node,
-        Err(e) => return match e.code {
-            Some(code) => interp.error_with_code(&e.msg, &code),
-            None => interp.set_error(&e.msg),
-        },
+        Err(e) => {
+            return match e.code {
+                Some(code) => interp.error_with_code(&e.msg, &code),
+                None => interp.set_error(&e.msg),
+            }
+        }
     };
     let mut ctx = InterpExprCtx {
         interp: &mut *interp,

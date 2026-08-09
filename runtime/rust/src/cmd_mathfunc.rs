@@ -83,11 +83,9 @@ pub(crate) fn mathfunc(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     // CommandRegistry. A user proc or alias replacing this entry never reaches
     // this handler, so version-gating the builtin preserves Tcl's open,
     // overridable `tcl::mathfunc` namespace.
-    if tcl_registry::expr_surface::RuntimeExprSurface::for_tcl_version(
-        interp.runtime_version(),
-    )
-    .builtin_math_function(fname)
-    .is_none()
+    if tcl_registry::expr_surface::RuntimeExprSurface::for_tcl_version(interp.runtime_version())
+        .builtin_math_function(fname)
+        .is_none()
     {
         let mut command = b"tcl::mathfunc::".to_vec();
         command.extend_from_slice(tail);

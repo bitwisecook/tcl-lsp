@@ -1688,45 +1688,43 @@ mod tests {
 
     #[test]
     fn inscope_uses_a_byte_arrays_string_rep_in_both_arms() {
-        // `binary format` returns a typed byte array. When it becomes a script,
-        // C Tcl first asks for its string representation: byte 0x80 becomes
-        // U+0080 (`C2 80` in UTF-8), not an invalid byte and never U+FFFD.
-        // Both `namespace inscope` forms must therefore resolve the same
-        // unknown command, as Tcl 8.6 and 9.0 do.
+        // `binary format` returns a typed byte array.  When it becomes a
+        // script, both `namespace inscope` forms reach the same unknown
+        // command.  Capture the error through `binary encode hex`: this is the
+        // C Tcl observable, and proves that the byte array's 0x80 payload is
+        // preserved rather than becoming U+FFFD or UTF-8's `c2 80` payload.
+        // The vector is identical on tclsh 8.6.18 and 9.0.4.
         leak_free(|i| {
             assert_eq!(
-                i.eval_str(b"set name [binary format a3c cmd 128]"),
-                Code::Ok
-            );
-            assert_eq!(
-                i.result_bytes(),
-                [b'c', b'm', b'd', 0xC2, 0x80],
-                "the byte array's string rep is valid UTF-8"
-            );
-
-            assert_eq!(
-                i.eval_str(b"namespace inscope :: $name"),
-                Code::Error,
+                i.eval_str(
+                    b"set name [binary format a3c cmd 128]; \
+                      catch {namespace inscope :: $name} result; \
+                      binary encode hex $result",
+                ),
+                Code::Ok,
                 "zero-tail arm"
             );
             assert_eq!(
                 i.result_bytes(),
-                b"invalid command name \"cmd\xc2\x80\"",
-                "zero-tail arm's UTF-8 command name"
+                b"696e76616c696420636f6d6d616e64206e616d652022636d648022",
+                "zero-tail arm preserves the raw command-name byte"
             );
 
             assert_eq!(
-                i.eval_str(b"namespace inscope :: $name extra"),
-                Code::Error,
+                i.eval_str(
+                    b"catch {namespace inscope :: $name extra} result; \
+                      binary encode hex $result",
+                ),
+                Code::Ok,
                 "tail arm must agree with the zero-tail arm"
             );
             assert_eq!(
                 i.result_bytes(),
-                b"invalid command name \"cmd\xc2\x80\"",
-                "tail arm keeps the same string representation"
+                b"696e76616c696420636f6d6d616e64206e616d652022636d648022",
+                "tail arm preserves the same raw command-name byte"
             );
 
-            i.eval_str(b"unset name");
+            i.eval_str(b"unset name result");
         });
     }
 }

@@ -584,12 +584,13 @@ fn version_flag_for(engine: Engine, want: &str) -> Result<Vec<String>, String> {
         ));
     }
     match engine {
-        Engine::RuntimeRust => Ok(vec!["--tcl-version".to_owned(), want.to_owned()]),
+        Engine::RuntimeRust | Engine::Tclvm => {
+            Ok(vec!["--tcl-version".to_owned(), want.to_owned()])
+        }
         // `tclsh` *is* a released build — point --tclsh at a different one.
         Engine::Tclsh => Err(format!(
             "cannot pin `tclsh` to Tcl {want}: point --tclsh at a {want} build instead"
         )),
-        Engine::Tclvm => Ok(vec!["--tcl-version".to_owned(), want.to_owned()]),
     }
 }
 

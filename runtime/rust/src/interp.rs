@@ -4648,17 +4648,15 @@ impl Interp {
             .borrow()
             .resolve(self.current_ns.get(), &name);
         let wrapper_hidden = matches!(&resolved, Some(Command::Builtin(_)))
-            && self
-                .resolve_cmd_fqn(&name)
-                .is_some_and(|fqn| {
-                    tcl_registry::expr_surface::RuntimeExprSurface::for_tcl_version(
-                        self.runtime_version(),
-                    )
-                    .builtin_math_function_command_visible(
-                        core::str::from_utf8(&fqn).unwrap_or_default(),
-                    )
-                    .is_some_and(|visible| !visible)
-                });
+            && self.resolve_cmd_fqn(&name).is_some_and(|fqn| {
+                tcl_registry::expr_surface::RuntimeExprSurface::for_tcl_version(
+                    self.runtime_version(),
+                )
+                .builtin_math_function_command_visible(
+                    core::str::from_utf8(&fqn).unwrap_or_default(),
+                )
+                .is_some_and(|visible| !visible)
+            });
         if let Some(cmd) = resolved.filter(|_| !wrapper_hidden) {
             return self.invoke(cmd, argv);
         }

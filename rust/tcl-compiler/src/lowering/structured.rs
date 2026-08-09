@@ -504,15 +504,17 @@ impl Lowerer<'_> {
     /// results. Such a body keeps `lmap` on the runtime builtin.
     ///
     fn body_is_straight_line(body: &Script) -> bool {
-        body.statements.iter().all(|s| match s {
-            Statement::Call { .. }
-            | Statement::AssignConst { .. }
-            | Statement::AssignExpr { .. }
-            | Statement::AssignValue { .. }
-            | Statement::Incr { .. }
-            | Statement::ExprEval { .. }
-            | Statement::Barrier { .. } => true,
-            _ => false,
+        body.statements.iter().all(|s| {
+            matches!(
+                s,
+                Statement::Call { .. }
+                    | Statement::AssignConst { .. }
+                    | Statement::AssignExpr { .. }
+                    | Statement::AssignValue { .. }
+                    | Statement::Incr { .. }
+                    | Statement::ExprEval { .. }
+                    | Statement::Barrier { .. }
+            )
         })
     }
 
