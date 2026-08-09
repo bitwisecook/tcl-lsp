@@ -36,8 +36,8 @@ use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::time::Duration;
 
-use tcl_compiler::codegen::wasm::{RESERVED_DATA_BASE, wasm_codegen_module_based};
-use tcl_compiler::lowering::lower_to_ir;
+use tcl_compiler::codegen::wasm::{RESERVED_DATA_BASE, wasm_codegen_compilation_unit_based};
+use tcl_compiler::compilation_unit::CompilationUnit;
 use tcl_registry::CommandRegistry;
 
 use crate::harness::{Outcome, Verdict, compare_outcomes, run_backend, write_script};
@@ -67,7 +67,7 @@ impl Case {
     }
 
     /// The final query used identically after each run.
-    const QUERY: &'static str = "set r";
+    const QUERY: &'static str = "list [info patchlevel] $r";
 
     /// The C Tcl 9 source adds only an output observation after the program.
     #[must_use]
@@ -115,14 +115,34 @@ pub fn have_wasmtime() -> bool {
 /// above it. This is the same link contract the compiler's real-link test uses.
 pub fn build_runtime(scratch: &Path) -> Result<PathBuf, String> {
     let target_dir = scratch.join("runtime-target");
-    let output = Command::new("cargo")
+    let root = workspace_root();
+    let tommath = std::env::var_os("TCL_TOMMATH_DIR")
+        .map(PathBuf::from)
+        .into_iter()
+        .chain([
+            root.join("tmp/tcl9.0.4/libtommath"),
+            root.join("tmp/tcl9.0.3-src/libtommath"),
+            root.join("tmp/tcl8.6.16/libtommath"),
+        ])
+        .find(|path| path.join("tommath.h").is_file())
+        .ok_or_else(|| {
+            "linked-WASM requires libtommath >= 1.3.0; set TCL_TOMMATH_DIR to the Tcl 9 libtommath source".to_owned()
+        })?;
+    let mut command = Command::new("cargo");
+    command
         .arg("build")
         .arg("--manifest-path")
-        .arg(workspace_root().join("runtime/rust/Cargo.toml"))
-        .args(["--target", "wasm32-unknown-unknown"])
+        .arg(root.join("runtime/rust/Cargo.toml"))
+        .args(["--target", "wasm32-wasip1"])
         .arg("--target-dir")
         .arg(&target_dir)
-        .env("RUSTFLAGS", "-C link-arg=--global-base=2097152")
+        .env("TCL_TOMMATH_DIR", &tommath)
+        .env("RUSTFLAGS", "-C link-arg=--global-base=2097152");
+    if std::env::var_os("WASI_SDK_PATH").is_none() && Path::new("/opt/wasi-sdk/bin/clang").is_file()
+    {
+        command.env("WASI_SDK_PATH", "/opt/wasi-sdk");
+    }
+    let output = command
         .output()
         .map_err(|error| format!("could not start runtime WASM build: {error}"))?;
     if !output.status.success() {
@@ -131,7 +151,7 @@ pub fn build_runtime(scratch: &Path) -> Result<PathBuf, String> {
             String::from_utf8_lossy(&output.stderr)
         ));
     }
-    let artifact = target_dir.join("wasm32-unknown-unknown/debug/tcl_runtime.wasm");
+    let artifact = target_dir.join("wasm32-wasip1/debug/tcl_runtime.wasm");
     if artifact.is_file() {
         Ok(artifact)
     } else {
@@ -195,10 +215,10 @@ pub fn check(
 
     let registry = CommandRegistry::build_default();
     let program = case.program();
-    let module = lower_to_ir(&program, &registry);
+    let unit = CompilationUnit::build_for(&program, &registry, false);
     let user_path = scratch.join(format!("linked-user-{seed}.wasm"));
     let bootstrap_path = scratch.join(format!("linked-bootstrap-{seed}.wat"));
-    let user = wasm_codegen_module_based(&module, &program, RESERVED_DATA_BASE).to_bytes();
+    let user = wasm_codegen_compilation_unit_based(&unit, &registry, RESERVED_DATA_BASE).to_bytes();
     if let Err(error) = std::fs::write(&user_path, user) {
         return LinkedVerdict::Unrunnable(format!("user WASM: {error}"));
     }
@@ -260,8 +280,11 @@ mod tests {
         // TN: this is a normal, successful source/query shape; the observation
         // is an extra command after the program, not a different computation.
         let case = Case::from_seed(42);
-        assert!(case.oracle_source().ends_with("puts -nonewline [set r]\n"));
-        assert_eq!(Case::QUERY, "set r");
+        assert!(
+            case.oracle_source()
+                .ends_with("puts -nonewline [list [info patchlevel] $r]\n")
+        );
+        assert_eq!(Case::QUERY, "list [info patchlevel] $r");
     }
 
     #[test]

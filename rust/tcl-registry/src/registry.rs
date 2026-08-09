@@ -1860,6 +1860,24 @@ impl CommandRegistry {
         self.get(name)?.event_handler_priority
     }
 
+    /// Return the command spec that declares an event-handler priority grammar.
+    ///
+    /// Code generators and editor fixes use this when they need to create a
+    /// handler rather than inspect an existing command. This keeps both the
+    /// handler spelling and its priority grammar in the registry. Returns
+    /// `None` if the dialect has no handler grammar or more than one, because
+    /// choosing between multiple handlers requires additional registry data.
+    #[must_use]
+    pub fn event_handler_spec(&self) -> Option<&CommandSpec> {
+        let mut handlers = self
+            .by_name
+            .values()
+            .flatten()
+            .filter(|spec| spec.event_handler_priority.is_some());
+        let handler = handlers.next()?;
+        handlers.next().is_none().then_some(handler)
+    }
+
     /// Whether `name` is **frame-sensitive**: its meaning depends on the
     /// frame or scope it executes in, so moving a call across a proc
     /// boundary (inlining it into a caller) changes behaviour.  The union

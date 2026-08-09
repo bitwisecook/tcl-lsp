@@ -1970,8 +1970,8 @@ fn enclosing_when_line(source: &str, line: u32) -> u32 {
     0
 }
 
-/// IRULE1005 / IRULE1006 "missing collect" quick-fixes: insert a
-/// `when <setup> priority 500 { <proto>::collect }` bootstrap block.
+/// IRULE1005 / IRULE1006 "missing collect" quick-fixes: insert a bootstrap
+/// handler using the registry-declared handler command and priority grammar.
 ///
 /// The command name, whether collection is actually required, and the setup
 /// event are all registry facts. The diagnostic message is presentation only;
@@ -1987,6 +1987,12 @@ fn collect_bootstrap_actions(source: &str, d: &ContextDiagnostic) -> Vec<CodeAct
 
     let registry = registry_for_dialect("f5-irules");
     let events = EventRegistry::build();
+    let Some(handler) = registry.event_handler_spec() else {
+        return Vec::new();
+    };
+    let Some(priority) = handler.event_handler_priority else {
+        return Vec::new();
+    };
     let choices: Vec<(&str, &str)> = if d.code == "IRULE1005" {
         let Some(data_event) = diagnostic_text_on_line(source, &d.range) else {
             return Vec::new();
@@ -2039,7 +2045,10 @@ fn collect_bootstrap_actions(source: &str, d: &ContextDiagnostic) -> Vec<CodeAct
                     end_line: anchor,
                     end_character: 0,
                 },
-                new_text: format!("when {setup} priority 500 {{\n    {collect_command}\n}}\n\n"),
+                new_text: format!(
+                    "{} {setup} {} {} {{\n    {collect_command}\n}}\n\n",
+                    handler.name, priority.keyword, priority.default_priority,
+                ),
             }],
             kind: ActionKind::QuickFix,
             command: None,

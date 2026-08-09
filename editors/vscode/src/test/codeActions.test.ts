@@ -351,6 +351,18 @@ suite("Code Actions", () => {
         a.title.includes("HTTP_REQUEST"),
     );
     assert.ok(collectFix, "Should provide a collect bootstrap quick fix");
+
+    // Source-level contract: the server supplies a complete handler edit, not
+    // only a title. The priority is BIG-IP's registry-declared default.
+    const edit = collectFix.edit;
+    assert.ok(edit, "collect bootstrap should carry a workspace edit");
+    const changes = edit.get(irulesDocUri);
+    assert.strictEqual(changes.length, 1, "expected one bootstrap insertion");
+    assert.ok(
+      changes[0].newText.includes("when HTTP_REQUEST priority 500") &&
+        changes[0].newText.includes("HTTP::collect"),
+      `unexpected collect bootstrap: ${changes[0].newText}`,
+    );
   });
 
   test("provides quick fix for T101 (tainted data into puts)", async () => {

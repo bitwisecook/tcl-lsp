@@ -1398,6 +1398,48 @@ fn diags_until(lsp: &mut Lsp, source: &str, marker: &str) -> Vec<Value> {
     panic!("{marker} never published; saw {:?}", irules_codes(&diags));
 }
 
+#[test]
+fn http_response_data_implicit_release_is_clean_end_to_end() {
+    // FP regression: the registry maps both handlers to the server side and
+    // declares HTTP_RESPONSE_DATA as HTTP_RESPONSE's implicit-release event.
+    let mut lsp = Lsp::irules();
+    let uri = unique_uri("irule");
+    lsp.open_ready_lang(
+        &uri,
+        "when HTTP_RESPONSE { HTTP::collect }\n\
+         when HTTP_RESPONSE_DATA { set payload [HTTP::payload] }\n",
+        "tcl-irule",
+    );
+    let diags =
+        lsp.await_diagnostics_version(&uri, Some(1), scaled_timeout(Duration::from_secs(25)));
+    let codes = irules_codes(&diags);
+    assert!(!codes.contains("IRULE1005"), "{codes:?}");
+    assert!(!codes.contains("IRULE1006"), "{codes:?}");
+    assert!(!codes.contains("IRULE1007"), "{codes:?}");
+}
+
+#[test]
+fn recollect_inside_http_data_event_reports_irule1007_end_to_end() {
+    // TP/FN regression: the first collection is released implicitly, but a
+    // subsequent collection inside the DATA event needs a later release.
+    let mut lsp = Lsp::irules();
+    let diags = diags_until(
+        &mut lsp,
+        "when HTTP_REQUEST { HTTP::collect }\n\
+         when HTTP_REQUEST_DATA { HTTP::collect }\n",
+        "IRULE1007",
+    );
+    assert_eq!(
+        diags
+            .iter()
+            .filter(|diag| code_str(diag) == "IRULE1007")
+            .count(),
+        1,
+        "{:?}",
+        irules_codes(&diags),
+    );
+}
+
 /// `$x contains "cd"` with `$x` a known literal is a constant condition, so the
 /// alternate branch is unreachable and I230 fires.
 ///

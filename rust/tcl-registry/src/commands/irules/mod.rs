@@ -1040,11 +1040,21 @@ mod xml__soap;
 mod xml__subscribe;
 
 use crate::spec::CommandSpec;
+use crate::traits::Traits;
 
 /// Return all iRules command specifications.
 #[must_use]
 pub fn irules_command_specs() -> Vec<CommandSpec> {
     IRULES_SPECS.to_vec()
+}
+
+/// Mark a registry spec as requiring the live HTTP transaction context.
+///
+/// The explicit wrappers in [`IRULES_SPECS`] are the source of truth for
+/// IRULE1201. Consumers never infer the fact from an `HTTP::` name prefix.
+const fn http_context(mut spec: CommandSpec) -> CommandSpec {
+    spec.traits = spec.traits.union(Traits::REQUIRES_HTTP_CONTEXT);
+    spec
 }
 
 /// All iRules command specifications as a compile-time constant.
@@ -1465,38 +1475,38 @@ pub const IRULES_SPECS: &[CommandSpec] = &[
     http2__requests::spec(),
     http2__stream::spec(),
     http2__version::spec(),
-    http__class::spec(),
-    http__close::spec(),
-    http__collect::spec(),
-    http__cookie::spec(),
-    http__disable::spec(),
-    http__enable::spec(),
-    http__fallback::spec(),
+    http_context(http__class::spec()),
+    http_context(http__close::spec()),
+    http_context(http__collect::spec()),
+    http_context(http__cookie::spec()),
+    http_context(http__disable::spec()),
+    http_context(http__enable::spec()),
+    http_context(http__fallback::spec()),
     http__has_responded::spec(),
-    http__header::spec(),
-    http__host::spec(),
-    http__hsts::spec(),
-    http__is_keepalive::spec(),
-    http__is_redirect::spec(),
-    http__method::spec(),
-    http__passthrough_reason::spec(),
-    http__password::spec(),
-    http__path::spec(),
-    http__payload::spec(),
-    http__proxy::spec(),
-    http__query::spec(),
-    http__redirect::spec(),
-    http__reject_reason::spec(),
-    http__release::spec(),
-    http__request::spec(),
-    http__request_num::spec(),
-    http__respond::spec(),
-    http__response::spec(),
-    http__retry::spec(),
-    http__status::spec(),
-    http__uri::spec(),
-    http__username::spec(),
-    http__version::spec(),
+    http_context(http__header::spec()),
+    http_context(http__host::spec()),
+    http_context(http__hsts::spec()),
+    http_context(http__is_keepalive::spec()),
+    http_context(http__is_redirect::spec()),
+    http_context(http__method::spec()),
+    http_context(http__passthrough_reason::spec()),
+    http_context(http__password::spec()),
+    http_context(http__path::spec()),
+    http_context(http__payload::spec()),
+    http_context(http__proxy::spec()),
+    http_context(http__query::spec()),
+    http_context(http__redirect::spec()),
+    http_context(http__reject_reason::spec()),
+    http_context(http__release::spec()),
+    http_context(http__request::spec()),
+    http_context(http__request_num::spec()),
+    http_context(http__respond::spec()),
+    http_context(http__response::spec()),
+    http_context(http__retry::spec()),
+    http_context(http__status::spec()),
+    http_context(http__uri::spec()),
+    http_context(http__username::spec()),
+    http_context(http__version::spec()),
     http_client_ip::spec(),
     http_content_len_max::spec(),
     http_cookie::spec(),

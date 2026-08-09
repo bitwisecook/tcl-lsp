@@ -53,6 +53,7 @@ serde_json = { version = "1", features = ["preserve_order"] }
 # registry, bytecode, and the VM as the eval host.
 tcl-bytecode = { path = "../tcl-bytecode" }
 tcl-compiler = { path = "../tcl-compiler" }
+tcl-dialect = { path = "../tcl-dialect" }
 tcl-registry = { path = "../tcl-registry" }
 tcl-vm = { path = "../tcl-vm" }
 # The ordered Tcl release enum, for recording (and comparing) which release

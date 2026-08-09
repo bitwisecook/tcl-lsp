@@ -84,18 +84,19 @@ pub struct Finding {
     /// Subject engine's stderr, when it ran.
     #[serde(default)]
     pub subject_stderr: String,
+    /// Stable reference backend identity (`tclsh`, `tclvm`, or
+    /// `runtime-rust`).
+    #[serde(default)]
+    pub reference_engine: String,
+    /// Stable subject backend identity.
+    #[serde(default)]
+    pub subject_engine: String,
     /// The Tcl release the **reference** engine reported
-    /// (`[info patchlevel]`), when it could be probed.
-    ///
-    /// A divergence is evidence of a bug only when both engines speak the same
-    /// version of the language. Issue #1328 filed eight findings against a
-    /// `tclsh8.6` oracle; re-run against 9.0.4 every one of them vanished,
-    /// each being a deliberate cross-version change rather than a defect. The
-    /// registry recorded nothing about the oracle, so that was invisible and
-    /// had to be re-derived by hand. It is recorded now.
+    /// (`[info patchlevel]`), when it could be probed. A divergence is evidence
+    /// of a bug only when both engines speak the same version of the language.
     #[serde(default)]
     pub reference_version: Option<String>,
-    /// The Tcl release the **subject** engine reported.
+    /// Subject `[info patchlevel]`, when probing succeeded.
     #[serde(default)]
     pub subject_version: Option<String>,
     /// Whether the two engines emulate different Tcl release *lines*. `true`
@@ -114,6 +115,8 @@ impl Finding {
         script: &str,
         reference: &Outcome,
         subject: &Outcome,
+        reference_engine: &str,
+        subject_engine: &str,
         versions: &crate::version::PairVersions,
     ) -> Self {
         let (reference_stdout, reference_stderr, reference_errored) = unpack(reference);
@@ -128,8 +131,16 @@ impl Finding {
             subject_errored,
             reference_stderr,
             subject_stderr,
-            reference_version: versions.reference.as_ref().map(|v| v.patchlevel.clone()),
-            subject_version: versions.subject.as_ref().map(|v| v.patchlevel.clone()),
+            reference_engine: reference_engine.to_owned(),
+            subject_engine: subject_engine.to_owned(),
+            reference_version: versions
+                .reference
+                .as_ref()
+                .map(|version| version.patchlevel.clone()),
+            subject_version: versions
+                .subject
+                .as_ref()
+                .map(|version| version.patchlevel.clone()),
             version_skew: versions.skewed(),
         }
     }
@@ -243,6 +254,8 @@ mod tests {
                 stderr: String::new(),
                 errored: false,
             },
+            "tclsh",
+            "tclvm",
             &crate::version::PairVersions::default(),
         );
         assert!(reg.record(&f).unwrap());
@@ -274,6 +287,8 @@ mod tests {
             "namespace eval n { append i baz }",
             &ran("a\n"),
             &ran("b\n"),
+            "tclsh",
+            "runtime-rust",
             &crate::version::PairVersions {
                 reference: Some(crate::version::EngineVersion::parse("8.6.16")),
                 subject: Some(crate::version::EngineVersion::parse("9.0.4")),
@@ -281,6 +296,8 @@ mod tests {
         );
         assert!(reg.record(&f).unwrap());
         let back = reg.load(11).unwrap();
+        assert_eq!(back.reference_engine, "tclsh");
+        assert_eq!(back.subject_engine, "runtime-rust");
         assert_eq!(back.reference_version.as_deref(), Some("8.6.16"));
         assert_eq!(back.subject_version.as_deref(), Some("9.0.4"));
         assert!(back.version_skew, "8.6 oracle vs 9.0 subject is skew");

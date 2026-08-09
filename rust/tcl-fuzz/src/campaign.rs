@@ -24,6 +24,7 @@
 use std::path::{Path, PathBuf};
 use std::time::Duration;
 
+use crate::engine::Engine;
 use crate::findings::{Category, Finding, Registry};
 use crate::generator::{GenConfig, generate};
 use crate::harness::{Verdict, compare_outcomes, run_backend, write_script};
@@ -62,6 +63,8 @@ impl Stats {
 /// (see [`crate::engine::Engine::args`]).
 #[derive(Debug, Clone)]
 pub struct Backend<'a> {
+    /// Stable backend identity persisted with each finding.
+    pub engine: Engine,
     /// The engine's binary.
     pub binary: &'a Path,
     /// Fixed leading arguments, before the script-file argument.
@@ -145,6 +148,8 @@ impl Campaign<'_> {
                 &script,
                 &reference,
                 &subject,
+                self.reference.engine.label(),
+                self.subject.engine.label(),
                 &self.versions,
             );
             if self.registry.record(&finding).unwrap_or(false) {

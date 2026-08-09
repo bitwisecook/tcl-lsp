@@ -1001,11 +1001,25 @@ fn irules_collection_and_side_switch_facts_are_registry_driven() {
     let priority = reg
         .event_handler_priority("when")
         .expect("when priority policy");
+    let handler = reg.event_handler_spec().expect("event handler spec");
+    assert_eq!(handler.name, "when");
+    assert_eq!(handler.event_handler_priority, Some(priority));
     assert_eq!(priority.keyword, "priority");
     assert_eq!(priority.default_priority, 500);
     assert!(
         !priority.warn_when_implicit,
         "BIG-IP accepts an omitted priority"
+    );
+
+    assert!(
+        reg.get("HTTP::header")
+            .is_some_and(|spec| spec.traits.contains(Traits::REQUIRES_HTTP_CONTEXT)),
+        "ordinary HTTP transaction commands require the live context"
+    );
+    assert!(
+        reg.get("HTTP::has_responded")
+            .is_some_and(|spec| !spec.traits.contains(Traits::REQUIRES_HTTP_CONTEXT)),
+        "the response-state query remains valid after a response is committed"
     );
 }
 

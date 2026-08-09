@@ -236,9 +236,7 @@ fn match_version_command(cmd: &[ScanWord], depth: u8) -> Option<String> {
             if cmd.get(i).map(|w| w.text.as_str()) == Some("-exact") {
                 i += 1;
             }
-            let Some(version) = cmd.get(i + 1).and_then(|w| extract_major_minor(&w.text)) else {
-                return None;
-            };
+            let version = cmd.get(i + 1).and_then(|w| extract_major_minor(&w.text))?;
             if !is_tcl_core_package(cmd.get(i).map(|w| w.text.as_str()), &version) {
                 return None;
             }

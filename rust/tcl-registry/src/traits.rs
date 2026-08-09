@@ -300,6 +300,10 @@ declare_traits! {
     IsEventHandler => IS_EVENT_HANDLER;
     /// Returns unnormalised HTTP path/URI/query.
     UnnormalisedHttpGetter => UNNORMALISED_HTTP_GETTER;
+    /// Requires a live HTTP transaction context and is invalid after a
+    /// response has been committed. `HTTP::has_responded` deliberately does
+    /// not carry this trait: checking that state is its purpose.
+    RequiresHttpContext => REQUIRES_HTTP_CONTEXT;
 
     // Output/value traits
     /// Returns a filesystem path (`pwd`, `file join`).

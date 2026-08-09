@@ -6639,7 +6639,7 @@
             "scope": "resource",
             "type": "boolean",
             "default": true,
-            "markdownDescription": "**IRULE1004:** `when` block missing explicit `priority`.",
+            "markdownDescription": "**IRULE1004:** Explicit event priority required by the registry policy.",
             "order": 3
           },
           "tclLsp.diagnosticSeverity.IRULE1004": {
@@ -6660,14 +6660,14 @@
               "Report as information",
               "Report as a hint (faded)"
             ],
-            "markdownDescription": "Display severity for **IRULE1004:** `when` block missing explicit `priority`.",
+            "markdownDescription": "Display severity for **IRULE1004:** Explicit event priority required by the registry policy.",
             "order": 3
           },
           "tclLsp.diagnostics.IRULE1005": {
             "scope": "resource",
             "type": "boolean",
             "default": true,
-            "markdownDescription": "**IRULE1005:** Data event without a matching `*::collect` call.",
+            "markdownDescription": "**IRULE1005:** Data event without its required registered collection operation.",
             "order": 4
           },
           "tclLsp.diagnosticSeverity.IRULE1005": {
@@ -6688,14 +6688,14 @@
               "Report as information",
               "Report as a hint (faded)"
             ],
-            "markdownDescription": "Display severity for **IRULE1005:** Data event without a matching `*::collect` call.",
+            "markdownDescription": "Display severity for **IRULE1005:** Data event without its required registered collection operation.",
             "order": 4
           },
           "tclLsp.diagnostics.IRULE1006": {
             "scope": "resource",
             "type": "boolean",
             "default": true,
-            "markdownDescription": "**IRULE1006:** `*::payload` without a matching `*::collect` call.",
+            "markdownDescription": "**IRULE1006:** Payload access without its required registered collection operation.",
             "order": 5
           },
           "tclLsp.diagnosticSeverity.IRULE1006": {
@@ -6716,14 +6716,14 @@
               "Report as information",
               "Report as a hint (faded)"
             ],
-            "markdownDescription": "Display severity for **IRULE1006:** `*::payload` without a matching `*::collect` call.",
+            "markdownDescription": "Display severity for **IRULE1006:** Payload access without its required registered collection operation.",
             "order": 5
           },
           "tclLsp.diagnostics.IRULE1007": {
             "scope": "resource",
             "type": "boolean",
             "default": true,
-            "markdownDescription": "**IRULE1007:** `*::collect` without a matching `*::release` on the same connection side.",
+            "markdownDescription": "**IRULE1007:** Collection without its required registered release operation on the same connection side.",
             "order": 6
           },
           "tclLsp.diagnosticSeverity.IRULE1007": {
@@ -6744,7 +6744,7 @@
               "Report as information",
               "Report as a hint (faded)"
             ],
-            "markdownDescription": "Display severity for **IRULE1007:** `*::collect` without a matching `*::release` on the same connection side.",
+            "markdownDescription": "Display severity for **IRULE1007:** Collection without its required registered release operation on the same connection side.",
             "order": 6
           },
           "tclLsp.diagnostics.IRULE1008": {

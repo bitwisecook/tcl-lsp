@@ -30,6 +30,7 @@ use std::collections::BTreeMap;
 
 use crate::interp::{obj_bytes, Code, Interp};
 use crate::obj::TclObj;
+use crate::version::TCL_PATCH_LEVEL;
 
 /// The interpreter's package database.
 #[derive(Default)]
@@ -48,8 +49,8 @@ impl PackageState {
     #[must_use]
     pub fn with_core() -> PackageState {
         let mut p = PackageState::default();
-        p.provided.insert(b"tcl".to_vec(), b"9.0.4".to_vec());
-        p.provided.insert(b"Tcl".to_vec(), b"9.0.4".to_vec());
+        p.provided.insert(b"tcl".to_vec(), TCL_PATCH_LEVEL.to_vec());
+        p.provided.insert(b"Tcl".to_vec(), TCL_PATCH_LEVEL.to_vec());
         // TclOO is built in (the `oo::*` commands are always present). C also
         // registers `ifneeded` entries for both names at the patchlevel (its
         // `initScript`) so they show up in `package versions` (oo-0.9).

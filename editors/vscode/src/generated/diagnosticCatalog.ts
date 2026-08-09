@@ -654,25 +654,26 @@ export const DIAGNOSTICS: DiagnosticDef[] = [
   {
     code: "IRULE1004",
     section: "irules",
-    description: "`when` block missing explicit `priority`.",
+    description: "Explicit event priority required by the registry policy.",
     defaultEnabled: true,
   },
   {
     code: "IRULE1005",
     section: "irules",
-    description: "Data event without a matching `*::collect` call.",
+    description: "Data event without its required registered collection operation.",
     defaultEnabled: true,
   },
   {
     code: "IRULE1006",
     section: "irules",
-    description: "`*::payload` without a matching `*::collect` call.",
+    description: "Payload access without its required registered collection operation.",
     defaultEnabled: true,
   },
   {
     code: "IRULE1007",
     section: "irules",
-    description: "`*::collect` without a matching `*::release` on the same connection side.",
+    description:
+      "Collection without its required registered release operation on the same connection side.",
     defaultEnabled: true,
   },
   {

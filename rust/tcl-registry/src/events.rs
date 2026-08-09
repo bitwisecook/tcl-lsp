@@ -277,6 +277,9 @@ pub struct EventProps {
     pub client_side: bool,
     /// Fires on server side.
     pub server_side: bool,
+    /// Direction used by side-sensitive commands in this event when the
+    /// public firing flags alone are ambiguous.
+    pub command_side: ConnectionSide,
     /// Required transport: `"tcp"`, `"udp"`, or both.
     pub transport: &'static [&'static str],
     /// Profile types that must be active for this event.
@@ -323,10 +326,24 @@ impl EventProps {
         }
     }
 
+    /// Effective direction for side-sensitive commands in this event.
+    #[must_use]
+    pub fn command_side(&self) -> Option<ConnectionSide> {
+        match self.command_side {
+            ConnectionSide::Client | ConnectionSide::Server => Some(self.command_side),
+            _ => match (self.client_side, self.server_side) {
+                (true, false) => Some(ConnectionSide::Client),
+                (false, true) => Some(ConnectionSide::Server),
+                _ => None,
+            },
+        }
+    }
+
     /// Default: not side-specific, no transport, flow = true.
     const DEFAULT: Self = Self {
         client_side: false,
         server_side: false,
+        command_side: ConnectionSide::None,
         transport: &[],
         implied_profiles: &[],
         flow: true,
@@ -570,6 +587,24 @@ impl EventRegistry {
             _ => return None,
         };
         Some((props.data_collect_protocols, side))
+    }
+
+    /// Whether `data_event` is the matching implicit-release event for a
+    /// collection started in `setup_event` on `side`.
+    #[must_use]
+    pub fn data_event_releases_collection(
+        &self,
+        data_event: &str,
+        setup_event: &str,
+        protocol: &str,
+        side: ConnectionSide,
+    ) -> bool {
+        let Some(props) = self.get_props(data_event) else {
+            return false;
+        };
+        props.setup_event == Some(setup_event)
+            && props.data_collect_protocols.contains(&protocol)
+            && props.data_collect_side == Some(side)
     }
 
     /// Whether an event name is known.
@@ -1616,6 +1651,7 @@ fn event_props_table_9() -> Vec<(&'static str, EventProps)> {
             EventProps {
                 client_side: true,
                 server_side: true,
+                command_side: ConnectionSide::Server,
                 transport: &["tcp"],
                 implied_profiles: &["FASTHTTP", "HTTP"],
                 hot: true,
@@ -1638,6 +1674,7 @@ fn event_props_table_9() -> Vec<(&'static str, EventProps)> {
             EventProps {
                 client_side: true,
                 server_side: true,
+                command_side: ConnectionSide::Server,
                 transport: &["tcp"],
                 implied_profiles: &["HTTP"],
                 hot: true,
@@ -2208,6 +2245,7 @@ fn event_props_table_16() -> Vec<(&'static str, EventProps)> {
             EventProps {
                 client_side: true,
                 server_side: true,
+                command_side: ConnectionSide::Server,
                 transport: &["tcp"],
                 implied_profiles: &["PERSIST", "SERVERSSL", "SSL_PERSISTENCE"],
                 setup_event: Some("SERVERSSL_HANDSHAKE"),
@@ -2221,6 +2259,7 @@ fn event_props_table_16() -> Vec<(&'static str, EventProps)> {
             EventProps {
                 client_side: true,
                 server_side: true,
+                command_side: ConnectionSide::Server,
                 transport: &["tcp"],
                 implied_profiles: &["PERSIST", "SERVERSSL", "SSL_PERSISTENCE"],
                 common: true,
@@ -2262,6 +2301,7 @@ fn event_props_table_16() -> Vec<(&'static str, EventProps)> {
             EventProps {
                 client_side: true,
                 server_side: true,
+                command_side: ConnectionSide::Server,
                 transport: &["tcp", "udp"],
                 hot: true,
                 common: true,
@@ -2273,6 +2313,7 @@ fn event_props_table_16() -> Vec<(&'static str, EventProps)> {
             EventProps {
                 client_side: true,
                 server_side: true,
+                command_side: ConnectionSide::Server,
                 transport: &["tcp", "udp"],
                 setup_event: Some("SERVER_CONNECTED"),
                 data_collect_protocols: &["TCP", "UDP"],
@@ -3773,6 +3814,50 @@ mod tests {
         assert!(props.client_side);
         assert!(props.hot);
         assert!(props.implied_profiles.contains(&"HTTP"));
+    }
+
+    #[test]
+    fn command_side_distinguishes_ambiguous_response_events() {
+        let reg = EventRegistry::build();
+        assert_eq!(
+            reg.get_props("HTTP_REQUEST")
+                .and_then(EventProps::command_side),
+            Some(ConnectionSide::Client)
+        );
+        assert_eq!(
+            reg.get_props("HTTP_RESPONSE")
+                .and_then(EventProps::command_side),
+            Some(ConnectionSide::Server)
+        );
+        assert_eq!(
+            reg.get_props("HTTP_PROXY_RESPONSE")
+                .and_then(EventProps::command_side),
+            None,
+            "an ambiguous event without an explicit command side must abstain"
+        );
+    }
+
+    #[test]
+    fn implicit_release_requires_the_matching_setup_event_and_side() {
+        let reg = EventRegistry::build();
+        assert!(reg.data_event_releases_collection(
+            "HTTP_RESPONSE_DATA",
+            "HTTP_RESPONSE",
+            "HTTP",
+            ConnectionSide::Server,
+        ));
+        assert!(!reg.data_event_releases_collection(
+            "HTTP_RESPONSE_DATA",
+            "HTTP_REQUEST",
+            "HTTP",
+            ConnectionSide::Server,
+        ));
+        assert!(!reg.data_event_releases_collection(
+            "HTTP_RESPONSE_DATA",
+            "HTTP_RESPONSE",
+            "HTTP",
+            ConnectionSide::Client,
+        ));
     }
 
     #[test]

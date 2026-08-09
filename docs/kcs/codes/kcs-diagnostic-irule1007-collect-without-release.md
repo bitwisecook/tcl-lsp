@@ -45,7 +45,9 @@ when CLIENT_DATA { TCP::release }
 TCP and SSL collections require an explicit matching `release`. HTTP releases
 its collected data implicitly when its matching request or response data event
 finishes, so a complete HTTP data-event handler does not produce this warning.
-The analyser cannot follow releases through dynamically constructed commands.
+If that data event issues another `HTTP::collect`, the new collection needs a
+later data event or an explicit `HTTP::release`. The analyser cannot follow
+releases through dynamically constructed commands.
 
 ## How to suppress
 

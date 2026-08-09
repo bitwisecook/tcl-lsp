@@ -240,6 +240,12 @@ impl ResolvedPair {
     /// `--tclvm`/`--tclsh`/`--runtime-rust` override. `Err` carries a ready-to-print
     /// message naming the engine that could not be found and the flag to pass.
     fn resolve(pair: PairArgs, cli: &Cli) -> Result<Self, String> {
+        if pair.reference == pair.subject {
+            return Err(format!(
+                "reference and subject are both `{}`; select two different backends",
+                pair.reference.label()
+            ));
+        }
         let find = |engine: Engine| {
             resolve_engine(engine, cli).ok_or_else(|| {
                 format!(
@@ -265,6 +271,33 @@ impl ResolvedPair {
     fn findings_dir(&self, base: &Path) -> PathBuf {
         pair_findings_dir(base, self.reference, self.subject)
     }
+}
+
+/// Probe both resolved backends before a run or replay.
+///
+/// A path that exists but cannot execute Tcl must not turn every iteration
+/// into a skipped outcome and produce a misleading green campaign.
+fn probe_pair_versions(
+    pair: &ResolvedPair,
+    timeout: Duration,
+) -> Result<version::PairVersions, String> {
+    let probe = |engine: Engine, binary: &Path, args: &[String]| {
+        version::EngineVersion::probe(binary, args, timeout).ok_or_else(|| {
+            format!(
+                "could not validate `{}` at {}; the backend must execute `[info patchlevel]`",
+                engine.label(),
+                binary.display(),
+            )
+        })
+    };
+    Ok(version::PairVersions {
+        reference: Some(probe(
+            pair.reference,
+            &pair.reference_bin,
+            &pair.reference_args,
+        )?),
+        subject: Some(probe(pair.subject, &pair.subject_bin, &pair.subject_args)?),
+    })
 }
 
 /// Run one `Cmd::Run` campaign: resolve both engines, open the (pair-namespaced)
@@ -319,32 +352,35 @@ fn run_campaign(
     // Probe both engines once, before any script runs, so every finding this
     // campaign records carries the releases it was produced against, and a
     // skewed pair announces itself up front (issue #1328).
-    let versions = version::PairVersions {
-        reference: version::EngineVersion::probe(
-            &pair.reference_bin,
-            &pair.reference_args,
-            timeout,
-        ),
-        subject: version::EngineVersion::probe(&pair.subject_bin, &pair.subject_args, timeout),
+    let versions = match probe_pair_versions(&pair, timeout) {
+        Ok(versions) => versions,
+        Err(error) => {
+            let _ = std::fs::remove_dir_all(&scratch);
+            eprintln!("error: {error}");
+            return std::process::ExitCode::from(2);
+        }
     };
-    let describe = |v: &Option<version::EngineVersion>| {
-        v.as_ref()
-            .map_or_else(|| "unknown".to_owned(), |v| v.patchlevel.clone())
+    let describe = |version: &Option<version::EngineVersion>| {
+        version
+            .as_ref()
+            .map_or_else(|| "unknown".to_owned(), |version| version.patchlevel.clone())
     };
     eprintln!(
         "  versions: reference Tcl {} | subject Tcl {}",
         describe(&versions.reference),
         describe(&versions.subject),
     );
-    if let Some(w) = versions.skew_warning() {
-        eprintln!("{w}");
+    if let Some(warning) = versions.skew_warning() {
+        eprintln!("{warning}");
     }
     let campaign = Campaign {
         reference: Backend {
+            engine: pair.reference,
             binary: &pair.reference_bin,
             args: pair.reference_args.clone(),
         },
         subject: Backend {
+            engine: pair.subject,
             binary: &pair.subject_bin,
             args: pair.subject_args.clone(),
         },
@@ -389,6 +425,13 @@ fn main() -> std::process::ExitCode {
                     return std::process::ExitCode::from(2);
                 }
             };
+            let versions = match probe_pair_versions(&pair, timeout) {
+                Ok(versions) => versions,
+                Err(error) => {
+                    eprintln!("error: {error}");
+                    return std::process::ExitCode::from(2);
+                }
+            };
             if let Ok(registry) = Registry::open(pair.findings_dir(&cli.findings))
                 && let Some(prior) = registry.load(*seed)
             {
@@ -396,6 +439,25 @@ fn main() -> std::process::ExitCode {
                     "note: seed {seed} is a recorded finding ({:?})",
                     prior.category
                 );
+                let current_reference = versions
+                    .reference
+                    .as_ref()
+                    .map(|version| version.patchlevel.as_str());
+                let current_subject = versions
+                    .subject
+                    .as_ref()
+                    .map(|version| version.patchlevel.as_str());
+                if prior.reference_version.as_deref() != current_reference
+                    || prior.subject_version.as_deref() != current_subject
+                {
+                    eprintln!(
+                        "WARNING: replay backend versions differ from the finding: reference {:?} -> {:?}, subject {:?} -> {:?}",
+                        prior.reference_version.as_deref(),
+                        current_reference,
+                        prior.subject_version.as_deref(),
+                        current_subject,
+                    );
+                }
             }
             replay(*seed, &config, &pair, timeout);
             std::process::ExitCode::SUCCESS
@@ -484,7 +546,9 @@ fn linked_wasm_diff_campaign(
         eprintln!("error: creating linked-WASM scratch directory: {error}");
         return std::process::ExitCode::from(2);
     }
-    if let Err(error) = verify_tcl9_oracle(&oracle_bin, &oracle_args, &scratch, timeout) {
+    if let Err(error) =
+        verify_tcl90_backend("C Tcl oracle", &oracle_bin, &oracle_args, &scratch, timeout)
+    {
         let _ = std::fs::remove_dir_all(&scratch);
         eprintln!("error: {error}");
         return std::process::ExitCode::from(2);
@@ -600,15 +664,16 @@ fn bpf_diff_campaign(
     }
 }
 
-/// Verify that the named C Tcl oracle is on the Tcl 9 line before trusting a
-/// three-way campaign. Tcl 8 has intentional semantic differences, so silently
-/// accepting it would turn version drift into a spurious backend finding.
-fn verify_tcl9_oracle(
+/// Verify that one backend reports the Tcl 9.0 release line before trusting a
+/// three-way campaign. Cross-version semantics otherwise become false backend
+/// findings, including when both Rust implementations agree with each other.
+fn verify_tcl90_backend(
+    label: &str,
     binary: &Path,
     args: &[String],
     scratch: &Path,
     timeout: Duration,
-) -> Result<String, String> {
+) -> Result<version::EngineVersion, String> {
     let probe = write_script(scratch, u64::MAX, "puts [info patchlevel]\n")
         .map_err(|e| format!("could not write Tcl 9 oracle probe: {e}"))?;
     let outcome = run_backend(binary, args, &probe, timeout);
@@ -619,17 +684,19 @@ fn verify_tcl9_oracle(
             errored: false,
             ..
         } => {
-            let version = stdout.trim();
-            if version.starts_with("9.") {
-                Ok(version.to_owned())
+            let patchlevel = stdout.lines().next().unwrap_or_default();
+            let reported = version::EngineVersion::parse(patchlevel);
+            if reported.line == Some(tcl_dialect::TclVersion::V9_0) {
+                Ok(reported)
             } else {
                 Err(format!(
-                    "the configured C Tcl oracle reports {version:?}; pass Tcl 9 with --tclsh"
+                    "the configured {label} reports {:?}; this arm requires Tcl 9.0",
+                    reported.patchlevel,
                 ))
             }
         }
         other => Err(format!(
-            "could not run the configured C Tcl oracle: {}",
+            "could not run the configured {label}: {}",
             render(&other)
         )),
     }
@@ -682,7 +749,31 @@ fn characterise_campaign(
         eprintln!("error: creating scratch directory: {error}");
         return std::process::ExitCode::from(2);
     }
-    let oracle_version = match verify_tcl9_oracle(&oracle_bin, &oracle_args, &scratch, timeout) {
+    let oracle_version =
+        match verify_tcl90_backend("C Tcl oracle", &oracle_bin, &oracle_args, &scratch, timeout) {
+            Ok(version) => version,
+            Err(message) => {
+                let _ = std::fs::remove_dir_all(&scratch);
+                eprintln!("error: {message}");
+                return std::process::ExitCode::from(2);
+            }
+        };
+    let tclvm_version =
+        match verify_tcl90_backend("tcl-vm backend", &tclvm_bin, &tclvm_args, &scratch, timeout) {
+            Ok(version) => version,
+            Err(message) => {
+                let _ = std::fs::remove_dir_all(&scratch);
+                eprintln!("error: {message}");
+                return std::process::ExitCode::from(2);
+            }
+        };
+    let runtime_version = match verify_tcl90_backend(
+        "runtime/rust backend",
+        &runtime_bin,
+        &runtime_args,
+        &scratch,
+        timeout,
+    ) {
         Ok(version) => version,
         Err(message) => {
             let _ = std::fs::remove_dir_all(&scratch);
@@ -696,9 +787,12 @@ fn characterise_campaign(
     let base_seed = seed.unwrap_or_else(time_seed);
     let mut counts = std::collections::BTreeMap::<Classification, u64>::new();
     eprintln!(
-        "characterise: {iterations} programs from seed {base_seed}\n  oracle: C Tcl {oracle_version} ({})\n  tcl-vm: {}\n  runtime/rust: {}",
+        "characterise: {iterations} programs from seed {base_seed}\n  oracle: C Tcl {} ({})\n  tcl-vm: {} ({})\n  runtime/rust: {} ({})",
+        oracle_version.patchlevel,
         oracle_bin.display(),
+        tclvm_version.patchlevel,
         tclvm_bin.display(),
+        runtime_version.patchlevel,
         runtime_bin.display(),
     );
 
@@ -1101,6 +1195,16 @@ mod tests {
         assert!(version_flag_for(Engine::Tclsh, "8.6").is_err());
         // FN: a typo cannot silently select the subject's default release.
         assert!(version_flag_for(Engine::Tclvm, "8.7").is_err());
+    }
+
+    #[test]
+    fn identical_backend_pairs_are_rejected() {
+        let cli = Cli::parse_from(["tcl-fuzz", "run"]);
+        let pair = PairArgs {
+            reference: Engine::Tclvm,
+            subject: Engine::Tclvm,
+        };
+        assert!(ResolvedPair::resolve(pair, &cli).is_err());
     }
 
     #[test]
