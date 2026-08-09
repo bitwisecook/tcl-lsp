@@ -347,6 +347,13 @@ pub unsafe extern "C" fn tcl_codegen_expr_add(
     left: *mut TclObj,
     right: *mut TclObj,
 ) -> *mut TclObj {
+    if left.is_null() || right.is_null() {
+        unsafe {
+            obj::decr_ref_count(left);
+            obj::decr_ref_count(right);
+        }
+        return ptr::null_mut();
+    }
     let interp = current_interp();
     let result = crate::bignum::add(left, right);
     // SAFETY: the operation consumes both generated operand-stack references.
@@ -381,6 +388,13 @@ pub unsafe extern "C" fn tcl_codegen_expr_add(
     left: *mut TclObj,
     right: *mut TclObj,
 ) -> *mut TclObj {
+    if left.is_null() || right.is_null() {
+        unsafe {
+            obj::decr_ref_count(left);
+            obj::decr_ref_count(right);
+        }
+        return ptr::null_mut();
+    }
     // SAFETY: the operation consumes both generated operand-stack references.
     unsafe {
         obj::decr_ref_count(left);
@@ -626,6 +640,26 @@ mod tests {
             tcl_value_release(sum);
 
             tcl_codegen_frame_pop();
+            tcl_runtime_set_current_interp(ptr::null_mut());
+            tcl_runtime_delete_interp(interp);
+        });
+    }
+
+    #[test]
+    fn nested_add_propagates_the_inner_arithmetic_error() {
+        leak_free(|| unsafe {
+            let interp = tcl_runtime_create_interp();
+            tcl_runtime_set_current_interp(interp);
+
+            let inner = tcl_codegen_expr_add(owned_str(b"not-a-number"), owned_str(b"1"));
+            assert!(inner.is_null());
+            let error = (*interp).result_bytes();
+            assert!(!error.is_empty());
+
+            let outer = tcl_codegen_expr_add(inner, owned_str(b"2"));
+            assert!(outer.is_null());
+            assert_eq!((*interp).result_bytes(), error);
+
             tcl_runtime_set_current_interp(ptr::null_mut());
             tcl_runtime_delete_interp(interp);
         });

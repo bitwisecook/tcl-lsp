@@ -49,7 +49,8 @@ use crate::codegen::cmd_subst::{is_pure_cmd_subst, parse_cmd_parts};
 use crate::codegen::emit::Emit;
 use crate::codegen::structured;
 use crate::command_binding::{
-    Binding, BindingKind, analyse_command_binding, scan_module_command_mutations,
+    Binding, BindingKind, ModuleCommandMutations, analyse_command_binding,
+    scan_module_command_mutations,
 };
 use crate::compilation_unit::{CompilationUnit, FunctionUnit};
 use crate::ir::{Module, Procedure, Statement};
@@ -112,6 +113,7 @@ struct AotImports {
 #[derive(Default)]
 struct FunctionFacts {
     hooks: HashMap<(u32, u32), WasmCodegenHookId>,
+    direct_assignments: HashSet<(u32, u32)>,
     direct_calls: HashMap<(u32, u32, String), String>,
 }
 
@@ -343,7 +345,12 @@ impl WasmEmitter {
             return false;
         };
         match statement {
-            Statement::AssignConst { name, value, .. } => {
+            Statement::AssignConst {
+                span, name, value, ..
+            } => {
+                if !self.facts.direct_assignments.contains(&span_key(*span)) {
+                    return false;
+                }
                 if self.mode == FunctionMode::DirectProc {
                     let Some(slot) = self.local_slots.get(name).copied() else {
                         return false;
@@ -412,7 +419,10 @@ impl WasmEmitter {
                         self.emit_completion_dispatch();
                         true
                     }
-                    WasmCodegenHookId::Puts => false,
+                    WasmCodegenHookId::Set
+                    | WasmCodegenHookId::Expr
+                    | WasmCodegenHookId::Return
+                    | WasmCodegenHookId::Puts => false,
                 }
             }
             _ => false,
@@ -673,7 +683,24 @@ fn direct_expr_supported(expr: &ExprNode, params: &HashSet<&str>) -> bool {
     }
 }
 
-fn direct_proc_eligible(module: &Module, proc: &Procedure, unit: &FunctionUnit) -> bool {
+fn wasm_hook_is_trusted(
+    registry: &CommandRegistry,
+    mutations: &ModuleCommandMutations,
+    hook: WasmCodegenHookId,
+) -> bool {
+    let mut commands = registry
+        .command_names_for_wasm_codegen_hook(hook)
+        .peekable();
+    commands.peek().is_some() && commands.all(|command| mutations.trusts(command))
+}
+
+fn direct_proc_eligible(
+    module: &Module,
+    proc: &Procedure,
+    unit: &FunctionUnit,
+    registry: &CommandRegistry,
+    mutations: &ModuleCommandMutations,
+) -> bool {
     if proc.namespace_scoped
         || proc
             .qualified_name
@@ -681,6 +708,8 @@ fn direct_proc_eligible(module: &Module, proc: &Procedure, unit: &FunctionUnit) 
             .is_some_and(|name| name.contains("::"))
         || module.redefined_procedures.contains(&proc.qualified_name)
         || unit.complexity_guarded
+        || !wasm_hook_is_trusted(registry, mutations, WasmCodegenHookId::Expr)
+        || !wasm_hook_is_trusted(registry, mutations, WasmCodegenHookId::Return)
         || !matches!(
             unit.return_type.tcl_type(),
             Some(TclType::Int | TclType::Double | TclType::Numeric)
@@ -740,6 +769,28 @@ fn function_facts(
             continue;
         };
         for (stmt_idx, statement) in cfg_block.statements.iter().enumerate() {
+            if let Statement::AssignConst {
+                span,
+                name,
+                name_braced,
+                value,
+                ..
+            } = statement
+                && (*name_braced || !crate::naming::is_dynamic_word(name))
+                && registry
+                    .command_names_for_wasm_codegen_hook(WasmCodegenHookId::Set)
+                    .any(|command| {
+                        bindings.is_original_builtin_at(block, stmt_idx, command)
+                            && mutations.trusts(command)
+                            && registry
+                                .resolve_call(command, &[name, value], DialectSet::empty())
+                                .is_some_and(|resolved| {
+                                    resolved.wasm_codegen_hook == Some(WasmCodegenHookId::Set)
+                                })
+                    })
+            {
+                facts.direct_assignments.insert(span_key(*span));
+            }
             let (Statement::Call { command, args, .. } | Statement::Barrier { command, args, .. }) =
                 statement
             else {
@@ -770,6 +821,12 @@ fn function_facts(
                     if binding.kind == BindingKind::Proc
                         && binding.target.as_deref() == Some(proc.qualified_name.as_str())
                         && mutations.trusts_proc_binding(&proc.qualified_name)
+                        && !module.has_dynamic_trace
+                        && !module.traced_commands.contains(
+                            proc.qualified_name
+                                .strip_prefix("::")
+                                .unwrap_or(&proc.qualified_name),
+                        )
                     {
                         facts.direct_calls.insert(
                             span_command_key(statement.span(), written),
@@ -889,13 +946,14 @@ fn procedure_plan<'a>(
         .iter()
         .map(|proc| (span_key(proc.span), (*proc).clone()))
         .collect();
-    let direct = analysis.map_or_else(HashSet::new, |(unit, _)| {
+    let direct = analysis.map_or_else(HashSet::new, |(unit, registry)| {
+        let mutations = scan_module_command_mutations(module, registry);
         procs
             .iter()
             .filter(|proc| {
                 unit.procedures
                     .get(&proc.qualified_name)
-                    .is_some_and(|fu| direct_proc_eligible(module, proc, fu))
+                    .is_some_and(|fu| direct_proc_eligible(module, proc, fu, registry, &mutations))
             })
             .map(|proc| proc.qualified_name.clone())
             .collect()

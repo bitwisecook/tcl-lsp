@@ -769,6 +769,19 @@ impl CommandRegistry {
         self.by_name.keys().map(String::as_str)
     }
 
+    /// Return command names whose command-level spec selects `hook` for WASM.
+    pub fn command_names_for_wasm_codegen_hook(
+        &self,
+        hook: WasmCodegenHookId,
+    ) -> impl Iterator<Item = &str> {
+        self.by_name.iter().filter_map(move |(name, specs)| {
+            specs
+                .iter()
+                .any(|spec| spec.wasm_codegen_hook == Some(hook))
+                .then_some(name.as_str())
+        })
+    }
+
     /// The [`ObjectClassSpec`] for a `TclOO` / megawidget class named
     /// `class_name`, or `None` when it is not a registry-modelled class.
     ///

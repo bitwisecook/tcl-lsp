@@ -444,6 +444,12 @@ pub enum AnalyserHookId {
 /// uses on the compiler side.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum WasmCodegenHookId {
+    /// Store a literal value through Tcl's variable machinery.
+    Set,
+    /// Evaluate a supported expression through the direct object ABI.
+    Expr,
+    /// Return a direct expression result from a generated procedure.
+    Return,
     /// Register a lowered procedure definition without evaluating its source.
     Proc,
     /// Write the single-argument stdout form through the runtime channel API.

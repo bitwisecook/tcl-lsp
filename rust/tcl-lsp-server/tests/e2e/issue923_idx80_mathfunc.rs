@@ -223,7 +223,9 @@ fn workspace_scan_clears_w123_for_a_cross_file_mathfunc() {
     let vector = format!("file://{}", vector_path.to_string_lossy());
     lsp.open_ready(&vector, VECTOR);
     let diags = lsp.await_diagnostics_settled(&vector, Duration::from_secs(30), |d| {
-        w123_names(d).iter().any(|n| n == "NeverDefinedAnywhere")
+        let names = w123_names(d);
+        names.iter().any(|n| n == "NeverDefinedAnywhere")
+            && !names.iter().any(|n| n == "Pi" || n == "Inv")
     });
     let names = w123_names(&diags);
     assert!(

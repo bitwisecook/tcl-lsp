@@ -93,6 +93,97 @@ puts [add 2 4]
 }
 
 #[test]
+fn analysed_assignment_preserves_dynamic_array_index_substitution() {
+    let mut module = compile_wasm_analysed("set x foo\nset a($x) 1\n");
+    let wat = module.to_wat();
+
+    assert!(
+        wat.contains(r#""set a($x) 1""#),
+        "the substituted target must retain source evaluation:\n{wat}"
+    );
+    assert_eq!(&module.to_bytes()[0..4], b"\0asm");
+}
+
+#[test]
+fn analysed_assignment_preserves_a_rebound_set_command() {
+    let source = r"proc replacement args {return replacement}
+proc rebind {} {
+    rename set original_set
+    rename replacement set
+}
+rebind
+set x 1
+";
+    let mut module = compile_wasm_analysed(source);
+    let wat = module.to_wat();
+
+    assert!(
+        wat.contains(r#""set x 1""#),
+        "a potentially rebound set must retain source evaluation:\n{wat}"
+    );
+    assert_eq!(&module.to_bytes()[0..4], b"\0asm");
+}
+
+#[test]
+fn analysed_direct_proc_requires_original_expr_and_return_bindings() {
+    for (name, rebind) in [
+        ("expr", "rename expr original_expr\nrename replacement expr"),
+        (
+            "return",
+            "rename return original_return\nrename replacement return",
+        ),
+    ] {
+        let source = format!(
+            "proc replacement args {{list replacement}}\n\
+             proc rebind {{}} {{{rebind}}}\n\
+             proc add {{a b}} {{return [expr {{$a + $b}}]}}\n\
+             rebind\n\
+             puts [add 2 4]\n"
+        );
+        let mut module = compile_wasm_analysed(&source);
+        let wat = module.to_wat();
+
+        assert!(
+            !wat.contains(
+                r#"(func $::add (export "::add") (param $a i32) (param $b i32) (result i32)"#
+            ),
+            "a potentially rebound {name} must disable the direct procedure:\n{wat}"
+        );
+        assert!(
+            wat.contains(r#""puts [add 2 4]""#),
+            "the call must retain source evaluation when {name} can change:\n{wat}"
+        );
+        assert_eq!(&module.to_bytes()[0..4], b"\0asm");
+    }
+}
+
+#[test]
+fn analysed_direct_call_preserves_static_and_dynamic_execution_traces() {
+    for (name, trace_setup) in [
+        ("static", "trace add execution add enter callback"),
+        (
+            "dynamic",
+            "set traced_command add\ntrace add execution $traced_command enter callback",
+        ),
+    ] {
+        let source = format!(
+            "proc callback args {{}}\n\
+             proc add {{a b}} {{return [expr {{$a + $b}}]}}\n\
+             {trace_setup}\n\
+             puts [add 1 2]\n"
+        );
+        let mut module = compile_wasm_analysed(&source);
+        let wat = module.to_wat();
+
+        assert!(
+            wat.contains(r#""puts [add 1 2]""#),
+            "a {name} execution trace must retain runtime dispatch:\n{wat}"
+        );
+        assert_eq!(&module.to_bytes()[0..4], b"\0asm");
+    }
+}
+
+#[test]
 fn analysed_puts_preserves_braced_command_text_as_literal() {
     let mut module = compile_wasm_analysed("puts {[add 2 4]}\n");
     let wat = module.to_wat();

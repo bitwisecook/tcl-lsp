@@ -223,6 +223,7 @@ pub fn spec() -> CommandSpec {
             return_value: "The result string that becomes the enclosing procedure's result (or, inside a script evaluated by source, that script's result). With -code other than the default ok, result instead becomes the payload of the resulting exceptional completion — e.g. the message text of a -code error, or the value a catch reports when it traps this return.",
         }),
         lowering_hook: Some(LoweringHookId::Return),
+        wasm_codegen_hook: Some(WasmCodegenHookId::Return),
         inline_codegen_hook: Some(InlineCodegenHookId::Return),
         forms: FORMS,
         context_gate: Some(return_context_gate),

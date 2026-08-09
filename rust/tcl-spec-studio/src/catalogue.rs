@@ -331,6 +331,9 @@ pub const INLINE_CODEGEN_HOOKS: &[Variant] = &[
 
 /// [`WasmCodegenHookId`] — the WASM-target emitter family.
 pub const WASM_CODEGEN_HOOKS: &[Variant] = &[
+    v("Set", "literal variable assignment"),
+    v("Expr", "direct expression evaluation"),
+    v("Return", "direct procedure return"),
     v("Proc", "procedure definition"),
     v("Puts", "single-argument stdout write"),
 ];
@@ -984,7 +987,11 @@ mod tests {
     /// Every [`WasmCodegenHookId`] variant is catalogued in `WASM_CODEGEN_HOOKS`.
     fn covered_wasm(h: WasmCodegenHookId) -> bool {
         match h {
-            WasmCodegenHookId::Proc | WasmCodegenHookId::Puts => true,
+            WasmCodegenHookId::Set
+            | WasmCodegenHookId::Expr
+            | WasmCodegenHookId::Return
+            | WasmCodegenHookId::Proc
+            | WasmCodegenHookId::Puts => true,
         }
     }
 
