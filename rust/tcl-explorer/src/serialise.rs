@@ -198,23 +198,24 @@ fn serialise_children(stmt: &Statement, li: &LineIndex, source: &str) -> Option<
     }
 }
 
-/// Serialise the `wasm` view: drive the eval-fallback WASM emitter (the same
-/// `wasm_codegen_module` `tcl compwasm` uses) and emit the rich per-instruction
+/// Serialise the `wasm` view: drive the analysis-aware WASM emitter used by
+/// `tcl compwasm` and emit the rich per-instruction
 /// explorer shape (`wasm_explorer::wasm_to_explorer_json` — resolved `call`
 /// targets, paired `br`/`br_if` targets, block-pairing indices, per-instruction
 /// ranges). The synthetic `(module)` entry additionally carries the full WAT
 /// `text`, so both the text renderer and the web GUI read one shape; the
 /// module-wide counts (`functionCount` / `totalInstrCount`) and the type
 /// section come from `wasm_to_explorer_json` itself.
-fn serialise_wasm(module: &Module, source: &str) -> Value {
-    use tcl_compiler::codegen::wasm::wasm_codegen_module;
+fn serialise_wasm(result: &ExplorerResult) -> Value {
+    use tcl_compiler::codegen::wasm::wasm_codegen_compilation_unit;
 
-    let mut wasm = wasm_codegen_module(module, source);
+    let registry = registry_for_dialect(&result.dialect);
+    let mut wasm = wasm_codegen_compilation_unit(&result.unit, registry);
     let wat = wasm.to_wat();
 
     // Rich per-instruction entries (module header first, then functions).
-    let li = LineIndex::new(source);
-    let mut entries = crate::wasm_explorer::wasm_to_explorer_json(&wasm, &li, source);
+    let li = LineIndex::new(&result.source);
+    let mut entries = crate::wasm_explorer::wasm_to_explorer_json(&wasm, &li, &result.source);
 
     // Augment the synthetic `(module)` header with the WAT text the TUI
     // renderer reads (it reads `text` on the module entry and
@@ -1939,18 +1940,14 @@ pub fn serialise_result(result: &ExplorerResult) -> Value {
         }),
     );
 
-    // WASM views: drive the eval-fallback WASM emitter (the same one `tcl
-    // compwasm` uses) and surface its WAT plus the rich per-instruction
+    // WASM views: drive the analysis-aware WASM emitter used by `tcl compwasm`
+    // and surface its WAT plus the rich per-instruction
     // explorer shape (resolved `call`/branch targets, per-instruction ranges)
     // alongside per-function headers, which the text/`wasm` view renders.
-    out.insert(
-        "wasm".to_owned(),
-        serialise_wasm(&result.unit.ir_module, &result.source),
-    );
+    out.insert("wasm".to_owned(), serialise_wasm(result));
     out.insert(
         "wasmOptimised".to_owned(),
-        opt.as_ref()
-            .map_or(Value::Null, |(r, s)| serialise_wasm(&r.unit.ir_module, s)),
+        opt.as_ref().map_or(Value::Null, |(r, _)| serialise_wasm(r)),
     );
 
     let (annotations, by_line) = serialise_annotations(result, &li, &result.source);

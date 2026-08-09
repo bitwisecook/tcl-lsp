@@ -108,6 +108,13 @@ fn walk_stmt<E: Emit>(
         emit.emit_command(slice(source, stmt.span()));
         return Flow::Normal;
     }
+    if emit.emit_typed_statement(stmt, source) {
+        return if matches!(stmt, Statement::Return { .. }) {
+            Flow::Diverged
+        } else {
+            Flow::Normal
+        };
+    }
     match stmt {
         Statement::If {
             clauses, else_body, ..

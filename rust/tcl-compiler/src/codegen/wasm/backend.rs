@@ -19,9 +19,10 @@
 //! The greenfield WASM codegen backend — the first consumer of the [`Emit`] seam
 //! and the structured [`structured`](crate::codegen::structured) driver.
 //!
-//! The current tier is **eval-fallback**: every leaf command is boxed as a Tcl
-//! string in the module's data section and evaluated by the runtime at run time
-//! (`tcl_eval_code`, which reports the command's completion code); control flow
+//! The analysis-aware tier emits binding-proven assignments, procedure calls,
+//! arithmetic, and registry-selected commands over owned `TclObj` pointers.
+//! Anything outside that tier is boxed from its CST-derived source span and
+//! evaluated by the runtime (`tcl_eval_code`); control flow
 //! is **structured** WASM (`if`/`else`; `block`/`loop` with `br`/`br_if` for
 //! loops + `break`/`continue`/`return`), and the code a leaf command returns is
 //! honoured — an `error`/`return` unwinds, a `break`/`continue` re-enters the
@@ -30,15 +31,29 @@
 //! runtime provides (values are i32 `*mut TclObj` pointers into shared linear
 //! memory). The runtime side of that ABI is the leak-tested eval surface in
 //! `runtime/rust/src/codegen_abi.rs` (`tcl_eval_code`, `tcl_expr_bool`, the
-//! obj new/release helpers); an emitted module runs against it through the
+//! object and direct-operation helpers); an emitted module runs against it through the
 //! shared-memory dynamic link (`__memory_base` relocation), which the standalone
 //! `wasm_execute` test exercises with a stub provider.
 
 use super::encoding::{leb128_signed, leb128_unsigned};
 use super::ir::{ValType, WasmData, WasmFunction, WasmInstruction, WasmModule, WasmOp};
+use std::collections::{HashMap, HashSet};
+
+use tcl_dialect::DialectSet;
+use tcl_lexer::Span;
+use tcl_registry::hooks::WasmCodegenHookId;
+use tcl_registry::{CommandRegistry, TclType};
+use tcl_syntax::expr::{BinOp, ExprNode};
+
+use crate::codegen::cmd_subst::{is_pure_cmd_subst, parse_cmd_parts};
 use crate::codegen::emit::Emit;
 use crate::codegen::structured;
-use crate::ir::{Module, Procedure};
+use crate::command_binding::{
+    Binding, BindingKind, ModuleCommandMutations, analyse_command_binding,
+    scan_module_command_mutations,
+};
+use crate::compilation_unit::{CompilationUnit, FunctionUnit};
+use crate::ir::{Module, Procedure, Statement};
 
 /// Block type byte for a structured op (`block`/`loop`/`if`) yielding no value.
 const BLOCK_VOID: u8 = 0x40;
@@ -46,8 +61,6 @@ const BLOCK_VOID: u8 = 0x40;
 /// The completion-code scratch local (index 0). Every emitted function declares
 /// exactly one `i32` local so [`WasmEmitter::emit_completion_dispatch`] can stash
 /// the code a leaf command returns and test it more than once.
-const CODE_LOCAL: u64 = 0;
-
 /// Tcl completion codes the dispatch tests (`TCL_BREAK` / `TCL_CONTINUE`); the
 /// others (`TCL_ERROR` = 1, `TCL_RETURN` = 2, or a `return -code N`) are handled
 /// as "any non-`OK` code" (see [`WasmEmitter::emit_completion_dispatch`]).
@@ -79,6 +92,36 @@ struct Imports {
     eval_code: u32,
     /// `(expr_obj) -> i32` — evaluate a condition to a boolean.
     expr_bool: u32,
+    aot: Option<AotImports>,
+}
+
+#[derive(Clone, Copy)]
+struct AotImports {
+    value_new_string: u32,
+    frame_push: u32,
+    frame_pop: u32,
+    local_bind: u32,
+    local_set: u32,
+    local_get: u32,
+    var_set: u32,
+    var_get: u32,
+    expr_add: u32,
+    puts: u32,
+    proc_register: u32,
+}
+
+#[derive(Default)]
+struct FunctionFacts {
+    hooks: HashMap<(u32, u32), WasmCodegenHookId>,
+    direct_assignments: HashSet<(u32, u32)>,
+    direct_calls: HashMap<(u32, u32, String), String>,
+}
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum FunctionMode {
+    Top,
+    FallbackProc,
+    DirectProc,
 }
 
 /// One open structured loop, recording the control-frame indices a
@@ -105,6 +148,14 @@ struct WasmEmitter {
     /// Stack of open loops; the last is the innermost (the `break`/`continue`
     /// target, since Tcl has no labelled break).
     loops: Vec<LoopFrame>,
+    code_local: u64,
+    mode: FunctionMode,
+    local_slots: HashMap<String, u32>,
+    proc_indices: HashMap<String, u32>,
+    procedure_arity: HashMap<String, usize>,
+    direct_procs: HashSet<String>,
+    procedures_by_span: HashMap<(u32, u32), Procedure>,
+    facts: FunctionFacts,
 }
 
 impl WasmEmitter {
@@ -184,6 +235,200 @@ impl WasmEmitter {
         self.call(self.imports.obj_new_string);
     }
 
+    fn push_text_pair(&mut self, text: &str) {
+        let (offset, len) = self.intern(text);
+        self.push_i32(offset);
+        self.push_i32(len);
+    }
+
+    fn box_value(&mut self, text: &str) -> bool {
+        let Some(aot) = self.imports.aot else {
+            return false;
+        };
+        self.push_text_pair(text);
+        self.call(aot.value_new_string);
+        true
+    }
+
+    fn emit_var_get(&mut self, name: &str) -> bool {
+        let Some(aot) = self.imports.aot else {
+            return false;
+        };
+        if self.mode == FunctionMode::DirectProc {
+            let Some(slot) = self.local_slots.get(name).copied() else {
+                return false;
+            };
+            self.push_i32(i64::from(slot));
+            self.call(aot.local_get);
+        } else {
+            self.push_text_pair(name);
+            self.call(aot.var_get);
+        }
+        true
+    }
+
+    fn emit_expr_value(&mut self, expr: &ExprNode) -> bool {
+        match expr {
+            ExprNode::Var { name, .. } => self.emit_var_get(name),
+            ExprNode::Literal { text, .. } => self.box_value(text),
+            ExprNode::Binary {
+                op: BinOp::Add,
+                left,
+                right,
+            } => {
+                if !self.emit_expr_value(left) || !self.emit_expr_value(right) {
+                    return false;
+                }
+                let Some(aot) = self.imports.aot else {
+                    return false;
+                };
+                self.call(aot.expr_add);
+                true
+            }
+            _ => false,
+        }
+    }
+
+    fn emit_word_value(&mut self, word: &str, statement: &Statement) -> bool {
+        if let Some(name) = simple_var_name(word) {
+            return self.emit_var_get(name);
+        }
+        if !is_pure_cmd_subst(word) {
+            return !word.bytes().any(|b| matches!(b, b'$' | b'[' | b'\\')) && self.box_value(word);
+        }
+        let parts = parse_cmd_parts(word);
+        let Some((head, false)) = parts.first() else {
+            return false;
+        };
+        let key = span_command_key(statement.span(), head);
+        let Some(target) = self.facts.direct_calls.get(&key).cloned() else {
+            return false;
+        };
+        if !self.direct_procs.contains(&target) {
+            return false;
+        }
+        if self.procedure_arity.get(&target).copied() != Some(parts.len() - 1) {
+            return false;
+        }
+        for (arg, braced) in &parts[1..] {
+            if *braced {
+                if !self.box_value(arg) {
+                    return false;
+                }
+            } else if !self.emit_word_value(arg, statement) {
+                return false;
+            }
+        }
+        let Some(index) = self.proc_indices.get(&target).copied() else {
+            return false;
+        };
+        self.call(index);
+        true
+    }
+
+    fn emit_proc_prelude(&mut self, proc: &Procedure) {
+        let Some(aot) = self.imports.aot else {
+            return;
+        };
+        self.call(aot.frame_push);
+        for (param_idx, name) in proc.params.iter().enumerate() {
+            self.push_i32(i64::try_from(param_idx).unwrap_or(i64::MAX));
+            self.push_text_pair(name);
+            self.local_get(u64::try_from(param_idx).unwrap_or(u64::MAX));
+            self.call(aot.local_bind);
+            self.push(WasmOp::Drop);
+        }
+    }
+
+    fn try_emit_typed_statement(&mut self, statement: &Statement) -> bool {
+        let Some(aot) = self.imports.aot else {
+            return false;
+        };
+        match statement {
+            Statement::AssignConst {
+                span, name, value, ..
+            } => {
+                if !self.facts.direct_assignments.contains(&span_key(*span)) {
+                    return false;
+                }
+                if self.mode == FunctionMode::DirectProc {
+                    let Some(slot) = self.local_slots.get(name).copied() else {
+                        return false;
+                    };
+                    self.push_i32(i64::from(slot));
+                    if !self.box_value(value) {
+                        return false;
+                    }
+                    self.call(aot.local_set);
+                } else if self.mode == FunctionMode::Top {
+                    self.push_text_pair(name);
+                    if !self.box_value(value) {
+                        return false;
+                    }
+                    self.call(aot.var_set);
+                } else {
+                    return false;
+                }
+                self.emit_completion_dispatch();
+                true
+            }
+            Statement::Return {
+                expr: Some(expr), ..
+            } if self.mode == FunctionMode::DirectProc => {
+                if !self.emit_expr_value(expr) {
+                    return false;
+                }
+                self.call(aot.frame_pop);
+                self.push(WasmOp::Return);
+                true
+            }
+            Statement::Call {
+                span, args, tokens, ..
+            } => {
+                let Some(hook) = self.facts.hooks.get(&span_key(*span)).copied() else {
+                    return false;
+                };
+                match hook {
+                    WasmCodegenHookId::Proc => {
+                        let Some(proc) = self.procedures_by_span.get(&span_key(*span)).cloned()
+                        else {
+                            return false;
+                        };
+                        let Some(body) = proc.body_source.as_deref() else {
+                            return false;
+                        };
+                        self.push_text_pair(&proc.qualified_name);
+                        self.push_text_pair(&proc.params_raw);
+                        self.push_text_pair(body);
+                        self.call(aot.proc_register);
+                        self.emit_completion_dispatch();
+                        true
+                    }
+                    WasmCodegenHookId::Puts
+                        if args.len() == 1
+                            && !tokens
+                                .as_ref()
+                                .is_some_and(|tokens| tokens.arg_is_braced_literal(0))
+                            && (simple_var_name(&args[0]).is_some()
+                                || is_pure_cmd_subst(&args[0])) =>
+                    {
+                        if !self.emit_word_value(&args[0], statement) {
+                            return false;
+                        }
+                        self.call(aot.puts);
+                        self.emit_completion_dispatch();
+                        true
+                    }
+                    WasmCodegenHookId::Set
+                    | WasmCodegenHookId::Expr
+                    | WasmCodegenHookId::Return
+                    | WasmCodegenHookId::Puts => false,
+                }
+            }
+            _ => false,
+        }
+    }
+
     fn local_get(&mut self, idx: u64) {
         self.body.push(WasmInstruction::with_operands(
             WasmOp::LocalGet,
@@ -211,7 +456,7 @@ impl WasmEmitter {
     /// through to the next statement.
     fn emit_completion_dispatch(&mut self) {
         // Stash the code; the dispatch reads it up to three times.
-        self.local_set(CODE_LOCAL);
+        self.local_set(self.code_local);
 
         // In a loop, codes 3/4 are a structural break/continue of *this* loop.
         if let Some(frame) = self.loops.last() {
@@ -223,7 +468,7 @@ impl WasmEmitter {
 
         // Any remaining non-`OK` code (error/return/other, or break/continue with
         // no enclosing loop) unwinds the function.
-        self.local_get(CODE_LOCAL);
+        self.local_get(self.code_local);
         self.open_frame(WasmOp::If); // if (code != 0)
         self.push(WasmOp::Return);
         self.close_frame();
@@ -234,7 +479,7 @@ impl WasmEmitter {
     /// so the `br` depth is computed with it in place (crossing it, plus any
     /// enclosing `if`s, back to the loop scope).
     fn emit_code_eq_branch(&mut self, want: i64, target: u32) {
-        self.local_get(CODE_LOCAL);
+        self.local_get(self.code_local);
         self.push_i32(want);
         self.push(WasmOp::I32Eq);
         self.open_frame(WasmOp::If);
@@ -251,27 +496,68 @@ impl WasmEmitter {
     /// The terminal `end` is emitted unconditionally — a body ending in a loop's
     /// own `end` would otherwise leave `encode_body` to mistake that for the
     /// function `end` and leave a frame open.
-    fn finish_function(&mut self, name: &str, kind: &str) -> WasmFunction {
+    fn finish_function(
+        &mut self,
+        name: &str,
+        kind: &str,
+        proc: Option<&Procedure>,
+    ) -> WasmFunction {
+        let direct = self.mode == FunctionMode::DirectProc;
+        if direct {
+            self.box_value("");
+            if let Some(aot) = self.imports.aot {
+                self.call(aot.frame_pop);
+            }
+        }
         self.push(WasmOp::End);
         self.ctrl_depth = 0;
         self.loops.clear();
+        let params = if direct {
+            vec![ValType::I32; proc.map_or(0, |p| p.params.len())]
+        } else {
+            Vec::new()
+        };
+        let mut local_names = if direct {
+            proc.map_or_else(Vec::new, |p| {
+                p.params.iter().map(|name| format!("${name}")).collect()
+            })
+        } else {
+            Vec::new()
+        };
+        local_names.push("$code".to_string());
         WasmFunction {
             name: name.to_string(),
-            params: Vec::new(),
-            results: Vec::new(),
-            // One i32 scratch local (index [`CODE_LOCAL`]) for the completion-code
-            // dispatch; declared uniformly (harmless when a body has no commands).
+            params,
+            results: if direct {
+                vec![ValType::I32]
+            } else {
+                Vec::new()
+            },
             locals: vec![ValType::I32],
             body: std::mem::take(&mut self.body),
-            local_names: vec!["$code".to_string()],
+            local_names,
             exported: true,
-            source_range: None,
+            source_range: proc.map(|p| p.span),
             kind: kind.to_string(),
         }
     }
 }
 
 impl Emit for WasmEmitter {
+    fn emit_typed_statement(&mut self, statement: &Statement, _source: &str) -> bool {
+        let body_len = self.body.len();
+        let data_len = self.data.len();
+        let data_offset = self.data_offset;
+        if self.try_emit_typed_statement(statement) {
+            true
+        } else {
+            self.body.truncate(body_len);
+            self.data.truncate(data_len);
+            self.data_offset = data_offset;
+            false
+        }
+    }
+
     fn emit_command(&mut self, source_text: &str) {
         // code = tcl_eval_code(box(text)); then honour an abrupt completion code
         // (error/return unwinds, break/continue re-enters the loop) instead of
@@ -364,17 +650,347 @@ impl Emit for WasmEmitter {
     }
 }
 
+fn span_key(span: Span) -> (u32, u32) {
+    (span.start(), span.end())
+}
+
+fn span_command_key(span: Span, command: &str) -> (u32, u32, String) {
+    (span.start(), span.end(), command.to_string())
+}
+
+fn simple_var_name(word: &str) -> Option<&str> {
+    if let Some(name) = word.strip_prefix("${").and_then(|s| s.strip_suffix('}')) {
+        return (!name.is_empty()).then_some(name);
+    }
+    let name = word.strip_prefix('$')?;
+    (!name.is_empty()
+        && name
+            .bytes()
+            .all(|b| b.is_ascii_alphanumeric() || matches!(b, b'_' | b':')))
+    .then_some(name)
+}
+
+fn direct_expr_supported(expr: &ExprNode, params: &HashSet<&str>) -> bool {
+    match expr {
+        ExprNode::Var { name, .. } => params.contains(name.as_str()),
+        ExprNode::Literal { .. } => true,
+        ExprNode::Binary {
+            op: BinOp::Add,
+            left,
+            right,
+        } => direct_expr_supported(left, params) && direct_expr_supported(right, params),
+        _ => false,
+    }
+}
+
+fn wasm_hook_is_trusted(
+    registry: &CommandRegistry,
+    mutations: &ModuleCommandMutations,
+    hook: WasmCodegenHookId,
+) -> bool {
+    let mut commands = registry
+        .command_names_for_wasm_codegen_hook(hook)
+        .peekable();
+    commands.peek().is_some() && commands.all(|command| mutations.trusts(command))
+}
+
+fn direct_proc_eligible(
+    module: &Module,
+    proc: &Procedure,
+    unit: &FunctionUnit,
+    registry: &CommandRegistry,
+    mutations: &ModuleCommandMutations,
+) -> bool {
+    if proc.namespace_scoped
+        || proc
+            .qualified_name
+            .strip_prefix("::")
+            .is_some_and(|name| name.contains("::"))
+        || module.redefined_procedures.contains(&proc.qualified_name)
+        || unit.complexity_guarded
+        || !wasm_hook_is_trusted(registry, mutations, WasmCodegenHookId::Expr)
+        || !wasm_hook_is_trusted(registry, mutations, WasmCodegenHookId::Return)
+        || !matches!(
+            unit.return_type.tcl_type(),
+            Some(TclType::Int | TclType::Double | TclType::Numeric)
+        )
+    {
+        return false;
+    }
+    let raw_params: Vec<&str> = proc.params_raw.split_whitespace().collect();
+    if raw_params.len() != proc.params.len()
+        || !raw_params
+            .iter()
+            .zip(&proc.params)
+            .all(|(raw, name)| *raw == name)
+    {
+        return false;
+    }
+    let [
+        Statement::Return {
+            expr: Some(expr), ..
+        },
+    ] = proc.body.statements.as_slice()
+    else {
+        return false;
+    };
+    let params: HashSet<&str> = proc.params.iter().map(String::as_str).collect();
+    direct_expr_supported(expr, &params)
+}
+
+fn function_facts(
+    unit: &FunctionUnit,
+    module: &Module,
+    registry: &CommandRegistry,
+    is_top: bool,
+) -> FunctionFacts {
+    let mutations = scan_module_command_mutations(module, registry);
+    let initial: Vec<(String, Binding)> = if is_top {
+        Vec::new()
+    } else {
+        module
+            .procedures
+            .keys()
+            .map(|name| {
+                (
+                    name.clone(),
+                    Binding {
+                        kind: BindingKind::Proc,
+                        target: Some(name.clone()),
+                    },
+                )
+            })
+            .collect()
+    };
+    let bindings = analyse_command_binding(&unit.cfg, registry, &initial);
+    let mut facts = FunctionFacts::default();
+    for block in unit.cfg.reverse_postorder() {
+        let Some(cfg_block) = unit.cfg.blocks.get(&block) else {
+            continue;
+        };
+        for (stmt_idx, statement) in cfg_block.statements.iter().enumerate() {
+            if let Statement::AssignConst {
+                span,
+                name,
+                name_braced,
+                value,
+                ..
+            } = statement
+                && (*name_braced || !crate::naming::is_dynamic_word(name))
+                && registry
+                    .command_names_for_wasm_codegen_hook(WasmCodegenHookId::Set)
+                    .any(|command| {
+                        bindings.is_original_builtin_at(block, stmt_idx, command)
+                            && mutations.trusts(command)
+                            && registry
+                                .resolve_call(command, &[name, value], DialectSet::empty())
+                                .is_some_and(|resolved| {
+                                    resolved.wasm_codegen_hook == Some(WasmCodegenHookId::Set)
+                                })
+                    })
+            {
+                facts.direct_assignments.insert(span_key(*span));
+            }
+            let (Statement::Call { command, args, .. } | Statement::Barrier { command, args, .. }) =
+                statement
+            else {
+                continue;
+            };
+            let bare = statement
+                .canonical_command_or_source()
+                .strip_prefix("::")
+                .unwrap_or_else(|| statement.canonical_command_or_source());
+            let arg_refs: Vec<&str> = args.iter().map(String::as_str).collect();
+            if bindings.is_original_builtin_at(block, stmt_idx, command)
+                && mutations.trusts(bare)
+                && let Some(hook) = registry
+                    .resolve_call(bare, &arg_refs, DialectSet::empty())
+                    .and_then(|resolved| resolved.wasm_codegen_hook)
+            {
+                facts.hooks.insert(span_key(statement.span()), hook);
+            }
+            if !is_top {
+                continue;
+            }
+            for proc in module.procedures.values() {
+                if is_top && proc.span.start() >= statement.span().start() {
+                    continue;
+                }
+                for written in [proc.name.as_str(), proc.qualified_name.as_str()] {
+                    let binding = bindings.binding_at(block, stmt_idx, written);
+                    if binding.kind == BindingKind::Proc
+                        && binding.target.as_deref() == Some(proc.qualified_name.as_str())
+                        && mutations.trusts_proc_binding(&proc.qualified_name)
+                        && !module.has_dynamic_trace
+                        && !module.traced_commands.contains(
+                            proc.qualified_name
+                                .strip_prefix("::")
+                                .unwrap_or(&proc.qualified_name),
+                        )
+                    {
+                        facts.direct_calls.insert(
+                            span_command_key(statement.span(), written),
+                            proc.qualified_name.clone(),
+                        );
+                    }
+                }
+            }
+        }
+    }
+    facts
+}
+
 fn add_tcl_import(m: &mut WasmModule, name: &str, params: &[ValType], results: &[ValType]) -> u32 {
     u32::try_from(m.add_import("tcl", name, params, results)).expect("import index fits in u32")
 }
 
-/// Lower a module's top-level script to a WASM module (eval-fallback tier +
+fn add_aot_imports(wasm: &mut WasmModule) -> AotImports {
+    AotImports {
+        value_new_string: add_tcl_import(
+            wasm,
+            "tcl_value_new_string",
+            &[ValType::I32, ValType::I32],
+            &[ValType::I32],
+        ),
+        frame_push: add_tcl_import(wasm, "tcl_codegen_frame_push", &[], &[]),
+        frame_pop: add_tcl_import(wasm, "tcl_codegen_frame_pop", &[], &[]),
+        local_bind: add_tcl_import(
+            wasm,
+            "tcl_codegen_local_bind",
+            &[ValType::I32, ValType::I32, ValType::I32, ValType::I32],
+            &[ValType::I32],
+        ),
+        local_set: add_tcl_import(
+            wasm,
+            "tcl_codegen_local_set",
+            &[ValType::I32, ValType::I32],
+            &[ValType::I32],
+        ),
+        local_get: add_tcl_import(
+            wasm,
+            "tcl_codegen_local_get",
+            &[ValType::I32],
+            &[ValType::I32],
+        ),
+        var_set: add_tcl_import(
+            wasm,
+            "tcl_codegen_var_set",
+            &[ValType::I32, ValType::I32, ValType::I32],
+            &[ValType::I32],
+        ),
+        var_get: add_tcl_import(
+            wasm,
+            "tcl_codegen_var_get",
+            &[ValType::I32, ValType::I32],
+            &[ValType::I32],
+        ),
+        expr_add: add_tcl_import(
+            wasm,
+            "tcl_codegen_expr_add",
+            &[ValType::I32, ValType::I32],
+            &[ValType::I32],
+        ),
+        puts: add_tcl_import(wasm, "tcl_codegen_puts", &[ValType::I32], &[ValType::I32]),
+        proc_register: add_tcl_import(
+            wasm,
+            "tcl_codegen_proc_register",
+            &[
+                ValType::I32,
+                ValType::I32,
+                ValType::I32,
+                ValType::I32,
+                ValType::I32,
+                ValType::I32,
+            ],
+            &[ValType::I32],
+        ),
+    }
+}
+
+struct ProcedurePlan<'a> {
+    procs: Vec<&'a Procedure>,
+    indices: HashMap<String, u32>,
+    arity: HashMap<String, usize>,
+    by_span: HashMap<(u32, u32), Procedure>,
+    direct: HashSet<String>,
+}
+
+fn procedure_plan<'a>(
+    module: &'a Module,
+    analysis: Option<(&CompilationUnit, &CommandRegistry)>,
+    top_idx: u32,
+) -> ProcedurePlan<'a> {
+    let mut procs: Vec<&Procedure> = module
+        .procedures
+        .values()
+        .filter(|p| !p.namespace_scoped)
+        .collect();
+    procs.sort_by(|a, b| a.qualified_name.cmp(&b.qualified_name));
+    let indices = procs
+        .iter()
+        .enumerate()
+        .map(|(position, proc)| {
+            (
+                proc.qualified_name.clone(),
+                top_idx
+                    .saturating_add(1)
+                    .saturating_add(u32::try_from(position).unwrap_or(u32::MAX)),
+            )
+        })
+        .collect();
+    let arity = procs
+        .iter()
+        .map(|proc| (proc.qualified_name.clone(), proc.params.len()))
+        .collect();
+    let by_span = procs
+        .iter()
+        .map(|proc| (span_key(proc.span), (*proc).clone()))
+        .collect();
+    let direct = analysis.map_or_else(HashSet::new, |(unit, registry)| {
+        let mutations = scan_module_command_mutations(module, registry);
+        procs
+            .iter()
+            .filter(|proc| {
+                unit.procedures
+                    .get(&proc.qualified_name)
+                    .is_some_and(|fu| direct_proc_eligible(module, proc, fu, registry, &mutations))
+            })
+            .map(|proc| proc.qualified_name.clone())
+            .collect()
+    });
+    ProcedurePlan {
+        procs,
+        indices,
+        arity,
+        by_span,
+        direct,
+    }
+}
+
+/// Lower a module's top-level script to a WASM module (source fallback +
 /// structured control flow). `source` is the original Tcl text, sliced for
 /// command / expression text. The constant pool is placed at offset 0 — valid
 /// for a standalone module (own memory) or one whose host keeps low memory free.
 #[must_use]
 pub fn wasm_codegen_module(module: &Module, source: &str) -> WasmModule {
-    codegen(module, source, 0, false, false)
+    codegen(module, source, 0, false, false, None)
+}
+
+/// Emit from a complete compiler unit, enabling registry- and lattice-proven
+/// direct statements while retaining source-span fallback for the rest.
+#[must_use]
+pub fn wasm_codegen_compilation_unit(
+    unit: &CompilationUnit,
+    registry: &CommandRegistry,
+) -> WasmModule {
+    codegen(
+        &unit.ir_module,
+        &unit.source,
+        0,
+        false,
+        false,
+        Some((unit, registry)),
+    )
 }
 
 /// As [`wasm_codegen_module`], but relocate the constant pool to `data_base` so
@@ -384,7 +1000,24 @@ pub fn wasm_codegen_module(module: &Module, source: &str) -> WasmModule {
 /// `tcl_obj_new_string` are based at `data_base`.
 #[must_use]
 pub fn wasm_codegen_module_based(module: &Module, source: &str, data_base: i64) -> WasmModule {
-    codegen(module, source, data_base, false, false)
+    codegen(module, source, data_base, false, false, None)
+}
+
+/// Relocated form of [`wasm_codegen_compilation_unit`].
+#[must_use]
+pub fn wasm_codegen_compilation_unit_based(
+    unit: &CompilationUnit,
+    registry: &CommandRegistry,
+    data_base: i64,
+) -> WasmModule {
+    codegen(
+        &unit.ir_module,
+        &unit.source,
+        data_base,
+        false,
+        false,
+        Some((unit, registry)),
+    )
 }
 
 /// As [`wasm_codegen_module_based`], but also emit a WASI-command entry point
@@ -398,7 +1031,7 @@ pub fn wasm_codegen_module_based(module: &Module, source: &str, data_base: i64) 
 /// separate `_initialize` call is needed.
 #[must_use]
 pub fn wasm_codegen_module_standalone(module: &Module, source: &str, data_base: i64) -> WasmModule {
-    codegen(module, source, data_base, true, false)
+    codegen(module, source, data_base, true, false, None)
 }
 
 /// As [`wasm_codegen_module_standalone`], but the emitted `_start` also calls
@@ -414,7 +1047,7 @@ pub fn wasm_codegen_module_standalone_init(
     source: &str,
     data_base: i64,
 ) -> WasmModule {
-    codegen(module, source, data_base, true, true)
+    codegen(module, source, data_base, true, true, None)
 }
 
 /// Shared codegen for the linkable ([`wasm_codegen_module_based`]) and
@@ -426,6 +1059,7 @@ fn codegen(
     data_base: i64,
     standalone: bool,
     init: bool,
+    analysis: Option<(&CompilationUnit, &CommandRegistry)>,
 ) -> WasmModule {
     let mut wasm = WasmModule::new();
     let imports = Imports {
@@ -437,7 +1071,12 @@ fn codegen(
         ),
         eval_code: add_tcl_import(&mut wasm, "tcl_eval_code", &[ValType::I32], &[ValType::I32]),
         expr_bool: add_tcl_import(&mut wasm, "tcl_expr_bool", &[ValType::I32], &[ValType::I32]),
+        aot: None,
     };
+    let mut imports = imports;
+    if analysis.is_some() {
+        imports.aot = Some(add_aot_imports(&mut wasm));
+    }
 
     // Standalone: the interp-bootstrap imports `_start` drives. Added after the
     // ABI imports so the ABI indices in `Imports` are unchanged.
@@ -458,6 +1097,17 @@ fn codegen(
     // count (imports occupy the low indices). Capture it before emitting bodies.
     let top_idx = u32::try_from(wasm.imports.len()).expect("import count fits in u32");
 
+    let ProcedurePlan {
+        procs,
+        indices: proc_indices,
+        arity: procedure_arity,
+        by_span: procedures_by_span,
+        direct: direct_procs,
+    } = procedure_plan(module, analysis, top_idx);
+    let top_facts = analysis.map_or_else(FunctionFacts::default, |(unit, registry)| {
+        function_facts(&unit.top_level, module, registry, true)
+    });
+
     let mut emitter = WasmEmitter {
         imports,
         body: Vec::new(),
@@ -465,10 +1115,18 @@ fn codegen(
         data_offset: data_base,
         ctrl_depth: 0,
         loops: Vec::new(),
+        code_local: 0,
+        mode: FunctionMode::Top,
+        local_slots: HashMap::new(),
+        proc_indices,
+        procedure_arity,
+        direct_procs,
+        procedures_by_span,
+        facts: top_facts,
     };
     // The top-level script.
     structured::walk(&mut emitter, &module.top_level, source);
-    let top = emitter.finish_function("::top", "top");
+    let top = emitter.finish_function("::top", "top", None);
     wasm.functions.push(top);
 
     // Each user-defined proc body becomes its own WASM function, driven through
@@ -477,15 +1135,39 @@ fn codegen(
     // `namespace eval`, not at load, so they are skipped — mirroring the bytecode
     // backend (`codegen/emitter/mod.rs`). Emitted in qualified-name order so the
     // module bytes are deterministic (`procedures` is a hash map).
-    let mut procs: Vec<&Procedure> = module
-        .procedures
-        .values()
-        .filter(|p| !p.namespace_scoped)
-        .collect();
-    procs.sort_by(|a, b| a.qualified_name.cmp(&b.qualified_name));
     for proc in procs {
+        let direct = emitter.direct_procs.contains(&proc.qualified_name);
+        emitter.mode = if direct {
+            FunctionMode::DirectProc
+        } else {
+            FunctionMode::FallbackProc
+        };
+        emitter.local_slots = if direct {
+            proc.params
+                .iter()
+                .enumerate()
+                .map(|(slot, name)| (name.clone(), u32::try_from(slot).unwrap_or(u32::MAX)))
+                .collect()
+        } else {
+            HashMap::new()
+        };
+        emitter.code_local = if direct {
+            u64::try_from(proc.params.len()).unwrap_or(u64::MAX)
+        } else {
+            0
+        };
+        emitter.facts = analysis
+            .and_then(|(unit, registry)| {
+                unit.procedures
+                    .get(&proc.qualified_name)
+                    .map(|fu| function_facts(fu, module, registry, false))
+            })
+            .unwrap_or_default();
+        if direct {
+            emitter.emit_proc_prelude(proc);
+        }
         structured::walk(&mut emitter, &proc.body, source);
-        let func = emitter.finish_function(&proc.qualified_name, "proc");
+        let func = emitter.finish_function(&proc.qualified_name, "proc", Some(proc));
         wasm.functions.push(func);
     }
 

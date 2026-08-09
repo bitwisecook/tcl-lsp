@@ -547,10 +547,9 @@ mod tests {
 
     fn wasm_entries(src: &str) -> Vec<Value> {
         let result = run_pipeline(src, "tcl8.6");
-        let module = tcl_compiler::codegen::wasm::wasm_codegen_module(
-            &result.unit.ir_module,
-            &result.source,
-        );
+        let registry = tcl_registry::registry_for_dialect(&result.dialect);
+        let module =
+            tcl_compiler::codegen::wasm::wasm_codegen_compilation_unit(&result.unit, registry);
         let li = LineIndex::new(&result.source);
         wasm_to_explorer_json(&module, &li, &result.source)
     }

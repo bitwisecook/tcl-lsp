@@ -3034,7 +3034,7 @@ fn a_load_only_package_does_not_suppress_unrelated_w120s_923_idx72() {
     while std::time::Instant::now() < deadline {
         std::thread::sleep(Duration::from_millis(100));
         let next = lsp.pull_diagnostics(&uri);
-        if codes(&next) == codes(&diags) {
+        if has_code(&next, "W120") {
             diags = next;
             break;
         }

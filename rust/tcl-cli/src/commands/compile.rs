@@ -25,9 +25,8 @@
 //! - `dis` lowers to the bytecode IR, builds the codegen CFG (the
 //!   `faithful_exceptions`-off shape — see `tcl-explorer`'s `asm` view for why),
 //!   emits the `ModuleAsm`, and renders it with `format_module_asm`.
-//! - `compwasm` lowers to the analysis IR and runs the greenfield WASM
-//!   eval-fallback emitter, writing the binary module (and, optionally, its WAT
-//!   text form).
+//! - `compwasm` builds the complete analysis unit and runs the WASM emitter,
+//!   writing the binary module and, optionally, its WAT text form.
 //!
 //! `--optimise` runs the source-to-source optimiser first, exactly as the
 //! `compile_script(optimise=...)` path does (`apply_optimisations` over
@@ -40,8 +39,9 @@ use tcl_cli_support::{
 use tcl_compiler::cfg_builder::build_cfg_codegen;
 use tcl_compiler::codegen::codegen_module;
 use tcl_compiler::codegen::format::format_module_asm;
-use tcl_compiler::codegen::wasm::wasm_codegen_module;
-use tcl_compiler::lowering::{lower_to_ir_for_bytecode_with_dialect, lower_to_ir_with_dialect};
+use tcl_compiler::codegen::wasm::wasm_codegen_compilation_unit;
+use tcl_compiler::compilation_unit::CompilationUnit;
+use tcl_compiler::lowering::lower_to_ir_for_bytecode_with_dialect;
 use tcl_compiler::optimiser::{apply_optimisations, optimise_with_dialect};
 use tcl_registry::CommandRegistry;
 
@@ -96,7 +96,7 @@ pub fn run_dis(input: &InputArgs, optimise_on: bool) -> anyhow::Result<u8> {
 
 /// `tcl compwasm` — compile source to a WebAssembly binary. The default `vm`
 /// backend emits the self-contained bytecode-VM runner; `tree-walker` emits the
-/// legacy eval-fallback module (`RUST_ISSUE_008`).
+/// analysis-aware Tcl-object module with runtime fallback.
 pub fn run_compwasm(
     input: &InputArgs,
     backend: crate::cli::WasmBackend,
@@ -173,8 +173,8 @@ fn locate_vm_wasm() -> Option<std::path::PathBuf> {
     candidates.into_iter().find(|p| p.is_file())
 }
 
-/// The legacy `tree-walker` backend: the eval-fallback WASM emitter — a bare
-/// module importing the runtime C-ABI (`tcl_*`), with an optional WAT dump.
+/// The `tree-walker` backend: a bare module importing the runtime C ABI, with
+/// direct analysed operations, source fallback, and an optional WAT dump.
 fn run_compwasm_tree_walker(
     input: &InputArgs,
     wat_output: Option<&std::path::Path>,
@@ -184,13 +184,8 @@ fn run_compwasm_tree_walker(
     let registry = registry_for_dialect(&dialect);
     let source = combine_sources(&documents);
 
-    let ir = lower_to_ir_with_dialect(
-        &source,
-        registry,
-        tcl_lexer::LexerConfig::for_dialect(&dialect),
-        &dialect,
-    );
-    let mut wasm = wasm_codegen_module(&ir, &source);
+    let unit = CompilationUnit::build_for_dialect(&source, registry, false, &dialect);
+    let mut wasm = wasm_codegen_compilation_unit(&unit, registry);
     let bytes = wasm.to_bytes();
 
     // Unlike the other verbs, `compwasm` defaults to a file, not stdout: a bare

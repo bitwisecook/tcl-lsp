@@ -41,7 +41,7 @@
 // version of this same fact, and the hover snippet below for the
 // developer-facing wording.
 
-use crate::hooks::LoweringHookId;
+use crate::hooks::{LoweringHookId, WasmCodegenHookId};
 use crate::prelude::*;
 
 const SIDE_EFFECTS: &[SideEffect] = &[SideEffect {
@@ -127,6 +127,7 @@ pub fn spec() -> CommandSpec {
             return_value: "varName's new value when value is given, otherwise its current value.",
         }),
         lowering_hook: Some(LoweringHookId::Set),
+        wasm_codegen_hook: Some(WasmCodegenHookId::Set),
         forms: FORMS,
         side_effects: SIDE_EFFECTS,
         analyser_hook: Some(crate::hooks::AnalyserHookId::Set),

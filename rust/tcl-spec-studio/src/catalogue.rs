@@ -330,10 +330,13 @@ pub const INLINE_CODEGEN_HOOKS: &[Variant] = &[
 ];
 
 /// [`WasmCodegenHookId`] — the WASM-target emitter family.
-///
-/// Empty: the WASM emitter has no per-command specialisations yet. The field
-/// exists so the per-command coverage audit can track hook stamping.
-pub const WASM_CODEGEN_HOOKS: &[Variant] = &[];
+pub const WASM_CODEGEN_HOOKS: &[Variant] = &[
+    v("Set", "literal variable assignment"),
+    v("Expr", "direct expression evaluation"),
+    v("Return", "direct procedure return"),
+    v("Proc", "procedure definition"),
+    v("Puts", "single-argument stdout write"),
+];
 
 /// [`AnalyserHookId`] — the per-command analyser handler family.
 pub const ANALYSER_HOOKS: &[Variant] = &[
@@ -981,10 +984,15 @@ mod tests {
         }
     }
 
-    /// [`WasmCodegenHookId`] is an empty enum — the WASM emitter has no
-    /// per-command specialisations yet, so this match has no arms.
+    /// Every [`WasmCodegenHookId`] variant is catalogued in `WASM_CODEGEN_HOOKS`.
     fn covered_wasm(h: WasmCodegenHookId) -> bool {
-        match h {}
+        match h {
+            WasmCodegenHookId::Set
+            | WasmCodegenHookId::Expr
+            | WasmCodegenHookId::Return
+            | WasmCodegenHookId::Proc
+            | WasmCodegenHookId::Puts => true,
+        }
     }
 
     /// Every [`AnalyserHookId`] variant is catalogued in `ANALYSER_HOOKS`.
@@ -1042,14 +1050,7 @@ mod tests {
         assert!(covered_tcl_type(TclType::String));
         assert!(covered_side_effect_target(SideEffectTarget::Unknown));
         assert!(covered_small_enums());
-        // `WasmCodegenHookId` has no variants, so its witness can never be
-        // *called* — naming it is what keeps the exhaustive match compiled,
-        // and that match is the gate for the day the enum gains an arm.
-        let wasm_witness: fn(WasmCodegenHookId) -> bool = covered_wasm;
-        assert!(std::ptr::fn_addr_eq(
-            wasm_witness,
-            covered_wasm as fn(_) -> _
-        ));
+        assert!(covered_wasm(WasmCodegenHookId::Proc));
         assert!(covered_lowering(LoweringHookId::Expr));
         assert!(covered_codegen(CodegenHookId::Dict));
         assert!(covered_inline(InlineCodegenHookId::Expr));

@@ -33,7 +33,9 @@ use crate::body_kind::BodyKind;
 use crate::command_table::CommandTableEffect;
 use crate::dialects::DialectSet;
 use crate::forms::CommandForm;
-use crate::hooks::{AnalyserHookId, CodegenHookId, InlineCodegenHookId, LoweringHookId};
+use crate::hooks::{
+    AnalyserHookId, CodegenHookId, InlineCodegenHookId, LoweringHookId, WasmCodegenHookId,
+};
 use crate::lifecycle::{Lifecycle, LifecycleState};
 use crate::spec::{BytePayloadSpec, CommandSpec, SubCommand};
 use crate::traits::Traits;
@@ -765,6 +767,19 @@ impl CommandRegistry {
     /// Return all registered command names.
     pub fn command_names(&self) -> impl Iterator<Item = &str> {
         self.by_name.keys().map(String::as_str)
+    }
+
+    /// Return command names whose command-level spec selects `hook` for WASM.
+    pub fn command_names_for_wasm_codegen_hook(
+        &self,
+        hook: WasmCodegenHookId,
+    ) -> impl Iterator<Item = &str> {
+        self.by_name.iter().filter_map(move |(name, specs)| {
+            specs
+                .iter()
+                .any(|spec| spec.wasm_codegen_hook == Some(hook))
+                .then_some(name.as_str())
+        })
     }
 
     /// The [`ObjectClassSpec`] for a `TclOO` / megawidget class named
@@ -1860,6 +1875,7 @@ impl CommandRegistry {
             lowering_hook: spec.lowering_hook,
             codegen_hook: spec.codegen_hook,
             inline_codegen_hook: spec.inline_codegen_hook,
+            wasm_codegen_hook: spec.wasm_codegen_hook,
             analyser_hook: spec.analyser_hook,
         };
 
@@ -1881,6 +1897,10 @@ impl CommandRegistry {
                 .and_then(|f| f.codegen_hook)
                 .or(sub.codegen_hook)
                 .or(spec.codegen_hook);
+            resolved.wasm_codegen_hook = form
+                .and_then(|f| f.wasm_codegen_hook)
+                .or(sub.wasm_codegen_hook)
+                .or(spec.wasm_codegen_hook);
             // Forms carry no inline hook — the inline emitters guard
             // their own applicability (arity / shape) at the dispatch
             // site, so subcommand-level wins over command-level.
@@ -1897,6 +1917,7 @@ impl CommandRegistry {
         if let Some(f) = form {
             resolved.lowering_hook = f.lowering_hook.or(spec.lowering_hook);
             resolved.codegen_hook = f.codegen_hook.or(spec.codegen_hook);
+            resolved.wasm_codegen_hook = f.wasm_codegen_hook.or(spec.wasm_codegen_hook);
             resolved.form = Some(f);
         }
         Some(resolved)
@@ -2167,6 +2188,8 @@ pub struct ResolvedCall<'r> {
     /// Effective inline (value-position / catch-body) codegen hook
     /// identifier (subcommand-level wins over command-level).
     pub inline_codegen_hook: Option<InlineCodegenHookId>,
+    /// Effective WASM-target codegen hook identifier.
+    pub wasm_codegen_hook: Option<WasmCodegenHookId>,
     /// Effective analyser handler-family hook identifier
     /// (subcommand-level wins over command-level).
     pub analyser_hook: Option<AnalyserHookId>,

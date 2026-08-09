@@ -18,7 +18,7 @@
 
 //! `proc` — define a procedure.
 
-use crate::hooks::LoweringHookId;
+use crate::hooks::{LoweringHookId, WasmCodegenHookId};
 use crate::prelude::*;
 
 const SIDE_EFFECTS: &[SideEffect] = &[SideEffect {
@@ -84,6 +84,7 @@ pub fn spec() -> CommandSpec {
         ],
         return_type: Some(TclType::String),
         lowering_hook: Some(LoweringHookId::Proc),
+        wasm_codegen_hook: Some(WasmCodegenHookId::Proc),
         // A `proc` body runs in the proc's own frame on each
         // call — never the caller's frame.  Stamping `Structural`
         // here lets generic `body_indices_to_skip` consumers (SSA,

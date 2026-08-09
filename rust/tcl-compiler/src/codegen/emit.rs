@@ -27,10 +27,9 @@
 //! deliberately **not** retrofitted onto it (per the red-team: that is a rewrite,
 //! not a refactor — it stays on its own driver behind the byte-identity gate).
 //!
-//! The statement tier is **eval-fallback**: every leaf command is handed to the
-//! backend as its original source text, to be evaluated by the runtime at run
-//! time (`tcl_eval`). The inline AOT tiers (variable slots, arithmetic, …) and
-//! the per-command codegen hooks are a later stage, behind the same seam.
+//! A backend first receives the lowered statement through
+//! [`Emit::emit_typed_statement`]. Declining it preserves the original-source
+//! runtime fallback through [`Emit::emit_command`].
 //!
 //! Control flow is **structured** — `if`/`else` and the loop scaffolding — so a
 //! target with no arbitrary branches (WASM) can realise it directly. The
@@ -38,6 +37,8 @@
 //! primitives; because Tcl has no labelled break they always target the
 //! innermost enclosing loop, so the backend owns the (per-target) jump
 //! bookkeeping and the driver need only say *what* happened, not *where to jump*.
+
+use crate::ir::Statement;
 
 /// The semantic operations the [structured walk](crate::codegen::structured)
 /// emits. A backend maps each to its artifact (the WASM backend: an instruction
@@ -61,6 +62,12 @@
 /// A body that falls off its end re-tests via the back-edge naturally — no
 /// explicit `continue` is needed for the common iteration.
 pub trait Emit {
+    /// Try to emit a lowered statement directly. Returning `true` means the
+    /// backend consumed it; `false` keeps the original-source fallback.
+    fn emit_typed_statement(&mut self, _statement: &Statement, _source: &str) -> bool {
+        false
+    }
+
     /// A leaf command, given its original source text (eval-fallback tier).
     fn emit_command(&mut self, source_text: &str);
 
