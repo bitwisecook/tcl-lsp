@@ -328,6 +328,7 @@ dependencies = [
  "tcl-host-native",
  "tcl-platform",
  "tcl-regex",
+ "tcl-registry",
  "tcl-runtime-api",
  "tcl-syntax",
 ]
