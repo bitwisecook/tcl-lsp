@@ -99,6 +99,7 @@ pub fn spec() -> CommandSpec {
         arity: Arity::new(1, 2),
         arg_role_resolver: Some(puts_arg_roles),
         return_type: Some(TclType::String),
+        wasm_codegen_hook: Some(WasmCodegenHookId::Puts),
         side_effects: &[SideEffect {
             target: SideEffectTarget::FileIo,
             reads: false,

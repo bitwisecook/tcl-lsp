@@ -24,8 +24,10 @@
 //! present) validates the bytes for full structural validity.
 
 use tcl_compiler::codegen::wasm::{
-    RESERVED_DATA_BASE, WasmModule, wasm_codegen_module, wasm_codegen_module_based,
+    RESERVED_DATA_BASE, WasmModule, wasm_codegen_compilation_unit, wasm_codegen_module,
+    wasm_codegen_module_based,
 };
+use tcl_compiler::compilation_unit::CompilationUnit;
 use tcl_compiler::lowering::lower_to_ir;
 use tcl_registry::CommandRegistry;
 
@@ -41,6 +43,65 @@ fn compile_wasm_based(source: &str, data_base: i64) -> WasmModule {
     let registry = CommandRegistry::build_default();
     let module = lower_to_ir(source, &registry);
     wasm_codegen_module_based(&module, source, data_base)
+}
+
+fn compile_wasm_analysed(source: &str) -> WasmModule {
+    let registry = CommandRegistry::build_default();
+    let unit = CompilationUnit::build_for(source, &registry, false);
+    wasm_codegen_compilation_unit(&unit, &registry)
+}
+
+#[test]
+fn analysed_add_program_uses_direct_tcl_object_operations() {
+    let source = r"proc add {b c} {
+    return [expr {$b + $c}]
+}
+
+set e 2
+set f 4
+puts [add $e $f]
+";
+    let mut module = compile_wasm_analysed(source);
+    let wat = module.to_wat();
+
+    assert!(
+        wat.contains(r#"(func $::add (export "::add") (param $b i32) (param $c i32) (result i32)"#),
+        "{wat}"
+    );
+    assert!(wat.contains(r#""tcl_codegen_local_bind""#), "{wat}");
+    assert!(wat.contains(r#""tcl_codegen_expr_add""#), "{wat}");
+    assert!(wat.contains(r#""tcl_codegen_puts""#), "{wat}");
+    assert!(wat.contains(r#""tcl_codegen_proc_register""#), "{wat}");
+    assert!(!wat.lines().any(|line| line.trim() == "call 1"), "{wat}");
+    assert_eq!(&module.to_bytes()[0..4], b"\0asm");
+}
+
+#[test]
+fn analysed_direct_call_declines_when_binding_lattice_is_opaque() {
+    let source = r"proc add {b c} {return [expr {$b + $c}]}
+rename add old_add
+puts [add 2 4]
+";
+    let mut module = compile_wasm_analysed(source);
+    let wat = module.to_wat();
+
+    assert!(
+        wat.lines().any(|line| line.trim() == "call 1"),
+        "the rebound call must retain source evaluation:\n{wat}"
+    );
+    assert_eq!(&module.to_bytes()[0..4], b"\0asm");
+}
+
+#[test]
+fn analysed_puts_preserves_braced_command_text_as_literal() {
+    let mut module = compile_wasm_analysed("puts {[add 2 4]}\n");
+    let wat = module.to_wat();
+
+    assert!(
+        wat.lines().any(|line| line.trim() == "call 1"),
+        "a braced command-shaped word must remain literal:\n{wat}"
+    );
+    assert_eq!(&module.to_bytes()[0..4], b"\0asm");
 }
 
 /// With a non-zero data base, both the data segments and the `i32.const` offsets

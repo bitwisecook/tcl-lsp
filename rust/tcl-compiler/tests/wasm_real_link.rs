@@ -21,10 +21,10 @@
 //!
 //! `wasm_execute.rs` runs emitted modules against a hand-built host stub. This
 //! goes all the way: it links the emitted module against the real Rust runtime
-//! compiled to `wasm32-unknown-unknown`, sharing one linear memory, and proves a
+//! compiled to `wasm32-wasip1`, sharing one linear memory, and proves a
 //! genuine side effect of the emitted program survives in the real interpreter.
 //!
-//! Three modules, composed by the wasmtime CLI (`--preload`), sharing the
+//! Three modules, composed by the wasmtime CLI (`--preload`), share the
 //! runtime's exported memory:
 //!
 //! 1. **`tcl` = the real runtime** — exports `memory` + the codegen ABI
@@ -33,35 +33,30 @@
 //!    (`Tcl_GetStringFromObj`). Built with `--global-base=0x200000` so its
 //!    data/heap sit above a reserved gap `[0x100000, 0x200000)` (its 1 MiB shadow
 //!    stack stays at `[0, 0x100000)`).
-//! 2. **`user` = the emitted module** — its `::top` boxes `set x 42` and
-//!    `tcl_eval_code`s it (honouring the command's completion code). Its constant
-//!    pool is relocated to [`RESERVED_DATA_BASE`] (`0x100000`) so it lands in the
-//!    gap, not under the runtime's stack.
+//! 2. **`user` = the emitted module** — its analysed statements use the direct
+//!    Tcl-object ABI where binding and type lattices prove that path. Its
+//!    constant pool is relocated to [`RESERVED_DATA_BASE`] (`0x100000`) so it
+//!    lands in the gap, not under the runtime's stack.
 //! 3. **bootstrap** (the WASI command) — creates an interp, makes it current,
 //!    calls `user::top`, then `tcl_eval`s a `query` against the *same* interp,
 //!    reads the result string with `Tcl_GetStringFromObj`, and writes it to
 //!    stdout. The printed result proves the emitted program's side effect
 //!    persisted in the real runtime.
 //!
-//! Two programs are linked and run: a bare `set x 42` (read back as `42`) and a
-//! **proc** defined and called — `proc greet {name} {return "hi $name"}` then
-//! `set r [greet world]`, read back as `hi world`. The proc exercises a real
-//! frame push, parameter binding, `return`, string interpolation, and command
-//! substitution in the live runtime. (Dispatch still flows through the interp's
-//! eval-fallback, so the separately-emitted `::greet` function is not yet the one
-//! that runs — wiring `greet …` calls to `call ::greet` is the next increment.)
+//! The cases cover a direct variable store, an interpreted fallback procedure,
+//! and the direct numeric `add` procedure. The final case proves the linked
+//! generated function binds Tcl-visible parameters, adds through the numeric
+//! tower, and writes `6` through the real WASI stdout path.
 //!
 //! Heavy + gated: it builds `runtime/rust` to wasm (cached after the first run)
 //! and shells out to the `wasmtime` CLI. It skips cleanly when either is
-//! unavailable, mirroring the other wasm tests. Neither program needs `expr` (the
-//! numeric tower is off in the wasm build) nor any host capability, so both run
-//! faithfully on the placeholder `BrowserHost`.
+//! unavailable, mirroring the other wasm tests.
 
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
-use tcl_compiler::codegen::wasm::{RESERVED_DATA_BASE, wasm_codegen_module_based};
-use tcl_compiler::lowering::lower_to_ir;
+use tcl_compiler::codegen::wasm::{RESERVED_DATA_BASE, wasm_codegen_compilation_unit_based};
+use tcl_compiler::compilation_unit::CompilationUnit;
 use tcl_registry::CommandRegistry;
 
 /// The bootstrap WASI command (see the module docs): create + select an interp,
@@ -117,17 +112,33 @@ fn workspace_root() -> PathBuf {
         .expect("workspace root")
 }
 
-/// Build `runtime/rust` to `wasm32-unknown-unknown` with the reserved-region
+/// Build `runtime/rust` to `wasm32-wasip1` with the reserved-region
 /// linker flag, into an isolated target dir. Returns the artifact path, or `None`
 /// if the build can't run (e.g. the wasm32 target is missing) so the test skips.
 fn build_reserved_runtime() -> Option<PathBuf> {
     let root = workspace_root();
     let target_dir = std::env::temp_dir().join("tcl_reserved_runtime");
-    let ok = Command::new("cargo")
+    let mut command = Command::new("cargo");
+    let wasi_sdk = std::env::var_os("WASI_SDK_PATH")
+        .map(PathBuf::from)
+        .or(Some(PathBuf::from("/opt/wasi-sdk")))
+        .filter(|path| path.join("bin/clang").is_file())?;
+    command.env("WASI_SDK_PATH", wasi_sdk);
+    if let Some(tommath) = [
+        root.join("tmp/tcl9.0.4/libtommath"),
+        root.join("tmp/tcl9.0.3-src/libtommath"),
+        root.join("tmp/tcl8.6.16/libtommath"),
+    ]
+    .into_iter()
+    .find(|path| path.join("tommath.h").is_file())
+    {
+        command.env("TCL_TOMMATH_DIR", tommath);
+    }
+    let ok = command
         .arg("build")
         .arg("--manifest-path")
         .arg(root.join("runtime/rust/Cargo.toml"))
-        .args(["--target", "wasm32-unknown-unknown"])
+        .args(["--target", "wasm32-wasip1"])
         .arg("--target-dir")
         .arg(&target_dir)
         // Reserve [0x100000, 0x200000): the 1 MiB shadow stack stays at
@@ -136,16 +147,17 @@ fn build_reserved_runtime() -> Option<PathBuf> {
         .env("RUSTFLAGS", "-C link-arg=--global-base=2097152")
         .status()
         .is_ok_and(|s| s.success());
-    ok.then(|| target_dir.join("wasm32-unknown-unknown/debug/tcl_runtime.wasm"))
+    ok.then(|| target_dir.join("wasm32-wasip1/debug/tcl_runtime.wasm"))
 }
 
 /// Emit `program`, link it against the real `runtime`, run its `::top`, then
 /// evaluate `query` against the same interp and return the printed result.
 fn run_real_link(runtime: &Path, program: &str, query: &str) -> String {
     let registry = CommandRegistry::build_default();
-    let module = lower_to_ir(program, &registry);
+    let unit = CompilationUnit::build_for(program, &registry, false);
     // Constant pool in the reserved gap so it does not hit the runtime's stack.
-    let user_bytes = wasm_codegen_module_based(&module, program, RESERVED_DATA_BASE).to_bytes();
+    let user_bytes =
+        wasm_codegen_compilation_unit_based(&unit, &registry, RESERVED_DATA_BASE).to_bytes();
 
     let tmp = std::env::temp_dir();
     let user = tmp.join("tcl_real_link_user.wasm");
@@ -198,6 +210,11 @@ fn emitted_modules_run_against_the_real_runtime() {
             "proc greet {name} {return \"hi $name\"}\nset r [greet world]\n",
             "set r",
             "hi world",
+        ),
+        (
+            "proc add {b c} {\n    return [expr {$b + $c}]\n}\n\nset e 2\nset f 4\nputs [add $e $f]\n",
+            "set e",
+            "6\n2",
         ),
     ];
     for (program, query, expected) in cases {

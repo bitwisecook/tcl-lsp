@@ -411,7 +411,7 @@ fn gets_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
 }
 
 /// `puts ?-nonewline? ?channelId? string` — to stdout/stderr or a file channel.
-fn puts_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
+pub(crate) fn puts_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     let usage = b"puts ?-nonewline? ?channelId? string";
     let mut rest = &argv[1..];
     let mut newline = true;

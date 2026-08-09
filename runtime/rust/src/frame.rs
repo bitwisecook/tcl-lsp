@@ -410,6 +410,10 @@ impl Drop for VarTable {
 /// the `CallFrame.nsPtr` analogue).
 struct Frame {
     table: VarTable,
+    /// Compile-time slot index to Tcl variable name. Indexed and named access
+    /// both route through `table`, so dynamic Tcl code observes the same cell
+    /// as generated `frame_local_*_at` calls.
+    compiled_slots: Vec<Vec<u8>>,
     /// The logical call level (`info level`, `upvar`/`uplevel` arithmetic) — the
     /// invoking var-frame's level + 1, **not** the stack index. They diverge
     /// when a proc is invoked while `uplevel` has redirected the active frame:
@@ -434,6 +438,7 @@ impl Frame {
     fn new(level: usize, ns: NsId) -> Self {
         Frame {
             table: VarTable::default(),
+            compiled_slots: Vec::new(),
             level,
             ns,
             words: Vec::new(),
@@ -621,6 +626,28 @@ impl FrameStack {
     pub fn frame_ns(&self, level: usize) -> NsId {
         self.index_of_level(level)
             .map_or(crate::namespace::GLOBAL, |i| self.frames[i].ns)
+    }
+
+    /// Associate a generated-code slot with its Tcl-visible variable name.
+    pub(crate) fn bind_compiled_slot(&mut self, slot: usize, name: &[u8]) {
+        let Some(i) = self.index_of_level(self.active_level) else {
+            return;
+        };
+        let slots = &mut self.frames[i].compiled_slots;
+        if slots.len() <= slot {
+            slots.resize_with(slot + 1, Vec::new);
+        }
+        slots[slot] = name.to_vec();
+    }
+
+    /// Tcl-visible name associated with a generated-code slot.
+    pub(crate) fn compiled_slot_name(&self, slot: usize) -> Option<&[u8]> {
+        let i = self.index_of_level(self.active_level)?;
+        self.frames[i]
+            .compiled_slots
+            .get(slot)
+            .filter(|name| !name.is_empty())
+            .map(Vec::as_slice)
     }
 
     /// Local variable names of the active frame, sorted (`info locals`).

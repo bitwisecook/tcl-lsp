@@ -1371,6 +1371,31 @@ impl Interp {
         self.current_ns.get()
     }
 
+    /// Enter a generated procedure body using the ordinary Tcl variable frame.
+    pub(crate) fn codegen_frame_push(&mut self) {
+        self.frames.borrow_mut().push(self.current_ns.get());
+    }
+
+    /// Leave a generated procedure body and restore its caller's namespace.
+    pub(crate) fn codegen_frame_pop(&mut self) {
+        let mut frames = self.frames.borrow_mut();
+        frames.pop();
+        self.current_ns.set(frames.frame_ns(frames.current_level()));
+    }
+
+    /// Associate an indexed generated local with its name-addressable Tcl cell.
+    pub(crate) fn codegen_bind_slot(&self, slot: usize, name: &[u8]) {
+        self.frames.borrow_mut().bind_compiled_slot(slot, name);
+    }
+
+    /// Resolve a generated local index to its Tcl-visible name.
+    pub(crate) fn codegen_slot_name(&self, slot: usize) -> Option<Vec<u8>> {
+        self.frames
+            .borrow()
+            .compiled_slot_name(slot)
+            .map(<[u8]>::to_vec)
+    }
+
     /// Begin an ensemble-rewrite (a forward / ensemble / constructor replacing
     /// the original command words). Returns `true` if this is the *root* rewrite
     /// (no rewrite was active) — the caller must `clear_ensemble_rewrite` when

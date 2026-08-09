@@ -74,6 +74,14 @@ use core::ptr;
 use crate::interp::{drop_fresh, obj_bytes, Interp};
 use crate::obj::{self, new_string_bytes, TclObj};
 
+unsafe fn input_bytes<'a>(ptr: *const u8, len: i32) -> &'a [u8] {
+    if ptr.is_null() || len <= 0 {
+        return b"";
+    }
+    // SAFETY: codegen passes a data-segment address and its exact byte length.
+    unsafe { core::slice::from_raw_parts(ptr, len as usize) }
+}
+
 // The interp emitted modules evaluate against (see the module docs). Null until
 // the host calls [`tcl_runtime_set_current_interp`].
 //
@@ -151,6 +159,291 @@ pub unsafe extern "C" fn tcl_obj_new_string(ptr: *const u8, len: i32) -> *mut Tc
     // SAFETY: forwarded per this fn's contract.
     let slice = unsafe { core::slice::from_raw_parts(ptr, len as usize) };
     new_string_bytes(slice)
+}
+
+/// Construct an owned Tcl value for the generated operand stack.
+///
+/// # Safety
+/// `ptr..ptr+len` must be readable shared linear memory when `len` is positive.
+#[no_mangle]
+pub unsafe extern "C" fn tcl_value_new_string(ptr: *const u8, len: i32) -> *mut TclObj {
+    let value = new_string_bytes(unsafe { input_bytes(ptr, len) });
+    // SAFETY: a generated operand-stack value owns one reference.
+    unsafe { obj::incr_ref_count(value) };
+    value
+}
+
+/// Release one generated operand-stack value.
+///
+/// # Safety
+/// `value` must carry one live reference owned by generated code.
+#[no_mangle]
+pub unsafe extern "C" fn tcl_value_release(value: *mut TclObj) {
+    // SAFETY: generated code transfers its owned stack reference here.
+    unsafe { obj::decr_ref_count(value) };
+}
+
+/// Push a name-addressable Tcl frame for a generated procedure.
+#[no_mangle]
+pub extern "C" fn tcl_codegen_frame_push() {
+    let interp = current_interp();
+    if !interp.is_null() {
+        // SAFETY: the bootstrap installed a live current interpreter.
+        unsafe { (*interp).codegen_frame_push() };
+    }
+}
+
+/// Pop the current generated procedure frame.
+#[no_mangle]
+pub extern "C" fn tcl_codegen_frame_pop() {
+    let interp = current_interp();
+    if !interp.is_null() {
+        // SAFETY: the bootstrap installed a live current interpreter.
+        unsafe { (*interp).codegen_frame_pop() };
+    }
+}
+
+/// Bind a compiled slot index to the Tcl-visible variable cell and store value.
+///
+/// # Safety
+/// The name range must be readable, and `value` must be a live owned reference.
+#[no_mangle]
+pub unsafe extern "C" fn tcl_codegen_local_bind(
+    slot: i32,
+    name_ptr: *const u8,
+    name_len: i32,
+    value: *mut TclObj,
+) -> i32 {
+    let interp = current_interp();
+    if interp.is_null() || slot < 0 || value.is_null() {
+        return 1;
+    }
+    let name = unsafe { input_bytes(name_ptr, name_len) };
+    // SAFETY: the bootstrap installed a live current interpreter.
+    let interp = unsafe { &mut *interp };
+    interp.codegen_bind_slot(usize::try_from(slot).unwrap_or(0), name);
+    let code = match interp.var_set(name, value) {
+        Ok(()) => 0,
+        Err(e) => i32::try_from(crate::builtins::var_error(interp, name, e).as_int()).unwrap_or(1),
+    };
+    // SAFETY: generated assignment transfers its operand-stack reference.
+    unsafe { obj::decr_ref_count(value) };
+    code
+}
+
+/// Store through an indexed compiled-local port.
+///
+/// # Safety
+/// `value` must be a live owned reference transferred by generated code.
+#[no_mangle]
+pub unsafe extern "C" fn tcl_codegen_local_set(slot: i32, value: *mut TclObj) -> i32 {
+    let interp = current_interp();
+    if interp.is_null() || slot < 0 || value.is_null() {
+        return 1;
+    }
+    // SAFETY: the bootstrap installed a live current interpreter.
+    let interp = unsafe { &mut *interp };
+    let Some(name) = interp.codegen_slot_name(usize::try_from(slot).unwrap_or(0)) else {
+        // SAFETY: generated assignment transfers its operand-stack reference.
+        unsafe { obj::decr_ref_count(value) };
+        return 1;
+    };
+    let code = match interp.var_set(&name, value) {
+        Ok(()) => 0,
+        Err(e) => i32::try_from(crate::builtins::var_error(interp, &name, e).as_int()).unwrap_or(1),
+    };
+    // SAFETY: generated assignment transfers its operand-stack reference.
+    unsafe { obj::decr_ref_count(value) };
+    code
+}
+
+/// Load through an indexed port, returning an owned operand-stack value.
+///
+/// # Safety
+/// The current interpreter and generated frame must remain live for the call.
+#[no_mangle]
+pub unsafe extern "C" fn tcl_codegen_local_get(slot: i32) -> *mut TclObj {
+    let interp = current_interp();
+    if interp.is_null() || slot < 0 {
+        return ptr::null_mut();
+    }
+    // SAFETY: the bootstrap installed a live current interpreter.
+    let interp = unsafe { &mut *interp };
+    let Some(name) = interp.codegen_slot_name(usize::try_from(slot).unwrap_or(0)) else {
+        return ptr::null_mut();
+    };
+    if interp.fire_read_trace(&name, None).is_some() {
+        return ptr::null_mut();
+    }
+    let Some(value) = interp.var_get(&name) else {
+        let msg = interp.read_miss_msg(&name, None);
+        interp.set_error(&msg);
+        return ptr::null_mut();
+    };
+    // SAFETY: the frame owns the existing reference; the stack claims another.
+    unsafe { obj::incr_ref_count(value) };
+    value
+}
+
+/// Store a top-level or namespace variable by name.
+///
+/// # Safety
+/// The name range must be readable, and `value` must be a live owned reference.
+#[no_mangle]
+pub unsafe extern "C" fn tcl_codegen_var_set(
+    name_ptr: *const u8,
+    name_len: i32,
+    value: *mut TclObj,
+) -> i32 {
+    let interp = current_interp();
+    if interp.is_null() || value.is_null() {
+        return 1;
+    }
+    let name = unsafe { input_bytes(name_ptr, name_len) };
+    // SAFETY: the bootstrap installed a live current interpreter.
+    let interp = unsafe { &mut *interp };
+    let code = match interp.var_set(name, value) {
+        Ok(()) => 0,
+        Err(e) => i32::try_from(crate::builtins::var_error(interp, name, e).as_int()).unwrap_or(1),
+    };
+    // SAFETY: generated assignment transfers its operand-stack reference.
+    unsafe { obj::decr_ref_count(value) };
+    code
+}
+
+/// Load a top-level or namespace variable by name as an owned stack value.
+///
+/// # Safety
+/// The name range must be readable shared linear memory.
+#[no_mangle]
+pub unsafe extern "C" fn tcl_codegen_var_get(name_ptr: *const u8, name_len: i32) -> *mut TclObj {
+    let interp = current_interp();
+    if interp.is_null() {
+        return ptr::null_mut();
+    }
+    let name = unsafe { input_bytes(name_ptr, name_len) };
+    // SAFETY: the bootstrap installed a live current interpreter.
+    let interp = unsafe { &mut *interp };
+    if interp.fire_read_trace(name, None).is_some() {
+        return ptr::null_mut();
+    }
+    let Some(value) = interp.var_get(name) else {
+        let msg = interp.read_miss_msg(name, None);
+        interp.set_error(&msg);
+        return ptr::null_mut();
+    };
+    // SAFETY: variable storage owns the existing reference; the stack claims one.
+    unsafe { obj::incr_ref_count(value) };
+    value
+}
+
+/// Add two owned stack values through Tcl's numeric tower.
+///
+/// # Safety
+/// Both operands must be live references owned by generated code.
+#[no_mangle]
+#[cfg(have_tommath)]
+pub unsafe extern "C" fn tcl_codegen_expr_add(
+    left: *mut TclObj,
+    right: *mut TclObj,
+) -> *mut TclObj {
+    let interp = current_interp();
+    let result = crate::bignum::add(left, right);
+    // SAFETY: the operation consumes both generated operand-stack references.
+    unsafe {
+        obj::decr_ref_count(left);
+        obj::decr_ref_count(right);
+    }
+    match result {
+        Ok(value) => {
+            // SAFETY: transfer a single owned result to generated code.
+            unsafe { obj::incr_ref_count(value) };
+            value
+        }
+        Err(e) => {
+            if !interp.is_null() {
+                let err = crate::expr::arith_err(e);
+                // SAFETY: the bootstrap installed a live current interpreter.
+                unsafe { (*interp).set_error(&err.msg) };
+            }
+            ptr::null_mut()
+        }
+    }
+}
+
+/// Report that arithmetic is unavailable in a deliberately reduced runtime.
+///
+/// # Safety
+/// Both operands must be live references owned by generated code.
+#[no_mangle]
+#[cfg(not(have_tommath))]
+pub unsafe extern "C" fn tcl_codegen_expr_add(
+    left: *mut TclObj,
+    right: *mut TclObj,
+) -> *mut TclObj {
+    // SAFETY: the operation consumes both generated operand-stack references.
+    unsafe {
+        obj::decr_ref_count(left);
+        obj::decr_ref_count(right);
+    }
+    let interp = current_interp();
+    if !interp.is_null() {
+        // SAFETY: the bootstrap installed a live current interpreter.
+        unsafe { (*interp).set_error(b"arithmetic support is not available") };
+    }
+    ptr::null_mut()
+}
+
+/// Write one owned value to stdout using the runtime's `puts` implementation.
+///
+/// # Safety
+/// `value` must be a live reference owned by generated code.
+#[no_mangle]
+pub unsafe extern "C" fn tcl_codegen_puts(value: *mut TclObj) -> i32 {
+    let interp = current_interp();
+    if interp.is_null() || value.is_null() {
+        return 1;
+    }
+    let command = new_string_bytes(b"puts");
+    // SAFETY: the bootstrap installed a live current interpreter.
+    let code = unsafe { crate::cmd_chan::puts_cmd(&mut *interp, &[command, value]) };
+    drop_fresh(command);
+    // SAFETY: the command consumes the generated stack reference after dispatch.
+    unsafe { obj::decr_ref_count(value) };
+    i32::try_from(code.as_int()).unwrap_or(1)
+}
+
+/// Register source metadata for a generated procedure without evaluating `proc`.
+///
+/// # Safety
+/// All three pointer/length ranges must be readable shared linear memory.
+#[no_mangle]
+pub unsafe extern "C" fn tcl_codegen_proc_register(
+    name_ptr: *const u8,
+    name_len: i32,
+    params_ptr: *const u8,
+    params_len: i32,
+    body_ptr: *const u8,
+    body_len: i32,
+) -> i32 {
+    let interp = current_interp();
+    if interp.is_null() {
+        return 1;
+    }
+    let name = unsafe { input_bytes(name_ptr, name_len) };
+    let params = unsafe { input_bytes(params_ptr, params_len) };
+    let body = unsafe { input_bytes(body_ptr, body_len) };
+    // SAFETY: the bootstrap installed a live current interpreter.
+    let interp = unsafe { &mut *interp };
+    let params = match crate::cmd_proc::parse_params(params) {
+        Ok(params) => params,
+        Err(message) => return i32::try_from(interp.set_error(&message).as_int()).unwrap_or(1),
+    };
+    let body_obj = new_string_bytes(body);
+    interp.define_proc(name, params, body_obj);
+    drop_fresh(body_obj);
+    interp.set_result_bytes(b"");
+    0
 }
 
 /// `tcl_eval(script) -> result` — evaluate `script` against the current interp.
@@ -304,6 +597,38 @@ mod tests {
     unsafe fn box_str(s: &[u8]) -> *mut TclObj {
         // SAFETY: `s` is a valid readable slice.
         unsafe { tcl_obj_new_string(s.as_ptr(), s.len() as i32) }
+    }
+
+    unsafe fn owned_str(s: &[u8]) -> *mut TclObj {
+        // SAFETY: `s` is a valid readable slice.
+        unsafe { tcl_value_new_string(s.as_ptr(), s.len() as i32) }
+    }
+
+    #[test]
+    fn compiled_slots_and_named_access_share_one_cell() {
+        leak_free(|| unsafe {
+            let interp = tcl_runtime_create_interp();
+            tcl_runtime_set_current_interp(interp);
+            tcl_codegen_frame_push();
+
+            assert_eq!(
+                tcl_codegen_local_bind(0, b"b".as_ptr(), 1, owned_str(b"2")),
+                0
+            );
+            assert_eq!(
+                tcl_codegen_local_bind(1, b"c".as_ptr(), 1, owned_str(b"4")),
+                0
+            );
+            assert_eq!(tcl_eval_code(box_str(b"set b 5")), 0);
+
+            let sum = tcl_codegen_expr_add(tcl_codegen_local_get(0), tcl_codegen_local_get(1));
+            assert_eq!(obj_bytes(sum), b"9");
+            tcl_value_release(sum);
+
+            tcl_codegen_frame_pop();
+            tcl_runtime_set_current_interp(ptr::null_mut());
+            tcl_runtime_delete_interp(interp);
+        });
     }
 
     /// The eval-fallback round-trip: box → eval → release, against the current
