@@ -459,15 +459,27 @@ impl Lowerer<'_> {
         //     gather from a straight-line body; a body with an `if`/`while`/
         //     `switch`/nested loop or an unwinding `return` compiles to a
         //     multi-block CFG it can't collect from, so it stays on the runtime
-        //     `lmap` (correct, though `yield` can't cross it). A straight-line
-        //     `lmap` lowers inline — yieldable and correctly collecting.
+        //     `lmap` boundary, whose explicit activation preserves `yield` and
+        //     non-local completions. A straight-line `lmap` lowers inline —
+        //     yieldable and correctly collecting.
+        //   * a `foreach` whose body directly contains another `foreach` or
+        //     `lmap`. Inline iterator state is activation-local, but the CFG
+        //     layout cannot yet pair the outer step with a nested loop's
+        //     back-edge. Routing the outer loop through the runtime command
+        //     gives the nested body a fresh activation, preserving both
+        //     iterator stacks and non-local loop completions.
         // The runtime builtin evaluates the body transparently. It remains the
         // correct fallback for a collecting loop with branching control flow,
         // whose per-arm result collection cannot be represented by the single
-        // inline `LMAP_COLLECT` tail.
+        // inline `LMAP_COLLECT` tail, and for nested iterator layouts pending a
+        // dedicated CFG representation.
+        let body_nests_foreach = body
+            .statements
+            .iter()
+            .any(|statement| matches!(statement, Statement::Foreach { .. }));
         let lmap_needs_runtime = is_lmap && !Self::body_is_straight_line(&body);
-        if self.target.is_bytecode() && lmap_needs_runtime {
-            return Self::barrier(seg, "lmap");
+        if self.target.is_bytecode() && (lmap_needs_runtime || body_nests_foreach) {
+            return Self::barrier(seg, if is_lmap { "lmap" } else { "foreach" });
         }
 
         Statement::Foreach {

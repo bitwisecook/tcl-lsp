@@ -1118,6 +1118,31 @@ impl Interp {
         )
     }
 
+    /// Invoke a Tcl 8.4 fixed-table `expr` math function selected by the
+    /// registry. This bypasses the command table deliberately: TIP 232 had not
+    /// introduced `::tcl::mathfunc::*` command wrappers yet, so a similarly
+    /// named proc or alias cannot replace the C function-table entry.
+    #[cfg(have_tommath)]
+    pub(crate) fn eval_fixed_math_call(
+        &mut self,
+        spec: &'static tcl_registry::CommandSpec,
+        args: &[*mut TclObj],
+    ) -> Code {
+        let name = new_string(spec.name.as_bytes());
+        let mut argv = Vec::with_capacity(args.len() + 1);
+        // SAFETY: the fresh name and each live argument gain the ownership the
+        // temporary argv carries until `release_all` below.
+        unsafe { obj::incr_ref_count(name) };
+        argv.push(name);
+        for &arg in args {
+            unsafe { obj::incr_ref_count(arg) };
+            argv.push(arg);
+        }
+        let code = crate::cmd_mathfunc::mathfunc(self, &argv);
+        release_all(&argv);
+        code
+    }
+
     /// Write the release-reporting globals (`tcl_version` / `tcl_patchLevel`)
     /// for the currently-emulated release.  Called at interpreter creation
     /// (C does this in `Tcl_CreateInterp`) and again whenever
@@ -4622,7 +4647,19 @@ impl Interp {
             .namespaces
             .borrow()
             .resolve(self.current_ns.get(), &name);
-        if let Some(cmd) = resolved {
+        let wrapper_hidden = matches!(&resolved, Some(Command::Builtin(_)))
+            && self
+                .resolve_cmd_fqn(&name)
+                .is_some_and(|fqn| {
+                    tcl_registry::expr_surface::RuntimeExprSurface::for_tcl_version(
+                        self.runtime_version(),
+                    )
+                    .builtin_math_function_command_visible(
+                        core::str::from_utf8(&fqn).unwrap_or_default(),
+                    )
+                    .is_some_and(|visible| !visible)
+                });
+        if let Some(cmd) = resolved.filter(|_| !wrapper_hidden) {
             return self.invoke(cmd, argv);
         }
         // Inside an `oo::define`/`oo::objdefine` body, an unresolved leading word

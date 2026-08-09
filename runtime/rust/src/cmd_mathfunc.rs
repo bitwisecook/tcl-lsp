@@ -68,7 +68,7 @@ pub fn install(interp: &mut Interp) {
 /// The shared implementation behind every `::tcl::mathfunc::NAME`. The function
 /// is `argv[0]`'s simple tail (so one builtin serves all names); operands are
 /// read off the tower as [`Num`] and dispatched.
-fn mathfunc(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
+pub(crate) fn mathfunc(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     let name0 = obj_bytes(argv[0]);
     let tail = qualifier_segments(&name0)
         .last()
@@ -233,6 +233,38 @@ mod tests {
             assert_eq!(i.result_bytes(), b"7");
             assert_eq!(i.eval_str(b"::tcl::mathfunc::max 1 9 3"), Code::Ok);
             assert_eq!(i.result_bytes(), b"9");
+        });
+    }
+
+    #[test]
+    fn tcl84_expr_uses_the_fixed_math_table_not_a_command_wrapper() {
+        leak_free(|i| {
+            i.set_runtime_version(tcl_dialect::TclVersion::V8_4);
+
+            // TP: the registry still supplies the 8.4 fixed builtin.
+            assert_eq!(i.eval_str(b"expr {sqrt(4)}"), Code::Ok);
+            assert_eq!(i.result_bytes(), b"2.0");
+            // FN: names outside that table do not take the later command-miss
+            // path. C Tcl 8.4 reports this exact fixed-table diagnostic.
+            assert_eq!(i.eval_str(b"expr {user_supplied(1)}"), Code::Error);
+            assert_eq!(i.result_bytes(), b"unknown math function \"user_supplied\"");
+
+            // A script can create an ordinary command with the same spelling,
+            // but it changes neither the fixed builtin nor `expr`'s target.
+            assert_eq!(
+                i.eval_str(b"proc ::tcl::mathfunc::sqrt {x} { return 99 }"),
+                Code::Ok
+            );
+            assert_eq!(i.eval_str(b"::tcl::mathfunc::sqrt 4"), Code::Ok);
+            assert_eq!(i.result_bytes(), b"99");
+            assert_eq!(i.eval_str(b"expr {sqrt(4)}"), Code::Ok);
+            assert_eq!(i.result_bytes(), b"2.0");
+
+            // FP guard: Tcl 8.5's command-table mechanism makes that same
+            // override active for `expr`.
+            i.set_runtime_version(tcl_dialect::TclVersion::V8_5);
+            assert_eq!(i.eval_str(b"expr {sqrt(4)}"), Code::Ok);
+            assert_eq!(i.result_bytes(), b"99");
         });
     }
 

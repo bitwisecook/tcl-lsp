@@ -39,7 +39,7 @@ puts "::i=[set ::i]  ::n1::i exists=[info exists ::n1::i]"
 
 | | `::i` afterwards | `::n1::i` created? |
 |---|---|---|
-| tclsh 8.6.16 | `foobaz` — the global was appended to | no |
+| tclsh 8.6.18 | `foobaz` — the global was appended to | no |
 | tclsh 9.0.4 | `foo` — untouched | **yes**, set to `baz` |
 
 Three details catch people out:
@@ -89,11 +89,11 @@ on for 8.4/8.5/8.6 and off for 9.0/9.1 in one place per engine.
 
 ### Limits of this note
 
-The pinned behaviour is verified against tclsh **8.6.16** and **9.0.4**, built
-from the release tarballs under `tmp/`. The 8.4 and 8.5 ends of the range are
-taken from the upstream documentation and C source rather than from a running
-interpreter — no 8.4/8.5 build was available — so they are modelled as sharing
-8.6's behaviour. Tcl 9.1 is modelled as sharing 9.0's.
+The output vectors are verified against tclsh **8.6.18** and **9.0.4**. The
+8.4 and 8.5 ends of the range are taken from the upstream documentation and C
+source rather than from a running interpreter — no 8.4/8.5 executable was
+available — so they are modelled as sharing 8.6's behaviour. Tcl 9.1 is
+modelled as sharing 9.0's.
 
 This note covers *variable* name resolution only. **Command** name resolution
 is a different algorithm with its own version differences (notably the 8.5

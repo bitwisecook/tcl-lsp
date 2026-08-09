@@ -29,6 +29,11 @@
 //! [`ValueOps::try_append_str_in_place`] performs the runtime's amortised
 //! in-place string growth when the object is an unshared plain string (the
 //! EXP-STRING decision in `cmd_string.rs`), whereas the VM always copies.
+//!
+//! Byte-array representation is runtime-only: it has no separate LSP request
+//! or VS Code UI surface. Its tests therefore sit beside the `ValueOps` seam
+//! and run scripts through the real runtime, while the compiler's registry
+//! data separately drives static byte-array diagnostics.
 
 use std::rc::Rc;
 
@@ -228,12 +233,18 @@ mod tests {
     use super::{bytes_to_str, str_to_bytes};
     use crate::counters;
     use crate::interp::{Code, Interp};
+    use tcl_dialect::TclVersion;
 
     fn run(src: &[u8]) -> (Code, Vec<u8>) {
+        run_at(TclVersion::V9_0, src)
+    }
+
+    fn run_at(version: TclVersion, src: &[u8]) -> (Code, Vec<u8>) {
         counters::reset();
         let (code, bytes);
         {
             let mut i = Interp::new();
+            i.set_runtime_version(version);
             code = i.eval_str(src);
             bytes = i.result_bytes();
         }
@@ -313,7 +324,43 @@ mod tests {
         assert_eq!(ok(script), b"3 ff 41ff42 58ff42");
     }
 
-    /// FP: a byte array has a real Unicode string representation, so its case
+    /// TP: every byte-producing command constructs the same typed byte-array
+    /// representation, so a later string read followed by `binary encode` sees
+    /// the original payload. This covers decode, scan assignment, and zlib's
+    /// decompression result rather than only `binary format`.
+    #[test]
+    fn byte_producing_commands_share_the_dual_port_representation() {
+        let script = br#"
+            set decoded [binary decode hex 41ff42]
+            binary scan [binary format H* 41ff42] a* scanned
+            set inflated [zlib decompress [zlib compress [binary format H* 41ff42]]]
+            list \
+                [binary encode hex [string range $decoded 0 2]] \
+                [binary encode hex [string range $scanned 0 2]] \
+                [binary encode hex [string range $inflated 0 2]]
+        "#;
+        assert_eq!(ok(script), b"41ff42 41ff42 41ff42");
+    }
+
+    /// TP/FN: a byte-array string shimmer is version-independent, but turning
+    /// a changed Unicode string back into bytes is release-defined. These
+    /// values are pinned to C Tcl 8.6.18 and 9.0.4.
+    #[test]
+    fn string_case_mapping_of_a_byte_array_uses_the_tcl_release_byte_policy() {
+        let script = br#"binary encode hex [string toupper [binary format H* 41ff42]]"#;
+        let (old_code, old_result) = run_at(TclVersion::V8_6, script);
+        assert_eq!(old_code, Code::Ok);
+        assert_eq!(old_result, b"417842");
+
+        let (modern_code, modern_result) = run_at(TclVersion::V9_0, script);
+        assert_eq!(modern_code, Code::Error);
+        assert_eq!(
+            modern_result,
+            b"expected code point values below 0xff but value at byte offset 1 was 0x178"
+        );
+    }
+
+    /// FN: a byte array has a real Unicode string representation, so its case
     /// mapping is not silently a no-op. Tcl 9 rejects the final conversion to
     /// bytes because `Ÿ` is outside the checked byte domain.
     #[test]

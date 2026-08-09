@@ -125,10 +125,6 @@ symptom with several possible causes worth telling apart. See rule 13 in
 - [kcs-issue-vscode-test-feature-toggle-sampled-once.md](kcs-issue-vscode-test-feature-toggle-sampled-once.md)
   — a feature-toggle test samples the provider once right after disabling it
   and is flaky (or fails deterministically) instead of waiting on the result.
-- [kcs-issue-runtime-string-subcommands-corrupt-binary-values.md](kcs-issue-runtime-string-subcommands-corrupt-binary-values.md)
-  — `string index`/`range`/`replace`/`toupper` under the WASM runtime used to
-  replace non-UTF-8 bytes from `binary format`/a binary channel read with
-  U+FFFD instead of preserving them.
 - [kcs-issue-yield-cannot-cross-try-apply-consumed-lmap.md](kcs-issue-yield-cannot-cross-try-apply-consumed-lmap.md)
   — the bytecode VM's `yield` used to error "cannot yield: C stack busy"
   inside a `try` body/handler/`finally`, a bare `apply` call, or a
@@ -167,6 +163,9 @@ symptom with several possible causes worth telling apart. See rule 13 in
 - [kcs-qa-how-are-command-names-resolved.md](kcs-qa-how-are-command-names-resolved.md)
   — which definition a bare, relative, or absolute command name
   dispatches to, and the one shared algorithm every backend conforms to.
+- [kcs-qa-how-does-the-wasm-runtime-preserve-byte-arrays.md](kcs-qa-how-does-the-wasm-runtime-preserve-byte-arrays.md)
+  — how binary values retain raw bytes while string commands use a Unicode
+  view, and why Tcl 8.x and 9 differ when a changed string is converted back.
 - [kcs-qa-why-does-a-namespace-variable-behave-differently-on-tcl-8-and-9.md](kcs-qa-why-does-a-namespace-variable-behave-differently-on-tcl-8-and-9.md)
   — why an unqualified variable name inside `namespace eval` reaches a
   global on Tcl 8.x but creates a namespace variable on Tcl 9, which

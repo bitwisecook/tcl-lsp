@@ -39,6 +39,25 @@ use crate::mathfunc::available_in_expr;
 use crate::registry::CommandRegistry;
 use crate::spec::CommandSpec;
 
+/// The dispatch mechanism an `expr` math-function call uses in this profile.
+///
+/// Tcl 8.4 predates TIP 232. Its builtins live in a fixed C function table,
+/// whereas Tcl 8.5 and later resolve calls through the open
+/// `tcl::mathfunc::*` command table. Keeping the distinction in the registry
+/// surface prevents an engine from deriving it from a command spelling or a
+/// release comparison of its own.
+#[derive(Debug, Clone, Copy)]
+pub enum MathFunctionCallTarget {
+    /// An 8.4 fixed-table builtin. The attached spec supplies the canonical
+    /// name, arity, hover metadata, and version facts for the implementation.
+    FixedBuiltin(&'static CommandSpec),
+    /// The open `tcl::mathfunc::*` command table (TIP 232 and later).
+    CommandTable,
+    /// A name absent from Tcl 8.4's fixed table. C Tcl reports
+    /// `unknown math function`, rather than an invalid command.
+    FixedTableMiss,
+}
+
 /// A versioned `expr` grammar rejection expressed in C Tcl's terms.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ExprSurfaceError {
@@ -186,14 +205,32 @@ impl RuntimeExprSurface {
         self.registry.math_function_names(self.profile)
     }
 
+    /// The registry-owned dispatch target for `expr` function-call word
+    /// `bare`.
+    ///
+    /// Tcl 8.4 only permits entries from its fixed built-in table. Later
+    /// releases use the command table for every word, including names which
+    /// are not registry builtins, so procedures, aliases, renames, and
+    /// extension commands retain their normal Tcl indirection behaviour.
+    #[must_use]
+    pub fn math_function_call_target(self, bare: &str) -> MathFunctionCallTarget {
+        if crate::mathfunc::command_wrappers_available(self.profile) {
+            return MathFunctionCallTarget::CommandTable;
+        }
+        self.builtin_math_function(bare).map_or(
+            MathFunctionCallTarget::FixedTableMiss,
+            MathFunctionCallTarget::FixedBuiltin,
+        )
+    }
+
     /// Whether `qualified_name` denotes a registry-provided math-function
-    /// builtin, and if so whether this release exposes that builtin.
+    /// builtin, and if so whether this release exposes it as a literal command.
     ///
     /// `None` means the name is not one of the registry's builtin entries. An
     /// engine must leave such names to ordinary Tcl command resolution: they
     /// may be user-defined math functions, aliases, or renamed commands.
     #[must_use]
-    pub fn builtin_math_function_visible(self, qualified_name: &str) -> Option<bool> {
+    pub fn builtin_math_function_command_visible(self, qualified_name: &str) -> Option<bool> {
         let bare = qualified_name
             .trim_start_matches("::")
             .strip_prefix("tcl::mathfunc::")?;
@@ -202,7 +239,10 @@ impl RuntimeExprSurface {
         }
         let registry_name = format!("{MATHFUNC_NAMESPACE}::{bare}");
         self.registry.get(&registry_name)?;
-        Some(self.builtin_math_function(bare).is_some())
+        Some(
+            crate::mathfunc::command_wrappers_available(self.profile)
+                && self.builtin_math_function(bare).is_some(),
+        )
     }
 }
 
@@ -234,6 +274,7 @@ mod tests {
 
     #[test]
     fn tip521_math_functions_are_registry_backed_and_versioned() {
+        let fixed = RuntimeExprSurface::for_tcl_version(TclVersion::V8_4);
         let old = RuntimeExprSurface::for_tcl_version(TclVersion::V8_6);
         let modern = RuntimeExprSurface::for_tcl_version(TclVersion::V9_0);
 
@@ -247,16 +288,36 @@ mod tests {
         // blanket 9.0 gate to the namespace.
         assert!(old.builtin_math_function("sqrt").is_some());
 
+        // TP/TN: Tcl 8.4's pre-TIP-232 function table is closed, while its
+        // recognised builtins still use the registry spec rather than a
+        // consumer-local function list.
+        assert!(matches!(
+            fixed.math_function_call_target("sqrt"),
+            MathFunctionCallTarget::FixedBuiltin(spec) if spec.name == "::tcl::mathfunc::sqrt"
+        ));
+        assert!(matches!(
+            fixed.math_function_call_target("user_supplied"),
+            MathFunctionCallTarget::FixedTableMiss
+        ));
+        assert!(matches!(
+            old.math_function_call_target("user_supplied"),
+            MathFunctionCallTarget::CommandTable
+        ));
+
         assert_eq!(
-            old.builtin_math_function_visible("tcl::mathfunc::isfinite"),
+            fixed.builtin_math_function_command_visible("tcl::mathfunc::sqrt"),
             Some(false)
         );
         assert_eq!(
-            modern.builtin_math_function_visible("::tcl::mathfunc::isfinite"),
+            old.builtin_math_function_command_visible("tcl::mathfunc::isfinite"),
+            Some(false)
+        );
+        assert_eq!(
+            modern.builtin_math_function_command_visible("::tcl::mathfunc::isfinite"),
             Some(true)
         );
         assert_eq!(
-            old.builtin_math_function_visible("tcl::mathfunc::custom"),
+            old.builtin_math_function_command_visible("tcl::mathfunc::custom"),
             None
         );
     }

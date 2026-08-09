@@ -794,11 +794,29 @@ impl crate::expr::ExprCtx for InterpExprCtx<'_> {
         name: &str,
         args: &[crate::expr::Owned],
     ) -> Result<crate::expr::Owned, crate::expr::ExprError> {
-        // Route through the command table so an overridden/renamed
-        // `::tcl::mathfunc::NAME` wins (A3); the default builtins forward to the
-        // shared dispatch. Args are passed as live objects (object-preserving).
+        // Tcl 8.4 uses its closed C function table; later releases route through
+        // the open command table so overridden/renamed `::tcl::mathfunc::NAME`
+        // entries win. The registry owns that distinction. Args are passed as
+        // live objects (object-preserving).
         let arg_ptrs: Vec<*mut TclObj> = args.iter().map(crate::expr::Owned::as_ptr).collect();
-        if self.interp.eval_math_call(name.as_bytes(), &arg_ptrs) == Code::Error {
+        let surface = tcl_registry::expr_surface::RuntimeExprSurface::for_tcl_version(
+            self.interp.runtime_version(),
+        );
+        let code = match surface.math_function_call_target(name) {
+            tcl_registry::expr_surface::MathFunctionCallTarget::FixedBuiltin(spec) => {
+                self.interp.eval_fixed_math_call(spec, &arg_ptrs)
+            }
+            tcl_registry::expr_surface::MathFunctionCallTarget::CommandTable => {
+                self.interp.eval_math_call(name.as_bytes(), &arg_ptrs)
+            }
+            tcl_registry::expr_surface::MathFunctionCallTarget::FixedTableMiss => {
+                let mut message = b"unknown math function \"".to_vec();
+                message.extend_from_slice(name.as_bytes());
+                message.push(b'\"');
+                self.interp.set_error(&message)
+            }
+        };
+        if code == Code::Error {
             // A math-function error (e.g. `sqrt(-1)` domain error) is logged at
             // the `expr` command, not as an inner frame — so it is *not*
             // propagated; `expr` raises it as its own (`while executing`). Carry

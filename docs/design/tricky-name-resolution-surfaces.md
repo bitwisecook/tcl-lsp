@@ -233,6 +233,15 @@ the ensemble configuration string. Same fix location, same milestone.
   table (TIP 232). `rust/tcl-vm/src/expr.rs:684-707`; `cmd_math.rs:102-121`;
   `runtime/rust/src/interp.rs:5801-5834`; `cmd_mathfunc.rs:84-90`; contract
   `command-resolution.md:125-133`.
+- **Version boundary:** this command-table rule starts with Tcl 8.5. Tcl 8.4
+  uses a fixed C `expr` function table instead: `sqrt(4)` is valid, an unknown
+  name reports `unknown math function`, and a same-named Tcl command cannot
+  override the builtin. `RuntimeExprSurface::math_function_call_target` is the
+  registry-owned selector used by both engines. The selector returns the
+  `CommandSpec` for a fixed entry, a command-table target for 8.5+, or the
+  fixed-table miss; no VM, compiler, or LSP consumer infers this from a command
+  name. This boundary is covered by the VM and WASM runtime 8.4 vectors, while
+  the command-table indirection vectors are pinned to C Tcl 8.6 and 9.0.
 - **LSP today:** the analyser harvests command refs from expr bodies ONLY via
   `[...]` command-substitution tokens (`collect_expr_substitutions`,
   `commands.rs:2225-2243`, caller `1632`). The `f(` bareword lexes as a plain

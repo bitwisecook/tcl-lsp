@@ -28,6 +28,12 @@
 //! tclsh is installed (`tclsh8.6` / `tclsh9.0` on PATH, or
 //! `TCL_LSP_TCLSH86` / `TCL_LSP_TCLSH90`), the same script is executed under
 //! it and must agree — so the table can never drift from C Tcl.
+//!
+//! The namespace fallback and non-local loop completions here are runtime
+//! execution behaviour. They do not produce a distinct LSP request or VS Code
+//! UI state, so lsp_e2e and extension tests would only duplicate this VM
+//! oracle. Static expression availability remains covered by the
+//! registry-backed `expr_surface_e2e` suite.
 
 use std::cell::RefCell;
 use std::rc::Rc;

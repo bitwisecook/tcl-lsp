@@ -688,6 +688,25 @@ fn foreach_runtime_variants() {
     );
 }
 
+/// A direct nested iterator routes the outer literal `foreach` through the
+/// runtime command boundary. That gives the inner loop a fresh activation;
+/// inlining both loops into one CFG used to leave only the final outer item.
+#[test]
+fn nested_foreach_preserves_every_outer_iteration() {
+    // tclsh 8.6 / 9.0: `a:HTTP TCP|b:HTTP TCP|c:HTTP TCP`
+    assert_eq!(
+        run("set result {}; \
+             foreach outer {a b c} { \
+                 foreach {key value} {profiles {HTTP TCP} steps ignored} { \
+                     if {$key eq \"profiles\"} { lappend result \"$outer:$value\" } \
+                 } \
+             }; \
+             join $result {|}",)
+        .1,
+        "a:HTTP TCP|b:HTTP TCP|c:HTTP TCP",
+    );
+}
+
 /// `foreach`/`lmap` arity: name-stripped argv must be an odd count >= 3.
 #[test]
 fn foreach_lmap_runtime_arity() {

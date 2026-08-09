@@ -426,6 +426,14 @@ pub struct InterpState {
     /// builtin's simple name, or a proc's namespace-qualified name without the
     /// leading `::` (e.g. `foo::bar`; a global proc is just `bar`).
     commands: HashMap<String, Command>,
+    /// The fixed C math-function table used by pre-TIP-232 `expr` (Tcl 8.4).
+    ///
+    /// Normal command registration also installs these handlers under
+    /// `tcl::mathfunc::*` for Tcl 8.5+, but an 8.4 expression must keep using
+    /// this immutable builtin table even if a script later creates or replaces
+    /// a similarly named command. The registry decides when this table applies;
+    /// this map merely retains the registered implementation.
+    fixed_math_builtins: HashMap<String, BuiltinFn>,
     /// Pre-compiled proc bodies from the module(s), keyed by qualified name.
     module_procs: HashMap<String, Rc<FunctionAsm>>,
     /// Current-namespace stack (canonical, no leading `::`; `""` = global). The
@@ -879,6 +887,7 @@ impl InterpState {
             runtime_version: tcl_dialect::TclVersion::V9_0,
             frames: vec![CallFrame::new(0, ROOT_NS, None, Vec::new())],
             commands: HashMap::new(),
+            fixed_math_builtins: HashMap::new(),
             module_procs: HashMap::new(),
             ns_stack: vec![String::new()],
             namespaces: std::collections::HashSet::new(),
@@ -1417,7 +1426,27 @@ impl Vm {
         // Builtin registrations pass plain literals, bare (`set`) or rooted
         // (`::tcl::array::exists`) — never colon-tree keys — so a single root
         // strip converts to the canonical unrooted key form exactly.
-        self.register_command(name.strip_prefix("::").unwrap_or(name), Command::Builtin(f));
+        let canonical = name.strip_prefix("::").unwrap_or(name);
+        if tcl_registry::mathfunc::is_in_mathfunc_namespace(canonical) {
+            self.fixed_math_builtins.insert(canonical.to_owned(), f);
+        }
+        self.register_command(canonical, Command::Builtin(f));
+    }
+
+    /// Invoke the pre-TIP-232 fixed `expr` math-function entry selected by the
+    /// registry. This intentionally bypasses normal command lookup: Tcl 8.4's
+    /// `expr` has a C function table, not an overridable Tcl command namespace.
+    pub(crate) fn invoke_fixed_math_builtin(
+        &mut self,
+        spec: &'static tcl_registry::CommandSpec,
+        args: &[Value],
+    ) -> Completion<Value> {
+        let key = spec.name.trim_start_matches("::");
+        let Some(handler) = self.fixed_math_builtins.get(key).copied() else {
+            return err(format!("unknown math function \"{}\"", spec.name));
+        };
+        self.set_invoked_name(key);
+        handler(self, args)
     }
 
     /// Tcl 8.x resolves an unqualified variable at **namespace scope** to the
@@ -2482,7 +2511,7 @@ impl Vm {
         let command = self.commands.get(&key).cloned()?;
         if matches!(command, Command::Builtin(_))
             && tcl_registry::expr_surface::RuntimeExprSurface::for_tcl_version(self.runtime_version)
-                .builtin_math_function_visible(&key)
+                .builtin_math_function_command_visible(&key)
                 .is_some_and(|visible| !visible)
         {
             return None;

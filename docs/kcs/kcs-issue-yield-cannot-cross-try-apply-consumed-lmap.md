@@ -53,27 +53,33 @@ pushed onto the *explicit* stack instead:
   phase's activation completes. Each phase (body, the matched handler,
   `finally`) is its own pushed activation.
 
-### Known residual gap
+### Loop completions
 
-Tracked as
-[issue #1348](https://github.com/bitwisecook/tcl-lsp/issues/1348).
+The bytecode emitter now gives every inline `foreach` body dedicated
+landing pads for its paired `FOREACH_STEP` and `FOREACH_END` opcodes. A
+completion returned by a called proc, or passed transparently through an
+unhandled `try`, therefore advances or exits the enclosing loop instead of
+restarting its iterator or escaping the loop:
 
-A `try`'s body being transparent to a *bare* `break`/`continue` (per TIP
-329 — propagating to the caller's enclosing loop when nothing inside `try`
-handles it) still does not work for a simple, single-command loop body: it
-hits a pre-existing compiler gap where the loop's `loop_targets` entry
-redirects to the wrong instruction and would hang rather than resume the
-next iteration, so `try`'s activation deliberately does not attempt the
-`eval`-style transparent redirect there. This is not a regression — the
-same gap already makes a bare `return -code continue` from a called proc
-report `invoked "continue" outside of a loop` instead of correctly
-continuing, and no combination of yieldable constructs previously reached
-this path at all (yield could not even suspend `try` before).
+```tcl
+proc skip {} { return -code continue }
+foreach i {1 2 3} {
+    if {$i == 2} { skip }
+    puts $i
+}
+# => 1
+# => 3
+```
+
+The same result holds when `skip` is replaced by an unhandled `continue`
+inside a `try` body. A direct nested `foreach` or `lmap` still uses the
+runtime-loop boundary because its two iterator back-edges need a dedicated
+control-flow graph representation. It is semantically transparent, including
+for `break`, `continue`, `return`, and `yield`; it is a correctness boundary,
+not a user-visible limitation.
 
 ## Related
 
 - [KCS index](README.md)
 - [Glossary](../GLOSSARY.md)
 - `rust-issues/RUST_ISSUE_008.md` — the full coroutine yieldability history
-- [issue #1348](https://github.com/bitwisecook/tcl-lsp/issues/1348) — the
-  residual `break`/`continue` transparency gap above
