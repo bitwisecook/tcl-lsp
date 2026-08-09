@@ -33,17 +33,19 @@ the transport absorbs every request future already read from the local editor,
 rather than stopping after four pending futures.
 
 `DeferredConcurrency` calls the inner LSP service immediately, preserving its
-request registration, cancellation, and exit side effects, but polls only four
-ordinary returned handler futures at a time. It also forwards the inner
-service's `poll_ready` state before each call. This matters during `initialize`:
-later messages must not be admitted until initialisation has completed.
+request registration, cancellation, and notification side effects. It polls
+only four ordinary request futures at a time; every JSON-RPC notification (a
+message with no `id`) bypasses that limit. It also forwards the inner service's
+`poll_ready` state before each call. This matters during `initialize`: later
+messages must not be admitted until initialisation has completed.
 
 The resulting responsibilities are:
 
 | Layer | Bound | Purpose |
 |---|---:|---|
 | stdin admission after initialisation | no finite bound | Client responses can always be routed. |
-| active application handlers | 4 | Shared server state retains the upstream concurrency limit. |
+| active request handlers | 4 | Shared server state retains the upstream concurrency limit. |
+| notification handlers | no transport limit | Protocol progress cannot be overtaken by later requests. |
 | stdout pump | no finite message bound | A slow reader cannot stop stdin. |
 | configuration request | 10 seconds | A client which never replies releases its handler permit. |
 
@@ -56,10 +58,15 @@ would turn a non-responsive editor into unbounded retained state. A general
 request timeout therefore needs cancellation-safe pending-request tracking in
 the transport dependency first.
 
-`exit` and `$/cancelRequest` bypass the four-handler application limit. They
-exist to stop queued or running work, so putting either behind that work would
-make shutdown and cancellation least effective precisely when the server is
-busy.
+Every JSON-RPC notification bypasses the four-request application limit.
+`exit` and `$/cancelRequest` exist to stop queued or running work, so putting
+either behind that work would make shutdown and cancellation least effective
+precisely when the server is busy. Document-sync notifications have the same
+ordering requirement: `didOpen`, `didChange`, and `didClose` draw their
+`EditOrder` ticket when their handler is first polled. A following read waits
+only for tickets already drawn; delaying the preceding notification behind
+saturated requests lets that read snapshot the barrier first and answer from
+text older than an edit the server has already received.
 
 ## Example
 
@@ -77,6 +84,11 @@ handlers finish, and the queued hover requests then run four at a time.
 - The pending-future set can grow with a request burst. This is deliberate: a
   finite input-admission bound recreates the deadlock at a different threshold.
   The peer is the local editor process, not an internet-facing client.
+- Notification futures can grow with a notification burst for the same reason.
+  This is a deliberate protocol-ordering trade-off, not a new work queue:
+  document mutations serialise through `EditOrder`, and notification paths that
+  trigger expensive follow-on work must coalesce or bound it locally rather
+  than relying on request admission for backpressure.
 - This does not make a slow or faulty handler fast. Timeouts remain appropriate
   where the awaited operation has cancellation-safe cleanup. The configuration
   timeout predates this transport change and can retain one dependency waiter
@@ -101,6 +113,8 @@ cannot come from a fixture which never reaches the fault:
 | Production topology, client reply after 400 queued requests | reply is routed and all handlers finish | False-negative guard for the cycle break |
 | Deferred wrapper with twelve handlers and a limit of two | peak inner polling is exactly two | False-positive guard against unbounded application concurrency |
 | Inner service is initially not ready | `call` runs only after readiness changes | Protocol-ordering guard |
+| Generic no-id notification with a saturated request pool | its inner future is polled immediately | Protocol-progress admission guard |
+| `didChange` followed by a read with a saturated request pool | the read observes the notification's state | Document ordering guard |
 | `exit` and `$/cancelRequest` with a saturated application pool | both reach the inner service immediately | Shutdown/cancellation ordering guard |
 | Request cancelled while queued for a handler permit | cancellation response is returned and the handler is never polled | Queued-request cancellation guard |
 

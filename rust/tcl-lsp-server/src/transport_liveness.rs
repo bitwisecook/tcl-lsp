@@ -18,10 +18,13 @@
 //! Production uses [`UNBOUNDED_TRANSPORT_CONCURRENCY`] for the transport's
 //! `buffer_unordered` limit, so it always absorbs the bounded channel into its
 //! own pending-future set. [`DeferredConcurrency`] separately admits only four
-//! ordinary inner handler futures at a time, while transport-control
-//! notifications bypass that limit. Input routing is effectively unbounded,
-//! while shared application state sees the same ordinary concurrency as the
-//! upstream default.
+//! ordinary request-handler futures at a time, while every JSON-RPC
+//! notification bypasses that limit. A notification is protocol progress or
+//! state, not work a later request may overtake: in particular, a queued
+//! `didChange` must be polled soon enough to draw its [`crate::EditOrder`]
+//! ticket before a following read snapshots that barrier. Input routing is
+//! effectively unbounded, while ordinary request work retains the upstream
+//! default concurrency.
 
 use std::future::Future;
 use std::pin::Pin;
@@ -41,20 +44,29 @@ use tower_lsp_server::jsonrpc::Request;
 /// liveness cycle at a different queue length.
 pub const UNBOUNDED_TRANSPORT_CONCURRENCY: usize = usize::MAX;
 
-/// The ordinary application-handler concurrency retained from
-/// `tower-lsp-server`'s default transport configuration. Transport-control
+/// The ordinary request-handler concurrency retained from
+/// `tower-lsp-server`'s default transport configuration. JSON-RPC
 /// notifications do not consume these permits.
 pub const DEFAULT_HANDLER_CONCURRENCY: usize = 4;
 
-/// A service wrapper which keeps ordinary LSP handlers at `limit` concurrent
-/// while admitting transport-control notifications immediately.
+/// A service wrapper which keeps ordinary LSP requests at `limit` concurrent
+/// while admitting every notification immediately.
 ///
 /// The inner service's `poll_ready` and `call` run at the same points as they do
 /// in the upstream transport. That eager `call` is important: `LspService`
-/// registers cancellable request IDs and applies `exit` synchronously. Only
-/// polling the returned ordinary-handler future waits for a permit. `exit` and
-/// `$/cancelRequest` also bypass the polling limit because both exist to stop
-/// work already in progress.
+/// registers cancellable request IDs and applies notification setup
+/// synchronously. Only polling the returned request future waits for a permit.
+/// Every message with no JSON-RPC id bypasses that wait: document-sync
+/// notifications need to draw their ordering ticket before a later request
+/// observes the edit barrier, and `exit` / `$/cancelRequest` still need to
+/// stop work already in progress.
+///
+/// This intentionally permits an unbounded burst of notification futures, just
+/// as the surrounding transport intentionally keeps an unbounded pending set
+/// so stdin cannot wedge. The local editor is the only producer. Document-sync
+/// mutations serialise through [`crate::EditOrder`]; other notification paths
+/// must coalesce or bound their own expensive follow-on work rather than relying
+/// on this transport admission limit.
 #[derive(Debug)]
 pub struct DeferredConcurrency<S> {
     inner: S,
@@ -96,13 +108,18 @@ where
 
     fn call(&mut self, request: Request) -> Self::Future {
         let permits = Arc::clone(&self.permits);
-        let is_transport_control = matches!(request.method(), "exit" | "$/cancelRequest");
+        // JSON-RPC identifies notifications by the absence of an id. Do not
+        // name individual document methods here: every notification is protocol
+        // progress/state and must be able to begin before a later request takes
+        // its edit-order barrier snapshot. `exit` and `$/cancelRequest` are
+        // covered by the same protocol rule.
+        let is_notification = request.id().is_none();
         // Construct eagerly, before admission. Besides matching Tower's
         // readiness contract, this lets LspService register a request with its
         // cancellation map before a later `$/cancelRequest` is read.
         let future = self.inner.call(request);
         Box::pin(async move {
-            let permit = if is_transport_control {
+            let permit = if is_notification {
                 None
             } else {
                 Some(
@@ -123,9 +140,11 @@ where
 mod tests {
     use super::*;
     use std::convert::Infallible;
-    use std::sync::atomic::{AtomicUsize, Ordering};
+    use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
     use std::time::Duration;
-    use tower_lsp_server::ls_types::{Hover, HoverParams, InitializeParams, InitializeResult};
+    use tower_lsp_server::ls_types::{
+        DidChangeTextDocumentParams, Hover, HoverParams, InitializeParams, InitializeResult,
+    };
     use tower_lsp_server::{LanguageServer, LspService};
 
     #[derive(Clone)]
@@ -146,6 +165,8 @@ mod tests {
 
     struct PendingHoverServer {
         hover_polls: Arc<AtomicUsize>,
+        changes: Arc<AtomicUsize>,
+        reads_observed_change: Arc<AtomicBool>,
     }
 
     impl LanguageServer for PendingHoverServer {
@@ -165,11 +186,23 @@ mod tests {
             _params: HoverParams,
         ) -> tower_lsp_server::jsonrpc::Result<Option<Hover>> {
             self.hover_polls.fetch_add(1, Ordering::SeqCst);
+            if self.changes.load(Ordering::SeqCst) != 0 {
+                self.reads_observed_change.store(true, Ordering::SeqCst);
+                return Ok(None);
+            }
             std::future::pending().await
+        }
+
+        async fn did_change(&self, _params: DidChangeTextDocumentParams) {
+            self.changes.fetch_add(1, Ordering::SeqCst);
         }
     }
 
     fn request(method: &'static str) -> Request {
+        Request::build(method).id(0).finish()
+    }
+
+    fn notification(method: &'static str) -> Request {
         Request::build(method).finish()
     }
 
@@ -310,10 +343,13 @@ mod tests {
             std::future::poll_fn(|cx| service.poll_ready(cx))
                 .await
                 .unwrap();
-            tokio::time::timeout(Duration::from_millis(100), service.call(request(method)))
-                .await
-                .expect("transport control was queued behind saturated handlers")
-                .unwrap();
+            tokio::time::timeout(
+                Duration::from_millis(100),
+                service.call(notification(method)),
+            )
+            .await
+            .expect("transport control was queued behind saturated handlers")
+            .unwrap();
         }
         assert_eq!(controls_called.load(Ordering::SeqCst), 2);
 
@@ -322,10 +358,54 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn notifications_bypass_saturated_requests() {
+        let ordinary_started = Arc::new(AtomicUsize::new(0));
+        let controls_called = Arc::new(AtomicUsize::new(0));
+        let mut service = DeferredConcurrency::new(
+            ControlAwareService {
+                ordinary_started: Arc::clone(&ordinary_started),
+                controls_called,
+            },
+            2,
+        );
+
+        std::future::poll_fn(|cx| service.poll_ready(cx))
+            .await
+            .unwrap();
+        let first = tokio::spawn(service.call(request("ordinary/one")));
+        std::future::poll_fn(|cx| service.poll_ready(cx))
+            .await
+            .unwrap();
+        let second = tokio::spawn(service.call(request("ordinary/two")));
+        while ordinary_started.load(Ordering::SeqCst) != 2 {
+            tokio::task::yield_now().await;
+        }
+
+        // Generic JSON-RPC notification, deliberately not one of the former
+        // `exit` / `$/cancelRequest` method-name exceptions. It must poll its
+        // inner future despite every request permit being occupied.
+        std::future::poll_fn(|cx| service.poll_ready(cx))
+            .await
+            .unwrap();
+        let state_update = tokio::spawn(service.call(notification("textDocument/didChange")));
+        while ordinary_started.load(Ordering::SeqCst) != 3 {
+            tokio::task::yield_now().await;
+        }
+
+        first.abort();
+        second.abort();
+        state_update.abort();
+    }
+
+    #[tokio::test]
     async fn cancellation_reaches_a_request_queued_for_a_permit() {
         let hover_polls = Arc::new(AtomicUsize::new(0));
+        let changes = Arc::new(AtomicUsize::new(0));
+        let reads_observed_change = Arc::new(AtomicBool::new(false));
         let (inner, _socket) = LspService::new(|_client| PendingHoverServer {
             hover_polls: Arc::clone(&hover_polls),
+            changes: Arc::clone(&changes),
+            reads_observed_change: Arc::clone(&reads_observed_change),
         });
         let mut service = DeferredConcurrency::new(inner, 1);
 
@@ -400,6 +480,99 @@ mod tests {
             hover_polls.load(Ordering::SeqCst),
             1,
             "a request cancelled while queued must never poll its handler"
+        );
+    }
+
+    #[tokio::test]
+    async fn did_change_notification_precedes_a_read_after_request_saturation() {
+        let hover_polls = Arc::new(AtomicUsize::new(0));
+        let changes = Arc::new(AtomicUsize::new(0));
+        let reads_observed_change = Arc::new(AtomicBool::new(false));
+        let (inner, _socket) = LspService::new(|_client| PendingHoverServer {
+            hover_polls: Arc::clone(&hover_polls),
+            changes: Arc::clone(&changes),
+            reads_observed_change: Arc::clone(&reads_observed_change),
+        });
+        let mut service = DeferredConcurrency::new(inner, 1);
+
+        std::future::poll_fn(|cx| service.poll_ready(cx))
+            .await
+            .unwrap();
+        service
+            .call(
+                Request::build("initialize")
+                    .id(0)
+                    .params(serde_json::json!({ "capabilities": {} }))
+                    .finish(),
+            )
+            .await
+            .unwrap();
+
+        let hover_params = serde_json::json!({
+            "textDocument": { "uri": "file:///notification-order.tcl" },
+            "position": { "line": 0, "character": 0 }
+        });
+        std::future::poll_fn(|cx| service.poll_ready(cx))
+            .await
+            .unwrap();
+        let blocked_read = tokio::spawn(
+            service.call(
+                Request::build("textDocument/hover")
+                    .id(1)
+                    .params(hover_params.clone())
+                    .finish(),
+            ),
+        );
+        while hover_polls.load(Ordering::SeqCst) != 1 {
+            tokio::task::yield_now().await;
+        }
+
+        // This is the protocol shape from the edit-stress regression: a
+        // document-sync notification arrives while request permits are full,
+        // then a reader follows it. The notification has no id, and must update
+        // state before the next read is admitted.
+        std::future::poll_fn(|cx| service.poll_ready(cx))
+            .await
+            .unwrap();
+        tokio::time::timeout(
+            Duration::from_millis(100),
+            service.call(
+                Request::build("textDocument/didChange")
+                    .params(serde_json::json!({
+                        "textDocument": {
+                            "uri": "file:///notification-order.tcl",
+                            "version": 2
+                        },
+                        "contentChanges": [{ "text": "set current 1\n" }]
+                    }))
+                    .finish(),
+            ),
+        )
+        .await
+        .expect("didChange was queued behind a saturated request")
+        .unwrap();
+        assert_eq!(changes.load(Ordering::SeqCst), 1);
+
+        blocked_read.abort();
+        std::future::poll_fn(|cx| service.poll_ready(cx))
+            .await
+            .unwrap();
+        tokio::time::timeout(
+            Duration::from_secs(1),
+            service.call(
+                Request::build("textDocument/hover")
+                    .id(2)
+                    .params(hover_params)
+                    .finish(),
+            ),
+        )
+        .await
+        .expect("read stayed queued after the saturated request was cancelled")
+        .expect("LSP service returned an exit error")
+        .expect("read request did not receive a response");
+        assert!(
+            reads_observed_change.load(Ordering::SeqCst),
+            "the post-change read did not observe the notification's state"
         );
     }
 }
