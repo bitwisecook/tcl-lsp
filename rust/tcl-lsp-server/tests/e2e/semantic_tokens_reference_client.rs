@@ -75,12 +75,12 @@
 //! A convergence *round* is therefore: request tokens, await the settled
 //! marker, and — when it reports `refresh=true` — await the refresh and
 //! re-request, exactly as an editor would. A marker reporting `refresh=false`
-//! after a coarse response means the enriched read was cancelled (the
-//! diagnostics worker's cross-file evidence sync writes salsa inputs, which
-//! cancels in-flight reads); the loop simply re-races. That is a genuine
-//! source of non-determinism the old fixed `await_server_request` deadline
-//! could only absorb by being generous, and it is why these tests hung
-//! precisely when the machine was slow enough for the two to overlap.
+//! after a coarse response can mean a cancelled enriched read, or a differing
+//! enriched stream whose repeat refresh was deliberately suppressed; the loop
+//! re-races both. That is a genuine source of non-determinism the old fixed
+//! `await_server_request` deadline could only absorb by being generous, and it
+//! is why these tests hung precisely when the machine was slow enough for the
+//! two to overlap.
 
 use crate::common::helpers::{SemToken, decode_semantic_tokens};
 use crate::common::{LatencyBudget, Lsp, scaled_timeout, unique_uri};
@@ -404,10 +404,12 @@ impl Tier {
 /// marker**. That marker is the explicit progress signal this loop is built on
 /// (#1072): it is logged the instant the coarse-vs-enriched decision for that
 /// request is made, whatever the decision was, so the loop never has to guess
-/// whether a refresh is still coming. When the marker says `refresh=true` the
-/// refresh request must then actually arrive (asserted — that is the mechanism
-/// under test); when it says `refresh=false` the enriched read was cancelled by
-/// a concurrent salsa write, or matched what was served, and the loop re-races.
+/// whether a refresh is still coming. When the marker says `refresh=true` — or
+/// records a coalesced request whose holder will schedule one — the refresh
+/// request must then actually arrive (asserted — that is the mechanism under
+/// test). Full-token markers distinguish a response served enriched from a
+/// detached comparison; a cancelled read or repeat-suppressed refresh re-races,
+/// while a compared-equal response is final.
 ///
 /// `budget` bounds the whole loop. It is a hang guard: every round makes real
 /// progress against an explicit signal, so reaching it means the server never
@@ -483,30 +485,51 @@ fn converge_via_refresh(
             out.no_refresh_decisions += 1;
             continue;
         };
-        if settled.contains("refresh=true") {
+        if settled.contains("refresh=true") || settled.contains("outcome=coalesced") {
             out.refresh_decisions += 1;
-            // The decision is made, so the debounced refresh is already
-            // scheduled: this can only expire if the refresh path itself is
-            // broken, which is exactly the regression worth failing on. Its own
-            // budget (load-scaled inside the helper), never the outer
-            // leftover — see this function's docs.
+            // A coalesced request's holder schedules the refresh when it
+            // releases its claim; otherwise the decision has already scheduled
+            // it. This can only expire if that refresh path is broken, which is
+            // exactly the regression worth failing on. Its own budget
+            // (load-scaled inside the helper), never the outer leftover — see
+            // this function's docs.
             lsp.await_server_request(
                 "workspace/semanticTokens/refresh",
                 REFRESH_ARRIVAL,
                 req_since,
             );
             out.refreshes += 1;
-        } else if settled.contains("enriched=cancelled") || settled.contains("outcome=cancelled") {
-            // Nothing was compared — a concurrent salsa write killed the read.
-            // The next request re-races it, so go round again.
+        } else if matches!(tier, Tier::Full)
+            && (settled.contains("outcome=cancelled")
+                || settled.contains("outcome=refresh-suppressed"))
+        {
+            // Nothing was compared, or the server deliberately suppressed a
+            // second refresh for identical differing bytes. The next request
+            // may serve the enriched stream directly, so re-race it without
+            // weakening the server's repeat-ask bound.
             out.no_refresh_decisions += 1;
-        } else {
+        } else if matches!(tier, Tier::Full)
+            && (settled.contains("outcome=served-enriched")
+                || settled.contains("outcome=compared-equal")
+                || settled.contains("outcome=no-analysis"))
+        {
             // The server has settled and is asking for nothing further: this
             // stream is final. If it still differs from the truth that is a
             // genuine content divergence, which the caller reports — spinning
             // here would only turn it into an unhelpful timeout.
             out.no_refresh_decisions += 1;
             return out;
+        } else if matches!(tier, Tier::Range { .. }) {
+            if settled.contains("outcome=cancelled") {
+                // Nothing was compared — a concurrent salsa write killed the
+                // read. The next request re-races it.
+                out.no_refresh_decisions += 1;
+                continue;
+            }
+            out.no_refresh_decisions += 1;
+            return out;
+        } else {
+            panic!("unexpected full semantic-token convergence marker: {settled}");
         }
     }
 }

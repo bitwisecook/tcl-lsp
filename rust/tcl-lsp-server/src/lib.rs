@@ -749,14 +749,21 @@ impl SemanticTokensRefreshCtx {
     /// a client without `workspace/semanticTokens/refresh` support rejects the
     /// request, which is harmless.
     ///
-    /// Returns whether a refresh was asked for, so the caller can record that
-    /// decision in its settled marker.
-    async fn deliver_if_changed(&self, uri: &Uri, data: &[u32]) -> bool {
+    /// Returns the comparison's distinct outcomes so a caller can tell an
+    /// enriched response that was already served from a coarse response whose
+    /// detached comparison either matched or had its repeat refresh suppressed.
+    async fn deliver_if_changed(&self, uri: &Uri, data: &[u32]) -> EnrichedDelivery {
         let changed = {
             let cache = self.last_semantic_tokens.lock().await;
             cache.get(uri).is_none_or(|(_, cached)| cached != data)
         };
-        changed && self.request_refresh_for_enriched(uri, data).await
+        if !changed {
+            EnrichedDelivery::ComparedEqual
+        } else if self.request_refresh_for_enriched(uri, data).await {
+            EnrichedDelivery::RefreshRequested
+        } else {
+            EnrichedDelivery::RefreshSuppressed
+        }
     }
 
     /// Ask the client to re-pull tokens because `uri`'s enriched stream
@@ -822,8 +829,21 @@ impl SemanticTokensRefreshCtx {
     }
 }
 
-/// Emit the settled marker for a `semanticTokens/full` request that was served
-/// the coarse tier.
+/// What comparing a detached enriched stream against the last served stream
+/// decided.  This stays separate from [`FullSettleOutcome`]: the latter also
+/// represents paths that never detached a comparison at all.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum EnrichedDelivery {
+    /// The enriched bytes equal the response already served for this URI.
+    ComparedEqual,
+    /// The enriched bytes differ and scheduled a client re-request.
+    RefreshRequested,
+    /// The enriched bytes differ, but that exact stream was already asked for.
+    RefreshSuppressed,
+}
+
+/// Emit the settled marker for a `semanticTokens/full` request's convergence
+/// decision.
 ///
 /// The twin of the `semantic_tokens.range_convergence.settled` line
 /// [`Backend::spawn_range_convergence`] logs, and it exists for the same
@@ -840,12 +860,12 @@ impl SemanticTokensRefreshCtx {
 /// all — otherwise the signal would be missing exactly when a waiter most needs
 /// to learn that nothing further is coming.
 ///
-/// `enriched=` says what became of the enriched stream, which `refresh=false`
-/// alone cannot express: `landed` (it materialised, and either matched what was
-/// served or has been refreshed), `cancelled` (a concurrent salsa write killed
-/// the read, so nothing was compared and a re-request will re-race), or
-/// `no-analysis` (the document has no salsa input, so the response was computed
-/// enriched from a fresh unit and there is nothing to converge to).
+/// `outcome=` says exactly how the response settled. In particular,
+/// `served-enriched` is distinct from `compared-equal`: the latter describes a
+/// coarse response whose detached enriched comparison matched it. A repeated
+/// differing stream is likewise recorded as `refresh-suppressed`, so a test
+/// client can re-request without causing the server to repeat its bounded
+/// workspace refresh.
 async fn log_full_convergence_settled(
     client: &Client,
     uri: &Uri,
@@ -857,7 +877,7 @@ async fn log_full_convergence_settled(
             MessageType::LOG,
             format!(
                 "[timing] semantic_tokens.full_convergence.settled \
-                 (uri={}, refresh={refreshed}, enriched={})",
+                 (uri={}, refresh={refreshed}, outcome={})",
                 uri.as_str(),
                 enriched.as_str(),
             ),
@@ -869,9 +889,14 @@ async fn log_full_convergence_settled(
 /// (see [`log_full_convergence_settled`]).
 #[derive(Clone, Copy)]
 enum FullSettleOutcome {
-    /// The enriched stream materialised — served directly, or delivered by the
-    /// detached continuation.
-    Landed,
+    /// The enriched stream won the fast-path race and was served directly.
+    ServedEnriched,
+    /// A coarse response's detached enriched stream matched the bytes served.
+    ComparedEqual,
+    /// A coarse response's differing enriched stream scheduled a re-request.
+    RefreshRequested,
+    /// A coarse response's differing enriched stream had already asked once.
+    RefreshSuppressed,
     /// The enriched read was cancelled by a concurrent salsa write, so nothing
     /// was compared; a re-request re-races it.
     Cancelled,
@@ -887,7 +912,10 @@ enum FullSettleOutcome {
 impl FullSettleOutcome {
     fn as_str(self) -> &'static str {
         match self {
-            Self::Landed => "landed",
+            Self::ServedEnriched => "served-enriched",
+            Self::ComparedEqual => "compared-equal",
+            Self::RefreshRequested => "refresh-requested",
+            Self::RefreshSuppressed => "refresh-suppressed",
             Self::Cancelled => "cancelled",
             Self::NoAnalysis => "no-analysis",
             Self::Coalesced => "coalesced",
@@ -5500,7 +5528,7 @@ impl Backend {
                         &self.client,
                         uri,
                         false,
-                        FullSettleOutcome::Landed,
+                        FullSettleOutcome::ServedEnriched,
                     )
                     .await;
                     return Ok(tokens.data);
@@ -5579,12 +5607,15 @@ impl Backend {
             // Settle either way — including on a cancelled read — so a waiter can
             // key on the marker instead of racing the debounced refresh that only
             // *sometimes* follows.
-            let (refreshed, outcome) = match enriched.await {
-                Ok(Some(tokens)) => (
-                    refresh_ctx.deliver_if_changed(&uri, &tokens.data).await,
-                    FullSettleOutcome::Landed,
-                ),
-                _ => (false, FullSettleOutcome::Cancelled),
+            let outcome = match enriched.await {
+                Ok(Some(tokens)) => {
+                    match refresh_ctx.deliver_if_changed(&uri, &tokens.data).await {
+                        EnrichedDelivery::ComparedEqual => FullSettleOutcome::ComparedEqual,
+                        EnrichedDelivery::RefreshRequested => FullSettleOutcome::RefreshRequested,
+                        EnrichedDelivery::RefreshSuppressed => FullSettleOutcome::RefreshSuppressed,
+                    }
+                }
+                _ => FullSettleOutcome::Cancelled,
             };
             // Release the per-URI claim only now the decision is made, so every
             // request that arrived while this ran rode along with it — and honour
@@ -5592,7 +5623,13 @@ impl Backend {
             // its own, so if this one decided against refreshing (its own read
             // matched the cache, or was cancelled) the coalesced ones would be
             // stranded.  The refresh is workspace-scoped, so one covers them all.
+            let refreshed = matches!(outcome, FullSettleOutcome::RefreshRequested);
             let refreshed = refresh_if_coalesced(&refresh_ctx, &mut guard, refreshed);
+            let outcome = if refreshed && !matches!(outcome, FullSettleOutcome::RefreshRequested) {
+                FullSettleOutcome::Coalesced
+            } else {
+                outcome
+            };
             refresh_ctx
                 .log_full_convergence_settled(&uri, refreshed, outcome)
                 .await;
@@ -30292,7 +30329,11 @@ mod tests {
 
         // No cache entry yet: "changed" (there is nothing to match), but still
         // must not write the cache itself.
-        ctx.deliver_if_changed(&uri, &[1, 2, 3]).await;
+        assert_eq!(
+            ctx.deliver_if_changed(&uri, &[1, 2, 3]).await,
+            EnrichedDelivery::RefreshRequested,
+            "a missing served entry must request a refresh",
+        );
         assert!(
             backend
                 .last_semantic_tokens
@@ -30310,7 +30351,11 @@ mod tests {
             .lock()
             .await
             .insert(uri.clone(), ("coarse-result-id".to_owned(), vec![1, 2, 3]));
-        ctx.deliver_if_changed(&uri, &[1, 2, 3]).await;
+        assert_eq!(
+            ctx.deliver_if_changed(&uri, &[1, 2, 3]).await,
+            EnrichedDelivery::ComparedEqual,
+            "a matching detached stream must be reported distinctly",
+        );
         assert_eq!(
             backend.last_semantic_tokens.lock().await.get(&uri).cloned(),
             Some(("coarse-result-id".to_owned(), vec![1, 2, 3])),
@@ -30320,7 +30365,11 @@ mod tests {
 
         // A landed result that differs from what was served: still must not
         // overwrite the cache — only the next served response does that.
-        ctx.deliver_if_changed(&uri, &[9, 9, 9]).await;
+        assert_eq!(
+            ctx.deliver_if_changed(&uri, &[9, 9, 9]).await,
+            EnrichedDelivery::RefreshRequested,
+            "a changed stream must report its refresh request",
+        );
         assert_eq!(
             backend.last_semantic_tokens.lock().await.get(&uri).cloned(),
             Some(("coarse-result-id".to_owned(), vec![1, 2, 3])),
@@ -30363,8 +30412,9 @@ mod tests {
             .lock()
             .await
             .insert(uri.clone(), coarse.clone());
-        assert!(
+        assert_eq!(
             ctx.deliver_if_changed(&uri, &enriched).await,
+            EnrichedDelivery::RefreshRequested,
             "the first enriched stream that differs must ask for a refresh",
         );
         // Round 2: the re-request overran the budget again, so the same coarse
@@ -30375,14 +30425,16 @@ mod tests {
             .lock()
             .await
             .insert(uri.clone(), coarse.clone());
-        assert!(
-            !ctx.deliver_if_changed(&uri, &enriched).await,
+        assert_eq!(
+            ctx.deliver_if_changed(&uri, &enriched).await,
+            EnrichedDelivery::RefreshSuppressed,
             "a repeat ask for the identical enriched stream must be dropped",
         );
         // A genuinely different enriched stream (an edit landed, a cross-file
         // class resolved) re-arms the ask.
-        assert!(
+        assert_eq!(
             ctx.deliver_if_changed(&uri, &[0, 0, 3, 9, 0]).await,
+            EnrichedDelivery::RefreshRequested,
             "a changed enriched stream must ask again",
         );
         // The bound is per URI, not global.
@@ -30391,10 +30443,36 @@ mod tests {
             .lock()
             .await
             .insert(other.clone(), coarse);
-        assert!(
+        assert_eq!(
             ctx.deliver_if_changed(&other, &enriched).await,
+            EnrichedDelivery::RefreshRequested,
             "another document's identical stream must ask on its own account",
         );
+    }
+
+    /// The full-token settled marker is a test-client contract: only these
+    /// three outcomes permit a caller to accept the response it already has.
+    /// In particular, a repeat-suppressed stream still differs from that
+    /// response even though the server correctly declines to issue another
+    /// workspace-wide refresh.
+    #[test]
+    fn full_settle_outcomes_keep_final_and_retryable_states_distinct() {
+        assert_eq!(
+            FullSettleOutcome::ServedEnriched.as_str(),
+            "served-enriched"
+        );
+        assert_eq!(FullSettleOutcome::ComparedEqual.as_str(), "compared-equal");
+        assert_eq!(FullSettleOutcome::NoAnalysis.as_str(), "no-analysis");
+        assert_eq!(
+            FullSettleOutcome::RefreshRequested.as_str(),
+            "refresh-requested"
+        );
+        assert_eq!(
+            FullSettleOutcome::RefreshSuppressed.as_str(),
+            "refresh-suppressed"
+        );
+        assert_eq!(FullSettleOutcome::Cancelled.as_str(), "cancelled");
+        assert_eq!(FullSettleOutcome::Coalesced.as_str(), "coalesced");
     }
 
     /// A fire already scheduled must absorb a second request rather than

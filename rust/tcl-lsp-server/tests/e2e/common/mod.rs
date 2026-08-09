@@ -1376,9 +1376,10 @@ impl Lsp {
     ///
     /// So this converges the way the client contract says to, driven by the
     /// server's own settled marker rather than by sleeps: request, wait for the
-    /// convergence decision to be logged, and re-request when it says a refresh
-    /// was warranted (or when it says the enriched read was cancelled outright,
-    /// in which case nothing was compared and the next request re-races).
+    /// convergence decision to be logged, and re-request when it says a
+    /// refresh was warranted. A cancelled read or a repeat-suppressed refresh
+    /// also re-races: neither has served the enriched stream. Only a response
+    /// marked `served-enriched`, `compared-equal`, or `no-analysis` is final.
     /// Returns the last response, so a genuine content divergence is still
     /// reported by the caller's assertion rather than hanging here.
     pub fn semantic_tokens_settled(&mut self, uri: &str) -> Value {
@@ -1401,9 +1402,10 @@ impl Lsp {
             ) else {
                 return response;
             };
-            if settled.contains("refresh=true") {
-                // The refresh is already scheduled; wait for it so the
-                // re-request below sees the landed enriched stream.
+            if settled.contains("refresh=true") || settled.contains("outcome=coalesced") {
+                // A coalesced request's holder schedules the refresh when it
+                // releases its claim, so wait for that just as we do a refresh
+                // already recorded by this request's own continuation.
                 let remaining = deadline.saturating_duration_since(Instant::now());
                 if self
                     .try_await_server_request(
@@ -1415,13 +1417,19 @@ impl Lsp {
                 {
                     return response;
                 }
-            } else if !settled.contains("enriched=cancelled") {
-                // Settled with the enriched stream in hand (`landed`) or with
-                // no analysis to converge to (`no-analysis`): this response is
-                // final.
+            } else if settled.contains("outcome=served-enriched")
+                || settled.contains("outcome=compared-equal")
+                || settled.contains("outcome=no-analysis")
+            {
+                // These are the only outcomes whose response is known to be
+                // final. In particular, `refresh-suppressed` has a differing
+                // enriched stream, but the server deliberately will not emit a
+                // second workspace-wide refresh for those same bytes.
                 return response;
             }
-            // Otherwise the enriched read was cancelled — loop and re-race.
+            // A cancelled read, a repeat-suppressed refresh, or an unexpected
+            // marker has not established that this response is enriched. Loop
+            // and re-race under the existing overall deadline.
         }
     }
 
