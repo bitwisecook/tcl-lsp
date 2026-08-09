@@ -27,7 +27,7 @@
 
 use tcl_runtime_api::{Code, Completion};
 
-use crate::interp::{Vm, err, ok};
+use crate::interp::{Vm, canonical_cmd_key, err, ok};
 use crate::value::Value;
 
 /// Run `body` as a script in namespace `target`, absorbing a top-level
@@ -85,7 +85,36 @@ fn cmd_namespace(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     let Some((sub, rest)) = args.split_first() else {
         return err("wrong # args: should be \"namespace subcommand ?arg ...?\"");
     };
-    match &*sub.to_str() {
+    let sub_word = sub.to_str();
+    let profile = tcl_dialect::DialectProfile::by_name(vm.runtime_version().dialect_profile_name());
+    let registry = tcl_registry::cache::default_registry();
+    let spec = registry
+        .get_for_dialect("namespace", profile.availability_mask)
+        .expect("the core namespace command is registered for every Tcl release");
+    let Some(subcommand) =
+        spec.resolve_subcommand_for_dialect(&sub_word, profile.availability_mask)
+    else {
+        let available: Vec<&str> = spec
+            .subcommands
+            .iter()
+            .filter(|candidate| {
+                candidate
+                    .dialects
+                    .or(spec.dialects)
+                    .is_none_or(|gate| gate.intersects(profile.availability_mask))
+            })
+            .map(|candidate| candidate.name)
+            .collect();
+        let choices = match available.as_slice() {
+            [] => String::new(),
+            [only] => (*only).to_string(),
+            [head @ .., last] => format!("{}, or {last}", head.join(", ")),
+        };
+        return err(format!(
+            "unknown or ambiguous subcommand \"{sub_word}\": must be {choices}"
+        ));
+    };
+    match subcommand.name {
         "eval" => ns_eval(vm, rest),
         "current" => ok(tcl_cmd_core::namespace::current(vm)),
         "qualifiers" => ns_text_op(rest, tcl_cmd_core::namespace::qualifiers),
@@ -255,11 +284,55 @@ fn cmd_namespace(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
             }
             _ => err("wrong # args: should be \"namespace unknown ?script?\""),
         },
-        other => err(format!(
-            "unknown or ambiguous subcommand \"{other}\": must be \
-             children, current, eval, exists, export, parent, qualifiers, or tail"
-        )),
+        "upvar" => ns_upvar(vm, rest, subcommand, profile.availability_mask),
+        _ => unreachable!("every registry namespace subcommand has VM dispatch"),
     }
+}
+
+/// `namespace upvar ns ?otherVar myVar ...?` — link variables in `ns` into
+/// the active frame. Subcommand spelling and release availability are resolved
+/// from the registry above; this function owns only the storage operation.
+fn ns_upvar(
+    vm: &mut Vm,
+    rest: &[Value],
+    subcommand: &tcl_registry::SubCommand,
+    dialect: tcl_dialect::DialectSet,
+) -> Completion<Value> {
+    let argc = u16::try_from(rest.len()).unwrap_or(u16::MAX);
+    let valid_arity = subcommand.subcommand_forms.iter().any(|form| {
+        form.dialects.is_none_or(|gate| gate.intersects(dialect)) && form.arity.accepts(argc)
+    });
+    if !valid_arity {
+        return err("wrong # args: should be \"namespace upvar ns ?otherVar myVar ...?\"");
+    }
+
+    let namespace_word = rest[0].to_str();
+    let namespace = canon_ns(vm, &namespace_word);
+    if !vm.namespace_exists(&namespace) {
+        return err(format!("namespace \"{namespace_word}\" not found"));
+    }
+
+    for pair in rest[1..].chunks_exact(2) {
+        let other = pair[0].to_str();
+        let local = pair[1].to_str();
+        let target = if other.starts_with("::") || namespace.is_empty() {
+            canonical_cmd_key(&other).into_owned()
+        } else {
+            canonical_cmd_key(&format!("::{namespace}::{other}")).into_owned()
+        };
+
+        // At namespace scope the alias itself is a namespace variable; inside
+        // a proc it is an ordinary local. This is the same frame/link primitive
+        // used by `upvar`, so scalars, arrays, byte arrays, and later writes all
+        // share one cell rather than copying or stringifying the value.
+        if vm.in_ns_script() && !local.contains("::") && !vm.current_ns().is_empty() {
+            let alias = vm.qualify_name(&local);
+            vm.add_global_link(&alias, 0, &target);
+        } else {
+            vm.add_link(&local, 0, &target);
+        }
+    }
+    ok(Value::empty())
 }
 
 fn first(rest: &[Value]) -> String {

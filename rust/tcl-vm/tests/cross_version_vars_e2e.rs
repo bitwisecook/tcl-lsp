@@ -236,11 +236,42 @@ const VECTORS: &[Vector] = &[
         want_8x: "NS:GLOBAL",
         want_90: "NS:GLOBAL",
     },
-    // NOTE: `namespace upvar` — which is explicit and so must be unaffected by
-    // the fallback in either release — is covered on the `runtime/rust` side
-    // (`cmd_var.rs`) rather than here: this VM's `namespace` ensemble does not
-    // implement the `upvar` subcommand at all yet, which is a separate gap
-    // from the resolution rule under test.
+    Vector {
+        name: "namespace upvar aliases an existing namespace cell",
+        script: "namespace eval cfg { set value before }\nproc mutate {} { namespace upvar ::cfg value local\n set local after\n puts $local:$::cfg::value }\nmutate\n",
+        want_8x: "after:after",
+        want_90: "after:after",
+    },
+    Vector {
+        name: "namespace upvar leaves a missing target unset until written",
+        script: "namespace eval cfg {}\nproc probe {} { namespace upvar ::cfg absent local\n puts [info exists local]\n set local made }\nprobe\nputs $::cfg::absent\n",
+        want_8x: "0\nmade",
+        want_90: "0\nmade",
+    },
+    Vector {
+        name: "namespace upvar resolves a relative namespace from the current namespace",
+        script: "namespace eval outer { namespace eval child { set value K }\n namespace upvar child value alias\n puts $alias }\n",
+        want_8x: "K",
+        want_90: "K",
+    },
+    Vector {
+        name: "namespace upvar keeps byte array identity across append shimmering",
+        script: "set raw [binary format H* 80ff]\nnamespace eval bytes { set value $::raw }\nproc shimmer {} { namespace upvar ::bytes value local\n puts [binary encode hex $local]\n append local A\n puts [binary encode hex $::bytes::value] }\nshimmer\n",
+        want_8x: "80ff\n80ff41",
+        want_90: "80ff\n80ff41",
+    },
+    Vector {
+        name: "an absolute namespace-upvar source ignores the namespace argument",
+        script: "namespace eval A { set value A }\nnamespace eval B { set value B }\nproc probe {} { namespace upvar ::A ::B::value local\n puts $local }\nprobe\n",
+        want_8x: "B",
+        want_90: "B",
+    },
+    Vector {
+        name: "namespace upvar reports missing namespaces and incomplete pairs",
+        script: "puts [catch {namespace upvar ::missing value local} msg]:$msg\nputs [catch {namespace upvar :: value} msg]:$msg\n",
+        want_8x: "1:namespace \"::missing\" not found\n1:wrong # args: should be \"namespace upvar ns ?otherVar myVar ...?\"",
+        want_90: "1:namespace \"::missing\" not found\n1:wrong # args: should be \"namespace upvar ns ?otherVar myVar ...?\"",
+    },
     //
     // The user-visible consequence of getting this wrong: under 8.x the write
     // reaches the global, so the *global's* write trace must fire.
@@ -270,6 +301,41 @@ fn vm_matches_the_pinned_cross_version_vectors() {
     }
 }
 
+#[test]
+fn namespace_upvar_release_surface_and_zero_pair_arity_are_registry_driven() {
+    let unavailable = vm_output(
+        "puts [catch {namespace upvar :: value local} msg]:$msg\n",
+        TclVersion::V8_4,
+    );
+    assert!(
+        unavailable.starts_with("1:unknown or ambiguous subcommand \"upvar\":"),
+        "Tcl 8.4 must not expose the 8.5 subcommand: {unavailable}"
+    );
+
+    assert_eq!(
+        vm_output(
+            "set ::value ok\nnamespace upvar :: value local\nputs $local\n",
+            TclVersion::V8_5,
+        ),
+        "ok"
+    );
+    assert_eq!(
+        vm_output(
+            "puts [catch {namespace upvar ::} msg]:$msg\n",
+            TclVersion::V8_5,
+        ),
+        "1:wrong # args: should be \"namespace upvar ns ?otherVar myVar ...?\""
+    );
+
+    for version in [TclVersion::V8_6, TclVersion::V9_0, TclVersion::V9_1] {
+        assert_eq!(
+            vm_output("puts [catch {namespace upvar ::} msg]:$msg\n", version),
+            "0:",
+            "the zero-pair form is a no-op from Tcl 8.6: {version:?}"
+        );
+    }
+}
+
 /// The table itself is pinned to C Tcl: every vector's `want` must match what
 /// the matching real tclsh prints.  Skips silently per-binary when not
 /// installed (CI / dev machines with `make ensure-test-deps` have both).
@@ -293,16 +359,15 @@ fn vectors_match_real_tclsh() {
 
 /// M10.1 — the command-resolution `namespace path` tier is a Tcl 8.5 feature
 /// (TIP 181): under an 8.4 runtime a bare call resolves current-namespace →
-/// global only, never through the path.  (Real tclsh8.4 would reject the
-/// `namespace path` subcommand outright — the VM models the *resolution*
-/// semantics per version, not the per-version command surface, so the
-/// recorded path is simply not consulted.)  The analyser applies the same
-/// gate at its recording site (`bare_call_honours_namespace_path_only_from_8_5`).
+/// global only, never through the path. Real tclsh8.4 rejects the `namespace
+/// path` subcommand outright, so the script catches that release-gated error
+/// before probing resolution. The analyser applies the same gate at its
+/// recording site (`bare_call_honours_namespace_path_only_from_8_5`).
 #[test]
 fn namespace_path_resolution_tier_is_8_5_plus_m10() {
     let script = "proc ::helper {} { return GLOBAL }\n\
          namespace eval ::mymod { proc helper {} { return MYMOD } }\n\
-         namespace eval ::app { namespace path ::mymod }\n\
+         namespace eval ::app { catch {namespace path ::mymod} }\n\
          namespace eval ::app { puts [helper] }\n";
     assert_eq!(
         vm_output(script, TclVersion::V8_4),

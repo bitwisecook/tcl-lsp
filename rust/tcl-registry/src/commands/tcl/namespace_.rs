@@ -26,6 +26,25 @@ const FORMS: &[FormSpec] = &[FormSpec {
     dialects: None,
 }];
 
+/// `namespace upvar` changed its zero-pair arity at Tcl 8.6: 8.5 requires at
+/// least one `otherVar myVar` pair, while 8.6+ permits the namespace alone as a
+/// no-op. Keep the release split in registry form data so runtime and static
+/// consumers ask the same source of truth.
+const NAMESPACE_UPVAR_FORMS: &[SubCommandForm] = &[
+    SubCommandForm {
+        name: "tcl8.5",
+        arity: Arity::stepped(3, Arity::UNLIMITED, 2),
+        dialects: Some(DialectSet::TCL85),
+        ..SubCommandForm::DEFAULT
+    },
+    SubCommandForm {
+        name: "tcl8.6+",
+        arity: Arity::stepped(1, Arity::UNLIMITED, 2),
+        dialects: Some(DialectSet::TCL86_PLUS),
+        ..SubCommandForm::DEFAULT
+    },
+];
+
 /// `namespace ensemble create`'s options — the six settable names match
 /// this project's own `namespace ensemble` implementations (compare
 /// `runtime/rust/src/cmd_namespace.rs`'s `apply_ensemble_option` and
@@ -653,11 +672,8 @@ static SUBCOMMANDS: &[SubCommand] = &[
         // ?otherVar myVar ...?` ("arranges for ZERO OR MORE local
         // variables"): the first pair became optional and the floor
         // dropped to 1. `stepped(1, UNLIMITED, 2)` matches the 8.6/9.0/9.1
-        // shape — the loosest of the two that never rejects a valid 8.6+
-        // call; Tcl 8.5's stricter 3-word floor is documented in `detail`
-        // below rather than modelled structurally, since `Arity` has no
-        // per-dialect variant and the gap only matters for the
-        // essentially-unused zero-pair call shape.
+        // shape — the loosest common fallback. `NAMESPACE_UPVAR_FORMS` carries
+        // the exact per-release split for form-aware consumers.
         arity: Arity::stepped(1, Arity::UNLIMITED, 2),
         detail: "Arrange local variables to refer to namespace variables, as zero or more otherVar/myVar pairs. Tcl 8.5 requires at least one pair; from Tcl 8.6 the namespace argument alone is legal (and a no-op).",
         synopsis: "namespace upvar namespace ?otherVar myVar ...?",
@@ -671,6 +687,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         // *local* name of each pair, from index 2 after the subcommand word
         // (issue #1185).
         repeated_args: &[RepeatedArgLayout::strided(ArgRole::VarWrite, 2, 2)],
+        subcommand_forms: NAMESPACE_UPVAR_FORMS,
         creates_scope_alias: true,
         dialects: Some(DialectSet::TCL85_PLUS),
         analyser_hook: Some(crate::hooks::AnalyserHookId::NamespaceUpvar),
@@ -743,6 +760,7 @@ pub fn spec() -> CommandSpec {
 #[cfg(test)]
 mod tests {
     use super::{fold_qualifiers, fold_tail};
+    use crate::dialects::DialectSet;
 
     /// The oracle table, transcribed from tclsh 9.0.4 and 8.6.14 (issue
     /// #1096; the four edge rows the issue tabulates are the last four
@@ -859,5 +877,29 @@ mod tests {
             t.run_const_fold(&["::a::b::c"], Some("tcl8.6")).as_deref(),
             Some("c")
         );
+    }
+
+    #[test]
+    fn upvar_forms_own_the_release_specific_zero_pair_arity() {
+        let spec = super::spec();
+        let upvar = spec
+            .subcommands
+            .iter()
+            .find(|sub| sub.name == "upvar")
+            .expect("upvar subcommand");
+        let accepts = |dialect, argc| {
+            upvar.subcommand_forms.iter().any(|form| {
+                form.dialects.is_none_or(|gate| gate.intersects(dialect))
+                    && form.arity.accepts(argc)
+            })
+        };
+
+        assert!(!accepts(DialectSet::TCL85, 1));
+        assert!(accepts(DialectSet::TCL85, 3));
+        for dialect in [DialectSet::TCL86, DialectSet::TCL90, DialectSet::TCL91] {
+            assert!(accepts(dialect, 1));
+            assert!(accepts(dialect, 3));
+            assert!(!accepts(dialect, 2));
+        }
     }
 }

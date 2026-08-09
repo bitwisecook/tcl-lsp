@@ -3876,11 +3876,13 @@ impl Vm {
     /// non-top frame level).
     fn locate_from(&self, name: &str, start: usize) -> (usize, String) {
         let stripped = name.strip_prefix("::").unwrap_or(name);
-        if stripped.contains("::") || name.starts_with("::") {
-            return (0, stripped.to_owned());
-        }
-        let mut level = start;
-        let mut nm = name.to_owned();
+        let qualified = stripped.contains("::") || name.starts_with("::");
+        let mut level = if qualified { 0 } else { start };
+        let mut nm = if qualified {
+            stripped.to_owned()
+        } else {
+            name.to_owned()
+        };
         for _ in 0..64 {
             match self.frames.get(level).and_then(|f| f.locals.get(&nm)) {
                 Some(Local::Link {
