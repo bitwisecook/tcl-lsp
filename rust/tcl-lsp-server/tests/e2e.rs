@@ -79,6 +79,8 @@ mod issue1305_renamed_metaclass;
 mod issue1312_named_object_dispatch;
 #[path = "e2e/issue1326_encoding.rs"]
 mod issue1326_encoding;
+#[path = "e2e/issue1329_self_dispatch_w308.rs"]
+mod issue1329_self_dispatch_w308;
 #[path = "e2e/issue1333_diagnostic_tags.rs"]
 mod issue1333_diagnostic_tags;
 #[path = "e2e/issue1345_transport_liveness.rs"]

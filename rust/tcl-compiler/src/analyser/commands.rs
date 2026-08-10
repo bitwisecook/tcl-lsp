@@ -110,6 +110,21 @@ struct VarOrCmdSite<'a> {
     scope_path: &'a [usize],
 }
 
+/// Bundled arguments for [`Analyser::record_bareword_dispatch_site`] — the
+/// `Esc`-head slice of [`VarOrCmdSite`], destructured back into locals in
+/// the body.  `Copy` for the same reason [`VarOrCmdSite`] is: every field is
+/// a reference or a `Copy` `Token`, so it passes by value with no
+/// `needless_pass_by_value` lint to work around.
+#[derive(Clone, Copy)]
+struct BarewordDispatch<'a> {
+    cmd_name: &'a str,
+    cmd_tok: Token,
+    args: &'a [String],
+    method_span: Option<tcl_lexer::Span>,
+    in_method: bool,
+    arg_expand: &'a [bool],
+}
+
 /// One resolved analyser-hook dispatch: the hook the head resolved to, plus
 /// the composed traits (`spec.traits | sub.traits`) of the concrete spec /
 /// subcommand it resolved to.
@@ -1217,7 +1232,7 @@ impl Analyser {
             Hook::Uplevel => self.handle_uplevel_command(args, arg_tokens, scope_path),
             Hook::Foreach => self.handle_foreach_command(args, arg_tokens, scope_path),
             Hook::For => self.handle_for_command(args, arg_tokens, scope_path),
-            Hook::Switch => self.handle_switch_command(args, arg_tokens, scope_path),
+            Hook::Switch => self.handle_switch_command(cmd_name, args, arg_tokens, scope_path),
             Hook::Catch => self.handle_catch_command(args, arg_tokens, scope_path),
             // `traits` are this invocation's own, from the same resolution
             // that produced the hook — the handler reads
@@ -3421,6 +3436,42 @@ impl Analyser {
     /// method ...``) or command-substitution-as-command
     /// (``[expr ...] args``) call site so the post-walk W307 /
     /// W308 emitters can resolve them.
+    ///
+    /// # Dispatch-site shapes
+    ///
+    /// Four command-head shapes name an object to dispatch on, and every
+    /// one of them is recognised **structurally or from the registry** —
+    /// never by spelling a command name here:
+    ///
+    /// | Written head | Token kind | Recorded as |
+    /// |---|---|---|
+    /// | `$obj method` | [`TokenType::Var`] | [`DispatchReceiver::Variable`] |
+    /// | `[Dog new] method` | [`TokenType::Cmd`] | a [`CmdCommandSite`] |
+    /// | `objcmd method` (from `CLASS create objcmd`) | [`TokenType::Esc`] | [`DispatchReceiver::InstanceCommand`] |
+    /// | `my method` | [`TokenType::Esc`] | [`DispatchReceiver::SelfDispatch`] |
+    ///
+    /// The last two share the bareword arm and are told apart by
+    /// [`Self::record_bareword_dispatch_site`]: a registry-declared
+    /// self-dispatch keyword first, the `CLASS create NAME` binding
+    /// otherwise.
+    ///
+    /// # Span conventions
+    ///
+    /// Both spans a site carries are the *whole written word*, so a
+    /// diagnostic anchored on either underlines exactly what the user
+    /// typed. That takes deliberate work in both directions, because a
+    /// token's raw span is neither:
+    ///
+    /// * `method_span` **trims the opening delimiter** — `content_offset`
+    ///   bytes of `{` / `"` / `[` — so `{badmethod}` anchors on
+    ///   `badmethod`.
+    /// * `cmd_span` **adds the closing delimiter back**, via
+    ///   [`tcl_lexer::word_span`], because a `Cmd` / `Str` token's span
+    ///   stops at the end of its content: the raw span of `[Dog new]` is
+    ///   `[Dog new` (issue #1330).
+    ///
+    /// [`CmdCommandSite`]: super::state::CmdCommandSite
+    /// [`DispatchReceiver`]: super::state::DispatchReceiver
     fn record_var_or_cmd_command_site(&mut self, site: VarOrCmdSite<'_>) {
         let VarOrCmdSite {
             cmd_name,
@@ -3482,11 +3533,14 @@ impl Analyser {
                     var_name,
                     method_name,
                     method_span,
-                    cmd_span: cmd_tok.span,
+                    // Whole written word, so a braced `${obj}` head anchors
+                    // on `${obj}` rather than `${obj` — see this function's
+                    // "Span conventions".
+                    cmd_span: tcl_lexer::word_span(&sm, cmd_tok),
                     in_method,
                     argc: args.len(),
                     has_expand: arg_expand.iter().any(|&e| e),
-                    is_dollar: true,
+                    receiver: super::state::DispatchReceiver::Variable,
                 });
             }
             TokenType::Cmd => {
@@ -3501,26 +3555,49 @@ impl Analyser {
                     cmd_text,
                     method_name,
                     method_span,
-                    cmd_span: cmd_tok.span,
+                    cmd_span: tcl_lexer::word_span(&sm, cmd_tok),
                     in_method,
                 });
             }
-            TokenType::Esc => self.record_bareword_instance_dispatch_site(
+            TokenType::Esc => self.record_bareword_dispatch_site(BarewordDispatch {
                 cmd_name,
                 cmd_tok,
                 args,
                 method_span,
                 in_method,
                 arg_expand,
-            ),
+            }),
             _ => {}
         }
     }
 
     /// The [`TokenType::Esc`] arm of [`Self::record_var_or_cmd_command_site`]:
-    /// a bareword head bound to an instance by `CLASS create NAME` (issue
-    /// #1312) — the named-object dispatch form.  Split out to keep the
-    /// caller within the line budget.
+    /// a **bareword** command head that names an object to dispatch on.
+    ///
+    /// Two shapes reach here, and neither is recognised by spelling a
+    /// command name — that is the whole point of the split:
+    ///
+    /// 1. A **registry-declared self-dispatch keyword**
+    ///    (`CommandRegistry::method_dispatch_keyword` answering
+    ///    [`MethodDispatchKind::SelfDispatch`] — `my` today, issue #1050).
+    ///    The receiver is whatever object's method body encloses the call,
+    ///    so no name resolution happens at all and the site is recorded
+    ///    unconditionally; the enclosing class is settled at diagnosis time
+    ///    by `Analyser::enclosing_class_at_offset` (issue #1329).  A dialect
+    ///    that gains another such keyword — or loses `my` — propagates
+    ///    through the registry, never through an edit here.
+    /// 2. A **named instance command** bound by `CLASS create NAME`
+    ///    (issue #1312), gated below.
+    ///
+    /// `next` / `nextto` deliberately do **not** reach case 1: the registry
+    /// classifies them [`MethodDispatchKind::NextChain`], and they re-invoke
+    /// the *currently executing* method rather than naming one, so no word
+    /// of theirs is a method name to validate.  Nor does `self`, which is
+    /// [`MethodDispatchKind::Introspection`] — its argument is a closed
+    /// subcommand set.  `[self] method` is a different shape entirely (a
+    /// `Cmd` head; see `Analyser::w308_for_self_receiver`).
+    ///
+    /// # Case 2's gate
     ///
     /// The real gate — `created_instance_commands` *and* an
     /// `instance_classes` entry, exactly like the LSP's
@@ -3541,36 +3618,111 @@ impl Analyser {
     /// and, unlike `argv_texts`, is not guaranteed to line up with a
     /// hand-built `self.source` in unit tests that construct tokens
     /// directly.
-    fn record_bareword_instance_dispatch_site(
-        &mut self,
-        cmd_name: &str,
-        cmd_tok: Token,
-        args: &[String],
-        method_span: Option<tcl_lexer::Span>,
-        in_method: bool,
-        arg_expand: &[bool],
-    ) {
-        let site = || super::state::VarCommandSite {
+    ///
+    /// [`MethodDispatchKind::SelfDispatch`]: tcl_registry::MethodDispatchKind::SelfDispatch
+    /// [`MethodDispatchKind::NextChain`]: tcl_registry::MethodDispatchKind::NextChain
+    /// [`MethodDispatchKind::Introspection`]: tcl_registry::MethodDispatchKind::Introspection
+    fn record_bareword_dispatch_site(&mut self, d: BarewordDispatch<'_>) {
+        let BarewordDispatch {
+            cmd_name,
+            cmd_tok,
+            args,
+            method_span,
+            in_method,
+            arg_expand,
+        } = d;
+        let site = |receiver| super::state::VarCommandSite {
             var_name: cmd_name.to_string(),
             method_name: args.first().cloned(),
             method_span,
+            // A bareword head has no closing delimiter, so its token span
+            // already is the whole word.
             cmd_span: cmd_tok.span,
             in_method,
             argc: args.len(),
             has_expand: arg_expand.iter().any(|&e| e),
-            is_dollar: false,
+            receiver,
         };
+        if self.head_is_self_dispatch_keyword(cmd_name) {
+            // Recorded whether or not a class encloses this offset: the walk
+            // does not yet know (an isolated per-item body has no classes at
+            // all), and abstaining is the diagnosis-time job of
+            // `enclosing_class_at_offset` returning `None`.
+            self.var_command_sites
+                .push(site(super::state::DispatchReceiver::SelfDispatch));
+            return;
+        }
+        self.record_bareword_instance_dispatch_site(cmd_name, site);
+    }
+
+    /// Whether `head`, written bare in command position, is a
+    /// registry-declared `TclOO` self-dispatch keyword whose next word
+    /// therefore names a method on the enclosing object.
+    ///
+    /// Registry-first and dialect-aware: `method_dispatch_keyword` answers
+    /// under the active profile's availability mask, so a `tcl8.4` /
+    /// `tcl8.5` document — with no `TclOO` at all — answers `false` for
+    /// every spelling, and it resolves the `::`-qualified form itself.
+    ///
+    /// Purely a *shape* question, deliberately: whether this document goes
+    /// on to rename, alias, delete or shadow the keyword is order-dependent
+    /// and cannot be settled mid-walk, so it is asked once, post-walk, by
+    /// `Analyser::self_dispatch_keyword_disturbed`.
+    fn head_is_self_dispatch_keyword(&self, head: &str) -> bool {
+        self.registry.is_some_and(|registry| {
+            registry.method_dispatch_keyword(head)
+                == Some(tcl_registry::MethodDispatchKind::SelfDispatch)
+        })
+    }
+
+    /// Case 2 of [`Self::record_bareword_dispatch_site`]: a bareword head
+    /// bound to an instance by `CLASS create NAME` (issue #1312) — the
+    /// named-object dispatch form.  Split out to keep the caller within the
+    /// line budget.
+    ///
+    /// The real gate — `created_instance_commands` *and* an
+    /// `instance_classes` entry, exactly like the LSP's
+    /// `receiver_instance_class`: `created_instance_commands` alone also
+    /// covers coroutine / `interp create` / registry naming-factory names,
+    /// none of which bind a class — cannot be evaluated straight off
+    /// `self.result` while a shell/body pass is deferring:
+    /// `record_instance_creation`'s Pattern B defers a `CLASS create NAME`
+    /// creation into `pending_instances` rather than resolving it
+    /// immediately, so neither map is populated yet for a name created
+    /// earlier in this same pass (they fill in later, post-graft, in
+    /// `Analyser::replay_deferred_instances`).
+    ///
+    /// `cmd_name` is the caller's already-extracted head text
+    /// (`argv_texts[0]`) — reused rather than re-deriving it via
+    /// `SourceMap::token_text`, which costs a real slice on every plain
+    /// command call otherwise (nearly every Tcl command head is `Esc`-kind)
+    /// and, unlike `argv_texts`, is not guaranteed to line up with a
+    /// hand-built `self.source` in unit tests that construct tokens
+    /// directly.  `site` builds the site record for a given receiver kind,
+    /// shared with the self-dispatch case so the two cannot drift.
+    fn record_bareword_instance_dispatch_site(
+        &mut self,
+        cmd_name: &str,
+        site: impl Fn(super::state::DispatchReceiver) -> super::state::VarCommandSite,
+    ) {
+        let site = || site(super::state::DispatchReceiver::InstanceCommand);
+        let is_candidate = self.pending_instances.as_ref().is_some_and(|creations| {
+            creations.iter().any(|(_, args, _, _)| {
+                let Some(method) = args.first() else {
+                    return false;
+                };
+                self.registry
+                    .and_then(|registry| registry.uniform_manufacturer_names_instance_at(method))
+                    .and_then(|name_at| args.get(name_at))
+                    .is_some_and(|name| name == cmd_name)
+            })
+        });
         if let Some(pending) = self.pending_bareword_dispatch_sites.as_mut() {
             // Cheap necessary (not sufficient) pre-filter, bounding the
-            // candidate list to names some pending `create`-shaped record
-            // already mentions — `Self::finalise_bareword_dispatch_sites`
+            // candidate list to names some registry manufacturer layout
+            // already mentions. `Self::finalise_bareword_dispatch_sites`
             // applies the real, sufficient gate once `instance_classes` is
             // complete, post-replay.
-            let is_candidate = self.pending_instances.as_ref().is_some_and(|creations| {
-                creations.iter().any(|(_, args, _, _)| {
-                    args.len() >= 2 && args[0] == "create" && args[1] == cmd_name
-                })
-            });
             if is_candidate {
                 pending.push(site());
             }
@@ -3634,7 +3786,13 @@ impl Analyser {
         if let Some(pending) = self.pending_instances.as_mut() {
             let shape_a =
                 cmd_name == "set" && args.len() >= 2 && args[1].trim_start().starts_with('[');
-            let shape_b = args.len() >= 2 && args[0] == "create";
+            let shape_b = args.first().is_some_and(|method| {
+                self.registry.is_some_and(|registry| {
+                    registry
+                        .uniform_manufacturer_names_instance_at(method)
+                        .is_some_and(|name_at| args.get(name_at).is_some())
+                })
+            });
             // A registry factory already bound above needs no user-class replay.
             if (shape_a || shape_b) && !bound_registry_factory {
                 pending.push((
@@ -3661,11 +3819,16 @@ impl Analyser {
                 .insert(args[0].clone(), class_q);
             return;
         }
-        // Pattern B: `CLASS create NAME ...` — `NAME` (argv[1]) names a new
+        // Pattern B: a registry-declared named manufacturer. The descriptor,
+        // not the method spelling, selects the word that becomes the new
         // instance command.
-        if args.len() >= 2 && args[0] == "create" && is_plain_created_name(&args[1]) {
-            let name = &args[1];
-            if let Some(class_q) = self.resolve_user_class(cmd_name) {
+        if let Some(method_word) = args.first() {
+            if let Some(class_q) = self.resolve_user_class(cmd_name)
+                && let Some(method) = self.class_manufacturer_method(&class_q, method_word)
+                && let Some(name_at) = method.names_instance_at.map(usize::from)
+                && let Some(name) = args.get(name_at)
+                && is_plain_created_name(name)
+            {
                 // Known user class: record the object → class mapping (for
                 // `$obj method` / method validation) and the created command
                 // name.
@@ -3683,14 +3846,25 @@ impl Analyser {
                 if !self.result.instance_command_bindings.contains(&binding) {
                     self.result.instance_command_bindings.push(binding);
                 }
-            } else if self.command_head_could_be_external_class(cmd_name) {
-                // Unknown (external-package) class: the `create NAME` idiom
+            } else if let Some(name) = self.registry.and_then(|registry| {
+                registry
+                    .is_manufacturer_method(method_word)
+                    .then(|| registry.uniform_manufacturer_names_instance_at(method_word))
+                    .flatten()
+                    .and_then(|name_at| args.get(name_at))
+            }) && is_plain_created_name(name)
+                && self.command_head_could_be_external_class(cmd_name)
+            {
+                // Unknown (external-package) class: a registry manufacturer
+                // with a uniform named-instance layout
                 // still binds a new command, so register the name to suppress
                 // the spurious W123 / W307 on later `NAME method` dispatch
                 // (issue #777).  The class identity is unknown, so no
                 // `instance_classes` entry (that would enable W308 method
                 // validation we can't perform).
-                self.result.created_instance_commands.insert(name.clone());
+                self.result
+                    .created_instance_commands
+                    .insert(name.to_owned());
             }
         }
     }
@@ -3914,19 +4088,21 @@ impl Analyser {
         None
     }
 
-    /// Parse a `[CLASS new ...]` / `[CLASS create ...]`
-    /// command-substitution value and return the qualified
-    /// class name when `CLASS` is a user-defined class and the
-    /// subcommand is a constructor (`new` / `create`).
+    /// Parse a `[CLASS ...]` command-substitution value and return the
+    /// qualified class name when `CLASS` is a user-defined class and the
+    /// call really constructs one of its instances.
+    ///
+    /// Which words construct is [`Self::class_command_constructs_with`]'s
+    /// question, and it is answered from registry + proved-factory data —
+    /// never from the `new` / `create` spelling this used to match.
     fn class_from_constructor_subst(&self, value: &str) -> Option<String> {
         let inner = value.trim();
         let inner = inner.strip_prefix('[')?.strip_suffix(']')?;
         let mut words = inner.split_whitespace();
         let class = words.next()?;
-        // TclOO constructor: `set g [Class new|create ...]`.
         if let Some(subcmd) = words.next()
-            && (subcmd == "new" || subcmd == "create")
             && let Some(uc) = self.resolve_user_class(class)
+            && self.class_command_constructs_with(&uc, subcmd)
         {
             return Some(uc);
         }
@@ -3944,6 +4120,168 @@ impl Analyser {
             return Some(class.to_string());
         }
         None
+    }
+
+    /// Whether invoking the class command of `class_q` with `word` as its
+    /// first argument constructs an instance.
+    ///
+    /// Two sources, both data proved elsewhere:
+    ///
+    /// * `word` names one of the definer family's **manufacturer methods**
+    ///   ([`DefinitionBodyGrammar::manufacturers`], registry data — `create`
+    ///   / `new` / `createWithNamespace` for `TclOO`). This replaces the
+    ///   `subcmd == "new" || subcmd == "create"` literal the walk used to
+    ///   carry, so a family manufacturing under another word needs no walker
+    ///   edit;
+    /// * the class's **metaclass** proves its unrecognised-word fallback both
+    ///   constructs and returns the word
+    ///   (`ClassFactory::unknown_binds_instance`, issue #1303) — Tk's
+    ///   `::tk::IconList .il`. A word the class command would actually
+    ///   *recognise* never reaches that fallback, so a manufacturer, a
+    ///   family built-in ([`DefinitionBodyGrammar::builtin_type_methods`]),
+    ///   and any member the metaclass chain declares are all excluded first.
+    ///
+    /// Everything else answers `false`: an unproved factory is never treated
+    /// as one.
+    ///
+    /// [`DefinitionBodyGrammar::manufacturers`]: tcl_registry::definer::DefinitionBodyGrammar::manufacturers
+    /// [`DefinitionBodyGrammar::builtin_type_methods`]: tcl_registry::definer::DefinitionBodyGrammar::builtin_type_methods
+    pub(super) fn class_command_constructs_with(&self, class_q: &str, word: &str) -> bool {
+        let Some(grammar) = self.class_definer_grammar(class_q) else {
+            // No local record at all — a *pure consumer* document, where the
+            // class's own file settled the question and published the answer
+            // (issue #1303). The published set is proved, so no grammar of
+            // our own is needed to read it; the manufacturer words are still
+            // checked, from the family the workspace class is known under.
+            return self.workspace_manufacturer_word(word)
+                || (self.workspace_bare_word_classes.contains(class_q)
+                    && is_plain_created_name(word));
+        };
+        if grammar.manufacturer(word).is_some() {
+            return self.class_manufacturer_method(class_q, word).is_some();
+        }
+        if grammar.is_builtin_type_method(word) || !is_plain_created_name(word) {
+            return false;
+        }
+        if self
+            .result
+            .all_classes
+            .get(class_q)
+            .is_some_and(|c| c.class_command_fallback.constructs_named_instance())
+        {
+            return true;
+        }
+        let Some(meta) = self.metaclass_def(class_q) else {
+            return false;
+        };
+        meta.factory
+            .as_ref()
+            .is_some_and(|f| f.unknown_binds_instance)
+            && !self.metaclass_chain_declares_method(meta, word)
+    }
+
+    /// The reachable manufacturer descriptor for a known class command.
+    /// Family membership, visibility, and per-class export changes are all
+    /// data-driven; callers use the returned layout for name and constructor
+    /// argument positions.
+    pub(super) fn class_manufacturer_method(
+        &self,
+        class_q: &str,
+        word: &str,
+    ) -> Option<&'static tcl_registry::definer::ManufacturerMethod> {
+        let method = self.class_definer_grammar(class_q)?.manufacturer(word)?;
+        let Some(class) = self.result.all_classes.get(class_q) else {
+            return (method.visibility == tcl_registry::definer::MemberVisibility::Exported)
+                .then_some(method);
+        };
+        (!class.class_unexports.contains(word)
+            && (method.visibility == tcl_registry::definer::MemberVisibility::Exported
+                || class.class_exports.contains(word)))
+        .then_some(method)
+    }
+
+    /// Whether `word` is a manufacturer method of **any** definer family the
+    /// registry models — the fallback for a workspace class whose own
+    /// document this analysis has not seen, so its family is unknown here.
+    ///
+    /// Over-approximate by exactly the union of the families' manufacturer
+    /// words (`create` / `new` / `createWithNamespace`), which is what the
+    /// `subcmd == "new" || subcmd == "create"` literal this replaces already
+    /// assumed — and still registry data, so a new family widens it without
+    /// a walker edit.
+    fn workspace_manufacturer_word(&self, word: &str) -> bool {
+        self.registry
+            .is_some_and(|registry| registry.is_manufacturer_method(word))
+    }
+
+    /// The definition-body grammar governing `class_q`'s definer family.
+    ///
+    /// A registry metaclass (`oo::class`, `snit::type`) carries the grammar
+    /// on its own spec.  A **user** metaclass has no spec, so the grammar is
+    /// the registry metaclass at the root of its superclass chain — recorded
+    /// on the factory when the metaclass was written, which is the only place
+    /// it is provable.
+    pub(super) fn class_definer_grammar(
+        &self,
+        class_q: &str,
+    ) -> Option<&'static tcl_registry::definer::DefinitionBodyGrammar> {
+        let class = self.result.all_classes.get(class_q)?;
+        if let Some(grammar) = self.definition_grammar(&class.metaclass) {
+            return Some(grammar);
+        }
+        let meta = self.metaclass_def(class_q)?;
+        self.definition_grammar(&meta.factory.as_ref()?.root_metaclass)
+    }
+
+    /// The recorded `ClassDef` of `class_q`'s metaclass, when the metaclass
+    /// is itself a class this document knows.
+    ///
+    /// Resolved through the shared owner-aware class-name resolver, so a
+    /// bare metaclass word resolves exactly as a `superclass` word in the
+    /// same position would — and abstains on an ambiguous tail rather than
+    /// picking one.
+    pub(super) fn metaclass_def(&self, class_q: &str) -> Option<&super::types::ClassDef> {
+        let class = self.result.all_classes.get(class_q)?;
+        let tail_index = super::class_hierarchy::build_tail_index(self.result.all_classes.keys());
+        let resolved = super::class_hierarchy::resolve_class_name(
+            &class.metaclass,
+            class_q,
+            |candidate| self.result.all_classes.contains_key(candidate),
+            &tail_index,
+        )?;
+        self.result.all_classes.get(&resolved)
+    }
+
+    /// Whether `method` is declared as an instance method anywhere in
+    /// `meta`'s own superclass chain — the members a **class command**
+    /// dispatch really finds, because a class is an instance of its
+    /// metaclass.
+    ///
+    /// Bounded by the recorded class count: every class is visited once.
+    fn metaclass_chain_declares_method(&self, meta: &super::types::ClassDef, method: &str) -> bool {
+        let tail_index = super::class_hierarchy::build_tail_index(self.result.all_classes.keys());
+        let mut visited: std::collections::HashSet<String> = std::collections::HashSet::new();
+        let mut queue: Vec<&super::types::ClassDef> = vec![meta];
+        while let Some(class) = queue.pop() {
+            if !visited.insert(class.qualified_name.clone()) {
+                continue;
+            }
+            if class.methods.contains_key(method) {
+                return true;
+            }
+            for parent in &class.superclasses {
+                if let Some(resolved) = super::class_hierarchy::resolve_class_name(
+                    parent,
+                    &class.qualified_name,
+                    |candidate| self.result.all_classes.contains_key(candidate),
+                    &tail_index,
+                ) && let Some(def) = self.result.all_classes.get(&resolved)
+                {
+                    queue.push(def);
+                }
+            }
+        }
+        false
     }
 
     /// When a `set VAR [... new|create ...]` constructor call's class head
@@ -3972,7 +4310,9 @@ impl Analyser {
         let Some(&arg_tok) = arg_tokens.get(1) else {
             return;
         };
-        let Some((class_var, offset)) = class_var_head_constructor_subst(&args[1]) else {
+        let Some((class_var, manufacturer_word, offset)) =
+            class_var_head_constructor_subst(&args[1])
+        else {
             return;
         };
         let start = arg_tok.span.start() + offset;
@@ -3980,6 +4320,7 @@ impl Analyser {
         self.pending_instance_class_sites
             .push(super::state::PendingInstanceClassSite {
                 class_var,
+                manufacturer_word,
                 span: Span::new(start, start + len),
                 target_name: args[0].clone(),
             });
@@ -4027,6 +4368,10 @@ impl Analyser {
                     resolved = None;
                     break;
                 };
+                if !self.class_command_constructs_with(&qc, &site.manufacturer_word) {
+                    resolved = None;
+                    break;
+                }
                 match &resolved {
                     None => resolved = Some(qc),
                     Some(existing) if *existing != qc => {
@@ -4045,17 +4390,21 @@ impl Analyser {
     }
 }
 
-/// Parse a `[$class new|create ...]` command-substitution value whose head
+/// Parse a `[$class METHOD ...]` command-substitution value whose head
 /// is a plain scalar-variable reference rather than the literal class
 /// bareword [`Analyser::class_from_constructor_subst`] resolves directly —
 /// returns the variable's name (no leading `$`) and its byte offset within
 /// `value`, for the caller to anchor a
 /// [`super::state::PendingInstanceClassSite`] (issue #923 idx 121).
-/// `None` for anything but a bare `$name` head (no braces, array index, or
-/// other computed shape) followed by `new`/`create` — the same "pure
+/// The method word is returned for the caller to validate against the
+/// resolved class's registry grammar. `None` for anything but a bare `$name`
+/// head (no braces, array index, or other computed shape) followed by a
+/// literal method word — the same "pure
 /// reference" scope idx 94's `eval $cmd` fix uses, so a concatenated head
 /// like `${class}Suffix` is left alone.
-pub(in crate::analyser) fn class_var_head_constructor_subst(value: &str) -> Option<(String, u32)> {
+pub(in crate::analyser) fn class_var_head_constructor_subst(
+    value: &str,
+) -> Option<(String, String, u32)> {
     let inner = value.strip_prefix('[')?.strip_suffix(']')?;
     let lead = u32::try_from(inner.len() - inner.trim_start().len()).ok()?;
     let trimmed = inner.trim_start();
@@ -4064,14 +4413,14 @@ pub(in crate::analyser) fn class_var_head_constructor_subst(value: &str) -> Opti
     let rest = trimmed[head_len..].trim_start();
     let subcmd_len = rest.find(char::is_whitespace).unwrap_or(rest.len());
     let subcmd = &rest[..subcmd_len];
-    if subcmd != "new" && subcmd != "create" {
+    if subcmd.is_empty() || crate::naming::is_dynamic_word(subcmd) {
         return None;
     }
     let var_name = head.strip_prefix('$')?;
     if var_name.is_empty() || var_name.contains(['$', '[', ']', '{', '}', '(', ')']) {
         return None;
     }
-    Some((var_name.to_string(), 1 + lead))
+    Some((var_name.to_string(), subcmd.to_string(), 1 + lead))
 }
 
 /// Whether `name` is a concrete, bindable instance-command name in a

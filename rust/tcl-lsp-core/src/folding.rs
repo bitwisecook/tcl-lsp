@@ -439,8 +439,17 @@ fn collect_body_folds(
             .get(head.resolved)
             .and_then(|s| s.case_list)
             .and_then(|spec| {
-                tcl_syntax::case_list::clause_list_call(&args_borrow, &call_shape(spec))
-                    .map(|call| (spec, call.index))
+                let dialect = ctx
+                    .registry
+                    .profile()
+                    .map_or_else(tcl_dialect::DialectSet::empty, |profile| {
+                        profile.availability_mask
+                    });
+                ctx.registry
+                    .case_invocation(head.resolved, &args_borrow, dialect)
+                    .and_then(|(_, invocation)| {
+                        invocation.clause_list_index.map(|index| (spec, index))
+                    })
             });
 
         // The grammar the recursion into THIS command's bodies should carry:
@@ -558,18 +567,6 @@ fn collect_lambda_folds(
         // The body runs in a fresh, non-OO frame (`apply`'s own scope),
         // never the enclosing definer's grammar.
         collect_body_folds(inner, body_span.start(), depth + 1, None, ctx);
-    }
-}
-
-/// The registry's clause-list call shape, in the syntax layer's
-/// registry-free vocabulary.
-fn call_shape(
-    spec: &'static tcl_registry::CaseListSpec,
-) -> tcl_syntax::case_list::CallShape<'static> {
-    tcl_syntax::case_list::CallShape {
-        subject_args: usize::from(spec.subject_args),
-        regex_option: spec.regex_option,
-        value_options: spec.value_options,
     }
 }
 

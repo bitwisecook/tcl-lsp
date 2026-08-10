@@ -26,6 +26,22 @@ const FORMS: &[FormSpec] = &[FormSpec {
     dialects: None,
 }];
 
+/// Fold the value-returning form of `regsub` for literal arguments.
+///
+/// The registry delegates to the same Tcl ARE command plumbing used by the
+/// native runtime.  Calls carrying a result variable are deliberately not
+/// folds: their command result is a replacement count and the text is a
+/// write-side effect.  `-command` likewise declines in the shared command
+/// core, so a callback can never run during analysis.
+fn fold_regsub(args: &[&str]) -> Option<String> {
+    let bytes: Vec<&[u8]> = args.iter().map(|arg| arg.as_bytes()).collect();
+    let result = tcl_cmd_core::regex::regsub::<tcl_regex::cmd_core::AreEngine>(&bytes).ok()?;
+    if result.var.is_some() {
+        return None;
+    }
+    String::from_utf8(result.text).ok()
+}
+
 /// `regsub ?switches? exp string subSpec ?varName?` — after skipping leading
 /// options (`-start` consumes a value; `--` terminates), the positional args
 /// are `exp` (0), `string` (1), `subSpec` (2), and the optional `varName` (3).
@@ -265,6 +281,7 @@ pub fn spec() -> CommandSpec {
         command_prefix_resolver: Some(regsub_command_prefixes),
         forms: FORMS,
         analyser_hook: Some(crate::hooks::AnalyserHookId::RegexPatternCapture),
+        const_fold: Some(fold_regsub),
         ..CommandSpec::DEFAULT
     }
 }
@@ -272,6 +289,26 @@ pub fn spec() -> CommandSpec {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn value_returning_regsub_const_fold_uses_the_tcl_are_engine() {
+        let registry = crate::CommandRegistry::build_default();
+        let spec = registry.get("regsub").unwrap();
+        assert_eq!(
+            spec.run_const_fold(&["-all", "::+", "::::clay", "::"], Some("tcl9.0")),
+            Some("::clay".to_owned())
+        );
+        assert_eq!(
+            spec.run_const_fold(&["::+", "::clay", "::", "out"], Some("tcl9.0")),
+            None,
+            "the variable-writing form is not a pure value fold"
+        );
+        assert_eq!(
+            spec.run_const_fold(&["-command", ".", "x", "callback"], Some("tcl9.0")),
+            None,
+            "analysis must never run a regsub callback"
+        );
+    }
 
     /// Membership pin against Tcl 9.0.4 `Tcl_RegsubObjCmd`
     /// (`generic/tclCmdMZ.c` options table): the exact switch set, with

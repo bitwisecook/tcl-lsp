@@ -286,11 +286,10 @@ fn walk(
         // pool looked unreferenced, which is what `bigip-cleanup` decides
         // deletions from.  The clause-list shape is registry data
         // (`CommandSpec::case_list`), the same entry the token walker reads.
-        if let Some(spec) = registry.get(head).and_then(|s| s.case_list)
-            && let Some(tok) = case_list_word(&cmd, &args, spec)
+        if let Some((tok, spec)) = case_list_word(&cmd, head, &args, registry)
             && !inner_is_empty(full, &tok)
         {
-            for body in case_list_body_tokens(full, &tok, spec) {
+            for body in case_list_body_tokens(full, &tok, &spec) {
                 let mut child = scope.child();
                 recurse_token(ctx, &body, &mut child, out, depth + 1);
             }
@@ -352,26 +351,19 @@ fn lambda_frame_scope(
 /// then its subject words; the clause list is the final braced word.
 fn case_list_word(
     cmd: &tcl_compiler::segmenter::SegmentedCommand,
+    name: &str,
     args: &[&str],
-    spec: &tcl_registry::CaseListSpec,
-) -> Option<Token> {
-    let mut i = 0usize;
-    while i < args.len() && args[i].starts_with('-') {
-        if args[i] == "--" {
-            i += 1;
-            break;
-        }
-        if spec.value_options.contains(&args[i]) {
-            i += 1;
-        }
-        i += 1;
-    }
-    let case_idx = i + usize::from(spec.subject_args);
-    if case_idx != args.len().checked_sub(1)? {
-        return None;
-    }
+    registry: &CommandRegistry,
+) -> Option<(Token, tcl_registry::CaseListSpec)> {
+    let dialect = registry
+        .profile()
+        .map_or_else(tcl_dialect::DialectSet::empty, |profile| {
+            profile.availability_mask
+        });
+    let (spec, invocation) = registry.case_invocation(name, args, dialect)?;
+    let case_idx = invocation.clause_list_index?;
     let tok = *cmd.argv.get(case_idx + 1)?;
-    matches!(tok.kind, TokenType::Str).then_some(tok)
+    matches!(tok.kind, TokenType::Str).then_some((tok, spec))
 }
 
 /// The **body** elements of a clause list — the scripts to recurse.

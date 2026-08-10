@@ -169,3 +169,15 @@ fn the_schema_and_the_default_draft_agree() {
         );
     }
 }
+
+#[test]
+fn manufacturer_methods_has_a_typed_list_editor_and_empty_default() {
+    let field = schema::command_field("manufacturer_methods")
+        .expect("manufacturer_methods is part of the command schema");
+    assert_eq!(field.kind, schema::FieldKind::ManufacturerMethods);
+    assert_eq!(field.kind.to_json()["tag"], "manufacturerMethods");
+    assert_eq!(
+        tcl_spec_studio::draft::default_command_draft()["manufacturer_methods"],
+        serde_json::json!([]),
+    );
+}

@@ -168,6 +168,7 @@ mod timer;
 mod timerate;
 mod trace;
 mod try_;
+pub(crate) use try_::is_dash_fallthrough as try_body_is_fallthrough;
 mod unicode_;
 mod unknown;
 mod unload;

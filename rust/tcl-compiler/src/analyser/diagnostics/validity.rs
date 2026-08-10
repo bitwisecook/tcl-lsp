@@ -1742,26 +1742,19 @@ impl Analyser {
 
     /// Idempotent: drains `pending_ctor_arity`, so a second call is a no-op.
     ///
-    /// Resolves each queued `ClassName new` / `ClassName create name` /
-    /// `ClassName createWithNamespace name ::ns` candidate against
+    /// Resolves each queued registry-declared class-manufacturer candidate against
     /// `all_classes` (fully populated post-walk, after every per-item body
     /// has been grafted) using the same current-namespace-then-global
     /// resolution and top-level order gate as the same-file proc/alias
-    /// arity path. Only genuine `TclOO` classes (`oo::class` /
-    /// `oo::configurable` / `oo::abstract` / `oo::singleton` metaclasses)
-    /// are checked — snit/itcl classes use an entirely different
-    /// instantiation protocol (`TypeName instanceName ?args?`, never
-    /// `new`/`create`/`createWithNamespace`), so their (unrelated) calls,
-    /// if any, must not be arity-checked against a `TclOO` constructor.
+    /// arity path. Only calls with a reachable manufacturer descriptor for
+    /// the resolved class family are checked; unrelated methods with the
+    /// same spelling are dropped.
     ///
     /// A candidate resolving to a class with no explicit constructor
     /// anywhere in its MRO is dropped — `TclOO`'s inherited default
     /// constructor accepts any argument count (confirmed against tclsh
-    /// 9.0.4). Each form's mandatory leading words
-    /// ([`super::types::CtorForm::extra_leading_words`]) are folded into
-    /// the expected bound (`bump_arity`) before comparison, so the arity
-    /// message reads in terms of the call's own full argument list, not
-    /// the constructor's.
+    /// 9.0.4). The descriptor's structural leading words are folded into
+    /// the expected bound (`bump_arity`) before comparison.
     pub fn flush_ctor_arity_diagnostics(&mut self) {
         if self.pending_ctor_arity.is_empty() {
             return;
@@ -1769,62 +1762,39 @@ impl Analyser {
         let pending = std::mem::take(&mut self.pending_ctor_arity);
         let mut diags: Vec<super::types::Diagnostic> = Vec::new();
         {
-            // Scoped so the `class_hierarchy()` borrow of `self.result` ends
-            // before the diagnostics are pushed onto `self.result.diagnostics`
-            // below — sharing the memoised hierarchy (built once per analysis,
-            // reused by hover / hierarchy LSP providers) rather than rebuilding
-            // an owned copy just for this pass.
-            let hierarchy = self.result.class_hierarchy();
             for cand in &pending {
                 let candidates = qualify_candidates(&cand.ns, &cand.class_name);
-                let Some((class_qn, cd)) = candidates.iter().find_map(|c| {
+                let Some(class_qn) = candidates.iter().find_map(|c| {
                     let cd = self.result.all_classes.get(c)?;
                     let in_effect = !cand.enforce_order || cd.name_span.start() < cand.call_off;
-                    in_effect.then_some((c.as_str(), cd))
+                    in_effect.then_some(c.as_str())
                 }) else {
                     continue; // not a (yet-defined) class call — nothing to check
                 };
-                if !is_tcloo_metaclass(self.registry, &cd.metaclass) {
-                    continue; // snit / itcl — `new`/`create` mean something else
-                }
-                // Unlike `new`/`create` (exported by default — only an explicit
-                // `unexport` blocks an external call), `createWithNamespace` is
-                // *unexported by default*: an external `ClassName
-                // createWithNamespace …` (every call this candidate queue can
-                // even see — a literal `my createWithNamespace` never resolves
-                // `my` as a class name, so it never reaches here) raises
-                // "unknown method" and never touches the constructor unless the
-                // class explicitly `export`s it (confirmed against this
-                // project's own `runtime/rust/src/cmd_oo.rs`'s
-                // `oo_class_factory`: `cwn_ok = !block_unexported ||
-                // cwn_exp`). Order-insensitively checking the whole file's
-                // `exports` set (rather than only exports in effect by
-                // `cand.call_off`) trades a vanishingly rare false negative — an
-                // export that lexically follows a top-level call — for
-                // eliminating a real false positive on every default-unexported
-                // class, consistent with this pass's abstain-when-unsure
-                // convention.
-                if matches!(cand.form, super::types::CtorForm::CreateWithNamespace)
-                    && !cd.exports.contains("createWithNamespace")
-                {
-                    continue;
-                }
-                let Some(provider) = hierarchy.constructor_provider(class_qn, &self.source) else {
+                let Some(method) = self.class_manufacturer_method(class_qn, &cand.manufacturer)
+                else {
+                    continue; // wrong family, hidden method, or explicitly unexported
+                };
+                let extra = u16::from(method.constructor_args_from.saturating_sub(1));
+                let provider = self
+                    .result
+                    .class_hierarchy()
+                    .constructor_provider(class_qn, &self.source)
+                    .map(str::to_owned);
+                let Some(provider) = provider else {
                     // No explicit constructor anywhere in the MRO — TclOO's
                     // inherited default constructor accepts any argument
-                    // count, so `new` is never checked here. The form's own
+                    // count. The manufacturer's own
                     // mandatory leading words are a separate requirement
                     // enforced by the dispatcher itself, independent of the
                     // constructor: `oo::class create Foo {}; Foo create` still
                     // raises "wrong # args" (confirmed against tclsh 9.0.4)
                     // even though nothing constrains the constructor args that
-                    // may follow the name. Reuses `extra_leading_words` so
-                    // `create` (1 word) and `createWithNamespace` (2) are both
-                    // covered by the same rule.
-                    let extra = cand.form.extra_leading_words();
+                    // may follow the name. The descriptor covers every method
+                    // layout through the same rule.
                     if extra > 0 {
                         let arity = bump_arity(Arity::at_least(0), extra);
-                        let display_name = format!("{} {}", cand.class_name, cand.form.as_str());
+                        let display_name = format!("{} {}", cand.class_name, cand.manufacturer);
                         if let Some(diag) = arity_verdict(
                             &display_name,
                             arity,
@@ -1857,7 +1827,7 @@ impl Analyser {
                 // a conservative, sound-by-abstention simplification for
                 // this rare a combination (order-sensitive call *and*
                 // multiple inheritance/redefinition), not a soundness gap.
-                let Some(ctor) = self.result.all_classes.get(provider).and_then(|cd| {
+                let Some(ctor) = self.result.all_classes.get(&provider).and_then(|cd| {
                     cd.constructors.iter().rev().find(|c| {
                         !super::class_hierarchy::is_empty_method_body(&self.source, c.body_span)
                             && (!cand.enforce_order || c.name_span.start() < cand.call_off)
@@ -1866,8 +1836,8 @@ impl Analyser {
                     continue;
                 };
                 let arity = ctor.arity();
-                let arity = bump_arity(arity, cand.form.extra_leading_words());
-                let display_name = format!("{} {}", cand.class_name, cand.form.as_str());
+                let arity = bump_arity(arity, extra);
+                let display_name = format!("{} {}", cand.class_name, cand.manufacturer);
                 if let Some(diag) = arity_verdict(
                     &display_name,
                     arity,
@@ -1977,10 +1947,8 @@ impl Analyser {
     /// Queue the `TclOO`-specific arity candidates a call may trigger,
     /// alongside the ordinary same-file/registry checks
     /// [`Self::emit_arity_diagnostics`] always runs: a constructor call
-    /// (`ClassName new ?args?` / `ClassName create name ?args?` /
-    /// `ClassName createWithNamespace name ::ns ?args?`, queued
-    /// unconditionally whenever the first word is literally one of those
-    /// three keywords) and a `next`/`nextto` call (queued whenever the
+    /// (queued when the first word has a manufacturer descriptor in the
+    /// registry) and a `next`/`nextto` call (queued whenever the
     /// registry marks the command [`tcl_registry::Traits::TCLOO_NEXT_CHAIN`]).
     /// Both are resolved post-walk, once `all_classes` is fully
     /// populated — see [`Self::flush_ctor_arity_diagnostics`] /
@@ -1992,10 +1960,10 @@ impl Analyser {
         words: &ArityWords<'_>,
         scope_path: &[usize],
     ) {
-        if matches!(
-            words.args.first().map(String::as_str),
-            Some("new" | "create" | "createWithNamespace")
-        ) {
+        if words.args.first().is_some_and(|word| {
+            self.registry
+                .is_some_and(|registry| registry.manufacturer_methods(word).next().is_some())
+        }) {
             self.queue_ctor_arity_candidate(cmd_name, words, scope_path);
         }
         if self.registry.is_some_and(|r| {
@@ -2063,10 +2031,8 @@ impl Analyser {
         });
     }
 
-    /// Queue a `TclOO` constructor-call (`ClassName new ?args?` /
-    /// `ClassName create name ?args?`) arity candidate. Queued
-    /// unconditionally by every call whose first word is
-    /// `new`/`create`/`createWithNamespace` (the caller's guard) —
+    /// Queue a constructor-call arity candidate whose first word has at
+    /// least one registry manufacturer descriptor —
     /// [`Self::flush_ctor_arity_diagnostics`] resolves it post-walk against
     /// `all_classes`, which mid-walk may not yet hold a forward-referenced
     /// class. A call whose head doesn't resolve to a locally-known class is
@@ -2090,11 +2056,7 @@ impl Analyser {
             arg_expand,
             cmd_tok,
         } = *words;
-        let form = match args[0].as_str() {
-            "create" => super::types::CtorForm::Create,
-            "createWithNamespace" => super::types::CtorForm::CreateWithNamespace,
-            _ => super::types::CtorForm::New,
-        };
+        let manufacturer = args[0].clone();
         let (nargs_min, positional_any_expand) = count_positionals(args, arg_expand, 1);
         let full_span = match arg_tokens.last() {
             Some(last) => tcl_lexer::Span::new(cmd_tok.span.start(), last.span.end()),
@@ -2105,7 +2067,7 @@ impl Analyser {
                 class_name: cmd_name.to_string(),
                 ns: self.command_resolution_namespace(scope_path),
                 enforce_order: !self.scope_path_in_proc_body(scope_path),
-                form,
+                manufacturer,
                 call_off: cmd_tok.span.start(),
                 full_span,
                 nargs_min,

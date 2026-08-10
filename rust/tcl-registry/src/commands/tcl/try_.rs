@@ -58,7 +58,7 @@ const FORMS: &[FormSpec] = &[FormSpec {
 /// string — are equally fallthroughs. Role-resolver callers may pass
 /// the word either stripped (`-`) or brace/quote-inclusive (`{-}`),
 /// so one layer of matched `{}`/`""` is stripped before comparing.
-fn is_dash_fallthrough(arg: &str) -> bool {
+pub(crate) fn is_dash_fallthrough(arg: &str) -> bool {
     let stripped = arg
         .strip_prefix('{')
         .and_then(|s| s.strip_suffix('}'))

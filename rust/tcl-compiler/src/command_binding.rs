@@ -255,14 +255,20 @@ fn stmt_gen(stmt: &Statement, state: &mut State, registry: &CommandRegistry) {
                     .is_some_and(|w| oo_destructive_method(registry, w))
                 {
                     state.map.insert(head, Binding::of(BindingKind::Opaque));
-                } else if args.first().map(String::as_str) == Some("create")
-                    && args.len() >= 2
-                    && !is_dynamic_word(&args[1])
+                } else if let Some(name_idx) = args.first().and_then(|method| {
+                    registry
+                        .is_manufacturer_method(method)
+                        .then(|| registry.uniform_manufacturer_names_instance_at(method))
+                        .flatten()
+                }) && let Some(name) = args.get(name_idx)
+                    && !is_dynamic_word(name)
                 {
-                    // `CLASS create NAME` binds the instance command, which
-                    // carries the same object surface (destroyable too).
+                    // A registry-exported, named manufacturer binds the
+                    // instance command, which carries the same object surface
+                    // (destroyable too).  The method spelling and name layout
+                    // both belong to the registry.
                     state.map.insert(
-                        nqn(&args[1]),
+                        nqn(name),
                         Binding {
                             kind: BindingKind::Class,
                             target: head_binding.target,
@@ -291,13 +297,8 @@ fn definer_created_command(
             if !spec.traits.contains(tcl_registry::Traits::IS_OO_METACLASS) {
                 return None;
             }
-            if !matches!(
-                args.first().map(String::as_str),
-                Some("create" | "createWithNamespace")
-            ) {
-                return None;
-            }
-            args.get(1)?
+            let method = registry.exported_manufacturer_method(cmd, args.first()?)?;
+            args.get(usize::from(method.names_instance_at?))?
         }
         _ => args.first()?,
     };

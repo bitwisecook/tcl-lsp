@@ -569,31 +569,39 @@ pub(super) fn handle_rename(texts: &[String], ns_prefix: &str, result: &mut Sign
     );
 }
 
-/// Handler for `oo::class create NAME ?BODY?` (any `TclOO` metaclass —
+/// Handler for a named, body-bearing `TclOO` manufacturer (any metaclass —
 /// the walker dispatches every registry `IS_OO_METACLASS` +
 /// `definition_body` bearer here).
 ///
 /// When `BODY` is absent the body span falls back to the name token.
 ///
-/// The `create` word stays a literal match: the metaclass specs model
-/// their `create` / `new` / `createWithNamespace` shapes via
-/// `arg_role_resolver` (there is no `SubCommand` table to resolve
-/// against), and `create` is a `TclOO` *method* word — method dispatch is
-/// exact-match in C Tcl (`oo::class cr` errors "unknown method"), so an
-/// ensemble-style prefix resolution would be wrong here.  `new` makes
-/// anonymous classes (nothing to index) and `createWithNamespace` is not
-/// modelled.
+/// Exact method recognition and both structural word positions come from the
+/// registry's [`ManufacturerMethod`](tcl_registry::definer::ManufacturerMethod).
+/// Auto-naming or body-less manufacturers have nothing for this scan to index.
 pub(super) fn handle_oo_class(
     texts: &[String],
     argv: &[Token],
+    manufacturer: &tcl_registry::definer::ManufacturerMethod,
     ns_prefix: &str,
     result: &mut SignatureScanResult,
 ) {
-    if texts.len() < 3 || texts[1] != "create" {
+    let Some(name_idx) = manufacturer
+        .names_instance_at
+        .map(|idx| usize::from(idx) + 1)
+    else {
         return;
-    }
-    let body_tok = if argv.len() > 3 { argv[3] } else { argv[2] };
-    emit_class(&texts[2], argv[2], body_tok, ns_prefix, result);
+    };
+    let Some(body_idx) = manufacturer
+        .definition_body_at
+        .map(|idx| usize::from(idx) + 1)
+    else {
+        return;
+    };
+    let (Some(name), Some(&name_tok)) = (texts.get(name_idx), argv.get(name_idx)) else {
+        return;
+    };
+    let body_tok = argv.get(body_idx).copied().unwrap_or(name_tok);
+    emit_class(name, name_tok, body_tok, ns_prefix, result);
 }
 
 /// Record a potential factory-wrapper call for post-scan resolution.
@@ -1249,7 +1257,13 @@ mod tests {
         ];
         let argv = vec![token(0, 9), token(10, 16), token(17, 22), token(23, 39)];
         let mut result = SignatureScanResult::default();
-        handle_oo_class(&texts, &argv, "ns", &mut result);
+        handle_oo_class(
+            &texts,
+            &argv,
+            &tcl_registry::definer::TCLOO_CREATE_MANUFACTURER,
+            "ns",
+            &mut result,
+        );
         let cls = result.classes.get("::ns::MyCls").expect("inserted");
         assert_eq!(cls.name, "MyCls");
         assert_eq!(cls.body_range, Span::new(23, 39));
@@ -1264,7 +1278,13 @@ mod tests {
         ];
         let argv = vec![token(0, 9), token(10, 16), token(17, 22)];
         let mut result = SignatureScanResult::default();
-        handle_oo_class(&texts, &argv, "ns", &mut result);
+        handle_oo_class(
+            &texts,
+            &argv,
+            &tcl_registry::definer::TCLOO_CREATE_MANUFACTURER,
+            "ns",
+            &mut result,
+        );
         let cls = result.classes.get("::Top").expect("absolute preserved");
         assert_eq!(cls.name, "Top");
         // Body falls back to the name token when omitted.

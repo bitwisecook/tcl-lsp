@@ -1031,10 +1031,10 @@ impl ScanContext<'_> {
     }
 }
 
-/// Bind a constructor's parameters to the object classes of its arguments for a
-/// `Class new ARGS…` / `Class create NAME ARGS…` call.  `head` is the class
-/// command; `verb_and_args` is everything after it (`["new", "$x"]` /
-/// `["create", "foo", "$x"]`).
+/// Bind a constructor's parameters to the object classes of its arguments.
+/// The registry's manufacturer descriptor decides how many leading structural
+/// words precede the constructor payload; the flow pass never names a
+/// manufacturer keyword.
 fn emit_ctor_param_bindings(
     call: CtorCall,
     resolve_ctor_class: &impl Fn(&str) -> Option<String>,
@@ -1045,14 +1045,17 @@ fn emit_ctor_param_bindings(
         head,
         verb_and_args,
     } = call;
-    let ctor_args: &[String] = match verb_and_args.split_first() {
-        Some((verb, rest)) if verb == "new" => rest,
-        // `create NAME …` — skip the instance name.
-        Some((verb, rest)) if verb == "create" => match rest.split_first() {
-            Some((_name, args)) => args,
-            None => return,
-        },
-        _ => return,
+    let Some(verb) = verb_and_args.first() else {
+        return;
+    };
+    let Some(payload_from) = ctx
+        .registry
+        .uniform_manufacturer_constructor_args_from(verb)
+    else {
+        return;
+    };
+    let Some(ctor_args) = verb_and_args.get(payload_from..) else {
+        return;
     };
     if ctor_args.is_empty() {
         return;
@@ -1195,8 +1198,8 @@ fn harvest_unit(fu: &FunctionUnit, registry: &CommandRegistry, sink: &mut FactSi
     }
 }
 
-/// The registry class named by a `[Class new|create …]` constructor value, or
-/// `None` when the value is not such a call.  A `TclOO` class command may be
+/// The registry class named by a class-command manufacturer value, or `None`
+/// when the value is not such a call. A `TclOO` class command may be
 /// written with or without the leading `::` global qualifier; the registry's
 /// [`CommandRegistry::object_class`] strips it as [`CommandRegistry::get`] does.
 fn constructor_class<'r>(value: &str, registry: &'r CommandRegistry) -> Option<&'r str> {
@@ -1211,12 +1214,16 @@ fn constructor_class_of<'r>(
     args: &[String],
     registry: &'r CommandRegistry,
 ) -> Option<&'r str> {
-    // `[Class new|create …]` — or a registry naming factory returning its own
-    // instance (`[struct::graph]` / `[struct::graph name]`), matching the SSA
-    // lattice's `return_type_for_command` object-factory typing so the syntactic
-    // and lattice signals agree.
-    if args.first().is_some_and(|s| s == "new" || s == "create") {
-        return registry.object_class(head).map(|c| c.class_name);
+    // A registry definer's declared manufacturer — or a registry naming
+    // factory returning its own instance (`[struct::graph]` /
+    // `[struct::graph name]`). This matches the SSA lattice's
+    // `return_type_for_command` object-factory typing.
+    if let Some(method) = args.first()
+        && registry
+            .exported_manufacturer_method(head, method)
+            .is_some()
+    {
+        return registry.object_class(head).map(|class| class.class_name);
     }
     registry
         .get(head)

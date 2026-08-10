@@ -201,7 +201,12 @@ fn dispatch_definer(
             // included, so a `[Pin new]` on an `oo::configurable` class is
             // typed as an object like any other (issue #797).
             DefinerFamily::TclOo if spec.traits.contains(Traits::IS_OO_METACLASS) => {
-                handlers::handle_oo_class(texts, argv, ns_prefix, &mut ctx.result);
+                if let Some(method) = texts
+                    .get(1)
+                    .and_then(|word| ctx.registry?.exported_manufacturer_method(head, word))
+                {
+                    handlers::handle_oo_class(texts, argv, method, ns_prefix, &mut ctx.result);
+                }
                 true
             }
             // `oo::define` / `oo::objdefine` share the `TclOO` grammar but

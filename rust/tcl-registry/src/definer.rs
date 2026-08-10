@@ -635,6 +635,32 @@ pub struct DefinitionBodyGrammar {
     /// no such built-ins.
     pub builtin_type_methods: &'static [&'static str],
 
+    /// **Instance**-level methods every object of this family answers to
+    /// without its class body declaring them — `TclOO`'s inherited
+    /// `oo::object` surface (`destroy`, plus the unexported `eval` /
+    /// `variable` / `varname` / `unknown` / `<cloned>`), snit's
+    /// `configure` / `cget` / `info`, itcl's `configure` / `cget` / `isa`.
+    ///
+    /// The instance-side twin of [`Self::builtin_type_methods`], and the
+    /// registry answer to "is this method word actually missing, or is it
+    /// one the class system supplies?" — the question a consumer emitting an
+    /// unknown-method diagnostic has to settle before it fires.  Each entry
+    /// carries its own [`MemberVisibility`], because that decides *which
+    /// dispatch spellings can reach it*: an unexported builtin is reachable
+    /// only through the family's self-dispatch keyword (`my variable v`
+    /// works; `$obj variable v` and `[self] variable v` both fail with
+    /// `unknown method "variable"` — pinned against tclsh 9.0.4 and
+    /// 8.6.16).  Ask through [`Self::builtin_object_method`] rather than
+    /// scanning this directly, so that reachability rule stays in one place.
+    ///
+    /// Empty for a family with no such built-ins.
+    pub builtin_object_methods: &'static [BuiltinObjectMethod],
+
+    /// Built-in object methods that cannot complete normally. Consumers use
+    /// this only after proving that method dispatch reaches the built-in
+    /// implementation; a user override is governed by its own body.
+    pub builtin_terminating_methods: &'static [&'static str],
+
     /// Commands this class system makes available **inside every member
     /// body** and nowhere else — snit's `install NAME using TYPE …`.
     ///
@@ -658,6 +684,133 @@ pub struct DefinitionBodyGrammar {
     /// deciding whether `set w [Foo $win.a]` binds an object handle reads
     /// this rather than testing the metaclass name for a `snit::` prefix.
     pub bare_word_construction: bool,
+
+    /// Conservative recogniser for conventional bare instance-name forms
+    /// when a consumer knows a class name but does not have that class's
+    /// family record. The callback belongs beside
+    /// [`Self::bare_word_construction`], so low-level type inference does not
+    /// embed snit naming conventions. `None` for families without the
+    /// shorthand.
+    pub bare_word_construction_hint: Option<fn(&str) -> bool>,
+
+    /// Whether a class body can install methods whose names are not
+    /// statically enumerable from its member declarations.  snit's wildcard
+    /// delegation does this; `TclOO` and [incr Tcl] do not unless the analyser
+    /// separately observes reflective code.  Unknown-method diagnostics must
+    /// abstain when this is true.
+    pub dynamic_method_dispatch: bool,
+
+    /// The methods of this family's **class command** that manufacture an
+    /// instance — `TclOO`'s `create` / `new` / `createWithNamespace`.
+    ///
+    /// The registry half of "is `X create Name Body` a class creation?".  The
+    /// analyser used to carry those three keywords as a literal `matches!`,
+    /// so a family manufacturing under a different word could not be added
+    /// without editing the walker (issue #1303).  Empty for a family whose
+    /// class command manufactures only through
+    /// [`Self::bare_word_construction`] or a
+    /// [`CommandSpec::creates_instance_at`](crate::spec::CommandSpec::creates_instance_at)
+    /// spec.
+    pub manufacturers: &'static [ManufacturerMethod],
+
+    /// The method an object of this class system dispatches an **unrecognised
+    /// first word** to — `TclOO`'s `unknown` (`object.n`: "if the method is
+    /// not found … the `unknown` method is invoked, with the name of the
+    /// method as its first argument").
+    ///
+    /// Declaring one says only that an unrecognised word still reaches code.
+    /// Whether such a call *constructs*, and whether its result is the new
+    /// object's name, is **not** implied and must be proved from the body —
+    /// see `ClassFactory::unknown_binds_instance` in the analyser, which
+    /// abstains whenever it cannot.
+    ///
+    /// `None` for snit and [incr Tcl].  snit's type command does treat an
+    /// unrecognised *first* word as an instance name, but that is
+    /// [`Self::bare_word_construction`] — a documented property of the type
+    /// command, not a user-written fallback member.
+    pub unknown_dispatch_method: Option<&'static str>,
+}
+
+/// One method of a class system's **class command** that manufactures an
+/// instance — see [`DefinitionBodyGrammar::manufacturers`].
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ManufacturerMethod {
+    /// The method word as invoked on the class command (`create`).
+    pub keyword: &'static str,
+    /// Whether ordinary dispatch through the class command can reach this
+    /// method without an explicit export. `createWithNamespace` is a real
+    /// `TclOO` method but is unexported in C Tcl 9.0.4 and 8.6.
+    pub visibility: MemberVisibility,
+    /// Index — among the call's arguments, argument 0 being the manufacturer
+    /// keyword itself — of the word naming the new instance, or `None` when
+    /// the manufacturer generates the name itself (`new`).
+    pub names_instance_at: Option<u8>,
+    /// Index — in the same argument coordinate system — of the definition
+    /// body for a class-manufacturing call. `None` when this method creates
+    /// an ordinary instance and has no class-definition body.
+    pub definition_body_at: Option<u8>,
+    /// Index of the first argument passed to the newly created object's
+    /// constructor. This keeps constructor parameter flow independent of the
+    /// spelling and of structural words such as an explicit object name or
+    /// namespace name.
+    pub constructor_args_from: u8,
+}
+
+/// One method every instance of a class system's objects has without the
+/// class body declaring it — see
+/// [`DefinitionBodyGrammar::builtin_object_methods`].
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct BuiltinObjectMethod {
+    /// The method name as dispatched (`variable`, `destroy`, `cget`).
+    pub name: &'static str,
+    /// Whether the object's own command exposes it.  [`MemberVisibility::
+    /// Unexported`] means "reachable only through the family's self-dispatch
+    /// keyword" — the same rule an `unexport`ed user method obeys.
+    pub visibility: MemberVisibility,
+    /// Which receiver actually carries the method.
+    pub receiver: BuiltinMethodReceiver,
+    /// One-line description, for hover / completion.
+    pub detail: &'static str,
+}
+
+/// Which kind of object a [`BuiltinObjectMethod`] lives on.
+///
+/// A class command is itself an object, so the two sets overlap but are not
+/// the same: `Foo new` works on the class and never on one of its instances
+/// (tclsh 9.0.4: `[Foo new] new` → `unknown method "new"`).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum BuiltinMethodReceiver {
+    /// Present on every object of the family, instances included.
+    AnyObject,
+    /// Present only on a **class** object — `TclOO`'s `new` / `create` /
+    /// `createWithNamespace`, snit's `create`.
+    ClassObject,
+}
+
+/// How a dispatch reaches its receiver — the axis that decides whether an
+/// unexported [`BuiltinObjectMethod`] is visible at a call site.
+///
+/// Pinned against tclsh 9.0.4 and 8.6.16 from inside a method body of a
+/// class declaring only `probe`:
+///
+/// ```text
+/// my varname v        -> ::oo::Obj22::v      (unexported: reachable)
+/// [self] varname v    -> unknown method "varname": must be destroy or probe
+/// $obj varname v      -> unknown method "varname": must be destroy or probe
+/// ```
+///
+/// `[self]` substitutes to the object's *command*, so it reaches exactly
+/// what an outside caller reaches — it is [`Self::ObjectCommand`], not
+/// [`Self::SelfDispatch`], despite naming the same object.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum MethodReach {
+    /// Through the object's own command — `$obj m`, `[self] m`, or a
+    /// bareword instance command bound by `CLASS create NAME`.  Exported
+    /// members only.
+    ObjectCommand,
+    /// Through the family's self-dispatch keyword (`my m`), which bypasses
+    /// export filtering.  Exported *and* unexported members.
+    SelfDispatch,
 }
 
 /// One command a class system injects into every member body — see
@@ -690,6 +843,42 @@ impl DefinitionBodyGrammar {
         self.builtin_type_methods.contains(&name)
     }
 
+    /// The built-in object method `name` names, if this family supplies one
+    /// **that a `reach` dispatch can actually call** (see
+    /// [`Self::builtin_object_methods`]).
+    ///
+    /// The whole point of routing through here rather than scanning the
+    /// slice is the visibility rule: an unexported builtin answers only for
+    /// [`MethodReach::SelfDispatch`], so a consumer cannot accidentally
+    /// vouch for `$obj variable v`, which really is an error.
+    ///
+    /// [`BuiltinMethodReceiver`] is deliberately **not** filtered here —
+    /// the caller decides whether it holds a class object or an instance,
+    /// and a consumer that cannot tell (a `$var` whose value may be either a
+    /// class command or one of its instances) must accept both rather than
+    /// guess.  Read [`BuiltinObjectMethod::receiver`] off the answer when
+    /// that distinction is available.
+    #[must_use]
+    pub fn builtin_object_method(
+        &self,
+        name: &str,
+        reach: MethodReach,
+    ) -> Option<&'static BuiltinObjectMethod> {
+        let idx = self.builtin_object_methods.iter().position(|m| {
+            m.name == name
+                && (m.visibility == MemberVisibility::Exported
+                    || reach == MethodReach::SelfDispatch)
+        })?;
+        Some(&self.builtin_object_methods[idx])
+    }
+
+    /// Whether the family's built-in implementation always terminates with a
+    /// non-normal completion.
+    #[must_use]
+    pub fn builtin_method_terminates(&self, name: &str) -> bool {
+        self.builtin_terminating_methods.contains(&name)
+    }
+
     /// The member-body command `name` names, if this family injects one (see
     /// [`Self::member_body_commands`]).
     #[must_use]
@@ -699,6 +888,17 @@ impl DefinitionBodyGrammar {
             .iter()
             .position(|c| c.name == name)?;
         Some(&self.member_body_commands[idx])
+    }
+
+    /// The manufacturer method `keyword` names, if this family's class
+    /// command has one (see [`Self::manufacturers`]).
+    #[must_use]
+    pub fn manufacturer(&self, keyword: &str) -> Option<&'static ManufacturerMethod> {
+        let idx = self
+            .manufacturers
+            .iter()
+            .position(|m| m.keyword == keyword)?;
+        Some(&self.manufacturers[idx])
     }
 
     /// Whether `keyword` is a recognised member sub-keyword.
@@ -817,6 +1017,88 @@ const TCLOO_MEMBERS: &[MemberSpec] = &[
     MemberSpec::flag_keyed("property").with_dialects(TCL90_MEMBERS),
 ];
 
+/// The methods every `TclOO` object inherits from `oo::object` (plus the
+/// three a *class* object additionally gets from `oo::class`), which no
+/// class body declares.
+///
+/// Pinned against tclsh 9.0.4 **and** 8.6.16 — the sets are byte-identical
+/// on both:
+///
+/// ```text
+/// info class methods ::oo::object -all -private  ->  <cloned> destroy eval unknown variable varname
+/// info class methods ::oo::class  -all -private  ->  <cloned> create createWithNamespace destroy
+///                                                    eval new unknown variable varname
+/// ```
+///
+/// Only `destroy` is exported: `TclOO`'s export test is
+/// `Tcl_StringMatch(name, "[a-z]*")` applied at *declaration*, and the rest
+/// are explicitly unexported by the core.  `<cloned>` fails the pattern on
+/// its leading `<` as well.  That is why every one of them except `destroy`
+/// is reachable through `my` and through nothing else — the exact reason
+/// `my variable v` must never draw an unknown-method diagnostic while
+/// `$obj variable v` legitimately does.
+///
+/// `configure` / `cget` are **not** listed: they come from `oo::configurable`
+/// (Tcl 9.0+) and are declared as real class members on the classes that
+/// use it, so they arrive through the ordinary member tables rather than
+/// here.
+const TCLOO_BUILTIN_OBJECT_METHODS: &[BuiltinObjectMethod] = &[
+    BuiltinObjectMethod {
+        name: "destroy",
+        visibility: MemberVisibility::Exported,
+        receiver: BuiltinMethodReceiver::AnyObject,
+        detail: "destroy the object, running its destructors",
+    },
+    BuiltinObjectMethod {
+        name: "eval",
+        visibility: MemberVisibility::Unexported,
+        receiver: BuiltinMethodReceiver::AnyObject,
+        detail: "evaluate a script in the object's own namespace",
+    },
+    BuiltinObjectMethod {
+        name: "unknown",
+        visibility: MemberVisibility::Unexported,
+        receiver: BuiltinMethodReceiver::AnyObject,
+        detail: "handler invoked for an unresolved method name",
+    },
+    BuiltinObjectMethod {
+        name: "variable",
+        visibility: MemberVisibility::Unexported,
+        receiver: BuiltinMethodReceiver::AnyObject,
+        detail: "link object-instance variables into the calling scope",
+    },
+    BuiltinObjectMethod {
+        name: "varname",
+        visibility: MemberVisibility::Unexported,
+        receiver: BuiltinMethodReceiver::AnyObject,
+        detail: "fully-qualified name of an object-instance variable",
+    },
+    BuiltinObjectMethod {
+        name: "<cloned>",
+        visibility: MemberVisibility::Unexported,
+        receiver: BuiltinMethodReceiver::AnyObject,
+        detail: "copy hook invoked by oo::copy on the new object",
+    },
+    BuiltinObjectMethod {
+        name: "new",
+        visibility: MemberVisibility::Exported,
+        receiver: BuiltinMethodReceiver::ClassObject,
+        detail: "construct an instance with a generated name",
+    },
+    BuiltinObjectMethod {
+        name: "create",
+        visibility: MemberVisibility::Exported,
+        receiver: BuiltinMethodReceiver::ClassObject,
+        detail: "construct an instance with the given name",
+    },
+    BuiltinObjectMethod {
+        name: "createWithNamespace",
+        visibility: MemberVisibility::Unexported,
+        receiver: BuiltinMethodReceiver::ClassObject,
+        detail: "construct an instance in a named namespace",
+    },
+];
+
 /// The definition-body grammar for every `TclOO` metaclass and the bare
 /// `oo::define` / `oo::objdefine` script form.
 pub const TCLOO_GRAMMAR: DefinitionBodyGrammar = DefinitionBodyGrammar {
@@ -824,9 +1106,17 @@ pub const TCLOO_GRAMMAR: DefinitionBodyGrammar = DefinitionBodyGrammar {
     members: TCLOO_MEMBERS,
     implicit_vars: &[],
     member_body_namespace_path: TCLOO_MEMBER_BODY_NAMESPACE_PATH,
-    // TclOO's class-level surface is `oo::define`/`oo::objdefine`, not a set
-    // of built-in typemethods on the class command.
-    builtin_type_methods: &[],
+    // The class command's own built-in, non-manufacturing surface. tclsh
+    // 9.0.4 and 8.6.16 agree byte for byte:
+    //   oo::class create C {}
+    //   info object methods ::C -all   ->  create destroy new
+    // `create` / `new` are manufacturers and live in `manufacturers`; what
+    // is left is `destroy`. The definition surface proper
+    // (`oo::define`/`oo::objdefine`) is a separate command, not a method
+    // here.
+    builtin_type_methods: &["destroy"],
+    builtin_object_methods: TCLOO_BUILTIN_OBJECT_METHODS,
+    builtin_terminating_methods: &["unknown"],
     // TclOO injects no extra *commands* into a method body — its helpers
     // (`my` / `next` / `self` / `link` / `classvariable`) are real global
     // commands in `::oo::Helpers` with their own specs, reached through
@@ -836,7 +1126,82 @@ pub const TCLOO_GRAMMAR: DefinitionBodyGrammar = DefinitionBodyGrammar {
     // constructs through `create` / `new` (tclsh 9.0.4: `::C x` →
     // `unknown method "x"`).
     bare_word_construction: false,
+    bare_word_construction_hint: None,
+    dynamic_method_dispatch: false,
+    manufacturers: TCLOO_MANUFACTURERS,
+    // `object.n`: an unrecognised method name is dispatched to `unknown`.
+    // This is what makes `::C x` above *reachable* rather than fatal once a
+    // class (or its metaclass) declares one.
+    unknown_dispatch_method: Some("unknown"),
 };
+
+/// `TclOO`'s class-command manufacturers — see
+/// [`DefinitionBodyGrammar::manufacturers`].
+///
+/// `class.n` (9.0.4): `create name ?definition?`, `new ?definition?`,
+/// `createWithNamespace name nsName ?definition?`.  Only `create` and
+/// `createWithNamespace` name the instance; `new` generates the name.
+pub const TCLOO_CREATE_MANUFACTURER: ManufacturerMethod = ManufacturerMethod {
+    keyword: "create",
+    visibility: MemberVisibility::Exported,
+    names_instance_at: Some(1),
+    definition_body_at: Some(2),
+    constructor_args_from: 2,
+};
+/// `new ?definition?`: manufacture with an automatically generated name.
+pub const TCLOO_NEW_MANUFACTURER: ManufacturerMethod = ManufacturerMethod {
+    keyword: "new",
+    visibility: MemberVisibility::Exported,
+    names_instance_at: None,
+    definition_body_at: Some(1),
+    constructor_args_from: 1,
+};
+/// `new` as inherited by the root `::oo::class` object. The method exists for
+/// self-dispatch and can be exported reflectively, but ordinary external
+/// dispatch cannot reach it in C Tcl 8.6 or 9.0.
+pub const TCLOO_ROOT_NEW_MANUFACTURER: ManufacturerMethod = ManufacturerMethod {
+    visibility: MemberVisibility::Unexported,
+    ..TCLOO_NEW_MANUFACTURER
+};
+/// `createWithNamespace name nsName ?definition?`: the unexported
+/// namespace-selecting manufacturer.
+pub const TCLOO_CREATE_WITH_NAMESPACE_MANUFACTURER: ManufacturerMethod = ManufacturerMethod {
+    keyword: "createWithNamespace",
+    visibility: MemberVisibility::Unexported,
+    names_instance_at: Some(1),
+    definition_body_at: Some(3),
+    constructor_args_from: 3,
+};
+const TCLOO_MANUFACTURERS: &[ManufacturerMethod] = &[
+    TCLOO_CREATE_MANUFACTURER,
+    TCLOO_NEW_MANUFACTURER,
+    TCLOO_CREATE_WITH_NAMESPACE_MANUFACTURER,
+];
+
+/// Manufacturer surface present on `oo::class` itself. C Tcl 9.0.4 and 8.6
+/// expose only `create`; `new` and `createWithNamespace` remain present but
+/// private (`info object methods ::oo::class -all -private`).
+pub const TCLOO_ROOT_CLASS_MANUFACTURERS: &[ManufacturerMethod] = &[
+    TCLOO_CREATE_MANUFACTURER,
+    TCLOO_ROOT_NEW_MANUFACTURER,
+    TCLOO_CREATE_WITH_NAMESPACE_MANUFACTURER,
+];
+
+/// Manufacturer surface exported by the other Tcl 9 metaclass commands.
+/// `createWithNamespace` remains unexported on all of them.
+pub const TCLOO_DERIVED_METACLASS_MANUFACTURERS: &[ManufacturerMethod] = TCLOO_MANUFACTURERS;
+
+/// snit's single class-command manufacturer — snit(n), "The Type Command":
+/// `$type create name ?option value…?`.  There is no `new`: a snit instance
+/// is always named, either explicitly or through the `%AUTO%` substitution
+/// in the name itself.
+const SNIT_MANUFACTURERS: &[ManufacturerMethod] = &[ManufacturerMethod {
+    keyword: "create",
+    visibility: MemberVisibility::Exported,
+    names_instance_at: Some(1),
+    definition_body_at: None,
+    constructor_args_from: 2,
+}];
 
 /// The `namespace path` a `TclOO` member body runs with — see
 /// [`DefinitionBodyGrammar::member_body_namespace_path`].
@@ -876,6 +1241,55 @@ const SNIT_MEMBERS: &[MemberSpec] = &[
     MemberSpec::keyword_only("expose"),
 ];
 
+/// The methods every snit **instance** answers to without its type body
+/// declaring them.
+///
+/// From snit(n), "The Instance Command": every instance supports `configure`,
+/// `configurelist`, `cget`, `destroy` and `info` in addition to its declared
+/// methods.  snit generates an ordinary Tcl dispatcher proc rather than using
+/// `TclOO`'s export machinery, so it has no unexported tier — every one is
+/// reachable through the instance command.  `create` belongs to the *type*
+/// command, so it is marked [`BuiltinMethodReceiver::ClassObject`]; snit has
+/// no `new` at all.
+const SNIT_BUILTIN_OBJECT_METHODS: &[BuiltinObjectMethod] = &[
+    BuiltinObjectMethod {
+        name: "configure",
+        visibility: MemberVisibility::Exported,
+        receiver: BuiltinMethodReceiver::AnyObject,
+        detail: "set one or more of the instance's options",
+    },
+    BuiltinObjectMethod {
+        name: "configurelist",
+        visibility: MemberVisibility::Exported,
+        receiver: BuiltinMethodReceiver::AnyObject,
+        detail: "set options from an option/value list",
+    },
+    BuiltinObjectMethod {
+        name: "cget",
+        visibility: MemberVisibility::Exported,
+        receiver: BuiltinMethodReceiver::AnyObject,
+        detail: "retrieve the value of one of the instance's options",
+    },
+    BuiltinObjectMethod {
+        name: "destroy",
+        visibility: MemberVisibility::Exported,
+        receiver: BuiltinMethodReceiver::AnyObject,
+        detail: "destroy the instance",
+    },
+    BuiltinObjectMethod {
+        name: "info",
+        visibility: MemberVisibility::Exported,
+        receiver: BuiltinMethodReceiver::AnyObject,
+        detail: "introspect the instance's type, options and components",
+    },
+    BuiltinObjectMethod {
+        name: "create",
+        visibility: MemberVisibility::Exported,
+        receiver: BuiltinMethodReceiver::ClassObject,
+        detail: "construct an instance with the given name",
+    },
+];
+
 /// The commands snit injects into every member body — see
 /// [`DefinitionBodyGrammar::member_body_commands`].
 ///
@@ -911,6 +1325,15 @@ const SNIT_WIDGET_MEMBER_BODY_COMMANDS: &[MemberBodyCommand] = &[
     },
 ];
 
+/// The two snit instance-name shapes that remain recognisable when a
+/// low-level consumer has only a set of class names, not each class's family:
+/// `%AUTO%` asks snit to generate a unique suffix, and a leading dot is the
+/// conventional Tk widget path. Other plain names are valid too, but require
+/// the exact class grammar to distinguish them from a method word.
+fn snit_bare_word_construction_hint(word: &str) -> bool {
+    word == "%AUTO%" || word.starts_with('.')
+}
+
 /// The definition-body grammar for a plain snit `type`.  `implicit_vars` is
 /// the set snit injects into *every* member body; the widget definers carry
 /// [`SNIT_WIDGET_GRAMMAR`], whose `implicit_vars` add the `win` / `hull`
@@ -925,10 +1348,20 @@ pub const SNIT_GRAMMAR: DefinitionBodyGrammar = DefinitionBodyGrammar {
     // snit(n): "Every snit type has the following type methods: create,
     // info, destroy."  `create` is left out — see the field's doc comment.
     builtin_type_methods: &["info", "destroy"],
+    builtin_object_methods: SNIT_BUILTIN_OBJECT_METHODS,
+    builtin_terminating_methods: &[],
     member_body_commands: SNIT_MEMBER_BODY_COMMANDS,
     // snit(n), "The Type Command": `$type name ?args?` with a non-typemethod
     // first word is `$type create name ?args?`.
     bare_word_construction: true,
+    bare_word_construction_hint: Some(snit_bare_word_construction_hint),
+    dynamic_method_dispatch: true,
+    manufacturers: SNIT_MANUFACTURERS,
+    // snit dispatches an unrecognised *method* through `delegate method *`
+    // when the type declares one, which is a declared delegation target
+    // rather than a member body this analysis can read; there is no snit
+    // counterpart of TclOO's `unknown`.
+    unknown_dispatch_method: None,
 };
 
 /// The definition-body grammar for snit `widget` / `widgetadaptor`: the same
@@ -946,10 +1379,20 @@ pub const SNIT_WIDGET_GRAMMAR: DefinitionBodyGrammar = DefinitionBodyGrammar {
     // snit(n): "Every snit type has the following type methods: create,
     // info, destroy."  `create` is left out — see the field's doc comment.
     builtin_type_methods: &["info", "destroy"],
+    builtin_object_methods: SNIT_BUILTIN_OBJECT_METHODS,
+    builtin_terminating_methods: &[],
     member_body_commands: SNIT_WIDGET_MEMBER_BODY_COMMANDS,
     // snit(n), "The Type Command": `$type name ?args?` with a non-typemethod
     // first word is `$type create name ?args?`.
     bare_word_construction: true,
+    bare_word_construction_hint: Some(snit_bare_word_construction_hint),
+    dynamic_method_dispatch: true,
+    manufacturers: SNIT_MANUFACTURERS,
+    // snit dispatches an unrecognised *method* through `delegate method *`
+    // when the type declares one, which is a declared delegation target
+    // rather than a member body this analysis can read; there is no snit
+    // counterpart of TclOO's `unknown`.
+    unknown_dispatch_method: None,
 };
 
 // ---------------------------------------------------------------------------
@@ -989,6 +1432,42 @@ const ITCL_MEMBERS: &[MemberSpec] = &[
     MemberSpec::wrapper("private"),
 ];
 
+/// The methods every [incr Tcl] **object** answers to without its class body
+/// declaring them.
+///
+/// From the itcl(n) / itclObject documentation: every object supports
+/// `configure`, `cget` and `isa`, plus the `info` ensemble extended with the
+/// class-introspection subcommands.  Like snit, itcl dispatches through its
+/// own generated machinery with no `my`-only tier, so all are exported.
+/// Object destruction is `itcl::delete object NAME`, a command rather than a
+/// method, so no `destroy` is listed.
+const ITCL_BUILTIN_OBJECT_METHODS: &[BuiltinObjectMethod] = &[
+    BuiltinObjectMethod {
+        name: "configure",
+        visibility: MemberVisibility::Exported,
+        receiver: BuiltinMethodReceiver::AnyObject,
+        detail: "set one or more of the object's public variables",
+    },
+    BuiltinObjectMethod {
+        name: "cget",
+        visibility: MemberVisibility::Exported,
+        receiver: BuiltinMethodReceiver::AnyObject,
+        detail: "retrieve the value of one of the object's public variables",
+    },
+    BuiltinObjectMethod {
+        name: "isa",
+        visibility: MemberVisibility::Exported,
+        receiver: BuiltinMethodReceiver::AnyObject,
+        detail: "test whether the object belongs to the named class",
+    },
+    BuiltinObjectMethod {
+        name: "info",
+        visibility: MemberVisibility::Exported,
+        receiver: BuiltinMethodReceiver::AnyObject,
+        detail: "introspect the object's class, variables and methods",
+    },
+];
+
 /// The definition-body grammar for [incr Tcl] `itcl::class` / bare `class`.
 /// Member bodies run in the object's context with the instance/common
 /// variables and `this` in scope.
@@ -1000,12 +1479,21 @@ pub const ITCL_GRAMMAR: DefinitionBodyGrammar = DefinitionBodyGrammar {
     // [incr Tcl] class commands expose `::itcl::class` introspection rather
     // than built-in typemethods on the class command itself.
     builtin_type_methods: &[],
+    builtin_object_methods: ITCL_BUILTIN_OBJECT_METHODS,
+    builtin_terminating_methods: &[],
     member_body_commands: &[],
     // itcl constructs through `ClassName objName` *at the class command* —
     // but only via the documented `ClassName objName ?args?` form, which the
     // handle scan reaches through `creates_instance_at`, not through this
     // snit-specific bare-word shorthand.
     bare_word_construction: false,
+    bare_word_construction_hint: None,
+    dynamic_method_dispatch: false,
+    // Reached through `creates_instance_at` (see above), not a named
+    // manufacturer method on the class command.
+    manufacturers: &[],
+    // [incr Tcl] has no user-writable unrecognised-method fallback member.
+    unknown_dispatch_method: None,
 };
 
 #[cfg(test)]

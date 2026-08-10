@@ -69,16 +69,16 @@ const CLASS_METHOD_VALUES: &[ArgValue] = &[
 /// `createWithNamespace` shapes, so their definition-body argument
 /// lives at the same index.
 pub(crate) fn oo_class_arg_roles(args: &[&str]) -> Vec<(u8, ArgRole)> {
-    let n = args.len();
-    if n < 2 {
+    let Some(body) = args
+        .first()
+        .and_then(|word| crate::definer::TCLOO_GRAMMAR.manufacturer(word))
+        .and_then(|method| method.definition_body_at)
+    else {
         return Vec::new();
-    }
-    match args[0] {
-        "create" if n >= 3 => vec![(2, ArgRole::Body)],
-        "new" if n >= 2 => vec![(1, ArgRole::Body)],
-        "createWithNamespace" if n >= 4 => vec![(3, ArgRole::Body)],
-        _ => Vec::new(),
-    }
+    };
+    (usize::from(body) < args.len())
+        .then_some(vec![(body, ArgRole::Body)])
+        .unwrap_or_default()
 }
 
 pub fn spec() -> CommandSpec {
@@ -112,6 +112,7 @@ pub fn spec() -> CommandSpec {
         arg_values: &[(0, CLASS_METHOD_VALUES)],
         side_effects: SIDE_EFFECTS,
         definition_body: Some(&crate::definer::TCLOO_GRAMMAR),
+        manufacturer_methods: crate::definer::TCLOO_ROOT_CLASS_MANUFACTURERS,
         ..CommandSpec::DEFAULT
     }
 }

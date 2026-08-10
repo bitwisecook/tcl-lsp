@@ -90,6 +90,8 @@ pub enum FieldKind {
     SideEffects,
     /// `&'static [SetterConstraint]`.
     SetterConstraints,
+    /// `&'static [ManufacturerMethod]` — class-command instance factories.
+    ManufacturerMethods,
     /// `Option<HoverSnippet>`.
     Hover,
     /// `&'static [SubCommand]` — edited with the subcommand schema.
@@ -132,6 +134,7 @@ impl FieldKind {
             Self::Forms => "forms",
             Self::SideEffects => "sideEffects",
             Self::SetterConstraints => "setterConstraints",
+            Self::ManufacturerMethods => "manufacturerMethods",
             Self::Hover => "hover",
             Self::SubCommands => "subCommands",
             Self::SubSubCommands => "subSubCommands",
@@ -868,6 +871,13 @@ pub const COMMAND_FIELDS: &[FieldSchema] = &[
             hint: "Some(&definer::TCLOO_CLASS_BODY)",
         },
         "Body grammar for a class or type definer, so the generic walker can recurse.",
+    ),
+    f(
+        "manufacturer_methods",
+        "Manufacturer methods",
+        ADVANCED,
+        FieldKind::ManufacturerMethods,
+        "Class-command methods that create an instance, including their name, body, and constructor-argument positions.",
     ),
     f(
         "case_list",

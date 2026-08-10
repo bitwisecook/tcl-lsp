@@ -590,8 +590,13 @@ fn classify_rhs<S: std::hash::BuildHasher + Clone>(
     ns: &NsContext,
 ) -> AssignKind {
     if let Some((head, args)) = crate::value_shapes::parse_command_substitution(value) {
-        // Constructor: `[Class new]` / `[Class create name]`.
-        if args.first().is_some_and(|s| s == "new" || s == "create") {
+        // Constructor: the method word is a registry-declared manufacturer.
+        // This classifier has no family in hand yet, so it asks for the
+        // conservative union; the resolved class and its MRO settle the
+        // receiver separately below.
+        if args.first().is_some_and(|method| {
+            tcl_registry::cache::default_registry().is_manufacturer_method(method)
+        }) {
             // A dynamic head — `[$cls new]` / `[[factory] new]` — is a
             // runtime class value, not a literal constructor.  Treat it as
             // introspection (the class is computed, not named).
@@ -759,10 +764,32 @@ fn build_class_values<S: std::hash::BuildHasher + Clone>(
     (values, assigned)
 }
 
-/// True when `method` is one of the OO built-in class / object methods
-/// that every class responds to.
-fn is_oo_builtin(method: &str) -> bool {
-    matches!(method, "new" | "create" | "destroy" | "configure" | "cget")
+/// The registry definition grammar governing `class`, following a
+/// user-defined metaclass back to its registry root when necessary.
+fn definer_grammar_for_class<S: std::hash::BuildHasher + Clone>(
+    class: &str,
+    index: &HashMap<String, ClassDef, S>,
+    ns: &NsContext,
+) -> Option<&'static tcl_registry::definer::DefinitionBodyGrammar> {
+    let registry = tcl_registry::cache::default_registry();
+    let cd = index.get(class)?;
+    if let Some(grammar) = registry
+        .get(&cd.metaclass)
+        .and_then(|spec| spec.definition_body)
+    {
+        return Some(grammar);
+    }
+    let (meta_name, in_index) = resolve_class_name(&cd.metaclass, None, index, ns);
+    if !in_index {
+        return None;
+    }
+    let root = index
+        .get(&meta_name)?
+        .factory
+        .as_ref()?
+        .root_metaclass
+        .as_str();
+    registry.get(root).and_then(|spec| spec.definition_body)
 }
 
 /// Resolve one dispatch: JOIN the lattice value with the MRO table.
@@ -796,10 +823,17 @@ fn resolve<S: std::hash::BuildHasher + Clone>(
             continue;
         }
         // No direct provider — is the method serviceable another way?
-        let serviceable = is_oo_builtin(method)
-            || hierarchy.method_target(c, "unknown").is_some()
+        let grammar = definer_grammar_for_class(c, index, ns);
+        let builtin = grammar.is_some_and(|grammar| {
+            grammar
+                .builtin_object_method(method, tcl_registry::definer::MethodReach::ObjectCommand)
+                .is_some()
+        });
+        let unknown = grammar.and_then(|grammar| grammar.unknown_dispatch_method);
+        let serviceable = builtin
+            || unknown.is_some_and(|fallback| hierarchy.method_target(c, fallback).is_some())
             || index.get(c).is_some_and(|cd| {
-                cd.methods.contains_key("unknown")
+                unknown.is_some_and(|fallback| cd.methods.contains_key(fallback))
                     // External (unindexed / base) superclass we can't see.
                     // Canonicalise first: a superclass stored bare
                     // (`Animal`) still resolves to `::Animal` in the index,

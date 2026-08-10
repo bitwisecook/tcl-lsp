@@ -40,6 +40,24 @@ use rustc_hash::{FxHashMap, FxHashSet};
 use crate::analyser::state::Analyser;
 use crate::analyser::types::Severity;
 
+/// Dispatch reach and source anchors consumed together when W308 is built.
+#[derive(Clone, Copy)]
+struct W308DiagnosticSite {
+    reach: tcl_registry::definer::MethodReach,
+    method_span: Option<tcl_lexer::Span>,
+    cmd_span: tcl_lexer::Span,
+}
+
+impl From<&super::state::VarCommandSite> for W308DiagnosticSite {
+    fn from(site: &super::state::VarCommandSite) -> Self {
+        Self {
+            reach: site.receiver.method_reach(),
+            method_span: site.method_span,
+            cmd_span: site.cmd_span,
+        }
+    }
+}
+
 /// The "known command name" sets for the W307 non-literal-command check:
 /// registry command names, user proc qualified names, their simple-name tails,
 /// and class simple-name tails.
@@ -163,7 +181,7 @@ impl Analyser {
                     let mut class_qn = None;
                     if let Some((head, args)) =
                         crate::value_shapes::parse_command_substitution(trimmed)
-                        && args.first().is_some_and(|s| s == "new" || s == "create")
+                        && let Some(manufacturer_word) = args.first()
                     {
                         // The constructor call must still be live at this
                         // assignment — a dead class fails the call, so `x`
@@ -173,14 +191,23 @@ impl Analyser {
                         if self.class_live_for_call(&qn, off)
                             || self.class_live_for_call(&head, off)
                         {
-                            class_qn = Some(qn);
+                            if self.class_command_constructs_with(&qn, manufacturer_word) {
+                                class_qn = Some(qn);
+                            }
                         } else {
                             // The head may reach a live class through a
                             // `rename` or `interp alias` — `rename Dog Cat`
                             // then `set d [Cat new]` types `d` as `::Dog`
                             // (issue #1049). Resolved to the *canonical*
                             // name so the `ClassDef` / method lookup keys.
-                            class_qn = self.class_reachable_by_indirection(&head, off);
+                            class_qn =
+                                self.class_reachable_by_indirection(&head, off)
+                                    .filter(|reached| {
+                                        self.class_command_constructs_with(
+                                            reached,
+                                            manufacturer_word,
+                                        )
+                                    });
                         }
                     }
                     // The constructor's class head is a `$var` reference
@@ -221,7 +248,8 @@ impl Analyser {
         value: &str,
         tokens: Option<&crate::ir::CommandTokens>,
     ) -> Option<String> {
-        let (class_var, offset) = super::super::commands::class_var_head_constructor_subst(value)?;
+        let (class_var, manufacturer_word, offset) =
+            super::super::commands::class_var_head_constructor_subst(value)?;
         if cu.ir_module.has_dynamic_variable_trace
             || cu.ir_module.traced_variables.contains(&class_var)
         {
@@ -244,6 +272,9 @@ impl Analyser {
             } else {
                 return None;
             };
+            if !self.class_command_constructs_with(&known, &manufacturer_word) {
+                return None;
+            }
             match &resolved {
                 None => resolved = Some(known),
                 Some(existing) if *existing != known => return None,
@@ -372,23 +403,36 @@ impl Analyser {
             }
             if let Some(cd) = self.result.all_classes.get(cls) {
                 has_local_class = true;
+                // The class system's own built-in object methods come from
+                // the registry — the same query
+                // `validate_method_on_class` uses, so the `$obj m` and
+                // `[cmd] m` paths cannot disagree about what `TclOO` /
+                // snit / itcl supplies for free.
+                let unknown = self
+                    .class_definer_grammar(cls)
+                    .and_then(|grammar| grammar.unknown_dispatch_method);
                 if cd.methods.contains_key(method_name)
                     || cd.class_methods.contains_key(method_name)
-                    || matches!(
-                        method_name.as_str(),
-                        "new" | "create" | "destroy" | "configure" | "cget"
+                    || self.builtin_object_method_reachable(
+                        cd,
+                        method_name,
+                        site.receiver.method_reach(),
                     )
-                    || cd.methods.contains_key("unknown")
+                    || unknown.is_some_and(|name| cd.methods.contains_key(name))
                 {
                     found = true;
                     break;
                 }
             }
         }
-        // Inherited ``unknown`` handler via MRO.
+        // Inherited fallback handler via MRO.  Its name belongs to the
+        // class-system grammar, not this consumer.
         if !found && has_local_class {
             for cls in class_names {
-                if hierarchy.method_target(cls, "unknown").is_some() {
+                let fallback = self
+                    .class_definer_grammar(cls)
+                    .and_then(|grammar| grammar.unknown_dispatch_method);
+                if fallback.is_some_and(|name| hierarchy.method_target(cls, name).is_some()) {
                     found = true;
                     break;
                 }
@@ -411,22 +455,22 @@ impl Analyser {
         if !found && objdefined_vars.contains(&site.var_name) {
             found = true;
         }
-        // snit instances route method calls through delegation / hull /
-        // options / built-ins (`$self`, `-option` cget/configure,
-        // `info`/`destroy`), none of which the analyser models — so method
-        // validation on a snit-typed receiver is unsound and never fires W308
-        // (FP-OBJ-05).
+        // Some class systems have open-ended dispatch (for example wildcard
+        // delegation).  The registry declares that property, so method
+        // validation abstains without recognising the family by name.
         if !found
             && class_names.iter().any(|cls| {
-                self.result
-                    .all_classes
-                    .get(cls)
-                    .is_some_and(|cd| cd.metaclass.contains("snit::"))
+                self.class_definer_grammar(cls)
+                    .is_some_and(|grammar| grammar.dynamic_method_dispatch)
             })
         {
             found = true;
         }
-        if !found && has_local_class && !self.disabled_diagnostics.contains("W308") {
+        if !found
+            && has_local_class
+            && Self::method_word_is_literal(method_name)
+            && !self.disabled_diagnostics.contains("W308")
+        {
             let mut classes_sorted: Vec<&str> = class_names.iter().map(String::as_str).collect();
             classes_sorted.sort_unstable();
             let cls_display = classes_sorted.join(", ");
@@ -435,8 +479,7 @@ impl Analyser {
                 &cls_display,
                 &classes_sorted,
                 Some(hierarchy),
-                site.method_span,
-                site.cmd_span,
+                W308DiagnosticSite::from(site),
             ));
         }
         None
@@ -454,9 +497,9 @@ impl Analyser {
         cls_display: &str,
         class_names: &[&str],
         hierarchy: Option<&super::class_hierarchy::ClassHierarchy>,
-        method_span: Option<tcl_lexer::Span>,
-        cmd_span: tcl_lexer::Span,
+        site: W308DiagnosticSite,
     ) -> super::types::Diagnostic {
+        let reach = site.reach;
         // Candidate methods for the suggestion: MRO methods of every
         // candidate class, locally-declared methods (for classes the
         // hierarchy may not index), and the implicit object builtins.
@@ -468,10 +511,18 @@ impl Analyser {
             if let Some(cd) = self.result.all_classes.get(*cls) {
                 candidates.extend(cd.methods.keys().cloned());
                 candidates.extend(cd.class_methods.keys().cloned());
+                if let Some(grammar) = self.class_definer_grammar(cls) {
+                    candidates.extend(
+                        grammar
+                            .builtin_object_methods
+                            .iter()
+                            .filter(|builtin| {
+                                grammar.builtin_object_method(builtin.name, reach).is_some()
+                            })
+                            .map(|builtin| builtin.name.to_string()),
+                    );
+                }
             }
-        }
-        for builtin in ["cget", "configure", "create", "destroy", "new"] {
-            candidates.insert(builtin.to_string());
         }
         let suggestions = crate::text::suggest_similar(
             method,
@@ -481,11 +532,11 @@ impl Analyser {
         );
         let mut message = format!("Unknown method '{method}' on class '{cls_display}'");
         let mut fixes: Vec<super::types::CodeFix> = Vec::new();
-        let span = method_span.unwrap_or(cmd_span);
+        let span = site.method_span.unwrap_or(site.cmd_span);
         if let Some(best) = suggestions.first() {
             use std::fmt::Write as _;
             let _ = write!(message, "; did you mean '{best}'?");
-            if let Some(fix_span) = method_span {
+            if let Some(fix_span) = site.method_span {
                 fixes.push(super::types::CodeFix {
                     span: fix_span,
                     new_text: (*best).to_string(),
@@ -858,13 +909,14 @@ impl Analyser {
             .result
             .object_handle_facts
             .classes_in_scope(call_off, &site.var_name);
-        // A bareword site (`is_dollar` false) names a `CLASS create NAME`
+        // A bareword instance-command site names a `CLASS create NAME`
         // instance command, never an SSA variable, so it carries no lattice
         // or constructor-harvest evidence — its class comes from
         // `instance_classes` instead (issue #1312).  `record_var_or_cmd_command_site`
         // only ever pushes such a site once that map already resolves it to
         // a locally-known class, so this is a plain lookup, not a new gate.
-        let bareword_class = (!site.is_dollar)
+        let bareword_class = (site.receiver
+            == crate::analyser::state::DispatchReceiver::InstanceCommand)
             .then(|| self.result.instance_classes.get(&site.var_name))
             .flatten();
         all_object_types
@@ -1346,41 +1398,68 @@ impl Analyser {
             tainted_by_scope: &tainted_by_scope,
         };
 
-        for site in &sites {
-            // **W308 path.**  Variable known to hold an Object — validate the
-            // method against the hierarchy and emit W308 when it isn't found.
-            // The W307 path never fires for a known-Object var, so `continue`.
-            //
-            let live_classes = self.live_classes_at_dispatch(&all_object_types, site);
-            if !live_classes.is_empty() {
-                if let Some(diag) = self.w308_for_object_var(
+        // Collected rather than pushed in the loop: `w307_ctx` borrows out of
+        // `self.result`, so the per-site decision has to run against `&self`.
+        let emitted: Vec<super::types::Diagnostic> = sites
+            .iter()
+            .filter_map(|site| {
+                self.diagnose_var_command_site(
                     site,
-                    &live_classes,
+                    &all_object_types,
                     hierarchy.as_ref(),
                     &objdefined_vars,
-                ) {
-                    self.result.diagnostics.push(diag);
-                }
-                continue;
-            }
-
-            // **W307 path.**  Variable not a known Object.
-            if !self.w307_site_suppressed(site, &w307_ctx) {
-                self.result.diagnostics.push(super::types::Diagnostic {
-                    code: DiagCode::W307,
-                    span: site.cmd_span,
-                    message: "Non-literal command name — cannot statically analyze".to_string(),
-                    severity: Severity::Warning,
-                    fixes: Vec::new(),
-                });
-            }
-        }
+                    &w307_ctx,
+                )
+            })
+            .collect();
+        self.result.diagnostics.extend(emitted);
         // Restore the sites list — snapshot/restore expects it
         // to round-trip independently of emission.
         self.var_command_sites = sites;
 
         // ``[cmd] method`` sites — W307/W308 on command-substitution heads.
         self.emit_cmd_command_diagnostics(registry, hierarchy.as_ref());
+    }
+
+    /// The diagnostic one recorded dispatch site draws, if any — the body of
+    /// [`Self::emit_var_command_diagnostics`]'s per-site loop, split out so
+    /// the three mutually exclusive paths a site can take are visible as
+    /// three arms rather than buried in a page of setup.
+    ///
+    /// Exactly one arm claims each site:
+    ///
+    /// * **self-dispatch** (`my <method>`, issue #1329) — the receiver is the
+    ///   enclosing object, so it is neither a variable nor a resolvable
+    ///   command name and W307's "non-literal command name" question never
+    ///   arises. This arm always consumes the site;
+    /// * **W308** — the receiver's class is known, so the method word is
+    ///   validated against the hierarchy;
+    /// * **W307** — no usable object type, and the head could not be proved
+    ///   to reach a finite set of known command names.
+    fn diagnose_var_command_site(
+        &self,
+        site: &crate::analyser::state::VarCommandSite,
+        all_object_types: &HashMap<String, HashSet<String>>,
+        hierarchy: Option<&super::class_hierarchy::ClassHierarchy>,
+        objdefined_vars: &HashSet<String>,
+        w307_ctx: &W307Ctx<'_>,
+    ) -> Option<super::types::Diagnostic> {
+        if site.receiver == crate::analyser::state::DispatchReceiver::SelfDispatch {
+            return self.w308_for_self_dispatch(site, hierarchy);
+        }
+
+        let live_classes = self.live_classes_at_dispatch(all_object_types, site);
+        if !live_classes.is_empty() {
+            return self.w308_for_object_var(site, &live_classes, hierarchy, objdefined_vars);
+        }
+
+        (!self.w307_site_suppressed(site, w307_ctx)).then(|| super::types::Diagnostic {
+            code: DiagCode::W307,
+            span: site.cmd_span,
+            message: "Non-literal command name — cannot statically analyze".to_string(),
+            severity: Severity::Warning,
+            fixes: Vec::new(),
+        })
     }
 
     /// Whether `site` is a `[cmd]::method` namespaced-ensemble dispatch
@@ -1527,16 +1606,26 @@ impl Analyser {
                 {
                     let cls_qn = self.canonicalise_class_name(class_name);
                     let cd = self.result.all_classes.get(&cls_qn).cloned();
-                    let method_ok =
-                        self.validate_method_on_class(&cls_qn, method, cd.as_ref(), hierarchy);
-                    if !method_ok {
+                    // `[Dog new] m` dispatches through the produced object's
+                    // own command, so only its exported surface is reachable.
+                    let method_ok = self.validate_method_on_class(
+                        &cls_qn,
+                        method,
+                        cd.as_ref(),
+                        hierarchy,
+                        tcl_registry::definer::MethodReach::ObjectCommand,
+                    );
+                    if !method_ok && Self::method_word_is_literal(method) {
                         let diag = self.w308_diagnostic(
                             method,
                             class_name,
                             &[cls_qn.as_str()],
                             hierarchy,
-                            site.method_span,
-                            site.cmd_span,
+                            W308DiagnosticSite {
+                                reach: tcl_registry::definer::MethodReach::ObjectCommand,
+                                method_span: site.method_span,
+                                cmd_span: site.cmd_span,
+                            },
                         );
                         self.result.diagnostics.push(diag);
                     }
@@ -1561,25 +1650,143 @@ impl Analyser {
     /// [`tcl_registry::CommandRegistry::is_self_receiver_call`] — the
     /// receiver is the *enclosing* class, found via
     /// [`Self::enclosing_class_at_offset`], exactly as a bareword `my
-    /// <method>` dispatch's target is. Unlike the `Object`-return-type path
-    /// above, the class here is never *inferred* from a type lattice — the
-    /// registry says the substitution denotes the current object outright,
-    /// so a bare `[self]`/`[self object]` head with no enclosing class (a
-    /// malformed or top-level use — `self` is only valid inside a method
-    /// body) safely abstains rather than guessing. `None` when the method
-    /// resolves, W308 is suppressed, or the diagnostic is disabled.
+    /// <method>` dispatch's target is.
+    ///
+    /// The substitution yields the object's own **command**, so it reaches
+    /// only exported methods —
+    /// [`MethodReach::ObjectCommand`](tcl_registry::definer::MethodReach::ObjectCommand),
+    /// not `SelfDispatch`. tclsh 9.0.4 and 8.6.16 agree: `[self] varname v`
+    /// fails with `unknown method "varname"` where `my varname v` succeeds.
     fn w308_for_self_receiver(
         &self,
         site: &crate::analyser::state::CmdCommandSite,
         hierarchy: Option<&super::class_hierarchy::ClassHierarchy>,
     ) -> Option<super::types::Diagnostic> {
+        self.w308_for_enclosing_receiver(
+            site.method_name.as_deref()?,
+            site.method_span,
+            site.cmd_span,
+            tcl_registry::definer::MethodReach::ObjectCommand,
+            hierarchy,
+        )
+    }
+
+    /// W308 for a bareword **self-dispatch keyword** head — `my <method>`,
+    /// the commonest same-object spelling in `TclOO` and, before issue
+    /// #1329, the only one that navigated and highlighted correctly while
+    /// never being diagnosed at all.
+    ///
+    /// The receiver is the same enclosing object `[self]` names, so the
+    /// class lookup is shared with [`Self::w308_for_self_receiver`]; what
+    /// differs is the reach. `my` bypasses export filtering, so it can call
+    /// `oo::object`'s unexported members — which is why `my variable v` and
+    /// `my varname v`, both idiomatic, must stay silent while `$obj
+    /// variable v` does not.
+    fn w308_for_self_dispatch(
+        &self,
+        site: &crate::analyser::state::VarCommandSite,
+        hierarchy: Option<&super::class_hierarchy::ClassHierarchy>,
+    ) -> Option<super::types::Diagnostic> {
+        if self.self_dispatch_keyword_disturbed(&site.var_name) {
+            return None;
+        }
+        self.w308_for_enclosing_receiver(
+            site.method_name.as_deref()?,
+            site.method_span,
+            site.cmd_span,
+            tcl_registry::definer::MethodReach::SelfDispatch,
+            hierarchy,
+        )
+    }
+
+    /// Whether this document renames, aliases, deletes or shadows the
+    /// self-dispatch keyword `head` anywhere — in which case a bare `my`
+    /// may not be `TclOO`'s dispatcher at all and every conclusion about
+    /// the word after it is unfounded, so W308 abstains.
+    ///
+    /// `rename my mine`, `interp alias {} my {} …`, `rename my {}`, and a
+    /// user `proc my {…}` all qualify. Asked here rather than in the walker
+    /// because it is **order-independent by design**: a `rename` written
+    /// *after* the method body still governs, since the body only runs
+    /// later, and a `proc my` in a deferred fragment is invisible to the
+    /// walk that records the site. Post-walk, every table is complete and
+    /// the answer is the same on the whole-file and per-item paths.
+    ///
+    /// Deliberately coarse — "disturbed anywhere" rather than "disturbed
+    /// before this offset". Modelling which redefinition wins at each
+    /// offset would buy back warnings only in files that redefine a core
+    /// `TclOO` keyword, and would risk a confident wrong answer in exactly
+    /// the files least able to afford one.
+    ///
+    /// Both spellings are checked, since each table keys bare or
+    /// `::`-qualified depending on how the disturbing command was written.
+    fn self_dispatch_keyword_disturbed(&self, head: &str) -> bool {
+        let bare = head.trim_start_matches("::");
+        let qualified = format!("::{bare}");
+        [bare, qualified.as_str()].iter().any(|name| {
+            self.command_aliases.contains_key(*name)
+                || self.renamed_commands.contains_key(*name)
+                || self.renamed_commands.values().any(|old| old == *name)
+                || self.deleted_commands.contains_key(*name)
+                || self.result.all_procs.contains_key(*name)
+                || self.result.all_classes.contains_key(*name)
+        })
+    }
+
+    /// The shared body of the two "the receiver is the object whose method
+    /// body encloses this call" W308 checks — `[self] <method>` and bareword
+    /// `my <method>`.
+    ///
+    /// Unlike the `Object`-return-type path, the class here is never
+    /// *inferred* from a type lattice: the registry says the head denotes
+    /// the current object outright, so the only question is which class's
+    /// body the offset falls in.
+    ///
+    /// # What abstains, and why that is the right answer
+    ///
+    /// * **No enclosing class** — a top-level `my`, a `my` inside a plain
+    ///   `proc`, or one inside an `oo::define` / `oo::objdefine` body whose
+    ///   members are not folded into a recorded `ClassDef`. There is no
+    ///   receiver to check against, and guessing at one would invent errors
+    ///   in code that runs fine.
+    /// * **A non-literal method word** (`my $action`, `my get$suffix`) —
+    ///   the name dispatched is computed at run time, so no static method
+    ///   set can contradict it ([`Self::method_word_is_literal`]).
+    /// * **An unprovable method set** — a `mixin` or `superclass` outside
+    ///   the local index, a class manufactured by an unreadable metaclass,
+    ///   or a body that installs members reflectively. Handled inside
+    ///   [`Self::validate_method_on_class`] via
+    ///   [`Self::method_set_unknowable`], so a dynamically-extended class
+    ///   never draws this warning.
+    /// * **An `unknown` handler** anywhere in the MRO — every unresolved
+    ///   name is then legal by construction.
+    ///
+    /// A `forward`ed method needs no carve-out: `forward NAME …` records a
+    /// real member under `NAME`, so `my NAME` resolves through the ordinary
+    /// member tables. Nor do inherited methods, which the MRO lookup finds.
+    ///
+    /// `None` when the method resolves, when any of the above abstains, or
+    /// when the diagnostic is disabled.
+    fn w308_for_enclosing_receiver(
+        &self,
+        method: &str,
+        method_span: Option<tcl_lexer::Span>,
+        cmd_span: tcl_lexer::Span,
+        reach: tcl_registry::definer::MethodReach,
+        hierarchy: Option<&super::class_hierarchy::ClassHierarchy>,
+    ) -> Option<super::types::Diagnostic> {
         if self.disabled_diagnostics.contains("W308") {
             return None;
         }
-        let method = site.method_name.as_ref()?;
-        let class_def = self.enclosing_class_at_offset(site.cmd_span.start())?;
+        if !Self::method_word_is_literal(method) {
+            return None;
+        }
+        if self.site_in_child_interp(cmd_span.start()) {
+            return None;
+        }
+        let class_def = self.enclosing_class_at_offset(cmd_span.start())?;
         let cls_qn = class_def.qualified_name.as_str();
-        if self.validate_method_on_class(cls_qn, method, Some(class_def), hierarchy) {
+        if self.validate_method_on_class(cls_qn, method, Some(class_def), hierarchy, reach) {
             return None;
         }
         Some(self.w308_diagnostic(
@@ -1587,9 +1794,29 @@ impl Analyser {
             cls_qn,
             &[cls_qn],
             hierarchy,
-            site.method_span,
-            site.cmd_span,
+            W308DiagnosticSite {
+                reach,
+                method_span,
+                cmd_span,
+            },
         ))
+    }
+
+    /// Whether a recorded method word is a **literal** name the static
+    /// method set can actually contradict.
+    ///
+    /// A word carrying a variable or command substitution (`$action`,
+    /// `get$suffix`, `[pick]`) or a `{*}` expansion names something chosen
+    /// at run time; "unknown method" is not a claim any static table is
+    /// entitled to make about it. The recorded text is the reconstructed
+    /// word, in which the walker re-brackets a substitution (`${x}` /
+    /// `[…]`), so testing for the introducers covers both the written and
+    /// the reconstructed spelling.
+    ///
+    /// Shared by every W308 emitter so a fix on one path cannot leave
+    /// another false-positiving on the same input.
+    fn method_word_is_literal(method: &str) -> bool {
+        !method.is_empty() && !method.contains(['$', '[']) && !method.contains("{*}")
     }
 
     /// The type a `[head args…]` command-substitution head produces, for the
@@ -1627,7 +1854,7 @@ impl Analyser {
         let is_constructor_call = head_is_known_class
             && arg_strs
                 .first()
-                .is_some_and(|sub| matches!(*sub, "new" | "create"));
+                .is_some_and(|word| self.class_command_constructs_with(&class_qn, word));
         if is_constructor_call {
             return crate::types::TypeLattice::object_of(class_qn);
         }
@@ -1669,24 +1896,52 @@ impl Analyser {
         if self.disabled_diagnostics.contains("W250") {
             return;
         }
-        let any_abstract = self
-            .result
-            .all_classes
-            .values()
-            .any(|cd| cd.metaclass == "oo::abstract");
-        if !any_abstract {
-            return;
-        }
-        let is_abstract = |name: &str| -> bool {
+        let is_abstract_class = |name: &str| -> bool {
             let q = self.canonicalise_class_name(name);
-            self.result
+            let Some(cd) = self
+                .result
                 .all_classes
                 .get(&q)
                 .or_else(|| self.result.all_classes.get(name))
-                .is_some_and(|cd| cd.metaclass == "oo::abstract")
+            else {
+                return false;
+            };
+            let direct = self
+                .registry
+                .and_then(|registry| registry.get(&cd.metaclass));
+            if direct.is_some_and(|spec| {
+                spec.traits
+                    .contains(tcl_registry::Traits::ABSTRACT_CLASS_FACTORY)
+            }) {
+                return true;
+            }
+            self.metaclass_def(&cd.qualified_name)
+                .and_then(|meta| meta.factory.as_ref())
+                .and_then(|factory| {
+                    self.registry
+                        .and_then(|registry| registry.get(&factory.root_metaclass))
+                })
+                .is_some_and(|spec| {
+                    spec.traits
+                        .contains(tcl_registry::Traits::ABSTRACT_CLASS_FACTORY)
+                })
         };
-        let is_ctor_sub =
-            |sub: Option<&String>| matches!(sub.map(String::as_str), Some("new" | "create"));
+        let any_abstract = self
+            .result
+            .all_classes
+            .keys()
+            .any(|name| is_abstract_class(name));
+        if !any_abstract {
+            return;
+        }
+        let is_forbidden_manufacturer = |class: &str, sub: Option<&String>| {
+            is_abstract_class(class)
+                && sub.is_some_and(|word| {
+                    let q = self.canonicalise_class_name(class);
+                    self.class_definer_grammar(&q)
+                        .is_some_and(|grammar| grammar.manufacturer(word).is_some())
+                })
+        };
         let mut diags: Vec<super::types::Diagnostic> = Vec::new();
         let mut flag = |span: tcl_lexer::Span, class: &str| {
             diags.push(super::types::Diagnostic {
@@ -1718,15 +1973,14 @@ impl Analyser {
                             args,
                             span,
                             ..
-                        } if is_ctor_sub(args.first()) && is_abstract(command) => {
+                        } if is_forbidden_manufacturer(command, args.first()) => {
                             flag(*span, command);
                         }
                         // `set o [Foo new …]`
                         Statement::AssignValue { value, span, .. } => {
                             if let Some((head, cargs)) =
                                 crate::value_shapes::parse_command_substitution(value.trim())
-                                && is_ctor_sub(cargs.first())
-                                && is_abstract(&head)
+                                && is_forbidden_manufacturer(&head, cargs.first())
                             {
                                 flag(*span, &head);
                             }
@@ -1755,9 +2009,14 @@ impl Analyser {
     ) {
         let base_of = |name: &str| name.split('(').next().unwrap_or(name).to_owned();
         // The consumption gate: every variable base a dispatch site reads.
+        // A self-dispatch head (`my`) reads no variable at all — its
+        // `var_name` is the keyword — so it consumes nothing and is skipped,
+        // lest a table held in a variable that happens to be *called* `my`
+        // be treated as consumed by it.
         let mut consumed: HashSet<String> = self
             .var_command_sites
             .iter()
+            .filter(|s| s.receiver != crate::analyser::state::DispatchReceiver::SelfDispatch)
             .map(|s| base_of(&s.var_name))
             .collect();
         for site in &self.cmd_command_sites {
@@ -1844,23 +2103,29 @@ impl Analyser {
             .unwrap_or_else(|| name.to_string())
     }
 
-    /// Decide whether `method` is callable on `class_name`,
-    /// consulting the class hierarchy + the class's local
-    /// method tables.
+    /// Decide whether `method` is callable on `class_name` through a
+    /// dispatch of the given `reach`, consulting the class hierarchy, the
+    /// class's local method tables, and the class system's own built-in
+    /// object methods.
     ///
-    /// A method is OK when
-    /// the class's MRO produces a concrete provider, or the
-    /// class is external (no local `ClassDef`), or the method
-    /// is one of the OO standard hooks (``new`` / ``create`` /
-    /// ``destroy`` / ``configure`` / ``cget``), or the class
-    /// declares an ``unknown`` method, or the class extends or
-    /// mixes in an external class we can't introspect.
+    /// A method is OK when the class's MRO produces a concrete provider, or
+    /// the class is external (no local `ClassDef`), or the method is one the
+    /// *class system itself* supplies (see
+    /// [`Self::builtin_object_method_reachable`]), or the class declares an
+    /// `unknown` method, or the class extends or mixes in an external class
+    /// we can't introspect.
+    ///
+    /// `reach` matters only for the built-in set, and it is the difference
+    /// between a true positive and a false one: `my variable v` reaches
+    /// `oo::object`'s unexported `variable`, while `$obj variable v` and
+    /// `[self] variable v` do not and really are errors (issue #1329).
     fn validate_method_on_class(
         &self,
         class_name: &str,
         method: &str,
         cd: Option<&super::types::ClassDef>,
         hierarchy: Option<&super::class_hierarchy::ClassHierarchy>,
+        reach: tcl_registry::definer::MethodReach,
     ) -> bool {
         if hierarchy.is_some_and(|h| h.method_target(class_name, method).is_some()) {
             return true;
@@ -1872,18 +2137,67 @@ impl Analyser {
         if cd.methods.contains_key(method) || cd.class_methods.contains_key(method) {
             return true;
         }
-        if matches!(method, "new" | "create" | "destroy" | "configure" | "cget") {
+        if self.builtin_object_method_reachable(cd, method, reach) {
             return true;
         }
-        if cd.methods.contains_key("unknown") {
-            return true;
+        if let Some(fallback) = self
+            .class_definer_grammar(class_name)
+            .and_then(|grammar| grammar.unknown_dispatch_method)
+        {
+            if cd.methods.contains_key(fallback) {
+                return true;
+            }
+            if hierarchy.is_some_and(|h| h.method_target(class_name, fallback).is_some()) {
+                return true;
+            }
         }
-        if hierarchy.is_some_and(|h| h.method_target(class_name, "unknown").is_some()) {
+        if self
+            .class_definer_grammar(class_name)
+            .is_some_and(|grammar| grammar.dynamic_method_dispatch)
+        {
             return true;
         }
         // Unknowable method set (external base, opaque inheritance, or
         // reflectively-installed members) ⇒ skip W308.
         self.method_set_unknowable(cd)
+    }
+
+    /// Whether `method` is one `cd`'s **class system** gives every object,
+    /// reachable by a dispatch of this `reach`.
+    ///
+    /// Registry data, not a name list here: the class's recorded metaclass
+    /// is itself a definer command, whose
+    /// [`DefinitionBodyGrammar`](tcl_registry::definer::DefinitionBodyGrammar)
+    /// carries `builtin_object_methods` — so `TclOO` gets `oo::object`'s
+    /// inherited surface, snit gets `configure` / `cget` / `info`, itcl gets
+    /// its own, and a class system the registry gains later is covered
+    /// without touching this function.
+    ///
+    /// # Deliberate abstentions
+    ///
+    /// * **Receiver kind is not filtered.** `new` / `create` are declared
+    ///   [`BuiltinMethodReceiver::ClassObject`](tcl_registry::definer::BuiltinMethodReceiver::ClassObject)
+    ///   and really are absent from an instance (tclsh 9.0.4: `[C new] new`
+    ///   → `unknown method "new"`), but a receiver here may equally be a
+    ///   *class* command held in a variable (`set cls C; $cls new`), which
+    ///   the analyser cannot always tell apart from one of its instances.
+    ///   Accepting both is the abstention; narrowing it needs receiver-kind
+    ///   facts this pass does not have.
+    /// * **`oo::configurable`'s `configure` / `cget` are not listed at all**
+    ///   in the `TclOO` grammar, because they are contributed by a specific
+    ///   metaclass rather than by `oo::object`. A class that really has them
+    ///   declares them through its `property` members or inherits them, and
+    ///   is covered by the ordinary member tables / MRO lookup above; one
+    ///   that inherits from an *unindexed* configurable base is covered by
+    ///   [`Self::method_set_unknowable`].
+    fn builtin_object_method_reachable(
+        &self,
+        cd: &super::types::ClassDef,
+        method: &str,
+        reach: tcl_registry::definer::MethodReach,
+    ) -> bool {
+        self.class_definer_grammar(&cd.qualified_name)
+            .is_some_and(|grammar| grammar.builtin_object_method(method, reach).is_some())
     }
 
     /// True when `cd`'s callable method set cannot be enumerated from what

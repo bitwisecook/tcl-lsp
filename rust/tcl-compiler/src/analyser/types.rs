@@ -173,60 +173,10 @@ pub struct PendingUserCallArity {
     pub head_end: u32,
 }
 
-/// Which `TclOO` instantiation form introduced a [`PendingCtorArity`] —
-/// `oo::class` (and every other `IS_OO_METACLASS` command) inherits all
-/// three from its own metaclass protocol, and an ordinary class inherits
-/// them from `oo::class` in turn, so `ClassName new/create/createWithNamespace
-/// ?args?` all reach the same constructor. Each form has a different count
-/// of mandatory leading words that are *not* part of the constructor's own
-/// argument list — confirmed against tclsh 9.0.4 and matching
-/// `oo_class_arg_roles`'s identical word layout for the sibling
-/// class-*definition* shapes (`oo::class create Name body` / `new body` /
-/// `createWithNamespace Name ::ns body`).
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum CtorForm {
-    /// `ClassName new ?args?` — every word after `new` is a constructor arg.
-    New,
-    /// `ClassName create name ?args?` — the mandatory object-name word is
-    /// not part of the constructor's own arguments.
-    Create,
-    /// `ClassName createWithNamespace name ::ns ?args?` — the mandatory
-    /// object-name and namespace words are not part of the constructor's
-    /// own arguments.
-    CreateWithNamespace,
-}
-
-impl CtorForm {
-    /// Count of mandatory leading words to fold into the constructor's
-    /// arity bound before comparing it against the call site — see
-    /// [`Self`]'s own doc comment.
-    #[must_use]
-    pub fn extra_leading_words(self) -> u16 {
-        match self {
-            CtorForm::New => 0,
-            CtorForm::Create => 1,
-            CtorForm::CreateWithNamespace => 2,
-        }
-    }
-
-    /// The keyword as written at the call site, for the diagnostic's
-    /// display name.
-    #[must_use]
-    pub fn as_str(self) -> &'static str {
-        match self {
-            CtorForm::New => "new",
-            CtorForm::Create => "create",
-            CtorForm::CreateWithNamespace => "createWithNamespace",
-        }
-    }
-}
-
-/// A queued `TclOO` constructor-call arity candidate — `ClassName new
-/// ?args?` / `ClassName create name ?args?` / `ClassName createWithNamespace
-/// name ::ns ?args?` — mirroring [`PendingUserCallArity`]'s architecture
-/// exactly: queued unconditionally whenever a call's first word is
-/// literally one of those three keywords (regardless of whether the head
-/// even resolves to a class), and resolved post-walk
+/// A queued class-constructor arity candidate, mirroring
+/// [`PendingUserCallArity`]'s architecture. It is queued when registry data
+/// identifies the first argument as a possible manufacturer method, and is
+/// resolved post-walk
 /// ([`super::state::Analyser::flush_ctor_arity_diagnostics`]) once
 /// `all_classes` — and thus the class hierarchy a constructor may be
 /// inherited through — is fully populated.  A candidate that doesn't
@@ -244,15 +194,17 @@ pub struct PendingCtorArity {
     /// — a top-level `Dog new` must have `Dog`'s definition lexically
     /// precede it; a call inside a proc/method body is not order-gated.
     pub enforce_order: bool,
-    /// Which of `new`/`create`/`createWithNamespace` this call used.
-    pub form: CtorForm,
+    /// Manufacturer method as written at the call site. Its reachability and
+    /// argument layout are resolved from the class family's registry grammar
+    /// after all class facts are available.
+    pub manufacturer: String,
     /// Offset of the class-name token, for the top-level order gate.
     pub call_off: u32,
     /// Full diagnostic span (class-name head through the last argument).
     pub full_span: Span,
-    /// Lower-bound positional count of the words *after* the keyword (for
-    /// `create`/`createWithNamespace`, this includes their mandatory
-    /// leading words).
+    /// Lower-bound positional count of the words after the manufacturer
+    /// keyword, including any registry-declared structural words before the
+    /// constructor payload.
     pub nargs_min: usize,
     /// Whether any positional word is `{*}`-expanded — same convention as
     /// [`PendingUserCallArity::positional_any_expand`].
@@ -1100,6 +1052,26 @@ pub struct ClassFactory {
     /// runs the inherited manufacturer, i.e. the builtin `create Name Body`
     /// layout with nothing injected.
     pub overrides: BTreeMap<String, ManufacturerSpec>,
+    /// Manufacturer methods reachable through ordinary class-command
+    /// dispatch after applying the metaclass object's `self export` and
+    /// `self unexport` changes to the registry defaults.
+    pub exported_manufacturers: std::collections::BTreeSet<String>,
+    /// Whether calling one of the classes this factory makes with a **bare
+    /// unrecognised word** both constructs an object and returns that word —
+    /// Tk's `::tk::IconList .il` idiom (issue #1303).
+    ///
+    /// Proved where the metaclass is written, from its unrecognised-word
+    /// fallback member (`TclOO`'s `unknown`), and `false` whenever the proof
+    /// does not go through: no such member, a member that constructs but
+    /// returns something else, or one that returns the word without
+    /// constructing anything. See
+    /// `Analyser::unknown_dispatch_binds_instance` for the exact rule and its
+    /// residuals.
+    ///
+    /// A consumer reads this to decide whether `set w [Widget .w]` binds `w`
+    /// to an instance of `Widget`; `false` means "not proved", so the handle
+    /// stays untyped rather than being guessed.
+    pub unknown_binds_instance: bool,
 }
 
 impl ClassFactory {
@@ -1135,6 +1107,10 @@ impl ClassFactory {
         Self {
             root_metaclass: self.root_metaclass.clone(),
             overrides,
+            exported_manufacturers: self.exported_manufacturers.clone(),
+            // A property of the metaclass's own body, carrying no token, so
+            // it crosses a document boundary unchanged.
+            unknown_binds_instance: self.unknown_binds_instance,
         }
     }
 }
@@ -1346,6 +1322,22 @@ pub struct ClassDef {
     /// they do for one whose superclass lives outside the workspace index —
     /// a method it inherits is not one it is missing (issue #923 idx 96/97).
     pub inheritance_unknown: bool,
+    /// `true` when calling **this class's own command** with a bare,
+    /// unrecognised first word constructs an instance and yields its name —
+    /// Tk's `::tk::IconList .il` (issue #1303).
+    ///
+    /// Proved where the class is written, from its metaclass's
+    /// unrecognised-word fallback member
+    /// ([`ClassFactory::unknown_binds_instance`]), so a consumer in another
+    /// document reads a settled fact instead of needing the metaclass's own
+    /// body. `false` is "not proved", never "proved not to" — the abstaining
+    /// direction, which leaves a handle untyped rather than mistyped.
+    ///
+    /// Distinct from the *family-wide*
+    /// [`DefinitionBodyGrammar::bare_word_construction`](tcl_registry::definer::DefinitionBodyGrammar::bare_word_construction)
+    /// flag snit carries: that one is true of every snit type by definition,
+    /// this one is true only of the classes a particular metaclass makes.
+    pub class_command_fallback: ClassCommandFallback,
     /// `true` when the class's definition body installs members the analyser
     /// could not read, so the recorded member tables are a **lower bound**
     /// on what the class really has (issue #923 idx 53).
@@ -1424,9 +1416,30 @@ impl Default for ClassDef {
             doc: String::new(),
             via_define: false,
             inheritance_unknown: false,
+            class_command_fallback: ClassCommandFallback::None,
             member_set_incomplete: false,
             factory: None,
         }
+    }
+}
+
+/// Statically proved behaviour of an unrecognised word dispatched through a
+/// class command. An enum keeps the proof state explicit and leaves room for
+/// future fallback effects without adding another boolean to [`ClassDef`].
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub enum ClassCommandFallback {
+    /// No construction-and-return proof is available.
+    #[default]
+    None,
+    /// The fallback constructs an instance named by the word and returns it.
+    ConstructsNamedInstance,
+}
+
+impl ClassCommandFallback {
+    /// Whether the fallback provides the named-instance contract.
+    #[must_use]
+    pub fn constructs_named_instance(self) -> bool {
+        self == Self::ConstructsNamedInstance
     }
 }
 

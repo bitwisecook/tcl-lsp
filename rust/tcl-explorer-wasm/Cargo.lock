@@ -364,6 +364,14 @@ name = "tcl-platform"
 version = "0.1.0"
 
 [[package]]
+name = "tcl-regex"
+version = "0.1.0"
+dependencies = [
+ "tcl-cmd-core",
+ "tcl-core-types",
+]
+
+[[package]]
 name = "tcl-registry"
 version = "0.1.0"
 dependencies = [
@@ -374,6 +382,7 @@ dependencies = [
  "tcl-core-types",
  "tcl-dialect",
  "tcl-lexer",
+ "tcl-regex",
  "tcl-syntax",
 ]
 

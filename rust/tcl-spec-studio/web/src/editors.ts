@@ -60,6 +60,7 @@ export const STRUCTURAL_KINDS = new Set([
   "forms",
   "sideEffects",
   "setterConstraints",
+  "manufacturerMethods",
   "subSubCommands",
   "subCommands",
   "hover",
@@ -860,6 +861,56 @@ export function makeEditors(ctx: EditorContext): Record<string, Editor> {
         },
         set,
         "constraint",
+      ),
+
+    manufacturerMethods: (_kind, value, set) =>
+      rowList<Json>(
+        asArray(value),
+        () => ({
+          keyword: "create",
+          visibility: "Exported",
+          names_instance_at: null,
+          definition_body_at: null,
+          constructor_args_from: 1,
+        }),
+        (item, _i, update, remove) => {
+          const row = asRecord(item);
+          const patch = (next: Record<string, Json>): void => {
+            update({ ...clone(row), ...next }, false);
+          };
+          const visibility = el("select", {}, [
+            el("option", { value: "Exported", text: "Exported" }),
+            el("option", { value: "Unexported", text: "Unexported" }),
+          ]);
+          visibility.value = asString(row.visibility) || "Exported";
+          visibility.addEventListener("change", () => patch({ visibility: visibility.value }));
+          return el("div", { class: "row wide" }, [
+            labelled(
+              "keyword",
+              textInput(asString(row.keyword), (text) => patch({ keyword: text }), { size: 16 }),
+            ),
+            labelled("visibility", visibility),
+            labelled(
+              "instance name at",
+              numberInput(asNumber(row.names_instance_at), (n) => patch({ names_instance_at: n })),
+            ),
+            labelled(
+              "definition body at",
+              numberInput(asNumber(row.definition_body_at), (n) =>
+                patch({ definition_body_at: n }),
+              ),
+            ),
+            labelled(
+              "constructor args from",
+              numberInput(asNumber(row.constructor_args_from) ?? 0, (n) =>
+                patch({ constructor_args_from: n ?? 0 }),
+              ),
+            ),
+            removeButton(remove),
+          ]);
+        },
+        set,
+        "manufacturer method",
       ),
 
     subSubCommands: (_kind, value, set) =>

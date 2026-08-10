@@ -199,6 +199,21 @@ pub enum ArgRole {
     /// canonical-boolean rewrite would turn a deliberate `1` into `true` at a
     /// position where the command reads a count.
     NumericOrBoolean,
+    /// The word that becomes the command's **own result** — `return $w`
+    /// completes the enclosing procedure or method with `$w`.
+    ///
+    /// The role exists so an analysis can *prove* what a body hands back
+    /// without naming `return`: the only consumer today is the metaclass
+    /// `unknown`-dispatch proof (issue #1303), which must establish that
+    /// `[Widget .w]` yields `.w` rather than assume it.
+    ///
+    /// Stamp it only on a word whose bytes really are the result, unchanged.
+    /// `return`'s own resolver therefore emits it **only** for the bare
+    /// one-word form: `return -code error $msg` completes exceptionally with
+    /// `$msg` as an error payload, and `return -level 0 $v` completes the
+    /// *caller* — neither is "this command's result is that word", so neither
+    /// carries the role.
+    Result,
 }
 
 impl ArgRole {
@@ -227,6 +242,7 @@ impl ArgRole {
         Self::CommandNameProbe,
         Self::LambdaLiteral,
         Self::NamespaceName,
+        Self::Result,
         Self::Boolean,
         Self::NumericOrBoolean,
     ];
@@ -290,6 +306,7 @@ impl ArgRole {
             | Self::Channel
             | Self::Index
             | Self::NamespaceName
+            | Self::Result
             | Self::Boolean
             | Self::NumericOrBoolean
             | Self::Keyword => false,
@@ -336,6 +353,7 @@ impl ArgRole {
             | Self::Channel
             | Self::Index
             | Self::NamespaceName
+            | Self::Result
             | Self::Boolean
             | Self::NumericOrBoolean
             | Self::Keyword => false,
@@ -388,6 +406,7 @@ impl ArgRole {
             | Self::Channel
             | Self::Index
             | Self::NamespaceName
+            | Self::Result
             | Self::Boolean
             | Self::NumericOrBoolean
             | Self::Keyword => false,

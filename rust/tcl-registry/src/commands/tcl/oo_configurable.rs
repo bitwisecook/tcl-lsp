@@ -73,6 +73,7 @@ pub fn spec() -> CommandSpec {
         forms: FORMS,
         side_effects: SIDE_EFFECTS,
         definition_body: Some(&crate::definer::TCLOO_GRAMMAR),
+        manufacturer_methods: crate::definer::TCLOO_DERIVED_METACLASS_MANUFACTURERS,
         ..CommandSpec::DEFAULT
     }
 }

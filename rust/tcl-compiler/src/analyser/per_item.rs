@@ -371,6 +371,7 @@ impl Analyser {
         }
 
         // --- tail (cross-item passes; canonicalises order) ---
+        self.record_literal_parameter_definitions();
         self.run_diagnostic_emitters(source);
 
         // Correctness backstop: a syntax error
@@ -688,7 +689,7 @@ impl Analyser {
     /// `var_command_sites` entry (the same contract the non-deferred
     /// `analyse` path applies inline); a coroutine / `interp create` /
     /// registry-factory / external-class name that merely matched the
-    /// cheap `args[0] == "create"` pre-filter never had a class and is
+    /// cheap registry-layout pre-filter never had a class and is
     /// dropped here without ever drawing a diagnostic — issue #1312.
     fn finalise_bareword_dispatch_sites(&mut self) {
         let Some(candidates) = self.pending_bareword_dispatch_sites.take() else {
@@ -1917,15 +1918,20 @@ fn rebase_fragment_pending(frag: &mut BodyFragment, d: u32) {
     for cand in &mut frag.pending_next_arity {
         cand.full_span = shift(cand.full_span, d);
     }
+    // Every dispatch site rebases through its own `rebase`, which owns the
+    // full list of spans it carries.  Spelling the fields out here is what
+    // let `method_span` go un-rebased on two of these three lists, so W308
+    // inside any proc or method body reported — and anchored its quick-fix
+    // on — the *fragment's* offsets once the per-item path was in use
+    // (issue #1330).
     for s in &mut frag.var_sites {
-        s.cmd_span = shift(s.cmd_span, d);
+        s.rebase(d);
     }
     for s in &mut frag.bareword_dispatch_sites {
-        s.cmd_span = shift(s.cmd_span, d);
-        s.method_span = s.method_span.map(|sp| shift(sp, d));
+        s.rebase(d);
     }
     for s in &mut frag.cmd_sites {
-        s.cmd_span = shift(s.cmd_span, d);
+        s.rebase(d);
     }
     for s in &mut frag.widget_sites {
         s.subcommand_span = shift(s.subcommand_span, d);

@@ -51,7 +51,8 @@ pub fn spec() -> CommandSpec {
         traits: Traits::IS_OO_METACLASS
             | Traits::LANGUAGE_KEYWORD
             | Traits::DEFINES_PROCEDURE
-            | Traits::NOT_PROC_FACTORY,
+            | Traits::NOT_PROC_FACTORY
+            | Traits::ABSTRACT_CLASS_FACTORY,
         dialects: Some(DialectSet::TCL90_PLUS),
         arity: Arity::at_least(1),
         arg_role_resolver: Some(oo_class_arg_roles),
@@ -73,6 +74,7 @@ pub fn spec() -> CommandSpec {
         forms: FORMS,
         side_effects: SIDE_EFFECTS,
         definition_body: Some(&crate::definer::TCLOO_GRAMMAR),
+        manufacturer_methods: crate::definer::TCLOO_DERIVED_METACLASS_MANUFACTURERS,
         ..CommandSpec::DEFAULT
     }
 }

@@ -25,22 +25,20 @@ cluster fix:
   record. Now resolves through the same `rename` / `interp alias` hop-walk
   (`indirection::walk`) the W307/W308 method check and the LSP navigation
   providers already shared. See decision rule 16 below.
-- **#1303** (open) — an object handle bound by calling the class command
+- **#1303** (fixed) — an object handle bound by calling the class command
   itself, dispatched through the metaclass's `unknown` method (Tk's
-  `::tk::IconList .il` idiom), resolves no members. Triage checklist item 11
-  below already isolates this from the factory/class resolution proper.
-- **#1304** (open) — a class made by a cross-file metaclass resolves only
-  when the metaclass's defining file is *open* in the editor; an ordinary
-  `oo::class` in an unopened file resolves fine. Suspected mechanism (per the
-  ticket, unconfirmed): `reschedule_peers` only reaches documents with a
-  diagnostics slot (open ones), and the startup scan indexes each file before
-  the class-factory oracle publishes.
-- **#1306** (open) — a metaclass created under a computed name
-  (`Meta create ${ns}::class {…}` inside a proc, called with a literal
-  argument) is never indexed — the shape tcllib's `oo::dialect` (and clay,
-  practcl) uses. `is_dynamic_word` correctly rejects the dynamic-looking name
-  per decision rule 2 below; the gap is that the analyser does not follow a
-  literal argument through a proc's parameter binding into the creation call.
+  `::tk::IconList .il` idiom), now binds a handle only when the registry says
+  the class system has a fallback method and that method's body proves both
+  construction and return of the same word. Other `unknown` bodies abstain.
+- **#1304** (fixed) — classes made by metaclasses in unopened files now enter
+  the same settled startup index as classes from open documents. Opening a
+  consumer is enough; editor state is not used as a semantic gate.
+- **#1306** (fixed) — a metaclass created under a computed name
+  (`Meta create ${NSPACE}::class {…}` inside a proc, where `NSPACE` is
+  namespace-normalised from a literal argument) is indexed for each top-level
+  call whose absolute value can be proved. This covers tcllib's `oo::dialect`,
+  clay, and practcl. A dynamic argument, relative result, nested call site,
+  uncalled proc, renamed helper, alias, or unknown helper still abstains.
 
 ## Symptom
 
@@ -100,6 +98,19 @@ latter.
   the override's own `next` call, never assumed, and recorded **once** on
   the metaclass's own `ClassDef::factory` rather than re-derived at each
   creation call.
+- **Manufacturer words are registry data.** `ManufacturerMethod` records the
+  word, instance-name position, definition-body position, constructor payload
+  start, and visibility. The compiler asks that descriptor; it does not match
+  `new`, `create`, or `createWithNamespace`. C Tcl 9.0.4 and 8.6 both hide
+  `createWithNamespace` from ordinary class-command dispatch, and hide `new`
+  on `oo::class` itself, so neither rejected call is treated as construction.
+- **Bare-word construction through `unknown`.** The registry identifies the
+  fallback method for a class-system family. The analyser then requires one
+  readable script path to both construct the first parameter and return that
+  exact parameter. Evidence from different branches is never combined.
+- **Literal proc arguments.** A computed class name inside a proc is settled
+  only from absolute literals at top-level call sites. Every call site gets its
+  own binding; mixed or dynamic contributors prove nothing.
 - **The metaclass in another file.** Because the factory description is a
   derived fact rather than a re-walk of local state, it can be published to
   the rest of the workspace. The LSP merges every file's factories
@@ -240,6 +251,22 @@ latter.
    already resolved this shape before the fix (they read
    `instance_classes`/`created_instance_commands` directly, not through
    either of those two paths) — issue #1312.
+18. **A fallback constructor is a path proof, not a keyword heuristic.** The
+   fallback method name comes from `DefinitionBodyGrammar`. A successful path
+   must construct the object named by its first parameter and return the same
+   parameter. A branch that constructs and another that returns do not jointly
+   prove a handle.
+19. **Unopened documents use the same fixpoint.** Startup-scanned item trees
+   publish factories before consumers are settled. Open buffers may replace a
+   file's text, but whether a file has a diagnostics slot never decides whether
+   its factory facts exist.
+20. **Computed names require literal, load-time bindings.** A proc parameter,
+   and a local value provably namespace-normalised from it, may resolve a
+   computed absolute class name only from top-level calls with literal
+   arguments. The normalisation commands publish their constant result
+   relation in the registry. Calls nested inside another proc have not run
+   when the file is sourced. Relative names, renamed helpers, aliases, and
+   unknown calls abstain.
 
 ## File-path anchors
 
@@ -355,9 +382,10 @@ latter.
 11. If the class resolves but a *handle* bound from it does not, the
     construction form is the thing to look at, not the factory. A handle
     bound by calling the class command itself — dispatched through the
-    metaclass's `unknown` method, as every Tk megawidget is
-    (`::tk::IconList .il`) — is a separate, open gap: issue #1303. `create`
-    and `new` on the same class bind the handle correctly.
+    metaclass's registry-declared fallback method, as Tk megawidgets do
+    (`::tk::IconList .il`) — must carry a same-path construct-and-return proof.
+    If it merely echoes the word, constructs a different name, returns another
+    value, or splits the evidence across branches, the handle remains unknown.
 
 ## Test anchors
 
@@ -405,10 +433,11 @@ latter.
   `a_chain_deeper_than_three_still_converges`,
   `a_cycle_terminates_and_proves_nothing`,
   `a_workspace_with_no_metaclass_costs_no_extra_round`
-- `rust/tcl-lsp-server/tests/e2e/issue1296_metaclass_chain.rs` — the ticket
-  end to end, plus the five-level, edit-path, and abstention cases
-- `editors/vscode/src/test/issue1296MetaclassChain.test.ts` — the same
-  through a real VS Code session
+- `rust/tcl-lsp-server/tests/e2e/issue1296_metaclass_chain.rs` — chained and
+  unopened workspace factories, proved and unproved `unknown` construction,
+  literal computed-metaclass binding, edit paths, and abstentions
+- `editors/vscode/src/test/issue1296MetaclassChain.test.ts` and
+  `issue1303FactoryInference.test.ts` — the same through real VS Code sessions
 - `rust/tcl-lsp-server/src/lib.rs` —
   `a_cross_file_metaclass_resolves_after_the_workspace_scan`,
   `a_dynamic_metaclass_head_abstains_even_with_the_scan_index`,

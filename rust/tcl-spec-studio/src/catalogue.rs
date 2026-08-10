@@ -92,6 +92,7 @@ pub const ARG_ROLES: &[Variant] = &[
         "NumericOrBoolean",
         "consumed as a number or a boolean (`-validate 0`/`yes`)",
     ),
+    v("Result", "becomes the command's own result (`return $w`)"),
 ];
 
 /// [`TclType`] — the intrep a value carries.
@@ -445,6 +446,10 @@ pub const TRAITS: &[Variant] = &[
         "CONFIGURES_BY_PROPERTY",
         "answers `configure`/`cget` from declared properties",
     ),
+    v(
+        "ABSTRACT_CLASS_FACTORY",
+        "manufactures classes that cannot create instances",
+    ),
     v("DIAGRAM_ACTION", "an action node in extracted diagrams"),
     v("NEEDS_START_CMD", "needs an explicit start command"),
     v("TAINT_SINK", "a taint sink"),
@@ -758,7 +763,8 @@ mod tests {
             | ArgRole::LambdaLiteral
             | ArgRole::NamespaceName
             | ArgRole::Boolean
-            | ArgRole::NumericOrBoolean => true,
+            | ArgRole::NumericOrBoolean
+            | ArgRole::Result => true,
         }
     }
 

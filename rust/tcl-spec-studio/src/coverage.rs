@@ -68,7 +68,9 @@
 //! decision, not an oversight.
 
 use tcl_registry::arity::Arity;
-use tcl_registry::definer::{DefinitionBodyGrammar, MemberBodyCommand};
+use tcl_registry::definer::{
+    BuiltinObjectMethod, DefinitionBodyGrammar, ManufacturerMethod, MemberBodyCommand,
+};
 use tcl_registry::handle_binding::{HandleBindingSpec, HandleKeyword};
 use tcl_registry::hooks::ArgTypeHint;
 use tcl_registry::hover::{ArgValue, FormSpec, HoverSnippet, OptionArg, OptionSpec};
@@ -229,6 +231,7 @@ pub fn witness_command_spec(spec: &CommandSpec) {
         byte_array_payload: _,
         byte_array_effect: _,
         definition_body: _,
+        manufacturer_methods: _,
         case_list: _,
         object_class: _,
         defines_symbol: _,
@@ -362,6 +365,7 @@ pub const COMMAND_SPEC: &[Field] = &[
     f("byte_array_payload", Surface::Key("byte_array_payload")),
     f("byte_array_effect", Surface::Key("byte_array_effect")),
     f("definition_body", Surface::Key("definition_body")),
+    f("manufacturer_methods", Surface::Key("manufacturer_methods")),
     f("case_list", Surface::Key("case_list")),
     f("object_class", Surface::Key("object_class")),
     f("defines_symbol", Surface::Key("defines_symbol")),
@@ -762,9 +766,9 @@ pub const LIFECYCLE: &[Field] = &[
 // ---------------------------------------------------------------------------
 // Plain-data descriptors.
 //
-// Each of these is reachable only through one `RustExpr` field, but is pure
-// data — so `crate::draft` renders it back out as a full struct literal and it
-// round-trips.  `Surface::Expression` names the field that carries it, and
+// Each of these is pure data, so `crate::draft` renders it back out as a full
+// struct literal and it round-trips. `Surface::Expression` names the field
+// that carries it, and
 // `descriptor_literals_name_every_field` proves the rendered literal really
 // mentions each one.
 // ---------------------------------------------------------------------------
@@ -892,8 +896,14 @@ pub fn witness_definition_body_grammar(grammar: &DefinitionBodyGrammar) {
         implicit_vars: _,
         member_body_namespace_path: _,
         builtin_type_methods: _,
+        builtin_object_methods: _,
+        builtin_terminating_methods: _,
         member_body_commands: _,
         bare_word_construction: _,
+        bare_word_construction_hint: _,
+        dynamic_method_dispatch: _,
+        manufacturers: _,
+        unknown_dispatch_method: _,
     } = grammar;
 }
 
@@ -907,8 +917,38 @@ pub const DEFINITION_BODY_GRAMMAR: &[Field] = &[
         Surface::Excluded(NAMED_CONSTANT),
     ),
     f("builtin_type_methods", Surface::Excluded(NAMED_CONSTANT)),
+    f("builtin_object_methods", Surface::Excluded(NAMED_CONSTANT)),
+    f(
+        "builtin_terminating_methods",
+        Surface::Excluded(NAMED_CONSTANT),
+    ),
     f("member_body_commands", Surface::Excluded(NAMED_CONSTANT)),
     f("bare_word_construction", Surface::Excluded(NAMED_CONSTANT)),
+    f(
+        "bare_word_construction_hint",
+        Surface::Excluded(NAMED_CONSTANT),
+    ),
+    f("dynamic_method_dispatch", Surface::Excluded(NAMED_CONSTANT)),
+    f("manufacturers", Surface::Excluded(NAMED_CONSTANT)),
+    f("unknown_dispatch_method", Surface::Excluded(NAMED_CONSTANT)),
+];
+
+/// Compile-time witness for [`BUILTIN_OBJECT_METHOD`].
+pub fn witness_builtin_object_method(method: &BuiltinObjectMethod) {
+    let BuiltinObjectMethod {
+        name: _,
+        visibility: _,
+        receiver: _,
+        detail: _,
+    } = method;
+}
+
+/// Where the studio surfaces each [`BuiltinObjectMethod`] field.
+pub const BUILTIN_OBJECT_METHOD: &[Field] = &[
+    f("name", Surface::Excluded(NAMED_CONSTANT)),
+    f("visibility", Surface::Excluded(NAMED_CONSTANT)),
+    f("receiver", Surface::Excluded(NAMED_CONSTANT)),
+    f("detail", Surface::Excluded(NAMED_CONSTANT)),
 ];
 
 /// Compile-time witness for [`MEMBER_BODY_COMMAND`].
@@ -919,6 +959,35 @@ pub fn witness_member_body_command(command: &MemberBodyCommand) {
         binds_handle: _,
     } = command;
 }
+
+/// Compile-time witness for [`MANUFACTURER_METHOD`].
+pub fn witness_manufacturer_method(manufacturer: &ManufacturerMethod) {
+    let ManufacturerMethod {
+        keyword: _,
+        visibility: _,
+        names_instance_at: _,
+        definition_body_at: _,
+        constructor_args_from: _,
+    } = manufacturer;
+}
+
+/// Where the studio surfaces each [`ManufacturerMethod`] field.
+pub const MANUFACTURER_METHOD: &[Field] = &[
+    f("keyword", Surface::Expression("manufacturer_methods")),
+    f("visibility", Surface::Expression("manufacturer_methods")),
+    f(
+        "names_instance_at",
+        Surface::Expression("manufacturer_methods"),
+    ),
+    f(
+        "definition_body_at",
+        Surface::Expression("manufacturer_methods"),
+    ),
+    f(
+        "constructor_args_from",
+        Surface::Expression("manufacturer_methods"),
+    ),
+];
 
 /// Where the studio surfaces each [`MemberBodyCommand`] field.
 pub const MEMBER_BODY_COMMAND: &[Field] = &[
@@ -950,11 +1019,17 @@ pub fn witness_case_list_spec(spec: &CaseListSpec) {
     let CaseListSpec {
         subject_args: _,
         regex_option: _,
-        value_options: _,
+        exact_option: _,
+        glob_option: _,
+        nocase_option: _,
+        end_options_option: _,
+        fallthrough_body: _,
+        value_options_require_regex: _,
         clause_flags: _,
         clause_regex_flag: _,
         clause_value_flags: _,
         keyword_patterns: _,
+        keyword_patterns_require_final: _,
     } = spec;
 }
 
@@ -962,11 +1037,23 @@ pub fn witness_case_list_spec(spec: &CaseListSpec) {
 pub const CASE_LIST_SPEC: &[Field] = &[
     f("subject_args", Surface::Excluded(NAMED_CONSTANT)),
     f("regex_option", Surface::Excluded(NAMED_CONSTANT)),
-    f("value_options", Surface::Excluded(NAMED_CONSTANT)),
+    f("exact_option", Surface::Excluded(NAMED_CONSTANT)),
+    f("glob_option", Surface::Excluded(NAMED_CONSTANT)),
+    f("nocase_option", Surface::Excluded(NAMED_CONSTANT)),
+    f("end_options_option", Surface::Excluded(NAMED_CONSTANT)),
+    f("fallthrough_body", Surface::Excluded(NAMED_CONSTANT)),
+    f(
+        "value_options_require_regex",
+        Surface::Excluded(NAMED_CONSTANT),
+    ),
     f("clause_flags", Surface::Excluded(NAMED_CONSTANT)),
     f("clause_regex_flag", Surface::Excluded(NAMED_CONSTANT)),
     f("clause_value_flags", Surface::Excluded(NAMED_CONSTANT)),
     f("keyword_patterns", Surface::Excluded(NAMED_CONSTANT)),
+    f(
+        "keyword_patterns_require_final",
+        Surface::Excluded(NAMED_CONSTANT),
+    ),
 ];
 
 #[cfg(test)]
@@ -976,6 +1063,7 @@ mod tests {
     use serde_json::{Map, Value, json};
     use tcl_core_types::DiagCode;
     use tcl_registry::arg_role::ArgRole;
+    use tcl_registry::definer::MemberVisibility;
     use tcl_registry::handle_binding::{HandleClassSource, HandleName};
     use tcl_registry::hover::{FormKind, OptionArity, OptionValue};
     use tcl_registry::side_effects::{ConnectionSide, SideEffectTarget};
@@ -1188,6 +1276,16 @@ mod tests {
                 .member_body_command("install")
                 .expect("snit injects `install` into every member body"),
         );
+        witness_manufacturer_method(
+            tcl_registry::definer::TCLOO_GRAMMAR
+                .manufacturer("create")
+                .expect("TclOO manufactures through `create`"),
+        );
+        witness_builtin_object_method(
+            tcl_registry::definer::TCLOO_GRAMMAR
+                .builtin_object_method("variable", tcl_registry::definer::MethodReach::SelfDispatch)
+                .expect("`my variable` reaches oo::object's unexported member"),
+        );
         witness_object_class_spec(&ObjectClassSpec {
             class_name: "",
             instance_methods: &[],
@@ -1198,6 +1296,7 @@ mod tests {
         for (what, table) in [
             ("DefinitionBodyGrammar", DEFINITION_BODY_GRAMMAR),
             ("MemberBodyCommand", MEMBER_BODY_COMMAND),
+            ("BuiltinObjectMethod", BUILTIN_OBJECT_METHOD),
             ("ObjectClassSpec", OBJECT_CLASS_SPEC),
             ("CaseListSpec", CASE_LIST_SPEC),
         ] {
@@ -1269,6 +1368,14 @@ mod tests {
         ..SubCommand::DEFAULT
     }];
 
+    const WITNESS_MANUFACTURERS: &[ManufacturerMethod] = &[ManufacturerMethod {
+        keyword: "create",
+        visibility: MemberVisibility::Exported,
+        names_instance_at: Some(1),
+        definition_body_at: Some(2),
+        constructor_args_from: 2,
+    }];
+
     fn witness_spec() -> CommandSpec {
         CommandSpec {
             name: "witness",
@@ -1277,6 +1384,7 @@ mod tests {
             byte_array_payload: Some(WITNESS_PAYLOAD),
             defines_symbol: Some(WITNESS_SYMBOL),
             oo_context_facts: &[("class", OoContextFactWitness::FACT)],
+            manufacturer_methods: WITNESS_MANUFACTURERS,
             subcommands: WITNESS_SUBS,
             ..CommandSpec::DEFAULT
         }
@@ -1377,6 +1485,7 @@ mod tests {
             ("SymbolDef", SYMBOL_DEF),
             ("BytePayloadSpec", BYTE_PAYLOAD_SPEC),
             ("VersionedArgValue", VERSIONED_ARG_VALUE),
+            ("ManufacturerMethod", MANUFACTURER_METHOD),
         ] {
             for field in table {
                 let Surface::Expression(key) = field.surface else {

@@ -2816,3 +2816,214 @@ fn bare_word_construction_is_declared_per_definer_family() {
         assert!(grammar.member_body_command("nosuchword").is_none());
     }
 }
+
+/// Manufacturer spelling and word layout live together in the grammar. A
+/// consumer must not infer the name/body positions from `create`-shaped text:
+/// `TclOO`'s three manufacturers have three distinct layouts, while snit's
+/// homonymous method creates an ordinary instance and has no definition body.
+#[test]
+fn manufacturer_layout_is_declared_per_definer_family() {
+    use tcl_registry::definer::{SNIT_GRAMMAR, TCLOO_GRAMMAR};
+
+    let create = TCLOO_GRAMMAR.manufacturer("create").unwrap();
+    assert_eq!(create.names_instance_at, Some(1));
+    assert_eq!(create.definition_body_at, Some(2));
+    assert_eq!(create.constructor_args_from, 2);
+
+    let new = TCLOO_GRAMMAR.manufacturer("new").unwrap();
+    assert_eq!(new.names_instance_at, None);
+    assert_eq!(new.definition_body_at, Some(1));
+    assert_eq!(new.constructor_args_from, 1);
+
+    let with_ns = TCLOO_GRAMMAR.manufacturer("createWithNamespace").unwrap();
+    assert_eq!(with_ns.names_instance_at, Some(1));
+    assert_eq!(with_ns.definition_body_at, Some(3));
+    assert_eq!(with_ns.constructor_args_from, 3);
+
+    let snit_create = SNIT_GRAMMAR.manufacturer("create").unwrap();
+    assert_eq!(snit_create.names_instance_at, Some(1));
+    assert_eq!(snit_create.definition_body_at, None);
+    assert_eq!(snit_create.constructor_args_from, 2);
+
+    let registry = CommandRegistry::build_default();
+    assert_eq!(
+        registry.uniform_manufacturer_names_instance_at("create"),
+        Some(1)
+    );
+    assert_eq!(registry.uniform_manufacturer_names_instance_at("new"), None);
+    assert!(registry.is_possible_class_construction_word("new"));
+    assert!(registry.is_possible_class_construction_word("%AUTO%"));
+    assert!(registry.is_possible_class_construction_word(".widget"));
+    assert!(!registry.is_possible_class_construction_word("ordinaryMethod"));
+}
+
+#[test]
+fn registered_metaclass_manufacturer_surface_matches_c_tcl() {
+    let registry = CommandRegistry::build_default();
+
+    assert!(
+        registry
+            .manufacturer_method("oo::class", "create")
+            .is_some()
+    );
+    assert!(
+        registry.manufacturer_method("oo::class", "new").is_some(),
+        "C Tcl retains private `new` on oo::class itself"
+    );
+    assert!(
+        registry
+            .manufacturer_method("oo::class", "createWithNamespace")
+            .is_some(),
+        "C Tcl retains private createWithNamespace on oo::class itself"
+    );
+    assert!(
+        registry
+            .exported_manufacturer_method("oo::class", "new")
+            .is_none(),
+        "ordinary dispatch cannot reach root `new`"
+    );
+    assert!(
+        registry
+            .exported_manufacturer_method("oo::class", "createWithNamespace")
+            .is_none(),
+        "ordinary dispatch cannot reach root createWithNamespace"
+    );
+    assert!(
+        registry
+            .manufacturer_method("oo::abstract", "new")
+            .is_some(),
+        "the Tcl 9 derived metaclass commands retain their inherited `new`"
+    );
+    assert!(
+        registry
+            .exported_manufacturer_method("oo::abstract", "new")
+            .is_some(),
+        "ordinary dispatch reaches an exported manufacturer"
+    );
+    assert!(
+        registry
+            .manufacturer_method("oo::abstract", "createWithNamespace")
+            .is_some(),
+        "the private method still exists for self-dispatch and export modelling"
+    );
+    assert!(
+        registry
+            .exported_manufacturer_method("oo::abstract", "createWithNamespace")
+            .is_none(),
+        "ordinary dispatch must not pretend an unexported manufacturer is callable"
+    );
+}
+
+/// The built-in **object** methods each definer family supplies, and — the
+/// load-bearing half — which dispatch spellings can reach each one.
+///
+/// oracle: tclsh 9.0.4 and 8.6.16, byte-identical on both:
+///
+/// ```text
+/// info class methods ::oo::object -all -private
+///   -> <cloned> destroy eval unknown variable varname
+/// info class methods ::oo::class -all -private
+///   -> <cloned> create createWithNamespace destroy eval new unknown variable varname
+/// ```
+///
+/// and, from inside a method of a class declaring only `probe`:
+///
+/// ```text
+/// my varname v      -> ::oo::Obj22::v
+/// [self] varname v  -> unknown method "varname": must be destroy or probe
+/// $obj varname v    -> unknown method "varname": must be destroy or probe
+/// ```
+///
+/// That last pair is the guard for issue #1329: `my` bypasses `TclOO`'s export
+/// filter and the object's own command does not, so a consumer diagnosing an
+/// unknown method must ask with the right `MethodReach` or it will either
+/// false-positive on the idiomatic `my variable v` or wave through the real
+/// error `$obj varname v`.
+#[test]
+fn builtin_object_methods_are_reach_gated() {
+    use tcl_registry::definer::{
+        BuiltinMethodReceiver, ITCL_GRAMMAR, MethodReach, SNIT_GRAMMAR, TCLOO_GRAMMAR,
+    };
+
+    // `destroy` is the one exported member every TclOO object has: both
+    // reaches find it.
+    for reach in [MethodReach::ObjectCommand, MethodReach::SelfDispatch] {
+        assert!(
+            TCLOO_GRAMMAR
+                .builtin_object_method("destroy", reach)
+                .is_some(),
+            "`destroy` is exported, so every reach finds it"
+        );
+    }
+
+    // The unexported five are reachable only through `my`.
+    for name in ["eval", "unknown", "variable", "varname", "<cloned>"] {
+        assert!(
+            TCLOO_GRAMMAR
+                .builtin_object_method(name, MethodReach::SelfDispatch)
+                .is_some(),
+            "`my {name}` must resolve"
+        );
+        assert!(
+            TCLOO_GRAMMAR
+                .builtin_object_method(name, MethodReach::ObjectCommand)
+                .is_none(),
+            "`$obj {name}` / `[self] {name}` is a real error, not a builtin"
+        );
+    }
+
+    // The class-object constructors are recorded as such, so a consumer with
+    // receiver-kind evidence can narrow; one without may accept both.
+    for name in ["new", "create"] {
+        let m = TCLOO_GRAMMAR
+            .builtin_object_method(name, MethodReach::ObjectCommand)
+            .unwrap_or_else(|| panic!("`{name}` is an exported class-object method"));
+        assert_eq!(m.receiver, BuiltinMethodReceiver::ClassObject, "{name}");
+    }
+    assert!(
+        TCLOO_GRAMMAR
+            .builtin_object_method("createWithNamespace", MethodReach::ObjectCommand)
+            .is_none(),
+        "createWithNamespace is present but unexported in C Tcl"
+    );
+
+    // A word no class system supplies answers for nobody.
+    for grammar in [&TCLOO_GRAMMAR, &SNIT_GRAMMAR, &ITCL_GRAMMAR] {
+        assert!(
+            grammar
+                .builtin_object_method("nosuchmethod", MethodReach::SelfDispatch)
+                .is_none()
+        );
+    }
+
+    // snit and itcl dispatch through their own generated machinery, which has
+    // no `my`-only tier — every builtin of theirs is reachable either way.
+    for (what, grammar, names) in [
+        (
+            "snit",
+            &SNIT_GRAMMAR,
+            &["configure", "configurelist", "cget", "destroy", "info"][..],
+        ),
+        (
+            "itcl",
+            &ITCL_GRAMMAR,
+            &["configure", "cget", "isa", "info"][..],
+        ),
+    ] {
+        for name in names {
+            for reach in [MethodReach::ObjectCommand, MethodReach::SelfDispatch] {
+                assert!(
+                    grammar.builtin_object_method(name, reach).is_some(),
+                    "{what} instances have `{name}`"
+                );
+            }
+        }
+        // `new` is TclOO's constructor spelling and belongs to no other family.
+        assert!(
+            grammar
+                .builtin_object_method("new", MethodReach::ObjectCommand)
+                .is_none(),
+            "{what} constructs through its own type command, never `new`"
+        );
+    }
+}

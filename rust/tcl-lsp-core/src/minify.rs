@@ -2806,7 +2806,14 @@ fn render_command(sm: &SourceMap, cmd_args: &[Arg], env: MinifyEnv<'_>, depth: u
     // (`switch … { pat body … }`, Expect's `expect { … }`).  Registry
     // data, never a spelled command name (issue #1197).
     let case_list_spec = registry.get(head).and_then(|s| s.case_list);
-    let is_case_list = case_list_spec.is_some_and(|cl| is_case_list_form(cl, &post_refs));
+    let dialect = registry
+        .profile()
+        .map_or_else(tcl_dialect::DialectSet::empty, |profile| {
+            profile.availability_mask
+        });
+    let is_case_list = registry
+        .case_invocation(head, &post_refs, dialect)
+        .is_some_and(|(_, invocation)| invocation.clause_list_index.is_some());
 
     let mut out: Vec<String> = Vec::with_capacity(cmd_args.len());
     for (i, arg) in cmd_args.iter().enumerate() {
@@ -3019,29 +3026,6 @@ fn reconstruct_arg(sm: &SourceMap, arg: &Arg, env: MinifyEnv<'_>, depth: u32) ->
 }
 
 // case-list (clause list) handling
-
-/// Whether the post-name args are in a `case_list` command's braced
-/// clause-list form: command options (per the spec's `value_options`),
-/// then `subject_args` subject words, then exactly one trailing word
-/// (the braced clause list).  Mirrors the option-skip walk in
-/// `references.rs`'s `case_list_clause_body_regions` — driven entirely
-/// by [`tcl_registry::CaseListSpec`] fields, never a command spelling.
-fn is_case_list_form(cl: &tcl_registry::CaseListSpec, args: &[&str]) -> bool {
-    let mut i = 0usize;
-    while i < args.len() {
-        let a = args[i];
-        if a == "--" {
-            i += 1;
-            break;
-        }
-        if !a.starts_with('-') {
-            break;
-        }
-        i += if cl.value_options.contains(&a) { 2 } else { 1 };
-    }
-    i += usize::from(cl.subject_args);
-    i < args.len() && i == args.len() - 1
-}
 
 /// One element of a braced clause list, with enough shape to re-emit
 /// it exactly as written.

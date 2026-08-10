@@ -202,6 +202,10 @@ pub fn parse_command_substitution_with_spans(text: &str) -> Option<(String, Vec<
     let base = leading_ws + 1;
 
     let tokens = Lexer::new(inner).tokenise_all().ok()?;
+    // One `SourceMap` for the whole scan — `widened_token_text` needs the
+    // lexer's content geometry to widen a word over its closing delimiter,
+    // and building a map per token would re-index `inner`'s lines each time.
+    let sm = tcl_lexer::SourceMap::new(inner);
     let mut words: Vec<(String, Span)> = Vec::new();
     let mut prev_kind = TokenType::Eol;
     let mut saw_terminator = false;
@@ -225,7 +229,7 @@ pub fn parse_command_substitution_with_spans(text: &str) -> Option<(String, Vec<
         if saw_terminator {
             return None;
         }
-        let (word_text, tok_end) = widened_token_text(inner, tok)?;
+        let (word_text, tok_end) = widened_token_text(inner, &sm, tok)?;
         // Two closing delimiters the raw token stream can leave
         // unclaimed by any token's span, needing manual recovery here:
         //
@@ -283,29 +287,29 @@ pub fn parse_command_substitution_with_spans(text: &str) -> Option<(String, Vec<
 /// widened to include a `{…}` / `[…]` word's closing delimiter when the raw
 /// token span omits it.
 ///
-/// The lexer follows an inner-end convention for `Str` (`{…}`) and `Cmd`
-/// (`[…]`) tokens: a *non-empty* group's span ends one byte before its
-/// closer (see `segmenter::widen_word_end`, the same convention this
-/// mirrors). An *empty* group (`{}` / `[]`) is the exception — its span
-/// already covers the closer. The discriminator used here is the extracted
-/// text itself: if it doesn't already end with the closer, the group is
-/// non-empty and one more byte is pulled in.
-fn widened_token_text(inner: &str, tok: &tcl_lexer::Token) -> Option<(String, u32)> {
-    let start = tok.span.start() as usize;
-    let end = tok.span.end() as usize;
-    let text = inner.get(start..end)?;
-    let Some(closer) = tok.kind.group_closer() else {
-        return Some((text.to_owned(), tok.span.end()));
+/// The widening itself — and the inner-end convention it compensates for —
+/// is [`tcl_lexer::word_span`]'s single authoritative answer; this only
+/// slices `inner` with it.  It used to carry its own copy of the arithmetic,
+/// discriminating on "does the extracted text already end with the closer?",
+/// which silently dropped the real closer of a word whose last *inner* byte
+/// is one (`{a\}}`).  `sm` must map `inner`, the same frame `tok` is in.
+///
+/// The braced/bracketed type gate is kept: a quoted `"…"` word's closing
+/// quote is recovered by the caller's `orphaned_closer` step instead, which
+/// also handles the closer of a braced *variable* (`${p}`) — neither is
+/// derivable from the token *kind*, so neither belongs to this arm.
+fn widened_token_text(
+    inner: &str,
+    sm: &tcl_lexer::SourceMap<'_>,
+    tok: &tcl_lexer::Token,
+) -> Option<(String, u32)> {
+    let span = if tok.kind.group_closer().is_some() {
+        tcl_lexer::word_span(sm, *tok)
+    } else {
+        tok.span
     };
-    if text.ends_with(closer) {
-        return Some((text.to_owned(), tok.span.end()));
-    }
-    let widened_end = end + closer.len_utf8();
-    let widened = inner.get(start..widened_end)?;
-    Some((
-        widened.to_owned(),
-        u32::try_from(widened_end).unwrap_or(u32::MAX),
-    ))
+    let text = inner.get(span.start() as usize..span.end() as usize)?;
+    Some((text.to_owned(), span.end()))
 }
 
 #[cfg(test)]

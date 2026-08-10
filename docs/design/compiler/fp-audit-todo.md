@@ -1352,12 +1352,13 @@ can simplify this" suggestion. None swept yet.
      command reference in either prefix shape, reusing the registry's own
      `tk_checks::is_widget_path` rather than a new ad-hoc check.
   **2026-07-10 follow-up — two centralization gaps in the above closed:**
-  (1) the `new`/`create` constructor-arity check missed `createWithNamespace`
-  entirely (`ClassName createWithNamespace name ::ns ?args?` — the three
-  keywords' word layout is shared with `oo_class_arg_roles`'s identical
-  class-*definition* shapes) — `PendingCtorArity`'s `is_create: bool` is now
-  `CtorForm::{New,Create,CreateWithNamespace}`, each with its own leading-
-  word bump. (2) `handle_namespace_ensemble`'s `-command` extraction scanned
+  (1) constructor layouts were centralised in the registry's manufacturer
+  descriptors. This also corrected the oracle: `createWithNamespace` has a
+  distinct structural layout but is unexported on ordinary class commands in
+  C Tcl 9.0.4 and 8.6, so a source call cannot be treated as successful
+  construction unless reachability is separately proved. `new` is likewise
+  hidden on `oo::class` itself while remaining exported on ordinary classes.
+  (2) `handle_namespace_ensemble`'s `-command` extraction scanned
   every word for literal equality with `-command`, so another option's value
   word that happened to read `-command` (e.g. a pathological `-map` value)
   could be misread as the flag itself — `namespace ensemble create`'s option
