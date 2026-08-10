@@ -104,24 +104,25 @@ use tower_lsp_server::ls_types::{
     DocumentHighlightKind, DocumentHighlightParams, DocumentLink, DocumentLinkOptions,
     DocumentLinkParams, DocumentRangeFormattingParams, DocumentSymbol, DocumentSymbolParams,
     DocumentSymbolResponse, Documentation, ExecuteCommandOptions, ExecuteCommandParams,
-    FileChangeType, FileOperationFilter, FileOperationPattern, FileOperationPatternOptions,
-    FileOperationRegistrationOptions, FileSystemWatcher, FoldingRange, FoldingRangeKind,
-    FoldingRangeParams, FoldingRangeProviderCapability, FullDocumentDiagnosticReport, GlobPattern,
-    GotoDefinitionParams, GotoDefinitionResponse, Hover, HoverContents, HoverParams,
-    HoverProviderCapability, ImplementationProviderCapability, InitializeParams, InitializeResult,
-    InitializedParams, InlayHint, InlayHintKind, InlayHintLabel, InlayHintParams,
-    LinkedEditingRangeParams, LinkedEditingRanges, Location, MarkupContent, MarkupKind,
-    MessageType, OneOf, OptionalVersionedTextDocumentIdentifier, ParameterInformation,
-    ParameterLabel, Position, PositionEncodingKind, PrepareRenameResponse, Range, ReferenceParams,
-    Registration, RelatedFullDocumentDiagnosticReport, RelatedUnchangedDocumentDiagnosticReport,
-    RenameFilesParams, RenameOptions, RenameParams, SelectionRange, SelectionRangeParams,
-    SelectionRangeProviderCapability, SemanticTokens as LspSemanticTokens, SemanticTokensDelta,
-    SemanticTokensDeltaParams, SemanticTokensEdit, SemanticTokensFullDeltaResult,
-    SemanticTokensFullOptions, SemanticTokensLegend, SemanticTokensOptions, SemanticTokensParams,
-    SemanticTokensRangeParams, SemanticTokensRangeResult, SemanticTokensResult,
-    SemanticTokensServerCapabilities, ServerCapabilities, ServerInfo, SignatureHelp,
-    SignatureHelpOptions, SignatureHelpParams, SignatureInformation, SymbolInformation, SymbolKind,
-    TextDocumentEdit, TextDocumentPositionParams, TextDocumentSyncCapability, TextDocumentSyncKind,
+    FileChangeType, FileEvent, FileOperationFilter, FileOperationPattern,
+    FileOperationPatternOptions, FileOperationRegistrationOptions, FileSystemWatcher, FoldingRange,
+    FoldingRangeKind, FoldingRangeParams, FoldingRangeProviderCapability,
+    FullDocumentDiagnosticReport, GlobPattern, GotoDefinitionParams, GotoDefinitionResponse, Hover,
+    HoverContents, HoverParams, HoverProviderCapability, ImplementationProviderCapability,
+    InitializeParams, InitializeResult, InitializedParams, InlayHint, InlayHintKind,
+    InlayHintLabel, InlayHintParams, LinkedEditingRangeParams, LinkedEditingRanges, Location,
+    MarkupContent, MarkupKind, MessageType, OneOf, OptionalVersionedTextDocumentIdentifier,
+    ParameterInformation, ParameterLabel, Position, PositionEncodingKind, PrepareRenameResponse,
+    Range, ReferenceParams, Registration, RelatedFullDocumentDiagnosticReport,
+    RelatedUnchangedDocumentDiagnosticReport, RenameFilesParams, RenameOptions, RenameParams,
+    SelectionRange, SelectionRangeParams, SelectionRangeProviderCapability,
+    SemanticTokens as LspSemanticTokens, SemanticTokensDelta, SemanticTokensDeltaParams,
+    SemanticTokensEdit, SemanticTokensFullDeltaResult, SemanticTokensFullOptions,
+    SemanticTokensLegend, SemanticTokensOptions, SemanticTokensParams, SemanticTokensRangeParams,
+    SemanticTokensRangeResult, SemanticTokensResult, SemanticTokensServerCapabilities,
+    ServerCapabilities, ServerInfo, SignatureHelp, SignatureHelpOptions, SignatureHelpParams,
+    SignatureInformation, SymbolInformation, SymbolKind, TextDocumentEdit,
+    TextDocumentPositionParams, TextDocumentSyncCapability, TextDocumentSyncKind,
     TextDocumentSyncOptions, TextEdit, TypeDefinitionProviderCapability, TypeHierarchyItem,
     TypeHierarchyPrepareParams, TypeHierarchySubtypesParams, TypeHierarchySupertypesParams,
     UnchangedDocumentDiagnosticReport, Uri, WatchKind, WillSaveTextDocumentParams,
@@ -14041,44 +14042,8 @@ impl LanguageServer for Backend {
         // file, a deletion — must refresh the cross-document index so
         // definition / references / rename / call-hierarchy keep seeing the
         // project's true on-disk state between restarts.
-        let mut config_changed = false;
-        let mut sidecar_changed = false;
-        // Reduce to the *last* event per URI before partitioning: a batch can
-        // legitimately name the same path twice (a delete-and-recreate a
-        // branch switch or a rapid rename can coalesce into one
-        // `didChangeWatchedFiles` notification), and the serial per-file path
-        // this replaces applied each event as it arrived, so only the last
-        // one for a given URI survived. A HashMap insert naturally keeps that
-        // "last write wins" semantics without needing to preserve array order.
-        let mut last_kind: HashMap<Uri, FileChangeType> = HashMap::new();
-        for change in params.changes {
-            // A project `.tcl-lsp.ini` (or user `config.ini`) edit re-applies the
-            // layered config — a live-reload for these files.
-            if is_config_file(&change.uri) {
-                config_changed = true;
-                continue;
-            }
-            if is_sidecar_stubs_file(&change.uri) {
-                sidecar_changed = true;
-                continue;
-            }
-            // Only Tcl sources drive the index.  The server's own registration
-            // is exactly [`tcl_source_watch_glob`], but a client may watch more
-            // broadly through its own `synchronize.fileEvents` (or a `**/*`
-            // config), and a non-Tcl path must not enter the resolution domain
-            // or have diagnostics published against it.  Case-folded by
-            // [`is_tcl_source`], the same predicate the workspace scan uses, so
-            // an `UPPER.TCL` event is kept (issue #1215).  A non-`file` URI has
-            // no path to test and is left to the handlers below.
-            if change
-                .uri
-                .to_file_path()
-                .is_some_and(|path| !is_tcl_source(&path))
-            {
-                continue;
-            }
-            last_kind.insert(change.uri, change.typ);
-        }
+        let (config_changed, sidecar_changed, last_kind) =
+            partition_watched_file_changes(params.changes);
         if sidecar_changed {
             self.invalidate_sidecar_stubs().await;
         }
@@ -17421,6 +17386,31 @@ fn is_sidecar_stubs_file(uri: &Uri) -> bool {
             let name = name.to_ascii_lowercase();
             name.ends_with(".tcl.stubs") && name.len() > ".tcl.stubs".len()
         })
+}
+
+/// Split watched events into config / sidecar flags and the final event for
+/// each Tcl source.  A batch may contain a path more than once, so the last
+/// event wins, matching the old serial handling.
+fn partition_watched_file_changes(
+    changes: Vec<FileEvent>,
+) -> (bool, bool, HashMap<Uri, FileChangeType>) {
+    let mut config_changed = false;
+    let mut sidecar_changed = false;
+    let mut last_kind = HashMap::new();
+    for change in changes {
+        if is_config_file(&change.uri) {
+            config_changed = true;
+        } else if is_sidecar_stubs_file(&change.uri) {
+            sidecar_changed = true;
+        } else if change
+            .uri
+            .to_file_path()
+            .is_none_or(|path| is_tcl_source(&path))
+        {
+            last_kind.insert(change.uri, change.typ);
+        }
+    }
+    (config_changed, sidecar_changed, last_kind)
 }
 
 /// Read an INI config file at `path` (if present/readable) into the
