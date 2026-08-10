@@ -1009,6 +1009,28 @@ fn command_options(d: &mut Draft, spec: &CommandSpec, lost: &mut Unrecovered) {
         "event_requires".into(),
         lost.expr("event_requires", spec.event_requires.is_some()),
     );
+    d.insert(
+        "event_requirement_forms".into(),
+        lost.expr(
+            "event_requirement_forms",
+            !spec.event_requirement_forms.is_empty(),
+        ),
+    );
+    d.insert(
+        "data_collection".into(),
+        lost.expr("data_collection", spec.data_collection.is_some()),
+    );
+    d.insert(
+        "side_switch_target".into(),
+        lost.expr("side_switch_target", spec.side_switch_target.is_some()),
+    );
+    d.insert(
+        "event_handler_priority".into(),
+        lost.expr(
+            "event_handler_priority",
+            spec.event_handler_priority.is_some(),
+        ),
+    );
     d.insert("options".into(), Value::Array(options));
     d.insert(
         "reserved_trailing_words".into(),
@@ -1345,5 +1367,41 @@ mod tests {
         let draft = from_command_spec(&spec);
         assert_eq!(draft["arg_role_resolver"], Value::Null);
         assert_eq!(draft[UNRENDERABLE_KEY], json!(["arg_role_resolver"]));
+    }
+
+    #[test]
+    fn seeding_flags_named_irules_descriptors_as_unrecoverable() {
+        const FORM: tcl_registry::events::EventRequirementForm =
+            tcl_registry::events::EventRequirementForm {
+                argument_prefix: &["get"],
+                requires: None,
+                only_in: &["FIX_MESSAGE"],
+            };
+        let spec = CommandSpec {
+            name: "eventful",
+            event_requirement_forms: &[FORM],
+            data_collection: Some(tcl_registry::events::HTTP_COLLECT),
+            side_switch_target: Some(tcl_registry::side_effects::SideSwitchTarget::Client),
+            event_handler_priority: Some(tcl_registry::events::BIGIP_EVENT_HANDLER_PRIORITY),
+            ..CommandSpec::DEFAULT
+        };
+        let draft = from_command_spec(&spec);
+        for key in [
+            "event_requirement_forms",
+            "data_collection",
+            "side_switch_target",
+            "event_handler_priority",
+        ] {
+            assert_eq!(draft[key], Value::Null, "{key} must request its Rust path");
+        }
+        assert_eq!(
+            draft[UNRENDERABLE_KEY],
+            json!([
+                "event_requirement_forms",
+                "data_collection",
+                "side_switch_target",
+                "event_handler_priority"
+            ])
+        );
     }
 }

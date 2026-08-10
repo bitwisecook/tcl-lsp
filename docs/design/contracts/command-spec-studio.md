@@ -110,11 +110,12 @@ what makes the studio a *browser* of the registry as well as an editor.
 ### Fields that cannot round-trip
 
 Some fields hold a function pointer (`arg_role_resolver`, `const_fold`,
-`taint_sink_gate`, …) or a reference to a **named** `&'static` descriptor the
-registry shares between commands (`definition_body`, `case_list`,
-`object_class`, `body_scope`, `frame_effect`, `bpf_op`, `event_requires`,
-`command_forms`). Rust can observe that such a field is `Some`, but not
-recover the expression — the constant's path — that set it.
+`taint_sink_gate`, …) or a reference to a **named** registry descriptor or
+constant (`definition_body`, `case_list`, `object_class`, `body_scope`,
+`frame_effect`, `bpf_op`, `event_requires`, `event_requirement_forms`,
+`data_collection`, `side_switch_target`, `event_handler_priority`, and
+`command_forms`). Rust can observe that such a field is set, but not recover
+the expression — the constant's path — that set it.
 
 Seeding records those keys under `draft::UNRENDERABLE_KEY` (`__unrenderable`).
 The form warns about them and the renderer emits a `TODO` comment naming each

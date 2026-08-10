@@ -176,6 +176,7 @@ still types `left` from `return_type`.
 |-------|------|---------|---------|
 | `excluded_events` | `tuple[str, ...]` | `()` | Events where this command is explicitly forbidden |
 | `event_requires` | `EventRequires \| None` | `None` | Transport, profile, and connection-side requirements.  Drives IRULE1001 |
+| `event_requirement_forms` | `tuple[EventRequirementForm, ...]` | `()` | Argument-prefix-specific event contracts that override `event_requires`. Drives IRULE1001. |
 | `data_collection` | `DataCollectionOperation \| None` | `None` | Protocol, collect/release/payload action, payload availability, and release policy. Drives IRULE1005–1008 and collect quick fixes. |
 | `side_switch_target` | `SideSwitchTarget \| None` | `None` | Client, server, or peer body context for a nesting-script command. |
 | `event_handler_priority` | `EventHandlerPriority \| None` | `None` | Runtime default and whether omission is reportable. BIG-IP `when` defaults to 500. |

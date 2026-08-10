@@ -1150,8 +1150,25 @@ mod tests {
         let mut d = draft::default_command_draft();
         d.insert("name".into(), json!("if"));
         d.insert("arg_role_resolver".into(), json!("resolve_if_roles"));
+        d.insert(
+            "event_requirement_forms".into(),
+            json!("&[FIX_TAG_GET_FORM]"),
+        );
+        d.insert("data_collection".into(), json!("Some(HTTP_COLLECT)"));
+        d.insert(
+            "side_switch_target".into(),
+            json!("Some(SideSwitchTarget::Client)"),
+        );
+        d.insert(
+            "event_handler_priority".into(),
+            json!("Some(BIGIP_EVENT_HANDLER_PRIORITY)"),
+        );
         let out = render(&d);
         assert!(out.contains("arg_role_resolver: resolve_if_roles,"));
+        assert!(out.contains("event_requirement_forms: &[FIX_TAG_GET_FORM],"));
+        assert!(out.contains("data_collection: Some(HTTP_COLLECT),"));
+        assert!(out.contains("side_switch_target: Some(SideSwitchTarget::Client),"));
+        assert!(out.contains("event_handler_priority: Some(BIGIP_EVENT_HANDLER_PRIORITY),"));
     }
 
     /// Every dialect the catalogue offers must have a Rust constant to render,
