@@ -225,6 +225,7 @@ dependencies = [
  "tcl-core-types",
  "tcl-dialect",
  "tcl-lexer",
+ "tcl-regex",
  "tcl-syntax",
 ]
 
