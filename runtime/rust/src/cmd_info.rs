@@ -684,6 +684,54 @@ mod tests {
         });
     }
 
+    // Needs the numeric tower: this covers `info functions` and the shared
+    // `info commands` namespace enumeration over the math-function table.
+    #[cfg(have_tommath)]
+    #[test]
+    fn math_enumeration_tracks_the_registry_selected_runtime_surface() {
+        use tcl_dialect::TclVersion;
+
+        leak_free(|i| {
+            i.set_runtime_version(TclVersion::V8_4);
+            // TP/TN: Tcl 8.4 introspects its fixed function table, while the
+            // later command-table wrapper itself remains absent.
+            assert_eq!(run(i, b"info functions sin"), b"sin");
+            assert_eq!(run(i, b"info commands ::tcl::mathfunc::sin"), b"");
+
+            i.set_runtime_version(TclVersion::V8_6);
+            // FN: the 9.0-only builtin is hidden by both enumerators.
+            assert_eq!(run(i, b"info functions isfinite"), b"");
+            assert_eq!(run(i, b"info commands ::tcl::mathfunc::isfinite"), b"");
+            // TN: the older command-table builtin remains visible.
+            assert_eq!(run(i, b"info functions sin"), b"sin");
+            assert_eq!(
+                run(i, b"info commands ::tcl::mathfunc::sin"),
+                b"::tcl::mathfunc::sin"
+            );
+
+            i.set_runtime_version(TclVersion::V9_0);
+            // TP: the 9.0 surface exposes the builtin consistently.
+            assert_eq!(run(i, b"info functions isfinite"), b"isfinite");
+            assert_eq!(
+                run(i, b"info commands ::tcl::mathfunc::isfinite"),
+                b"::tcl::mathfunc::isfinite"
+            );
+
+            i.set_runtime_version(TclVersion::V8_6);
+            run(
+                i,
+                b"proc ::tcl::mathfunc::isfinite {x} {return replacement}",
+            );
+            // FP guard: a user replacement is not a registry builtin and must
+            // remain visible even when the native builtin is version-hidden.
+            assert_eq!(run(i, b"info functions isfinite"), b"isfinite");
+            assert_eq!(
+                run(i, b"info commands ::tcl::mathfunc::isfinite"),
+                b"::tcl::mathfunc::isfinite"
+            );
+        });
+    }
+
     #[test]
     fn info_complete_balances() {
         leak_free(|i| {

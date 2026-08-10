@@ -794,11 +794,29 @@ impl crate::expr::ExprCtx for InterpExprCtx<'_> {
         name: &str,
         args: &[crate::expr::Owned],
     ) -> Result<crate::expr::Owned, crate::expr::ExprError> {
-        // Route through the command table so an overridden/renamed
-        // `::tcl::mathfunc::NAME` wins (A3); the default builtins forward to the
-        // shared dispatch. Args are passed as live objects (object-preserving).
+        // Tcl 8.4 uses its closed C function table; later releases route through
+        // the open command table so overridden/renamed `::tcl::mathfunc::NAME`
+        // entries win. The registry owns that distinction. Args are passed as
+        // live objects (object-preserving).
         let arg_ptrs: Vec<*mut TclObj> = args.iter().map(crate::expr::Owned::as_ptr).collect();
-        if self.interp.eval_math_call(name.as_bytes(), &arg_ptrs) == Code::Error {
+        let surface = tcl_registry::expr_surface::RuntimeExprSurface::for_tcl_version(
+            self.interp.runtime_version(),
+        );
+        let code = match surface.math_function_call_target(name) {
+            tcl_registry::expr_surface::MathFunctionCallTarget::FixedBuiltin(spec) => {
+                self.interp.eval_fixed_math_call(spec, &arg_ptrs)
+            }
+            tcl_registry::expr_surface::MathFunctionCallTarget::CommandTable => {
+                self.interp.eval_math_call(name.as_bytes(), &arg_ptrs)
+            }
+            tcl_registry::expr_surface::MathFunctionCallTarget::FixedTableMiss => {
+                let mut message = b"unknown math function \"".to_vec();
+                message.extend_from_slice(name.as_bytes());
+                message.push(b'\"');
+                self.interp.set_error(&message)
+            }
+        };
+        if code == Code::Error {
             // A math-function error (e.g. `sqrt(-1)` domain error) is logged at
             // the `expr` command, not as an inner frame — so it is *not*
             // propagated; `expr` raises it as its own (`while executing`). Carry
@@ -830,7 +848,15 @@ fn expr_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     let Ok(src) = core::str::from_utf8(&text) else {
         return interp.set_error(b"expr operand is not valid UTF-8");
     };
-    let node = tcl_syntax::expr::parse_expr(src, None);
+    let node = match parse_runtime_expr(interp, src) {
+        Ok(node) => node,
+        Err(e) => {
+            return match e.code {
+                Some(code) => interp.error_with_code(&e.msg, &code),
+                None => interp.set_error(&e.msg),
+            }
+        }
+    };
     let mut ctx = InterpExprCtx {
         interp: &mut *interp,
         propagated: false,
@@ -865,7 +891,10 @@ pub(crate) fn eval_expr_obj(interp: &mut Interp, src: &[u8]) -> Result<*mut TclO
     let Ok(s) = core::str::from_utf8(src) else {
         return Err(interp.set_error(b"expr operand is not valid UTF-8"));
     };
-    let node = tcl_syntax::expr::parse_expr(s, None);
+    let node = parse_runtime_expr(interp, s).map_err(|e| match e.code {
+        Some(code) => interp.error_with_code(&e.msg, &code),
+        None => interp.set_error(&e.msg),
+    })?;
     let mut ctx = InterpExprCtx {
         interp: &mut *interp,
         propagated: false,
@@ -900,7 +929,18 @@ pub(crate) fn eval_bool_expr(interp: &mut Interp, cond: *mut TclObj) -> Result<b
         Some((_, line)) => interp.push_cond_line_base(line),
         None => None,
     };
-    let node = tcl_syntax::expr::parse_expr(s, None);
+    let node = match parse_runtime_expr(interp, s) {
+        Ok(node) => node,
+        Err(e) => {
+            if let Some(old) = saved {
+                interp.restore_line_base(old);
+            }
+            return Err(match e.code {
+                Some(code) => interp.error_with_code(&e.msg, &code),
+                None => interp.set_error(&e.msg),
+            });
+        }
+    };
     let mut ctx = InterpExprCtx {
         interp: &mut *interp,
         propagated: false,
@@ -923,6 +963,29 @@ pub(crate) fn eval_bool_expr(interp: &mut Interp, cond: *mut TclObj) -> Result<b
             None => interp.set_error(&e.msg),
         }),
     }
+}
+
+/// Parse an expression against the registry-owned surface for this
+/// interpreter's emulated release. The parser deliberately runs over the
+/// union grammar: a later-release operator is then rejected by the registry
+/// with C Tcl's distinct `BAREWORD` diagnostic instead of becoming the parser's
+/// generic raw fallback. Function calls remain open command-table lookups, so
+/// user-defined `tcl::mathfunc` commands continue to work on every release.
+#[cfg(have_tommath)]
+fn parse_runtime_expr(
+    interp: &Interp,
+    source: &str,
+) -> Result<tcl_syntax::expr::ExprNode, crate::expr::ExprError> {
+    let node = tcl_syntax::expr::parse_expr(source, None);
+    tcl_registry::expr_surface::RuntimeExprSurface::for_tcl_version(interp.runtime_version())
+        .validate(&node)
+        .map_err(|error| {
+            crate::expr::ExprError::from_parts(
+                error.message(source).into_bytes(),
+                error.error_code().as_bytes().to_vec(),
+            )
+        })?;
+    Ok(node)
 }
 
 #[cfg(test)]

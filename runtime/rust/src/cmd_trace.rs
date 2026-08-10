@@ -34,9 +34,9 @@
 //!   fire around every command executed while a step-traced command is on the
 //!   stack. Fired from the dispatch chokepoint (`Interp::dispatch`).
 //!
-//! Simplifications (tracked): variable traces match by variable *name* (the
-//! namespace the trace was registered in is not distinguished). Command and
-//! execution traces are keyed by the resolved FQN (`Interp::resolve_cmd_fqn`).
+//! Variable traces are keyed by the resolved variable identity (home namespace
+//! or local call frame, plus simple name). Command and execution traces are
+//! keyed by the resolved FQN (`Interp::resolve_cmd_fqn`).
 
 use tcl_cmd_core::trace as core_trace;
 
@@ -137,25 +137,28 @@ pub struct TraceTable {
     pub pending_err: Option<Vec<u8>>,
 }
 
+/// Whether `t` belongs to the resolved variable identity. Namespace variables
+/// are distinguished by home namespace, and proc locals by their call frame.
+pub fn same_variable(
+    t: &VarTrace,
+    base: &[u8],
+    access_ns: Option<NsId>,
+    access_frame_level: Option<usize>,
+) -> bool {
+    t.base == base && t.ns == access_ns && t.frame_level == access_frame_level
+}
+
 /// Whether `t` fires for a `(base, elem)` access doing operation `op`.
-/// `access_ns` is the home namespace the accessed variable resolves to (for a
-/// namespace variable), used to scope namespace-variable traces.
 pub fn matches(
     t: &VarTrace,
     base: &[u8],
     elem: Option<&[u8]>,
     op: &[u8],
     access_ns: Option<NsId>,
+    access_frame_level: Option<usize>,
 ) -> bool {
-    if t.base != base {
+    if !same_variable(t, base, access_ns, access_frame_level) {
         return false;
-    }
-    // A namespace-variable trace fires only for accesses to that same namespace
-    // variable (matching home namespace); a proc-local trace ignores `ns`.
-    if let Some(tns) = t.ns {
-        if access_ns != Some(tns) {
-            return false;
-        }
     }
     if let Some(te) = &t.elem {
         // Element-specific trace: only that element.
@@ -445,7 +448,16 @@ fn trace_var_add_remove(interp: &mut Interp, argv: &[*mut TclObj], is_add: bool)
             return interp.set_error(&m);
         }
         let frame_level = interp.local_trace_level(&base);
-        let ns = interp.trace_var_ns(&base);
+        // Key the trace by the variable it *resolves to*, not by the spelling
+        // used to register it, so `trace add variable ::v write …` fires for a
+        // later `set v X` in the same namespace — and, under the 8.x
+        // namespace-scope fallback, for a write from inside `namespace eval`
+        // that reaches that same global (issue #1328).  C hangs the trace off
+        // the `Var` struct, so every spelling resolving to it fires.
+        //
+        // `name` keeps the original spelling: `trace info` / `trace remove`
+        // match textually in C too.
+        let (ns, base) = interp.trace_var_key(&base);
         interp.traces.borrow_mut().traces.push(VarTrace {
             name,
             base,
@@ -843,6 +855,52 @@ mod tests {
             // The trace died with the variable (C frees the Var's trace list).
             assert_eq!(ok(i, b"trace info variable x"), b"");
             i.eval_str(b"unset -nocomplain x");
+        });
+    }
+
+    #[test]
+    fn unset_keeps_traces_on_same_named_variables_in_other_namespaces() {
+        leak_free(|i| {
+            ok(
+                i,
+                b"proc record {label args} {lappend ::events $label}\n\
+                  set ::events {}\n\
+                  namespace eval ::a {variable x 1; trace add variable x write {record scalar-a}}\n\
+                  namespace eval ::b {variable x 1; trace add variable x write {record scalar-b}}\n\
+                  unset ::a::x\n\
+                  set ::b::x 2",
+            );
+            // TP: deleting `::a::x` removes only its own trace, not the
+            // same-bare-name trace attached to `::b::x`.
+            assert_eq!(ok(i, b"set ::events"), b"scalar-b");
+
+            ok(
+                i,
+                b"set ::events {}\n\
+                  namespace eval ::c {variable x; set x(k) 1; trace add variable x(k) write {record element-c}}\n\
+                  namespace eval ::d {variable x; set x(k) 1; trace add variable x(k) write {record element-d}}\n\
+                  unset ::c::x(k)\n\
+                  set ::d::x(k) 2",
+            );
+            // TP: element removal has the same home-namespace identity check.
+            assert_eq!(ok(i, b"set ::events"), b"element-d");
+        });
+    }
+
+    #[test]
+    fn unset_keeps_a_callers_local_trace_when_a_callee_uses_the_same_name() {
+        leak_free(|i| {
+            ok(
+                i,
+                b"proc record {label args} {lappend ::events $label}\n\
+                  proc inner {} {set x inner; trace add variable x write {record inner}; unset x}\n\
+                  proc outer {} {set x outer; trace add variable x write {record outer}; inner; set x after}\n\
+                  set ::events {}\n\
+                  outer",
+            );
+            // TN: a proc-local trace is scoped by its call frame, so the inner
+            // unset cannot delete the caller's trace for its own `x`.
+            assert_eq!(ok(i, b"set ::events"), b"outer");
         });
     }
 }

@@ -250,7 +250,7 @@ pub struct DialectBehaviour {              // the axis-B projection of a profile
     pub tcloo: bool,                        // explicit; invariant-tested vs mask (§11.2)
     pub has_fixed_ensembles: bool,          // {f5-irules,f5-iapps,f5-bigip} only
     pub is_irules: bool,                    // canonical iRules-behaviour predicate
-    pub vm_runtime_version: TclVersion,     // M16 VM parity; default V9_0
+    pub vm_runtime_version: TclVersion,     // = runtime_base; V9_0 only when inert
 }
 
 pub struct LexerGrammar {                  // verbatim from LexerConfig::for_dialect
@@ -469,7 +469,7 @@ milestone (§12, Milestone 5) with review, **not** folded into the W123 fix.
 | `p.grammar()` | `LexerConfig::for_dialect` (`lexer.rs:213`) |
 | `p.has_fixed_ensembles()` / `p.is_irules()` / `p.operators_as_commands()` / `p.tcloo()` | the open-coded `matches!(dialect, Some("irules"|"f5-irules"))` copies (side_effects, manager, taint) and `minify.rs:2164` |
 | `p.effective_tcl_version()` | the version the argument-DSL validators consult (§6) |
-| `p.vm_runtime_version()` | new; M16 VM parity, default `V9_0` |
+| `p.vm_runtime_version` | runtime execution release; matches `runtime_base`, or `V9_0` for an inert profile |
 
 ---
 
@@ -907,8 +907,9 @@ regen.
 
 ### Milestone 8 (optional / VM parity M16) — VM runtime parity + out-of-registry vendor knowledge
 
-- **Stage 8.1 — VM parity.** `vm_runtime_version` threaded into the VM
-  number/expr grammar (`tcl-vm/src/interp.rs`, runtime `number.rs`).
+- **Stage 8.1 — VM parity.** `vm_runtime_version` is threaded into the VM
+  number/expr grammar (`tcl-vm/src/interp.rs`, runtime `number.rs`) and stays
+  invariant-checked against the profile runtime base.
 - **Stage 8.2 — out-of-registry vendor knowledge.** `help.rs::dialect_terms` →
   `p.help_terms()`; AI/MCP F5-surface prompt → `p.vendor_surface(&reg)`
   (`tcl-mcp/src/tools.rs`, `tcl-explorer`).

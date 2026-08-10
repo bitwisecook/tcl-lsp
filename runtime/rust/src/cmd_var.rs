@@ -382,7 +382,7 @@ mod tests {
     }
 
     /// M11: the 8.x namespace-scope fallback to global, off by default (9.0 /
-    /// TIP 278) and on via `set_ns_var_global_fallback` — tclsh 8.6/9.0-pinned
+    /// TIP 278) and on for an 8.x runtime version — tclsh 8.6/9.0-pinned
     /// (reads fall back, writes hit the global, a `variable` declaration
     /// blocks it, and `info exists` / `unset` agree).
     #[test]
@@ -405,7 +405,7 @@ mod tests {
         });
         // 8.x: reads fall back, writes reach the global, declared names block.
         leak_free(|i| {
-            i.set_ns_var_global_fallback(true);
+            i.set_runtime_version(tcl_dialect::TclVersion::V8_6);
             i.eval_str(b"set g GLOBAL");
             assert_eq!(i.eval_str(b"namespace eval foo { set g }"), Code::Ok);
             assert_eq!(i.result_bytes(), b"GLOBAL");
@@ -431,6 +431,268 @@ mod tests {
             assert_eq!(i.eval_str(b"info exists ::foo::fresh"), Code::Ok);
             assert_eq!(i.result_bytes(), b"1");
             i.eval_str(b"unset -nocomplain ::g ::v ::foo::fresh ::bar::v");
+        });
+    }
+
+    /// The gate is selected by the emulated *release*, not by a caller
+    /// remembering which side of 9.0 the fallback lives on
+    /// (`set_runtime_version` — issue #1328).
+    ///
+    /// Both directions, for every modelled release: 8.4/8.5/8.6 fall back and
+    /// 9.0/9.1 do not, and each release's *opposite* behaviour must not hold.
+    #[test]
+    fn the_fallback_is_selected_by_the_emulated_release() {
+        use tcl_dialect::TclVersion as V;
+        for (version, falls_back) in [
+            (V::V8_4, true),
+            (V::V8_5, true),
+            (V::V8_6, true),
+            (V::V9_0, false),
+            (V::V9_1, false),
+        ] {
+            leak_free(|i| {
+                i.set_runtime_version(version);
+                i.eval_str(b"set g GLOBAL");
+                let read = i.eval_str(b"namespace eval foo { set g }");
+                if falls_back {
+                    assert_eq!(read, Code::Ok, "{version:?} must fall back on read");
+                    assert_eq!(i.result_bytes(), b"GLOBAL", "{version:?}");
+                } else {
+                    assert_eq!(read, Code::Error, "{version:?} must NOT fall back");
+                }
+                // A write either reaches the global (8.x) or creates a fresh
+                // namespace variable and leaves the global alone (9.x).
+                assert_eq!(i.eval_str(b"namespace eval foo { set g W }"), Code::Ok);
+                assert_eq!(i.eval_str(b"info exists ::foo::g"), Code::Ok);
+                assert_eq!(
+                    i.result_bytes(),
+                    if falls_back { b"0" } else { b"1" },
+                    "{version:?}: namespace variable creation"
+                );
+                assert_eq!(i.eval_str(b"set ::g"), Code::Ok);
+                assert_eq!(
+                    i.result_bytes(),
+                    if falls_back {
+                        &b"W"[..]
+                    } else {
+                        &b"GLOBAL"[..]
+                    },
+                    "{version:?}: the global's value"
+                );
+                i.eval_str(b"unset -nocomplain ::g ::foo::g");
+            });
+        }
+    }
+
+    /// `set_runtime_version` re-derives the release-reporting globals, so
+    /// `info patchlevel` answers for the emulated release — and does so
+    /// without `--init`, because C sets them in `Tcl_CreateInterp`
+    /// (`generic/tclBasic.c:1346`), not `Tcl_Init`.
+    #[test]
+    fn the_emulated_release_is_reported_without_init() {
+        leak_free(|i| {
+            assert_eq!(i.eval_str(b"info patchlevel"), Code::Ok);
+            assert_eq!(i.result_bytes(), b"9.0.4", "the 9.0 default");
+            assert_eq!(i.eval_str(b"set ::tcl_version"), Code::Ok);
+            assert_eq!(i.result_bytes(), b"9.0");
+            i.set_runtime_version(tcl_dialect::TclVersion::V8_6);
+            assert_eq!(i.eval_str(b"info patchlevel"), Code::Ok);
+            assert_eq!(i.result_bytes(), b"8.6.16");
+            assert_eq!(i.eval_str(b"set ::tcl_version"), Code::Ok);
+            assert_eq!(i.result_bytes(), b"8.6");
+        });
+    }
+
+    /// The rule governs *relative variable resolution*, so it reaches every
+    /// command that resolves a relative name — not just the `append` the
+    /// issue was filed on.  tclsh 8.6.16/9.0.4-pinned.
+    #[test]
+    fn the_fallback_governs_every_relative_name_resolution() {
+        // 8.x: each command reaches the global.
+        leak_free(|i| {
+            i.set_runtime_version(tcl_dialect::TclVersion::V8_6);
+            i.eval_str(b"set a foo; set l a; set c 1; array set A {k v}");
+            i.eval_str(b"namespace eval n { append a baz; lappend l b; incr c; set A(k) NEW }");
+            for (expr, want) in [
+                (&b"set ::a"[..], &b"foobaz"[..]),
+                (b"set ::l", b"a b"),
+                (b"set ::c", b"2"),
+                (b"array get ::A", b"k NEW"),
+            ] {
+                assert_eq!(i.eval_str(expr), Code::Ok);
+                assert_eq!(
+                    i.result_bytes(),
+                    want,
+                    "8.6: {}",
+                    String::from_utf8_lossy(expr)
+                );
+            }
+            // `unset` and `$`-substitution follow the same rule.
+            assert_eq!(i.eval_str(b"namespace eval n { unset a }"), Code::Ok);
+            assert_eq!(i.eval_str(b"info exists ::a"), Code::Ok);
+            assert_eq!(i.result_bytes(), b"0", "8.6: unset reaches the global");
+            assert_eq!(i.eval_str(b"namespace eval n { set x \"<$l>\" }"), Code::Ok);
+            assert_eq!(i.result_bytes(), b"<a b>");
+            i.eval_str(b"unset -nocomplain ::a ::l ::c ::A ::n::x");
+        });
+        // 9.0: none of them do — each binds in the namespace instead.
+        leak_free(|i| {
+            i.eval_str(b"set a foo; set l a; set c 1");
+            i.eval_str(b"namespace eval n { append a baz; lappend l b; incr c }");
+            for (expr, want) in [
+                (&b"set ::a"[..], &b"foo"[..]),
+                (b"set ::l", b"a"),
+                (b"set ::c", b"1"),
+                (b"set ::n::a", b"baz"),
+            ] {
+                assert_eq!(i.eval_str(expr), Code::Ok);
+                assert_eq!(
+                    i.result_bytes(),
+                    want,
+                    "9.0: {}",
+                    String::from_utf8_lossy(expr)
+                );
+            }
+            assert_eq!(
+                i.eval_str(b"namespace eval n { unset nosuch }"),
+                Code::Error,
+                "9.0: no fallback for unset"
+            );
+            assert_eq!(
+                i.eval_str(b"namespace eval n2 { set x \"<$l>\" }"),
+                Code::Error,
+                "9.0: no fallback for $-substitution"
+            );
+            i.eval_str(b"unset -nocomplain ::a ::l ::c");
+        });
+    }
+
+    /// "Current, then global" — never the intermediate parents — and an
+    /// existing namespace variable shadows the global in *both* releases.
+    #[test]
+    fn the_fallback_never_walks_intermediate_parents() {
+        for version in [tcl_dialect::TclVersion::V8_6, tcl_dialect::TclVersion::V9_0] {
+            leak_free(|i| {
+                i.set_runtime_version(version);
+                // A parent namespace's variable is never found from a child.
+                i.eval_str(b"namespace eval P { variable pv PARENT }");
+                assert_eq!(
+                    i.eval_str(b"namespace eval P { namespace eval C { set pv } }"),
+                    Code::Error,
+                    "{version:?}: parents are never searched"
+                );
+                // An existing namespace variable shadows the global.
+                i.eval_str(b"set sh GLOBAL");
+                i.eval_str(b"namespace eval S { variable sh NS }");
+                assert_eq!(i.eval_str(b"namespace eval S { set sh }"), Code::Ok);
+                assert_eq!(i.result_bytes(), b"NS", "{version:?}: shadowing");
+                i.eval_str(b"unset -nocomplain ::sh ::S::sh ::P::pv");
+            });
+        }
+        // Nesting depth is irrelevant to the fallback: a deeply nested
+        // namespace still reaches the *global* under 8.x.
+        leak_free(|i| {
+            i.set_runtime_version(tcl_dialect::TclVersion::V8_6);
+            i.eval_str(b"set deep G");
+            assert_eq!(
+                i.eval_str(
+                    b"namespace eval a { namespace eval b { namespace eval c { set deep } } }"
+                ),
+                Code::Ok
+            );
+            assert_eq!(i.result_bytes(), b"G");
+            i.eval_str(b"unset -nocomplain ::deep");
+        });
+    }
+
+    /// `namespace upvar` is an explicit link, so the fallback never applies to
+    /// it in either release.  (Covered here rather than in `tcl-vm`'s
+    /// cross-version suite: that VM's `namespace` ensemble has no `upvar`
+    /// subcommand yet.)
+    #[test]
+    fn namespace_upvar_is_explicit_in_both_releases() {
+        for version in [tcl_dialect::TclVersion::V8_6, tcl_dialect::TclVersion::V9_0] {
+            leak_free(|i| {
+                i.set_runtime_version(version);
+                i.eval_str(b"set g G");
+                assert_eq!(
+                    i.eval_str(b"namespace eval n { namespace upvar :: g z; set z }"),
+                    Code::Ok
+                );
+                assert_eq!(i.result_bytes(), b"G", "{version:?}");
+                i.eval_str(b"unset -nocomplain ::g ::n::z");
+            });
+        }
+    }
+
+    /// Each interpreter owns its own global namespace, so the fallback
+    /// resolves per-interp — a child never reaches its parent's global.
+    #[test]
+    fn the_fallback_resolves_per_interpreter() {
+        leak_free(|i| {
+            i.set_runtime_version(tcl_dialect::TclVersion::V8_6);
+            i.eval_str(b"set g PARENT");
+            i.eval_str(b"interp create kid");
+            i.eval_str(b"kid eval {set g KID}");
+            assert_eq!(
+                i.eval_str(b"kid eval {namespace eval n { set g }}"),
+                Code::Ok
+            );
+            assert_eq!(
+                i.result_bytes(),
+                b"KID",
+                "the child falls back to its OWN global, not the parent's"
+            );
+            assert_eq!(i.eval_str(b"set ::g"), Code::Ok);
+            assert_eq!(
+                i.result_bytes(),
+                b"PARENT",
+                "the parent's global is untouched"
+            );
+            i.eval_str(b"interp delete kid");
+            i.eval_str(b"unset -nocomplain ::g");
+        });
+    }
+
+    /// The user-visible consequence of getting resolution wrong: a trace must
+    /// fire on the variable an access *resolves to*, whatever spelling either
+    /// side used (issue #1328).
+    #[test]
+    fn traces_fire_on_the_resolved_variable_not_the_spelling() {
+        // A qualified registration must catch an unqualified access, and vice
+        // versa — independent of the fallback (this is the 9.0 default).
+        leak_free(|i| {
+            i.eval_str(b"proc log {n1 n2 op} { lappend ::fired $n1:$op }");
+            i.eval_str(b"set ::fired {}");
+            i.eval_str(b"set a1 foo; trace add variable ::a1 write log; set a1 X");
+            i.eval_str(b"set a2 foo; trace add variable a2 write log; set ::a2 X");
+            assert_eq!(i.eval_str(b"set ::fired"), Code::Ok);
+            assert_eq!(
+                i.result_bytes(),
+                b"a1:write a2:write",
+                "both spellings must fire"
+            );
+            i.eval_str(b"unset -nocomplain ::fired ::a1 ::a2");
+        });
+        // Under the 8.x fallback the write reaches the GLOBAL, so the global's
+        // trace must fire — and so must its unset trace, which needs the key
+        // resolved *before* the variable is removed.
+        leak_free(|i| {
+            i.set_runtime_version(tcl_dialect::TclVersion::V8_6);
+            i.eval_str(b"proc log {n1 n2 op} { lappend ::fired $n1:$op }");
+            i.eval_str(b"set ::fired {}");
+            i.eval_str(b"set g foo");
+            i.eval_str(b"trace add variable g write log");
+            i.eval_str(b"trace add variable g unset log");
+            i.eval_str(b"namespace eval n { set g X }");
+            i.eval_str(b"namespace eval n { unset g }");
+            assert_eq!(i.eval_str(b"set ::fired"), Code::Ok);
+            assert_eq!(
+                i.result_bytes(),
+                b"g:write g:unset",
+                "a write and an unset through the fallback fire the global's traces"
+            );
+            i.eval_str(b"unset -nocomplain ::fired");
         });
     }
 }

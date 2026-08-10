@@ -35,6 +35,7 @@ mod findings;
 mod generator;
 mod harness;
 mod rng;
+mod version;
 mod wasm;
 mod wasm_diff;
 
@@ -110,6 +111,16 @@ struct RunArgs {
     /// `harness::compare_outcomes`).
     #[arg(long)]
     compare_error_text: bool,
+    /// Pin the Tcl release the **subject** engine emulates (`8.4`…`9.1`), so
+    /// it can be matched to an older reference `tclsh`.
+    ///
+    /// `runtime-rust` and `tclvm` accept `--tcl-version`; pinning any other
+    /// subject is refused rather than silently ignored. Without this, a
+    /// campaign against e.g. `tclsh8.6` records
+    /// every deliberate 8.6-vs-9.0 semantic change as a divergence — which is
+    /// exactly how issue #1328's eight "findings" were produced.
+    #[arg(long, value_name = "X.Y")]
+    subject_tcl_version: Option<String>,
 }
 
 #[derive(Subcommand)]
@@ -222,6 +233,19 @@ fn run_campaign(
             return std::process::ExitCode::from(2);
         }
     };
+    // Pin the subject's emulated release, when asked. Refused (not ignored)
+    // for an engine that cannot be pinned, so a campaign never silently runs
+    // version-skewed after being told not to.
+    let mut pair = pair;
+    if let Some(want) = &args.subject_tcl_version {
+        match version_flag_for(pair.subject, want) {
+            Ok(extra) => pair.subject_args.extend(extra),
+            Err(e) => {
+                eprintln!("error: {e}");
+                return std::process::ExitCode::from(2);
+            }
+        }
+    }
     let findings_dir = pair.findings_dir(&cli.findings);
     let registry = match Registry::open(&findings_dir) {
         Ok(r) => r,
@@ -243,6 +267,29 @@ fn run_campaign(
         pair.reference_bin.display(),
         findings_dir.display(),
     );
+    // Probe both engines once, before any script runs, so every finding this
+    // campaign records carries the releases it was produced against, and a
+    // skewed pair announces itself up front (issue #1328).
+    let versions = version::PairVersions {
+        reference: version::EngineVersion::probe(
+            &pair.reference_bin,
+            &pair.reference_args,
+            timeout,
+        ),
+        subject: version::EngineVersion::probe(&pair.subject_bin, &pair.subject_args, timeout),
+    };
+    let describe = |v: &Option<version::EngineVersion>| {
+        v.as_ref()
+            .map_or_else(|| "unknown".to_owned(), |v| v.patchlevel.clone())
+    };
+    eprintln!(
+        "  versions: reference Tcl {} | subject Tcl {}",
+        describe(&versions.reference),
+        describe(&versions.subject),
+    );
+    if let Some(w) = versions.skew_warning() {
+        eprintln!("{w}");
+    }
     let campaign = Campaign {
         reference: Backend {
             binary: &pair.reference_bin,
@@ -257,6 +304,7 @@ fn run_campaign(
         registry: &registry,
         scratch: scratch.clone(),
         compare_error_text: args.compare_error_text,
+        versions,
     };
     let mut last_findings = 0u64;
     let stats = campaign.run(base_seed, iterations, |i, stats| {
@@ -523,6 +571,29 @@ fn render(o: &Outcome) -> String {
     }
 }
 
+/// The extra arguments that pin `engine` to Tcl release `want` (`"8.6"`).
+///
+/// `Err` carries a ready-to-print message when the release is unrecognised or
+/// the engine has no way to emulate another release. Refusing beats silently
+/// ignoring: a campaign told to match its reference must either do so or stop,
+/// never quietly run version-skewed (issue #1328).
+fn version_flag_for(engine: Engine, want: &str) -> Result<Vec<String>, String> {
+    if tcl_dialect::TclVersion::from_package_version(want).is_none() {
+        return Err(format!(
+            "unknown --subject-tcl-version {want:?} (want 8.4, 8.5, 8.6, 9.0 or 9.1)"
+        ));
+    }
+    match engine {
+        Engine::RuntimeRust | Engine::Tclvm => {
+            Ok(vec!["--tcl-version".to_owned(), want.to_owned()])
+        }
+        // `tclsh` *is* a released build — point --tclsh at a different one.
+        Engine::Tclsh => Err(format!(
+            "cannot pin `tclsh` to Tcl {want}: point --tclsh at a {want} build instead"
+        )),
+    }
+}
+
 fn print_stats(stats: &Stats) {
     eprintln!(
         "\ncampaign complete:\n  total {} | matched {} | skipped {}\n  findings: stdout {} | status {} | error-text {} | timeout {} (new this run: {})",
@@ -628,6 +699,24 @@ mod tests {
         for engine in [Engine::Tclvm, Engine::Tclsh, Engine::RuntimeRust] {
             assert_eq!(cli_flag_for(engine), engine.label());
         }
+    }
+
+    #[test]
+    fn version_pinning_reaches_both_emulated_runtime_subjects() {
+        let want = vec!["--tcl-version".to_owned(), "8.6".to_owned()];
+        // TP: both engines own a release-selection flag, so the differential
+        // pair can match a Tcl 8.6 oracle instead of recording deliberate
+        // cross-version behaviour as a finding.
+        assert_eq!(
+            version_flag_for(Engine::RuntimeRust, "8.6"),
+            Ok(want.clone())
+        );
+        assert_eq!(version_flag_for(Engine::Tclvm, "8.6"), Ok(want));
+        // TN: the C interpreter must be selected by binary, never pretended
+        // to be mutable at run time.
+        assert!(version_flag_for(Engine::Tclsh, "8.6").is_err());
+        // FN: a typo cannot silently select the subject's default release.
+        assert!(version_flag_for(Engine::Tclvm, "8.7").is_err());
     }
 
     #[test]

@@ -69,6 +69,7 @@ pub mod dialects;
 mod event_descriptions;
 pub mod event_facts;
 pub mod events;
+pub mod expr_surface;
 pub mod forms;
 pub mod frame_effect;
 pub mod handle_binding;

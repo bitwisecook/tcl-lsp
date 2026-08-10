@@ -29,6 +29,7 @@ use tcl_bytecode::FunctionAsm;
 use tcl_runtime_api::{Code, Completion};
 use tcl_syntax::list::split_list;
 
+use crate::error::TclError;
 use crate::interp::{Vm, err, ok};
 use crate::value::Value;
 
@@ -1125,7 +1126,7 @@ fn cmd_expr(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
         .join(" ");
     match vm.eval_expr(&joined) {
         Ok(v) => ok(v),
-        Err(e) => err(e.message),
+        Err(e) => completion_from_tcl_error(e),
     }
 }
 
@@ -1285,6 +1286,19 @@ pub(crate) fn options_dict(code: Code, level: i64, extra: &[(&str, Value)]) -> V
 pub(crate) fn err_with_code(message: impl Into<String>, code: &str) -> Completion<Value> {
     let options = options_dict(Code::Error, 0, &[("-errorcode", Value::string(code))]);
     Completion::new(Code::Error, Value::string(message.into()), options)
+}
+
+/// Convert an internal expression/helper failure into its Tcl completion
+/// without losing either a propagating control code or an explicit
+/// `-errorcode` supplied by the registry or command implementation.
+pub(crate) fn completion_from_tcl_error(error: TclError) -> Completion<Value> {
+    if let Some(code) = error.code {
+        return Completion::new(code, Value::string(error.message), Value::empty());
+    }
+    match error.error_code {
+        Some(code) => err_with_code(error.message, &code),
+        None => err(error.message),
+    }
 }
 
 /// The options dict a completion exposes to `catch`/`try` (`Tcl_GetReturnOptions`):

@@ -64,6 +64,7 @@ pub mod bignum;
 // The `expr` evaluator (value-ops impl of the shared `tcl_syntax::expr` walk);
 // needs the bignum tower, so it tracks the same `have_tommath` cfg.
 pub mod builtins;
+pub mod bytearray;
 #[cfg(all(target_arch = "wasm32", target_os = "unknown", have_tommath))]
 mod c_alloc;
 pub mod capi;

@@ -4238,6 +4238,7 @@ dependencies = [
  "serde_json",
  "tcl-bytecode",
  "tcl-compiler",
+ "tcl-dialect",
  "tcl-registry",
  "tcl-vm",
  "wasmtime",

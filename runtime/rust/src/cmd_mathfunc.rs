@@ -68,7 +68,7 @@ pub fn install(interp: &mut Interp) {
 /// The shared implementation behind every `::tcl::mathfunc::NAME`. The function
 /// is `argv[0]`'s simple tail (so one builtin serves all names); operands are
 /// read off the tower as [`Num`] and dispatched.
-fn mathfunc(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
+pub(crate) fn mathfunc(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     let name0 = obj_bytes(argv[0]);
     let tail = qualifier_segments(&name0)
         .last()
@@ -77,6 +77,23 @@ fn mathfunc(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     let Ok(fname) = core::str::from_utf8(tail) else {
         return interp.set_error(b"unknown math function");
     };
+
+    // The interpreter registers one dispatch hook for the complete known
+    // catalogue, but its public builtin surface is profile-selected by the
+    // CommandRegistry. A user proc or alias replacing this entry never reaches
+    // this handler, so version-gating the builtin preserves Tcl's open,
+    // overridable `tcl::mathfunc` namespace.
+    if tcl_registry::expr_surface::RuntimeExprSurface::for_tcl_version(interp.runtime_version())
+        .builtin_math_function(fname)
+        .is_none()
+    {
+        let mut message = b"invalid command name \"".to_vec();
+        message.extend_from_slice(&name0);
+        message.push(b'\"');
+        let mut error_code = b"TCL LOOKUP COMMAND ".to_vec();
+        error_code.extend_from_slice(&name0);
+        return interp.error_with_code(&message, &error_code);
+    }
 
     // Argument-count check first (C reports this before operand conversion), with
     // `-errorcode TCL WRONGARGS`.
@@ -216,6 +233,94 @@ mod tests {
     }
 
     #[test]
+    fn tcl84_expr_uses_the_fixed_math_table_not_a_command_wrapper() {
+        leak_free(|i| {
+            i.set_runtime_version(tcl_dialect::TclVersion::V8_4);
+
+            // TP: the registry still supplies the 8.4 fixed builtin.
+            assert_eq!(i.eval_str(b"expr {sqrt(4)}"), Code::Ok);
+            assert_eq!(i.result_bytes(), b"2.0");
+            // FN: names outside that table do not take the later command-miss
+            // path. C Tcl 8.4 reports this exact fixed-table diagnostic.
+            assert_eq!(i.eval_str(b"expr {user_supplied(1)}"), Code::Error);
+            assert_eq!(i.result_bytes(), b"unknown math function \"user_supplied\"");
+
+            // A script can create an ordinary command with the same spelling,
+            // but it changes neither the fixed builtin nor `expr`'s target.
+            assert_eq!(
+                i.eval_str(b"proc ::tcl::mathfunc::sqrt {x} { return 99 }"),
+                Code::Ok
+            );
+            assert_eq!(i.eval_str(b"::tcl::mathfunc::sqrt 4"), Code::Ok);
+            assert_eq!(i.result_bytes(), b"99");
+            assert_eq!(i.eval_str(b"expr {sqrt(4)}"), Code::Ok);
+            assert_eq!(i.result_bytes(), b"2.0");
+
+            // FP guard: Tcl 8.5's command-table mechanism makes that same
+            // override active for `expr`.
+            i.set_runtime_version(tcl_dialect::TclVersion::V8_5);
+            assert_eq!(i.eval_str(b"expr {sqrt(4)}"), Code::Ok);
+            assert_eq!(i.result_bytes(), b"99");
+        });
+    }
+
+    #[test]
+    fn builtin_mathfunc_surface_tracks_the_registry_selected_release() {
+        leak_free(|i| {
+            i.set_runtime_version(tcl_dialect::TclVersion::V8_6);
+
+            // FN: TIP 461's string-ordering operators are Tcl 9 grammar, not
+            // a 8.x runtime comparison. The registry supplies both the floor
+            // and C Tcl's BAREWORD error classification.
+            assert_eq!(i.eval_str(b"expr {{a} lt {b}}"), Code::Error);
+            assert_eq!(
+                i.result_bytes(),
+                b"invalid bareword \"lt\"\nin expression \"{a} lt {b}\";\nshould be \"$lt\" or \"{lt}\" or \"lt(...)\" or ..."
+            );
+            assert_eq!(
+                i.var_get(b"::errorCode").map(crate::interp::obj_bytes),
+                Some(b"TCL PARSE EXPR BAREWORD".to_vec())
+            );
+
+            // FN: the 9.0 builtin is no longer supplied by the 8.6 surface.
+            assert_eq!(i.eval_str(b"expr {isfinite(1.0)}"), Code::Error);
+            assert_eq!(
+                i.result_bytes(),
+                b"invalid command name \"tcl::mathfunc::isfinite\""
+            );
+            // The outermost eval publishes the error state to the Tcl global
+            // before resetting its transient accumulator.
+            assert_eq!(
+                i.var_get(b"::errorCode").map(crate::interp::obj_bytes),
+                Some(b"TCL LOOKUP COMMAND tcl::mathfunc::isfinite".to_vec())
+            );
+
+            // TP: older builtins retain their registry-backed handler.
+            assert_eq!(i.eval_str(b"expr {sqrt(4)}"), Code::Ok);
+            assert_eq!(i.result_bytes(), b"2.0");
+
+            // TP/FP: at the Tcl 9.0 boundary the registry admits both the
+            // operator and the classification builtin; its normal false value
+            // remains distinguishable from a version rejection.
+            i.set_runtime_version(tcl_dialect::TclVersion::V9_0);
+            assert_eq!(i.eval_str(b"expr {{a} lt {b}}"), Code::Ok);
+            assert_eq!(i.result_bytes(), b"1");
+            assert_eq!(i.eval_str(b"expr {isfinite(1.0 / 0.0)}"), Code::Ok);
+            assert_eq!(i.result_bytes(), b"0");
+
+            // FP: a user definition in the open namespace remains callable;
+            // the registry gates the builtin, not command indirection.
+            i.set_runtime_version(tcl_dialect::TclVersion::V8_6);
+            assert_eq!(
+                i.eval_str(b"proc ::tcl::mathfunc::isfinite {x} { return custom }"),
+                Code::Ok
+            );
+            assert_eq!(i.eval_str(b"expr {isfinite(1.0)}"), Code::Ok);
+            assert_eq!(i.result_bytes(), b"custom");
+        });
+    }
+
+    #[test]
     fn expr_routes_through_the_command_table() {
         leak_free(|i| {
             // `expr` still works (the builtin forwards to the shared dispatch) …
@@ -304,17 +409,28 @@ mod tests {
         });
     }
 
-    /// `mathfunc_names()`/`arity()` used to be hand-typed and missed the
-    /// entire TIP 745 (9.1) C99 batch — `dispatch()` already implemented
-    /// every one of these, but `install()` never registered a command for
-    /// any of them, so `::tcl::mathfunc::gamma` was "invalid command name"
-    /// rather than a working call. Proves both the 1-arg and multi-arg
-    /// (`copysign`/`fma`) cases now work as real commands, with the correct
-    /// derived arity — the very fix this crate's own drift-gate cleanup
-    /// (issue #983) exists to have caught.
+    /// The TIP 745 C99 batch is a Tcl 9.1 surface. The handler and its
+    /// arity facts come from the shared registry-backed table, but the
+    /// runtime must not expose the names while emulating Tcl 9.0.
     #[test]
-    fn tip745_functions_are_registered_commands_with_correct_arity() {
+    fn tip745_mathfunc_commands_follow_the_runtime_release_and_arity() {
         leak_free(|i| {
+            // FN: Tcl 9.0.4 rejects the 9.1 command and `expr` spelling.
+            // The lookup name is relative on the expression path, as in C Tcl.
+            assert_eq!(i.eval_str(b"::tcl::mathfunc::gamma 5"), Code::Error);
+            assert_eq!(
+                i.result_bytes(),
+                b"invalid command name \"::tcl::mathfunc::gamma\""
+            );
+            assert_eq!(i.eval_str(b"expr {gamma(5)}"), Code::Error);
+            assert_eq!(
+                i.result_bytes(),
+                b"invalid command name \"tcl::mathfunc::gamma\""
+            );
+
+            i.set_runtime_version(tcl_dialect::TclVersion::V9_1);
+            // TP: both unary and multi-argument 9.1 functions are real
+            // commands, with their arities derived from the fact table.
             assert_eq!(i.eval_str(b"::tcl::mathfunc::gamma 5"), Code::Ok);
             assert_eq!(i.result_bytes(), b"24.0");
             assert_eq!(i.eval_str(b"::tcl::mathfunc::cbrt 27"), Code::Ok);

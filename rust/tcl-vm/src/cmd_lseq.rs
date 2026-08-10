@@ -30,6 +30,7 @@ use tcl_runtime_api::Completion;
 
 use tcl_cmd_core::lseq::{self, LseqError, Num};
 
+use crate::command::completion_from_tcl_error;
 use crate::error::TclError;
 use crate::interp::{Vm, err, ok};
 use crate::value::Value;
@@ -53,7 +54,7 @@ fn cmd_lseq(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     let plan = match lseq::decode(&refs, |src| eval_num(vm, src)) {
         Ok(p) => p,
         Err(LseqError::Message(m)) => return err(String::from_utf8_lossy(&m).into_owned()),
-        Err(LseqError::Eval(e)) => return err(e.message),
+        Err(LseqError::Eval(e)) => return completion_from_tcl_error(e),
     };
     match lseq::generate(vm, &plan) {
         Ok(v) => ok(v),

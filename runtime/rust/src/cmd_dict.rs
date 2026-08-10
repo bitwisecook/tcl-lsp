@@ -643,7 +643,9 @@ fn dict_path_set(
         chain.push((cur, head, sub, sub_fresh));
         cur = sub;
     }
-    let last = *keys.last().expect("keys is non-empty: the [last] case above handles len 1");
+    let last = *keys
+        .last()
+        .expect("keys is non-empty: the [last] case above handles len 1");
     if let Err(e) = dict::dict_set(cur, last, value) {
         // A freshly duplicated/created `sub` (rc 0) at any level is only
         // retained once re-bound into its parent below; nothing in `chain` has
@@ -757,7 +759,9 @@ fn dict_path_unset(dict: *mut TclObj, keys: &[*mut TclObj]) -> Result<(), PathEr
         chain.push((cur, head, sub, sub_fresh));
         cur = sub;
     }
-    let last = *keys.last().expect("keys is non-empty: the [last] case above handles len 1");
+    let last = *keys
+        .last()
+        .expect("keys is non-empty: the [last] case above handles len 1");
     // Drop a freshly duplicated `sub` still in `chain` if this (or the descent
     // above) errors before the re-bind loop below retains it.
     if let Err(e) = dict::dict_unset(cur, &obj_bytes(last)) {
@@ -1220,9 +1224,8 @@ mod tests {
         const DEPTH: usize = 3800;
         let set_src = format!("dict set d {{*}}[lrepeat {DEPTH} k] v");
         ok(set_src.as_bytes());
-        let unset_src = format!(
-            "dict set d {{*}}[lrepeat {DEPTH} k] v; dict unset d {{*}}[lrepeat {DEPTH} k]"
-        );
+        let unset_src =
+            format!("dict set d {{*}}[lrepeat {DEPTH} k] v; dict unset d {{*}}[lrepeat {DEPTH} k]");
         ok(unset_src.as_bytes());
     }
 
@@ -1294,6 +1297,89 @@ mod tests {
         assert_eq!(
             ok(b"dict filter {a 1 b 2 c 3} script {k v} {expr {$v > 1}}"),
             b"b 2 c 3"
+        );
+    }
+    /// Issue #1328 finding (2) — `dict lappend` onto a non-dict "silently
+    /// succeeds" — **does not reproduce**, and this pins why.
+    ///
+    /// The three shapes a value can relate to `dict`, each matching C Tcl
+    /// 9.0.4 *and* 8.6.16 byte-for-byte in message text and `errorCode`:
+    ///
+    /// | value     | outcome |
+    /// |-----------|---------|
+    /// | `"a b"`   | accepted — it *is* a valid one-entry dict |
+    /// | `"a b c"` | `missing value to go with key` / `TCL VALUE DICTIONARY` |
+    /// | `"{"`     | `unmatched open brace in dict` / `TCL VALUE DICTIONARY BRACE` |
+    ///
+    /// The even-length accept is correct and is the shape most easily
+    /// mistaken for the reported bug.  What the fuzzer actually found (seed
+    /// 90022) was `set b 5; namespace eval n2 { dict incr b qux 1 }`: under
+    /// the 8.6 oracle the relative `b` fell back to the global `5`, which is
+    /// not a dict, so C raised — under 9.0 it binds a fresh `::n2::b` and
+    /// succeeds.  That is finding (1)'s resolution rule seen through a `dict`
+    /// command, not a dict-validation defect.
+    #[test]
+    fn dict_lappend_validation_matches_c_tcl_for_every_non_dict_shape() {
+        // A valid (even-length) dict is accepted — not a bug.
+        assert_eq!(ok(b"set d {a b}; dict lappend d k v"), b"a b k v");
+        // Odd length and unbalanced braces both raise, with C's exact text.
+        for (script, msg, code) in [
+            (
+                &b"set d {a b c}; dict lappend d k v"[..],
+                &b"missing value to go with key"[..],
+                &b"TCL VALUE DICTIONARY"[..],
+            ),
+            (
+                b"set d \\{; dict lappend d k v",
+                b"unmatched open brace in dict",
+                b"TCL VALUE DICTIONARY BRACE",
+            ),
+            (
+                b"set d {{a}x b}; dict lappend d k v",
+                b"dict element in braces followed by \"x\" instead of space",
+                b"TCL VALUE DICTIONARY JUNK",
+            ),
+        ] {
+            let (c, b) = run(script);
+            assert_eq!(c, Code::Error, "{}", String::from_utf8_lossy(script));
+            assert_eq!(b, msg, "message text");
+            // `errorCode` is part of the contract, not just the raise bit.
+            // Wrapped in `catch` so evaluation reaches the read.
+            let (_, ec) = run(&[b"catch {", script, b"}; set ::errorCode"].concat());
+            assert_eq!(ec, code, "errorCode");
+        }
+    }
+
+    /// The dict-validation answer must come from the *value*, never from
+    /// whichever internal representation it happens to be carrying — a
+    /// shimmered list and an identical pure string must agree (issue #1328's
+    /// dual-porting check).  All six pinned against C Tcl 9.0.4 and 8.6.16.
+    #[test]
+    fn dict_lappend_validation_is_unaffected_by_shimmering() {
+        // Built as a 3-element list, so it arrives with a list intrep.
+        let (c, b) = run(b"set v {}; lappend v a; lappend v b; lappend v c; dict lappend v k x");
+        assert_eq!(c, Code::Error, "a shimmered odd-length list still raises");
+        assert_eq!(b, b"missing value to go with key");
+        // The same odd-length value as a pure string agrees.
+        let (c2, b2) = run(b"set v {a b c}; string length $v; dict lappend v k x");
+        assert_eq!(c2, Code::Error);
+        assert_eq!(b2, b, "string rep and list rep must give the same answer");
+        // An even-length shimmered list is accepted, as it is a valid dict.
+        assert_eq!(
+            ok(b"set v {}; lappend v a; lappend v b; dict lappend v k x"),
+            b"a b k x"
+        );
+        // dict -> string -> list -> dict round trip: appending " c" makes it
+        // odd, and `llength` forces a list intrep before `dict lappend` sees it.
+        let (c3, b3) =
+            run(b"set v [dict create a 1 b 2]; append v { c}; llength $v; dict lappend v k x");
+        assert_eq!(c3, Code::Error);
+        assert_eq!(b3, b"missing value to go with key");
+        // A value that already has a dict intrep stays valid after `llength`
+        // forces a list rep over it.
+        assert_eq!(
+            ok(b"set v [dict create a 1]; llength $v; dict lappend v k x"),
+            b"a 1 k x"
         );
     }
 }

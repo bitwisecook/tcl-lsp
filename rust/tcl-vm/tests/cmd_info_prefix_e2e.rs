@@ -981,10 +981,8 @@ fn namespace_path() {
     );
 }
 
-/// `namespace` dispatch: missing subcommand. The VM's "must be ..." list is a
-/// SUBSET of tclsh's (it omits code/delete/import/inscope/origin/path/which/etc.),
-/// so the wording diverges; asserting the VM's actual (documented) message.
-/// Divergence (error text only): tclsh lists all 19 subcommands.
+/// `namespace` dispatch: the registry supplies the complete, release-filtered
+/// subcommand list used by C Tcl's error.
 #[test]
 fn namespace_dispatch_unknown_subcommand() {
     // tclsh (both): no subcommand.
@@ -994,13 +992,14 @@ fn namespace_dispatch_unknown_subcommand() {
         msg,
         r#"wrong # args: should be "namespace subcommand ?arg ...?""#
     );
-    // VM's unknown-subcommand message (subset list — see doc comment).
+    // tclsh9.0/8.6: all 19 subcommands, in this order.
     let (ok, msg, _) = run("namespace frob");
     assert!(!ok);
     assert_eq!(
         msg,
         "unknown or ambiguous subcommand \"frob\": must be \
-         children, current, eval, exists, export, parent, qualifiers, or tail",
+         children, code, current, delete, ensemble, eval, exists, export, forget, import, \
+         inscope, origin, parent, path, qualifiers, tail, unknown, upvar, or which",
     );
 }
 
@@ -1038,21 +1037,13 @@ fn namespace_ensemble_create_dispatches() {
     assert_eq!(res, "hi");
 }
 
-/// `namespace upvar` links a namespace variable into the current frame in tclsh.
-/// The VM has no `upvar` entry in its dispatch (it is not even in the no-op set),
-/// so it errors. UNIMPLEMENTED.
-///   tclsh (both): `set ::g 99; namespace upvar :: g lg; set lg` -> "99"
-///   VM:           errors "unknown or ambiguous subcommand "upvar": ..."
-/// Asserting the VM's actual error so the gap is visible.
+/// `namespace upvar` links the namespace cell rather than copying its value.
+///   tclsh9.0/8.6: `set ::g 99; namespace upvar :: g lg; set lg 100` -> `100:100`.
 #[test]
-fn namespace_upvar_unimplemented() {
-    let (ok, msg, _) = run("set ::g 99; namespace upvar :: g lg; set lg");
-    assert!(!ok, "VM unexpectedly implemented `namespace upvar`: {msg}");
-    assert_eq!(
-        msg,
-        "unknown or ambiguous subcommand \"upvar\": must be \
-         children, current, eval, exists, export, parent, qualifiers, or tail",
-    );
+fn namespace_upvar_links_namespace_cell() {
+    let (ok, result, _) = run("set ::g 99; namespace upvar :: g lg; set lg 100; list $lg $::g");
+    assert!(ok, "namespace upvar must succeed: {result}");
+    assert_eq!(result, "100 100");
 }
 
 // ===========================================================================

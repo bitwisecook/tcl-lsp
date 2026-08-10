@@ -401,9 +401,9 @@ fn ns_import(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         // Collect the matching, exported source commands first (borrow ends).
         let src_fqn = interp.namespaces().qualified_name(src_ns);
         let mut to_import: Vec<Vec<u8>> = Vec::new();
-        for name in interp.namespaces().command_names(src_ns) {
-            if glob_match_bytes(tail_pat, name) && interp.namespaces().is_exported(src_ns, name) {
-                to_import.push(name.to_vec());
+        for name in interp.visible_command_names_in(src_ns) {
+            if glob_match_bytes(tail_pat, &name) && interp.namespaces().is_exported(src_ns, &name) {
+                to_import.push(name);
             }
         }
         for simple in to_import {
@@ -1687,67 +1687,44 @@ mod tests {
     }
 
     #[test]
-    fn inscope_non_utf8_script_treats_both_arms_consistently() {
-        // The script is a raw-byte *value* holding a non-UTF-8 byte
-        // (`0x80`) — produced via `binary format`'s `c` (raw byte)
-        // directive, not a `\xHH` escape (which substitutes a *Unicode
-        // code point* and this runtime stores as valid UTF-8, `0xC2 0x80`
-        // — not a genuinely invalid byte, so it would not exercise the
-        // bug).
-        //
-        // `namespace inscope`/`eval` scripts are themselves re-parsed as a
-        // fresh script (`parse::parse_script` — see its doc comment: "the
-        // UTF-8 internal-rep invariant"), so a script value that is not
-        // valid UTF-8 parses to no commands and evaluates as a harmless
-        // no-op (`Code::Ok`, empty result) — a separate, pre-existing
-        // `parse_script` limitation this fix does not touch, and unrelated
-        // to `list::append_list_element`'s (byte-exact, unaffected)
-        // quoting of the tail.
-        //
-        // What the fix DOES change: before it, the tail arm converted the
-        // script half to `&str` via `String::from_utf8_lossy`, silently
-        // replacing the invalid byte with the *valid*-UTF-8 3-byte U+FFFD
-        // sequence — so the composed script could flip from "not valid
-        // UTF-8" (parses to nothing, `Code::Ok`, empty) to "accidentally
-        // valid UTF-8" (parses fine, dispatches to a different,
-        // non-existent command, `Code::Error`) purely because a tail arg
-        // was appended. The zero-tail and tail arms must treat the exact
-        // same script bytes identically; [`list::trim_concat_element_bytes`]
-        // never performs that lossy conversion, so both arms agree here.
+    fn inscope_uses_a_byte_arrays_string_rep_in_both_arms() {
+        // `binary format` returns a typed byte array.  When it becomes a
+        // script, both `namespace inscope` forms reach the same unknown
+        // command.  Capture the error through `binary encode hex`: this is the
+        // C Tcl observable, and proves that the byte array's 0x80 payload is
+        // preserved rather than becoming U+FFFD or UTF-8's `c2 80` payload.
+        // The vector is identical on tclsh 8.6.18 and 9.0.4.
         leak_free(|i| {
             assert_eq!(
-                i.eval_str(b"set name [binary format a3c cmd 128]"),
-                Code::Ok
-            );
-            assert_eq!(
-                i.result_bytes(),
-                [b'c', b'm', b'd', 0x80],
-                "binary format should produce the raw 0x80 byte"
-            );
-
-            assert_eq!(
-                i.eval_str(b"namespace inscope :: $name"),
+                i.eval_str(
+                    b"set name [binary format a3c cmd 128]; \
+                      catch {namespace inscope :: $name} result; \
+                      binary encode hex $result",
+                ),
                 Code::Ok,
                 "zero-tail arm"
             );
             assert_eq!(
                 i.result_bytes(),
-                b"",
-                "zero-tail arm: an invalid-UTF-8 script is a harmless no-op"
+                b"696e76616c696420636f6d6d616e64206e616d652022636d648022",
+                "zero-tail arm preserves the raw command-name byte"
             );
 
             assert_eq!(
-                i.eval_str(b"namespace inscope :: $name extra"),
+                i.eval_str(
+                    b"catch {namespace inscope :: $name extra} result; \
+                      binary encode hex $result",
+                ),
                 Code::Ok,
-                "tail arm must agree with the zero-tail arm, not error on a mangled name"
+                "tail arm must agree with the zero-tail arm"
             );
             assert_eq!(
                 i.result_bytes(),
-                b"",
-                "tail arm: must stay a no-op, exactly like the zero-tail arm"
+                b"696e76616c696420636f6d6d616e64206e616d652022636d648022",
+                "tail arm preserves the same raw command-name byte"
             );
 
-            i.eval_str(b"unset name");
+            i.eval_str(b"unset name result");
         });
     }
 }

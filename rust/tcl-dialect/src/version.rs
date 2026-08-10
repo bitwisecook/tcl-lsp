@@ -20,6 +20,22 @@
 //! three-valued policy type for behaviours a non-Tcl profile has no
 //! opinion on.
 
+/// How Tcl converts a Unicode string representation to binary bytes.
+///
+/// Tcl 8.x keeps the historic one-byte conversion: each character contributes
+/// its low byte. Tcl 9 made that conversion checked, rejecting a code point
+/// above `U+00FF`. A byte-array object itself is unaffected: its dedicated
+/// byte payload is always returned verbatim. This policy concerns the separate
+/// string-to-bytes shimmer used by commands such as `binary encode` and
+/// `binary scan`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ByteStringEncoding {
+    /// Tcl 8.x's legacy low-byte conversion.
+    LegacyTruncate,
+    /// Tcl 9.x's checked conversion, which rejects code points above `U+00FF`.
+    CheckedLatin1,
+}
+
 /// A specific Tcl release whose **compile-time** semantics a constant fold may
 /// depend on — e.g. `string is integer` is unbounded on 9.0 but caps at
 /// `2³²-1` on 8.x, and `string is wideinteger` / `entier` / `dict` and
@@ -94,6 +110,78 @@ impl TclVersion {
             Self::V9_0 => "9.0",
             Self::V9_1 => "9.1",
         }
+    }
+
+    /// The canonical plain-Tcl dialect profile for this release line.
+    ///
+    /// This is the bridge from an engine's runtime-version setting to the
+    /// profile-owned expression grammar and command surface. Keeping it beside
+    /// the release vocabulary avoids every consumer rebuilding a versioned
+    /// dialect name when it needs registry data.
+    #[must_use]
+    pub const fn dialect_profile_name(self) -> &'static str {
+        match self {
+            Self::V8_4 => "tcl8.4",
+            Self::V8_5 => "tcl8.5",
+            Self::V8_6 => "tcl8.6",
+            Self::V9_0 => "tcl9.0",
+            Self::V9_1 => "tcl9.1",
+        }
+    }
+
+    /// The full `major.minor.patch` string an engine emulating this release
+    /// reports as `[info patchlevel]` / `$tcl_patchLevel`.
+    ///
+    /// [`Self::version_string`] answers the two-component question every
+    /// `package vsatisfies` comparison actually asks; this answers the
+    /// *reporting* question, which needs a third component because C Tcl
+    /// always has one and scripts parse it.  The patch digit names the
+    /// upstream release each of this project's engines was re-derived from —
+    /// the tarballs under `tmp/` — so `tcl-vm` and `runtime/rust` cannot
+    /// report different patch levels for the same emulated release by each
+    /// keeping their own table (issue #1328's centralisation finding).
+    ///
+    /// A release line the engines have no pinned reference build for reports
+    /// `.0`, which is the honest answer: the line's semantics are modelled,
+    /// no specific build is.
+    #[must_use]
+    pub fn patchlevel(self) -> &'static str {
+        match self {
+            Self::V8_4 => "8.4.20",
+            Self::V8_5 => "8.5.19",
+            Self::V8_6 => "8.6.16",
+            Self::V9_0 => "9.0.4",
+            // No 9.1 tarball is pinned yet — see `fetch-tcl-source`.
+            Self::V9_1 => "9.1.0",
+        }
+    }
+
+    /// Whether this core retains Tcl 8's namespace-scope lookup fallback.
+    ///
+    /// At namespace scope, an unqualified variable name first probes the
+    /// current namespace. Through Tcl 8.6 it then probes the global namespace;
+    /// Tcl 9.0 removed that second probe (TIP 278). This belongs to the
+    /// version-profile vocabulary so runtimes do not each encode a release
+    /// comparison beside their variable resolver.
+    #[must_use]
+    pub const fn namespace_var_global_fallback(self) -> bool {
+        matches!(self, Self::V8_4 | Self::V8_5 | Self::V8_6)
+    }
+
+    /// The release-defined conversion used when a string is consumed as raw
+    /// binary data. See [`ByteStringEncoding`] for the Tcl 8/Tcl 9 split.
+    #[must_use]
+    pub const fn byte_string_encoding(self) -> ByteStringEncoding {
+        match self {
+            Self::V8_4 | Self::V8_5 | Self::V8_6 => ByteStringEncoding::LegacyTruncate,
+            Self::V9_0 | Self::V9_1 => ByteStringEncoding::CheckedLatin1,
+        }
+    }
+
+    /// Whether the core implements `namespace path` (introduced in Tcl 8.5).
+    #[must_use]
+    pub const fn has_namespace_path(self) -> bool {
+        !matches!(self, Self::V8_4)
     }
 
     /// Does this release **definitely** satisfy any of `requirements` — the
@@ -974,6 +1062,19 @@ mod tests {
                 TclVersion::from_package_version(v.version_string()),
                 Some(v)
             );
+        }
+    }
+
+    #[test]
+    fn release_profile_names_cover_every_runtime_choice() {
+        for (version, profile) in [
+            (TclVersion::V8_4, "tcl8.4"),
+            (TclVersion::V8_5, "tcl8.5"),
+            (TclVersion::V8_6, "tcl8.6"),
+            (TclVersion::V9_0, "tcl9.0"),
+            (TclVersion::V9_1, "tcl9.1"),
+        ] {
+            assert_eq!(version.dialect_profile_name(), profile);
         }
     }
 }

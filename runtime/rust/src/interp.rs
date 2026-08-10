@@ -764,6 +764,12 @@ pub struct InterpState {
     /// `interp debug -frame` — the TIP 280 frame-debug switch. A one-way latch
     /// (once on, stays on), seeded from `env(TCL_INTERP_DEBUG_FRAME)` at create.
     debug_frame: Cell<bool>,
+    /// The Tcl release this interpreter emulates — the single value every
+    /// release-dependent semantic derives from (see
+    /// [`Interp::set_runtime_version`]).  Per-interp, so a child
+    /// (`interp create`) or safe interpreter can emulate a different release
+    /// from its parent, exactly as each owns its own global namespace.
+    runtime_version: Cell<tcl_dialect::TclVersion>,
 }
 
 /// An ensemble-rewrite record (C's `iPtr->ensembleRewrite`, see
@@ -1033,8 +1039,16 @@ impl Interp {
             #[cfg(have_tommath)]
             limit_tick: Cell::new(0),
             debug_frame: Cell::new(false),
+            runtime_version: Cell::new(tcl_dialect::TclVersion::V9_0),
         }));
         builtins::install(&mut interp);
+        // C sets `tcl_version`/`tcl_patchLevel` in `Tcl_CreateInterp`
+        // (9.0.4 `generic/tclBasic.c:1346-1347`), **not** in `Tcl_Init` — so
+        // they exist in an interpreter that never sources `init.tcl`.
+        // Mirroring that placement is what lets `info patchlevel` answer
+        // without `--init`; `set_startup_globals` re-sets the same pair on the
+        // `Tcl_Init` path, which is idempotent.
+        interp.write_release_globals();
         interp
     }
 
@@ -1052,16 +1066,108 @@ impl Interp {
     /// Swap the capability host (e.g. a test installing a sandboxed,
     /// no-subprocess host to prove the capability gate, or a safe interp taking
     /// a restricted one). Interior-mutable since the interp is shared via `Rc`.
-    /// M11: select the 8.x namespace-scope variable fallback (see
-    /// [`crate::namespace::Namespaces::ns_var_global_fallback`]).  `false`
-    /// (the default) is the 9.0 behaviour; an embedding running 8.x dialect
-    /// semantics flips it on.
-    pub fn set_ns_var_global_fallback(&self, enabled: bool) {
-        self.namespaces.borrow_mut().ns_var_global_fallback = enabled;
-    }
-
     pub fn set_host(&self, host: Rc<dyn tcl_platform::Host>) {
         *self.0.host.borrow_mut() = host;
+    }
+
+    // -- emulated Tcl release -------------------------------------------------
+
+    /// Pin the Tcl release this interpreter emulates.
+    ///
+    /// Mirrors [`tcl_vm::Vm::set_runtime_version`]'s contract for the
+    /// tree-walking runtime: every release-dependent *semantic* is derived
+    /// from this one value rather than being set independently, so the two
+    /// engines cannot drift apart by having one of them updated and not the
+    /// other (issue #1328). Today that is the namespace-scope variable
+    /// fallback (TIP 278) plus the release-reporting globals.
+    ///
+    /// The fallback is a property of the **namespace table**, which every
+    /// interpreter owns privately, so a child (`interp create`) and a safe
+    /// interpreter each resolve against their own global namespace — setting
+    /// it here never reaches across an interpreter boundary.
+    pub fn set_runtime_version(&mut self, version: tcl_dialect::TclVersion) {
+        self.0.runtime_version.set(version);
+        self.namespaces.borrow_mut().ns_var_global_fallback =
+            version.namespace_var_global_fallback();
+        self.write_release_globals();
+    }
+
+    /// The Tcl release this interpreter emulates (see
+    /// [`Self::set_runtime_version`]).
+    #[must_use]
+    pub fn runtime_version(&self) -> tcl_dialect::TclVersion {
+        self.0.runtime_version.get()
+    }
+
+    /// Whether a builtin command is exposed on this interpreter's selected
+    /// runtime surface. The registry recognises versioned builtin entries;
+    /// unrecognised names remain available for user-defined commands.
+    pub(crate) fn builtin_command_visible_for_surface(&self, name: &[u8]) -> bool {
+        core::str::from_utf8(name).map_or(true, |name| {
+            tcl_registry::expr_surface::RuntimeExprSurface::for_tcl_version(self.runtime_version())
+                .permits_builtin_math_function_command(name)
+        })
+    }
+
+    /// Convert `obj` to the byte view consumed by Tcl's `binary` command.
+    ///
+    /// Byte-array objects retain their own raw payload. Ordinary string objects
+    /// are converted through the release profile instead: Tcl 8 truncates a
+    /// wide code point to one byte, while Tcl 9 rejects it. Keeping this at the
+    /// interpreter boundary makes every `binary` subcommand use the same
+    /// dual-representation and version rule.
+    pub(crate) fn binary_bytes(&mut self, obj: *mut TclObj) -> Result<Vec<u8>, Code> {
+        crate::bytearray::binary_bytes(obj, self.runtime_version().byte_string_encoding()).map_err(
+            |err| {
+                let message = format!(
+                    "expected code point values below 0xff but value at byte offset {} was 0x{:x}",
+                    err.byte_offset, err.code_point
+                );
+                self.error_with_code(message.as_bytes(), b"TCL VALUE BYTES")
+            },
+        )
+    }
+
+    /// Invoke a Tcl 8.4 fixed-table `expr` math function selected by the
+    /// registry. This bypasses the command table deliberately: TIP 232 had not
+    /// introduced `::tcl::mathfunc::*` command wrappers yet, so a similarly
+    /// named proc or alias cannot replace the C function-table entry.
+    #[cfg(have_tommath)]
+    pub(crate) fn eval_fixed_math_call(
+        &mut self,
+        spec: &'static tcl_registry::CommandSpec,
+        args: &[*mut TclObj],
+    ) -> Code {
+        let name = new_string(spec.name.as_bytes());
+        let mut argv = Vec::with_capacity(args.len() + 1);
+        // SAFETY: the fresh name and each live argument gain the ownership the
+        // temporary argv carries until `release_all` below.
+        unsafe { obj::incr_ref_count(name) };
+        argv.push(name);
+        for &arg in args {
+            unsafe { obj::incr_ref_count(arg) };
+            argv.push(arg);
+        }
+        let code = crate::cmd_mathfunc::mathfunc(self, &argv);
+        release_all(&argv);
+        code
+    }
+
+    /// Write the release-reporting globals (`tcl_version` / `tcl_patchLevel`)
+    /// for the currently-emulated release.  Called at interpreter creation
+    /// (C does this in `Tcl_CreateInterp`) and again whenever
+    /// [`Self::set_runtime_version`] changes the answer.
+    pub(crate) fn write_release_globals(&mut self) {
+        let version = self.runtime_version();
+        for (name, val) in [
+            (&b"::tcl_version"[..], version.version_string()),
+            (b"::tcl_patchLevel", version.patchlevel()),
+        ] {
+            let o = new_string(val.as_bytes());
+            if self.var_set(name, o).is_err() {
+                drop_fresh(o);
+            }
+        }
     }
 
     // -- command registry -----------------------------------------------------
@@ -1074,15 +1180,11 @@ impl Interp {
             .register(name, Command::Builtin(f));
     }
 
-    /// Command names in the current namespace, sorted (`info commands`).
+    /// Command names in the current namespace, filtered through the selected
+    /// runtime surface (`info commands`).
     #[must_use]
     pub fn command_names(&self) -> Vec<Vec<u8>> {
-        self.namespaces
-            .borrow()
-            .command_names(self.current_ns.get())
-            .iter()
-            .map(|s| s.to_vec())
-            .collect()
+        self.visible_command_names_in(self.current_ns.get())
     }
 
     /// `rename old new` (or `rename old ""` to delete), relative to the current
@@ -1474,8 +1576,11 @@ impl Interp {
             }
         };
         set(self, b"::tcl_library", lib.as_bytes());
-        set(self, b"::tcl_version", b"9.0");
-        set(self, b"::tcl_patchLevel", b"9.0.4");
+        // `tcl_version`/`tcl_patchLevel` are NOT set here: C sets them in
+        // `Tcl_CreateInterp`, and so does this runtime (see `Interp::new`).
+        // Re-derived rather than re-literalled so a non-9.0
+        // `set_runtime_version` is not silently overwritten by `Tcl_Init`.
+        self.write_release_globals();
         set(self, b"::tcl_interactive", b"0");
         set(self, b"::argv", b"");
         set(self, b"::argv0", b"");
@@ -2086,8 +2191,12 @@ impl Interp {
         )
     }
 
-    pub(crate) fn trace_var_ns(&self, base: &[u8]) -> Option<NsId> {
-        crate::vars::home_namespace(
+    /// The `(home namespace, simple base name)` a variable trace on `base`
+    /// should be keyed by — see
+    /// [`crate::vars::home_namespace_and_base`]. Registration uses this so a
+    /// trace matches every spelling that resolves to the same variable.
+    pub(crate) fn trace_var_key(&self, base: &[u8]) -> (Option<NsId>, Vec<u8>) {
+        crate::vars::home_namespace_and_base(
             &self.frames.borrow(),
             &self.namespaces.borrow(),
             self.current_ns.get(),
@@ -2171,24 +2280,50 @@ impl Interp {
 
     /// `unset name` — returns whether it existed.
     pub(crate) fn var_unset(&mut self, name: &[u8]) -> bool {
+        // Resolve the trace key BEFORE removing the variable. Resolution can
+        // depend on the cell still existing — the 8.x namespace-scope fallback
+        // only reaches the global when the global cell is present — so
+        // re-resolving after the removal would silently pick a different
+        // variable and the unset trace would never fire (issue #1328).
+        // C resolves the `Var`, fires its traces, and only then frees it.
+        let (base, elem) = crate::frame::split_array_ref(name);
+        let traced = !self.traces.borrow().traces.is_empty();
+        let key = traced.then(|| (self.trace_var_key(&base), self.local_trace_level(&base)));
         let existed = crate::vars::unset(
             &mut self.frames.borrow_mut(),
             &mut self.namespaces.borrow_mut(),
             self.current_ns.get(),
             name,
         );
-        if existed && !self.traces.borrow().traces.is_empty() {
-            let (base, elem) = crate::frame::split_array_ref(name);
-            self.fire_var_trace(&base, elem.as_deref(), b"unset");
+        if let (true, Some(((access_ns, resolved_base), access_frame_level))) = (existed, key) {
+            self.fire_var_trace_resolved(
+                access_ns,
+                access_frame_level,
+                &resolved_base,
+                elem.as_deref(),
+                b"unset",
+            );
             // The variable (and its traces) go away — drop every trace on it
             // (C frees the Var's trace list on unset). Element unset drops only
             // that element's traces (whole-variable traces survive).
             let mut t = self.traces.borrow_mut();
             match elem {
-                Some(e) => t
-                    .traces
-                    .retain(|v| !(v.base == base && v.elem.as_deref() == Some(e.as_slice()))),
-                None => t.traces.retain(|v| v.base != base),
+                Some(e) => t.traces.retain(|v| {
+                    !(crate::cmd_trace::same_variable(
+                        v,
+                        &resolved_base,
+                        access_ns,
+                        access_frame_level,
+                    ) && v.elem.as_deref() == Some(e.as_slice()))
+                }),
+                None => t.traces.retain(|v| {
+                    !crate::cmd_trace::same_variable(
+                        v,
+                        &resolved_base,
+                        access_ns,
+                        access_frame_level,
+                    )
+                }),
             }
         }
         existed
@@ -2196,6 +2331,9 @@ impl Interp {
 
     /// `unset name(key)` — returns whether it existed.
     pub(crate) fn var_unset_elem(&mut self, name: &[u8], key: &[u8]) -> bool {
+        // Resolved before the removal — see [`Self::var_unset`].
+        let trace_key = (!self.traces.borrow().traces.is_empty())
+            .then(|| (self.trace_var_key(name), self.local_trace_level(name)));
         let existed = crate::vars::unset_elem(
             &mut self.frames.borrow_mut(),
             &mut self.namespaces.borrow_mut(),
@@ -2203,13 +2341,20 @@ impl Interp {
             name,
             key,
         );
-        if existed && !self.traces.borrow().traces.is_empty() {
-            self.fire_var_trace(name, Some(key), b"unset");
+        if let (true, Some(((access_ns, resolved_base), access_frame_level))) = (existed, trace_key)
+        {
+            self.fire_var_trace_resolved(
+                access_ns,
+                access_frame_level,
+                &resolved_base,
+                Some(key),
+                b"unset",
+            );
             // Drop this element's traces (whole-array traces survive).
-            self.traces
-                .borrow_mut()
-                .traces
-                .retain(|v| !(v.base == name && v.elem.as_deref() == Some(key)));
+            self.traces.borrow_mut().traces.retain(|v| {
+                !(crate::cmd_trace::same_variable(v, &resolved_base, access_ns, access_frame_level)
+                    && v.elem.as_deref() == Some(key))
+            });
         }
         existed
     }
@@ -2223,16 +2368,34 @@ impl Interp {
     /// `unset`/`array` errors are ignored (C does too). Returns whether a
     /// read/write callback errored.
     fn fire_var_trace(&mut self, base: &[u8], elem: Option<&[u8]>, op: &[u8]) -> bool {
+        // Resolve the access to the same `(home, simple name)` key registration
+        // used, so a trace matches every spelling of the variable it is on
+        // (`::v` vs `v`, and the 8.x namespace-scope fallback) — issue #1328.
+        let access_frame_level = self.local_trace_level(base);
+        let (access_ns, base) = self.trace_var_key(base);
+        self.fire_var_trace_resolved(access_ns, access_frame_level, &base, elem, op)
+    }
+
+    /// [`Self::fire_var_trace`] with the `(home, simple name)` key already
+    /// resolved — for `unset`, which must resolve *before* it removes the
+    /// variable (resolution can depend on the cell existing).
+    fn fire_var_trace_resolved(
+        &mut self,
+        access_ns: Option<NsId>,
+        access_frame_level: Option<usize>,
+        base: &[u8],
+        elem: Option<&[u8]>,
+        op: &[u8],
+    ) -> bool {
         if self.traces.borrow().firing > 0 {
             return false;
         }
-        let access_ns = self.trace_var_ns(base);
         let cmds: Vec<Vec<u8>> = self
             .traces
             .borrow()
             .traces
             .iter()
-            .filter(|t| crate::cmd_trace::matches(t, base, elem, op, access_ns))
+            .filter(|t| crate::cmd_trace::matches(t, base, elem, op, access_ns, access_frame_level))
             .map(|t| t.command.clone())
             .collect();
         if cmds.is_empty() {
@@ -2862,21 +3025,37 @@ impl Interp {
     /// `cmd_oo` for ensemble/method enumeration. (`info commands`/`procs` listing
     /// is the shared `tcl_cmd_core::info::command_list` core.)
     pub(crate) fn commands_in_namespace(&self, qualifier: &[u8]) -> Vec<Vec<u8>> {
-        let ns = self.namespaces.borrow();
-        // An empty qualifier (a leading `::pattern`) addresses the global ns.
-        let target = if qualifier.is_empty() {
-            Some(GLOBAL)
-        } else {
-            ns.find_namespace(self.current_ns.get(), qualifier)
-        };
-        match target {
-            Some(id) => {
-                let mut v: Vec<Vec<u8>> = ns.command_names(id).iter().map(|s| s.to_vec()).collect();
-                v.sort();
-                v
+        let target = {
+            let ns = self.namespaces.borrow();
+            // An empty qualifier (a leading `::pattern`) addresses the global ns.
+            if qualifier.is_empty() {
+                Some(GLOBAL)
+            } else {
+                ns.find_namespace(self.current_ns.get(), qualifier)
             }
-            None => Vec::new(),
+        };
+        target.map_or_else(Vec::new, |id| self.visible_command_names_in(id))
+    }
+
+    /// The directly-bound command names that the selected runtime surface
+    /// permits callers to enumerate. This is the common filter behind the
+    /// `info commands` adapter and internal namespace listings.
+    pub(crate) fn visible_command_names_in(&self, id: NsId) -> Vec<Vec<u8>> {
+        let ns = self.namespaces.borrow();
+        let mut prefix = ns.qualified_name(id);
+        if prefix != b"::" {
+            prefix.extend_from_slice(b"::");
         }
+        ns.command_names(id)
+            .iter()
+            .filter_map(|name| {
+                let is_builtin = matches!(ns.resolve(id, name), Some(Command::Builtin(_)));
+                let mut full_name = prefix.clone();
+                full_name.extend_from_slice(name);
+                (!is_builtin || self.builtin_command_visible_for_surface(&full_name))
+                    .then(|| name.to_vec())
+            })
+            .collect()
     }
 
     /// The proc definition bound to `name` (for `info body`/`args`/`default`).
@@ -2953,6 +3132,16 @@ impl Interp {
         let obj = new_string(bytes);
         // SAFETY: fresh obj; set_obj_result retains it, then we drop our 0-ref
         // (the obj was rc 0; set_obj_result took it to rc 1, interp-owned).
+        unsafe { self.set_obj_result(obj) };
+    }
+
+    /// Set the result to a byte-array object with `bytes` as its exact raw
+    /// payload. Its normal string representation is generated only when a
+    /// string consumer requests it.
+    pub(crate) fn set_result_byte_array(&mut self, bytes: &[u8]) {
+        let obj = crate::bytearray::new_byte_array(bytes);
+        // SAFETY: fresh byte-array object; the interpreter takes its owning
+        // reference exactly as it does for an ordinary fresh string object.
         unsafe { self.set_obj_result(obj) };
     }
 
@@ -3351,12 +3540,14 @@ impl Interp {
         if self.traces.borrow().traces.is_empty() {
             return false;
         }
-        let access_ns = self.trace_var_ns(b"::errorInfo");
-        self.traces
-            .borrow()
-            .traces
-            .iter()
-            .any(|t| crate::cmd_trace::matches(t, b"::errorInfo", None, b"write", access_ns))
+        // Same `(home, simple name)` key registration and firing use — a
+        // literal `::errorInfo` here would miss every trace now that traces
+        // are keyed by the resolved variable rather than the spelling.
+        let (access_ns, base) = self.trace_var_key(b"::errorInfo");
+        let access_frame_level = self.local_trace_level(b"::errorInfo");
+        self.traces.borrow().traces.iter().any(|t| {
+            crate::cmd_trace::matches(t, &base, None, b"write", access_ns, access_frame_level)
+        })
     }
 
     /// Append the `(procedure "NAME" line N)` / `(lambda term "..." line N)`
@@ -4505,7 +4696,11 @@ impl Interp {
             .namespaces
             .borrow()
             .resolve(self.current_ns.get(), &name);
-        if let Some(cmd) = resolved {
+        let wrapper_hidden = matches!(&resolved, Some(Command::Builtin(_)))
+            && self
+                .resolve_cmd_fqn(&name)
+                .is_some_and(|fqn| !self.builtin_command_visible_for_surface(&fqn));
+        if let Some(cmd) = resolved.filter(|_| !wrapper_hidden) {
             return self.invoke(cmd, argv);
         }
         // Inside an `oo::define`/`oo::objdefine` body, an unresolved leading word
@@ -4697,11 +4892,20 @@ impl Interp {
 
     /// The `::tcl::mathfunc::*` function names (`info functions`).
     pub(crate) fn mathfunc_names(&self) -> Vec<Vec<u8>> {
-        let ns = self.namespaces.borrow();
-        match ns.find_namespace(GLOBAL, b"::tcl::mathfunc") {
-            Some(id) => ns.command_names(id).iter().map(|n| n.to_vec()).collect(),
-            None => Vec::new(),
+        let surface =
+            tcl_registry::expr_surface::RuntimeExprSurface::for_tcl_version(self.runtime_version());
+        if !surface.has_math_function_command_table() {
+            return surface
+                .builtin_math_function_names()
+                .into_iter()
+                .map(|name| name.as_bytes().to_vec())
+                .collect();
         }
+        let id = self
+            .namespaces
+            .borrow()
+            .find_namespace(GLOBAL, b"::tcl::mathfunc");
+        id.map_or_else(Vec::new, |id| self.visible_command_names_in(id))
     }
 
     /// The canonical FQN `name` resolves to (full resolution order), or `None`
@@ -4911,6 +5115,14 @@ impl Interp {
             n.into_bytes()
         });
         let mut child = Interp::new();
+        // A child interpreter is another interpreter of the *same* Tcl build,
+        // not a different release — C compiles one library in, so every child
+        // reports and behaves as its parent's release. Inherited before the
+        // globals are written, so the child's `tcl_version`/`tcl_patchLevel`
+        // and its namespace-scope variable resolution both agree with the
+        // parent (issue #1328). Resolution still runs against the child's
+        // *own* global namespace: the rule is shared, the variables are not.
+        child.set_runtime_version(self.runtime_version());
         // A (non-safe) child gets the predefined globals (`tcl_platform`, …) like
         // a real interpreter. The full `init.tcl` (package/auto-load) is deferred.
         child.set_startup_globals();
@@ -5906,7 +6118,9 @@ impl Interp {
             let mut m = b"invalid command name \"tcl::mathfunc::".to_vec();
             m.extend_from_slice(fname);
             m.push(b'"');
-            return self.error(&m);
+            let mut error_code = b"TCL LOOKUP COMMAND tcl::mathfunc::".to_vec();
+            error_code.extend_from_slice(fname);
+            return self.error_with_code(&m, &error_code);
         };
         // Build [name, args…], each owned (+1), and invoke the resolved command
         // directly (already resolved above; no second resolution).

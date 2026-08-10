@@ -459,18 +459,24 @@ impl Lowerer<'_> {
         //     gather from a straight-line body; a body with an `if`/`while`/
         //     `switch`/nested loop or an unwinding `return` compiles to a
         //     multi-block CFG it can't collect from, so it stays on the runtime
-        //     `lmap` (correct, though `yield` can't cross it). A straight-line
-        //     `lmap` lowers inline — yieldable and correctly collecting.
-        //   * a `foreach` whose body *directly* contains another `foreach`/`lmap` —
-        //     the inner loop's back-edge corrupts the outer's `FOREACH_STEP`
-        //     routing (the nested-complex-foreach bug). A loop nested via an
-        //     `if`/`while`/`for` is unaffected and stays inline.
-        // The runtime builtin evaluates the body transparently (an inner loop
-        // recompiles fresh), so nesting works by recursion.
+        //     `lmap` boundary, whose explicit activation preserves `yield` and
+        //     non-local completions. A straight-line `lmap` lowers inline —
+        //     yieldable and correctly collecting.
+        //   * a `foreach` whose body directly contains another `foreach` or
+        //     `lmap`. Inline iterator state is activation-local, but the CFG
+        //     layout cannot yet pair the outer step with a nested loop's
+        //     back-edge. Routing the outer loop through the runtime command
+        //     gives the nested body a fresh activation, preserving both
+        //     iterator stacks and non-local loop completions.
+        // The runtime builtin evaluates the body transparently. It remains the
+        // correct fallback for a collecting loop with branching control flow,
+        // whose per-arm result collection cannot be represented by the single
+        // inline `LMAP_COLLECT` tail, and for nested iterator layouts pending a
+        // dedicated CFG representation.
         let body_nests_foreach = body
             .statements
             .iter()
-            .any(|s| matches!(s, Statement::Foreach { .. }));
+            .any(|statement| matches!(statement, Statement::Foreach { .. }));
         let lmap_needs_runtime = is_lmap && !Self::body_is_straight_line(&body);
         if self.target.is_bytecode() && (lmap_needs_runtime || body_nests_foreach) {
             return Self::barrier(seg, if is_lmap { "lmap" } else { "foreach" });
@@ -497,21 +503,18 @@ impl Lowerer<'_> {
     /// or a `return` that unwinds past the collect point would drop or mis-gather
     /// results. Such a body keeps `lmap` on the runtime builtin.
     ///
-    /// A bare `break`/`continue` is also excluded: in a *simple* foreach body it
-    /// jumps to the loop header (which re-runs `FOREACH_START`) rather than
-    /// `FOREACH_STEP` — a pre-existing simple-foreach limitation that predates and
-    /// is orthogonal to collection — so a collecting body carrying one stays on
-    /// the runtime `lmap`, which handles loop control correctly.
     fn body_is_straight_line(body: &Script) -> bool {
-        body.statements.iter().all(|s| match s {
-            Statement::Call { command, .. } => command != "break" && command != "continue",
-            Statement::AssignConst { .. }
-            | Statement::AssignExpr { .. }
-            | Statement::AssignValue { .. }
-            | Statement::Incr { .. }
-            | Statement::ExprEval { .. }
-            | Statement::Barrier { .. } => true,
-            _ => false,
+        body.statements.iter().all(|s| {
+            matches!(
+                s,
+                Statement::Call { .. }
+                    | Statement::AssignConst { .. }
+                    | Statement::AssignExpr { .. }
+                    | Statement::AssignValue { .. }
+                    | Statement::Incr { .. }
+                    | Statement::ExprEval { .. }
+                    | Statement::Barrier { .. }
+            )
         })
     }
 

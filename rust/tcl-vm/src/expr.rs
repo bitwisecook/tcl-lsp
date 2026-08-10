@@ -742,6 +742,29 @@ impl ExprOps for ExprEval<'_> {
     }
 
     fn call(&mut self, function: &str, args: Vec<Value>) -> Result<Value, TclError> {
+        let surface = tcl_registry::expr_surface::RuntimeExprSurface::for_tcl_version(
+            self.vm.runtime_version(),
+        );
+        match surface.math_function_call_target(function) {
+            tcl_registry::expr_surface::MathFunctionCallTarget::FixedBuiltin(spec) => {
+                // Tcl 8.4 predates TIP 232: builtin expressions use the fixed
+                // function table selected by the registry, never a script
+                // command that happens to share the `tcl::mathfunc` spelling.
+                let c = self.vm.invoke_fixed_math_builtin(spec, &args);
+                return match c.code {
+                    Code::Ok => Ok(c.result),
+                    Code::Error => Err(TclError::new(c.result.to_str().to_string())),
+                    code => Err(TclError::with_code(c.result.to_str().to_string(), code)),
+                };
+            }
+            tcl_registry::expr_surface::MathFunctionCallTarget::FixedTableMiss => {
+                return Err(TclError::new(format!(
+                    "unknown math function \"{function}\""
+                )));
+            }
+            tcl_registry::expr_surface::MathFunctionCallTarget::CommandTable => {}
+        }
+
         // TIP 232: a math function is an ordinary command, so a user
         // `proc tcl::mathfunc::f {…} {…}` (the canonical custom-function
         // mechanism) must dispatch exactly like a builtin one — full command
@@ -749,14 +772,17 @@ impl ExprOps for ExprEval<'_> {
         // resolution is current-namespace-first (a namespace-local
         // `tcl::mathfunc::f` shadows the global; tclsh-pinned by the
         // mathfunc conformance vectors).
-        let name = format!("tcl::mathfunc::{function}");
+        let name = tcl_registry::mathfunc::qualified_name(function)
+            .trim_start_matches("::")
+            .to_owned();
         if self.vm.lookup_command(&name).is_none() {
             // C reports the command miss, not a special math-function error
             // (tclsh 8.6.16 / 9.0.4: `expr {frobnicate(1)}` →
             // `invalid command name "tcl::mathfunc::frobnicate"`).
-            return Err(TclError::new(format!(
-                "invalid command name \"tcl::mathfunc::{function}\""
-            )));
+            return Err(TclError::with_error_code(
+                format!("invalid command name \"{name}\""),
+                format!("TCL LOOKUP COMMAND {name}"),
+            ));
         }
         let c = self.vm.invoke_command(&name, &args);
         match c.code {
@@ -804,6 +830,42 @@ impl ExprOps for ExprEval<'_> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::command::Command;
+    use crate::interp::{Vm, ok};
+    use tcl_runtime_api::Completion;
+
+    #[test]
+    fn tcl84_expr_uses_the_registry_selected_fixed_math_table() {
+        fn replacement(_vm: &mut Vm, _args: &[Value]) -> Completion<Value> {
+            ok(Value::int(99))
+        }
+
+        let mut vm = Vm::new();
+        // Replace the normal command-table entry after construction. The
+        // preserved fixed table is intentionally not changed: Tcl 8.4's expr
+        // dispatch did not use a Tcl command name at all.
+        vm.register_command("tcl::mathfunc::sqrt", Command::Builtin(replacement));
+        vm.set_runtime_version(tcl_dialect::TclVersion::V8_4);
+
+        // TP: a fixed-table builtin remains executable.
+        assert_eq!(vm.eval_expr("sqrt(4)").unwrap().to_str().as_ref(), "2.0");
+        // FN: an absent fixed-table entry has C Tcl's distinct diagnostic.
+        assert_eq!(
+            vm.eval_expr("user_supplied(1)").unwrap_err().message,
+            "unknown math function \"user_supplied\""
+        );
+        // TN: the default command wrapper itself is unavailable before TIP 232.
+        assert_eq!(
+            vm.invoke_command("::tcl::mathfunc::sqrt", &[Value::int(4)])
+                .code,
+            Code::Error
+        );
+
+        vm.set_runtime_version(tcl_dialect::TclVersion::V8_5);
+        // FP guard: the same replacement becomes the open command-table target
+        // once TIP 232 is enabled, rather than retaining the 8.4 shortcut.
+        assert_eq!(vm.eval_expr("sqrt(4)").unwrap().to_str().as_ref(), "99");
+    }
 
     #[test]
     fn int_div_mod_floored() {

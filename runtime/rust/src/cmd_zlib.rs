@@ -216,7 +216,10 @@ fn checksum(interp: &mut Interp, argv: &[*mut TclObj], adler: bool) -> Code {
         };
         return interp.wrong_args(usage);
     }
-    let data = obj_bytes(argv[2]);
+    let data = match interp.binary_bytes(argv[2]) {
+        Ok(data) => data,
+        Err(code) => return code,
+    };
     // The start value defaults to the format's identity (adler starts at 1, crc
     // at 0) and is otherwise the running checksum to continue from.
     let init = if let Some(&a) = argv.get(3) {
@@ -257,12 +260,15 @@ fn compress(interp: &mut Interp, argv: &[*mut TclObj], format: Format) -> Code {
         Ok(l) => l,
         Err(code) => return code,
     };
-    let data = obj_bytes(argv[2]);
+    let data = match interp.binary_bytes(argv[2]) {
+        Ok(data) => data,
+        Err(code) => return code,
+    };
     let out = match format {
         Format::Zlib => compress_zlib(&data, level),
         Format::Raw => compress_raw(&data, level),
     };
-    interp.set_result_bytes(&out);
+    interp.set_result_byte_array(&out);
     Code::Ok
 }
 
@@ -276,14 +282,17 @@ fn decompress(interp: &mut Interp, argv: &[*mut TclObj], format: Format) -> Code
         };
         return interp.wrong_args(usage);
     }
-    let data = obj_bytes(argv[2]);
+    let data = match interp.binary_bytes(argv[2]) {
+        Ok(data) => data,
+        Err(code) => return code,
+    };
     let out = match format {
         Format::Zlib => decompress_zlib(&data),
         Format::Raw => decompress_raw(&data),
     };
     match out {
         Some(bytes) => {
-            interp.set_result_bytes(&bytes);
+            interp.set_result_byte_array(&bytes);
             Code::Ok
         }
         None => interp.set_error(DATA_ERROR),
@@ -296,7 +305,10 @@ fn gzip(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     if argv.len() < 3 {
         return interp.wrong_args(b"zlib gzip data ?-level level? ?-header header?");
     }
-    let data = obj_bytes(argv[2]);
+    let data = match interp.binary_bytes(argv[2]) {
+        Ok(data) => data,
+        Err(code) => return code,
+    };
     let mut level = Compression::default();
     let mut i = 3;
     while i < argv.len() {
@@ -326,7 +338,7 @@ fn gzip(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         }
     }
     let out = compress_gzip(&data, level);
-    interp.set_result_bytes(&out);
+    interp.set_result_byte_array(&out);
     Code::Ok
 }
 
@@ -348,10 +360,13 @@ fn gunzip(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         m.extend_from_slice(b"\": must be -headerVar");
         return interp.set_error(&m);
     }
-    let data = obj_bytes(argv[2]);
+    let data = match interp.binary_bytes(argv[2]) {
+        Ok(data) => data,
+        Err(code) => return code,
+    };
     match decompress_gzip(&data) {
         Some(bytes) => {
-            interp.set_result_bytes(&bytes);
+            interp.set_result_byte_array(&bytes);
             Code::Ok
         }
         None => interp.set_error(DATA_ERROR),

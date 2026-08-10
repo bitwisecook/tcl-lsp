@@ -35,6 +35,12 @@ pub struct TclError {
     /// `break`/`continue`/`return` out of the expression/word evaluation. `None`
     /// means an ordinary error.
     pub code: Option<Code>,
+    /// An explicit Tcl `-errorcode` for an ordinary error completion.
+    ///
+    /// This is distinct from [`Self::code`]: the latter propagates a non-error
+    /// completion such as `break`; this field preserves the structured code of
+    /// an actual `TCL_ERROR` as it crosses expression helpers.
+    pub error_code: Option<String>,
 }
 
 impl TclError {
@@ -43,6 +49,7 @@ impl TclError {
         Self {
             message: message.into(),
             code: None,
+            error_code: None,
         }
     }
 
@@ -52,6 +59,16 @@ impl TclError {
         Self {
             message: message.into(),
             code: Some(code),
+            error_code: None,
+        }
+    }
+
+    /// Build an ordinary error carrying Tcl's structured `-errorcode`.
+    pub fn with_error_code(message: impl Into<String>, error_code: impl Into<String>) -> Self {
+        Self {
+            message: message.into(),
+            code: None,
+            error_code: Some(error_code.into()),
         }
     }
 

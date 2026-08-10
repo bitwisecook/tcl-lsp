@@ -107,17 +107,22 @@ the layout is `{ i32, i32, i32, i32, <8-byte union> }` (24 bytes, 8-aligned).
 `internalRep` is a union sized/aligned to match (8 bytes); core-API extensions
 never touch its variants.
 
-`bytes` is one buffer doing double duty: an ordinary Tcl value's genuine UTF-8
-string rep, *and* the raw payload of a value built by `binary format` / a
-binary channel read, which is not generally valid UTF-8 — there is no separate
-byte-array internal rep the way `tclByteArray.c` keeps one. The portable
-`string`/`dict` command surface (`tcl-cmd-core`, shared with the bytecode VM)
-needs a Unicode-character view of that buffer regardless of which case it is;
-`runtime/rust/src/value_ops.rs`'s `bytes_to_str`/`str_to_bytes` are the seam
-that reconciles the two — see
-[the KCS note](../../kcs/kcs-issue-runtime-string-subcommands-corrupt-binary-values.md)
-for the escape convention and its one known trade-off (issue #1347; the
-original lossy-`as_str` corruption was #1309, now fixed).
+`bytes` is the object's UTF-8 **string representation**. A byte-array object
+instead stores its exact raw payload in an `internalRep` allocation with the
+`bytearray` type pointer. Its `bytes` field stays unset until a string consumer
+needs it. At that point the runtime creates the C Tcl string view: byte `0xNN`
+becomes Unicode U+00NN. The raw internal representation remains intact, so
+`binary` and `zlib` can still consume the original payload after a read-only
+string operation.
+
+This dual-port model matters after a string-changing command. The result is an
+ordinary Unicode string, not a byte array. The central `TclVersion` byte policy
+then controls a later binary conversion: Tcl 8.x truncates a code point to its
+low byte, while Tcl 9 rejects a code point above U+00FF with `TCL VALUE BYTES`.
+`binary format`, `binary decode`, `binary scan`, and the `zlib` byte-producing
+commands all construct the typed representation. See the
+[byte-array KCS note](../../kcs/kcs-qa-how-does-the-wasm-runtime-preserve-byte-arrays.md)
+for a worked example and user-facing limits.
 
 ### 4.3 Calls: direct imports
 

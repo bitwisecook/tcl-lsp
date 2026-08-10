@@ -52,7 +52,7 @@ pub use grammar::{BracedVarStyle, LexerGrammar};
 pub use library::{LibraryPin, LibraryVersion, LibraryVersionOverrides, VersionKey};
 pub use profile::DialectProfile;
 pub use version::{
-    PackagePrefer, TclVersion, Ternary, compare_versions, exact_requirement,
+    ByteStringEncoding, PackagePrefer, TclVersion, Ternary, compare_versions, exact_requirement,
     select_package_version, version_is_stable, version_satisfies,
 };
 

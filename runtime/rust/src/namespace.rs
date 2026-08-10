@@ -106,7 +106,7 @@ pub struct Namespaces {
     /// namespace does (reads and writes both); 9.0 removed the fallback
     /// (TIP 278, `TCL_NAMESPACE_ONLY`).  Defaults to the 9.0 behaviour
     /// (`false`); an 8.x embedding flips it via
-    /// [`crate::interp::Interp::set_ns_var_global_fallback`].
+    /// [`crate::interp::Interp::set_runtime_version`].
     pub(crate) ns_var_global_fallback: bool,
 }
 

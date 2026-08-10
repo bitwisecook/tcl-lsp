@@ -85,6 +85,20 @@ pub fn qualified_name(bare: &str) -> String {
     format!("{MATHFUNC_NAMESPACE}::{bare}")
 }
 
+/// The bare function name when `qualified` addresses a direct command in the
+/// global [`MATHFUNC_NAMESPACE`], or `None` for every other command spelling.
+///
+/// This keeps the global command-table shape owned by the registry, so runtime
+/// enumerators never need to reconstruct the namespace prefix themselves.
+#[must_use]
+pub fn global_command_bare_name(qualified: &str) -> Option<&str> {
+    let bare = qualified
+        .trim_start_matches("::")
+        .strip_prefix(MATHFUNC_NAMESPACE_RELATIVE)?
+        .strip_prefix("::")?;
+    (!bare.is_empty() && !bare.contains("::")).then_some(bare)
+}
+
 /// Whether `qualified` names a command inside *a* `tcl::mathfunc` namespace —
 /// the global `::tcl::mathfunc::sin` or a namespace-local override
 /// `::foo::tcl::mathfunc::f`.
@@ -194,6 +208,22 @@ mod tests {
     #[test]
     fn qualified_name_uses_the_absolute_namespace() {
         assert_eq!(qualified_name("sin"), "::tcl::mathfunc::sin");
+    }
+
+    #[test]
+    fn global_command_bare_name_accepts_only_direct_global_members() {
+        assert_eq!(
+            global_command_bare_name("::tcl::mathfunc::sin"),
+            Some("sin")
+        );
+        assert_eq!(global_command_bare_name("tcl::mathfunc::sin"), Some("sin"));
+        // TN: a nested command and an unrelated namespace are not global
+        // math-function command-table entries.
+        assert_eq!(
+            global_command_bare_name("::tcl::mathfunc::nested::sin"),
+            None
+        );
+        assert_eq!(global_command_bare_name("::tcl::mathop::sin"), None);
     }
 
     #[test]
