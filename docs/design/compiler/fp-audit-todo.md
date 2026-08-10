@@ -192,11 +192,14 @@ had no firings. The remaining findings were inspected at source:
 - **IRULE1007 (one)** collects HTTP data, but places `HTTP::release` under a
   newline-separated `else` command rather than the Tcl `if` command; that file
   is invalid Tcl and has no executable release path.
-- **IRULE1202 (six unique ranges)** is one OAuth example that calls
-  `HTTP::respond` on continuing paths. Its `event disable all` calls disable
-  later event processing but do not return from the current handler. Multiple
-  predecessor proofs previously repeated the same range; the flow consumer now
-  emits one diagnostic per code, range, and message.
+- **IRULE1202 (eight unique ranges)** comprises six in one OAuth example and
+  two in a JavaScript-challenge example. The OAuth rule calls `HTTP::respond`
+  on continuing paths; its `event disable all` calls disable later event
+  processing but do not return from the current handler. The challenge rule's
+  first conditional response also lacks a return, so either of its later
+  responses can run on the same request. Multiple predecessor proofs
+  previously repeated the same range; the flow consumer now emits one
+  diagnostic per code, range, and message.
 - **IRULE4004** initially produced 74 findings. Most were request resets,
   conditional assignments, or variables written again on another path; moving
   them changed connection state after the first request. The check now requires
