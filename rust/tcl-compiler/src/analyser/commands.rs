@@ -3948,6 +3948,21 @@ impl Analyser {
         let Some(spec) = reg.get(cmd_name) else {
             return;
         };
+        // A registry-described TclOO class definer is already recorded as a
+        // `ClassDef`, including the definition offset needed to decide whether
+        // a later rename/delete has vacated its command name.  Do not also put
+        // that name in the lifetime-free compatibility set below: doing so
+        // would let `created_instance_commands` resurrect a class command after
+        // its richer, deletion-aware `ClassDef` fact had correctly expired.
+        // Both parts of this ownership test are registry data.  In particular,
+        // `IS_OO_METACLASS` alone is insufficient because `oo::object` creates
+        // object commands, while `definition_body` alone also marks commands
+        // that extend an existing class rather than create one.
+        if spec.traits.contains(tcl_registry::Traits::IS_OO_METACLASS)
+            && spec.definition_body.is_some()
+        {
+            return;
+        }
         let arg_strs: Vec<&str> = args.iter().map(String::as_str).collect();
         // Command-level index, else the resolved subcommand's index shifted
         // past the subcommand word itself — either way, further shifted past

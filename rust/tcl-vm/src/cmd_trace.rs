@@ -90,6 +90,9 @@ fn trace_add_remove(vm: &mut Vm, sub: &str, rest: &[Value], add: bool) -> Comple
     match kind {
         core_trace::TraceKind::Variable => {
             if add {
+                if let Err(e) = vm.ensure_trace_variable(&name.to_str()) {
+                    return e;
+                }
                 vm.add_var_trace(&name.to_str(), ops, command.to_str().to_string());
             } else {
                 vm.remove_var_trace(&name.to_str(), &ops, &command.to_str());
@@ -101,8 +104,7 @@ fn trace_add_remove(vm: &mut Vm, sub: &str, rest: &[Value], add: bool) -> Comple
             if add {
                 vm.add_cmd_trace(execution, &name.to_str(), ops, command.to_str().to_string())
             } else {
-                vm.remove_cmd_trace(execution, &name.to_str(), &ops, &command.to_str());
-                ok(Value::empty())
+                vm.remove_cmd_trace(execution, &name.to_str(), &ops, &command.to_str())
             }
         }
     }

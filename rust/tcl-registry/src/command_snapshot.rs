@@ -99,7 +99,6 @@ const TRAIT_FLAGS: &[(&str, Traits)] = &[
     ("taint_sink", Traits::TAINT_SINK),
     ("terminates_block", Traits::TERMINATES_BLOCK),
     ("unsafe", Traits::UNSAFE),
-    ("wasm_emits_nothing", Traits::WASM_EMITS_NOTHING),
 ];
 
 // `CommandSpec.dialects` serialisation derives from

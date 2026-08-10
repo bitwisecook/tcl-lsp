@@ -26,6 +26,8 @@
 
 use std::collections::{HashMap, HashSet, VecDeque};
 
+use tcl_registry::InlineBodyErrorContext;
+
 use crate::cfg::{Function as CfgFunction, Terminator};
 use crate::ir::Procedure as IrProcedure;
 use crate::ir::Statement;
@@ -44,16 +46,11 @@ use super::try_blocks::{TryFinallyInfo, detect_try_finally};
 /// Continue is `None` for a `for`-step block (continue propagates out).
 type LoopContext = HashMap<String, (Option<String>, String)>;
 
-/// The `errorInfo` body-frame label for an inlined block, from its enclosing
-/// command's surface text — `Some("eval")` for an `eval {…}` body, `None` for an
-/// `uplevel` passthrough block (which runs in the caller's frame and adds no body
-/// frame). The first whitespace-delimited word is the command, matched after
-/// stripping any leading `::` qualifier.
-fn block_frame_label(cmd_text: &str) -> Option<&'static str> {
-    let word = cmd_text.split_whitespace().next().unwrap_or("");
-    match word.strip_prefix("::").unwrap_or(word) {
-        "eval" => Some("eval"),
-        _ => None,
+/// Convert a target-neutral Tcl inline-body error context to the bytecode
+/// runtime's body-frame label ABI.
+const fn inline_body_frame_label(context: InlineBodyErrorContext) -> &'static str {
+    match context {
+        InlineBodyErrorContext::SameFrameScriptEvaluation => "eval",
     }
 }
 
@@ -791,24 +788,24 @@ fn finalize_function(
         ctx.instructions.len(),
     );
 
-    // Inline-body error regions: each `eval {…}` body the CFG builder flattened
-    // becomes a region keyed by the enclosing command's source span, so an error
-    // unwinding through the (still inlined) body gets the `("eval" body line N)`
-    // + `invoked from within "eval {…}"` frames the uncompiled command adds. The
-    // label distinguishes an `eval` body (a frame) from an `uplevel` passthrough
-    // block (none); deriving it needs the source text, so a source-less context
-    // yields no regions.
+    // Inline-body error regions: each registry-described body context the CFG
+    // builder retained becomes a region keyed by the enclosing command's source
+    // span. Source text is used only for Tcl's `invoked from within` payload;
+    // the body-frame identity comes from semantic metadata, never re-parsing.
     let error_regions = cfg
-        .inline_eval_spans
+        .inline_body_error_sites
         .iter()
-        .filter_map(|&span| {
+        .filter_map(|site| {
+            let span = site.span;
             let cmd_text = ctx.source_text(span);
-            let label = block_frame_label(&cmd_text)?;
+            if cmd_text.is_empty() {
+                return None;
+            }
             let cmd_line = ctx.source_line(span);
             Some(tcl_bytecode::ErrorRegion {
                 start: span.start(),
                 end: span.end(),
-                label: label.to_string(),
+                label: inline_body_frame_label(site.context).to_string(),
                 cmd_text,
                 line_base: cmd_line.saturating_sub(1),
                 cmd_line,
@@ -968,7 +965,7 @@ fn block_has_work(cfg: &CfgFunction, blk: &crate::cfg::Block, is_proc: bool) -> 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::cfg::{Block, Function as CfgFunction, Terminator};
+    use crate::cfg::{Block, Function as CfgFunction, InlineBodyErrorSite, Terminator};
     use crate::codegen::CodegenCtx;
     use crate::ir::Statement;
     use tcl_lexer::Span;
@@ -1003,6 +1000,35 @@ mod tests {
         assert!(
             matches!(last, Op::DONE | Op::RETURN_IMM),
             "expected DONE or RETURN_IMM, got {last:?}"
+        );
+    }
+
+    #[test]
+    fn inline_body_error_region_uses_semantic_context_not_command_text() {
+        let source = "renamed-body-command {error boom}";
+        let span = Span::new(0, u32::try_from(source.len()).unwrap());
+        let mut cfg = trivial_cfg();
+        cfg.inline_body_error_sites.push(InlineBodyErrorSite {
+            span,
+            context: InlineBodyErrorContext::SameFrameScriptEvaluation,
+        });
+        let registry = CommandRegistry::build_default();
+        let mut ctx = CodegenCtx::new(false, &[], &registry);
+        ctx.set_source(source);
+
+        let asm = generate(&mut ctx, &cfg, &[]);
+
+        let [region] = asm.error_regions.as_slice() else {
+            panic!("semantic inline-body context should emit exactly one error region");
+        };
+        assert_eq!(region.label, "eval");
+        assert_eq!(region.cmd_text, source);
+
+        let mut source_less = CodegenCtx::new(false, &[], &registry);
+        let source_less_asm = generate(&mut source_less, &cfg, &[]);
+        assert!(
+            source_less_asm.error_regions.is_empty(),
+            "a source-less context retains the previous no-region behaviour",
         );
     }
 

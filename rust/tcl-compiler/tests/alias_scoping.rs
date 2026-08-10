@@ -90,6 +90,7 @@ use tcl_compiler::ssa::build_ssa;
 use tcl_compiler::var_scoping::{
     global_declaration_indices, upvar_local_declaration_indices, variable_declaration_indices,
 };
+use tcl_registry::dialects::DialectSet;
 use tcl_registry::{CommandRegistry, registry_for_dialect};
 
 /// Default dialect for reproducers that are not dialect-sensitive.
@@ -122,7 +123,7 @@ fn mem(source: &str, proc: &str) -> MemorySsaFunction {
             },
             |(_, f)| f,
         );
-    build_memory_ssa(&build_ssa(f, registry()), registry())
+    build_memory_ssa(&build_ssa(f, registry()), registry(), DialectSet::TCL86)
 }
 
 /// Every diagnostic code the full pipeline surfaces for `src`, mirroring the

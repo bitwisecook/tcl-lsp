@@ -158,8 +158,6 @@ fn cmd_string(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
         };
     }
     match canon {
-        "equal" => str_compare(rest, true),
-        "compare" => str_compare(rest, false),
         "match" => string_match(rest),
         "first" => string_first(rest),
         "last" => string_last(rest),
@@ -395,68 +393,6 @@ fn string_last(rest: &[Value]) -> Completion<Value> {
         }
     }
     ok(Value::int(idx))
-}
-
-fn str_compare(rest: &[Value], equal: bool) -> Completion<Value> {
-    let name = if equal { "equal" } else { "compare" };
-    let wrong = || {
-        err_wrong_args(&format!(
-            "string {name} ?-nocase? ?-length int? string1 string2"
-        ))
-    };
-    // Mirror StringCmpOpts (tclCmdMZ.c): 2..=5 args, options (abbreviatable)
-    // occupy everything but the final two operands.
-    if rest.len() < 2 || rest.len() > 5 {
-        return wrong();
-    }
-    let mut nocase = false;
-    let mut length: Option<i64> = None;
-    let opt_end = rest.len() - 2;
-    let mut i = 0;
-    while i < opt_end {
-        let opt = rest[i].to_str();
-        if opt.len() > 1 && "-nocase".starts_with(&*opt) {
-            nocase = true;
-            i += 1;
-        } else if opt.len() > 1 && "-length".starts_with(&*opt) {
-            if i + 1 >= opt_end {
-                return wrong();
-            }
-            i += 1;
-            match rest[i].as_int() {
-                Ok(n) => length = Some(n),
-                Err(_) => {
-                    return err(format!("expected integer but got \"{}\"", rest[i].to_str()));
-                }
-            }
-            i += 1;
-        } else {
-            return err(format!("bad option \"{opt}\": must be -nocase or -length"));
-        }
-    }
-    let key = |v: &Value| -> String {
-        let mut chars: Vec<char> = v.to_str().chars().collect();
-        if let Some(n) = length
-            && n >= 0
-        {
-            chars.truncate(usize::try_from(n).unwrap_or(0));
-        }
-        if nocase {
-            chars.iter().flat_map(|c| c.to_lowercase()).collect()
-        } else {
-            chars.into_iter().collect()
-        }
-    };
-    let ord = key(&rest[i]).cmp(&key(&rest[i + 1]));
-    if equal {
-        ok(Value::bool(ord.is_eq()))
-    } else {
-        ok(Value::int(match ord {
-            std::cmp::Ordering::Less => -1,
-            std::cmp::Ordering::Equal => 0,
-            std::cmp::Ordering::Greater => 1,
-        }))
-    }
 }
 
 /// The default `string trim` set — every Unicode space character plus NUL

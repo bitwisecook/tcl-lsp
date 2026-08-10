@@ -711,6 +711,19 @@ fn variable_traces() {
         msg,
         "bad operation \"w\": must be array, read, unset, or write"
     );
+    // Trace operations are a canonical set, and duplicate registrations are
+    // removed one at a time. A scalar registration materialises only an unset
+    // cell, so `info exists` stays false until a real write.
+    out_eq(
+        "trace add variable fresh {write read write} list\ntrace add variable fresh {read write} list\ntrace remove variable fresh {write read} list\nputs \"[info exists fresh]:[trace info variable fresh]\"\ntrace remove variable absent read list\nputs [info exists absent]\n",
+        "0:{{read write} list}\n0\n",
+    );
+    let (ok, msg, _) = run("trace remove command missing delete list");
+    assert!(!ok);
+    assert_eq!(msg, "unknown command \"missing\"");
+    let (ok, msg, _) = run("set scalar x\ntrace add variable scalar(k) read list");
+    assert!(!ok);
+    assert_eq!(msg, "can't trace \"scalar(k)\": variable isn't array");
 }
 
 #[test]

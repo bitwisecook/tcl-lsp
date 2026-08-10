@@ -44,7 +44,7 @@ use tcl_lexer::{SourceMap, Span, Token, TokenType};
 
 use super::green::{GreenNode, SyntaxKind};
 use super::red::{SyntaxElement, SyntaxNode, SyntaxToken, SyntaxTree};
-use crate::segmenter::{SegmentedCommand, command_span, word_piece};
+use crate::segmenter::{SegmentedCommand, WordFragment, command_span, word_piece};
 
 /// The `Word`-kind child nodes of a command, in document order.
 fn command_words<'t>(cmd: &SyntaxNode<'t>) -> Vec<SyntaxNode<'t>> {
@@ -75,6 +75,7 @@ fn command_segment(
 ) -> SegmentedCommand {
     let mut argv: Vec<Token> = Vec::with_capacity(words.len());
     let mut texts: Vec<String> = Vec::with_capacity(words.len());
+    let mut fragments_by_word: Vec<Vec<WordFragment>> = Vec::with_capacity(words.len());
     let mut single: Vec<bool> = Vec::with_capacity(words.len());
     let mut expand: Vec<bool> = Vec::with_capacity(words.len());
 
@@ -100,12 +101,20 @@ fn command_segment(
             content_offset: first.content_offset,
             in_quote: first.in_quote,
         });
+        let fragments: Vec<WordFragment> = frags
+            .iter()
+            .map(|fragment| {
+                let token = fragment.to_token();
+                WordFragment::new(token, word_piece(sm, token))
+            })
+            .collect();
         texts.push(
-            frags
+            fragments
                 .iter()
-                .map(|f| word_piece(sm, f.to_token()))
-                .collect::<String>(),
+                .map(|fragment| fragment.text.as_str())
+                .collect(),
         );
+        fragments_by_word.push(fragments);
         single.push(frags.len() == 1);
         expand.push(!word.green().expand_markers.is_empty());
     }
@@ -119,6 +128,7 @@ fn command_segment(
         span: command_span(&all_tokens, sm),
         argv,
         texts,
+        word_fragments: fragments_by_word,
         single_token_word: single,
         all_tokens,
         is_partial: false,

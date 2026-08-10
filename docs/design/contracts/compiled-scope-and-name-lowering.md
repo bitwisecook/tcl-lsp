@@ -71,9 +71,9 @@ designed out:
 
 1. **The "emits-nothing" trap.** The inlined `foreach` lowering plants a
    *synthetic header def-marker* call that is intentionally a no-op (the loop
-   body is emitted structurally). That marker was made a no-op by flagging the
-   **command** `foreach` as `wasm_emits_nothing` in a shared registry. The
-   flag then also swallowed a *genuine* opaque `foreach` invoke (the
+   body is emitted structurally). An earlier design made that marker a no-op
+   through a target-specific shared-registry trait. The trait then also
+   swallowed a *genuine* opaque `foreach` invoke (the
    qualified-var fallback) → the loop emitted nothing and ran zero times.
    **Rule:** "emits nothing" is a property of a *specific synthetic node
    instance*, never of a command spelling in a shared table. The same command

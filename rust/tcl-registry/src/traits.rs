@@ -474,6 +474,16 @@ declare_traits! {
     /// `INFO_INTROSPECTING_SUBCMDS` list.
     IntrospectsByName => INTROSPECTS_BY_NAME;
 
+    /// The invocation observes the current Tcl call frame (locals, command
+    /// words, or stack metadata) and therefore prevents frame elision. This
+    /// is target-neutral execution semantics, not a backend lowering hint.
+    CurrentFrameIntrospection => CURRENT_FRAME_INTROSPECTION;
+
+    /// `{*}` expansion cannot introduce a variable-name or frame-sensitive
+    /// operand for this invocation, so escape analysis may retain its normal
+    /// result despite indeterminate argv width.
+    ExpansionEscapeSafe => EXPANSION_ESCAPE_SAFE;
+
     /// (Subcommand) targets a variable by *name* —
     /// `trace add|remove|info|variable|vdelete|vinfo`. Used by the
     /// var-escape slot resolver. Single source of truth for the former
@@ -523,12 +533,6 @@ declare_traits! {
     /// Single source of truth for the former
     /// `OVERRIDABLE_LIBRARY_PROCS` list.
     OverridableLibraryProc => OVERRIDABLE_LIBRARY_PROC;
-
-    /// The WASM backend lowers this command to a structural construct
-    /// that imports / emits no runtime helper of its own (`foreach`,
-    /// `namespace`, `package`, `proc`).  Consulted by the WASM import
-    /// collector.
-    WasmEmitsNothing => WASM_EMITS_NOTHING;
 
     /// The registry's simple `min..=max` [`crate::Arity`] is a coarse
     /// floor/ceiling only — this command's real grammar is a clause

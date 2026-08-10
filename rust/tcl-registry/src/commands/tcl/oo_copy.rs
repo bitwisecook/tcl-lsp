@@ -29,6 +29,114 @@
 // 9.0 on) — neither affects this command's own arguments or behaviour.
 use crate::prelude::*;
 
+const COPY_SOURCE_TRANSITION_DOMAINS: &[StateTransitionDomain] = &[
+    StateTransitionDomain::ObjectDispatch,
+    StateTransitionDomain::VariableCells,
+];
+
+const COPY_TARGET_TRANSITION_DOMAINS: &[StateTransitionDomain] = &[
+    StateTransitionDomain::CommandBindings,
+    StateTransitionDomain::Namespaces,
+    StateTransitionDomain::VariableCells,
+    StateTransitionDomain::ObjectDispatch,
+];
+
+const COPY_NAMESPACE_TRANSITION_DOMAINS: &[StateTransitionDomain] = &[
+    StateTransitionDomain::Namespaces,
+    StateTransitionDomain::VariableCells,
+    StateTransitionDomain::ObjectDispatch,
+];
+
+const COPY_INTERP_EFFECT_COVERAGE: &[TransitionEffectCoverage] = &[TransitionEffectCoverage {
+    source: WorldEffectWriteSource::LegacySideEffect(SideEffectTarget::InterpState),
+    domains: &[WorldStateDomain::InterpreterPolicy],
+}];
+
+const COPY_EFFECTS: WorldEffectDescriptor = WorldEffectDescriptor {
+    composition: WorldEffectComposition::Extend,
+    static_footprint: StaticEffectFootprint {
+        accesses: &[],
+        // `<cloned>` is ordinary user-overridable TclOO method dispatch. The
+        // copy is live during it, but a non-OK completion deletes the copy
+        // before `oo::copy` propagates that completion.
+        callback: CallbackEffect {
+            kinds: CallbackKinds::SCRIPT,
+            reentrancy: Reentrancy::CurrentInterpreter,
+        },
+    },
+    resolver: None,
+    dynamic_fallback: WorldEffectDynamicFallback::ConservativeUnknownInvocation,
+};
+
+const COPY_TRANSITIONS: StateTransitionDescriptor = StateTransitionDescriptor {
+    composition: StateTransitionComposition::Extend,
+    resolver: Some(copy_state_transitions),
+    argument_shape: StateTransitionArgumentShape::Positional,
+    dynamic_widening: &[
+        StateTransitionWideningRule {
+            operands: StateTransitionOperandLayout::Indices(&[0]),
+            domains: COPY_SOURCE_TRANSITION_DOMAINS,
+        },
+        StateTransitionWideningRule {
+            operands: StateTransitionOperandLayout::Indices(&[1]),
+            domains: COPY_TARGET_TRANSITION_DOMAINS,
+        },
+        StateTransitionWideningRule {
+            operands: StateTransitionOperandLayout::Indices(&[2]),
+            domains: COPY_NAMESPACE_TRANSITION_DOMAINS,
+        },
+    ],
+    effect_coverage: COPY_INTERP_EFFECT_COVERAGE,
+    commit: StateTransitionCommit::OnOkOnly,
+};
+
+fn copy_target(subject: Option<TransitionSubject>) -> ObjectDispatchTarget {
+    match subject {
+        None => ObjectDispatchTarget::Fresh,
+        Some(TransitionSubject::Literal(ref name)) if name.is_empty() => {
+            ObjectDispatchTarget::Fresh
+        }
+        Some(subject) => ObjectDispatchTarget::Named(subject),
+    }
+}
+
+fn copy_private_namespace(subject: Option<TransitionSubject>) -> ObjectPrivateNamespace {
+    match subject {
+        None => ObjectPrivateNamespace::Fresh,
+        Some(TransitionSubject::Literal(ref name)) if name.is_empty() => {
+            ObjectPrivateNamespace::Fresh
+        }
+        Some(subject) => ObjectPrivateNamespace::Named(subject),
+    }
+}
+
+fn copy_state_transitions(arguments: InvocationArguments<'_>) -> StateTransitions {
+    let mut transitions = StateTransitions::default();
+    let Some(source) = TransitionSubject::from_argument(arguments, 0) else {
+        return transitions;
+    };
+    let target_subject = TransitionSubject::from_argument(arguments, 1);
+    if let Some(target @ TransitionSubject::Literal(_)) = target_subject.as_ref()
+        && target.literal().is_some_and(|name| !name.is_empty())
+    {
+        transitions.push(StateTransition::CommandBinding(
+            CommandBindingTransition::Define {
+                name: target.clone(),
+            },
+        ));
+    }
+    transitions.push(StateTransition::ObjectDispatch(
+        ObjectDispatchTransition::Copy {
+            source,
+            target: copy_target(target_subject),
+            private_namespace: copy_private_namespace(TransitionSubject::from_argument(
+                arguments, 2,
+            )),
+        },
+    ));
+    transitions
+}
+
 // oo::copy both (a) reads sourceObject's existing class/method/procedure/
 // variable state to duplicate it and (b) writes the copy's command-table
 // entry and installed configuration — a read-then-write pair, like
@@ -90,6 +198,81 @@ pub fn spec() -> CommandSpec {
         }),
         forms: FORMS,
         side_effects: SIDE_EFFECTS,
+        world_effects: Some(COPY_EFFECTS),
+        state_transitions: Some(COPY_TRANSITIONS),
         ..CommandSpec::DEFAULT
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::dialects::DialectSet;
+    use crate::{
+        CallbackKinds, CommandBindingTransition, CommandRegistry, EffectAccessMode,
+        ObjectDispatchTarget, ObjectDispatchTransition, ObjectPrivateNamespace, StateTransition,
+        StateTransitionCommit, WorldStateDomain,
+    };
+
+    #[test]
+    fn copy_retains_source_target_and_private_namespace_lifecycle() {
+        let registry = CommandRegistry::build_default();
+        let invocation = registry
+            .resolve_invocation(
+                "oo::copy",
+                &["::source", "::target", "::private::target"],
+                DialectSet::TCL86,
+            )
+            .expect("oo::copy must resolve");
+        let transitions = invocation.state_transitions();
+        assert!(
+            transitions
+                .facts()
+                .iter()
+                .all(|fact| fact.commit == StateTransitionCommit::OnOkOnly)
+        );
+        assert!(transitions.facts().iter().any(|fact| matches!(
+            &fact.transition,
+            StateTransition::CommandBinding(CommandBindingTransition::Define { name })
+                if name.literal() == Some("::target")
+        )));
+        assert!(transitions.facts().iter().any(|fact| matches!(
+            &fact.transition,
+            StateTransition::ObjectDispatch(ObjectDispatchTransition::Copy {
+                source,
+                target: ObjectDispatchTarget::Named(target),
+                private_namespace: ObjectPrivateNamespace::Named(namespace),
+            }) if source.literal() == Some("::source")
+                && target.literal() == Some("::target")
+                && namespace.literal() == Some("::private::target")
+        )));
+
+        let effects = invocation.effect_footprint();
+        assert!(!effects.accesses().iter().any(|access| {
+            access.domain == WorldStateDomain::InterpreterPolicy
+                && matches!(
+                    access.mode,
+                    EffectAccessMode::Write
+                        | EffectAccessMode::ReadWrite
+                        | EffectAccessMode::Clobber
+                )
+        }));
+        assert!(effects.callback().kinds.contains(CallbackKinds::SCRIPT));
+    }
+
+    #[test]
+    fn omitted_copy_identities_remain_typed_fresh_values() {
+        let registry = CommandRegistry::build_default();
+        let transitions = registry
+            .resolve_invocation("oo::copy", &["::source"], DialectSet::TCL86)
+            .expect("oo::copy must resolve")
+            .state_transitions();
+        assert!(transitions.facts().iter().any(|fact| matches!(
+            &fact.transition,
+            StateTransition::ObjectDispatch(ObjectDispatchTransition::Copy {
+                target: ObjectDispatchTarget::Fresh,
+                private_namespace: ObjectPrivateNamespace::Fresh,
+                ..
+            })
+        )));
     }
 }

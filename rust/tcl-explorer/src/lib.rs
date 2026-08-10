@@ -45,6 +45,7 @@ pub use serialise::{serialise_meta, serialise_result};
 pub use view_tree::{ViewNode, build_view};
 
 use tcl_compiler::compilation_unit::{CompilationUnit, FunctionUnit};
+use tcl_dialect::DialectProfile;
 use tcl_registry::registry_for_dialect;
 
 /// Per-function compilation artefacts surfaced by the explorer.
@@ -132,7 +133,7 @@ pub fn run_pipeline(source: &str, dialect: &str) -> ExplorerResult {
     // `aliases` list degrades to empty.
     let unit = CompilationUnit::build_for_dialect(source, registry, false, dialect)
         .with_interprocedural(registry, Some(dialect))
-        .with_memory_ssa(registry);
+        .with_memory_ssa(registry, DialectProfile::by_name(dialect).availability_mask);
 
     ExplorerResult {
         source: source.to_owned(),

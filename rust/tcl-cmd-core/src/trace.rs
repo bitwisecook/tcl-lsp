@@ -80,10 +80,17 @@ pub fn parse_ops(spec: &[u8], kind: TraceKind) -> Result<Vec<&'static str>, CmdE
             choice_list(valid)
         )));
     }
-    let mut out = Vec::with_capacity(elems.len());
     for o in &elems {
-        let idx = table.index_of_str(o)?;
-        out.push(valid[idx]);
+        table.index_of_str(o)?;
+    }
+    // Tcl stores trace operations as a bitset.  Consequently repeated words
+    // collapse and `trace info` always reports the selected operations in the
+    // fixed table order, irrespective of how the list was spelled.
+    let mut out = Vec::with_capacity(valid.len());
+    for op in valid {
+        if elems.iter().any(|elem| elem == op) {
+            out.push(*op);
+        }
     }
     Ok(out)
 }
@@ -132,5 +139,18 @@ pub fn resolve_type(got: &str) -> Result<TraceKind, CmdError> {
         Resolution::Exact(i) | Resolution::UniquePrefix(i) => Ok(TYPE_KINDS[i]),
         Resolution::Ambiguous => Err(ambiguous_type_error(got)),
         Resolution::NoMatch => Err(bad_type_error(got)),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{TraceKind, parse_ops};
+
+    #[test]
+    fn operations_are_a_canonical_set() {
+        assert_eq!(
+            parse_ops(b"write read write unset", TraceKind::Variable).unwrap(),
+            vec!["read", "unset", "write"]
+        );
     }
 }

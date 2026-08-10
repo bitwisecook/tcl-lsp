@@ -41,6 +41,10 @@ pub use tcl_core_types::{
     Code, CommandId, Completion, FrameId, GLOBAL_FRAME, NsId, ROOT_NS, VarId,
 };
 
+/// Target-neutral compiler/runtime code-generation ABI descriptors and wasm32
+/// transport layout constants.
+pub mod codegen_abi;
+
 // -- Compile service (the EVAL_STK / dynamic-code injection point) --
 
 /// A compilation failure surfaced by [`CompileService`].

@@ -29,6 +29,45 @@ const SIDE_EFFECTS: &[SideEffect] = &[SideEffect {
     dialects: None,
 }];
 
+const PROC_TRANSITION_DOMAINS: &[StateTransitionDomain] = &[
+    StateTransitionDomain::CommandBindings,
+    StateTransitionDomain::Namespaces,
+    StateTransitionDomain::CommandTraces,
+];
+
+const PROC_EFFECT_COVERAGE: &[TransitionEffectCoverage] = &[
+    TransitionEffectCoverage {
+        source: WorldEffectWriteSource::LegacyCommandTable,
+        domains: &[WorldStateDomain::CommandBindings],
+    },
+    TransitionEffectCoverage {
+        source: WorldEffectWriteSource::LegacySideEffect(SideEffectTarget::ProcDefinition),
+        domains: &[WorldStateDomain::CommandBindings],
+    },
+];
+
+const PROC_TRANSITIONS: StateTransitionDescriptor = StateTransitionDescriptor {
+    composition: StateTransitionComposition::Extend,
+    resolver: Some(proc_state_transitions),
+    argument_shape: StateTransitionArgumentShape::Positional,
+    dynamic_widening: &[StateTransitionWideningRule {
+        operands: StateTransitionOperandLayout::Indices(&[0]),
+        domains: PROC_TRANSITION_DOMAINS,
+    }],
+    effect_coverage: PROC_EFFECT_COVERAGE,
+    commit: StateTransitionCommit::OnOkOnly,
+};
+
+fn proc_state_transitions(arguments: InvocationArguments<'_>) -> StateTransitions {
+    let mut transitions = StateTransitions::default();
+    if let Some(name) = TransitionSubject::from_argument(arguments, 0) {
+        transitions.push(StateTransition::CommandBinding(
+            CommandBindingTransition::Define { name },
+        ));
+    }
+    transitions
+}
+
 /// `proc name args body` — the synopsis, arity, and argument grammar are
 /// byte-for-byte identical across the fetched Tcl 8.4, 8.5, 8.6, 9.0, and
 /// 9.1 manpages (8.6, 9.0, and 9.1 — 9.1b0, the live beta — share
@@ -66,8 +105,7 @@ pub fn spec() -> CommandSpec {
             | Traits::LANGUAGE_KEYWORD
             | Traits::DEFINES_PROCEDURE
             | Traits::NEVER_INLINE_BODY
-            | Traits::IRULES_TOP_LEVEL_ONLY
-            | Traits::WASM_EMITS_NOTHING,
+            | Traits::IRULES_TOP_LEVEL_ONLY,
         // Deliberately no `TAINT_SINK` / `DYNAMIC_EVAL_BODY`: `body` is
         // *stored*, not executed, by this call. Unlike `eval` / `uplevel`
         // / `apply`, which run their tainted argument immediately as part
@@ -104,6 +142,8 @@ pub fn spec() -> CommandSpec {
         side_effects: SIDE_EFFECTS,
         analyser_hook: Some(crate::hooks::AnalyserHookId::Proc),
         command_table_effect: Some(crate::command_table::CommandTableEffect::DefinesProcedure),
+        world_effects: Some(WorldEffectDescriptor::EMPTY),
+        state_transitions: Some(PROC_TRANSITIONS),
         ..CommandSpec::DEFAULT
     }
 }

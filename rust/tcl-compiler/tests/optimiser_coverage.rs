@@ -24,9 +24,10 @@
 //! Three entry points are exercised:
 //!   * `apply_optimisations(src, &optimise_with_dialect(...))` for the rewritten
 //!     text, and the `Vec<Optimisation>` for the `O1xx` codes.
-//!   * the GVN/CSE/LICM finder: `find_redundancies_for_cu`,
-//!     `find_partial_redundancies_for_cu`, and `find_loop_invariants_for_cu` over
-//!     a `CompilationUnit` (full/partial → O105, loop → O106).
+//!   * the explicitly legacy CFG/SSA GVN finder, for value-numbering algorithm
+//!     coverage over a `CompilationUnit`. Production GVN instead requires exact
+//!     common-semantic invocation facts and is covered at that boundary in the
+//!     `gvn` module tests.
 //!   * the shimmer/thunking detector: `find_shimmer_warnings_for_cu` (S100/S101)
 //!     + `find_thunking_warnings_for_cu` (S102).
 //!
@@ -56,9 +57,7 @@
 //! asserts the corrected behaviour. No `#[ignore]`; every test passes.
 
 use tcl_compiler::compilation_unit::CompilationUnit;
-use tcl_compiler::gvn::{
-    find_loop_invariants_for_cu, find_partial_redundancies_for_cu, find_redundancies_for_cu,
-};
+use tcl_compiler::gvn::find_redundancies;
 use tcl_compiler::optimiser::manager::{
     apply_optimisations, optimise_source_multipass, optimise_with_dialect,
 };
@@ -115,20 +114,20 @@ fn opt_any_of(src: &str, dialect: &str, wanted: &[&str]) -> bool {
         .any(|o| wanted.contains(&o.code.as_str()))
 }
 
-/// GVN/CSE/LICM codes: the union of full + partial redundancies (→ O105) and
-/// loop invariants (→ O106).
-fn gvn_codes(src: &str) -> Vec<String> {
+/// Full-redundancy codes from the explicitly legacy CFG/SSA API.
+///
+/// This helper exercises the value-numbering algorithm's keys and kill sets.
+/// It deliberately does not stand in for production legality: the production
+/// `FunctionUnit` path fails closed unless an occurrence has exact
+/// common-semantic registry facts, which has separate boundary tests in `gvn`.
+fn legacy_gvn_codes(src: &str) -> Vec<String> {
     let registry = registry_for_dialect(TCL);
     let cu = CompilationUnit::build_for(src, registry, false);
     let mut v: Vec<String> = Vec::new();
-    for r in find_redundancies_for_cu(&cu, registry, Some(TCL)) {
-        v.push(r.code.as_str().to_owned());
-    }
-    for r in find_partial_redundancies_for_cu(&cu, registry, Some(TCL)) {
-        v.push(r.code.as_str().to_owned());
-    }
-    for r in find_loop_invariants_for_cu(&cu, registry, Some(TCL)) {
-        v.push(r.code.as_str().to_owned());
+    for function in cu.analysable_functions() {
+        for redundancy in find_redundancies(registry, &function.cfg, &function.ssa, Some(TCL)) {
+            v.push(redundancy.code.as_str().to_owned());
+        }
     }
     v.sort();
     v
@@ -1921,40 +1920,39 @@ fn shimmer_loop_paths_no_crash() {
 }
 
 // ===========================================================================
-// GVN / CSE / LICM — find_redundant_computations (O105 / O106)
+// GVN / CSE — explicit legacy algorithm coverage (O105)
 // ===========================================================================
 
 #[test]
-fn gvn_cse_detection() {
+fn legacy_gvn_cse_detection() {
     // A repeated pure call ([string length $x]) is detected (O105). (Structural:
     // the second computation is provably redundant.)
     let dup = "set x hello\nset a [string length $x]\nset b [string length $x]";
-    assert!(gvn_codes(dup).iter().any(|c| c == "O105"));
-    assert!(!gvn_codes(dup).is_empty());
+    assert!(legacy_gvn_codes(dup).iter().any(|c| c == "O105"));
+    assert!(!legacy_gvn_codes(dup).is_empty());
 
     // Different arguments ⇒ not flagged.
     assert_eq!(
-        gvn_codes("set a [string length hello]\nset b [string length world]"),
+        legacy_gvn_codes("set a [string length hello]\nset b [string length world]"),
         Vec::<String>::new()
     );
 
     // Three identical ⇒ two redundancy warnings.
     let three = "set a [string length $x]\nset b [string length $x]\nset c [string length $x]";
-    assert!(gvn_codes(three).len() >= 2);
+    assert!(legacy_gvn_codes(three).len() >= 2);
 
     // A mutation between the calls invalidates the redundancy.
     assert_eq!(
-        gvn_codes("set a [string length $x]\nset x different\nset b [string length $x]"),
+        legacy_gvn_codes("set a [string length $x]\nset x different\nset b [string length $x]"),
         Vec::<String>::new()
     );
 
-    // Precision note (NOT a miscompile): the `find_redundancies_for_cu` GVN finder
-    // DOES flag the repeated `[clock seconds]` with O105 (it treats the call key
-    // as redundant) even though `[clock seconds]` is impure. This is a
-    // detection-precision detail: it is a HINT, not an applied rewrite — the full
-    // `optimise_with_dialect` pipeline does NOT CSE `clock seconds` (no O105
-    // survives), so no miscompile is produced. Assert the sound end-to-end
-    // invariant: the pipeline leaves the two calls intact.
+    // Precision note (NOT a miscompile): this explicit legacy finder can flag
+    // repeated `[clock seconds]` from its command-string classifier even though
+    // the call is impure. Production GVN cannot inherit that fact: it requires
+    // exact common-semantic legality and fails closed. The applied optimiser
+    // likewise leaves both calls intact, which is the sound end-to-end
+    // invariant asserted here.
     let clk = "set a [clock seconds]\nset b [clock seconds]";
     assert!(opt_absent(clk, TCL, "O105"));
     assert!(optimised(clk, TCL).contains("set a [clock seconds]"));

@@ -24,9 +24,10 @@
 //! (`Interp::call_proc`) pushes a frame, binds the args, and runs the body —
 //! see `proc-call-and-stack-traces.md` (PC-2). `puts` writes to stdout/stderr.
 
-use crate::interp::{obj_bytes, CallMeta, Code, Interp, Param, ProcFrame};
+use crate::interp::{CallMeta, Code, Interp, Param, ProcFrame, obj_bytes};
 use crate::obj::TclObj;
 use crate::parse::split_list;
+use tcl_syntax::formal_params::parse_formal_parameters;
 
 /// Register `proc`, `apply`, and `puts`.
 pub fn install(interp: &mut Interp) {
@@ -64,65 +65,19 @@ fn proc_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
 
 /// Parse a proc parameter spec (a Tcl list of names / `{name default}` pairs).
 pub(crate) fn parse_params(spec: &[u8]) -> Result<Vec<Param>, Vec<u8>> {
-    let elems = split_list(spec).map_err(|e| e.message().to_vec())?;
-    let mut params = Vec::with_capacity(elems.len());
-    for e in &elems {
-        let parts = split_list(e).map_err(|er| er.message().to_vec())?;
-        match parts.len() {
-            0 => return Err(b"argument with no name".to_vec()),
-            1 => {
-                check_param_name(&parts[0])?;
-                params.push(Param {
-                    name: parts[0].clone(),
-                    default: None,
-                });
-            }
-            2 => {
-                check_param_name(&parts[0])?;
-                params.push(Param {
-                    name: parts[0].clone(),
-                    default: Some(parts[1].clone()),
-                });
-            }
-            _ => {
-                let mut m = b"too many fields in argument specifier \"".to_vec();
-                m.extend_from_slice(e);
-                m.push(b'"');
-                return Err(m);
-            }
-        }
-    }
-    Ok(params)
-}
-
-/// A formal parameter name must be a scalar simple name: not an array element
-/// (`a(1)`) and not namespace-qualified (`a::b`). Mirrors the scan in C's
-/// `TclCreateProc` (`tclProc.c`): an `(` anywhere before the final char with a
-/// trailing `)` is an array element; a `::` anywhere before the final char makes
-/// the name non-simple.
-fn check_param_name(name: &[u8]) -> Result<(), Vec<u8>> {
-    if name.is_empty() {
-        return Ok(());
-    }
-    let last = name.len() - 1;
-    let mut i = 0;
-    while i < last {
-        if name[i] == b'(' {
-            if name[last] == b')' {
-                let mut m = b"formal parameter \"".to_vec();
-                m.extend_from_slice(name);
-                m.extend_from_slice(b"\" is an array element");
-                return Err(m);
-            }
-        } else if name[i] == b':' && name[i + 1] == b':' {
-            let mut m = b"formal parameter \"".to_vec();
-            m.extend_from_slice(name);
-            m.extend_from_slice(b"\" is not a simple name");
-            return Err(m);
-        }
-        i += 1;
-    }
-    Ok(())
+    let source =
+        core::str::from_utf8(spec).map_err(|_| b"invalid list (not valid UTF-8)".to_vec())?;
+    parse_formal_parameters(source)
+        .map(|parameters| {
+            parameters
+                .into_iter()
+                .map(|parameter| Param {
+                    name: parameter.name.into_bytes(),
+                    default: parameter.default.map(String::into_bytes),
+                })
+                .collect()
+        })
+        .map_err(|error| error.message().into_bytes())
 }
 
 // -- apply -----------------------------------------------------------------
@@ -216,6 +171,7 @@ fn apply_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
 
 #[cfg(test)]
 mod tests {
+    use super::parse_params;
     use crate::counters;
     use crate::interp::{Code, Interp};
 
@@ -265,6 +221,21 @@ mod tests {
             assert_eq!(run(i, b"set v"), b"outer");
             i.eval_str(b"unset v");
         });
+    }
+
+    #[test]
+    fn proc_parameter_parser_preserves_byte_errors() {
+        let params = parse_params(b"a {b {hello world}} args").unwrap();
+        assert_eq!(params[1].name, b"b");
+        assert_eq!(params[1].default.as_deref(), Some(&b"hello world"[..]));
+        assert_eq!(
+            parse_params(b"{{} default}").err().unwrap(),
+            b"argument with no name"
+        );
+        assert_eq!(
+            parse_params(b"{array(index)}").err().unwrap(),
+            b"formal parameter \"array(index)\" is an array element"
+        );
     }
 
     #[test]

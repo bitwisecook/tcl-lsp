@@ -44,7 +44,7 @@ use tcl_compiler::segmenter::segment_commands_with_offset_and_config;
 use tcl_lexer::{Lexer, LineIndex, TokenType};
 use tcl_registry::{ArgRole, CommandRegistry};
 
-use crate::oo_body::{HeadWords, is_member, member_body_indices, next_definition_grammar};
+use crate::oo_body::{HeadWords, is_member, member_body_indices_in, next_definition_grammar};
 use tcl_registry::definer::DefinitionBodyGrammar;
 
 /// LSP folding-range kind.
@@ -127,6 +127,7 @@ pub fn folding_ranges(
         tcl_compiler::head_identity::command_head_identities(source, dialect, registry);
     let mut ctx = FoldCtx {
         registry,
+        availability: tcl_dialect::DialectProfile::by_name(dialect).availability_mask,
         identities: &identities,
         line_index: &line_index,
         original_source: source,
@@ -343,6 +344,9 @@ fn collect_continuation_folds(
 /// vary per call — they stay as direct parameters.
 struct FoldCtx<'a> {
     registry: &'a CommandRegistry,
+    /// Selected profile availability. Member layouts use this to reject a
+    /// version-gated option instead of treating it as a fixed-tail word.
+    availability: tcl_dialect::DialectSet,
     /// The document's statically proven command-identity facts, so a body-arg
     /// role is resolved against the command a head *is* rather than the one it
     /// is spelled as (issue #1275).  Empty — and lookup-free — for the
@@ -419,7 +423,7 @@ fn collect_body_folds(
         // definition-body grammar ([`crate::oo_body`]).
         let body_indices: Vec<usize> = match oo_grammar {
             Some(g) if is_member(g, head.written) => {
-                member_body_indices(g, head.written, &args_borrow)
+                member_body_indices_in(g, head.written, &args_borrow, ctx.availability)
             }
             _ => ctx
                 .registry
@@ -1199,6 +1203,30 @@ mod tests {
         assert!(
             regions.iter().any(|&(s, e)| s == 5 && e >= 7),
             "expected constructor-body fold starting at line 5, got {regions:?}",
+        );
+    }
+
+    #[test]
+    fn tcloo_method_visibility_folding_respects_the_selected_profile() {
+        let source = concat!(
+            "oo::class create Foo {\n",
+            "    method hidden -private {} {\n",
+            "        puts hidden\n",
+            "        puts again\n",
+            "    }\n",
+            "}\n",
+        );
+
+        let tcl86 = fold_lines(&folding_ranges_default(source, "tcl8.6"), FoldKind::Region);
+        let tcl90 = fold_lines(&folding_ranges_default(source, "tcl9.0"), FoldKind::Region);
+
+        assert!(
+            !tcl86.iter().any(|&(start, _)| start == 1),
+            "Tcl 8.6 must not treat a Tcl 9 visibility flag as a method-body layout: {tcl86:?}",
+        );
+        assert!(
+            tcl90.iter().any(|&(start, end)| start == 1 && end >= 3),
+            "Tcl 9 should fold the visibility-qualified method body: {tcl90:?}",
         );
     }
 

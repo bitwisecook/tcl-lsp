@@ -6765,15 +6765,30 @@
     },
     {
       "name": "oo::abstract",
-      "summary": "metaclass for abstract classes"
+      "summary": "metaclass for abstract classes",
+      "subcommands": [
+        "create",
+        "createWithNamespace",
+        "new"
+      ]
     },
     {
       "name": "oo::class",
-      "summary": "class of all classes"
+      "summary": "class of all classes",
+      "subcommands": [
+        "create",
+        "createWithNamespace",
+        "new"
+      ]
     },
     {
       "name": "oo::configurable",
-      "summary": "metaclass for configurable classes and objects"
+      "summary": "metaclass for configurable classes and objects",
+      "subcommands": [
+        "create",
+        "createWithNamespace",
+        "new"
+      ]
     },
     {
       "name": "oo::copy",
@@ -6798,7 +6813,12 @@
     },
     {
       "name": "oo::singleton",
-      "summary": "metaclass for singleton classes"
+      "summary": "metaclass for singleton classes",
+      "subcommands": [
+        "create",
+        "createWithNamespace",
+        "new"
+      ]
     },
     {
       "name": "open",

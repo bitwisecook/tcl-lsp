@@ -431,6 +431,7 @@ fn try_specialise_call(
         body: Script::default(),
         namespace: namespace.to_string(),
         tokens: tokens.clone(),
+        error_context: None,
     };
     Some((replacement, child_name, shape.child_params.clone(), body))
 }

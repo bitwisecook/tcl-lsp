@@ -30,7 +30,7 @@
 use tcl_lexer::Span;
 
 use crate::compilation_unit::{CompilationUnit, FunctionUnit};
-use crate::gvn::{find_loop_invariants, find_partial_redundancies, find_redundancies};
+use crate::gvn::{find_loop_invariants, find_partial_redundancies, find_redundancies_for_function};
 use crate::irules_checks::{
     CodeFix, IrulesCheckWarning, find_collect_flow_warnings, find_generic_static_name_warnings,
     find_hoistable_set_warnings, find_http_flow_warnings, find_unguarded_drop_warnings,
@@ -352,7 +352,7 @@ pub fn function_nontaint_checks<S: std::hash::BuildHasher>(
     for cb in &fu.sccp.constant_branches {
         out.push(Diagnostic::from_constant_branch(cb));
     }
-    for r in find_redundancies(registry, &fu.cfg, &fu.ssa, dialect) {
+    for r in find_redundancies_for_function(registry, fu, dialect) {
         out.push(Diagnostic::from_redundant(&r));
     }
     for r in find_partial_redundancies(registry, &fu.cfg, &fu.ssa, dialect) {

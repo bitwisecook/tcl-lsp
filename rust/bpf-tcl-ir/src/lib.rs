@@ -38,6 +38,7 @@ pub mod loader;
 pub mod lower;
 pub mod profile;
 pub mod ringbuf;
+pub mod semantic_bridge;
 pub mod template;
 pub mod ty;
 pub mod unroll;

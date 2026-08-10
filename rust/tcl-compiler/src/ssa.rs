@@ -607,7 +607,19 @@ pub fn defs_of_with_registry(stmt: &Statement, registry: Option<&CommandRegistry
             // user proc named `my::for` must NOT have its first argument
             // misread as loop variables.
             if !args.is_empty() && barrier_is_loop_list_header(command, registry) {
-                return args[0].split_whitespace().map(String::from).collect();
+                // A loop var-list is a Tcl list, not whitespace-separated
+                // source text.  Decode grouping and backslash substitutions so
+                // `{one name}`, `"two name"`, and `three\ name` each define
+                // one variable.  A malformed var-list makes the command fail
+                // before its body runs, so it contributes no reaching defs.
+                return tcl_syntax::list::split_list(&args[0])
+                    .map(|names| {
+                        names
+                            .into_iter()
+                            .map(std::borrow::Cow::into_owned)
+                            .collect()
+                    })
+                    .unwrap_or_default();
             }
             // Registry-driven VarWrite walk.  Skips
             // *scope-alias* commands (`global`, `variable`, `upvar`)
@@ -3007,6 +3019,31 @@ mod tests {
         );
     }
 
+    #[test]
+    fn defs_of_barrier_loop_header_uses_tcl_list_grammar() {
+        let reg = CommandRegistry::build_default();
+        let barrier = |var_list: &str| Statement::Barrier {
+            span: Span::new(0, 30),
+            reason: "loop".into(),
+            command: "::tcl::dict::for".into(),
+            canonical_command: None,
+            args: vec![var_list.into(), "$d".into()],
+            tokens: None,
+        };
+
+        assert_eq!(
+            defs_of_with_registry(
+                &barrier(r#"{one name} "two name" three\ name plain"#),
+                Some(&reg),
+            ),
+            vec!["one name", "two name", "three name", "plain"],
+        );
+        assert!(
+            defs_of_with_registry(&barrier("{unterminated"), Some(&reg)).is_empty(),
+            "a malformed var-list fails before defining loop variables"
+        );
+    }
+
     /// `tcltest::test` body indices come from the spec's arg-role resolver
     /// (option-keyed `-setup`/`-body`/`-cleanup` values plus the legacy
     /// positional body) via the generic `ArgRole::Body` walk — the old
@@ -3594,14 +3631,14 @@ mod tests {
             reads: Vec::new(),
             reads_own_defs: false,
             safe_on_uninit: false,
-            tokens: Some(crate::ir::CommandTokens {
-                argv: vec![Span::new(0, 1); words.len()],
-                argv_texts: words.clone(),
-                argv_kinds: kinds,
-                single_token_word: vec![true; words.len()],
-                all_tokens: Vec::new(),
-                expand_word: None,
-            }),
+            tokens: Some(crate::ir::CommandTokens::from_lossy_parts(
+                vec![Span::new(0, 1); words.len()],
+                words.clone(),
+                kinds,
+                vec![true; words.len()],
+                Vec::new(),
+                None,
+            )),
             foreach_groups: None,
         }
     }

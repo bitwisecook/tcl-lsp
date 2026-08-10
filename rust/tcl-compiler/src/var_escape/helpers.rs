@@ -35,8 +35,12 @@ use std::collections::HashSet;
 use std::sync::OnceLock;
 
 use tcl_registry::CommandRegistry;
+use tcl_registry::InvocationFacts;
+use tcl_registry::dialects::DialectSet;
 use tcl_registry::prelude::Traits;
 
+use crate::ir::{CommandTokens, Statement};
+use crate::registry_invocation::{RegistryInvocationResolution, resolve_command_tokens};
 use crate::var_escape::info_subcommands::{
     is_frame_inspecting_info_subcommand, is_safe_info_subcommand,
 };
@@ -78,13 +82,48 @@ fn frameless_runtime_set() -> &'static HashSet<String> {
     })
 }
 
-/// Memoised default [`CommandRegistry`] for var-escape's registry-driven
-/// queries (e.g. resolving an `info` subcommand's declared variable-write
-/// argument roles).  Cached because the queried facts are dialect-agnostic
-/// core-Tcl commands present in `build_default`.
+/// Compatibility registry for dialect-blind var-escape entry points.
+///
+/// Tcl 8.6 is the compiler's documented plain-Tcl baseline. Unlike an owned
+/// `build_default()` registry, this cached registry carries an explicit
+/// profile, so structured subcommand/form resolution never relies on an empty
+/// dialect mask. Production callers should pass their selected registry via
+/// the `*_with_registry` APIs instead.
 pub(crate) fn default_registry() -> &'static CommandRegistry {
-    static REG: OnceLock<CommandRegistry> = OnceLock::new();
-    REG.get_or_init(CommandRegistry::build_default)
+    tcl_registry::registry_for_dialect("tcl8.6")
+}
+
+/// Resolve a compiler statement's source-safe word snapshot to the registry's
+/// target-neutral invocation facts.
+///
+/// This deliberately has no fallback through `Statement::{Call,Barrier}`'s
+/// lossy `command`/`args` strings: substituted and expanded words must not be
+/// reinterpreted as literal Tcl values by an analysis pass.
+pub(crate) fn invocation_facts(
+    stmt: &Statement,
+    registry: &CommandRegistry,
+) -> Option<Box<InvocationFacts>> {
+    let (Statement::Call { tokens, .. } | Statement::Barrier { tokens, .. }) = stmt else {
+        return None;
+    };
+    let Some(tokens) = tokens else {
+        return None;
+    };
+    invocation_facts_from_tokens(tokens, registry)
+}
+
+/// Resolve an ordered source-word snapshot to target-neutral registry facts.
+pub(crate) fn invocation_facts_from_tokens(
+    tokens: &CommandTokens,
+    registry: &CommandRegistry,
+) -> Option<Box<InvocationFacts>> {
+    let dialect = registry
+        .profile()
+        .map_or_else(DialectSet::empty, |profile| profile.availability_mask);
+    match resolve_command_tokens(registry, dialect, tokens).ok()? {
+        RegistryInvocationResolution::Resolved(facts) => Some(facts),
+        RegistryInvocationResolution::Unresolved(_) => None,
+    }
 }
 
 /// True if *arg* is a plain identifier, not a substituted ref.

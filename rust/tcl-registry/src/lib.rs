@@ -63,9 +63,11 @@ pub mod clause_shape;
 pub mod command_snapshot;
 pub mod command_table;
 pub mod commands;
+pub mod completion;
 pub mod const_fold;
 pub mod definer;
 pub mod dialects;
+pub mod dispatch_stability;
 mod event_descriptions;
 pub mod event_facts;
 pub mod events;
@@ -75,6 +77,8 @@ pub mod frame_effect;
 pub mod handle_binding;
 pub mod hooks;
 pub mod hover;
+pub mod intrinsic;
+pub mod invocation_words;
 pub mod lifecycle;
 pub mod mathfunc;
 pub mod patterns;
@@ -85,11 +89,14 @@ pub mod profile_queries;
 pub mod profiles;
 pub mod registry;
 pub mod repeated;
+pub mod resolved_invocation;
 pub mod scoped;
+pub mod semantic_operation;
 pub mod side_effects;
 pub mod snapshot;
 pub mod spec;
 pub mod special_vars;
+pub mod state_transition;
 pub mod stub_overlay;
 pub mod symbol_def;
 pub mod taint;
@@ -97,6 +104,7 @@ pub mod traits;
 pub mod types;
 pub mod version;
 pub mod version_range;
+pub mod world_effect;
 
 /// Convenience prelude for command spec files.
 ///
@@ -114,11 +122,19 @@ pub mod prelude {
     pub use crate::byte_array_effect::ByteArrayEffect;
     pub use crate::clause_shape::{ClauseShapeChecker, ClauseShapeError};
     pub use crate::command_table::CommandTableEffect;
+    pub use crate::completion::{
+        CompletionCode, CompletionCodeDomain, CompletionDescriptor, CompletionPayloadObligation,
+        CompletionPayloadObligations,
+    };
     pub use crate::definer::{
         DefinerFamily, DefinitionBodyGrammar, MemberKind, MemberRefKind, MemberRetraction,
         MemberSpec, MemberVisibility, RetractionWords,
     };
     pub use crate::dialects::DialectSet;
+    pub use crate::dispatch_stability::{
+        DispatchDependencies, DispatchDependencyComposition, DispatchDependencyDescriptor,
+        DispatchDependencyDomain,
+    };
     pub use crate::events::{
         ASM_PAYLOAD, BIGIP_EVENT_HANDLER_PRIORITY, CACHE_PAYLOAD, DIAMETER_PAYLOAD,
         DataCollectionAction, DataCollectionOperation, EventHandlerPriority, EventRequirementForm,
@@ -141,11 +157,14 @@ pub mod prelude {
         ArgValue, FormKind, FormSpec, HoverSnippet, IntegerDomain, OptionArg, OptionArity,
         OptionSpec, OptionValue, OptionValueHook, OptionValueOutcome,
     };
+    pub use crate::intrinsic::IntrinsicId;
+    pub use crate::invocation_words::InvocationArguments;
     pub use crate::lifecycle::{Lifecycle, LifecycleState};
     pub use crate::patterns::{FormatType, PatternType};
     pub use crate::presentation::ArgPresentation;
     pub use crate::repeated::RepeatedArgLayout;
     pub use crate::scoped::{ScopedCommand, ScopedCommandEnv};
+    pub use crate::semantic_operation::{InlineBodyErrorContext, SemanticOperationId};
     pub use crate::side_effects::{
         ConnectionSide, SideEffect, SideEffectTarget, SideSwitchTarget, StorageType,
     };
@@ -153,10 +172,27 @@ pub mod prelude {
         BytePayloadSpec, CaseListSpec, CommandSpec, ContextGate, DefaultFormFirstWord,
         ObjectClassSpec, OoContextFact, SubCommand, SubSubCommand, VersionedArgValue,
     };
+    pub use crate::state_transition::{
+        CallerFrameSelection, ChildInterpreterSafety, CommandBindingTransition,
+        InterpreterTransition, NamespaceTransition, NamespaceTransitionTarget, ObjectDispatchKind,
+        ObjectDispatchLayer, ObjectDispatchTarget, ObjectDispatchTransition,
+        ObjectPrivateNamespace, StateTransition, StateTransitionArgumentShape,
+        StateTransitionCommit, StateTransitionComposition, StateTransitionDescriptor,
+        StateTransitionDomain, StateTransitionOperandLayout, StateTransitionResolver,
+        StateTransitionWideningRule, StateTransitions, TraceOperation, TraceOperationSet,
+        TraceTarget, TraceTransition, TransitionSubject, VariableAliasTarget,
+        VariableCellAliasTransition,
+    };
     pub use crate::symbol_def::{DefinedSymbolKind, SymbolDef};
     pub use crate::taint::{SetterConstraint, TaintColour};
     pub use crate::traits::Traits;
     pub use crate::types::{ReturnElements, TclType, VarElementsEffect, VarWriteTyping};
+    pub use crate::world_effect::{
+        CallbackEffect, CallbackKinds, EffectAccessMode, Reentrancy, StaticEffectAccess,
+        StaticEffectFootprint, StaticInterpreterScope, StaticNamespaceScope, StaticSubjectScope,
+        TransitionEffectCoverage, WorldEffectComposition, WorldEffectDescriptor,
+        WorldEffectDynamicFallback, WorldEffectResolver, WorldEffectWriteSource, WorldStateDomain,
+    };
 }
 
 // Re-export key types at crate root.
@@ -168,9 +204,17 @@ pub use byte_array_effect::ByteArrayEffect;
 pub use cache::{registry_for_dialect, registry_for_profile};
 pub use clause_shape::{ClauseShapeChecker, ClauseShapeError};
 pub use command_table::CommandTableEffect;
+pub use completion::{
+    CompletionCode, CompletionCodeDomain, CompletionDescriptor, CompletionPayloadObligation,
+    CompletionPayloadObligations,
+};
 pub use dialects::{
     DETECT_SCAN_BYTES, KNOWN_DIALECTS, available_dialects, detect_dialect,
     detect_dialect_directive, detect_dialect_from_source, dialect_from_extension,
+};
+pub use dispatch_stability::{
+    DispatchDependencies, DispatchDependencyComposition, DispatchDependencyDescriptor,
+    DispatchDependencyDomain, ResolvedDispatchDependencies,
 };
 pub use events::{
     CollectionReleaseRequirement, DataCollectionAction, DataCollectionOperation,
@@ -182,6 +226,10 @@ pub use handle_binding::{
     BoundHandle, HandleBindingSpec, HandleClassSource, HandleKeyword, HandleName,
 };
 pub use hover::ArgValue;
+pub use intrinsic::IntrinsicId;
+pub use invocation_words::{
+    InvocationArguments, InvocationWord, InvocationWordKind, InvocationWords,
+};
 pub use patterns::{FormatType, PatternType};
 pub use presentation::ArgPresentation;
 pub use profile_queries::{ProfileQueries, VendorSurface};
@@ -189,6 +237,12 @@ pub use registry::{
     CommandRegistry, FormatStringArg, MethodDispatchKind, ResolvedCall, ResolvedTerminator,
 };
 pub use repeated::RepeatedArgLayout;
+pub use resolved_invocation::{
+    InvocationFacts, InvocationOptions, InvocationResolutionUnresolved, InvocationSemantics,
+    OwnedSubcommandResolution, ResolvedForm, ResolvedInvocation, ResolvedSubcommand,
+    StructuredInvocationResolution, SubcommandResolution, SubcommandResolutionKind,
+};
+pub use semantic_operation::{InlineBodyErrorContext, SemanticOperationId};
 pub use side_effects::SideSwitchTarget;
 pub use spec::{
     BytePayloadSpec, CaseListSpec, CommandSpec, ContextGate, DefaultFormFirstWord, ObjectClassSpec,
@@ -199,10 +253,30 @@ pub use special_vars::{
     is_externally_read, is_special_var, special_var, special_var_in_dialect,
     special_var_read_taint, special_var_write_effect, special_vars_for_dialect,
 };
+pub use state_transition::{
+    AbruptTransitionTransfer, CallerFrameSelection, ChildInterpreterSafety,
+    CommandBindingTransition, InterpreterTransition, NamespaceTransition,
+    NamespaceTransitionTarget, ObjectDispatchKind, ObjectDispatchLayer, ObjectDispatchTarget,
+    ObjectDispatchTransition, ObjectPrivateNamespace, ResolvedStateTransitions, StateTransition,
+    StateTransitionArgumentShape, StateTransitionCommit, StateTransitionComposition,
+    StateTransitionDescriptor, StateTransitionDomain, StateTransitionFact,
+    StateTransitionKnowledge, StateTransitionOperandLayout, StateTransitionResolver,
+    StateTransitionWidening, StateTransitionWideningRule, StateTransitions, TraceOperation,
+    TraceOperationSet, TraceTarget, TraceTransition, TransitionSubject, VariableAliasTarget,
+    VariableCellAliasTransition,
+};
 pub use symbol_def::{DefinedSymbolKind, SymbolDef};
 pub use taint::{SetterConstraint, TaintColour};
 pub use traits::{Traits, UNIT_LINKAGE_TRAITS};
 pub use types::{ReturnElements, TclType, VarElementsEffect, VarWriteTyping};
+pub use world_effect::{
+    CallbackEffect, CallbackKinds, EffectAccess, EffectAccessMode, EffectFootprint,
+    InterpreterScope, LegacyEffectBridge, NamespaceScope, Reentrancy, ResolvedWorldEffects,
+    StaticEffectAccess, StaticEffectFootprint, StaticInterpreterScope, StaticNamespaceScope,
+    StaticSubjectScope, SubjectScope, TransitionEffectCoverage, TransitionEffectCoverages,
+    WorldEffectComposition, WorldEffectDescriptor, WorldEffectDynamicFallback, WorldEffectResolver,
+    WorldEffectWriteSource, WorldStateDomain,
+};
 
 /// Crate version string.
 ///

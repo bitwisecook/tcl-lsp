@@ -32,9 +32,14 @@
 
 use crate::arg_role::ArgRole;
 use crate::arity::Arity;
+use crate::completion::CompletionDescriptor;
 use crate::dialects::DialectSet;
+use crate::dispatch_stability::DispatchDependencyDescriptor;
 use crate::hooks::{CodegenHookId, LoweringHookId, WasmCodegenHookId};
 use crate::hover::OptionSpec;
+use crate::semantic_operation::SemanticOperationId;
+use crate::state_transition::StateTransitionDescriptor;
+use crate::world_effect::WorldEffectDescriptor;
 
 /// Self-contained metadata for one invocation form of a top-level
 /// command.
@@ -63,6 +68,36 @@ pub struct CommandForm {
     /// the parent [`crate::CommandSpec`] / [`crate::SubCommand`].
     pub dialects: Option<DialectSet>,
 
+    /// Target-neutral semantic-operation override for this form.
+    ///
+    /// When present it wins over the resolved subcommand and command
+    /// descriptors. `None` keeps the inherited semantic operation.
+    pub semantic_operation: Option<SemanticOperationId>,
+
+    /// Completion semantics specific to this form.
+    ///
+    /// When present, this takes precedence over a resolved subcommand's and
+    /// parent command's completion descriptors. `None` inherits the more
+    /// general descriptor.
+    pub completion: Option<CompletionDescriptor>,
+
+    /// Mutable Tcl-world effects specific to this concrete form.
+    ///
+    /// A matching form is applied after its subcommand and parent-command
+    /// descriptors.  It extends them by default, or may explicitly replace
+    /// them through [`crate::WorldEffectComposition`].  The result remains
+    /// target-neutral and is resolved by the common registry projection before
+    /// a compiler pass sees it.
+    pub world_effects: Option<WorldEffectDescriptor>,
+
+    /// Target-neutral command-binding and variable-cell transitions specific
+    /// to this concrete invocation shape.
+    pub state_transitions: Option<StateTransitionDescriptor>,
+
+    /// Dispatch-stability dependency refinement for this invocation shape.
+    /// Irreducible live-interpreter dependencies cannot be removed.
+    pub dispatch_dependencies: Option<DispatchDependencyDescriptor>,
+
     /// Lowering hook identifier for this form.
     pub lowering_hook: Option<LoweringHookId>,
 
@@ -83,6 +118,11 @@ impl CommandForm {
         arg_roles: &[],
         options: &[],
         dialects: None,
+        semantic_operation: None,
+        completion: None,
+        world_effects: None,
+        state_transitions: None,
+        dispatch_dependencies: None,
         lowering_hook: None,
         codegen_hook: None,
         wasm_codegen_hook: None,

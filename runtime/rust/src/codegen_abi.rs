@@ -70,9 +70,248 @@
 
 use core::cell::Cell;
 use core::ptr;
+use core::sync::atomic::{AtomicUsize, Ordering};
+use std::alloc::{alloc, dealloc, handle_alloc_error, Layout};
+use std::collections::HashMap;
+use std::sync::{Mutex, OnceLock};
 
 use crate::interp::{drop_fresh, obj_bytes, Interp};
 use crate::obj::{self, new_string_bytes, TclObj};
+#[cfg(target_arch = "wasm32")]
+use tcl_runtime_api::codegen_abi::{
+    WASM32_COMPLETION_ALIGN, WASM32_COMPLETION_CODE_OFFSET, WASM32_COMPLETION_OPTIONS_OFFSET,
+    WASM32_COMPLETION_RESULT_OFFSET, WASM32_COMPLETION_SIZE,
+};
+
+/// A command completion crossing the compiler/runtime ABI.
+///
+/// This is the C-compatible storage layout used as the explicit output of
+/// [`tcl_invoke_argv`]. Consumers must provide storage with
+/// `size_of::<TclCompletionAbi>()` bytes and `align_of::<TclCompletionAbi>()`
+/// alignment (or the corresponding C `sizeof`/`_Alignof`). The `code` field is
+/// a Tcl completion code, including every arbitrary `i32` produced by
+/// `return -code N`. `result` and `options` are separate **owned** `Tcl_Obj`
+/// references; after a successful write, release both exactly once with
+/// [`tcl_obj_release`], or release the pair once with
+/// [`tcl_completion_release`].
+///
+/// The struct is deliberately output storage, rather than a C aggregate return:
+/// a by-value aggregate return has target-specific hidden-sret lowering and
+/// therefore is not a stable WASM import signature.
+#[repr(C)]
+#[derive(Clone, Copy)]
+pub struct TclCompletionAbi {
+    /// Tcl completion code: `0` through `4`, or any other `i32`.
+    pub code: i32,
+    /// Owned completion result object (never null after a successful write).
+    pub result: *mut TclObj,
+    /// Owned return-options dictionary (never null after a successful write).
+    pub options: *mut TclObj,
+}
+
+/// The invocation ran and wrote a [`TclCompletionAbi`]. A Tcl error is reported
+/// in `out.code == 1`, not through this status.
+pub const TCL_INVOKE_ABI_OK: i32 = 0;
+/// `out` was null, so no completion could be written.
+pub const TCL_INVOKE_ABI_NULL_OUT: i32 = -1;
+/// No current interpreter was installed for the codegen ABI.
+pub const TCL_INVOKE_ABI_NO_CURRENT_INTERP: i32 = -2;
+/// `argc` was zero, negative, or did not fit the target address space.
+pub const TCL_INVOKE_ABI_INVALID_ARGC: i32 = -3;
+/// `argv` was null for a non-empty argv.
+pub const TCL_INVOKE_ABI_NULL_ARGV: i32 = -4;
+/// At least one argv entry was null.
+pub const TCL_INVOKE_ABI_NULL_WORD: i32 = -5;
+
+#[cfg(target_arch = "wasm32")]
+const _: () = {
+    assert!(core::mem::size_of::<TclCompletionAbi>() == WASM32_COMPLETION_SIZE as usize);
+    assert!(core::mem::align_of::<TclCompletionAbi>() == WASM32_COMPLETION_ALIGN as usize);
+    assert!(
+        core::mem::offset_of!(TclCompletionAbi, code) == WASM32_COMPLETION_CODE_OFFSET as usize
+    );
+    assert!(
+        core::mem::offset_of!(TclCompletionAbi, result) == WASM32_COMPLETION_RESULT_OFFSET as usize
+    );
+    assert!(
+        core::mem::offset_of!(TclCompletionAbi, options)
+            == WASM32_COMPLETION_OPTIONS_OFFSET as usize
+    );
+};
+
+/// Number of live frames allocated through the compiler transport boundary.
+///
+/// This intentionally tracks only raw transient frames, not Tcl objects; test
+/// code uses it to prove that every generated cleanup path balances allocation.
+static CODEGEN_CALL_FRAMES_OUTSTANDING: AtomicUsize = AtomicUsize::new(0);
+
+/// Live frame layouts, keyed by their exact returned shared-memory address.
+///
+/// The registry makes the public free import robust against a forged address,
+/// mismatched layout, or a second free: only an allocation created by this ABI
+/// can yield a layout to `dealloc`.
+static CODEGEN_CALL_FRAME_LAYOUTS: OnceLock<Mutex<HashMap<usize, Layout>>> = OnceLock::new();
+
+fn codegen_call_frame_layouts() -> &'static Mutex<HashMap<usize, Layout>> {
+    CODEGEN_CALL_FRAME_LAYOUTS.get_or_init(|| Mutex::new(HashMap::new()))
+}
+
+fn lock_call_frame_layouts() -> std::sync::MutexGuard<'static, HashMap<usize, Layout>> {
+    codegen_call_frame_layouts()
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner)
+}
+
+/// Return a distinct, dynamically allocated shared-memory call frame.
+///
+/// A generated module must use this for transient argv and completion storage;
+/// it must not place either in a data segment or at a fixed memory offset.
+/// Each successful call has one matching [`tcl_codegen_call_frame_free`]. The
+/// allocation is independent of the Tcl interpreter, so a command may re-enter
+/// generated code (or allocate another frame) during [`tcl_invoke_argv`]
+/// without overwriting its caller's argv or completion triple.
+///
+/// `bytes` must be positive and `align` must be a non-zero power of two. An
+/// invalid layout returns null. A valid allocation either returns a suitably
+/// aligned frame or terminates through Rust's allocation-error path; it never
+/// returns a null frame that could be mistaken for usable shared storage.
+#[no_mangle]
+pub extern "C" fn tcl_codegen_call_frame_alloc(bytes: i32, align: i32) -> *mut u8 {
+    let Ok(bytes) = usize::try_from(bytes) else {
+        return ptr::null_mut();
+    };
+    let Ok(align) = usize::try_from(align) else {
+        return ptr::null_mut();
+    };
+    let Ok(layout) = Layout::from_size_align(bytes, align) else {
+        return ptr::null_mut();
+    };
+    if layout.size() == 0 {
+        return ptr::null_mut();
+    }
+    // SAFETY: `layout` was validated above. The allocation is returned to the
+    // caller as an opaque frame and is released only by the matching free ABI.
+    let frame = unsafe { alloc(layout) };
+    if frame.is_null() {
+        handle_alloc_error(layout);
+    }
+    lock_call_frame_layouts().insert(frame.addr(), layout);
+    CODEGEN_CALL_FRAMES_OUTSTANDING.fetch_add(1, Ordering::SeqCst);
+    frame
+}
+
+/// Release exactly one call frame returned by [`tcl_codegen_call_frame_alloc`].
+///
+/// The runtime records the exact allocation layout at allocation time, so the
+/// caller supplies only `frame` and cannot forge a deallocation layout. Invoke
+/// this once after releasing all objects and completion references stored in
+/// the frame. Null, unknown, and repeated frees return `-1`; a successful
+/// deallocation returns `0`.
+///
+/// # Safety
+/// `frame` may be any address. Unknown addresses are rejected before
+/// deallocation; a valid frame must not be accessed concurrently by another
+/// caller while it is being freed.
+#[no_mangle]
+pub unsafe extern "C" fn tcl_codegen_call_frame_free(frame: *mut u8) -> i32 {
+    if frame.is_null() {
+        return -1;
+    }
+    let Some(layout) = lock_call_frame_layouts().remove(&frame.addr()) else {
+        return -1;
+    };
+    // SAFETY: upheld by this function's contract.
+    unsafe { dealloc(frame, layout) };
+    CODEGEN_CALL_FRAMES_OUTSTANDING.fetch_sub(1, Ordering::SeqCst);
+    0
+}
+
+/// Return the number of outstanding compiler transport call frames.
+///
+/// This is a diagnostic/test boundary rather than an allocation mechanism.
+#[no_mangle]
+pub extern "C" fn tcl_codegen_call_frame_outstanding() -> i32 {
+    i32::try_from(CODEGEN_CALL_FRAMES_OUTSTANDING.load(Ordering::SeqCst)).unwrap_or(i32::MAX)
+}
+
+/// Convert the shared semantic completion to its object-handle ABI form.
+fn completion_abi(completion: tcl_runtime_api::Completion<*mut TclObj>) -> TclCompletionAbi {
+    let code = match completion.code {
+        tcl_runtime_api::Code::Ok => 0,
+        tcl_runtime_api::Code::Error => 1,
+        tcl_runtime_api::Code::Return => 2,
+        tcl_runtime_api::Code::Break => 3,
+        tcl_runtime_api::Code::Continue => 4,
+        tcl_runtime_api::Code::Other(code) => code,
+    };
+    TclCompletionAbi {
+        code,
+        result: completion.result,
+        options: completion.options,
+    }
+}
+
+/// Make an owned host-boundary error completion when there is no interpreter
+/// state available to create a normal Tcl error.
+fn detached_error_completion(message: &[u8]) -> TclCompletionAbi {
+    let result = new_string_bytes(message);
+    let options = crate::dict::new_dict_obj(&[
+        (new_string_bytes(b"-code"), new_string_bytes(b"1")),
+        (new_string_bytes(b"-level"), new_string_bytes(b"0")),
+        (new_string_bytes(b"-errorcode"), new_string_bytes(b"NONE")),
+        (new_string_bytes(b"-errorinfo"), new_string_bytes(message)),
+    ]);
+    // SAFETY: both objects are fresh and live. The ABI transfers one owned
+    // reference of each to its caller.
+    unsafe {
+        obj::incr_ref_count(result);
+        obj::incr_ref_count(options);
+    }
+    TclCompletionAbi {
+        code: 1,
+        result,
+        options,
+    }
+}
+
+/// Write one completion to ABI-provided output storage.
+///
+/// # Safety
+/// `out` must be non-null, aligned, and writable for one [`TclCompletionAbi`].
+unsafe fn write_completion(out: *mut TclCompletionAbi, completion: TclCompletionAbi) {
+    // SAFETY: guaranteed by the caller of this helper.
+    unsafe { out.write(completion) };
+}
+
+/// Keep caller-owned argv references alive for exactly one dispatch.
+///
+/// The ABI accepts borrowed words, so it first takes a temporary reference to
+/// every word and returns to the caller's counts in `Drop`, including every
+/// normal error/completion path through the dispatcher.
+struct BorrowedArgv<'a> {
+    words: &'a [*mut TclObj],
+}
+
+impl<'a> BorrowedArgv<'a> {
+    /// # Safety
+    /// Every word must be a live object with a caller-owned reference.
+    unsafe fn retain(words: &'a [*mut TclObj]) -> Self {
+        for &word in words {
+            // SAFETY: upheld by this method's contract.
+            unsafe { obj::incr_ref_count(word) };
+        }
+        Self { words }
+    }
+}
+
+impl Drop for BorrowedArgv<'_> {
+    fn drop(&mut self) {
+        for &word in self.words {
+            // SAFETY: `retain` took exactly one reference on every live word.
+            unsafe { obj::decr_ref_count(word) };
+        }
+    }
+}
 
 unsafe fn input_bytes<'a>(ptr: *const u8, len: i32) -> &'a [u8] {
     if ptr.is_null() || len <= 0 {
@@ -460,6 +699,27 @@ pub unsafe extern "C" fn tcl_codegen_proc_register(
     0
 }
 
+/// `tcl_obj_new_string_owned(ptr, len) -> obj` — copy a string from shared
+/// linear memory and return one caller-owned (`+1`) reference.
+///
+/// This is the argv constructor for generated generic invocation code. The
+/// caller may free or reuse its source call frame immediately after dispatch
+/// only after it releases this returned reference. Unlike [`tcl_obj_new_string`]
+/// it is not adopted by [`tcl_invoke_argv`]: that ABI borrows argv words.
+///
+/// # Safety
+/// `ptr` must reference `len` readable bytes (it may be null only when
+/// `len == 0`); `len` must be non-negative.
+#[no_mangle]
+pub unsafe extern "C" fn tcl_obj_new_string_owned(ptr: *const u8, len: i32) -> *mut TclObj {
+    // SAFETY: forwarded per this function's contract.
+    let object = unsafe { tcl_obj_new_string(ptr, len) };
+    // SAFETY: the constructor returned a live fresh object; this creates the
+    // caller-owned reference the borrowed argv ABI requires.
+    unsafe { obj::incr_ref_count(object) };
+    object
+}
+
 /// `tcl_eval(script) -> result` — evaluate `script` against the current interp.
 /// **Adopts (frees)** the `rc 0` `script`; returns a **new owned (`+1`)**
 /// reference to the result that the caller must release with
@@ -539,6 +799,159 @@ pub unsafe extern "C" fn tcl_obj_release(obj: *mut TclObj) {
     unsafe { obj::decr_ref_count(obj) };
 }
 
+/// `tcl_obj_retain(obj) -> obj` — duplicate one owned reference.
+///
+/// Generated functions use this to forward a completion result or options
+/// handle while still releasing their private [`TclCompletionAbi`] storage.
+/// The returned handle is the same object and carries one additional `+1`
+/// reference which the receiving generated caller (or host) must release.
+/// Null is accepted and returned unchanged for defensive ABI composition.
+///
+/// # Safety
+/// `obj` must be null or a live object.
+#[no_mangle]
+pub unsafe extern "C" fn tcl_obj_retain(obj: *mut TclObj) -> *mut TclObj {
+    // SAFETY: forwarded per this function's contract.
+    unsafe { obj::incr_ref_count(obj) };
+    obj
+}
+
+/// `tcl_invoke_argv(argv, argc, out) -> status` — invoke an already-evaluated
+/// Tcl argv against the current interpreter.
+///
+/// `argv` contains the full command vector, including its command head at
+/// index zero. The runtime performs its normal name resolution and dispatch —
+/// namespaces, `unknown`, aliases, ensembles, and TclOO all stay on the same
+/// [`Interp::dispatch`] path as interpreted Tcl — but does not parse source or
+/// repeat substitutions. `out` receives the shared
+/// [`tcl_runtime_api::Completion`] as [`TclCompletionAbi`].
+///
+/// The return value reports ABI handling only: [`TCL_INVOKE_ABI_OK`] means
+/// `out` was written, even when `out.code` is Tcl `error`; a negative status
+/// reports a malformed boundary request. When `out` is valid, every status
+/// except [`TCL_INVOKE_ABI_NULL_OUT`] still writes an owned error completion so
+/// the caller has a uniform release path.
+///
+/// ## Ownership
+///
+/// `argv` is borrowed. The caller retains ownership of every word and must keep
+/// each non-null object live with one owned reference for the whole call. The
+/// runtime takes transient references before dispatch and releases them before
+/// return; it never adopts or releases the caller's references. The written
+/// `result` and `options` each transfer one owned reference to the caller;
+/// release them individually through [`tcl_obj_release`] or together through
+/// [`tcl_completion_release`], but never both.
+///
+/// # Safety
+/// `out` must be null or point to writable, properly aligned
+/// [`TclCompletionAbi`] storage. For a positive `argc`, `argv` must point to
+/// `argc` readable pointers, each non-null and a live `TclObj` with a
+/// caller-owned reference. Null, negative, and non-representable sizes are
+/// rejected without reading argv memory.
+#[no_mangle]
+pub unsafe extern "C" fn tcl_invoke_argv(
+    argv: *const *mut TclObj,
+    argc: i32,
+    out: *mut TclCompletionAbi,
+) -> i32 {
+    if out.is_null() {
+        return TCL_INVOKE_ABI_NULL_OUT;
+    }
+
+    let interp = current_interp();
+    if interp.is_null() {
+        // SAFETY: `out` was checked above and meets this function's contract.
+        unsafe {
+            write_completion(
+                out,
+                detached_error_completion(b"no current interpreter for tcl_invoke_argv"),
+            )
+        };
+        return TCL_INVOKE_ABI_NO_CURRENT_INTERP;
+    }
+
+    let argc = match usize::try_from(argc) {
+        Ok(argc) if argc > 0 => argc,
+        _ => {
+            // SAFETY: current interp and `out` are live per the function contract.
+            unsafe {
+                let code = (*interp).set_error(b"tcl_invoke_argv requires a command head");
+                write_completion(
+                    out,
+                    completion_abi(crate::state_traits::capture_completion(&mut *interp, code)),
+                );
+            }
+            return TCL_INVOKE_ABI_INVALID_ARGC;
+        }
+    };
+    if argv.is_null() {
+        // SAFETY: current interp and `out` are live per the function contract.
+        unsafe {
+            let code = (*interp).set_error(b"tcl_invoke_argv received a null argv");
+            write_completion(
+                out,
+                completion_abi(crate::state_traits::capture_completion(&mut *interp, code)),
+            );
+        }
+        return TCL_INVOKE_ABI_NULL_ARGV;
+    }
+
+    // SAFETY: caller guarantees `argv` references `argc` readable pointers.
+    let words = unsafe { core::slice::from_raw_parts(argv, argc) };
+    if words.iter().any(|word| word.is_null()) {
+        // SAFETY: current interp and `out` are live per the function contract.
+        unsafe {
+            let code = (*interp).set_error(b"tcl_invoke_argv received a null word");
+            write_completion(
+                out,
+                completion_abi(crate::state_traits::capture_completion(&mut *interp, code)),
+            );
+        }
+        return TCL_INVOKE_ABI_NULL_WORD;
+    }
+
+    // Keep the caller's borrowed words alive through dispatch. `Drop` restores
+    // their exact pre-call reference counts after the completion has captured
+    // independent result/options references.
+    // SAFETY: null words were rejected; the caller guarantees every word is
+    // live and holds an owned reference for this call.
+    let _borrowed = unsafe { BorrowedArgv::retain(words) };
+    // SAFETY: the current interpreter is live for this ABI call.
+    let completion = unsafe { crate::state_traits::dispatch_prebuilt_argv(&mut *interp, words) };
+    // SAFETY: `out` is live and properly aligned per this function's contract.
+    unsafe { write_completion(out, completion_abi(completion)) };
+    TCL_INVOKE_ABI_OK
+}
+
+/// Release both owned object references in a [`TclCompletionAbi`] and reset its
+/// fields to null/zero. This is an alternative to releasing `result` and
+/// `options` separately with [`tcl_obj_release`]; do not use both forms.
+///
+/// Resetting the fields deliberately makes a repeated call on the *same output
+/// storage* idempotent. It does not make mixed release styles safe: after a
+/// caller releases either non-null handle separately, it must not call this
+/// function unless it first clears that field.
+///
+/// # Safety
+/// `completion` must be null or writable completion storage whose two object
+/// handles are still owned by the caller and have not already been released.
+#[no_mangle]
+pub unsafe extern "C" fn tcl_completion_release(completion: *mut TclCompletionAbi) {
+    if completion.is_null() {
+        return;
+    }
+    // SAFETY: caller guarantees writable, valid completion storage.
+    let completion = unsafe { &mut *completion };
+    // SAFETY: the two handles are caller-owned by this function's contract.
+    unsafe {
+        obj::decr_ref_count(completion.result);
+        obj::decr_ref_count(completion.options);
+    }
+    completion.code = 0;
+    completion.result = ptr::null_mut();
+    completion.options = ptr::null_mut();
+}
+
 /// `tcl_expr_bool(expr) -> i32` — evaluate `expr` as a Tcl boolean (`1`/`0`).
 /// **Adopts (frees)** the `rc 0` `expr`. On an expression error — or in a build
 /// without the numeric tower (no `expr` evaluator) — yields `0`. The wasm
@@ -586,7 +999,7 @@ unsafe fn expr_bool_impl(_interp: *mut Interp, _expr: *mut TclObj) -> i32 {
     0
 }
 
-#[cfg(all(test, have_tommath))]
+#[cfg(test)]
 mod tests {
     use super::*;
     use crate::capi::{tcl_runtime_create_interp, tcl_runtime_delete_interp};
@@ -618,6 +1031,55 @@ mod tests {
         unsafe { tcl_value_new_string(s.as_ptr(), s.len() as i32) }
     }
 
+    /// Box one borrowed argv word and take the caller's owning reference.
+    unsafe fn owned_word(s: &[u8]) -> *mut TclObj {
+        // SAFETY: `box_str` copies valid bytes into a fresh object.
+        let word = unsafe { box_str(s) };
+        // SAFETY: the test owns the fresh object and keeps this +1 until it
+        // releases the argv after invoking.
+        unsafe { obj::incr_ref_count(word) };
+        word
+    }
+
+    fn empty_completion() -> TclCompletionAbi {
+        TclCompletionAbi {
+            code: 0,
+            result: ptr::null_mut(),
+            options: ptr::null_mut(),
+        }
+    }
+
+    unsafe fn invoke(words: &[*mut TclObj]) -> TclCompletionAbi {
+        let mut completion = empty_completion();
+        // SAFETY: `words` is a Rust slice of live caller-owned object handles;
+        // completion storage is local and correctly aligned.
+        assert_eq!(
+            unsafe {
+                tcl_invoke_argv(
+                    words.as_ptr(),
+                    i32::try_from(words.len()).expect("test argv fits i32"),
+                    &mut completion,
+                )
+            },
+            TCL_INVOKE_ABI_OK
+        );
+        completion
+    }
+
+    unsafe fn release_words(words: &[*mut TclObj]) {
+        for &word in words {
+            // SAFETY: balances `owned_word`'s caller-owned reference.
+            unsafe { obj::decr_ref_count(word) };
+        }
+    }
+
+    fn option(completion: &TclCompletionAbi, key: &[u8]) -> Vec<u8> {
+        let value = crate::dict::dict_get(completion.options, key)
+            .expect("completion options are a dict")
+            .expect("expected completion option");
+        obj_bytes(value)
+    }
+
     #[test]
     fn compiled_slots_and_named_access_share_one_cell() {
         leak_free(|| unsafe {
@@ -645,6 +1107,39 @@ mod tests {
         });
     }
 
+    /// The prebuilt argv boundary reaches the normal builtin dispatcher and
+    /// leaves each caller-owned argv reference untouched.
+    #[test]
+    fn invoke_argv_dispatches_builtin_without_adopting_words() {
+        leak_free(|| unsafe {
+            let interp = tcl_runtime_create_interp();
+            tcl_runtime_set_current_interp(interp);
+            let words = [
+                owned_word(b"string"),
+                owned_word(b"length"),
+                owned_word(b"abc"),
+            ];
+            let counts = words.map(|word| (*word).ref_count);
+
+            let mut completion = invoke(&words);
+            assert_eq!(completion.code, 0);
+            assert_eq!(obj_bytes(completion.result), b"3");
+            assert_eq!(option(&completion, b"-code"), b"0");
+            assert_eq!(option(&completion, b"-level"), b"0");
+            assert_eq!(words.map(|word| (*word).ref_count), counts);
+
+            tcl_completion_release(&mut completion);
+            assert!(completion.result.is_null());
+            assert!(completion.options.is_null());
+            // Reset output storage makes this release form deliberately
+            // idempotent (unlike mixing it with individual handle releases).
+            tcl_completion_release(&mut completion);
+            release_words(&words);
+            tcl_runtime_set_current_interp(ptr::null_mut());
+            tcl_runtime_delete_interp(interp);
+        });
+    }
+
     #[test]
     fn nested_add_propagates_the_inner_arithmetic_error() {
         leak_free(|| unsafe {
@@ -660,6 +1155,142 @@ mod tests {
             assert!(outer.is_null());
             assert_eq!((*interp).result_bytes(), error);
 
+            tcl_runtime_set_current_interp(ptr::null_mut());
+            tcl_runtime_delete_interp(interp);
+        });
+    }
+
+    /// Command lookup happens after argv construction, so a renamed command is
+    /// still resolved through the existing namespace table rather than a
+    /// compiler-side command-name table.
+    #[test]
+    fn invoke_argv_follows_renamed_command() {
+        leak_free(|| unsafe {
+            let interp = tcl_runtime_create_interp();
+            tcl_runtime_set_current_interp(interp);
+            assert_eq!(
+                tcl_eval_code(box_str(
+                    b"proc original {x} {list got:$x}; rename original renamed"
+                )),
+                0
+            );
+            let words = [owned_word(b"renamed"), owned_word(b"value")];
+
+            let mut completion = invoke(&words);
+            assert_eq!(completion.code, 0);
+            assert_eq!(obj_bytes(completion.result), b"got:value");
+
+            tcl_completion_release(&mut completion);
+            release_words(&words);
+            tcl_runtime_set_current_interp(ptr::null_mut());
+            tcl_runtime_delete_interp(interp);
+        });
+    }
+
+    /// Alias dispatch is resolved by the interpreter after argv construction;
+    /// the prebuilt path neither knows nor cares which command it redirects to.
+    #[test]
+    fn invoke_argv_follows_interp_alias() {
+        leak_free(|| unsafe {
+            let interp = tcl_runtime_create_interp();
+            tcl_runtime_set_current_interp(interp);
+            assert_eq!(
+                tcl_eval_code(box_str(b"interp alias {} prefixed {} list prefix")),
+                0
+            );
+            let words = [owned_word(b"prefixed"), owned_word(b"value")];
+
+            let mut completion = invoke(&words);
+            assert_eq!(completion.code, 0);
+            assert_eq!(obj_bytes(completion.result), b"prefix value");
+
+            tcl_completion_release(&mut completion);
+            release_words(&words);
+            tcl_runtime_set_current_interp(ptr::null_mut());
+            tcl_runtime_delete_interp(interp);
+        });
+    }
+
+    /// A resolver miss takes the usual `unknown`/error path and returns the
+    /// real error options instead of an empty placeholder.
+    #[test]
+    fn invoke_argv_reports_unknown_error_with_options() {
+        leak_free(|| unsafe {
+            let interp = tcl_runtime_create_interp();
+            tcl_runtime_set_current_interp(interp);
+            let words = [owned_word(b"definitely_missing_command")];
+
+            let mut completion = invoke(&words);
+            assert_eq!(completion.code, 1);
+            assert!(obj_bytes(completion.result).starts_with(b"invalid command name"));
+            assert_eq!(option(&completion, b"-code"), b"1");
+            assert_eq!(option(&completion, b"-level"), b"0");
+            assert_eq!(option(&completion, b"-errorcode"), b"NONE");
+            assert!(option(&completion, b"-errorinfo").starts_with(b"invalid command name"));
+
+            tcl_completion_release(&mut completion);
+            release_words(&words);
+            tcl_runtime_set_current_interp(ptr::null_mut());
+            tcl_runtime_delete_interp(interp);
+        });
+    }
+
+    /// Non-standard completion codes remain raw `i32`s at the ABI boundary,
+    /// with a matching return-options `-code` value.
+    #[test]
+    fn invoke_argv_preserves_custom_completion_code() {
+        leak_free(|| unsafe {
+            let interp = tcl_runtime_create_interp();
+            tcl_runtime_set_current_interp(interp);
+            let words = [
+                owned_word(b"return"),
+                owned_word(b"-level"),
+                owned_word(b"0"),
+                owned_word(b"-code"),
+                owned_word(b"73"),
+                owned_word(b"custom result"),
+            ];
+
+            let mut completion = invoke(&words);
+            assert_eq!(completion.code, 73);
+            assert_eq!(obj_bytes(completion.result), b"custom result");
+            assert_eq!(option(&completion, b"-code"), b"73");
+            assert_eq!(option(&completion, b"-level"), b"0");
+
+            tcl_completion_release(&mut completion);
+            release_words(&words);
+            tcl_runtime_set_current_interp(ptr::null_mut());
+            tcl_runtime_delete_interp(interp);
+        });
+    }
+
+    /// Malformed ABI inputs do not read a null argv and still provide an owned
+    /// error completion whenever output storage is available.
+    #[test]
+    fn invoke_argv_validates_boundary_inputs_without_leaking() {
+        leak_free(|| unsafe {
+            let interp = tcl_runtime_create_interp();
+            tcl_runtime_set_current_interp(interp);
+            let mut completion = empty_completion();
+
+            assert_eq!(
+                tcl_invoke_argv(ptr::null(), -1, &mut completion),
+                TCL_INVOKE_ABI_INVALID_ARGC
+            );
+            assert_eq!(completion.code, 1);
+            tcl_completion_release(&mut completion);
+
+            assert_eq!(
+                tcl_invoke_argv(ptr::null(), 1, &mut completion),
+                TCL_INVOKE_ABI_NULL_ARGV
+            );
+            assert_eq!(completion.code, 1);
+            tcl_completion_release(&mut completion);
+
+            assert_eq!(
+                tcl_invoke_argv(ptr::null(), 1, ptr::null_mut()),
+                TCL_INVOKE_ABI_NULL_OUT
+            );
             tcl_runtime_set_current_interp(ptr::null_mut());
             tcl_runtime_delete_interp(interp);
         });
@@ -691,6 +1322,7 @@ mod tests {
     /// `tcl_expr_bool` evaluates real Tcl boolean expressions and frees its
     /// (adopted) operand object.
     #[test]
+    #[cfg(have_tommath)]
     fn expr_bool_true_and_false() {
         leak_free(|| unsafe {
             let interp = tcl_runtime_create_interp();
@@ -749,6 +1381,46 @@ mod tests {
             tcl_obj_release(result);
             assert_eq!(tcl_expr_bool(box_str(b"1 < 2")), 0);
             assert_eq!(tcl_eval_code(box_str(b"error boom")), 0);
+        });
+    }
+
+    /// Call-frame storage is dynamically distinct, so a nested generated call
+    /// cannot overwrite the argv or completion storage held by its caller.
+    #[test]
+    fn call_frames_are_reentrant_and_layout_checked() {
+        unsafe {
+            let before = tcl_codegen_call_frame_outstanding();
+            let outer = tcl_codegen_call_frame_alloc(32, 8);
+            assert!(!outer.is_null());
+            assert_eq!(tcl_codegen_call_frame_outstanding(), before + 1);
+            outer.write_bytes(0xA5, 32);
+
+            let inner = tcl_codegen_call_frame_alloc(48, 16);
+            assert!(!inner.is_null());
+            assert_ne!(outer, inner);
+            assert_eq!(tcl_codegen_call_frame_outstanding(), before + 2);
+            inner.write_bytes(0x5A, 48);
+            assert_eq!(outer.read(), 0xA5);
+
+            assert_eq!(tcl_codegen_call_frame_free(inner), 0);
+            assert_eq!(tcl_codegen_call_frame_free(outer.wrapping_add(1)), -1);
+            assert_eq!(tcl_codegen_call_frame_free(outer), 0);
+            assert_eq!(tcl_codegen_call_frame_outstanding(), before);
+            assert_eq!(tcl_codegen_call_frame_free(outer), -1);
+            assert!(tcl_codegen_call_frame_alloc(0, 4).is_null());
+            assert!(tcl_codegen_call_frame_alloc(8, 3).is_null());
+        }
+    }
+
+    /// The argv constructor transfers exactly one owned reference, which is
+    /// the reference the generated cleanup path releases after dispatch.
+    #[test]
+    fn owned_string_constructor_has_one_releasable_reference() {
+        leak_free(|| unsafe {
+            let word = tcl_obj_new_string_owned(b"word".as_ptr(), 4);
+            assert_eq!((*word).ref_count, 1);
+            assert_eq!(obj_bytes(word), b"word");
+            tcl_obj_release(word);
         });
     }
 }

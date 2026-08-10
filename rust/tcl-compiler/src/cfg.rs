@@ -190,6 +190,19 @@ pub struct LoopNode {
     pub for_stmt: Statement,
 }
 
+/// Source site and Tcl error context for a command body flattened into a CFG.
+///
+/// The semantic context comes from registry resolution during lowering.  It is
+/// retained separately from source text so code generators never need to
+/// recover command identity by parsing the original script.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct InlineBodyErrorSite {
+    /// Source span of the enclosing command whose body was inlined.
+    pub span: Span,
+    /// Target-neutral Tcl error context contributed by the inlined body.
+    pub context: tcl_registry::InlineBodyErrorContext,
+}
+
 /// A complete control-flow graph for a single procedure or top-level script.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Function {
@@ -208,12 +221,11 @@ pub struct Function {
     /// → O107).  `(from_block, handler_block)` pairs; empty in codegen
     /// builds so the default bytecode is unchanged.
     pub exception_edges: Vec<(BlockId, BlockId)>,
-    /// Source spans of the inlined command bodies (`eval {…}`) the CFG builder
-    /// flattened into this function's statement stream. Codegen turns each into
-    /// a [`tcl_bytecode::ErrorRegion`] so an error unwinding through the inlined
-    /// body still gets the body frame the uncompiled command would add to
-    /// `errorInfo` (the LSP keeps its inlined view). Empty when none were folded.
-    pub inline_eval_spans: Vec<tcl_lexer::Span>,
+    /// Registry-described error contexts for inlined command bodies flattened
+    /// into this function's statement stream. Codegen turns each into a
+    /// [`tcl_bytecode::ErrorRegion`] without re-parsing command text. Empty
+    /// when no inlined body contributes an error frame.
+    pub inline_body_error_sites: Vec<InlineBodyErrorSite>,
     /// Caller-frame injection this function is *subject to*: a callee whose
     /// [frame-effect summary](crate::cfg_builder::upvar_info::UpvarInfo)
     /// says it writes or reads names in **this** frame that no static
@@ -253,7 +265,7 @@ impl Function {
             blocks: HashMap::new(),
             loop_nodes: HashMap::new(),
             exception_edges: Vec::new(),
-            inline_eval_spans: Vec::new(),
+            inline_body_error_sites: Vec::new(),
             caller_frame_barrier: crate::dynamic_names::DynamicNameBarrier::default(),
             alias_observed_vars: std::collections::BTreeSet::new(),
             block_names: Vec::new(),

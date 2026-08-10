@@ -454,6 +454,7 @@ fn try_inline_callsite(
                 body: body.clone(),
                 namespace: namespace.to_string(),
                 tokens: tokens.clone(),
+                error_context: None,
             })
         }
         PassthroughShape::ParamBody { .. } => {
@@ -491,6 +492,7 @@ fn try_inline_callsite(
                 body: inlined,
                 namespace: namespace.to_string(),
                 tokens: tokens.clone(),
+                error_context: None,
             })
         }
     }

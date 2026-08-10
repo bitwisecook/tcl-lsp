@@ -33,7 +33,7 @@
 /// `match` on this type is exhaustively checked at every dispatcher
 /// — adding a new hook here gives the compiler a deliberate
 /// compile-time error until the new arm is implemented.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub enum LoweringHookId {
     /// `expr <single-arg>` → typed expression IR.
     Expr,
@@ -130,8 +130,8 @@ pub enum LoweringHookId {
 /// until the new arm is wired up.
 ///
 /// **Note:** despite the historical name `CodegenHookId`, this
-/// covers only the `TclVM` bytecode emitter. The WASM emitter
-/// family has its own [`WasmCodegenHookId`].
+/// covers only the `TclVM` bytecode emitter. Other compiler backends
+/// keep their specialisation registries with their emitters.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum CodegenHookId {
     /// `lassign list var1 ?var2 ...?`.

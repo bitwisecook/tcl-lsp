@@ -31,7 +31,7 @@
 
 use tcl_cmd_core::prefix::Resolution;
 
-use crate::interp::{new_string, obj_bytes, Code, Interp};
+use crate::interp::{Code, Interp, new_string, obj_bytes};
 use crate::obj::{self, TclObj};
 
 /// Register `append` + the `string` ensemble.
@@ -149,8 +149,6 @@ fn string_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         b"length" => str_length(interp, argv),
         b"index" => str_index(interp, argv),
         b"range" => str_range(interp, argv),
-        b"equal" => str_equal(interp, argv),
-        b"compare" => str_compare(interp, argv),
         b"cat" => str_cat(interp, argv),
         b"repeat" => str_repeat(interp, argv),
         b"reverse" => str_reverse(interp, argv),
@@ -474,8 +472,8 @@ fn tcl_prefix_match(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     let mut exact = false;
     let mut message: Vec<u8> = b"option".to_vec();
     let mut error_opts: Option<Vec<u8>> = None; // Some(opts) ⇒ -error given
-                                                // Options precede the trailing `table string`; `-error`/`-message` need a
-                                                // value that must not intrude into those last two arguments.
+    // Options precede the trailing `table string`; `-error`/`-message` need a
+    // value that must not intrude into those last two arguments.
     let opt_end = argv.len() - 2;
     let mut i = 2;
     while i < opt_end {
@@ -610,92 +608,6 @@ fn tcl_prefix_longest(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     let out: String = longest.iter().collect();
     interp.set_result_bytes(out.as_bytes());
     Code::Ok
-}
-
-/// Shared `string equal`/`string compare` engine: `?-nocase? ?-length int?
-/// string1 string2`. `-length` limits the comparison to the first N characters.
-fn str_compare_equal(interp: &mut Interp, argv: &[*mut TclObj], equal: bool) -> Code {
-    let usage: &[u8] = if equal {
-        b"string equal ?-nocase? ?-length int? string1 string2"
-    } else {
-        b"string compare ?-nocase? ?-length int? string1 string2"
-    };
-    // C's `StringCmpOpts` allows 3..=6 args ([cmd, ?-nocase?, ?-length n?,
-    // s1, s2]); here `string` adds one, so 4..=7.
-    if argv.len() < 4 || argv.len() > 7 {
-        return interp.wrong_args(usage);
-    }
-    let mut nocase = false;
-    let mut length: Option<usize> = None;
-    // Options occupy everything before the trailing two strings, matching by
-    // prefix (at least two characters, like C's `strncmp(string, …, length)`
-    // with `length > 1`).
-    let mut i = 2;
-    while i < argv.len() - 2 {
-        let opt = obj_bytes(argv[i]);
-        if opt.len() > 1 && b"-nocase".starts_with(opt.as_slice()) {
-            nocase = true;
-            i += 1;
-        } else if opt.len() > 1 && b"-length".starts_with(opt.as_slice()) {
-            if i + 1 >= argv.len() - 2 {
-                return interp.wrong_args(usage);
-            }
-            // `-length` reads a wide int (`TclGetWideIntFromObj`): a negative or
-            // out-of-`Tcl_Size` value means "no limit", a bignum overflows.
-            // `try_from` keeps an over-wide length as `None` rather than wrapping
-            // (`w as usize` truncates on 32-bit targets such as wasm32).
-            match get_wide(&obj_bytes(argv[i + 1])) {
-                Ok(w) => length = usize::try_from(w).ok(),
-                Err(WideErr::TooLarge) => {
-                    return interp.set_error(b"integer value too large to represent");
-                }
-                Err(WideErr::NotInteger) => return not_integer(interp, &obj_bytes(argv[i + 1])),
-            }
-            i += 2;
-        } else {
-            let mut m = b"bad option \"".to_vec();
-            m.extend_from_slice(&opt);
-            m.extend_from_slice(b"\": must be -nocase or -length");
-            return interp.set_error(&m);
-        }
-    }
-    if argv.len() - i != 2 {
-        return interp.wrong_args(usage);
-    }
-    let mut a: Vec<char> = String::from_utf8_lossy(&obj_bytes(argv[i]))
-        .chars()
-        .collect();
-    let mut b: Vec<char> = String::from_utf8_lossy(&obj_bytes(argv[i + 1]))
-        .chars()
-        .collect();
-    if nocase {
-        a = a.iter().flat_map(|c| c.to_lowercase()).collect();
-        b = b.iter().flat_map(|c| c.to_lowercase()).collect();
-    }
-    if let Some(n) = length {
-        a.truncate(n);
-        b.truncate(n);
-    }
-    let ord = a.cmp(&b);
-    if equal {
-        interp.set_result_bytes(if ord.is_eq() { b"1" } else { b"0" });
-    } else {
-        let c = match ord {
-            std::cmp::Ordering::Less => -1,
-            std::cmp::Ordering::Equal => 0,
-            std::cmp::Ordering::Greater => 1,
-        };
-        interp.set_result(obj::new_wide_int_obj(c));
-    }
-    Code::Ok
-}
-
-fn str_equal(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
-    str_compare_equal(interp, argv, true)
-}
-
-fn str_compare(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
-    str_compare_equal(interp, argv, false)
 }
 
 fn str_cat(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
@@ -1123,7 +1035,7 @@ fn str_is(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     let class: &[u8] = match index_lookup(IS_CLASSES, &class_arg) {
         Resolution::Exact(i) | Resolution::UniquePrefix(i) => IS_CLASSES[i],
         Resolution::Ambiguous => {
-            return interp.set_error(&class_err(b"ambiguous class", &class_arg))
+            return interp.set_error(&class_err(b"ambiguous class", &class_arg));
         }
         Resolution::NoMatch => return interp.set_error(&class_err(b"bad class", &class_arg)),
     };
@@ -1154,7 +1066,7 @@ fn str_is(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
                 k += 2;
             }
             Resolution::Ambiguous => {
-                return interp.set_error(&option_err(b"ambiguous option", &opt))
+                return interp.set_error(&option_err(b"ambiguous option", &opt));
             }
             Resolution::NoMatch => return interp.set_error(&option_err(b"bad option", &opt)),
         }
@@ -1269,28 +1181,6 @@ fn parse_isize(b: &[u8]) -> Option<isize> {
     core::str::from_utf8(b).ok()?.trim().parse::<isize>().ok()
 }
 
-/// Why reading a wide integer (`TclGetWideIntFromObj`) failed.
-enum WideErr {
-    /// A valid integer that overflows a wide (`integer value too large …`).
-    TooLarge,
-    /// Not an integer at all (`expected integer but got …`).
-    NotInteger,
-}
-
-/// Read a Tcl wide integer from `b` via the shared `tcl_syntax::number` grammar
-/// (accepts decimal / `0x` / `0o` / `0b` and surrounding whitespace), reporting
-/// a bignum overflow distinctly from a non-integer.
-fn get_wide(b: &[u8]) -> Result<i64, WideErr> {
-    match core::str::from_utf8(b)
-        .ok()
-        .and_then(tcl_syntax::number::parse_whole)
-    {
-        Some(tcl_syntax::number::Number::Int(v)) => Ok(v),
-        Some(tcl_syntax::number::Number::Big { .. }) => Err(WideErr::TooLarge),
-        _ => Err(WideErr::NotInteger),
-    }
-}
-
 /// `int` / `end` / `end-N` / `end+N` index spec against `len` chars.
 // Index specs (`end`, `int±int`, `end±int`, …) share the full
 // `TclGetIntForIndex` grammar with the list commands — reuse one parser.
@@ -1363,6 +1253,12 @@ mod tests {
         b
     }
 
+    fn err(src: &[u8]) -> Vec<u8> {
+        let (c, b) = run(src);
+        assert_eq!(c, Code::Error, "result={:?}", String::from_utf8_lossy(&b));
+        b
+    }
+
     #[test]
     fn string_match_map_is() {
         // match (glob, -nocase)
@@ -1413,6 +1309,18 @@ mod tests {
         assert_eq!(ok(b"string compare -length 2 abcx abcy"), b"0");
         assert_eq!(ok(b"string equal -nocase ABC abc"), b"1");
         assert_eq!(ok(b"string equal -length 2 abxx abyy"), b"1");
+        assert_eq!(
+            ok("string equal -nocase -length 1 \u{0130} i".as_bytes()),
+            b"1"
+        );
+        assert_eq!(
+            err(b"string equal -length 9223372036854775808 a b"),
+            b"integer value too large to represent"
+        );
+        assert_eq!(
+            err(b"string compare -length nope a b"),
+            b"expected integer but got \"nope\""
+        );
     }
 
     #[test]

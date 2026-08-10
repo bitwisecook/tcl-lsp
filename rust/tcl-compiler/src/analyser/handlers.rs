@@ -3926,21 +3926,29 @@ impl Analyser {
     /// like `foreach {b a}` / `dict for {k v}` distinct,
     /// declaration-ordered spans, so downstream offset-sorted consumers
     /// (the `symbols` / `symbolgraph` CLI verbs) stay deterministic and
-    /// source-ordered. A name not found in the content text (escapes,
-    /// line continuations) falls back to the whole-token span.
+    /// source-ordered. Tcl list grouping and backslash substitutions are
+    /// decoded for the variable name while each definition span remains the
+    /// exact source range of its list element.
     fn define_vars_from_list(&mut self, var_list_text: &str, tok: Token, scope_path: &[usize]) {
+        let Ok(names) = tcl_syntax::list::split_list(var_list_text) else {
+            return;
+        };
         let content_start = tok.span.start() + u32::from(tok.content_offset);
-        let mut search_start = 0usize;
-        for name in var_list_text.split_whitespace() {
-            if let Some(rel) = var_list_text[search_start..].find(name) {
-                let idx = search_start + rel;
-                let start = content_start + u32::try_from(idx).unwrap_or(0);
-                let end = start + u32::try_from(name.len()).unwrap_or(0);
-                self.define_var(name, tok, scope_path, true, Some(Span::new(start, end)));
-                search_start = idx + name.len();
-            } else {
-                self.define_var(name, tok, scope_path, true, None);
-            }
+        let mut pos = 0usize;
+        for name in names {
+            let Ok(Some(element)) = tcl_syntax::list::find_element(var_list_text, pos) else {
+                return;
+            };
+            let start = content_start + u32::try_from(element.value.start).unwrap_or(0);
+            let end = content_start + u32::try_from(element.value.end).unwrap_or(0);
+            self.define_var(
+                name.as_ref(),
+                tok,
+                scope_path,
+                true,
+                Some(Span::new(start, end)),
+            );
+            pos = element.next;
         }
     }
 
@@ -4030,9 +4038,11 @@ impl Analyser {
         list_text: &str,
         list_braced: bool,
     ) -> Option<(String, Vec<String>)> {
-        let mut vars = var_list_text.split_whitespace();
-        let var = vars.next()?;
-        if vars.next().is_some() || crate::naming::is_dynamic_word(var) {
+        let vars = tcl_syntax::list::split_list(var_list_text).ok()?;
+        let [var] = vars.as_slice() else {
+            return None;
+        };
+        if crate::naming::is_dynamic_word(var) {
             return None;
         }
         // Parse the value as a real Tcl list, not `split_whitespace`: a
@@ -4056,7 +4066,7 @@ impl Analyser {
         {
             return None;
         }
-        Some((var.to_owned(), elements))
+        Some((var.to_string(), elements))
     }
 
     /// For each literal element *after* the first (the first iteration is
@@ -5229,26 +5239,11 @@ impl Analyser {
         if args.is_empty() {
             return false;
         }
-        let mut obj_name = args[0].trim().to_string();
-        if let Some(stripped) = obj_name.strip_prefix('$') {
-            obj_name = stripped.trim_matches(|c| c == '{' || c == '}').to_string();
-        }
+        let (obj_name, resolved_obj) =
+            self.oo_objdefine_receiver(args, arg_tokens, arg_single, scope_path);
         if !obj_name.is_empty() {
             self.objdefined_vars.insert(obj_name.clone());
         }
-        // The object the receiver word actually names this time round, when
-        // it is statically determined.
-        let resolved_obj = self
-            .resolve_dynamic_word(
-                &args[0],
-                arg_tokens.first().copied(),
-                arg_single.first().copied().unwrap_or(false),
-                scope_path,
-            )
-            .map(|name| name.trim().to_string())
-            .filter(|name| {
-                !name.is_empty() && *name != obj_name && !crate::naming::is_dynamic_word(name)
-            });
         // A receiver that resolves to no static name (`$objs($i)`, `[pick]`)
         // may define members on *any* object, so the per-object W315 gates
         // abstain file-wide (issue #1170).
@@ -5264,7 +5259,6 @@ impl Analyser {
             return true;
         }
 
-        let cmd_name = "oo::objdefine";
         // A throwaway holder for the walked members.  The method bodies home
         // under a private synthetic name (`@objdefine@…`, unrepresentable in
         // real Tcl) so a per-object `greet` never collides with the same-named
@@ -5305,45 +5299,7 @@ impl Analyser {
             .unwrap_or_default();
         object_class.methods = seed;
 
-        // Body-form vs inline-form is the same registry-grammar test as
-        // `oo::define`: `args[1]` being a known member keyword means the
-        // inline form (`oo::objdefine $o method m {} {}`).
-        let inline_form = self
-            .definition_grammar(cmd_name)
-            .is_some_and(|g| g.is_member(&args[1]));
-
-        if inline_form {
-            let inline_args: Vec<String> = args[1..].to_vec();
-            let inline_tokens: Vec<Token> = arg_tokens.iter().skip(1).copied().collect();
-            if let Some(grammar) = self.definition_grammar(cmd_name) {
-                super::oo::parse_oo_define_inline(
-                    grammar,
-                    &inline_args,
-                    &inline_tokens,
-                    &mut object_class,
-                );
-                // The inline form names commands too (`oo::objdefine $o mixin
-                // M`); record them the same way the body walk does so
-                // references / rename reach the class.
-                self.record_member_command_references(
-                    grammar,
-                    &inline_args,
-                    &inline_tokens,
-                    scope_path,
-                );
-            }
-        } else if let Some(body_tok) = arg_tokens.get(1).copied() {
-            let grammar = self.definition_grammar(cmd_name);
-            let definer_disabled = self.command_dialect_disabled(cmd_name);
-            self.parse_oo_definition_body(
-                &args[1],
-                body_tok,
-                &mut object_class,
-                scope_path,
-                grammar,
-                definer_disabled,
-            );
-        }
+        self.walk_oo_objdefine_form(args, arg_tokens, scope_path, &mut object_class);
 
         // **W315** candidates (issue #1170). `oo::objdefine` aborts the same
         // way a class definition does (`oo::objdefine $o { deletemethod m }`
@@ -5367,6 +5323,90 @@ impl Analyser {
         self.fold_objdefine_block(&keys, frame, objdefine_offset, &object_class);
 
         true
+    }
+
+    /// Resolve the source spelling and any statically-known object target of
+    /// an `oo::objdefine` receiver. The source spelling remains the dispatch
+    /// key, while a resolved loop literal contributes an additional key.
+    fn oo_objdefine_receiver(
+        &self,
+        args: &[String],
+        arg_tokens: &[Token],
+        arg_single: &[bool],
+        scope_path: &[usize],
+    ) -> (String, Option<String>) {
+        let mut written = args[0].trim().to_string();
+        if let Some(stripped) = written.strip_prefix('$') {
+            written = stripped.trim_matches(|c| c == '{' || c == '}').to_string();
+        }
+        let resolved = self
+            .resolve_dynamic_word(
+                &args[0],
+                arg_tokens.first().copied(),
+                arg_single.first().copied().unwrap_or(false),
+                scope_path,
+            )
+            .map(|name| name.trim().to_string())
+            .filter(|name| {
+                !name.is_empty() && *name != written && !crate::naming::is_dynamic_word(name)
+            });
+        (written, resolved)
+    }
+
+    /// Walk an `oo::objdefine` inline member or its braced definition body
+    /// through the same registry grammar used by `oo::define`.
+    fn walk_oo_objdefine_form(
+        &mut self,
+        args: &[String],
+        arg_tokens: &[Token],
+        scope_path: &[usize],
+        object_class: &mut super::types::ClassDef,
+    ) {
+        const CMD_NAME: &str = "oo::objdefine";
+        let inline_form = self
+            .definition_grammar(CMD_NAME)
+            .is_some_and(|grammar| grammar.is_member(&args[1]));
+        if inline_form {
+            let inline_args: Vec<String> = args[1..].to_vec();
+            let inline_tokens: Vec<Token> = arg_tokens.iter().skip(1).copied().collect();
+            if let Some(grammar) = self.definition_grammar(CMD_NAME) {
+                if let Some(member) = inline_args
+                    .first()
+                    .and_then(|subcmd| grammar.member(subcmd))
+                {
+                    self.emit_w002_oo_member_option_disabled(
+                        member,
+                        &inline_args[1..],
+                        &inline_tokens[1..],
+                        false,
+                    );
+                }
+                super::oo::parse_oo_define_inline_in(
+                    grammar,
+                    &inline_args,
+                    &inline_tokens,
+                    object_class,
+                    self.profile.availability_mask,
+                );
+                self.record_member_command_references(
+                    grammar,
+                    &inline_args,
+                    &inline_tokens,
+                    scope_path,
+                );
+            }
+        } else if let Some(body_tok) = arg_tokens.get(1).copied() {
+            let grammar = self.definition_grammar(CMD_NAME);
+            let definer_disabled = self.command_dialect_disabled(CMD_NAME);
+            self.parse_oo_definition_body(
+                &args[1],
+                body_tok,
+                object_class,
+                scope_path,
+                grammar,
+                definer_disabled,
+            );
+        }
     }
 
     /// Record one walked `oo::objdefine` block's member declarations and fold
@@ -8380,11 +8420,12 @@ impl Analyser {
         // written in the body, so no member keyword is known here by name.
         if let Some(grammar) = grammar {
             for injected in &layout.injected {
-                super::oo::apply_oo_subcommand(
+                super::oo::apply_oo_subcommand_in(
                     grammar,
                     &injected.texts,
                     &injected.argv,
                     &mut class,
+                    self.profile.availability_mask,
                 );
             }
         }
@@ -8472,48 +8513,7 @@ impl Analyser {
         if args.is_empty() {
             return false;
         }
-        // A target word written with a substitution may still name exactly
-        // one class: `foreach cls {A B} { oo::define $cls { … } }` binds
-        // `cls` to a literal element per iteration, so each iteration
-        // extends a real, named class (issue #923 idx 55 — the ticklecharts
-        // `etsb.tcl` monkey-patch of four literally-listed classes).  Fold
-        // through the same dominating-constant lattice every other
-        // identity-resolving word uses; only a genuinely unresolvable
-        // target falls through to the synthetic key below.
-        let resolved_class_name = self
-            .resolve_dynamic_word(
-                &args[0],
-                arg_tokens.first().copied(),
-                arg_single.first().copied().unwrap_or(false),
-                scope_path,
-            )
-            .filter(|name| !crate::naming::is_dynamic_word(name));
-        let raw_class_name = resolved_class_name.as_ref().unwrap_or(&args[0]);
-        // A relative class name resolves against the namespace current at the
-        // call — the command-resolution namespace (issue #923 idx 85).
-        let ns_prefix = self.command_resolution_namespace(scope_path);
-        let ns_for_qualify = ns_prefix.trim_start_matches(':');
-        // A dynamic target (`oo::define $class method ...`, the clay.tcl
-        // `current_class`-based Ensemble DSL idiom) can't be resolved to the
-        // real class it extends — and, unlike a literal target, two
-        // lexically unrelated occurrences that happen to write the *same*
-        // variable name (an unremarkable choice for this exact idiom) must
-        // never merge their `ClassDef` state into one via a shared raw-text
-        // key: each occurrence gets its own synthetic, per-call-site key,
-        // keyed by this argument token's own source offset (unique per
-        // occurrence, deterministic, and unrepresentable as a real Tcl class
-        // name, so it can never collide with a literal class of the same
-        // written text). Mirrors `namespace eval`'s identical dynamic-target
-        // handling a few hundred lines above.
-        let dyn_key = if crate::naming::is_dynamic_word(raw_class_name) {
-            Some(match arg_tokens.first() {
-                Some(tok) => self.mint_synthetic_offset_name("@dynclass@", tok.span.start()),
-                None => raw_class_name.clone(),
-            })
-        } else {
-            None
-        };
-        let qualified = qualify(ns_for_qualify, dyn_key.as_deref().unwrap_or(raw_class_name));
+        let qualified = self.oo_define_qualified_target(args, arg_tokens, arg_single, scope_path);
 
         // Distinguish body-form from inline-form by inspecting
         // ``args[1]``.  Body-form: ``oo::define Class { ... }``
@@ -8523,14 +8523,6 @@ impl Analyser {
         if args.len() < 2 {
             return true;
         }
-
-        // The set of known define subcommands *is* the definer's member
-        // grammar (registry data), so recognition can't drift from the source
-        // of truth.  Anything not a grammar member falls through to body-form
-        // handling (the segmenter does the re-parse).
-        let inline_form = self
-            .definition_grammar("oo::define")
-            .is_some_and(|g| g.is_member(&args[1]));
 
         // Look up or create the partial ClassDef in
         // ``result.all_classes``. The ``name`` field carries the
@@ -8583,52 +8575,7 @@ impl Analyser {
                 ..Default::default()
             });
 
-        if inline_form {
-            // ``oo::define Class subcmd ...`` — args[1..] is
-            // the subcommand + its args.  (Registry-gated `inline_form` above
-            // guarantees the grammar is present here.)
-            let inline_args: Vec<String> = args[1..].to_vec();
-            let inline_tokens: Vec<Token> = arg_tokens.iter().skip(1).copied().collect();
-            if let Some(grammar) = self.definition_grammar(cmd_name) {
-                // The single-command form reaches the same member grammar as
-                // a definition body, so it gets the same version gate: `oo::define
-                // Cls classmethod m {} {…}` is as much a 9.0-only construct as
-                // the block form, and must not silently record a member the
-                // 8.6 runtime would reject with `invalid command name`.
-                let definer_disabled = self.command_dialect_disabled(cmd_name);
-                if let (Some(subcmd), Some(tok)) = (inline_args.first(), inline_tokens.first()) {
-                    self.emit_w002_oo_member_disabled(grammar, subcmd, *tok, definer_disabled);
-                }
-                super::oo::parse_oo_define_inline(
-                    grammar,
-                    &inline_args,
-                    &inline_tokens,
-                    &mut class_def,
-                );
-                // Inline `oo::define Class superclass Base` (or `mixin`, or a
-                // `forward` target) names commands too; record them like the
-                // body walk so references / rename reach the referenced class.
-                self.record_member_command_references(
-                    grammar,
-                    &inline_args,
-                    &inline_tokens,
-                    scope_path,
-                );
-            }
-        } else if let Some(body_tok) = arg_tokens.get(1).copied() {
-            // ``oo::define Class { body }`` — args[1] is the
-            // body text, arg_tokens[1] is the body token.
-            let grammar = self.definition_grammar(cmd_name);
-            let definer_disabled = self.command_dialect_disabled(cmd_name);
-            self.parse_oo_definition_body(
-                &args[1],
-                body_tok,
-                &mut class_def,
-                scope_path,
-                grammar,
-                definer_disabled,
-            );
-        }
+        self.walk_oo_define_form(cmd_name, args, arg_tokens, scope_path, &mut class_def);
 
         // **W315** — as on the creation path, except that a `via_define` stub's
         // aborts are dropped rather than reported: a class created in another
@@ -8639,16 +8586,7 @@ impl Analyser {
         // classes it makes, so the derived factory record is recomputed here
         // exactly as it is on the creation path (issue #1276).
         class_def.factory = self.class_factory_of(&qualified, &class_def);
-        // Same dual-registration as ``oo::class create`` — keep
-        // ``all_classes`` and the per-scope ``scope.classes`` in
-        // sync.  ``oo::define`` may be redefining an existing
-        // class; the ``insert`` overwrites the prior entry.
-        let simple_key = class_def.name.clone();
-        self.result.all_classes.insert(qualified, class_def.clone());
-        let path = scope_path.to_vec();
-        if let Some(scope) = super::scope::scope_at_mut(&mut self.result.global_scope, &path) {
-            scope.classes.insert(simple_key, class_def);
-        }
+        self.register_defined_class(qualified, class_def, scope_path);
         true
     }
 
@@ -8724,6 +8662,115 @@ impl Analyser {
             consumed += width;
         }
         consumed
+    }
+
+    /// Keep the global class index and the enclosing lexical scope's class
+    /// map in lockstep for any definition form that has produced a class fact.
+    fn register_defined_class(
+        &mut self,
+        qualified: String,
+        class_def: super::types::ClassDef,
+        scope_path: &[usize],
+    ) {
+        let simple = class_def.name.clone();
+        self.result.all_classes.insert(qualified, class_def.clone());
+        if let Some(scope) = super::scope::scope_at_mut(&mut self.result.global_scope, scope_path) {
+            scope.classes.insert(simple, class_def);
+        }
+    }
+
+    /// Resolve the `oo::define` target to its class key. A statically known
+    /// substitution retains its actual class name; an unresolved dynamic word
+    /// gets a call-site-specific synthetic key so unrelated definitions never
+    /// merge state merely because they spell the same variable.
+    fn oo_define_qualified_target(
+        &mut self,
+        args: &[String],
+        arg_tokens: &[Token],
+        arg_single: &[bool],
+        scope_path: &[usize],
+    ) -> String {
+        let resolved = self
+            .resolve_dynamic_word(
+                &args[0],
+                arg_tokens.first().copied(),
+                arg_single.first().copied().unwrap_or(false),
+                scope_path,
+            )
+            .filter(|name| !crate::naming::is_dynamic_word(name));
+        let raw = resolved.as_ref().unwrap_or(&args[0]);
+        let dynamic_key = crate::naming::is_dynamic_word(raw).then(|| {
+            arg_tokens.first().map_or_else(
+                || raw.clone(),
+                |token| self.mint_synthetic_offset_name("@dynclass@", token.span.start()),
+            )
+        });
+        let namespace = self.command_resolution_namespace(scope_path);
+        qualify(
+            namespace.trim_start_matches(':'),
+            dynamic_key.as_deref().unwrap_or(raw),
+        )
+    }
+
+    /// Apply an `oo::define` inline member or braced body through the selected
+    /// definition grammar. Both forms receive identical dialect diagnostics
+    /// and registry-driven command-reference recording.
+    fn walk_oo_define_form(
+        &mut self,
+        cmd_name: &str,
+        args: &[String],
+        arg_tokens: &[Token],
+        scope_path: &[usize],
+        class_def: &mut super::types::ClassDef,
+    ) {
+        let inline_form = self
+            .definition_grammar("oo::define")
+            .is_some_and(|grammar| grammar.is_member(&args[1]));
+        if inline_form {
+            let inline_args: Vec<String> = args[1..].to_vec();
+            let inline_tokens: Vec<Token> = arg_tokens.iter().skip(1).copied().collect();
+            if let Some(grammar) = self.definition_grammar(cmd_name) {
+                let definer_disabled = self.command_dialect_disabled(cmd_name);
+                if let (Some(subcmd), Some(token)) = (inline_args.first(), inline_tokens.first()) {
+                    self.emit_w002_oo_member_disabled(grammar, subcmd, *token, definer_disabled);
+                }
+                if let Some(member) = inline_args
+                    .first()
+                    .and_then(|subcmd| grammar.member(subcmd))
+                {
+                    self.emit_w002_oo_member_option_disabled(
+                        member,
+                        &inline_args[1..],
+                        &inline_tokens[1..],
+                        definer_disabled,
+                    );
+                }
+                super::oo::parse_oo_define_inline_in(
+                    grammar,
+                    &inline_args,
+                    &inline_tokens,
+                    class_def,
+                    self.profile.availability_mask,
+                );
+                self.record_member_command_references(
+                    grammar,
+                    &inline_args,
+                    &inline_tokens,
+                    scope_path,
+                );
+            }
+        } else if let Some(body_tok) = arg_tokens.get(1).copied() {
+            let grammar = self.definition_grammar(cmd_name);
+            let definer_disabled = self.command_dialect_disabled(cmd_name);
+            self.parse_oo_definition_body(
+                &args[1],
+                body_tok,
+                class_def,
+                scope_path,
+                grammar,
+                definer_disabled,
+            );
+        }
     }
 
     /// Record `source ?-encoding ENC? FILE` invocations.
@@ -12667,6 +12714,59 @@ mod tests {
         assert_eq!(k.definition_span, span(8, 9));
         assert_eq!(v.definition_span, span(10, 11));
         assert!(k.definition_span.start() < v.definition_span.start());
+    }
+
+    #[test]
+    fn handle_foreach_varlist_uses_tcl_list_names_and_source_ranges() {
+        let mut a = Analyser::new();
+        let var_list = r#"{one name} "two name" three\ name plain"#;
+        a.handle_foreach_command(
+            &[var_list.to_string(), "values".to_string(), String::new()],
+            &[
+                esc_tok(span(100, 139)),
+                esc_tok(span(140, 146)),
+                str_tok(span(147, 149)),
+            ],
+            &[],
+        );
+
+        let variables = &a.result.global_scope.variables;
+        assert_eq!(variables["one name"].definition_span, span(101, 109));
+        assert_eq!(variables["two name"].definition_span, span(112, 120));
+        assert_eq!(variables["three name"].definition_span, span(122, 133));
+        assert_eq!(variables["plain"].definition_span, span(134, 139));
+    }
+
+    #[test]
+    fn malformed_foreach_varlist_defines_no_variables() {
+        let mut a = Analyser::new();
+        a.handle_foreach_command(
+            &[
+                "{unterminated".to_string(),
+                "values".to_string(),
+                String::new(),
+            ],
+            &[
+                esc_tok(span(0, 13)),
+                esc_tok(span(14, 20)),
+                str_tok(span(21, 23)),
+            ],
+            &[],
+        );
+        assert!(a.result.global_scope.variables.is_empty());
+    }
+
+    #[test]
+    fn literal_foreach_binding_parses_single_variable_as_tcl_list() {
+        assert_eq!(
+            Analyser::literal_foreach_binding(r"{one name}", "alpha beta", true),
+            Some((
+                "one name".to_string(),
+                vec!["alpha".to_string(), "beta".to_string()]
+            ))
+        );
+        assert!(Analyser::literal_foreach_binding("{unterminated", "alpha", true).is_none());
+        assert!(Analyser::literal_foreach_binding("one two", "alpha", true).is_none());
     }
 
     #[test]

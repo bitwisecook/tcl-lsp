@@ -24,6 +24,35 @@
 
 use tcl_lexer::{LexerConfig, SourceMap, Span, Token, TokenType};
 
+/// One lexical fragment that contributes to a segmented Tcl word.
+///
+/// [`SegmentedCommand::argv`] deliberately retains only one representative
+/// token per word for compatibility with the analyser and existing lowering
+/// hooks.  That summary loses the ordered shape of a compound word such as
+/// `prefix-$name-[clock seconds]`.  This companion record keeps the original
+/// fragment sequence and its already-reconstructed source spelling so the
+/// semantic IR can be derived without re-lexing or guessing from a flattened
+/// argv string.
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct WordFragment {
+    /// Original lexer token, including its source span and quoting metadata.
+    pub token: Token,
+    /// Compatibility spelling reconstructed with [`word_piece`].
+    ///
+    /// Variable and command-substitution fragments retain their Tcl wrappers
+    /// here, matching [`SegmentedCommand::texts`]. Their exact written form is
+    /// available through [`Self::token`]'s source span.
+    pub text: String,
+}
+
+impl WordFragment {
+    /// Create a fragment from a lexer token and its source-surface spelling.
+    #[must_use]
+    pub fn new(token: Token, text: String) -> Self {
+        Self { token, text }
+    }
+}
+
 /// Which delimiter a partial command left unclosed. The token-type
 /// mapping is `Str` → `Brace`, `Cmd` → `Bracket`, `Esc` → `Quote`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -69,6 +98,14 @@ pub struct SegmentedCommand {
     pub argv: Vec<Token>,
     /// Per-word reconstructed text.
     pub texts: Vec<String>,
+    /// Ordered lexical fragments for every word.
+    ///
+    /// This is the lossless companion to the compatibility-oriented
+    /// [`Self::argv`] / [`Self::texts`] parallel arrays.  New semantic IR
+    /// consumers should use it when they need to preserve word substitution
+    /// order; existing consumers may continue to use the representative-token
+    /// view unchanged.
+    pub word_fragments: Vec<Vec<WordFragment>>,
     /// Whether each word is a single token.
     pub single_token_word: Vec<bool>,
     /// All tokens in the command (including separators).
@@ -127,6 +164,22 @@ impl SegmentedCommand {
         }
     }
 
+    /// Whether every per-word segmentation view has the same length.
+    ///
+    /// Command recovery can splice words after segmentation, so this makes the
+    /// parallel-array invariant explicit at the one shared representation.
+    #[must_use]
+    pub fn word_views_aligned(&self) -> bool {
+        let count = self.argv.len();
+        self.texts.len() == count
+            && self.word_fragments.len() == count
+            && self.single_token_word.len() == count
+            && self
+                .expand_word
+                .as_ref()
+                .is_none_or(|expand| expand.len() == count)
+    }
+
     /// Return a copy of `self` with every span shifted by
     /// `base_offset`. Used by
     /// [`segment_commands_with_offset`] to relocate a body
@@ -140,6 +193,11 @@ impl SegmentedCommand {
         }
         for tok in &mut self.all_tokens {
             tok.span = shift_span(tok.span, base_offset);
+        }
+        for word in &mut self.word_fragments {
+            for fragment in word {
+                fragment.token.span = shift_span(fragment.token.span, base_offset);
+            }
         }
         self
     }

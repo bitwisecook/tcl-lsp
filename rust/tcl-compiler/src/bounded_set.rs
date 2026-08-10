@@ -141,6 +141,15 @@ impl<T: Ord, const CAP: usize> BoundedSet<T, CAP> {
     }
 }
 
+impl<T, const CAP: usize> BoundedSet<T, CAP> {
+    /// Sort with a caller-provided key when `T` itself has no natural total
+    /// order but a lattice needs deterministic equality across predecessor
+    /// traversal orders.
+    pub fn canonicalise_by_key<K: Ord>(&mut self, mut key: impl FnMut(&T) -> K) {
+        self.items.sort_unstable_by_key(|item| key(item));
+    }
+}
+
 impl<'a, T, const CAP: usize> IntoIterator for &'a BoundedSet<T, CAP> {
     type Item = &'a T;
     type IntoIter = std::slice::Iter<'a, T>;
@@ -188,6 +197,18 @@ mod tests {
         assert_ne!(a, b, "insertion order is observable before canonicalise");
         a.canonicalise();
         b.canonicalise();
+        assert_eq!(a, b);
+    }
+
+    #[test]
+    fn canonicalise_by_key_makes_non_ord_carriers_deterministic() {
+        #[derive(Debug, PartialEq, Eq)]
+        struct Item(u8);
+
+        let mut a: BoundedSet<Item, 4> = BoundedSet::from_iter_bounded([Item(3), Item(1)]).unwrap();
+        let mut b: BoundedSet<Item, 4> = BoundedSet::from_iter_bounded([Item(1), Item(3)]).unwrap();
+        a.canonicalise_by_key(|item| item.0);
+        b.canonicalise_by_key(|item| item.0);
         assert_eq!(a, b);
     }
 }

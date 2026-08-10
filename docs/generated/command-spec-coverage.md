@@ -23,2073 +23,2073 @@ manpages / F5 docs / vendor reference.
 
 ## Per-dialect summary
 
-| dialect | spec count | verified | arity | hover | traits | arg_roles | arg_role_resolver | return_type | arg_types | options | subcommands | command_forms | side_effects | assigns_var_at | safe_on_uninit | storage_type | excluded_events | required_package | lowering_hook | codegen_hook (tclvm) | wasm_codegen_hook |
-| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| eda_cadence | 56 | 0/56 | 56/56 | 56/56 | 0/56 | 0/56 | 0/56 | 0/56 | 0/56 | 0/56 | 0/56 | 0/56 | 0/56 | 0/56 | 0/56 | 0/56 | 0/56 | 0/56 | n/a | n/a | n/a |
-| eda_mentor | 49 | 0/49 | 49/49 | 49/49 | 0/49 | 0/49 | 0/49 | 0/49 | 0/49 | 0/49 | 0/49 | 0/49 | 0/49 | 0/49 | 0/49 | 0/49 | 0/49 | 0/49 | n/a | n/a | n/a |
-| eda_quartus | 48 | 0/48 | 48/48 | 48/48 | 0/48 | 0/48 | 0/48 | 0/48 | 0/48 | 0/48 | 0/48 | 0/48 | 0/48 | 0/48 | 0/48 | 0/48 | 0/48 | 0/48 | n/a | n/a | n/a |
-| eda_synopsys | 68 | 0/68 | 68/68 | 68/68 | 0/68 | 0/68 | 0/68 | 0/68 | 0/68 | 0/68 | 0/68 | 0/68 | 0/68 | 0/68 | 0/68 | 0/68 | 0/68 | 0/68 | n/a | n/a | n/a |
-| eda_xilinx | 64 | 0/64 | 64/64 | 64/64 | 0/64 | 0/64 | 0/64 | 0/64 | 0/64 | 0/64 | 0/64 | 0/64 | 0/64 | 0/64 | 0/64 | 0/64 | 0/64 | 0/64 | n/a | n/a | n/a |
-| expect | 35 | 0/35 | 35/35 | 35/35 | 1/35 | 0/35 | 0/35 | 0/35 | 0/35 | 0/35 | 0/35 | 0/35 | 0/35 | 0/35 | 0/35 | 0/35 | 0/35 | 0/35 | n/a | n/a | n/a |
-| iapps | 49 | 0/49 | 49/49 | 49/49 | 0/49 | 0/49 | 0/49 | 0/49 | 0/49 | 0/49 | 0/49 | 0/49 | 0/49 | 0/49 | 0/49 | 0/49 | 0/49 | 0/49 | n/a | n/a | n/a |
-| irules | 1015 | 0/1015 | 1015/1015 | 1015/1015 | 67/1015 | 2/1015 | 1/1015 | 1/1015 | 0/1015 | 5/1015 | 0/1015 | 0/1015 | 0/1015 | 0/1015 | 0/1015 | 0/1015 | 0/1015 | 0/1015 | n/a | n/a | n/a |
-| sdc_base | 61 | 0/61 | 61/61 | 61/61 | 1/61 | 0/61 | 0/61 | 0/61 | 0/61 | 0/61 | 0/61 | 0/61 | 0/61 | 0/61 | 0/61 | 0/61 | 0/61 | 0/61 | n/a | n/a | n/a |
-| stdlib | 225 | 0/225 | 225/225 | 225/225 | 24/225 | 0/225 | 0/225 | 3/225 | 0/225 | 0/225 | 0/225 | 0/225 | 0/225 | 0/225 | 0/225 | 0/225 | 0/225 | 0/225 | 0/225 | 0/225 | 0/225 |
-| tcl | 117 | 5/117 | 116/117 | 116/117 | 82/117 | 39/117 | 10/117 | 115/117 | 13/117 | 11/117 | 14/117 | 2/117 | 42/117 | 10/117 | 4/117 | 8/117 | 0/117 | 0/117 | 10/117 | 7/117 | 0/117 |
-| tcllib | 206 | 0/206 | 206/206 | 206/206 | 112/206 | 0/206 | 0/206 | 6/206 | 0/206 | 0/206 | 0/206 | 0/206 | 0/206 | 0/206 | 0/206 | 0/206 | 0/206 | 0/206 | 0/206 | 0/206 | 0/206 |
-| tk | 55 | 0/55 | 55/55 | 55/55 | 0/55 | 0/55 | 0/55 | 0/55 | 0/55 | 0/55 | 0/55 | 0/55 | 0/55 | 0/55 | 0/55 | 0/55 | 0/55 | 0/55 | n/a | n/a | n/a |
+| dialect | spec count | verified | arity | hover | traits | arg_roles | arg_role_resolver | return_type | arg_types | options | subcommands | command_forms | side_effects | assigns_var_at | safe_on_uninit | storage_type | excluded_events | required_package | lowering_hook | codegen_hook (tclvm) |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| eda_cadence | 56 | 0/56 | 56/56 | 56/56 | 0/56 | 0/56 | 0/56 | 0/56 | 0/56 | 0/56 | 0/56 | 0/56 | 0/56 | 0/56 | 0/56 | 0/56 | 0/56 | 0/56 | n/a | n/a |
+| eda_mentor | 49 | 0/49 | 49/49 | 49/49 | 0/49 | 0/49 | 0/49 | 0/49 | 0/49 | 0/49 | 0/49 | 0/49 | 0/49 | 0/49 | 0/49 | 0/49 | 0/49 | 0/49 | n/a | n/a |
+| eda_quartus | 48 | 0/48 | 48/48 | 48/48 | 0/48 | 0/48 | 0/48 | 0/48 | 0/48 | 0/48 | 0/48 | 0/48 | 0/48 | 0/48 | 0/48 | 0/48 | 0/48 | 0/48 | n/a | n/a |
+| eda_synopsys | 68 | 0/68 | 68/68 | 68/68 | 0/68 | 0/68 | 0/68 | 0/68 | 0/68 | 0/68 | 0/68 | 0/68 | 0/68 | 0/68 | 0/68 | 0/68 | 0/68 | 0/68 | n/a | n/a |
+| eda_xilinx | 64 | 0/64 | 64/64 | 64/64 | 0/64 | 0/64 | 0/64 | 0/64 | 0/64 | 0/64 | 0/64 | 0/64 | 0/64 | 0/64 | 0/64 | 0/64 | 0/64 | 0/64 | n/a | n/a |
+| expect | 35 | 0/35 | 35/35 | 35/35 | 1/35 | 0/35 | 0/35 | 0/35 | 0/35 | 0/35 | 0/35 | 0/35 | 0/35 | 0/35 | 0/35 | 0/35 | 0/35 | 0/35 | n/a | n/a |
+| iapps | 49 | 0/49 | 49/49 | 49/49 | 0/49 | 0/49 | 0/49 | 0/49 | 0/49 | 0/49 | 0/49 | 0/49 | 0/49 | 0/49 | 0/49 | 0/49 | 0/49 | 0/49 | n/a | n/a |
+| irules | 1015 | 0/1015 | 1015/1015 | 1015/1015 | 67/1015 | 2/1015 | 1/1015 | 1/1015 | 0/1015 | 5/1015 | 0/1015 | 0/1015 | 0/1015 | 0/1015 | 0/1015 | 0/1015 | 0/1015 | 0/1015 | n/a | n/a |
+| sdc_base | 61 | 0/61 | 61/61 | 61/61 | 1/61 | 0/61 | 0/61 | 0/61 | 0/61 | 0/61 | 0/61 | 0/61 | 0/61 | 0/61 | 0/61 | 0/61 | 0/61 | 0/61 | n/a | n/a |
+| stdlib | 225 | 0/225 | 225/225 | 225/225 | 24/225 | 0/225 | 0/225 | 3/225 | 0/225 | 0/225 | 0/225 | 0/225 | 0/225 | 0/225 | 0/225 | 0/225 | 0/225 | 0/225 | 0/225 | 0/225 |
+| tcl | 117 | 5/117 | 116/117 | 116/117 | 82/117 | 39/117 | 10/117 | 115/117 | 13/117 | 11/117 | 14/117 | 2/117 | 42/117 | 10/117 | 4/117 | 8/117 | 0/117 | 0/117 | 10/117 | 7/117 |
+| tcllib | 206 | 0/206 | 206/206 | 206/206 | 112/206 | 0/206 | 0/206 | 6/206 | 0/206 | 0/206 | 0/206 | 0/206 | 0/206 | 0/206 | 0/206 | 0/206 | 0/206 | 0/206 | 0/206 | 0/206 |
+| tk | 55 | 0/55 | 55/55 | 55/55 | 0/55 | 0/55 | 0/55 | 0/55 | 0/55 | 0/55 | 0/55 | 0/55 | 0/55 | 0/55 | 0/55 | 0/55 | 0/55 | 0/55 | n/a | n/a |
 
 Total specs audited: 2048
 
 ## Per-command coverage
 
-| dialect | command | spec file | verified | arity | hover | traits | arg_roles | arg_role_resolver | return_type | arg_types | options | subcommands | command_forms | side_effects | assigns_var_at | safe_on_uninit | storage_type | excluded_events | required_package | lowering_hook | codegen_hook (tclvm) | wasm_codegen_hook |
-| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| eda_cadence | `add_endcap` | `rust/tcl-registry/src/commands/eda_cadence/add_endcap.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| eda_cadence | `add_filler` | `rust/tcl-registry/src/commands/eda_cadence/add_filler.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| eda_cadence | `add_well_tap` | `rust/tcl-registry/src/commands/eda_cadence/add_well_tap.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| eda_cadence | `ccopt_design` | `rust/tcl-registry/src/commands/eda_cadence/ccopt_design.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| eda_cadence | `check_design` | `rust/tcl-registry/src/commands/eda_cadence/check_design.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| eda_cadence | `check_timing_intent` | `rust/tcl-registry/src/commands/eda_cadence/check_timing_intent.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| eda_cadence | `create_analysis_view` | `rust/tcl-registry/src/commands/eda_cadence/create_analysis_view.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| eda_cadence | `create_constraint_mode` | `rust/tcl-registry/src/commands/eda_cadence/create_constraint_mode.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| eda_cadence | `create_delay_corner` | `rust/tcl-registry/src/commands/eda_cadence/create_delay_corner.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| eda_cadence | `create_floorplan` | `rust/tcl-registry/src/commands/eda_cadence/create_floorplan.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| eda_cadence | `create_route_rule` | `rust/tcl-registry/src/commands/eda_cadence/create_route_rule.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| eda_cadence | `dbGet` | `rust/tcl-registry/src/commands/eda_cadence/dbget.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| eda_cadence | `dbQuery` | `rust/tcl-registry/src/commands/eda_cadence/dbquery.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| eda_cadence | `dbSet` | `rust/tcl-registry/src/commands/eda_cadence/dbset.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| eda_cadence | `dbShape` | `rust/tcl-registry/src/commands/eda_cadence/dbshape.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| eda_cadence | `edit_pin` | `rust/tcl-registry/src/commands/eda_cadence/edit_pin.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| eda_cadence | `elaborate` | `rust/tcl-registry/src/commands/eda_cadence/elaborate.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| eda_cadence | `get_db` | `rust/tcl-registry/src/commands/eda_cadence/get_db.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| eda_cadence | `init_design` | `rust/tcl-registry/src/commands/eda_cadence/init_design.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| eda_cadence | `opt_design` | `rust/tcl-registry/src/commands/eda_cadence/opt_design.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| eda_cadence | `place_opt_design` | `rust/tcl-registry/src/commands/eda_cadence/place_opt_design.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| eda_cadence | `read_hdl` | `rust/tcl-registry/src/commands/eda_cadence/read_hdl.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| eda_cadence | `read_library` | `rust/tcl-registry/src/commands/eda_cadence/read_library.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| eda_cadence | `read_mmmc` | `rust/tcl-registry/src/commands/eda_cadence/read_mmmc.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| eda_cadence | `read_netlist` | `rust/tcl-registry/src/commands/eda_cadence/read_netlist.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| eda_cadence | `read_physical` | `rust/tcl-registry/src/commands/eda_cadence/read_physical.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| eda_cadence | `report_analysis_coverage` | `rust/tcl-registry/src/commands/eda_cadence/report_analysis_coverage.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| eda_cadence | `report_area` | `rust/tcl-registry/src/commands/eda_cadence/report_area.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| eda_cadence | `report_constraint` | `rust/tcl-registry/src/commands/eda_cadence/report_constraint.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| eda_cadence | `report_dp` | `rust/tcl-registry/src/commands/eda_cadence/report_dp.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| eda_cadence | `report_gates` | `rust/tcl-registry/src/commands/eda_cadence/report_gates.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| eda_cadence | `report_power` | `rust/tcl-registry/src/commands/eda_cadence/report_power.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| eda_cadence | `report_qor` | `rust/tcl-registry/src/commands/eda_cadence/report_qor.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| eda_cadence | `report_timing` | `rust/tcl-registry/src/commands/eda_cadence/report_timing.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| eda_cadence | `route_design` | `rust/tcl-registry/src/commands/eda_cadence/route_design.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| eda_cadence | `set_analysis_view` | `rust/tcl-registry/src/commands/eda_cadence/set_analysis_view.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| eda_cadence | `set_db` | `rust/tcl-registry/src/commands/eda_cadence/set_db.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| eda_cadence | `stream_out` | `rust/tcl-registry/src/commands/eda_cadence/stream_out.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| eda_cadence | `syn_generic` | `rust/tcl-registry/src/commands/eda_cadence/syn_generic.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| eda_cadence | `syn_map` | `rust/tcl-registry/src/commands/eda_cadence/syn_map.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| eda_cadence | `syn_opt` | `rust/tcl-registry/src/commands/eda_cadence/syn_opt.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| eda_cadence | `time_design` | `rust/tcl-registry/src/commands/eda_cadence/time_design.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| eda_cadence | `update_timing` | `rust/tcl-registry/src/commands/eda_cadence/update_timing.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| eda_cadence | `verify_connectivity` | `rust/tcl-registry/src/commands/eda_cadence/verify_connectivity.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| eda_cadence | `verify_drc` | `rust/tcl-registry/src/commands/eda_cadence/verify_drc.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| eda_cadence | `verify_geometry` | `rust/tcl-registry/src/commands/eda_cadence/verify_geometry.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| eda_cadence | `write_def` | `rust/tcl-registry/src/commands/eda_cadence/write_def.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| eda_cadence | `write_design` | `rust/tcl-registry/src/commands/eda_cadence/write_design.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| eda_cadence | `write_do_lec` | `rust/tcl-registry/src/commands/eda_cadence/write_do_lec.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| eda_cadence | `write_gds` | `rust/tcl-registry/src/commands/eda_cadence/write_gds.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| eda_cadence | `write_hdl` | `rust/tcl-registry/src/commands/eda_cadence/write_hdl.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| eda_cadence | `write_netlist` | `rust/tcl-registry/src/commands/eda_cadence/write_netlist.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| eda_cadence | `write_sdc` | `rust/tcl-registry/src/commands/eda_cadence/write_sdc.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| eda_cadence | `xelab` | `rust/tcl-registry/src/commands/eda_cadence/xelab.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| eda_cadence | `xrun` | `rust/tcl-registry/src/commands/eda_cadence/xrun.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| eda_cadence | `xsim` | `rust/tcl-registry/src/commands/eda_cadence/xsim.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| eda_mentor | `add_list` | `rust/tcl-registry/src/commands/eda_mentor/add_list.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| eda_mentor | `add_log` | `rust/tcl-registry/src/commands/eda_mentor/add_log.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| eda_mentor | `add_wave` | `rust/tcl-registry/src/commands/eda_mentor/add_wave.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| eda_mentor | `bc` | `rust/tcl-registry/src/commands/eda_mentor/bc.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| eda_mentor | `bd` | `rust/tcl-registry/src/commands/eda_mentor/bd.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| eda_mentor | `be` | `rust/tcl-registry/src/commands/eda_mentor/be.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| eda_mentor | `bl` | `rust/tcl-registry/src/commands/eda_mentor/bl.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| eda_mentor | `bp` | `rust/tcl-registry/src/commands/eda_mentor/bp.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| eda_mentor | `calibre` | `rust/tcl-registry/src/commands/eda_mentor/calibre.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| eda_mentor | `calibre_drc` | `rust/tcl-registry/src/commands/eda_mentor/calibre_drc.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| eda_mentor | `calibre_lvs` | `rust/tcl-registry/src/commands/eda_mentor/calibre_lvs.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| eda_mentor | `calibre_pex` | `rust/tcl-registry/src/commands/eda_mentor/calibre_pex.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| eda_mentor | `change` | `rust/tcl-registry/src/commands/eda_mentor/change.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| eda_mentor | `coverage` | `rust/tcl-registry/src/commands/eda_mentor/coverage.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| eda_mentor | `describe` | `rust/tcl-registry/src/commands/eda_mentor/describe.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| eda_mentor | `drivers` | `rust/tcl-registry/src/commands/eda_mentor/drivers.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| eda_mentor | `examine` | `rust/tcl-registry/src/commands/eda_mentor/examine.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| eda_mentor | `find` | `rust/tcl-registry/src/commands/eda_mentor/find.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| eda_mentor | `force` | `rust/tcl-registry/src/commands/eda_mentor/force.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| eda_mentor | `formal_analyze` | `rust/tcl-registry/src/commands/eda_mentor/formal_analyze.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| eda_mentor | `formal_compile` | `rust/tcl-registry/src/commands/eda_mentor/formal_compile.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| eda_mentor | `formal_verify` | `rust/tcl-registry/src/commands/eda_mentor/formal_verify.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| eda_mentor | `init_signal_driver` | `rust/tcl-registry/src/commands/eda_mentor/init_signal_driver.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| eda_mentor | `init_signal_spy` | `rust/tcl-registry/src/commands/eda_mentor/init_signal_spy.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| eda_mentor | `onbreak` | `rust/tcl-registry/src/commands/eda_mentor/onbreak.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| eda_mentor | `qrun` | `rust/tcl-registry/src/commands/eda_mentor/qrun.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| eda_mentor | `qverilog` | `rust/tcl-registry/src/commands/eda_mentor/qverilog.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| eda_mentor | `qvhdl` | `rust/tcl-registry/src/commands/eda_mentor/qvhdl.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| eda_mentor | `qwave` | `rust/tcl-registry/src/commands/eda_mentor/qwave.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| eda_mentor | `readers` | `rust/tcl-registry/src/commands/eda_mentor/readers.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| eda_mentor | `release` | `rust/tcl-registry/src/commands/eda_mentor/release.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| eda_mentor | `restart` | `rust/tcl-registry/src/commands/eda_mentor/restart.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| eda_mentor | `resume` | `rust/tcl-registry/src/commands/eda_mentor/resume.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| eda_mentor | `run` | `rust/tcl-registry/src/commands/eda_mentor/run.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| eda_mentor | `signal_force` | `rust/tcl-registry/src/commands/eda_mentor/signal_force.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| eda_mentor | `signal_release` | `rust/tcl-registry/src/commands/eda_mentor/signal_release.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| eda_mentor | `toggle` | `rust/tcl-registry/src/commands/eda_mentor/toggle.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| eda_mentor | `transcript` | `rust/tcl-registry/src/commands/eda_mentor/transcript.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| eda_mentor | `vcom` | `rust/tcl-registry/src/commands/eda_mentor/vcom.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| eda_mentor | `vcover` | `rust/tcl-registry/src/commands/eda_mentor/vcover.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| eda_mentor | `vdel` | `rust/tcl-registry/src/commands/eda_mentor/vdel.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| eda_mentor | `virtual` | `rust/tcl-registry/src/commands/eda_mentor/virtual_.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| eda_mentor | `vlib` | `rust/tcl-registry/src/commands/eda_mentor/vlib.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| eda_mentor | `vlog` | `rust/tcl-registry/src/commands/eda_mentor/vlog.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| eda_mentor | `vmap` | `rust/tcl-registry/src/commands/eda_mentor/vmap.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| eda_mentor | `vopt` | `rust/tcl-registry/src/commands/eda_mentor/vopt.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| eda_mentor | `vsim` | `rust/tcl-registry/src/commands/eda_mentor/vsim.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| eda_mentor | `wave` | `rust/tcl-registry/src/commands/eda_mentor/wave.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| eda_mentor | `when` | `rust/tcl-registry/src/commands/eda_mentor/when.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| eda_quartus | `check_timing` | `rust/tcl-registry/src/commands/eda_quartus/check_timing.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| eda_quartus | `close_device` | `rust/tcl-registry/src/commands/eda_quartus/close_device.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| eda_quartus | `create_timing_netlist` | `rust/tcl-registry/src/commands/eda_quartus/create_timing_netlist.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| eda_quartus | `delete_timing_netlist` | `rust/tcl-registry/src/commands/eda_quartus/delete_timing_netlist.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| eda_quartus | `derive_clocks` | `rust/tcl-registry/src/commands/eda_quartus/derive_clocks.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| eda_quartus | `derive_pll_clocks` | `rust/tcl-registry/src/commands/eda_quartus/derive_pll_clocks.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| eda_quartus | `device_lock` | `rust/tcl-registry/src/commands/eda_quartus/device_lock.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| eda_quartus | `device_unlock` | `rust/tcl-registry/src/commands/eda_quartus/device_unlock.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| eda_quartus | `execute_flow` | `rust/tcl-registry/src/commands/eda_quartus/execute_flow.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| eda_quartus | `execute_module` | `rust/tcl-registry/src/commands/eda_quartus/execute_module.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| eda_quartus | `export_assignments` | `rust/tcl-registry/src/commands/eda_quartus/export_assignments.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| eda_quartus | `get_all_assignments` | `rust/tcl-registry/src/commands/eda_quartus/get_all_assignments.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| eda_quartus | `get_global_assignment` | `rust/tcl-registry/src/commands/eda_quartus/get_global_assignment.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| eda_quartus | `get_instance_assignment` | `rust/tcl-registry/src/commands/eda_quartus/get_instance_assignment.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| eda_quartus | `get_io_assignment` | `rust/tcl-registry/src/commands/eda_quartus/get_io_assignment.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| eda_quartus | `get_name_info` | `rust/tcl-registry/src/commands/eda_quartus/get_name_info.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| eda_quartus | `get_names` | `rust/tcl-registry/src/commands/eda_quartus/get_names.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| eda_quartus | `get_number_of_columns` | `rust/tcl-registry/src/commands/eda_quartus/get_number_of_columns.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| eda_quartus | `get_number_of_rows` | `rust/tcl-registry/src/commands/eda_quartus/get_number_of_rows.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| eda_quartus | `get_part_info` | `rust/tcl-registry/src/commands/eda_quartus/get_part_info.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| eda_quartus | `get_part_list` | `rust/tcl-registry/src/commands/eda_quartus/get_part_list.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| eda_quartus | `get_report_panel_data` | `rust/tcl-registry/src/commands/eda_quartus/get_report_panel_data.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| eda_quartus | `get_report_panel_id` | `rust/tcl-registry/src/commands/eda_quartus/get_report_panel_id.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| eda_quartus | `get_report_panel_row_index` | `rust/tcl-registry/src/commands/eda_quartus/get_report_panel_row_index.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| eda_quartus | `load_package` | `rust/tcl-registry/src/commands/eda_quartus/load_package.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| eda_quartus | `load_report` | `rust/tcl-registry/src/commands/eda_quartus/load_report.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| eda_quartus | `make_connection` | `rust/tcl-registry/src/commands/eda_quartus/make_connection.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| eda_quartus | `open_device` | `rust/tcl-registry/src/commands/eda_quartus/open_device.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| eda_quartus | `project_close` | `rust/tcl-registry/src/commands/eda_quartus/project_close.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| eda_quartus | `project_exists` | `rust/tcl-registry/src/commands/eda_quartus/project_exists.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| eda_quartus | `project_new` | `rust/tcl-registry/src/commands/eda_quartus/project_new.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| eda_quartus | `project_open` | `rust/tcl-registry/src/commands/eda_quartus/project_open.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| eda_quartus | `read_sdc` | `rust/tcl-registry/src/commands/eda_quartus/read_sdc.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| eda_quartus | `remove_all_assignments` | `rust/tcl-registry/src/commands/eda_quartus/remove_all_assignments.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| eda_quartus | `remove_connection` | `rust/tcl-registry/src/commands/eda_quartus/remove_connection.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| eda_quartus | `rename_node` | `rust/tcl-registry/src/commands/eda_quartus/rename_node.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| eda_quartus | `report_clock_fmax_summary` | `rust/tcl-registry/src/commands/eda_quartus/report_clock_fmax_summary.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| eda_quartus | `report_datasheet` | `rust/tcl-registry/src/commands/eda_quartus/report_datasheet.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| eda_quartus | `report_min_pulse_width` | `rust/tcl-registry/src/commands/eda_quartus/report_min_pulse_width.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| eda_quartus | `report_timing` | `rust/tcl-registry/src/commands/eda_quartus/report_timing.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| eda_quartus | `report_ucp` | `rust/tcl-registry/src/commands/eda_quartus/report_ucp.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| eda_quartus | `save_report` | `rust/tcl-registry/src/commands/eda_quartus/save_report.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| eda_quartus | `set_global_assignment` | `rust/tcl-registry/src/commands/eda_quartus/set_global_assignment.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| eda_quartus | `set_instance_assignment` | `rust/tcl-registry/src/commands/eda_quartus/set_instance_assignment.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| eda_quartus | `set_io_assignment` | `rust/tcl-registry/src/commands/eda_quartus/set_io_assignment.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| eda_quartus | `set_location_assignment` | `rust/tcl-registry/src/commands/eda_quartus/set_location_assignment.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| eda_quartus | `set_parameter` | `rust/tcl-registry/src/commands/eda_quartus/set_parameter.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| eda_quartus | `update_timing_netlist` | `rust/tcl-registry/src/commands/eda_quartus/update_timing_netlist.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| eda_synopsys | `analyze` | `rust/tcl-registry/src/commands/eda_synopsys/analyze.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| eda_synopsys | `characterize` | `rust/tcl-registry/src/commands/eda_synopsys/characterize.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| eda_synopsys | `check_design` | `rust/tcl-registry/src/commands/eda_synopsys/check_design.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| eda_synopsys | `check_library` | `rust/tcl-registry/src/commands/eda_synopsys/check_library.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| eda_synopsys | `clock_opt` | `rust/tcl-registry/src/commands/eda_synopsys/clock_opt.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| eda_synopsys | `compile` | `rust/tcl-registry/src/commands/eda_synopsys/compile.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| eda_synopsys | `compile_ultra` | `rust/tcl-registry/src/commands/eda_synopsys/compile_ultra.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| eda_synopsys | `connect_net` | `rust/tcl-registry/src/commands/eda_synopsys/connect_net.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| eda_synopsys | `create_cell` | `rust/tcl-registry/src/commands/eda_synopsys/create_cell.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| eda_synopsys | `create_floorplan` | `rust/tcl-registry/src/commands/eda_synopsys/create_floorplan.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| eda_synopsys | `create_net` | `rust/tcl-registry/src/commands/eda_synopsys/create_net.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| eda_synopsys | `create_port` | `rust/tcl-registry/src/commands/eda_synopsys/create_port.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| eda_synopsys | `current_instance` | `rust/tcl-registry/src/commands/eda_synopsys/current_instance.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| eda_synopsys | `disconnect_net` | `rust/tcl-registry/src/commands/eda_synopsys/disconnect_net.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| eda_synopsys | `elaborate` | `rust/tcl-registry/src/commands/eda_synopsys/elaborate.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| eda_synopsys | `get_timing_paths` | `rust/tcl-registry/src/commands/eda_synopsys/get_timing_paths.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| eda_synopsys | `group` | `rust/tcl-registry/src/commands/eda_synopsys/group.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| eda_synopsys | `initialize_floorplan` | `rust/tcl-registry/src/commands/eda_synopsys/initialize_floorplan.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| eda_synopsys | `insert_clock_gating` | `rust/tcl-registry/src/commands/eda_synopsys/insert_clock_gating.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| eda_synopsys | `insert_dft` | `rust/tcl-registry/src/commands/eda_synopsys/insert_dft.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| eda_synopsys | `link` | `rust/tcl-registry/src/commands/eda_synopsys/link.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| eda_synopsys | `match` | `rust/tcl-registry/src/commands/eda_synopsys/match_.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| eda_synopsys | `optimize_netlist` | `rust/tcl-registry/src/commands/eda_synopsys/optimize_netlist.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| eda_synopsys | `place_opt` | `rust/tcl-registry/src/commands/eda_synopsys/place_opt.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| eda_synopsys | `printvar` | `rust/tcl-registry/src/commands/eda_synopsys/printvar.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| eda_synopsys | `read_db` | `rust/tcl-registry/src/commands/eda_synopsys/read_db.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| eda_synopsys | `read_ddc` | `rust/tcl-registry/src/commands/eda_synopsys/read_ddc.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| eda_synopsys | `read_def` | `rust/tcl-registry/src/commands/eda_synopsys/read_def.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| eda_synopsys | `read_file` | `rust/tcl-registry/src/commands/eda_synopsys/read_file.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| eda_synopsys | `read_lef` | `rust/tcl-registry/src/commands/eda_synopsys/read_lef.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| eda_synopsys | `read_sdc` | `rust/tcl-registry/src/commands/eda_synopsys/read_sdc.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| eda_synopsys | `read_verilog` | `rust/tcl-registry/src/commands/eda_synopsys/read_verilog.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| eda_synopsys | `read_vhdl` | `rust/tcl-registry/src/commands/eda_synopsys/read_vhdl.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| eda_synopsys | `remove_cell` | `rust/tcl-registry/src/commands/eda_synopsys/remove_cell.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| eda_synopsys | `remove_design` | `rust/tcl-registry/src/commands/eda_synopsys/remove_design.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| eda_synopsys | `report_analysis_coverage` | `rust/tcl-registry/src/commands/eda_synopsys/report_analysis_coverage.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| eda_synopsys | `report_bottleneck` | `rust/tcl-registry/src/commands/eda_synopsys/report_bottleneck.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| eda_synopsys | `report_cell` | `rust/tcl-registry/src/commands/eda_synopsys/report_cell.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| eda_synopsys | `report_clock_gating` | `rust/tcl-registry/src/commands/eda_synopsys/report_clock_gating.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| eda_synopsys | `report_congestion` | `rust/tcl-registry/src/commands/eda_synopsys/report_congestion.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| eda_synopsys | `report_delay_calculation` | `rust/tcl-registry/src/commands/eda_synopsys/report_delay_calculation.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| eda_synopsys | `report_design` | `rust/tcl-registry/src/commands/eda_synopsys/report_design.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| eda_synopsys | `report_hierarchy` | `rust/tcl-registry/src/commands/eda_synopsys/report_hierarchy.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| eda_synopsys | `report_net` | `rust/tcl-registry/src/commands/eda_synopsys/report_net.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| eda_synopsys | `report_qor` | `rust/tcl-registry/src/commands/eda_synopsys/report_qor.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| eda_synopsys | `report_reference` | `rust/tcl-registry/src/commands/eda_synopsys/report_reference.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| eda_synopsys | `report_status` | `rust/tcl-registry/src/commands/eda_synopsys/report_status.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| eda_synopsys | `route_auto` | `rust/tcl-registry/src/commands/eda_synopsys/route_auto.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| eda_synopsys | `route_opt` | `rust/tcl-registry/src/commands/eda_synopsys/route_opt.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| eda_synopsys | `set_app_var` | `rust/tcl-registry/src/commands/eda_synopsys/set_app_var.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| eda_synopsys | `set_clock_gating_style` | `rust/tcl-registry/src/commands/eda_synopsys/set_clock_gating_style.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| eda_synopsys | `set_host_options` | `rust/tcl-registry/src/commands/eda_synopsys/set_host_options.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| eda_synopsys | `set_implementation_design` | `rust/tcl-registry/src/commands/eda_synopsys/set_implementation_design.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| eda_synopsys | `set_operating_conditions` | `rust/tcl-registry/src/commands/eda_synopsys/set_operating_conditions.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| eda_synopsys | `set_reference_design` | `rust/tcl-registry/src/commands/eda_synopsys/set_reference_design.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| eda_synopsys | `set_scan_configuration` | `rust/tcl-registry/src/commands/eda_synopsys/set_scan_configuration.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| eda_synopsys | `set_technology` | `rust/tcl-registry/src/commands/eda_synopsys/set_technology.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| eda_synopsys | `size_cell` | `rust/tcl-registry/src/commands/eda_synopsys/size_cell.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| eda_synopsys | `swap_cell` | `rust/tcl-registry/src/commands/eda_synopsys/swap_cell.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| eda_synopsys | `ungroup` | `rust/tcl-registry/src/commands/eda_synopsys/ungroup.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| eda_synopsys | `uniquify` | `rust/tcl-registry/src/commands/eda_synopsys/uniquify.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| eda_synopsys | `update_timing` | `rust/tcl-registry/src/commands/eda_synopsys/update_timing.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| eda_synopsys | `verify` | `rust/tcl-registry/src/commands/eda_synopsys/verify.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| eda_synopsys | `write` | `rust/tcl-registry/src/commands/eda_synopsys/write.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| eda_synopsys | `write_def` | `rust/tcl-registry/src/commands/eda_synopsys/write_def.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| eda_synopsys | `write_file` | `rust/tcl-registry/src/commands/eda_synopsys/write_file.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| eda_synopsys | `write_gds` | `rust/tcl-registry/src/commands/eda_synopsys/write_gds.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| eda_synopsys | `write_sdc` | `rust/tcl-registry/src/commands/eda_synopsys/write_sdc.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| eda_xilinx | `apply_bd_automation` | `rust/tcl-registry/src/commands/eda_xilinx/apply_bd_automation.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| eda_xilinx | `close_hw_manager` | `rust/tcl-registry/src/commands/eda_xilinx/close_hw_manager.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| eda_xilinx | `close_project` | `rust/tcl-registry/src/commands/eda_xilinx/close_project.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| eda_xilinx | `close_sim` | `rust/tcl-registry/src/commands/eda_xilinx/close_sim.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| eda_xilinx | `config_ip_cache` | `rust/tcl-registry/src/commands/eda_xilinx/config_ip_cache.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| eda_xilinx | `connect_bd_intf_net` | `rust/tcl-registry/src/commands/eda_xilinx/connect_bd_intf_net.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| eda_xilinx | `connect_bd_net` | `rust/tcl-registry/src/commands/eda_xilinx/connect_bd_net.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| eda_xilinx | `connect_hw_server` | `rust/tcl-registry/src/commands/eda_xilinx/connect_hw_server.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| eda_xilinx | `create_bd_cell` | `rust/tcl-registry/src/commands/eda_xilinx/create_bd_cell.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| eda_xilinx | `create_bd_design` | `rust/tcl-registry/src/commands/eda_xilinx/create_bd_design.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| eda_xilinx | `create_bd_intf_port` | `rust/tcl-registry/src/commands/eda_xilinx/create_bd_intf_port.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| eda_xilinx | `create_bd_port` | `rust/tcl-registry/src/commands/eda_xilinx/create_bd_port.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| eda_xilinx | `create_ip` | `rust/tcl-registry/src/commands/eda_xilinx/create_ip.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| eda_xilinx | `create_project` | `rust/tcl-registry/src/commands/eda_xilinx/create_project.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| eda_xilinx | `create_run` | `rust/tcl-registry/src/commands/eda_xilinx/create_run.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| eda_xilinx | `current_project` | `rust/tcl-registry/src/commands/eda_xilinx/current_project.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| eda_xilinx | `generate_target` | `rust/tcl-registry/src/commands/eda_xilinx/generate_target.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| eda_xilinx | `get_ips` | `rust/tcl-registry/src/commands/eda_xilinx/get_ips.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| eda_xilinx | `get_projects` | `rust/tcl-registry/src/commands/eda_xilinx/get_projects.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| eda_xilinx | `get_property` | `rust/tcl-registry/src/commands/eda_xilinx/get_property.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| eda_xilinx | `get_runs` | `rust/tcl-registry/src/commands/eda_xilinx/get_runs.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| eda_xilinx | `import_ip` | `rust/tcl-registry/src/commands/eda_xilinx/import_ip.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| eda_xilinx | `ipx::add_bus_interface` | `rust/tcl-registry/src/commands/eda_xilinx/ipx__add_bus_interface.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| eda_xilinx | `ipx::package_project` | `rust/tcl-registry/src/commands/eda_xilinx/ipx__package_project.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| eda_xilinx | `launch_runs` | `rust/tcl-registry/src/commands/eda_xilinx/launch_runs.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| eda_xilinx | `launch_simulation` | `rust/tcl-registry/src/commands/eda_xilinx/launch_simulation.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| eda_xilinx | `open_bd_design` | `rust/tcl-registry/src/commands/eda_xilinx/open_bd_design.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| eda_xilinx | `open_checkpoint` | `rust/tcl-registry/src/commands/eda_xilinx/open_checkpoint.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| eda_xilinx | `open_hw_manager` | `rust/tcl-registry/src/commands/eda_xilinx/open_hw_manager.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| eda_xilinx | `open_hw_target` | `rust/tcl-registry/src/commands/eda_xilinx/open_hw_target.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| eda_xilinx | `open_project` | `rust/tcl-registry/src/commands/eda_xilinx/open_project.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| eda_xilinx | `open_run` | `rust/tcl-registry/src/commands/eda_xilinx/open_run.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| eda_xilinx | `opt_design` | `rust/tcl-registry/src/commands/eda_xilinx/opt_design.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| eda_xilinx | `phys_opt_design` | `rust/tcl-registry/src/commands/eda_xilinx/phys_opt_design.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| eda_xilinx | `place_design` | `rust/tcl-registry/src/commands/eda_xilinx/place_design.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| eda_xilinx | `program_hw_devices` | `rust/tcl-registry/src/commands/eda_xilinx/program_hw_devices.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| eda_xilinx | `read_checkpoint` | `rust/tcl-registry/src/commands/eda_xilinx/read_checkpoint.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| eda_xilinx | `read_edif` | `rust/tcl-registry/src/commands/eda_xilinx/read_edif.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| eda_xilinx | `read_ip` | `rust/tcl-registry/src/commands/eda_xilinx/read_ip.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| eda_xilinx | `read_verilog` | `rust/tcl-registry/src/commands/eda_xilinx/read_verilog.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| eda_xilinx | `read_vhdl` | `rust/tcl-registry/src/commands/eda_xilinx/read_vhdl.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| eda_xilinx | `read_xdc` | `rust/tcl-registry/src/commands/eda_xilinx/read_xdc.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| eda_xilinx | `report_clock_networks` | `rust/tcl-registry/src/commands/eda_xilinx/report_clock_networks.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| eda_xilinx | `report_clock_utilization` | `rust/tcl-registry/src/commands/eda_xilinx/report_clock_utilization.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| eda_xilinx | `report_design_analysis` | `rust/tcl-registry/src/commands/eda_xilinx/report_design_analysis.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| eda_xilinx | `report_drc` | `rust/tcl-registry/src/commands/eda_xilinx/report_drc.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| eda_xilinx | `report_io` | `rust/tcl-registry/src/commands/eda_xilinx/report_io.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| eda_xilinx | `report_methodology` | `rust/tcl-registry/src/commands/eda_xilinx/report_methodology.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| eda_xilinx | `report_power` | `rust/tcl-registry/src/commands/eda_xilinx/report_power.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| eda_xilinx | `report_route_status` | `rust/tcl-registry/src/commands/eda_xilinx/report_route_status.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| eda_xilinx | `report_timing` | `rust/tcl-registry/src/commands/eda_xilinx/report_timing.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| eda_xilinx | `report_timing_summary` | `rust/tcl-registry/src/commands/eda_xilinx/report_timing_summary.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| eda_xilinx | `report_utilization` | `rust/tcl-registry/src/commands/eda_xilinx/report_utilization.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| eda_xilinx | `reset_run` | `rust/tcl-registry/src/commands/eda_xilinx/reset_run.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| eda_xilinx | `route_design` | `rust/tcl-registry/src/commands/eda_xilinx/route_design.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| eda_xilinx | `save_bd_design` | `rust/tcl-registry/src/commands/eda_xilinx/save_bd_design.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| eda_xilinx | `save_project_as` | `rust/tcl-registry/src/commands/eda_xilinx/save_project_as.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| eda_xilinx | `set_property` | `rust/tcl-registry/src/commands/eda_xilinx/set_property.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| eda_xilinx | `synth_design` | `rust/tcl-registry/src/commands/eda_xilinx/synth_design.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| eda_xilinx | `upgrade_ip` | `rust/tcl-registry/src/commands/eda_xilinx/upgrade_ip.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| eda_xilinx | `validate_bd_design` | `rust/tcl-registry/src/commands/eda_xilinx/validate_bd_design.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| eda_xilinx | `wait_on_run` | `rust/tcl-registry/src/commands/eda_xilinx/wait_on_run.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| eda_xilinx | `write_bitstream` | `rust/tcl-registry/src/commands/eda_xilinx/write_bitstream.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| eda_xilinx | `write_checkpoint` | `rust/tcl-registry/src/commands/eda_xilinx/write_checkpoint.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| expect | `close` | `rust/tcl-registry/src/commands/expect/close.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| expect | `debug` | `rust/tcl-registry/src/commands/expect/debug.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| expect | `disconnect` | `rust/tcl-registry/src/commands/expect/disconnect.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| expect | `exit` | `rust/tcl-registry/src/commands/expect/exit.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| expect | `exp_continue` | `rust/tcl-registry/src/commands/expect/exp_continue.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| expect | `exp_internal` | `rust/tcl-registry/src/commands/expect/exp_internal.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| expect | `exp_pid` | `rust/tcl-registry/src/commands/expect/exp_pid.rs` | — | ✓ | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| expect | `exp_version` | `rust/tcl-registry/src/commands/expect/exp_version.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| expect | `expect_after` | `rust/tcl-registry/src/commands/expect/expect_after.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| expect | `expect_background` | `rust/tcl-registry/src/commands/expect/expect_background.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| expect | `expect_before` | `rust/tcl-registry/src/commands/expect/expect_before.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| expect | `expect` | `rust/tcl-registry/src/commands/expect/expect_cmd.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| expect | `expect_tty` | `rust/tcl-registry/src/commands/expect/expect_tty.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| expect | `expect_user` | `rust/tcl-registry/src/commands/expect/expect_user.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| expect | `fork` | `rust/tcl-registry/src/commands/expect/fork.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| expect | `interact` | `rust/tcl-registry/src/commands/expect/interact.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| expect | `log_file` | `rust/tcl-registry/src/commands/expect/log_file.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| expect | `log_user` | `rust/tcl-registry/src/commands/expect/log_user.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| expect | `match_max` | `rust/tcl-registry/src/commands/expect/match_max.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| expect | `overlay` | `rust/tcl-registry/src/commands/expect/overlay.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| expect | `parity` | `rust/tcl-registry/src/commands/expect/parity.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| expect | `remove_nulls` | `rust/tcl-registry/src/commands/expect/remove_nulls.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| expect | `send` | `rust/tcl-registry/src/commands/expect/send.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| expect | `send_error` | `rust/tcl-registry/src/commands/expect/send_error.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| expect | `send_log` | `rust/tcl-registry/src/commands/expect/send_log.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| expect | `send_tty` | `rust/tcl-registry/src/commands/expect/send_tty.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| expect | `send_user` | `rust/tcl-registry/src/commands/expect/send_user.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| expect | `sleep` | `rust/tcl-registry/src/commands/expect/sleep.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| expect | `spawn` | `rust/tcl-registry/src/commands/expect/spawn.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| expect | `strace` | `rust/tcl-registry/src/commands/expect/strace.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| expect | `stty` | `rust/tcl-registry/src/commands/expect/stty.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| expect | `system` | `rust/tcl-registry/src/commands/expect/system.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| expect | `timestamp` | `rust/tcl-registry/src/commands/expect/timestamp.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| expect | `trap` | `rust/tcl-registry/src/commands/expect/trap.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| expect | `wait` | `rust/tcl-registry/src/commands/expect/wait.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| iapps | `iapp::apm_config` | `rust/tcl-registry/src/commands/iapps/iapp__apm_config.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| iapps | `iapp::conf` | `rust/tcl-registry/src/commands/iapps/iapp__conf.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| iapps | `iapp::debug` | `rust/tcl-registry/src/commands/iapps/iapp__debug.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| iapps | `iapp::destination` | `rust/tcl-registry/src/commands/iapps/iapp__destination.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| iapps | `iapp::downgrade` | `rust/tcl-registry/src/commands/iapps/iapp__downgrade.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| iapps | `iapp::downgrade_template` | `rust/tcl-registry/src/commands/iapps/iapp__downgrade_template.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| iapps | `iapp::get_items` | `rust/tcl-registry/src/commands/iapps/iapp__get_items.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| iapps | `iapp::is` | `rust/tcl-registry/src/commands/iapps/iapp__is.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| iapps | `iapp::make_safe_password` | `rust/tcl-registry/src/commands/iapps/iapp__make_safe_password.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| iapps | `iapp::pool_members` | `rust/tcl-registry/src/commands/iapps/iapp__pool_members.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| iapps | `iapp::substa` | `rust/tcl-registry/src/commands/iapps/iapp__substa.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| iapps | `iapp::template` | `rust/tcl-registry/src/commands/iapps/iapp__template.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| iapps | `iapp::tmos_version` | `rust/tcl-registry/src/commands/iapps/iapp__tmos_version.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| iapps | `iapp::upgrade` | `rust/tcl-registry/src/commands/iapps/iapp__upgrade.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| iapps | `iapp::upgrade_template` | `rust/tcl-registry/src/commands/iapps/iapp__upgrade_template.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| iapps | `script::help` | `rust/tcl-registry/src/commands/iapps/script__help.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| iapps | `script::init` | `rust/tcl-registry/src/commands/iapps/script__init.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| iapps | `script::run` | `rust/tcl-registry/src/commands/iapps/script__run.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| iapps | `script::tabc` | `rust/tcl-registry/src/commands/iapps/script__tabc.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| iapps | `tmsh::add_help` | `rust/tcl-registry/src/commands/iapps/tmsh__add_help.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| iapps | `tmsh::add_tabc` | `rust/tcl-registry/src/commands/iapps/tmsh__add_tabc.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| iapps | `tmsh::begin_transaction` | `rust/tcl-registry/src/commands/iapps/tmsh__begin_transaction.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| iapps | `tmsh::builtin_help` | `rust/tcl-registry/src/commands/iapps/tmsh__builtin_help.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| iapps | `tmsh::builtin_tabc` | `rust/tcl-registry/src/commands/iapps/tmsh__builtin_tabc.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| iapps | `tmsh::cancel_transaction` | `rust/tcl-registry/src/commands/iapps/tmsh__cancel_transaction.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| iapps | `tmsh::cd` | `rust/tcl-registry/src/commands/iapps/tmsh__cd.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| iapps | `tmsh::clear_screen` | `rust/tcl-registry/src/commands/iapps/tmsh__clear_screen.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| iapps | `tmsh::commit_transaction` | `rust/tcl-registry/src/commands/iapps/tmsh__commit_transaction.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| iapps | `tmsh::create` | `rust/tcl-registry/src/commands/iapps/tmsh__create.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| iapps | `tmsh::delete` | `rust/tcl-registry/src/commands/iapps/tmsh__delete.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| iapps | `tmsh::display` | `rust/tcl-registry/src/commands/iapps/tmsh__display.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| iapps | `tmsh::display_threshold` | `rust/tcl-registry/src/commands/iapps/tmsh__display_threshold.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| iapps | `tmsh::get_config` | `rust/tcl-registry/src/commands/iapps/tmsh__get_config.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| iapps | `tmsh::get_field_names` | `rust/tcl-registry/src/commands/iapps/tmsh__get_field_names.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| iapps | `tmsh::get_field_value` | `rust/tcl-registry/src/commands/iapps/tmsh__get_field_value.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| iapps | `tmsh::get_name` | `rust/tcl-registry/src/commands/iapps/tmsh__get_name.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| iapps | `tmsh::get_status` | `rust/tcl-registry/src/commands/iapps/tmsh__get_status.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| iapps | `tmsh::get_type` | `rust/tcl-registry/src/commands/iapps/tmsh__get_type.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| iapps | `tmsh::include` | `rust/tcl-registry/src/commands/iapps/tmsh__include.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| iapps | `tmsh::list` | `rust/tcl-registry/src/commands/iapps/tmsh__list.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| iapps | `tmsh::log` | `rust/tcl-registry/src/commands/iapps/tmsh__log.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| iapps | `tmsh::log_dest` | `rust/tcl-registry/src/commands/iapps/tmsh__log_dest.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| iapps | `tmsh::log_level` | `rust/tcl-registry/src/commands/iapps/tmsh__log_level.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| iapps | `tmsh::modify` | `rust/tcl-registry/src/commands/iapps/tmsh__modify.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| iapps | `tmsh::pwd` | `rust/tcl-registry/src/commands/iapps/tmsh__pwd.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| iapps | `tmsh::reset_stats` | `rust/tcl-registry/src/commands/iapps/tmsh__reset_stats.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| iapps | `tmsh::show` | `rust/tcl-registry/src/commands/iapps/tmsh__show.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| iapps | `tmsh::stateless` | `rust/tcl-registry/src/commands/iapps/tmsh__stateless.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| iapps | `tmsh::version` | `rust/tcl-registry/src/commands/iapps/tmsh__version.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `AAA::acct_result` | `rust/tcl-registry/src/commands/irules/aaa__acct_result.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `AAA::acct_send` | `rust/tcl-registry/src/commands/irules/aaa__acct_send.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `AAA::auth_result` | `rust/tcl-registry/src/commands/irules/aaa__auth_result.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `AAA::auth_send` | `rust/tcl-registry/src/commands/irules/aaa__auth_send.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `ACCESS2::access2_proc` | `rust/tcl-registry/src/commands/irules/access2__access2_proc.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `ACCESS::acl` | `rust/tcl-registry/src/commands/irules/access__acl.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `ACCESS::disable` | `rust/tcl-registry/src/commands/irules/access__disable.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `ACCESS::enable` | `rust/tcl-registry/src/commands/irules/access__enable.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `ACCESS::ephemeral-auth` | `rust/tcl-registry/src/commands/irules/access__ephemeral_auth.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `ACCESS::flowid` | `rust/tcl-registry/src/commands/irules/access__flowid.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `ACCESS::log` | `rust/tcl-registry/src/commands/irules/access__log.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `ACCESS::oauth` | `rust/tcl-registry/src/commands/irules/access__oauth.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `ACCESS::perflow` | `rust/tcl-registry/src/commands/irules/access__perflow.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `ACCESS::policy` | `rust/tcl-registry/src/commands/irules/access__policy.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `ACCESS::respond` | `rust/tcl-registry/src/commands/irules/access__respond.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `ACCESS::restrict_irule_events` | `rust/tcl-registry/src/commands/irules/access__restrict_irule_events.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `ACCESS::saml` | `rust/tcl-registry/src/commands/irules/access__saml.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `ACCESS::session` | `rust/tcl-registry/src/commands/irules/access__session.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `ACCESS::user` | `rust/tcl-registry/src/commands/irules/access__user.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `ACCESS::uuid` | `rust/tcl-registry/src/commands/irules/access__uuid.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `accumulate` | `rust/tcl-registry/src/commands/irules/accumulate.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `ACL::action` | `rust/tcl-registry/src/commands/irules/acl__action.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `ACL::eval` | `rust/tcl-registry/src/commands/irules/acl__eval.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `active_members` | `rust/tcl-registry/src/commands/irules/active_members.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `active_nodes` | `rust/tcl-registry/src/commands/irules/active_nodes.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `ADAPT::allow` | `rust/tcl-registry/src/commands/irules/adapt__allow.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `ADAPT::context_create` | `rust/tcl-registry/src/commands/irules/adapt__context_create.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `ADAPT::context_current` | `rust/tcl-registry/src/commands/irules/adapt__context_current.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `ADAPT::context_delete_all` | `rust/tcl-registry/src/commands/irules/adapt__context_delete_all.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `ADAPT::context_name` | `rust/tcl-registry/src/commands/irules/adapt__context_name.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `ADAPT::context_static` | `rust/tcl-registry/src/commands/irules/adapt__context_static.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `ADAPT::enable` | `rust/tcl-registry/src/commands/irules/adapt__enable.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `ADAPT::preview_size` | `rust/tcl-registry/src/commands/irules/adapt__preview_size.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `ADAPT::result` | `rust/tcl-registry/src/commands/irules/adapt__result.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `ADAPT::select` | `rust/tcl-registry/src/commands/irules/adapt__select.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `ADAPT::service_down_action` | `rust/tcl-registry/src/commands/irules/adapt__service_down_action.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `ADAPT::timeout` | `rust/tcl-registry/src/commands/irules/adapt__timeout.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `AES::decrypt` | `rust/tcl-registry/src/commands/irules/aes__decrypt.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `AES::encrypt` | `rust/tcl-registry/src/commands/irules/aes__encrypt.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `AES::key` | `rust/tcl-registry/src/commands/irules/aes__key.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `after` | `rust/tcl-registry/src/commands/irules/after.rs` | — | ✓ | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `AM::age` | `rust/tcl-registry/src/commands/irules/am__age.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `AM::application` | `rust/tcl-registry/src/commands/irules/am__application.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `AM::cache` | `rust/tcl-registry/src/commands/irules/am__cache.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `AM::disable` | `rust/tcl-registry/src/commands/irules/am__disable.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `AM::expires` | `rust/tcl-registry/src/commands/irules/am__expires.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `AM::media_playlist` | `rust/tcl-registry/src/commands/irules/am__media_playlist.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `AM::policy_node` | `rust/tcl-registry/src/commands/irules/am__policy_node.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `ANTIFRAUD::alert_additional_info` | `rust/tcl-registry/src/commands/irules/antifraud__alert_additional_info.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `ANTIFRAUD::alert_bait_signatures` | `rust/tcl-registry/src/commands/irules/antifraud__alert_bait_signatures.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `ANTIFRAUD::alert_component` | `rust/tcl-registry/src/commands/irules/antifraud__alert_component.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `ANTIFRAUD::alert_defined_value` | `rust/tcl-registry/src/commands/irules/antifraud__alert_defined_value.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `ANTIFRAUD::alert_details` | `rust/tcl-registry/src/commands/irules/antifraud__alert_details.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `ANTIFRAUD::alert_device_id` | `rust/tcl-registry/src/commands/irules/antifraud__alert_device_id.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `ANTIFRAUD::alert_expected_value` | `rust/tcl-registry/src/commands/irules/antifraud__alert_expected_value.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `ANTIFRAUD::alert_fingerprint` | `rust/tcl-registry/src/commands/irules/antifraud__alert_fingerprint.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `ANTIFRAUD::alert_forbidden_added_element` | `rust/tcl-registry/src/commands/irules/antifraud__alert_forbidden_added_element.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `ANTIFRAUD::alert_guid` | `rust/tcl-registry/src/commands/irules/antifraud__alert_guid.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `ANTIFRAUD::alert_html` | `rust/tcl-registry/src/commands/irules/antifraud__alert_html.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `ANTIFRAUD::alert_http_referrer` | `rust/tcl-registry/src/commands/irules/antifraud__alert_http_referrer.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `ANTIFRAUD::alert_id` | `rust/tcl-registry/src/commands/irules/antifraud__alert_id.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `ANTIFRAUD::alert_license_id` | `rust/tcl-registry/src/commands/irules/antifraud__alert_license_id.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `ANTIFRAUD::alert_min` | `rust/tcl-registry/src/commands/irules/antifraud__alert_min.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `ANTIFRAUD::alert_origin` | `rust/tcl-registry/src/commands/irules/antifraud__alert_origin.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `ANTIFRAUD::alert_resolved_value` | `rust/tcl-registry/src/commands/irules/antifraud__alert_resolved_value.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `ANTIFRAUD::alert_score` | `rust/tcl-registry/src/commands/irules/antifraud__alert_score.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `ANTIFRAUD::alert_transaction_data` | `rust/tcl-registry/src/commands/irules/antifraud__alert_transaction_data.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `ANTIFRAUD::alert_transaction_id` | `rust/tcl-registry/src/commands/irules/antifraud__alert_transaction_id.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `ANTIFRAUD::alert_type` | `rust/tcl-registry/src/commands/irules/antifraud__alert_type.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `ANTIFRAUD::alert_username` | `rust/tcl-registry/src/commands/irules/antifraud__alert_username.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `ANTIFRAUD::alert_view_id` | `rust/tcl-registry/src/commands/irules/antifraud__alert_view_id.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `ANTIFRAUD::client_id` | `rust/tcl-registry/src/commands/irules/antifraud__client_id.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `ANTIFRAUD::device_id` | `rust/tcl-registry/src/commands/irules/antifraud__device_id.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `ANTIFRAUD::disable` | `rust/tcl-registry/src/commands/irules/antifraud__disable.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `ANTIFRAUD::disable_alert` | `rust/tcl-registry/src/commands/irules/antifraud__disable_alert.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `ANTIFRAUD::disable_app_layer_encryption` | `rust/tcl-registry/src/commands/irules/antifraud__disable_app_layer_encryption.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `ANTIFRAUD::disable_auto_transactions` | `rust/tcl-registry/src/commands/irules/antifraud__disable_auto_transactions.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `ANTIFRAUD::disable_injection` | `rust/tcl-registry/src/commands/irules/antifraud__disable_injection.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `ANTIFRAUD::disable_malware` | `rust/tcl-registry/src/commands/irules/antifraud__disable_malware.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `ANTIFRAUD::disable_phishing` | `rust/tcl-registry/src/commands/irules/antifraud__disable_phishing.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `ANTIFRAUD::enable` | `rust/tcl-registry/src/commands/irules/antifraud__enable.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `ANTIFRAUD::enable_log` | `rust/tcl-registry/src/commands/irules/antifraud__enable_log.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `ANTIFRAUD::fingerprint` | `rust/tcl-registry/src/commands/irules/antifraud__fingerprint.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `ANTIFRAUD::geo` | `rust/tcl-registry/src/commands/irules/antifraud__geo.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `ANTIFRAUD::guid` | `rust/tcl-registry/src/commands/irules/antifraud__guid.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `ANTIFRAUD::result` | `rust/tcl-registry/src/commands/irules/antifraud__result.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `ANTIFRAUD::username` | `rust/tcl-registry/src/commands/irules/antifraud__username.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `ASM::captcha` | `rust/tcl-registry/src/commands/irules/asm__captcha.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `ASM::captcha_age` | `rust/tcl-registry/src/commands/irules/asm__captcha_age.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `ASM::captcha_status` | `rust/tcl-registry/src/commands/irules/asm__captcha_status.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `ASM::client_ip` | `rust/tcl-registry/src/commands/irules/asm__client_ip.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `ASM::conviction` | `rust/tcl-registry/src/commands/irules/asm__conviction.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `ASM::deception` | `rust/tcl-registry/src/commands/irules/asm__deception.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `ASM::disable` | `rust/tcl-registry/src/commands/irules/asm__disable.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `ASM::enable` | `rust/tcl-registry/src/commands/irules/asm__enable.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `ASM::fingerprint` | `rust/tcl-registry/src/commands/irules/asm__fingerprint.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `ASM::is_authenticated` | `rust/tcl-registry/src/commands/irules/asm__is_authenticated.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `ASM::login_status` | `rust/tcl-registry/src/commands/irules/asm__login_status.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `ASM::microservice` | `rust/tcl-registry/src/commands/irules/asm__microservice.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `ASM::payload` | `rust/tcl-registry/src/commands/irules/asm__payload.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `ASM::policy` | `rust/tcl-registry/src/commands/irules/asm__policy.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `ASM::raise` | `rust/tcl-registry/src/commands/irules/asm__raise.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `ASM::severity` | `rust/tcl-registry/src/commands/irules/asm__severity.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `ASM::signature` | `rust/tcl-registry/src/commands/irules/asm__signature.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `ASM::status` | `rust/tcl-registry/src/commands/irules/asm__status.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `ASM::support_id` | `rust/tcl-registry/src/commands/irules/asm__support_id.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `ASM::threat_campaign` | `rust/tcl-registry/src/commands/irules/asm__threat_campaign.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `ASM::unblock` | `rust/tcl-registry/src/commands/irules/asm__unblock.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `ASM::uncaptcha` | `rust/tcl-registry/src/commands/irules/asm__uncaptcha.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `ASM::username` | `rust/tcl-registry/src/commands/irules/asm__username.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `ASM::violation` | `rust/tcl-registry/src/commands/irules/asm__violation.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `ASM::violation_data` | `rust/tcl-registry/src/commands/irules/asm__violation_data.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `ASN1::decode` | `rust/tcl-registry/src/commands/irules/asn1__decode.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `ASN1::element` | `rust/tcl-registry/src/commands/irules/asn1__element.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `ASN1::encode` | `rust/tcl-registry/src/commands/irules/asn1__encode.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `AUTH::abort` | `rust/tcl-registry/src/commands/irules/auth__abort.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `AUTH::authenticate` | `rust/tcl-registry/src/commands/irules/auth__authenticate.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `AUTH::authenticate_continue` | `rust/tcl-registry/src/commands/irules/auth__authenticate_continue.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `AUTH::cert_credential` | `rust/tcl-registry/src/commands/irules/auth__cert_credential.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `AUTH::cert_issuer_credential` | `rust/tcl-registry/src/commands/irules/auth__cert_issuer_credential.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `AUTH::last_event_session_id` | `rust/tcl-registry/src/commands/irules/auth__last_event_session_id.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `AUTH::password_credential` | `rust/tcl-registry/src/commands/irules/auth__password_credential.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `AUTH::response_data` | `rust/tcl-registry/src/commands/irules/auth__response_data.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `AUTH::ssl_cc_ldap_status` | `rust/tcl-registry/src/commands/irules/auth__ssl_cc_ldap_status.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `AUTH::ssl_cc_ldap_username` | `rust/tcl-registry/src/commands/irules/auth__ssl_cc_ldap_username.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `AUTH::start` | `rust/tcl-registry/src/commands/irules/auth__start.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `AUTH::status` | `rust/tcl-registry/src/commands/irules/auth__status.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `AUTH::subscribe` | `rust/tcl-registry/src/commands/irules/auth__subscribe.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `AUTH::unsubscribe` | `rust/tcl-registry/src/commands/irules/auth__unsubscribe.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `AUTH::username_credential` | `rust/tcl-registry/src/commands/irules/auth__username_credential.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `AUTH::wantcredential_prompt` | `rust/tcl-registry/src/commands/irules/auth__wantcredential_prompt.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `AUTH::wantcredential_prompt_style` | `rust/tcl-registry/src/commands/irules/auth__wantcredential_prompt_style.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `AUTH::wantcredential_type` | `rust/tcl-registry/src/commands/irules/auth__wantcredential_type.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `AVR::disable` | `rust/tcl-registry/src/commands/irules/avr__disable.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `AVR::disable_cspm_injection` | `rust/tcl-registry/src/commands/irules/avr__disable_cspm_injection.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `AVR::enable` | `rust/tcl-registry/src/commands/irules/avr__enable.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `AVR::log` | `rust/tcl-registry/src/commands/irules/avr__log.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `b64decode` | `rust/tcl-registry/src/commands/irules/b64decode.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `b64encode` | `rust/tcl-registry/src/commands/irules/b64encode.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `BIGPROTO::enable_fix_reset` | `rust/tcl-registry/src/commands/irules/bigproto__enable_fix_reset.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `BIGTCP::release_flow` | `rust/tcl-registry/src/commands/irules/bigtcp__release_flow.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `BOTDEFENSE::action` | `rust/tcl-registry/src/commands/irules/botdefense__action.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `BOTDEFENSE::bot_anomalies` | `rust/tcl-registry/src/commands/irules/botdefense__bot_anomalies.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `BOTDEFENSE::bot_categories` | `rust/tcl-registry/src/commands/irules/botdefense__bot_categories.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `BOTDEFENSE::bot_name` | `rust/tcl-registry/src/commands/irules/botdefense__bot_name.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `BOTDEFENSE::bot_signature` | `rust/tcl-registry/src/commands/irules/botdefense__bot_signature.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `BOTDEFENSE::bot_signature_category` | `rust/tcl-registry/src/commands/irules/botdefense__bot_signature_category.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `BOTDEFENSE::captcha_age` | `rust/tcl-registry/src/commands/irules/botdefense__captcha_age.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `BOTDEFENSE::captcha_status` | `rust/tcl-registry/src/commands/irules/botdefense__captcha_status.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `BOTDEFENSE::client_class` | `rust/tcl-registry/src/commands/irules/botdefense__client_class.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `BOTDEFENSE::client_type` | `rust/tcl-registry/src/commands/irules/botdefense__client_type.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `BOTDEFENSE::cookie_age` | `rust/tcl-registry/src/commands/irules/botdefense__cookie_age.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `BOTDEFENSE::cookie_status` | `rust/tcl-registry/src/commands/irules/botdefense__cookie_status.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `BOTDEFENSE::cs_allowed` | `rust/tcl-registry/src/commands/irules/botdefense__cs_allowed.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `BOTDEFENSE::cs_attribute` | `rust/tcl-registry/src/commands/irules/botdefense__cs_attribute.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `BOTDEFENSE::cs_possible` | `rust/tcl-registry/src/commands/irules/botdefense__cs_possible.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `BOTDEFENSE::device_id` | `rust/tcl-registry/src/commands/irules/botdefense__device_id.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `BOTDEFENSE::disable` | `rust/tcl-registry/src/commands/irules/botdefense__disable.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `BOTDEFENSE::enable` | `rust/tcl-registry/src/commands/irules/botdefense__enable.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `BOTDEFENSE::intent` | `rust/tcl-registry/src/commands/irules/botdefense__intent.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `BOTDEFENSE::micro_service` | `rust/tcl-registry/src/commands/irules/botdefense__micro_service.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `BOTDEFENSE::previous_action` | `rust/tcl-registry/src/commands/irules/botdefense__previous_action.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `BOTDEFENSE::previous_request_age` | `rust/tcl-registry/src/commands/irules/botdefense__previous_request_age.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `BOTDEFENSE::previous_support_id` | `rust/tcl-registry/src/commands/irules/botdefense__previous_support_id.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `BOTDEFENSE::reason` | `rust/tcl-registry/src/commands/irules/botdefense__reason.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `BOTDEFENSE::support_id` | `rust/tcl-registry/src/commands/irules/botdefense__support_id.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `BWC::color` | `rust/tcl-registry/src/commands/irules/bwc__color.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `BWC::debug` | `rust/tcl-registry/src/commands/irules/bwc__debug.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `BWC::mark` | `rust/tcl-registry/src/commands/irules/bwc__mark.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `BWC::measure` | `rust/tcl-registry/src/commands/irules/bwc__measure.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `BWC::policy` | `rust/tcl-registry/src/commands/irules/bwc__policy.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `BWC::pps` | `rust/tcl-registry/src/commands/irules/bwc__pps.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `BWC::priority` | `rust/tcl-registry/src/commands/irules/bwc__priority.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `BWC::rate` | `rust/tcl-registry/src/commands/irules/bwc__rate.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `CACHE::accept_encoding` | `rust/tcl-registry/src/commands/irules/cache__accept_encoding.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `CACHE::age` | `rust/tcl-registry/src/commands/irules/cache__age.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `CACHE::disable` | `rust/tcl-registry/src/commands/irules/cache__disable.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `CACHE::disabled` | `rust/tcl-registry/src/commands/irules/cache__disabled.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `CACHE::enable` | `rust/tcl-registry/src/commands/irules/cache__enable.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `CACHE::expire` | `rust/tcl-registry/src/commands/irules/cache__expire.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `CACHE::fresh` | `rust/tcl-registry/src/commands/irules/cache__fresh.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `CACHE::header` | `rust/tcl-registry/src/commands/irules/cache__header.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `CACHE::headers` | `rust/tcl-registry/src/commands/irules/cache__headers.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `CACHE::hits` | `rust/tcl-registry/src/commands/irules/cache__hits.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `CACHE::payload` | `rust/tcl-registry/src/commands/irules/cache__payload.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `CACHE::priority` | `rust/tcl-registry/src/commands/irules/cache__priority.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `CACHE::statskey` | `rust/tcl-registry/src/commands/irules/cache__statskey.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `CACHE::trace` | `rust/tcl-registry/src/commands/irules/cache__trace.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `CACHE::uri` | `rust/tcl-registry/src/commands/irules/cache__uri.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `CACHE::useragent` | `rust/tcl-registry/src/commands/irules/cache__useragent.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `CACHE::userkey` | `rust/tcl-registry/src/commands/irules/cache__userkey.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `call` | `rust/tcl-registry/src/commands/irules/call.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `CATEGORY::analytics` | `rust/tcl-registry/src/commands/irules/category__analytics.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `CATEGORY::filetype` | `rust/tcl-registry/src/commands/irules/category__filetype.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `CATEGORY::lookup` | `rust/tcl-registry/src/commands/irules/category__lookup.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `CATEGORY::matchtype` | `rust/tcl-registry/src/commands/irules/category__matchtype.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `CATEGORY::result` | `rust/tcl-registry/src/commands/irules/category__result.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `CATEGORY::safesearch` | `rust/tcl-registry/src/commands/irules/category__safesearch.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `check` | `rust/tcl-registry/src/commands/irules/check.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `class` | `rust/tcl-registry/src/commands/irules/class.rs` | — | ✓ | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `CLASSIFICATION::app` | `rust/tcl-registry/src/commands/irules/classification__app.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `CLASSIFICATION::category` | `rust/tcl-registry/src/commands/irules/classification__category.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `CLASSIFICATION::disable` | `rust/tcl-registry/src/commands/irules/classification__disable.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `CLASSIFICATION::enable` | `rust/tcl-registry/src/commands/irules/classification__enable.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `CLASSIFICATION::protocol` | `rust/tcl-registry/src/commands/irules/classification__protocol.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `CLASSIFICATION::result` | `rust/tcl-registry/src/commands/irules/classification__result.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `CLASSIFICATION::urlcat` | `rust/tcl-registry/src/commands/irules/classification__urlcat.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `CLASSIFICATION::username` | `rust/tcl-registry/src/commands/irules/classification__username.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `CLASSIFY::application` | `rust/tcl-registry/src/commands/irules/classify__application.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `CLASSIFY::category` | `rust/tcl-registry/src/commands/irules/classify__category.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `CLASSIFY::defer` | `rust/tcl-registry/src/commands/irules/classify__defer.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `CLASSIFY::disable` | `rust/tcl-registry/src/commands/irules/classify__disable.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `CLASSIFY::urlcat` | `rust/tcl-registry/src/commands/irules/classify__urlcat.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `CLASSIFY::username` | `rust/tcl-registry/src/commands/irules/classify__username.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `client_addr` | `rust/tcl-registry/src/commands/irules/client_addr.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `client_port` | `rust/tcl-registry/src/commands/irules/client_port.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `clientside` | `rust/tcl-registry/src/commands/irules/clientside.rs` | — | ✓ | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `clone` | `rust/tcl-registry/src/commands/irules/clone.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `close` | `rust/tcl-registry/src/commands/irules/close.rs` | — | ✓ | ✓ | — | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `COMPRESS::buffer_size` | `rust/tcl-registry/src/commands/irules/compress__buffer_size.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `COMPRESS::disable` | `rust/tcl-registry/src/commands/irules/compress__disable.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `COMPRESS::enable` | `rust/tcl-registry/src/commands/irules/compress__enable.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `COMPRESS::gzip` | `rust/tcl-registry/src/commands/irules/compress__gzip.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `COMPRESS::method` | `rust/tcl-registry/src/commands/irules/compress__method.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `COMPRESS::nodelay` | `rust/tcl-registry/src/commands/irules/compress__nodelay.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `connect` | `rust/tcl-registry/src/commands/irules/connect.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `CONNECTOR::disable` | `rust/tcl-registry/src/commands/irules/connector__disable.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `CONNECTOR::enable` | `rust/tcl-registry/src/commands/irules/connector__enable.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `CONNECTOR::profile` | `rust/tcl-registry/src/commands/irules/connector__profile.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `CONNECTOR::remap` | `rust/tcl-registry/src/commands/irules/connector__remap.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `cpu` | `rust/tcl-registry/src/commands/irules/cpu.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `crc32` | `rust/tcl-registry/src/commands/irules/crc32.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `CRYPTO::decrypt` | `rust/tcl-registry/src/commands/irules/crypto__decrypt.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `CRYPTO::encrypt` | `rust/tcl-registry/src/commands/irules/crypto__encrypt.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `CRYPTO::hash` | `rust/tcl-registry/src/commands/irules/crypto__hash.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `CRYPTO::keygen` | `rust/tcl-registry/src/commands/irules/crypto__keygen.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `CRYPTO::sign` | `rust/tcl-registry/src/commands/irules/crypto__sign.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `CRYPTO::verify` | `rust/tcl-registry/src/commands/irules/crypto__verify.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `DATAGRAM::dns` | `rust/tcl-registry/src/commands/irules/datagram__dns.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `DATAGRAM::ip` | `rust/tcl-registry/src/commands/irules/datagram__ip.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `DATAGRAM::ip6` | `rust/tcl-registry/src/commands/irules/datagram__ip6.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `DATAGRAM::l2` | `rust/tcl-registry/src/commands/irules/datagram__l2.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `DATAGRAM::tcp` | `rust/tcl-registry/src/commands/irules/datagram__tcp.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `DATAGRAM::udp` | `rust/tcl-registry/src/commands/irules/datagram__udp.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `decode_uri` | `rust/tcl-registry/src/commands/irules/decode_uri.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `DECOMPRESS::disable` | `rust/tcl-registry/src/commands/irules/decompress__disable.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `DECOMPRESS::enable` | `rust/tcl-registry/src/commands/irules/decompress__enable.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `DEMANGLE::disable` | `rust/tcl-registry/src/commands/irules/demangle__disable.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `DEMANGLE::enable` | `rust/tcl-registry/src/commands/irules/demangle__enable.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `DHCP::version` | `rust/tcl-registry/src/commands/irules/dhcp__version.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `DHCPv4::chaddr` | `rust/tcl-registry/src/commands/irules/dhcpv4__chaddr.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `DHCPv4::ciaddr` | `rust/tcl-registry/src/commands/irules/dhcpv4__ciaddr.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `DHCPv4::drop` | `rust/tcl-registry/src/commands/irules/dhcpv4__drop.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `DHCPv4::giaddr` | `rust/tcl-registry/src/commands/irules/dhcpv4__giaddr.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `DHCPv4::hlen` | `rust/tcl-registry/src/commands/irules/dhcpv4__hlen.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `DHCPv4::hops` | `rust/tcl-registry/src/commands/irules/dhcpv4__hops.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `DHCPv4::htype` | `rust/tcl-registry/src/commands/irules/dhcpv4__htype.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `DHCPv4::len` | `rust/tcl-registry/src/commands/irules/dhcpv4__len.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `DHCPv4::opcode` | `rust/tcl-registry/src/commands/irules/dhcpv4__opcode.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `DHCPv4::option` | `rust/tcl-registry/src/commands/irules/dhcpv4__option.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `DHCPv4::reject` | `rust/tcl-registry/src/commands/irules/dhcpv4__reject.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `DHCPv4::secs` | `rust/tcl-registry/src/commands/irules/dhcpv4__secs.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `DHCPv4::siaddr` | `rust/tcl-registry/src/commands/irules/dhcpv4__siaddr.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `DHCPv4::type` | `rust/tcl-registry/src/commands/irules/dhcpv4__type.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `DHCPv4::xid` | `rust/tcl-registry/src/commands/irules/dhcpv4__xid.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `DHCPv4::yiaddr` | `rust/tcl-registry/src/commands/irules/dhcpv4__yiaddr.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `DHCPv6::drop` | `rust/tcl-registry/src/commands/irules/dhcpv6__drop.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `DHCPv6::hop_count` | `rust/tcl-registry/src/commands/irules/dhcpv6__hop_count.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `DHCPv6::len` | `rust/tcl-registry/src/commands/irules/dhcpv6__len.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `DHCPv6::link_address` | `rust/tcl-registry/src/commands/irules/dhcpv6__link_address.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `DHCPv6::msg_type` | `rust/tcl-registry/src/commands/irules/dhcpv6__msg_type.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `DHCPv6::option` | `rust/tcl-registry/src/commands/irules/dhcpv6__option.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `DHCPv6::peer_address` | `rust/tcl-registry/src/commands/irules/dhcpv6__peer_address.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `DHCPv6::reject` | `rust/tcl-registry/src/commands/irules/dhcpv6__reject.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `DHCPv6::transaction_id` | `rust/tcl-registry/src/commands/irules/dhcpv6__transaction_id.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `DIAG::test` | `rust/tcl-registry/src/commands/irules/diag__test.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `DIAMETER::avp` | `rust/tcl-registry/src/commands/irules/diameter__avp.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `DIAMETER::command` | `rust/tcl-registry/src/commands/irules/diameter__command.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `DIAMETER::disconnect` | `rust/tcl-registry/src/commands/irules/diameter__disconnect.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `DIAMETER::drop` | `rust/tcl-registry/src/commands/irules/diameter__drop.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `DIAMETER::dynamic_route_insertion` | `rust/tcl-registry/src/commands/irules/diameter__dynamic_route_insertion.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `DIAMETER::dynamic_route_lookup` | `rust/tcl-registry/src/commands/irules/diameter__dynamic_route_lookup.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `DIAMETER::header` | `rust/tcl-registry/src/commands/irules/diameter__header.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `DIAMETER::host` | `rust/tcl-registry/src/commands/irules/diameter__host.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `DIAMETER::is_request` | `rust/tcl-registry/src/commands/irules/diameter__is_request.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `DIAMETER::is_response` | `rust/tcl-registry/src/commands/irules/diameter__is_response.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `DIAMETER::is_retransmission` | `rust/tcl-registry/src/commands/irules/diameter__is_retransmission.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `DIAMETER::length` | `rust/tcl-registry/src/commands/irules/diameter__length.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `DIAMETER::message` | `rust/tcl-registry/src/commands/irules/diameter__message.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `DIAMETER::payload` | `rust/tcl-registry/src/commands/irules/diameter__payload.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `DIAMETER::persist` | `rust/tcl-registry/src/commands/irules/diameter__persist.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `DIAMETER::realm` | `rust/tcl-registry/src/commands/irules/diameter__realm.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `DIAMETER::respond` | `rust/tcl-registry/src/commands/irules/diameter__respond.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `DIAMETER::result` | `rust/tcl-registry/src/commands/irules/diameter__result.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `DIAMETER::retransmission` | `rust/tcl-registry/src/commands/irules/diameter__retransmission.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `DIAMETER::retransmission_default` | `rust/tcl-registry/src/commands/irules/diameter__retransmission_default.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `DIAMETER::retransmission_reason` | `rust/tcl-registry/src/commands/irules/diameter__retransmission_reason.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `DIAMETER::retransmit` | `rust/tcl-registry/src/commands/irules/diameter__retransmit.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `DIAMETER::retry` | `rust/tcl-registry/src/commands/irules/diameter__retry.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `DIAMETER::route_status` | `rust/tcl-registry/src/commands/irules/diameter__route_status.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `DIAMETER::session` | `rust/tcl-registry/src/commands/irules/diameter__session.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `DIAMETER::skip_capabilities_exchange` | `rust/tcl-registry/src/commands/irules/diameter__skip_capabilities_exchange.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `DIAMETER::state` | `rust/tcl-registry/src/commands/irules/diameter__state.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `discard` | `rust/tcl-registry/src/commands/irules/discard.rs` | — | ✓ | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `DNS::additional` | `rust/tcl-registry/src/commands/irules/dns__additional.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `DNS::answer` | `rust/tcl-registry/src/commands/irules/dns__answer.rs` | — | ✓ | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `DNS::authority` | `rust/tcl-registry/src/commands/irules/dns__authority.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `DNS::class` | `rust/tcl-registry/src/commands/irules/dns__class.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `DNS::disable` | `rust/tcl-registry/src/commands/irules/dns__disable.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `DNS::drop` | `rust/tcl-registry/src/commands/irules/dns__drop.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `DNS::edns0` | `rust/tcl-registry/src/commands/irules/dns__edns0.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `DNS::enable` | `rust/tcl-registry/src/commands/irules/dns__enable.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `DNS::header` | `rust/tcl-registry/src/commands/irules/dns__header.rs` | — | ✓ | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `DNS::is_wideip` | `rust/tcl-registry/src/commands/irules/dns__is_wideip.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `DNS::last_act` | `rust/tcl-registry/src/commands/irules/dns__last_act.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `DNS::len` | `rust/tcl-registry/src/commands/irules/dns__len.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `DNS::log` | `rust/tcl-registry/src/commands/irules/dns__log.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `DNS::name` | `rust/tcl-registry/src/commands/irules/dns__name.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `DNS::origin` | `rust/tcl-registry/src/commands/irules/dns__origin.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `DNS::ptype` | `rust/tcl-registry/src/commands/irules/dns__ptype.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `DNS::query` | `rust/tcl-registry/src/commands/irules/dns__query.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `DNS::question` | `rust/tcl-registry/src/commands/irules/dns__question.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `DNS::rdata` | `rust/tcl-registry/src/commands/irules/dns__rdata.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `DNS::return` | `rust/tcl-registry/src/commands/irules/dns__return.rs` | — | ✓ | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `DNS::rpz_policy` | `rust/tcl-registry/src/commands/irules/dns__rpz_policy.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `DNS::rr` | `rust/tcl-registry/src/commands/irules/dns__rr.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `DNS::scrape` | `rust/tcl-registry/src/commands/irules/dns__scrape.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `DNS::tsig` | `rust/tcl-registry/src/commands/irules/dns__tsig.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `DNS::ttl` | `rust/tcl-registry/src/commands/irules/dns__ttl.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `DNS::type` | `rust/tcl-registry/src/commands/irules/dns__type.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `DNSMSG::header` | `rust/tcl-registry/src/commands/irules/dnsmsg__header.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `DNSMSG::record` | `rust/tcl-registry/src/commands/irules/dnsmsg__record.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `DNSMSG::section` | `rust/tcl-registry/src/commands/irules/dnsmsg__section.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `domain` | `rust/tcl-registry/src/commands/irules/domain.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `DOSL7::disable` | `rust/tcl-registry/src/commands/irules/dosl7__disable.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `DOSL7::enable` | `rust/tcl-registry/src/commands/irules/dosl7__enable.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `DOSL7::health` | `rust/tcl-registry/src/commands/irules/dosl7__health.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `DOSL7::is_ip_slowdown` | `rust/tcl-registry/src/commands/irules/dosl7__is_ip_slowdown.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `DOSL7::is_mitigated` | `rust/tcl-registry/src/commands/irules/dosl7__is_mitigated.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `DOSL7::profile` | `rust/tcl-registry/src/commands/irules/dosl7__profile.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `DOSL7::slowdown` | `rust/tcl-registry/src/commands/irules/dosl7__slowdown.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `drop` | `rust/tcl-registry/src/commands/irules/drop.rs` | — | ✓ | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `DSLITE::remote_addr` | `rust/tcl-registry/src/commands/irules/dslite__remote_addr.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `ECA::client_machine_name` | `rust/tcl-registry/src/commands/irules/eca__client_machine_name.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `ECA::disable` | `rust/tcl-registry/src/commands/irules/eca__disable.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `ECA::domainname` | `rust/tcl-registry/src/commands/irules/eca__domainname.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `ECA::enable` | `rust/tcl-registry/src/commands/irules/eca__enable.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `ECA::select` | `rust/tcl-registry/src/commands/irules/eca__select.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `ECA::status` | `rust/tcl-registry/src/commands/irules/eca__status.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `ECA::username` | `rust/tcl-registry/src/commands/irules/eca__username.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `event` | `rust/tcl-registry/src/commands/irules/event.rs` | — | ✓ | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `fasthash` | `rust/tcl-registry/src/commands/irules/fasthash.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `findclass` | `rust/tcl-registry/src/commands/irules/findclass.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `findstr` | `rust/tcl-registry/src/commands/irules/findstr.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `FIX::tag` | `rust/tcl-registry/src/commands/irules/fix__tag.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `FLOW::create_related` | `rust/tcl-registry/src/commands/irules/flow__create_related.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `FLOW::idle_duration` | `rust/tcl-registry/src/commands/irules/flow__idle_duration.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `FLOW::idle_timeout` | `rust/tcl-registry/src/commands/irules/flow__idle_timeout.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `FLOW::peer` | `rust/tcl-registry/src/commands/irules/flow__peer.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `FLOW::priority` | `rust/tcl-registry/src/commands/irules/flow__priority.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `FLOW::refresh` | `rust/tcl-registry/src/commands/irules/flow__refresh.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `FLOW::this` | `rust/tcl-registry/src/commands/irules/flow__this.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `FLOWTABLE::count` | `rust/tcl-registry/src/commands/irules/flowtable__count.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `FLOWTABLE::limit` | `rust/tcl-registry/src/commands/irules/flowtable__limit.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `forward` | `rust/tcl-registry/src/commands/irules/forward.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `FTP::allow_active_mode` | `rust/tcl-registry/src/commands/irules/ftp__allow_active_mode.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `FTP::disable` | `rust/tcl-registry/src/commands/irules/ftp__disable.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `FTP::enable` | `rust/tcl-registry/src/commands/irules/ftp__enable.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `FTP::enforce_tls_session_reuse` | `rust/tcl-registry/src/commands/irules/ftp__enforce_tls_session_reuse.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `FTP::ftps_mode` | `rust/tcl-registry/src/commands/irules/ftp__ftps_mode.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `FTP::port` | `rust/tcl-registry/src/commands/irules/ftp__port.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `GENERICMESSAGE::message` | `rust/tcl-registry/src/commands/irules/genericmessage__message.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `GENERICMESSAGE::peer` | `rust/tcl-registry/src/commands/irules/genericmessage__peer.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `GENERICMESSAGE::route` | `rust/tcl-registry/src/commands/irules/genericmessage__route.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `getfield` | `rust/tcl-registry/src/commands/irules/getfield.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `GTP::clone` | `rust/tcl-registry/src/commands/irules/gtp__clone.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `GTP::discard` | `rust/tcl-registry/src/commands/irules/gtp__discard.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `GTP::forward` | `rust/tcl-registry/src/commands/irules/gtp__forward.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `GTP::header` | `rust/tcl-registry/src/commands/irules/gtp__header.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `GTP::ie` | `rust/tcl-registry/src/commands/irules/gtp__ie.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `GTP::length` | `rust/tcl-registry/src/commands/irules/gtp__length.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `GTP::message` | `rust/tcl-registry/src/commands/irules/gtp__message.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `GTP::new` | `rust/tcl-registry/src/commands/irules/gtp__new.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `GTP::parse` | `rust/tcl-registry/src/commands/irules/gtp__parse.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `GTP::payload` | `rust/tcl-registry/src/commands/irules/gtp__payload.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `GTP::respond` | `rust/tcl-registry/src/commands/irules/gtp__respond.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `GTP::tunnel` | `rust/tcl-registry/src/commands/irules/gtp__tunnel.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `HA::status` | `rust/tcl-registry/src/commands/irules/ha__status.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `HSL::open` | `rust/tcl-registry/src/commands/irules/hsl__open.rs` | — | ✓ | ✓ | — | — | — | ✓ | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `HSL::send` | `rust/tcl-registry/src/commands/irules/hsl__send.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `HTML::comment` | `rust/tcl-registry/src/commands/irules/html__comment.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `HTML::disable` | `rust/tcl-registry/src/commands/irules/html__disable.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `HTML::enable` | `rust/tcl-registry/src/commands/irules/html__enable.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `HTML::encode` | `rust/tcl-registry/src/commands/irules/html__encode.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `HTML::tag` | `rust/tcl-registry/src/commands/irules/html__tag.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `html_encode` | `rust/tcl-registry/src/commands/irules/html_encode.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `html_escape` | `rust/tcl-registry/src/commands/irules/html_escape.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `htmlencode` | `rust/tcl-registry/src/commands/irules/htmlencode.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `htonl` | `rust/tcl-registry/src/commands/irules/htonl.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `htons` | `rust/tcl-registry/src/commands/irules/htons.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `HTTP2::active` | `rust/tcl-registry/src/commands/irules/http2__active.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `HTTP2::concurrency` | `rust/tcl-registry/src/commands/irules/http2__concurrency.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `HTTP2::disable` | `rust/tcl-registry/src/commands/irules/http2__disable.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `HTTP2::disconnect` | `rust/tcl-registry/src/commands/irules/http2__disconnect.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `HTTP2::enable` | `rust/tcl-registry/src/commands/irules/http2__enable.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `HTTP2::header` | `rust/tcl-registry/src/commands/irules/http2__header.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `HTTP2::push` | `rust/tcl-registry/src/commands/irules/http2__push.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `HTTP2::requests` | `rust/tcl-registry/src/commands/irules/http2__requests.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `HTTP2::stream` | `rust/tcl-registry/src/commands/irules/http2__stream.rs` | — | ✓ | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `HTTP2::version` | `rust/tcl-registry/src/commands/irules/http2__version.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `HTTP::class` | `rust/tcl-registry/src/commands/irules/http__class.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `HTTP::close` | `rust/tcl-registry/src/commands/irules/http__close.rs` | — | ✓ | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `HTTP::collect` | `rust/tcl-registry/src/commands/irules/http__collect.rs` | — | ✓ | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `HTTP::cookie` | `rust/tcl-registry/src/commands/irules/http__cookie.rs` | — | ✓ | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `HTTP::disable` | `rust/tcl-registry/src/commands/irules/http__disable.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `HTTP::enable` | `rust/tcl-registry/src/commands/irules/http__enable.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `HTTP::fallback` | `rust/tcl-registry/src/commands/irules/http__fallback.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `HTTP::has_responded` | `rust/tcl-registry/src/commands/irules/http__has_responded.rs` | — | ✓ | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `HTTP::header` | `rust/tcl-registry/src/commands/irules/http__header.rs` | — | ✓ | ✓ | ✓ | — | — | — | — | ✓ | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `HTTP::host` | `rust/tcl-registry/src/commands/irules/http__host.rs` | — | ✓ | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `HTTP::hsts` | `rust/tcl-registry/src/commands/irules/http__hsts.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `HTTP::is_keepalive` | `rust/tcl-registry/src/commands/irules/http__is_keepalive.rs` | — | ✓ | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `HTTP::is_redirect` | `rust/tcl-registry/src/commands/irules/http__is_redirect.rs` | — | ✓ | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `HTTP::method` | `rust/tcl-registry/src/commands/irules/http__method.rs` | — | ✓ | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `HTTP::passthrough_reason` | `rust/tcl-registry/src/commands/irules/http__passthrough_reason.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `HTTP::password` | `rust/tcl-registry/src/commands/irules/http__password.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `HTTP::path` | `rust/tcl-registry/src/commands/irules/http__path.rs` | — | ✓ | ✓ | ✓ | — | — | — | — | ✓ | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `HTTP::payload` | `rust/tcl-registry/src/commands/irules/http__payload.rs` | — | ✓ | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `HTTP::proxy` | `rust/tcl-registry/src/commands/irules/http__proxy.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `HTTP::query` | `rust/tcl-registry/src/commands/irules/http__query.rs` | — | ✓ | ✓ | ✓ | — | — | — | — | ✓ | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `HTTP::redirect` | `rust/tcl-registry/src/commands/irules/http__redirect.rs` | — | ✓ | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `HTTP::reject_reason` | `rust/tcl-registry/src/commands/irules/http__reject_reason.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `HTTP::release` | `rust/tcl-registry/src/commands/irules/http__release.rs` | — | ✓ | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `HTTP::request` | `rust/tcl-registry/src/commands/irules/http__request.rs` | — | ✓ | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `HTTP::request_num` | `rust/tcl-registry/src/commands/irules/http__request_num.rs` | — | ✓ | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `HTTP::respond` | `rust/tcl-registry/src/commands/irules/http__respond.rs` | — | ✓ | ✓ | ✓ | — | — | — | — | ✓ | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `HTTP::response` | `rust/tcl-registry/src/commands/irules/http__response.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `HTTP::retry` | `rust/tcl-registry/src/commands/irules/http__retry.rs` | — | ✓ | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `HTTP::status` | `rust/tcl-registry/src/commands/irules/http__status.rs` | — | ✓ | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `HTTP::uri` | `rust/tcl-registry/src/commands/irules/http__uri.rs` | — | ✓ | ✓ | ✓ | — | — | — | — | ✓ | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `HTTP::username` | `rust/tcl-registry/src/commands/irules/http__username.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `HTTP::version` | `rust/tcl-registry/src/commands/irules/http__version.rs` | — | ✓ | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `http_client_ip` | `rust/tcl-registry/src/commands/irules/http_client_ip.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `http_content_len_max` | `rust/tcl-registry/src/commands/irules/http_content_len_max.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `http_cookie` | `rust/tcl-registry/src/commands/irules/http_cookie.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `http_header` | `rust/tcl-registry/src/commands/irules/http_header.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `http_host` | `rust/tcl-registry/src/commands/irules/http_host.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `http_method` | `rust/tcl-registry/src/commands/irules/http_method.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `http_uri` | `rust/tcl-registry/src/commands/irules/http_uri.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `http_version` | `rust/tcl-registry/src/commands/irules/http_version.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `HTTPLOG::disable` | `rust/tcl-registry/src/commands/irules/httplog__disable.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `HTTPLOG::enable` | `rust/tcl-registry/src/commands/irules/httplog__enable.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `ICAP::header` | `rust/tcl-registry/src/commands/irules/icap__header.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `ICAP::method` | `rust/tcl-registry/src/commands/irules/icap__method.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `ICAP::status` | `rust/tcl-registry/src/commands/irules/icap__status.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `ICAP::uri` | `rust/tcl-registry/src/commands/irules/icap__uri.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `ifile` | `rust/tcl-registry/src/commands/irules/ifile.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `IKE::auth_success` | `rust/tcl-registry/src/commands/irules/ike__auth_success.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `IKE::cert` | `rust/tcl-registry/src/commands/irules/ike__cert.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `IKE::san_dirname` | `rust/tcl-registry/src/commands/irules/ike__san_dirname.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `IKE::san_dns` | `rust/tcl-registry/src/commands/irules/ike__san_dns.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `IKE::san_ediparty` | `rust/tcl-registry/src/commands/irules/ike__san_ediparty.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `IKE::san_email` | `rust/tcl-registry/src/commands/irules/ike__san_email.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `IKE::san_ipadd` | `rust/tcl-registry/src/commands/irules/ike__san_ipadd.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `IKE::san_othername` | `rust/tcl-registry/src/commands/irules/ike__san_othername.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `IKE::san_rid` | `rust/tcl-registry/src/commands/irules/ike__san_rid.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `IKE::san_uri` | `rust/tcl-registry/src/commands/irules/ike__san_uri.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `IKE::san_x400` | `rust/tcl-registry/src/commands/irules/ike__san_x400.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `IKE::subjectAltName` | `rust/tcl-registry/src/commands/irules/ike__subjectaltname.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `ILX::call` | `rust/tcl-registry/src/commands/irules/ilx__call.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `ILX::init` | `rust/tcl-registry/src/commands/irules/ilx__init.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `ILX::notify` | `rust/tcl-registry/src/commands/irules/ilx__notify.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `IMAP::activation_mode` | `rust/tcl-registry/src/commands/irules/imap__activation_mode.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `IMAP::disable` | `rust/tcl-registry/src/commands/irules/imap__disable.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `IMAP::enable` | `rust/tcl-registry/src/commands/irules/imap__enable.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `imid` | `rust/tcl-registry/src/commands/irules/imid.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `IP::addr` | `rust/tcl-registry/src/commands/irules/ip__addr.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `IP::client_addr` | `rust/tcl-registry/src/commands/irules/ip__client_addr.rs` | — | ✓ | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `IP::hops` | `rust/tcl-registry/src/commands/irules/ip__hops.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `IP::idle_timeout` | `rust/tcl-registry/src/commands/irules/ip__idle_timeout.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `IP::ingress_drop_rate` | `rust/tcl-registry/src/commands/irules/ip__ingress_drop_rate.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `IP::ingress_rate_limit` | `rust/tcl-registry/src/commands/irules/ip__ingress_rate_limit.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `IP::intelligence` | `rust/tcl-registry/src/commands/irules/ip__intelligence.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `IP::local_addr` | `rust/tcl-registry/src/commands/irules/ip__local_addr.rs` | — | ✓ | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `IP::protocol` | `rust/tcl-registry/src/commands/irules/ip__protocol.rs` | — | ✓ | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `IP::remote_addr` | `rust/tcl-registry/src/commands/irules/ip__remote_addr.rs` | — | ✓ | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `IP::reputation` | `rust/tcl-registry/src/commands/irules/ip__reputation.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `IP::server_addr` | `rust/tcl-registry/src/commands/irules/ip__server_addr.rs` | — | ✓ | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `IP::stats` | `rust/tcl-registry/src/commands/irules/ip__stats.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `IP::tos` | `rust/tcl-registry/src/commands/irules/ip__tos.rs` | — | ✓ | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `IP::ttl` | `rust/tcl-registry/src/commands/irules/ip__ttl.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `IP::version` | `rust/tcl-registry/src/commands/irules/ip__version.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `ip_addr` | `rust/tcl-registry/src/commands/irules/ip_addr.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `ip_protocol` | `rust/tcl-registry/src/commands/irules/ip_protocol.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `ip_tos` | `rust/tcl-registry/src/commands/irules/ip_tos.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `ip_ttl` | `rust/tcl-registry/src/commands/irules/ip_ttl.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `IPFIX::destination` | `rust/tcl-registry/src/commands/irules/ipfix__destination.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `IPFIX::msg` | `rust/tcl-registry/src/commands/irules/ipfix__msg.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `IPFIX::template` | `rust/tcl-registry/src/commands/irules/ipfix__template.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `ISESSION::deduplication` | `rust/tcl-registry/src/commands/irules/isession__deduplication.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `ISTATS::get` | `rust/tcl-registry/src/commands/irules/istats__get.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `ISTATS::incr` | `rust/tcl-registry/src/commands/irules/istats__incr.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `ISTATS::remove` | `rust/tcl-registry/src/commands/irules/istats__remove.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `ISTATS::set` | `rust/tcl-registry/src/commands/irules/istats__set.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `IVS_ENTRY::result` | `rust/tcl-registry/src/commands/irules/ivs_entry__result.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `JSON::array` | `rust/tcl-registry/src/commands/irules/json__array.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `JSON::create` | `rust/tcl-registry/src/commands/irules/json__create.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `JSON::get` | `rust/tcl-registry/src/commands/irules/json__get.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `JSON::object` | `rust/tcl-registry/src/commands/irules/json__object.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `JSON::parse` | `rust/tcl-registry/src/commands/irules/json__parse.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `JSON::render` | `rust/tcl-registry/src/commands/irules/json__render.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `JSON::root` | `rust/tcl-registry/src/commands/irules/json__root.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `JSON::set` | `rust/tcl-registry/src/commands/irules/json__set.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `JSON::type` | `rust/tcl-registry/src/commands/irules/json__type.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `L7CHECK::protocol` | `rust/tcl-registry/src/commands/irules/l7check__protocol.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `lasthop` | `rust/tcl-registry/src/commands/irules/lasthop.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `LB::bias` | `rust/tcl-registry/src/commands/irules/lb__bias.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `LB::class` | `rust/tcl-registry/src/commands/irules/lb__class.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `LB::command` | `rust/tcl-registry/src/commands/irules/lb__command.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `LB::connect` | `rust/tcl-registry/src/commands/irules/lb__connect.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `LB::connlimit` | `rust/tcl-registry/src/commands/irules/lb__connlimit.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `LB::context_id` | `rust/tcl-registry/src/commands/irules/lb__context_id.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `LB::detach` | `rust/tcl-registry/src/commands/irules/lb__detach.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `LB::down` | `rust/tcl-registry/src/commands/irules/lb__down.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `LB::dst_tag` | `rust/tcl-registry/src/commands/irules/lb__dst_tag.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `LB::enable_decisionlog` | `rust/tcl-registry/src/commands/irules/lb__enable_decisionlog.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `LB::mode` | `rust/tcl-registry/src/commands/irules/lb__mode.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `LB::persist` | `rust/tcl-registry/src/commands/irules/lb__persist.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `LB::prime` | `rust/tcl-registry/src/commands/irules/lb__prime.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `LB::queue` | `rust/tcl-registry/src/commands/irules/lb__queue.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `LB::reselect` | `rust/tcl-registry/src/commands/irules/lb__reselect.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `LB::select` | `rust/tcl-registry/src/commands/irules/lb__select.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `LB::server` | `rust/tcl-registry/src/commands/irules/lb__server.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `LB::snat` | `rust/tcl-registry/src/commands/irules/lb__snat.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `LB::src_tag` | `rust/tcl-registry/src/commands/irules/lb__src_tag.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `LB::status` | `rust/tcl-registry/src/commands/irules/lb__status.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `LB::up` | `rust/tcl-registry/src/commands/irules/lb__up.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `LDAP::activation_mode` | `rust/tcl-registry/src/commands/irules/ldap__activation_mode.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `LDAP::disable` | `rust/tcl-registry/src/commands/irules/ldap__disable.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `LDAP::enable` | `rust/tcl-registry/src/commands/irules/ldap__enable.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `LINE::get` | `rust/tcl-registry/src/commands/irules/line__get.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `LINE::set` | `rust/tcl-registry/src/commands/irules/line__set.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `LINK::lasthop` | `rust/tcl-registry/src/commands/irules/link__lasthop.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `LINK::nexthop` | `rust/tcl-registry/src/commands/irules/link__nexthop.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `LINK::qos` | `rust/tcl-registry/src/commands/irules/link__qos.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `LINK::vlan_id` | `rust/tcl-registry/src/commands/irules/link__vlan_id.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `link_qos` | `rust/tcl-registry/src/commands/irules/link_qos.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `listen` | `rust/tcl-registry/src/commands/irules/listen.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `llookup` | `rust/tcl-registry/src/commands/irules/llookup.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `local_addr` | `rust/tcl-registry/src/commands/irules/local_addr.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `local_port` | `rust/tcl-registry/src/commands/irules/local_port.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `log` | `rust/tcl-registry/src/commands/irules/log.rs` | — | ✓ | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `LSN::address` | `rust/tcl-registry/src/commands/irules/lsn__address.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `LSN::disable` | `rust/tcl-registry/src/commands/irules/lsn__disable.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `LSN::inbound` | `rust/tcl-registry/src/commands/irules/lsn__inbound.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `LSN::inbound-entry` | `rust/tcl-registry/src/commands/irules/lsn__inbound_entry.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `LSN::persistence` | `rust/tcl-registry/src/commands/irules/lsn__persistence.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `LSN::persistence-entry` | `rust/tcl-registry/src/commands/irules/lsn__persistence_entry.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `LSN::pool` | `rust/tcl-registry/src/commands/irules/lsn__pool.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `LSN::port` | `rust/tcl-registry/src/commands/irules/lsn__port.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `matchclass` | `rust/tcl-registry/src/commands/irules/matchclass.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `md4` | `rust/tcl-registry/src/commands/irules/md4.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `md5` | `rust/tcl-registry/src/commands/irules/md5.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `members` | `rust/tcl-registry/src/commands/irules/members.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `MESSAGE::field` | `rust/tcl-registry/src/commands/irules/message__field.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `MESSAGE::proto` | `rust/tcl-registry/src/commands/irules/message__proto.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `MESSAGE::type` | `rust/tcl-registry/src/commands/irules/message__type.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `MQTT::clean_session` | `rust/tcl-registry/src/commands/irules/mqtt__clean_session.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `MQTT::client_id` | `rust/tcl-registry/src/commands/irules/mqtt__client_id.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `MQTT::collect` | `rust/tcl-registry/src/commands/irules/mqtt__collect.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `MQTT::disable` | `rust/tcl-registry/src/commands/irules/mqtt__disable.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `MQTT::disconnect` | `rust/tcl-registry/src/commands/irules/mqtt__disconnect.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `MQTT::drop` | `rust/tcl-registry/src/commands/irules/mqtt__drop.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `MQTT::dup` | `rust/tcl-registry/src/commands/irules/mqtt__dup.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `MQTT::enable` | `rust/tcl-registry/src/commands/irules/mqtt__enable.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `MQTT::insert` | `rust/tcl-registry/src/commands/irules/mqtt__insert.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `MQTT::keep_alive` | `rust/tcl-registry/src/commands/irules/mqtt__keep_alive.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `MQTT::length` | `rust/tcl-registry/src/commands/irules/mqtt__length.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `MQTT::message` | `rust/tcl-registry/src/commands/irules/mqtt__message.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `MQTT::packet_id` | `rust/tcl-registry/src/commands/irules/mqtt__packet_id.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `MQTT::password` | `rust/tcl-registry/src/commands/irules/mqtt__password.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `MQTT::payload` | `rust/tcl-registry/src/commands/irules/mqtt__payload.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `MQTT::protocol_name` | `rust/tcl-registry/src/commands/irules/mqtt__protocol_name.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `MQTT::protocol_version` | `rust/tcl-registry/src/commands/irules/mqtt__protocol_version.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `MQTT::qos` | `rust/tcl-registry/src/commands/irules/mqtt__qos.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `MQTT::release` | `rust/tcl-registry/src/commands/irules/mqtt__release.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `MQTT::replace` | `rust/tcl-registry/src/commands/irules/mqtt__replace.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `MQTT::respond` | `rust/tcl-registry/src/commands/irules/mqtt__respond.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `MQTT::retain` | `rust/tcl-registry/src/commands/irules/mqtt__retain.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `MQTT::return_code` | `rust/tcl-registry/src/commands/irules/mqtt__return_code.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `MQTT::return_code_list` | `rust/tcl-registry/src/commands/irules/mqtt__return_code_list.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `MQTT::session_present` | `rust/tcl-registry/src/commands/irules/mqtt__session_present.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `MQTT::topic` | `rust/tcl-registry/src/commands/irules/mqtt__topic.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `MQTT::type` | `rust/tcl-registry/src/commands/irules/mqtt__type.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `MQTT::username` | `rust/tcl-registry/src/commands/irules/mqtt__username.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `MQTT::will` | `rust/tcl-registry/src/commands/irules/mqtt__will.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `MR::always_match_port` | `rust/tcl-registry/src/commands/irules/mr__always_match_port.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `MR::available_for_routing` | `rust/tcl-registry/src/commands/irules/mr__available_for_routing.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `MR::collect` | `rust/tcl-registry/src/commands/irules/mr__collect.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `MR::connect_back_port` | `rust/tcl-registry/src/commands/irules/mr__connect_back_port.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `MR::connection_instance` | `rust/tcl-registry/src/commands/irules/mr__connection_instance.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `MR::connection_mode` | `rust/tcl-registry/src/commands/irules/mr__connection_mode.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `MR::equivalent_transport` | `rust/tcl-registry/src/commands/irules/mr__equivalent_transport.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `MR::flow_id` | `rust/tcl-registry/src/commands/irules/mr__flow_id.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `MR::ignore_peer_port` | `rust/tcl-registry/src/commands/irules/mr__ignore_peer_port.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `MR::instance` | `rust/tcl-registry/src/commands/irules/mr__instance.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `MR::max_retries` | `rust/tcl-registry/src/commands/irules/mr__max_retries.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `MR::message` | `rust/tcl-registry/src/commands/irules/mr__message.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `MR::payload` | `rust/tcl-registry/src/commands/irules/mr__payload.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `MR::peer` | `rust/tcl-registry/src/commands/irules/mr__peer.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `MR::prime` | `rust/tcl-registry/src/commands/irules/mr__prime.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `MR::protocol` | `rust/tcl-registry/src/commands/irules/mr__protocol.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `MR::release` | `rust/tcl-registry/src/commands/irules/mr__release.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `MR::restore` | `rust/tcl-registry/src/commands/irules/mr__restore.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `MR::retry` | `rust/tcl-registry/src/commands/irules/mr__retry.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `MR::return` | `rust/tcl-registry/src/commands/irules/mr__return.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `MR::store` | `rust/tcl-registry/src/commands/irules/mr__store.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `MR::stream` | `rust/tcl-registry/src/commands/irules/mr__stream.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `MR::transport` | `rust/tcl-registry/src/commands/irules/mr__transport.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `NAME::lookup` | `rust/tcl-registry/src/commands/irules/name__lookup.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `NAME::response` | `rust/tcl-registry/src/commands/irules/name__response.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `nexthop` | `rust/tcl-registry/src/commands/irules/nexthop.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `node` | `rust/tcl-registry/src/commands/irules/node.rs` | — | ✓ | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `nodes` | `rust/tcl-registry/src/commands/irules/nodes.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `NSH::chain` | `rust/tcl-registry/src/commands/irules/nsh__chain.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `NSH::context` | `rust/tcl-registry/src/commands/irules/nsh__context.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `NSH::md1` | `rust/tcl-registry/src/commands/irules/nsh__md1.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `NSH::mocksf` | `rust/tcl-registry/src/commands/irules/nsh__mocksf.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `NSH::path_id` | `rust/tcl-registry/src/commands/irules/nsh__path_id.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `NSH::service_index` | `rust/tcl-registry/src/commands/irules/nsh__service_index.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `NTLM::disable` | `rust/tcl-registry/src/commands/irules/ntlm__disable.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `NTLM::enable` | `rust/tcl-registry/src/commands/irules/ntlm__enable.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `ntohl` | `rust/tcl-registry/src/commands/irules/ntohl.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `ntohs` | `rust/tcl-registry/src/commands/irules/ntohs.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `OFFBOX::request` | `rust/tcl-registry/src/commands/irules/offbox__request.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `ONECONNECT::detach` | `rust/tcl-registry/src/commands/irules/oneconnect__detach.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `ONECONNECT::label` | `rust/tcl-registry/src/commands/irules/oneconnect__label.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `ONECONNECT::reuse` | `rust/tcl-registry/src/commands/irules/oneconnect__reuse.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `ONECONNECT::select` | `rust/tcl-registry/src/commands/irules/oneconnect__select.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `PCP::reject` | `rust/tcl-registry/src/commands/irules/pcp__reject.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `PCP::request` | `rust/tcl-registry/src/commands/irules/pcp__request.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `PCP::response` | `rust/tcl-registry/src/commands/irules/pcp__response.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `peer` | `rust/tcl-registry/src/commands/irules/peer.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `PEM::disable` | `rust/tcl-registry/src/commands/irules/pem__disable.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `PEM::enable` | `rust/tcl-registry/src/commands/irules/pem__enable.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `PEM::flow` | `rust/tcl-registry/src/commands/irules/pem__flow.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `PEM::session` | `rust/tcl-registry/src/commands/irules/pem__session.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `PEM::subscriber` | `rust/tcl-registry/src/commands/irules/pem__subscriber.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `pem_dtos` | `rust/tcl-registry/src/commands/irules/pem_dtos.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `persist` | `rust/tcl-registry/src/commands/irules/persist.rs` | — | ✓ | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `PLUGIN::disable` | `rust/tcl-registry/src/commands/irules/plugin__disable.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `PLUGIN::enable` | `rust/tcl-registry/src/commands/irules/plugin__enable.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `POLICY::controls` | `rust/tcl-registry/src/commands/irules/policy__controls.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `POLICY::names` | `rust/tcl-registry/src/commands/irules/policy__names.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `POLICY::rules` | `rust/tcl-registry/src/commands/irules/policy__rules.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `POLICY::targets` | `rust/tcl-registry/src/commands/irules/policy__targets.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `pool` | `rust/tcl-registry/src/commands/irules/pool.rs` | — | ✓ | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `POP3::activation_mode` | `rust/tcl-registry/src/commands/irules/pop3__activation_mode.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `POP3::disable` | `rust/tcl-registry/src/commands/irules/pop3__disable.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `POP3::enable` | `rust/tcl-registry/src/commands/irules/pop3__enable.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `priority` | `rust/tcl-registry/src/commands/irules/priority.rs` | — | ✓ | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `proc` | `rust/tcl-registry/src/commands/irules/proc.rs` | — | ✓ | ✓ | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `PROFILE::access` | `rust/tcl-registry/src/commands/irules/profile__access.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `PROFILE::antifraud` | `rust/tcl-registry/src/commands/irules/profile__antifraud.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `PROFILE::auth` | `rust/tcl-registry/src/commands/irules/profile__auth.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `PROFILE::avr` | `rust/tcl-registry/src/commands/irules/profile__avr.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `PROFILE::clientssl` | `rust/tcl-registry/src/commands/irules/profile__clientssl.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `PROFILE::diameter` | `rust/tcl-registry/src/commands/irules/profile__diameter.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `PROFILE::exchange` | `rust/tcl-registry/src/commands/irules/profile__exchange.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `PROFILE::exists` | `rust/tcl-registry/src/commands/irules/profile__exists.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `PROFILE::fasthttp` | `rust/tcl-registry/src/commands/irules/profile__fasthttp.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `PROFILE::fastL4` | `rust/tcl-registry/src/commands/irules/profile__fastl4.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `PROFILE::ftp` | `rust/tcl-registry/src/commands/irules/profile__ftp.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `PROFILE::http` | `rust/tcl-registry/src/commands/irules/profile__http.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `PROFILE::httpclass` | `rust/tcl-registry/src/commands/irules/profile__httpclass.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `PROFILE::httpcompression` | `rust/tcl-registry/src/commands/irules/profile__httpcompression.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `PROFILE::list` | `rust/tcl-registry/src/commands/irules/profile__list.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `PROFILE::oneconnect` | `rust/tcl-registry/src/commands/irules/profile__oneconnect.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `PROFILE::persist` | `rust/tcl-registry/src/commands/irules/profile__persist.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `PROFILE::serverssl` | `rust/tcl-registry/src/commands/irules/profile__serverssl.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `PROFILE::stream` | `rust/tcl-registry/src/commands/irules/profile__stream.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `PROFILE::tcp` | `rust/tcl-registry/src/commands/irules/profile__tcp.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `PROFILE::tftp` | `rust/tcl-registry/src/commands/irules/profile__tftp.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `PROFILE::udp` | `rust/tcl-registry/src/commands/irules/profile__udp.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `PROFILE::vdi` | `rust/tcl-registry/src/commands/irules/profile__vdi.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `PROFILE::webacceleration` | `rust/tcl-registry/src/commands/irules/profile__webacceleration.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `PROFILE::xml` | `rust/tcl-registry/src/commands/irules/profile__xml.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `PROTOCOL_INSPECTION::disable` | `rust/tcl-registry/src/commands/irules/protocol_inspection__disable.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `PROTOCOL_INSPECTION::id` | `rust/tcl-registry/src/commands/irules/protocol_inspection__id.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `PSC::aaa_reporting_interval` | `rust/tcl-registry/src/commands/irules/psc__aaa_reporting_interval.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `PSC::attr` | `rust/tcl-registry/src/commands/irules/psc__attr.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `PSC::calling_id` | `rust/tcl-registry/src/commands/irules/psc__calling_id.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `PSC::imeisv` | `rust/tcl-registry/src/commands/irules/psc__imeisv.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `PSC::imsi` | `rust/tcl-registry/src/commands/irules/psc__imsi.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `PSC::ip_address` | `rust/tcl-registry/src/commands/irules/psc__ip_address.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `PSC::lease_time` | `rust/tcl-registry/src/commands/irules/psc__lease_time.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `PSC::policy` | `rust/tcl-registry/src/commands/irules/psc__policy.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `PSC::subscriber_id` | `rust/tcl-registry/src/commands/irules/psc__subscriber_id.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `PSC::tower_id` | `rust/tcl-registry/src/commands/irules/psc__tower_id.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `PSC::user_name` | `rust/tcl-registry/src/commands/irules/psc__user_name.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `PSM::FTP::disable` | `rust/tcl-registry/src/commands/irules/psm__ftp__disable.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `PSM::FTP::enable` | `rust/tcl-registry/src/commands/irules/psm__ftp__enable.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `PSM::HTTP::disable` | `rust/tcl-registry/src/commands/irules/psm__http__disable.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `PSM::HTTP::enable` | `rust/tcl-registry/src/commands/irules/psm__http__enable.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `PSM::SMTP::disable` | `rust/tcl-registry/src/commands/irules/psm__smtp__disable.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `PSM::SMTP::enable` | `rust/tcl-registry/src/commands/irules/psm__smtp__enable.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `QOE::disable` | `rust/tcl-registry/src/commands/irules/qoe__disable.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `QOE::enable` | `rust/tcl-registry/src/commands/irules/qoe__enable.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `QOE::video` | `rust/tcl-registry/src/commands/irules/qoe__video.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `RADIUS::avp` | `rust/tcl-registry/src/commands/irules/radius__avp.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `RADIUS::code` | `rust/tcl-registry/src/commands/irules/radius__code.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `RADIUS::id` | `rust/tcl-registry/src/commands/irules/radius__id.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `RADIUS::rtdom` | `rust/tcl-registry/src/commands/irules/radius__rtdom.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `RADIUS::subscriber` | `rust/tcl-registry/src/commands/irules/radius__subscriber.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `radius_authenticate` | `rust/tcl-registry/src/commands/irules/radius_authenticate.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `rateclass` | `rust/tcl-registry/src/commands/irules/rateclass.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `recv` | `rust/tcl-registry/src/commands/irules/recv.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `redirect` | `rust/tcl-registry/src/commands/irules/redirect.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `reject` | `rust/tcl-registry/src/commands/irules/reject.rs` | — | ✓ | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `relate_client` | `rust/tcl-registry/src/commands/irules/relate_client.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `relate_server` | `rust/tcl-registry/src/commands/irules/relate_server.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `remote_addr` | `rust/tcl-registry/src/commands/irules/remote_addr.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `remote_port` | `rust/tcl-registry/src/commands/irules/remote_port.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `RESOLV::lookup` | `rust/tcl-registry/src/commands/irules/resolv__lookup.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `RESOLVER::name_lookup` | `rust/tcl-registry/src/commands/irules/resolver__name_lookup.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `RESOLVER::summarize` | `rust/tcl-registry/src/commands/irules/resolver__summarize.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `REST::send` | `rust/tcl-registry/src/commands/irules/rest__send.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `REWRITE::disable` | `rust/tcl-registry/src/commands/irules/rewrite__disable.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `REWRITE::enable` | `rust/tcl-registry/src/commands/irules/rewrite__enable.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `REWRITE::payload` | `rust/tcl-registry/src/commands/irules/rewrite__payload.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `REWRITE::post_process` | `rust/tcl-registry/src/commands/irules/rewrite__post_process.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `rmd160` | `rust/tcl-registry/src/commands/irules/rmd160.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `ROUTE::age` | `rust/tcl-registry/src/commands/irules/route__age.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `ROUTE::bandwidth` | `rust/tcl-registry/src/commands/irules/route__bandwidth.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `ROUTE::clear` | `rust/tcl-registry/src/commands/irules/route__clear.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `ROUTE::cwnd` | `rust/tcl-registry/src/commands/irules/route__cwnd.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `ROUTE::domain` | `rust/tcl-registry/src/commands/irules/route__domain.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `ROUTE::expiration` | `rust/tcl-registry/src/commands/irules/route__expiration.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `ROUTE::mtu` | `rust/tcl-registry/src/commands/irules/route__mtu.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `ROUTE::rtt` | `rust/tcl-registry/src/commands/irules/route__rtt.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `ROUTE::rttvar` | `rust/tcl-registry/src/commands/irules/route__rttvar.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `RTSP::collect` | `rust/tcl-registry/src/commands/irules/rtsp__collect.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `RTSP::header` | `rust/tcl-registry/src/commands/irules/rtsp__header.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `RTSP::method` | `rust/tcl-registry/src/commands/irules/rtsp__method.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `RTSP::msg_source` | `rust/tcl-registry/src/commands/irules/rtsp__msg_source.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `RTSP::payload` | `rust/tcl-registry/src/commands/irules/rtsp__payload.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `RTSP::release` | `rust/tcl-registry/src/commands/irules/rtsp__release.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `RTSP::respond` | `rust/tcl-registry/src/commands/irules/rtsp__respond.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `RTSP::status` | `rust/tcl-registry/src/commands/irules/rtsp__status.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `RTSP::uri` | `rust/tcl-registry/src/commands/irules/rtsp__uri.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `RTSP::version` | `rust/tcl-registry/src/commands/irules/rtsp__version.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `SCTP::client_port` | `rust/tcl-registry/src/commands/irules/sctp__client_port.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `SCTP::collect` | `rust/tcl-registry/src/commands/irules/sctp__collect.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `SCTP::local_port` | `rust/tcl-registry/src/commands/irules/sctp__local_port.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `SCTP::mss` | `rust/tcl-registry/src/commands/irules/sctp__mss.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `SCTP::payload` | `rust/tcl-registry/src/commands/irules/sctp__payload.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `SCTP::ppi` | `rust/tcl-registry/src/commands/irules/sctp__ppi.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `SCTP::release` | `rust/tcl-registry/src/commands/irules/sctp__release.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `SCTP::remote_port` | `rust/tcl-registry/src/commands/irules/sctp__remote_port.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `SCTP::respond` | `rust/tcl-registry/src/commands/irules/sctp__respond.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `SCTP::rto_initial` | `rust/tcl-registry/src/commands/irules/sctp__rto_initial.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `SCTP::rto_max` | `rust/tcl-registry/src/commands/irules/sctp__rto_max.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `SCTP::rto_min` | `rust/tcl-registry/src/commands/irules/sctp__rto_min.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `SCTP::sack_timeout` | `rust/tcl-registry/src/commands/irules/sctp__sack_timeout.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `SCTP::server_port` | `rust/tcl-registry/src/commands/irules/sctp__server_port.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `SDP::field` | `rust/tcl-registry/src/commands/irules/sdp__field.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `SDP::media` | `rust/tcl-registry/src/commands/irules/sdp__media.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `SDP::session_id` | `rust/tcl-registry/src/commands/irules/sdp__session_id.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `send` | `rust/tcl-registry/src/commands/irules/send.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `server_addr` | `rust/tcl-registry/src/commands/irules/server_addr.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `server_port` | `rust/tcl-registry/src/commands/irules/server_port.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `serverside` | `rust/tcl-registry/src/commands/irules/serverside.rs` | — | ✓ | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `session` | `rust/tcl-registry/src/commands/irules/session.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `sha1` | `rust/tcl-registry/src/commands/irules/sha1.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `sha256` | `rust/tcl-registry/src/commands/irules/sha256.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `sha384` | `rust/tcl-registry/src/commands/irules/sha384.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `sha512` | `rust/tcl-registry/src/commands/irules/sha512.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `sharedvar` | `rust/tcl-registry/src/commands/irules/sharedvar.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `SIP::call_id` | `rust/tcl-registry/src/commands/irules/sip__call_id.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `SIP::discard` | `rust/tcl-registry/src/commands/irules/sip__discard.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `SIP::from` | `rust/tcl-registry/src/commands/irules/sip__from.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `SIP::header` | `rust/tcl-registry/src/commands/irules/sip__header.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `SIP::message` | `rust/tcl-registry/src/commands/irules/sip__message.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `SIP::method` | `rust/tcl-registry/src/commands/irules/sip__method.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `SIP::payload` | `rust/tcl-registry/src/commands/irules/sip__payload.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `SIP::persist` | `rust/tcl-registry/src/commands/irules/sip__persist.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `SIP::record-route` | `rust/tcl-registry/src/commands/irules/sip__record_route.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `SIP::respond` | `rust/tcl-registry/src/commands/irules/sip__respond.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `SIP::response` | `rust/tcl-registry/src/commands/irules/sip__response.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `SIP::route` | `rust/tcl-registry/src/commands/irules/sip__route.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `SIP::route_status` | `rust/tcl-registry/src/commands/irules/sip__route_status.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `SIP::to` | `rust/tcl-registry/src/commands/irules/sip__to.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `SIP::uri` | `rust/tcl-registry/src/commands/irules/sip__uri.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `SIP::via` | `rust/tcl-registry/src/commands/irules/sip__via.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `SIPALG::hairpin` | `rust/tcl-registry/src/commands/irules/sipalg__hairpin.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `SIPALG::hairpin_default` | `rust/tcl-registry/src/commands/irules/sipalg__hairpin_default.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `SIPALG::nonregister_subscriber_listener` | `rust/tcl-registry/src/commands/irules/sipalg__nonregister_subscriber_listener.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `SMTPS::activation_mode` | `rust/tcl-registry/src/commands/irules/smtps__activation_mode.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `SMTPS::disable` | `rust/tcl-registry/src/commands/irules/smtps__disable.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `SMTPS::enable` | `rust/tcl-registry/src/commands/irules/smtps__enable.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `snat` | `rust/tcl-registry/src/commands/irules/snat.rs` | — | ✓ | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `snatpool` | `rust/tcl-registry/src/commands/irules/snatpool.rs` | — | ✓ | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `SOCKS::allowed` | `rust/tcl-registry/src/commands/irules/socks__allowed.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `SOCKS::destination` | `rust/tcl-registry/src/commands/irules/socks__destination.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `SOCKS::version` | `rust/tcl-registry/src/commands/irules/socks__version.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `SSE::field` | `rust/tcl-registry/src/commands/irules/sse__field.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `SSL::allow_dynamic_record_sizing` | `rust/tcl-registry/src/commands/irules/ssl__allow_dynamic_record_sizing.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `SSL::allow_nonssl` | `rust/tcl-registry/src/commands/irules/ssl__allow_nonssl.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `SSL::alpn` | `rust/tcl-registry/src/commands/irules/ssl__alpn.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `SSL::authenticate` | `rust/tcl-registry/src/commands/irules/ssl__authenticate.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `SSL::c3d` | `rust/tcl-registry/src/commands/irules/ssl__c3d.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `SSL::cert` | `rust/tcl-registry/src/commands/irules/ssl__cert.rs` | — | ✓ | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `SSL::cert_constraint` | `rust/tcl-registry/src/commands/irules/ssl__cert_constraint.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `SSL::cipher` | `rust/tcl-registry/src/commands/irules/ssl__cipher.rs` | — | ✓ | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `SSL::clientrandom` | `rust/tcl-registry/src/commands/irules/ssl__clientrandom.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `SSL::collect` | `rust/tcl-registry/src/commands/irules/ssl__collect.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `SSL::disable` | `rust/tcl-registry/src/commands/irules/ssl__disable.rs` | — | ✓ | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `SSL::enable` | `rust/tcl-registry/src/commands/irules/ssl__enable.rs` | — | ✓ | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `SSL::extensions` | `rust/tcl-registry/src/commands/irules/ssl__extensions.rs` | — | ✓ | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `SSL::forward_proxy` | `rust/tcl-registry/src/commands/irules/ssl__forward_proxy.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `SSL::handshake` | `rust/tcl-registry/src/commands/irules/ssl__handshake.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `SSL::is_renegotiation_secure` | `rust/tcl-registry/src/commands/irules/ssl__is_renegotiation_secure.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `SSL::maximum_record_size` | `rust/tcl-registry/src/commands/irules/ssl__maximum_record_size.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `SSL::mode` | `rust/tcl-registry/src/commands/irules/ssl__mode.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `SSL::modssl_sessionid_headers` | `rust/tcl-registry/src/commands/irules/ssl__modssl_sessionid_headers.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `SSL::nextproto` | `rust/tcl-registry/src/commands/irules/ssl__nextproto.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `SSL::payload` | `rust/tcl-registry/src/commands/irules/ssl__payload.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `SSL::profile` | `rust/tcl-registry/src/commands/irules/ssl__profile.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `SSL::release` | `rust/tcl-registry/src/commands/irules/ssl__release.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `SSL::renegotiate` | `rust/tcl-registry/src/commands/irules/ssl__renegotiate.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `SSL::respond` | `rust/tcl-registry/src/commands/irules/ssl__respond.rs` | — | ✓ | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `SSL::secure_renegotiation` | `rust/tcl-registry/src/commands/irules/ssl__secure_renegotiation.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `SSL::session` | `rust/tcl-registry/src/commands/irules/ssl__session.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `SSL::sessionid` | `rust/tcl-registry/src/commands/irules/ssl__sessionid.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `SSL::sessionsecret` | `rust/tcl-registry/src/commands/irules/ssl__sessionsecret.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `SSL::sessionticket` | `rust/tcl-registry/src/commands/irules/ssl__sessionticket.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `SSL::sni` | `rust/tcl-registry/src/commands/irules/ssl__sni.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `SSL::tls13_secret` | `rust/tcl-registry/src/commands/irules/ssl__tls13_secret.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `SSL::unclean_shutdown` | `rust/tcl-registry/src/commands/irules/ssl__unclean_shutdown.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `SSL::verify_result` | `rust/tcl-registry/src/commands/irules/ssl__verify_result.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `STATS::get` | `rust/tcl-registry/src/commands/irules/stats__get.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `STATS::incr` | `rust/tcl-registry/src/commands/irules/stats__incr.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `STATS::set` | `rust/tcl-registry/src/commands/irules/stats__set.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `STATS::setmax` | `rust/tcl-registry/src/commands/irules/stats__setmax.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `STATS::setmin` | `rust/tcl-registry/src/commands/irules/stats__setmin.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `STREAM::disable` | `rust/tcl-registry/src/commands/irules/stream__disable.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `STREAM::enable` | `rust/tcl-registry/src/commands/irules/stream__enable.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `STREAM::encoding` | `rust/tcl-registry/src/commands/irules/stream__encoding.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `STREAM::expression` | `rust/tcl-registry/src/commands/irules/stream__expression.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `STREAM::match` | `rust/tcl-registry/src/commands/irules/stream__match.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `STREAM::max_matchsize` | `rust/tcl-registry/src/commands/irules/stream__max_matchsize.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `STREAM::replace` | `rust/tcl-registry/src/commands/irules/stream__replace.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `substr` | `rust/tcl-registry/src/commands/irules/substr.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `table` | `rust/tcl-registry/src/commands/irules/table.rs` | — | ✓ | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `TAP::action` | `rust/tcl-registry/src/commands/irules/tap__action.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `TAP::config` | `rust/tcl-registry/src/commands/irules/tap__config.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `TAP::insight` | `rust/tcl-registry/src/commands/irules/tap__insight.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `TAP::insight_requested` | `rust/tcl-registry/src/commands/irules/tap__insight_requested.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `TAP::score` | `rust/tcl-registry/src/commands/irules/tap__score.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `TCP::abc` | `rust/tcl-registry/src/commands/irules/tcp__abc.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `TCP::analytics` | `rust/tcl-registry/src/commands/irules/tcp__analytics.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `TCP::autowin` | `rust/tcl-registry/src/commands/irules/tcp__autowin.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `TCP::bandwidth` | `rust/tcl-registry/src/commands/irules/tcp__bandwidth.rs` | — | ✓ | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `TCP::client_port` | `rust/tcl-registry/src/commands/irules/tcp__client_port.rs` | — | ✓ | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `TCP::close` | `rust/tcl-registry/src/commands/irules/tcp__close.rs` | — | ✓ | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `TCP::collect` | `rust/tcl-registry/src/commands/irules/tcp__collect.rs` | — | ✓ | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `TCP::congestion` | `rust/tcl-registry/src/commands/irules/tcp__congestion.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `TCP::delayed_ack` | `rust/tcl-registry/src/commands/irules/tcp__delayed_ack.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `TCP::dsack` | `rust/tcl-registry/src/commands/irules/tcp__dsack.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `TCP::earlyrxmit` | `rust/tcl-registry/src/commands/irules/tcp__earlyrxmit.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `TCP::ecn` | `rust/tcl-registry/src/commands/irules/tcp__ecn.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `TCP::enhanced_loss_recovery` | `rust/tcl-registry/src/commands/irules/tcp__enhanced_loss_recovery.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `TCP::idletime` | `rust/tcl-registry/src/commands/irules/tcp__idletime.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `TCP::keepalive` | `rust/tcl-registry/src/commands/irules/tcp__keepalive.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `TCP::limxmit` | `rust/tcl-registry/src/commands/irules/tcp__limxmit.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `TCP::local_port` | `rust/tcl-registry/src/commands/irules/tcp__local_port.rs` | — | ✓ | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `TCP::lossfilter` | `rust/tcl-registry/src/commands/irules/tcp__lossfilter.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `TCP::lossfilterburst` | `rust/tcl-registry/src/commands/irules/tcp__lossfilterburst.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `TCP::lossfilterrate` | `rust/tcl-registry/src/commands/irules/tcp__lossfilterrate.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `TCP::mss` | `rust/tcl-registry/src/commands/irules/tcp__mss.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `TCP::nagle` | `rust/tcl-registry/src/commands/irules/tcp__nagle.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `TCP::naglemode` | `rust/tcl-registry/src/commands/irules/tcp__naglemode.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `TCP::naglestate` | `rust/tcl-registry/src/commands/irules/tcp__naglestate.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `TCP::notify` | `rust/tcl-registry/src/commands/irules/tcp__notify.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `TCP::offset` | `rust/tcl-registry/src/commands/irules/tcp__offset.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `TCP::option` | `rust/tcl-registry/src/commands/irules/tcp__option.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `TCP::pacing` | `rust/tcl-registry/src/commands/irules/tcp__pacing.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `TCP::payload` | `rust/tcl-registry/src/commands/irules/tcp__payload.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `TCP::proxybuffer` | `rust/tcl-registry/src/commands/irules/tcp__proxybuffer.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `TCP::proxybufferhigh` | `rust/tcl-registry/src/commands/irules/tcp__proxybufferhigh.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `TCP::proxybufferlow` | `rust/tcl-registry/src/commands/irules/tcp__proxybufferlow.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `TCP::push_flag` | `rust/tcl-registry/src/commands/irules/tcp__push_flag.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `TCP::rcv_scale` | `rust/tcl-registry/src/commands/irules/tcp__rcv_scale.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `TCP::rcv_size` | `rust/tcl-registry/src/commands/irules/tcp__rcv_size.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `TCP::recvwnd` | `rust/tcl-registry/src/commands/irules/tcp__recvwnd.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `TCP::release` | `rust/tcl-registry/src/commands/irules/tcp__release.rs` | — | ✓ | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `TCP::remote_port` | `rust/tcl-registry/src/commands/irules/tcp__remote_port.rs` | — | ✓ | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `TCP::respond` | `rust/tcl-registry/src/commands/irules/tcp__respond.rs` | — | ✓ | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `TCP::rexmt_thresh` | `rust/tcl-registry/src/commands/irules/tcp__rexmt_thresh.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `TCP::rt_metrics_timeout` | `rust/tcl-registry/src/commands/irules/tcp__rt_metrics_timeout.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `TCP::rto` | `rust/tcl-registry/src/commands/irules/tcp__rto.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `TCP::rtt` | `rust/tcl-registry/src/commands/irules/tcp__rtt.rs` | — | ✓ | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `TCP::rttvar` | `rust/tcl-registry/src/commands/irules/tcp__rttvar.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `TCP::sendbuf` | `rust/tcl-registry/src/commands/irules/tcp__sendbuf.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `TCP::server_port` | `rust/tcl-registry/src/commands/irules/tcp__server_port.rs` | — | ✓ | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `TCP::setmss` | `rust/tcl-registry/src/commands/irules/tcp__setmss.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `TCP::snd_cwnd` | `rust/tcl-registry/src/commands/irules/tcp__snd_cwnd.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `TCP::snd_scale` | `rust/tcl-registry/src/commands/irules/tcp__snd_scale.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `TCP::snd_ssthresh` | `rust/tcl-registry/src/commands/irules/tcp__snd_ssthresh.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `TCP::snd_wnd` | `rust/tcl-registry/src/commands/irules/tcp__snd_wnd.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `TCP::unused_port` | `rust/tcl-registry/src/commands/irules/tcp__unused_port.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `tcpdump` | `rust/tcl-registry/src/commands/irules/tcpdump.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `TDS::msg` | `rust/tcl-registry/src/commands/irules/tds__msg.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `TDS::session` | `rust/tcl-registry/src/commands/irules/tds__session.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `timing` | `rust/tcl-registry/src/commands/irules/timing.rs` | — | ✓ | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `TMM::cmp_count` | `rust/tcl-registry/src/commands/irules/tmm__cmp_count.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `TMM::cmp_group` | `rust/tcl-registry/src/commands/irules/tmm__cmp_group.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `TMM::cmp_groups` | `rust/tcl-registry/src/commands/irules/tmm__cmp_groups.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `TMM::cmp_primary_group` | `rust/tcl-registry/src/commands/irules/tmm__cmp_primary_group.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `TMM::cmp_unit` | `rust/tcl-registry/src/commands/irules/tmm__cmp_unit.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `traffic_group` | `rust/tcl-registry/src/commands/irules/traffic_group.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `translate` | `rust/tcl-registry/src/commands/irules/translate.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `UDP::client_port` | `rust/tcl-registry/src/commands/irules/udp__client_port.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `UDP::debug_queue` | `rust/tcl-registry/src/commands/irules/udp__debug_queue.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `UDP::drop` | `rust/tcl-registry/src/commands/irules/udp__drop.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `UDP::hold` | `rust/tcl-registry/src/commands/irules/udp__hold.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `UDP::local_port` | `rust/tcl-registry/src/commands/irules/udp__local_port.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `UDP::max_buf_pkts` | `rust/tcl-registry/src/commands/irules/udp__max_buf_pkts.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `UDP::max_rate` | `rust/tcl-registry/src/commands/irules/udp__max_rate.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `UDP::mss` | `rust/tcl-registry/src/commands/irules/udp__mss.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `UDP::payload` | `rust/tcl-registry/src/commands/irules/udp__payload.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `UDP::release` | `rust/tcl-registry/src/commands/irules/udp__release.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `UDP::remote_port` | `rust/tcl-registry/src/commands/irules/udp__remote_port.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `UDP::respond` | `rust/tcl-registry/src/commands/irules/udp__respond.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `UDP::sendbuffer` | `rust/tcl-registry/src/commands/irules/udp__sendbuffer.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `UDP::server_port` | `rust/tcl-registry/src/commands/irules/udp__server_port.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `UDP::unused_port` | `rust/tcl-registry/src/commands/irules/udp__unused_port.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `uniq_ordered_ip_list` | `rust/tcl-registry/src/commands/irules/uniq_ordered_ip_list.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `uniq_sorted_ip_list` | `rust/tcl-registry/src/commands/irules/uniq_sorted_ip_list.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `URI::basename` | `rust/tcl-registry/src/commands/irules/uri__basename.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `URI::compare` | `rust/tcl-registry/src/commands/irules/uri__compare.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `URI::decode` | `rust/tcl-registry/src/commands/irules/uri__decode.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `URI::encode` | `rust/tcl-registry/src/commands/irules/uri__encode.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `URI::encode_component` | `rust/tcl-registry/src/commands/irules/uri__encode_component.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `URI::escape` | `rust/tcl-registry/src/commands/irules/uri__escape.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `URI::host` | `rust/tcl-registry/src/commands/irules/uri__host.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `URI::path` | `rust/tcl-registry/src/commands/irules/uri__path.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `URI::port` | `rust/tcl-registry/src/commands/irules/uri__port.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `URI::protocol` | `rust/tcl-registry/src/commands/irules/uri__protocol.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `URI::query` | `rust/tcl-registry/src/commands/irules/uri__query.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `urlcatblindquery` | `rust/tcl-registry/src/commands/irules/urlcatblindquery.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `urlcatquery` | `rust/tcl-registry/src/commands/irules/urlcatquery.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `use` | `rust/tcl-registry/src/commands/irules/use_.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `VALIDATE::protocol` | `rust/tcl-registry/src/commands/irules/validate__protocol.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `VDI::disable` | `rust/tcl-registry/src/commands/irules/vdi__disable.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `VDI::enable` | `rust/tcl-registry/src/commands/irules/vdi__enable.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `virtual` | `rust/tcl-registry/src/commands/irules/virtual_.rs` | — | ✓ | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `vlan_id` | `rust/tcl-registry/src/commands/irules/vlan_id.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `WAM::disable` | `rust/tcl-registry/src/commands/irules/wam__disable.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `WAM::enable` | `rust/tcl-registry/src/commands/irules/wam__enable.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `WEBSSO::disable` | `rust/tcl-registry/src/commands/irules/websso__disable.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `WEBSSO::enable` | `rust/tcl-registry/src/commands/irules/websso__enable.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `WEBSSO::select` | `rust/tcl-registry/src/commands/irules/websso__select.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `when` | `rust/tcl-registry/src/commands/irules/when.rs` | — | ✓ | ✓ | ✓ | — | ✓ | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `whereis` | `rust/tcl-registry/src/commands/irules/whereis.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `WS::collect` | `rust/tcl-registry/src/commands/irules/ws__collect.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `WS::disconnect` | `rust/tcl-registry/src/commands/irules/ws__disconnect.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `WS::enabled` | `rust/tcl-registry/src/commands/irules/ws__enabled.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `WS::frame` | `rust/tcl-registry/src/commands/irules/ws__frame.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `WS::masking` | `rust/tcl-registry/src/commands/irules/ws__masking.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `WS::message` | `rust/tcl-registry/src/commands/irules/ws__message.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `WS::payload` | `rust/tcl-registry/src/commands/irules/ws__payload.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `WS::payload_ivs` | `rust/tcl-registry/src/commands/irules/ws__payload_ivs.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `WS::payload_processing` | `rust/tcl-registry/src/commands/irules/ws__payload_processing.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `WS::release` | `rust/tcl-registry/src/commands/irules/ws__release.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `WS::request` | `rust/tcl-registry/src/commands/irules/ws__request.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `WS::response` | `rust/tcl-registry/src/commands/irules/ws__response.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `X509::cert_fields` | `rust/tcl-registry/src/commands/irules/x509__cert_fields.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `X509::extensions` | `rust/tcl-registry/src/commands/irules/x509__extensions.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `X509::hash` | `rust/tcl-registry/src/commands/irules/x509__hash.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `X509::issuer` | `rust/tcl-registry/src/commands/irules/x509__issuer.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `X509::not_valid_after` | `rust/tcl-registry/src/commands/irules/x509__not_valid_after.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `X509::not_valid_before` | `rust/tcl-registry/src/commands/irules/x509__not_valid_before.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `X509::pem2der` | `rust/tcl-registry/src/commands/irules/x509__pem2der.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `X509::serial_number` | `rust/tcl-registry/src/commands/irules/x509__serial_number.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `X509::signature_algorithm` | `rust/tcl-registry/src/commands/irules/x509__signature_algorithm.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `X509::subject` | `rust/tcl-registry/src/commands/irules/x509__subject.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `X509::subject_public_key` | `rust/tcl-registry/src/commands/irules/x509__subject_public_key.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `X509::subject_public_key_RSA_bits` | `rust/tcl-registry/src/commands/irules/x509__subject_public_key_rsa_bits.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `X509::subject_public_key_type` | `rust/tcl-registry/src/commands/irules/x509__subject_public_key_type.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `X509::verify_cert_error_string` | `rust/tcl-registry/src/commands/irules/x509__verify_cert_error_string.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `X509::version` | `rust/tcl-registry/src/commands/irules/x509__version.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `X509::whole` | `rust/tcl-registry/src/commands/irules/x509__whole.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `xff_list` | `rust/tcl-registry/src/commands/irules/xff_list.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `xff_uniq_ordered_ip_list` | `rust/tcl-registry/src/commands/irules/xff_uniq_ordered_ip_list.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `xff_uniq_sorted_ip_list` | `rust/tcl-registry/src/commands/irules/xff_uniq_sorted_ip_list.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `XLAT::listen` | `rust/tcl-registry/src/commands/irules/xlat__listen.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `XLAT::listen_lifetime` | `rust/tcl-registry/src/commands/irules/xlat__listen_lifetime.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `XLAT::src_addr` | `rust/tcl-registry/src/commands/irules/xlat__src_addr.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `XLAT::src_config` | `rust/tcl-registry/src/commands/irules/xlat__src_config.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `XLAT::src_endpoint_reservation` | `rust/tcl-registry/src/commands/irules/xlat__src_endpoint_reservation.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `XLAT::src_nat_valid_range` | `rust/tcl-registry/src/commands/irules/xlat__src_nat_valid_range.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `XLAT::src_port` | `rust/tcl-registry/src/commands/irules/xlat__src_port.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `XML::address` | `rust/tcl-registry/src/commands/irules/xml__address.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `XML::collect` | `rust/tcl-registry/src/commands/irules/xml__collect.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `XML::disable` | `rust/tcl-registry/src/commands/irules/xml__disable.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `XML::element` | `rust/tcl-registry/src/commands/irules/xml__element.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `XML::enable` | `rust/tcl-registry/src/commands/irules/xml__enable.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `XML::event` | `rust/tcl-registry/src/commands/irules/xml__event.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `XML::eventid` | `rust/tcl-registry/src/commands/irules/xml__eventid.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `XML::parse` | `rust/tcl-registry/src/commands/irules/xml__parse.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `XML::payload` | `rust/tcl-registry/src/commands/irules/xml__payload.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `XML::release` | `rust/tcl-registry/src/commands/irules/xml__release.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `XML::soap` | `rust/tcl-registry/src/commands/irules/xml__soap.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| irules | `XML::subscribe` | `rust/tcl-registry/src/commands/irules/xml__subscribe.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| sdc_base | `all_clocks` | `rust/tcl-registry/src/commands/sdc_base/all_clocks.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| sdc_base | `all_fanin` | `rust/tcl-registry/src/commands/sdc_base/all_fanin.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| sdc_base | `all_fanout` | `rust/tcl-registry/src/commands/sdc_base/all_fanout.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| sdc_base | `all_inputs` | `rust/tcl-registry/src/commands/sdc_base/all_inputs.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| sdc_base | `all_outputs` | `rust/tcl-registry/src/commands/sdc_base/all_outputs.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| sdc_base | `all_registers` | `rust/tcl-registry/src/commands/sdc_base/all_registers.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| sdc_base | `append_to_collection` | `rust/tcl-registry/src/commands/sdc_base/append_to_collection.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| sdc_base | `check_timing` | `rust/tcl-registry/src/commands/sdc_base/check_timing.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| sdc_base | `create_clock` | `rust/tcl-registry/src/commands/sdc_base/create_clock.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| sdc_base | `create_generated_clock` | `rust/tcl-registry/src/commands/sdc_base/create_generated_clock.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| sdc_base | `current_design` | `rust/tcl-registry/src/commands/sdc_base/current_design.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| sdc_base | `define_proc_attributes` | `rust/tcl-registry/src/commands/sdc_base/define_proc_attributes.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| sdc_base | `filter_collection` | `rust/tcl-registry/src/commands/sdc_base/filter_collection.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| sdc_base | `foreach_in_collection` | `rust/tcl-registry/src/commands/sdc_base/foreach_in_collection.rs` | — | ✓ | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| sdc_base | `get_cells` | `rust/tcl-registry/src/commands/sdc_base/get_cells.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| sdc_base | `get_clocks` | `rust/tcl-registry/src/commands/sdc_base/get_clocks.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| sdc_base | `get_lib_cells` | `rust/tcl-registry/src/commands/sdc_base/get_lib_cells.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| sdc_base | `get_lib_pins` | `rust/tcl-registry/src/commands/sdc_base/get_lib_pins.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| sdc_base | `get_libs` | `rust/tcl-registry/src/commands/sdc_base/get_libs.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| sdc_base | `get_nets` | `rust/tcl-registry/src/commands/sdc_base/get_nets.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| sdc_base | `get_object_name` | `rust/tcl-registry/src/commands/sdc_base/get_object_name.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| sdc_base | `get_pins` | `rust/tcl-registry/src/commands/sdc_base/get_pins.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| sdc_base | `get_ports` | `rust/tcl-registry/src/commands/sdc_base/get_ports.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| sdc_base | `group_path` | `rust/tcl-registry/src/commands/sdc_base/group_path.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| sdc_base | `link_design` | `rust/tcl-registry/src/commands/sdc_base/link_design.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| sdc_base | `remove_from_collection` | `rust/tcl-registry/src/commands/sdc_base/remove_from_collection.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| sdc_base | `report_area` | `rust/tcl-registry/src/commands/sdc_base/report_area.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| sdc_base | `report_clock` | `rust/tcl-registry/src/commands/sdc_base/report_clock.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| sdc_base | `report_clock_timing` | `rust/tcl-registry/src/commands/sdc_base/report_clock_timing.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| sdc_base | `report_constraint` | `rust/tcl-registry/src/commands/sdc_base/report_constraint.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| sdc_base | `report_power` | `rust/tcl-registry/src/commands/sdc_base/report_power.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| sdc_base | `report_timing` | `rust/tcl-registry/src/commands/sdc_base/report_timing.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| sdc_base | `set_case_analysis` | `rust/tcl-registry/src/commands/sdc_base/set_case_analysis.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| sdc_base | `set_clock_groups` | `rust/tcl-registry/src/commands/sdc_base/set_clock_groups.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| sdc_base | `set_clock_latency` | `rust/tcl-registry/src/commands/sdc_base/set_clock_latency.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| sdc_base | `set_clock_transition` | `rust/tcl-registry/src/commands/sdc_base/set_clock_transition.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| sdc_base | `set_clock_uncertainty` | `rust/tcl-registry/src/commands/sdc_base/set_clock_uncertainty.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| sdc_base | `set_disable_timing` | `rust/tcl-registry/src/commands/sdc_base/set_disable_timing.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| sdc_base | `set_dont_touch` | `rust/tcl-registry/src/commands/sdc_base/set_dont_touch.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| sdc_base | `set_dont_use` | `rust/tcl-registry/src/commands/sdc_base/set_dont_use.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| sdc_base | `set_driving_cell` | `rust/tcl-registry/src/commands/sdc_base/set_driving_cell.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| sdc_base | `set_false_path` | `rust/tcl-registry/src/commands/sdc_base/set_false_path.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| sdc_base | `set_ideal_latency` | `rust/tcl-registry/src/commands/sdc_base/set_ideal_latency.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| sdc_base | `set_ideal_network` | `rust/tcl-registry/src/commands/sdc_base/set_ideal_network.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| sdc_base | `set_input_delay` | `rust/tcl-registry/src/commands/sdc_base/set_input_delay.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| sdc_base | `set_input_transition` | `rust/tcl-registry/src/commands/sdc_base/set_input_transition.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| sdc_base | `set_load` | `rust/tcl-registry/src/commands/sdc_base/set_load.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| sdc_base | `set_max_area` | `rust/tcl-registry/src/commands/sdc_base/set_max_area.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| sdc_base | `set_max_capacitance` | `rust/tcl-registry/src/commands/sdc_base/set_max_capacitance.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| sdc_base | `set_max_delay` | `rust/tcl-registry/src/commands/sdc_base/set_max_delay.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| sdc_base | `set_max_fanout` | `rust/tcl-registry/src/commands/sdc_base/set_max_fanout.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| sdc_base | `set_max_transition` | `rust/tcl-registry/src/commands/sdc_base/set_max_transition.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| sdc_base | `set_min_delay` | `rust/tcl-registry/src/commands/sdc_base/set_min_delay.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| sdc_base | `set_multicycle_path` | `rust/tcl-registry/src/commands/sdc_base/set_multicycle_path.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| sdc_base | `set_output_delay` | `rust/tcl-registry/src/commands/sdc_base/set_output_delay.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| sdc_base | `set_propagated_clock` | `rust/tcl-registry/src/commands/sdc_base/set_propagated_clock.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| sdc_base | `set_size_only` | `rust/tcl-registry/src/commands/sdc_base/set_size_only.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| sdc_base | `set_units` | `rust/tcl-registry/src/commands/sdc_base/set_units.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| sdc_base | `set_wire_load_mode` | `rust/tcl-registry/src/commands/sdc_base/set_wire_load_mode.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| sdc_base | `set_wire_load_model` | `rust/tcl-registry/src/commands/sdc_base/set_wire_load_model.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| sdc_base | `sizeof_collection` | `rust/tcl-registry/src/commands/sdc_base/sizeof_collection.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| stdlib | `gettimes` | `rust/tcl-registry/src/commands/stdlib/gettimes.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| stdlib | `history` | `rust/tcl-registry/src/commands/stdlib/history.rs` | — | ✓ | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| stdlib | `http::cleanup` | `rust/tcl-registry/src/commands/stdlib/http__cleanup.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| stdlib | `http::code` | `rust/tcl-registry/src/commands/stdlib/http__code.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| stdlib | `http::config` | `rust/tcl-registry/src/commands/stdlib/http__config.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| stdlib | `http::cookiejar` | `rust/tcl-registry/src/commands/stdlib/http__cookiejar.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| stdlib | `http::data` | `rust/tcl-registry/src/commands/stdlib/http__data.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| stdlib | `http::error` | `rust/tcl-registry/src/commands/stdlib/http__error.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| stdlib | `http::formatQuery` | `rust/tcl-registry/src/commands/stdlib/http__formatquery.rs` | — | ✓ | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| stdlib | `http::geturl` | `rust/tcl-registry/src/commands/stdlib/http__geturl.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| stdlib | `http::meta` | `rust/tcl-registry/src/commands/stdlib/http__meta.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| stdlib | `http::ncode` | `rust/tcl-registry/src/commands/stdlib/http__ncode.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| stdlib | `http::postError` | `rust/tcl-registry/src/commands/stdlib/http__posterror.rs` | — | ✓ | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| stdlib | `http::quoteString` | `rust/tcl-registry/src/commands/stdlib/http__quotestring.rs` | — | ✓ | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| stdlib | `http::reasonPhrase` | `rust/tcl-registry/src/commands/stdlib/http__reasonphrase.rs` | — | ✓ | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| stdlib | `http::register` | `rust/tcl-registry/src/commands/stdlib/http__register.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| stdlib | `http::registerError` | `rust/tcl-registry/src/commands/stdlib/http__registererror.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| stdlib | `http::requestHeaders` | `rust/tcl-registry/src/commands/stdlib/http__requestheaders.rs` | — | ✓ | ✓ | ✓ | — | — | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| stdlib | `http::requestHeaderValue` | `rust/tcl-registry/src/commands/stdlib/http__requestheadervalue.rs` | — | ✓ | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| stdlib | `http::requestLine` | `rust/tcl-registry/src/commands/stdlib/http__requestline.rs` | — | ✓ | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| stdlib | `http::reset` | `rust/tcl-registry/src/commands/stdlib/http__reset.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| stdlib | `http::responseBody` | `rust/tcl-registry/src/commands/stdlib/http__responsebody.rs` | — | ✓ | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| stdlib | `http::responseCode` | `rust/tcl-registry/src/commands/stdlib/http__responsecode.rs` | — | ✓ | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| stdlib | `http::responseHeaders` | `rust/tcl-registry/src/commands/stdlib/http__responseheaders.rs` | — | ✓ | ✓ | ✓ | — | — | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| stdlib | `http::responseHeaderValue` | `rust/tcl-registry/src/commands/stdlib/http__responseheadervalue.rs` | — | ✓ | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| stdlib | `http::responseInfo` | `rust/tcl-registry/src/commands/stdlib/http__responseinfo.rs` | — | ✓ | ✓ | ✓ | — | — | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| stdlib | `http::responseLine` | `rust/tcl-registry/src/commands/stdlib/http__responseline.rs` | — | ✓ | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| stdlib | `http::size` | `rust/tcl-registry/src/commands/stdlib/http__size.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| stdlib | `http::status` | `rust/tcl-registry/src/commands/stdlib/http__status.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| stdlib | `http::unregister` | `rust/tcl-registry/src/commands/stdlib/http__unregister.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| stdlib | `http::wait` | `rust/tcl-registry/src/commands/stdlib/http__wait.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| stdlib | `lgen` | `rust/tcl-registry/src/commands/stdlib/lgen.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| stdlib | `lstring` | `rust/tcl-registry/src/commands/stdlib/lstring.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| stdlib | `msgcat::mc` | `rust/tcl-registry/src/commands/stdlib/msgcat__mc.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| stdlib | `msgcat::mcexists` | `rust/tcl-registry/src/commands/stdlib/msgcat__mcexists.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| stdlib | `msgcat::mcflmset` | `rust/tcl-registry/src/commands/stdlib/msgcat__mcflmset.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| stdlib | `msgcat::mcflset` | `rust/tcl-registry/src/commands/stdlib/msgcat__mcflset.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| stdlib | `msgcat::mcforgetpackage` | `rust/tcl-registry/src/commands/stdlib/msgcat__mcforgetpackage.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| stdlib | `msgcat::mcload` | `rust/tcl-registry/src/commands/stdlib/msgcat__mcload.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| stdlib | `msgcat::mcloadedlocales` | `rust/tcl-registry/src/commands/stdlib/msgcat__mcloadedlocales.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| stdlib | `msgcat::mclocale` | `rust/tcl-registry/src/commands/stdlib/msgcat__mclocale.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| stdlib | `msgcat::mcmax` | `rust/tcl-registry/src/commands/stdlib/msgcat__mcmax.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| stdlib | `msgcat::mcmset` | `rust/tcl-registry/src/commands/stdlib/msgcat__mcmset.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| stdlib | `msgcat::mcn` | `rust/tcl-registry/src/commands/stdlib/msgcat__mcn.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| stdlib | `msgcat::mcpackageconfig` | `rust/tcl-registry/src/commands/stdlib/msgcat__mcpackageconfig.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| stdlib | `msgcat::mcpackagelocale` | `rust/tcl-registry/src/commands/stdlib/msgcat__mcpackagelocale.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| stdlib | `msgcat::mcpackagenamespaceget` | `rust/tcl-registry/src/commands/stdlib/msgcat__mcpackagenamespaceget.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| stdlib | `msgcat::mcpreferences` | `rust/tcl-registry/src/commands/stdlib/msgcat__mcpreferences.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| stdlib | `msgcat::mcset` | `rust/tcl-registry/src/commands/stdlib/msgcat__mcset.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| stdlib | `msgcat::mcunknown` | `rust/tcl-registry/src/commands/stdlib/msgcat__mcunknown.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| stdlib | `msgcat::mcutil` | `rust/tcl-registry/src/commands/stdlib/msgcat__mcutil.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| stdlib | `noop` | `rust/tcl-registry/src/commands/stdlib/noop.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| stdlib | `pkg::create` | `rust/tcl-registry/src/commands/stdlib/pkg__create.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| stdlib | `pkg_mkIndex` | `rust/tcl-registry/src/commands/stdlib/pkg_mkindex.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| stdlib | `platform::generic` | `rust/tcl-registry/src/commands/stdlib/platform__generic.rs` | — | ✓ | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| stdlib | `platform::identify` | `rust/tcl-registry/src/commands/stdlib/platform__identify.rs` | — | ✓ | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| stdlib | `platform::patterns` | `rust/tcl-registry/src/commands/stdlib/platform__patterns.rs` | — | ✓ | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| stdlib | `platform::shell::generic` | `rust/tcl-registry/src/commands/stdlib/platform__shell__generic.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| stdlib | `platform::shell::identify` | `rust/tcl-registry/src/commands/stdlib/platform__shell__identify.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| stdlib | `safe::interpAddToAccessPath` | `rust/tcl-registry/src/commands/stdlib/safe__interpaddtoaccesspath.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| stdlib | `safe::interpConfigure` | `rust/tcl-registry/src/commands/stdlib/safe__interpconfigure.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| stdlib | `safe::interpCreate` | `rust/tcl-registry/src/commands/stdlib/safe__interpcreate.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| stdlib | `safe::interpDelete` | `rust/tcl-registry/src/commands/stdlib/safe__interpdelete.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| stdlib | `safe::interpFindInAccessPath` | `rust/tcl-registry/src/commands/stdlib/safe__interpfindinaccesspath.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| stdlib | `safe::interpInit` | `rust/tcl-registry/src/commands/stdlib/safe__interpinit.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| stdlib | `safe::setLogCmd` | `rust/tcl-registry/src/commands/stdlib/safe__setlogcmd.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| stdlib | `safe::setSyncMode` | `rust/tcl-registry/src/commands/stdlib/safe__setsyncmode.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| stdlib | `tcl::idna::decode` | `rust/tcl-registry/src/commands/stdlib/tcl__idna__decode.rs` | — | ✓ | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| stdlib | `tcl::idna::encode` | `rust/tcl-registry/src/commands/stdlib/tcl__idna__encode.rs` | — | ✓ | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| stdlib | `tcl::OptKeyDelete` | `rust/tcl-registry/src/commands/stdlib/tcl__optkeydelete.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| stdlib | `tcl::OptKeyError` | `rust/tcl-registry/src/commands/stdlib/tcl__optkeyerror.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| stdlib | `tcl::OptKeyParse` | `rust/tcl-registry/src/commands/stdlib/tcl__optkeyparse.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| stdlib | `tcl::OptKeyRegister` | `rust/tcl-registry/src/commands/stdlib/tcl__optkeyregister.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| stdlib | `tcl::OptParse` | `rust/tcl-registry/src/commands/stdlib/tcl__optparse.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| stdlib | `tcl::OptProc` | `rust/tcl-registry/src/commands/stdlib/tcl__optproc.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| stdlib | `tcl::OptProcArgGiven` | `rust/tcl-registry/src/commands/stdlib/tcl__optprocarggiven.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| stdlib | `tcl::tm::path` | `rust/tcl-registry/src/commands/stdlib/tcl__tm__path.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| stdlib | `tcl::tm::roots` | `rust/tcl-registry/src/commands/stdlib/tcl__tm__roots.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| stdlib | `tcl_endOfWord` | `rust/tcl-registry/src/commands/stdlib/tcl_endofword.rs` | — | ✓ | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| stdlib | `tcl_startOfNextWord` | `rust/tcl-registry/src/commands/stdlib/tcl_startofnextword.rs` | — | ✓ | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| stdlib | `tcl_startOfPreviousWord` | `rust/tcl-registry/src/commands/stdlib/tcl_startofpreviousword.rs` | — | ✓ | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| stdlib | `tcl_wordBreakAfter` | `rust/tcl-registry/src/commands/stdlib/tcl_wordbreakafter.rs` | — | ✓ | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| stdlib | `tcl_wordBreakBefore` | `rust/tcl-registry/src/commands/stdlib/tcl_wordbreakbefore.rs` | — | ✓ | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| stdlib | `tcltest::bytestring` | `rust/tcl-registry/src/commands/stdlib/tcltest__bytestring.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| stdlib | `tcltest::cleanupTests` | `rust/tcl-registry/src/commands/stdlib/tcltest__cleanuptests.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| stdlib | `tcltest::configure` | `rust/tcl-registry/src/commands/stdlib/tcltest__configure.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| stdlib | `tcltest::customMatch` | `rust/tcl-registry/src/commands/stdlib/tcltest__custommatch.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| stdlib | `tcltest::debug` | `rust/tcl-registry/src/commands/stdlib/tcltest__debug.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| stdlib | `tcltest::errorChannel` | `rust/tcl-registry/src/commands/stdlib/tcltest__errorchannel.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| stdlib | `tcltest::errorFile` | `rust/tcl-registry/src/commands/stdlib/tcltest__errorfile.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| stdlib | `tcltest::getMatchingFiles` | `rust/tcl-registry/src/commands/stdlib/tcltest__getmatchingfiles.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| stdlib | `tcltest::interpreter` | `rust/tcl-registry/src/commands/stdlib/tcltest__interpreter.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| stdlib | `tcltest::limitConstraints` | `rust/tcl-registry/src/commands/stdlib/tcltest__limitconstraints.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| stdlib | `tcltest::loadFile` | `rust/tcl-registry/src/commands/stdlib/tcltest__loadfile.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| stdlib | `tcltest::loadScript` | `rust/tcl-registry/src/commands/stdlib/tcltest__loadscript.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| stdlib | `tcltest::loadTestedCommands` | `rust/tcl-registry/src/commands/stdlib/tcltest__loadtestedcommands.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| stdlib | `tcltest::mainThread` | `rust/tcl-registry/src/commands/stdlib/tcltest__mainthread.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| stdlib | `tcltest::makeDirectory` | `rust/tcl-registry/src/commands/stdlib/tcltest__makedirectory.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| stdlib | `tcltest::makeFile` | `rust/tcl-registry/src/commands/stdlib/tcltest__makefile.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| stdlib | `tcltest::match` | `rust/tcl-registry/src/commands/stdlib/tcltest__match.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| stdlib | `tcltest::matchDirectories` | `rust/tcl-registry/src/commands/stdlib/tcltest__matchdirectories.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| stdlib | `tcltest::matchFiles` | `rust/tcl-registry/src/commands/stdlib/tcltest__matchfiles.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| stdlib | `tcltest::normalizeMsg` | `rust/tcl-registry/src/commands/stdlib/tcltest__normalizemsg.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| stdlib | `tcltest::normalizePath` | `rust/tcl-registry/src/commands/stdlib/tcltest__normalizepath.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| stdlib | `tcltest::outputChannel` | `rust/tcl-registry/src/commands/stdlib/tcltest__outputchannel.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| stdlib | `tcltest::outputFile` | `rust/tcl-registry/src/commands/stdlib/tcltest__outputfile.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| stdlib | `tcltest::preserveCore` | `rust/tcl-registry/src/commands/stdlib/tcltest__preservecore.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| stdlib | `tcltest::removeDirectory` | `rust/tcl-registry/src/commands/stdlib/tcltest__removedirectory.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| stdlib | `tcltest::removeFile` | `rust/tcl-registry/src/commands/stdlib/tcltest__removefile.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| stdlib | `tcltest::restoreState` | `rust/tcl-registry/src/commands/stdlib/tcltest__restorestate.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| stdlib | `tcltest::runAllTests` | `rust/tcl-registry/src/commands/stdlib/tcltest__runalltests.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| stdlib | `tcltest::saveState` | `rust/tcl-registry/src/commands/stdlib/tcltest__savestate.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| stdlib | `tcltest::singleProcess` | `rust/tcl-registry/src/commands/stdlib/tcltest__singleprocess.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| stdlib | `tcltest::skip` | `rust/tcl-registry/src/commands/stdlib/tcltest__skip.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| stdlib | `tcltest::skipDirectories` | `rust/tcl-registry/src/commands/stdlib/tcltest__skipdirectories.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| stdlib | `tcltest::skipFiles` | `rust/tcl-registry/src/commands/stdlib/tcltest__skipfiles.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| stdlib | `tcltest::temporaryDirectory` | `rust/tcl-registry/src/commands/stdlib/tcltest__temporarydirectory.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| stdlib | `tcltest::test` | `rust/tcl-registry/src/commands/stdlib/tcltest__test.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| stdlib | `tcltest::testConstraint` | `rust/tcl-registry/src/commands/stdlib/tcltest__testconstraint.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| stdlib | `tcltest::testsDirectory` | `rust/tcl-registry/src/commands/stdlib/tcltest__testsdirectory.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| stdlib | `tcltest::threadReap` | `rust/tcl-registry/src/commands/stdlib/tcltest__threadreap.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| stdlib | `tcltest::verbose` | `rust/tcl-registry/src/commands/stdlib/tcltest__verbose.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| stdlib | `tcltest::viewFile` | `rust/tcl-registry/src/commands/stdlib/tcltest__viewfile.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| stdlib | `tcltest::workingDirectory` | `rust/tcl-registry/src/commands/stdlib/tcltest__workingdirectory.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| stdlib | `testapplylambda` | `rust/tcl-registry/src/commands/stdlib/testapplylambda.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| stdlib | `testappverifierpresent` | `rust/tcl-registry/src/commands/stdlib/testappverifierpresent.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| stdlib | `testasync` | `rust/tcl-registry/src/commands/stdlib/testasync.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| stdlib | `testbigdata` | `rust/tcl-registry/src/commands/stdlib/testbigdata.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| stdlib | `testbignumobj` | `rust/tcl-registry/src/commands/stdlib/testbignumobj.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| stdlib | `testbooleanobj` | `rust/tcl-registry/src/commands/stdlib/testbooleanobj.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| stdlib | `testbumpinterpepoch` | `rust/tcl-registry/src/commands/stdlib/testbumpinterpepoch.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| stdlib | `testbytestring` | `rust/tcl-registry/src/commands/stdlib/testbytestring.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| stdlib | `testchannel` | `rust/tcl-registry/src/commands/stdlib/testchannel.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| stdlib | `testchannelevent` | `rust/tcl-registry/src/commands/stdlib/testchannelevent.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| stdlib | `testcmdinfo` | `rust/tcl-registry/src/commands/stdlib/testcmdinfo.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| stdlib | `testcmdtoken` | `rust/tcl-registry/src/commands/stdlib/testcmdtoken.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| stdlib | `testcmdtrace` | `rust/tcl-registry/src/commands/stdlib/testcmdtrace.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| stdlib | `testconcatobj` | `rust/tcl-registry/src/commands/stdlib/testconcatobj.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| stdlib | `testcpuid` | `rust/tcl-registry/src/commands/stdlib/testcpuid.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| stdlib | `testcreatecommand` | `rust/tcl-registry/src/commands/stdlib/testcreatecommand.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| stdlib | `testdcall` | `rust/tcl-registry/src/commands/stdlib/testdcall.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| stdlib | `testdel` | `rust/tcl-registry/src/commands/stdlib/testdel.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| stdlib | `testdelassocdata` | `rust/tcl-registry/src/commands/stdlib/testdelassocdata.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| stdlib | `testdoubledigits` | `rust/tcl-registry/src/commands/stdlib/testdoubledigits.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| stdlib | `testdoubleobj` | `rust/tcl-registry/src/commands/stdlib/testdoubleobj.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| stdlib | `testdstring` | `rust/tcl-registry/src/commands/stdlib/testdstring.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| stdlib | `testencoding` | `rust/tcl-registry/src/commands/stdlib/testencoding.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| stdlib | `testevalex` | `rust/tcl-registry/src/commands/stdlib/testevalex.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| stdlib | `testevalobjv` | `rust/tcl-registry/src/commands/stdlib/testevalobjv.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| stdlib | `testevent` | `rust/tcl-registry/src/commands/stdlib/testevent.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| stdlib | `testexithandler` | `rust/tcl-registry/src/commands/stdlib/testexithandler.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| stdlib | `testexitmainloop` | `rust/tcl-registry/src/commands/stdlib/testexitmainloop.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| stdlib | `testexprdouble` | `rust/tcl-registry/src/commands/stdlib/testexprdouble.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| stdlib | `testexprdoubleobj` | `rust/tcl-registry/src/commands/stdlib/testexprdoubleobj.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| stdlib | `testexprlong` | `rust/tcl-registry/src/commands/stdlib/testexprlong.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| stdlib | `testexprlongobj` | `rust/tcl-registry/src/commands/stdlib/testexprlongobj.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| stdlib | `testexprparser` | `rust/tcl-registry/src/commands/stdlib/testexprparser.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| stdlib | `testexprstring` | `rust/tcl-registry/src/commands/stdlib/testexprstring.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| stdlib | `testfevent` | `rust/tcl-registry/src/commands/stdlib/testfevent.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| stdlib | `testfile` | `rust/tcl-registry/src/commands/stdlib/testfile.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| stdlib | `testfilelink` | `rust/tcl-registry/src/commands/stdlib/testfilelink.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| stdlib | `testfilesystem` | `rust/tcl-registry/src/commands/stdlib/testfilesystem.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| stdlib | `testfindfirst` | `rust/tcl-registry/src/commands/stdlib/testfindfirst.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| stdlib | `testfindlast` | `rust/tcl-registry/src/commands/stdlib/testfindlast.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| stdlib | `testfstildeexpand` | `rust/tcl-registry/src/commands/stdlib/testfstildeexpand.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| stdlib | `testgetassocdata` | `rust/tcl-registry/src/commands/stdlib/testgetassocdata.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| stdlib | `testgetindexfromobjstruct` | `rust/tcl-registry/src/commands/stdlib/testgetindexfromobjstruct.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| stdlib | `testgetint` | `rust/tcl-registry/src/commands/stdlib/testgetint.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| stdlib | `testgetintforindex` | `rust/tcl-registry/src/commands/stdlib/testgetintforindex.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| stdlib | `testgetplatform` | `rust/tcl-registry/src/commands/stdlib/testgetplatform.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| stdlib | `testgetunichar` | `rust/tcl-registry/src/commands/stdlib/testgetunichar.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| stdlib | `testgetvarfullname` | `rust/tcl-registry/src/commands/stdlib/testgetvarfullname.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| stdlib | `testhandlecount` | `rust/tcl-registry/src/commands/stdlib/testhandlecount.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| stdlib | `testhashsystemhash` | `rust/tcl-registry/src/commands/stdlib/testhashsystemhash.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| stdlib | `testindexobj` | `rust/tcl-registry/src/commands/stdlib/testindexobj.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| stdlib | `testinterpdelete` | `rust/tcl-registry/src/commands/stdlib/testinterpdelete.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| stdlib | `testinterpresolver` | `rust/tcl-registry/src/commands/stdlib/testinterpresolver.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| stdlib | `testintobj` | `rust/tcl-registry/src/commands/stdlib/testintobj.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| stdlib | `testlink` | `rust/tcl-registry/src/commands/stdlib/testlink.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| stdlib | `testlinkarray` | `rust/tcl-registry/src/commands/stdlib/testlinkarray.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| stdlib | `testlistobj` | `rust/tcl-registry/src/commands/stdlib/testlistobj.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| stdlib | `testlistrep` | `rust/tcl-registry/src/commands/stdlib/testlistrep.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| stdlib | `testlocale` | `rust/tcl-registry/src/commands/stdlib/testlocale.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| stdlib | `testlongsize` | `rust/tcl-registry/src/commands/stdlib/testlongsize.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| stdlib | `testlutil` | `rust/tcl-registry/src/commands/stdlib/testlutil.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| stdlib | `testmainthread` | `rust/tcl-registry/src/commands/stdlib/testmainthread.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| stdlib | `testmsb` | `rust/tcl-registry/src/commands/stdlib/testmsb.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| stdlib | `testnrelevels` | `rust/tcl-registry/src/commands/stdlib/testnrelevels.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| stdlib | `testnreunwind` | `rust/tcl-registry/src/commands/stdlib/testnreunwind.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| stdlib | `testnumutfchars` | `rust/tcl-registry/src/commands/stdlib/testnumutfchars.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| stdlib | `testobj` | `rust/tcl-registry/src/commands/stdlib/testobj.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| stdlib | `testpanic` | `rust/tcl-registry/src/commands/stdlib/testpanic.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| stdlib | `testparseargs` | `rust/tcl-registry/src/commands/stdlib/testparseargs.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| stdlib | `testparser` | `rust/tcl-registry/src/commands/stdlib/testparser.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| stdlib | `testparsevar` | `rust/tcl-registry/src/commands/stdlib/testparsevar.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| stdlib | `testparsevarname` | `rust/tcl-registry/src/commands/stdlib/testparsevarname.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| stdlib | `testpreferstable` | `rust/tcl-registry/src/commands/stdlib/testpreferstable.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| stdlib | `testprint` | `rust/tcl-registry/src/commands/stdlib/testprint.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| stdlib | `testpurebytesobj` | `rust/tcl-registry/src/commands/stdlib/testpurebytesobj.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| stdlib | `testregexp` | `rust/tcl-registry/src/commands/stdlib/testregexp.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| stdlib | `testreturn` | `rust/tcl-registry/src/commands/stdlib/testreturn.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| stdlib | `testsaveresult` | `rust/tcl-registry/src/commands/stdlib/testsaveresult.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| stdlib | `testservicemode` | `rust/tcl-registry/src/commands/stdlib/testservicemode.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| stdlib | `testset2` | `rust/tcl-registry/src/commands/stdlib/testset2.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| stdlib | `testsetassocdata` | `rust/tcl-registry/src/commands/stdlib/testsetassocdata.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| stdlib | `testsetbytearraylength` | `rust/tcl-registry/src/commands/stdlib/testsetbytearraylength.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| stdlib | `testseterr` | `rust/tcl-registry/src/commands/stdlib/testseterr.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| stdlib | `testseterrorcode` | `rust/tcl-registry/src/commands/stdlib/testseterrorcode.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| stdlib | `testsetmainloop` | `rust/tcl-registry/src/commands/stdlib/testsetmainloop.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| stdlib | `testsetnoerr` | `rust/tcl-registry/src/commands/stdlib/testsetnoerr.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| stdlib | `testsetobjerrorcode` | `rust/tcl-registry/src/commands/stdlib/testsetobjerrorcode.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| stdlib | `testsetplatform` | `rust/tcl-registry/src/commands/stdlib/testsetplatform.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| stdlib | `testsimplefilesystem` | `rust/tcl-registry/src/commands/stdlib/testsimplefilesystem.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| stdlib | `testsize` | `rust/tcl-registry/src/commands/stdlib/testsize.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| stdlib | `testsocket` | `rust/tcl-registry/src/commands/stdlib/testsocket.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| stdlib | `teststaticlibrary` | `rust/tcl-registry/src/commands/stdlib/teststaticlibrary.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| stdlib | `teststaticpkg` | `rust/tcl-registry/src/commands/stdlib/teststaticpkg.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| stdlib | `teststringbytes` | `rust/tcl-registry/src/commands/stdlib/teststringbytes.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| stdlib | `teststringobj` | `rust/tcl-registry/src/commands/stdlib/teststringobj.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| stdlib | `testtranslatefilename` | `rust/tcl-registry/src/commands/stdlib/testtranslatefilename.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| stdlib | `testuniclass` | `rust/tcl-registry/src/commands/stdlib/testuniclass.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| stdlib | `testupvar` | `rust/tcl-registry/src/commands/stdlib/testupvar.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| stdlib | `testutfnext` | `rust/tcl-registry/src/commands/stdlib/testutfnext.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| stdlib | `testutfprev` | `rust/tcl-registry/src/commands/stdlib/testutfprev.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| stdlib | `testwrongnumargs` | `rust/tcl-registry/src/commands/stdlib/testwrongnumargs.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| tcl | `after` | `rust/tcl-registry/src/commands/tcl/after_.rs` | — | ✓ | ✓ | — | — | — | ✓ | — | — | ✓ | — | ✓ | — | — | — | — | — | — | — | — |
-| tcl | `append` | `rust/tcl-registry/src/commands/tcl/append_.rs` | — | ✓ | ✓ | ✓ | ✓ | — | ✓ | ✓ | — | — | — | ✓ | ✓ | ✓ | — | — | — | ✓ | — | — |
-| tcl | `apply` | `rust/tcl-registry/src/commands/tcl/apply.rs` | — | ✓ | ✓ | — | ✓ | — | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| tcl | `array` | `rust/tcl-registry/src/commands/tcl/array_.rs` | — | ✓ | ✓ | — | ✓ | — | ✓ | — | — | ✓ | — | ✓ | ✓ | — | ✓ | — | — | — | ✓ | — |
-| tcl | `binary` | `rust/tcl-registry/src/commands/tcl/binary_.rs` | — | ✓ | ✓ | ✓ | — | — | ✓ | — | — | ✓ | — | — | — | — | — | — | — | — | — | — |
-| tcl | `break` | `rust/tcl-registry/src/commands/tcl/break_.rs` | — | ✓ | ✓ | ✓ | — | — | ✓ | — | — | — | — | ✓ | — | — | — | — | — | — | — | — |
-| tcl | `catch` | `rust/tcl-registry/src/commands/tcl/catch_.rs` | — | ✓ | ✓ | ✓ | ✓ | — | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| tcl | `cd` | `rust/tcl-registry/src/commands/tcl/cd.rs` | — | ✓ | ✓ | — | — | — | ✓ | — | — | — | — | ✓ | — | — | — | — | — | — | — | — |
-| tcl | `chan` | `rust/tcl-registry/src/commands/tcl/chan_.rs` | — | ✓ | ✓ | ✓ | — | — | ✓ | — | — | ✓ | — | — | — | — | — | — | — | — | — | — |
-| tcl | `clock` | `rust/tcl-registry/src/commands/tcl/clock_.rs` | — | ✓ | ✓ | ✓ | — | — | ✓ | — | — | ✓ | — | — | — | — | — | — | — | — | — | — |
-| tcl | `close` | `rust/tcl-registry/src/commands/tcl/close_.rs` | — | ✓ | ✓ | — | ✓ | — | ✓ | — | — | — | — | ✓ | — | — | — | — | — | — | — | — |
-| tcl | `concat` | `rust/tcl-registry/src/commands/tcl/concat_.rs` | — | ✓ | ✓ | ✓ | — | — | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| tcl | `continue` | `rust/tcl-registry/src/commands/tcl/continue_.rs` | — | ✓ | ✓ | ✓ | — | — | ✓ | — | — | — | — | ✓ | — | — | — | — | — | — | — | — |
-| tcl | `coroinject` | `rust/tcl-registry/src/commands/tcl/coroinject.rs` | — | ✓ | ✓ | — | — | — | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| tcl | `coroprobe` | `rust/tcl-registry/src/commands/tcl/coroprobe.rs` | — | ✓ | ✓ | — | — | — | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| tcl | `coroutine` | `rust/tcl-registry/src/commands/tcl/coroutine.rs` | — | ✓ | ✓ | ✓ | ✓ | — | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| tcl | `dict` | `rust/tcl-registry/src/commands/tcl/dict.rs` | — | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | — | ✓ | — | — | — | ✓ | ✓ | — | — | — | ✓ | — |
-| tcl | `disabled_in_irules` | `rust/tcl-registry/src/commands/tcl/disabled_in_irules.rs` | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| tcl | `encoding` | `rust/tcl-registry/src/commands/tcl/encoding_.rs` | — | ✓ | ✓ | ✓ | — | — | ✓ | — | — | ✓ | — | — | — | — | — | — | — | — | — | — |
-| tcl | `eof` | `rust/tcl-registry/src/commands/tcl/eof_.rs` | — | ✓ | ✓ | — | ✓ | — | ✓ | — | — | — | — | ✓ | — | — | — | — | — | — | — | — |
-| tcl | `error` | `rust/tcl-registry/src/commands/tcl/error_.rs` | — | ✓ | ✓ | ✓ | — | — | ✓ | — | — | — | — | ✓ | — | — | — | — | — | — | — | — |
-| tcl | `eval` | `rust/tcl-registry/src/commands/tcl/eval_.rs` | — | ✓ | ✓ | ✓ | ✓ | — | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| tcl | `exec` | `rust/tcl-registry/src/commands/tcl/exec_.rs` | — | ✓ | ✓ | ✓ | — | — | ✓ | — | — | — | — | ✓ | — | — | — | — | — | — | — | — |
-| tcl | `exit` | `rust/tcl-registry/src/commands/tcl/exit_.rs` | — | ✓ | ✓ | ✓ | — | — | — | — | — | — | — | ✓ | — | — | — | — | — | — | — | — |
-| tcl | `expr` | `rust/tcl-registry/src/commands/tcl/expr_.rs` | ✓ | ✓ | ✓ | ✓ | ✓ | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | ✓ | — | — |
-| tcl | `fblocked` | `rust/tcl-registry/src/commands/tcl/fblocked.rs` | — | ✓ | ✓ | — | ✓ | — | ✓ | — | — | — | — | ✓ | — | — | — | — | — | — | — | — |
-| tcl | `fconfigure` | `rust/tcl-registry/src/commands/tcl/fconfigure_.rs` | — | ✓ | ✓ | ✓ | ✓ | — | ✓ | — | ✓ | — | — | ✓ | — | — | — | — | — | — | — | — |
-| tcl | `fcopy` | `rust/tcl-registry/src/commands/tcl/fcopy.rs` | — | ✓ | ✓ | — | ✓ | — | ✓ | — | — | — | — | ✓ | — | — | — | — | — | — | — | — |
-| tcl | `fcopy` | `rust/tcl-registry/src/commands/tcl/fcopy_.rs` | — | ✓ | ✓ | — | ✓ | — | ✓ | — | — | — | — | ✓ | — | — | — | — | — | — | — | — |
-| tcl | `file` | `rust/tcl-registry/src/commands/tcl/file_.rs` | — | ✓ | ✓ | ✓ | ✓ | — | ✓ | — | ✓ | ✓ | — | ✓ | — | — | — | — | — | — | — | — |
-| tcl | `fileevent` | `rust/tcl-registry/src/commands/tcl/fileevent.rs` | — | ✓ | ✓ | — | ✓ | — | ✓ | — | — | — | — | ✓ | — | — | — | — | — | — | — | — |
-| tcl | `fileevent` | `rust/tcl-registry/src/commands/tcl/fileevent_.rs` | — | ✓ | ✓ | — | ✓ | — | ✓ | — | — | — | — | ✓ | — | — | — | — | — | — | — | — |
-| tcl | `flush` | `rust/tcl-registry/src/commands/tcl/flush_.rs` | — | ✓ | ✓ | — | ✓ | — | ✓ | — | — | — | — | ✓ | — | — | — | — | — | — | — | — |
-| tcl | `for` | `rust/tcl-registry/src/commands/tcl/for_.rs` | — | ✓ | ✓ | ✓ | ✓ | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — |
-| tcl | `foreach` | `rust/tcl-registry/src/commands/tcl/foreach_.rs` | — | ✓ | ✓ | ✓ | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| tcl | `format` | `rust/tcl-registry/src/commands/tcl/format_.rs` | — | ✓ | ✓ | ✓ | — | — | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| tcl | `gets` | `rust/tcl-registry/src/commands/tcl/gets_.rs` | — | ✓ | ✓ | ✓ | ✓ | — | ✓ | — | — | — | — | ✓ | ✓ | — | — | — | — | — | — | — |
-| tcl | `glob` | `rust/tcl-registry/src/commands/tcl/glob_.rs` | — | ✓ | ✓ | — | — | — | ✓ | — | ✓ | — | — | ✓ | — | — | — | — | — | — | — | — |
-| tcl | `global` | `rust/tcl-registry/src/commands/tcl/global_.rs` | — | ✓ | ✓ | ✓ | ✓ | — | ✓ | — | — | — | — | ✓ | ✓ | — | — | — | — | ✓ | — | — |
-| tcl | `if` | `rust/tcl-registry/src/commands/tcl/if_.rs` | — | ✓ | ✓ | ✓ | — | ✓ | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — |
-| tcl | `incr` | `rust/tcl-registry/src/commands/tcl/incr_.rs` | ✓ | ✓ | ✓ | ✓ | ✓ | — | ✓ | ✓ | — | — | ✓ | — | ✓ | ✓ | — | — | — | ✓ | — | — |
-| tcl | `info` | `rust/tcl-registry/src/commands/tcl/info_.rs` | — | ✓ | ✓ | — | ✓ | — | ✓ | — | — | ✓ | — | ✓ | — | — | — | — | — | — | — | — |
-| tcl | `interp` | `rust/tcl-registry/src/commands/tcl/interp.rs` | — | ✓ | ✓ | ✓ | — | — | ✓ | — | — | ✓ | — | — | — | — | — | — | — | — | — | — |
-| tcl | `join` | `rust/tcl-registry/src/commands/tcl/join_.rs` | — | ✓ | ✓ | ✓ | — | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — |
-| tcl | `lappend` | `rust/tcl-registry/src/commands/tcl/lappend_.rs` | — | ✓ | ✓ | ✓ | ✓ | — | ✓ | ✓ | — | — | — | ✓ | ✓ | ✓ | ✓ | — | — | ✓ | — | — |
-| tcl | `lassign` | `rust/tcl-registry/src/commands/tcl/lassign.rs` | — | ✓ | ✓ | — | ✓ | — | ✓ | — | — | — | — | — | — | — | — | — | — | — | ✓ | — |
-| tcl | `lindex` | `rust/tcl-registry/src/commands/tcl/lindex.rs` | — | ✓ | ✓ | ✓ | — | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — |
-| tcl | `linsert` | `rust/tcl-registry/src/commands/tcl/linsert.rs` | — | ✓ | ✓ | ✓ | — | — | ✓ | — | — | — | — | — | — | — | ✓ | — | — | — | ✓ | — |
-| tcl | `list` | `rust/tcl-registry/src/commands/tcl/list_.rs` | — | ✓ | ✓ | ✓ | — | — | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| tcl | `llength` | `rust/tcl-registry/src/commands/tcl/llength.rs` | — | ✓ | ✓ | ✓ | — | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | ✓ | — |
-| tcl | `lmap` | `rust/tcl-registry/src/commands/tcl/lmap_.rs` | — | ✓ | ✓ | ✓ | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| tcl | `load` | `rust/tcl-registry/src/commands/tcl/load.rs` | — | ✓ | ✓ | — | — | — | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| tcl | `lrange` | `rust/tcl-registry/src/commands/tcl/lrange.rs` | — | ✓ | ✓ | ✓ | — | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | ✓ | — |
-| tcl | `lremove` | `rust/tcl-registry/src/commands/tcl/lremove.rs` | — | ✓ | ✓ | ✓ | — | — | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| tcl | `lrepeat` | `rust/tcl-registry/src/commands/tcl/lrepeat.rs` | — | ✓ | ✓ | ✓ | — | — | ✓ | — | — | — | — | — | — | — | ✓ | — | — | — | — | — |
-| tcl | `lreplace` | `rust/tcl-registry/src/commands/tcl/lreplace.rs` | — | ✓ | ✓ | ✓ | — | — | ✓ | — | — | — | — | — | — | — | ✓ | — | — | — | — | — |
-| tcl | `lreverse` | `rust/tcl-registry/src/commands/tcl/lreverse.rs` | — | ✓ | ✓ | ✓ | — | — | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| tcl | `lsearch` | `rust/tcl-registry/src/commands/tcl/lsearch_.rs` | — | ✓ | ✓ | ✓ | — | — | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| tcl | `lseq` | `rust/tcl-registry/src/commands/tcl/lseq.rs` | — | ✓ | ✓ | ✓ | — | — | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| tcl | `lset` | `rust/tcl-registry/src/commands/tcl/lset.rs` | ✓ | ✓ | ✓ | — | ✓ | — | ✓ | — | — | — | ✓ | — | ✓ | — | ✓ | — | — | — | ✓ | — |
-| tcl | `lsort` | `rust/tcl-registry/src/commands/tcl/lsort_.rs` | — | ✓ | ✓ | ✓ | — | — | ✓ | — | — | — | — | — | — | — | ✓ | — | — | — | — | — |
-| tcl | `tcl::mathop` | `rust/tcl-registry/src/commands/tcl/mathop.rs` | — | ✓ | ✓ | ✓ | — | — | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| tcl | `namespace` | `rust/tcl-registry/src/commands/tcl/namespace_.rs` | — | ✓ | ✓ | ✓ | ✓ | — | ✓ | — | — | ✓ | — | ✓ | — | — | — | — | — | — | — | — |
-| tcl | `oo::abstract` | `rust/tcl-registry/src/commands/tcl/oo_abstract.rs` | — | ✓ | ✓ | ✓ | — | — | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| tcl | `oo::class` | `rust/tcl-registry/src/commands/tcl/oo_class.rs` | — | ✓ | ✓ | ✓ | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| tcl | `classvariable` | `rust/tcl-registry/src/commands/tcl/oo_classvariable.rs` | — | ✓ | ✓ | ✓ | — | — | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| tcl | `oo::configurable` | `rust/tcl-registry/src/commands/tcl/oo_configurable.rs` | — | ✓ | ✓ | ✓ | — | — | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| tcl | `oo::copy` | `rust/tcl-registry/src/commands/tcl/oo_copy.rs` | — | ✓ | ✓ | — | — | — | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| tcl | `oo::define` | `rust/tcl-registry/src/commands/tcl/oo_define.rs` | — | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| tcl | `my` | `rust/tcl-registry/src/commands/tcl/oo_my.rs` | — | ✓ | ✓ | ✓ | — | — | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| tcl | `next` | `rust/tcl-registry/src/commands/tcl/oo_next.rs` | — | ✓ | ✓ | ✓ | — | — | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| tcl | `oo::objdefine` | `rust/tcl-registry/src/commands/tcl/oo_objdefine.rs` | — | ✓ | ✓ | ✓ | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| tcl | `oo::object` | `rust/tcl-registry/src/commands/tcl/oo_object.rs` | — | ✓ | ✓ | ✓ | — | — | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| tcl | `self` | `rust/tcl-registry/src/commands/tcl/oo_self.rs` | — | ✓ | ✓ | ✓ | — | — | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| tcl | `oo::singleton` | `rust/tcl-registry/src/commands/tcl/oo_singleton.rs` | — | ✓ | ✓ | ✓ | — | — | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| tcl | `open` | `rust/tcl-registry/src/commands/tcl/open_.rs` | — | ✓ | ✓ | ✓ | — | — | ✓ | — | — | — | — | ✓ | — | — | — | — | — | — | — | — |
-| tcl | `package` | `rust/tcl-registry/src/commands/tcl/package_.rs` | — | ✓ | ✓ | ✓ | — | — | ✓ | — | ✓ | ✓ | — | ✓ | — | — | — | — | — | — | — | — |
-| tcl | `parray` | `rust/tcl-registry/src/commands/tcl/parray.rs` | — | ✓ | ✓ | — | ✓ | — | ✓ | — | — | — | — | ✓ | — | — | — | — | — | — | — | — |
-| tcl | `pid` | `rust/tcl-registry/src/commands/tcl/pid.rs` | — | ✓ | ✓ | ✓ | — | — | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| tcl | `proc` | `rust/tcl-registry/src/commands/tcl/proc_.rs` | ✓ | ✓ | ✓ | ✓ | ✓ | — | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| tcl | `puts` | `rust/tcl-registry/src/commands/tcl/puts_.rs` | — | ✓ | ✓ | ✓ | — | — | ✓ | — | ✓ | — | — | ✓ | — | — | — | — | — | — | — | — |
-| tcl | `re_quote` | `rust/tcl-registry/src/commands/tcl/re_quote.rs` | — | ✓ | ✓ | ✓ | — | — | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| tcl | `read` | `rust/tcl-registry/src/commands/tcl/read_.rs` | — | ✓ | ✓ | ✓ | — | — | ✓ | — | — | — | — | ✓ | — | — | — | — | — | — | — | — |
-| tcl | `regex_quote` | `rust/tcl-registry/src/commands/tcl/regex_quote.rs` | — | ✓ | ✓ | ✓ | — | — | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| tcl | `regexp` | `rust/tcl-registry/src/commands/tcl/regexp_.rs` | — | ✓ | ✓ | ✓ | — | — | ✓ | — | ✓ | — | — | ✓ | — | — | — | — | — | — | — | — |
-| tcl | `regexp_quote` | `rust/tcl-registry/src/commands/tcl/regexp_quote.rs` | — | ✓ | ✓ | ✓ | — | — | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| tcl | `registry` | `rust/tcl-registry/src/commands/tcl/registry_.rs` | — | ✓ | ✓ | — | — | — | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| tcl | `regsub` | `rust/tcl-registry/src/commands/tcl/regsub_.rs` | — | ✓ | ✓ | — | — | — | ✓ | — | ✓ | — | — | ✓ | — | — | — | — | — | — | — | — |
-| tcl | `rename` | `rust/tcl-registry/src/commands/tcl/rename_.rs` | — | ✓ | ✓ | ✓ | ✓ | — | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| tcl | `return` | `rust/tcl-registry/src/commands/tcl/return_.rs` | — | ✓ | ✓ | ✓ | — | — | ✓ | — | — | — | — | ✓ | — | — | — | — | — | ✓ | — | — |
-| tcl | `scan` | `rust/tcl-registry/src/commands/tcl/scan_.rs` | — | ✓ | ✓ | — | ✓ | — | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| tcl | `seek` | `rust/tcl-registry/src/commands/tcl/seek_.rs` | — | ✓ | ✓ | — | ✓ | — | ✓ | — | — | — | — | ✓ | — | — | — | — | — | — | — | — |
-| tcl | `set` | `rust/tcl-registry/src/commands/tcl/set_.rs` | ✓ | ✓ | ✓ | — | — | ✓ | ✓ | — | — | — | — | — | ✓ | — | — | — | — | ✓ | — | — |
-| tcl | `socket` | `rust/tcl-registry/src/commands/tcl/socket_.rs` | — | ✓ | ✓ | ✓ | — | — | ✓ | — | — | — | — | ✓ | — | — | — | — | — | — | — | — |
-| tcl | `source` | `rust/tcl-registry/src/commands/tcl/source_.rs` | — | ✓ | ✓ | ✓ | — | — | ✓ | — | ✓ | — | — | ✓ | — | — | — | — | — | — | — | — |
-| tcl | `split` | `rust/tcl-registry/src/commands/tcl/split_.rs` | — | ✓ | ✓ | ✓ | — | — | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| tcl | `string` | `rust/tcl-registry/src/commands/tcl/string_.rs` | — | ✓ | ✓ | ✓ | — | — | ✓ | ✓ | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — |
-| tcl | `subst` | `rust/tcl-registry/src/commands/tcl/subst_.rs` | — | ✓ | ✓ | ✓ | — | — | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| tcl | `switch` | `rust/tcl-registry/src/commands/tcl/switch_.rs` | — | ✓ | ✓ | ✓ | — | ✓ | ✓ | — | ✓ | — | — | — | — | — | — | — | — | — | — | — |
-| tcl | `tailcall` | `rust/tcl-registry/src/commands/tcl/tailcall_.rs` | — | ✓ | ✓ | ✓ | — | — | ✓ | — | — | — | — | ✓ | — | — | — | — | — | — | — | — |
-| tcl | `tell` | `rust/tcl-registry/src/commands/tcl/tell_.rs` | — | ✓ | ✓ | — | ✓ | — | ✓ | — | — | — | — | ✓ | — | — | — | — | — | — | — | — |
-| tcl | `throw` | `rust/tcl-registry/src/commands/tcl/throw_.rs` | — | ✓ | ✓ | ✓ | — | — | ✓ | — | — | — | — | ✓ | — | — | — | — | — | — | — | — |
-| tcl | `time` | `rust/tcl-registry/src/commands/tcl/time.rs` | — | ✓ | ✓ | — | ✓ | — | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| tcl | `trace` | `rust/tcl-registry/src/commands/tcl/trace.rs` | — | ✓ | ✓ | ✓ | — | — | ✓ | — | — | ✓ | — | — | — | — | — | — | — | — | — | — |
-| tcl | `try` | `rust/tcl-registry/src/commands/tcl/try_.rs` | — | ✓ | ✓ | ✓ | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| tcl | `unknown` | `rust/tcl-registry/src/commands/tcl/unknown.rs` | — | ✓ | ✓ | ✓ | — | — | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| tcl | `unload` | `rust/tcl-registry/src/commands/tcl/unload.rs` | — | ✓ | ✓ | — | — | — | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| tcl | `unset` | `rust/tcl-registry/src/commands/tcl/unset_.rs` | — | ✓ | ✓ | ✓ | ✓ | — | ✓ | — | ✓ | — | — | ✓ | ✓ | — | — | — | — | ✓ | — | — |
-| tcl | `update` | `rust/tcl-registry/src/commands/tcl/update.rs` | — | ✓ | ✓ | — | — | — | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| tcl | `uplevel` | `rust/tcl-registry/src/commands/tcl/uplevel_.rs` | — | ✓ | ✓ | ✓ | — | — | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| tcl | `upvar` | `rust/tcl-registry/src/commands/tcl/upvar_.rs` | — | ✓ | ✓ | ✓ | — | — | ✓ | — | — | — | — | ✓ | — | — | — | — | — | ✓ | — | — |
-| tcl | `variable` | `rust/tcl-registry/src/commands/tcl/variable_.rs` | — | ✓ | ✓ | ✓ | ✓ | — | ✓ | — | — | — | — | ✓ | ✓ | — | — | — | — | ✓ | — | — |
-| tcl | `vwait` | `rust/tcl-registry/src/commands/tcl/vwait.rs` | — | ✓ | ✓ | — | ✓ | — | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| tcl | `while` | `rust/tcl-registry/src/commands/tcl/while_.rs` | — | ✓ | ✓ | ✓ | ✓ | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — |
-| tcl | `yield` | `rust/tcl-registry/src/commands/tcl/yield_.rs` | — | ✓ | ✓ | — | — | — | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| tcl | `yieldto` | `rust/tcl-registry/src/commands/tcl/yieldto.rs` | — | ✓ | ✓ | — | — | — | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| tcl | `zlib` | `rust/tcl-registry/src/commands/tcl/zlib.rs` | — | ✓ | ✓ | — | — | — | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| tcllib | `base64::decode` | `rust/tcl-registry/src/commands/tcllib/base64__decode.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| tcllib | `base64::encode` | `rust/tcl-registry/src/commands/tcllib/base64__encode.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| tcllib | `cmdline::getArgv0` | `rust/tcl-registry/src/commands/tcllib/cmdline__getargv0.rs` | — | ✓ | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| tcllib | `cmdline::getfiles` | `rust/tcl-registry/src/commands/tcllib/cmdline__getfiles.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| tcllib | `cmdline::getKnownOpt` | `rust/tcl-registry/src/commands/tcllib/cmdline__getknownopt.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| tcllib | `cmdline::getKnownOptions` | `rust/tcl-registry/src/commands/tcllib/cmdline__getknownoptions.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| tcllib | `cmdline::getopt` | `rust/tcl-registry/src/commands/tcllib/cmdline__getopt.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| tcllib | `cmdline::getoptions` | `rust/tcl-registry/src/commands/tcllib/cmdline__getoptions.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| tcllib | `cmdline::typedGetopt` | `rust/tcl-registry/src/commands/tcllib/cmdline__typedgetopt.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| tcllib | `cmdline::typedGetoptions` | `rust/tcl-registry/src/commands/tcllib/cmdline__typedgetoptions.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| tcllib | `cmdline::typedUsage` | `rust/tcl-registry/src/commands/tcllib/cmdline__typedusage.rs` | — | ✓ | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| tcllib | `cmdline::usage` | `rust/tcl-registry/src/commands/tcllib/cmdline__usage.rs` | — | ✓ | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| tcllib | `csv::iscomplete` | `rust/tcl-registry/src/commands/tcllib/csv__iscomplete.rs` | — | ✓ | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| tcllib | `csv::join` | `rust/tcl-registry/src/commands/tcllib/csv__join.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| tcllib | `csv::joinlist` | `rust/tcl-registry/src/commands/tcllib/csv__joinlist.rs` | — | ✓ | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| tcllib | `csv::joinmatrix` | `rust/tcl-registry/src/commands/tcllib/csv__joinmatrix.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| tcllib | `csv::read2matrix` | `rust/tcl-registry/src/commands/tcllib/csv__read2matrix.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| tcllib | `csv::read2queue` | `rust/tcl-registry/src/commands/tcllib/csv__read2queue.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| tcllib | `csv::report` | `rust/tcl-registry/src/commands/tcllib/csv__report.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| tcllib | `csv::split` | `rust/tcl-registry/src/commands/tcllib/csv__split.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| tcllib | `csv::split2matrix` | `rust/tcl-registry/src/commands/tcllib/csv__split2matrix.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| tcllib | `csv::split2queue` | `rust/tcl-registry/src/commands/tcllib/csv__split2queue.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| tcllib | `csv::writematrix` | `rust/tcl-registry/src/commands/tcllib/csv__writematrix.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| tcllib | `csv::writequeue` | `rust/tcl-registry/src/commands/tcllib/csv__writequeue.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| tcllib | `dns::address` | `rust/tcl-registry/src/commands/tcllib/dns__address.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| tcllib | `dns::cleanup` | `rust/tcl-registry/src/commands/tcllib/dns__cleanup.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| tcllib | `dns::cname` | `rust/tcl-registry/src/commands/tcllib/dns__cname.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| tcllib | `dns::configure` | `rust/tcl-registry/src/commands/tcllib/dns__configure.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| tcllib | `dns::dump` | `rust/tcl-registry/src/commands/tcllib/dns__dump.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| tcllib | `dns::error` | `rust/tcl-registry/src/commands/tcllib/dns__error.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| tcllib | `dns::errorcode` | `rust/tcl-registry/src/commands/tcllib/dns__errorcode.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| tcllib | `dns::name` | `rust/tcl-registry/src/commands/tcllib/dns__name.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| tcllib | `dns::reset` | `rust/tcl-registry/src/commands/tcllib/dns__reset.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| tcllib | `dns::resolve` | `rust/tcl-registry/src/commands/tcllib/dns__resolve.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| tcllib | `dns::result` | `rust/tcl-registry/src/commands/tcllib/dns__result.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| tcllib | `dns::status` | `rust/tcl-registry/src/commands/tcllib/dns__status.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| tcllib | `dns::wait` | `rust/tcl-registry/src/commands/tcllib/dns__wait.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| tcllib | `fileutil::appendToFile` | `rust/tcl-registry/src/commands/tcllib/fileutil__appendtofile.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| tcllib | `fileutil::cat` | `rust/tcl-registry/src/commands/tcllib/fileutil__cat.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| tcllib | `fileutil::fileType` | `rust/tcl-registry/src/commands/tcllib/fileutil__filetype.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| tcllib | `fileutil::find` | `rust/tcl-registry/src/commands/tcllib/fileutil__find.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| tcllib | `fileutil::findByPattern` | `rust/tcl-registry/src/commands/tcllib/fileutil__findbypattern.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| tcllib | `fileutil::foreachLine` | `rust/tcl-registry/src/commands/tcllib/fileutil__foreachline.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| tcllib | `fileutil::fullnormalize` | `rust/tcl-registry/src/commands/tcllib/fileutil__fullnormalize.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| tcllib | `fileutil::grep` | `rust/tcl-registry/src/commands/tcllib/fileutil__grep.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| tcllib | `fileutil::insertIntoFile` | `rust/tcl-registry/src/commands/tcllib/fileutil__insertintofile.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| tcllib | `fileutil::install` | `rust/tcl-registry/src/commands/tcllib/fileutil__install.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| tcllib | `fileutil::jail` | `rust/tcl-registry/src/commands/tcllib/fileutil__jail.rs` | — | ✓ | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| tcllib | `fileutil::lexnormalize` | `rust/tcl-registry/src/commands/tcllib/fileutil__lexnormalize.rs` | — | ✓ | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| tcllib | `fileutil::maketempdir` | `rust/tcl-registry/src/commands/tcllib/fileutil__maketempdir.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| tcllib | `fileutil::relative` | `rust/tcl-registry/src/commands/tcllib/fileutil__relative.rs` | — | ✓ | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| tcllib | `fileutil::relativeUrl` | `rust/tcl-registry/src/commands/tcllib/fileutil__relativeurl.rs` | — | ✓ | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| tcllib | `fileutil::removeFromFile` | `rust/tcl-registry/src/commands/tcllib/fileutil__removefromfile.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| tcllib | `fileutil::replaceInFile` | `rust/tcl-registry/src/commands/tcllib/fileutil__replaceinfile.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| tcllib | `fileutil::stripN` | `rust/tcl-registry/src/commands/tcllib/fileutil__stripn.rs` | — | ✓ | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| tcllib | `fileutil::stripPwd` | `rust/tcl-registry/src/commands/tcllib/fileutil__strippwd.rs` | — | ✓ | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| tcllib | `fileutil::tempdir` | `rust/tcl-registry/src/commands/tcllib/fileutil__tempdir.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| tcllib | `fileutil::tempdirReset` | `rust/tcl-registry/src/commands/tcllib/fileutil__tempdirreset.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| tcllib | `fileutil::tempfile` | `rust/tcl-registry/src/commands/tcllib/fileutil__tempfile.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| tcllib | `fileutil::test` | `rust/tcl-registry/src/commands/tcllib/fileutil__test.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| tcllib | `fileutil::touch` | `rust/tcl-registry/src/commands/tcllib/fileutil__touch.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| tcllib | `fileutil::updateInPlace` | `rust/tcl-registry/src/commands/tcllib/fileutil__updateinplace.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| tcllib | `fileutil::writeFile` | `rust/tcl-registry/src/commands/tcllib/fileutil__writefile.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| tcllib | `html::html_entities` | `rust/tcl-registry/src/commands/tcllib/html__html_entities.rs` | — | ✓ | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| tcllib | `html::tagstrip` | `rust/tcl-registry/src/commands/tcllib/html__tagstrip.rs` | — | ✓ | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| tcllib | `ip::collapse` | `rust/tcl-registry/src/commands/tcllib/ip__collapse.rs` | — | ✓ | ✓ | ✓ | — | — | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| tcllib | `ip::contract` | `rust/tcl-registry/src/commands/tcllib/ip__contract.rs` | — | ✓ | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| tcllib | `ip::equal` | `rust/tcl-registry/src/commands/tcllib/ip__equal.rs` | — | ✓ | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| tcllib | `ip::is` | `rust/tcl-registry/src/commands/tcllib/ip__is.rs` | — | ✓ | ✓ | ✓ | — | — | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| tcllib | `ip::mask` | `rust/tcl-registry/src/commands/tcllib/ip__mask.rs` | — | ✓ | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| tcllib | `ip::normalize` | `rust/tcl-registry/src/commands/tcllib/ip__normalize.rs` | — | ✓ | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| tcllib | `ip::prefix` | `rust/tcl-registry/src/commands/tcllib/ip__prefix.rs` | — | ✓ | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| tcllib | `ip::subtract` | `rust/tcl-registry/src/commands/tcllib/ip__subtract.rs` | — | ✓ | ✓ | ✓ | — | — | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| tcllib | `ip::type` | `rust/tcl-registry/src/commands/tcllib/ip__type.rs` | — | ✓ | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| tcllib | `ip::version` | `rust/tcl-registry/src/commands/tcllib/ip__version.rs` | — | ✓ | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| tcllib | `json::dict2json` | `rust/tcl-registry/src/commands/tcllib/json__dict2json.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| tcllib | `json::json2dict` | `rust/tcl-registry/src/commands/tcllib/json__json2dict.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| tcllib | `json::list2json` | `rust/tcl-registry/src/commands/tcllib/json__list2json.rs` | — | ✓ | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| tcllib | `json::many-json2dict` | `rust/tcl-registry/src/commands/tcllib/json__many_json2dict.rs` | — | ✓ | ✓ | ✓ | — | — | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| tcllib | `json::string2json` | `rust/tcl-registry/src/commands/tcllib/json__string2json.rs` | — | ✓ | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| tcllib | `json::validate` | `rust/tcl-registry/src/commands/tcllib/json__validate.rs` | — | ✓ | ✓ | ✓ | — | — | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| tcllib | `logger::disable` | `rust/tcl-registry/src/commands/tcllib/logger__disable.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| tcllib | `logger::enable` | `rust/tcl-registry/src/commands/tcllib/logger__enable.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| tcllib | `logger::import` | `rust/tcl-registry/src/commands/tcllib/logger__import.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| tcllib | `logger::init` | `rust/tcl-registry/src/commands/tcllib/logger__init.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| tcllib | `logger::initNamespace` | `rust/tcl-registry/src/commands/tcllib/logger__initnamespace.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| tcllib | `logger::levels` | `rust/tcl-registry/src/commands/tcllib/logger__levels.rs` | — | ✓ | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| tcllib | `logger::servicecmd` | `rust/tcl-registry/src/commands/tcllib/logger__servicecmd.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| tcllib | `logger::services` | `rust/tcl-registry/src/commands/tcllib/logger__services.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| tcllib | `logger::setlevel` | `rust/tcl-registry/src/commands/tcllib/logger__setlevel.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| tcllib | `logger::walk` | `rust/tcl-registry/src/commands/tcllib/logger__walk.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| tcllib | `math::statistics::analyse-Kruskal-Wallis` | `rust/tcl-registry/src/commands/tcllib/math__statistics__analyse_kruskal_wallis.rs` | — | ✓ | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| tcllib | `math::statistics::autocorr` | `rust/tcl-registry/src/commands/tcllib/math__statistics__autocorr.rs` | — | ✓ | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| tcllib | `math::statistics::basic-stats` | `rust/tcl-registry/src/commands/tcllib/math__statistics__basic_stats.rs` | — | ✓ | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| tcllib | `math::statistics::control-Rchart` | `rust/tcl-registry/src/commands/tcllib/math__statistics__control_rchart.rs` | — | ✓ | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| tcllib | `math::statistics::control-xbar` | `rust/tcl-registry/src/commands/tcllib/math__statistics__control_xbar.rs` | — | ✓ | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| tcllib | `math::statistics::corr` | `rust/tcl-registry/src/commands/tcllib/math__statistics__corr.rs` | — | ✓ | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| tcllib | `math::statistics::crosscorr` | `rust/tcl-registry/src/commands/tcllib/math__statistics__crosscorr.rs` | — | ✓ | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| tcllib | `math::statistics::filter` | `rust/tcl-registry/src/commands/tcllib/math__statistics__filter.rs` | — | ✓ | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| tcllib | `math::statistics::group-rank` | `rust/tcl-registry/src/commands/tcllib/math__statistics__group_rank.rs` | — | ✓ | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| tcllib | `math::statistics::histogram` | `rust/tcl-registry/src/commands/tcllib/math__statistics__histogram.rs` | — | ✓ | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| tcllib | `math::statistics::histogram-alt` | `rust/tcl-registry/src/commands/tcllib/math__statistics__histogram_alt.rs` | — | ✓ | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| tcllib | `math::statistics::interval-mean-stdev` | `rust/tcl-registry/src/commands/tcllib/math__statistics__interval_mean_stdev.rs` | — | ✓ | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| tcllib | `math::statistics::lillieforsFit` | `rust/tcl-registry/src/commands/tcllib/math__statistics__lillieforsfit.rs` | — | ✓ | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| tcllib | `math::statistics::linear-model` | `rust/tcl-registry/src/commands/tcllib/math__statistics__linear_model.rs` | — | ✓ | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| tcllib | `math::statistics::linear-residuals` | `rust/tcl-registry/src/commands/tcllib/math__statistics__linear_residuals.rs` | — | ✓ | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| tcllib | `math::statistics::map` | `rust/tcl-registry/src/commands/tcllib/math__statistics__map.rs` | — | ✓ | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| tcllib | `math::statistics::max` | `rust/tcl-registry/src/commands/tcllib/math__statistics__max.rs` | — | ✓ | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| tcllib | `math::statistics::mean` | `rust/tcl-registry/src/commands/tcllib/math__statistics__mean.rs` | — | ✓ | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| tcllib | `math::statistics::mean-histogram-limits` | `rust/tcl-registry/src/commands/tcllib/math__statistics__mean_histogram_limits.rs` | — | ✓ | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| tcllib | `math::statistics::median` | `rust/tcl-registry/src/commands/tcllib/math__statistics__median.rs` | — | ✓ | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| tcllib | `math::statistics::min` | `rust/tcl-registry/src/commands/tcllib/math__statistics__min.rs` | — | ✓ | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| tcllib | `math::statistics::minmax-histogram-limits` | `rust/tcl-registry/src/commands/tcllib/math__statistics__minmax_histogram_limits.rs` | — | ✓ | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| tcllib | `math::statistics::number` | `rust/tcl-registry/src/commands/tcllib/math__statistics__number.rs` | — | ✓ | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| tcllib | `math::statistics::print-2x2` | `rust/tcl-registry/src/commands/tcllib/math__statistics__print_2x2.rs` | — | ✓ | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| tcllib | `math::statistics::pstdev` | `rust/tcl-registry/src/commands/tcllib/math__statistics__pstdev.rs` | — | ✓ | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| tcllib | `math::statistics::pvar` | `rust/tcl-registry/src/commands/tcllib/math__statistics__pvar.rs` | — | ✓ | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| tcllib | `math::statistics::quantiles` | `rust/tcl-registry/src/commands/tcllib/math__statistics__quantiles.rs` | — | ✓ | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| tcllib | `math::statistics::samplescount` | `rust/tcl-registry/src/commands/tcllib/math__statistics__samplescount.rs` | — | ✓ | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| tcllib | `math::statistics::spearman-rank` | `rust/tcl-registry/src/commands/tcllib/math__statistics__spearman_rank.rs` | — | ✓ | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| tcllib | `math::statistics::spearman-rank-extended` | `rust/tcl-registry/src/commands/tcllib/math__statistics__spearman_rank_extended.rs` | — | ✓ | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| tcllib | `math::statistics::stdev` | `rust/tcl-registry/src/commands/tcllib/math__statistics__stdev.rs` | — | ✓ | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| tcllib | `math::statistics::t-test-mean` | `rust/tcl-registry/src/commands/tcllib/math__statistics__t_test_mean.rs` | — | ✓ | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| tcllib | `math::statistics::test-2x2` | `rust/tcl-registry/src/commands/tcllib/math__statistics__test_2x2.rs` | — | ✓ | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| tcllib | `math::statistics::test-anova-F` | `rust/tcl-registry/src/commands/tcllib/math__statistics__test_anova_f.rs` | — | ✓ | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| tcllib | `math::statistics::test-Duckworth` | `rust/tcl-registry/src/commands/tcllib/math__statistics__test_duckworth.rs` | — | ✓ | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| tcllib | `math::statistics::test-Dunnett` | `rust/tcl-registry/src/commands/tcllib/math__statistics__test_dunnett.rs` | — | ✓ | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| tcllib | `math::statistics::test-Kruskal-Wallis` | `rust/tcl-registry/src/commands/tcllib/math__statistics__test_kruskal_wallis.rs` | — | ✓ | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| tcllib | `math::statistics::test-normal` | `rust/tcl-registry/src/commands/tcllib/math__statistics__test_normal.rs` | — | ✓ | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| tcllib | `math::statistics::test-Rchart` | `rust/tcl-registry/src/commands/tcllib/math__statistics__test_rchart.rs` | — | ✓ | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| tcllib | `math::statistics::test-Tukey-range` | `rust/tcl-registry/src/commands/tcllib/math__statistics__test_tukey_range.rs` | — | ✓ | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| tcllib | `math::statistics::test-Wilcoxon` | `rust/tcl-registry/src/commands/tcllib/math__statistics__test_wilcoxon.rs` | — | ✓ | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| tcllib | `math::statistics::test-xbar` | `rust/tcl-registry/src/commands/tcllib/math__statistics__test_xbar.rs` | — | ✓ | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| tcllib | `math::statistics::var` | `rust/tcl-registry/src/commands/tcllib/math__statistics__var.rs` | — | ✓ | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| tcllib | `md5::md5` | `rust/tcl-registry/src/commands/tcllib/md5__md5.rs` | — | ✓ | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| tcllib | `mime::buildmessage` | `rust/tcl-registry/src/commands/tcllib/mime__buildmessage.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| tcllib | `mime::copymessage` | `rust/tcl-registry/src/commands/tcllib/mime__copymessage.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| tcllib | `mime::field_decode` | `rust/tcl-registry/src/commands/tcllib/mime__field_decode.rs` | — | ✓ | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| tcllib | `mime::finalize` | `rust/tcl-registry/src/commands/tcllib/mime__finalize.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| tcllib | `mime::getbody` | `rust/tcl-registry/src/commands/tcllib/mime__getbody.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| tcllib | `mime::getContentType` | `rust/tcl-registry/src/commands/tcllib/mime__getcontenttype.rs` | — | ✓ | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| tcllib | `mime::getheader` | `rust/tcl-registry/src/commands/tcllib/mime__getheader.rs` | — | ✓ | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| tcllib | `mime::getproperty` | `rust/tcl-registry/src/commands/tcllib/mime__getproperty.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| tcllib | `mime::getsize` | `rust/tcl-registry/src/commands/tcllib/mime__getsize.rs` | — | ✓ | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| tcllib | `mime::getTransferEncoding` | `rust/tcl-registry/src/commands/tcllib/mime__gettransferencoding.rs` | — | ✓ | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| tcllib | `mime::initialize` | `rust/tcl-registry/src/commands/tcllib/mime__initialize.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| tcllib | `mime::mapencoding` | `rust/tcl-registry/src/commands/tcllib/mime__mapencoding.rs` | — | ✓ | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| tcllib | `mime::parseaddress` | `rust/tcl-registry/src/commands/tcllib/mime__parseaddress.rs` | — | ✓ | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| tcllib | `mime::parsedatetime` | `rust/tcl-registry/src/commands/tcllib/mime__parsedatetime.rs` | — | ✓ | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| tcllib | `mime::reversemapencoding` | `rust/tcl-registry/src/commands/tcllib/mime__reversemapencoding.rs` | — | ✓ | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| tcllib | `mime::setheader` | `rust/tcl-registry/src/commands/tcllib/mime__setheader.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| tcllib | `mime::uniqueID` | `rust/tcl-registry/src/commands/tcllib/mime__uniqueid.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| tcllib | `mime::word_decode` | `rust/tcl-registry/src/commands/tcllib/mime__word_decode.rs` | — | ✓ | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| tcllib | `mime::word_encode` | `rust/tcl-registry/src/commands/tcllib/mime__word_encode.rs` | — | ✓ | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| tcllib | `sha1::sha1` | `rust/tcl-registry/src/commands/tcllib/sha1__sha1.rs` | — | ✓ | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| tcllib | `sha2::sha256` | `rust/tcl-registry/src/commands/tcllib/sha2__sha256.rs` | — | ✓ | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| tcllib | `smtp::sendmessage` | `rust/tcl-registry/src/commands/tcllib/smtp__sendmessage.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| tcllib | `snit::compile` | `rust/tcl-registry/src/commands/tcllib/snit__compile.rs` | — | ✓ | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| tcllib | `snit::macro` | `rust/tcl-registry/src/commands/tcllib/snit__macro.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| tcllib | `snit::method` | `rust/tcl-registry/src/commands/tcllib/snit__method.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| tcllib | `snit::type` | `rust/tcl-registry/src/commands/tcllib/snit__type.rs` | — | ✓ | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| tcllib | `snit::typemethod` | `rust/tcl-registry/src/commands/tcllib/snit__typemethod.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| tcllib | `snit::widget` | `rust/tcl-registry/src/commands/tcllib/snit__widget.rs` | — | ✓ | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| tcllib | `snit::widgetadaptor` | `rust/tcl-registry/src/commands/tcllib/snit__widgetadaptor.rs` | — | ✓ | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| tcllib | `struct::list` | `rust/tcl-registry/src/commands/tcllib/struct__list.rs` | — | ✓ | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| tcllib | `struct::queue` | `rust/tcl-registry/src/commands/tcllib/struct__queue.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| tcllib | `struct::set` | `rust/tcl-registry/src/commands/tcllib/struct__set.rs` | — | ✓ | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| tcllib | `struct::stack` | `rust/tcl-registry/src/commands/tcllib/struct__stack.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| tcllib | `textutil::adjust` | `rust/tcl-registry/src/commands/tcllib/textutil__adjust.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| tcllib | `textutil::blank` | `rust/tcl-registry/src/commands/tcllib/textutil__blank.rs` | — | ✓ | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| tcllib | `textutil::cap` | `rust/tcl-registry/src/commands/tcllib/textutil__cap.rs` | — | ✓ | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| tcllib | `textutil::capEachWord` | `rust/tcl-registry/src/commands/tcllib/textutil__capeachword.rs` | — | ✓ | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| tcllib | `textutil::chop` | `rust/tcl-registry/src/commands/tcllib/textutil__chop.rs` | — | ✓ | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| tcllib | `textutil::indent` | `rust/tcl-registry/src/commands/tcllib/textutil__indent.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| tcllib | `textutil::longestCommonPrefix` | `rust/tcl-registry/src/commands/tcllib/textutil__longestcommonprefix.rs` | — | ✓ | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| tcllib | `textutil::longestCommonPrefixList` | `rust/tcl-registry/src/commands/tcllib/textutil__longestcommonprefixlist.rs` | — | ✓ | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| tcllib | `textutil::splitn` | `rust/tcl-registry/src/commands/tcllib/textutil__splitn.rs` | — | ✓ | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| tcllib | `textutil::splitx` | `rust/tcl-registry/src/commands/tcllib/textutil__splitx.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| tcllib | `textutil::strRepeat` | `rust/tcl-registry/src/commands/tcllib/textutil__strrepeat.rs` | — | ✓ | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| tcllib | `textutil::tabify` | `rust/tcl-registry/src/commands/tcllib/textutil__tabify.rs` | — | ✓ | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| tcllib | `textutil::tabify2` | `rust/tcl-registry/src/commands/tcllib/textutil__tabify2.rs` | — | ✓ | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| tcllib | `textutil::tail` | `rust/tcl-registry/src/commands/tcllib/textutil__tail.rs` | — | ✓ | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| tcllib | `textutil::trim` | `rust/tcl-registry/src/commands/tcllib/textutil__trim.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| tcllib | `textutil::trimEmptyHeading` | `rust/tcl-registry/src/commands/tcllib/textutil__trimemptyheading.rs` | — | ✓ | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| tcllib | `textutil::trimleft` | `rust/tcl-registry/src/commands/tcllib/textutil__trimleft.rs` | — | ✓ | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| tcllib | `textutil::trimPrefix` | `rust/tcl-registry/src/commands/tcllib/textutil__trimprefix.rs` | — | ✓ | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| tcllib | `textutil::trimright` | `rust/tcl-registry/src/commands/tcllib/textutil__trimright.rs` | — | ✓ | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| tcllib | `textutil::uncap` | `rust/tcl-registry/src/commands/tcllib/textutil__uncap.rs` | — | ✓ | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| tcllib | `textutil::undent` | `rust/tcl-registry/src/commands/tcllib/textutil__undent.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| tcllib | `textutil::untabify` | `rust/tcl-registry/src/commands/tcllib/textutil__untabify.rs` | — | ✓ | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| tcllib | `textutil::untabify2` | `rust/tcl-registry/src/commands/tcllib/textutil__untabify2.rs` | — | ✓ | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| tcllib | `uri::canonicalize` | `rust/tcl-registry/src/commands/tcllib/uri__canonicalize.rs` | — | ✓ | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| tcllib | `uri::geturl` | `rust/tcl-registry/src/commands/tcllib/uri__geturl.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| tcllib | `uri::isrelative` | `rust/tcl-registry/src/commands/tcllib/uri__isrelative.rs` | — | ✓ | ✓ | ✓ | — | — | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| tcllib | `uri::join` | `rust/tcl-registry/src/commands/tcllib/uri__join.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| tcllib | `uri::register` | `rust/tcl-registry/src/commands/tcllib/uri__register.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| tcllib | `uri::resolve` | `rust/tcl-registry/src/commands/tcllib/uri__resolve.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| tcllib | `uri::setQuirkOption` | `rust/tcl-registry/src/commands/tcllib/uri__setquirkoption.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| tcllib | `uri::split` | `rust/tcl-registry/src/commands/tcllib/uri__split.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| tcllib | `uuid::uuid` | `rust/tcl-registry/src/commands/tcllib/uuid__uuid.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| tcllib | `yaml::dict2yaml` | `rust/tcl-registry/src/commands/tcllib/yaml__dict2yaml.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| tcllib | `yaml::huddle2yaml` | `rust/tcl-registry/src/commands/tcllib/yaml__huddle2yaml.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| tcllib | `yaml::list2yaml` | `rust/tcl-registry/src/commands/tcllib/yaml__list2yaml.rs` | — | ✓ | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| tcllib | `yaml::setOptions` | `rust/tcl-registry/src/commands/tcllib/yaml__setoptions.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| tcllib | `yaml::yaml2dict` | `rust/tcl-registry/src/commands/tcllib/yaml__yaml2dict.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| tcllib | `yaml::yaml2huddle` | `rust/tcl-registry/src/commands/tcllib/yaml__yaml2huddle.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| tk | `bell` | `rust/tcl-registry/src/commands/tk/bell.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| tk | `bind` | `rust/tcl-registry/src/commands/tk/bind.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| tk | `button` | `rust/tcl-registry/src/commands/tk/button.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| tk | `canvas` | `rust/tcl-registry/src/commands/tk/canvas.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| tk | `checkbutton` | `rust/tcl-registry/src/commands/tk/checkbutton.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| tk | `clipboard` | `rust/tcl-registry/src/commands/tk/clipboard.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| tk | `destroy` | `rust/tcl-registry/src/commands/tk/destroy.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| tk | `entry` | `rust/tcl-registry/src/commands/tk/entry.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| tk | `event` | `rust/tcl-registry/src/commands/tk/event.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| tk | `focus` | `rust/tcl-registry/src/commands/tk/focus.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| tk | `font` | `rust/tcl-registry/src/commands/tk/font.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| tk | `frame` | `rust/tcl-registry/src/commands/tk/frame.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| tk | `grab` | `rust/tcl-registry/src/commands/tk/grab.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| tk | `grid` | `rust/tcl-registry/src/commands/tk/grid.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| tk | `image` | `rust/tcl-registry/src/commands/tk/image.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| tk | `label` | `rust/tcl-registry/src/commands/tk/label.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| tk | `labelframe` | `rust/tcl-registry/src/commands/tk/labelframe.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| tk | `listbox` | `rust/tcl-registry/src/commands/tk/listbox.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| tk | `lower` | `rust/tcl-registry/src/commands/tk/lower.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| tk | `menu` | `rust/tcl-registry/src/commands/tk/menu.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| tk | `menubutton` | `rust/tcl-registry/src/commands/tk/menubutton.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| tk | `message` | `rust/tcl-registry/src/commands/tk/message.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| tk | `option` | `rust/tcl-registry/src/commands/tk/option.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| tk | `pack` | `rust/tcl-registry/src/commands/tk/pack.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| tk | `panedwindow` | `rust/tcl-registry/src/commands/tk/panedwindow.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| tk | `place` | `rust/tcl-registry/src/commands/tk/place.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| tk | `radiobutton` | `rust/tcl-registry/src/commands/tk/radiobutton.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| tk | `raise` | `rust/tcl-registry/src/commands/tk/raise.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| tk | `scale` | `rust/tcl-registry/src/commands/tk/scale.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| tk | `scrollbar` | `rust/tcl-registry/src/commands/tk/scrollbar.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| tk | `selection` | `rust/tcl-registry/src/commands/tk/selection.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| tk | `spinbox` | `rust/tcl-registry/src/commands/tk/spinbox.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| tk | `text` | `rust/tcl-registry/src/commands/tk/text.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| tk | `tk_chooseColor` | `rust/tcl-registry/src/commands/tk/tk_choosecolor.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| tk | `tk_chooseDirectory` | `rust/tcl-registry/src/commands/tk/tk_choosedirectory.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| tk | `tk` | `rust/tcl-registry/src/commands/tk/tk_cmd.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| tk | `tk_getOpenFile` | `rust/tcl-registry/src/commands/tk/tk_getopenfile.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| tk | `tk_getSaveFile` | `rust/tcl-registry/src/commands/tk/tk_getsavefile.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| tk | `tk_messageBox` | `rust/tcl-registry/src/commands/tk/tk_messagebox.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| tk | `tk_popup` | `rust/tcl-registry/src/commands/tk/tk_popup.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| tk | `toplevel` | `rust/tcl-registry/src/commands/tk/toplevel.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| tk | `ttk::button` | `rust/tcl-registry/src/commands/tk/ttk__button.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| tk | `ttk::combobox` | `rust/tcl-registry/src/commands/tk/ttk__combobox.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| tk | `ttk::entry` | `rust/tcl-registry/src/commands/tk/ttk__entry.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| tk | `ttk::frame` | `rust/tcl-registry/src/commands/tk/ttk__frame.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| tk | `ttk::label` | `rust/tcl-registry/src/commands/tk/ttk__label.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| tk | `ttk::notebook` | `rust/tcl-registry/src/commands/tk/ttk__notebook.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| tk | `ttk::progressbar` | `rust/tcl-registry/src/commands/tk/ttk__progressbar.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| tk | `ttk::scale` | `rust/tcl-registry/src/commands/tk/ttk__scale.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| tk | `ttk::separator` | `rust/tcl-registry/src/commands/tk/ttk__separator.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| tk | `ttk::sizegrip` | `rust/tcl-registry/src/commands/tk/ttk__sizegrip.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| tk | `ttk::style` | `rust/tcl-registry/src/commands/tk/ttk__style.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| tk | `ttk::treeview` | `rust/tcl-registry/src/commands/tk/ttk__treeview.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| tk | `winfo` | `rust/tcl-registry/src/commands/tk/winfo.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
-| tk | `wm` | `rust/tcl-registry/src/commands/tk/wm.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a | n/a |
+| dialect | command | spec file | verified | arity | hover | traits | arg_roles | arg_role_resolver | return_type | arg_types | options | subcommands | command_forms | side_effects | assigns_var_at | safe_on_uninit | storage_type | excluded_events | required_package | lowering_hook | codegen_hook (tclvm) |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| eda_cadence | `add_endcap` | `rust/tcl-registry/src/commands/eda_cadence/add_endcap.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| eda_cadence | `add_filler` | `rust/tcl-registry/src/commands/eda_cadence/add_filler.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| eda_cadence | `add_well_tap` | `rust/tcl-registry/src/commands/eda_cadence/add_well_tap.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| eda_cadence | `ccopt_design` | `rust/tcl-registry/src/commands/eda_cadence/ccopt_design.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| eda_cadence | `check_design` | `rust/tcl-registry/src/commands/eda_cadence/check_design.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| eda_cadence | `check_timing_intent` | `rust/tcl-registry/src/commands/eda_cadence/check_timing_intent.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| eda_cadence | `create_analysis_view` | `rust/tcl-registry/src/commands/eda_cadence/create_analysis_view.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| eda_cadence | `create_constraint_mode` | `rust/tcl-registry/src/commands/eda_cadence/create_constraint_mode.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| eda_cadence | `create_delay_corner` | `rust/tcl-registry/src/commands/eda_cadence/create_delay_corner.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| eda_cadence | `create_floorplan` | `rust/tcl-registry/src/commands/eda_cadence/create_floorplan.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| eda_cadence | `create_route_rule` | `rust/tcl-registry/src/commands/eda_cadence/create_route_rule.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| eda_cadence | `dbGet` | `rust/tcl-registry/src/commands/eda_cadence/dbget.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| eda_cadence | `dbQuery` | `rust/tcl-registry/src/commands/eda_cadence/dbquery.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| eda_cadence | `dbSet` | `rust/tcl-registry/src/commands/eda_cadence/dbset.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| eda_cadence | `dbShape` | `rust/tcl-registry/src/commands/eda_cadence/dbshape.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| eda_cadence | `edit_pin` | `rust/tcl-registry/src/commands/eda_cadence/edit_pin.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| eda_cadence | `elaborate` | `rust/tcl-registry/src/commands/eda_cadence/elaborate.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| eda_cadence | `get_db` | `rust/tcl-registry/src/commands/eda_cadence/get_db.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| eda_cadence | `init_design` | `rust/tcl-registry/src/commands/eda_cadence/init_design.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| eda_cadence | `opt_design` | `rust/tcl-registry/src/commands/eda_cadence/opt_design.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| eda_cadence | `place_opt_design` | `rust/tcl-registry/src/commands/eda_cadence/place_opt_design.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| eda_cadence | `read_hdl` | `rust/tcl-registry/src/commands/eda_cadence/read_hdl.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| eda_cadence | `read_library` | `rust/tcl-registry/src/commands/eda_cadence/read_library.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| eda_cadence | `read_mmmc` | `rust/tcl-registry/src/commands/eda_cadence/read_mmmc.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| eda_cadence | `read_netlist` | `rust/tcl-registry/src/commands/eda_cadence/read_netlist.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| eda_cadence | `read_physical` | `rust/tcl-registry/src/commands/eda_cadence/read_physical.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| eda_cadence | `report_analysis_coverage` | `rust/tcl-registry/src/commands/eda_cadence/report_analysis_coverage.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| eda_cadence | `report_area` | `rust/tcl-registry/src/commands/eda_cadence/report_area.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| eda_cadence | `report_constraint` | `rust/tcl-registry/src/commands/eda_cadence/report_constraint.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| eda_cadence | `report_dp` | `rust/tcl-registry/src/commands/eda_cadence/report_dp.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| eda_cadence | `report_gates` | `rust/tcl-registry/src/commands/eda_cadence/report_gates.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| eda_cadence | `report_power` | `rust/tcl-registry/src/commands/eda_cadence/report_power.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| eda_cadence | `report_qor` | `rust/tcl-registry/src/commands/eda_cadence/report_qor.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| eda_cadence | `report_timing` | `rust/tcl-registry/src/commands/eda_cadence/report_timing.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| eda_cadence | `route_design` | `rust/tcl-registry/src/commands/eda_cadence/route_design.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| eda_cadence | `set_analysis_view` | `rust/tcl-registry/src/commands/eda_cadence/set_analysis_view.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| eda_cadence | `set_db` | `rust/tcl-registry/src/commands/eda_cadence/set_db.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| eda_cadence | `stream_out` | `rust/tcl-registry/src/commands/eda_cadence/stream_out.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| eda_cadence | `syn_generic` | `rust/tcl-registry/src/commands/eda_cadence/syn_generic.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| eda_cadence | `syn_map` | `rust/tcl-registry/src/commands/eda_cadence/syn_map.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| eda_cadence | `syn_opt` | `rust/tcl-registry/src/commands/eda_cadence/syn_opt.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| eda_cadence | `time_design` | `rust/tcl-registry/src/commands/eda_cadence/time_design.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| eda_cadence | `update_timing` | `rust/tcl-registry/src/commands/eda_cadence/update_timing.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| eda_cadence | `verify_connectivity` | `rust/tcl-registry/src/commands/eda_cadence/verify_connectivity.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| eda_cadence | `verify_drc` | `rust/tcl-registry/src/commands/eda_cadence/verify_drc.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| eda_cadence | `verify_geometry` | `rust/tcl-registry/src/commands/eda_cadence/verify_geometry.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| eda_cadence | `write_def` | `rust/tcl-registry/src/commands/eda_cadence/write_def.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| eda_cadence | `write_design` | `rust/tcl-registry/src/commands/eda_cadence/write_design.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| eda_cadence | `write_do_lec` | `rust/tcl-registry/src/commands/eda_cadence/write_do_lec.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| eda_cadence | `write_gds` | `rust/tcl-registry/src/commands/eda_cadence/write_gds.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| eda_cadence | `write_hdl` | `rust/tcl-registry/src/commands/eda_cadence/write_hdl.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| eda_cadence | `write_netlist` | `rust/tcl-registry/src/commands/eda_cadence/write_netlist.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| eda_cadence | `write_sdc` | `rust/tcl-registry/src/commands/eda_cadence/write_sdc.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| eda_cadence | `xelab` | `rust/tcl-registry/src/commands/eda_cadence/xelab.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| eda_cadence | `xrun` | `rust/tcl-registry/src/commands/eda_cadence/xrun.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| eda_cadence | `xsim` | `rust/tcl-registry/src/commands/eda_cadence/xsim.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| eda_mentor | `add_list` | `rust/tcl-registry/src/commands/eda_mentor/add_list.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| eda_mentor | `add_log` | `rust/tcl-registry/src/commands/eda_mentor/add_log.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| eda_mentor | `add_wave` | `rust/tcl-registry/src/commands/eda_mentor/add_wave.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| eda_mentor | `bc` | `rust/tcl-registry/src/commands/eda_mentor/bc.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| eda_mentor | `bd` | `rust/tcl-registry/src/commands/eda_mentor/bd.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| eda_mentor | `be` | `rust/tcl-registry/src/commands/eda_mentor/be.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| eda_mentor | `bl` | `rust/tcl-registry/src/commands/eda_mentor/bl.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| eda_mentor | `bp` | `rust/tcl-registry/src/commands/eda_mentor/bp.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| eda_mentor | `calibre` | `rust/tcl-registry/src/commands/eda_mentor/calibre.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| eda_mentor | `calibre_drc` | `rust/tcl-registry/src/commands/eda_mentor/calibre_drc.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| eda_mentor | `calibre_lvs` | `rust/tcl-registry/src/commands/eda_mentor/calibre_lvs.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| eda_mentor | `calibre_pex` | `rust/tcl-registry/src/commands/eda_mentor/calibre_pex.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| eda_mentor | `change` | `rust/tcl-registry/src/commands/eda_mentor/change.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| eda_mentor | `coverage` | `rust/tcl-registry/src/commands/eda_mentor/coverage.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| eda_mentor | `describe` | `rust/tcl-registry/src/commands/eda_mentor/describe.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| eda_mentor | `drivers` | `rust/tcl-registry/src/commands/eda_mentor/drivers.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| eda_mentor | `examine` | `rust/tcl-registry/src/commands/eda_mentor/examine.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| eda_mentor | `find` | `rust/tcl-registry/src/commands/eda_mentor/find.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| eda_mentor | `force` | `rust/tcl-registry/src/commands/eda_mentor/force.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| eda_mentor | `formal_analyze` | `rust/tcl-registry/src/commands/eda_mentor/formal_analyze.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| eda_mentor | `formal_compile` | `rust/tcl-registry/src/commands/eda_mentor/formal_compile.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| eda_mentor | `formal_verify` | `rust/tcl-registry/src/commands/eda_mentor/formal_verify.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| eda_mentor | `init_signal_driver` | `rust/tcl-registry/src/commands/eda_mentor/init_signal_driver.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| eda_mentor | `init_signal_spy` | `rust/tcl-registry/src/commands/eda_mentor/init_signal_spy.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| eda_mentor | `onbreak` | `rust/tcl-registry/src/commands/eda_mentor/onbreak.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| eda_mentor | `qrun` | `rust/tcl-registry/src/commands/eda_mentor/qrun.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| eda_mentor | `qverilog` | `rust/tcl-registry/src/commands/eda_mentor/qverilog.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| eda_mentor | `qvhdl` | `rust/tcl-registry/src/commands/eda_mentor/qvhdl.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| eda_mentor | `qwave` | `rust/tcl-registry/src/commands/eda_mentor/qwave.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| eda_mentor | `readers` | `rust/tcl-registry/src/commands/eda_mentor/readers.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| eda_mentor | `release` | `rust/tcl-registry/src/commands/eda_mentor/release.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| eda_mentor | `restart` | `rust/tcl-registry/src/commands/eda_mentor/restart.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| eda_mentor | `resume` | `rust/tcl-registry/src/commands/eda_mentor/resume.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| eda_mentor | `run` | `rust/tcl-registry/src/commands/eda_mentor/run.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| eda_mentor | `signal_force` | `rust/tcl-registry/src/commands/eda_mentor/signal_force.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| eda_mentor | `signal_release` | `rust/tcl-registry/src/commands/eda_mentor/signal_release.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| eda_mentor | `toggle` | `rust/tcl-registry/src/commands/eda_mentor/toggle.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| eda_mentor | `transcript` | `rust/tcl-registry/src/commands/eda_mentor/transcript.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| eda_mentor | `vcom` | `rust/tcl-registry/src/commands/eda_mentor/vcom.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| eda_mentor | `vcover` | `rust/tcl-registry/src/commands/eda_mentor/vcover.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| eda_mentor | `vdel` | `rust/tcl-registry/src/commands/eda_mentor/vdel.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| eda_mentor | `virtual` | `rust/tcl-registry/src/commands/eda_mentor/virtual_.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| eda_mentor | `vlib` | `rust/tcl-registry/src/commands/eda_mentor/vlib.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| eda_mentor | `vlog` | `rust/tcl-registry/src/commands/eda_mentor/vlog.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| eda_mentor | `vmap` | `rust/tcl-registry/src/commands/eda_mentor/vmap.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| eda_mentor | `vopt` | `rust/tcl-registry/src/commands/eda_mentor/vopt.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| eda_mentor | `vsim` | `rust/tcl-registry/src/commands/eda_mentor/vsim.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| eda_mentor | `wave` | `rust/tcl-registry/src/commands/eda_mentor/wave.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| eda_mentor | `when` | `rust/tcl-registry/src/commands/eda_mentor/when.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| eda_quartus | `check_timing` | `rust/tcl-registry/src/commands/eda_quartus/check_timing.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| eda_quartus | `close_device` | `rust/tcl-registry/src/commands/eda_quartus/close_device.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| eda_quartus | `create_timing_netlist` | `rust/tcl-registry/src/commands/eda_quartus/create_timing_netlist.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| eda_quartus | `delete_timing_netlist` | `rust/tcl-registry/src/commands/eda_quartus/delete_timing_netlist.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| eda_quartus | `derive_clocks` | `rust/tcl-registry/src/commands/eda_quartus/derive_clocks.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| eda_quartus | `derive_pll_clocks` | `rust/tcl-registry/src/commands/eda_quartus/derive_pll_clocks.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| eda_quartus | `device_lock` | `rust/tcl-registry/src/commands/eda_quartus/device_lock.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| eda_quartus | `device_unlock` | `rust/tcl-registry/src/commands/eda_quartus/device_unlock.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| eda_quartus | `execute_flow` | `rust/tcl-registry/src/commands/eda_quartus/execute_flow.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| eda_quartus | `execute_module` | `rust/tcl-registry/src/commands/eda_quartus/execute_module.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| eda_quartus | `export_assignments` | `rust/tcl-registry/src/commands/eda_quartus/export_assignments.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| eda_quartus | `get_all_assignments` | `rust/tcl-registry/src/commands/eda_quartus/get_all_assignments.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| eda_quartus | `get_global_assignment` | `rust/tcl-registry/src/commands/eda_quartus/get_global_assignment.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| eda_quartus | `get_instance_assignment` | `rust/tcl-registry/src/commands/eda_quartus/get_instance_assignment.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| eda_quartus | `get_io_assignment` | `rust/tcl-registry/src/commands/eda_quartus/get_io_assignment.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| eda_quartus | `get_name_info` | `rust/tcl-registry/src/commands/eda_quartus/get_name_info.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| eda_quartus | `get_names` | `rust/tcl-registry/src/commands/eda_quartus/get_names.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| eda_quartus | `get_number_of_columns` | `rust/tcl-registry/src/commands/eda_quartus/get_number_of_columns.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| eda_quartus | `get_number_of_rows` | `rust/tcl-registry/src/commands/eda_quartus/get_number_of_rows.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| eda_quartus | `get_part_info` | `rust/tcl-registry/src/commands/eda_quartus/get_part_info.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| eda_quartus | `get_part_list` | `rust/tcl-registry/src/commands/eda_quartus/get_part_list.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| eda_quartus | `get_report_panel_data` | `rust/tcl-registry/src/commands/eda_quartus/get_report_panel_data.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| eda_quartus | `get_report_panel_id` | `rust/tcl-registry/src/commands/eda_quartus/get_report_panel_id.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| eda_quartus | `get_report_panel_row_index` | `rust/tcl-registry/src/commands/eda_quartus/get_report_panel_row_index.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| eda_quartus | `load_package` | `rust/tcl-registry/src/commands/eda_quartus/load_package.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| eda_quartus | `load_report` | `rust/tcl-registry/src/commands/eda_quartus/load_report.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| eda_quartus | `make_connection` | `rust/tcl-registry/src/commands/eda_quartus/make_connection.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| eda_quartus | `open_device` | `rust/tcl-registry/src/commands/eda_quartus/open_device.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| eda_quartus | `project_close` | `rust/tcl-registry/src/commands/eda_quartus/project_close.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| eda_quartus | `project_exists` | `rust/tcl-registry/src/commands/eda_quartus/project_exists.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| eda_quartus | `project_new` | `rust/tcl-registry/src/commands/eda_quartus/project_new.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| eda_quartus | `project_open` | `rust/tcl-registry/src/commands/eda_quartus/project_open.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| eda_quartus | `read_sdc` | `rust/tcl-registry/src/commands/eda_quartus/read_sdc.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| eda_quartus | `remove_all_assignments` | `rust/tcl-registry/src/commands/eda_quartus/remove_all_assignments.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| eda_quartus | `remove_connection` | `rust/tcl-registry/src/commands/eda_quartus/remove_connection.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| eda_quartus | `rename_node` | `rust/tcl-registry/src/commands/eda_quartus/rename_node.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| eda_quartus | `report_clock_fmax_summary` | `rust/tcl-registry/src/commands/eda_quartus/report_clock_fmax_summary.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| eda_quartus | `report_datasheet` | `rust/tcl-registry/src/commands/eda_quartus/report_datasheet.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| eda_quartus | `report_min_pulse_width` | `rust/tcl-registry/src/commands/eda_quartus/report_min_pulse_width.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| eda_quartus | `report_timing` | `rust/tcl-registry/src/commands/eda_quartus/report_timing.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| eda_quartus | `report_ucp` | `rust/tcl-registry/src/commands/eda_quartus/report_ucp.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| eda_quartus | `save_report` | `rust/tcl-registry/src/commands/eda_quartus/save_report.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| eda_quartus | `set_global_assignment` | `rust/tcl-registry/src/commands/eda_quartus/set_global_assignment.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| eda_quartus | `set_instance_assignment` | `rust/tcl-registry/src/commands/eda_quartus/set_instance_assignment.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| eda_quartus | `set_io_assignment` | `rust/tcl-registry/src/commands/eda_quartus/set_io_assignment.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| eda_quartus | `set_location_assignment` | `rust/tcl-registry/src/commands/eda_quartus/set_location_assignment.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| eda_quartus | `set_parameter` | `rust/tcl-registry/src/commands/eda_quartus/set_parameter.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| eda_quartus | `update_timing_netlist` | `rust/tcl-registry/src/commands/eda_quartus/update_timing_netlist.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| eda_synopsys | `analyze` | `rust/tcl-registry/src/commands/eda_synopsys/analyze.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| eda_synopsys | `characterize` | `rust/tcl-registry/src/commands/eda_synopsys/characterize.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| eda_synopsys | `check_design` | `rust/tcl-registry/src/commands/eda_synopsys/check_design.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| eda_synopsys | `check_library` | `rust/tcl-registry/src/commands/eda_synopsys/check_library.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| eda_synopsys | `clock_opt` | `rust/tcl-registry/src/commands/eda_synopsys/clock_opt.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| eda_synopsys | `compile` | `rust/tcl-registry/src/commands/eda_synopsys/compile.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| eda_synopsys | `compile_ultra` | `rust/tcl-registry/src/commands/eda_synopsys/compile_ultra.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| eda_synopsys | `connect_net` | `rust/tcl-registry/src/commands/eda_synopsys/connect_net.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| eda_synopsys | `create_cell` | `rust/tcl-registry/src/commands/eda_synopsys/create_cell.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| eda_synopsys | `create_floorplan` | `rust/tcl-registry/src/commands/eda_synopsys/create_floorplan.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| eda_synopsys | `create_net` | `rust/tcl-registry/src/commands/eda_synopsys/create_net.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| eda_synopsys | `create_port` | `rust/tcl-registry/src/commands/eda_synopsys/create_port.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| eda_synopsys | `current_instance` | `rust/tcl-registry/src/commands/eda_synopsys/current_instance.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| eda_synopsys | `disconnect_net` | `rust/tcl-registry/src/commands/eda_synopsys/disconnect_net.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| eda_synopsys | `elaborate` | `rust/tcl-registry/src/commands/eda_synopsys/elaborate.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| eda_synopsys | `get_timing_paths` | `rust/tcl-registry/src/commands/eda_synopsys/get_timing_paths.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| eda_synopsys | `group` | `rust/tcl-registry/src/commands/eda_synopsys/group.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| eda_synopsys | `initialize_floorplan` | `rust/tcl-registry/src/commands/eda_synopsys/initialize_floorplan.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| eda_synopsys | `insert_clock_gating` | `rust/tcl-registry/src/commands/eda_synopsys/insert_clock_gating.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| eda_synopsys | `insert_dft` | `rust/tcl-registry/src/commands/eda_synopsys/insert_dft.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| eda_synopsys | `link` | `rust/tcl-registry/src/commands/eda_synopsys/link.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| eda_synopsys | `match` | `rust/tcl-registry/src/commands/eda_synopsys/match_.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| eda_synopsys | `optimize_netlist` | `rust/tcl-registry/src/commands/eda_synopsys/optimize_netlist.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| eda_synopsys | `place_opt` | `rust/tcl-registry/src/commands/eda_synopsys/place_opt.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| eda_synopsys | `printvar` | `rust/tcl-registry/src/commands/eda_synopsys/printvar.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| eda_synopsys | `read_db` | `rust/tcl-registry/src/commands/eda_synopsys/read_db.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| eda_synopsys | `read_ddc` | `rust/tcl-registry/src/commands/eda_synopsys/read_ddc.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| eda_synopsys | `read_def` | `rust/tcl-registry/src/commands/eda_synopsys/read_def.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| eda_synopsys | `read_file` | `rust/tcl-registry/src/commands/eda_synopsys/read_file.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| eda_synopsys | `read_lef` | `rust/tcl-registry/src/commands/eda_synopsys/read_lef.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| eda_synopsys | `read_sdc` | `rust/tcl-registry/src/commands/eda_synopsys/read_sdc.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| eda_synopsys | `read_verilog` | `rust/tcl-registry/src/commands/eda_synopsys/read_verilog.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| eda_synopsys | `read_vhdl` | `rust/tcl-registry/src/commands/eda_synopsys/read_vhdl.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| eda_synopsys | `remove_cell` | `rust/tcl-registry/src/commands/eda_synopsys/remove_cell.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| eda_synopsys | `remove_design` | `rust/tcl-registry/src/commands/eda_synopsys/remove_design.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| eda_synopsys | `report_analysis_coverage` | `rust/tcl-registry/src/commands/eda_synopsys/report_analysis_coverage.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| eda_synopsys | `report_bottleneck` | `rust/tcl-registry/src/commands/eda_synopsys/report_bottleneck.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| eda_synopsys | `report_cell` | `rust/tcl-registry/src/commands/eda_synopsys/report_cell.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| eda_synopsys | `report_clock_gating` | `rust/tcl-registry/src/commands/eda_synopsys/report_clock_gating.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| eda_synopsys | `report_congestion` | `rust/tcl-registry/src/commands/eda_synopsys/report_congestion.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| eda_synopsys | `report_delay_calculation` | `rust/tcl-registry/src/commands/eda_synopsys/report_delay_calculation.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| eda_synopsys | `report_design` | `rust/tcl-registry/src/commands/eda_synopsys/report_design.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| eda_synopsys | `report_hierarchy` | `rust/tcl-registry/src/commands/eda_synopsys/report_hierarchy.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| eda_synopsys | `report_net` | `rust/tcl-registry/src/commands/eda_synopsys/report_net.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| eda_synopsys | `report_qor` | `rust/tcl-registry/src/commands/eda_synopsys/report_qor.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| eda_synopsys | `report_reference` | `rust/tcl-registry/src/commands/eda_synopsys/report_reference.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| eda_synopsys | `report_status` | `rust/tcl-registry/src/commands/eda_synopsys/report_status.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| eda_synopsys | `route_auto` | `rust/tcl-registry/src/commands/eda_synopsys/route_auto.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| eda_synopsys | `route_opt` | `rust/tcl-registry/src/commands/eda_synopsys/route_opt.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| eda_synopsys | `set_app_var` | `rust/tcl-registry/src/commands/eda_synopsys/set_app_var.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| eda_synopsys | `set_clock_gating_style` | `rust/tcl-registry/src/commands/eda_synopsys/set_clock_gating_style.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| eda_synopsys | `set_host_options` | `rust/tcl-registry/src/commands/eda_synopsys/set_host_options.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| eda_synopsys | `set_implementation_design` | `rust/tcl-registry/src/commands/eda_synopsys/set_implementation_design.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| eda_synopsys | `set_operating_conditions` | `rust/tcl-registry/src/commands/eda_synopsys/set_operating_conditions.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| eda_synopsys | `set_reference_design` | `rust/tcl-registry/src/commands/eda_synopsys/set_reference_design.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| eda_synopsys | `set_scan_configuration` | `rust/tcl-registry/src/commands/eda_synopsys/set_scan_configuration.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| eda_synopsys | `set_technology` | `rust/tcl-registry/src/commands/eda_synopsys/set_technology.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| eda_synopsys | `size_cell` | `rust/tcl-registry/src/commands/eda_synopsys/size_cell.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| eda_synopsys | `swap_cell` | `rust/tcl-registry/src/commands/eda_synopsys/swap_cell.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| eda_synopsys | `ungroup` | `rust/tcl-registry/src/commands/eda_synopsys/ungroup.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| eda_synopsys | `uniquify` | `rust/tcl-registry/src/commands/eda_synopsys/uniquify.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| eda_synopsys | `update_timing` | `rust/tcl-registry/src/commands/eda_synopsys/update_timing.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| eda_synopsys | `verify` | `rust/tcl-registry/src/commands/eda_synopsys/verify.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| eda_synopsys | `write` | `rust/tcl-registry/src/commands/eda_synopsys/write.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| eda_synopsys | `write_def` | `rust/tcl-registry/src/commands/eda_synopsys/write_def.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| eda_synopsys | `write_file` | `rust/tcl-registry/src/commands/eda_synopsys/write_file.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| eda_synopsys | `write_gds` | `rust/tcl-registry/src/commands/eda_synopsys/write_gds.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| eda_synopsys | `write_sdc` | `rust/tcl-registry/src/commands/eda_synopsys/write_sdc.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| eda_xilinx | `apply_bd_automation` | `rust/tcl-registry/src/commands/eda_xilinx/apply_bd_automation.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| eda_xilinx | `close_hw_manager` | `rust/tcl-registry/src/commands/eda_xilinx/close_hw_manager.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| eda_xilinx | `close_project` | `rust/tcl-registry/src/commands/eda_xilinx/close_project.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| eda_xilinx | `close_sim` | `rust/tcl-registry/src/commands/eda_xilinx/close_sim.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| eda_xilinx | `config_ip_cache` | `rust/tcl-registry/src/commands/eda_xilinx/config_ip_cache.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| eda_xilinx | `connect_bd_intf_net` | `rust/tcl-registry/src/commands/eda_xilinx/connect_bd_intf_net.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| eda_xilinx | `connect_bd_net` | `rust/tcl-registry/src/commands/eda_xilinx/connect_bd_net.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| eda_xilinx | `connect_hw_server` | `rust/tcl-registry/src/commands/eda_xilinx/connect_hw_server.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| eda_xilinx | `create_bd_cell` | `rust/tcl-registry/src/commands/eda_xilinx/create_bd_cell.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| eda_xilinx | `create_bd_design` | `rust/tcl-registry/src/commands/eda_xilinx/create_bd_design.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| eda_xilinx | `create_bd_intf_port` | `rust/tcl-registry/src/commands/eda_xilinx/create_bd_intf_port.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| eda_xilinx | `create_bd_port` | `rust/tcl-registry/src/commands/eda_xilinx/create_bd_port.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| eda_xilinx | `create_ip` | `rust/tcl-registry/src/commands/eda_xilinx/create_ip.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| eda_xilinx | `create_project` | `rust/tcl-registry/src/commands/eda_xilinx/create_project.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| eda_xilinx | `create_run` | `rust/tcl-registry/src/commands/eda_xilinx/create_run.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| eda_xilinx | `current_project` | `rust/tcl-registry/src/commands/eda_xilinx/current_project.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| eda_xilinx | `generate_target` | `rust/tcl-registry/src/commands/eda_xilinx/generate_target.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| eda_xilinx | `get_ips` | `rust/tcl-registry/src/commands/eda_xilinx/get_ips.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| eda_xilinx | `get_projects` | `rust/tcl-registry/src/commands/eda_xilinx/get_projects.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| eda_xilinx | `get_property` | `rust/tcl-registry/src/commands/eda_xilinx/get_property.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| eda_xilinx | `get_runs` | `rust/tcl-registry/src/commands/eda_xilinx/get_runs.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| eda_xilinx | `import_ip` | `rust/tcl-registry/src/commands/eda_xilinx/import_ip.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| eda_xilinx | `ipx::add_bus_interface` | `rust/tcl-registry/src/commands/eda_xilinx/ipx__add_bus_interface.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| eda_xilinx | `ipx::package_project` | `rust/tcl-registry/src/commands/eda_xilinx/ipx__package_project.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| eda_xilinx | `launch_runs` | `rust/tcl-registry/src/commands/eda_xilinx/launch_runs.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| eda_xilinx | `launch_simulation` | `rust/tcl-registry/src/commands/eda_xilinx/launch_simulation.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| eda_xilinx | `open_bd_design` | `rust/tcl-registry/src/commands/eda_xilinx/open_bd_design.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| eda_xilinx | `open_checkpoint` | `rust/tcl-registry/src/commands/eda_xilinx/open_checkpoint.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| eda_xilinx | `open_hw_manager` | `rust/tcl-registry/src/commands/eda_xilinx/open_hw_manager.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| eda_xilinx | `open_hw_target` | `rust/tcl-registry/src/commands/eda_xilinx/open_hw_target.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| eda_xilinx | `open_project` | `rust/tcl-registry/src/commands/eda_xilinx/open_project.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| eda_xilinx | `open_run` | `rust/tcl-registry/src/commands/eda_xilinx/open_run.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| eda_xilinx | `opt_design` | `rust/tcl-registry/src/commands/eda_xilinx/opt_design.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| eda_xilinx | `phys_opt_design` | `rust/tcl-registry/src/commands/eda_xilinx/phys_opt_design.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| eda_xilinx | `place_design` | `rust/tcl-registry/src/commands/eda_xilinx/place_design.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| eda_xilinx | `program_hw_devices` | `rust/tcl-registry/src/commands/eda_xilinx/program_hw_devices.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| eda_xilinx | `read_checkpoint` | `rust/tcl-registry/src/commands/eda_xilinx/read_checkpoint.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| eda_xilinx | `read_edif` | `rust/tcl-registry/src/commands/eda_xilinx/read_edif.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| eda_xilinx | `read_ip` | `rust/tcl-registry/src/commands/eda_xilinx/read_ip.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| eda_xilinx | `read_verilog` | `rust/tcl-registry/src/commands/eda_xilinx/read_verilog.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| eda_xilinx | `read_vhdl` | `rust/tcl-registry/src/commands/eda_xilinx/read_vhdl.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| eda_xilinx | `read_xdc` | `rust/tcl-registry/src/commands/eda_xilinx/read_xdc.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| eda_xilinx | `report_clock_networks` | `rust/tcl-registry/src/commands/eda_xilinx/report_clock_networks.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| eda_xilinx | `report_clock_utilization` | `rust/tcl-registry/src/commands/eda_xilinx/report_clock_utilization.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| eda_xilinx | `report_design_analysis` | `rust/tcl-registry/src/commands/eda_xilinx/report_design_analysis.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| eda_xilinx | `report_drc` | `rust/tcl-registry/src/commands/eda_xilinx/report_drc.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| eda_xilinx | `report_io` | `rust/tcl-registry/src/commands/eda_xilinx/report_io.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| eda_xilinx | `report_methodology` | `rust/tcl-registry/src/commands/eda_xilinx/report_methodology.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| eda_xilinx | `report_power` | `rust/tcl-registry/src/commands/eda_xilinx/report_power.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| eda_xilinx | `report_route_status` | `rust/tcl-registry/src/commands/eda_xilinx/report_route_status.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| eda_xilinx | `report_timing` | `rust/tcl-registry/src/commands/eda_xilinx/report_timing.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| eda_xilinx | `report_timing_summary` | `rust/tcl-registry/src/commands/eda_xilinx/report_timing_summary.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| eda_xilinx | `report_utilization` | `rust/tcl-registry/src/commands/eda_xilinx/report_utilization.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| eda_xilinx | `reset_run` | `rust/tcl-registry/src/commands/eda_xilinx/reset_run.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| eda_xilinx | `route_design` | `rust/tcl-registry/src/commands/eda_xilinx/route_design.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| eda_xilinx | `save_bd_design` | `rust/tcl-registry/src/commands/eda_xilinx/save_bd_design.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| eda_xilinx | `save_project_as` | `rust/tcl-registry/src/commands/eda_xilinx/save_project_as.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| eda_xilinx | `set_property` | `rust/tcl-registry/src/commands/eda_xilinx/set_property.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| eda_xilinx | `synth_design` | `rust/tcl-registry/src/commands/eda_xilinx/synth_design.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| eda_xilinx | `upgrade_ip` | `rust/tcl-registry/src/commands/eda_xilinx/upgrade_ip.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| eda_xilinx | `validate_bd_design` | `rust/tcl-registry/src/commands/eda_xilinx/validate_bd_design.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| eda_xilinx | `wait_on_run` | `rust/tcl-registry/src/commands/eda_xilinx/wait_on_run.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| eda_xilinx | `write_bitstream` | `rust/tcl-registry/src/commands/eda_xilinx/write_bitstream.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| eda_xilinx | `write_checkpoint` | `rust/tcl-registry/src/commands/eda_xilinx/write_checkpoint.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| expect | `close` | `rust/tcl-registry/src/commands/expect/close.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| expect | `debug` | `rust/tcl-registry/src/commands/expect/debug.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| expect | `disconnect` | `rust/tcl-registry/src/commands/expect/disconnect.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| expect | `exit` | `rust/tcl-registry/src/commands/expect/exit.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| expect | `exp_continue` | `rust/tcl-registry/src/commands/expect/exp_continue.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| expect | `exp_internal` | `rust/tcl-registry/src/commands/expect/exp_internal.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| expect | `exp_pid` | `rust/tcl-registry/src/commands/expect/exp_pid.rs` | — | ✓ | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| expect | `exp_version` | `rust/tcl-registry/src/commands/expect/exp_version.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| expect | `expect_after` | `rust/tcl-registry/src/commands/expect/expect_after.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| expect | `expect_background` | `rust/tcl-registry/src/commands/expect/expect_background.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| expect | `expect_before` | `rust/tcl-registry/src/commands/expect/expect_before.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| expect | `expect` | `rust/tcl-registry/src/commands/expect/expect_cmd.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| expect | `expect_tty` | `rust/tcl-registry/src/commands/expect/expect_tty.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| expect | `expect_user` | `rust/tcl-registry/src/commands/expect/expect_user.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| expect | `fork` | `rust/tcl-registry/src/commands/expect/fork.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| expect | `interact` | `rust/tcl-registry/src/commands/expect/interact.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| expect | `log_file` | `rust/tcl-registry/src/commands/expect/log_file.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| expect | `log_user` | `rust/tcl-registry/src/commands/expect/log_user.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| expect | `match_max` | `rust/tcl-registry/src/commands/expect/match_max.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| expect | `overlay` | `rust/tcl-registry/src/commands/expect/overlay.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| expect | `parity` | `rust/tcl-registry/src/commands/expect/parity.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| expect | `remove_nulls` | `rust/tcl-registry/src/commands/expect/remove_nulls.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| expect | `send` | `rust/tcl-registry/src/commands/expect/send.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| expect | `send_error` | `rust/tcl-registry/src/commands/expect/send_error.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| expect | `send_log` | `rust/tcl-registry/src/commands/expect/send_log.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| expect | `send_tty` | `rust/tcl-registry/src/commands/expect/send_tty.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| expect | `send_user` | `rust/tcl-registry/src/commands/expect/send_user.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| expect | `sleep` | `rust/tcl-registry/src/commands/expect/sleep.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| expect | `spawn` | `rust/tcl-registry/src/commands/expect/spawn.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| expect | `strace` | `rust/tcl-registry/src/commands/expect/strace.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| expect | `stty` | `rust/tcl-registry/src/commands/expect/stty.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| expect | `system` | `rust/tcl-registry/src/commands/expect/system.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| expect | `timestamp` | `rust/tcl-registry/src/commands/expect/timestamp.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| expect | `trap` | `rust/tcl-registry/src/commands/expect/trap.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| expect | `wait` | `rust/tcl-registry/src/commands/expect/wait.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| iapps | `iapp::apm_config` | `rust/tcl-registry/src/commands/iapps/iapp__apm_config.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| iapps | `iapp::conf` | `rust/tcl-registry/src/commands/iapps/iapp__conf.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| iapps | `iapp::debug` | `rust/tcl-registry/src/commands/iapps/iapp__debug.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| iapps | `iapp::destination` | `rust/tcl-registry/src/commands/iapps/iapp__destination.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| iapps | `iapp::downgrade` | `rust/tcl-registry/src/commands/iapps/iapp__downgrade.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| iapps | `iapp::downgrade_template` | `rust/tcl-registry/src/commands/iapps/iapp__downgrade_template.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| iapps | `iapp::get_items` | `rust/tcl-registry/src/commands/iapps/iapp__get_items.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| iapps | `iapp::is` | `rust/tcl-registry/src/commands/iapps/iapp__is.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| iapps | `iapp::make_safe_password` | `rust/tcl-registry/src/commands/iapps/iapp__make_safe_password.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| iapps | `iapp::pool_members` | `rust/tcl-registry/src/commands/iapps/iapp__pool_members.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| iapps | `iapp::substa` | `rust/tcl-registry/src/commands/iapps/iapp__substa.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| iapps | `iapp::template` | `rust/tcl-registry/src/commands/iapps/iapp__template.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| iapps | `iapp::tmos_version` | `rust/tcl-registry/src/commands/iapps/iapp__tmos_version.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| iapps | `iapp::upgrade` | `rust/tcl-registry/src/commands/iapps/iapp__upgrade.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| iapps | `iapp::upgrade_template` | `rust/tcl-registry/src/commands/iapps/iapp__upgrade_template.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| iapps | `script::help` | `rust/tcl-registry/src/commands/iapps/script__help.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| iapps | `script::init` | `rust/tcl-registry/src/commands/iapps/script__init.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| iapps | `script::run` | `rust/tcl-registry/src/commands/iapps/script__run.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| iapps | `script::tabc` | `rust/tcl-registry/src/commands/iapps/script__tabc.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| iapps | `tmsh::add_help` | `rust/tcl-registry/src/commands/iapps/tmsh__add_help.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| iapps | `tmsh::add_tabc` | `rust/tcl-registry/src/commands/iapps/tmsh__add_tabc.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| iapps | `tmsh::begin_transaction` | `rust/tcl-registry/src/commands/iapps/tmsh__begin_transaction.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| iapps | `tmsh::builtin_help` | `rust/tcl-registry/src/commands/iapps/tmsh__builtin_help.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| iapps | `tmsh::builtin_tabc` | `rust/tcl-registry/src/commands/iapps/tmsh__builtin_tabc.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| iapps | `tmsh::cancel_transaction` | `rust/tcl-registry/src/commands/iapps/tmsh__cancel_transaction.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| iapps | `tmsh::cd` | `rust/tcl-registry/src/commands/iapps/tmsh__cd.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| iapps | `tmsh::clear_screen` | `rust/tcl-registry/src/commands/iapps/tmsh__clear_screen.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| iapps | `tmsh::commit_transaction` | `rust/tcl-registry/src/commands/iapps/tmsh__commit_transaction.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| iapps | `tmsh::create` | `rust/tcl-registry/src/commands/iapps/tmsh__create.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| iapps | `tmsh::delete` | `rust/tcl-registry/src/commands/iapps/tmsh__delete.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| iapps | `tmsh::display` | `rust/tcl-registry/src/commands/iapps/tmsh__display.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| iapps | `tmsh::display_threshold` | `rust/tcl-registry/src/commands/iapps/tmsh__display_threshold.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| iapps | `tmsh::get_config` | `rust/tcl-registry/src/commands/iapps/tmsh__get_config.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| iapps | `tmsh::get_field_names` | `rust/tcl-registry/src/commands/iapps/tmsh__get_field_names.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| iapps | `tmsh::get_field_value` | `rust/tcl-registry/src/commands/iapps/tmsh__get_field_value.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| iapps | `tmsh::get_name` | `rust/tcl-registry/src/commands/iapps/tmsh__get_name.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| iapps | `tmsh::get_status` | `rust/tcl-registry/src/commands/iapps/tmsh__get_status.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| iapps | `tmsh::get_type` | `rust/tcl-registry/src/commands/iapps/tmsh__get_type.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| iapps | `tmsh::include` | `rust/tcl-registry/src/commands/iapps/tmsh__include.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| iapps | `tmsh::list` | `rust/tcl-registry/src/commands/iapps/tmsh__list.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| iapps | `tmsh::log` | `rust/tcl-registry/src/commands/iapps/tmsh__log.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| iapps | `tmsh::log_dest` | `rust/tcl-registry/src/commands/iapps/tmsh__log_dest.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| iapps | `tmsh::log_level` | `rust/tcl-registry/src/commands/iapps/tmsh__log_level.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| iapps | `tmsh::modify` | `rust/tcl-registry/src/commands/iapps/tmsh__modify.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| iapps | `tmsh::pwd` | `rust/tcl-registry/src/commands/iapps/tmsh__pwd.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| iapps | `tmsh::reset_stats` | `rust/tcl-registry/src/commands/iapps/tmsh__reset_stats.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| iapps | `tmsh::show` | `rust/tcl-registry/src/commands/iapps/tmsh__show.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| iapps | `tmsh::stateless` | `rust/tcl-registry/src/commands/iapps/tmsh__stateless.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| iapps | `tmsh::version` | `rust/tcl-registry/src/commands/iapps/tmsh__version.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `AAA::acct_result` | `rust/tcl-registry/src/commands/irules/aaa__acct_result.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `AAA::acct_send` | `rust/tcl-registry/src/commands/irules/aaa__acct_send.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `AAA::auth_result` | `rust/tcl-registry/src/commands/irules/aaa__auth_result.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `AAA::auth_send` | `rust/tcl-registry/src/commands/irules/aaa__auth_send.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `ACCESS2::access2_proc` | `rust/tcl-registry/src/commands/irules/access2__access2_proc.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `ACCESS::acl` | `rust/tcl-registry/src/commands/irules/access__acl.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `ACCESS::disable` | `rust/tcl-registry/src/commands/irules/access__disable.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `ACCESS::enable` | `rust/tcl-registry/src/commands/irules/access__enable.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `ACCESS::ephemeral-auth` | `rust/tcl-registry/src/commands/irules/access__ephemeral_auth.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `ACCESS::flowid` | `rust/tcl-registry/src/commands/irules/access__flowid.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `ACCESS::log` | `rust/tcl-registry/src/commands/irules/access__log.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `ACCESS::oauth` | `rust/tcl-registry/src/commands/irules/access__oauth.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `ACCESS::perflow` | `rust/tcl-registry/src/commands/irules/access__perflow.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `ACCESS::policy` | `rust/tcl-registry/src/commands/irules/access__policy.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `ACCESS::respond` | `rust/tcl-registry/src/commands/irules/access__respond.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `ACCESS::restrict_irule_events` | `rust/tcl-registry/src/commands/irules/access__restrict_irule_events.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `ACCESS::saml` | `rust/tcl-registry/src/commands/irules/access__saml.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `ACCESS::session` | `rust/tcl-registry/src/commands/irules/access__session.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `ACCESS::user` | `rust/tcl-registry/src/commands/irules/access__user.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `ACCESS::uuid` | `rust/tcl-registry/src/commands/irules/access__uuid.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `accumulate` | `rust/tcl-registry/src/commands/irules/accumulate.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `ACL::action` | `rust/tcl-registry/src/commands/irules/acl__action.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `ACL::eval` | `rust/tcl-registry/src/commands/irules/acl__eval.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `active_members` | `rust/tcl-registry/src/commands/irules/active_members.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `active_nodes` | `rust/tcl-registry/src/commands/irules/active_nodes.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `ADAPT::allow` | `rust/tcl-registry/src/commands/irules/adapt__allow.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `ADAPT::context_create` | `rust/tcl-registry/src/commands/irules/adapt__context_create.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `ADAPT::context_current` | `rust/tcl-registry/src/commands/irules/adapt__context_current.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `ADAPT::context_delete_all` | `rust/tcl-registry/src/commands/irules/adapt__context_delete_all.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `ADAPT::context_name` | `rust/tcl-registry/src/commands/irules/adapt__context_name.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `ADAPT::context_static` | `rust/tcl-registry/src/commands/irules/adapt__context_static.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `ADAPT::enable` | `rust/tcl-registry/src/commands/irules/adapt__enable.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `ADAPT::preview_size` | `rust/tcl-registry/src/commands/irules/adapt__preview_size.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `ADAPT::result` | `rust/tcl-registry/src/commands/irules/adapt__result.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `ADAPT::select` | `rust/tcl-registry/src/commands/irules/adapt__select.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `ADAPT::service_down_action` | `rust/tcl-registry/src/commands/irules/adapt__service_down_action.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `ADAPT::timeout` | `rust/tcl-registry/src/commands/irules/adapt__timeout.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `AES::decrypt` | `rust/tcl-registry/src/commands/irules/aes__decrypt.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `AES::encrypt` | `rust/tcl-registry/src/commands/irules/aes__encrypt.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `AES::key` | `rust/tcl-registry/src/commands/irules/aes__key.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `after` | `rust/tcl-registry/src/commands/irules/after.rs` | — | ✓ | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `AM::age` | `rust/tcl-registry/src/commands/irules/am__age.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `AM::application` | `rust/tcl-registry/src/commands/irules/am__application.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `AM::cache` | `rust/tcl-registry/src/commands/irules/am__cache.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `AM::disable` | `rust/tcl-registry/src/commands/irules/am__disable.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `AM::expires` | `rust/tcl-registry/src/commands/irules/am__expires.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `AM::media_playlist` | `rust/tcl-registry/src/commands/irules/am__media_playlist.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `AM::policy_node` | `rust/tcl-registry/src/commands/irules/am__policy_node.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `ANTIFRAUD::alert_additional_info` | `rust/tcl-registry/src/commands/irules/antifraud__alert_additional_info.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `ANTIFRAUD::alert_bait_signatures` | `rust/tcl-registry/src/commands/irules/antifraud__alert_bait_signatures.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `ANTIFRAUD::alert_component` | `rust/tcl-registry/src/commands/irules/antifraud__alert_component.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `ANTIFRAUD::alert_defined_value` | `rust/tcl-registry/src/commands/irules/antifraud__alert_defined_value.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `ANTIFRAUD::alert_details` | `rust/tcl-registry/src/commands/irules/antifraud__alert_details.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `ANTIFRAUD::alert_device_id` | `rust/tcl-registry/src/commands/irules/antifraud__alert_device_id.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `ANTIFRAUD::alert_expected_value` | `rust/tcl-registry/src/commands/irules/antifraud__alert_expected_value.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `ANTIFRAUD::alert_fingerprint` | `rust/tcl-registry/src/commands/irules/antifraud__alert_fingerprint.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `ANTIFRAUD::alert_forbidden_added_element` | `rust/tcl-registry/src/commands/irules/antifraud__alert_forbidden_added_element.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `ANTIFRAUD::alert_guid` | `rust/tcl-registry/src/commands/irules/antifraud__alert_guid.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `ANTIFRAUD::alert_html` | `rust/tcl-registry/src/commands/irules/antifraud__alert_html.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `ANTIFRAUD::alert_http_referrer` | `rust/tcl-registry/src/commands/irules/antifraud__alert_http_referrer.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `ANTIFRAUD::alert_id` | `rust/tcl-registry/src/commands/irules/antifraud__alert_id.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `ANTIFRAUD::alert_license_id` | `rust/tcl-registry/src/commands/irules/antifraud__alert_license_id.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `ANTIFRAUD::alert_min` | `rust/tcl-registry/src/commands/irules/antifraud__alert_min.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `ANTIFRAUD::alert_origin` | `rust/tcl-registry/src/commands/irules/antifraud__alert_origin.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `ANTIFRAUD::alert_resolved_value` | `rust/tcl-registry/src/commands/irules/antifraud__alert_resolved_value.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `ANTIFRAUD::alert_score` | `rust/tcl-registry/src/commands/irules/antifraud__alert_score.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `ANTIFRAUD::alert_transaction_data` | `rust/tcl-registry/src/commands/irules/antifraud__alert_transaction_data.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `ANTIFRAUD::alert_transaction_id` | `rust/tcl-registry/src/commands/irules/antifraud__alert_transaction_id.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `ANTIFRAUD::alert_type` | `rust/tcl-registry/src/commands/irules/antifraud__alert_type.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `ANTIFRAUD::alert_username` | `rust/tcl-registry/src/commands/irules/antifraud__alert_username.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `ANTIFRAUD::alert_view_id` | `rust/tcl-registry/src/commands/irules/antifraud__alert_view_id.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `ANTIFRAUD::client_id` | `rust/tcl-registry/src/commands/irules/antifraud__client_id.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `ANTIFRAUD::device_id` | `rust/tcl-registry/src/commands/irules/antifraud__device_id.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `ANTIFRAUD::disable` | `rust/tcl-registry/src/commands/irules/antifraud__disable.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `ANTIFRAUD::disable_alert` | `rust/tcl-registry/src/commands/irules/antifraud__disable_alert.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `ANTIFRAUD::disable_app_layer_encryption` | `rust/tcl-registry/src/commands/irules/antifraud__disable_app_layer_encryption.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `ANTIFRAUD::disable_auto_transactions` | `rust/tcl-registry/src/commands/irules/antifraud__disable_auto_transactions.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `ANTIFRAUD::disable_injection` | `rust/tcl-registry/src/commands/irules/antifraud__disable_injection.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `ANTIFRAUD::disable_malware` | `rust/tcl-registry/src/commands/irules/antifraud__disable_malware.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `ANTIFRAUD::disable_phishing` | `rust/tcl-registry/src/commands/irules/antifraud__disable_phishing.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `ANTIFRAUD::enable` | `rust/tcl-registry/src/commands/irules/antifraud__enable.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `ANTIFRAUD::enable_log` | `rust/tcl-registry/src/commands/irules/antifraud__enable_log.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `ANTIFRAUD::fingerprint` | `rust/tcl-registry/src/commands/irules/antifraud__fingerprint.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `ANTIFRAUD::geo` | `rust/tcl-registry/src/commands/irules/antifraud__geo.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `ANTIFRAUD::guid` | `rust/tcl-registry/src/commands/irules/antifraud__guid.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `ANTIFRAUD::result` | `rust/tcl-registry/src/commands/irules/antifraud__result.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `ANTIFRAUD::username` | `rust/tcl-registry/src/commands/irules/antifraud__username.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `ASM::captcha` | `rust/tcl-registry/src/commands/irules/asm__captcha.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `ASM::captcha_age` | `rust/tcl-registry/src/commands/irules/asm__captcha_age.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `ASM::captcha_status` | `rust/tcl-registry/src/commands/irules/asm__captcha_status.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `ASM::client_ip` | `rust/tcl-registry/src/commands/irules/asm__client_ip.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `ASM::conviction` | `rust/tcl-registry/src/commands/irules/asm__conviction.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `ASM::deception` | `rust/tcl-registry/src/commands/irules/asm__deception.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `ASM::disable` | `rust/tcl-registry/src/commands/irules/asm__disable.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `ASM::enable` | `rust/tcl-registry/src/commands/irules/asm__enable.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `ASM::fingerprint` | `rust/tcl-registry/src/commands/irules/asm__fingerprint.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `ASM::is_authenticated` | `rust/tcl-registry/src/commands/irules/asm__is_authenticated.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `ASM::login_status` | `rust/tcl-registry/src/commands/irules/asm__login_status.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `ASM::microservice` | `rust/tcl-registry/src/commands/irules/asm__microservice.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `ASM::payload` | `rust/tcl-registry/src/commands/irules/asm__payload.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `ASM::policy` | `rust/tcl-registry/src/commands/irules/asm__policy.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `ASM::raise` | `rust/tcl-registry/src/commands/irules/asm__raise.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `ASM::severity` | `rust/tcl-registry/src/commands/irules/asm__severity.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `ASM::signature` | `rust/tcl-registry/src/commands/irules/asm__signature.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `ASM::status` | `rust/tcl-registry/src/commands/irules/asm__status.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `ASM::support_id` | `rust/tcl-registry/src/commands/irules/asm__support_id.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `ASM::threat_campaign` | `rust/tcl-registry/src/commands/irules/asm__threat_campaign.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `ASM::unblock` | `rust/tcl-registry/src/commands/irules/asm__unblock.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `ASM::uncaptcha` | `rust/tcl-registry/src/commands/irules/asm__uncaptcha.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `ASM::username` | `rust/tcl-registry/src/commands/irules/asm__username.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `ASM::violation` | `rust/tcl-registry/src/commands/irules/asm__violation.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `ASM::violation_data` | `rust/tcl-registry/src/commands/irules/asm__violation_data.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `ASN1::decode` | `rust/tcl-registry/src/commands/irules/asn1__decode.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `ASN1::element` | `rust/tcl-registry/src/commands/irules/asn1__element.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `ASN1::encode` | `rust/tcl-registry/src/commands/irules/asn1__encode.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `AUTH::abort` | `rust/tcl-registry/src/commands/irules/auth__abort.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `AUTH::authenticate` | `rust/tcl-registry/src/commands/irules/auth__authenticate.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `AUTH::authenticate_continue` | `rust/tcl-registry/src/commands/irules/auth__authenticate_continue.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `AUTH::cert_credential` | `rust/tcl-registry/src/commands/irules/auth__cert_credential.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `AUTH::cert_issuer_credential` | `rust/tcl-registry/src/commands/irules/auth__cert_issuer_credential.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `AUTH::last_event_session_id` | `rust/tcl-registry/src/commands/irules/auth__last_event_session_id.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `AUTH::password_credential` | `rust/tcl-registry/src/commands/irules/auth__password_credential.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `AUTH::response_data` | `rust/tcl-registry/src/commands/irules/auth__response_data.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `AUTH::ssl_cc_ldap_status` | `rust/tcl-registry/src/commands/irules/auth__ssl_cc_ldap_status.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `AUTH::ssl_cc_ldap_username` | `rust/tcl-registry/src/commands/irules/auth__ssl_cc_ldap_username.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `AUTH::start` | `rust/tcl-registry/src/commands/irules/auth__start.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `AUTH::status` | `rust/tcl-registry/src/commands/irules/auth__status.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `AUTH::subscribe` | `rust/tcl-registry/src/commands/irules/auth__subscribe.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `AUTH::unsubscribe` | `rust/tcl-registry/src/commands/irules/auth__unsubscribe.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `AUTH::username_credential` | `rust/tcl-registry/src/commands/irules/auth__username_credential.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `AUTH::wantcredential_prompt` | `rust/tcl-registry/src/commands/irules/auth__wantcredential_prompt.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `AUTH::wantcredential_prompt_style` | `rust/tcl-registry/src/commands/irules/auth__wantcredential_prompt_style.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `AUTH::wantcredential_type` | `rust/tcl-registry/src/commands/irules/auth__wantcredential_type.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `AVR::disable` | `rust/tcl-registry/src/commands/irules/avr__disable.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `AVR::disable_cspm_injection` | `rust/tcl-registry/src/commands/irules/avr__disable_cspm_injection.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `AVR::enable` | `rust/tcl-registry/src/commands/irules/avr__enable.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `AVR::log` | `rust/tcl-registry/src/commands/irules/avr__log.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `b64decode` | `rust/tcl-registry/src/commands/irules/b64decode.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `b64encode` | `rust/tcl-registry/src/commands/irules/b64encode.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `BIGPROTO::enable_fix_reset` | `rust/tcl-registry/src/commands/irules/bigproto__enable_fix_reset.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `BIGTCP::release_flow` | `rust/tcl-registry/src/commands/irules/bigtcp__release_flow.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `BOTDEFENSE::action` | `rust/tcl-registry/src/commands/irules/botdefense__action.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `BOTDEFENSE::bot_anomalies` | `rust/tcl-registry/src/commands/irules/botdefense__bot_anomalies.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `BOTDEFENSE::bot_categories` | `rust/tcl-registry/src/commands/irules/botdefense__bot_categories.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `BOTDEFENSE::bot_name` | `rust/tcl-registry/src/commands/irules/botdefense__bot_name.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `BOTDEFENSE::bot_signature` | `rust/tcl-registry/src/commands/irules/botdefense__bot_signature.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `BOTDEFENSE::bot_signature_category` | `rust/tcl-registry/src/commands/irules/botdefense__bot_signature_category.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `BOTDEFENSE::captcha_age` | `rust/tcl-registry/src/commands/irules/botdefense__captcha_age.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `BOTDEFENSE::captcha_status` | `rust/tcl-registry/src/commands/irules/botdefense__captcha_status.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `BOTDEFENSE::client_class` | `rust/tcl-registry/src/commands/irules/botdefense__client_class.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `BOTDEFENSE::client_type` | `rust/tcl-registry/src/commands/irules/botdefense__client_type.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `BOTDEFENSE::cookie_age` | `rust/tcl-registry/src/commands/irules/botdefense__cookie_age.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `BOTDEFENSE::cookie_status` | `rust/tcl-registry/src/commands/irules/botdefense__cookie_status.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `BOTDEFENSE::cs_allowed` | `rust/tcl-registry/src/commands/irules/botdefense__cs_allowed.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `BOTDEFENSE::cs_attribute` | `rust/tcl-registry/src/commands/irules/botdefense__cs_attribute.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `BOTDEFENSE::cs_possible` | `rust/tcl-registry/src/commands/irules/botdefense__cs_possible.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `BOTDEFENSE::device_id` | `rust/tcl-registry/src/commands/irules/botdefense__device_id.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `BOTDEFENSE::disable` | `rust/tcl-registry/src/commands/irules/botdefense__disable.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `BOTDEFENSE::enable` | `rust/tcl-registry/src/commands/irules/botdefense__enable.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `BOTDEFENSE::intent` | `rust/tcl-registry/src/commands/irules/botdefense__intent.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `BOTDEFENSE::micro_service` | `rust/tcl-registry/src/commands/irules/botdefense__micro_service.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `BOTDEFENSE::previous_action` | `rust/tcl-registry/src/commands/irules/botdefense__previous_action.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `BOTDEFENSE::previous_request_age` | `rust/tcl-registry/src/commands/irules/botdefense__previous_request_age.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `BOTDEFENSE::previous_support_id` | `rust/tcl-registry/src/commands/irules/botdefense__previous_support_id.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `BOTDEFENSE::reason` | `rust/tcl-registry/src/commands/irules/botdefense__reason.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `BOTDEFENSE::support_id` | `rust/tcl-registry/src/commands/irules/botdefense__support_id.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `BWC::color` | `rust/tcl-registry/src/commands/irules/bwc__color.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `BWC::debug` | `rust/tcl-registry/src/commands/irules/bwc__debug.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `BWC::mark` | `rust/tcl-registry/src/commands/irules/bwc__mark.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `BWC::measure` | `rust/tcl-registry/src/commands/irules/bwc__measure.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `BWC::policy` | `rust/tcl-registry/src/commands/irules/bwc__policy.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `BWC::pps` | `rust/tcl-registry/src/commands/irules/bwc__pps.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `BWC::priority` | `rust/tcl-registry/src/commands/irules/bwc__priority.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `BWC::rate` | `rust/tcl-registry/src/commands/irules/bwc__rate.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `CACHE::accept_encoding` | `rust/tcl-registry/src/commands/irules/cache__accept_encoding.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `CACHE::age` | `rust/tcl-registry/src/commands/irules/cache__age.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `CACHE::disable` | `rust/tcl-registry/src/commands/irules/cache__disable.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `CACHE::disabled` | `rust/tcl-registry/src/commands/irules/cache__disabled.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `CACHE::enable` | `rust/tcl-registry/src/commands/irules/cache__enable.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `CACHE::expire` | `rust/tcl-registry/src/commands/irules/cache__expire.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `CACHE::fresh` | `rust/tcl-registry/src/commands/irules/cache__fresh.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `CACHE::header` | `rust/tcl-registry/src/commands/irules/cache__header.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `CACHE::headers` | `rust/tcl-registry/src/commands/irules/cache__headers.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `CACHE::hits` | `rust/tcl-registry/src/commands/irules/cache__hits.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `CACHE::payload` | `rust/tcl-registry/src/commands/irules/cache__payload.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `CACHE::priority` | `rust/tcl-registry/src/commands/irules/cache__priority.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `CACHE::statskey` | `rust/tcl-registry/src/commands/irules/cache__statskey.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `CACHE::trace` | `rust/tcl-registry/src/commands/irules/cache__trace.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `CACHE::uri` | `rust/tcl-registry/src/commands/irules/cache__uri.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `CACHE::useragent` | `rust/tcl-registry/src/commands/irules/cache__useragent.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `CACHE::userkey` | `rust/tcl-registry/src/commands/irules/cache__userkey.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `call` | `rust/tcl-registry/src/commands/irules/call.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `CATEGORY::analytics` | `rust/tcl-registry/src/commands/irules/category__analytics.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `CATEGORY::filetype` | `rust/tcl-registry/src/commands/irules/category__filetype.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `CATEGORY::lookup` | `rust/tcl-registry/src/commands/irules/category__lookup.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `CATEGORY::matchtype` | `rust/tcl-registry/src/commands/irules/category__matchtype.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `CATEGORY::result` | `rust/tcl-registry/src/commands/irules/category__result.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `CATEGORY::safesearch` | `rust/tcl-registry/src/commands/irules/category__safesearch.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `check` | `rust/tcl-registry/src/commands/irules/check.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `class` | `rust/tcl-registry/src/commands/irules/class.rs` | — | ✓ | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `CLASSIFICATION::app` | `rust/tcl-registry/src/commands/irules/classification__app.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `CLASSIFICATION::category` | `rust/tcl-registry/src/commands/irules/classification__category.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `CLASSIFICATION::disable` | `rust/tcl-registry/src/commands/irules/classification__disable.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `CLASSIFICATION::enable` | `rust/tcl-registry/src/commands/irules/classification__enable.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `CLASSIFICATION::protocol` | `rust/tcl-registry/src/commands/irules/classification__protocol.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `CLASSIFICATION::result` | `rust/tcl-registry/src/commands/irules/classification__result.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `CLASSIFICATION::urlcat` | `rust/tcl-registry/src/commands/irules/classification__urlcat.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `CLASSIFICATION::username` | `rust/tcl-registry/src/commands/irules/classification__username.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `CLASSIFY::application` | `rust/tcl-registry/src/commands/irules/classify__application.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `CLASSIFY::category` | `rust/tcl-registry/src/commands/irules/classify__category.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `CLASSIFY::defer` | `rust/tcl-registry/src/commands/irules/classify__defer.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `CLASSIFY::disable` | `rust/tcl-registry/src/commands/irules/classify__disable.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `CLASSIFY::urlcat` | `rust/tcl-registry/src/commands/irules/classify__urlcat.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `CLASSIFY::username` | `rust/tcl-registry/src/commands/irules/classify__username.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `client_addr` | `rust/tcl-registry/src/commands/irules/client_addr.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `client_port` | `rust/tcl-registry/src/commands/irules/client_port.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `clientside` | `rust/tcl-registry/src/commands/irules/clientside.rs` | — | ✓ | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `clone` | `rust/tcl-registry/src/commands/irules/clone.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `close` | `rust/tcl-registry/src/commands/irules/close.rs` | — | ✓ | ✓ | — | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `COMPRESS::buffer_size` | `rust/tcl-registry/src/commands/irules/compress__buffer_size.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `COMPRESS::disable` | `rust/tcl-registry/src/commands/irules/compress__disable.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `COMPRESS::enable` | `rust/tcl-registry/src/commands/irules/compress__enable.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `COMPRESS::gzip` | `rust/tcl-registry/src/commands/irules/compress__gzip.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `COMPRESS::method` | `rust/tcl-registry/src/commands/irules/compress__method.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `COMPRESS::nodelay` | `rust/tcl-registry/src/commands/irules/compress__nodelay.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `connect` | `rust/tcl-registry/src/commands/irules/connect.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `CONNECTOR::disable` | `rust/tcl-registry/src/commands/irules/connector__disable.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `CONNECTOR::enable` | `rust/tcl-registry/src/commands/irules/connector__enable.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `CONNECTOR::profile` | `rust/tcl-registry/src/commands/irules/connector__profile.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `CONNECTOR::remap` | `rust/tcl-registry/src/commands/irules/connector__remap.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `cpu` | `rust/tcl-registry/src/commands/irules/cpu.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `crc32` | `rust/tcl-registry/src/commands/irules/crc32.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `CRYPTO::decrypt` | `rust/tcl-registry/src/commands/irules/crypto__decrypt.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `CRYPTO::encrypt` | `rust/tcl-registry/src/commands/irules/crypto__encrypt.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `CRYPTO::hash` | `rust/tcl-registry/src/commands/irules/crypto__hash.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `CRYPTO::keygen` | `rust/tcl-registry/src/commands/irules/crypto__keygen.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `CRYPTO::sign` | `rust/tcl-registry/src/commands/irules/crypto__sign.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `CRYPTO::verify` | `rust/tcl-registry/src/commands/irules/crypto__verify.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `DATAGRAM::dns` | `rust/tcl-registry/src/commands/irules/datagram__dns.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `DATAGRAM::ip` | `rust/tcl-registry/src/commands/irules/datagram__ip.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `DATAGRAM::ip6` | `rust/tcl-registry/src/commands/irules/datagram__ip6.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `DATAGRAM::l2` | `rust/tcl-registry/src/commands/irules/datagram__l2.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `DATAGRAM::tcp` | `rust/tcl-registry/src/commands/irules/datagram__tcp.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `DATAGRAM::udp` | `rust/tcl-registry/src/commands/irules/datagram__udp.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `decode_uri` | `rust/tcl-registry/src/commands/irules/decode_uri.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `DECOMPRESS::disable` | `rust/tcl-registry/src/commands/irules/decompress__disable.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `DECOMPRESS::enable` | `rust/tcl-registry/src/commands/irules/decompress__enable.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `DEMANGLE::disable` | `rust/tcl-registry/src/commands/irules/demangle__disable.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `DEMANGLE::enable` | `rust/tcl-registry/src/commands/irules/demangle__enable.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `DHCP::version` | `rust/tcl-registry/src/commands/irules/dhcp__version.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `DHCPv4::chaddr` | `rust/tcl-registry/src/commands/irules/dhcpv4__chaddr.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `DHCPv4::ciaddr` | `rust/tcl-registry/src/commands/irules/dhcpv4__ciaddr.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `DHCPv4::drop` | `rust/tcl-registry/src/commands/irules/dhcpv4__drop.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `DHCPv4::giaddr` | `rust/tcl-registry/src/commands/irules/dhcpv4__giaddr.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `DHCPv4::hlen` | `rust/tcl-registry/src/commands/irules/dhcpv4__hlen.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `DHCPv4::hops` | `rust/tcl-registry/src/commands/irules/dhcpv4__hops.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `DHCPv4::htype` | `rust/tcl-registry/src/commands/irules/dhcpv4__htype.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `DHCPv4::len` | `rust/tcl-registry/src/commands/irules/dhcpv4__len.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `DHCPv4::opcode` | `rust/tcl-registry/src/commands/irules/dhcpv4__opcode.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `DHCPv4::option` | `rust/tcl-registry/src/commands/irules/dhcpv4__option.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `DHCPv4::reject` | `rust/tcl-registry/src/commands/irules/dhcpv4__reject.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `DHCPv4::secs` | `rust/tcl-registry/src/commands/irules/dhcpv4__secs.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `DHCPv4::siaddr` | `rust/tcl-registry/src/commands/irules/dhcpv4__siaddr.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `DHCPv4::type` | `rust/tcl-registry/src/commands/irules/dhcpv4__type.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `DHCPv4::xid` | `rust/tcl-registry/src/commands/irules/dhcpv4__xid.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `DHCPv4::yiaddr` | `rust/tcl-registry/src/commands/irules/dhcpv4__yiaddr.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `DHCPv6::drop` | `rust/tcl-registry/src/commands/irules/dhcpv6__drop.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `DHCPv6::hop_count` | `rust/tcl-registry/src/commands/irules/dhcpv6__hop_count.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `DHCPv6::len` | `rust/tcl-registry/src/commands/irules/dhcpv6__len.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `DHCPv6::link_address` | `rust/tcl-registry/src/commands/irules/dhcpv6__link_address.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `DHCPv6::msg_type` | `rust/tcl-registry/src/commands/irules/dhcpv6__msg_type.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `DHCPv6::option` | `rust/tcl-registry/src/commands/irules/dhcpv6__option.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `DHCPv6::peer_address` | `rust/tcl-registry/src/commands/irules/dhcpv6__peer_address.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `DHCPv6::reject` | `rust/tcl-registry/src/commands/irules/dhcpv6__reject.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `DHCPv6::transaction_id` | `rust/tcl-registry/src/commands/irules/dhcpv6__transaction_id.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `DIAG::test` | `rust/tcl-registry/src/commands/irules/diag__test.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `DIAMETER::avp` | `rust/tcl-registry/src/commands/irules/diameter__avp.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `DIAMETER::command` | `rust/tcl-registry/src/commands/irules/diameter__command.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `DIAMETER::disconnect` | `rust/tcl-registry/src/commands/irules/diameter__disconnect.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `DIAMETER::drop` | `rust/tcl-registry/src/commands/irules/diameter__drop.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `DIAMETER::dynamic_route_insertion` | `rust/tcl-registry/src/commands/irules/diameter__dynamic_route_insertion.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `DIAMETER::dynamic_route_lookup` | `rust/tcl-registry/src/commands/irules/diameter__dynamic_route_lookup.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `DIAMETER::header` | `rust/tcl-registry/src/commands/irules/diameter__header.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `DIAMETER::host` | `rust/tcl-registry/src/commands/irules/diameter__host.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `DIAMETER::is_request` | `rust/tcl-registry/src/commands/irules/diameter__is_request.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `DIAMETER::is_response` | `rust/tcl-registry/src/commands/irules/diameter__is_response.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `DIAMETER::is_retransmission` | `rust/tcl-registry/src/commands/irules/diameter__is_retransmission.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `DIAMETER::length` | `rust/tcl-registry/src/commands/irules/diameter__length.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `DIAMETER::message` | `rust/tcl-registry/src/commands/irules/diameter__message.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `DIAMETER::payload` | `rust/tcl-registry/src/commands/irules/diameter__payload.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `DIAMETER::persist` | `rust/tcl-registry/src/commands/irules/diameter__persist.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `DIAMETER::realm` | `rust/tcl-registry/src/commands/irules/diameter__realm.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `DIAMETER::respond` | `rust/tcl-registry/src/commands/irules/diameter__respond.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `DIAMETER::result` | `rust/tcl-registry/src/commands/irules/diameter__result.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `DIAMETER::retransmission` | `rust/tcl-registry/src/commands/irules/diameter__retransmission.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `DIAMETER::retransmission_default` | `rust/tcl-registry/src/commands/irules/diameter__retransmission_default.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `DIAMETER::retransmission_reason` | `rust/tcl-registry/src/commands/irules/diameter__retransmission_reason.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `DIAMETER::retransmit` | `rust/tcl-registry/src/commands/irules/diameter__retransmit.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `DIAMETER::retry` | `rust/tcl-registry/src/commands/irules/diameter__retry.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `DIAMETER::route_status` | `rust/tcl-registry/src/commands/irules/diameter__route_status.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `DIAMETER::session` | `rust/tcl-registry/src/commands/irules/diameter__session.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `DIAMETER::skip_capabilities_exchange` | `rust/tcl-registry/src/commands/irules/diameter__skip_capabilities_exchange.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `DIAMETER::state` | `rust/tcl-registry/src/commands/irules/diameter__state.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `discard` | `rust/tcl-registry/src/commands/irules/discard.rs` | — | ✓ | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `DNS::additional` | `rust/tcl-registry/src/commands/irules/dns__additional.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `DNS::answer` | `rust/tcl-registry/src/commands/irules/dns__answer.rs` | — | ✓ | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `DNS::authority` | `rust/tcl-registry/src/commands/irules/dns__authority.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `DNS::class` | `rust/tcl-registry/src/commands/irules/dns__class.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `DNS::disable` | `rust/tcl-registry/src/commands/irules/dns__disable.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `DNS::drop` | `rust/tcl-registry/src/commands/irules/dns__drop.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `DNS::edns0` | `rust/tcl-registry/src/commands/irules/dns__edns0.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `DNS::enable` | `rust/tcl-registry/src/commands/irules/dns__enable.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `DNS::header` | `rust/tcl-registry/src/commands/irules/dns__header.rs` | — | ✓ | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `DNS::is_wideip` | `rust/tcl-registry/src/commands/irules/dns__is_wideip.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `DNS::last_act` | `rust/tcl-registry/src/commands/irules/dns__last_act.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `DNS::len` | `rust/tcl-registry/src/commands/irules/dns__len.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `DNS::log` | `rust/tcl-registry/src/commands/irules/dns__log.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `DNS::name` | `rust/tcl-registry/src/commands/irules/dns__name.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `DNS::origin` | `rust/tcl-registry/src/commands/irules/dns__origin.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `DNS::ptype` | `rust/tcl-registry/src/commands/irules/dns__ptype.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `DNS::query` | `rust/tcl-registry/src/commands/irules/dns__query.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `DNS::question` | `rust/tcl-registry/src/commands/irules/dns__question.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `DNS::rdata` | `rust/tcl-registry/src/commands/irules/dns__rdata.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `DNS::return` | `rust/tcl-registry/src/commands/irules/dns__return.rs` | — | ✓ | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `DNS::rpz_policy` | `rust/tcl-registry/src/commands/irules/dns__rpz_policy.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `DNS::rr` | `rust/tcl-registry/src/commands/irules/dns__rr.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `DNS::scrape` | `rust/tcl-registry/src/commands/irules/dns__scrape.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `DNS::tsig` | `rust/tcl-registry/src/commands/irules/dns__tsig.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `DNS::ttl` | `rust/tcl-registry/src/commands/irules/dns__ttl.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `DNS::type` | `rust/tcl-registry/src/commands/irules/dns__type.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `DNSMSG::header` | `rust/tcl-registry/src/commands/irules/dnsmsg__header.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `DNSMSG::record` | `rust/tcl-registry/src/commands/irules/dnsmsg__record.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `DNSMSG::section` | `rust/tcl-registry/src/commands/irules/dnsmsg__section.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `domain` | `rust/tcl-registry/src/commands/irules/domain.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `DOSL7::disable` | `rust/tcl-registry/src/commands/irules/dosl7__disable.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `DOSL7::enable` | `rust/tcl-registry/src/commands/irules/dosl7__enable.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `DOSL7::health` | `rust/tcl-registry/src/commands/irules/dosl7__health.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `DOSL7::is_ip_slowdown` | `rust/tcl-registry/src/commands/irules/dosl7__is_ip_slowdown.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `DOSL7::is_mitigated` | `rust/tcl-registry/src/commands/irules/dosl7__is_mitigated.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `DOSL7::profile` | `rust/tcl-registry/src/commands/irules/dosl7__profile.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `DOSL7::slowdown` | `rust/tcl-registry/src/commands/irules/dosl7__slowdown.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `drop` | `rust/tcl-registry/src/commands/irules/drop.rs` | — | ✓ | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `DSLITE::remote_addr` | `rust/tcl-registry/src/commands/irules/dslite__remote_addr.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `ECA::client_machine_name` | `rust/tcl-registry/src/commands/irules/eca__client_machine_name.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `ECA::disable` | `rust/tcl-registry/src/commands/irules/eca__disable.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `ECA::domainname` | `rust/tcl-registry/src/commands/irules/eca__domainname.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `ECA::enable` | `rust/tcl-registry/src/commands/irules/eca__enable.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `ECA::select` | `rust/tcl-registry/src/commands/irules/eca__select.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `ECA::status` | `rust/tcl-registry/src/commands/irules/eca__status.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `ECA::username` | `rust/tcl-registry/src/commands/irules/eca__username.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `event` | `rust/tcl-registry/src/commands/irules/event.rs` | — | ✓ | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `fasthash` | `rust/tcl-registry/src/commands/irules/fasthash.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `findclass` | `rust/tcl-registry/src/commands/irules/findclass.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `findstr` | `rust/tcl-registry/src/commands/irules/findstr.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `FIX::tag` | `rust/tcl-registry/src/commands/irules/fix__tag.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `FLOW::create_related` | `rust/tcl-registry/src/commands/irules/flow__create_related.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `FLOW::idle_duration` | `rust/tcl-registry/src/commands/irules/flow__idle_duration.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `FLOW::idle_timeout` | `rust/tcl-registry/src/commands/irules/flow__idle_timeout.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `FLOW::peer` | `rust/tcl-registry/src/commands/irules/flow__peer.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `FLOW::priority` | `rust/tcl-registry/src/commands/irules/flow__priority.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `FLOW::refresh` | `rust/tcl-registry/src/commands/irules/flow__refresh.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `FLOW::this` | `rust/tcl-registry/src/commands/irules/flow__this.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `FLOWTABLE::count` | `rust/tcl-registry/src/commands/irules/flowtable__count.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `FLOWTABLE::limit` | `rust/tcl-registry/src/commands/irules/flowtable__limit.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `forward` | `rust/tcl-registry/src/commands/irules/forward.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `FTP::allow_active_mode` | `rust/tcl-registry/src/commands/irules/ftp__allow_active_mode.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `FTP::disable` | `rust/tcl-registry/src/commands/irules/ftp__disable.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `FTP::enable` | `rust/tcl-registry/src/commands/irules/ftp__enable.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `FTP::enforce_tls_session_reuse` | `rust/tcl-registry/src/commands/irules/ftp__enforce_tls_session_reuse.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `FTP::ftps_mode` | `rust/tcl-registry/src/commands/irules/ftp__ftps_mode.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `FTP::port` | `rust/tcl-registry/src/commands/irules/ftp__port.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `GENERICMESSAGE::message` | `rust/tcl-registry/src/commands/irules/genericmessage__message.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `GENERICMESSAGE::peer` | `rust/tcl-registry/src/commands/irules/genericmessage__peer.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `GENERICMESSAGE::route` | `rust/tcl-registry/src/commands/irules/genericmessage__route.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `getfield` | `rust/tcl-registry/src/commands/irules/getfield.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `GTP::clone` | `rust/tcl-registry/src/commands/irules/gtp__clone.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `GTP::discard` | `rust/tcl-registry/src/commands/irules/gtp__discard.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `GTP::forward` | `rust/tcl-registry/src/commands/irules/gtp__forward.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `GTP::header` | `rust/tcl-registry/src/commands/irules/gtp__header.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `GTP::ie` | `rust/tcl-registry/src/commands/irules/gtp__ie.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `GTP::length` | `rust/tcl-registry/src/commands/irules/gtp__length.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `GTP::message` | `rust/tcl-registry/src/commands/irules/gtp__message.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `GTP::new` | `rust/tcl-registry/src/commands/irules/gtp__new.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `GTP::parse` | `rust/tcl-registry/src/commands/irules/gtp__parse.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `GTP::payload` | `rust/tcl-registry/src/commands/irules/gtp__payload.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `GTP::respond` | `rust/tcl-registry/src/commands/irules/gtp__respond.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `GTP::tunnel` | `rust/tcl-registry/src/commands/irules/gtp__tunnel.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `HA::status` | `rust/tcl-registry/src/commands/irules/ha__status.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `HSL::open` | `rust/tcl-registry/src/commands/irules/hsl__open.rs` | — | ✓ | ✓ | — | — | — | ✓ | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `HSL::send` | `rust/tcl-registry/src/commands/irules/hsl__send.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `HTML::comment` | `rust/tcl-registry/src/commands/irules/html__comment.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `HTML::disable` | `rust/tcl-registry/src/commands/irules/html__disable.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `HTML::enable` | `rust/tcl-registry/src/commands/irules/html__enable.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `HTML::encode` | `rust/tcl-registry/src/commands/irules/html__encode.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `HTML::tag` | `rust/tcl-registry/src/commands/irules/html__tag.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `html_encode` | `rust/tcl-registry/src/commands/irules/html_encode.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `html_escape` | `rust/tcl-registry/src/commands/irules/html_escape.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `htmlencode` | `rust/tcl-registry/src/commands/irules/htmlencode.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `htonl` | `rust/tcl-registry/src/commands/irules/htonl.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `htons` | `rust/tcl-registry/src/commands/irules/htons.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `HTTP2::active` | `rust/tcl-registry/src/commands/irules/http2__active.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `HTTP2::concurrency` | `rust/tcl-registry/src/commands/irules/http2__concurrency.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `HTTP2::disable` | `rust/tcl-registry/src/commands/irules/http2__disable.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `HTTP2::disconnect` | `rust/tcl-registry/src/commands/irules/http2__disconnect.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `HTTP2::enable` | `rust/tcl-registry/src/commands/irules/http2__enable.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `HTTP2::header` | `rust/tcl-registry/src/commands/irules/http2__header.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `HTTP2::push` | `rust/tcl-registry/src/commands/irules/http2__push.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `HTTP2::requests` | `rust/tcl-registry/src/commands/irules/http2__requests.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `HTTP2::stream` | `rust/tcl-registry/src/commands/irules/http2__stream.rs` | — | ✓ | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `HTTP2::version` | `rust/tcl-registry/src/commands/irules/http2__version.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `HTTP::class` | `rust/tcl-registry/src/commands/irules/http__class.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `HTTP::close` | `rust/tcl-registry/src/commands/irules/http__close.rs` | — | ✓ | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `HTTP::collect` | `rust/tcl-registry/src/commands/irules/http__collect.rs` | — | ✓ | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `HTTP::cookie` | `rust/tcl-registry/src/commands/irules/http__cookie.rs` | — | ✓ | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `HTTP::disable` | `rust/tcl-registry/src/commands/irules/http__disable.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `HTTP::enable` | `rust/tcl-registry/src/commands/irules/http__enable.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `HTTP::fallback` | `rust/tcl-registry/src/commands/irules/http__fallback.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `HTTP::has_responded` | `rust/tcl-registry/src/commands/irules/http__has_responded.rs` | — | ✓ | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `HTTP::header` | `rust/tcl-registry/src/commands/irules/http__header.rs` | — | ✓ | ✓ | ✓ | — | — | — | — | ✓ | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `HTTP::host` | `rust/tcl-registry/src/commands/irules/http__host.rs` | — | ✓ | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `HTTP::hsts` | `rust/tcl-registry/src/commands/irules/http__hsts.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `HTTP::is_keepalive` | `rust/tcl-registry/src/commands/irules/http__is_keepalive.rs` | — | ✓ | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `HTTP::is_redirect` | `rust/tcl-registry/src/commands/irules/http__is_redirect.rs` | — | ✓ | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `HTTP::method` | `rust/tcl-registry/src/commands/irules/http__method.rs` | — | ✓ | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `HTTP::passthrough_reason` | `rust/tcl-registry/src/commands/irules/http__passthrough_reason.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `HTTP::password` | `rust/tcl-registry/src/commands/irules/http__password.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `HTTP::path` | `rust/tcl-registry/src/commands/irules/http__path.rs` | — | ✓ | ✓ | ✓ | — | — | — | — | ✓ | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `HTTP::payload` | `rust/tcl-registry/src/commands/irules/http__payload.rs` | — | ✓ | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `HTTP::proxy` | `rust/tcl-registry/src/commands/irules/http__proxy.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `HTTP::query` | `rust/tcl-registry/src/commands/irules/http__query.rs` | — | ✓ | ✓ | ✓ | — | — | — | — | ✓ | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `HTTP::redirect` | `rust/tcl-registry/src/commands/irules/http__redirect.rs` | — | ✓ | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `HTTP::reject_reason` | `rust/tcl-registry/src/commands/irules/http__reject_reason.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `HTTP::release` | `rust/tcl-registry/src/commands/irules/http__release.rs` | — | ✓ | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `HTTP::request` | `rust/tcl-registry/src/commands/irules/http__request.rs` | — | ✓ | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `HTTP::request_num` | `rust/tcl-registry/src/commands/irules/http__request_num.rs` | — | ✓ | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `HTTP::respond` | `rust/tcl-registry/src/commands/irules/http__respond.rs` | — | ✓ | ✓ | ✓ | — | — | — | — | ✓ | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `HTTP::response` | `rust/tcl-registry/src/commands/irules/http__response.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `HTTP::retry` | `rust/tcl-registry/src/commands/irules/http__retry.rs` | — | ✓ | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `HTTP::status` | `rust/tcl-registry/src/commands/irules/http__status.rs` | — | ✓ | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `HTTP::uri` | `rust/tcl-registry/src/commands/irules/http__uri.rs` | — | ✓ | ✓ | ✓ | — | — | — | — | ✓ | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `HTTP::username` | `rust/tcl-registry/src/commands/irules/http__username.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `HTTP::version` | `rust/tcl-registry/src/commands/irules/http__version.rs` | — | ✓ | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `http_client_ip` | `rust/tcl-registry/src/commands/irules/http_client_ip.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `http_content_len_max` | `rust/tcl-registry/src/commands/irules/http_content_len_max.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `http_cookie` | `rust/tcl-registry/src/commands/irules/http_cookie.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `http_header` | `rust/tcl-registry/src/commands/irules/http_header.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `http_host` | `rust/tcl-registry/src/commands/irules/http_host.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `http_method` | `rust/tcl-registry/src/commands/irules/http_method.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `http_uri` | `rust/tcl-registry/src/commands/irules/http_uri.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `http_version` | `rust/tcl-registry/src/commands/irules/http_version.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `HTTPLOG::disable` | `rust/tcl-registry/src/commands/irules/httplog__disable.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `HTTPLOG::enable` | `rust/tcl-registry/src/commands/irules/httplog__enable.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `ICAP::header` | `rust/tcl-registry/src/commands/irules/icap__header.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `ICAP::method` | `rust/tcl-registry/src/commands/irules/icap__method.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `ICAP::status` | `rust/tcl-registry/src/commands/irules/icap__status.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `ICAP::uri` | `rust/tcl-registry/src/commands/irules/icap__uri.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `ifile` | `rust/tcl-registry/src/commands/irules/ifile.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `IKE::auth_success` | `rust/tcl-registry/src/commands/irules/ike__auth_success.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `IKE::cert` | `rust/tcl-registry/src/commands/irules/ike__cert.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `IKE::san_dirname` | `rust/tcl-registry/src/commands/irules/ike__san_dirname.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `IKE::san_dns` | `rust/tcl-registry/src/commands/irules/ike__san_dns.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `IKE::san_ediparty` | `rust/tcl-registry/src/commands/irules/ike__san_ediparty.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `IKE::san_email` | `rust/tcl-registry/src/commands/irules/ike__san_email.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `IKE::san_ipadd` | `rust/tcl-registry/src/commands/irules/ike__san_ipadd.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `IKE::san_othername` | `rust/tcl-registry/src/commands/irules/ike__san_othername.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `IKE::san_rid` | `rust/tcl-registry/src/commands/irules/ike__san_rid.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `IKE::san_uri` | `rust/tcl-registry/src/commands/irules/ike__san_uri.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `IKE::san_x400` | `rust/tcl-registry/src/commands/irules/ike__san_x400.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `IKE::subjectAltName` | `rust/tcl-registry/src/commands/irules/ike__subjectaltname.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `ILX::call` | `rust/tcl-registry/src/commands/irules/ilx__call.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `ILX::init` | `rust/tcl-registry/src/commands/irules/ilx__init.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `ILX::notify` | `rust/tcl-registry/src/commands/irules/ilx__notify.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `IMAP::activation_mode` | `rust/tcl-registry/src/commands/irules/imap__activation_mode.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `IMAP::disable` | `rust/tcl-registry/src/commands/irules/imap__disable.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `IMAP::enable` | `rust/tcl-registry/src/commands/irules/imap__enable.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `imid` | `rust/tcl-registry/src/commands/irules/imid.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `IP::addr` | `rust/tcl-registry/src/commands/irules/ip__addr.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `IP::client_addr` | `rust/tcl-registry/src/commands/irules/ip__client_addr.rs` | — | ✓ | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `IP::hops` | `rust/tcl-registry/src/commands/irules/ip__hops.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `IP::idle_timeout` | `rust/tcl-registry/src/commands/irules/ip__idle_timeout.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `IP::ingress_drop_rate` | `rust/tcl-registry/src/commands/irules/ip__ingress_drop_rate.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `IP::ingress_rate_limit` | `rust/tcl-registry/src/commands/irules/ip__ingress_rate_limit.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `IP::intelligence` | `rust/tcl-registry/src/commands/irules/ip__intelligence.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `IP::local_addr` | `rust/tcl-registry/src/commands/irules/ip__local_addr.rs` | — | ✓ | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `IP::protocol` | `rust/tcl-registry/src/commands/irules/ip__protocol.rs` | — | ✓ | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `IP::remote_addr` | `rust/tcl-registry/src/commands/irules/ip__remote_addr.rs` | — | ✓ | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `IP::reputation` | `rust/tcl-registry/src/commands/irules/ip__reputation.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `IP::server_addr` | `rust/tcl-registry/src/commands/irules/ip__server_addr.rs` | — | ✓ | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `IP::stats` | `rust/tcl-registry/src/commands/irules/ip__stats.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `IP::tos` | `rust/tcl-registry/src/commands/irules/ip__tos.rs` | — | ✓ | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `IP::ttl` | `rust/tcl-registry/src/commands/irules/ip__ttl.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `IP::version` | `rust/tcl-registry/src/commands/irules/ip__version.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `ip_addr` | `rust/tcl-registry/src/commands/irules/ip_addr.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `ip_protocol` | `rust/tcl-registry/src/commands/irules/ip_protocol.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `ip_tos` | `rust/tcl-registry/src/commands/irules/ip_tos.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `ip_ttl` | `rust/tcl-registry/src/commands/irules/ip_ttl.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `IPFIX::destination` | `rust/tcl-registry/src/commands/irules/ipfix__destination.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `IPFIX::msg` | `rust/tcl-registry/src/commands/irules/ipfix__msg.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `IPFIX::template` | `rust/tcl-registry/src/commands/irules/ipfix__template.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `ISESSION::deduplication` | `rust/tcl-registry/src/commands/irules/isession__deduplication.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `ISTATS::get` | `rust/tcl-registry/src/commands/irules/istats__get.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `ISTATS::incr` | `rust/tcl-registry/src/commands/irules/istats__incr.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `ISTATS::remove` | `rust/tcl-registry/src/commands/irules/istats__remove.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `ISTATS::set` | `rust/tcl-registry/src/commands/irules/istats__set.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `IVS_ENTRY::result` | `rust/tcl-registry/src/commands/irules/ivs_entry__result.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `JSON::array` | `rust/tcl-registry/src/commands/irules/json__array.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `JSON::create` | `rust/tcl-registry/src/commands/irules/json__create.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `JSON::get` | `rust/tcl-registry/src/commands/irules/json__get.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `JSON::object` | `rust/tcl-registry/src/commands/irules/json__object.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `JSON::parse` | `rust/tcl-registry/src/commands/irules/json__parse.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `JSON::render` | `rust/tcl-registry/src/commands/irules/json__render.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `JSON::root` | `rust/tcl-registry/src/commands/irules/json__root.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `JSON::set` | `rust/tcl-registry/src/commands/irules/json__set.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `JSON::type` | `rust/tcl-registry/src/commands/irules/json__type.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `L7CHECK::protocol` | `rust/tcl-registry/src/commands/irules/l7check__protocol.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `lasthop` | `rust/tcl-registry/src/commands/irules/lasthop.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `LB::bias` | `rust/tcl-registry/src/commands/irules/lb__bias.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `LB::class` | `rust/tcl-registry/src/commands/irules/lb__class.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `LB::command` | `rust/tcl-registry/src/commands/irules/lb__command.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `LB::connect` | `rust/tcl-registry/src/commands/irules/lb__connect.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `LB::connlimit` | `rust/tcl-registry/src/commands/irules/lb__connlimit.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `LB::context_id` | `rust/tcl-registry/src/commands/irules/lb__context_id.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `LB::detach` | `rust/tcl-registry/src/commands/irules/lb__detach.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `LB::down` | `rust/tcl-registry/src/commands/irules/lb__down.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `LB::dst_tag` | `rust/tcl-registry/src/commands/irules/lb__dst_tag.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `LB::enable_decisionlog` | `rust/tcl-registry/src/commands/irules/lb__enable_decisionlog.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `LB::mode` | `rust/tcl-registry/src/commands/irules/lb__mode.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `LB::persist` | `rust/tcl-registry/src/commands/irules/lb__persist.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `LB::prime` | `rust/tcl-registry/src/commands/irules/lb__prime.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `LB::queue` | `rust/tcl-registry/src/commands/irules/lb__queue.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `LB::reselect` | `rust/tcl-registry/src/commands/irules/lb__reselect.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `LB::select` | `rust/tcl-registry/src/commands/irules/lb__select.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `LB::server` | `rust/tcl-registry/src/commands/irules/lb__server.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `LB::snat` | `rust/tcl-registry/src/commands/irules/lb__snat.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `LB::src_tag` | `rust/tcl-registry/src/commands/irules/lb__src_tag.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `LB::status` | `rust/tcl-registry/src/commands/irules/lb__status.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `LB::up` | `rust/tcl-registry/src/commands/irules/lb__up.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `LDAP::activation_mode` | `rust/tcl-registry/src/commands/irules/ldap__activation_mode.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `LDAP::disable` | `rust/tcl-registry/src/commands/irules/ldap__disable.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `LDAP::enable` | `rust/tcl-registry/src/commands/irules/ldap__enable.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `LINE::get` | `rust/tcl-registry/src/commands/irules/line__get.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `LINE::set` | `rust/tcl-registry/src/commands/irules/line__set.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `LINK::lasthop` | `rust/tcl-registry/src/commands/irules/link__lasthop.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `LINK::nexthop` | `rust/tcl-registry/src/commands/irules/link__nexthop.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `LINK::qos` | `rust/tcl-registry/src/commands/irules/link__qos.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `LINK::vlan_id` | `rust/tcl-registry/src/commands/irules/link__vlan_id.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `link_qos` | `rust/tcl-registry/src/commands/irules/link_qos.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `listen` | `rust/tcl-registry/src/commands/irules/listen.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `llookup` | `rust/tcl-registry/src/commands/irules/llookup.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `local_addr` | `rust/tcl-registry/src/commands/irules/local_addr.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `local_port` | `rust/tcl-registry/src/commands/irules/local_port.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `log` | `rust/tcl-registry/src/commands/irules/log.rs` | — | ✓ | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `LSN::address` | `rust/tcl-registry/src/commands/irules/lsn__address.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `LSN::disable` | `rust/tcl-registry/src/commands/irules/lsn__disable.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `LSN::inbound` | `rust/tcl-registry/src/commands/irules/lsn__inbound.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `LSN::inbound-entry` | `rust/tcl-registry/src/commands/irules/lsn__inbound_entry.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `LSN::persistence` | `rust/tcl-registry/src/commands/irules/lsn__persistence.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `LSN::persistence-entry` | `rust/tcl-registry/src/commands/irules/lsn__persistence_entry.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `LSN::pool` | `rust/tcl-registry/src/commands/irules/lsn__pool.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `LSN::port` | `rust/tcl-registry/src/commands/irules/lsn__port.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `matchclass` | `rust/tcl-registry/src/commands/irules/matchclass.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `md4` | `rust/tcl-registry/src/commands/irules/md4.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `md5` | `rust/tcl-registry/src/commands/irules/md5.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `members` | `rust/tcl-registry/src/commands/irules/members.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `MESSAGE::field` | `rust/tcl-registry/src/commands/irules/message__field.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `MESSAGE::proto` | `rust/tcl-registry/src/commands/irules/message__proto.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `MESSAGE::type` | `rust/tcl-registry/src/commands/irules/message__type.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `MQTT::clean_session` | `rust/tcl-registry/src/commands/irules/mqtt__clean_session.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `MQTT::client_id` | `rust/tcl-registry/src/commands/irules/mqtt__client_id.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `MQTT::collect` | `rust/tcl-registry/src/commands/irules/mqtt__collect.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `MQTT::disable` | `rust/tcl-registry/src/commands/irules/mqtt__disable.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `MQTT::disconnect` | `rust/tcl-registry/src/commands/irules/mqtt__disconnect.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `MQTT::drop` | `rust/tcl-registry/src/commands/irules/mqtt__drop.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `MQTT::dup` | `rust/tcl-registry/src/commands/irules/mqtt__dup.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `MQTT::enable` | `rust/tcl-registry/src/commands/irules/mqtt__enable.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `MQTT::insert` | `rust/tcl-registry/src/commands/irules/mqtt__insert.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `MQTT::keep_alive` | `rust/tcl-registry/src/commands/irules/mqtt__keep_alive.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `MQTT::length` | `rust/tcl-registry/src/commands/irules/mqtt__length.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `MQTT::message` | `rust/tcl-registry/src/commands/irules/mqtt__message.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `MQTT::packet_id` | `rust/tcl-registry/src/commands/irules/mqtt__packet_id.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `MQTT::password` | `rust/tcl-registry/src/commands/irules/mqtt__password.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `MQTT::payload` | `rust/tcl-registry/src/commands/irules/mqtt__payload.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `MQTT::protocol_name` | `rust/tcl-registry/src/commands/irules/mqtt__protocol_name.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `MQTT::protocol_version` | `rust/tcl-registry/src/commands/irules/mqtt__protocol_version.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `MQTT::qos` | `rust/tcl-registry/src/commands/irules/mqtt__qos.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `MQTT::release` | `rust/tcl-registry/src/commands/irules/mqtt__release.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `MQTT::replace` | `rust/tcl-registry/src/commands/irules/mqtt__replace.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `MQTT::respond` | `rust/tcl-registry/src/commands/irules/mqtt__respond.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `MQTT::retain` | `rust/tcl-registry/src/commands/irules/mqtt__retain.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `MQTT::return_code` | `rust/tcl-registry/src/commands/irules/mqtt__return_code.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `MQTT::return_code_list` | `rust/tcl-registry/src/commands/irules/mqtt__return_code_list.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `MQTT::session_present` | `rust/tcl-registry/src/commands/irules/mqtt__session_present.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `MQTT::topic` | `rust/tcl-registry/src/commands/irules/mqtt__topic.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `MQTT::type` | `rust/tcl-registry/src/commands/irules/mqtt__type.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `MQTT::username` | `rust/tcl-registry/src/commands/irules/mqtt__username.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `MQTT::will` | `rust/tcl-registry/src/commands/irules/mqtt__will.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `MR::always_match_port` | `rust/tcl-registry/src/commands/irules/mr__always_match_port.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `MR::available_for_routing` | `rust/tcl-registry/src/commands/irules/mr__available_for_routing.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `MR::collect` | `rust/tcl-registry/src/commands/irules/mr__collect.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `MR::connect_back_port` | `rust/tcl-registry/src/commands/irules/mr__connect_back_port.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `MR::connection_instance` | `rust/tcl-registry/src/commands/irules/mr__connection_instance.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `MR::connection_mode` | `rust/tcl-registry/src/commands/irules/mr__connection_mode.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `MR::equivalent_transport` | `rust/tcl-registry/src/commands/irules/mr__equivalent_transport.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `MR::flow_id` | `rust/tcl-registry/src/commands/irules/mr__flow_id.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `MR::ignore_peer_port` | `rust/tcl-registry/src/commands/irules/mr__ignore_peer_port.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `MR::instance` | `rust/tcl-registry/src/commands/irules/mr__instance.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `MR::max_retries` | `rust/tcl-registry/src/commands/irules/mr__max_retries.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `MR::message` | `rust/tcl-registry/src/commands/irules/mr__message.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `MR::payload` | `rust/tcl-registry/src/commands/irules/mr__payload.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `MR::peer` | `rust/tcl-registry/src/commands/irules/mr__peer.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `MR::prime` | `rust/tcl-registry/src/commands/irules/mr__prime.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `MR::protocol` | `rust/tcl-registry/src/commands/irules/mr__protocol.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `MR::release` | `rust/tcl-registry/src/commands/irules/mr__release.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `MR::restore` | `rust/tcl-registry/src/commands/irules/mr__restore.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `MR::retry` | `rust/tcl-registry/src/commands/irules/mr__retry.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `MR::return` | `rust/tcl-registry/src/commands/irules/mr__return.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `MR::store` | `rust/tcl-registry/src/commands/irules/mr__store.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `MR::stream` | `rust/tcl-registry/src/commands/irules/mr__stream.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `MR::transport` | `rust/tcl-registry/src/commands/irules/mr__transport.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `NAME::lookup` | `rust/tcl-registry/src/commands/irules/name__lookup.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `NAME::response` | `rust/tcl-registry/src/commands/irules/name__response.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `nexthop` | `rust/tcl-registry/src/commands/irules/nexthop.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `node` | `rust/tcl-registry/src/commands/irules/node.rs` | — | ✓ | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `nodes` | `rust/tcl-registry/src/commands/irules/nodes.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `NSH::chain` | `rust/tcl-registry/src/commands/irules/nsh__chain.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `NSH::context` | `rust/tcl-registry/src/commands/irules/nsh__context.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `NSH::md1` | `rust/tcl-registry/src/commands/irules/nsh__md1.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `NSH::mocksf` | `rust/tcl-registry/src/commands/irules/nsh__mocksf.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `NSH::path_id` | `rust/tcl-registry/src/commands/irules/nsh__path_id.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `NSH::service_index` | `rust/tcl-registry/src/commands/irules/nsh__service_index.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `NTLM::disable` | `rust/tcl-registry/src/commands/irules/ntlm__disable.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `NTLM::enable` | `rust/tcl-registry/src/commands/irules/ntlm__enable.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `ntohl` | `rust/tcl-registry/src/commands/irules/ntohl.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `ntohs` | `rust/tcl-registry/src/commands/irules/ntohs.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `OFFBOX::request` | `rust/tcl-registry/src/commands/irules/offbox__request.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `ONECONNECT::detach` | `rust/tcl-registry/src/commands/irules/oneconnect__detach.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `ONECONNECT::label` | `rust/tcl-registry/src/commands/irules/oneconnect__label.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `ONECONNECT::reuse` | `rust/tcl-registry/src/commands/irules/oneconnect__reuse.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `ONECONNECT::select` | `rust/tcl-registry/src/commands/irules/oneconnect__select.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `PCP::reject` | `rust/tcl-registry/src/commands/irules/pcp__reject.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `PCP::request` | `rust/tcl-registry/src/commands/irules/pcp__request.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `PCP::response` | `rust/tcl-registry/src/commands/irules/pcp__response.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `peer` | `rust/tcl-registry/src/commands/irules/peer.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `PEM::disable` | `rust/tcl-registry/src/commands/irules/pem__disable.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `PEM::enable` | `rust/tcl-registry/src/commands/irules/pem__enable.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `PEM::flow` | `rust/tcl-registry/src/commands/irules/pem__flow.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `PEM::session` | `rust/tcl-registry/src/commands/irules/pem__session.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `PEM::subscriber` | `rust/tcl-registry/src/commands/irules/pem__subscriber.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `pem_dtos` | `rust/tcl-registry/src/commands/irules/pem_dtos.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `persist` | `rust/tcl-registry/src/commands/irules/persist.rs` | — | ✓ | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `PLUGIN::disable` | `rust/tcl-registry/src/commands/irules/plugin__disable.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `PLUGIN::enable` | `rust/tcl-registry/src/commands/irules/plugin__enable.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `POLICY::controls` | `rust/tcl-registry/src/commands/irules/policy__controls.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `POLICY::names` | `rust/tcl-registry/src/commands/irules/policy__names.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `POLICY::rules` | `rust/tcl-registry/src/commands/irules/policy__rules.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `POLICY::targets` | `rust/tcl-registry/src/commands/irules/policy__targets.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `pool` | `rust/tcl-registry/src/commands/irules/pool.rs` | — | ✓ | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `POP3::activation_mode` | `rust/tcl-registry/src/commands/irules/pop3__activation_mode.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `POP3::disable` | `rust/tcl-registry/src/commands/irules/pop3__disable.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `POP3::enable` | `rust/tcl-registry/src/commands/irules/pop3__enable.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `priority` | `rust/tcl-registry/src/commands/irules/priority.rs` | — | ✓ | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `proc` | `rust/tcl-registry/src/commands/irules/proc.rs` | — | ✓ | ✓ | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `PROFILE::access` | `rust/tcl-registry/src/commands/irules/profile__access.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `PROFILE::antifraud` | `rust/tcl-registry/src/commands/irules/profile__antifraud.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `PROFILE::auth` | `rust/tcl-registry/src/commands/irules/profile__auth.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `PROFILE::avr` | `rust/tcl-registry/src/commands/irules/profile__avr.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `PROFILE::clientssl` | `rust/tcl-registry/src/commands/irules/profile__clientssl.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `PROFILE::diameter` | `rust/tcl-registry/src/commands/irules/profile__diameter.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `PROFILE::exchange` | `rust/tcl-registry/src/commands/irules/profile__exchange.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `PROFILE::exists` | `rust/tcl-registry/src/commands/irules/profile__exists.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `PROFILE::fasthttp` | `rust/tcl-registry/src/commands/irules/profile__fasthttp.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `PROFILE::fastL4` | `rust/tcl-registry/src/commands/irules/profile__fastl4.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `PROFILE::ftp` | `rust/tcl-registry/src/commands/irules/profile__ftp.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `PROFILE::http` | `rust/tcl-registry/src/commands/irules/profile__http.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `PROFILE::httpclass` | `rust/tcl-registry/src/commands/irules/profile__httpclass.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `PROFILE::httpcompression` | `rust/tcl-registry/src/commands/irules/profile__httpcompression.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `PROFILE::list` | `rust/tcl-registry/src/commands/irules/profile__list.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `PROFILE::oneconnect` | `rust/tcl-registry/src/commands/irules/profile__oneconnect.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `PROFILE::persist` | `rust/tcl-registry/src/commands/irules/profile__persist.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `PROFILE::serverssl` | `rust/tcl-registry/src/commands/irules/profile__serverssl.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `PROFILE::stream` | `rust/tcl-registry/src/commands/irules/profile__stream.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `PROFILE::tcp` | `rust/tcl-registry/src/commands/irules/profile__tcp.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `PROFILE::tftp` | `rust/tcl-registry/src/commands/irules/profile__tftp.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `PROFILE::udp` | `rust/tcl-registry/src/commands/irules/profile__udp.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `PROFILE::vdi` | `rust/tcl-registry/src/commands/irules/profile__vdi.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `PROFILE::webacceleration` | `rust/tcl-registry/src/commands/irules/profile__webacceleration.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `PROFILE::xml` | `rust/tcl-registry/src/commands/irules/profile__xml.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `PROTOCOL_INSPECTION::disable` | `rust/tcl-registry/src/commands/irules/protocol_inspection__disable.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `PROTOCOL_INSPECTION::id` | `rust/tcl-registry/src/commands/irules/protocol_inspection__id.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `PSC::aaa_reporting_interval` | `rust/tcl-registry/src/commands/irules/psc__aaa_reporting_interval.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `PSC::attr` | `rust/tcl-registry/src/commands/irules/psc__attr.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `PSC::calling_id` | `rust/tcl-registry/src/commands/irules/psc__calling_id.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `PSC::imeisv` | `rust/tcl-registry/src/commands/irules/psc__imeisv.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `PSC::imsi` | `rust/tcl-registry/src/commands/irules/psc__imsi.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `PSC::ip_address` | `rust/tcl-registry/src/commands/irules/psc__ip_address.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `PSC::lease_time` | `rust/tcl-registry/src/commands/irules/psc__lease_time.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `PSC::policy` | `rust/tcl-registry/src/commands/irules/psc__policy.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `PSC::subscriber_id` | `rust/tcl-registry/src/commands/irules/psc__subscriber_id.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `PSC::tower_id` | `rust/tcl-registry/src/commands/irules/psc__tower_id.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `PSC::user_name` | `rust/tcl-registry/src/commands/irules/psc__user_name.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `PSM::FTP::disable` | `rust/tcl-registry/src/commands/irules/psm__ftp__disable.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `PSM::FTP::enable` | `rust/tcl-registry/src/commands/irules/psm__ftp__enable.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `PSM::HTTP::disable` | `rust/tcl-registry/src/commands/irules/psm__http__disable.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `PSM::HTTP::enable` | `rust/tcl-registry/src/commands/irules/psm__http__enable.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `PSM::SMTP::disable` | `rust/tcl-registry/src/commands/irules/psm__smtp__disable.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `PSM::SMTP::enable` | `rust/tcl-registry/src/commands/irules/psm__smtp__enable.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `QOE::disable` | `rust/tcl-registry/src/commands/irules/qoe__disable.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `QOE::enable` | `rust/tcl-registry/src/commands/irules/qoe__enable.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `QOE::video` | `rust/tcl-registry/src/commands/irules/qoe__video.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `RADIUS::avp` | `rust/tcl-registry/src/commands/irules/radius__avp.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `RADIUS::code` | `rust/tcl-registry/src/commands/irules/radius__code.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `RADIUS::id` | `rust/tcl-registry/src/commands/irules/radius__id.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `RADIUS::rtdom` | `rust/tcl-registry/src/commands/irules/radius__rtdom.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `RADIUS::subscriber` | `rust/tcl-registry/src/commands/irules/radius__subscriber.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `radius_authenticate` | `rust/tcl-registry/src/commands/irules/radius_authenticate.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `rateclass` | `rust/tcl-registry/src/commands/irules/rateclass.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `recv` | `rust/tcl-registry/src/commands/irules/recv.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `redirect` | `rust/tcl-registry/src/commands/irules/redirect.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `reject` | `rust/tcl-registry/src/commands/irules/reject.rs` | — | ✓ | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `relate_client` | `rust/tcl-registry/src/commands/irules/relate_client.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `relate_server` | `rust/tcl-registry/src/commands/irules/relate_server.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `remote_addr` | `rust/tcl-registry/src/commands/irules/remote_addr.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `remote_port` | `rust/tcl-registry/src/commands/irules/remote_port.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `RESOLV::lookup` | `rust/tcl-registry/src/commands/irules/resolv__lookup.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `RESOLVER::name_lookup` | `rust/tcl-registry/src/commands/irules/resolver__name_lookup.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `RESOLVER::summarize` | `rust/tcl-registry/src/commands/irules/resolver__summarize.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `REST::send` | `rust/tcl-registry/src/commands/irules/rest__send.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `REWRITE::disable` | `rust/tcl-registry/src/commands/irules/rewrite__disable.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `REWRITE::enable` | `rust/tcl-registry/src/commands/irules/rewrite__enable.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `REWRITE::payload` | `rust/tcl-registry/src/commands/irules/rewrite__payload.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `REWRITE::post_process` | `rust/tcl-registry/src/commands/irules/rewrite__post_process.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `rmd160` | `rust/tcl-registry/src/commands/irules/rmd160.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `ROUTE::age` | `rust/tcl-registry/src/commands/irules/route__age.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `ROUTE::bandwidth` | `rust/tcl-registry/src/commands/irules/route__bandwidth.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `ROUTE::clear` | `rust/tcl-registry/src/commands/irules/route__clear.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `ROUTE::cwnd` | `rust/tcl-registry/src/commands/irules/route__cwnd.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `ROUTE::domain` | `rust/tcl-registry/src/commands/irules/route__domain.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `ROUTE::expiration` | `rust/tcl-registry/src/commands/irules/route__expiration.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `ROUTE::mtu` | `rust/tcl-registry/src/commands/irules/route__mtu.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `ROUTE::rtt` | `rust/tcl-registry/src/commands/irules/route__rtt.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `ROUTE::rttvar` | `rust/tcl-registry/src/commands/irules/route__rttvar.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `RTSP::collect` | `rust/tcl-registry/src/commands/irules/rtsp__collect.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `RTSP::header` | `rust/tcl-registry/src/commands/irules/rtsp__header.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `RTSP::method` | `rust/tcl-registry/src/commands/irules/rtsp__method.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `RTSP::msg_source` | `rust/tcl-registry/src/commands/irules/rtsp__msg_source.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `RTSP::payload` | `rust/tcl-registry/src/commands/irules/rtsp__payload.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `RTSP::release` | `rust/tcl-registry/src/commands/irules/rtsp__release.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `RTSP::respond` | `rust/tcl-registry/src/commands/irules/rtsp__respond.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `RTSP::status` | `rust/tcl-registry/src/commands/irules/rtsp__status.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `RTSP::uri` | `rust/tcl-registry/src/commands/irules/rtsp__uri.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `RTSP::version` | `rust/tcl-registry/src/commands/irules/rtsp__version.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `SCTP::client_port` | `rust/tcl-registry/src/commands/irules/sctp__client_port.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `SCTP::collect` | `rust/tcl-registry/src/commands/irules/sctp__collect.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `SCTP::local_port` | `rust/tcl-registry/src/commands/irules/sctp__local_port.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `SCTP::mss` | `rust/tcl-registry/src/commands/irules/sctp__mss.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `SCTP::payload` | `rust/tcl-registry/src/commands/irules/sctp__payload.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `SCTP::ppi` | `rust/tcl-registry/src/commands/irules/sctp__ppi.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `SCTP::release` | `rust/tcl-registry/src/commands/irules/sctp__release.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `SCTP::remote_port` | `rust/tcl-registry/src/commands/irules/sctp__remote_port.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `SCTP::respond` | `rust/tcl-registry/src/commands/irules/sctp__respond.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `SCTP::rto_initial` | `rust/tcl-registry/src/commands/irules/sctp__rto_initial.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `SCTP::rto_max` | `rust/tcl-registry/src/commands/irules/sctp__rto_max.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `SCTP::rto_min` | `rust/tcl-registry/src/commands/irules/sctp__rto_min.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `SCTP::sack_timeout` | `rust/tcl-registry/src/commands/irules/sctp__sack_timeout.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `SCTP::server_port` | `rust/tcl-registry/src/commands/irules/sctp__server_port.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `SDP::field` | `rust/tcl-registry/src/commands/irules/sdp__field.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `SDP::media` | `rust/tcl-registry/src/commands/irules/sdp__media.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `SDP::session_id` | `rust/tcl-registry/src/commands/irules/sdp__session_id.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `send` | `rust/tcl-registry/src/commands/irules/send.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `server_addr` | `rust/tcl-registry/src/commands/irules/server_addr.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `server_port` | `rust/tcl-registry/src/commands/irules/server_port.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `serverside` | `rust/tcl-registry/src/commands/irules/serverside.rs` | — | ✓ | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `session` | `rust/tcl-registry/src/commands/irules/session.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `sha1` | `rust/tcl-registry/src/commands/irules/sha1.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `sha256` | `rust/tcl-registry/src/commands/irules/sha256.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `sha384` | `rust/tcl-registry/src/commands/irules/sha384.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `sha512` | `rust/tcl-registry/src/commands/irules/sha512.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `sharedvar` | `rust/tcl-registry/src/commands/irules/sharedvar.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `SIP::call_id` | `rust/tcl-registry/src/commands/irules/sip__call_id.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `SIP::discard` | `rust/tcl-registry/src/commands/irules/sip__discard.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `SIP::from` | `rust/tcl-registry/src/commands/irules/sip__from.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `SIP::header` | `rust/tcl-registry/src/commands/irules/sip__header.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `SIP::message` | `rust/tcl-registry/src/commands/irules/sip__message.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `SIP::method` | `rust/tcl-registry/src/commands/irules/sip__method.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `SIP::payload` | `rust/tcl-registry/src/commands/irules/sip__payload.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `SIP::persist` | `rust/tcl-registry/src/commands/irules/sip__persist.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `SIP::record-route` | `rust/tcl-registry/src/commands/irules/sip__record_route.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `SIP::respond` | `rust/tcl-registry/src/commands/irules/sip__respond.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `SIP::response` | `rust/tcl-registry/src/commands/irules/sip__response.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `SIP::route` | `rust/tcl-registry/src/commands/irules/sip__route.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `SIP::route_status` | `rust/tcl-registry/src/commands/irules/sip__route_status.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `SIP::to` | `rust/tcl-registry/src/commands/irules/sip__to.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `SIP::uri` | `rust/tcl-registry/src/commands/irules/sip__uri.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `SIP::via` | `rust/tcl-registry/src/commands/irules/sip__via.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `SIPALG::hairpin` | `rust/tcl-registry/src/commands/irules/sipalg__hairpin.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `SIPALG::hairpin_default` | `rust/tcl-registry/src/commands/irules/sipalg__hairpin_default.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `SIPALG::nonregister_subscriber_listener` | `rust/tcl-registry/src/commands/irules/sipalg__nonregister_subscriber_listener.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `SMTPS::activation_mode` | `rust/tcl-registry/src/commands/irules/smtps__activation_mode.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `SMTPS::disable` | `rust/tcl-registry/src/commands/irules/smtps__disable.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `SMTPS::enable` | `rust/tcl-registry/src/commands/irules/smtps__enable.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `snat` | `rust/tcl-registry/src/commands/irules/snat.rs` | — | ✓ | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `snatpool` | `rust/tcl-registry/src/commands/irules/snatpool.rs` | — | ✓ | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `SOCKS::allowed` | `rust/tcl-registry/src/commands/irules/socks__allowed.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `SOCKS::destination` | `rust/tcl-registry/src/commands/irules/socks__destination.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `SOCKS::version` | `rust/tcl-registry/src/commands/irules/socks__version.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `SSE::field` | `rust/tcl-registry/src/commands/irules/sse__field.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `SSL::allow_dynamic_record_sizing` | `rust/tcl-registry/src/commands/irules/ssl__allow_dynamic_record_sizing.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `SSL::allow_nonssl` | `rust/tcl-registry/src/commands/irules/ssl__allow_nonssl.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `SSL::alpn` | `rust/tcl-registry/src/commands/irules/ssl__alpn.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `SSL::authenticate` | `rust/tcl-registry/src/commands/irules/ssl__authenticate.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `SSL::c3d` | `rust/tcl-registry/src/commands/irules/ssl__c3d.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `SSL::cert` | `rust/tcl-registry/src/commands/irules/ssl__cert.rs` | — | ✓ | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `SSL::cert_constraint` | `rust/tcl-registry/src/commands/irules/ssl__cert_constraint.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `SSL::cipher` | `rust/tcl-registry/src/commands/irules/ssl__cipher.rs` | — | ✓ | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `SSL::clientrandom` | `rust/tcl-registry/src/commands/irules/ssl__clientrandom.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `SSL::collect` | `rust/tcl-registry/src/commands/irules/ssl__collect.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `SSL::disable` | `rust/tcl-registry/src/commands/irules/ssl__disable.rs` | — | ✓ | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `SSL::enable` | `rust/tcl-registry/src/commands/irules/ssl__enable.rs` | — | ✓ | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `SSL::extensions` | `rust/tcl-registry/src/commands/irules/ssl__extensions.rs` | — | ✓ | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `SSL::forward_proxy` | `rust/tcl-registry/src/commands/irules/ssl__forward_proxy.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `SSL::handshake` | `rust/tcl-registry/src/commands/irules/ssl__handshake.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `SSL::is_renegotiation_secure` | `rust/tcl-registry/src/commands/irules/ssl__is_renegotiation_secure.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `SSL::maximum_record_size` | `rust/tcl-registry/src/commands/irules/ssl__maximum_record_size.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `SSL::mode` | `rust/tcl-registry/src/commands/irules/ssl__mode.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `SSL::modssl_sessionid_headers` | `rust/tcl-registry/src/commands/irules/ssl__modssl_sessionid_headers.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `SSL::nextproto` | `rust/tcl-registry/src/commands/irules/ssl__nextproto.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `SSL::payload` | `rust/tcl-registry/src/commands/irules/ssl__payload.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `SSL::profile` | `rust/tcl-registry/src/commands/irules/ssl__profile.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `SSL::release` | `rust/tcl-registry/src/commands/irules/ssl__release.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `SSL::renegotiate` | `rust/tcl-registry/src/commands/irules/ssl__renegotiate.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `SSL::respond` | `rust/tcl-registry/src/commands/irules/ssl__respond.rs` | — | ✓ | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `SSL::secure_renegotiation` | `rust/tcl-registry/src/commands/irules/ssl__secure_renegotiation.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `SSL::session` | `rust/tcl-registry/src/commands/irules/ssl__session.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `SSL::sessionid` | `rust/tcl-registry/src/commands/irules/ssl__sessionid.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `SSL::sessionsecret` | `rust/tcl-registry/src/commands/irules/ssl__sessionsecret.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `SSL::sessionticket` | `rust/tcl-registry/src/commands/irules/ssl__sessionticket.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `SSL::sni` | `rust/tcl-registry/src/commands/irules/ssl__sni.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `SSL::tls13_secret` | `rust/tcl-registry/src/commands/irules/ssl__tls13_secret.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `SSL::unclean_shutdown` | `rust/tcl-registry/src/commands/irules/ssl__unclean_shutdown.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `SSL::verify_result` | `rust/tcl-registry/src/commands/irules/ssl__verify_result.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `STATS::get` | `rust/tcl-registry/src/commands/irules/stats__get.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `STATS::incr` | `rust/tcl-registry/src/commands/irules/stats__incr.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `STATS::set` | `rust/tcl-registry/src/commands/irules/stats__set.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `STATS::setmax` | `rust/tcl-registry/src/commands/irules/stats__setmax.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `STATS::setmin` | `rust/tcl-registry/src/commands/irules/stats__setmin.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `STREAM::disable` | `rust/tcl-registry/src/commands/irules/stream__disable.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `STREAM::enable` | `rust/tcl-registry/src/commands/irules/stream__enable.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `STREAM::encoding` | `rust/tcl-registry/src/commands/irules/stream__encoding.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `STREAM::expression` | `rust/tcl-registry/src/commands/irules/stream__expression.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `STREAM::match` | `rust/tcl-registry/src/commands/irules/stream__match.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `STREAM::max_matchsize` | `rust/tcl-registry/src/commands/irules/stream__max_matchsize.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `STREAM::replace` | `rust/tcl-registry/src/commands/irules/stream__replace.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `substr` | `rust/tcl-registry/src/commands/irules/substr.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `table` | `rust/tcl-registry/src/commands/irules/table.rs` | — | ✓ | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `TAP::action` | `rust/tcl-registry/src/commands/irules/tap__action.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `TAP::config` | `rust/tcl-registry/src/commands/irules/tap__config.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `TAP::insight` | `rust/tcl-registry/src/commands/irules/tap__insight.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `TAP::insight_requested` | `rust/tcl-registry/src/commands/irules/tap__insight_requested.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `TAP::score` | `rust/tcl-registry/src/commands/irules/tap__score.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `TCP::abc` | `rust/tcl-registry/src/commands/irules/tcp__abc.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `TCP::analytics` | `rust/tcl-registry/src/commands/irules/tcp__analytics.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `TCP::autowin` | `rust/tcl-registry/src/commands/irules/tcp__autowin.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `TCP::bandwidth` | `rust/tcl-registry/src/commands/irules/tcp__bandwidth.rs` | — | ✓ | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `TCP::client_port` | `rust/tcl-registry/src/commands/irules/tcp__client_port.rs` | — | ✓ | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `TCP::close` | `rust/tcl-registry/src/commands/irules/tcp__close.rs` | — | ✓ | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `TCP::collect` | `rust/tcl-registry/src/commands/irules/tcp__collect.rs` | — | ✓ | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `TCP::congestion` | `rust/tcl-registry/src/commands/irules/tcp__congestion.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `TCP::delayed_ack` | `rust/tcl-registry/src/commands/irules/tcp__delayed_ack.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `TCP::dsack` | `rust/tcl-registry/src/commands/irules/tcp__dsack.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `TCP::earlyrxmit` | `rust/tcl-registry/src/commands/irules/tcp__earlyrxmit.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `TCP::ecn` | `rust/tcl-registry/src/commands/irules/tcp__ecn.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `TCP::enhanced_loss_recovery` | `rust/tcl-registry/src/commands/irules/tcp__enhanced_loss_recovery.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `TCP::idletime` | `rust/tcl-registry/src/commands/irules/tcp__idletime.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `TCP::keepalive` | `rust/tcl-registry/src/commands/irules/tcp__keepalive.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `TCP::limxmit` | `rust/tcl-registry/src/commands/irules/tcp__limxmit.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `TCP::local_port` | `rust/tcl-registry/src/commands/irules/tcp__local_port.rs` | — | ✓ | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `TCP::lossfilter` | `rust/tcl-registry/src/commands/irules/tcp__lossfilter.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `TCP::lossfilterburst` | `rust/tcl-registry/src/commands/irules/tcp__lossfilterburst.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `TCP::lossfilterrate` | `rust/tcl-registry/src/commands/irules/tcp__lossfilterrate.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `TCP::mss` | `rust/tcl-registry/src/commands/irules/tcp__mss.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `TCP::nagle` | `rust/tcl-registry/src/commands/irules/tcp__nagle.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `TCP::naglemode` | `rust/tcl-registry/src/commands/irules/tcp__naglemode.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `TCP::naglestate` | `rust/tcl-registry/src/commands/irules/tcp__naglestate.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `TCP::notify` | `rust/tcl-registry/src/commands/irules/tcp__notify.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `TCP::offset` | `rust/tcl-registry/src/commands/irules/tcp__offset.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `TCP::option` | `rust/tcl-registry/src/commands/irules/tcp__option.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `TCP::pacing` | `rust/tcl-registry/src/commands/irules/tcp__pacing.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `TCP::payload` | `rust/tcl-registry/src/commands/irules/tcp__payload.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `TCP::proxybuffer` | `rust/tcl-registry/src/commands/irules/tcp__proxybuffer.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `TCP::proxybufferhigh` | `rust/tcl-registry/src/commands/irules/tcp__proxybufferhigh.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `TCP::proxybufferlow` | `rust/tcl-registry/src/commands/irules/tcp__proxybufferlow.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `TCP::push_flag` | `rust/tcl-registry/src/commands/irules/tcp__push_flag.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `TCP::rcv_scale` | `rust/tcl-registry/src/commands/irules/tcp__rcv_scale.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `TCP::rcv_size` | `rust/tcl-registry/src/commands/irules/tcp__rcv_size.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `TCP::recvwnd` | `rust/tcl-registry/src/commands/irules/tcp__recvwnd.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `TCP::release` | `rust/tcl-registry/src/commands/irules/tcp__release.rs` | — | ✓ | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `TCP::remote_port` | `rust/tcl-registry/src/commands/irules/tcp__remote_port.rs` | — | ✓ | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `TCP::respond` | `rust/tcl-registry/src/commands/irules/tcp__respond.rs` | — | ✓ | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `TCP::rexmt_thresh` | `rust/tcl-registry/src/commands/irules/tcp__rexmt_thresh.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `TCP::rt_metrics_timeout` | `rust/tcl-registry/src/commands/irules/tcp__rt_metrics_timeout.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `TCP::rto` | `rust/tcl-registry/src/commands/irules/tcp__rto.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `TCP::rtt` | `rust/tcl-registry/src/commands/irules/tcp__rtt.rs` | — | ✓ | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `TCP::rttvar` | `rust/tcl-registry/src/commands/irules/tcp__rttvar.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `TCP::sendbuf` | `rust/tcl-registry/src/commands/irules/tcp__sendbuf.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `TCP::server_port` | `rust/tcl-registry/src/commands/irules/tcp__server_port.rs` | — | ✓ | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `TCP::setmss` | `rust/tcl-registry/src/commands/irules/tcp__setmss.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `TCP::snd_cwnd` | `rust/tcl-registry/src/commands/irules/tcp__snd_cwnd.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `TCP::snd_scale` | `rust/tcl-registry/src/commands/irules/tcp__snd_scale.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `TCP::snd_ssthresh` | `rust/tcl-registry/src/commands/irules/tcp__snd_ssthresh.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `TCP::snd_wnd` | `rust/tcl-registry/src/commands/irules/tcp__snd_wnd.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `TCP::unused_port` | `rust/tcl-registry/src/commands/irules/tcp__unused_port.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `tcpdump` | `rust/tcl-registry/src/commands/irules/tcpdump.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `TDS::msg` | `rust/tcl-registry/src/commands/irules/tds__msg.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `TDS::session` | `rust/tcl-registry/src/commands/irules/tds__session.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `timing` | `rust/tcl-registry/src/commands/irules/timing.rs` | — | ✓ | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `TMM::cmp_count` | `rust/tcl-registry/src/commands/irules/tmm__cmp_count.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `TMM::cmp_group` | `rust/tcl-registry/src/commands/irules/tmm__cmp_group.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `TMM::cmp_groups` | `rust/tcl-registry/src/commands/irules/tmm__cmp_groups.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `TMM::cmp_primary_group` | `rust/tcl-registry/src/commands/irules/tmm__cmp_primary_group.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `TMM::cmp_unit` | `rust/tcl-registry/src/commands/irules/tmm__cmp_unit.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `traffic_group` | `rust/tcl-registry/src/commands/irules/traffic_group.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `translate` | `rust/tcl-registry/src/commands/irules/translate.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `UDP::client_port` | `rust/tcl-registry/src/commands/irules/udp__client_port.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `UDP::debug_queue` | `rust/tcl-registry/src/commands/irules/udp__debug_queue.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `UDP::drop` | `rust/tcl-registry/src/commands/irules/udp__drop.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `UDP::hold` | `rust/tcl-registry/src/commands/irules/udp__hold.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `UDP::local_port` | `rust/tcl-registry/src/commands/irules/udp__local_port.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `UDP::max_buf_pkts` | `rust/tcl-registry/src/commands/irules/udp__max_buf_pkts.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `UDP::max_rate` | `rust/tcl-registry/src/commands/irules/udp__max_rate.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `UDP::mss` | `rust/tcl-registry/src/commands/irules/udp__mss.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `UDP::payload` | `rust/tcl-registry/src/commands/irules/udp__payload.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `UDP::release` | `rust/tcl-registry/src/commands/irules/udp__release.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `UDP::remote_port` | `rust/tcl-registry/src/commands/irules/udp__remote_port.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `UDP::respond` | `rust/tcl-registry/src/commands/irules/udp__respond.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `UDP::sendbuffer` | `rust/tcl-registry/src/commands/irules/udp__sendbuffer.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `UDP::server_port` | `rust/tcl-registry/src/commands/irules/udp__server_port.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `UDP::unused_port` | `rust/tcl-registry/src/commands/irules/udp__unused_port.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `uniq_ordered_ip_list` | `rust/tcl-registry/src/commands/irules/uniq_ordered_ip_list.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `uniq_sorted_ip_list` | `rust/tcl-registry/src/commands/irules/uniq_sorted_ip_list.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `URI::basename` | `rust/tcl-registry/src/commands/irules/uri__basename.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `URI::compare` | `rust/tcl-registry/src/commands/irules/uri__compare.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `URI::decode` | `rust/tcl-registry/src/commands/irules/uri__decode.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `URI::encode` | `rust/tcl-registry/src/commands/irules/uri__encode.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `URI::encode_component` | `rust/tcl-registry/src/commands/irules/uri__encode_component.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `URI::escape` | `rust/tcl-registry/src/commands/irules/uri__escape.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `URI::host` | `rust/tcl-registry/src/commands/irules/uri__host.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `URI::path` | `rust/tcl-registry/src/commands/irules/uri__path.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `URI::port` | `rust/tcl-registry/src/commands/irules/uri__port.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `URI::protocol` | `rust/tcl-registry/src/commands/irules/uri__protocol.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `URI::query` | `rust/tcl-registry/src/commands/irules/uri__query.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `urlcatblindquery` | `rust/tcl-registry/src/commands/irules/urlcatblindquery.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `urlcatquery` | `rust/tcl-registry/src/commands/irules/urlcatquery.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `use` | `rust/tcl-registry/src/commands/irules/use_.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `VALIDATE::protocol` | `rust/tcl-registry/src/commands/irules/validate__protocol.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `VDI::disable` | `rust/tcl-registry/src/commands/irules/vdi__disable.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `VDI::enable` | `rust/tcl-registry/src/commands/irules/vdi__enable.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `virtual` | `rust/tcl-registry/src/commands/irules/virtual_.rs` | — | ✓ | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `vlan_id` | `rust/tcl-registry/src/commands/irules/vlan_id.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `WAM::disable` | `rust/tcl-registry/src/commands/irules/wam__disable.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `WAM::enable` | `rust/tcl-registry/src/commands/irules/wam__enable.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `WEBSSO::disable` | `rust/tcl-registry/src/commands/irules/websso__disable.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `WEBSSO::enable` | `rust/tcl-registry/src/commands/irules/websso__enable.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `WEBSSO::select` | `rust/tcl-registry/src/commands/irules/websso__select.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `when` | `rust/tcl-registry/src/commands/irules/when.rs` | — | ✓ | ✓ | ✓ | — | ✓ | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `whereis` | `rust/tcl-registry/src/commands/irules/whereis.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `WS::collect` | `rust/tcl-registry/src/commands/irules/ws__collect.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `WS::disconnect` | `rust/tcl-registry/src/commands/irules/ws__disconnect.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `WS::enabled` | `rust/tcl-registry/src/commands/irules/ws__enabled.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `WS::frame` | `rust/tcl-registry/src/commands/irules/ws__frame.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `WS::masking` | `rust/tcl-registry/src/commands/irules/ws__masking.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `WS::message` | `rust/tcl-registry/src/commands/irules/ws__message.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `WS::payload` | `rust/tcl-registry/src/commands/irules/ws__payload.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `WS::payload_ivs` | `rust/tcl-registry/src/commands/irules/ws__payload_ivs.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `WS::payload_processing` | `rust/tcl-registry/src/commands/irules/ws__payload_processing.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `WS::release` | `rust/tcl-registry/src/commands/irules/ws__release.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `WS::request` | `rust/tcl-registry/src/commands/irules/ws__request.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `WS::response` | `rust/tcl-registry/src/commands/irules/ws__response.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `X509::cert_fields` | `rust/tcl-registry/src/commands/irules/x509__cert_fields.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `X509::extensions` | `rust/tcl-registry/src/commands/irules/x509__extensions.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `X509::hash` | `rust/tcl-registry/src/commands/irules/x509__hash.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `X509::issuer` | `rust/tcl-registry/src/commands/irules/x509__issuer.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `X509::not_valid_after` | `rust/tcl-registry/src/commands/irules/x509__not_valid_after.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `X509::not_valid_before` | `rust/tcl-registry/src/commands/irules/x509__not_valid_before.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `X509::pem2der` | `rust/tcl-registry/src/commands/irules/x509__pem2der.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `X509::serial_number` | `rust/tcl-registry/src/commands/irules/x509__serial_number.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `X509::signature_algorithm` | `rust/tcl-registry/src/commands/irules/x509__signature_algorithm.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `X509::subject` | `rust/tcl-registry/src/commands/irules/x509__subject.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `X509::subject_public_key` | `rust/tcl-registry/src/commands/irules/x509__subject_public_key.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `X509::subject_public_key_RSA_bits` | `rust/tcl-registry/src/commands/irules/x509__subject_public_key_rsa_bits.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `X509::subject_public_key_type` | `rust/tcl-registry/src/commands/irules/x509__subject_public_key_type.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `X509::verify_cert_error_string` | `rust/tcl-registry/src/commands/irules/x509__verify_cert_error_string.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `X509::version` | `rust/tcl-registry/src/commands/irules/x509__version.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `X509::whole` | `rust/tcl-registry/src/commands/irules/x509__whole.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `xff_list` | `rust/tcl-registry/src/commands/irules/xff_list.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `xff_uniq_ordered_ip_list` | `rust/tcl-registry/src/commands/irules/xff_uniq_ordered_ip_list.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `xff_uniq_sorted_ip_list` | `rust/tcl-registry/src/commands/irules/xff_uniq_sorted_ip_list.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `XLAT::listen` | `rust/tcl-registry/src/commands/irules/xlat__listen.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `XLAT::listen_lifetime` | `rust/tcl-registry/src/commands/irules/xlat__listen_lifetime.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `XLAT::src_addr` | `rust/tcl-registry/src/commands/irules/xlat__src_addr.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `XLAT::src_config` | `rust/tcl-registry/src/commands/irules/xlat__src_config.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `XLAT::src_endpoint_reservation` | `rust/tcl-registry/src/commands/irules/xlat__src_endpoint_reservation.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `XLAT::src_nat_valid_range` | `rust/tcl-registry/src/commands/irules/xlat__src_nat_valid_range.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `XLAT::src_port` | `rust/tcl-registry/src/commands/irules/xlat__src_port.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `XML::address` | `rust/tcl-registry/src/commands/irules/xml__address.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `XML::collect` | `rust/tcl-registry/src/commands/irules/xml__collect.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `XML::disable` | `rust/tcl-registry/src/commands/irules/xml__disable.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `XML::element` | `rust/tcl-registry/src/commands/irules/xml__element.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `XML::enable` | `rust/tcl-registry/src/commands/irules/xml__enable.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `XML::event` | `rust/tcl-registry/src/commands/irules/xml__event.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `XML::eventid` | `rust/tcl-registry/src/commands/irules/xml__eventid.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `XML::parse` | `rust/tcl-registry/src/commands/irules/xml__parse.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `XML::payload` | `rust/tcl-registry/src/commands/irules/xml__payload.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `XML::release` | `rust/tcl-registry/src/commands/irules/xml__release.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `XML::soap` | `rust/tcl-registry/src/commands/irules/xml__soap.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| irules | `XML::subscribe` | `rust/tcl-registry/src/commands/irules/xml__subscribe.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| sdc_base | `all_clocks` | `rust/tcl-registry/src/commands/sdc_base/all_clocks.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| sdc_base | `all_fanin` | `rust/tcl-registry/src/commands/sdc_base/all_fanin.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| sdc_base | `all_fanout` | `rust/tcl-registry/src/commands/sdc_base/all_fanout.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| sdc_base | `all_inputs` | `rust/tcl-registry/src/commands/sdc_base/all_inputs.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| sdc_base | `all_outputs` | `rust/tcl-registry/src/commands/sdc_base/all_outputs.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| sdc_base | `all_registers` | `rust/tcl-registry/src/commands/sdc_base/all_registers.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| sdc_base | `append_to_collection` | `rust/tcl-registry/src/commands/sdc_base/append_to_collection.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| sdc_base | `check_timing` | `rust/tcl-registry/src/commands/sdc_base/check_timing.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| sdc_base | `create_clock` | `rust/tcl-registry/src/commands/sdc_base/create_clock.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| sdc_base | `create_generated_clock` | `rust/tcl-registry/src/commands/sdc_base/create_generated_clock.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| sdc_base | `current_design` | `rust/tcl-registry/src/commands/sdc_base/current_design.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| sdc_base | `define_proc_attributes` | `rust/tcl-registry/src/commands/sdc_base/define_proc_attributes.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| sdc_base | `filter_collection` | `rust/tcl-registry/src/commands/sdc_base/filter_collection.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| sdc_base | `foreach_in_collection` | `rust/tcl-registry/src/commands/sdc_base/foreach_in_collection.rs` | — | ✓ | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| sdc_base | `get_cells` | `rust/tcl-registry/src/commands/sdc_base/get_cells.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| sdc_base | `get_clocks` | `rust/tcl-registry/src/commands/sdc_base/get_clocks.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| sdc_base | `get_lib_cells` | `rust/tcl-registry/src/commands/sdc_base/get_lib_cells.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| sdc_base | `get_lib_pins` | `rust/tcl-registry/src/commands/sdc_base/get_lib_pins.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| sdc_base | `get_libs` | `rust/tcl-registry/src/commands/sdc_base/get_libs.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| sdc_base | `get_nets` | `rust/tcl-registry/src/commands/sdc_base/get_nets.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| sdc_base | `get_object_name` | `rust/tcl-registry/src/commands/sdc_base/get_object_name.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| sdc_base | `get_pins` | `rust/tcl-registry/src/commands/sdc_base/get_pins.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| sdc_base | `get_ports` | `rust/tcl-registry/src/commands/sdc_base/get_ports.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| sdc_base | `group_path` | `rust/tcl-registry/src/commands/sdc_base/group_path.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| sdc_base | `link_design` | `rust/tcl-registry/src/commands/sdc_base/link_design.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| sdc_base | `remove_from_collection` | `rust/tcl-registry/src/commands/sdc_base/remove_from_collection.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| sdc_base | `report_area` | `rust/tcl-registry/src/commands/sdc_base/report_area.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| sdc_base | `report_clock` | `rust/tcl-registry/src/commands/sdc_base/report_clock.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| sdc_base | `report_clock_timing` | `rust/tcl-registry/src/commands/sdc_base/report_clock_timing.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| sdc_base | `report_constraint` | `rust/tcl-registry/src/commands/sdc_base/report_constraint.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| sdc_base | `report_power` | `rust/tcl-registry/src/commands/sdc_base/report_power.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| sdc_base | `report_timing` | `rust/tcl-registry/src/commands/sdc_base/report_timing.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| sdc_base | `set_case_analysis` | `rust/tcl-registry/src/commands/sdc_base/set_case_analysis.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| sdc_base | `set_clock_groups` | `rust/tcl-registry/src/commands/sdc_base/set_clock_groups.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| sdc_base | `set_clock_latency` | `rust/tcl-registry/src/commands/sdc_base/set_clock_latency.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| sdc_base | `set_clock_transition` | `rust/tcl-registry/src/commands/sdc_base/set_clock_transition.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| sdc_base | `set_clock_uncertainty` | `rust/tcl-registry/src/commands/sdc_base/set_clock_uncertainty.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| sdc_base | `set_disable_timing` | `rust/tcl-registry/src/commands/sdc_base/set_disable_timing.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| sdc_base | `set_dont_touch` | `rust/tcl-registry/src/commands/sdc_base/set_dont_touch.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| sdc_base | `set_dont_use` | `rust/tcl-registry/src/commands/sdc_base/set_dont_use.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| sdc_base | `set_driving_cell` | `rust/tcl-registry/src/commands/sdc_base/set_driving_cell.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| sdc_base | `set_false_path` | `rust/tcl-registry/src/commands/sdc_base/set_false_path.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| sdc_base | `set_ideal_latency` | `rust/tcl-registry/src/commands/sdc_base/set_ideal_latency.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| sdc_base | `set_ideal_network` | `rust/tcl-registry/src/commands/sdc_base/set_ideal_network.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| sdc_base | `set_input_delay` | `rust/tcl-registry/src/commands/sdc_base/set_input_delay.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| sdc_base | `set_input_transition` | `rust/tcl-registry/src/commands/sdc_base/set_input_transition.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| sdc_base | `set_load` | `rust/tcl-registry/src/commands/sdc_base/set_load.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| sdc_base | `set_max_area` | `rust/tcl-registry/src/commands/sdc_base/set_max_area.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| sdc_base | `set_max_capacitance` | `rust/tcl-registry/src/commands/sdc_base/set_max_capacitance.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| sdc_base | `set_max_delay` | `rust/tcl-registry/src/commands/sdc_base/set_max_delay.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| sdc_base | `set_max_fanout` | `rust/tcl-registry/src/commands/sdc_base/set_max_fanout.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| sdc_base | `set_max_transition` | `rust/tcl-registry/src/commands/sdc_base/set_max_transition.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| sdc_base | `set_min_delay` | `rust/tcl-registry/src/commands/sdc_base/set_min_delay.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| sdc_base | `set_multicycle_path` | `rust/tcl-registry/src/commands/sdc_base/set_multicycle_path.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| sdc_base | `set_output_delay` | `rust/tcl-registry/src/commands/sdc_base/set_output_delay.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| sdc_base | `set_propagated_clock` | `rust/tcl-registry/src/commands/sdc_base/set_propagated_clock.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| sdc_base | `set_size_only` | `rust/tcl-registry/src/commands/sdc_base/set_size_only.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| sdc_base | `set_units` | `rust/tcl-registry/src/commands/sdc_base/set_units.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| sdc_base | `set_wire_load_mode` | `rust/tcl-registry/src/commands/sdc_base/set_wire_load_mode.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| sdc_base | `set_wire_load_model` | `rust/tcl-registry/src/commands/sdc_base/set_wire_load_model.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| sdc_base | `sizeof_collection` | `rust/tcl-registry/src/commands/sdc_base/sizeof_collection.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| stdlib | `gettimes` | `rust/tcl-registry/src/commands/stdlib/gettimes.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| stdlib | `history` | `rust/tcl-registry/src/commands/stdlib/history.rs` | — | ✓ | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| stdlib | `http::cleanup` | `rust/tcl-registry/src/commands/stdlib/http__cleanup.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| stdlib | `http::code` | `rust/tcl-registry/src/commands/stdlib/http__code.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| stdlib | `http::config` | `rust/tcl-registry/src/commands/stdlib/http__config.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| stdlib | `http::cookiejar` | `rust/tcl-registry/src/commands/stdlib/http__cookiejar.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| stdlib | `http::data` | `rust/tcl-registry/src/commands/stdlib/http__data.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| stdlib | `http::error` | `rust/tcl-registry/src/commands/stdlib/http__error.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| stdlib | `http::formatQuery` | `rust/tcl-registry/src/commands/stdlib/http__formatquery.rs` | — | ✓ | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| stdlib | `http::geturl` | `rust/tcl-registry/src/commands/stdlib/http__geturl.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| stdlib | `http::meta` | `rust/tcl-registry/src/commands/stdlib/http__meta.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| stdlib | `http::ncode` | `rust/tcl-registry/src/commands/stdlib/http__ncode.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| stdlib | `http::postError` | `rust/tcl-registry/src/commands/stdlib/http__posterror.rs` | — | ✓ | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| stdlib | `http::quoteString` | `rust/tcl-registry/src/commands/stdlib/http__quotestring.rs` | — | ✓ | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| stdlib | `http::reasonPhrase` | `rust/tcl-registry/src/commands/stdlib/http__reasonphrase.rs` | — | ✓ | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| stdlib | `http::register` | `rust/tcl-registry/src/commands/stdlib/http__register.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| stdlib | `http::registerError` | `rust/tcl-registry/src/commands/stdlib/http__registererror.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| stdlib | `http::requestHeaders` | `rust/tcl-registry/src/commands/stdlib/http__requestheaders.rs` | — | ✓ | ✓ | ✓ | — | — | ✓ | — | — | — | — | — | — | — | — | — | — | — | — |
+| stdlib | `http::requestHeaderValue` | `rust/tcl-registry/src/commands/stdlib/http__requestheadervalue.rs` | — | ✓ | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| stdlib | `http::requestLine` | `rust/tcl-registry/src/commands/stdlib/http__requestline.rs` | — | ✓ | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| stdlib | `http::reset` | `rust/tcl-registry/src/commands/stdlib/http__reset.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| stdlib | `http::responseBody` | `rust/tcl-registry/src/commands/stdlib/http__responsebody.rs` | — | ✓ | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| stdlib | `http::responseCode` | `rust/tcl-registry/src/commands/stdlib/http__responsecode.rs` | — | ✓ | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| stdlib | `http::responseHeaders` | `rust/tcl-registry/src/commands/stdlib/http__responseheaders.rs` | — | ✓ | ✓ | ✓ | — | — | ✓ | — | — | — | — | — | — | — | — | — | — | — | — |
+| stdlib | `http::responseHeaderValue` | `rust/tcl-registry/src/commands/stdlib/http__responseheadervalue.rs` | — | ✓ | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| stdlib | `http::responseInfo` | `rust/tcl-registry/src/commands/stdlib/http__responseinfo.rs` | — | ✓ | ✓ | ✓ | — | — | ✓ | — | — | — | — | — | — | — | — | — | — | — | — |
+| stdlib | `http::responseLine` | `rust/tcl-registry/src/commands/stdlib/http__responseline.rs` | — | ✓ | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| stdlib | `http::size` | `rust/tcl-registry/src/commands/stdlib/http__size.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| stdlib | `http::status` | `rust/tcl-registry/src/commands/stdlib/http__status.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| stdlib | `http::unregister` | `rust/tcl-registry/src/commands/stdlib/http__unregister.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| stdlib | `http::wait` | `rust/tcl-registry/src/commands/stdlib/http__wait.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| stdlib | `lgen` | `rust/tcl-registry/src/commands/stdlib/lgen.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| stdlib | `lstring` | `rust/tcl-registry/src/commands/stdlib/lstring.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| stdlib | `msgcat::mc` | `rust/tcl-registry/src/commands/stdlib/msgcat__mc.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| stdlib | `msgcat::mcexists` | `rust/tcl-registry/src/commands/stdlib/msgcat__mcexists.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| stdlib | `msgcat::mcflmset` | `rust/tcl-registry/src/commands/stdlib/msgcat__mcflmset.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| stdlib | `msgcat::mcflset` | `rust/tcl-registry/src/commands/stdlib/msgcat__mcflset.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| stdlib | `msgcat::mcforgetpackage` | `rust/tcl-registry/src/commands/stdlib/msgcat__mcforgetpackage.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| stdlib | `msgcat::mcload` | `rust/tcl-registry/src/commands/stdlib/msgcat__mcload.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| stdlib | `msgcat::mcloadedlocales` | `rust/tcl-registry/src/commands/stdlib/msgcat__mcloadedlocales.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| stdlib | `msgcat::mclocale` | `rust/tcl-registry/src/commands/stdlib/msgcat__mclocale.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| stdlib | `msgcat::mcmax` | `rust/tcl-registry/src/commands/stdlib/msgcat__mcmax.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| stdlib | `msgcat::mcmset` | `rust/tcl-registry/src/commands/stdlib/msgcat__mcmset.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| stdlib | `msgcat::mcn` | `rust/tcl-registry/src/commands/stdlib/msgcat__mcn.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| stdlib | `msgcat::mcpackageconfig` | `rust/tcl-registry/src/commands/stdlib/msgcat__mcpackageconfig.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| stdlib | `msgcat::mcpackagelocale` | `rust/tcl-registry/src/commands/stdlib/msgcat__mcpackagelocale.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| stdlib | `msgcat::mcpackagenamespaceget` | `rust/tcl-registry/src/commands/stdlib/msgcat__mcpackagenamespaceget.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| stdlib | `msgcat::mcpreferences` | `rust/tcl-registry/src/commands/stdlib/msgcat__mcpreferences.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| stdlib | `msgcat::mcset` | `rust/tcl-registry/src/commands/stdlib/msgcat__mcset.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| stdlib | `msgcat::mcunknown` | `rust/tcl-registry/src/commands/stdlib/msgcat__mcunknown.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| stdlib | `msgcat::mcutil` | `rust/tcl-registry/src/commands/stdlib/msgcat__mcutil.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| stdlib | `noop` | `rust/tcl-registry/src/commands/stdlib/noop.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| stdlib | `pkg::create` | `rust/tcl-registry/src/commands/stdlib/pkg__create.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| stdlib | `pkg_mkIndex` | `rust/tcl-registry/src/commands/stdlib/pkg_mkindex.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| stdlib | `platform::generic` | `rust/tcl-registry/src/commands/stdlib/platform__generic.rs` | — | ✓ | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| stdlib | `platform::identify` | `rust/tcl-registry/src/commands/stdlib/platform__identify.rs` | — | ✓ | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| stdlib | `platform::patterns` | `rust/tcl-registry/src/commands/stdlib/platform__patterns.rs` | — | ✓ | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| stdlib | `platform::shell::generic` | `rust/tcl-registry/src/commands/stdlib/platform__shell__generic.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| stdlib | `platform::shell::identify` | `rust/tcl-registry/src/commands/stdlib/platform__shell__identify.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| stdlib | `safe::interpAddToAccessPath` | `rust/tcl-registry/src/commands/stdlib/safe__interpaddtoaccesspath.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| stdlib | `safe::interpConfigure` | `rust/tcl-registry/src/commands/stdlib/safe__interpconfigure.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| stdlib | `safe::interpCreate` | `rust/tcl-registry/src/commands/stdlib/safe__interpcreate.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| stdlib | `safe::interpDelete` | `rust/tcl-registry/src/commands/stdlib/safe__interpdelete.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| stdlib | `safe::interpFindInAccessPath` | `rust/tcl-registry/src/commands/stdlib/safe__interpfindinaccesspath.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| stdlib | `safe::interpInit` | `rust/tcl-registry/src/commands/stdlib/safe__interpinit.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| stdlib | `safe::setLogCmd` | `rust/tcl-registry/src/commands/stdlib/safe__setlogcmd.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| stdlib | `safe::setSyncMode` | `rust/tcl-registry/src/commands/stdlib/safe__setsyncmode.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| stdlib | `tcl::idna::decode` | `rust/tcl-registry/src/commands/stdlib/tcl__idna__decode.rs` | — | ✓ | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| stdlib | `tcl::idna::encode` | `rust/tcl-registry/src/commands/stdlib/tcl__idna__encode.rs` | — | ✓ | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| stdlib | `tcl::OptKeyDelete` | `rust/tcl-registry/src/commands/stdlib/tcl__optkeydelete.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| stdlib | `tcl::OptKeyError` | `rust/tcl-registry/src/commands/stdlib/tcl__optkeyerror.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| stdlib | `tcl::OptKeyParse` | `rust/tcl-registry/src/commands/stdlib/tcl__optkeyparse.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| stdlib | `tcl::OptKeyRegister` | `rust/tcl-registry/src/commands/stdlib/tcl__optkeyregister.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| stdlib | `tcl::OptParse` | `rust/tcl-registry/src/commands/stdlib/tcl__optparse.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| stdlib | `tcl::OptProc` | `rust/tcl-registry/src/commands/stdlib/tcl__optproc.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| stdlib | `tcl::OptProcArgGiven` | `rust/tcl-registry/src/commands/stdlib/tcl__optprocarggiven.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| stdlib | `tcl::tm::path` | `rust/tcl-registry/src/commands/stdlib/tcl__tm__path.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| stdlib | `tcl::tm::roots` | `rust/tcl-registry/src/commands/stdlib/tcl__tm__roots.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| stdlib | `tcl_endOfWord` | `rust/tcl-registry/src/commands/stdlib/tcl_endofword.rs` | — | ✓ | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| stdlib | `tcl_startOfNextWord` | `rust/tcl-registry/src/commands/stdlib/tcl_startofnextword.rs` | — | ✓ | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| stdlib | `tcl_startOfPreviousWord` | `rust/tcl-registry/src/commands/stdlib/tcl_startofpreviousword.rs` | — | ✓ | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| stdlib | `tcl_wordBreakAfter` | `rust/tcl-registry/src/commands/stdlib/tcl_wordbreakafter.rs` | — | ✓ | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| stdlib | `tcl_wordBreakBefore` | `rust/tcl-registry/src/commands/stdlib/tcl_wordbreakbefore.rs` | — | ✓ | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| stdlib | `tcltest::bytestring` | `rust/tcl-registry/src/commands/stdlib/tcltest__bytestring.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| stdlib | `tcltest::cleanupTests` | `rust/tcl-registry/src/commands/stdlib/tcltest__cleanuptests.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| stdlib | `tcltest::configure` | `rust/tcl-registry/src/commands/stdlib/tcltest__configure.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| stdlib | `tcltest::customMatch` | `rust/tcl-registry/src/commands/stdlib/tcltest__custommatch.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| stdlib | `tcltest::debug` | `rust/tcl-registry/src/commands/stdlib/tcltest__debug.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| stdlib | `tcltest::errorChannel` | `rust/tcl-registry/src/commands/stdlib/tcltest__errorchannel.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| stdlib | `tcltest::errorFile` | `rust/tcl-registry/src/commands/stdlib/tcltest__errorfile.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| stdlib | `tcltest::getMatchingFiles` | `rust/tcl-registry/src/commands/stdlib/tcltest__getmatchingfiles.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| stdlib | `tcltest::interpreter` | `rust/tcl-registry/src/commands/stdlib/tcltest__interpreter.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| stdlib | `tcltest::limitConstraints` | `rust/tcl-registry/src/commands/stdlib/tcltest__limitconstraints.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| stdlib | `tcltest::loadFile` | `rust/tcl-registry/src/commands/stdlib/tcltest__loadfile.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| stdlib | `tcltest::loadScript` | `rust/tcl-registry/src/commands/stdlib/tcltest__loadscript.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| stdlib | `tcltest::loadTestedCommands` | `rust/tcl-registry/src/commands/stdlib/tcltest__loadtestedcommands.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| stdlib | `tcltest::mainThread` | `rust/tcl-registry/src/commands/stdlib/tcltest__mainthread.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| stdlib | `tcltest::makeDirectory` | `rust/tcl-registry/src/commands/stdlib/tcltest__makedirectory.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| stdlib | `tcltest::makeFile` | `rust/tcl-registry/src/commands/stdlib/tcltest__makefile.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| stdlib | `tcltest::match` | `rust/tcl-registry/src/commands/stdlib/tcltest__match.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| stdlib | `tcltest::matchDirectories` | `rust/tcl-registry/src/commands/stdlib/tcltest__matchdirectories.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| stdlib | `tcltest::matchFiles` | `rust/tcl-registry/src/commands/stdlib/tcltest__matchfiles.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| stdlib | `tcltest::normalizeMsg` | `rust/tcl-registry/src/commands/stdlib/tcltest__normalizemsg.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| stdlib | `tcltest::normalizePath` | `rust/tcl-registry/src/commands/stdlib/tcltest__normalizepath.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| stdlib | `tcltest::outputChannel` | `rust/tcl-registry/src/commands/stdlib/tcltest__outputchannel.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| stdlib | `tcltest::outputFile` | `rust/tcl-registry/src/commands/stdlib/tcltest__outputfile.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| stdlib | `tcltest::preserveCore` | `rust/tcl-registry/src/commands/stdlib/tcltest__preservecore.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| stdlib | `tcltest::removeDirectory` | `rust/tcl-registry/src/commands/stdlib/tcltest__removedirectory.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| stdlib | `tcltest::removeFile` | `rust/tcl-registry/src/commands/stdlib/tcltest__removefile.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| stdlib | `tcltest::restoreState` | `rust/tcl-registry/src/commands/stdlib/tcltest__restorestate.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| stdlib | `tcltest::runAllTests` | `rust/tcl-registry/src/commands/stdlib/tcltest__runalltests.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| stdlib | `tcltest::saveState` | `rust/tcl-registry/src/commands/stdlib/tcltest__savestate.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| stdlib | `tcltest::singleProcess` | `rust/tcl-registry/src/commands/stdlib/tcltest__singleprocess.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| stdlib | `tcltest::skip` | `rust/tcl-registry/src/commands/stdlib/tcltest__skip.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| stdlib | `tcltest::skipDirectories` | `rust/tcl-registry/src/commands/stdlib/tcltest__skipdirectories.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| stdlib | `tcltest::skipFiles` | `rust/tcl-registry/src/commands/stdlib/tcltest__skipfiles.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| stdlib | `tcltest::temporaryDirectory` | `rust/tcl-registry/src/commands/stdlib/tcltest__temporarydirectory.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| stdlib | `tcltest::test` | `rust/tcl-registry/src/commands/stdlib/tcltest__test.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| stdlib | `tcltest::testConstraint` | `rust/tcl-registry/src/commands/stdlib/tcltest__testconstraint.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| stdlib | `tcltest::testsDirectory` | `rust/tcl-registry/src/commands/stdlib/tcltest__testsdirectory.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| stdlib | `tcltest::threadReap` | `rust/tcl-registry/src/commands/stdlib/tcltest__threadreap.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| stdlib | `tcltest::verbose` | `rust/tcl-registry/src/commands/stdlib/tcltest__verbose.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| stdlib | `tcltest::viewFile` | `rust/tcl-registry/src/commands/stdlib/tcltest__viewfile.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| stdlib | `tcltest::workingDirectory` | `rust/tcl-registry/src/commands/stdlib/tcltest__workingdirectory.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| stdlib | `testapplylambda` | `rust/tcl-registry/src/commands/stdlib/testapplylambda.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| stdlib | `testappverifierpresent` | `rust/tcl-registry/src/commands/stdlib/testappverifierpresent.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| stdlib | `testasync` | `rust/tcl-registry/src/commands/stdlib/testasync.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| stdlib | `testbigdata` | `rust/tcl-registry/src/commands/stdlib/testbigdata.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| stdlib | `testbignumobj` | `rust/tcl-registry/src/commands/stdlib/testbignumobj.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| stdlib | `testbooleanobj` | `rust/tcl-registry/src/commands/stdlib/testbooleanobj.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| stdlib | `testbumpinterpepoch` | `rust/tcl-registry/src/commands/stdlib/testbumpinterpepoch.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| stdlib | `testbytestring` | `rust/tcl-registry/src/commands/stdlib/testbytestring.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| stdlib | `testchannel` | `rust/tcl-registry/src/commands/stdlib/testchannel.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| stdlib | `testchannelevent` | `rust/tcl-registry/src/commands/stdlib/testchannelevent.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| stdlib | `testcmdinfo` | `rust/tcl-registry/src/commands/stdlib/testcmdinfo.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| stdlib | `testcmdtoken` | `rust/tcl-registry/src/commands/stdlib/testcmdtoken.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| stdlib | `testcmdtrace` | `rust/tcl-registry/src/commands/stdlib/testcmdtrace.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| stdlib | `testconcatobj` | `rust/tcl-registry/src/commands/stdlib/testconcatobj.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| stdlib | `testcpuid` | `rust/tcl-registry/src/commands/stdlib/testcpuid.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| stdlib | `testcreatecommand` | `rust/tcl-registry/src/commands/stdlib/testcreatecommand.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| stdlib | `testdcall` | `rust/tcl-registry/src/commands/stdlib/testdcall.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| stdlib | `testdel` | `rust/tcl-registry/src/commands/stdlib/testdel.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| stdlib | `testdelassocdata` | `rust/tcl-registry/src/commands/stdlib/testdelassocdata.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| stdlib | `testdoubledigits` | `rust/tcl-registry/src/commands/stdlib/testdoubledigits.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| stdlib | `testdoubleobj` | `rust/tcl-registry/src/commands/stdlib/testdoubleobj.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| stdlib | `testdstring` | `rust/tcl-registry/src/commands/stdlib/testdstring.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| stdlib | `testencoding` | `rust/tcl-registry/src/commands/stdlib/testencoding.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| stdlib | `testevalex` | `rust/tcl-registry/src/commands/stdlib/testevalex.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| stdlib | `testevalobjv` | `rust/tcl-registry/src/commands/stdlib/testevalobjv.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| stdlib | `testevent` | `rust/tcl-registry/src/commands/stdlib/testevent.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| stdlib | `testexithandler` | `rust/tcl-registry/src/commands/stdlib/testexithandler.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| stdlib | `testexitmainloop` | `rust/tcl-registry/src/commands/stdlib/testexitmainloop.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| stdlib | `testexprdouble` | `rust/tcl-registry/src/commands/stdlib/testexprdouble.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| stdlib | `testexprdoubleobj` | `rust/tcl-registry/src/commands/stdlib/testexprdoubleobj.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| stdlib | `testexprlong` | `rust/tcl-registry/src/commands/stdlib/testexprlong.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| stdlib | `testexprlongobj` | `rust/tcl-registry/src/commands/stdlib/testexprlongobj.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| stdlib | `testexprparser` | `rust/tcl-registry/src/commands/stdlib/testexprparser.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| stdlib | `testexprstring` | `rust/tcl-registry/src/commands/stdlib/testexprstring.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| stdlib | `testfevent` | `rust/tcl-registry/src/commands/stdlib/testfevent.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| stdlib | `testfile` | `rust/tcl-registry/src/commands/stdlib/testfile.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| stdlib | `testfilelink` | `rust/tcl-registry/src/commands/stdlib/testfilelink.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| stdlib | `testfilesystem` | `rust/tcl-registry/src/commands/stdlib/testfilesystem.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| stdlib | `testfindfirst` | `rust/tcl-registry/src/commands/stdlib/testfindfirst.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| stdlib | `testfindlast` | `rust/tcl-registry/src/commands/stdlib/testfindlast.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| stdlib | `testfstildeexpand` | `rust/tcl-registry/src/commands/stdlib/testfstildeexpand.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| stdlib | `testgetassocdata` | `rust/tcl-registry/src/commands/stdlib/testgetassocdata.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| stdlib | `testgetindexfromobjstruct` | `rust/tcl-registry/src/commands/stdlib/testgetindexfromobjstruct.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| stdlib | `testgetint` | `rust/tcl-registry/src/commands/stdlib/testgetint.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| stdlib | `testgetintforindex` | `rust/tcl-registry/src/commands/stdlib/testgetintforindex.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| stdlib | `testgetplatform` | `rust/tcl-registry/src/commands/stdlib/testgetplatform.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| stdlib | `testgetunichar` | `rust/tcl-registry/src/commands/stdlib/testgetunichar.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| stdlib | `testgetvarfullname` | `rust/tcl-registry/src/commands/stdlib/testgetvarfullname.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| stdlib | `testhandlecount` | `rust/tcl-registry/src/commands/stdlib/testhandlecount.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| stdlib | `testhashsystemhash` | `rust/tcl-registry/src/commands/stdlib/testhashsystemhash.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| stdlib | `testindexobj` | `rust/tcl-registry/src/commands/stdlib/testindexobj.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| stdlib | `testinterpdelete` | `rust/tcl-registry/src/commands/stdlib/testinterpdelete.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| stdlib | `testinterpresolver` | `rust/tcl-registry/src/commands/stdlib/testinterpresolver.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| stdlib | `testintobj` | `rust/tcl-registry/src/commands/stdlib/testintobj.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| stdlib | `testlink` | `rust/tcl-registry/src/commands/stdlib/testlink.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| stdlib | `testlinkarray` | `rust/tcl-registry/src/commands/stdlib/testlinkarray.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| stdlib | `testlistobj` | `rust/tcl-registry/src/commands/stdlib/testlistobj.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| stdlib | `testlistrep` | `rust/tcl-registry/src/commands/stdlib/testlistrep.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| stdlib | `testlocale` | `rust/tcl-registry/src/commands/stdlib/testlocale.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| stdlib | `testlongsize` | `rust/tcl-registry/src/commands/stdlib/testlongsize.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| stdlib | `testlutil` | `rust/tcl-registry/src/commands/stdlib/testlutil.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| stdlib | `testmainthread` | `rust/tcl-registry/src/commands/stdlib/testmainthread.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| stdlib | `testmsb` | `rust/tcl-registry/src/commands/stdlib/testmsb.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| stdlib | `testnrelevels` | `rust/tcl-registry/src/commands/stdlib/testnrelevels.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| stdlib | `testnreunwind` | `rust/tcl-registry/src/commands/stdlib/testnreunwind.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| stdlib | `testnumutfchars` | `rust/tcl-registry/src/commands/stdlib/testnumutfchars.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| stdlib | `testobj` | `rust/tcl-registry/src/commands/stdlib/testobj.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| stdlib | `testpanic` | `rust/tcl-registry/src/commands/stdlib/testpanic.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| stdlib | `testparseargs` | `rust/tcl-registry/src/commands/stdlib/testparseargs.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| stdlib | `testparser` | `rust/tcl-registry/src/commands/stdlib/testparser.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| stdlib | `testparsevar` | `rust/tcl-registry/src/commands/stdlib/testparsevar.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| stdlib | `testparsevarname` | `rust/tcl-registry/src/commands/stdlib/testparsevarname.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| stdlib | `testpreferstable` | `rust/tcl-registry/src/commands/stdlib/testpreferstable.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| stdlib | `testprint` | `rust/tcl-registry/src/commands/stdlib/testprint.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| stdlib | `testpurebytesobj` | `rust/tcl-registry/src/commands/stdlib/testpurebytesobj.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| stdlib | `testregexp` | `rust/tcl-registry/src/commands/stdlib/testregexp.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| stdlib | `testreturn` | `rust/tcl-registry/src/commands/stdlib/testreturn.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| stdlib | `testsaveresult` | `rust/tcl-registry/src/commands/stdlib/testsaveresult.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| stdlib | `testservicemode` | `rust/tcl-registry/src/commands/stdlib/testservicemode.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| stdlib | `testset2` | `rust/tcl-registry/src/commands/stdlib/testset2.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| stdlib | `testsetassocdata` | `rust/tcl-registry/src/commands/stdlib/testsetassocdata.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| stdlib | `testsetbytearraylength` | `rust/tcl-registry/src/commands/stdlib/testsetbytearraylength.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| stdlib | `testseterr` | `rust/tcl-registry/src/commands/stdlib/testseterr.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| stdlib | `testseterrorcode` | `rust/tcl-registry/src/commands/stdlib/testseterrorcode.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| stdlib | `testsetmainloop` | `rust/tcl-registry/src/commands/stdlib/testsetmainloop.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| stdlib | `testsetnoerr` | `rust/tcl-registry/src/commands/stdlib/testsetnoerr.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| stdlib | `testsetobjerrorcode` | `rust/tcl-registry/src/commands/stdlib/testsetobjerrorcode.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| stdlib | `testsetplatform` | `rust/tcl-registry/src/commands/stdlib/testsetplatform.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| stdlib | `testsimplefilesystem` | `rust/tcl-registry/src/commands/stdlib/testsimplefilesystem.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| stdlib | `testsize` | `rust/tcl-registry/src/commands/stdlib/testsize.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| stdlib | `testsocket` | `rust/tcl-registry/src/commands/stdlib/testsocket.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| stdlib | `teststaticlibrary` | `rust/tcl-registry/src/commands/stdlib/teststaticlibrary.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| stdlib | `teststaticpkg` | `rust/tcl-registry/src/commands/stdlib/teststaticpkg.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| stdlib | `teststringbytes` | `rust/tcl-registry/src/commands/stdlib/teststringbytes.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| stdlib | `teststringobj` | `rust/tcl-registry/src/commands/stdlib/teststringobj.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| stdlib | `testtranslatefilename` | `rust/tcl-registry/src/commands/stdlib/testtranslatefilename.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| stdlib | `testuniclass` | `rust/tcl-registry/src/commands/stdlib/testuniclass.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| stdlib | `testupvar` | `rust/tcl-registry/src/commands/stdlib/testupvar.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| stdlib | `testutfnext` | `rust/tcl-registry/src/commands/stdlib/testutfnext.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| stdlib | `testutfprev` | `rust/tcl-registry/src/commands/stdlib/testutfprev.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| stdlib | `testwrongnumargs` | `rust/tcl-registry/src/commands/stdlib/testwrongnumargs.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| tcl | `after` | `rust/tcl-registry/src/commands/tcl/after_.rs` | — | ✓ | ✓ | — | — | — | ✓ | — | — | ✓ | — | ✓ | — | — | — | — | — | — | — |
+| tcl | `append` | `rust/tcl-registry/src/commands/tcl/append_.rs` | — | ✓ | ✓ | ✓ | ✓ | — | ✓ | ✓ | — | — | — | ✓ | ✓ | ✓ | — | — | — | ✓ | — |
+| tcl | `apply` | `rust/tcl-registry/src/commands/tcl/apply.rs` | — | ✓ | ✓ | — | ✓ | — | ✓ | — | — | — | — | — | — | — | — | — | — | — | — |
+| tcl | `array` | `rust/tcl-registry/src/commands/tcl/array_.rs` | — | ✓ | ✓ | — | ✓ | — | ✓ | — | — | ✓ | — | ✓ | ✓ | — | ✓ | — | — | — | ✓ |
+| tcl | `binary` | `rust/tcl-registry/src/commands/tcl/binary_.rs` | — | ✓ | ✓ | ✓ | — | — | ✓ | — | — | ✓ | — | — | — | — | — | — | — | — | — |
+| tcl | `break` | `rust/tcl-registry/src/commands/tcl/break_.rs` | — | ✓ | ✓ | ✓ | — | — | ✓ | — | — | — | — | ✓ | — | — | — | — | — | — | — |
+| tcl | `catch` | `rust/tcl-registry/src/commands/tcl/catch_.rs` | — | ✓ | ✓ | ✓ | ✓ | — | ✓ | — | — | — | — | — | — | — | — | — | — | — | — |
+| tcl | `cd` | `rust/tcl-registry/src/commands/tcl/cd.rs` | — | ✓ | ✓ | — | — | — | ✓ | — | — | — | — | ✓ | — | — | — | — | — | — | — |
+| tcl | `chan` | `rust/tcl-registry/src/commands/tcl/chan_.rs` | — | ✓ | ✓ | ✓ | — | — | ✓ | — | — | ✓ | — | — | — | — | — | — | — | — | — |
+| tcl | `clock` | `rust/tcl-registry/src/commands/tcl/clock_.rs` | — | ✓ | ✓ | ✓ | — | — | ✓ | — | — | ✓ | — | — | — | — | — | — | — | — | — |
+| tcl | `close` | `rust/tcl-registry/src/commands/tcl/close_.rs` | — | ✓ | ✓ | — | ✓ | — | ✓ | — | — | — | — | ✓ | — | — | — | — | — | — | — |
+| tcl | `concat` | `rust/tcl-registry/src/commands/tcl/concat_.rs` | — | ✓ | ✓ | ✓ | — | — | ✓ | — | — | — | — | — | — | — | — | — | — | — | — |
+| tcl | `continue` | `rust/tcl-registry/src/commands/tcl/continue_.rs` | — | ✓ | ✓ | ✓ | — | — | ✓ | — | — | — | — | ✓ | — | — | — | — | — | — | — |
+| tcl | `coroinject` | `rust/tcl-registry/src/commands/tcl/coroinject.rs` | — | ✓ | ✓ | — | — | — | ✓ | — | — | — | — | — | — | — | — | — | — | — | — |
+| tcl | `coroprobe` | `rust/tcl-registry/src/commands/tcl/coroprobe.rs` | — | ✓ | ✓ | — | — | — | ✓ | — | — | — | — | — | — | — | — | — | — | — | — |
+| tcl | `coroutine` | `rust/tcl-registry/src/commands/tcl/coroutine.rs` | — | ✓ | ✓ | ✓ | ✓ | — | ✓ | — | — | — | — | — | — | — | — | — | — | — | — |
+| tcl | `dict` | `rust/tcl-registry/src/commands/tcl/dict.rs` | — | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | — | ✓ | — | — | — | ✓ | ✓ | — | — | — | ✓ |
+| tcl | `disabled_in_irules` | `rust/tcl-registry/src/commands/tcl/disabled_in_irules.rs` | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| tcl | `encoding` | `rust/tcl-registry/src/commands/tcl/encoding_.rs` | — | ✓ | ✓ | ✓ | — | — | ✓ | — | — | ✓ | — | — | — | — | — | — | — | — | — |
+| tcl | `eof` | `rust/tcl-registry/src/commands/tcl/eof_.rs` | — | ✓ | ✓ | — | ✓ | — | ✓ | — | — | — | — | ✓ | — | — | — | — | — | — | — |
+| tcl | `error` | `rust/tcl-registry/src/commands/tcl/error_.rs` | — | ✓ | ✓ | ✓ | — | — | ✓ | — | — | — | — | ✓ | — | — | — | — | — | — | — |
+| tcl | `eval` | `rust/tcl-registry/src/commands/tcl/eval_.rs` | — | ✓ | ✓ | ✓ | ✓ | — | ✓ | — | — | — | — | — | — | — | — | — | — | — | — |
+| tcl | `exec` | `rust/tcl-registry/src/commands/tcl/exec_.rs` | — | ✓ | ✓ | ✓ | — | — | ✓ | — | — | — | — | ✓ | — | — | — | — | — | — | — |
+| tcl | `exit` | `rust/tcl-registry/src/commands/tcl/exit_.rs` | — | ✓ | ✓ | ✓ | — | — | — | — | — | — | — | ✓ | — | — | — | — | — | — | — |
+| tcl | `expr` | `rust/tcl-registry/src/commands/tcl/expr_.rs` | ✓ | ✓ | ✓ | ✓ | ✓ | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | ✓ | — |
+| tcl | `fblocked` | `rust/tcl-registry/src/commands/tcl/fblocked.rs` | — | ✓ | ✓ | — | ✓ | — | ✓ | — | — | — | — | ✓ | — | — | — | — | — | — | — |
+| tcl | `fconfigure` | `rust/tcl-registry/src/commands/tcl/fconfigure_.rs` | — | ✓ | ✓ | ✓ | ✓ | — | ✓ | — | ✓ | — | — | ✓ | — | — | — | — | — | — | — |
+| tcl | `fcopy` | `rust/tcl-registry/src/commands/tcl/fcopy.rs` | — | ✓ | ✓ | — | ✓ | — | ✓ | — | — | — | — | ✓ | — | — | — | — | — | — | — |
+| tcl | `fcopy` | `rust/tcl-registry/src/commands/tcl/fcopy_.rs` | — | ✓ | ✓ | — | ✓ | — | ✓ | — | — | — | — | ✓ | — | — | — | — | — | — | — |
+| tcl | `file` | `rust/tcl-registry/src/commands/tcl/file_.rs` | — | ✓ | ✓ | ✓ | ✓ | — | ✓ | — | ✓ | ✓ | — | ✓ | — | — | — | — | — | — | — |
+| tcl | `fileevent` | `rust/tcl-registry/src/commands/tcl/fileevent.rs` | — | ✓ | ✓ | — | ✓ | — | ✓ | — | — | — | — | ✓ | — | — | — | — | — | — | — |
+| tcl | `fileevent` | `rust/tcl-registry/src/commands/tcl/fileevent_.rs` | — | ✓ | ✓ | — | ✓ | — | ✓ | — | — | — | — | ✓ | — | — | — | — | — | — | — |
+| tcl | `flush` | `rust/tcl-registry/src/commands/tcl/flush_.rs` | — | ✓ | ✓ | — | ✓ | — | ✓ | — | — | — | — | ✓ | — | — | — | — | — | — | — |
+| tcl | `for` | `rust/tcl-registry/src/commands/tcl/for_.rs` | — | ✓ | ✓ | ✓ | ✓ | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — |
+| tcl | `foreach` | `rust/tcl-registry/src/commands/tcl/foreach_.rs` | — | ✓ | ✓ | ✓ | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — |
+| tcl | `format` | `rust/tcl-registry/src/commands/tcl/format_.rs` | — | ✓ | ✓ | ✓ | — | — | ✓ | — | — | — | — | — | — | — | — | — | — | — | — |
+| tcl | `gets` | `rust/tcl-registry/src/commands/tcl/gets_.rs` | — | ✓ | ✓ | ✓ | ✓ | — | ✓ | — | — | — | — | ✓ | ✓ | — | — | — | — | — | — |
+| tcl | `glob` | `rust/tcl-registry/src/commands/tcl/glob_.rs` | — | ✓ | ✓ | — | — | — | ✓ | — | ✓ | — | — | ✓ | — | — | — | — | — | — | — |
+| tcl | `global` | `rust/tcl-registry/src/commands/tcl/global_.rs` | — | ✓ | ✓ | ✓ | ✓ | — | ✓ | — | — | — | — | ✓ | ✓ | — | — | — | — | ✓ | — |
+| tcl | `if` | `rust/tcl-registry/src/commands/tcl/if_.rs` | — | ✓ | ✓ | ✓ | — | ✓ | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — |
+| tcl | `incr` | `rust/tcl-registry/src/commands/tcl/incr_.rs` | ✓ | ✓ | ✓ | ✓ | ✓ | — | ✓ | ✓ | — | — | ✓ | — | ✓ | ✓ | — | — | — | ✓ | — |
+| tcl | `info` | `rust/tcl-registry/src/commands/tcl/info_.rs` | — | ✓ | ✓ | — | ✓ | — | ✓ | — | — | ✓ | — | ✓ | — | — | — | — | — | — | — |
+| tcl | `interp` | `rust/tcl-registry/src/commands/tcl/interp.rs` | — | ✓ | ✓ | ✓ | — | — | ✓ | — | — | ✓ | — | — | — | — | — | — | — | — | — |
+| tcl | `join` | `rust/tcl-registry/src/commands/tcl/join_.rs` | — | ✓ | ✓ | ✓ | — | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — |
+| tcl | `lappend` | `rust/tcl-registry/src/commands/tcl/lappend_.rs` | — | ✓ | ✓ | ✓ | ✓ | — | ✓ | ✓ | — | — | — | ✓ | ✓ | ✓ | ✓ | — | — | ✓ | — |
+| tcl | `lassign` | `rust/tcl-registry/src/commands/tcl/lassign.rs` | — | ✓ | ✓ | — | ✓ | — | ✓ | — | — | — | — | — | — | — | — | — | — | — | ✓ |
+| tcl | `lindex` | `rust/tcl-registry/src/commands/tcl/lindex.rs` | — | ✓ | ✓ | ✓ | — | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — |
+| tcl | `linsert` | `rust/tcl-registry/src/commands/tcl/linsert.rs` | — | ✓ | ✓ | ✓ | — | — | ✓ | — | — | — | — | — | — | — | ✓ | — | — | — | ✓ |
+| tcl | `list` | `rust/tcl-registry/src/commands/tcl/list_.rs` | — | ✓ | ✓ | ✓ | — | — | ✓ | — | — | — | — | — | — | — | — | — | — | — | — |
+| tcl | `llength` | `rust/tcl-registry/src/commands/tcl/llength.rs` | — | ✓ | ✓ | ✓ | — | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | ✓ |
+| tcl | `lmap` | `rust/tcl-registry/src/commands/tcl/lmap_.rs` | — | ✓ | ✓ | ✓ | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — |
+| tcl | `load` | `rust/tcl-registry/src/commands/tcl/load.rs` | — | ✓ | ✓ | — | — | — | ✓ | — | — | — | — | — | — | — | — | — | — | — | — |
+| tcl | `lrange` | `rust/tcl-registry/src/commands/tcl/lrange.rs` | — | ✓ | ✓ | ✓ | — | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | ✓ |
+| tcl | `lremove` | `rust/tcl-registry/src/commands/tcl/lremove.rs` | — | ✓ | ✓ | ✓ | — | — | ✓ | — | — | — | — | — | — | — | — | — | — | — | — |
+| tcl | `lrepeat` | `rust/tcl-registry/src/commands/tcl/lrepeat.rs` | — | ✓ | ✓ | ✓ | — | — | ✓ | — | — | — | — | — | — | — | ✓ | — | — | — | — |
+| tcl | `lreplace` | `rust/tcl-registry/src/commands/tcl/lreplace.rs` | — | ✓ | ✓ | ✓ | — | — | ✓ | — | — | — | — | — | — | — | ✓ | — | — | — | — |
+| tcl | `lreverse` | `rust/tcl-registry/src/commands/tcl/lreverse.rs` | — | ✓ | ✓ | ✓ | — | — | ✓ | — | — | — | — | — | — | — | — | — | — | — | — |
+| tcl | `lsearch` | `rust/tcl-registry/src/commands/tcl/lsearch_.rs` | — | ✓ | ✓ | ✓ | — | — | ✓ | — | — | — | — | — | — | — | — | — | — | — | — |
+| tcl | `lseq` | `rust/tcl-registry/src/commands/tcl/lseq.rs` | — | ✓ | ✓ | ✓ | — | — | ✓ | — | — | — | — | — | — | — | — | — | — | — | — |
+| tcl | `lset` | `rust/tcl-registry/src/commands/tcl/lset.rs` | ✓ | ✓ | ✓ | — | ✓ | — | ✓ | — | — | — | ✓ | — | ✓ | — | ✓ | — | — | — | ✓ |
+| tcl | `lsort` | `rust/tcl-registry/src/commands/tcl/lsort_.rs` | — | ✓ | ✓ | ✓ | — | — | ✓ | — | — | — | — | — | — | — | ✓ | — | — | — | — |
+| tcl | `tcl::mathop` | `rust/tcl-registry/src/commands/tcl/mathop.rs` | — | ✓ | ✓ | ✓ | — | — | ✓ | — | — | — | — | — | — | — | — | — | — | — | — |
+| tcl | `namespace` | `rust/tcl-registry/src/commands/tcl/namespace_.rs` | — | ✓ | ✓ | ✓ | ✓ | — | ✓ | — | — | ✓ | — | ✓ | — | — | — | — | — | — | — |
+| tcl | `oo::abstract` | `rust/tcl-registry/src/commands/tcl/oo_abstract.rs` | — | ✓ | ✓ | ✓ | — | — | ✓ | — | — | — | — | — | — | — | — | — | — | — | — |
+| tcl | `oo::class` | `rust/tcl-registry/src/commands/tcl/oo_class.rs` | — | ✓ | ✓ | ✓ | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — |
+| tcl | `classvariable` | `rust/tcl-registry/src/commands/tcl/oo_classvariable.rs` | — | ✓ | ✓ | ✓ | — | — | ✓ | — | — | — | — | — | — | — | — | — | — | — | — |
+| tcl | `oo::configurable` | `rust/tcl-registry/src/commands/tcl/oo_configurable.rs` | — | ✓ | ✓ | ✓ | — | — | ✓ | — | — | — | — | — | — | — | — | — | — | — | — |
+| tcl | `oo::copy` | `rust/tcl-registry/src/commands/tcl/oo_copy.rs` | — | ✓ | ✓ | — | — | — | ✓ | — | — | — | — | — | — | — | — | — | — | — | — |
+| tcl | `oo::define` | `rust/tcl-registry/src/commands/tcl/oo_define.rs` | — | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — |
+| tcl | `my` | `rust/tcl-registry/src/commands/tcl/oo_my.rs` | — | ✓ | ✓ | ✓ | — | — | ✓ | — | — | — | — | — | — | — | — | — | — | — | — |
+| tcl | `next` | `rust/tcl-registry/src/commands/tcl/oo_next.rs` | — | ✓ | ✓ | ✓ | — | — | ✓ | — | — | — | — | — | — | — | — | — | — | — | — |
+| tcl | `oo::objdefine` | `rust/tcl-registry/src/commands/tcl/oo_objdefine.rs` | — | ✓ | ✓ | ✓ | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — |
+| tcl | `oo::object` | `rust/tcl-registry/src/commands/tcl/oo_object.rs` | — | ✓ | ✓ | ✓ | — | — | ✓ | — | — | — | — | — | — | — | — | — | — | — | — |
+| tcl | `self` | `rust/tcl-registry/src/commands/tcl/oo_self.rs` | — | ✓ | ✓ | ✓ | — | — | ✓ | — | — | — | — | — | — | — | — | — | — | — | — |
+| tcl | `oo::singleton` | `rust/tcl-registry/src/commands/tcl/oo_singleton.rs` | — | ✓ | ✓ | ✓ | — | — | ✓ | — | — | — | — | — | — | — | — | — | — | — | — |
+| tcl | `open` | `rust/tcl-registry/src/commands/tcl/open_.rs` | — | ✓ | ✓ | ✓ | — | — | ✓ | — | — | — | — | ✓ | — | — | — | — | — | — | — |
+| tcl | `package` | `rust/tcl-registry/src/commands/tcl/package_.rs` | — | ✓ | ✓ | ✓ | — | — | ✓ | — | ✓ | ✓ | — | ✓ | — | — | — | — | — | — | — |
+| tcl | `parray` | `rust/tcl-registry/src/commands/tcl/parray.rs` | — | ✓ | ✓ | — | ✓ | — | ✓ | — | — | — | — | ✓ | — | — | — | — | — | — | — |
+| tcl | `pid` | `rust/tcl-registry/src/commands/tcl/pid.rs` | — | ✓ | ✓ | ✓ | — | — | ✓ | — | — | — | — | — | — | — | — | — | — | — | — |
+| tcl | `proc` | `rust/tcl-registry/src/commands/tcl/proc_.rs` | ✓ | ✓ | ✓ | ✓ | ✓ | — | ✓ | — | — | — | — | — | — | — | — | — | — | — | — |
+| tcl | `puts` | `rust/tcl-registry/src/commands/tcl/puts_.rs` | — | ✓ | ✓ | ✓ | — | — | ✓ | — | ✓ | — | — | ✓ | — | — | — | — | — | — | — |
+| tcl | `re_quote` | `rust/tcl-registry/src/commands/tcl/re_quote.rs` | — | ✓ | ✓ | ✓ | — | — | ✓ | — | — | — | — | — | — | — | — | — | — | — | — |
+| tcl | `read` | `rust/tcl-registry/src/commands/tcl/read_.rs` | — | ✓ | ✓ | ✓ | — | — | ✓ | — | — | — | — | ✓ | — | — | — | — | — | — | — |
+| tcl | `regex_quote` | `rust/tcl-registry/src/commands/tcl/regex_quote.rs` | — | ✓ | ✓ | ✓ | — | — | ✓ | — | — | — | — | — | — | — | — | — | — | — | — |
+| tcl | `regexp` | `rust/tcl-registry/src/commands/tcl/regexp_.rs` | — | ✓ | ✓ | ✓ | — | — | ✓ | — | ✓ | — | — | ✓ | — | — | — | — | — | — | — |
+| tcl | `regexp_quote` | `rust/tcl-registry/src/commands/tcl/regexp_quote.rs` | — | ✓ | ✓ | ✓ | — | — | ✓ | — | — | — | — | — | — | — | — | — | — | — | — |
+| tcl | `registry` | `rust/tcl-registry/src/commands/tcl/registry_.rs` | — | ✓ | ✓ | — | — | — | ✓ | — | — | — | — | — | — | — | — | — | — | — | — |
+| tcl | `regsub` | `rust/tcl-registry/src/commands/tcl/regsub_.rs` | — | ✓ | ✓ | — | — | — | ✓ | — | ✓ | — | — | ✓ | — | — | — | — | — | — | — |
+| tcl | `rename` | `rust/tcl-registry/src/commands/tcl/rename_.rs` | — | ✓ | ✓ | ✓ | ✓ | — | ✓ | — | — | — | — | — | — | — | — | — | — | — | — |
+| tcl | `return` | `rust/tcl-registry/src/commands/tcl/return_.rs` | — | ✓ | ✓ | ✓ | — | — | ✓ | — | — | — | — | ✓ | — | — | — | — | — | ✓ | — |
+| tcl | `scan` | `rust/tcl-registry/src/commands/tcl/scan_.rs` | — | ✓ | ✓ | — | ✓ | — | ✓ | — | — | — | — | — | — | — | — | — | — | — | — |
+| tcl | `seek` | `rust/tcl-registry/src/commands/tcl/seek_.rs` | — | ✓ | ✓ | — | ✓ | — | ✓ | — | — | — | — | ✓ | — | — | — | — | — | — | — |
+| tcl | `set` | `rust/tcl-registry/src/commands/tcl/set_.rs` | ✓ | ✓ | ✓ | — | — | ✓ | ✓ | — | — | — | — | — | ✓ | — | — | — | — | ✓ | — |
+| tcl | `socket` | `rust/tcl-registry/src/commands/tcl/socket_.rs` | — | ✓ | ✓ | ✓ | — | — | ✓ | — | — | — | — | ✓ | — | — | — | — | — | — | — |
+| tcl | `source` | `rust/tcl-registry/src/commands/tcl/source_.rs` | — | ✓ | ✓ | ✓ | — | — | ✓ | — | ✓ | — | — | ✓ | — | — | — | — | — | — | — |
+| tcl | `split` | `rust/tcl-registry/src/commands/tcl/split_.rs` | — | ✓ | ✓ | ✓ | — | — | ✓ | — | — | — | — | — | — | — | — | — | — | — | — |
+| tcl | `string` | `rust/tcl-registry/src/commands/tcl/string_.rs` | — | ✓ | ✓ | ✓ | — | — | ✓ | ✓ | ✓ | ✓ | — | — | — | — | — | — | — | — | — |
+| tcl | `subst` | `rust/tcl-registry/src/commands/tcl/subst_.rs` | — | ✓ | ✓ | ✓ | — | — | ✓ | — | — | — | — | — | — | — | — | — | — | — | — |
+| tcl | `switch` | `rust/tcl-registry/src/commands/tcl/switch_.rs` | — | ✓ | ✓ | ✓ | — | ✓ | ✓ | — | ✓ | — | — | — | — | — | — | — | — | — | — |
+| tcl | `tailcall` | `rust/tcl-registry/src/commands/tcl/tailcall_.rs` | — | ✓ | ✓ | ✓ | — | — | ✓ | — | — | — | — | ✓ | — | — | — | — | — | — | — |
+| tcl | `tell` | `rust/tcl-registry/src/commands/tcl/tell_.rs` | — | ✓ | ✓ | — | ✓ | — | ✓ | — | — | — | — | ✓ | — | — | — | — | — | — | — |
+| tcl | `throw` | `rust/tcl-registry/src/commands/tcl/throw_.rs` | — | ✓ | ✓ | ✓ | — | — | ✓ | — | — | — | — | ✓ | — | — | — | — | — | — | — |
+| tcl | `time` | `rust/tcl-registry/src/commands/tcl/time.rs` | — | ✓ | ✓ | — | ✓ | — | ✓ | — | — | — | — | — | — | — | — | — | — | — | — |
+| tcl | `trace` | `rust/tcl-registry/src/commands/tcl/trace.rs` | — | ✓ | ✓ | ✓ | — | — | ✓ | — | — | ✓ | — | — | — | — | — | — | — | — | — |
+| tcl | `try` | `rust/tcl-registry/src/commands/tcl/try_.rs` | — | ✓ | ✓ | ✓ | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — |
+| tcl | `unknown` | `rust/tcl-registry/src/commands/tcl/unknown.rs` | — | ✓ | ✓ | ✓ | — | — | ✓ | — | — | — | — | — | — | — | — | — | — | — | — |
+| tcl | `unload` | `rust/tcl-registry/src/commands/tcl/unload.rs` | — | ✓ | ✓ | — | — | — | ✓ | — | — | — | — | — | — | — | — | — | — | — | — |
+| tcl | `unset` | `rust/tcl-registry/src/commands/tcl/unset_.rs` | — | ✓ | ✓ | ✓ | ✓ | — | ✓ | — | ✓ | — | — | ✓ | ✓ | — | — | — | — | ✓ | — |
+| tcl | `update` | `rust/tcl-registry/src/commands/tcl/update.rs` | — | ✓ | ✓ | — | — | — | ✓ | — | — | — | — | — | — | — | — | — | — | — | — |
+| tcl | `uplevel` | `rust/tcl-registry/src/commands/tcl/uplevel_.rs` | — | ✓ | ✓ | ✓ | — | — | ✓ | — | — | — | — | — | — | — | — | — | — | — | — |
+| tcl | `upvar` | `rust/tcl-registry/src/commands/tcl/upvar_.rs` | — | ✓ | ✓ | ✓ | — | — | ✓ | — | — | — | — | ✓ | — | — | — | — | — | ✓ | — |
+| tcl | `variable` | `rust/tcl-registry/src/commands/tcl/variable_.rs` | — | ✓ | ✓ | ✓ | ✓ | — | ✓ | — | — | — | — | ✓ | ✓ | — | — | — | — | ✓ | — |
+| tcl | `vwait` | `rust/tcl-registry/src/commands/tcl/vwait.rs` | — | ✓ | ✓ | — | ✓ | — | ✓ | — | — | — | — | — | — | — | — | — | — | — | — |
+| tcl | `while` | `rust/tcl-registry/src/commands/tcl/while_.rs` | — | ✓ | ✓ | ✓ | ✓ | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — |
+| tcl | `yield` | `rust/tcl-registry/src/commands/tcl/yield_.rs` | — | ✓ | ✓ | — | — | — | ✓ | — | — | — | — | — | — | — | — | — | — | — | — |
+| tcl | `yieldto` | `rust/tcl-registry/src/commands/tcl/yieldto.rs` | — | ✓ | ✓ | — | — | — | ✓ | — | — | — | — | — | — | — | — | — | — | — | — |
+| tcl | `zlib` | `rust/tcl-registry/src/commands/tcl/zlib.rs` | — | ✓ | ✓ | — | — | — | ✓ | — | — | — | — | — | — | — | — | — | — | — | — |
+| tcllib | `base64::decode` | `rust/tcl-registry/src/commands/tcllib/base64__decode.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| tcllib | `base64::encode` | `rust/tcl-registry/src/commands/tcllib/base64__encode.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| tcllib | `cmdline::getArgv0` | `rust/tcl-registry/src/commands/tcllib/cmdline__getargv0.rs` | — | ✓ | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| tcllib | `cmdline::getfiles` | `rust/tcl-registry/src/commands/tcllib/cmdline__getfiles.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| tcllib | `cmdline::getKnownOpt` | `rust/tcl-registry/src/commands/tcllib/cmdline__getknownopt.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| tcllib | `cmdline::getKnownOptions` | `rust/tcl-registry/src/commands/tcllib/cmdline__getknownoptions.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| tcllib | `cmdline::getopt` | `rust/tcl-registry/src/commands/tcllib/cmdline__getopt.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| tcllib | `cmdline::getoptions` | `rust/tcl-registry/src/commands/tcllib/cmdline__getoptions.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| tcllib | `cmdline::typedGetopt` | `rust/tcl-registry/src/commands/tcllib/cmdline__typedgetopt.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| tcllib | `cmdline::typedGetoptions` | `rust/tcl-registry/src/commands/tcllib/cmdline__typedgetoptions.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| tcllib | `cmdline::typedUsage` | `rust/tcl-registry/src/commands/tcllib/cmdline__typedusage.rs` | — | ✓ | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| tcllib | `cmdline::usage` | `rust/tcl-registry/src/commands/tcllib/cmdline__usage.rs` | — | ✓ | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| tcllib | `csv::iscomplete` | `rust/tcl-registry/src/commands/tcllib/csv__iscomplete.rs` | — | ✓ | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| tcllib | `csv::join` | `rust/tcl-registry/src/commands/tcllib/csv__join.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| tcllib | `csv::joinlist` | `rust/tcl-registry/src/commands/tcllib/csv__joinlist.rs` | — | ✓ | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| tcllib | `csv::joinmatrix` | `rust/tcl-registry/src/commands/tcllib/csv__joinmatrix.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| tcllib | `csv::read2matrix` | `rust/tcl-registry/src/commands/tcllib/csv__read2matrix.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| tcllib | `csv::read2queue` | `rust/tcl-registry/src/commands/tcllib/csv__read2queue.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| tcllib | `csv::report` | `rust/tcl-registry/src/commands/tcllib/csv__report.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| tcllib | `csv::split` | `rust/tcl-registry/src/commands/tcllib/csv__split.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| tcllib | `csv::split2matrix` | `rust/tcl-registry/src/commands/tcllib/csv__split2matrix.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| tcllib | `csv::split2queue` | `rust/tcl-registry/src/commands/tcllib/csv__split2queue.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| tcllib | `csv::writematrix` | `rust/tcl-registry/src/commands/tcllib/csv__writematrix.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| tcllib | `csv::writequeue` | `rust/tcl-registry/src/commands/tcllib/csv__writequeue.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| tcllib | `dns::address` | `rust/tcl-registry/src/commands/tcllib/dns__address.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| tcllib | `dns::cleanup` | `rust/tcl-registry/src/commands/tcllib/dns__cleanup.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| tcllib | `dns::cname` | `rust/tcl-registry/src/commands/tcllib/dns__cname.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| tcllib | `dns::configure` | `rust/tcl-registry/src/commands/tcllib/dns__configure.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| tcllib | `dns::dump` | `rust/tcl-registry/src/commands/tcllib/dns__dump.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| tcllib | `dns::error` | `rust/tcl-registry/src/commands/tcllib/dns__error.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| tcllib | `dns::errorcode` | `rust/tcl-registry/src/commands/tcllib/dns__errorcode.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| tcllib | `dns::name` | `rust/tcl-registry/src/commands/tcllib/dns__name.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| tcllib | `dns::reset` | `rust/tcl-registry/src/commands/tcllib/dns__reset.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| tcllib | `dns::resolve` | `rust/tcl-registry/src/commands/tcllib/dns__resolve.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| tcllib | `dns::result` | `rust/tcl-registry/src/commands/tcllib/dns__result.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| tcllib | `dns::status` | `rust/tcl-registry/src/commands/tcllib/dns__status.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| tcllib | `dns::wait` | `rust/tcl-registry/src/commands/tcllib/dns__wait.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| tcllib | `fileutil::appendToFile` | `rust/tcl-registry/src/commands/tcllib/fileutil__appendtofile.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| tcllib | `fileutil::cat` | `rust/tcl-registry/src/commands/tcllib/fileutil__cat.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| tcllib | `fileutil::fileType` | `rust/tcl-registry/src/commands/tcllib/fileutil__filetype.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| tcllib | `fileutil::find` | `rust/tcl-registry/src/commands/tcllib/fileutil__find.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| tcllib | `fileutil::findByPattern` | `rust/tcl-registry/src/commands/tcllib/fileutil__findbypattern.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| tcllib | `fileutil::foreachLine` | `rust/tcl-registry/src/commands/tcllib/fileutil__foreachline.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| tcllib | `fileutil::fullnormalize` | `rust/tcl-registry/src/commands/tcllib/fileutil__fullnormalize.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| tcllib | `fileutil::grep` | `rust/tcl-registry/src/commands/tcllib/fileutil__grep.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| tcllib | `fileutil::insertIntoFile` | `rust/tcl-registry/src/commands/tcllib/fileutil__insertintofile.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| tcllib | `fileutil::install` | `rust/tcl-registry/src/commands/tcllib/fileutil__install.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| tcllib | `fileutil::jail` | `rust/tcl-registry/src/commands/tcllib/fileutil__jail.rs` | — | ✓ | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| tcllib | `fileutil::lexnormalize` | `rust/tcl-registry/src/commands/tcllib/fileutil__lexnormalize.rs` | — | ✓ | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| tcllib | `fileutil::maketempdir` | `rust/tcl-registry/src/commands/tcllib/fileutil__maketempdir.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| tcllib | `fileutil::relative` | `rust/tcl-registry/src/commands/tcllib/fileutil__relative.rs` | — | ✓ | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| tcllib | `fileutil::relativeUrl` | `rust/tcl-registry/src/commands/tcllib/fileutil__relativeurl.rs` | — | ✓ | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| tcllib | `fileutil::removeFromFile` | `rust/tcl-registry/src/commands/tcllib/fileutil__removefromfile.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| tcllib | `fileutil::replaceInFile` | `rust/tcl-registry/src/commands/tcllib/fileutil__replaceinfile.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| tcllib | `fileutil::stripN` | `rust/tcl-registry/src/commands/tcllib/fileutil__stripn.rs` | — | ✓ | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| tcllib | `fileutil::stripPwd` | `rust/tcl-registry/src/commands/tcllib/fileutil__strippwd.rs` | — | ✓ | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| tcllib | `fileutil::tempdir` | `rust/tcl-registry/src/commands/tcllib/fileutil__tempdir.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| tcllib | `fileutil::tempdirReset` | `rust/tcl-registry/src/commands/tcllib/fileutil__tempdirreset.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| tcllib | `fileutil::tempfile` | `rust/tcl-registry/src/commands/tcllib/fileutil__tempfile.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| tcllib | `fileutil::test` | `rust/tcl-registry/src/commands/tcllib/fileutil__test.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| tcllib | `fileutil::touch` | `rust/tcl-registry/src/commands/tcllib/fileutil__touch.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| tcllib | `fileutil::updateInPlace` | `rust/tcl-registry/src/commands/tcllib/fileutil__updateinplace.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| tcllib | `fileutil::writeFile` | `rust/tcl-registry/src/commands/tcllib/fileutil__writefile.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| tcllib | `html::html_entities` | `rust/tcl-registry/src/commands/tcllib/html__html_entities.rs` | — | ✓ | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| tcllib | `html::tagstrip` | `rust/tcl-registry/src/commands/tcllib/html__tagstrip.rs` | — | ✓ | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| tcllib | `ip::collapse` | `rust/tcl-registry/src/commands/tcllib/ip__collapse.rs` | — | ✓ | ✓ | ✓ | — | — | ✓ | — | — | — | — | — | — | — | — | — | — | — | — |
+| tcllib | `ip::contract` | `rust/tcl-registry/src/commands/tcllib/ip__contract.rs` | — | ✓ | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| tcllib | `ip::equal` | `rust/tcl-registry/src/commands/tcllib/ip__equal.rs` | — | ✓ | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| tcllib | `ip::is` | `rust/tcl-registry/src/commands/tcllib/ip__is.rs` | — | ✓ | ✓ | ✓ | — | — | ✓ | — | — | — | — | — | — | — | — | — | — | — | — |
+| tcllib | `ip::mask` | `rust/tcl-registry/src/commands/tcllib/ip__mask.rs` | — | ✓ | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| tcllib | `ip::normalize` | `rust/tcl-registry/src/commands/tcllib/ip__normalize.rs` | — | ✓ | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| tcllib | `ip::prefix` | `rust/tcl-registry/src/commands/tcllib/ip__prefix.rs` | — | ✓ | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| tcllib | `ip::subtract` | `rust/tcl-registry/src/commands/tcllib/ip__subtract.rs` | — | ✓ | ✓ | ✓ | — | — | ✓ | — | — | — | — | — | — | — | — | — | — | — | — |
+| tcllib | `ip::type` | `rust/tcl-registry/src/commands/tcllib/ip__type.rs` | — | ✓ | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| tcllib | `ip::version` | `rust/tcl-registry/src/commands/tcllib/ip__version.rs` | — | ✓ | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| tcllib | `json::dict2json` | `rust/tcl-registry/src/commands/tcllib/json__dict2json.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| tcllib | `json::json2dict` | `rust/tcl-registry/src/commands/tcllib/json__json2dict.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| tcllib | `json::list2json` | `rust/tcl-registry/src/commands/tcllib/json__list2json.rs` | — | ✓ | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| tcllib | `json::many-json2dict` | `rust/tcl-registry/src/commands/tcllib/json__many_json2dict.rs` | — | ✓ | ✓ | ✓ | — | — | ✓ | — | — | — | — | — | — | — | — | — | — | — | — |
+| tcllib | `json::string2json` | `rust/tcl-registry/src/commands/tcllib/json__string2json.rs` | — | ✓ | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| tcllib | `json::validate` | `rust/tcl-registry/src/commands/tcllib/json__validate.rs` | — | ✓ | ✓ | ✓ | — | — | ✓ | — | — | — | — | — | — | — | — | — | — | — | — |
+| tcllib | `logger::disable` | `rust/tcl-registry/src/commands/tcllib/logger__disable.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| tcllib | `logger::enable` | `rust/tcl-registry/src/commands/tcllib/logger__enable.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| tcllib | `logger::import` | `rust/tcl-registry/src/commands/tcllib/logger__import.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| tcllib | `logger::init` | `rust/tcl-registry/src/commands/tcllib/logger__init.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| tcllib | `logger::initNamespace` | `rust/tcl-registry/src/commands/tcllib/logger__initnamespace.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| tcllib | `logger::levels` | `rust/tcl-registry/src/commands/tcllib/logger__levels.rs` | — | ✓ | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| tcllib | `logger::servicecmd` | `rust/tcl-registry/src/commands/tcllib/logger__servicecmd.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| tcllib | `logger::services` | `rust/tcl-registry/src/commands/tcllib/logger__services.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| tcllib | `logger::setlevel` | `rust/tcl-registry/src/commands/tcllib/logger__setlevel.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| tcllib | `logger::walk` | `rust/tcl-registry/src/commands/tcllib/logger__walk.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| tcllib | `math::statistics::analyse-Kruskal-Wallis` | `rust/tcl-registry/src/commands/tcllib/math__statistics__analyse_kruskal_wallis.rs` | — | ✓ | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| tcllib | `math::statistics::autocorr` | `rust/tcl-registry/src/commands/tcllib/math__statistics__autocorr.rs` | — | ✓ | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| tcllib | `math::statistics::basic-stats` | `rust/tcl-registry/src/commands/tcllib/math__statistics__basic_stats.rs` | — | ✓ | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| tcllib | `math::statistics::control-Rchart` | `rust/tcl-registry/src/commands/tcllib/math__statistics__control_rchart.rs` | — | ✓ | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| tcllib | `math::statistics::control-xbar` | `rust/tcl-registry/src/commands/tcllib/math__statistics__control_xbar.rs` | — | ✓ | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| tcllib | `math::statistics::corr` | `rust/tcl-registry/src/commands/tcllib/math__statistics__corr.rs` | — | ✓ | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| tcllib | `math::statistics::crosscorr` | `rust/tcl-registry/src/commands/tcllib/math__statistics__crosscorr.rs` | — | ✓ | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| tcllib | `math::statistics::filter` | `rust/tcl-registry/src/commands/tcllib/math__statistics__filter.rs` | — | ✓ | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| tcllib | `math::statistics::group-rank` | `rust/tcl-registry/src/commands/tcllib/math__statistics__group_rank.rs` | — | ✓ | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| tcllib | `math::statistics::histogram` | `rust/tcl-registry/src/commands/tcllib/math__statistics__histogram.rs` | — | ✓ | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| tcllib | `math::statistics::histogram-alt` | `rust/tcl-registry/src/commands/tcllib/math__statistics__histogram_alt.rs` | — | ✓ | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| tcllib | `math::statistics::interval-mean-stdev` | `rust/tcl-registry/src/commands/tcllib/math__statistics__interval_mean_stdev.rs` | — | ✓ | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| tcllib | `math::statistics::lillieforsFit` | `rust/tcl-registry/src/commands/tcllib/math__statistics__lillieforsfit.rs` | — | ✓ | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| tcllib | `math::statistics::linear-model` | `rust/tcl-registry/src/commands/tcllib/math__statistics__linear_model.rs` | — | ✓ | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| tcllib | `math::statistics::linear-residuals` | `rust/tcl-registry/src/commands/tcllib/math__statistics__linear_residuals.rs` | — | ✓ | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| tcllib | `math::statistics::map` | `rust/tcl-registry/src/commands/tcllib/math__statistics__map.rs` | — | ✓ | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| tcllib | `math::statistics::max` | `rust/tcl-registry/src/commands/tcllib/math__statistics__max.rs` | — | ✓ | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| tcllib | `math::statistics::mean` | `rust/tcl-registry/src/commands/tcllib/math__statistics__mean.rs` | — | ✓ | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| tcllib | `math::statistics::mean-histogram-limits` | `rust/tcl-registry/src/commands/tcllib/math__statistics__mean_histogram_limits.rs` | — | ✓ | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| tcllib | `math::statistics::median` | `rust/tcl-registry/src/commands/tcllib/math__statistics__median.rs` | — | ✓ | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| tcllib | `math::statistics::min` | `rust/tcl-registry/src/commands/tcllib/math__statistics__min.rs` | — | ✓ | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| tcllib | `math::statistics::minmax-histogram-limits` | `rust/tcl-registry/src/commands/tcllib/math__statistics__minmax_histogram_limits.rs` | — | ✓ | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| tcllib | `math::statistics::number` | `rust/tcl-registry/src/commands/tcllib/math__statistics__number.rs` | — | ✓ | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| tcllib | `math::statistics::print-2x2` | `rust/tcl-registry/src/commands/tcllib/math__statistics__print_2x2.rs` | — | ✓ | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| tcllib | `math::statistics::pstdev` | `rust/tcl-registry/src/commands/tcllib/math__statistics__pstdev.rs` | — | ✓ | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| tcllib | `math::statistics::pvar` | `rust/tcl-registry/src/commands/tcllib/math__statistics__pvar.rs` | — | ✓ | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| tcllib | `math::statistics::quantiles` | `rust/tcl-registry/src/commands/tcllib/math__statistics__quantiles.rs` | — | ✓ | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| tcllib | `math::statistics::samplescount` | `rust/tcl-registry/src/commands/tcllib/math__statistics__samplescount.rs` | — | ✓ | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| tcllib | `math::statistics::spearman-rank` | `rust/tcl-registry/src/commands/tcllib/math__statistics__spearman_rank.rs` | — | ✓ | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| tcllib | `math::statistics::spearman-rank-extended` | `rust/tcl-registry/src/commands/tcllib/math__statistics__spearman_rank_extended.rs` | — | ✓ | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| tcllib | `math::statistics::stdev` | `rust/tcl-registry/src/commands/tcllib/math__statistics__stdev.rs` | — | ✓ | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| tcllib | `math::statistics::t-test-mean` | `rust/tcl-registry/src/commands/tcllib/math__statistics__t_test_mean.rs` | — | ✓ | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| tcllib | `math::statistics::test-2x2` | `rust/tcl-registry/src/commands/tcllib/math__statistics__test_2x2.rs` | — | ✓ | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| tcllib | `math::statistics::test-anova-F` | `rust/tcl-registry/src/commands/tcllib/math__statistics__test_anova_f.rs` | — | ✓ | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| tcllib | `math::statistics::test-Duckworth` | `rust/tcl-registry/src/commands/tcllib/math__statistics__test_duckworth.rs` | — | ✓ | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| tcllib | `math::statistics::test-Dunnett` | `rust/tcl-registry/src/commands/tcllib/math__statistics__test_dunnett.rs` | — | ✓ | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| tcllib | `math::statistics::test-Kruskal-Wallis` | `rust/tcl-registry/src/commands/tcllib/math__statistics__test_kruskal_wallis.rs` | — | ✓ | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| tcllib | `math::statistics::test-normal` | `rust/tcl-registry/src/commands/tcllib/math__statistics__test_normal.rs` | — | ✓ | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| tcllib | `math::statistics::test-Rchart` | `rust/tcl-registry/src/commands/tcllib/math__statistics__test_rchart.rs` | — | ✓ | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| tcllib | `math::statistics::test-Tukey-range` | `rust/tcl-registry/src/commands/tcllib/math__statistics__test_tukey_range.rs` | — | ✓ | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| tcllib | `math::statistics::test-Wilcoxon` | `rust/tcl-registry/src/commands/tcllib/math__statistics__test_wilcoxon.rs` | — | ✓ | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| tcllib | `math::statistics::test-xbar` | `rust/tcl-registry/src/commands/tcllib/math__statistics__test_xbar.rs` | — | ✓ | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| tcllib | `math::statistics::var` | `rust/tcl-registry/src/commands/tcllib/math__statistics__var.rs` | — | ✓ | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| tcllib | `md5::md5` | `rust/tcl-registry/src/commands/tcllib/md5__md5.rs` | — | ✓ | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| tcllib | `mime::buildmessage` | `rust/tcl-registry/src/commands/tcllib/mime__buildmessage.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| tcllib | `mime::copymessage` | `rust/tcl-registry/src/commands/tcllib/mime__copymessage.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| tcllib | `mime::field_decode` | `rust/tcl-registry/src/commands/tcllib/mime__field_decode.rs` | — | ✓ | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| tcllib | `mime::finalize` | `rust/tcl-registry/src/commands/tcllib/mime__finalize.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| tcllib | `mime::getbody` | `rust/tcl-registry/src/commands/tcllib/mime__getbody.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| tcllib | `mime::getContentType` | `rust/tcl-registry/src/commands/tcllib/mime__getcontenttype.rs` | — | ✓ | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| tcllib | `mime::getheader` | `rust/tcl-registry/src/commands/tcllib/mime__getheader.rs` | — | ✓ | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| tcllib | `mime::getproperty` | `rust/tcl-registry/src/commands/tcllib/mime__getproperty.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| tcllib | `mime::getsize` | `rust/tcl-registry/src/commands/tcllib/mime__getsize.rs` | — | ✓ | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| tcllib | `mime::getTransferEncoding` | `rust/tcl-registry/src/commands/tcllib/mime__gettransferencoding.rs` | — | ✓ | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| tcllib | `mime::initialize` | `rust/tcl-registry/src/commands/tcllib/mime__initialize.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| tcllib | `mime::mapencoding` | `rust/tcl-registry/src/commands/tcllib/mime__mapencoding.rs` | — | ✓ | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| tcllib | `mime::parseaddress` | `rust/tcl-registry/src/commands/tcllib/mime__parseaddress.rs` | — | ✓ | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| tcllib | `mime::parsedatetime` | `rust/tcl-registry/src/commands/tcllib/mime__parsedatetime.rs` | — | ✓ | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| tcllib | `mime::reversemapencoding` | `rust/tcl-registry/src/commands/tcllib/mime__reversemapencoding.rs` | — | ✓ | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| tcllib | `mime::setheader` | `rust/tcl-registry/src/commands/tcllib/mime__setheader.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| tcllib | `mime::uniqueID` | `rust/tcl-registry/src/commands/tcllib/mime__uniqueid.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| tcllib | `mime::word_decode` | `rust/tcl-registry/src/commands/tcllib/mime__word_decode.rs` | — | ✓ | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| tcllib | `mime::word_encode` | `rust/tcl-registry/src/commands/tcllib/mime__word_encode.rs` | — | ✓ | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| tcllib | `sha1::sha1` | `rust/tcl-registry/src/commands/tcllib/sha1__sha1.rs` | — | ✓ | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| tcllib | `sha2::sha256` | `rust/tcl-registry/src/commands/tcllib/sha2__sha256.rs` | — | ✓ | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| tcllib | `smtp::sendmessage` | `rust/tcl-registry/src/commands/tcllib/smtp__sendmessage.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| tcllib | `snit::compile` | `rust/tcl-registry/src/commands/tcllib/snit__compile.rs` | — | ✓ | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| tcllib | `snit::macro` | `rust/tcl-registry/src/commands/tcllib/snit__macro.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| tcllib | `snit::method` | `rust/tcl-registry/src/commands/tcllib/snit__method.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| tcllib | `snit::type` | `rust/tcl-registry/src/commands/tcllib/snit__type.rs` | — | ✓ | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| tcllib | `snit::typemethod` | `rust/tcl-registry/src/commands/tcllib/snit__typemethod.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| tcllib | `snit::widget` | `rust/tcl-registry/src/commands/tcllib/snit__widget.rs` | — | ✓ | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| tcllib | `snit::widgetadaptor` | `rust/tcl-registry/src/commands/tcllib/snit__widgetadaptor.rs` | — | ✓ | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| tcllib | `struct::list` | `rust/tcl-registry/src/commands/tcllib/struct__list.rs` | — | ✓ | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| tcllib | `struct::queue` | `rust/tcl-registry/src/commands/tcllib/struct__queue.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| tcllib | `struct::set` | `rust/tcl-registry/src/commands/tcllib/struct__set.rs` | — | ✓ | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| tcllib | `struct::stack` | `rust/tcl-registry/src/commands/tcllib/struct__stack.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| tcllib | `textutil::adjust` | `rust/tcl-registry/src/commands/tcllib/textutil__adjust.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| tcllib | `textutil::blank` | `rust/tcl-registry/src/commands/tcllib/textutil__blank.rs` | — | ✓ | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| tcllib | `textutil::cap` | `rust/tcl-registry/src/commands/tcllib/textutil__cap.rs` | — | ✓ | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| tcllib | `textutil::capEachWord` | `rust/tcl-registry/src/commands/tcllib/textutil__capeachword.rs` | — | ✓ | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| tcllib | `textutil::chop` | `rust/tcl-registry/src/commands/tcllib/textutil__chop.rs` | — | ✓ | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| tcllib | `textutil::indent` | `rust/tcl-registry/src/commands/tcllib/textutil__indent.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| tcllib | `textutil::longestCommonPrefix` | `rust/tcl-registry/src/commands/tcllib/textutil__longestcommonprefix.rs` | — | ✓ | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| tcllib | `textutil::longestCommonPrefixList` | `rust/tcl-registry/src/commands/tcllib/textutil__longestcommonprefixlist.rs` | — | ✓ | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| tcllib | `textutil::splitn` | `rust/tcl-registry/src/commands/tcllib/textutil__splitn.rs` | — | ✓ | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| tcllib | `textutil::splitx` | `rust/tcl-registry/src/commands/tcllib/textutil__splitx.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| tcllib | `textutil::strRepeat` | `rust/tcl-registry/src/commands/tcllib/textutil__strrepeat.rs` | — | ✓ | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| tcllib | `textutil::tabify` | `rust/tcl-registry/src/commands/tcllib/textutil__tabify.rs` | — | ✓ | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| tcllib | `textutil::tabify2` | `rust/tcl-registry/src/commands/tcllib/textutil__tabify2.rs` | — | ✓ | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| tcllib | `textutil::tail` | `rust/tcl-registry/src/commands/tcllib/textutil__tail.rs` | — | ✓ | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| tcllib | `textutil::trim` | `rust/tcl-registry/src/commands/tcllib/textutil__trim.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| tcllib | `textutil::trimEmptyHeading` | `rust/tcl-registry/src/commands/tcllib/textutil__trimemptyheading.rs` | — | ✓ | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| tcllib | `textutil::trimleft` | `rust/tcl-registry/src/commands/tcllib/textutil__trimleft.rs` | — | ✓ | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| tcllib | `textutil::trimPrefix` | `rust/tcl-registry/src/commands/tcllib/textutil__trimprefix.rs` | — | ✓ | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| tcllib | `textutil::trimright` | `rust/tcl-registry/src/commands/tcllib/textutil__trimright.rs` | — | ✓ | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| tcllib | `textutil::uncap` | `rust/tcl-registry/src/commands/tcllib/textutil__uncap.rs` | — | ✓ | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| tcllib | `textutil::undent` | `rust/tcl-registry/src/commands/tcllib/textutil__undent.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| tcllib | `textutil::untabify` | `rust/tcl-registry/src/commands/tcllib/textutil__untabify.rs` | — | ✓ | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| tcllib | `textutil::untabify2` | `rust/tcl-registry/src/commands/tcllib/textutil__untabify2.rs` | — | ✓ | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| tcllib | `uri::canonicalize` | `rust/tcl-registry/src/commands/tcllib/uri__canonicalize.rs` | — | ✓ | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| tcllib | `uri::geturl` | `rust/tcl-registry/src/commands/tcllib/uri__geturl.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| tcllib | `uri::isrelative` | `rust/tcl-registry/src/commands/tcllib/uri__isrelative.rs` | — | ✓ | ✓ | ✓ | — | — | ✓ | — | — | — | — | — | — | — | — | — | — | — | — |
+| tcllib | `uri::join` | `rust/tcl-registry/src/commands/tcllib/uri__join.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| tcllib | `uri::register` | `rust/tcl-registry/src/commands/tcllib/uri__register.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| tcllib | `uri::resolve` | `rust/tcl-registry/src/commands/tcllib/uri__resolve.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| tcllib | `uri::setQuirkOption` | `rust/tcl-registry/src/commands/tcllib/uri__setquirkoption.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| tcllib | `uri::split` | `rust/tcl-registry/src/commands/tcllib/uri__split.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| tcllib | `uuid::uuid` | `rust/tcl-registry/src/commands/tcllib/uuid__uuid.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| tcllib | `yaml::dict2yaml` | `rust/tcl-registry/src/commands/tcllib/yaml__dict2yaml.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| tcllib | `yaml::huddle2yaml` | `rust/tcl-registry/src/commands/tcllib/yaml__huddle2yaml.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| tcllib | `yaml::list2yaml` | `rust/tcl-registry/src/commands/tcllib/yaml__list2yaml.rs` | — | ✓ | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| tcllib | `yaml::setOptions` | `rust/tcl-registry/src/commands/tcllib/yaml__setoptions.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| tcllib | `yaml::yaml2dict` | `rust/tcl-registry/src/commands/tcllib/yaml__yaml2dict.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| tcllib | `yaml::yaml2huddle` | `rust/tcl-registry/src/commands/tcllib/yaml__yaml2huddle.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| tk | `bell` | `rust/tcl-registry/src/commands/tk/bell.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| tk | `bind` | `rust/tcl-registry/src/commands/tk/bind.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| tk | `button` | `rust/tcl-registry/src/commands/tk/button.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| tk | `canvas` | `rust/tcl-registry/src/commands/tk/canvas.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| tk | `checkbutton` | `rust/tcl-registry/src/commands/tk/checkbutton.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| tk | `clipboard` | `rust/tcl-registry/src/commands/tk/clipboard.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| tk | `destroy` | `rust/tcl-registry/src/commands/tk/destroy.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| tk | `entry` | `rust/tcl-registry/src/commands/tk/entry.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| tk | `event` | `rust/tcl-registry/src/commands/tk/event.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| tk | `focus` | `rust/tcl-registry/src/commands/tk/focus.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| tk | `font` | `rust/tcl-registry/src/commands/tk/font.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| tk | `frame` | `rust/tcl-registry/src/commands/tk/frame.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| tk | `grab` | `rust/tcl-registry/src/commands/tk/grab.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| tk | `grid` | `rust/tcl-registry/src/commands/tk/grid.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| tk | `image` | `rust/tcl-registry/src/commands/tk/image.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| tk | `label` | `rust/tcl-registry/src/commands/tk/label.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| tk | `labelframe` | `rust/tcl-registry/src/commands/tk/labelframe.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| tk | `listbox` | `rust/tcl-registry/src/commands/tk/listbox.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| tk | `lower` | `rust/tcl-registry/src/commands/tk/lower.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| tk | `menu` | `rust/tcl-registry/src/commands/tk/menu.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| tk | `menubutton` | `rust/tcl-registry/src/commands/tk/menubutton.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| tk | `message` | `rust/tcl-registry/src/commands/tk/message.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| tk | `option` | `rust/tcl-registry/src/commands/tk/option.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| tk | `pack` | `rust/tcl-registry/src/commands/tk/pack.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| tk | `panedwindow` | `rust/tcl-registry/src/commands/tk/panedwindow.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| tk | `place` | `rust/tcl-registry/src/commands/tk/place.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| tk | `radiobutton` | `rust/tcl-registry/src/commands/tk/radiobutton.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| tk | `raise` | `rust/tcl-registry/src/commands/tk/raise.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| tk | `scale` | `rust/tcl-registry/src/commands/tk/scale.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| tk | `scrollbar` | `rust/tcl-registry/src/commands/tk/scrollbar.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| tk | `selection` | `rust/tcl-registry/src/commands/tk/selection.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| tk | `spinbox` | `rust/tcl-registry/src/commands/tk/spinbox.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| tk | `text` | `rust/tcl-registry/src/commands/tk/text.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| tk | `tk_chooseColor` | `rust/tcl-registry/src/commands/tk/tk_choosecolor.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| tk | `tk_chooseDirectory` | `rust/tcl-registry/src/commands/tk/tk_choosedirectory.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| tk | `tk` | `rust/tcl-registry/src/commands/tk/tk_cmd.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| tk | `tk_getOpenFile` | `rust/tcl-registry/src/commands/tk/tk_getopenfile.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| tk | `tk_getSaveFile` | `rust/tcl-registry/src/commands/tk/tk_getsavefile.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| tk | `tk_messageBox` | `rust/tcl-registry/src/commands/tk/tk_messagebox.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| tk | `tk_popup` | `rust/tcl-registry/src/commands/tk/tk_popup.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| tk | `toplevel` | `rust/tcl-registry/src/commands/tk/toplevel.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| tk | `ttk::button` | `rust/tcl-registry/src/commands/tk/ttk__button.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| tk | `ttk::combobox` | `rust/tcl-registry/src/commands/tk/ttk__combobox.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| tk | `ttk::entry` | `rust/tcl-registry/src/commands/tk/ttk__entry.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| tk | `ttk::frame` | `rust/tcl-registry/src/commands/tk/ttk__frame.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| tk | `ttk::label` | `rust/tcl-registry/src/commands/tk/ttk__label.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| tk | `ttk::notebook` | `rust/tcl-registry/src/commands/tk/ttk__notebook.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| tk | `ttk::progressbar` | `rust/tcl-registry/src/commands/tk/ttk__progressbar.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| tk | `ttk::scale` | `rust/tcl-registry/src/commands/tk/ttk__scale.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| tk | `ttk::separator` | `rust/tcl-registry/src/commands/tk/ttk__separator.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| tk | `ttk::sizegrip` | `rust/tcl-registry/src/commands/tk/ttk__sizegrip.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| tk | `ttk::style` | `rust/tcl-registry/src/commands/tk/ttk__style.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| tk | `ttk::treeview` | `rust/tcl-registry/src/commands/tk/ttk__treeview.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| tk | `winfo` | `rust/tcl-registry/src/commands/tk/winfo.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |
+| tk | `wm` | `rust/tcl-registry/src/commands/tk/wm.rs` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | n/a | n/a |

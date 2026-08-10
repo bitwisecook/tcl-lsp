@@ -692,7 +692,7 @@ fn build_inlinable_map(
 /// them.
 #[must_use]
 pub fn inline_module(mut module: Module, registry: &CommandRegistry) -> Module {
-    let summaries = crate::var_escape::analyse_var_escape(&module, true);
+    let summaries = crate::var_escape::analyse_var_escape_with_registry(&module, true, registry);
     let inlinable = build_inlinable_map(&module, &summaries, registry);
     if inlinable.is_empty() {
         return module;
@@ -831,6 +831,7 @@ fn rewrite_block_stmt(
         body,
         namespace,
         tokens,
+        error_context,
     } = stmt
     else {
         return None;
@@ -848,6 +849,7 @@ fn rewrite_block_stmt(
             body: new_body,
             namespace: namespace.clone(),
             tokens: tokens.clone(),
+            error_context: *error_context,
         }]
     })
 }
@@ -1520,11 +1522,13 @@ fn substitute_irreturn_stmt(stmt: &Statement, result_var: &str) -> Statement {
             body,
             namespace,
             tokens,
+            error_context,
         } => Statement::Block {
             span: *span,
             body: substitute_irreturn(body, result_var),
             namespace: namespace.clone(),
             tokens: tokens.clone(),
+            error_context: *error_context,
         },
         Statement::If {
             span,
@@ -1723,7 +1727,7 @@ fn build_with_defaults(
     if proc.params_raw.is_empty() {
         return None;
     }
-    let parsed = parse_params_with_defaults(&proc.params_raw);
+    let parsed = parse_params_with_defaults(&proc.params_raw)?;
     if parsed.len() != proc.params.len() {
         return None; // parse drift — bail safely
     }
@@ -1775,71 +1779,20 @@ fn build_with_defaults(
     Some((cid, rename.clone(), bindings))
 }
 
-/// Parse a Tcl proc `param_str` into `(name, default_or_None)` pairs.
-fn parse_params_with_defaults(param_str: &str) -> Vec<(String, Option<String>)> {
-    let text: Vec<char> = param_str.trim().chars().collect();
-    let n = text.len();
-    let mut params = Vec::new();
-    let mut i = 0;
-    let is_ws = |c: char| matches!(c, ' ' | '\t' | '\n' | '\r');
-    while i < n {
-        while i < n && is_ws(text[i]) {
-            i += 1;
-        }
-        if i >= n {
-            break;
-        }
-        if text[i] == '{' {
-            let mut level = 1;
-            i += 1;
-            let start = i;
-            while i < n && level > 0 {
-                if text[i] == '{' {
-                    level += 1;
-                } else if text[i] == '}' {
-                    level -= 1;
-                }
-                i += 1;
-            }
-            let inner: Vec<char> = text[start..i - 1].to_vec();
-            if inner.iter().all(|&c| is_ws(c)) {
-                continue;
-            }
-            let mut split_at = 0;
-            while split_at < inner.len() && !is_ws(inner[split_at]) {
-                split_at += 1;
-            }
-            let name: String = inner[..split_at].iter().collect();
-            let default: Option<String> = if split_at < inner.len() {
-                let raw: String = inner[split_at..].iter().collect();
-                let raw = raw.trim();
-                let stripped = if raw.len() >= 2
-                    && ((raw.starts_with('"') && raw.ends_with('"'))
-                        || (raw.starts_with('{') && raw.ends_with('}')))
-                {
-                    raw[1..raw.len() - 1].to_owned()
-                } else {
-                    raw.to_owned()
-                };
-                Some(stripped)
-            } else {
-                None
-            };
-            if !name.is_empty() {
-                params.push((name, default));
-            }
-            continue;
-        }
-        let start = i;
-        while i < n && !is_ws(text[i]) {
-            i += 1;
-        }
-        let word: String = text[start..i].iter().collect();
-        if !word.is_empty() {
-            params.push((word, None));
-        }
-    }
-    params
+/// Parse a valid Tcl proc `param_str` into `(name, default_or_None)` pairs.
+///
+/// Inlining is an execution transform, so it uses the shared strict proc
+/// grammar.  A malformed declaration declines the transform and remains on the
+/// ordinary runtime path, where Tcl reports the precise creation error.
+fn parse_params_with_defaults(param_str: &str) -> Option<Vec<(String, Option<String>)>> {
+    crate::signature_scan::params::parse_param_list_strict(param_str)
+        .ok()
+        .map(|parameters| {
+            parameters
+                .into_iter()
+                .map(|parameter| (parameter.name, parameter.default))
+                .collect()
+        })
 }
 
 /// Return True iff `text` can be safely spliced verbatim into a Tcl

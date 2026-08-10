@@ -98,6 +98,77 @@ pub fn repeat<O: ValueOps>(
     Ok(ops.new_string(src.repeat(n)))
 }
 
+/// The result form of [`compare`].
+#[derive(Clone, Copy)]
+pub enum CompareMode {
+    /// `string equal` returns a Tcl boolean.
+    Equal,
+    /// `string compare` returns `-1`, `0`, or `1`.
+    Compare,
+}
+
+/// `string equal`/`string compare` with `?-nocase? ?-length int?`.
+///
+/// Option order and prefix acceptance match Tcl's `StringCmpOpts`; integer
+/// conversion is delegated to [`ValueOps::string_compare_length`] so each
+/// target preserves its value-tower-specific diagnostic.
+pub fn compare<O: ValueOps>(
+    ops: &mut O,
+    args: &[O::Value],
+    mode: CompareMode,
+) -> Result<O::Value, CmdError> {
+    let name = match mode {
+        CompareMode::Equal => "equal",
+        CompareMode::Compare => "compare",
+    };
+    let usage = format!("string {name} ?-nocase? ?-length int? string1 string2");
+    if !(2..=5).contains(&args.len()) {
+        return Err(CmdError::wrong_args(&usage));
+    }
+
+    let mut nocase = false;
+    let mut length = None;
+    let mut i = 0;
+    let option_end = args.len() - 2;
+    while i < option_end {
+        let option = ops.as_str(&args[i]);
+        if option.len() > 1 && "-nocase".starts_with(&*option) {
+            nocase = true;
+            i += 1;
+        } else if option.len() > 1 && "-length".starts_with(&*option) {
+            if i + 1 >= option_end {
+                return Err(CmdError::wrong_args(&usage));
+            }
+            length = ops.string_compare_length(&args[i + 1])?;
+            i += 2;
+        } else {
+            return Err(CmdError::new(format!(
+                "bad option \"{option}\": must be -nocase or -length"
+            )));
+        }
+    }
+
+    let key = |ops: &mut O, value: &O::Value| {
+        let mut chars: Vec<char> = ops.as_str(value).chars().collect();
+        if nocase {
+            chars = chars.iter().flat_map(|c| c.to_lowercase()).collect();
+        }
+        if let Some(n) = length {
+            chars.truncate(n);
+        }
+        chars
+    };
+    let ordering = key(ops, &args[i]).cmp(&key(ops, &args[i + 1]));
+    Ok(match mode {
+        CompareMode::Equal => ops.new_bool(ordering.is_eq()),
+        CompareMode::Compare => ops.new_int(match ordering {
+            core::cmp::Ordering::Less => -1,
+            core::cmp::Ordering::Equal => 0,
+            core::cmp::Ordering::Greater => 1,
+        }),
+    })
+}
+
 /// Which case conversion [`case_convert`] performs.
 #[derive(Clone, Copy)]
 pub enum CaseMode {
@@ -508,6 +579,8 @@ pub fn dispatch_canon<O: ValueOps>(
         "repeat" => {
             arity(2, "string repeat string count").or_else(|| Some(repeat(ops, &rest[0], &rest[1])))
         }
+        "equal" => Some(compare(ops, rest, CompareMode::Equal)),
+        "compare" => Some(compare(ops, rest, CompareMode::Compare)),
         "cat" => Some(Ok(cat(ops, rest))),
         "match" => Some(string_match(ops, rest)),
         "map" => Some(map(ops, rest)),
@@ -740,6 +813,53 @@ mod tests {
         assert_eq!(last_of("an", "banana", None), 3);
         assert_eq!(last_of("an", "banana", Some("2")), 1);
         assert_eq!(last_of("z", "banana", None), -1);
+    }
+
+    #[test]
+    fn string_compare_equal_share_option_and_unicode_semantics() {
+        let mut ops = StrOps;
+        assert_eq!(
+            compare(
+                &mut ops,
+                &[
+                    "-noc".to_owned(),
+                    "-len".to_owned(),
+                    "2".to_owned(),
+                    "ABxx".to_owned(),
+                    "abYY".to_owned(),
+                ],
+                CompareMode::Compare,
+            )
+            .unwrap(),
+            "0"
+        );
+        // Tcl folds before applying -length: U+0130 lowercases to `i` plus a
+        // combining dot, whose first character compares equal to `i`.
+        assert_eq!(
+            compare(
+                &mut ops,
+                &[
+                    "-nocase".to_owned(),
+                    "-length".to_owned(),
+                    "1".to_owned(),
+                    "\u{0130}".to_owned(),
+                    "i".to_owned(),
+                ],
+                CompareMode::Equal,
+            )
+            .unwrap(),
+            "1"
+        );
+        assert_eq!(
+            compare(
+                &mut ops,
+                &["-bogus".to_owned(), "a".to_owned(), "b".to_owned()],
+                CompareMode::Equal,
+            )
+            .unwrap_err()
+            .message(),
+            "bad option \"-bogus\": must be -nocase or -length"
+        );
     }
 
     #[test]

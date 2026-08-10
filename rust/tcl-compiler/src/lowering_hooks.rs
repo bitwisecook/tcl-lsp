@@ -115,8 +115,8 @@ pub fn try_lower_hook(
     registry: &CommandRegistry,
 ) -> Option<Statement> {
     let arg_refs: Vec<&str> = cmd.args.iter().map(String::as_str).collect();
-    let resolved = registry.resolve_call(cmd.name, &arg_refs, DialectSet::empty())?;
-    let hook = resolved.lowering_hook?;
+    let resolved = registry.resolve_invocation(cmd.name, &arg_refs, DialectSet::empty())?;
+    let hook = resolved.semantics.lowering_hook?;
     dispatch_lowering_hook(hook, cmd, aliases)
 }
 

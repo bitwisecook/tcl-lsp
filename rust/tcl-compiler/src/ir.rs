@@ -30,8 +30,388 @@
 use tcl_lexer::Span;
 
 use crate::expr_ast::ExprNode;
+use crate::segmenter::{SegmentedCommand, WordFragment};
 
 // Command tokens
+
+/// A stable, function-local identity for a semantic IR node.
+///
+/// A node ID is a structural path, not a source offset.  Rebase operations
+/// therefore preserve it, which is essential for compilation-unit caching and
+/// for eventual guard/deoptimisation maps.  The ID is intentionally local to a
+/// executable-semantic function; a procedure name or other function key
+/// supplies the enclosing identity.
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct NodeId(Vec<u32>);
+
+impl NodeId {
+    /// Create an ID from its deterministic structural path.
+    ///
+    /// This is public for IR transforms that preserve a node's identity. New
+    /// source nodes should be allocated by the semantic-IR builder instead of
+    /// manufacturing paths ad hoc.
+    #[must_use]
+    pub fn from_path(path: Vec<u32>) -> Self {
+        Self(path)
+    }
+
+    /// Return the path segments that make up this function-local ID.
+    #[must_use]
+    pub fn path(&self) -> &[u32] {
+        &self.0
+    }
+}
+
+/// Why an IR site exists at a source location.
+///
+/// The source variant is used by the current lowering compatibility layer.
+/// Transforming passes can retain the relationship to their source node(s)
+/// through [`Self::Derived`] without inventing a misleading source span.
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Default)]
+pub enum Provenance {
+    /// Directly lowered from user-authored Tcl source.
+    #[default]
+    Source,
+    /// Created by a semantic transform from one or more source nodes.
+    Derived {
+        /// Category of semantic transform that made this node.
+        kind: DerivedKind,
+        /// The source nodes that justify this derived node.
+        origins: Vec<NodeId>,
+    },
+    /// A conservative compatibility placeholder for a hand-built or lossy
+    /// IR node whose source origin cannot be established.
+    Opaque,
+}
+
+/// The transform class for [`Provenance::Derived`].
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum DerivedKind {
+    /// Desugared from an equivalent source construct.
+    Desugared,
+    /// Produced by constant folding.
+    Folded,
+    /// Cloned into a caller by inlining.
+    Inlined,
+    /// Created by a guarded specialisation.
+    Specialised,
+    /// Created by another named semantic transform.
+    Synthetic,
+}
+
+/// A source range together with the reason the IR associates work with it.
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct SourceSite {
+    /// Byte span in the original source when known.
+    pub span: Span,
+    /// Origin relationship for this site.
+    pub provenance: Provenance,
+}
+
+impl SourceSite {
+    /// Build a direct user-source site.
+    #[must_use]
+    pub const fn source(span: Span) -> Self {
+        Self {
+            span,
+            provenance: Provenance::Source,
+        }
+    }
+
+    /// Build a transformed site while preserving its source relationship.
+    #[must_use]
+    pub fn derived(span: Span, kind: DerivedKind, origins: Vec<NodeId>) -> Self {
+        Self {
+            span,
+            provenance: Provenance::Derived { kind, origins },
+        }
+    }
+
+    /// Build an explicitly opaque compatibility site.
+    #[must_use]
+    pub const fn opaque(span: Span) -> Self {
+        Self {
+            span,
+            provenance: Provenance::Opaque,
+        }
+    }
+}
+
+/// A lexical word expression retained by the semantic-IR compatibility layer.
+///
+/// This preserves ordering and source ranges for substitutions that the lexer
+/// identifies.  It deliberately does **not** claim to fully model Tcl's
+/// backslash substitution or all parser recovery forms: those remain
+/// [`Self::Opaque`] until a later executable lowering can give them an exact
+/// evaluation model.
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub enum WordExpr {
+    /// A single bare word with no substitutions or backslash processing.
+    Literal {
+        /// Compatibility argv spelling.
+        text: String,
+        /// Exact lexical source site.
+        source: SourceSite,
+    },
+    /// A single braced word, whose content undergoes no substitution.
+    BracedLiteral {
+        /// De-braced word content.
+        text: String,
+        /// Exact lexical source site.
+        source: SourceSite,
+    },
+    /// A single variable substitution word.
+    Variable {
+        /// Compatibility argv spelling, including a Tcl variable wrapper.
+        spelling: String,
+        /// Exact lexical source site.
+        source: SourceSite,
+    },
+    /// A single command-substitution word.
+    CommandSubstitution {
+        /// Compatibility argv spelling, including `[` and `]` where present.
+        spelling: String,
+        /// Exact lexical source site.
+        source: SourceSite,
+    },
+    /// A compound word whose parts are evaluated left-to-right.
+    Template {
+        /// Ordered lexical parts.
+        parts: Vec<WordPart>,
+        /// Full source range of the word.
+        source: SourceSite,
+    },
+    /// Tcl 8.5+ argument expansion around another word expression.
+    Expand {
+        /// Source range from the `{*}` marker through the inner word.
+        source: SourceSite,
+        /// Expanded word.
+        word: Box<WordExpr>,
+    },
+    /// A word whose exact substitution behaviour is not represented by the
+    /// legacy token snapshot.
+    Opaque {
+        /// Compatibility argv text.
+        text: String,
+        /// Best available source site.
+        source: SourceSite,
+        /// Why the semantic layer must not infer stronger meaning yet.
+        reason: WordOpacity,
+    },
+}
+
+impl WordExpr {
+    /// Return this word's source site.
+    #[must_use]
+    pub const fn source(&self) -> &SourceSite {
+        match self {
+            Self::Literal { source, .. }
+            | Self::BracedLiteral { source, .. }
+            | Self::Variable { source, .. }
+            | Self::CommandSubstitution { source, .. }
+            | Self::Template { source, .. }
+            | Self::Expand { source, .. }
+            | Self::Opaque { source, .. } => source,
+        }
+    }
+
+    /// Recover the compatibility argv text used by existing consumers.
+    #[must_use]
+    pub fn legacy_text(&self) -> String {
+        match self {
+            Self::Literal { text, .. }
+            | Self::BracedLiteral { text, .. }
+            | Self::Opaque { text, .. } => text.clone(),
+            Self::Variable { spelling, .. } | Self::CommandSubstitution { spelling, .. } => {
+                spelling.clone()
+            }
+            Self::Template { parts, .. } => parts.iter().map(WordPart::legacy_text).collect(),
+            Self::Expand { word, .. } => word.legacy_text(),
+        }
+    }
+
+    fn from_fragments(
+        fragments: &[WordFragment],
+        fallback_text: &str,
+        fallback_span: Span,
+        expanded: bool,
+        expansion_span: Option<Span>,
+    ) -> Self {
+        let word = match fragments {
+            [fragment] if is_plain_bare_literal(fragment) => Self::Literal {
+                text: fragment.text.clone(),
+                source: SourceSite::source(fragment.token.span),
+            },
+            [fragment] if fragment.token.kind == tcl_lexer::TokenType::Str => Self::BracedLiteral {
+                text: fragment.text.clone(),
+                source: SourceSite::source(fragment.token.span),
+            },
+            [fragment] if fragment.token.kind == tcl_lexer::TokenType::Var => Self::Variable {
+                spelling: fragment.text.clone(),
+                source: SourceSite::source(fragment.token.span),
+            },
+            [fragment] if fragment.token.kind == tcl_lexer::TokenType::Cmd => {
+                Self::CommandSubstitution {
+                    spelling: fragment.text.clone(),
+                    source: SourceSite::source(fragment.token.span),
+                }
+            }
+            [] => Self::Opaque {
+                text: fallback_text.to_owned(),
+                source: SourceSite::opaque(fallback_span),
+                reason: WordOpacity::MissingFragments,
+            },
+            _ => Self::Template {
+                parts: fragments.iter().map(WordPart::from_fragment).collect(),
+                source: SourceSite::source(fallback_span),
+            },
+        };
+        if expanded {
+            let start = expansion_span.map_or(fallback_span.start(), Span::start);
+            Self::Expand {
+                source: SourceSite::source(Span::new(start, fallback_span.end())),
+                word: Box::new(word),
+            }
+        } else {
+            word
+        }
+    }
+
+    fn from_lossy_snapshot(
+        text: &str,
+        span: Span,
+        kind: tcl_lexer::TokenType,
+        single_token: bool,
+        expanded: bool,
+    ) -> Self {
+        let source = SourceSite::opaque(span);
+        let word = if single_token {
+            match kind {
+                tcl_lexer::TokenType::Str => Self::BracedLiteral {
+                    text: text.to_owned(),
+                    source,
+                },
+                tcl_lexer::TokenType::Var => Self::Variable {
+                    spelling: text.to_owned(),
+                    source,
+                },
+                tcl_lexer::TokenType::Cmd => Self::CommandSubstitution {
+                    spelling: text.to_owned(),
+                    source,
+                },
+                _ => Self::Opaque {
+                    text: text.to_owned(),
+                    source,
+                    reason: WordOpacity::LossySnapshot,
+                },
+            }
+        } else {
+            Self::Opaque {
+                text: text.to_owned(),
+                source,
+                reason: WordOpacity::LossySnapshot,
+            }
+        };
+        if expanded {
+            Self::Expand {
+                source: SourceSite::opaque(span),
+                word: Box::new(word),
+            }
+        } else {
+            word
+        }
+    }
+}
+
+/// Whether a single lexer fragment is statically a bare Tcl literal.
+///
+/// `Esc` is intentionally broader than a semantic literal: quoted fragments
+/// and fragments containing a backslash need Tcl substitution processing.
+/// This predicate only admits the demonstrably plain subset so a later
+/// resolver receives static command heads without overclaiming word meaning.
+fn is_plain_bare_literal(fragment: &WordFragment) -> bool {
+    fragment.token.kind == tcl_lexer::TokenType::Esc
+        && !fragment.token.in_quote
+        && fragment.token.content_offset == 0
+        && !fragment.text.contains('\\')
+}
+
+/// One ordered lexical component of a [`WordExpr::Template`].
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub enum WordPart {
+    /// A plain or escaped text fragment. Backslash semantics remain explicit
+    /// but unevaluated at this compatibility boundary.
+    Text {
+        /// Compatibility argv spelling.
+        text: String,
+        /// Exact lexical source site.
+        source: SourceSite,
+    },
+    /// A variable substitution.
+    Variable {
+        /// Compatibility argv spelling.
+        spelling: String,
+        /// Exact lexical source site.
+        source: SourceSite,
+    },
+    /// A command substitution.
+    CommandSubstitution {
+        /// Compatibility argv spelling.
+        spelling: String,
+        /// Exact lexical source site.
+        source: SourceSite,
+    },
+    /// A recovery or otherwise unmodelled token fragment.
+    Opaque {
+        /// Compatibility argv spelling.
+        text: String,
+        /// Exact lexical source site.
+        source: SourceSite,
+    },
+}
+
+impl WordPart {
+    fn from_fragment(fragment: &WordFragment) -> Self {
+        let source = SourceSite::source(fragment.token.span);
+        match fragment.token.kind {
+            tcl_lexer::TokenType::Var => Self::Variable {
+                spelling: fragment.text.clone(),
+                source,
+            },
+            tcl_lexer::TokenType::Cmd => Self::CommandSubstitution {
+                spelling: fragment.text.clone(),
+                source,
+            },
+            tcl_lexer::TokenType::Esc | tcl_lexer::TokenType::Str => Self::Text {
+                text: fragment.text.clone(),
+                source,
+            },
+            _ => Self::Opaque {
+                text: fragment.text.clone(),
+                source,
+            },
+        }
+    }
+
+    fn legacy_text(&self) -> String {
+        match self {
+            Self::Text { text, .. } | Self::Opaque { text, .. } => text.clone(),
+            Self::Variable { spelling, .. } | Self::CommandSubstitution { spelling, .. } => {
+                spelling.clone()
+            }
+        }
+    }
+}
+
+/// Why a [`WordExpr::Opaque`] node cannot make stronger semantic claims yet.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum WordOpacity {
+    /// The compatibility snapshot lacked ordered lexical fragments.
+    MissingFragments,
+    /// The snapshot was synthetically constructed or retained only its legacy
+    /// representative-token fields.
+    LossySnapshot,
+}
 
 /// Original parsed tokens for a command invocation.
 ///
@@ -48,6 +428,13 @@ pub struct CommandTokens {
     pub argv: Vec<Span>,
     /// Per-word text values.
     pub argv_texts: Vec<String>,
+    /// Structured per-word syntax derived once during segmentation/lowering.
+    ///
+    /// [`Self::argv_texts`] and the representative-token arrays remain the
+    /// compatibility view consumed by existing analyser and codegen passes.
+    /// The semantic IR uses this ordered representation so it never needs to
+    /// re-lex a Tcl word or infer substitution order from a flattened string.
+    pub word_exprs: Vec<WordExpr>,
     /// Per-word representative token kind. Preserves the [`tcl_lexer::TokenType`]
     /// of each argv entry so analysis passes can distinguish a
     /// brace-string literal (`Str`) from a bareword (`Esc`), a
@@ -63,6 +450,108 @@ pub struct CommandTokens {
 }
 
 impl CommandTokens {
+    /// Build a token snapshot from the segmenter without losing word shape.
+    #[must_use]
+    pub fn from_segmented(seg: &SegmentedCommand) -> Self {
+        let expand = seg.expand_word.as_deref();
+        let word_exprs = seg
+            .argv
+            .iter()
+            .enumerate()
+            .map(|(idx, token)| {
+                let fragments = seg.word_fragments.get(idx).map_or(&[][..], Vec::as_slice);
+                let text = seg.texts.get(idx).map_or("", String::as_str);
+                let expanded = expand
+                    .and_then(|flags| flags.get(idx))
+                    .copied()
+                    .unwrap_or(false);
+                let expansion_span = expanded
+                    .then(|| {
+                        seg.all_tokens
+                            .iter()
+                            .rev()
+                            .find(|candidate| {
+                                candidate.kind == tcl_lexer::TokenType::Expand
+                                    && candidate.span.end() <= token.span.start()
+                            })
+                            .map(|candidate| candidate.span)
+                    })
+                    .flatten();
+                WordExpr::from_fragments(fragments, text, token.span, expanded, expansion_span)
+            })
+            .collect();
+        Self {
+            argv: seg.argv.iter().map(|token| token.span).collect(),
+            argv_texts: seg.texts.clone(),
+            word_exprs,
+            argv_kinds: seg.argv.iter().map(|token| token.kind).collect(),
+            single_token_word: seg.single_token_word.clone(),
+            all_tokens: seg.all_tokens.iter().map(|token| token.span).collect(),
+            expand_word: seg.expand_word.clone(),
+        }
+    }
+
+    /// Build compatibility token data when only the historical parallel
+    /// arrays are available.
+    ///
+    /// New source lowering should use [`Self::from_segmented`]. This adapter
+    /// intentionally produces opaque word nodes for data that cannot preserve
+    /// ordered fragments; it never guesses Tcl substitution semantics.
+    #[must_use]
+    pub fn from_lossy_parts(
+        argv: Vec<Span>,
+        argv_texts: Vec<String>,
+        argv_kinds: Vec<tcl_lexer::TokenType>,
+        single_token_word: Vec<bool>,
+        all_tokens: Vec<Span>,
+        expand_word: Option<Vec<bool>>,
+    ) -> Self {
+        let word_exprs = argv_texts
+            .iter()
+            .enumerate()
+            .map(|(idx, text)| {
+                let span = argv.get(idx).copied().unwrap_or_else(|| Span::new(0, 0));
+                let kind = argv_kinds
+                    .get(idx)
+                    .copied()
+                    .unwrap_or(tcl_lexer::TokenType::Esc);
+                let single = single_token_word.get(idx).copied().unwrap_or(false);
+                let expanded = expand_word
+                    .as_ref()
+                    .and_then(|flags| flags.get(idx))
+                    .copied()
+                    .unwrap_or(false);
+                WordExpr::from_lossy_snapshot(text, span, kind, single, expanded)
+            })
+            .collect();
+        Self {
+            argv,
+            argv_texts,
+            word_exprs,
+            argv_kinds,
+            single_token_word,
+            all_tokens,
+            expand_word,
+        }
+    }
+
+    /// Structured word expressions in argv order.
+    #[must_use]
+    pub fn words(&self) -> &[WordExpr] {
+        &self.word_exprs
+    }
+
+    /// Whether the structured compatibility view still aligns with argv text.
+    ///
+    /// Synthetic codegen snapshots may intentionally omit representative spans
+    /// or argv text, so this checks the one invariant the semantic sidecar
+    /// requires rather than imposing a stronger invariant on historical
+    /// consumers.
+    #[must_use]
+    pub fn words_align_with_argv_text(&self) -> bool {
+        self.word_exprs.len() == self.argv_texts.len()
+    }
+
     /// Whether **argument** `idx` (0-based, so `argv[idx + 1]`) is a
     /// brace-quoted literal word — `{…}`, the one word form Tcl leaves
     /// completely unsubstituted.
@@ -486,6 +975,9 @@ pub enum Statement {
         /// Original command-tokens snapshot for downstream analysis
         /// (lets diagnostics still report the source surface form).
         tokens: Option<CommandTokens>,
+        /// Registry-owned Tcl error context contributed by this inlined body.
+        /// `None` for transparent passthrough and synthetic blocks.
+        error_context: Option<tcl_registry::InlineBodyErrorContext>,
     },
 
     /// Static-body uplevel — `uplevel ?level? {body}` where the body
@@ -1234,14 +1726,14 @@ mod tests {
 
     #[test]
     fn barrier_with_tokens() {
-        let tokens = CommandTokens {
-            argv: vec![Span::new(0, 4), Span::new(5, 10)],
-            argv_texts: vec!["eval".into(), "body".into()],
-            argv_kinds: vec![tcl_lexer::TokenType::Esc, tcl_lexer::TokenType::Str],
-            single_token_word: vec![true, true],
-            all_tokens: vec![Span::new(0, 4), Span::new(4, 5), Span::new(5, 10)],
-            expand_word: None,
-        };
+        let tokens = CommandTokens::from_lossy_parts(
+            vec![Span::new(0, 4), Span::new(5, 10)],
+            vec!["eval".into(), "body".into()],
+            vec![tcl_lexer::TokenType::Esc, tcl_lexer::TokenType::Str],
+            vec![true, true],
+            vec![Span::new(0, 4), Span::new(4, 5), Span::new(5, 10)],
+            None,
+        );
         let stmt = Statement::Barrier {
             span: Span::new(0, 10),
             reason: "eval".into(),

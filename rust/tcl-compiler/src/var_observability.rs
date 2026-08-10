@@ -46,16 +46,14 @@
 use std::collections::HashMap;
 
 use bitflags::bitflags;
-use tcl_registry::CommandRegistry;
+use tcl_registry::{CallerFrameSelection, CommandRegistry, StateTransition, VariableAliasTarget};
 
 use crate::cfg::{BlockId, Function as CfgFunction};
 use crate::ir::Statement;
 use crate::lowering::variable_trace_write_indices;
 use crate::naming::normalise_var_name;
-use crate::var_scoping::{
-    global_declaration_indices, my_variable_declaration_indices, upvar_local_declaration_indices,
-    variable_declaration_indices,
-};
+use crate::var_escape::helpers::{default_registry, invocation_facts};
+use crate::var_scoping::my_variable_declaration_indices;
 
 bitflags! {
     /// Why an access to a variable is not a private-local access.  A
@@ -114,14 +112,42 @@ fn mark(state: &mut State, args: &[String], idx: usize, flag: EscapeFlag) {
     }
 }
 
+fn mark_name(state: &mut State, name: &str, flag: EscapeFlag) {
+    let name = normalise_var_name(name);
+    if !name.is_empty() {
+        *state.entry(name.to_owned()).or_default() |= flag;
+    }
+}
+
+fn alias_flag(target: &VariableAliasTarget) -> EscapeFlag {
+    match target {
+        VariableAliasTarget::Global { .. } => EscapeFlag::GLOBAL,
+        VariableAliasTarget::CurrentNamespace { .. } | VariableAliasTarget::Namespace { .. } => {
+            EscapeFlag::NAMESPACE
+        }
+        VariableAliasTarget::CallerSelectedFrame { frame, .. } => match frame {
+            CallerFrameSelection::Explicit(level)
+                if level.literal().is_some_and(|level| {
+                    tcl_registry::frame_effect::FrameLevel::parse(level)
+                        .is_some_and(tcl_registry::frame_effect::FrameLevel::is_global_frame)
+                }) =>
+            {
+                EscapeFlag::GLOBAL
+            }
+            CallerFrameSelection::DefaultCaller | CallerFrameSelection::Explicit(_) => {
+                EscapeFlag::UPVAR
+            }
+        },
+    }
+}
+
 /// Apply `stmt`'s alias / trace declarations to `state` in place.
 ///
 /// `pub(crate)`: reused by [`crate::cfg_builder::global_write_info`] for its
 /// own flow-insensitive whole-body scan — the recognition logic for
 /// `global` / `variable` / `upvar` / `trace` lives here once.
 pub(crate) fn stmt_gen(stmt: &Statement, state: &mut State, registry: &CommandRegistry) {
-    let (Statement::Call { command, args, .. } | Statement::Barrier { command, args, .. }) = stmt
-    else {
+    let (Statement::Call { args, .. } | Statement::Barrier { args, .. }) = stmt else {
         return;
     };
     // Alias / trace declarations key off the canonical command name.
@@ -144,20 +170,17 @@ pub(crate) fn stmt_gen(stmt: &Statement, state: &mut State, registry: &CommandRe
             mark(state, args, i, EscapeFlag::NAMESPACE);
         }
     }
-    match canon.strip_prefix("::").unwrap_or(canon) {
-        "global" => {
-            for i in global_declaration_indices(args) {
-                mark(state, args, i, EscapeFlag::GLOBAL);
+    if let Some(facts) = invocation_facts(stmt, registry)
+        && let Some(transitions) = facts.state_transitions.declared()
+    {
+        for fact in transitions.facts() {
+            let StateTransition::VariableCellAlias(alias) = &fact.transition else {
+                continue;
+            };
+            if let Some(local) = alias.local.literal() {
+                mark_name(state, local, alias_flag(&alias.target));
             }
         }
-        "variable" => {
-            for i in variable_declaration_indices(args) {
-                mark(state, args, i, EscapeFlag::NAMESPACE);
-            }
-        }
-        // (Traces are handled below by the registry-driven
-        // `variable_trace_write_indices`, not a hardcoded `"trace"` arm.)
-        _ => {}
     }
 
     // Variable-trace targets, registry-driven: any subcommand carrying
@@ -169,27 +192,6 @@ pub(crate) fn stmt_gen(stmt: &Statement, state: &mut State, registry: &CommandRe
     // knowledge of `trace`'s subcommand grammar.
     for i in variable_trace_write_indices(registry, canon, args) {
         mark(state, args, i, EscapeFlag::TRACED);
-    }
-
-    // `upvar` / `namespace upvar` are recognised structurally on the
-    // *source* command (the IR command for `namespace upvar` is
-    // `namespace`).  `upvar #0` / `0` aliases the global frame; any other
-    // level aliases a caller frame; `namespace upvar` aliases a namespace.
-    let cmd = command.as_str();
-    let is_ns_upvar = cmd == "namespace" && args.first().map(String::as_str) == Some("upvar");
-    let mut upvar_flag = if is_ns_upvar {
-        EscapeFlag::NAMESPACE
-    } else {
-        EscapeFlag::UPVAR
-    };
-    if cmd == "upvar" && !args.is_empty() {
-        let level = args[0].trim();
-        if level == "#0" || level == "0" {
-            upvar_flag = EscapeFlag::GLOBAL;
-        }
-    }
-    for i in upvar_local_declaration_indices(cmd, args) {
-        mark(state, args, i, upvar_flag);
     }
 }
 
@@ -334,21 +336,27 @@ pub fn scan_module_global_names(
     ir_module: &crate::ir::Module,
 ) -> std::collections::HashSet<String> {
     use crate::ir::{Script, Statement, for_each_statement};
-    use crate::var_scoping::global_declaration_indices;
-
     let mut names = std::collections::HashSet::new();
+    let registry = default_registry();
     let mut visit = |script: &Script| {
         for_each_statement(script, &mut |stmt| {
-            let (Statement::Call { args, .. } | Statement::Barrier { args, .. }) = stmt else {
+            let (Statement::Call { .. } | Statement::Barrier { .. }) = stmt else {
                 return;
             };
-            let canon = stmt.canonical_command_or_source();
-            if canon.strip_prefix("::").unwrap_or(canon) != "global" {
+            let Some(facts) = invocation_facts(stmt, registry) else {
                 return;
-            }
-            for i in global_declaration_indices(args) {
-                if let Some(a) = args.get(i) {
-                    let name = normalise_var_name(a);
+            };
+            let Some(transitions) = facts.state_transitions.declared() else {
+                return;
+            };
+            for fact in transitions.facts() {
+                let StateTransition::VariableCellAlias(alias) = &fact.transition else {
+                    continue;
+                };
+                if matches!(alias.target, VariableAliasTarget::Global { .. })
+                    && let Some(local) = alias.local.literal()
+                {
+                    let name = normalise_var_name(local);
                     if !name.is_empty() {
                         names.insert(name.to_owned());
                     }

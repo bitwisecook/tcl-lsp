@@ -160,6 +160,16 @@ pub trait ValueOps {
 
     /// As a wide integer (`Tcl_GetWideIntFromObj`).
     fn as_int(&mut self, v: &Self::Value) -> Result<i64, ValueError>;
+
+    /// Parse a `string compare`/`string equal` `-length` argument.
+    ///
+    /// A non-positive value disables the length limit. The default uses the
+    /// runtime's wide-integer coercion; a runtime with a wider integer tower
+    /// can override this to retain its distinct overflow diagnostic.
+    fn string_compare_length(&mut self, v: &Self::Value) -> Result<Option<usize>, ValueError> {
+        Ok(usize::try_from(self.as_int(v)?).ok())
+    }
+
     /// As a double (`Tcl_GetDoubleFromObj`).
     fn as_double(&mut self, v: &Self::Value) -> Result<f64, ValueError>;
     /// As a boolean (`Tcl_GetBooleanFromObj`).

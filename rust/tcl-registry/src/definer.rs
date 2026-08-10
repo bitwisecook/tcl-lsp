@@ -315,6 +315,81 @@ pub enum MemberVisibility {
     Unexported,
 }
 
+/// The visibility a definition-time option applies to the member being
+/// declared.
+///
+/// This is distinct from [`MemberVisibility`], which describes a separate
+/// `export` / `unexport` member word acting on a member that already exists.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum DeclaredMemberVisibility {
+    /// Callable from outside the object.
+    Public,
+    /// Callable only in the object's defining class.
+    Private,
+    /// Defined but not exported for outside dispatch.
+    Unexported,
+}
+
+impl DeclaredMemberVisibility {
+    /// The analyser/storage spelling used by existing class facts.
+    #[must_use]
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::Public => "public",
+            Self::Private => "private",
+            Self::Unexported => "unexported",
+        }
+    }
+}
+
+/// One accepted spelling of an optional definition-member argument.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct MemberOptionValue {
+    /// Exact Tcl spelling accepted at this position.
+    pub value: &'static str,
+    /// Semantic role of the option word.
+    pub role: ArgRole,
+    /// Dialects that accept this spelling, or `None` when it is available in
+    /// every dialect that supplies the enclosing member.
+    pub dialects: Option<crate::dialects::DialectSet>,
+    /// Visibility selected for a member declaration, when this option has one.
+    pub declared_visibility: Option<DeclaredMemberVisibility>,
+}
+
+/// An optional, closed-vocabulary word embedded in an otherwise fixed member
+/// layout.
+///
+/// `position` is counted in the fixed layout before this optional word is
+/// inserted. `position: 0` describes an option prefix plus a fixed tail;
+/// `position: 1` describes a fixed name followed by an option and tail.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct OptionalMemberArgument {
+    /// Number of fixed arguments preceding this optional argument.
+    pub position: u8,
+    /// Closed vocabulary recognised at this position.
+    pub values: &'static [MemberOptionValue],
+}
+
+impl OptionalMemberArgument {
+    fn value_for<S: AsRef<str>>(self, args: &[S]) -> Option<MemberOptionValue> {
+        self.value_for_in(args, crate::dialects::DialectSet::all())
+    }
+
+    fn value_for_in<S: AsRef<str>>(
+        self,
+        args: &[S],
+        dialect: crate::dialects::DialectSet,
+    ) -> Option<MemberOptionValue> {
+        let word = args.get(usize::from(self.position))?.as_ref();
+        self.values.iter().copied().find(|candidate| {
+            candidate.value == word
+                && candidate
+                    .dialects
+                    .is_none_or(|available| available.intersects(dialect))
+        })
+    }
+}
+
 /// One member sub-keyword of a definition body, with the argument roles a
 /// walker should apply to its call.  `arg_roles` indices are 0-based *after*
 /// the member keyword itself (`method NAME PARAMS BODY` →
@@ -325,6 +400,9 @@ pub struct MemberSpec {
     pub keyword: &'static str,
     /// Argument roles within the member call, 0-based after the keyword.
     pub arg_roles: &'static [(u8, ArgRole)],
+    /// One optional closed-vocabulary argument embedded in the fixed argument
+    /// layout, when the member has one. See [`OptionalMemberArgument`].
+    pub optional_argument: Option<OptionalMemberArgument>,
     /// When set, *every* argument is a declared variable name (the unbounded
     /// `variable a b c` form).  Overrides `arg_roles` for name collection.
     pub all_args_var: bool,
@@ -413,6 +491,7 @@ impl MemberSpec {
         Self {
             keyword,
             arg_roles,
+            optional_argument: None,
             all_args_var: false,
             all_args_ref: None,
             kind: MemberKind::Flat,
@@ -431,6 +510,7 @@ impl MemberSpec {
         Self {
             keyword,
             arg_roles: NO_ROLES,
+            optional_argument: None,
             all_args_var: false,
             all_args_ref: Some(kind),
             kind: MemberKind::Flat,
@@ -448,6 +528,7 @@ impl MemberSpec {
         Self {
             keyword,
             arg_roles: NO_ROLES,
+            optional_argument: None,
             all_args_var: true,
             all_args_ref: None,
             kind: MemberKind::Flat,
@@ -466,6 +547,7 @@ impl MemberSpec {
         Self {
             keyword,
             arg_roles: NO_ROLES,
+            optional_argument: None,
             all_args_var: false,
             all_args_ref: None,
             kind: MemberKind::Flat,
@@ -485,6 +567,7 @@ impl MemberSpec {
         Self {
             keyword,
             arg_roles: NO_ROLES,
+            optional_argument: None,
             all_args_var: false,
             all_args_ref: None,
             kind: MemberKind::Wrapper,
@@ -507,6 +590,7 @@ impl MemberSpec {
         Self {
             keyword,
             arg_roles: BODY0_ROLES,
+            optional_argument: None,
             all_args_var: false,
             all_args_ref: None,
             kind: MemberKind::Wrapper,
@@ -553,12 +637,23 @@ impl MemberSpec {
         self
     }
 
+    /// Insert one optional, closed-vocabulary argument in this member's fixed
+    /// layout. Consumers resolve concrete positions through
+    /// [`Self::indices_for_call`], so option-bearing members remain registry
+    /// data.
+    #[must_use]
+    const fn optional_argument(mut self, optional: OptionalMemberArgument) -> Self {
+        self.optional_argument = Some(optional);
+        self
+    }
+
     /// A [`MemberKind::FlagKeyed`] member (`property`).
     #[must_use]
     const fn flag_keyed(keyword: &'static str) -> Self {
         Self {
             keyword,
             arg_roles: NO_ROLES,
+            optional_argument: None,
             all_args_var: false,
             all_args_ref: None,
             kind: MemberKind::FlagKeyed,
@@ -570,12 +665,136 @@ impl MemberSpec {
         }
     }
 
-    /// The argument indices (0-based after the keyword) carrying `role`.
+    /// The fixed-layout argument indices (0-based after the keyword) carrying
+    /// `role`, without considering optional call arguments.
     pub fn indices_for(&self, role: ArgRole) -> impl Iterator<Item = usize> + '_ {
         self.arg_roles
             .iter()
-            .filter(move |(_, r)| *r == role)
-            .map(|(i, _)| *i as usize)
+            .filter(move |(_, declared)| *declared == role)
+            .map(|(index, _)| usize::from(*index))
+    }
+
+    /// The argument indices (0-based after the keyword) carrying `role` for
+    /// this concrete call, including any recognised optional argument.
+    pub fn indices_for_call<S: AsRef<str>>(
+        &self,
+        args: &[S],
+        role: ArgRole,
+    ) -> impl Iterator<Item = usize> + '_ {
+        let option = self
+            .optional_argument
+            .and_then(|optional| optional.value_for(args));
+        let option_position = self
+            .optional_argument
+            .map(|optional| usize::from(optional.position));
+        let option_index = option
+            .filter(|value| value.role == role)
+            .zip(option_position)
+            .map(|(_, position)| position);
+        self.arg_roles
+            .iter()
+            .filter(move |(_, declared)| *declared == role)
+            .map(move |(index, _)| {
+                let index = usize::from(*index);
+                index
+                    + usize::from(
+                        option.is_some_and(|_| {
+                            option_position.is_some_and(|position| index >= position)
+                        }),
+                    )
+            })
+            .chain(option_index)
+    }
+
+    /// Like [`Self::indices_for_call`], but selects optional words only when
+    /// their registry-declared dialect availability intersects `dialect`.
+    ///
+    /// Production consumers must use this entry point: otherwise a Tcl 9-only
+    /// flag could alter a Tcl 8.6 member layout merely because it looks like a
+    /// known word. The compatibility method above deliberately uses all
+    /// dialects for grammar-only callers and tests with no selected profile.
+    pub fn indices_for_call_in<S: AsRef<str>>(
+        &self,
+        args: &[S],
+        dialect: crate::dialects::DialectSet,
+        role: ArgRole,
+    ) -> impl Iterator<Item = usize> + '_ {
+        let option = self
+            .optional_argument
+            .and_then(|optional| optional.value_for_in(args, dialect));
+        let option_position = self
+            .optional_argument
+            .map(|optional| usize::from(optional.position));
+        let option_index = option
+            .filter(|value| value.role == role)
+            .zip(option_position)
+            .map(|(_, position)| position);
+        self.arg_roles
+            .iter()
+            .filter(move |(_, declared)| *declared == role)
+            .map(move |(index, _)| {
+                let index = usize::from(*index);
+                index
+                    + usize::from(
+                        option.is_some_and(|_| {
+                            option_position.is_some_and(|position| index >= position)
+                        }),
+                    )
+            })
+            .chain(option_index)
+    }
+
+    /// The option value present in this concrete member call, if any.
+    #[must_use]
+    pub fn option_for<S: AsRef<str>>(&self, args: &[S]) -> Option<MemberOptionValue> {
+        self.optional_argument
+            .and_then(|optional| optional.value_for(args))
+    }
+
+    /// The option value present and available in `dialect`, if any.
+    #[must_use]
+    pub fn option_for_in<S: AsRef<str>>(
+        &self,
+        args: &[S],
+        dialect: crate::dialects::DialectSet,
+    ) -> Option<MemberOptionValue> {
+        self.optional_argument
+            .and_then(|optional| optional.value_for_in(args, dialect))
+    }
+
+    /// A recognised optional word that is unavailable in `dialect`, if one is
+    /// written at this member's optional position.
+    #[must_use]
+    pub fn unavailable_option_for<S: AsRef<str>>(
+        &self,
+        args: &[S],
+        dialect: crate::dialects::DialectSet,
+    ) -> Option<MemberOptionValue> {
+        self.option_for(args)
+            .filter(|_| self.option_for_in(args, dialect).is_none())
+    }
+
+    /// The declaration visibility selected by this concrete call's optional
+    /// argument, when that option carries such semantics.
+    #[must_use]
+    pub fn declared_visibility_for<S: AsRef<str>>(
+        &self,
+        args: &[S],
+    ) -> Option<DeclaredMemberVisibility> {
+        self.option_for(args)
+            .and_then(|option| option.declared_visibility)
+    }
+
+    /// The declaration visibility selected by an option available in
+    /// `dialect`, when present.
+    #[must_use]
+    pub fn declared_visibility_for_in<S: AsRef<str>>(
+        &self,
+        args: &[S],
+        dialect: crate::dialects::DialectSet,
+    ) -> Option<DeclaredMemberVisibility> {
+        self.option_for_in(args, dialect)
+            .and_then(|option| option.declared_visibility)
     }
 }
 
@@ -944,6 +1163,56 @@ const METHOD_ROLES: &[(u8, ArgRole)] = &[
     (1, ArgRole::ParamList),
     (2, ArgRole::Body),
 ];
+/// Tcl 9's `method NAME ?EXPORT-FLAG? PARAMS BODY` declaration flags.
+///
+/// These are intentionally a closed registry vocabulary rather than arbitrary
+/// `-word` parsing: Tcl rejects every other spelling at this position.
+const TCLOO_METHOD_VISIBILITY_OPTIONS: &[MemberOptionValue] = &[
+    MemberOptionValue {
+        value: "-export",
+        role: ArgRole::Option,
+        dialects: Some(TCL90_MEMBERS),
+        declared_visibility: Some(DeclaredMemberVisibility::Public),
+    },
+    MemberOptionValue {
+        value: "-private",
+        role: ArgRole::Option,
+        dialects: Some(TCL90_MEMBERS),
+        declared_visibility: Some(DeclaredMemberVisibility::Private),
+    },
+    MemberOptionValue {
+        value: "-unexport",
+        role: ArgRole::Option,
+        dialects: Some(TCL90_MEMBERS),
+        declared_visibility: Some(DeclaredMemberVisibility::Unexported),
+    },
+];
+const TCLOO_METHOD_VISIBILITY_ARGUMENT: OptionalMemberArgument = OptionalMemberArgument {
+    // The method name is fixed; the optional flag appears before params/body.
+    position: 1,
+    values: TCLOO_METHOD_VISIBILITY_OPTIONS,
+};
+/// Tcl 9's `definitionnamespace ?-class|-instance? NAMESPACE` selector.
+const TCLOO_DEFINITION_NAMESPACE_FACETS: &[MemberOptionValue] = &[
+    MemberOptionValue {
+        value: "-class",
+        role: ArgRole::Option,
+        dialects: Some(TCL90_MEMBERS),
+        declared_visibility: None,
+    },
+    MemberOptionValue {
+        value: "-instance",
+        role: ArgRole::Option,
+        dialects: Some(TCL90_MEMBERS),
+        declared_visibility: None,
+    },
+];
+const TCLOO_DEFINITION_NAMESPACE_ARGUMENT: OptionalMemberArgument = OptionalMemberArgument {
+    // The facet is optional; the namespace is always the final fixed tail.
+    position: 0,
+    values: TCLOO_DEFINITION_NAMESPACE_FACETS,
+};
+const DEFINITION_NAMESPACE_ROLES: &[(u8, ArgRole)] = &[(0, ArgRole::NamespaceName)];
 /// `constructor PARAMS BODY`.
 const CTOR_ROLES: &[(u8, ArgRole)] = &[(0, ArgRole::ParamList), (1, ArgRole::Body)];
 /// A single trailing body (`destructor BODY`, `typeconstructor BODY`, …).
@@ -968,7 +1237,7 @@ const NO_ROLES: &[(u8, ArgRole)] = &[];
 const TCL90_MEMBERS: crate::dialects::DialectSet = crate::dialects::DialectSet::TCL90_PLUS;
 
 const TCLOO_MEMBERS: &[MemberSpec] = &[
-    MemberSpec::flat("method", METHOD_ROLES),
+    MemberSpec::flat("method", METHOD_ROLES).optional_argument(TCLOO_METHOD_VISIBILITY_ARGUMENT),
     MemberSpec::flat("classmethod", METHOD_ROLES).with_dialects(TCL90_MEMBERS),
     MemberSpec::flat("constructor", CTOR_ROLES),
     MemberSpec::flat("destructor", BODY0_ROLES),
@@ -1007,7 +1276,9 @@ const TCLOO_MEMBERS: &[MemberSpec] = &[
     // a member this walker does not record), so the whole call retracts.
     MemberSpec::all_refs("renamemethod", MemberRefKind::Method)
         .retracting(MemberRetraction::FirstArgument),
-    MemberSpec::keyword_only("definitionnamespace").with_dialects(TCL90_MEMBERS),
+    MemberSpec::flat("definitionnamespace", DEFINITION_NAMESPACE_ROLES)
+        .optional_argument(TCLOO_DEFINITION_NAMESPACE_ARGUMENT)
+        .with_dialects(TCL90_MEMBERS),
     // Structurally irregular — a nested-member wrapper (`self method …`) and a
     // flag-keyed body form (`property … -get/-set …`); their body indices come
     // from the walker's `MemberKind`-driven handling, not a hardcoded name.
@@ -1498,7 +1769,11 @@ pub const ITCL_GRAMMAR: DefinitionBodyGrammar = DefinitionBodyGrammar {
 
 #[cfg(test)]
 mod tests {
-    use super::{MemberRetraction, MemberVisibility, SlotOp, SlotSpec, TCLOO_GRAMMAR};
+    use super::{
+        DeclaredMemberVisibility, MemberRetraction, MemberVisibility, SlotOp, SlotSpec,
+        TCLOO_GRAMMAR,
+    };
+    use crate::arg_role::ArgRole;
 
     fn strs(words: &[&str]) -> Vec<String> {
         words.iter().map(ToString::to_string).collect()
@@ -1627,5 +1902,130 @@ mod tests {
             assert_eq!(m.visibility_effect, None, "{keyword}");
             assert_eq!(m.retraction, None, "{keyword}");
         }
+    }
+
+    /// Tcl 9 inserts a closed export-flag vocabulary after the method name,
+    /// not before it and not in Tcl 8.6's fixed `name params body` layout.
+    /// The grammar resolves both layouts without a consumer recognising
+    /// `method` or parsing a `-word` itself.
+    #[test]
+    fn tcloo_method_visibility_option_shifts_only_the_fixed_tail() {
+        let method = TCLOO_GRAMMAR.member("method").expect("method exists");
+        let plain = strs(&["m", "{x}", "{return $x}"]);
+        assert_eq!(
+            method
+                .indices_for_call(&plain, ArgRole::ParamList)
+                .collect::<Vec<_>>(),
+            vec![1]
+        );
+        assert_eq!(
+            method
+                .indices_for_call(&plain, ArgRole::Body)
+                .collect::<Vec<_>>(),
+            vec![2]
+        );
+        assert_eq!(method.declared_visibility_for(&plain), None);
+
+        let private = strs(&["m", "-private", "{x}", "{return $x}"]);
+        assert_eq!(
+            method
+                .indices_for_call(&private, ArgRole::Option)
+                .collect::<Vec<_>>(),
+            vec![1]
+        );
+        assert_eq!(
+            method
+                .indices_for_call(&private, ArgRole::ParamList)
+                .collect::<Vec<_>>(),
+            vec![2]
+        );
+        assert_eq!(
+            method
+                .indices_for_call(&private, ArgRole::Body)
+                .collect::<Vec<_>>(),
+            vec![3]
+        );
+        assert_eq!(
+            method.declared_visibility_for(&private),
+            Some(DeclaredMemberVisibility::Private)
+        );
+        // The selected profile is authoritative: Tcl 8.6 keeps the original
+        // fixed layout and exposes the word as an unavailable registry option,
+        // while Tcl 9.0 accepts and shifts it.
+        assert_eq!(
+            method
+                .indices_for_call_in(
+                    &private,
+                    crate::dialects::DialectSet::TCL86,
+                    ArgRole::ParamList
+                )
+                .collect::<Vec<_>>(),
+            vec![1]
+        );
+        assert!(
+            method
+                .indices_for_call_in(
+                    &private,
+                    crate::dialects::DialectSet::TCL86,
+                    ArgRole::Option
+                )
+                .next()
+                .is_none()
+        );
+        assert!(
+            method
+                .unavailable_option_for(&private, crate::dialects::DialectSet::TCL86)
+                .is_some()
+        );
+        assert_eq!(
+            method
+                .indices_for_call_in(&private, crate::dialects::DialectSet::TCL90, ArgRole::Body)
+                .collect::<Vec<_>>(),
+            vec![3]
+        );
+        // Live Tcl 9.0 rejects the same flags on `classmethod`; its grammar
+        // deliberately has no optional argument despite sharing the fixed
+        // method-shaped roles.
+        let classmethod = TCLOO_GRAMMAR
+            .member("classmethod")
+            .expect("classmethod exists");
+        assert!(classmethod.optional_argument.is_none());
+    }
+
+    /// `definitionnamespace` is a namespace-reference tail with an optional,
+    /// closed `-class` / `-instance` facet—not a keyword-only member whose
+    /// target consumers have to rediscover.
+    #[test]
+    fn definitionnamespace_has_a_facet_option_and_final_namespace_name() {
+        let member = TCLOO_GRAMMAR
+            .member("definitionnamespace")
+            .expect("definitionnamespace exists");
+        let plain = strs(&["::definitions"]);
+        assert_eq!(
+            member
+                .indices_for_call(&plain, ArgRole::NamespaceName)
+                .collect::<Vec<_>>(),
+            vec![0]
+        );
+        assert!(
+            member
+                .indices_for_call(&plain, ArgRole::Option)
+                .next()
+                .is_none()
+        );
+
+        let instance = strs(&["-instance", "::definitions"]);
+        assert_eq!(
+            member
+                .indices_for_call(&instance, ArgRole::Option)
+                .collect::<Vec<_>>(),
+            vec![0]
+        );
+        assert_eq!(
+            member
+                .indices_for_call(&instance, ArgRole::NamespaceName)
+                .collect::<Vec<_>>(),
+            vec![1]
+        );
     }
 }

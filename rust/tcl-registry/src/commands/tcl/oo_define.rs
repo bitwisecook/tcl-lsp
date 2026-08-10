@@ -19,6 +19,66 @@
 //! `oo::define` — define class members.
 use crate::prelude::*;
 
+const OO_DEFINE_TRANSITION_DOMAINS: &[StateTransitionDomain] =
+    &[StateTransitionDomain::ObjectDispatch];
+
+const OO_DEFINE_EFFECT_COVERAGE: &[TransitionEffectCoverage] = &[
+    TransitionEffectCoverage {
+        source: WorldEffectWriteSource::DeclaredWorldEffect,
+        domains: &[WorldStateDomain::OoDispatch],
+    },
+    TransitionEffectCoverage {
+        source: WorldEffectWriteSource::LegacySideEffect(SideEffectTarget::InterpState),
+        domains: &[WorldStateDomain::InterpreterPolicy],
+    },
+];
+
+const OO_DEFINE_EFFECTS: WorldEffectDescriptor = WorldEffectDescriptor {
+    composition: WorldEffectComposition::Extend,
+    static_footprint: StaticEffectFootprint {
+        accesses: &[StaticEffectAccess::new(
+            WorldStateDomain::OoDispatch,
+            EffectAccessMode::ReadWrite,
+            StaticInterpreterScope::Current,
+            StaticNamespaceScope::Current,
+            StaticSubjectScope::Wildcard,
+        )],
+        callback: CallbackEffect {
+            kinds: CallbackKinds::SCRIPT,
+            reentrancy: Reentrancy::CurrentInterpreter,
+        },
+    },
+    resolver: None,
+    dynamic_fallback: WorldEffectDynamicFallback::ConservativeUnknownInvocation,
+};
+
+const OO_DEFINE_TRANSITIONS: StateTransitionDescriptor = StateTransitionDescriptor {
+    composition: StateTransitionComposition::Extend,
+    resolver: Some(oo_define_state_transitions),
+    argument_shape: StateTransitionArgumentShape::Independent,
+    dynamic_widening: &[StateTransitionWideningRule {
+        operands: StateTransitionOperandLayout::Indices(&[0]),
+        domains: OO_DEFINE_TRANSITION_DOMAINS,
+    }],
+    effect_coverage: OO_DEFINE_EFFECT_COVERAGE,
+    // Definition scripts run sequentially. An earlier member mutation remains
+    // visible when a later definition command raises an abrupt completion.
+    commit: StateTransitionCommit::MayCommitBeforeAbruptCompletion,
+};
+
+fn oo_define_state_transitions(arguments: InvocationArguments<'_>) -> StateTransitions {
+    let mut transitions = StateTransitions::default();
+    if let Some(target) = TransitionSubject::from_argument(arguments, 0) {
+        transitions.push(StateTransition::ObjectDispatch(
+            ObjectDispatchTransition::Configure {
+                target,
+                layer: ObjectDispatchLayer::Class,
+            },
+        ));
+    }
+    transitions
+}
+
 const SIDE_EFFECTS: &[SideEffect] = &[SideEffect {
     target: SideEffectTarget::InterpState,
     reads: false,
@@ -307,6 +367,8 @@ pub fn spec() -> CommandSpec {
         forms: FORMS,
         arg_values: &[(1, OO_DEFINE_SUBCOMMAND_VALUES)],
         side_effects: SIDE_EFFECTS,
+        world_effects: Some(OO_DEFINE_EFFECTS),
+        state_transitions: Some(OO_DEFINE_TRANSITIONS),
         definition_body: Some(&crate::definer::TCLOO_GRAMMAR),
         analyser_hook: Some(crate::hooks::AnalyserHookId::OoDefine),
         ..CommandSpec::DEFAULT
@@ -317,6 +379,11 @@ pub fn spec() -> CommandSpec {
 mod tests {
     use super::oo_define_arg_roles;
     use crate::arg_role::ArgRole;
+    use crate::dialects::DialectSet;
+    use crate::{
+        CallbackKinds, CommandRegistry, ObjectDispatchLayer, ObjectDispatchTransition, Reentrancy,
+        StateTransition, StateTransitionCommit, WorldStateDomain,
+    };
 
     // POSITIVE: every subcommand merged into the shared `n >= 3 => index 2`
     // arm (`destructor` / `initialise` / `initialize` / `private`) must
@@ -349,6 +416,47 @@ mod tests {
             oo_define_arg_roles(&["Target", "self", "destructor", "{ body }"]),
             vec![(3, ArgRole::Body)]
         );
+    }
+
+    #[test]
+    fn class_and_object_configuration_keep_distinct_registry_layers() {
+        let registry = CommandRegistry::build_default();
+        for (command, expected_layer) in [
+            ("oo::define", ObjectDispatchLayer::Class),
+            ("oo::objdefine", ObjectDispatchLayer::Object),
+        ] {
+            let invocation = registry
+                .resolve_invocation(
+                    command,
+                    &["::Target", "method", "m", "{}", "{}"],
+                    DialectSet::TCL86,
+                )
+                .expect("TclOO definition command must resolve");
+            let transitions = invocation.state_transitions();
+            assert!(transitions.facts().iter().any(|fact| {
+                fact.commit == StateTransitionCommit::MayCommitBeforeAbruptCompletion
+                    && matches!(
+                        &fact.transition,
+                        StateTransition::ObjectDispatch(ObjectDispatchTransition::Configure {
+                            target,
+                            layer,
+                        }) if target.literal() == Some("::Target") && *layer == expected_layer
+                    )
+            }));
+
+            let effects = invocation.effect_footprint();
+            assert!(
+                !effects
+                    .accesses()
+                    .iter()
+                    .any(|access| access.domain == WorldStateDomain::InterpreterPolicy)
+            );
+            assert!(effects.callback().kinds.contains(CallbackKinds::SCRIPT));
+            assert_eq!(
+                effects.callback().reentrancy,
+                Reentrancy::CurrentInterpreter
+            );
+        }
     }
 
     // NEGATIVE: the merged arm's `n >= 3` guard must fail when the body is

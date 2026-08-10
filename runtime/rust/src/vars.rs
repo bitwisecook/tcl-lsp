@@ -45,7 +45,7 @@
 use tcl_syntax::naming::is_qualified;
 
 use crate::frame::{FrameStack, Link, Var, VarError, VarHome, VarTable};
-use crate::namespace::{Namespaces, NsId, GLOBAL};
+use crate::namespace::{GLOBAL, Namespaces, NsId};
 use crate::obj::{self, TclObj};
 
 /// Bound on the link walk so a pathological alias cycle can't spin forever
@@ -505,6 +505,37 @@ pub(crate) fn ensure_array(
     table_mut(frames, ns, place.home).ensure_array(&place.name)
 }
 
+/// Materialise an unset scalar cell for `trace add variable`.  This uses the
+/// same self-link representation as `variable`: it is observable by traces,
+/// but remains unset until a subsequent write.  A qualified name in a missing
+/// namespace is an error, as it is for a normal variable write.
+pub(crate) fn ensure_undefined(
+    frames: &mut FrameStack,
+    ns: &mut Namespaces,
+    current_ns: NsId,
+    name: &[u8],
+) -> Result<(), VarError> {
+    let place = match resolve(frames, ns, current_ns, name) {
+        Resolved::Place(p) if p.elem.is_none() => p,
+        Resolved::NoNamespace => return Err(VarError::NoSuchNamespace),
+        _ => return Err(VarError::IsScalar),
+    };
+    let home = place.home;
+    let key = place.name;
+    let table = table_mut(frames, ns, home);
+    if table.cell(&key).is_none() {
+        table.insert_link(
+            &key,
+            Link {
+                home,
+                name: key.clone(),
+                elem: None,
+            },
+        );
+    }
+    Ok(())
+}
+
 /// `array default get/exists` — the array's default value (following links), or
 /// `None` if the name isn't an array or has no default.
 pub(crate) fn array_default(
@@ -888,7 +919,7 @@ mod tests {
                 Err(VarError::NoSuchNamespace)
             );
             unsafe { obj::decr_ref_count(rejected) }; // caller frees; set didn't keep it
-                                                      // a read of the same name simply misses (no such variable).
+            // a read of the same name simply misses (no such variable).
             assert_eq!(get(f, ns, GLOBAL, b"::nosuch::x"), None);
         });
     }

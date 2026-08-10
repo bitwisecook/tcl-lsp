@@ -45,8 +45,8 @@
 //! - [`params`] — `parse_param_list` for the proc parameter-list arg.
 //! - `ctx` (private) — internal scan state ([`ScanCtx`],
 //!   `FactoryCandidate`, `ProcBodyInfo`, `FACTORY_SKIP_NONCOMMAND_HEADS`).
-//! - `handlers` (private) — per-command handlers
-//!   (`handle_proc`, `handle_namespace`, `handle_package`, …).
+//! - `handlers` (private) — registry-dispatched semantic handlers
+//!   (`handle_proc`, `handle_namespace_eval`, `handle_package_require`, …).
 //! - `walker` (private) — top-level `scan` plus the body-recursion
 //!   helpers (`maybe_recurse_body`, `handle_if` / `handle_catch` /
 //!   `handle_try`) and the factory-body sub-walker

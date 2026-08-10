@@ -85,7 +85,9 @@ use tcl_compiler::inlining::{
     InlineDecision, SMALL_BODY_THRESHOLD, classify_proc, count_statements, inline_module,
 };
 use tcl_compiler::ir::{Module, Statement};
-use tcl_compiler::var_escape::{ProcEscapeSummary, analyse_var_escape};
+use tcl_compiler::var_escape::{
+    ProcEscapeSummary, analyse_var_escape, analyse_var_escape_with_registry,
+};
 use tcl_registry::CommandRegistry;
 
 // ---------------------------------------------------------------------------
@@ -396,8 +398,7 @@ fn two_call_wrapper_inlines_both() {
 
 #[test]
 fn mixed_safe_calls_unqualified_inline() {
-    // The qualified `::string length` form is handled below (see
-    // `qualified_command_body_is_conservatively_kept`). With unqualified `puts`
+    // The qualified form is covered separately below. With unqualified `puts`
     // + `string` (both pure-leaf in `var_escape`), the wrapper inlines.
     let out = inlined("proc setup {} { puts \"starting\"\nstring length \"x\" }\nsetup\n");
     assert_eq!(top_calls_to(&out, "setup"), 0);
@@ -855,33 +856,25 @@ fn wrapper_with_unqualified_proc_call_declined() {
 }
 
 #[test]
-fn qualified_command_body_is_conservatively_kept() {
-    // The inliner is deliberately conservative here: `var_escape`'s pure-leaf
-    // analysis classifies a `::`-qualified builtin call (`::puts`) as
-    // NON-pure-leaf, so the wrapper is not eligible and the call is kept.
-    // Declining to inline can never change program semantics (the runtime call
-    // still runs `::puts`), so this is the safe direction. The unqualified form
-    // *does* inline — see `wrapper_call_is_replaced_with_inner` above — so the
-    // splice machinery itself works; only the `::`-qualified pure-leaf
-    // classification declines.
-    //
-    // Confirmed via `analyse_var_escape`: `safe_to_inline("::setup")` is
-    // `true` for `proc setup {} { puts ... }` but `false` for
-    // `proc setup {} { ::puts ... }`.
+fn qualified_registry_command_body_is_inlined_without_rewriting_the_head() {
+    // Registry invocation resolution normalises the absolute spelling
+    // `::puts` to the same FRAMELESS_RUNTIME command facts as `puts`.
+    // A fully-qualified head is also namespace-invariant, so lifting it from
+    // the wrapper cannot change which command Tcl dispatches.  The splice must
+    // retain the written `::puts` head rather than canonicalising emitted IR.
     let module = module_for("proc setup {} { ::puts \"start\" }\nsetup\n");
-    let summaries = analyse_var_escape(&module, true);
+    let registry = reg();
+    let summaries = analyse_var_escape_with_registry(&module, true, &registry);
     assert!(
-        !summaries
+        summaries
             .get("::setup")
             .is_some_and(ProcEscapeSummary::safe_to_inline),
-        "a ::-qualified builtin body is classified non-pure-leaf in Rust"
+        "an absolute spelling must receive its registry command's frameless facts"
     );
-    let out = inline_module(module, &reg());
-    assert_eq!(
-        top_calls_to(&out, "setup"),
-        1,
-        "Rust conservatively keeps the call (qualified-command divergence)"
-    );
+    let out = inline_module(module, &registry);
+    assert_eq!(top_calls_to(&out, "setup"), 0);
+    assert_eq!(top_calls_to(&out, "::puts"), 1);
+    assert_eq!(top_calls_to(&out, "puts"), 0);
 }
 
 // --- TestResolution --------------------------------------------------------

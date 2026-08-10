@@ -19,6 +19,138 @@
 //! `oo::class` — the class of all classes; the `TclOO` metaclass.
 use crate::prelude::*;
 
+const CLASS_NAMED_CREATE_TRANSITION_DOMAINS: &[StateTransitionDomain] = &[
+    StateTransitionDomain::CommandBindings,
+    StateTransitionDomain::Namespaces,
+    StateTransitionDomain::ObjectDispatch,
+];
+
+const CLASS_EXPLICIT_NAMESPACE_TRANSITION_DOMAINS: &[StateTransitionDomain] = &[
+    StateTransitionDomain::Namespaces,
+    StateTransitionDomain::VariableCells,
+    StateTransitionDomain::ObjectDispatch,
+];
+
+const CLASS_INTERP_EFFECT_COVERAGE: &[TransitionEffectCoverage] = &[TransitionEffectCoverage {
+    source: WorldEffectWriteSource::LegacySideEffect(SideEffectTarget::InterpState),
+    domains: &[WorldStateDomain::InterpreterPolicy],
+}];
+
+const CLASS_FACTORY_EFFECTS: WorldEffectDescriptor = WorldEffectDescriptor {
+    composition: WorldEffectComposition::Extend,
+    static_footprint: StaticEffectFootprint {
+        accesses: &[],
+        // A definition body runs while the new class is visible, but any
+        // non-OK completion rolls the class, command, and private namespace
+        // back before it escapes from the factory.
+        callback: CallbackEffect {
+            kinds: CallbackKinds::SCRIPT,
+            reentrancy: Reentrancy::CurrentInterpreter,
+        },
+    },
+    resolver: None,
+    dynamic_fallback: WorldEffectDynamicFallback::ConservativeUnknownInvocation,
+};
+
+const CLASS_CREATE_TRANSITIONS: StateTransitionDescriptor = StateTransitionDescriptor {
+    composition: StateTransitionComposition::Extend,
+    resolver: Some(class_create_state_transitions),
+    argument_shape: StateTransitionArgumentShape::Positional,
+    dynamic_widening: &[StateTransitionWideningRule {
+        operands: StateTransitionOperandLayout::Indices(&[1]),
+        domains: CLASS_NAMED_CREATE_TRANSITION_DOMAINS,
+    }],
+    effect_coverage: CLASS_INTERP_EFFECT_COVERAGE,
+    commit: StateTransitionCommit::OnOkOnly,
+};
+
+const CLASS_NEW_TRANSITIONS: StateTransitionDescriptor = StateTransitionDescriptor {
+    composition: StateTransitionComposition::Extend,
+    resolver: Some(class_new_state_transitions),
+    argument_shape: StateTransitionArgumentShape::Independent,
+    dynamic_widening: &[],
+    effect_coverage: CLASS_INTERP_EFFECT_COVERAGE,
+    commit: StateTransitionCommit::OnOkOnly,
+};
+
+const CLASS_CREATE_WITH_NAMESPACE_TRANSITIONS: StateTransitionDescriptor =
+    StateTransitionDescriptor {
+        composition: StateTransitionComposition::Extend,
+        resolver: Some(class_create_with_namespace_state_transitions),
+        argument_shape: StateTransitionArgumentShape::Positional,
+        dynamic_widening: &[
+            StateTransitionWideningRule {
+                operands: StateTransitionOperandLayout::Indices(&[1]),
+                domains: CLASS_NAMED_CREATE_TRANSITION_DOMAINS,
+            },
+            StateTransitionWideningRule {
+                operands: StateTransitionOperandLayout::Indices(&[2]),
+                domains: CLASS_EXPLICIT_NAMESPACE_TRANSITION_DOMAINS,
+            },
+        ],
+        effect_coverage: CLASS_INTERP_EFFECT_COVERAGE,
+        commit: StateTransitionCommit::OnOkOnly,
+    };
+
+fn push_named_class_creation(
+    transitions: &mut StateTransitions,
+    target: TransitionSubject,
+    private_namespace: ObjectPrivateNamespace,
+) {
+    if matches!(&target, TransitionSubject::Literal(name) if !name.is_empty()) {
+        transitions.push(StateTransition::CommandBinding(
+            CommandBindingTransition::Define {
+                name: target.clone(),
+            },
+        ));
+    }
+    transitions.push(StateTransition::ObjectDispatch(
+        ObjectDispatchTransition::Create {
+            target: ObjectDispatchTarget::Named(target),
+            private_namespace,
+            kind: ObjectDispatchKind::Class,
+        },
+    ));
+}
+
+fn class_create_state_transitions(arguments: InvocationArguments<'_>) -> StateTransitions {
+    let mut transitions = StateTransitions::default();
+    if let Some(target) = TransitionSubject::from_argument(arguments, 1) {
+        push_named_class_creation(&mut transitions, target, ObjectPrivateNamespace::Fresh);
+    }
+    transitions
+}
+
+fn class_new_state_transitions(_arguments: InvocationArguments<'_>) -> StateTransitions {
+    let mut transitions = StateTransitions::default();
+    transitions.push(StateTransition::ObjectDispatch(
+        ObjectDispatchTransition::Create {
+            target: ObjectDispatchTarget::Fresh,
+            private_namespace: ObjectPrivateNamespace::Fresh,
+            kind: ObjectDispatchKind::Class,
+        },
+    ));
+    transitions
+}
+
+fn class_create_with_namespace_state_transitions(
+    arguments: InvocationArguments<'_>,
+) -> StateTransitions {
+    let mut transitions = StateTransitions::default();
+    let (Some(target), Some(private_namespace)) = (
+        TransitionSubject::from_argument(arguments, 1),
+        TransitionSubject::from_argument(arguments, 2),
+    ) else {
+        return transitions;
+    };
+    push_named_class_creation(
+        &mut transitions,
+        target,
+        ObjectPrivateNamespace::Named(private_namespace),
+    );
+    transitions
+}
+
 const SIDE_EFFECTS: &[SideEffect] = &[SideEffect {
     target: SideEffectTarget::InterpState,
     reads: false,
@@ -57,6 +189,47 @@ const CLASS_METHOD_VALUES: &[ArgValue] = &[
     },
 ];
 
+pub(crate) const CLASS_FACTORY_SUBCOMMANDS: &[SubCommand] = &[
+    SubCommand {
+        name: "create",
+        arity: Arity::new(1, 2),
+        detail: "Create a named class, optionally evaluating a definition body.",
+        synopsis: "oo::class create name ?definition?",
+        arg_roles: &[(0, ArgRole::Name), (1, ArgRole::Body)],
+        body_kind: BodyKind::Structural,
+        return_type: Some(TclType::String),
+        defines_command_at: Some(0),
+        world_effects: Some(CLASS_FACTORY_EFFECTS),
+        state_transitions: Some(CLASS_CREATE_TRANSITIONS),
+        ..SubCommand::DEFAULT
+    },
+    SubCommand {
+        name: "new",
+        arity: Arity::new(0, 1),
+        detail: "Create an automatically named class, optionally evaluating a definition body.",
+        synopsis: "oo::class new ?definition?",
+        arg_roles: &[(0, ArgRole::Body)],
+        body_kind: BodyKind::Structural,
+        return_type: Some(TclType::String),
+        world_effects: Some(CLASS_FACTORY_EFFECTS),
+        state_transitions: Some(CLASS_NEW_TRANSITIONS),
+        ..SubCommand::DEFAULT
+    },
+    SubCommand {
+        name: "createWithNamespace",
+        arity: Arity::new(2, 3),
+        detail: "Create a named class with an explicitly named private namespace.",
+        synopsis: "oo::class createWithNamespace name nsName ?definition?",
+        arg_roles: &[(0, ArgRole::Name), (1, ArgRole::Name), (2, ArgRole::Body)],
+        body_kind: BodyKind::Structural,
+        return_type: Some(TclType::String),
+        defines_command_at: Some(0),
+        world_effects: Some(CLASS_FACTORY_EFFECTS),
+        state_transitions: Some(CLASS_CREATE_WITH_NAMESPACE_TRANSITIONS),
+        ..SubCommand::DEFAULT
+    },
+];
+
 /// Resolve the body argument index for the metaclass shapes:
 ///
 /// * `oo::class create Name body` → body at index 2.
@@ -92,6 +265,8 @@ pub fn spec() -> CommandSpec {
         arity: Arity::at_least(1),
         arg_role_resolver: Some(oo_class_arg_roles),
         return_type: Some(TclType::String),
+        subcommands: CLASS_FACTORY_SUBCOMMANDS,
+        allow_unknown_subcommands: true,
         // Bodies of `oo::class create / new / createWithNamespace`
         // run in a TclOO definition context (not the caller's frame).
         body_kind: BodyKind::Structural,
@@ -114,5 +289,114 @@ pub fn spec() -> CommandSpec {
         definition_body: Some(&crate::definer::TCLOO_GRAMMAR),
         manufacturer_methods: crate::definer::TCLOO_ROOT_CLASS_MANUFACTURERS,
         ..CommandSpec::DEFAULT
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::dialects::DialectSet;
+    use crate::{
+        CallbackKinds, CommandBindingTransition, CommandRegistry, ObjectDispatchKind,
+        ObjectDispatchTarget, ObjectDispatchTransition, ObjectPrivateNamespace, StateTransition,
+        StateTransitionCommit, WorldStateDomain,
+    };
+
+    #[test]
+    fn class_create_records_command_dispatch_and_independent_private_namespace() {
+        let registry = CommandRegistry::build_default();
+        let invocation = registry
+            .resolve_invocation("oo::class", &["create", "::C", "{}"], DialectSet::TCL86)
+            .expect("oo::class create must resolve");
+        let transitions = invocation.state_transitions();
+        assert!(
+            transitions
+                .facts()
+                .iter()
+                .all(|fact| fact.commit == StateTransitionCommit::OnOkOnly)
+        );
+        assert!(transitions.facts().iter().any(|fact| matches!(
+            &fact.transition,
+            StateTransition::CommandBinding(CommandBindingTransition::Define { name })
+                if name.literal() == Some("::C")
+        )));
+        assert!(transitions.facts().iter().any(|fact| matches!(
+            &fact.transition,
+            StateTransition::ObjectDispatch(ObjectDispatchTransition::Create {
+                target: ObjectDispatchTarget::Named(target),
+                private_namespace: ObjectPrivateNamespace::Fresh,
+                kind: ObjectDispatchKind::Class,
+            }) if target.literal() == Some("::C")
+        )));
+
+        let effects = invocation.effect_footprint();
+        assert!(
+            !effects
+                .accesses()
+                .iter()
+                .any(|access| access.domain == WorldStateDomain::InterpreterPolicy)
+        );
+        assert!(effects.callback().kinds.contains(CallbackKinds::SCRIPT));
+    }
+
+    #[test]
+    fn create_with_namespace_retains_explicit_private_identity() {
+        let registry = CommandRegistry::build_default();
+        let transitions = registry
+            .resolve_invocation(
+                "oo::class",
+                &["createWithNamespace", "::C", "::private::C", "{}"],
+                DialectSet::TCL86,
+            )
+            .expect("createWithNamespace must resolve")
+            .state_transitions();
+        assert!(transitions.facts().iter().any(|fact| matches!(
+            &fact.transition,
+            StateTransition::ObjectDispatch(ObjectDispatchTransition::Create {
+                private_namespace: ObjectPrivateNamespace::Named(namespace),
+                ..
+            }) if namespace.literal() == Some("::private::C")
+        )));
+    }
+
+    #[test]
+    fn every_registered_metaclass_create_uses_shared_lifecycle_data() {
+        let registry = CommandRegistry::build_default();
+        for (metaclass, dialect) in [
+            ("oo::class", DialectSet::TCL86),
+            ("oo::abstract", DialectSet::TCL90),
+            ("oo::configurable", DialectSet::TCL90),
+            ("oo::singleton", DialectSet::TCL90),
+        ] {
+            let transitions = registry
+                .resolve_invocation(metaclass, &["create", "::C", "{}"], dialect)
+                .unwrap_or_else(|| panic!("{metaclass} create must resolve"))
+                .state_transitions();
+            assert!(
+                transitions.facts().iter().any(|fact| {
+                    fact.commit == StateTransitionCommit::OnOkOnly
+                        && matches!(
+                            &fact.transition,
+                            StateTransition::CommandBinding(CommandBindingTransition::Define {
+                                name,
+                            }) if name.literal() == Some("::C")
+                        )
+                }),
+                "{metaclass} lacked its named command-binding lifecycle"
+            );
+            assert!(
+                transitions.facts().iter().any(|fact| {
+                    fact.commit == StateTransitionCommit::OnOkOnly
+                        && matches!(
+                            &fact.transition,
+                            StateTransition::ObjectDispatch(ObjectDispatchTransition::Create {
+                                target: ObjectDispatchTarget::Named(target),
+                                kind: ObjectDispatchKind::Class,
+                                ..
+                            }) if target.literal() == Some("::C")
+                        )
+                }),
+                "{metaclass} lacked its class dispatch lifecycle"
+            );
+        }
     }
 }

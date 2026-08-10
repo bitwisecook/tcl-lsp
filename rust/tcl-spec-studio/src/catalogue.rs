@@ -471,6 +471,14 @@ pub const TRAITS: &[Variant] = &[
     v("WHOLE_ARRAY_ARG", "takes a whole array as an argument"),
     v("DYNAMIC_EVAL_BODY", "its body is evaluated dynamically"),
     v("INTROSPECTS_BY_NAME", "introspects state by name"),
+    v(
+        "CURRENT_FRAME_INTROSPECTION",
+        "observes the current Tcl call frame",
+    ),
+    v(
+        "EXPANSION_ESCAPE_SAFE",
+        "expanded arguments cannot introduce a frame-sensitive name",
+    ),
     v("TARGETS_VARIABLE_BY_NAME", "targets a variable by name"),
     v("FRAME_HASH_BUILTIN", "a frame-hash builtin"),
     v(
@@ -485,7 +493,6 @@ pub const TRAITS: &[Variant] = &[
         "OVERRIDABLE_LIBRARY_PROC",
         "a library proc a script may override",
     ),
-    v("WASM_EMITS_NOTHING", "emits no code on the WASM target"),
     v(
         "STRUCTURALLY_CHECKED_ARITY",
         "arity is checked structurally, not by range",

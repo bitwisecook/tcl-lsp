@@ -38,15 +38,15 @@ use crate::expr_ast::ExprNode;
 use crate::ir::{CommandTokens, Statement};
 use crate::ssa::{SsaBlock, SsaFunction, SsaStatement, Version};
 use crate::var_escape::cfg_propagation::handlers::{
-    handle_dynamic_name_first, handle_global, handle_info, handle_namespace_call, handle_upvar,
-    handle_variable,
+    handle_dynamic_name_first, handle_introspection, handle_variable_aliases,
 };
 use crate::var_escape::cfg_propagation::known_names::collect_known_names_from_cfg;
 use crate::var_escape::cfg_propagation::state::{CfgEscapeResult, CfgState};
 use crate::var_escape::handlers::has_expand_word;
 use crate::var_escape::helpers::{
-    is_dynamic_name, is_dynamic_token, is_frameless_runtime_command, is_name_first_command,
-    normalise_cmd_subst_head, scan_value_for_info_hazards,
+    default_registry, invocation_facts, invocation_facts_from_tokens, is_dynamic_name,
+    is_dynamic_token, is_frameless_runtime_command, normalise_cmd_subst_head,
+    scan_value_for_info_hazards,
 };
 
 /// Walk *value* for embedded `[cmd ...]` substitution heads;
@@ -121,7 +121,12 @@ fn extract_cmd_subst_heads(value: &str) -> Vec<String> {
 
 /// Generic call dispatcher. Mirrors the intra-procedural variant
 /// but threads *defs* through to the per-command handlers.
-fn handle_call(stmt: &Statement, state: &mut CfgState, defs: &HashMap<String, Version>) {
+fn handle_call(
+    stmt: &Statement,
+    state: &mut CfgState,
+    defs: &HashMap<String, Version>,
+    registry: &tcl_registry::CommandRegistry,
+) {
     let Statement::Call {
         command,
         args,
@@ -132,8 +137,13 @@ fn handle_call(stmt: &Statement, state: &mut CfgState, defs: &HashMap<String, Ve
         return;
     };
     let cmd = command.as_str();
+    let facts = invocation_facts(stmt, registry);
 
-    if !is_frameless_runtime_command(cmd) {
+    if !facts.as_ref().is_some_and(|facts| {
+        facts
+            .traits
+            .contains(tcl_registry::prelude::Traits::FRAMELESS_RUNTIME)
+    }) {
         if cmd.is_empty() || is_dynamic_token(cmd) {
             state.record_fallback();
         } else {
@@ -141,22 +151,34 @@ fn handle_call(stmt: &Statement, state: &mut CfgState, defs: &HashMap<String, Ve
         }
     }
 
-    if has_expand_word(tokens.as_ref()) && cmd != "list" && cmd != "concat" {
+    if has_expand_word(tokens.as_ref())
+        && !facts.as_ref().is_some_and(|facts| {
+            facts
+                .traits
+                .contains(tcl_registry::prelude::Traits::EXPANSION_ESCAPE_SAFE)
+        })
+    {
         state.mark_pessimistic();
         return;
     }
 
-    match cmd {
-        "upvar" => handle_upvar(args, state, defs),
-        "global" => handle_global(args, state, defs),
-        "variable" => handle_variable(args, state, defs),
-        "namespace" => handle_namespace_call(args, state, defs),
-        "info" => handle_info(args, state, defs),
-        "catch" => handle_catch(args, state, defs),
-        c if is_name_first_command(c) => handle_dynamic_name_first(c, args, state, defs),
-        _ => {}
+    if let Some(facts) = facts.as_deref() {
+        handle_variable_aliases(facts, state, defs);
+        handle_introspection(facts, args, state, defs);
+        if facts
+            .traits
+            .contains(tcl_registry::prelude::Traits::FIRST_ARG_VARNAME)
+        {
+            handle_dynamic_name_first(&facts.canonical_command, args, state, defs);
+        }
+        if facts.operation
+            == tcl_registry::SemanticOperationId::StructuredLowering(
+                tcl_registry::hooks::LoweringHookId::Catch,
+            )
+        {
+            handle_catch(args, state, defs, registry);
+        }
     }
-
     if !cmd.is_empty() && !is_dynamic_token(cmd) {
         state.record_callee(cmd);
     }
@@ -165,7 +187,12 @@ fn handle_call(stmt: &Statement, state: &mut CfgState, defs: &HashMap<String, Ve
 /// Handle ``eval``: literal body is recursively walked with
 /// [`escape_every_name_touched_tree`]; non-literal body is
 /// pessimistic.
-fn handle_eval(args: &[String], state: &mut CfgState, defs: &HashMap<String, Version>) {
+fn handle_eval(
+    args: &[String],
+    state: &mut CfgState,
+    defs: &HashMap<String, Version>,
+    registry: &tcl_registry::CommandRegistry,
+) {
     if args.is_empty() {
         state.mark_pessimistic();
         return;
@@ -184,14 +211,13 @@ fn handle_eval(args: &[String], state: &mut CfgState, defs: &HashMap<String, Ver
     // Tcl substitutes it at *this* level. A brace-quoted word (`eval {if
     // {$x > 1} {...}}`) is re-parsed and substituted when the inner command
     // runs, so its names escape too. See `var_escape::walker::handle_eval`.
-    let registry = tcl_registry::CommandRegistry::build_default();
     let mut scanner =
         crate::var_refs::VarReferenceScanner::new(crate::var_refs::VarScanOptions::default());
-    for ref_ in scanner.scan_word(&body, &registry) {
+    for ref_ in scanner.scan_word(&body, registry) {
         state.escape(&ref_, defs);
     }
-    let sub_module = crate::lowering::lower_to_ir(&body, &registry);
-    escape_every_name_touched_tree(&sub_module.top_level.statements, state, defs);
+    let sub_module = crate::lowering::lower_to_ir(&body, registry);
+    escape_every_name_touched_tree(&sub_module.top_level.statements, state, defs, registry);
 }
 
 /// Handle ``catch``: the CFG lowers ``catch {body}`` to an opaque
@@ -201,7 +227,12 @@ fn handle_eval(args: &[String], state: &mut CfgState, defs: &HashMap<String, Ver
 /// scope-crossing escapes — notably the upvar **source name** the
 /// interprocedural pass needs to spill the caller's local — are recorded. A
 /// non-literal body keeps the call-fallback already recorded by the caller.
-fn handle_catch(args: &[String], state: &mut CfgState, defs: &HashMap<String, Version>) {
+fn handle_catch(
+    args: &[String],
+    state: &mut CfgState,
+    defs: &HashMap<String, Version>,
+    registry: &tcl_registry::CommandRegistry,
+) {
     let Some(body) = args.first() else {
         return;
     };
@@ -210,20 +241,24 @@ fn handle_catch(args: &[String], state: &mut CfgState, defs: &HashMap<String, Ve
     }
     // [`scan_word`] for the same over-approximation reason as `handle_eval`:
     // a brace-quoted word inside the caught body still escapes its names.
-    let registry = tcl_registry::CommandRegistry::build_default();
     let mut scanner =
         crate::var_refs::VarReferenceScanner::new(crate::var_refs::VarScanOptions::default());
-    for ref_ in scanner.scan_word(body, &registry) {
+    for ref_ in scanner.scan_word(body, registry) {
         state.escape(&ref_, defs);
     }
-    let sub_module = crate::lowering::lower_to_ir(body, &registry);
-    escape_every_name_touched_tree(&sub_module.top_level.statements, state, defs);
+    let sub_module = crate::lowering::lower_to_ir(body, registry);
+    escape_every_name_touched_tree(&sub_module.top_level.statements, state, defs, registry);
 }
 
 /// Handle ``uplevel``: only ``#0`` (global scope) with a literal body is safe.
 /// ``uplevel 0`` runs in the *current* frame and is walked like ``eval``;
 /// everything else is pessimistic.
-fn handle_uplevel(args: &[String], state: &mut CfgState, defs: &HashMap<String, Version>) {
+fn handle_uplevel(
+    args: &[String],
+    state: &mut CfgState,
+    defs: &HashMap<String, Version>,
+    registry: &tcl_registry::CommandRegistry,
+) {
     if args.is_empty() {
         state.mark_pessimistic();
         return;
@@ -240,7 +275,7 @@ fn handle_uplevel(args: &[String], state: &mut CfgState, defs: &HashMap<String, 
     // way so those escapes are recorded; treating `0` as global-safe like `#0`
     // wrongly whitelists our own frame.
     if level.is_current_frame() {
-        handle_eval(&args[1..], state, defs);
+        handle_eval(&args[1..], state, defs, registry);
         return;
     }
     // Only `uplevel #0` (global scope) is safe: our locals aren't visible
@@ -266,15 +301,21 @@ fn handle_uplevel(args: &[String], state: &mut CfgState, defs: &HashMap<String, 
 
 /// Dispatch on the barrier command name.
 fn handle_barrier(
-    command: &str,
+    stmt: &Statement,
     args: &[String],
     state: &mut CfgState,
     defs: &HashMap<String, Version>,
+    registry: &tcl_registry::CommandRegistry,
 ) {
     state.record_fallback();
-    match command {
-        "eval" => handle_eval(args, state, defs),
-        "uplevel" => handle_uplevel(args, state, defs),
+    let operation = invocation_facts(stmt, registry).map(|facts| facts.operation);
+    match operation {
+        Some(tcl_registry::SemanticOperationId::StructuredLowering(
+            tcl_registry::hooks::LoweringHookId::Eval,
+        )) => handle_eval(args, state, defs, registry),
+        Some(tcl_registry::SemanticOperationId::StructuredLowering(
+            tcl_registry::hooks::LoweringHookId::Uplevel,
+        )) => handle_uplevel(args, state, defs, registry),
         _ => state.mark_pessimistic(),
     }
 }
@@ -291,10 +332,15 @@ fn synthesise_uplevel_args(tokens: Option<&CommandTokens>) -> Vec<String> {
         .unwrap_or_default()
 }
 
-fn is_eval_block(tokens: Option<&CommandTokens>) -> bool {
+fn is_eval_block(tokens: Option<&CommandTokens>, registry: &tcl_registry::CommandRegistry) -> bool {
     tokens
-        .and_then(|t| t.argv_texts.first())
-        .is_some_and(|s| s == "eval")
+        .and_then(|tokens| invocation_facts_from_tokens(tokens, registry))
+        .is_some_and(|facts| {
+            facts.operation
+                == tcl_registry::SemanticOperationId::StructuredLowering(
+                    tcl_registry::hooks::LoweringHookId::Eval,
+                )
+        })
 }
 
 /// Tree-walk variant used inside literal `eval` bodies. The
@@ -343,6 +389,7 @@ fn tree_call_or_barrier(
     stmt: &Statement,
     state: &mut CfgState,
     defs: &HashMap<String, Version>,
+    registry: &tcl_registry::CommandRegistry,
 ) -> bool {
     match stmt {
         Statement::Call {
@@ -355,24 +402,26 @@ fn tree_call_or_barrier(
                     state.escape(n, defs);
                 }
             }
-            handle_call(stmt, state, defs);
+            handle_call(stmt, state, defs, registry);
             true
         }
-        Statement::Barrier { command, args, .. } => {
-            handle_barrier(command, args, state, defs);
+        Statement::Barrier { args, .. } => {
+            handle_barrier(stmt, args, state, defs, registry);
             true
         }
         Statement::UpFrame { tokens, .. } => {
             let args = synthesise_uplevel_args(tokens.as_ref());
-            handle_barrier("uplevel", &args, state, defs);
+            state.record_fallback();
+            handle_uplevel(&args, state, defs, registry);
             true
         }
         Statement::Block { body, tokens, .. } => {
-            if is_eval_block(tokens.as_ref()) {
+            if is_eval_block(tokens.as_ref(), registry) {
                 let args = synthesise_eval_args(tokens.as_ref());
-                handle_barrier("eval", &args, state, defs);
+                state.record_fallback();
+                handle_eval(&args, state, defs, registry);
             } else {
-                escape_every_name_touched_tree(&body.statements, state, defs);
+                escape_every_name_touched_tree(&body.statements, state, defs, registry);
             }
             true
         }
@@ -391,17 +440,22 @@ fn tree_call_or_barrier(
     }
 }
 
-fn tree_structural(stmt: &Statement, state: &mut CfgState, defs: &HashMap<String, Version>) {
+fn tree_structural(
+    stmt: &Statement,
+    state: &mut CfgState,
+    defs: &HashMap<String, Version>,
+    registry: &tcl_registry::CommandRegistry,
+) {
     match stmt {
         Statement::If {
             clauses, else_body, ..
         } => {
             for c in clauses {
                 apply_expr_scan(Some(&c.condition), state, defs);
-                escape_every_name_touched_tree(&c.body.statements, state, defs);
+                escape_every_name_touched_tree(&c.body.statements, state, defs, registry);
             }
             if let Some(b) = else_body {
-                escape_every_name_touched_tree(&b.statements, state, defs);
+                escape_every_name_touched_tree(&b.statements, state, defs, registry);
             }
         }
         Statement::For {
@@ -411,16 +465,16 @@ fn tree_structural(stmt: &Statement, state: &mut CfgState, defs: &HashMap<String
             body,
             ..
         } => {
-            escape_every_name_touched_tree(&init.statements, state, defs);
+            escape_every_name_touched_tree(&init.statements, state, defs, registry);
             apply_expr_scan(Some(condition), state, defs);
-            escape_every_name_touched_tree(&next.statements, state, defs);
-            escape_every_name_touched_tree(&body.statements, state, defs);
+            escape_every_name_touched_tree(&next.statements, state, defs, registry);
+            escape_every_name_touched_tree(&body.statements, state, defs, registry);
         }
         Statement::While {
             condition, body, ..
         } => {
             apply_expr_scan(Some(condition), state, defs);
-            escape_every_name_touched_tree(&body.statements, state, defs);
+            escape_every_name_touched_tree(&body.statements, state, defs, registry);
         }
         Statement::Foreach {
             iterators, body, ..
@@ -428,10 +482,10 @@ fn tree_structural(stmt: &Statement, state: &mut CfgState, defs: &HashMap<String
             for it in iterators {
                 apply_value_scan(&it.list_arg, state, defs);
             }
-            escape_every_name_touched_tree(&body.statements, state, defs);
+            escape_every_name_touched_tree(&body.statements, state, defs, registry);
         }
         Statement::Catch { body, .. } => {
-            escape_every_name_touched_tree(&body.statements, state, defs);
+            escape_every_name_touched_tree(&body.statements, state, defs, registry);
         }
         Statement::Try {
             body,
@@ -439,12 +493,12 @@ fn tree_structural(stmt: &Statement, state: &mut CfgState, defs: &HashMap<String
             finally_body,
             ..
         } => {
-            escape_every_name_touched_tree(&body.statements, state, defs);
+            escape_every_name_touched_tree(&body.statements, state, defs, registry);
             for h in handlers {
-                escape_every_name_touched_tree(&h.body.statements, state, defs);
+                escape_every_name_touched_tree(&h.body.statements, state, defs, registry);
             }
             if let Some(f) = finally_body {
-                escape_every_name_touched_tree(&f.statements, state, defs);
+                escape_every_name_touched_tree(&f.statements, state, defs, registry);
             }
         }
         Statement::Switch {
@@ -452,11 +506,11 @@ fn tree_structural(stmt: &Statement, state: &mut CfgState, defs: &HashMap<String
         } => {
             for a in arms {
                 if let Some(b) = &a.body {
-                    escape_every_name_touched_tree(&b.statements, state, defs);
+                    escape_every_name_touched_tree(&b.statements, state, defs, registry);
                 }
             }
             if let Some(d) = default_body {
-                escape_every_name_touched_tree(&d.statements, state, defs);
+                escape_every_name_touched_tree(&d.statements, state, defs, registry);
             }
         }
         _ => {}
@@ -467,6 +521,7 @@ pub(crate) fn escape_every_name_touched_tree(
     stmts: &[Statement],
     state: &mut CfgState,
     defs: &HashMap<String, Version>,
+    registry: &tcl_registry::CommandRegistry,
 ) {
     for stmt in stmts {
         if state.dynamic_barrier() {
@@ -475,10 +530,10 @@ pub(crate) fn escape_every_name_touched_tree(
         if tree_assign_or_incr(stmt, state, defs) {
             continue;
         }
-        if tree_call_or_barrier(stmt, state, defs) {
+        if tree_call_or_barrier(stmt, state, defs, registry) {
             continue;
         }
-        tree_structural(stmt, state, defs);
+        tree_structural(stmt, state, defs, registry);
     }
 }
 
@@ -499,27 +554,30 @@ fn handle_stmt_call_or_barrier(
     stmt: &Statement,
     state: &mut CfgState,
     defs: &HashMap<String, Version>,
+    registry: &tcl_registry::CommandRegistry,
 ) -> bool {
     match stmt {
         Statement::Call { .. } => {
-            handle_call(stmt, state, defs);
+            handle_call(stmt, state, defs, registry);
             true
         }
-        Statement::Barrier { command, args, .. } => {
-            handle_barrier(command, args, state, defs);
+        Statement::Barrier { args, .. } => {
+            handle_barrier(stmt, args, state, defs, registry);
             true
         }
         Statement::UpFrame { tokens, .. } => {
             let args = synthesise_uplevel_args(tokens.as_ref());
-            handle_barrier("uplevel", &args, state, defs);
+            state.record_fallback();
+            handle_uplevel(&args, state, defs, registry);
             true
         }
         Statement::Block { body, tokens, .. } => {
-            if is_eval_block(tokens.as_ref()) {
+            if is_eval_block(tokens.as_ref(), registry) {
                 let args = synthesise_eval_args(tokens.as_ref());
-                handle_barrier("eval", &args, state, defs);
+                state.record_fallback();
+                handle_eval(&args, state, defs, registry);
             } else {
-                escape_every_name_touched_tree(&body.statements, state, defs);
+                escape_every_name_touched_tree(&body.statements, state, defs, registry);
             }
             true
         }
@@ -592,7 +650,12 @@ fn handle_stmt_assign_or_incr(
 
 /// Process one [`SsaStatement`] — apply the appropriate
 /// per-Statement transfer function.
-fn handle_statement(ssa_stmt: &SsaStatement, state: &mut CfgState, ssa: &SsaFunction) {
+fn handle_statement(
+    ssa_stmt: &SsaStatement,
+    state: &mut CfgState,
+    ssa: &SsaFunction,
+    registry: &tcl_registry::CommandRegistry,
+) {
     let stmt = &ssa_stmt.statement;
     // The SSA per-statement `defs` map is keyed by interned [`Symbol`]; the
     // escape handlers work in display names, so resolve each symbol once here.
@@ -604,7 +667,7 @@ fn handle_statement(ssa_stmt: &SsaStatement, state: &mut CfgState, ssa: &SsaFunc
     let defs = &defs;
     state.remember_versions(ssa_stmt, ssa);
 
-    if handle_stmt_call_or_barrier(stmt, state, defs) {
+    if handle_stmt_call_or_barrier(stmt, state, defs, registry) {
         return;
     }
     if handle_stmt_assign_or_incr(stmt, state, defs) {
@@ -629,10 +692,10 @@ fn handle_statement(ssa_stmt: &SsaStatement, state: &mut CfgState, ssa: &SsaFunc
         } => {
             for c in clauses {
                 apply_expr_scan(Some(&c.condition), state, defs);
-                escape_every_name_touched_tree(&c.body.statements, state, defs);
+                escape_every_name_touched_tree(&c.body.statements, state, defs, registry);
             }
             if let Some(b) = else_body {
-                escape_every_name_touched_tree(&b.statements, state, defs);
+                escape_every_name_touched_tree(&b.statements, state, defs, registry);
             }
         }
         Statement::For {
@@ -642,16 +705,16 @@ fn handle_statement(ssa_stmt: &SsaStatement, state: &mut CfgState, ssa: &SsaFunc
             body,
             ..
         } => {
-            escape_every_name_touched_tree(&init.statements, state, defs);
+            escape_every_name_touched_tree(&init.statements, state, defs, registry);
             apply_expr_scan(Some(condition), state, defs);
-            escape_every_name_touched_tree(&next.statements, state, defs);
-            escape_every_name_touched_tree(&body.statements, state, defs);
+            escape_every_name_touched_tree(&next.statements, state, defs, registry);
+            escape_every_name_touched_tree(&body.statements, state, defs, registry);
         }
         Statement::While {
             condition, body, ..
         } => {
             apply_expr_scan(Some(condition), state, defs);
-            escape_every_name_touched_tree(&body.statements, state, defs);
+            escape_every_name_touched_tree(&body.statements, state, defs, registry);
         }
         Statement::Foreach {
             iterators, body, ..
@@ -659,10 +722,10 @@ fn handle_statement(ssa_stmt: &SsaStatement, state: &mut CfgState, ssa: &SsaFunc
             for it in iterators {
                 apply_value_scan(&it.list_arg, state, defs);
             }
-            escape_every_name_touched_tree(&body.statements, state, defs);
+            escape_every_name_touched_tree(&body.statements, state, defs, registry);
         }
         Statement::Catch { body, .. } => {
-            escape_every_name_touched_tree(&body.statements, state, defs);
+            escape_every_name_touched_tree(&body.statements, state, defs, registry);
         }
         Statement::Try {
             body,
@@ -670,12 +733,12 @@ fn handle_statement(ssa_stmt: &SsaStatement, state: &mut CfgState, ssa: &SsaFunc
             finally_body,
             ..
         } => {
-            escape_every_name_touched_tree(&body.statements, state, defs);
+            escape_every_name_touched_tree(&body.statements, state, defs, registry);
             for h in handlers {
-                escape_every_name_touched_tree(&h.body.statements, state, defs);
+                escape_every_name_touched_tree(&h.body.statements, state, defs, registry);
             }
             if let Some(f) = finally_body {
-                escape_every_name_touched_tree(&f.statements, state, defs);
+                escape_every_name_touched_tree(&f.statements, state, defs, registry);
             }
         }
         Statement::Switch {
@@ -683,11 +746,11 @@ fn handle_statement(ssa_stmt: &SsaStatement, state: &mut CfgState, ssa: &SsaFunc
         } => {
             for a in arms {
                 if let Some(b) = &a.body {
-                    escape_every_name_touched_tree(&b.statements, state, defs);
+                    escape_every_name_touched_tree(&b.statements, state, defs, registry);
                 }
             }
             if let Some(d) = default_body {
-                escape_every_name_touched_tree(&d.statements, state, defs);
+                escape_every_name_touched_tree(&d.statements, state, defs, registry);
             }
         }
         // All other Statement variants (Call / Barrier / etc.) are
@@ -704,12 +767,13 @@ fn walk_block(
     state: &mut CfgState,
     terminator_condition: Option<&ExprNode>,
     ssa: &SsaFunction,
+    registry: &tcl_registry::CommandRegistry,
 ) {
     for stmt in &block.statements {
         if state.dynamic_barrier() {
             return;
         }
-        handle_statement(stmt, state, ssa);
+        handle_statement(stmt, state, ssa, registry);
     }
     if let Some(cond) = terminator_condition {
         // The terminator's condition doesn't live in any
@@ -735,6 +799,17 @@ pub fn analyse_cfg_function<I: IntoIterator<Item = String>>(
     ssa: &SsaFunction,
     params: I,
 ) -> CfgEscapeResult {
+    analyse_cfg_function_with_registry(cfg, ssa, params, default_registry())
+}
+
+/// Registry-aware form of [`analyse_cfg_function`].
+#[must_use]
+pub fn analyse_cfg_function_with_registry<I: IntoIterator<Item = String>>(
+    cfg: &CfgFunction,
+    ssa: &SsaFunction,
+    params: I,
+    registry: &tcl_registry::CommandRegistry,
+) -> CfgEscapeResult {
     let known = collect_known_names_from_cfg(params, ssa);
     let mut state = CfgState::new(known);
 
@@ -750,7 +825,7 @@ pub fn analyse_cfg_function<I: IntoIterator<Item = String>>(
                 Terminator::Branch { condition, .. } => Some(condition),
                 _ => None,
             });
-        walk_block(block, &mut state, term_cond, ssa);
+        walk_block(block, &mut state, term_cond, ssa, registry);
     }
 
     state.into_result()
@@ -808,6 +883,7 @@ mod tests {
             &["if {$x > 1} { set y 2 }".to_string()],
             &mut state,
             &HashMap::new(),
+            default_registry(),
         );
         assert!(
             state

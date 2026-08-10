@@ -118,6 +118,7 @@ fn drop_leading_word(seg: &SegmentedCommand) -> Option<SegmentedCommand> {
         span: Span::new(start, seg.span.end().max(start)),
         argv: seg.argv.get(1..)?.to_vec(),
         texts: seg.texts.get(1..)?.to_vec(),
+        word_fragments: seg.word_fragments.get(1..)?.to_vec(),
         single_token_word: seg.single_token_word.get(1..)?.to_vec(),
         // Everything from the new head onwards; the dropped `list` word's own
         // tokens must not stay, or a `$`-token walk would credit them twice.

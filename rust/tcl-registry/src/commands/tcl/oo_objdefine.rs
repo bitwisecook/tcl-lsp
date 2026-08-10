@@ -19,6 +19,64 @@
 //! `oo::objdefine` — define per-object members.
 use crate::prelude::*;
 
+const OO_OBJDEFINE_TRANSITION_DOMAINS: &[StateTransitionDomain] =
+    &[StateTransitionDomain::ObjectDispatch];
+
+const OO_OBJDEFINE_EFFECT_COVERAGE: &[TransitionEffectCoverage] = &[
+    TransitionEffectCoverage {
+        source: WorldEffectWriteSource::DeclaredWorldEffect,
+        domains: &[WorldStateDomain::OoDispatch],
+    },
+    TransitionEffectCoverage {
+        source: WorldEffectWriteSource::LegacySideEffect(SideEffectTarget::InterpState),
+        domains: &[WorldStateDomain::InterpreterPolicy],
+    },
+];
+
+const OO_OBJDEFINE_EFFECTS: WorldEffectDescriptor = WorldEffectDescriptor {
+    composition: WorldEffectComposition::Extend,
+    static_footprint: StaticEffectFootprint {
+        accesses: &[StaticEffectAccess::new(
+            WorldStateDomain::OoDispatch,
+            EffectAccessMode::ReadWrite,
+            StaticInterpreterScope::Current,
+            StaticNamespaceScope::Current,
+            StaticSubjectScope::Wildcard,
+        )],
+        callback: CallbackEffect {
+            kinds: CallbackKinds::SCRIPT,
+            reentrancy: Reentrancy::CurrentInterpreter,
+        },
+    },
+    resolver: None,
+    dynamic_fallback: WorldEffectDynamicFallback::ConservativeUnknownInvocation,
+};
+
+const OO_OBJDEFINE_TRANSITIONS: StateTransitionDescriptor = StateTransitionDescriptor {
+    composition: StateTransitionComposition::Extend,
+    resolver: Some(oo_objdefine_state_transitions),
+    argument_shape: StateTransitionArgumentShape::Independent,
+    dynamic_widening: &[StateTransitionWideningRule {
+        operands: StateTransitionOperandLayout::Indices(&[0]),
+        domains: OO_OBJDEFINE_TRANSITION_DOMAINS,
+    }],
+    effect_coverage: OO_OBJDEFINE_EFFECT_COVERAGE,
+    commit: StateTransitionCommit::MayCommitBeforeAbruptCompletion,
+};
+
+fn oo_objdefine_state_transitions(arguments: InvocationArguments<'_>) -> StateTransitions {
+    let mut transitions = StateTransitions::default();
+    if let Some(target) = TransitionSubject::from_argument(arguments, 0) {
+        transitions.push(StateTransition::ObjectDispatch(
+            ObjectDispatchTransition::Configure {
+                target,
+                layer: ObjectDispatchLayer::Object,
+            },
+        ));
+    }
+    transitions
+}
+
 const SIDE_EFFECTS: &[SideEffect] = &[SideEffect {
     target: SideEffectTarget::InterpState,
     reads: false,
@@ -155,6 +213,8 @@ pub fn spec() -> CommandSpec {
         forms: FORMS,
         arg_values: &[(1, OO_OBJDEFINE_SUBCOMMAND_VALUES)],
         side_effects: SIDE_EFFECTS,
+        world_effects: Some(OO_OBJDEFINE_EFFECTS),
+        state_transitions: Some(OO_OBJDEFINE_TRANSITIONS),
         definition_body: Some(&crate::definer::TCLOO_GRAMMAR),
         analyser_hook: Some(crate::hooks::AnalyserHookId::OoObjdefine),
         ..CommandSpec::DEFAULT

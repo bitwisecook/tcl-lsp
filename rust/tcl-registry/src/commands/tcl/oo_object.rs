@@ -19,6 +19,88 @@
 //! `oo::object` — the root class of the `TclOO` object hierarchy.
 use crate::prelude::*;
 
+const OBJECT_CREATE_TRANSITION_DOMAINS: &[StateTransitionDomain] = &[
+    StateTransitionDomain::CommandBindings,
+    StateTransitionDomain::Namespaces,
+    StateTransitionDomain::ObjectDispatch,
+];
+
+const OBJECT_INTERP_EFFECT_COVERAGE: &[TransitionEffectCoverage] = &[TransitionEffectCoverage {
+    source: WorldEffectWriteSource::LegacySideEffect(SideEffectTarget::InterpState),
+    domains: &[WorldStateDomain::InterpreterPolicy],
+}];
+
+const OBJECT_CREATE_EFFECTS: WorldEffectDescriptor = WorldEffectDescriptor {
+    composition: WorldEffectComposition::Extend,
+    static_footprint: StaticEffectFootprint {
+        accesses: &[],
+        // Constructors are ordinary TclOO method callbacks. The new object's
+        // state is live during the callback, but constructor failure rolls it
+        // back before the factory's abrupt completion escapes.
+        callback: CallbackEffect {
+            kinds: CallbackKinds::SCRIPT,
+            reentrancy: Reentrancy::CurrentInterpreter,
+        },
+    },
+    resolver: None,
+    dynamic_fallback: WorldEffectDynamicFallback::ConservativeUnknownInvocation,
+};
+
+const OBJECT_CREATE_TRANSITIONS: StateTransitionDescriptor = StateTransitionDescriptor {
+    composition: StateTransitionComposition::Extend,
+    resolver: Some(object_create_state_transitions),
+    argument_shape: StateTransitionArgumentShape::Positional,
+    dynamic_widening: &[StateTransitionWideningRule {
+        operands: StateTransitionOperandLayout::Indices(&[1]),
+        domains: OBJECT_CREATE_TRANSITION_DOMAINS,
+    }],
+    effect_coverage: OBJECT_INTERP_EFFECT_COVERAGE,
+    commit: StateTransitionCommit::OnOkOnly,
+};
+
+const OBJECT_NEW_TRANSITIONS: StateTransitionDescriptor = StateTransitionDescriptor {
+    composition: StateTransitionComposition::Extend,
+    resolver: Some(object_new_state_transitions),
+    argument_shape: StateTransitionArgumentShape::Independent,
+    dynamic_widening: &[],
+    effect_coverage: OBJECT_INTERP_EFFECT_COVERAGE,
+    commit: StateTransitionCommit::OnOkOnly,
+};
+
+fn object_create_state_transitions(arguments: InvocationArguments<'_>) -> StateTransitions {
+    let mut transitions = StateTransitions::default();
+    let Some(target) = TransitionSubject::from_argument(arguments, 1) else {
+        return transitions;
+    };
+    if matches!(&target, TransitionSubject::Literal(name) if !name.is_empty()) {
+        transitions.push(StateTransition::CommandBinding(
+            CommandBindingTransition::Define {
+                name: target.clone(),
+            },
+        ));
+    }
+    transitions.push(StateTransition::ObjectDispatch(
+        ObjectDispatchTransition::Create {
+            target: ObjectDispatchTarget::Named(target),
+            private_namespace: ObjectPrivateNamespace::Fresh,
+            kind: ObjectDispatchKind::Object,
+        },
+    ));
+    transitions
+}
+
+fn object_new_state_transitions(_arguments: InvocationArguments<'_>) -> StateTransitions {
+    let mut transitions = StateTransitions::default();
+    transitions.push(StateTransition::ObjectDispatch(
+        ObjectDispatchTransition::Create {
+            target: ObjectDispatchTarget::Fresh,
+            private_namespace: ObjectPrivateNamespace::Fresh,
+            kind: ObjectDispatchKind::Object,
+        },
+    ));
+    transitions
+}
+
 // `oo::object create` / `new` mint a new command and its instance
 // namespace (interpreter command-table state); `destroy` removes one the
 // same way. No file I/O, process, or channel involvement, so a single
@@ -78,6 +160,8 @@ const SUBCOMMANDS: &[SubCommand] = &[
         detail: "Create a new instance with an automatically generated unique name, passing arg ... to the constructor (whose own return value is ignored). Returns the fully qualified name of the new object. If the constructor raises an error or other non-OK result, the half-built object is destroyed and the error propagates from this call.",
         synopsis: "class new ?arg ...?",
         return_type: Some(TclType::String),
+        world_effects: Some(OBJECT_CREATE_EFFECTS),
+        state_transitions: Some(OBJECT_NEW_TRANSITIONS),
         // Unlike `oo::class` (which hides its own `new`, per class.n:
         // "the oo::class object hides the new method on itself"),
         // `oo::object` does not hide its own `new` — object.n's
@@ -99,6 +183,8 @@ const SUBCOMMANDS: &[SubCommand] = &[
         // create`'s subcommand spec.
         defines_command_at: Some(0),
         return_type: Some(TclType::String),
+        world_effects: Some(OBJECT_CREATE_EFFECTS),
+        state_transitions: Some(OBJECT_CREATE_TRANSITIONS),
         ..SubCommand::DEFAULT
     },
 ];
@@ -158,5 +244,88 @@ pub fn spec() -> CommandSpec {
         forms: FORMS,
         side_effects: SIDE_EFFECTS,
         ..CommandSpec::DEFAULT
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::dialects::DialectSet;
+    use crate::{
+        CallbackKinds, CommandBindingTransition, CommandRegistry, ObjectDispatchKind,
+        ObjectDispatchTarget, ObjectDispatchTransition, Reentrancy, StateTransition,
+        StateTransitionCommit, StateTransitionKnowledge, WorldStateDomain,
+    };
+
+    #[test]
+    fn object_factories_keep_named_and_fresh_lifecycle_distinct() {
+        let registry = CommandRegistry::build_default();
+        let named = registry
+            .resolve_invocation("oo::object", &["create", "::obj"], DialectSet::TCL86)
+            .expect("oo::object create must resolve");
+        let named_transitions = named.state_transitions();
+        assert!(
+            named_transitions
+                .facts()
+                .iter()
+                .all(|fact| { fact.commit == StateTransitionCommit::OnOkOnly })
+        );
+        assert!(named_transitions.facts().iter().any(|fact| matches!(
+            &fact.transition,
+            StateTransition::CommandBinding(CommandBindingTransition::Define { name })
+                if name.literal() == Some("::obj")
+        )));
+        assert!(named_transitions.facts().iter().any(|fact| matches!(
+            &fact.transition,
+            StateTransition::ObjectDispatch(ObjectDispatchTransition::Create {
+                target: ObjectDispatchTarget::Named(target),
+                kind: ObjectDispatchKind::Object,
+                ..
+            }) if target.literal() == Some("::obj")
+        )));
+
+        let fresh = registry
+            .resolve_invocation("oo::object", &["new"], DialectSet::TCL86)
+            .expect("oo::object new must resolve");
+        assert!(
+            fresh
+                .state_transitions()
+                .facts()
+                .iter()
+                .any(|fact| matches!(
+                    fact.transition,
+                    StateTransition::ObjectDispatch(ObjectDispatchTransition::Create {
+                        target: ObjectDispatchTarget::Fresh,
+                        ..
+                    })
+                ))
+        );
+
+        for invocation in [named, fresh] {
+            let effects = invocation.effect_footprint();
+            assert!(
+                !effects
+                    .accesses()
+                    .iter()
+                    .any(|access| access.domain == WorldStateDomain::InterpreterPolicy)
+            );
+            assert!(effects.callback().kinds.contains(CallbackKinds::SCRIPT));
+            assert_eq!(
+                effects.callback().reentrancy,
+                Reentrancy::CurrentInterpreter
+            );
+        }
+    }
+
+    #[test]
+    fn destroy_is_not_misstamped_as_a_factory_lifecycle() {
+        let registry = CommandRegistry::build_default();
+        let facts = registry
+            .resolve_invocation("oo::object", &["destroy"], DialectSet::TCL86)
+            .expect("oo::object destroy must resolve")
+            .facts();
+        assert!(matches!(
+            facts.state_transitions,
+            StateTransitionKnowledge::UnknownInvocation
+        ));
     }
 }

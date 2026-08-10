@@ -117,6 +117,16 @@ impl ValueOps for Interp {
         }
     }
 
+    fn string_compare_length(&mut self, v: &*mut TclObj) -> Result<Option<usize>, ValueError> {
+        let bytes = obj_bytes(*v);
+        let s = String::from_utf8_lossy(&bytes);
+        match number::parse_whole(s.trim()) {
+            Some(Number::Int(n)) => Ok(usize::try_from(n).ok()),
+            Some(Number::Big { .. }) => Err(ValueError::IntegerOverflow),
+            _ => Err(ValueError::NotInteger(s.into_owned())),
+        }
+    }
+
     fn as_double(&mut self, v: &*mut TclObj) -> Result<f64, ValueError> {
         let bytes = obj_bytes(*v);
         let s = String::from_utf8_lossy(&bytes);

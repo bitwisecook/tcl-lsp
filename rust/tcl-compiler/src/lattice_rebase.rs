@@ -40,7 +40,7 @@ use tcl_lexer::Span;
 
 use crate::cfg::Terminator;
 use crate::compilation_unit::FunctionUnit;
-use crate::ir::{CommandTokens, Script, Statement};
+use crate::ir::{CommandTokens, Script, Statement, WordExpr, WordPart};
 
 /// Shift every absolute span in `fu` by `delta` bytes (signed).  A no-op for
 /// `delta == 0`.
@@ -60,12 +60,11 @@ pub(crate) fn rebase_function_unit(fu: &mut FunctionUnit, delta: i64) {
         shift(&mut loop_node.span, delta);
         rebase_statement(&mut loop_node.for_stmt, delta);
     }
-    // The inlined-`eval {…}` body spans are absolute, span-carrying state too;
-    // without shifting them a cache-hit, offset-rebased unit keeps stale
-    // offsets for any consumer (error-region mapping / explorer views) — issue
-    // 149.
-    for span in &mut fu.cfg.inline_eval_spans {
-        shift(span, delta);
+    // Inlined-body error sites carry absolute spans too; without shifting them
+    // a cache-hit, offset-rebased unit keeps stale offsets for error-region
+    // mapping / explorer views — issue 149.
+    for site in &mut fu.cfg.inline_body_error_sites {
+        shift(&mut site.span, delta);
     }
     // SSA holds its own clones of the IR statements; some emitters read spans
     // from them (`stmt.statement.span()`), so rebase those too.
@@ -112,6 +111,40 @@ fn rebase_tokens(tokens: &mut Option<CommandTokens>, delta: i64) {
         for span in &mut tokens.all_tokens {
             shift(span, delta);
         }
+        for word in &mut tokens.word_exprs {
+            rebase_word_expr(word, delta);
+        }
+    }
+}
+
+/// Rebase the source sites retained by the structured word compatibility view.
+fn rebase_word_expr(word: &mut WordExpr, delta: i64) {
+    match word {
+        WordExpr::Literal { source, .. }
+        | WordExpr::BracedLiteral { source, .. }
+        | WordExpr::Variable { source, .. }
+        | WordExpr::CommandSubstitution { source, .. }
+        | WordExpr::Opaque { source, .. } => shift(&mut source.span, delta),
+        WordExpr::Template { parts, source } => {
+            shift(&mut source.span, delta);
+            for part in parts {
+                rebase_word_part(part, delta);
+            }
+        }
+        WordExpr::Expand { source, word } => {
+            shift(&mut source.span, delta);
+            rebase_word_expr(word, delta);
+        }
+    }
+}
+
+/// Rebase one lexical template part.
+fn rebase_word_part(part: &mut WordPart, delta: i64) {
+    match part {
+        WordPart::Text { source, .. }
+        | WordPart::Variable { source, .. }
+        | WordPart::CommandSubstitution { source, .. }
+        | WordPart::Opaque { source, .. } => shift(&mut source.span, delta),
     }
 }
 
@@ -334,28 +367,72 @@ fn rebase_branching_statement(stmt: &mut Statement, delta: i64) {
 mod tests {
     use super::*;
     use crate::compilation_unit::CompilationUnit;
+    use crate::ir::WordExpr;
+    use crate::lowering::lower_to_ir;
     use tcl_registry::CommandRegistry;
 
     /// A cache-hit, offset-rebased unit must shift its inlined-`eval` body
     /// spans along with every other absolute span, or error-region / explorer
     /// consumers see stale offsets (issue 149).
     #[test]
-    fn rebase_shifts_inline_eval_spans() {
+    fn rebase_shifts_inline_body_error_sites() {
         let reg = CommandRegistry::build_default();
         // A static `eval {…}` body is flattened inline and its command span
-        // recorded in `inline_eval_spans`.
+        // recorded with its registry-described error context.
         let cu = CompilationUnit::build_for("proc f {} { eval { set x 1 } }", &reg, false);
         let mut fu = cu.function("::f").expect("::f built").clone();
         assert!(
-            !fu.cfg.inline_eval_spans.is_empty(),
-            "an inlined eval body should record a span",
+            !fu.cfg.inline_body_error_sites.is_empty(),
+            "an inlined eval body should record an error-context site",
         );
-        let before: Vec<Span> = fu.cfg.inline_eval_spans.clone();
+        let before = fu.cfg.inline_body_error_sites.clone();
         rebase_function_unit(&mut fu, 100);
-        for (b, a) in before.iter().zip(&fu.cfg.inline_eval_spans) {
-            assert_eq!(a.start(), b.start() + 100);
-            assert_eq!(a.end(), b.end() + 100);
+        for (before, after) in before.iter().zip(&fu.cfg.inline_body_error_sites) {
+            assert_eq!(after.span.start(), before.span.start() + 100);
+            assert_eq!(after.span.end(), before.span.end() + 100);
+            assert_eq!(after.context, before.context);
         }
+    }
+
+    #[test]
+    fn rebase_shifts_structured_word_sites() {
+        let registry = CommandRegistry::build_default();
+        let mut module = lower_to_ir("puts prefix-$name-[clock seconds]", &registry);
+        let Statement::Call {
+            tokens: Some(tokens),
+            ..
+        } = &module.top_level.statements[0]
+        else {
+            panic!("lowered puts call should retain command tokens");
+        };
+        let before_word = tokens.words()[1].source().span;
+        let WordExpr::Template { parts, .. } = &tokens.words()[1] else {
+            panic!("compound word should retain its template shape");
+        };
+        let before_part = match &parts[1] {
+            WordPart::Variable { source, .. } => source.span,
+            _ => panic!("second part should be the variable substitution"),
+        };
+
+        rebase_script(&mut module.top_level, 37);
+        let Statement::Call {
+            tokens: Some(tokens),
+            ..
+        } = &module.top_level.statements[0]
+        else {
+            panic!("rebased call should retain command tokens");
+        };
+        assert_eq!(
+            tokens.words()[1].source().span.start(),
+            before_word.start() + 37
+        );
+        let WordExpr::Template { parts, .. } = &tokens.words()[1] else {
+            panic!("rebased word should retain template shape");
+        };
+        let WordPart::Variable { source, .. } = &parts[1] else {
+            panic!("rebased second part should remain a variable substitution");
+        };
+        assert_eq!(source.span.start(), before_part.start() + 37);
     }
 
     /// The load-bearing invariant behind the per-procedure lattice memo: a

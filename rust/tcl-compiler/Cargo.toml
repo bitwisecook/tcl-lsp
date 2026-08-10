@@ -34,6 +34,7 @@ tcl-syntax = { path = "../tcl-syntax", features = ["num-bigint"] }
 tcl-bytecode = { path = "../tcl-bytecode" }
 tcl-registry = { path = "../tcl-registry" }
 tcl-core-types = { path = "../tcl-core-types" }
+tcl-runtime-api = { path = "../tcl-runtime-api" }
 bitflags = "2"
 thiserror = "2.0"
 unicode-general-category = "1.1.0"

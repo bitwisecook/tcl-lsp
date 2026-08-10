@@ -73,7 +73,7 @@ use tcl_core_types::DiagCode;
 use tcl_lexer::{Span, Token, TokenType};
 
 use super::state::Analyser;
-use crate::segmenter::SegmentedCommand;
+use crate::segmenter::{SegmentedCommand, WordFragment};
 
 impl Analyser {
     /// Repair a command whose source contains a stray ``]`` (a
@@ -158,18 +158,20 @@ impl Analyser {
         let virtual_text = format!("[{inner}]");
         let virtual_span = Span::new(insert_off, bracket_off);
         let virtual_cmd = Token::with_content_offset(TokenType::Cmd, virtual_span, 0);
+        let virtual_fragments = vec![WordFragment::new(virtual_cmd, virtual_text.clone())];
 
-        // Splice all_tokens.
-        cmd.all_tokens
-            .splice(cmd_start_all_idx..=bracket_tok_idx, [virtual_cmd]);
-
-        // Splice argv / texts / single_token_word.
-        cmd.argv
-            .splice(cmd_start_argv_idx..=bracket_argv_idx, [virtual_cmd]);
-        cmd.texts
-            .splice(cmd_start_argv_idx..=bracket_argv_idx, [virtual_text]);
-        cmd.single_token_word
-            .splice(cmd_start_argv_idx..=bracket_argv_idx, [true]);
+        replace_recovered_bracket_words(
+            cmd,
+            RecoveredBracketWords {
+                all_start: cmd_start_all_idx,
+                all_end: bracket_tok_idx,
+                argv_start: cmd_start_argv_idx,
+                argv_end: bracket_argv_idx,
+                command: virtual_cmd,
+                text: virtual_text,
+                fragments: virtual_fragments,
+            },
+        );
     }
 
     /// User-declared command-like names visible so far in the walk:
@@ -331,21 +333,7 @@ impl Analyser {
             return 0;
         }
 
-        // Splice the orphans into the switch.
-        for k in 0..case_count {
-            let orphan = &commands[cmd_idx + 1 + k];
-            for (text, (tok, single)) in orphan.texts.iter().zip(
-                orphan
-                    .argv
-                    .iter()
-                    .zip(orphan.single_token_word.iter().copied()),
-            ) {
-                cmd.argv.push(*tok);
-                cmd.texts.push(text.clone());
-                cmd.single_token_word.push(single);
-                cmd.all_tokens.push(*tok);
-            }
-        }
+        append_switch_orphans(cmd, &commands[cmd_idx + 1..=cmd_idx + case_count]);
 
         // Diagnostic anchor: end of the switch's string arg.
         let string_arg_argv_idx = arg_start + 1;
@@ -585,6 +573,90 @@ impl Analyser {
     }
 }
 
+/// One replacement operation for a recovered missing-open-bracket typo.
+struct RecoveredBracketWords {
+    all_start: usize,
+    all_end: usize,
+    argv_start: usize,
+    argv_end: usize,
+    command: Token,
+    text: String,
+    fragments: Vec<WordFragment>,
+}
+
+/// Replace the words swallowed by a missing `[` with one virtual command
+/// substitution, keeping every segmented per-word view in lockstep.
+fn replace_recovered_bracket_words(cmd: &mut SegmentedCommand, recovered: RecoveredBracketWords) {
+    cmd.all_tokens
+        .splice(recovered.all_start..=recovered.all_end, [recovered.command]);
+    cmd.argv.splice(
+        recovered.argv_start..=recovered.argv_end,
+        [recovered.command],
+    );
+    cmd.texts
+        .splice(recovered.argv_start..=recovered.argv_end, [recovered.text]);
+    cmd.word_fragments.splice(
+        recovered.argv_start..=recovered.argv_end,
+        [recovered.fragments],
+    );
+    cmd.single_token_word
+        .splice(recovered.argv_start..=recovered.argv_end, [true]);
+    if let Some(expand) = cmd.expand_word.as_mut() {
+        expand.splice(recovered.argv_start..=recovered.argv_end, [false]);
+    }
+    debug_assert!(cmd.word_views_aligned());
+}
+
+/// Append recovered switch cases while preserving every segmented word view.
+fn append_switch_orphans(cmd: &mut SegmentedCommand, orphans: &[SegmentedCommand]) {
+    if cmd.expand_word.is_none()
+        && orphans.iter().any(|orphan| {
+            orphan
+                .expand_word
+                .as_ref()
+                .is_some_and(|expand| expand.iter().any(|&v| v))
+        })
+    {
+        cmd.expand_word = Some(vec![false; cmd.argv.len()]);
+    }
+    for orphan in orphans {
+        for (word_idx, (text, (tok, single))) in orphan
+            .texts
+            .iter()
+            .zip(
+                orphan
+                    .argv
+                    .iter()
+                    .zip(orphan.single_token_word.iter().copied()),
+            )
+            .enumerate()
+        {
+            cmd.argv.push(*tok);
+            cmd.texts.push(text.clone());
+            cmd.word_fragments.push(
+                orphan
+                    .word_fragments
+                    .get(word_idx)
+                    .cloned()
+                    .unwrap_or_else(|| vec![WordFragment::new(*tok, text.clone())]),
+            );
+            cmd.single_token_word.push(single);
+            if let Some(expand) = cmd.expand_word.as_mut() {
+                expand.push(
+                    orphan
+                        .expand_word
+                        .as_ref()
+                        .and_then(|flags| flags.get(word_idx))
+                        .copied()
+                        .unwrap_or(false),
+                );
+            }
+            cmd.all_tokens.push(*tok);
+        }
+    }
+    debug_assert!(cmd.word_views_aligned());
+}
+
 /// Return the index of `tok` in `argv`, or `None` if absent.
 ///
 /// Identity is by source span — argv tokens are by-value
@@ -766,6 +838,7 @@ mod tests {
         // the switch now carries 4 pattern/body args plus the
         // string arg + the ``switch`` name.
         assert!(switch_cmd.texts.len() >= 6);
+        assert!(switch_cmd.word_views_aligned());
         // E101 was emitted.
         let e101 = a
             .result

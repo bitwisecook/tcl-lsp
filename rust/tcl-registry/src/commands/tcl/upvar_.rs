@@ -21,6 +21,81 @@
 use crate::hooks::{CodegenHookId, LoweringHookId};
 use crate::prelude::*;
 
+const UPVAR_FRAME_EFFECT: FrameEffectSpec = FrameEffectSpec {
+    level_word: FrameLevelWord::ArityParity,
+    layout: FrameArgLayout::AliasPairs,
+};
+
+const UPVAR_TRANSITION_DOMAINS: &[StateTransitionDomain] = &[
+    StateTransitionDomain::VariableCells,
+    StateTransitionDomain::VariableTraces,
+];
+
+const UPVAR_EFFECT_COVERAGE: &[TransitionEffectCoverage] = &[
+    TransitionEffectCoverage {
+        source: WorldEffectWriteSource::LegacyFrame,
+        domains: &[WorldStateDomain::VariableStore],
+    },
+    TransitionEffectCoverage {
+        source: WorldEffectWriteSource::LegacySideEffect(SideEffectTarget::Variable),
+        domains: &[WorldStateDomain::VariableStore],
+    },
+];
+
+const UPVAR_TRANSITIONS: StateTransitionDescriptor = StateTransitionDescriptor {
+    composition: StateTransitionComposition::Extend,
+    resolver: Some(upvar_state_transitions),
+    argument_shape: StateTransitionArgumentShape::Positional,
+    dynamic_widening: &[StateTransitionWideningRule {
+        operands: StateTransitionOperandLayout::EveryArgument,
+        domains: UPVAR_TRANSITION_DOMAINS,
+    }],
+    effect_coverage: UPVAR_EFFECT_COVERAGE,
+    // Alias pairs are processed in order and can be observed through traces
+    // before a later pair fails.
+    commit: StateTransitionCommit::MayCommitBeforeAbruptCompletion,
+};
+
+fn upvar_state_transitions(arguments: InvocationArguments<'_>) -> StateTransitions {
+    let mut transitions = StateTransitions::default();
+    let Some(level_word_len) =
+        UPVAR_FRAME_EFFECT.level_word_len_for_argument_count(arguments.len())
+    else {
+        return transitions;
+    };
+    if UPVAR_FRAME_EFFECT.layout != FrameArgLayout::AliasPairs {
+        return transitions;
+    }
+
+    let frame = match level_word_len {
+        0 => CallerFrameSelection::DefaultCaller,
+        1 => match TransitionSubject::from_argument(arguments, 0) {
+            Some(level) => CallerFrameSelection::Explicit(level),
+            None => return transitions,
+        },
+        _ => return transitions,
+    };
+
+    for other_index in (level_word_len..arguments.len()).step_by(2) {
+        let (Some(variable), Some(local)) = (
+            TransitionSubject::from_argument(arguments, other_index),
+            TransitionSubject::from_argument(arguments, other_index + 1),
+        ) else {
+            continue;
+        };
+        transitions.push(StateTransition::VariableCellAlias(
+            VariableCellAliasTransition {
+                local,
+                target: VariableAliasTarget::CallerSelectedFrame {
+                    frame: frame.clone(),
+                    variable,
+                },
+            },
+        ));
+    }
+    transitions
+}
+
 // `upvar ?level? otherVar myVar ?otherVar myVar ...?` is the exact
 // SYNOPSIS text in every one of the Tcl 8.4, 8.5, 8.6, 9.0, and 9.1
 // upvar.n manpages — unlike `global`/`return`/`open`, this command's
@@ -109,15 +184,14 @@ pub fn spec() -> CommandSpec {
         // literally named `1` while `upvar $lvl a b` really does take `$lvl`
         // as its level.  tclsh 9.0.4 / 8.6.14 agree; see
         // `FrameLevelWord::ArityParity` for the pinned table.
-        frame_effect: Some(FrameEffectSpec {
-            level_word: FrameLevelWord::ArityParity,
-            layout: FrameArgLayout::AliasPairs,
-        }),
+        frame_effect: Some(UPVAR_FRAME_EFFECT),
         lowering_hook: Some(LoweringHookId::Upvar),
         codegen_hook: Some(CodegenHookId::Upvar),
         forms: FORMS,
         xc_translatable: Some(false),
         analyser_hook: Some(crate::hooks::AnalyserHookId::Upvar),
+        world_effects: Some(WorldEffectDescriptor::EMPTY),
+        state_transitions: Some(UPVAR_TRANSITIONS),
         ..CommandSpec::DEFAULT
     }
 }

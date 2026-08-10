@@ -153,6 +153,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
     },
     SubCommand {
         name: "exists",
+        semantic_operation: Some(SemanticOperationId::Intrinsic(IntrinsicId::ArrayExists)),
         arity: Arity::exact(1),
         detail: "Returns 1 if arrayName is an array variable, 0 if there is no variable by that name or if it is a scalar variable.",
         synopsis: "array exists arrayName",
@@ -212,6 +213,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
     },
     SubCommand {
         name: "names",
+        semantic_operation: Some(SemanticOperationId::Intrinsic(IntrinsicId::ArrayNames)),
         arity: Arity::new(1, 3),
         detail: "Returns a list containing the names of all of the elements in the array that match pattern.",
         synopsis: "array names arrayName ?mode? ?pattern?",
@@ -266,6 +268,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
     },
     SubCommand {
         name: "size",
+        semantic_operation: Some(SemanticOperationId::Intrinsic(IntrinsicId::ArraySize)),
         arity: Arity::exact(1),
         detail: "Returns a decimal string giving the number of elements in the array.",
         synopsis: "array size arrayName",

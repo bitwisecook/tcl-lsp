@@ -71,14 +71,14 @@ fn foreach_header_tokens(
     }));
     let mut argv_texts = vec![fe_cmd.to_owned()];
     argv_texts.extend(list_args.iter().cloned());
-    crate::ir::CommandTokens {
-        argv: vec![span; iterators.len() + 1],
+    crate::ir::CommandTokens::from_lossy_parts(
+        vec![span; iterators.len() + 1],
         argv_texts,
         argv_kinds,
-        single_token_word: vec![true; iterators.len() + 1],
-        all_tokens: Vec::new(),
-        expand_word: None,
-    }
+        vec![true; iterators.len() + 1],
+        Vec::new(),
+        None,
+    )
 }
 
 /// A foldable always-true literal condition (`1`) for a rotated loop's

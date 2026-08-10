@@ -10,6 +10,10 @@ User-facing compiler troubleshooting and how-tos live in
 
 ## Start here
 
+- [common-semantic-compiler.md](common-semantic-compiler.md) — implementation
+  contract for the shared semantic IR, value/cell/world SSA, registry
+  boundaries, exact completion and trace flow, target-family lowering, and the
+  staged TclVM/WASM/eBPF/native/accelerator migration.
 - [compiler-pipeline-overview.md](compiler-pipeline-overview.md) — stage
   map and fact hand-off boundaries.
 - [compiler-systems-overview.md](compiler-systems-overview.md) —
@@ -131,8 +135,9 @@ User-facing compiler troubleshooting and how-tos live in
   diagnostic architecture.
 - [codegen-internals.md](codegen-internals.md) — LVT, linearisation,
   labels, and peephole optimisation.
-- [wasm-codegen.md](wasm-codegen.md) — WASM codegen pipeline: scan,
-  imports, per-command dispatch, and runtime interop contract.
+- [wasm-codegen.md](wasm-codegen.md) — shared semantic-to-WASM boundary,
+  executable-IR generic argv transport, typed backend declines, shared runtime
+  ABI, and the explicitly retained legacy migration baseline.
 - [ebpf-backend.md](ebpf-backend.md) — BPF-Tcl layering, typed core and BPF-IR,
   current `rbpf` codegen ABI, event/framework capabilities, verified design
   issues, real-world use cases, and the production-kernel roadmap.

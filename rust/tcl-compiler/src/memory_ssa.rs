@@ -32,9 +32,10 @@
 //!   operations so that downstream passes (GVN, DSE, copy
 //!   propagation) can reason about aliased state precisely.
 //!
-//! This module operates *after* scalar SSA construction and
-//! inspects the IR for aliasing commands (`upvar`, `global`,
-//! `variable`, `namespace upvar`) + barriers (`eval`/`uplevel`).
+//! This module operates *after* scalar SSA construction. It consumes
+//! registry-owned state-transition facts resolved from structured command
+//! words, so compiler code never infers variable-cell aliases from command
+//! spellings or flattened argument layouts.
 //!
 //! Organised in three layers:
 //! - location types and alias-set queries.
@@ -42,14 +43,16 @@
 //! - `compute_aliases` + `build_memory_ssa` driver.
 
 use std::collections::{BTreeSet, HashMap};
-use tcl_registry::{CommandRegistry, Traits};
+use tcl_registry::dialects::DialectSet;
+use tcl_registry::{
+    CallerFrameSelection, CommandRegistry, FrameLevel, StateTransition, StateTransitionKnowledge,
+    Traits, VariableAliasTarget,
+};
 
 use crate::cfg::BlockId;
 use crate::ir::Statement;
+use crate::registry_invocation::{RegistryInvocationResolution, resolve_command_tokens};
 use crate::ssa::{SsaFunction, Version};
-use crate::var_scoping::{
-    global_declaration_indices, upvar_local_declaration_indices, variable_declaration_indices,
-};
 
 // MemoryLocationKind / MemoryLocation
 
@@ -295,6 +298,8 @@ impl MemoryOp {
 /// - `memory_phis`: per-block memory phis, keyed by block name.
 /// - pre-computed counts (`count_defs`, `count_uses`, `count_clobbers`)
 ///   for O(1) summary queries.
+/// - `has_wildcard_aliasing`: whether an unresolved or widened transition
+///   requires every memory consumer to retain a wildcard clobber obligation.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct MemorySsaFunction {
     /// Alias sets covering this function's aliased variables.
@@ -309,6 +314,9 @@ pub struct MemorySsaFunction {
     pub count_uses: usize,
     /// Number of [`MemoryOpKind::Clobber`] ops.
     pub count_clobbers: usize,
+    /// Whether any invocation could change an unenumerated variable-cell
+    /// identity through an unresolved or widened registry transition.
+    pub has_wildcard_aliasing: bool,
 }
 
 impl MemorySsaFunction {
@@ -332,11 +340,11 @@ impl MemorySsaFunction {
     }
 
     /// True when two variable names may refer to the same storage.
-    /// Same-name always aliases; otherwise names must share an alias
-    /// set.
+    /// Same-name always aliases. A wildcard transition conservatively aliases
+    /// every pair; otherwise names must share an alias set.
     #[must_use]
     pub fn may_alias(&self, name_a: &str, name_b: &str) -> bool {
-        if name_a == name_b {
+        if self.has_wildcard_aliasing || name_a == name_b {
             return true;
         }
         self.alias_sets
@@ -347,75 +355,168 @@ impl MemorySsaFunction {
 
 // Detection helpers
 
-/// Return `true` if `stmt` is the call form `cmd args…` or the
-/// equivalent barrier form. Used by the detection helpers below.
-fn call_parts(stmt: &Statement) -> Option<(&str, &[String])> {
+/// One precise alias pair materialised from a registry transition fact.
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct RegistryAliasPair {
+    target: MemoryLocation,
+    local: MemoryLocation,
+    reason: &'static str,
+}
+
+fn command_tokens(stmt: &Statement) -> Option<&crate::ir::CommandTokens> {
     match stmt {
-        Statement::Call { command, args, .. } | Statement::Barrier { command, args, .. } => {
-            Some((command.as_str(), args.as_slice()))
+        Statement::Call {
+            tokens: Some(tokens),
+            ..
         }
+        | Statement::Barrier {
+            tokens: Some(tokens),
+            ..
+        } => Some(tokens),
         _ => None,
     }
 }
 
-/// Detect `upvar ?level? otherVar myVar ?…?` aliasing pairs.
-///
-/// Returns a list of `(caller_var, local_var)` pairs. Delegates to
-/// [`upvar_local_declaration_indices`] for the grammar, so all
-/// level-word forms (decimal, negative decimal, `#N`) and both
-/// `namespace upvar` entry points (lowered or pre-composed) are
-/// handled the same way the LSP declaration provider sees them.
-#[must_use]
-pub fn detect_upvar(stmt: &Statement) -> Vec<(String, String)> {
-    let Some((cmd, args)) = call_parts(stmt) else {
+fn registry_resolution(
+    stmt: &Statement,
+    registry: &CommandRegistry,
+    dialect: DialectSet,
+) -> Option<RegistryInvocationResolution> {
+    let tokens = command_tokens(stmt)?;
+    resolve_command_tokens(registry, dialect, tokens).ok()
+}
+
+fn literal_subject(subject: &tcl_registry::TransitionSubject) -> Option<&str> {
+    subject.literal()
+}
+
+fn transition_alias_pairs(
+    stmt: &Statement,
+    registry: &CommandRegistry,
+    dialect: DialectSet,
+) -> Vec<RegistryAliasPair> {
+    let Some(RegistryInvocationResolution::Resolved(facts)) =
+        registry_resolution(stmt, registry, dialect)
+    else {
         return Vec::new();
     };
-    let args_vec: Vec<String> = args.to_vec();
-    let indices = upvar_local_declaration_indices(cmd, &args_vec);
-    // The helper returns *local* indices; each pair is at
-    // (local - 1, local).
-    let mut out = Vec::with_capacity(indices.len());
-    for local_idx in indices {
-        if local_idx >= 1 && local_idx < args_vec.len() {
-            out.push((args_vec[local_idx - 1].clone(), args_vec[local_idx].clone()));
+    let StateTransitionKnowledge::Declared(transitions) = &facts.state_transitions else {
+        return Vec::new();
+    };
+
+    let mut pairs = Vec::new();
+    for fact in transitions.facts() {
+        let StateTransition::VariableCellAlias(alias) = &fact.transition else {
+            continue;
+        };
+        let Some(local) = literal_subject(&alias.local) else {
+            continue;
+        };
+        match &alias.target {
+            VariableAliasTarget::Global { variable } => {
+                let Some(variable) = literal_subject(variable) else {
+                    continue;
+                };
+                pairs.push(RegistryAliasPair {
+                    target: MemoryLocation::new(MemoryLocationKind::Global, variable),
+                    local: MemoryLocation::new(MemoryLocationKind::Local, local),
+                    reason: "global-cell",
+                });
+            }
+            VariableAliasTarget::CurrentNamespace { variable } => {
+                let Some(variable) = literal_subject(variable) else {
+                    continue;
+                };
+                pairs.push(RegistryAliasPair {
+                    target: MemoryLocation::new(MemoryLocationKind::NamespaceVar, variable),
+                    local: MemoryLocation::new(MemoryLocationKind::Local, local),
+                    reason: "current-namespace-cell",
+                });
+            }
+            VariableAliasTarget::Namespace {
+                namespace,
+                variable,
+            } => {
+                let (Some(namespace), Some(variable)) =
+                    (literal_subject(namespace), literal_subject(variable))
+                else {
+                    continue;
+                };
+                pairs.push(RegistryAliasPair {
+                    target: MemoryLocation::with_qualifier(
+                        MemoryLocationKind::NamespaceVar,
+                        variable,
+                        namespace,
+                    ),
+                    local: MemoryLocation::new(MemoryLocationKind::Local, local),
+                    reason: "namespace-cell",
+                });
+            }
+            VariableAliasTarget::CallerSelectedFrame { frame, variable } => {
+                let Some(variable) = literal_subject(variable) else {
+                    continue;
+                };
+                let is_global = matches!(
+                    frame,
+                    CallerFrameSelection::Explicit(level)
+                        if literal_subject(level)
+                            .and_then(FrameLevel::parse)
+                            .is_some_and(FrameLevel::is_global_frame)
+                );
+                if is_global {
+                    pairs.push(RegistryAliasPair {
+                        target: MemoryLocation::new(MemoryLocationKind::Global, variable),
+                        local: MemoryLocation::new(MemoryLocationKind::Local, local),
+                        reason: "global-frame-cell",
+                    });
+                } else {
+                    pairs.push(RegistryAliasPair {
+                        target: MemoryLocation::new(MemoryLocationKind::Upvar, variable),
+                        local: MemoryLocation::with_qualifier(
+                            MemoryLocationKind::Upvar,
+                            local,
+                            variable,
+                        ),
+                        reason: "caller-frame-cell",
+                    });
+                }
+            }
         }
     }
-    out
+    pairs
 }
 
-/// Detect `global varName …` declarations, skipping any
-/// substituted `$ref` arguments.
-#[must_use]
-pub fn detect_global(stmt: &Statement) -> Vec<String> {
-    let Some((cmd, args)) = call_parts(stmt) else {
-        return Vec::new();
-    };
-    if cmd != "global" {
-        return Vec::new();
+fn transition_requires_wildcard(
+    stmt: &Statement,
+    registry: &CommandRegistry,
+    dialect: DialectSet,
+) -> bool {
+    match registry_resolution(stmt, registry, dialect) {
+        Some(RegistryInvocationResolution::Unresolved(_)) | None => {
+            matches!(stmt, Statement::Call { .. } | Statement::Barrier { .. })
+        }
+        Some(RegistryInvocationResolution::Resolved(facts)) => match &facts.state_transitions {
+            StateTransitionKnowledge::UnknownInvocation => true,
+            StateTransitionKnowledge::Declared(transitions) => transitions
+                .facts()
+                .iter()
+                .any(|fact| matches!(fact.transition, StateTransition::Widen(_))),
+        },
     }
-    let args_vec: Vec<String> = args.to_vec();
-    global_declaration_indices(&args_vec)
-        .into_iter()
-        .map(|i| args_vec[i].clone())
-        .collect()
 }
 
-/// Detect `variable varName ?value? …` declarations, filtering out
-/// any substituted `$ref` name positions via
-/// [`variable_declaration_indices`].
+/// Whether `stmt` carries an unresolved or widened variable-cell transition.
+///
+/// This statement-level query lets consumers account for evaluation order.
+/// In particular, a command's argument substitutions happen before the outer
+/// invocation can perform its registry-declared transition.
 #[must_use]
-pub fn detect_namespace_variable(stmt: &Statement) -> Vec<String> {
-    let Some((cmd, args)) = call_parts(stmt) else {
-        return Vec::new();
-    };
-    if cmd != "variable" {
-        return Vec::new();
-    }
-    let args_vec: Vec<String> = args.to_vec();
-    variable_declaration_indices(&args_vec)
-        .into_iter()
-        .map(|i| args_vec[i].clone())
-        .collect()
+pub fn statement_has_wildcard_aliasing(
+    stmt: &Statement,
+    registry: &CommandRegistry,
+    dialect: DialectSet,
+) -> bool {
+    transition_requires_wildcard(stmt, registry, dialect)
 }
 
 /// The spec-declared trait set that classifies a call as a memory clobber.
@@ -423,34 +524,28 @@ const CLOBBER_TRAITS: Traits = Traits::EVALUATES_CODE.union(Traits::CREATES_BARR
 
 /// True if `stmt` may clobber arbitrary memory locations.
 ///
-/// Barriers always clobber. A static-body [`Statement::UpFrame`]
-/// (barrier-relaxed `uplevel`) clobbers because its body runs in a
-/// caller's frame and can touch arbitrary caller locals or globals.
-/// Calls clobber when the registry marks the resolved command (or the
-/// resolved subcommand — `interp eval`, `namespace eval`) as evaluating
-/// code or acting as a barrier ([`Traits::EVALUATES_CODE`] |
-/// [`Traits::CREATES_BARRIER`]) — the same spec-declared classification
-/// `side_effects.rs` dispatches on, replacing the old hardcoded name list
-/// (whose compound `"interp eval"` spellings never matched a bare
-/// `command` field, silently under-clobbering those calls).
+/// Barriers always clobber. A static-body [`Statement::UpFrame`] clobbers
+/// because its body runs in a caller frame and can touch arbitrary caller
+/// locals or globals. Calls use traits from structured registry facts. A
+/// missing token snapshot, unresolved head, or indeterminate subcommand also
+/// clobbers: no raw command spelling or argument text is inspected as a
+/// fallback.
 #[must_use]
-pub fn is_clobber(stmt: &Statement, registry: &CommandRegistry) -> bool {
+pub fn is_clobber(stmt: &Statement, registry: &CommandRegistry, dialect: DialectSet) -> bool {
     match stmt {
         Statement::Barrier { .. } | Statement::UpFrame { .. } => true,
-        Statement::Call { command, args, .. } => {
-            let Some(spec) = registry.get(command) else {
-                return false;
-            };
-            if spec.traits.intersects(CLOBBER_TRAITS) {
-                return true;
+        Statement::Call { .. } => match registry_resolution(stmt, registry, dialect) {
+            Some(RegistryInvocationResolution::Resolved(facts)) => {
+                let subcommand_is_determinate = matches!(
+                    &facts.subcommand,
+                    tcl_registry::OwnedSubcommandResolution::NotApplicable
+                        | tcl_registry::OwnedSubcommandResolution::Exact { .. }
+                        | tcl_registry::OwnedSubcommandResolution::UniquePrefix { .. }
+                );
+                !subcommand_is_determinate || facts.traits.intersects(CLOBBER_TRAITS)
             }
-            // Subcommand-level classification (`interp eval`, `namespace
-            // eval`, …) — resolve the first word the way ensemble dispatch
-            // does and consult its traits.
-            args.first()
-                .and_then(|sub| spec.resolve_subcommand(sub))
-                .is_some_and(|sub| sub.traits.intersects(CLOBBER_TRAITS))
-        }
+            Some(RegistryInvocationResolution::Unresolved(_)) | None => true,
+        },
         _ => false,
     }
 }
@@ -514,23 +609,23 @@ impl AliasUnionFind {
     }
 }
 
-/// Scan the SSA function for aliasing commands and build alias
-/// sets.
+/// Scan the SSA function for registry-declared variable-cell aliases and build
+/// alias sets.
 ///
 /// Uses union-find to merge transitive/overlapping aliases into
 /// connected components — for example, `upvar 1 x a; upvar 1 x b`
 /// correctly merges `a` and `b` into the same alias set because
 /// they share the caller-side variable `x`.
 ///
-/// Detects:
-/// - `upvar` / `namespace upvar` → [`MemoryLocationKind::Upvar`]
-///   locations linking caller and local names.
-/// - `global` → [`MemoryLocationKind::Global`] / [`MemoryLocationKind::Local`]
-///   pair per name.
-/// - `variable` → [`MemoryLocationKind::NamespaceVar`] /
-///   [`MemoryLocationKind::Local`] pair per name.
+/// The registry receives the explicit selected `dialect`; this pass never
+/// falls back to an all-dialects interpretation of command or subcommand
+/// shapes.
 #[must_use]
-pub fn compute_aliases(ssa: &SsaFunction) -> Vec<AliasSet> {
+pub fn compute_aliases(
+    ssa: &SsaFunction,
+    registry: &CommandRegistry,
+    dialect: DialectSet,
+) -> Vec<AliasSet> {
     let mut uf = AliasUnionFind::default();
 
     // Walk blocks in deterministic id order so alias sets are
@@ -542,27 +637,8 @@ pub fn compute_aliases(ssa: &SsaFunction) -> Vec<AliasSet> {
         for stmt_ssa in &block.statements {
             let stmt = &stmt_ssa.statement;
 
-            for (caller, local) in detect_upvar(stmt) {
-                let upvar_loc =
-                    MemoryLocation::with_qualifier(MemoryLocationKind::Upvar, &local, &caller);
-                // The caller-side node is keyed on the caller variable alone
-                // (empty qualifier) so two aliases of the *same* caller var —
-                // `upvar 1 x a; upvar 1 x b` — share this node and union-find
-                // merges `a` and `b` into one set. Encoding the local name in
-                // the qualifier would make each pair's caller node distinct and
-                // silently break transitive merging.
-                let caller_loc = MemoryLocation::new(MemoryLocationKind::Upvar, &caller);
-                uf.union(&upvar_loc, &caller_loc, "upvar");
-            }
-            for gname in detect_global(stmt) {
-                let global_loc = MemoryLocation::new(MemoryLocationKind::Global, &gname);
-                let local_loc = MemoryLocation::new(MemoryLocationKind::Local, &gname);
-                uf.union(&global_loc, &local_loc, "global");
-            }
-            for vname in detect_namespace_variable(stmt) {
-                let ns_loc = MemoryLocation::new(MemoryLocationKind::NamespaceVar, &vname);
-                let local_loc = MemoryLocation::new(MemoryLocationKind::Local, &vname);
-                uf.union(&ns_loc, &local_loc, "variable");
+            for pair in transition_alias_pairs(stmt, registry, dialect) {
+                uf.union(&pair.target, &pair.local, pair.reason);
             }
         }
     }
@@ -592,6 +668,23 @@ pub fn compute_aliases(ssa: &SsaFunction) -> Vec<AliasSet> {
     alias_sets
 }
 
+/// Whether any invocation in `ssa` has a wildcard transition obligation.
+///
+/// An unresolved head, missing structured tokens, unstamped generic invoke,
+/// or registry transition widening must clobber memory rather than being
+/// mistaken for an empty alias declaration.
+#[must_use]
+pub fn has_wildcard_aliasing(
+    ssa: &SsaFunction,
+    registry: &CommandRegistry,
+    dialect: DialectSet,
+) -> bool {
+    ssa.blocks
+        .values()
+        .flat_map(|block| &block.statements)
+        .any(|statement| statement_has_wildcard_aliasing(&statement.statement, registry, dialect))
+}
+
 /// Build memory-SSA annotations for an SSA function.
 ///
 /// Produces versioned memory operations (defs, uses, phis,
@@ -602,8 +695,13 @@ pub fn compute_aliases(ssa: &SsaFunction) -> Vec<AliasSet> {
 /// Walks blocks in dominator-tree order (reverse iteration for
 /// stack emulation) for consistent versioning.
 #[must_use]
-pub fn build_memory_ssa(ssa: &SsaFunction, registry: &CommandRegistry) -> MemorySsaFunction {
-    let alias_sets = compute_aliases(ssa);
+pub fn build_memory_ssa(
+    ssa: &SsaFunction,
+    registry: &CommandRegistry,
+    dialect: DialectSet,
+) -> MemorySsaFunction {
+    let alias_sets = compute_aliases(ssa, registry, dialect);
+    let has_wildcard_aliasing = has_wildcard_aliasing(ssa, registry, dialect);
     let aliased_names: BTreeSet<String> = alias_sets.iter().flat_map(AliasSet::names).collect();
 
     let mut memory_ops: Vec<MemoryOp> = Vec::new();
@@ -647,7 +745,9 @@ pub fn build_memory_ssa(ssa: &SsaFunction, registry: &CommandRegistry) -> Memory
             let stmt = &stmt_ssa.statement;
             let idx_i32 = i32::try_from(idx).unwrap_or(i32::MAX);
 
-            if is_clobber(stmt, registry) {
+            if is_clobber(stmt, registry, dialect)
+                || transition_requires_wildcard(stmt, registry, dialect)
+            {
                 version_counter += 1;
                 memory_ops.push(MemoryOp::new_clobber(version_counter, bn, idx_i32));
                 // Fall through — a barrier that also defines
@@ -718,12 +818,37 @@ pub fn build_memory_ssa(ssa: &SsaFunction, registry: &CommandRegistry) -> Memory
         count_defs,
         count_uses,
         count_clobbers,
+        has_wildcard_aliasing,
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    const DIALECT: DialectSet = DialectSet::TCL86;
+
+    fn literal_tokens(command: &str, args: &[String]) -> crate::ir::CommandTokens {
+        let words: Vec<String> = std::iter::once(command.to_owned())
+            .chain(args.iter().cloned())
+            .collect();
+        let span = tcl_lexer::Span::new(0, 0);
+        crate::ir::CommandTokens {
+            argv: vec![span; words.len()],
+            argv_texts: words.clone(),
+            word_exprs: words
+                .into_iter()
+                .map(|text| crate::ir::WordExpr::Literal {
+                    text,
+                    source: crate::ir::SourceSite::source(span),
+                })
+                .collect(),
+            argv_kinds: vec![tcl_lexer::TokenType::Esc; args.len().saturating_add(1)],
+            single_token_word: vec![true; args.len().saturating_add(1)],
+            all_tokens: vec![span; args.len().saturating_add(1)],
+            expand_word: None,
+        }
+    }
 
     #[test]
     fn memory_location_display() {
@@ -771,16 +896,17 @@ mod tests {
     // -- MemoryOp + MemorySsaFunction + detection --
 
     fn call(cmd: &str, args: &[&str]) -> Statement {
+        let args: Vec<String> = args.iter().map(|arg| (*arg).to_owned()).collect();
         Statement::Call {
             span: tcl_lexer::Span::new(0, 0),
             command: cmd.into(),
             canonical_command: None,
-            args: args.iter().map(|s| (*s).into()).collect(),
+            tokens: Some(literal_tokens(cmd, &args)),
+            args,
             defs: Vec::new(),
             reads: Vec::new(),
             reads_own_defs: false,
             safe_on_uninit: false,
-            tokens: None,
             foreach_groups: None,
         }
     }
@@ -823,6 +949,12 @@ mod tests {
         let f = MemorySsaFunction::default();
         assert!(f.may_alias("x", "x"));
         assert!(!f.may_alias("x", "y"));
+
+        let wildcard = MemorySsaFunction {
+            has_wildcard_aliasing: true,
+            ..MemorySsaFunction::default()
+        };
+        assert!(wildcard.may_alias("x", "y"));
     }
 
     #[test]
@@ -842,65 +974,98 @@ mod tests {
     }
 
     #[test]
-    fn detect_upvar_pair_no_level() {
-        let stmt = call("upvar", &["caller_x", "local_x"]);
-        assert_eq!(
-            detect_upvar(&stmt),
-            vec![("caller_x".to_string(), "local_x".to_string())]
+    fn registry_transition_pairs_preserve_alias_layouts() {
+        let registry = CommandRegistry::build_default();
+        let upvar = transition_alias_pairs(
+            &call("upvar", &["1", "a", "la", "b", "lb"]),
+            &registry,
+            DIALECT,
         );
+        assert_eq!(upvar.len(), 2);
+        assert_eq!(upvar[0].target.kind, MemoryLocationKind::Upvar);
+        assert_eq!(upvar[0].target.name, "a");
+        assert_eq!(upvar[0].local.name, "la");
+        assert_eq!(upvar[1].target.name, "b");
+        assert_eq!(upvar[1].local.name, "lb");
+
+        let namespace = transition_alias_pairs(
+            &call("namespace", &["upvar", "::scope", "other", "local"]),
+            &registry,
+            DIALECT,
+        );
+        assert!(matches!(
+            namespace.as_slice(),
+            [pair]
+                if pair.target.kind == MemoryLocationKind::NamespaceVar
+                    && pair.target.qualifier == "::scope"
+                    && pair.target.name == "other"
+                    && pair.local.name == "local"
+        ));
+
+        let global =
+            transition_alias_pairs(&call("global", &["::pkg::shared"]), &registry, DIALECT);
+        assert!(matches!(
+            global.as_slice(),
+            [pair]
+                if pair.target.kind == MemoryLocationKind::Global
+                    && pair.target.name == "::pkg::shared"
+                    && pair.local.name == "shared"
+        ));
     }
 
     #[test]
-    fn detect_upvar_with_level_and_multi_pairs() {
-        let stmt = call("upvar", &["1", "a", "la", "b", "lb"]);
-        let pairs = detect_upvar(&stmt);
-        assert_eq!(pairs.len(), 2);
-        assert_eq!(pairs[0], ("a".into(), "la".into()));
-        assert_eq!(pairs[1], ("b".into(), "lb".into()));
-    }
+    fn dynamic_or_expanded_transition_operands_require_a_wildcard_clobber() {
+        let registry = CommandRegistry::build_default();
+        let mut dynamic = call("global", &["name"]);
+        let Statement::Call {
+            tokens: Some(tokens),
+            ..
+        } = &mut dynamic
+        else {
+            panic!("test call has structured tokens");
+        };
+        tokens.word_exprs[1] = crate::ir::WordExpr::Variable {
+            spelling: "$name".to_owned(),
+            source: crate::ir::SourceSite::source(tcl_lexer::Span::new(0, 0)),
+        };
+        assert!(transition_alias_pairs(&dynamic, &registry, DIALECT).is_empty());
+        assert!(transition_requires_wildcard(&dynamic, &registry, DIALECT));
 
-    #[test]
-    fn detect_upvar_with_hash_level() {
-        let stmt = call("upvar", &["#0", "caller_x", "local_x"]);
-        let pairs = detect_upvar(&stmt);
-        assert_eq!(pairs, vec![("caller_x".into(), "local_x".into())]);
-    }
+        let mut expanded = call("proc", &["p", "args", "body"]);
+        let Statement::Call {
+            tokens: Some(tokens),
+            ..
+        } = &mut expanded
+        else {
+            panic!("test call has structured tokens");
+        };
+        tokens.word_exprs[2] = crate::ir::WordExpr::Expand {
+            source: crate::ir::SourceSite::source(tcl_lexer::Span::new(0, 0)),
+            word: Box::new(crate::ir::WordExpr::Literal {
+                text: "args".to_owned(),
+                source: crate::ir::SourceSite::source(tcl_lexer::Span::new(0, 0)),
+            }),
+        };
+        assert!(transition_alias_pairs(&expanded, &registry, DIALECT).is_empty());
+        assert!(transition_requires_wildcard(&expanded, &registry, DIALECT));
 
-    #[test]
-    fn detect_namespace_upvar_pairs() {
-        let stmt = call("namespace", &["upvar", "::foo", "bar", "lb", "baz", "lz"]);
-        let pairs = detect_upvar(&stmt);
-        assert_eq!(pairs.len(), 2);
-        assert_eq!(pairs[0], ("bar".into(), "lb".into()));
-    }
-
-    #[test]
-    fn detect_upvar_rejects_unrelated_commands() {
-        let stmt = call("set", &["a", "1"]);
-        assert!(detect_upvar(&stmt).is_empty());
-    }
-
-    #[test]
-    fn detect_global_names() {
-        let stmt = call("global", &["foo", "bar"]);
-        assert_eq!(detect_global(&stmt), vec!["foo".to_string(), "bar".into()]);
-    }
-
-    #[test]
-    fn detect_namespace_variable_pairs() {
-        // Name, (optional value) alternating.
-        let stmt = call("variable", &["counter", "0", "name"]);
-        let names = detect_namespace_variable(&stmt);
-        assert_eq!(names, vec!["counter".to_string(), "name".into()]);
+        let expanded_ssa = make_ssa_with_entry_stmts(vec![expanded]);
+        let memory = build_memory_ssa(&expanded_ssa, &registry, DIALECT);
+        assert!(memory.has_wildcard_aliasing);
+        assert_eq!(memory.count_clobbers, 1);
     }
 
     #[test]
     fn is_clobber_barrier_and_eval() {
         let reg = CommandRegistry::build_default();
-        assert!(is_clobber(&barrier("eval", &["x"]), &reg));
-        assert!(is_clobber(&call("eval", &["script"]), &reg));
-        assert!(is_clobber(&call("uplevel", &["1", "script"]), &reg));
-        assert!(!is_clobber(&call("set", &["x", "1"]), &reg));
+        assert!(is_clobber(&barrier("eval", &["x"]), &reg, DIALECT));
+        assert!(is_clobber(&call("eval", &["script"]), &reg, DIALECT));
+        assert!(is_clobber(
+            &call("uplevel", &["1", "script"]),
+            &reg,
+            DIALECT
+        ));
+        assert!(!is_clobber(&call("set", &["x", "1"]), &reg, DIALECT));
     }
 
     /// The old hardcoded name list spelt these as the compound strings
@@ -911,13 +1076,36 @@ mod tests {
     #[test]
     fn is_clobber_resolves_code_evaluating_subcommands() {
         let reg = CommandRegistry::build_default();
-        assert!(is_clobber(&call("interp", &["eval", "{}", "script"]), &reg));
+        assert!(is_clobber(
+            &call("interp", &["eval", "{}", "script"]),
+            &reg,
+            DIALECT
+        ));
         assert!(is_clobber(
             &call("namespace", &["eval", "ns", "script"]),
-            &reg
+            &reg,
+            DIALECT
         ));
-        assert!(!is_clobber(&call("namespace", &["current"]), &reg));
-        assert!(!is_clobber(&call("interp", &["exists", "x"]), &reg));
+        assert!(!is_clobber(&call("namespace", &["current"]), &reg, DIALECT));
+        assert!(!is_clobber(
+            &call("interp", &["exists", "x"]),
+            &reg,
+            DIALECT
+        ));
+
+        let mut computed_subcommand = call("namespace", &["current"]);
+        let Statement::Call {
+            tokens: Some(tokens),
+            ..
+        } = &mut computed_subcommand
+        else {
+            panic!("test call has structured tokens");
+        };
+        tokens.word_exprs[1] = crate::ir::WordExpr::Variable {
+            spelling: "$operation".to_owned(),
+            source: crate::ir::SourceSite::source(tcl_lexer::Span::new(0, 0)),
+        };
+        assert!(is_clobber(&computed_subcommand, &reg, DIALECT));
     }
 
     // -- compute_aliases + build_memory_ssa --
@@ -954,12 +1142,12 @@ mod tests {
     #[test]
     fn compute_aliases_finds_upvar_set() {
         let ssa = make_ssa_with_entry_stmts(vec![call("upvar", &["1", "caller_x", "local_x"])]);
-        let sets = compute_aliases(&ssa);
+        let sets = compute_aliases(&ssa, &CommandRegistry::build_default(), DIALECT);
         assert_eq!(sets.len(), 1);
         let set = &sets[0];
         assert!(set.contains_name("caller_x"));
         assert!(set.contains_name("local_x"));
-        assert!(set.reason.contains("upvar"));
+        assert!(set.reason.contains("caller-frame"));
     }
 
     #[test]
@@ -972,21 +1160,21 @@ mod tests {
             call("upvar", &["1", "x", "a"]),
             call("upvar", &["1", "x", "b"]),
         ]);
-        let sets = compute_aliases(&ssa);
+        let sets = compute_aliases(&ssa, &CommandRegistry::build_default(), DIALECT);
         assert_eq!(sets.len(), 1, "shared-caller upvars must merge");
         let set = &sets[0];
         assert!(set.contains_name("a"));
         assert!(set.contains_name("b"));
         assert!(set.contains_name("x"));
 
-        let m = build_memory_ssa(&ssa, &CommandRegistry::build_default());
+        let m = build_memory_ssa(&ssa, &CommandRegistry::build_default(), DIALECT);
         assert!(m.may_alias("a", "b"), "a and b share caller x");
     }
 
     #[test]
     fn compute_aliases_global_variable_pair() {
         let ssa = make_ssa_with_entry_stmts(vec![call("global", &["shared"])]);
-        let sets = compute_aliases(&ssa);
+        let sets = compute_aliases(&ssa, &CommandRegistry::build_default(), DIALECT);
         assert_eq!(sets.len(), 1);
         let set = &sets[0];
         // Global and Local kinds for the same name merge.
@@ -1006,13 +1194,16 @@ mod tests {
     #[test]
     fn compute_aliases_empty_when_no_aliasing_commands() {
         let ssa = make_ssa_with_entry_stmts(vec![call("set", &["x", "1"])]);
-        assert!(compute_aliases(&ssa).is_empty());
+        assert!(compute_aliases(&ssa, &CommandRegistry::build_default(), DIALECT).is_empty());
+        let memory = build_memory_ssa(&ssa, &CommandRegistry::build_default(), DIALECT);
+        assert!(memory.has_wildcard_aliasing);
+        assert_eq!(memory.count_clobbers, 1);
     }
 
     #[test]
     fn build_memory_ssa_empty_function() {
         let ssa = make_ssa_with_entry_stmts(Vec::new());
-        let m = build_memory_ssa(&ssa, &CommandRegistry::build_default());
+        let m = build_memory_ssa(&ssa, &CommandRegistry::build_default(), DIALECT);
         assert!(m.alias_sets.is_empty());
         assert!(m.memory_ops.is_empty());
         assert_eq!(m.count_defs, 0);
@@ -1023,7 +1214,7 @@ mod tests {
     #[test]
     fn build_memory_ssa_emits_clobber_for_eval() {
         let ssa = make_ssa_with_entry_stmts(vec![call("eval", &["foo"])]);
-        let m = build_memory_ssa(&ssa, &CommandRegistry::build_default());
+        let m = build_memory_ssa(&ssa, &CommandRegistry::build_default(), DIALECT);
         assert_eq!(m.count_clobbers, 1);
         assert_eq!(m.memory_ops[0].kind, MemoryOpKind::Clobber);
         assert_eq!(m.memory_ops[0].location.name, "*");
@@ -1041,9 +1232,13 @@ mod tests {
             body: crate::ir::Script::new(),
             tokens: None,
         };
-        assert!(is_clobber(&upframe, &CommandRegistry::build_default()));
+        assert!(is_clobber(
+            &upframe,
+            &CommandRegistry::build_default(),
+            DIALECT
+        ));
         let ssa = make_ssa_with_entry_stmts(vec![upframe]);
-        let m = build_memory_ssa(&ssa, &CommandRegistry::build_default());
+        let m = build_memory_ssa(&ssa, &CommandRegistry::build_default(), DIALECT);
         assert_eq!(m.count_clobbers, 1);
         assert_eq!(m.memory_ops[0].kind, MemoryOpKind::Clobber);
     }
@@ -1092,7 +1287,7 @@ mod tests {
             },
         );
         ssa.dominator_tree.insert(entry, Vec::new());
-        let m = build_memory_ssa(&ssa, &CommandRegistry::build_default());
+        let m = build_memory_ssa(&ssa, &CommandRegistry::build_default(), DIALECT);
         assert_eq!(m.count_defs, 1);
         assert_eq!(m.count_uses, 1);
         // Version for def must be > version visible at preceding
@@ -1107,7 +1302,10 @@ mod tests {
             .iter()
             .find(|o| o.kind == MemoryOpKind::Use)
             .expect("use present");
-        assert_eq!(load_op.reaching_version, def_op.version);
+        assert!(
+            load_op.reaching_version > def_op.version,
+            "an unstamped invocation must preserve its wildcard clobber"
+        );
     }
 
     #[test]
@@ -1160,7 +1358,7 @@ mod tests {
             },
         );
         ssa.dominator_tree.insert(entry, Vec::new());
-        let m = build_memory_ssa(&ssa, &CommandRegistry::build_default());
+        let m = build_memory_ssa(&ssa, &CommandRegistry::build_default(), DIALECT);
         // The def and use from the self-referential statement (index 2).
         let self_def = m
             .memory_ops

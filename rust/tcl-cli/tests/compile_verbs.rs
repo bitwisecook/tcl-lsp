@@ -154,6 +154,44 @@ fn compwasm_emits_valid_module_header() {
     let _ = std::fs::remove_dir_all(&dir);
 }
 
+/// The opt-in executable-IR path must use the generic argv runtime service,
+/// not quietly fall back to source-level `eval`.  A single literal command is
+/// its deliberately bounded supported surface.
+#[test]
+fn compwasm_generic_invoke_emits_argv_transport_without_eval_import() {
+    let dir = std::env::temp_dir().join("tcl_compwasm_generic_invoke");
+    std::fs::create_dir_all(&dir).expect("mkdir");
+    let wasm_path = dir.join("out.wasm");
+    let wat_path = dir.join("out.wat");
+
+    let output = Command::new(env!("CARGO_BIN_EXE_tcl"))
+        .args([
+            "compwasm",
+            "--backend",
+            "generic-invoke",
+            "--source",
+            "string length hello",
+            "-o",
+            wasm_path.to_str().expect("utf-8 output path"),
+            "--wat-output",
+            wat_path.to_str().expect("utf-8 WAT path"),
+        ])
+        .output()
+        .expect("spawn tcl");
+    assert!(
+        output.status.success(),
+        "generic-invoke compwasm failed: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let bytes = std::fs::read(&wasm_path).expect("read wasm");
+    assert_eq!(&bytes[..4], b"\0asm", "missing WASM header");
+    let wat = std::fs::read_to_string(&wat_path).expect("read WAT");
+    assert!(wat.contains("tcl_invoke_argv"), "{wat}");
+    assert!(!wat.contains("tcl_eval"), "{wat}");
+
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
 #[test]
 fn compwasm_defaults_to_out_wasm_file() {
     // With no `-o`, compwasm must write `out.wasm` in the cwd

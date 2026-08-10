@@ -27,12 +27,12 @@
 //! `Commands::dispatch_id` invokes (the resolve-then-invoke pairing).
 
 use tcl_runtime_api::{
-    Code, CommandId, Commands, Completion, FrameId, Frames, Introspect, Namespaces, NsId, ProcInfo,
+    CommandId, Commands, Completion, FrameId, Frames, Introspect, Namespaces, NsId, ProcInfo,
     ProcParam, Procs, Traces, VarStore,
 };
 
 use crate::frame::Link;
-use crate::interp::{new_string, Interp};
+use crate::interp::{Interp, new_string};
 use crate::list::new_list_obj;
 use crate::obj::{self, TclObj};
 
@@ -179,6 +179,42 @@ fn api_code(code: crate::interp::Code) -> tcl_runtime_api::Code {
     }
 }
 
+/// Snapshot one runtime completion as the shared [`Completion`] contract.
+///
+/// Both returned object handles own one reference. The caller must release
+/// each exactly once, or transfer it to a runtime slot that takes ownership.
+/// The return-options dict is built by the same live error/return-state helper
+/// used by `catch` and `try`; it is not a placeholder.
+pub(crate) fn capture_completion(
+    interp: &mut Interp,
+    code: crate::interp::Code,
+) -> Completion<*mut TclObj> {
+    let result = interp.result_obj();
+    let options = crate::cmd_error::completion_options(interp, code);
+    // SAFETY: `result` is interp-owned and `options` is fresh. Give the
+    // completion one owned reference to each; the caller adopts both.
+    unsafe {
+        obj::incr_ref_count(result);
+        obj::incr_ref_count(options);
+    }
+    Completion::new(api_code(code), result, options)
+}
+
+/// Run a full, prebuilt command argv through the inherent dispatcher, then
+/// snapshot the resulting [`Completion`].
+///
+/// `argv[0]` is the already-evaluated command head. This deliberately performs
+/// resolution and dispatch only: it does not parse source or repeat word
+/// substitution. Callers retain argv elements for the call duration; this
+/// helper borrows them and neither adopts nor releases them.
+pub(crate) fn dispatch_prebuilt_argv(
+    interp: &mut Interp,
+    argv: &[*mut TclObj],
+) -> Completion<*mut TclObj> {
+    let code = Interp::dispatch(interp, argv);
+    capture_completion(interp, code)
+}
+
 /// Run `name` + `argv` through the inherent dispatch and snapshot a [`Completion`]
 /// — the shared body of [`Commands::dispatch`]/[`Commands::dispatch_id`].
 ///
@@ -191,7 +227,6 @@ fn api_code(code: crate::interp::Code) -> tcl_runtime_api::Code {
 /// returned completion *owns* a `+1` on both `result` and `options`; the caller
 /// adopts them and must release each (`decr_ref_count` / `drop_fresh`) when
 /// done — the `*mut TclObj` analogue of the VM completion's owned `Rc`s.
-/// `options` is an empty placeholder, mirroring the VM's `Value::empty()`.
 fn dispatch_named(
     interp: &mut Interp,
     name: &[u8],
@@ -212,26 +247,14 @@ fn dispatch_named(
     for &w in &full {
         unsafe { obj::decr_ref_count(w) };
     }
-    // The completion owns +1 on result and options (the caller adopts both).
-    let result = interp.result_obj();
-    let options = new_string(b"");
-    unsafe {
-        obj::incr_ref_count(result);
-        obj::incr_ref_count(options);
-    }
-    Completion::new(api_code(code), result, options)
+    capture_completion(interp, code)
 }
 
 /// The error completion for a fabricated/stale `CommandId` (rc-balanced like a
 /// real one: `result`/`options` each `+1`).
-fn invalid_command_id() -> Completion<*mut TclObj> {
-    let result = new_string(b"invalid command id");
-    let options = new_string(b"");
-    unsafe {
-        obj::incr_ref_count(result);
-        obj::incr_ref_count(options);
-    }
-    Completion::new(Code::Error, result, options)
+fn invalid_command_id(interp: &mut Interp) -> Completion<*mut TclObj> {
+    let code = interp.set_error(b"invalid command id");
+    capture_completion(interp, code)
 }
 
 /// Command dispatch by name ([`dispatch`](Commands::dispatch)) or by a resolved
@@ -248,7 +271,7 @@ impl Commands for Interp {
     fn dispatch_id(&mut self, cmd: CommandId, argv: &[*mut TclObj]) -> Completion<*mut TclObj> {
         match self.command_fqn(cmd.0) {
             Some(fqn) => dispatch_named(self, &fqn, argv),
-            None => invalid_command_id(),
+            None => invalid_command_id(self),
         }
     }
 }

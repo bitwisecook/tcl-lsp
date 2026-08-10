@@ -1521,15 +1521,23 @@ pub fn function_lattice<'db>(db: &'db dyn TclDb, key: FnLatticeKey<'db>) -> Arc<
         traced_variables: &traced_variables,
         has_dynamic_variable_trace: key.has_dynamic_variable_trace(db),
     };
-    Arc::new(FunctionUnit::build_with_param_constants_and_classes(
-        key.qname(db),
-        cfg,
-        key.params(db),
-        registry,
-        param_constants.as_ref(),
-        &known_classes,
-        trace_facts,
-    ))
+    Arc::new(
+        FunctionUnit::build_with_param_constants_and_classes(
+            key.qname(db),
+            cfg,
+            key.params(db),
+            registry,
+            param_constants.as_ref(),
+            &known_classes,
+            trace_facts,
+        )
+        .with_semantic_analysis(
+            registry,
+            tcl_registry::dialects::DialectSet::parse(key.dialect(db))
+                .unwrap_or_else(tcl_registry::dialects::DialectSet::empty),
+            Some(key.body(db)),
+        ),
+    )
 }
 
 /// Interned identity of one top-level `proc`'s **offset-0** static body source

@@ -172,7 +172,18 @@ pub fn member_body_indices(
     command: &str,
     args: &[&str],
 ) -> Vec<usize> {
-    member_role_indices(grammar, command, args, ArgRole::Body)
+    member_role_indices(grammar, command, args, None, ArgRole::Body)
+}
+
+/// Profile-aware [`member_body_indices`].
+#[must_use]
+pub fn member_body_indices_in(
+    grammar: &DefinitionBodyGrammar,
+    command: &str,
+    args: &[&str],
+    dialect: tcl_dialect::DialectSet,
+) -> Vec<usize> {
+    member_role_indices(grammar, command, args, Some(dialect), ArgRole::Body)
 }
 
 /// Parameter-list argument indices for a member call under `grammar` (a
@@ -184,7 +195,18 @@ pub fn member_param_indices(
     command: &str,
     args: &[&str],
 ) -> Vec<usize> {
-    member_role_indices(grammar, command, args, ArgRole::ParamList)
+    member_role_indices(grammar, command, args, None, ArgRole::ParamList)
+}
+
+/// Profile-aware [`member_param_indices`].
+#[must_use]
+pub fn member_param_indices_in(
+    grammar: &DefinitionBodyGrammar,
+    command: &str,
+    args: &[&str],
+    dialect: tcl_dialect::DialectSet,
+) -> Vec<usize> {
+    member_role_indices(grammar, command, args, Some(dialect), ArgRole::ParamList)
 }
 
 /// Name-argument indices for a member call under `grammar` — the declared name
@@ -201,7 +223,18 @@ pub fn member_name_indices(
     command: &str,
     args: &[&str],
 ) -> Vec<usize> {
-    member_role_indices(grammar, command, args, ArgRole::Name)
+    member_role_indices(grammar, command, args, None, ArgRole::Name)
+}
+
+/// Profile-aware [`member_name_indices`].
+#[must_use]
+pub fn member_name_indices_in(
+    grammar: &DefinitionBodyGrammar,
+    command: &str,
+    args: &[&str],
+    dialect: tcl_dialect::DialectSet,
+) -> Vec<usize> {
+    member_role_indices(grammar, command, args, Some(dialect), ArgRole::Name)
 }
 
 /// The entity kind a member's arguments *reference*, plus their indices, when
@@ -242,7 +275,70 @@ pub fn member_var_indices(
     command: &str,
     args: &[&str],
 ) -> Vec<usize> {
-    member_role_indices(grammar, command, args, ArgRole::VarWrite)
+    member_role_indices(grammar, command, args, None, ArgRole::VarWrite)
+}
+
+/// Profile-aware [`member_var_indices`].
+#[must_use]
+pub fn member_var_indices_in(
+    grammar: &DefinitionBodyGrammar,
+    command: &str,
+    args: &[&str],
+    dialect: tcl_dialect::DialectSet,
+) -> Vec<usize> {
+    member_role_indices(grammar, command, args, Some(dialect), ArgRole::VarWrite)
+}
+
+/// Closed-vocabulary option arguments for a definition member. These are
+/// supplied by the member grammar (for example Tcl 9's method visibility and
+/// definition-namespace facet), never by an LSP-side `-word` parser.
+#[must_use]
+pub fn member_option_indices(
+    grammar: &DefinitionBodyGrammar,
+    command: &str,
+    args: &[&str],
+) -> Vec<usize> {
+    member_role_indices(grammar, command, args, None, ArgRole::Option)
+}
+
+/// Profile-aware [`member_option_indices`].
+#[must_use]
+pub fn member_option_indices_in(
+    grammar: &DefinitionBodyGrammar,
+    command: &str,
+    args: &[&str],
+    dialect: tcl_dialect::DialectSet,
+) -> Vec<usize> {
+    member_role_indices(grammar, command, args, Some(dialect), ArgRole::Option)
+}
+
+/// Namespace-name arguments for a definition member. Keeping this separate
+/// from a command name means semantic tokens retain Tcl's namespace symbol
+/// space for `definitionnamespace` and for any future registry-defined member.
+#[must_use]
+pub fn member_namespace_indices(
+    grammar: &DefinitionBodyGrammar,
+    command: &str,
+    args: &[&str],
+) -> Vec<usize> {
+    member_role_indices(grammar, command, args, None, ArgRole::NamespaceName)
+}
+
+/// Profile-aware [`member_namespace_indices`].
+#[must_use]
+pub fn member_namespace_indices_in(
+    grammar: &DefinitionBodyGrammar,
+    command: &str,
+    args: &[&str],
+    dialect: tcl_dialect::DialectSet,
+) -> Vec<usize> {
+    member_role_indices(
+        grammar,
+        command,
+        args,
+        Some(dialect),
+        ArgRole::NamespaceName,
+    )
 }
 
 /// The argument indices carrying `role` for a member call, dispatched on the
@@ -255,14 +351,18 @@ fn member_role_indices(
     grammar: &DefinitionBodyGrammar,
     command: &str,
     args: &[&str],
+    dialect: Option<tcl_dialect::DialectSet>,
     role: ArgRole,
 ) -> Vec<usize> {
     let Some(member) = grammar.member(command) else {
         return Vec::new();
     };
+    if dialect.is_some_and(|dialect| member.unavailable_option_for(args, dialect).is_some()) {
+        return Vec::new();
+    }
     match member.kind {
-        MemberKind::Flat => flat_member_indices(member, args, role),
-        MemberKind::Wrapper => wrapper_member_indices(grammar, member, args, role),
+        MemberKind::Flat => flat_member_indices(member, args, dialect, role),
+        MemberKind::Wrapper => wrapper_member_indices(grammar, member, args, dialect, role),
         MemberKind::FlagKeyed => match role {
             ArgRole::Body => collect_property_body_indices(args),
             // `property NAME… ?-get script? ?-set script?` — every leading bare
@@ -283,14 +383,23 @@ fn member_role_indices(
 /// The `role`-carrying argument indices for a flat member, given `args`
 /// (0-based *after* the member keyword).  Handles the unbounded `variable a b
 /// c` form (`all_args_var`) as well as the fixed `arg_roles` layout.
-fn flat_member_indices(member: &MemberSpec, args: &[&str], role: ArgRole) -> Vec<usize> {
+fn flat_member_indices(
+    member: &MemberSpec,
+    args: &[&str],
+    dialect: Option<tcl_dialect::DialectSet>,
+    role: ArgRole,
+) -> Vec<usize> {
+    if dialect.is_some_and(|dialect| member.unavailable_option_for(args, dialect).is_some()) {
+        return Vec::new();
+    }
     if role == ArgRole::VarWrite && member.all_args_var {
         (slot_value_start(member, args)..args.len()).collect()
     } else {
-        member
-            .indices_for(role)
-            .filter(|&i| i < args.len())
-            .collect()
+        let indices: Vec<usize> = dialect.map_or_else(
+            || member.indices_for_call(args, role).collect(),
+            |dialect| member.indices_for_call_in(args, dialect, role).collect(),
+        );
+        indices.into_iter().filter(|&i| i < args.len()).collect()
     }
 }
 
@@ -324,6 +433,7 @@ fn wrapper_member_indices(
     grammar: &DefinitionBodyGrammar,
     member: &MemberSpec,
     args: &[&str],
+    dialect: Option<tcl_dialect::DialectSet>,
     role: ArgRole,
 ) -> Vec<usize> {
     let Some((inner, rest)) = args.split_first() else {
@@ -331,7 +441,7 @@ fn wrapper_member_indices(
     };
     if let Some(m) = grammar.member(inner) {
         // Shift the inner member's indices one place right, past the wrapper.
-        return flat_member_indices(m, rest, role)
+        return flat_member_indices(m, rest, dialect, role)
             .into_iter()
             .map(|i| i + 1)
             .collect();
@@ -339,7 +449,7 @@ fn wrapper_member_indices(
     if member.wrapper_block_body {
         // Bare script-block form: the wrapper's own roles (a single body at
         // arg 0) apply unshifted.
-        return flat_member_indices(member, args, role);
+        return flat_member_indices(member, args, dialect, role);
     }
     Vec::new()
 }
@@ -438,6 +548,10 @@ mod tests {
             vec![2]
         );
         assert_eq!(
+            member_body_indices(g, "method", &["n", "-private", "{}", "body"]),
+            vec![3]
+        );
+        assert_eq!(
             member_body_indices(g, "classmethod", &["n", "{a}", "body"]),
             vec![2]
         );
@@ -502,6 +616,10 @@ mod tests {
             vec![1]
         );
         assert_eq!(
+            member_param_indices(g, "method", &["n", "-unexport", "{a}", "b"]),
+            vec![2]
+        );
+        assert_eq!(
             member_param_indices(g, "constructor", &["{a}", "b"]),
             vec![0]
         );
@@ -510,6 +628,36 @@ mod tests {
             vec![2]
         );
         assert!(member_param_indices(g, "destructor", &["b"]).is_empty());
+    }
+
+    #[test]
+    fn tcloo_definitionnamespace_roles_are_exposed_to_lsp_consumers() {
+        let g = &TCLOO_GRAMMAR;
+        assert_eq!(
+            member_option_indices(g, "definitionnamespace", &["-instance", "::defs"]),
+            vec![0]
+        );
+        assert_eq!(
+            member_namespace_indices(g, "definitionnamespace", &["-instance", "::defs"]),
+            vec![1]
+        );
+        assert_eq!(
+            member_namespace_indices(g, "definitionnamespace", &["::defs"]),
+            vec![0]
+        );
+    }
+
+    #[test]
+    fn tcloo_method_option_layout_is_profile_aware() {
+        let g = &TCLOO_GRAMMAR;
+        let args = ["m", "-private", "{x}", "body"];
+        assert!(
+            member_body_indices_in(g, "method", &args, tcl_dialect::DialectSet::TCL86,).is_empty()
+        );
+        assert_eq!(
+            member_body_indices_in(g, "method", &args, tcl_dialect::DialectSet::TCL90,),
+            vec![3]
+        );
     }
 
     #[test]

@@ -74,6 +74,10 @@ fn assert_seg_eq(o: &SegmentedCommand, c: &SegmentedCommand, ctx: &str) {
     assert_eq!(o.argv, c.argv, "argv mismatch [{ctx}]");
     assert_eq!(o.texts, c.texts, "texts mismatch [{ctx}]");
     assert_eq!(
+        o.word_fragments, c.word_fragments,
+        "word_fragments mismatch [{ctx}]"
+    );
+    assert_eq!(
         o.single_token_word, c.single_token_word,
         "single_token_word mismatch [{ctx}]"
     );
@@ -116,6 +120,9 @@ fn check(src: &str, config: LexerConfig, ctx: &str) -> Result<(), String> {
                 "texts mismatch [{ctx}] cmd {i}: {:?} vs {:?}",
                 oc.texts, cc.texts
             ));
+        }
+        if oc.word_fragments != cc.word_fragments {
+            return Err(format!("word_fragments mismatch [{ctx}] cmd {i}"));
         }
         if oc.single_token_word != cc.single_token_word {
             return Err(format!("single_token_word mismatch [{ctx}] cmd {i}"));
@@ -306,7 +313,7 @@ fn recovery_known_commands_smoke() {
 mod frozen_oracle {
     use tcl_lexer::{Lexer, LexerConfig, SourceMap, Span, Token, TokenType};
 
-    use tcl_compiler::segmenter::{SegmentedCommand, word_piece};
+    use tcl_compiler::segmenter::{SegmentedCommand, WordFragment, word_piece};
 
     fn command_span(tokens: &[Token], sm: &SourceMap<'_>) -> Span {
         if tokens.is_empty() {
@@ -339,6 +346,7 @@ mod frozen_oracle {
         commands: Vec<SegmentedCommand>,
         argv: Vec<Token>,
         texts: Vec<String>,
+        word_fragments: Vec<Vec<WordFragment>>,
         single: Vec<bool>,
         expand: Vec<bool>,
         all_tokens: Vec<Token>,
@@ -347,12 +355,37 @@ mod frozen_oracle {
     }
 
     impl SegmenterState {
+        fn start_word(&mut self, tok: Token, piece: String, expanded: bool) {
+            self.argv.push(tok);
+            self.texts.push(piece.clone());
+            self.word_fragments
+                .push(vec![WordFragment::new(tok, piece)]);
+            self.single.push(true);
+            self.expand.push(expanded);
+        }
+
+        fn append_fragment(&mut self, tok: Token, piece: String) {
+            if let Some(last_text) = self.texts.last_mut() {
+                last_text.push_str(&piece);
+            }
+            if let Some(fragments) = self.word_fragments.last_mut() {
+                fragments.push(WordFragment::new(tok, piece));
+            }
+            if let Some(single) = self.single.last_mut() {
+                *single = false;
+            }
+            if let Some(previous) = self.argv.last_mut() {
+                previous.span = Span::new(previous.span.start(), tok.span.end());
+            }
+        }
+
         fn flush_eol_or_eof(&mut self, tok: Token, sm: &SourceMap<'_>) {
             if !self.argv.is_empty() {
                 self.commands.push(SegmentedCommand {
                     span: command_span(&self.all_tokens, sm),
                     argv: std::mem::take(&mut self.argv),
                     texts: std::mem::take(&mut self.texts),
+                    word_fragments: std::mem::take(&mut self.word_fragments),
                     single_token_word: std::mem::take(&mut self.single),
                     all_tokens: std::mem::take(&mut self.all_tokens),
                     is_partial: false,
@@ -429,24 +462,12 @@ mod frozen_oracle {
             let piece = word_piece(&sm, tok);
 
             if prev_type == TokenType::Sep || prev_type == TokenType::Eol {
-                state.argv.push(tok);
-                state.texts.push(piece);
-                state.single.push(true);
-                state.expand.push(next_expand);
+                state.start_word(tok, piece, next_expand);
                 next_expand = false;
-            } else if let Some(last_text) = state.texts.last_mut() {
-                last_text.push_str(&piece);
-                if let Some(s) = state.single.last_mut() {
-                    *s = false;
-                }
-                if let Some(prev) = state.argv.last_mut() {
-                    prev.span = Span::new(prev.span.start(), tok.span.end());
-                }
+            } else if !state.texts.is_empty() {
+                state.append_fragment(tok, piece);
             } else {
-                state.argv.push(tok);
-                state.texts.push(piece);
-                state.single.push(true);
-                state.expand.push(next_expand);
+                state.start_word(tok, piece, next_expand);
                 next_expand = false;
             }
 
@@ -460,6 +481,7 @@ mod frozen_oracle {
                 mut commands,
                 argv,
                 texts,
+                word_fragments,
                 single,
                 expand,
                 all_tokens,
@@ -470,6 +492,7 @@ mod frozen_oracle {
                 span: command_span(&all_tokens, &sm),
                 argv,
                 texts,
+                word_fragments,
                 single_token_word: single,
                 all_tokens,
                 is_partial: false,

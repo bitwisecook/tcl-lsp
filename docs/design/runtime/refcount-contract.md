@@ -178,6 +178,12 @@ remaining `-inline`/`-indices` storage paths.)
 | Function | Args | Return | Storage | Notes |
 |---|---|---|---|---|
 | `dispatch(bucket, words)` | each word `borrowed` | `null_or_owned` | (n/a) | Calls `call_compiled_proc` (host bridge); the host receives borrowed handles and returns owned. |
+| `tcl_codegen_call_frame_alloc(bytes, align)` | validated positive layout | owned transient frame | shared linear memory | Every successful allocation records its exact layout in the runtime, increments the diagnostic outstanding-frame count, and has one `tcl_codegen_call_frame_free`. Frames are distinct and survive re-entrant command callbacks. |
+| `tcl_codegen_call_frame_free(frame)` | `frame` consumed once | i32 status | shared linear memory | The runtime looks up the authoritative allocation layout. Unknown, forged, or repeated pointers fail without dereference or deallocation. A successful free occurs after argv objects and the completion output release, and decrements the outstanding-frame count. |
+| `tcl_obj_new_string_owned(ptr, len)` | copied bytes | `owned` Tcl object (`+1`) | object heap | Constructor for prebuilt argv words. `tcl_invoke_argv` borrows this reference, so generated cleanup releases it afterwards. |
+| `tcl_invoke_argv(argv, argc, out)` | every argv word `borrowed` (caller holds `+1`); `out` writable `TclCompletionAbi` storage | i32 ABI status; on every write `out.result` + `out.options` are each `owned` | normal interpreter result/error state only | Retains every argv word only for the dispatch, then releases those temporary refs. Dispatches the full prebuilt argv through normal namespace/unknown/alias/TclOO resolution without source parsing or substitution. A Tcl error is `out.code == 1`; a negative status is a malformed ABI call. |
+| `tcl_obj_retain(obj)` | `borrowed` live object | a new `owned` (`+1`) reference | object heap | Generated completion transport retains result/options for its caller before releasing its private completion storage. |
+| `tcl_completion_release(out)` | `out.result` + `out.options` `consumed` | `void` | clears output storage | Releases both completion handles exactly once and zeroes the fields. A repeated call on the reset storage is idempotent; mixing it with individual `tcl_obj_release` calls is not. |
 
 ### `cmd_chan.rs` / `cmd_fs.rs` / `cmd_clock.rs` — stdio + filesystem + clock
 

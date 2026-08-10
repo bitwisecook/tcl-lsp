@@ -294,6 +294,7 @@ fn loop_installed_member_shape(
     body_word: &str,
     body_content_start: u32,
     lexer_config: tcl_lexer::LexerConfig,
+    dialect: tcl_registry::dialects::DialectSet,
     var_name: &str,
 ) -> Option<(&'static str, Span)> {
     let inner_cmds = crate::segmenter::segment_commands_with_offset_and_config(
@@ -316,12 +317,16 @@ fn loop_installed_member_shape(
         _ => return None,
     };
     let member = grammar.member(inner_keyword)?;
-    let name_idx = member.indices_for(ArgRole::Name).next()?;
+    let name_idx = member
+        .indices_for_call_in(inner_texts, dialect, ArgRole::Name)
+        .next()?;
     let name_word = inner_texts.get(name_idx)?;
     if crate::static_loops::simple_var_ref(name_word).as_deref() != Some(var_name) {
         return None;
     }
-    let body_idx = member.indices_for(ArgRole::Body).next()?;
+    let body_idx = member
+        .indices_for_call_in(inner_texts, dialect, ArgRole::Body)
+        .next()?;
     let body_span = inner_argv.get(body_idx).map_or(inner.span, |t| t.span);
     Some((kind, body_span))
 }
@@ -422,6 +427,47 @@ impl Analyser {
         });
     }
 
+    /// Emit W002 for a recognised optional member argument that exists in the
+    /// grammar but is unavailable in this document's selected dialect.
+    ///
+    /// Unlike a whole-member gate, this preserves Tcl 8.6's ordinary
+    /// `method NAME PARAMS BODY` layout while declining a Tcl 9 visibility
+    /// flag in that same member. The option vocabulary and position remain in
+    /// [`MemberSpec`]; this is only the generic diagnostic presentation.
+    pub(super) fn emit_w002_oo_member_option_disabled(
+        &mut self,
+        member: &MemberSpec,
+        args: &[String],
+        arg_tokens: &[Token],
+        definer_disabled: bool,
+    ) -> bool {
+        if definer_disabled {
+            return false;
+        }
+        let Some(option) = member.unavailable_option_for(args, self.profile.availability_mask)
+        else {
+            return false;
+        };
+        let Some(position) = member.optional_argument.map(|optional| optional.position) else {
+            return false;
+        };
+        let Some(tok) = arg_tokens.get(usize::from(position)) else {
+            return false;
+        };
+        self.result.diagnostics.push(super::types::Diagnostic {
+            code: tcl_core_types::DiagCode::W002,
+            span: tok.span,
+            message: format!(
+                "'{}' is disabled in the active dialect profile ('{}')",
+                option.value,
+                self.dialect()
+            ),
+            severity: super::types::Severity::Warning,
+            fixes: Vec::new(),
+        });
+        true
+    }
+
     /// Record the command references a definition-body member names as
     /// arguments, driven entirely by the member's registry grammar — never by a
     /// member keyword the walker recognises.  Two grammar facts name a command:
@@ -516,11 +562,13 @@ impl Analyser {
         // dynamic in the sense that matters here (`constructor {x} { set a
         // $x }` is entirely readable); the `{*}` test above is what catches
         // the genuinely reflected signature.
-        member.indices_for(ArgRole::Name).any(|idx| {
-            texts
-                .get(idx + 1)
-                .is_some_and(|w| crate::naming::is_dynamic_word(w))
-        })
+        member
+            .indices_for_call_in(&texts[1..], self.profile.availability_mask, ArgRole::Name)
+            .any(|idx| {
+                texts
+                    .get(idx + 1)
+                    .is_some_and(|w| crate::naming::is_dynamic_word(w))
+            })
     }
 
     /// Record the per-name members a **literal** loop-installer declares,
@@ -621,6 +669,7 @@ impl Analyser {
             body_word,
             body_content_start,
             self.lexer_config(),
+            self.profile.availability_mask,
             var_name,
         ) else {
             return;
@@ -694,7 +743,11 @@ impl Analyser {
                 record(self, name, tok, true);
             }
         }
-        for idx in spec.indices_for(ArgRole::CommandName) {
+        for idx in spec.indices_for_call_in(
+            arg_texts,
+            self.profile.availability_mask,
+            ArgRole::CommandName,
+        ) {
             if let (Some(name), Some(tok)) = (arg_texts.get(idx), arg_toks.get(idx)) {
                 record(self, name, tok, false);
             }
@@ -728,104 +781,17 @@ impl Analyser {
             base_offset,
             self.lexer_config(),
         );
-        // Phase 1: populate the `ClassDef` (methods, instance variables,
-        // superclasses, …) and collect each method body to walk afterwards.
-        // The walk is deferred so every class-level `variable` declaration is
-        // visible as a pre-bound local in *every* method body, regardless of
-        // source order.
-        let mut method_bodies: Vec<CollectedMethodBody> = Vec::new();
-        // `property -get`/`-set` accessor bodies — walked in a method scope
-        // seeded with the class variables.
-        let mut accessor_bodies: Vec<CollectedMethodBody> = Vec::new();
-        // `initialise`/`initialize { body }` — a class-level script, walked
-        // in a per-class scope of its own (see the walk below).
-        let mut init_bodies: Vec<CollectedMethodBody> = Vec::new();
-        for cmd in &cmds {
-            if cmd.is_partial || cmd.argv.is_empty() {
-                continue;
-            }
-            // `{*}` of a literal list is spliced by the *parser*, so the
-            // member's words are the list's elements — `method
-            // {*}{foo {} {return 1}}` really defines `foo` (tclsh 9.0.4 and
-            // 8.6.16 both run it).  Normalise those words before the
-            // grammar's fixed layout is read off them, or the member is one
-            // word long and gets dropped as malformed (issue #923 idx 53).
-            // A `{*}` over a *substituted* word (`{*}[info class definition
-            // …]`) has no statically-known element list, so it is left
-            // exactly as written and the member still abstains.
-            let spliced = splice_static_member_expansions(&self.source, cmd);
-            let (texts, argv) = spliced
-                .as_ref()
-                .map_or((cmd.texts.as_slice(), cmd.argv.as_slice()), |(t, a)| {
-                    (t.as_slice(), a.as_slice())
-                });
-            // A member keyword gated to a newer core — `classmethod`,
-            // `private`, `initialise`/`initialize`, `definitionnamespace`,
-            // and `property` are all 9.0+ — does not exist in this dialect's
-            // definition grammar.  Flag it with the same disabled-in-dialect
-            // diagnostic a command draws, then carry on recording it (see
-            // the emitter's doc for why reporting must not erase).
-            if let (Some(subcmd), Some(tok)) = (texts.first(), argv.first()) {
-                self.emit_w002_oo_member_disabled(grammar, subcmd, *tok, definer_disabled);
-            }
-            // …and when it does abstain, say so on the record: the member
-            // tables become a lower bound, not the class's whole surface
-            // (see [`ClassDef::member_set_incomplete`], issue #923 idx 53).
-            if self.member_declaration_is_opaque(grammar, cmd, texts) {
-                class_def.member_set_incomplete = true;
-                // The class surface stays a lower bound either way — this
-                // only ever adds names on top of that abstention when the
-                // opaque command turns out to be a literal loop installer
-                // (issue #1277).
-                self.record_loop_installed_members(grammar, cmd, class_def);
-            }
-            // A wrapper member's bare *script-block* form (`self { method m …
-            // }`, `private { … }`) declares exactly the members its block
-            // spells out — so rewrite each inner command into the equivalent
-            // prefix form (`self method m …`) and feed the one member walker
-            // below.  Which members take a block is registry data
-            // (`MemberKind::Wrapper` + `wrapper_block_body`), never a keyword
-            // matched here; `None` means "not a block form", i.e. the command
-            // stands for itself.
-            let expanded = expand_wrapper_block_members(
-                &self.source,
-                grammar,
-                texts,
-                argv,
-                self.lexer_config(),
-            );
-            let member_calls: Vec<(&[String], &[Token])> = expanded.as_ref().map_or_else(
-                || vec![(texts, argv)],
-                |inner| {
-                    inner
-                        .iter()
-                        .map(|(t, a)| (t.as_slice(), a.as_slice()))
-                        .collect()
-                },
-            );
-            for (texts, argv) in member_calls {
-                apply_oo_subcommand(grammar, texts, argv, class_def);
-                // A member argument that *names* a command — the class a
-                // `superclass`/`mixin` extends, the command a `forward`
-                // delegates to — is a first-class command reference.  Record it
-                // so references / go-to-definition / rename / call-hierarchy
-                // reach it the same as a direct call.  Which arguments name
-                // commands is registry data (the member grammar's
-                // `all_args_ref` / `ArgRole::CommandName`), never a member
-                // keyword the walker knows by name.
-                self.record_member_command_references(grammar, texts, argv, scope_path);
-                if let Some(mb) = collect_method_body(grammar, texts, argv) {
-                    method_bodies.push(mb);
-                }
-            }
-            collect_class_level_bodies(
-                grammar,
-                texts,
-                argv,
-                &mut accessor_bodies,
-                &mut init_bodies,
-            );
-        }
+        let CollectedDefinitionBodies {
+            methods: method_bodies,
+            accessors: accessor_bodies,
+            initialisers: init_bodies,
+        } = self.collect_oo_definition_members(
+            grammar,
+            &cmds,
+            class_def,
+            scope_path,
+            definer_disabled,
+        );
         // A bareword-callable-from-this-class fact, gathered before Phase 2
         // starts (so it's already populated by the time member-lookup
         // consumers — go-to-definition / hover — read `class_def`, and
@@ -871,6 +837,101 @@ impl Analyser {
                 oo_global,
             );
         }
+    }
+
+    /// Phase one of an OO definition-body walk: update its class facts and
+    /// retain body-bearing members for the later scope walk.
+    fn collect_oo_definition_members(
+        &mut self,
+        grammar: &DefinitionBodyGrammar,
+        cmds: &[crate::segmenter::SegmentedCommand],
+        class_def: &mut ClassDef,
+        scope_path: &[usize],
+        definer_disabled: bool,
+    ) -> CollectedDefinitionBodies {
+        let mut bodies = CollectedDefinitionBodies::default();
+        for cmd in cmds {
+            if !cmd.is_partial && !cmd.argv.is_empty() {
+                self.collect_oo_definition_member(
+                    grammar,
+                    cmd,
+                    class_def,
+                    scope_path,
+                    definer_disabled,
+                    &mut bodies,
+                );
+            }
+        }
+        bodies
+    }
+
+    /// Process one segmented OO definition member using only its registered
+    /// grammar, including wrapper expansion and profile-aware argument roles.
+    fn collect_oo_definition_member(
+        &mut self,
+        grammar: &DefinitionBodyGrammar,
+        cmd: &crate::segmenter::SegmentedCommand,
+        class_def: &mut ClassDef,
+        scope_path: &[usize],
+        definer_disabled: bool,
+        bodies: &mut CollectedDefinitionBodies,
+    ) {
+        let spliced = splice_static_member_expansions(&self.source, cmd);
+        let (texts, argv) = spliced.as_ref().map_or(
+            (cmd.texts.as_slice(), cmd.argv.as_slice()),
+            |(texts, argv)| (texts.as_slice(), argv.as_slice()),
+        );
+        if let (Some(subcmd), Some(token)) = (texts.first(), argv.first()) {
+            self.emit_w002_oo_member_disabled(grammar, subcmd, *token, definer_disabled);
+        }
+        if let Some(member) = texts.first().and_then(|subcmd| grammar.member(subcmd))
+            && self.emit_w002_oo_member_option_disabled(
+                member,
+                &texts[1..],
+                &argv[1..],
+                definer_disabled,
+            )
+        {
+            return;
+        }
+        if self.member_declaration_is_opaque(grammar, cmd, texts) {
+            class_def.member_set_incomplete = true;
+            self.record_loop_installed_members(grammar, cmd, class_def);
+        }
+        let expanded =
+            expand_wrapper_block_members(&self.source, grammar, texts, argv, self.lexer_config());
+        let member_calls: Vec<(&[String], &[Token])> = expanded.as_ref().map_or_else(
+            || vec![(texts, argv)],
+            |inner| {
+                inner
+                    .iter()
+                    .map(|(texts, argv)| (texts.as_slice(), argv.as_slice()))
+                    .collect()
+            },
+        );
+        for (texts, argv) in member_calls {
+            apply_oo_subcommand_in(
+                grammar,
+                texts,
+                argv,
+                class_def,
+                self.profile.availability_mask,
+            );
+            self.record_member_command_references(grammar, texts, argv, scope_path);
+            if let Some(method) =
+                collect_method_body(grammar, texts, argv, self.profile.availability_mask)
+            {
+                bodies.methods.push(method);
+            }
+        }
+        collect_class_level_bodies(
+            grammar,
+            texts,
+            argv,
+            self.profile.availability_mask,
+            &mut bodies.accessors,
+            &mut bodies.initialisers,
+        );
     }
 
     /// Walk one class-level `initialise` / `initialize` body in a scope
@@ -1309,7 +1370,7 @@ impl Analyser {
                 continue;
             }
             let Some(name) = member
-                .indices_for(ArgRole::VarWrite)
+                .indices_for_call_in(sub_args, self.profile.availability_mask, ArgRole::VarWrite)
                 .next()
                 .and_then(|i| sub_args.get(i))
             else {
@@ -1402,7 +1463,11 @@ impl Analyser {
         };
         // Only body-bearing members define a walkable method scope; pure
         // declarations (`variable` …) and option/delegate members carry none.
-        if member.indices_for(ArgRole::Body).next().is_none() {
+        if member
+            .indices_for_call_in(sub_args, self.profile.availability_mask, ArgRole::Body)
+            .next()
+            .is_none()
+        {
             return;
         }
         // Snit names every *type*-scoped member with a `type` prefix — the
@@ -1448,15 +1513,22 @@ impl Analyser {
             label,
             visibility,
         } = *form;
-        let Some(body_idx) = member.indices_for(ArgRole::Body).next() else {
+        let Some(body_idx) = member
+            .indices_for_call_in(args, self.profile.availability_mask, ArgRole::Body)
+            .next()
+        else {
             return;
         };
         let Some(body_text) = args.get(body_idx).cloned() else {
             return;
         };
         let body_tok = arg_tokens.get(body_idx).copied();
-        let name_idx = member.indices_for(ArgRole::Name).next();
-        let params_idx = member.indices_for(ArgRole::ParamList).next();
+        let name_idx = member
+            .indices_for_call_in(args, self.profile.availability_mask, ArgRole::Name)
+            .next();
+        let params_idx = member
+            .indices_for_call_in(args, self.profile.availability_mask, ArgRole::ParamList)
+            .next();
 
         // A named member (`method NAME …`) uses its name word; the nameless
         // forms fall back to the caller's synthetic label (`<constructor>`,
@@ -1476,7 +1548,8 @@ impl Analyser {
         let mut params: Vec<ParamDef> = params_idx
             .and_then(|i| args.get(i))
             .map_or_else(Vec::new, |p| parse_param_list(p));
-        for i in member.indices_for(ArgRole::VarWrite) {
+        for i in member.indices_for_call_in(args, self.profile.availability_mask, ArgRole::VarWrite)
+        {
             if let Some(v) = args.get(i) {
                 params.push(ParamDef {
                     name: v.clone(),
@@ -1689,7 +1762,10 @@ impl Analyser {
             // `ArgRole::Body` (that body is highlighted by the token walker, not
             // recorded as a method here).  `inherit` and the like carry no body.
             if matches!(kw, "variable" | "common")
-                || member.indices_for(ArgRole::Body).next().is_none()
+                || member
+                    .indices_for_call_in(kw_args, self.profile.availability_mask, ArgRole::Body)
+                    .next()
+                    .is_none()
             {
                 continue;
             }
@@ -1789,24 +1865,29 @@ impl Analyser {
     }
 }
 
-/// Walk an inline ``oo::define Class subcmd ...`` form,
-/// dispatching the same per-subcommand logic.
-///
-/// Reuses [`apply_oo_subcommand`] — the inline form differs
-/// from the body form only in how arguments are framed; the
-/// per-subcommand handling is identical.
-pub(super) fn parse_oo_define_inline(
+/// Walk an inline `oo::define Class subcmd ...` form using the selected
+/// dialect's member layout. A recognised member option from another dialect
+/// is not reinterpreted using the older positional layout.
+pub(super) fn parse_oo_define_inline_in(
     grammar: &DefinitionBodyGrammar,
     args: &[String],
     arg_tokens: &[Token],
     class_def: &mut ClassDef,
+    dialect: tcl_registry::dialects::DialectSet,
 ) {
     if args.is_empty() {
         return;
     }
+    if args
+        .first()
+        .and_then(|subcmd| grammar.member(subcmd))
+        .is_some_and(|member| member.unavailable_option_for(&args[1..], dialect).is_some())
+    {
+        return;
+    }
     // Synthesise a single fake "command" matching what the
     // body walker would have produced.
-    apply_oo_subcommand(grammar, args, arg_tokens, class_def);
+    apply_oo_subcommand_in(grammar, args, arg_tokens, class_def, dialect);
 }
 
 /// Depth cap for [`walk_unknown_stmt`]'s recursion over nested `if`/`for`/
@@ -1942,6 +2023,7 @@ fn collect_class_level_bodies(
     grammar: &DefinitionBodyGrammar,
     texts: &[String],
     argv: &[Token],
+    dialect: tcl_registry::dialects::DialectSet,
     accessor_bodies: &mut Vec<CollectedMethodBody>,
     init_bodies: &mut Vec<CollectedMethodBody>,
 ) {
@@ -1950,7 +2032,10 @@ fn collect_class_level_bodies(
         Some(kw @ ("initialise" | "initialize")) => {
             if let Some(body_idx) = grammar
                 .member(kw)
-                .and_then(|m| m.indices_for(ArgRole::Body).next())
+                .and_then(|m| {
+                    m.indices_for_call_in(&texts[1..], dialect, ArgRole::Body)
+                        .next()
+                })
                 .map(|i| i + 1)
                 && let (Some(body), Some(tok)) = (texts.get(body_idx), argv.get(body_idx).copied())
                 && tok.kind == TokenType::Str
@@ -2058,6 +2143,10 @@ fn expand_wrapper_block_members(
     if grammar.member(inner_first).is_some() {
         return None;
     }
+    // This is the wrapper's own fixed one-body layout, not an inner member
+    // layout. The recursively spliced member goes back through the
+    // profile-aware caller, so a Tcl 9 option cannot be accepted here under
+    // Tcl 8.6.
     // `+ 1` because a member's registry arg-role indices are relative to its
     // *arguments*, while `texts`/`argv` still carry the keyword at 0.
     let body_idx = member.indices_for(ArgRole::Body).next()? + 1;
@@ -2157,6 +2246,15 @@ struct CollectedMethodBody {
     class_side: bool,
 }
 
+/// Bodies collected from a definition grammar before their scopes can be
+/// walked with the complete class variable set.
+#[derive(Default)]
+struct CollectedDefinitionBodies {
+    methods: Vec<CollectedMethodBody>,
+    accessors: Vec<CollectedMethodBody>,
+    initialisers: Vec<CollectedMethodBody>,
+}
+
 /// Recognise a method-defining subcommand in a class body and return its body
 /// to walk in a fresh [`ScopeKind::Method`] scope.
 ///
@@ -2175,6 +2273,7 @@ fn collect_method_body(
     grammar: &DefinitionBodyGrammar,
     texts: &[String],
     argv: &[Token],
+    dialect: tcl_registry::dialects::DialectSet,
 ) -> Option<CollectedMethodBody> {
     // Unwrap a leading `self`/`private` modifier first (issue #923 idx
     // 120): its body would otherwise never be walked at all (no internal
@@ -2199,9 +2298,18 @@ fn collect_method_body(
     // class in a `classmethod`).
     let class_side = keyword == "classmethod" || modifier == "self";
     let member = grammar.member(keyword)?;
-    let body_idx = member.indices_for(ArgRole::Body).next()?;
-    let params_idx = member.indices_for(ArgRole::ParamList).next();
-    let name_idx = member.indices_for(ArgRole::Name).next();
+    if member.unavailable_option_for(texts, dialect).is_some() {
+        return None;
+    }
+    let body_idx = member
+        .indices_for_call_in(texts, dialect, ArgRole::Body)
+        .next()?;
+    let params_idx = member
+        .indices_for_call_in(texts, dialect, ArgRole::ParamList)
+        .next();
+    let name_idx = member
+        .indices_for_call_in(texts, dialect, ArgRole::Name)
+        .next();
 
     let body_text = texts.get(body_idx)?.clone();
     let body_tok = *argv.get(body_idx)?;
@@ -2229,6 +2337,7 @@ fn apply_oo_private(
     sub_args: &[String],
     sub_tokens: &[Token],
     class_def: &mut ClassDef,
+    dialect: tcl_registry::dialects::DialectSet,
 ) {
     if sub_args.is_empty() {
         return;
@@ -2243,6 +2352,9 @@ fn apply_oo_private(
     let Some(member) = grammar.member(inner_subcmd) else {
         return;
     };
+    if member.unavailable_option_for(inner_args, dialect).is_some() {
+        return;
+    }
     // `private deletemethod m` removes an instance-side member — `private`'s
     // own side — including one this same block just recorded; `private unexport
     // m` / `private { … export m … }` flip that same side, exactly as the
@@ -2260,21 +2372,32 @@ fn apply_oo_private(
     );
     match inner_subcmd {
         "method" => {
-            if let Some(md) =
-                extract_method_def(member, inner_args, inner_tokens, "method", "private", "")
-            {
+            if let Some(mut md) = extract_method_def_in(
+                member,
+                inner_args,
+                inner_tokens,
+                "method",
+                "private",
+                "",
+                dialect,
+            ) {
+                md.visibility =
+                    declared_member_visibility(member, inner_args, "private".to_string(), dialect);
                 class_def.methods.insert(md.name.clone(), md);
             }
         }
         "classmethod" => {
-            if let Some(md) = extract_method_def(
+            if let Some(mut md) = extract_method_def_in(
                 member,
                 inner_args,
                 inner_tokens,
                 "classmethod",
                 "private",
                 "",
+                dialect,
             ) {
+                md.visibility =
+                    declared_member_visibility(member, inner_args, "private".to_string(), dialect);
                 class_def.class_methods.insert(md.name.clone(), md);
             }
         }
@@ -2600,6 +2723,7 @@ fn apply_oo_self(
     sub_args: &[String],
     sub_tokens: &[Token],
     class_def: &mut ClassDef,
+    dialect: tcl_registry::dialects::DialectSet,
 ) {
     if sub_args.is_empty() {
         return;
@@ -2614,6 +2738,9 @@ fn apply_oo_self(
     let Some(member) = grammar.member(inner_subcmd) else {
         return;
     };
+    if member.unavailable_option_for(inner_args, dialect).is_some() {
+        return;
+    }
     // Every effect this word has on the members it names lands on the
     // class-object side — the wrapper's own — and nowhere else. `self
     // deletemethod m` / `self renamemethod old new` remove (or move) class-side
@@ -2652,15 +2779,21 @@ fn apply_oo_self(
     if !matches!(inner_subcmd, "method" | "classmethod") {
         return;
     }
-    if let Some(mut md) = extract_method_def(
+    if let Some(mut md) = extract_method_def_in(
         member,
         inner_args,
         inner_tokens,
         "classmethod",
         "public",
         "",
+        dialect,
     ) {
-        md.visibility = default_visibility(grammar, &md.name);
+        md.visibility = declared_member_visibility(
+            member,
+            inner_args,
+            default_visibility(grammar, &md.name),
+            dialect,
+        );
         md.is_self_method = true;
         class_def.class_methods.insert(md.name.clone(), md);
     }
@@ -2674,6 +2807,20 @@ fn default_visibility(grammar: &DefinitionBodyGrammar, name: &str) -> String {
     } else {
         "unexported".to_string()
     }
+}
+
+/// The visibility of a newly-declared member, selected by its grammar's
+/// optional declaration argument when present and otherwise by the caller's
+/// family/wrapper default. No caller needs to parse a member-specific flag.
+fn declared_member_visibility(
+    member: &MemberSpec,
+    args: &[String],
+    fallback: String,
+    dialect: tcl_registry::dialects::DialectSet,
+) -> String {
+    member
+        .declared_visibility_for_in(args, dialect)
+        .map_or(fallback, |visibility| visibility.as_str().to_string())
 }
 
 /// Set the recorded visibility of each named member on `side` only to
@@ -2714,7 +2861,7 @@ fn apply_oo_forward(
     if let Some(name) = sub_args.first() {
         let span = sub_tokens
             .first()
-            .map_or_else(|| tcl_lexer::Span::new(0, 0), |t| t.span);
+            .map_or(tcl_lexer::Span::new(0, 0), |token| token.span);
         let forward_target = sub_args
             .get(1)
             .map(|target| (target.clone(), sub_args.get(2..).unwrap_or(&[]).to_vec()));
@@ -2749,25 +2896,53 @@ fn apply_oo_ctor_or_dtor(
     sub_tokens: &[Token],
     argv: &[Token],
     kind: &str,
+    dialect: tcl_registry::dialects::DialectSet,
 ) -> Option<MethodDef> {
     let synthetic_id = if kind == "constructor" {
         "<constructor>"
     } else {
         "<destructor>"
     };
-    let mut md = member
-        .and_then(|m| extract_method_def(m, sub_args, sub_tokens, kind, "public", synthetic_id))?;
+    let mut md = member.and_then(|m| {
+        extract_method_def_in(
+            m,
+            sub_args,
+            sub_tokens,
+            kind,
+            "public",
+            synthetic_id,
+            dialect,
+        )
+    })?;
     if let Some(kw) = argv.first() {
         md.name_span = kw.span;
     }
     Some(md)
 }
 
+#[cfg(test)]
 pub(super) fn apply_oo_subcommand(
     grammar: &DefinitionBodyGrammar,
     texts: &[String],
     argv: &[Token],
     class_def: &mut ClassDef,
+) {
+    apply_oo_subcommand_in(
+        grammar,
+        texts,
+        argv,
+        class_def,
+        tcl_registry::dialects::DialectSet::all(),
+    );
+}
+
+/// Apply one registry member using the selected dialect's concrete layout.
+pub(super) fn apply_oo_subcommand_in(
+    grammar: &DefinitionBodyGrammar,
+    texts: &[String],
+    argv: &[Token],
+    class_def: &mut ClassDef,
+    dialect: tcl_registry::dialects::DialectSet,
 ) {
     let Some(subcmd) = texts.first().map(String::as_str) else {
         return;
@@ -2777,6 +2952,9 @@ pub(super) fn apply_oo_subcommand(
     // The member's argument layout (name / params / body positions) comes from
     // its registry grammar spec; field routing below stays analyser-local.
     let member = grammar.member(subcmd);
+    if member.is_some_and(|member| member.unavailable_option_for(sub_args, dialect).is_some()) {
+        return;
+    }
 
     // A member word that *removes* the members it names — `deletemethod m`,
     // `renamemethod old new` — written with no `self` / `private` wrapper acts
@@ -2835,35 +3013,57 @@ pub(super) fn apply_oo_subcommand(
             apply_slot_member(member, sub_args, &mut class_def.mixins);
         }
         "method" => {
-            if let Some(mut md) = member
-                .and_then(|m| extract_method_def(m, sub_args, sub_tokens, "method", "public", ""))
-            {
+            if let Some((member, mut md)) = member.and_then(|member| {
+                extract_method_def_in(
+                    member, sub_args, sub_tokens, "method", "public", "", dialect,
+                )
+                .map(|method| (member, method))
+            }) {
                 // A method (re)definition applies the family's name-based
                 // default export state, discarding any earlier explicit
                 // `export`/`unexport` of the name (tclsh 9.0.4-pinned; the
                 // rule itself is registry data — `[a-z]*` for TclOO).
-                md.visibility = default_visibility(grammar, &md.name);
+                md.visibility = declared_member_visibility(
+                    member,
+                    sub_args,
+                    default_visibility(grammar, &md.name),
+                    dialect,
+                );
                 class_def.methods.insert(md.name.clone(), md);
             }
         }
         "classmethod" => {
-            if let Some(mut md) = member.and_then(|m| {
-                extract_method_def(m, sub_args, sub_tokens, "classmethod", "public", "")
+            if let Some((member, mut md)) = member.and_then(|member| {
+                extract_method_def_in(
+                    member,
+                    sub_args,
+                    sub_tokens,
+                    "classmethod",
+                    "public",
+                    "",
+                    dialect,
+                )
+                .map(|method| (member, method))
             }) {
-                md.visibility = default_visibility(grammar, &md.name);
+                md.visibility = declared_member_visibility(
+                    member,
+                    sub_args,
+                    default_visibility(grammar, &md.name),
+                    dialect,
+                );
                 class_def.class_methods.insert(md.name.clone(), md);
             }
         }
         "constructor" => {
             if let Some(md) =
-                apply_oo_ctor_or_dtor(member, sub_args, sub_tokens, argv, "constructor")
+                apply_oo_ctor_or_dtor(member, sub_args, sub_tokens, argv, "constructor", dialect)
             {
                 class_def.constructors.push(md);
             }
         }
         "destructor" => {
             if let Some(md) =
-                apply_oo_ctor_or_dtor(member, sub_args, sub_tokens, argv, "destructor")
+                apply_oo_ctor_or_dtor(member, sub_args, sub_tokens, argv, "destructor", dialect)
             {
                 class_def.destructor = Some(md);
             }
@@ -2892,8 +3092,8 @@ pub(super) fn apply_oo_subcommand(
             extract_property_defs(sub_args, sub_tokens, class_def);
         }
         "forward" => apply_oo_forward(grammar, sub_args, sub_tokens, class_def),
-        "private" => apply_oo_private(grammar, sub_args, sub_tokens, class_def),
-        "self" => apply_oo_self(grammar, sub_args, sub_tokens, class_def),
+        "private" => apply_oo_private(grammar, sub_args, sub_tokens, class_def, dialect),
+        "self" => apply_oo_self(grammar, sub_args, sub_tokens, class_def, dialect),
         // No `ClassDef` mutation here for the remaining subcommands.
         // ``initialise`` / ``initialize`` are class-level initialisation
         // scripts whose bodies are collected and walked separately in
@@ -3014,6 +3214,7 @@ fn collect_property_accessor_bodies(
 ///
 /// Returns `None` when the argument count is too short (no body word) to match
 /// the member's shape.
+#[cfg(test)]
 fn extract_method_def(
     member: &MemberSpec,
     args: &[String],
@@ -3022,12 +3223,38 @@ fn extract_method_def(
     visibility: &str,
     synthetic_name: &str,
 ) -> Option<MethodDef> {
+    extract_method_def_in(
+        member,
+        args,
+        arg_tokens,
+        kind,
+        visibility,
+        synthetic_name,
+        tcl_registry::dialects::DialectSet::all(),
+    )
+}
+
+fn extract_method_def_in(
+    member: &MemberSpec,
+    args: &[String],
+    arg_tokens: &[Token],
+    kind: &str,
+    visibility: &str,
+    synthetic_name: &str,
+    dialect: tcl_registry::dialects::DialectSet,
+) -> Option<MethodDef> {
     let zero = tcl_lexer::Span::new(0, 0);
-    let body_idx = member.indices_for(ArgRole::Body).next()?;
+    let body_idx = member
+        .indices_for_call_in(args, dialect, ArgRole::Body)
+        .next()?;
     // A body word must be present for the member to be well-formed.
     args.get(body_idx)?;
-    let name_idx = member.indices_for(ArgRole::Name).next();
-    let params_idx = member.indices_for(ArgRole::ParamList).next();
+    let name_idx = member
+        .indices_for_call_in(args, dialect, ArgRole::Name)
+        .next();
+    let params_idx = member
+        .indices_for_call_in(args, dialect, ArgRole::ParamList)
+        .next();
 
     let name = name_idx
         .and_then(|i| args.get(i))
@@ -3279,6 +3506,59 @@ mod tests {
         let md = &cd.methods["greet"];
         assert_eq!(md.kind, "method");
         assert_eq!(md.visibility, "public");
+    }
+
+    /// Tcl 9's declaration flag sits between a method name and parameter list.
+    /// The analyser receives only the generic registry layout and its selected
+    /// visibility—not a command-specific option parser.
+    #[test]
+    fn method_visibility_option_shifts_params_and_sets_visibility() {
+        let mut cd = class();
+        let texts: Vec<String> = ["method", "internal", "-private", "arg", "puts $arg"]
+            .iter()
+            .map(|s| (*s).to_string())
+            .collect();
+        let argv = [
+            tok((0, 6)),
+            tok((7, 15)),
+            tok((16, 24)),
+            tok((25, 28)),
+            str_tok((29, 38)),
+        ];
+        apply_oo_subcommand(tcloo(), &texts, &argv, &mut cd);
+        let method = cd.methods.get("internal").expect("method recorded");
+        assert_eq!(method.visibility, "private");
+        assert_eq!(method.params[0].name, "arg");
+        assert_eq!(method.body_span, tcl_lexer::Span::new(29, 38));
+    }
+
+    #[test]
+    fn method_visibility_option_is_profile_gated_without_old_layout_reinterpretation() {
+        let src = "oo::class create C { method internal -private {} { return ok } }";
+        let mut analyser = Analyser::new();
+        let tcl86 = analyser.analyse(src, "tcl8.6").clone();
+        assert!(
+            tcl86
+                .diagnostics
+                .iter()
+                .any(|diagnostic| diagnostic.code.as_str() == "W002"),
+            "Tcl 8.6 must diagnose the Tcl 9 method option: {:?}",
+            tcl86.diagnostics
+        );
+        assert!(
+            tcl86
+                .all_classes
+                .get("::C")
+                .is_none_or(|class| !class.methods.contains_key("internal")),
+            "the invalid Tcl 8.6 member must not be reinterpreted using a shifted layout"
+        );
+
+        let mut analyser = Analyser::new();
+        let tcl90 = analyser.analyse(src, "tcl9.0").clone();
+        assert_eq!(
+            tcl90.all_classes["::C"].methods["internal"].visibility,
+            "private"
+        );
     }
 
     #[test]

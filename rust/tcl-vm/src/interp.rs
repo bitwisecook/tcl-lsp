@@ -3140,11 +3140,16 @@ impl Vm {
             .push(VarTrace { ops, command });
     }
 
-    /// Remove a `trace remove variable` callback matching `ops` + `command`.
+    /// Remove one `trace remove variable` callback matching `ops` + `command`.
     pub(crate) fn remove_var_trace(&mut self, name: &str, ops: &[String], command: &str) {
         let key = self.trace_key(name);
         if let Some(list) = self.var_traces.get_mut(&key) {
-            list.retain(|t| !(t.ops == ops && t.command == command));
+            if let Some(index) = list
+                .iter()
+                .position(|t| t.ops == ops && t.command == command)
+            {
+                list.remove(index);
+            }
             if list.is_empty() {
                 self.var_traces.remove(&key);
             }
@@ -3185,17 +3190,16 @@ impl Vm {
         ok(Value::empty())
     }
 
-    /// Remove a command/execution trace matching `ops` + `callback` (a silent
-    /// no-op when nothing matches, like variable traces).
+    /// Remove one command/execution trace matching `ops` + `callback`.
     pub(crate) fn remove_cmd_trace(
         &mut self,
         execution: bool,
         name: &str,
         ops: &[String],
         callback: &str,
-    ) {
+    ) -> Completion<Value> {
         let Some(key) = self.resolve_command_fqn(self.current_ns(), name) else {
-            return;
+            return err(format!("unknown command \"{name}\""));
         };
         let is_step = is_step_capable(ops);
         let table = if execution {
@@ -3204,7 +3208,12 @@ impl Vm {
             &mut self.cmd_traces
         };
         if let Some(list) = table.get_mut(&key) {
-            list.retain(|t| !(t.ops == ops && t.callback == callback));
+            if let Some(index) = list
+                .iter()
+                .position(|t| t.ops == ops && t.callback == callback)
+            {
+                list.remove(index);
+            }
             if list.is_empty() {
                 table.remove(&key);
             }
@@ -3215,6 +3224,7 @@ impl Vm {
         if execution && is_step {
             self.bump_trace_deopt_epoch();
         }
+        ok(Value::empty())
     }
 
     /// The `{ops callback}` pairs registered on command `name` (newest first),
@@ -3982,6 +3992,9 @@ impl Vm {
                     Some(Local::Array(m)) => {
                         m.insert(key, value);
                     }
+                    Some(Local::Undefined) => {
+                        f.locals.insert(bnm, Local::Scalar(value));
+                    }
                     Some(_) => {}
                     None => {
                         let mut m = BTreeMap::new();
@@ -4160,6 +4173,9 @@ impl Vm {
                     Some(Local::Array(m)) => {
                         m.insert(key, value);
                     }
+                    Some(Local::Undefined) => {
+                        f.locals.insert(bnm, Local::Scalar(value));
+                    }
                     Some(_) => {}
                     None => {
                         let mut m = BTreeMap::new();
@@ -4245,14 +4261,54 @@ impl Vm {
         if let Some(f) = self.frames.get_mut(lvl) {
             match f.locals.get(&nm) {
                 Some(Local::Array(_) | Local::Link { .. }) => {}
+                Some(Local::Undefined) | None => {
+                    f.locals.insert(nm, Local::Array(BTreeMap::new()));
+                }
                 Some(Local::Scalar(_)) => {
                     return Err(err(format!(
                         "can't array set \"{name}\": variable isn't array"
                     )));
                 }
-                None => {
-                    f.locals.insert(nm, Local::Array(BTreeMap::new()));
-                }
+            }
+        }
+        Ok(())
+    }
+
+    /// Materialise the unresolved variable cell used by `trace add variable`.
+    /// This is deliberately not a write: Tcl keeps the cell unset, so `info
+    /// exists` remains false until the caller actually stores a value.
+    pub(crate) fn ensure_trace_variable(&mut self, name: &str) -> Result<(), Completion<Value>> {
+        if let Some((base, _)) = elem_ref(name) {
+            let base = self.trace_qualify(base);
+            self.ensure_trace_namespace(name, &base)?;
+            return self
+                .ensure_array(&base)
+                .map_err(|_| err(format!("can't trace \"{name}\": variable isn't array")));
+        }
+        let lookup = self.trace_qualify(name);
+        self.ensure_trace_namespace(name, &lookup)?;
+        let (lvl, nm) = self.locate(&lookup);
+        if let Some(frame) = self.frames.get_mut(lvl)
+            && !frame.locals.contains_key(&nm)
+        {
+            frame.locals.insert(nm, Local::Undefined);
+        }
+        Ok(())
+    }
+
+    fn ensure_trace_namespace(
+        &self,
+        written_name: &str,
+        resolved_name: &str,
+    ) -> Result<(), Completion<Value>> {
+        if resolved_name.contains("::") {
+            let namespace = canonical_ns_name(str_slice(tcl_cmd_core::namespace::qualifiers(
+                resolved_name.as_bytes(),
+            )));
+            if !self.namespace_exists(&namespace) {
+                return Err(err(format!(
+                    "can't trace \"{written_name}\": parent namespace doesn't exist"
+                )));
             }
         }
         Ok(())
@@ -4353,13 +4409,13 @@ impl Vm {
             Some(Local::Scalar(_)) => Err(err(format!(
                 "can't set \"{name}({key})\": variable isn't array"
             ))),
-            Some(Local::Link { .. }) => unreachable!("locate resolves links"),
-            None => {
+            Some(Local::Undefined) | None => {
                 let mut m = BTreeMap::new();
                 m.insert(key.to_owned(), value);
                 frame.locals.insert(nm, Local::Array(m));
                 Ok(())
             }
+            Some(Local::Link { .. }) => unreachable!("locate resolves links"),
         }
     }
 

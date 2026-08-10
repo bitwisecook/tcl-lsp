@@ -34,6 +34,10 @@ use crate::var_scoping::{
     global_declaration_indices, looks_like_level, upvar_local_declaration_indices,
     variable_declaration_indices,
 };
+use tcl_registry::{
+    ArgRole, CallerFrameSelection, InvocationFacts, OwnedSubcommandResolution, StateTransition,
+    VariableAliasTarget,
+};
 
 /// True if any word in *tokens* is `{*}`-expanded.
 #[must_use]
@@ -41,6 +45,115 @@ pub fn has_expand_word(tokens: Option<&CommandTokens>) -> bool {
     tokens
         .and_then(|t| t.expand_word.as_ref())
         .is_some_and(|ew| ew.iter().any(|&e| e))
+}
+
+/// Apply every variable-cell alias declared by the registry invocation.
+/// Returns whether at least one alias transition was present.
+pub fn handle_variable_aliases(facts: &InvocationFacts, state: &mut EscapeState) -> bool {
+    let Some(transitions) = facts.state_transitions.declared() else {
+        return false;
+    };
+    let mut handled = false;
+    for fact in transitions.facts() {
+        let StateTransition::VariableCellAlias(alias) = &fact.transition else {
+            continue;
+        };
+        handled = true;
+        let Some(local) = alias.local.literal() else {
+            state.escape_all_known();
+            continue;
+        };
+        state.escape_with_reason(
+            local,
+            EscapeReason::with_detail(
+                EscapeReasonKind::UpvarSource,
+                format!("{} aliases {local}", facts.canonical_command),
+            ),
+        );
+        let VariableAliasTarget::CallerSelectedFrame { frame, variable } = &alias.target else {
+            continue;
+        };
+        let targets_caller = match frame {
+            CallerFrameSelection::DefaultCaller => true,
+            CallerFrameSelection::Explicit(level) => {
+                let Some(level) = level.literal() else {
+                    state.record_barrier(Barrier::with_detail(
+                        BarrierKind::Upvar,
+                        format!("{} has dynamic frame selection", facts.canonical_command),
+                    ));
+                    state.record_unbounded_upvar();
+                    continue;
+                };
+                tcl_registry::frame_effect::FrameLevel::parse(level)
+                    .is_none_or(|level| !level.is_current_frame() && !level.is_global_frame())
+            }
+        };
+        if targets_caller {
+            if let Some(variable) = variable.literal() {
+                state.record_upvar_source(variable);
+            } else {
+                state.record_unbounded_upvar();
+            }
+        }
+    }
+    handled
+}
+
+/// Apply registry-declared variable-name and current-frame introspection.
+pub fn handle_introspection(facts: &InvocationFacts, args: &[String], state: &mut EscapeState) {
+    if facts
+        .traits
+        .contains(tcl_registry::prelude::Traits::CURRENT_FRAME_INTROSPECTION)
+        || matches!(
+            &facts.subcommand,
+            OwnedSubcommandResolution::Indeterminate { .. }
+        )
+    {
+        let detail = facts.subcommand.canonical_name().map_or_else(
+            || {
+                format!(
+                    "{} performs indeterminate frame introspection",
+                    facts.canonical_command
+                )
+            },
+            |subcommand| format!("{} {subcommand}", facts.canonical_command),
+        );
+        state.record_barrier(Barrier::with_detail(BarrierKind::Info, detail));
+        return;
+    }
+    if !facts
+        .traits
+        .contains(tcl_registry::prelude::Traits::INTROSPECTS_BY_NAME)
+    {
+        return;
+    }
+    for (index, role) in &facts.arg_roles {
+        if !matches!(role, ArgRole::VarRead | ArgRole::VarWrite) {
+            continue;
+        }
+        let Some(target) = args.get(facts.argument_offset + usize::from(*index)) else {
+            continue;
+        };
+        if is_dynamic_token(target) {
+            state.escape_all_known();
+        } else if facts.operation
+            == tcl_registry::SemanticOperationId::Intrinsic(tcl_registry::IntrinsicId::InfoExists)
+        {
+            state.escape_with_reason(
+                target,
+                EscapeReason::with_detail(
+                    EscapeReasonKind::InfoExists,
+                    format!(
+                        "{} {} {target}",
+                        facts.canonical_command,
+                        facts.subcommand.canonical_name().unwrap_or("<subcommand>")
+                    ),
+                ),
+            );
+        } else {
+            state.escape(target);
+        }
+    }
 }
 
 /// Detect the `upvar ?level? src dst ...` shape and apply escape
