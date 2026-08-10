@@ -1026,6 +1026,7 @@ mod tests {
         unsafe { tcl_obj_new_string(s.as_ptr(), s.len() as i32) }
     }
 
+    #[cfg(have_tommath)]
     unsafe fn owned_str(s: &[u8]) -> *mut TclObj {
         // SAFETY: `s` is a valid readable slice.
         unsafe { tcl_value_new_string(s.as_ptr(), s.len() as i32) }
@@ -1081,6 +1082,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(have_tommath)]
     fn compiled_slots_and_named_access_share_one_cell() {
         leak_free(|| unsafe {
             let interp = tcl_runtime_create_interp();
@@ -1141,6 +1143,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(have_tommath)]
     fn nested_add_propagates_the_inner_arithmetic_error() {
         leak_free(|| unsafe {
             let interp = tcl_runtime_create_interp();
