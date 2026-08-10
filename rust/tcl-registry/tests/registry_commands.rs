@@ -3123,6 +3123,7 @@ fn builtin_object_methods_are_reach_gated() {
             "{what} constructs through its own type command, never `new`"
         );
     }
+}
 
 #[test]
 fn irules_payload_lifecycle_inventory_is_registry_complete() {

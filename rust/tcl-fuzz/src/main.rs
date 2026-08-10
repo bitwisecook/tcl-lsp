@@ -361,9 +361,10 @@ fn run_campaign(
         }
     };
     let describe = |version: &Option<version::EngineVersion>| {
-        version
-            .as_ref()
-            .map_or_else(|| "unknown".to_owned(), |version| version.patchlevel.clone())
+        version.as_ref().map_or_else(
+            || "unknown".to_owned(),
+            |version| version.patchlevel.clone(),
+        )
     };
     eprintln!(
         "  versions: reference Tcl {} | subject Tcl {}",
