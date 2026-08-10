@@ -831,7 +831,6 @@ impl Analyser {
             );
             let resolved = self.resolve_command_qualified_name(&head, scope_path);
             let arg_count = call_arg_count(args, arg_expand_in);
-            let resolved_cmd = resolved.clone();
             // A folded head resolves to a real command, but its span is not
             // the written name — `${ns}::setdef` spells only the tail — so it
             // is a *reference*, never a rename target: overwriting the span
@@ -859,7 +858,8 @@ impl Analyser {
                 crate::signature_scan::types::SignatureCommandInvocation {
                     name: cmd_name.to_string(),
                     range: cmd_tok.span,
-                    resolved_qualified_name: Some(resolved),
+                    resolved_qualified_name: Some(resolved.clone()),
+                    resolved_user_definition: false,
                     resolution_candidates: folded_candidates,
                     argc: arg_count,
                     callback_arity: None,
@@ -871,7 +871,6 @@ impl Analyser {
                     ensemble_dispatch: None,
                 },
             );
-
             // `<ensemble> <subcommand> …` — record an additional, existence
             // -probed `CommandInvocation` for the subcommand word so
             // references, rename, call-hierarchy, and go-to-definition see
@@ -879,7 +878,7 @@ impl Analyser {
             // `-subcommands` mapping the same way they already see through
             // an `interp alias` (issue #923 idx 106).
             self.record_ensemble_subcommand_invocation(
-                &resolved_cmd,
+                &resolved,
                 args,
                 arg_tokens_in,
                 arg_expand_in,
@@ -1015,6 +1014,7 @@ impl Analyser {
                 name: target_name.clone(),
                 range: target_tok.span,
                 resolved_qualified_name: Some(resolved),
+                resolved_user_definition: false,
                 resolution_candidates: Vec::new(),
                 // iRules `call PROC ...` indirection — arity not
                 // cross-file-checked here; skip conservatively.
@@ -2194,6 +2194,7 @@ impl Analyser {
                     name: inv.head,
                     range: inv.span,
                     resolved_qualified_name: Some(resolved),
+                    resolved_user_definition: false,
                     resolution_candidates: Vec::new(),
                     // The legacy direct-call arity path always skips a
                     // callback head (`None`); the callback-arity check reads
@@ -2248,6 +2249,7 @@ impl Analyser {
                 name: written,
                 range: span,
                 resolved_qualified_name: Some(resolved),
+                resolved_user_definition: false,
                 resolution_candidates: Vec::new(),
                 argc,
                 callback_arity: None,
@@ -2286,6 +2288,7 @@ impl Analyser {
                 name: written,
                 range: span,
                 resolved_qualified_name: Some(entry.target.clone()),
+                resolved_user_definition: false,
                 resolution_candidates: Vec::new(),
                 argc,
                 callback_arity: None,
@@ -2318,6 +2321,7 @@ impl Analyser {
                 name: written,
                 range: span,
                 resolved_qualified_name: Some(resolved),
+                resolved_user_definition: false,
                 resolution_candidates: Vec::new(),
                 argc,
                 callback_arity: None,
@@ -3366,6 +3370,7 @@ impl Analyser {
                     name,
                     range,
                     resolved_qualified_name: Some(resolved),
+                    resolved_user_definition: false,
                     resolution_candidates: Vec::new(),
                     argc,
                     callback_arity,
@@ -3417,6 +3422,7 @@ impl Analyser {
                     name,
                     range: tcl_lexer::Span::new(abs_start, abs_end),
                     resolved_qualified_name: Some(resolved),
+                    resolved_user_definition: false,
                     resolution_candidates: Vec::new(),
                     // Nested `[cmd ...]` head, no recorded argument list — arity skip.
                     argc: None,

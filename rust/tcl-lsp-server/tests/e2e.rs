@@ -85,6 +85,11 @@ mod issue1329_self_dispatch_w308;
 mod issue1333_diagnostic_tags;
 #[path = "e2e/issue1345_transport_liveness.rs"]
 mod issue1345_transport_liveness;
+
+/// Issues #1331 / #1332 — cross-file command resolution in the diagnostics
+/// path, and the facts a `source`d file contributes.
+#[path = "e2e/issue1331_crossfile_diagnostics.rs"]
+mod issue1331_crossfile_diagnostics;
 #[path = "e2e/issue923_class_refs.rs"]
 mod issue923_class_refs;
 #[path = "e2e/issue923_crossdoc.rs"]

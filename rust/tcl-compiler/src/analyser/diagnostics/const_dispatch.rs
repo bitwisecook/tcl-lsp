@@ -81,6 +81,21 @@ fn command_component(c: &ValueContributor, head_expanded: bool) -> Option<ValueC
     })
 }
 
+/// Whether a proc/class definition is live at this dispatch site's execution
+/// position, excluding aliases and rename targets.
+fn user_definition_live(analyser: &Analyser, qualified: &str, call_off: u32) -> bool {
+    analyser
+        .result
+        .all_procs
+        .get(qualified)
+        .is_some_and(|p| analyser.fact_live_for_call(qualified, p.name_span.start(), call_off))
+        || analyser
+            .result
+            .all_classes
+            .get(qualified)
+            .is_some_and(|c| analyser.fact_live_for_call(qualified, c.name_span.start(), call_off))
+}
+
 /// Settle one pending dispatch site against `cu`'s flow-sensitive value
 /// model, appending its settled invocations to `settled`.  Extracted from
 /// [`Analyser::settle_const_dispatches`] to keep that function within the
@@ -116,23 +131,20 @@ fn settle_one_site(
     // command (issue #1009, the same question `unresolved.rs`'s W123
     // pass already answers for ordinary bareword calls via
     // `fact_live_for_call`, reused here rather than reimplemented).
-    let user_defined =
-        |qualified: &str| {
-            result.all_procs.get(qualified).is_some_and(|p| {
-                analyser.fact_live_for_call(qualified, p.name_span.start(), call_off)
-            }) || result.all_classes.get(qualified).is_some_and(|c| {
-                analyser.fact_live_for_call(qualified, c.name_span.start(), call_off)
-            }) || (result.command_aliases.contains_key(qualified)
+    let user_definition = |qualified: &str| user_definition_live(analyser, qualified, call_off);
+    let user_defined = |qualified: &str| {
+        user_definition(qualified)
+            || (result.command_aliases.contains_key(qualified)
                 && analyser
                     .alias_offsets
                     .get(qualified)
                     .is_some_and(|&off| analyser.fact_live_for_call(qualified, off, call_off)))
-                || (analyser.renamed_commands.contains_key(qualified)
-                    && analyser
-                        .rename_offsets
-                        .get(qualified)
-                        .is_some_and(|&off| analyser.fact_live_for_call(qualified, off, call_off)))
-        };
+            || (analyser.renamed_commands.contains_key(qualified)
+                && analyser
+                    .rename_offsets
+                    .get(qualified)
+                    .is_some_and(|&off| analyser.fact_live_for_call(qualified, off, call_off)))
+    };
     let known = |qualified: &str| {
         user_defined(qualified)
             || (builtins.contains(qualified.trim_start_matches(':'))
@@ -181,6 +193,7 @@ fn settle_one_site(
             name: written.clone(),
             range: site.span,
             resolved_qualified_name: Some(winner.clone()),
+            resolved_user_definition: user_definition(&winner),
             resolution_candidates: crate::naming::command_resolution_candidates(
                 &site.ns, path, written,
             ),
@@ -199,6 +212,7 @@ fn settle_one_site(
                 name: c.value.clone(),
                 range: span,
                 resolved_qualified_name: Some(winner.clone()),
+                resolved_user_definition: user_definition(&winner),
                 resolution_candidates: crate::naming::command_resolution_candidates(
                     &site.ns, path, &c.value,
                 ),

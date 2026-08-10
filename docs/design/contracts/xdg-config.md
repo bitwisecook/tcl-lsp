@@ -165,7 +165,7 @@ Toggle individual LSP features.  All default to `true`.
 | `callHierarchy` | Call hierarchy |
 | `documentLinks` | Document links |
 | `selectionRange` | Smart selection |
-| `crossFileResolution` | Cross-file W120/W123 suppression and cross-file E002/E003 arity — off by default (independent of `[xcDiagnostics]`, which is F5 XC Migration-specific). A workspace-injected `::tcl::mathfunc` override resolves without it: that namespace is one table per interpreter, so the suppression is a language fact, not a cross-file inference |
+| `crossFileResolution` | Broader, bare-name workspace W123 inference — off by default (independent of `[xcDiagnostics]`, which is F5 XC Migration-specific). Exact C Tcl command candidates, including their cross-file E002/E003 arity checks, resolve without it; the opt-in setting only adds a deliberately lossier fallback. A workspace-injected `::tcl::mathfunc` override also resolves without it: that namespace is one table per interpreter, so the suppression is a language fact, not a cross-file inference |
 
 ### `[formatting]`
 

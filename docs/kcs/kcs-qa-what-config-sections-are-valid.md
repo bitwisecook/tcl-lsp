@@ -112,14 +112,14 @@ A few of these (notably `pullDiagnostics`) only take effect after a
 server restart because they change which LSP handlers are
 registered.
 
-`crossFileResolution` (default off) resolves diagnostics across the
-whole workspace: it suppresses "unknown command"
-([W120](codes/kcs-diagnostic-w120-missing-package-require.md)/W123)
-for a proc defined in another file, and reports cross-file
-wrong-argument-count errors (E002/E003). It scans every workspace
-file, so it is opt-in for performance. It is independent of
-`[xcDiagnostics]` above — that section is F5 XC Migration-specific
-and has no effect on plain Tcl projects.
+`crossFileResolution` (default off) enables the broader, bare-name
+workspace inference for W123. Exact cross-file command candidates are already
+resolved by default, using the same C Tcl lookup order as navigation, and can
+therefore also report cross-file E002/E003 arity errors. Enable this setting
+only when your workspace is intentionally one program and you want a bare
+name to match a definition in another namespace. It is independent of
+`[xcDiagnostics]` above — that section is F5 XC Migration-specific and has no
+effect on plain Tcl projects.
 
 ### `[formatting]`
 

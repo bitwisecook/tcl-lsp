@@ -473,6 +473,18 @@ pub struct SignatureCommandInvocation {
     /// (which skip the scope walk); `Some("::ns::name")` from
     /// the full analyser.
     pub resolved_qualified_name: Option<String>,
+    /// `true` when [`Self::resolved_qualified_name`] was proved, for this
+    /// call's own execution position, to be a proc or class definition in the
+    /// analysed document.  This is deliberately narrower than "known": a
+    /// registry builtin or command-name link has no direct declaration for a
+    /// references consumer to attach to.
+    ///
+    /// The distinction matters after a later load-level `rename NAME {}`:
+    /// the document's final command table no longer contains `NAME`, but a
+    /// body that was provably invoked before the deletion still called that
+    /// definition.  Workspace indexing carries this per-site fact instead of
+    /// trying to reconstruct execution order from the final live-name set.
+    pub resolved_user_definition: bool,
     /// The full ordered command-resolution candidate list for this call —
     /// every qualified name it could name, in Tcl priority order (caller
     /// namespace, then each `namespace path` entry, then global), as produced
