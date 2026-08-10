@@ -922,6 +922,26 @@ fn context_collect_bootstrap_for_irule1005() {
 }
 
 #[test]
+fn context_collect_bootstrap_for_irule1006_converts_utf16_columns() {
+    // The emoji occupies one Rust `char`, but two LSP UTF-16 code units. The
+    // range begins at UTF-16 column 7 and covers `HTTP::payload` through 20.
+    let src = concat!("when HTTP_RESPONSE {\n", "    😀 HTTP::payload\n", "}\n",);
+    let diags = vec![ContextDiagnostic {
+        code: "IRULE1006".to_string(),
+        message: "HTTP::payload needs an HTTP::collect bootstrap".to_string(),
+        range: selection(1, 7, 20),
+    }];
+
+    let actions = context_diagnostic_actions(src, &diags);
+    let boot = find(&actions, "HTTP::collect").expect("UTF-16 payload range keeps bootstrap");
+    assert!(
+        boot.edits[0].new_text.contains("HTTP::collect"),
+        "registry-derived payload bootstrap: {boot:?}"
+    );
+    assert!(edits_well_formed(boot) && edits_in_bounds(boot, src));
+}
+
+#[test]
 fn context_actions_empty_for_unrelated_code() {
     // A context diagnostic whose code the provider doesn't handle (and a
     // message naming no `$var`) yields no actions. Negative control.

@@ -1935,8 +1935,8 @@ fn diagnostic_text_on_line(source: &str, range: &LspRange) -> Option<String> {
     }
     let line = source.split('\n').nth(range.start_line as usize)?;
     let chars: Vec<char> = line.chars().collect();
-    let start = (range.start_character as usize).min(chars.len());
-    let end = (range.end_character as usize).min(chars.len());
+    let start = utf16_col_to_char_col(line, range.start_character).min(chars.len());
+    let end = utf16_col_to_char_col(line, range.end_character).min(chars.len());
     (start < end).then(|| chars[start..end].iter().collect())
 }
 

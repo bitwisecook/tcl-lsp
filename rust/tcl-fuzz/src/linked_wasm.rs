@@ -66,8 +66,12 @@ impl Case {
         )
     }
 
-    /// The final query used identically after each run.
-    const QUERY: &'static str = "list [info patchlevel] $r";
+    /// The final value observation used identically after each run.
+    ///
+    /// The linked runtime is built at its own patchlevel, so the differential
+    /// value observation deliberately excludes `[info patchlevel]`. The
+    /// campaign still preflights the oracle's Tcl 9.0 release line.
+    const QUERY: &'static str = "list $r";
 
     /// The C Tcl 9 source adds only an output observation after the program.
     #[must_use]
@@ -276,15 +280,22 @@ mod tests {
     use super::*;
 
     #[test]
-    fn tn_generated_oracle_and_linked_program_share_the_same_query() {
-        // TN: this is a normal, successful source/query shape; the observation
-        // is an extra command after the program, not a different computation.
+    fn tp_generated_oracle_and_linked_program_share_a_value_query() {
+        // TP: the observation is an extra command after the program, not a
+        // different computation.
         let case = Case::from_seed(42);
         assert!(
             case.oracle_source()
-                .ends_with("puts -nonewline [list [info patchlevel] $r]\n")
+                .ends_with("puts -nonewline [list $r]\n")
         );
-        assert_eq!(Case::QUERY, "list [info patchlevel] $r");
+        assert_eq!(Case::QUERY, "list $r");
+    }
+
+    #[test]
+    fn tn_per_case_observation_does_not_compare_runtime_patchlevels() {
+        // TN: a valid Tcl 9.0 oracle at a different patchlevel must not turn
+        // every generated value case into a false divergence.
+        assert!(!Case::QUERY.contains("patchlevel"));
     }
 
     #[test]

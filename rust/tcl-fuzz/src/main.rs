@@ -50,7 +50,7 @@ use clap::{Parser, Subcommand};
 use campaign::{Backend, Campaign, Stats};
 use characterize::Classification;
 use engine::Engine;
-use findings::Registry;
+use findings::{Registry, ReproducerStore};
 use generator::{GenConfig, generate};
 use harness::{Outcome, compare_outcomes, run_backend, write_script};
 
@@ -575,6 +575,17 @@ fn linked_wasm_diff_campaign(
         eprintln!("error: creating linked-WASM scratch directory: {error}");
         return std::process::ExitCode::from(2);
     }
+    let linked_findings = match ReproducerStore::open(&cli.findings) {
+        Ok(store) => store,
+        Err(error) => {
+            let _ = std::fs::remove_dir_all(&scratch);
+            eprintln!(
+                "error: creating linked-WASM findings directory {}: {error}",
+                cli.findings.display()
+            );
+            return std::process::ExitCode::from(2);
+        }
+    };
     if let Err(error) =
         verify_tcl90_backend("C Tcl oracle", &oracle_bin, &oracle_args, &scratch, timeout)
     {
@@ -617,10 +628,12 @@ fn linked_wasm_diff_campaign(
                 if verbose {
                     eprintln!("  finding @ seed {current_seed}: {verdict:?}");
                 }
-                let _ = std::fs::write(
-                    cli.findings.join(format!("linked-wasm-{current_seed}.tcl")),
-                    case.program(),
-                );
+                let file_name = format!("linked-wasm-{current_seed}.tcl");
+                if let Err(error) = linked_findings.write(&file_name, case.program()) {
+                    let _ = std::fs::remove_dir_all(&scratch);
+                    eprintln!("error: writing linked-WASM reproducer {file_name}: {error}");
+                    return std::process::ExitCode::from(2);
+                }
             }
         }
     }
@@ -644,7 +657,16 @@ fn bpf_diff_campaign(
 ) -> std::process::ExitCode {
     let base_seed = seed.unwrap_or_else(time_seed);
     let diff_findings = findings_dir.join("bpf-diff");
-    let _ = std::fs::create_dir_all(&diff_findings);
+    let reproducers = match ReproducerStore::open(&diff_findings) {
+        Ok(store) => store,
+        Err(error) => {
+            eprintln!(
+                "error: creating BPF findings directory {}: {error}",
+                diff_findings.display()
+            );
+            return std::process::ExitCode::from(2);
+        }
+    };
     let (mut matched, mut failed) = (0u64, 0u64);
 
     eprintln!("bpf-diff: {iterations} registry-described socket filters from seed {base_seed}");
@@ -661,10 +683,14 @@ fn bpf_diff_campaign(
                     );
                 }
                 if let Ok(source) = bpf_diff::source(case) {
-                    let _ = std::fs::write(
-                        diff_findings.join(format!("seed-{current_seed}.bpftcl")),
+                    let file_name = format!("seed-{current_seed}.bpftcl");
+                    if let Err(error) = reproducers.write(
+                        &file_name,
                         format!("# actual={actual}; expected={expected}\n{source}"),
-                    );
+                    ) {
+                        eprintln!("error: writing BPF reproducer {file_name}: {error}");
+                        return std::process::ExitCode::from(2);
+                    }
                 }
             }
             Err(error) => {
@@ -673,10 +699,13 @@ fn bpf_diff_campaign(
                     eprintln!("  backend error @ seed {current_seed}: {error}");
                 }
                 if let Ok(source) = bpf_diff::source(case) {
-                    let _ = std::fs::write(
-                        diff_findings.join(format!("error-{current_seed}.bpftcl")),
-                        format!("# {error}\n{source}"),
-                    );
+                    let file_name = format!("error-{current_seed}.bpftcl");
+                    if let Err(write_error) =
+                        reproducers.write(&file_name, format!("# {error}\n{source}"))
+                    {
+                        eprintln!("error: writing BPF reproducer {file_name}: {write_error}");
+                        return std::process::ExitCode::from(2);
+                    }
                 }
             }
         }
@@ -883,7 +912,17 @@ fn characterise_campaign(
     };
 
     let findings_dir = cli.findings.join("characterise");
-    let _ = std::fs::create_dir_all(&findings_dir);
+    let reproducers = match ReproducerStore::open(&findings_dir) {
+        Ok(store) => store,
+        Err(error) => {
+            let _ = std::fs::remove_dir_all(&scratch);
+            eprintln!(
+                "error: creating characterise findings directory {}: {error}",
+                findings_dir.display()
+            );
+            return std::process::ExitCode::from(2);
+        }
+    };
     let base_seed = seed.unwrap_or_else(time_seed);
     let mut counts = std::collections::BTreeMap::<Classification, u64>::new();
     eprintln!(
@@ -928,10 +967,12 @@ fn characterise_campaign(
             if verbose {
                 eprintln!("  {classification:?} @ seed {current_seed}");
             }
-            let _ = std::fs::write(
-                findings_dir.join(format!("{current_seed}-{classification:?}.tcl")),
-                script,
-            );
+            let file_name = format!("{current_seed}-{classification:?}.tcl");
+            if let Err(error) = reproducers.write(&file_name, script) {
+                let _ = std::fs::remove_dir_all(&scratch);
+                eprintln!("error: writing characterise reproducer {file_name}: {error}");
+                return std::process::ExitCode::from(2);
+            }
         } else if !verbose && offset % 100 == 0 {
             eprintln!("  {offset}/{iterations}");
         }
@@ -956,7 +997,16 @@ fn wasm_diff_campaign(
 ) -> std::process::ExitCode {
     let base_seed = seed.unwrap_or_else(time_seed);
     let diff_findings = findings_dir.join("wasm-diff");
-    let _ = std::fs::create_dir_all(&diff_findings);
+    let reproducers = match ReproducerStore::open(&diff_findings) {
+        Ok(store) => store,
+        Err(error) => {
+            eprintln!(
+                "error: creating WASM diff findings directory {}: {error}",
+                diff_findings.display()
+            );
+            return std::process::ExitCode::from(2);
+        }
+    };
     let engine = wasm_diff::engine();
 
     eprintln!("wasm-diff: {iterations} programs from seed {base_seed}");
@@ -984,14 +1034,24 @@ fn wasm_diff_campaign(
                 if verbose {
                     eprintln!("  WASM HANG @ seed {s} (non-terminating compiled control flow)");
                 }
-                let _ = std::fs::write(diff_findings.join(format!("hang-{s}.tcl")), &script);
+                let file_name = format!("hang-{s}.tcl");
+                if let Err(error) = reproducers.write(&file_name, &script) {
+                    std::panic::set_hook(prior_hook);
+                    eprintln!("error: writing WASM hang reproducer {file_name}: {error}");
+                    return std::process::ExitCode::from(2);
+                }
             }
             wasm_diff::DiffVerdict::Divergence { wasm, direct } => {
                 diverged += 1;
                 if verbose {
                     eprintln!("  DIVERGENCE @ seed {s}: wasm={wasm:?} direct={direct:?}");
                 }
-                let _ = std::fs::write(diff_findings.join(format!("seed-{s}.tcl")), &script);
+                let file_name = format!("seed-{s}.tcl");
+                if let Err(error) = reproducers.write(&file_name, &script) {
+                    std::panic::set_hook(prior_hook);
+                    eprintln!("error: writing WASM reproducer {file_name}: {error}");
+                    return std::process::ExitCode::from(2);
+                }
             }
         }
         if !verbose && i % 50 == 0 {
@@ -1028,7 +1088,17 @@ fn wasm_check(
     let scratch = std::env::temp_dir().join(format!("tcl-fuzz-wasm-{}", std::process::id()));
     let _ = std::fs::create_dir_all(&scratch);
     let wasm_findings = findings_dir.join("wasm");
-    let _ = std::fs::create_dir_all(&wasm_findings);
+    let reproducers = match ReproducerStore::open(&wasm_findings) {
+        Ok(store) => store,
+        Err(error) => {
+            let _ = std::fs::remove_dir_all(&scratch);
+            eprintln!(
+                "error: creating WASM findings directory {}: {error}",
+                wasm_findings.display()
+            );
+            return std::process::ExitCode::from(2);
+        }
+    };
 
     eprintln!("wasm-check: {iterations} programs from seed {base_seed}");
     // A generated program that makes codegen panic prints a backtrace by
@@ -1062,7 +1132,13 @@ fn wasm_check(
                         reason.lines().next().unwrap_or("")
                     );
                 }
-                let _ = std::fs::write(wasm_findings.join(format!("seed-{s}.tcl")), &script);
+                let file_name = format!("seed-{s}.tcl");
+                if let Err(error) = reproducers.write(&file_name, &script) {
+                    std::panic::set_hook(prior_hook);
+                    let _ = std::fs::remove_dir_all(&scratch);
+                    eprintln!("error: writing WASM reproducer {file_name}: {error}");
+                    return std::process::ExitCode::from(2);
+                }
             }
         }
         if !verbose && i % 50 == 0 {

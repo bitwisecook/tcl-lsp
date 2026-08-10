@@ -173,6 +173,32 @@ pub struct Registry {
     dir: PathBuf,
 }
 
+/// Directory-backed persistence for single-file reproducers from fuzzer arms
+/// that do not have a paired-engine [`Registry`] finding.
+pub struct ReproducerStore {
+    dir: PathBuf,
+}
+
+impl ReproducerStore {
+    /// Open (creating if needed) the directory for standalone reproducers.
+    ///
+    /// # Errors
+    /// If the directory cannot be created.
+    pub fn open(dir: impl Into<PathBuf>) -> std::io::Result<Self> {
+        let dir = dir.into();
+        std::fs::create_dir_all(&dir)?;
+        Ok(Self { dir })
+    }
+
+    /// Persist one reproducer under its stable file name.
+    ///
+    /// # Errors
+    /// If the reproducer cannot be written.
+    pub fn write(&self, file_name: &str, contents: impl AsRef<[u8]>) -> std::io::Result<()> {
+        std::fs::write(self.dir.join(file_name), contents)
+    }
+}
+
 impl Registry {
     /// Open (creating if needed) a registry at `dir`.
     ///
@@ -315,6 +341,34 @@ mod tests {
         assert_eq!(back.reference_version.as_deref(), Some("8.6.16"));
         assert_eq!(back.subject_version.as_deref(), Some("9.0.4"));
         assert!(back.version_skew, "8.6 oracle vs 9.0 subject is skew");
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn reproducer_store_creates_its_directory_and_persists_a_script() {
+        let dir = tmp("reproducer-success");
+        let store = ReproducerStore::open(&dir).expect("creates findings directory");
+        store
+            .write("seed-7.tcl", "puts reproduced")
+            .expect("writes reproducer");
+        assert_eq!(
+            std::fs::read_to_string(dir.join("seed-7.tcl")).unwrap(),
+            "puts reproduced"
+        );
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn reproducer_store_surfaces_directory_and_write_failures() {
+        let parent_file = tmp("reproducer-parent-file");
+        std::fs::write(&parent_file, "not a directory").unwrap();
+        assert!(ReproducerStore::open(parent_file.join("findings")).is_err());
+        let _ = std::fs::remove_file(&parent_file);
+
+        let dir = tmp("reproducer-write-error");
+        let store = ReproducerStore::open(&dir).unwrap();
+        std::fs::create_dir(dir.join("not-a-file")).unwrap();
+        assert!(store.write("not-a-file", "puts lost").is_err());
         let _ = std::fs::remove_dir_all(&dir);
     }
 }
