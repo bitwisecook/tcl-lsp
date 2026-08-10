@@ -87,13 +87,11 @@ pub(crate) fn mathfunc(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         .builtin_math_function(fname)
         .is_none()
     {
-        let mut command = b"tcl::mathfunc::".to_vec();
-        command.extend_from_slice(tail);
         let mut message = b"invalid command name \"".to_vec();
-        message.extend_from_slice(&command);
+        message.extend_from_slice(&name0);
         message.push(b'\"');
         let mut error_code = b"TCL LOOKUP COMMAND ".to_vec();
-        error_code.extend_from_slice(&command);
+        error_code.extend_from_slice(&name0);
         return interp.error_with_code(&message, &error_code);
     }
 
@@ -411,17 +409,28 @@ mod tests {
         });
     }
 
-    /// `mathfunc_names()`/`arity()` used to be hand-typed and missed the
-    /// entire TIP 745 (9.1) C99 batch — `dispatch()` already implemented
-    /// every one of these, but `install()` never registered a command for
-    /// any of them, so `::tcl::mathfunc::gamma` was "invalid command name"
-    /// rather than a working call. Proves both the 1-arg and multi-arg
-    /// (`copysign`/`fma`) cases now work as real commands, with the correct
-    /// derived arity — the very fix this crate's own drift-gate cleanup
-    /// (issue #983) exists to have caught.
+    /// The TIP 745 C99 batch is a Tcl 9.1 surface. The handler and its
+    /// arity facts come from the shared registry-backed table, but the
+    /// runtime must not expose the names while emulating Tcl 9.0.
     #[test]
-    fn tip745_functions_are_registered_commands_with_correct_arity() {
+    fn tip745_mathfunc_commands_follow_the_runtime_release_and_arity() {
         leak_free(|i| {
+            // FN: Tcl 9.0.4 rejects the 9.1 command and `expr` spelling.
+            // The lookup name is relative on the expression path, as in C Tcl.
+            assert_eq!(i.eval_str(b"::tcl::mathfunc::gamma 5"), Code::Error);
+            assert_eq!(
+                i.result_bytes(),
+                b"invalid command name \"::tcl::mathfunc::gamma\""
+            );
+            assert_eq!(i.eval_str(b"expr {gamma(5)}"), Code::Error);
+            assert_eq!(
+                i.result_bytes(),
+                b"invalid command name \"tcl::mathfunc::gamma\""
+            );
+
+            i.set_runtime_version(tcl_dialect::TclVersion::V9_1);
+            // TP: both unary and multi-argument 9.1 functions are real
+            // commands, with their arities derived from the fact table.
             assert_eq!(i.eval_str(b"::tcl::mathfunc::gamma 5"), Code::Ok);
             assert_eq!(i.result_bytes(), b"24.0");
             assert_eq!(i.eval_str(b"::tcl::mathfunc::cbrt 27"), Code::Ok);
