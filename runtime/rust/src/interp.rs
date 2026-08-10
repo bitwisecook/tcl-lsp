@@ -1099,6 +1099,16 @@ impl Interp {
         self.0.runtime_version.get()
     }
 
+    /// Whether a builtin command is exposed on this interpreter's selected
+    /// runtime surface. The registry recognises versioned builtin entries;
+    /// unrecognised names remain available for user-defined commands.
+    pub(crate) fn builtin_command_visible_for_surface(&self, name: &[u8]) -> bool {
+        core::str::from_utf8(name).map_or(true, |name| {
+            tcl_registry::expr_surface::RuntimeExprSurface::for_tcl_version(self.runtime_version())
+                .permits_builtin_math_function_command(name)
+        })
+    }
+
     /// Convert `obj` to the byte view consumed by Tcl's `binary` command.
     ///
     /// Byte-array objects retain their own raw payload. Ordinary string objects
@@ -1170,15 +1180,11 @@ impl Interp {
             .register(name, Command::Builtin(f));
     }
 
-    /// Command names in the current namespace, sorted (`info commands`).
+    /// Command names in the current namespace, filtered through the selected
+    /// runtime surface (`info commands`).
     #[must_use]
     pub fn command_names(&self) -> Vec<Vec<u8>> {
-        self.namespaces
-            .borrow()
-            .command_names(self.current_ns.get())
-            .iter()
-            .map(|s| s.to_vec())
-            .collect()
+        self.visible_command_names_in(self.current_ns.get())
     }
 
     /// `rename old new` (or `rename old ""` to delete), relative to the current
@@ -2282,24 +2288,42 @@ impl Interp {
         // C resolves the `Var`, fires its traces, and only then frees it.
         let (base, elem) = crate::frame::split_array_ref(name);
         let traced = !self.traces.borrow().traces.is_empty();
-        let key = traced.then(|| self.trace_var_key(&base));
+        let key = traced.then(|| (self.trace_var_key(&base), self.local_trace_level(&base)));
         let existed = crate::vars::unset(
             &mut self.frames.borrow_mut(),
             &mut self.namespaces.borrow_mut(),
             self.current_ns.get(),
             name,
         );
-        if let (true, Some((access_ns, resolved_base))) = (existed, key) {
-            self.fire_var_trace_resolved(access_ns, &resolved_base, elem.as_deref(), b"unset");
+        if let (true, Some(((access_ns, resolved_base), access_frame_level))) = (existed, key) {
+            self.fire_var_trace_resolved(
+                access_ns,
+                access_frame_level,
+                &resolved_base,
+                elem.as_deref(),
+                b"unset",
+            );
             // The variable (and its traces) go away — drop every trace on it
             // (C frees the Var's trace list on unset). Element unset drops only
             // that element's traces (whole-variable traces survive).
             let mut t = self.traces.borrow_mut();
             match elem {
                 Some(e) => t.traces.retain(|v| {
-                    !(v.base == resolved_base && v.elem.as_deref() == Some(e.as_slice()))
+                    !(crate::cmd_trace::same_variable(
+                        v,
+                        &resolved_base,
+                        access_ns,
+                        access_frame_level,
+                    ) && v.elem.as_deref() == Some(e.as_slice()))
                 }),
-                None => t.traces.retain(|v| v.base != resolved_base),
+                None => t.traces.retain(|v| {
+                    !crate::cmd_trace::same_variable(
+                        v,
+                        &resolved_base,
+                        access_ns,
+                        access_frame_level,
+                    )
+                }),
             }
         }
         existed
@@ -2308,7 +2332,8 @@ impl Interp {
     /// `unset name(key)` — returns whether it existed.
     pub(crate) fn var_unset_elem(&mut self, name: &[u8], key: &[u8]) -> bool {
         // Resolved before the removal — see [`Self::var_unset`].
-        let trace_key = (!self.traces.borrow().traces.is_empty()).then(|| self.trace_var_key(name));
+        let trace_key = (!self.traces.borrow().traces.is_empty())
+            .then(|| (self.trace_var_key(name), self.local_trace_level(name)));
         let existed = crate::vars::unset_elem(
             &mut self.frames.borrow_mut(),
             &mut self.namespaces.borrow_mut(),
@@ -2316,13 +2341,20 @@ impl Interp {
             name,
             key,
         );
-        if let (true, Some((access_ns, resolved_base))) = (existed, trace_key) {
-            self.fire_var_trace_resolved(access_ns, &resolved_base, Some(key), b"unset");
+        if let (true, Some(((access_ns, resolved_base), access_frame_level))) = (existed, trace_key)
+        {
+            self.fire_var_trace_resolved(
+                access_ns,
+                access_frame_level,
+                &resolved_base,
+                Some(key),
+                b"unset",
+            );
             // Drop this element's traces (whole-array traces survive).
-            self.traces
-                .borrow_mut()
-                .traces
-                .retain(|v| !(v.base == resolved_base && v.elem.as_deref() == Some(key)));
+            self.traces.borrow_mut().traces.retain(|v| {
+                !(crate::cmd_trace::same_variable(v, &resolved_base, access_ns, access_frame_level)
+                    && v.elem.as_deref() == Some(key))
+            });
         }
         existed
     }
@@ -2339,8 +2371,9 @@ impl Interp {
         // Resolve the access to the same `(home, simple name)` key registration
         // used, so a trace matches every spelling of the variable it is on
         // (`::v` vs `v`, and the 8.x namespace-scope fallback) — issue #1328.
+        let access_frame_level = self.local_trace_level(base);
         let (access_ns, base) = self.trace_var_key(base);
-        self.fire_var_trace_resolved(access_ns, &base, elem, op)
+        self.fire_var_trace_resolved(access_ns, access_frame_level, &base, elem, op)
     }
 
     /// [`Self::fire_var_trace`] with the `(home, simple name)` key already
@@ -2349,6 +2382,7 @@ impl Interp {
     fn fire_var_trace_resolved(
         &mut self,
         access_ns: Option<NsId>,
+        access_frame_level: Option<usize>,
         base: &[u8],
         elem: Option<&[u8]>,
         op: &[u8],
@@ -2361,7 +2395,7 @@ impl Interp {
             .borrow()
             .traces
             .iter()
-            .filter(|t| crate::cmd_trace::matches(t, base, elem, op, access_ns))
+            .filter(|t| crate::cmd_trace::matches(t, base, elem, op, access_ns, access_frame_level))
             .map(|t| t.command.clone())
             .collect();
         if cmds.is_empty() {
@@ -2991,21 +3025,37 @@ impl Interp {
     /// `cmd_oo` for ensemble/method enumeration. (`info commands`/`procs` listing
     /// is the shared `tcl_cmd_core::info::command_list` core.)
     pub(crate) fn commands_in_namespace(&self, qualifier: &[u8]) -> Vec<Vec<u8>> {
-        let ns = self.namespaces.borrow();
-        // An empty qualifier (a leading `::pattern`) addresses the global ns.
-        let target = if qualifier.is_empty() {
-            Some(GLOBAL)
-        } else {
-            ns.find_namespace(self.current_ns.get(), qualifier)
-        };
-        match target {
-            Some(id) => {
-                let mut v: Vec<Vec<u8>> = ns.command_names(id).iter().map(|s| s.to_vec()).collect();
-                v.sort();
-                v
+        let target = {
+            let ns = self.namespaces.borrow();
+            // An empty qualifier (a leading `::pattern`) addresses the global ns.
+            if qualifier.is_empty() {
+                Some(GLOBAL)
+            } else {
+                ns.find_namespace(self.current_ns.get(), qualifier)
             }
-            None => Vec::new(),
+        };
+        target.map_or_else(Vec::new, |id| self.visible_command_names_in(id))
+    }
+
+    /// The directly-bound command names that the selected runtime surface
+    /// permits callers to enumerate. This is the common filter behind the
+    /// `info commands` adapter and internal namespace listings.
+    pub(crate) fn visible_command_names_in(&self, id: NsId) -> Vec<Vec<u8>> {
+        let ns = self.namespaces.borrow();
+        let mut prefix = ns.qualified_name(id);
+        if prefix != b"::" {
+            prefix.extend_from_slice(b"::");
         }
+        ns.command_names(id)
+            .iter()
+            .filter_map(|name| {
+                let is_builtin = matches!(ns.resolve(id, name), Some(Command::Builtin(_)));
+                let mut full_name = prefix.clone();
+                full_name.extend_from_slice(name);
+                (!is_builtin || self.builtin_command_visible_for_surface(&full_name))
+                    .then(|| name.to_vec())
+            })
+            .collect()
     }
 
     /// The proc definition bound to `name` (for `info body`/`args`/`default`).
@@ -3494,11 +3544,10 @@ impl Interp {
         // literal `::errorInfo` here would miss every trace now that traces
         // are keyed by the resolved variable rather than the spelling.
         let (access_ns, base) = self.trace_var_key(b"::errorInfo");
-        self.traces
-            .borrow()
-            .traces
-            .iter()
-            .any(|t| crate::cmd_trace::matches(t, &base, None, b"write", access_ns))
+        let access_frame_level = self.local_trace_level(b"::errorInfo");
+        self.traces.borrow().traces.iter().any(|t| {
+            crate::cmd_trace::matches(t, &base, None, b"write", access_ns, access_frame_level)
+        })
     }
 
     /// Append the `(procedure "NAME" line N)` / `(lambda term "..." line N)`
@@ -4648,15 +4697,9 @@ impl Interp {
             .borrow()
             .resolve(self.current_ns.get(), &name);
         let wrapper_hidden = matches!(&resolved, Some(Command::Builtin(_)))
-            && self.resolve_cmd_fqn(&name).is_some_and(|fqn| {
-                tcl_registry::expr_surface::RuntimeExprSurface::for_tcl_version(
-                    self.runtime_version(),
-                )
-                .builtin_math_function_command_visible(
-                    core::str::from_utf8(&fqn).unwrap_or_default(),
-                )
-                .is_some_and(|visible| !visible)
-            });
+            && self
+                .resolve_cmd_fqn(&name)
+                .is_some_and(|fqn| !self.builtin_command_visible_for_surface(&fqn));
         if let Some(cmd) = resolved.filter(|_| !wrapper_hidden) {
             return self.invoke(cmd, argv);
         }
@@ -4849,11 +4892,20 @@ impl Interp {
 
     /// The `::tcl::mathfunc::*` function names (`info functions`).
     pub(crate) fn mathfunc_names(&self) -> Vec<Vec<u8>> {
-        let ns = self.namespaces.borrow();
-        match ns.find_namespace(GLOBAL, b"::tcl::mathfunc") {
-            Some(id) => ns.command_names(id).iter().map(|n| n.to_vec()).collect(),
-            None => Vec::new(),
+        let surface =
+            tcl_registry::expr_surface::RuntimeExprSurface::for_tcl_version(self.runtime_version());
+        if !surface.has_math_function_command_table() {
+            return surface
+                .builtin_math_function_names()
+                .into_iter()
+                .map(|name| name.as_bytes().to_vec())
+                .collect();
         }
+        let id = self
+            .namespaces
+            .borrow()
+            .find_namespace(GLOBAL, b"::tcl::mathfunc");
+        id.map_or_else(Vec::new, |id| self.visible_command_names_in(id))
     }
 
     /// The canonical FQN `name` resolves to (full resolution order), or `None`

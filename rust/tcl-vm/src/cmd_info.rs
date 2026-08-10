@@ -184,14 +184,8 @@ fn cmd_info(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
             },
             _ => err("wrong # args: should be \"info default procname arg varname\""),
         },
-        "tclversion" => match rest {
-            [] => ok(Value::string("9.0")),
-            _ => err("wrong # args: should be \"info tclversion\""),
-        },
-        "patchlevel" => match rest {
-            [] => ok(Value::string("9.0.4")),
-            _ => err("wrong # args: should be \"info patchlevel\""),
-        },
+        "tclversion" => info_global(vm, rest, "info tclversion", "tcl_version"),
+        "patchlevel" => info_global(vm, rest, "info patchlevel", "tcl_patchLevel"),
         // `info functions ?pattern?` — the registered `tcl::mathfunc::*` names.
         "functions" => match rest {
             [] => ok(Value::list(
@@ -257,5 +251,118 @@ fn cmd_info(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
             _ => err("wrong # args: should be \"info coroutine\""),
         },
         other => err(format!("unknown or ambiguous subcommand \"{other}\"")),
+    }
+}
+
+/// `info tclversion`/`patchlevel` read their live global, as C does with
+/// `TCL_GLOBAL_ONLY`. This keeps a selected release's startup values visible,
+/// while still honouring user writes and unsets.
+fn info_global(vm: &Vm, rest: &[Value], usage: &str, name: &str) -> Completion<Value> {
+    if !rest.is_empty() {
+        return err(format!("wrong # args: should be \"{usage}\""));
+    }
+    vm.get_var(&format!("::{name}")).map_or_else(
+        || err(format!("can't read \"{name}\": no such variable")),
+        ok,
+    )
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use tcl_dialect::TclVersion;
+
+    fn info(vm: &mut Vm, subcommand: &str) -> Completion<Value> {
+        cmd_info(vm, &[Value::string(subcommand)])
+    }
+
+    #[test]
+    fn release_info_reads_the_selected_runtime_globals() {
+        for (version, expected_version, expected_patchlevel) in [
+            (TclVersion::V8_4, "8.4", "8.4.20"),
+            (TclVersion::V8_5, "8.5", "8.5.19"),
+            (TclVersion::V8_6, "8.6", "8.6.16"),
+            (TclVersion::V9_0, "9.0", "9.0.4"),
+            (TclVersion::V9_1, "9.1", "9.1.0"),
+        ] {
+            let mut vm = Vm::new();
+            vm.set_runtime_version(version);
+            // TP: each runtime surface reports its own version table entry.
+            assert_eq!(
+                info(&mut vm, "tclversion").result.to_str().as_ref(),
+                expected_version
+            );
+            assert_eq!(
+                info(&mut vm, "patchlevel").result.to_str().as_ref(),
+                expected_patchlevel
+            );
+        }
+
+        let mut vm = Vm::new();
+        vm.set_runtime_version(TclVersion::V8_6);
+        vm.set_var("::tcl_version", Value::string("override"))
+            .expect("set release global");
+        // FP guard: the command reads Tcl's live global, rather than a second
+        // hard-coded release value.
+        assert_eq!(
+            info(&mut vm, "tclversion").result.to_str().as_ref(),
+            "override"
+        );
+        assert!(vm.unset_var("::tcl_patchLevel"));
+        // FN: a missing release global has C Tcl's normal variable error.
+        let missing = info(&mut vm, "patchlevel");
+        assert!(!missing.code.is_ok());
+        assert_eq!(
+            missing.result.to_str().as_ref(),
+            "can't read \"tcl_patchLevel\": no such variable"
+        );
+    }
+
+    #[test]
+    fn math_enumeration_follows_the_registry_selected_surface() {
+        let mut old = Vm::new();
+        old.set_runtime_version(TclVersion::V8_6);
+        // FN: a Tcl 9 builtin is hidden throughout both `info` enumeration
+        // paths on the Tcl 8.6 surface.
+        assert!(
+            old.math_function_names()
+                .iter()
+                .all(|name| name != "isfinite")
+        );
+        assert!(
+            old.names_directly_in("tcl::mathfunc", false)
+                .iter()
+                .all(|name| name != "isfinite")
+        );
+        // TN: an older builtin still remains visible.
+        assert!(old.math_function_names().iter().any(|name| name == "sin"));
+
+        let mut modern = Vm::new();
+        modern.set_runtime_version(TclVersion::V9_0);
+        // TP: its release floor exposes the builtin consistently in both lists.
+        assert!(
+            modern
+                .math_function_names()
+                .iter()
+                .any(|name| name == "isfinite")
+        );
+        assert!(
+            modern
+                .names_directly_in("tcl::mathfunc", false)
+                .iter()
+                .any(|name| name == "isfinite")
+        );
+
+        let mut fixed = Vm::new();
+        fixed.set_runtime_version(TclVersion::V8_4);
+        // Tcl 8.4's `info functions` sees the registry's fixed table, although
+        // the command wrappers themselves are not part of that release.
+        assert!(fixed.math_function_names().iter().any(|name| name == "sin"));
+        assert!(
+            fixed
+                .names_directly_in("tcl::mathfunc", false)
+                .iter()
+                .all(|name| name != "sin")
+        );
     }
 }

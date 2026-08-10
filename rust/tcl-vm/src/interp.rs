@@ -1609,16 +1609,40 @@ impl Vm {
         self.alias_chain_loops(self.cur, key)
     }
 
-    /// Resolve a command name to its definition, honouring the current
-    /// namespace: an absolute `::a::b` name resolves exactly; an unqualified /
-    /// relatively-qualified name is tried in the current namespace, then the
-    /// global namespace (where builtins live).
-    /// The registered `tcl::mathfunc::*` function names, for `info functions`.
+    /// Whether this registered builtin is visible on the selected command
+    /// surface. The registry owns the only versioned command filter; ordinary
+    /// procedures, aliases, and extensions are never hidden here.
+    fn builtin_command_visible_for_surface(&self, name: &str, command: &Command) -> bool {
+        !matches!(command, Command::Builtin(_))
+            || tcl_registry::expr_surface::RuntimeExprSurface::for_tcl_version(self.runtime_version)
+                .permits_builtin_math_function_command(name)
+    }
+
+    /// The names `info functions` exposes on the selected Tcl release.
+    ///
+    /// Tcl 8.4 introspects its closed fixed table, while Tcl 8.5 and later
+    /// enumerate the open command table (which also admits user functions).
+    /// Both branches are selected through the registry surface.
     pub(crate) fn math_function_names(&self) -> Vec<String> {
-        self.commands
-            .keys()
-            .filter_map(|k| k.strip_prefix("tcl::mathfunc::").map(str::to_owned))
-            .collect()
+        let surface =
+            tcl_registry::expr_surface::RuntimeExprSurface::for_tcl_version(self.runtime_version);
+        if !surface.has_math_function_command_table() {
+            return surface
+                .builtin_math_function_names()
+                .into_iter()
+                .map(str::to_owned)
+                .collect();
+        }
+        let mut names: Vec<String> = self
+            .commands
+            .iter()
+            .filter(|(name, command)| self.builtin_command_visible_for_surface(name, command))
+            .filter_map(|(name, _)| {
+                tcl_registry::mathfunc::global_command_bare_name(name).map(str::to_owned)
+            })
+            .collect();
+        names.sort_unstable();
+        names
     }
 
     /// The `info cmdtype` kind of `name` (`native`/`proc`/`alias`), or `None`
@@ -2509,11 +2533,7 @@ impl Vm {
     pub(crate) fn lookup_command(&self, name: &str) -> Option<Command> {
         let key = self.resolve_command_fqn(self.current_ns(), name)?;
         let command = self.commands.get(&key).cloned()?;
-        if matches!(command, Command::Builtin(_))
-            && tcl_registry::expr_surface::RuntimeExprSurface::for_tcl_version(self.runtime_version)
-                .builtin_math_function_command_visible(&key)
-                .is_some_and(|visible| !visible)
-        {
+        if !self.builtin_command_visible_for_surface(&key, &command) {
             return None;
         }
         Some(command)
@@ -3753,6 +3773,7 @@ impl Vm {
     pub(crate) fn names_directly_in(&self, canonical: &str, procs_only: bool) -> Vec<String> {
         self.commands
             .iter()
+            .filter(|(key, command)| self.builtin_command_visible_for_surface(key, command))
             .filter(|(_, c)| !procs_only || matches!(c, Command::Proc(_)))
             .filter_map(|(key, _)| direct_member_tail(key, canonical).map(str::to_owned))
             .collect()

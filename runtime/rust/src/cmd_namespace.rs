@@ -401,9 +401,9 @@ fn ns_import(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         // Collect the matching, exported source commands first (borrow ends).
         let src_fqn = interp.namespaces().qualified_name(src_ns);
         let mut to_import: Vec<Vec<u8>> = Vec::new();
-        for name in interp.namespaces().command_names(src_ns) {
-            if glob_match_bytes(tail_pat, name) && interp.namespaces().is_exported(src_ns, name) {
-                to_import.push(name.to_vec());
+        for name in interp.visible_command_names_in(src_ns) {
+            if glob_match_bytes(tail_pat, &name) && interp.namespaces().is_exported(src_ns, &name) {
+                to_import.push(name);
             }
         }
         for simple in to_import {

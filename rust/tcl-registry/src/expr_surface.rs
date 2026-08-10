@@ -205,6 +205,13 @@ impl RuntimeExprSurface {
         self.registry.math_function_names(self.profile)
     }
 
+    /// Whether this release exposes the open `::tcl::mathfunc::*` command
+    /// table, as opposed to Tcl 8.4's fixed `expr` function table.
+    #[must_use]
+    pub fn has_math_function_command_table(self) -> bool {
+        crate::mathfunc::command_wrappers_available(self.profile)
+    }
+
     /// The registry-owned dispatch target for `expr` function-call word
     /// `bare`.
     ///
@@ -214,7 +221,7 @@ impl RuntimeExprSurface {
     /// extension commands retain their normal Tcl indirection behaviour.
     #[must_use]
     pub fn math_function_call_target(self, bare: &str) -> MathFunctionCallTarget {
-        if crate::mathfunc::command_wrappers_available(self.profile) {
+        if self.has_math_function_command_table() {
             return MathFunctionCallTarget::CommandTable;
         }
         self.builtin_math_function(bare).map_or(
@@ -231,18 +238,19 @@ impl RuntimeExprSurface {
     /// may be user-defined math functions, aliases, or renamed commands.
     #[must_use]
     pub fn builtin_math_function_command_visible(self, qualified_name: &str) -> Option<bool> {
-        let bare = qualified_name
-            .trim_start_matches("::")
-            .strip_prefix("tcl::mathfunc::")?;
-        if bare.is_empty() || bare.contains("::") {
-            return None;
-        }
+        let bare = crate::mathfunc::global_command_bare_name(qualified_name)?;
         let registry_name = format!("{MATHFUNC_NAMESPACE}::{bare}");
         self.registry.get(&registry_name)?;
-        Some(
-            crate::mathfunc::command_wrappers_available(self.profile)
-                && self.builtin_math_function(bare).is_some(),
-        )
+        Some(self.has_math_function_command_table() && self.builtin_math_function(bare).is_some())
+    }
+
+    /// Whether a builtin command may be enumerated or invoked on this runtime
+    /// surface. Commands outside the registry's builtin math-function table
+    /// remain visible: they may be user-defined replacements or extensions.
+    #[must_use]
+    pub fn permits_builtin_math_function_command(self, qualified_name: &str) -> bool {
+        self.builtin_math_function_command_visible(qualified_name)
+            .is_none_or(|visible| visible)
     }
 }
 
@@ -303,6 +311,8 @@ mod tests {
             old.math_function_call_target("user_supplied"),
             MathFunctionCallTarget::CommandTable
         ));
+        assert!(!fixed.has_math_function_command_table());
+        assert!(old.has_math_function_command_table());
 
         assert_eq!(
             fixed.builtin_math_function_command_visible("tcl::mathfunc::sqrt"),
@@ -320,5 +330,11 @@ mod tests {
             old.builtin_math_function_command_visible("tcl::mathfunc::custom"),
             None
         );
+        // TP/FN/TN/FP: consumers may ask one registry question when filtering
+        // an enumeration without hiding a user-provided replacement.
+        assert!(modern.permits_builtin_math_function_command("::tcl::mathfunc::isfinite"));
+        assert!(!old.permits_builtin_math_function_command("::tcl::mathfunc::isfinite"));
+        assert!(old.permits_builtin_math_function_command("::tcl::mathfunc::sqrt"));
+        assert!(old.permits_builtin_math_function_command("::tcl::mathfunc::custom"));
     }
 }
