@@ -873,8 +873,8 @@ fn context_irule3001_skips_helper_when_already_defined() {
 #[test]
 fn context_collect_bootstrap_for_irule1005() {
     // IRULE1005 (a data event read without the matching `protocol::collect`)
-    // offers a "collect bootstrap" quick-fix: a `when <setup> priority 500 {
-    // <proto>::collect }` block, anchored at the enclosing `when`.
+    // offers a "collect bootstrap" quick-fix using the registry-declared
+    // handler and default priority, anchored at the enclosing handler.
     let src = concat!(
         "when HTTP_REQUEST_DATA {\n",
         "    set d [HTTP::payload]\n",
@@ -896,8 +896,17 @@ fn context_collect_bootstrap_for_irule1005() {
         "{boot:?}"
     );
     let new_text = &boot.edits[0].new_text;
+    let registry = tcl_registry::registry_for_dialect("f5-irules");
+    let handler = registry.event_handler_spec().expect("event handler spec");
+    let priority = handler
+        .event_handler_priority
+        .expect("event handler priority policy");
     assert!(
-        new_text.contains("HTTP::collect") && new_text.contains("priority 500"),
+        new_text.contains("HTTP::collect")
+            && new_text.contains(&format!(
+                "{} HTTP_REQUEST {} {}",
+                handler.name, priority.keyword, priority.default_priority,
+            )),
         "bootstrap should add a prioritised HTTP::collect block: {new_text:?}",
     );
     // Inserted at the enclosing `when` (line 0), column 0.
@@ -910,6 +919,26 @@ fn context_collect_bootstrap_for_irule1005() {
         "bootstrap anchors at the enclosing when: {:?}",
         boot.edits[0],
     );
+}
+
+#[test]
+fn context_collect_bootstrap_for_irule1006_converts_utf16_columns() {
+    // The emoji occupies one Rust `char`, but two LSP UTF-16 code units. The
+    // range begins at UTF-16 column 7 and covers `HTTP::payload` through 20.
+    let src = concat!("when HTTP_RESPONSE {\n", "    😀 HTTP::payload\n", "}\n",);
+    let diags = vec![ContextDiagnostic {
+        code: "IRULE1006".to_string(),
+        message: "HTTP::payload needs an HTTP::collect bootstrap".to_string(),
+        range: selection(1, 7, 20),
+    }];
+
+    let actions = context_diagnostic_actions(src, &diags);
+    let boot = find(&actions, "HTTP::collect").expect("UTF-16 payload range keeps bootstrap");
+    assert!(
+        boot.edits[0].new_text.contains("HTTP::collect"),
+        "registry-derived payload bootstrap: {boot:?}"
+    );
+    assert!(edits_well_formed(boot) && edits_in_bounds(boot, src));
 }
 
 #[test]

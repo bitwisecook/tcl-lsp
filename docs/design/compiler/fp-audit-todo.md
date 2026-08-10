@@ -10,11 +10,11 @@ minimal repro, verify against **C tclsh 9.0.3**, and either (a) fix the FP with
 paired TP/FP regression tests, or (b) record "confirmed true-positive / no
 change" with the reasoning.
 
-> **The harness no longer exists.** The method above was built on
-> `bench/fp_snippets.py`, which went with the Python retirement; `bench/` is not
-> present on this branch and `xtask` has no replacement sweep. The 40 `[ ]` rows
-> below therefore cannot be picked up as written. Rebuilding the sweep as
-> `xtask fp-sweep` is tracked in **issue #1316**.
+> **The native harness is available.** Python's `bench/fp_snippets.py` was
+> retired with the Python product, but `cargo xtask fp-sweep` replaces it. It
+> runs the Rust analyser and compiler checks with the same dialect selection as
+> the LSP. Use the command shown below rather than reviving a second sweep
+> implementation.
 
 > **Harness correctness note (learned this round):** a raw `get_diagnostics(src)`
 > uses the default dialect `tcl8.6`. The corpus must be swept *dialect-aware* —
@@ -56,7 +56,7 @@ CODE...] --corpus PATH [--corpus PATH...] [--examples N]`
   first, matching the resolved entries' own style below
   ("corpus 3641 → ~700-900").
 
-**Corpus available this session:** the canonical corpus (tcllib 2.0, Tcl
+**Corpus available in the initial rebuild:** the canonical corpus (tcllib 2.0, Tcl
 9.0.3 stdlib, tklib 0.9, tdom, SpiceGenTcl) could not be fetched — this
 sandbox's egress policy blocks `codeload.github.com` (403, confirmed via the
 agent-proxy's own guidance not to retry/route around a policy denial), the
@@ -131,16 +131,91 @@ H300, TK1001, IRULE1001, IRULE1005, O100, O101, O105, O107, O112, O120,
 O125 (real corpus firings found — see its row; the shape is plausible but
 not deep-audited), O127. Each row below carries the specific evidence.
 
-**Not reached this session:** the genuinely `(0 corpus)` `IRULE1002`–`5007`
-family (beyond IRULE1001/IRULE1005, both audited below) needs a dedicated
-iRules corpus larger than `samples/irules/` + `samples/for_screenshots/*.irul`
-provides for full coverage; TK1002/TK1003 were spot-checked only by family
+**Superseded by the follow-up below:** the initial run did not reach the
+`IRULE1002`–`5007` family beyond IRULE1001/IRULE1005. The later dedicated
+iRules sweep covers that gap. TK1002/TK1003 were spot-checked only by family
 resemblance to TK1001 (verified), not individually run. The three
 cross-cutting follow-ups at the end of the file are policy decisions, not
 per-code sweeps, and are annotated with a recommendation rather than closed
 outright.
 
 ---
+
+## 2026-08 follow-up: iRules lifecycle and residual arity audit
+
+The native `cargo xtask fp-sweep` harness had already landed on `rust` for
+#1316. This follow-up uses that harness to complete the iRules and residual
+audit work; it does not introduce a second sweep implementation.
+
+The native sweep was re-run over 304 committed Tcl sources for the formerly
+unswept E001/E002/E003 group, and over 204 runnable iRules files from seven
+public example repositories fetched by `scripts/dev/fetch-irules-corpus.sh`.
+The iRules run produced 837 findings. Counts are triage leads, not proof: an
+iRule can depend on a virtual server profile, traffic direction, or another
+rule that is not present in one file, so every change below has a reduced
+reproducer and registry-level regression test.
+
+- **IRULE1004 (297 findings)** was an unconditional false positive. BIG-IP
+  accepts `when EVENT { ... }` and supplies priority 500. The registry now
+  records that default and the analyser abstains unless a dialect's
+  event-handler policy explicitly requires a priority. An explicit priority
+  remains useful when a deployment needs a deliberate rule order.
+- **IRULE1006 (four findings)** used a `*::payload` spelling rule. That
+  incorrectly required a non-existent `UDP::collect` and an ASM collect step.
+  Payload availability is now declared per command in the command registry.
+  HTTP, TCP, SSL, MQTT, MR, RTSP, SCTP, and WebSocket declare their collection
+  lifecycles, including explicit versus data-event release. Payload supplied
+  by ASM, CACHE, DIAMETER, GTP, REWRITE, SIP, UDP, and XML events is explicitly
+  classified as immediately available. MQTT also declares its call-form
+  split: bare and `append` need collection, while `length`, `replace`, and
+  `prepend` operate on the current PUBLISH message.
+- **IRULE1007 (four findings)** required `HTTP::release` after every
+  `HTTP::collect`. BIG-IP implicitly releases HTTP data at the matching data
+  event unless a new collect starts. That release policy is registry data and
+  the cross-event checker consumes it generically. Event execution sides and
+  nested `clientside`, `serverside`, and `peer` bodies are registry facts too,
+  so the checker does not infer lifecycle state from event or command names.
+  TCP and SSL still require an explicit release.
+- **E003 `source -nopkg`** is a Tcl 9 flag used by the vendored Tcl 9 library.
+  The command spec now gates it to Tcl 9.0+. C Tcl 9 also accepts the lower-case
+  `package require tcl 9.0.3` spelling used by its own `init.tcl`; dialect
+  detection recognises that exact Tcl-9-only alias without treating arbitrary
+  package-name casing as a match. A standalone extracted Tcl 9 file with no
+  directive, shebang, or version guard still defaults to Tcl 8.6 by design, so
+  add `# tcl-dialect: tcl9.0` in that case.
+- **E001 in `tcltest.tcl`** is a remaining conservative limitation, not a
+  proved command-arity defect: tcltest creates a command through a dynamically
+  computed `proc` name. The runtime command exists after initialisation, but a
+  static call graph cannot prove the name without executing package setup.
+
+A final ten-code residual sweep over a fresh 206-file corpus from eight of the
+nine repositories completed without a crash. IRULE1002/1004/1005/1008/1201
+had no firings. The remaining findings were inspected at source:
+
+- **IRULE1003 (one)** is a genuine deprecated `ASM_REQUEST_VIOLATION` event.
+- **IRULE1006 (one)** reads `HTTP::payload` without any `HTTP::collect`.
+- **IRULE1007 (one)** collects HTTP data, but places `HTTP::release` under a
+  newline-separated `else` command rather than the Tcl `if` command; that file
+  is invalid Tcl and has no executable release path.
+- **IRULE1202 (eight unique ranges)** comprises six in one OAuth example and
+  two in a JavaScript-challenge example. The OAuth rule calls `HTTP::respond`
+  on continuing paths; its `event disable all` calls disable later event
+  processing but do not return from the current handler. The challenge rule's
+  first conditional response also lacks a return, so either of its later
+  responses can run on the same request. Multiple predecessor proofs
+  previously repeated the same range; the flow consumer now emits one
+  diagnostic per code, range, and message.
+- **IRULE4004** initially produced 74 findings. Most were request resets,
+  conditional assignments, or variables written again on another path; moving
+  them changed connection state after the first request. The check now requires
+  an unconditional entry-block literal scalar and its sole write across every
+  event in the rule. The re-sweep leaves nine genuine configuration literals
+  that can move to a once-per-connection event.
+
+The sweep also found advisory-heavy families that need configuration-aware
+evidence before they can be changed safely (taint warnings, variable scope
+checks, logging, and top-level event-context calls). They are
+not declared true or false from corpus count alone.
 
 # Status note (2026-05-30): all resolved items below now have formal
 # FP.md catalog entries with reproducers, evidence, and paired TP+FP
@@ -1403,23 +1478,15 @@ dedicated iRules corpus + the Tk stdlib for a real sweep.
   sample file that exists specifically to demonstrate IRULE1002, not an
   analyser bug. IRULE1005 ("will never fire without a client …::collect
   call") — all genuine missing-`::collect` cases. TP throughout.
-- [~] **IRULE1002–5007** — ~~need an iRules corpus~~ **corpus now available;
-  sweep blocked by a crash.** The in-repo `.irul` corpus (`samples/irules/` +
-  `samples/for_screenshots/`) is curated/small and doesn't exercise most of
-  this family, so `scripts/dev/fetch-irules-corpus.sh` fetches nine public
-  third-party iRules repositories into `tmp/irules-corpus` (~206 files with a
-  sweepable extension; ~384 carrying a `when EVENT` signature). Not vendored —
-  third-party code under its own licences, fetched to `tmp/` exactly as
-  `.claude/skills/fetch-tcl-source` handles the Tcl source trees.
-
-  **The sweep does not yet complete: it aborts on issue #1325.** The first run
-  against this corpus panicked in `Analyser::run_nested_command_diagnostics`
-  (`analyser/commands.rs:2886`) — a `self.source[start..end]` slice guarded for
-  bounds but not char boundaries, on a real iRule containing U+200B zero-width
-  spaces (`erkac/f5-irules` → `expire-url-faster.irule`). Same root cause loses
-  *all* diagnostics for that file in the LSP silently (0 returned vs 5 with the
-  ZWSPs stripped, including an IRULE3102 URL-evasion warning). Fix #1325 first,
-  then this row can be swept for real.
+- [x] **IRULE1002–5007** — dedicated corpus sweep completed. The in-repo
+  `.irul` corpus (`samples/irules/` + `samples/for_screenshots/`) is
+  curated/small, so `scripts/dev/fetch-irules-corpus.sh` fetched nine public
+  third-party iRules repositories. Eight supplied 206 sweepable files; the run
+  also found 387 files carrying a `when EVENT` signature in any extension.
+  Issue #1325's Unicode-boundary crash is fixed, and the sweep now completes.
+  The lifecycle and flow residuals are recorded in the follow-up section above.
+  The corpus is not vendored: it remains third-party code under its own
+  licences in `tmp/`.
 
   Two corpus legs are additionally invisible to `fp-sweep`, which only walks
   recognised Tcl/iRules extensions: `f5devcentral/f5-agility-labs-irules`

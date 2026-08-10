@@ -43,6 +43,7 @@ pub const fn spec() -> CommandSpec {
         name: "TCP::payload",
         dialects: Some(DialectSet::IRULES),
         arity: Arity::new(0, 4),
+        data_collection: Some(TCP_PAYLOAD),
         hover: Some(HoverSnippet {
             summary: "Returns or changes the data collected by TCP::collect.",
             synopsis: &[

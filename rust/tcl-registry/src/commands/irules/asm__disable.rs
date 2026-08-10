@@ -35,8 +35,12 @@ pub const fn spec() -> CommandSpec {
             client_side: false,
             server_side: false,
             transport: None,
-            profiles: &["FASTHTTP"],
-            also_in: &[],
+            profiles: &["ASM"],
+            // F5 documents HTTP_CLASS_SELECTED as the command's valid event.
+            // The event itself implies HTTP rather than ASM, so record the
+            // exceptional event explicitly while retaining the profile for an
+            // informational "assumes profile" hint in other legal contexts.
+            also_in: &["HTTP_CLASS_SELECTED"],
             init_only: false,
             flow: false,
             capability: None,

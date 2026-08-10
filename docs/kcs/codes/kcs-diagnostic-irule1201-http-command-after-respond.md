@@ -39,6 +39,12 @@ Move all header work before the respond or redirect:
 when HTTP_REQUEST { HTTP::header insert X-Custom val; HTTP::respond 200 }
 ```
 
+## Limits
+
+`HTTP::has_responded` remains valid after a response is committed because its
+purpose is to query that state. The analyser reads this exception, and the set
+of commands that still need a live HTTP context, from the command registry.
+
 ## How to suppress
 
 Add `# noqa: IRULE1201` at the end of the offending line.

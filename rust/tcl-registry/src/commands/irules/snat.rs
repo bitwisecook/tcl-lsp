@@ -36,7 +36,12 @@ pub const fn spec() -> CommandSpec {
             client_side: false,
             server_side: false,
             transport: None,
-            profiles: &["FASTHTTP", "MR"],
+            // Source-NAT selection is available at the connection lifecycle
+            // events documented in `also_in`; it does not require a FASTHTTP
+            // or message-routing profile. The profile list feeds the generic
+            // IRULE1001 legality matrix, so optional consumers must not be
+            // recorded here as prerequisites.
+            profiles: &[],
             also_in: &["CLIENT_ACCEPTED", "SERVER_CONNECTED"],
             init_only: false,
             flow: false,

@@ -1509,6 +1509,29 @@ fn e003_switch_options_are_dialect_filtered() {
 }
 
 #[test]
+fn e003_source_nopkg_is_tcl9_only() {
+    // C Tcl 9.0 accepts `source -nopkg file`, then attempts to read `file`.
+    // Tcl 8.6 rejects the same shape as a wrong-arity invocation. The registry
+    // must therefore skip the flag only for the Tcl 9 dialect rather than
+    // treating it as a universal source argument.
+    let mut tcl9 = Analyser::new();
+    let r9 = tcl9.analyse("source -nopkg missing.tcl", "tcl9.0");
+    assert!(
+        !r9.diagnostics.iter().any(|d| d.code == DiagCode::E003),
+        "unexpected E003 under tcl9.0: {:?}",
+        r9.diagnostics
+    );
+
+    let mut tcl86 = Analyser::new();
+    let r86 = tcl86.analyse("source -nopkg missing.tcl", "tcl8.6");
+    assert!(
+        r86.diagnostics.iter().any(|d| d.code == DiagCode::E003),
+        "expected E003 under tcl8.6: {:?}",
+        r86.diagnostics
+    );
+}
+
+#[test]
 fn e003_suppressed_by_expanded_word() {
     // `{*}$rest` expands to an unknown count, so the expanded word
     // is excluded from the positional lower bound: `regsub a b c d

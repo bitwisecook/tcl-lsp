@@ -29,11 +29,14 @@
 
 #![forbid(unsafe_code)]
 
+mod bpf_diff;
 mod campaign;
+mod characterize;
 mod engine;
 mod findings;
 mod generator;
 mod harness;
+mod linked_wasm;
 mod rng;
 mod version;
 mod wasm;
@@ -45,8 +48,9 @@ use std::time::Duration;
 use clap::{Parser, Subcommand};
 
 use campaign::{Backend, Campaign, Stats};
+use characterize::Classification;
 use engine::Engine;
-use findings::Registry;
+use findings::{Registry, ReproducerStore};
 use generator::{GenConfig, generate};
 use harness::{Outcome, compare_outcomes, run_backend, write_script};
 
@@ -142,6 +146,23 @@ enum Cmd {
         #[command(flatten)]
         pair: PairArgs,
     },
+    /// Characterise `tcl-vm` and `runtime/rust` against C Tcl 9. This is a
+    /// three-way campaign: agreement between the two Rust backends alone is
+    /// never treated as correctness.
+    Characterise {
+        /// Number of scripts to generate and classify.
+        #[arg(long, default_value_t = 1000)]
+        iterations: u64,
+        /// Starting seed (each iteration uses seed + i).
+        #[arg(long)]
+        seed: Option<u64>,
+        /// Print each divergent seed as it is discovered.
+        #[arg(long)]
+        verbose: bool,
+        /// Additionally compare error text when every backend errors.
+        #[arg(long)]
+        compare_error_text: bool,
+    },
     /// WASM-runnability arm: compile each generated program to the
     /// eval-fallback WASM module and run it under `wasmtime`, flagging codegen
     /// panics/errors and modules that fail to instantiate or trap. (The value
@@ -173,6 +194,34 @@ enum Cmd {
         #[arg(long)]
         verbose: bool,
     },
+    /// eBPF value-differential arm: generate a registry-described BPF-Tcl
+    /// socket filter, compare its direct dialect contract with the real
+    /// lowering, eBPF emitter, and userspace eBPF VM.
+    BpfDiff {
+        /// Number of bounded packet-read programs to generate and check.
+        #[arg(long, default_value_t = 200)]
+        iterations: u64,
+        /// Starting seed (each iteration uses seed + i).
+        #[arg(long)]
+        seed: Option<u64>,
+        /// Print every mismatch or backend error as it occurs.
+        #[arg(long)]
+        verbose: bool,
+    },
+    /// Real linked-WASM differential arm: compile a generated user module,
+    /// link it against `runtime/rust`'s WASM module, and compare the result
+    /// against C Tcl 9 running the identical program.
+    LinkedWasmDiff {
+        /// Number of pure linked-runtime programs to generate and check.
+        #[arg(long, default_value_t = 50)]
+        iterations: u64,
+        /// Starting seed (each iteration uses seed + i).
+        #[arg(long)]
+        seed: Option<u64>,
+        /// Print every mismatch or backend error as it occurs.
+        #[arg(long)]
+        verbose: bool,
+    },
 }
 
 /// A [`PairArgs`] with both engines resolved to a concrete `(binary, leading
@@ -191,6 +240,12 @@ impl ResolvedPair {
     /// `--tclvm`/`--tclsh`/`--runtime-rust` override. `Err` carries a ready-to-print
     /// message naming the engine that could not be found and the flag to pass.
     fn resolve(pair: PairArgs, cli: &Cli) -> Result<Self, String> {
+        if pair.reference == pair.subject {
+            return Err(format!(
+                "reference and subject are both `{}`; select two different backends",
+                pair.reference.label()
+            ));
+        }
         let find = |engine: Engine| {
             resolve_engine(engine, cli).ok_or_else(|| {
                 format!(
@@ -216,6 +271,33 @@ impl ResolvedPair {
     fn findings_dir(&self, base: &Path) -> PathBuf {
         pair_findings_dir(base, self.reference, self.subject)
     }
+}
+
+/// Probe both resolved backends before a run or replay.
+///
+/// A path that exists but cannot execute Tcl must not turn every iteration
+/// into a skipped outcome and produce a misleading green campaign.
+fn probe_pair_versions(
+    pair: &ResolvedPair,
+    timeout: Duration,
+) -> Result<version::PairVersions, String> {
+    let probe = |engine: Engine, binary: &Path, args: &[String]| {
+        version::EngineVersion::probe(binary, args, timeout).ok_or_else(|| {
+            format!(
+                "could not validate `{}` at {}; the backend must execute `[info patchlevel]`",
+                engine.label(),
+                binary.display(),
+            )
+        })
+    };
+    Ok(version::PairVersions {
+        reference: Some(probe(
+            pair.reference,
+            &pair.reference_bin,
+            &pair.reference_args,
+        )?),
+        subject: Some(probe(pair.subject, &pair.subject_bin, &pair.subject_args)?),
+    })
 }
 
 /// Run one `Cmd::Run` campaign: resolve both engines, open the (pair-namespaced)
@@ -270,32 +352,36 @@ fn run_campaign(
     // Probe both engines once, before any script runs, so every finding this
     // campaign records carries the releases it was produced against, and a
     // skewed pair announces itself up front (issue #1328).
-    let versions = version::PairVersions {
-        reference: version::EngineVersion::probe(
-            &pair.reference_bin,
-            &pair.reference_args,
-            timeout,
-        ),
-        subject: version::EngineVersion::probe(&pair.subject_bin, &pair.subject_args, timeout),
+    let versions = match probe_pair_versions(&pair, timeout) {
+        Ok(versions) => versions,
+        Err(error) => {
+            let _ = std::fs::remove_dir_all(&scratch);
+            eprintln!("error: {error}");
+            return std::process::ExitCode::from(2);
+        }
     };
-    let describe = |v: &Option<version::EngineVersion>| {
-        v.as_ref()
-            .map_or_else(|| "unknown".to_owned(), |v| v.patchlevel.clone())
+    let describe = |version: &Option<version::EngineVersion>| {
+        version.as_ref().map_or_else(
+            || "unknown".to_owned(),
+            |version| version.patchlevel.clone(),
+        )
     };
     eprintln!(
         "  versions: reference Tcl {} | subject Tcl {}",
         describe(&versions.reference),
         describe(&versions.subject),
     );
-    if let Some(w) = versions.skew_warning() {
-        eprintln!("{w}");
+    if let Some(warning) = versions.skew_warning() {
+        eprintln!("{warning}");
     }
     let campaign = Campaign {
         reference: Backend {
+            engine: pair.reference,
             binary: &pair.reference_bin,
             args: pair.reference_args.clone(),
         },
         subject: Backend {
+            engine: pair.subject,
             binary: &pair.subject_bin,
             args: pair.subject_args.clone(),
         },
@@ -325,6 +411,101 @@ fn run_campaign(
     }
 }
 
+/// Whether replaying under `versions` differs from the versions persisted with
+/// a finding. Kept separate so version-warning decisions stay testable without
+/// invoking either backend.
+fn replay_versions_changed(
+    recorded_reference: Option<&str>,
+    recorded_subject: Option<&str>,
+    versions: &version::PairVersions,
+) -> bool {
+    let current_reference = versions
+        .reference
+        .as_ref()
+        .map(|version| version.patchlevel.as_str());
+    let current_subject = versions
+        .subject
+        .as_ref()
+        .map(|version| version.patchlevel.as_str());
+    recorded_reference != current_reference || recorded_subject != current_subject
+}
+
+/// Replay one generated seed against a resolved backend pair.
+fn replay_command(
+    cli: &Cli,
+    config: &GenConfig,
+    timeout: Duration,
+    seed: u64,
+    pair_args: PairArgs,
+) -> std::process::ExitCode {
+    let pair = match ResolvedPair::resolve(pair_args, cli) {
+        Ok(pair) => pair,
+        Err(error) => {
+            eprintln!("error: {error}");
+            return std::process::ExitCode::from(2);
+        }
+    };
+    let versions = match probe_pair_versions(&pair, timeout) {
+        Ok(versions) => versions,
+        Err(error) => {
+            eprintln!("error: {error}");
+            return std::process::ExitCode::from(2);
+        }
+    };
+    if let Ok(registry) = Registry::open(pair.findings_dir(&cli.findings))
+        && let Some(prior) = registry.load(seed)
+    {
+        eprintln!(
+            "note: seed {seed} is a recorded finding ({:?})",
+            prior.category
+        );
+        if replay_versions_changed(
+            prior.reference_version.as_deref(),
+            prior.subject_version.as_deref(),
+            &versions,
+        ) {
+            eprintln!(
+                "WARNING: replay backend versions differ from the finding: reference {:?} -> {:?}, subject {:?} -> {:?}",
+                prior.reference_version.as_deref(),
+                versions
+                    .reference
+                    .as_ref()
+                    .map(|version| version.patchlevel.as_str()),
+                prior.subject_version.as_deref(),
+                versions
+                    .subject
+                    .as_ref()
+                    .map(|version| version.patchlevel.as_str()),
+            );
+        }
+    }
+    replay(seed, config, &pair, timeout);
+    std::process::ExitCode::SUCCESS
+}
+
+/// Print the findings summary for one backend pair.
+fn summary_command(findings: &Path, pair: PairArgs) -> std::process::ExitCode {
+    let dir = pair_findings_dir(findings, pair.reference, pair.subject);
+    match Registry::open(&dir) {
+        Ok(registry) => {
+            let summary = registry.summary();
+            if summary.is_empty() {
+                println!("no findings in {}", dir.display());
+            } else {
+                println!("findings in {}:", dir.display());
+                for (category, count) in summary {
+                    println!("  {category:?}: {count}");
+                }
+            }
+            std::process::ExitCode::SUCCESS
+        }
+        Err(error) => {
+            eprintln!("error: {error}");
+            std::process::ExitCode::from(2)
+        }
+    }
+}
+
 fn main() -> std::process::ExitCode {
     let cli = Cli::parse();
     let timeout = Duration::from_millis(cli.timeout_ms);
@@ -332,46 +513,22 @@ fn main() -> std::process::ExitCode {
 
     match &cli.command {
         Cmd::Run(args) => run_campaign(&cli, &config, timeout, args),
-        Cmd::Replay { seed, pair } => {
-            let pair = match ResolvedPair::resolve(*pair, &cli) {
-                Ok(p) => p,
-                Err(e) => {
-                    eprintln!("error: {e}");
-                    return std::process::ExitCode::from(2);
-                }
-            };
-            if let Ok(registry) = Registry::open(pair.findings_dir(&cli.findings))
-                && let Some(prior) = registry.load(*seed)
-            {
-                eprintln!(
-                    "note: seed {seed} is a recorded finding ({:?})",
-                    prior.category
-                );
-            }
-            replay(*seed, &config, &pair, timeout);
-            std::process::ExitCode::SUCCESS
-        }
-        Cmd::Summary { pair } => {
-            let dir = pair_findings_dir(&cli.findings, pair.reference, pair.subject);
-            match Registry::open(&dir) {
-                Ok(registry) => {
-                    let summary = registry.summary();
-                    if summary.is_empty() {
-                        println!("no findings in {}", dir.display());
-                    } else {
-                        println!("findings in {}:", dir.display());
-                        for (cat, n) in summary {
-                            println!("  {cat:?}: {n}");
-                        }
-                    }
-                    std::process::ExitCode::SUCCESS
-                }
-                Err(e) => {
-                    eprintln!("error: {e}");
-                    std::process::ExitCode::from(2)
-                }
-            }
-        }
+        Cmd::Replay { seed, pair } => replay_command(&cli, &config, timeout, *seed, *pair),
+        Cmd::Summary { pair } => summary_command(&cli.findings, *pair),
+        Cmd::Characterise {
+            iterations,
+            seed,
+            verbose,
+            compare_error_text,
+        } => characterise_campaign(
+            &cli,
+            &config,
+            timeout,
+            *iterations,
+            *seed,
+            *verbose,
+            *compare_error_text,
+        ),
         Cmd::WasmCheck {
             iterations,
             seed,
@@ -382,6 +539,451 @@ fn main() -> std::process::ExitCode {
             seed,
             verbose,
         } => wasm_diff_campaign(*iterations, *seed, *verbose, &config, &cli.findings),
+        Cmd::BpfDiff {
+            iterations,
+            seed,
+            verbose,
+        } => bpf_diff_campaign(*iterations, *seed, *verbose, &cli.findings),
+        Cmd::LinkedWasmDiff {
+            iterations,
+            seed,
+            verbose,
+        } => linked_wasm_diff_campaign(&cli, timeout, *iterations, *seed, *verbose),
+    }
+}
+
+/// Drive whole-program linked WASM executions against C Tcl 9. The runtime
+/// build deliberately lives in this campaign's scratch directory so it cannot
+/// collide with an ordinary Cargo worktree target directory.
+fn linked_wasm_diff_campaign(
+    cli: &Cli,
+    timeout: Duration,
+    iterations: u64,
+    seed: Option<u64>,
+    verbose: bool,
+) -> std::process::ExitCode {
+    if !linked_wasm::have_wasmtime() {
+        eprintln!("error: `wasmtime` is required for the linked-WASM arm");
+        return std::process::ExitCode::from(2);
+    }
+    let Some((oracle_bin, oracle_args)) = resolve_engine(Engine::Tclsh, cli) else {
+        eprintln!("error: could not find C Tcl (pass --tclsh)");
+        return std::process::ExitCode::from(2);
+    };
+    let scratch = std::env::temp_dir().join(format!("tcl-fuzz-linked-wasm-{}", std::process::id()));
+    if let Err(error) = std::fs::create_dir_all(&scratch) {
+        eprintln!("error: creating linked-WASM scratch directory: {error}");
+        return std::process::ExitCode::from(2);
+    }
+    let linked_findings = match ReproducerStore::open(&cli.findings) {
+        Ok(store) => store,
+        Err(error) => {
+            let _ = std::fs::remove_dir_all(&scratch);
+            eprintln!(
+                "error: creating linked-WASM findings directory {}: {error}",
+                cli.findings.display()
+            );
+            return std::process::ExitCode::from(2);
+        }
+    };
+    if let Err(error) =
+        verify_tcl90_backend("C Tcl oracle", &oracle_bin, &oracle_args, &scratch, timeout)
+    {
+        let _ = std::fs::remove_dir_all(&scratch);
+        eprintln!("error: {error}");
+        return std::process::ExitCode::from(2);
+    }
+    let runtime = match linked_wasm::build_runtime(&scratch) {
+        Ok(runtime) => runtime,
+        Err(error) => {
+            let _ = std::fs::remove_dir_all(&scratch);
+            eprintln!("error: {error}");
+            return std::process::ExitCode::from(2);
+        }
+    };
+
+    let base_seed = seed.unwrap_or_else(time_seed);
+    let mut matched = 0u64;
+    let mut failed = 0u64;
+    eprintln!(
+        "linked-wasm-diff: {iterations} programs from seed {base_seed}\n  oracle: C Tcl 9 ({})\n  runtime: {}",
+        oracle_bin.display(),
+        runtime.display(),
+    );
+    for offset in 0..iterations {
+        let current_seed = base_seed.wrapping_add(offset);
+        let case = linked_wasm::Case::from_seed(current_seed);
+        match linked_wasm::check(
+            &case,
+            &runtime,
+            &oracle_bin,
+            &oracle_args,
+            &scratch,
+            current_seed,
+            timeout,
+        ) {
+            linked_wasm::LinkedVerdict::Match => matched += 1,
+            verdict => {
+                failed += 1;
+                if verbose {
+                    eprintln!("  finding @ seed {current_seed}: {verdict:?}");
+                }
+                let file_name = format!("linked-wasm-{current_seed}.tcl");
+                if let Err(error) = linked_findings.write(&file_name, case.program()) {
+                    let _ = std::fs::remove_dir_all(&scratch);
+                    eprintln!("error: writing linked-WASM reproducer {file_name}: {error}");
+                    return std::process::ExitCode::from(2);
+                }
+            }
+        }
+    }
+    let _ = std::fs::remove_dir_all(&scratch);
+    eprintln!("\nlinked-wasm-diff complete:\n  matched {matched} | failed {failed}");
+    if failed == 0 {
+        std::process::ExitCode::SUCCESS
+    } else {
+        std::process::ExitCode::from(1)
+    }
+}
+
+/// Drive the real eBPF value-differential arm over `iterations` generated
+/// socket filters. Unlike core Tcl, BPF-Tcl has its own typed dialect runtime;
+/// the restricted shape's registry-declared packet semantics are its oracle.
+fn bpf_diff_campaign(
+    iterations: u64,
+    seed: Option<u64>,
+    verbose: bool,
+    findings_dir: &Path,
+) -> std::process::ExitCode {
+    let base_seed = seed.unwrap_or_else(time_seed);
+    let diff_findings = findings_dir.join("bpf-diff");
+    let reproducers = match ReproducerStore::open(&diff_findings) {
+        Ok(store) => store,
+        Err(error) => {
+            eprintln!(
+                "error: creating BPF findings directory {}: {error}",
+                diff_findings.display()
+            );
+            return std::process::ExitCode::from(2);
+        }
+    };
+    let (mut matched, mut failed) = (0u64, 0u64);
+
+    eprintln!("bpf-diff: {iterations} registry-described socket filters from seed {base_seed}");
+    for offset in 0..iterations {
+        let current_seed = base_seed.wrapping_add(offset);
+        let case = bpf_diff::Case::from_seed(current_seed);
+        match bpf_diff::check(case) {
+            Ok((actual, expected)) if actual == expected => matched += 1,
+            Ok((actual, expected)) => {
+                failed += 1;
+                if verbose {
+                    eprintln!(
+                        "  divergence @ seed {current_seed}: actual {actual}, expected {expected}"
+                    );
+                }
+                if let Ok(source) = bpf_diff::source(case) {
+                    let file_name = format!("seed-{current_seed}.bpftcl");
+                    if let Err(error) = reproducers.write(
+                        &file_name,
+                        format!("# actual={actual}; expected={expected}\n{source}"),
+                    ) {
+                        eprintln!("error: writing BPF reproducer {file_name}: {error}");
+                        return std::process::ExitCode::from(2);
+                    }
+                }
+            }
+            Err(error) => {
+                failed += 1;
+                if verbose {
+                    eprintln!("  backend error @ seed {current_seed}: {error}");
+                }
+                if let Ok(source) = bpf_diff::source(case) {
+                    let file_name = format!("error-{current_seed}.bpftcl");
+                    if let Err(write_error) =
+                        reproducers.write(&file_name, format!("# {error}\n{source}"))
+                    {
+                        eprintln!("error: writing BPF reproducer {file_name}: {write_error}");
+                        return std::process::ExitCode::from(2);
+                    }
+                }
+            }
+        }
+    }
+
+    eprintln!(
+        "\nbpf-diff complete:\n  matched {matched} | failed {failed}\n  findings: {failed} (programs in {})",
+        diff_findings.display(),
+    );
+    if failed == 0 {
+        std::process::ExitCode::SUCCESS
+    } else {
+        std::process::ExitCode::from(1)
+    }
+}
+
+/// Verify that one backend reports the Tcl 9.0 release line before trusting a
+/// three-way campaign. Cross-version semantics otherwise become false backend
+/// findings, including when both Rust implementations agree with each other.
+fn verify_tcl90_backend(
+    label: &str,
+    binary: &Path,
+    args: &[String],
+    scratch: &Path,
+    timeout: Duration,
+) -> Result<version::EngineVersion, String> {
+    let probe = write_script(scratch, u64::MAX, "puts [info patchlevel]\n")
+        .map_err(|e| format!("could not write Tcl 9 oracle probe: {e}"))?;
+    let outcome = run_backend(binary, args, &probe, timeout);
+    let _ = std::fs::remove_file(probe);
+    match outcome {
+        Outcome::Ran {
+            stdout,
+            errored: false,
+            ..
+        } => {
+            let patchlevel = stdout.lines().next().unwrap_or_default();
+            let reported = version::EngineVersion::parse(patchlevel);
+            if reported.line == Some(tcl_dialect::TclVersion::V9_0) {
+                Ok(reported)
+            } else {
+                Err(format!(
+                    "the configured {label} reports {:?}; this arm requires Tcl 9.0",
+                    reported.patchlevel,
+                ))
+            }
+        }
+        other => Err(format!(
+            "could not run the configured {label}: {}",
+            render(&other)
+        )),
+    }
+}
+
+/// A concrete command invocation for one characterisation backend.
+#[derive(Debug, PartialEq, Eq)]
+struct BackendInvocation {
+    binary: PathBuf,
+    args: Vec<String>,
+}
+
+/// All three invocations required by the characterisation campaign, resolved
+/// before any backend is probed so missing-command failures remain deterministic.
+#[derive(Debug, PartialEq, Eq)]
+struct CharacteriseInvocations {
+    oracle: BackendInvocation,
+    tclvm: BackendInvocation,
+    runtime: BackendInvocation,
+}
+
+impl CharacteriseInvocations {
+    /// Resolve every backend while preserving the public command's oracle,
+    /// `tcl-vm`, then runtime error order.
+    fn resolve(cli: &Cli) -> Result<Self, String> {
+        let resolve = |engine| {
+            resolve_engine(engine, cli)
+                .map(|(binary, args)| BackendInvocation { binary, args })
+                .ok_or_else(|| {
+                    format!(
+                        "could not find `{}` (pass --{})",
+                        engine.label(),
+                        cli_flag_for(engine)
+                    )
+                })
+        };
+        Ok(Self {
+            oracle: resolve(Engine::Tclsh)?,
+            tclvm: resolve(Engine::Tclvm)?,
+            runtime: resolve(Engine::RuntimeRust)?,
+        })
+    }
+
+    /// Verify the Tcl release line reported by all resolved invocations.
+    fn verify(self, scratch: &Path, timeout: Duration) -> Result<CharacteriseBackends, String> {
+        let verify =
+            |label: &str, invocation: BackendInvocation| -> Result<VerifiedBackend, String> {
+                let version = verify_tcl90_backend(
+                    label,
+                    &invocation.binary,
+                    &invocation.args,
+                    scratch,
+                    timeout,
+                )?;
+                Ok(VerifiedBackend {
+                    invocation,
+                    version,
+                })
+            };
+        Ok(CharacteriseBackends {
+            oracle: verify("C Tcl oracle", self.oracle)?,
+            tclvm: verify("tcl-vm backend", self.tclvm)?,
+            runtime: verify("runtime/rust backend", self.runtime)?,
+        })
+    }
+}
+
+/// One characterisation backend after its Tcl 9.0 probe passes.
+struct VerifiedBackend {
+    invocation: BackendInvocation,
+    version: version::EngineVersion,
+}
+
+/// The three validated characterisation backends.
+struct CharacteriseBackends {
+    oracle: VerifiedBackend,
+    tclvm: VerifiedBackend,
+    runtime: VerifiedBackend,
+}
+
+/// Count only classifications that represent a semantic backend finding.
+fn characterise_finding_count(counts: &std::collections::BTreeMap<Classification, u64>) -> u64 {
+    counts
+        .iter()
+        .filter(|(classification, _)| classification.is_finding())
+        .map(|(_, count)| count)
+        .sum()
+}
+
+/// Render the stable characterisation summary shared by interactive and CI
+/// campaigns.
+fn print_characterise_summary(
+    counts: &std::collections::BTreeMap<Classification, u64>,
+    findings_dir: &Path,
+) {
+    eprintln!(
+        "\ncharacterise complete:\n  all-agree {} | tcl-vm {} | runtime/rust {} | shared {} | three-way {} | incomplete {}\n  findings: {} (scripts in {})",
+        counts.get(&Classification::AllAgree).copied().unwrap_or(0),
+        counts
+            .get(&Classification::TclVmDiverges)
+            .copied()
+            .unwrap_or(0),
+        counts
+            .get(&Classification::RuntimeRustDiverges)
+            .copied()
+            .unwrap_or(0),
+        counts
+            .get(&Classification::SharedDivergence)
+            .copied()
+            .unwrap_or(0),
+        counts
+            .get(&Classification::ThreeWayDivergence)
+            .copied()
+            .unwrap_or(0),
+        counts
+            .get(&Classification::Incomplete)
+            .copied()
+            .unwrap_or(0),
+        characterise_finding_count(counts),
+        findings_dir.display(),
+    );
+}
+
+/// Drive the three-way native-runtime characterisation campaign.
+fn characterise_campaign(
+    cli: &Cli,
+    config: &GenConfig,
+    timeout: Duration,
+    iterations: u64,
+    seed: Option<u64>,
+    verbose: bool,
+    compare_error_text: bool,
+) -> std::process::ExitCode {
+    let invocations = match CharacteriseInvocations::resolve(cli) {
+        Ok(invocations) => invocations,
+        Err(message) => {
+            eprintln!("error: {message}");
+            return std::process::ExitCode::from(2);
+        }
+    };
+
+    let scratch =
+        std::env::temp_dir().join(format!("tcl-fuzz-characterise-{}", std::process::id()));
+    if let Err(error) = std::fs::create_dir_all(&scratch) {
+        eprintln!("error: creating scratch directory: {error}");
+        return std::process::ExitCode::from(2);
+    }
+    let backends = match invocations.verify(&scratch, timeout) {
+        Ok(backends) => backends,
+        Err(message) => {
+            let _ = std::fs::remove_dir_all(&scratch);
+            eprintln!("error: {message}");
+            return std::process::ExitCode::from(2);
+        }
+    };
+
+    let findings_dir = cli.findings.join("characterise");
+    let reproducers = match ReproducerStore::open(&findings_dir) {
+        Ok(store) => store,
+        Err(error) => {
+            let _ = std::fs::remove_dir_all(&scratch);
+            eprintln!(
+                "error: creating characterise findings directory {}: {error}",
+                findings_dir.display()
+            );
+            return std::process::ExitCode::from(2);
+        }
+    };
+    let base_seed = seed.unwrap_or_else(time_seed);
+    let mut counts = std::collections::BTreeMap::<Classification, u64>::new();
+    eprintln!(
+        "characterise: {iterations} programs from seed {base_seed}\n  oracle: C Tcl {} ({})\n  tcl-vm: {} ({})\n  runtime/rust: {} ({})",
+        backends.oracle.version.patchlevel,
+        backends.oracle.invocation.binary.display(),
+        backends.tclvm.version.patchlevel,
+        backends.tclvm.invocation.binary.display(),
+        backends.runtime.version.patchlevel,
+        backends.runtime.invocation.binary.display(),
+    );
+
+    for offset in 0..iterations {
+        let current_seed = base_seed.wrapping_add(offset);
+        let script = generate(current_seed, config);
+        let Ok(path) = write_script(&scratch, current_seed, &script) else {
+            *counts.entry(Classification::Incomplete).or_default() += 1;
+            continue;
+        };
+        let oracle = run_backend(
+            &backends.oracle.invocation.binary,
+            &backends.oracle.invocation.args,
+            &path,
+            timeout,
+        );
+        let tclvm = run_backend(
+            &backends.tclvm.invocation.binary,
+            &backends.tclvm.invocation.args,
+            &path,
+            timeout,
+        );
+        let runtime = run_backend(
+            &backends.runtime.invocation.binary,
+            &backends.runtime.invocation.args,
+            &path,
+            timeout,
+        );
+        let _ = std::fs::remove_file(path);
+        let classification = characterize::classify(&oracle, &tclvm, &runtime, compare_error_text);
+        *counts.entry(classification).or_default() += 1;
+        if classification.is_finding() {
+            if verbose {
+                eprintln!("  {classification:?} @ seed {current_seed}");
+            }
+            let file_name = format!("{current_seed}-{classification:?}.tcl");
+            if let Err(error) = reproducers.write(&file_name, script) {
+                let _ = std::fs::remove_dir_all(&scratch);
+                eprintln!("error: writing characterise reproducer {file_name}: {error}");
+                return std::process::ExitCode::from(2);
+            }
+        } else if !verbose && offset % 100 == 0 {
+            eprintln!("  {offset}/{iterations}");
+        }
+    }
+    let _ = std::fs::remove_dir_all(&scratch);
+
+    print_characterise_summary(&counts, &findings_dir);
+    if characterise_finding_count(&counts) > 0 {
+        std::process::ExitCode::from(1)
+    } else {
+        std::process::ExitCode::SUCCESS
     }
 }
 
@@ -395,7 +997,16 @@ fn wasm_diff_campaign(
 ) -> std::process::ExitCode {
     let base_seed = seed.unwrap_or_else(time_seed);
     let diff_findings = findings_dir.join("wasm-diff");
-    let _ = std::fs::create_dir_all(&diff_findings);
+    let reproducers = match ReproducerStore::open(&diff_findings) {
+        Ok(store) => store,
+        Err(error) => {
+            eprintln!(
+                "error: creating WASM diff findings directory {}: {error}",
+                diff_findings.display()
+            );
+            return std::process::ExitCode::from(2);
+        }
+    };
     let engine = wasm_diff::engine();
 
     eprintln!("wasm-diff: {iterations} programs from seed {base_seed}");
@@ -423,14 +1034,24 @@ fn wasm_diff_campaign(
                 if verbose {
                     eprintln!("  WASM HANG @ seed {s} (non-terminating compiled control flow)");
                 }
-                let _ = std::fs::write(diff_findings.join(format!("hang-{s}.tcl")), &script);
+                let file_name = format!("hang-{s}.tcl");
+                if let Err(error) = reproducers.write(&file_name, &script) {
+                    std::panic::set_hook(prior_hook);
+                    eprintln!("error: writing WASM hang reproducer {file_name}: {error}");
+                    return std::process::ExitCode::from(2);
+                }
             }
             wasm_diff::DiffVerdict::Divergence { wasm, direct } => {
                 diverged += 1;
                 if verbose {
                     eprintln!("  DIVERGENCE @ seed {s}: wasm={wasm:?} direct={direct:?}");
                 }
-                let _ = std::fs::write(diff_findings.join(format!("seed-{s}.tcl")), &script);
+                let file_name = format!("seed-{s}.tcl");
+                if let Err(error) = reproducers.write(&file_name, &script) {
+                    std::panic::set_hook(prior_hook);
+                    eprintln!("error: writing WASM reproducer {file_name}: {error}");
+                    return std::process::ExitCode::from(2);
+                }
             }
         }
         if !verbose && i % 50 == 0 {
@@ -467,7 +1088,17 @@ fn wasm_check(
     let scratch = std::env::temp_dir().join(format!("tcl-fuzz-wasm-{}", std::process::id()));
     let _ = std::fs::create_dir_all(&scratch);
     let wasm_findings = findings_dir.join("wasm");
-    let _ = std::fs::create_dir_all(&wasm_findings);
+    let reproducers = match ReproducerStore::open(&wasm_findings) {
+        Ok(store) => store,
+        Err(error) => {
+            let _ = std::fs::remove_dir_all(&scratch);
+            eprintln!(
+                "error: creating WASM findings directory {}: {error}",
+                wasm_findings.display()
+            );
+            return std::process::ExitCode::from(2);
+        }
+    };
 
     eprintln!("wasm-check: {iterations} programs from seed {base_seed}");
     // A generated program that makes codegen panic prints a backtrace by
@@ -501,7 +1132,13 @@ fn wasm_check(
                         reason.lines().next().unwrap_or("")
                     );
                 }
-                let _ = std::fs::write(wasm_findings.join(format!("seed-{s}.tcl")), &script);
+                let file_name = format!("seed-{s}.tcl");
+                if let Err(error) = reproducers.write(&file_name, &script) {
+                    std::panic::set_hook(prior_hook);
+                    let _ = std::fs::remove_dir_all(&scratch);
+                    eprintln!("error: writing WASM reproducer {file_name}: {error}");
+                    return std::process::ExitCode::from(2);
+                }
             }
         }
         if !verbose && i % 50 == 0 {
@@ -720,6 +1357,16 @@ mod tests {
     }
 
     #[test]
+    fn identical_backend_pairs_are_rejected() {
+        let cli = Cli::parse_from(["tcl-fuzz", "run"]);
+        let pair = PairArgs {
+            reference: Engine::Tclvm,
+            subject: Engine::Tclvm,
+        };
+        assert!(ResolvedPair::resolve(pair, &cli).is_err());
+    }
+
+    #[test]
     fn an_explicit_override_resolves_that_engine_and_its_args() {
         let cli = Cli::parse_from([
             "tcl-fuzz",
@@ -735,5 +1382,56 @@ mod tests {
         // `runtime/rust`'s runner needs `--quiet` to match `tclsh script.tcl`'s
         // stdout contract — see `engine::Engine::args`.
         assert_eq!(args, vec!["--quiet".to_string()]);
+    }
+
+    #[test]
+    fn characterise_resolution_keeps_each_backend_invocation_together() {
+        let cli = Cli::parse_from([
+            "tcl-fuzz",
+            "--tclsh",
+            "/opt/tclsh9.0",
+            "--tclvm",
+            "/opt/tclvm",
+            "--runtime-rust",
+            "/opt/run_script",
+            "characterise",
+        ]);
+        let resolved = CharacteriseInvocations::resolve(&cli).expect("explicit paths resolve");
+        assert_eq!(resolved.oracle.binary, PathBuf::from("/opt/tclsh9.0"));
+        assert!(resolved.oracle.args.is_empty());
+        assert_eq!(resolved.tclvm.binary, PathBuf::from("/opt/tclvm"));
+        assert!(resolved.tclvm.args.is_empty());
+        assert_eq!(resolved.runtime.binary, PathBuf::from("/opt/run_script"));
+        assert_eq!(resolved.runtime.args, vec!["--quiet".to_string()]);
+    }
+
+    #[test]
+    fn replay_version_warning_compares_both_recorded_backends() {
+        let versions = version::PairVersions {
+            reference: Some(version::EngineVersion::parse("9.0.3")),
+            subject: Some(version::EngineVersion::parse("9.0.4")),
+        };
+        assert!(!replay_versions_changed(
+            Some("9.0.3"),
+            Some("9.0.4"),
+            &versions,
+        ));
+        assert!(replay_versions_changed(
+            Some("9.0.3"),
+            Some("9.0.5"),
+            &versions,
+        ));
+        assert!(replay_versions_changed(None, Some("9.0.4"), &versions));
+    }
+
+    #[test]
+    fn characterise_finding_count_excludes_agreement_and_incomplete_runs() {
+        let counts = std::collections::BTreeMap::from([
+            (Classification::AllAgree, 11),
+            (Classification::TclVmDiverges, 2),
+            (Classification::SharedDivergence, 3),
+            (Classification::Incomplete, 7),
+        ]);
+        assert_eq!(characterise_finding_count(&counts), 5);
     }
 }

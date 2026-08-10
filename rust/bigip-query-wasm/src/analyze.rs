@@ -394,12 +394,12 @@ mod tests {
 
     #[test]
     fn hints_and_suggestions_are_surfaced() {
-        // Even a tidy iRule draws analyser hints (e.g. IRULE1004 — a `when`
-        // without an explicit priority), which is exactly what the toggle
-        // exists to show. Assert the finding is present and rendered.
-        let src = "when HTTP_REQUEST {\n  pool web_pool\n}";
+        // A high-frequency event with a regular expression has a real
+        // performance hint. A bare `when` is deliberately absent here: BIG-IP
+        // defaults its priority to 500, so omission is valid.
+        let src = "when HTTP_REQUEST {\n  regexp a $uri\n}";
         let json = analyze_irule(src);
-        assert!(json.contains("IRULE1004"), "expected the priority hint: {json}");
+        assert!(json.contains("IRULE2101"), "expected the regexp hint: {json}");
         assert!(json.contains("\"severity\":\"hint\""));
         assert!(json.contains("tk-event"));
     }

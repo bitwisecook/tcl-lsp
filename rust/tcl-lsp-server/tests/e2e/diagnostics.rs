@@ -458,6 +458,22 @@ fn lsearch_stride_on_tcl90_has_no_w004() {
 }
 
 #[test]
+fn tcl9_lowercase_core_package_alias_selects_source_nopkg_grammar() {
+    // C Tcl 9's bundled init.tcl uses `package require -exact tcl 9.0.3`.
+    // The lower-case alias is a Tcl 9-only package spelling, so its version
+    // guard must select Tcl 9 before source's registry-defined options are
+    // checked. Without that detection, `-nopkg` was counted as a second file
+    // name and produced a false E003.
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let diags = lsp.open_ready(
+        &uri,
+        "package require -exact tcl 9.0.3\nsource -nopkg library.tcl\n",
+    );
+    assert!(!has_code(&diags, "E003"), "got {diags:?}");
+}
+
+#[test]
 fn user_proc_shadowing_lsearch_suppresses_w004() {
     // `lsearch` really dispatches to the user's own proc here, so the
     // builtin's dialect-restricted `-stride` no longer applies.

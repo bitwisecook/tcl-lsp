@@ -32,11 +32,15 @@ use crate::arity::Arity;
 use crate::body_kind::BodyKind;
 use crate::command_table::CommandTableEffect;
 use crate::dialects::DialectSet;
+use crate::events::{
+    DataCollectionAction, DataCollectionOperation, DataCollectionProtocol, EventHandlerPriority,
+};
 use crate::forms::CommandForm;
 use crate::hooks::{
     AnalyserHookId, CodegenHookId, InlineCodegenHookId, LoweringHookId, WasmCodegenHookId,
 };
 use crate::lifecycle::{Lifecycle, LifecycleState};
+use crate::side_effects::SideSwitchTarget;
 use crate::spec::{BytePayloadSpec, CommandSpec, SubCommand};
 use crate::traits::Traits;
 use crate::types::VarWriteTyping;
@@ -603,6 +607,22 @@ impl CommandRegistry {
     #[must_use]
     pub fn bpf_op(&self, name: &str) -> Option<&'static crate::bpf_op::BpfOpSpec> {
         self.get(name).and_then(|s| s.bpf_op)
+    }
+
+    /// Find the registered spelling for a typed BPF-Tcl operation.
+    ///
+    /// This is the reverse lookup companion to [`Self::bpf_op`].  Tools that
+    /// generate BPF-Tcl source can select an operation by its registry-owned
+    /// [`crate::bpf_op::BpfOpKind`] instead of embedding a command spelling.
+    /// It deliberately returns the first registered spelling: aliases must
+    /// share an operation descriptor, and the canonical command specs are
+    /// registered before any compatibility aliases.
+    #[must_use]
+    pub fn bpf_command_for(&self, kind: crate::bpf_op::BpfOpKind) -> Option<&'static str> {
+        self.by_name
+            .values()
+            .flat_map(|specs| specs.iter())
+            .find_map(|spec| (spec.bpf_op.is_some_and(|op| op.kind == kind)).then_some(spec.name))
     }
 
     /// Look up a command spec filtered by dialect, picking the
@@ -1194,6 +1214,24 @@ impl CommandRegistry {
         events: &crate::events::EventRegistry,
         profiles: &crate::profiles::ProfileRegistry,
     ) -> bool {
+        self.is_irules_call_legal_in_event(command, &[], event, events, profiles)
+    }
+
+    /// Whether a concrete iRules command call is legal in `event`.
+    ///
+    /// Unlike [`Self::is_irules_command_legal_in_event`], this resolves the
+    /// command's registry-declared argument-prefix event forms before applying
+    /// the common event matrix. Consumers pass the words after the command
+    /// name; no consumer needs command-specific subcommand knowledge.
+    #[must_use]
+    pub fn is_irules_call_legal_in_event(
+        &self,
+        command: &str,
+        args: &[&str],
+        event: &str,
+        events: &crate::events::EventRegistry,
+        profiles: &crate::profiles::ProfileRegistry,
+    ) -> bool {
         let Some(props) = events.get_props(event) else {
             return false;
         };
@@ -1203,8 +1241,12 @@ impl CommandRegistry {
         if spec.excluded_events.contains(&event) {
             return false;
         }
-        spec.event_requires
-            .as_ref()
+        let requirements = spec.event_requirements_for_args(args);
+        if !requirements.only_in.is_empty() && !requirements.only_in.contains(&event) {
+            return false;
+        }
+        requirements
+            .requires
             .is_none_or(|req| crate::events::event_satisfies(props, req, event, profiles))
     }
 
@@ -1218,10 +1260,26 @@ impl CommandRegistry {
         events: &'a crate::events::EventRegistry,
         profiles: &crate::profiles::ProfileRegistry,
     ) -> Vec<&'a str> {
+        self.irules_events_for_call(command, &[], events, profiles)
+    }
+
+    /// Sorted iRules events where a concrete command call is legal. See
+    /// [`Self::is_irules_call_legal_in_event`] for the argument-form-aware
+    /// contract resolution.
+    #[must_use]
+    pub fn irules_events_for_call<'a>(
+        &self,
+        command: &str,
+        args: &[&str],
+        events: &'a crate::events::EventRegistry,
+        profiles: &crate::profiles::ProfileRegistry,
+    ) -> Vec<&'a str> {
         let mut names: Vec<&str> = events
             .all_event_names()
             .into_iter()
-            .filter(|event| self.is_irules_command_legal_in_event(command, event, events, profiles))
+            .filter(|event| {
+                self.is_irules_call_legal_in_event(command, args, event, events, profiles)
+            })
             .collect();
         names.sort_unstable();
         names
@@ -1740,6 +1798,84 @@ impl CommandRegistry {
                 .iter()
                 .any(|s| s.traits.contains(Traits::IS_SIDE_SWITCH))
         })
+    }
+
+    /// Return the side context selected by `name`'s nesting-script body.
+    ///
+    /// This is more precise than [`Self::is_side_switch`]: callers that need
+    /// to recurse into a body use the declared fixed/client/server/peer
+    /// behaviour instead of matching a command spelling.
+    #[must_use]
+    pub fn side_switch_target(&self, name: &str) -> Option<SideSwitchTarget> {
+        self.get(name)?.side_switch_target
+    }
+
+    /// Return the data-collection lifecycle fact declared by `name`.
+    ///
+    /// This is the only lookup consumers need for collect/release/payload
+    /// analysis: command files opt in explicitly, so a similarly named custom
+    /// command is never mistaken for an iRules buffer operation.
+    #[must_use]
+    pub fn data_collection_operation(&self, name: &str) -> Option<DataCollectionOperation> {
+        self.get(name)?.data_collection
+    }
+
+    /// Return the declared protocol facts for `protocol`.
+    ///
+    /// A protocol can be known even when it has no `collect` command (UDP and
+    /// ASM payloads are immediately available), so this scans all declared
+    /// lifecycle operations rather than only collect commands.
+    #[must_use]
+    pub fn data_collection_protocol(&self, protocol: &str) -> Option<DataCollectionProtocol> {
+        self.by_name
+            .values()
+            .flatten()
+            .filter_map(|spec| spec.data_collection)
+            .find(|operation| operation.protocol.name.eq_ignore_ascii_case(protocol))
+            .map(|operation| operation.protocol)
+    }
+
+    /// Return the registered collect command for `protocol`, if it has one.
+    ///
+    /// Editor quick fixes use this to offer only commands that really exist;
+    /// for example, UDP payload access deliberately returns `None` because
+    /// BIG-IP provides each datagram without a `UDP::collect` command.
+    #[must_use]
+    pub fn data_collection_collect_command(&self, protocol: &str) -> Option<&CommandSpec> {
+        self.by_name.values().flatten().find(|spec| {
+            spec.data_collection.is_some_and(|operation| {
+                operation.action == DataCollectionAction::Collect
+                    && operation.protocol.name.eq_ignore_ascii_case(protocol)
+            })
+        })
+    }
+
+    /// Return the event-handler priority policy declared by `name`.
+    ///
+    /// BIG-IP's `when` handler has a runtime default priority, so the policy
+    /// records that omission is valid. Consumers can still honour a stricter
+    /// policy for a dialect whose handler spec opts into one.
+    #[must_use]
+    pub fn event_handler_priority(&self, name: &str) -> Option<EventHandlerPriority> {
+        self.get(name)?.event_handler_priority
+    }
+
+    /// Return the command spec that declares an event-handler priority grammar.
+    ///
+    /// Code generators and editor fixes use this when they need to create a
+    /// handler rather than inspect an existing command. This keeps both the
+    /// handler spelling and its priority grammar in the registry. Returns
+    /// `None` if the dialect has no handler grammar or more than one, because
+    /// choosing between multiple handlers requires additional registry data.
+    #[must_use]
+    pub fn event_handler_spec(&self) -> Option<&CommandSpec> {
+        let mut handlers = self
+            .by_name
+            .values()
+            .flatten()
+            .filter(|spec| spec.event_handler_priority.is_some());
+        let handler = handlers.next()?;
+        handlers.next().is_none().then_some(handler)
     }
 
     /// Whether `name` is **frame-sensitive**: its meaning depends on the

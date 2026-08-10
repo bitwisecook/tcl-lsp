@@ -426,6 +426,10 @@ pub const TRAITS: &[Variant] = &[
     v("HAS_DESTRUCTIVE_OPS", "has irreversible operations"),
     v("IS_EVENT_HANDLER", "an iRules event handler"),
     v("UNNORMALISED_HTTP_GETTER", "returns unnormalised HTTP data"),
+    v(
+        "REQUIRES_HTTP_CONTEXT",
+        "requires an uncommitted HTTP transaction",
+    ),
     v("RETURNS_PATH", "returns a filesystem path"),
     v("IS_UNESCAPE", "performs unescaping or decoding"),
     v("PRODUCES_CANONICAL_LIST", "produces a canonical list"),

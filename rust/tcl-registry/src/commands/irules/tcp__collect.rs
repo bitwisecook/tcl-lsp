@@ -24,6 +24,7 @@ pub const fn spec() -> CommandSpec {
         traits: Traits::DIAGRAM_ACTION,
         dialects: Some(DialectSet::IRULES),
         arity: Arity::at_least(0),
+        data_collection: Some(TCP_COLLECT),
         hover: Some(HoverSnippet {
             summary: "Collects the specified amount of data for delivery to the iRule.",
             synopsis: &["TCP::collect (COLLECT_BYTES (SKIP_BYTES)?)?"],

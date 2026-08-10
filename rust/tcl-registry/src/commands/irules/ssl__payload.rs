@@ -23,6 +23,7 @@ pub const fn spec() -> CommandSpec {
         name: "SSL::payload",
         dialects: Some(DialectSet::IRULES),
         arity: Arity::at_least(0),
+        data_collection: Some(SSL_PAYLOAD),
         hover: Some(HoverSnippet {
             summary: "Returns and manipulates plaintext data collected via SSL::collect.",
             synopsis: &["SSL::payload (length |"],

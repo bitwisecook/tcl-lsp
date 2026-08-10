@@ -29,7 +29,8 @@
 //!
 //! - **IRULE1002** (WARNING): unknown iRules event name.
 //! - **IRULE1003** (WARNING): deprecated iRules event.
-//! - **IRULE1004** (HINT): `when` block missing explicit `priority`.
+//! - **IRULE1004** (HINT): event-handler priority omitted where that
+//!   handler's registry policy requires an explicit value.
 //! - **IRULE2003** (ERROR): unsafe iRules command (context escalation).
 //! - **IRULE3102** (WARNING): `HTTP::path`/`uri`/`query` getter without `-normalized`.
 //! - **IRULE2101** (HINT): heavy `regexp` in a hot event.
@@ -216,11 +217,11 @@ impl Analyser {
         let event = self.current_event.clone();
         let event_ref = event.as_deref();
         if let Some(ev) = event_ref {
-            self.emit_irule1001_command_event_validity(cmd_name, cmd_tok, ev);
+            self.emit_irule1001_command_event_validity(cmd_name, args, cmd_tok, ev);
         }
         self.emit_irule1002_unknown_event(cmd_name, args, arg_tokens);
         self.emit_irule1003_deprecated_event(cmd_name, args, arg_tokens);
-        self.emit_irule1004_when_missing_priority(cmd_name, args, cmd_tok);
+        self.emit_irule1004_event_handler_missing_priority(cmd_name, args, cmd_tok);
         self.emit_irule2003_unsafe_command(cmd_name, cmd_tok);
         self.emit_irule3102_unnormalised_getter(cmd_name, args, cmd_tok);
         self.emit_irule2101_heavy_regex(cmd_name, cmd_tok, event_ref);
@@ -229,7 +230,7 @@ impl Analyser {
         self.emit_irule4003_var_scope(cmd_name, args, cmd_tok, event_ref);
         self.emit_irule6001_global_var(cmd_name, args, arg_tokens, cmd_tok, event_ref);
         self.emit_irule5006_top_level_only(cmd_name, cmd_tok);
-        self.emit_irule5007_event_context(cmd_name, cmd_tok, event_ref);
+        self.emit_irule5007_event_context(cmd_name, args, cmd_tok, event_ref);
         self.emit_irule5003_loop_bound_inequality(cmd_name, args, arg_tokens);
     }
 
@@ -266,6 +267,7 @@ impl Analyser {
     fn emit_irule1001_command_event_validity(
         &mut self,
         cmd_name: &str,
+        args: &[String],
         cmd_tok: Token,
         event: &str,
     ) {
@@ -280,8 +282,10 @@ impl Analyser {
         };
         let events = event_registry();
         let profiles = profile_registry();
+        let arg_refs: Vec<&str> = args.iter().map(String::as_str).collect();
+        let requirements = spec.event_requirements_for_args(&arg_refs);
 
-        if registry.is_irules_command_legal_in_event(cmd_name, event, events, profiles) {
+        if registry.is_irules_call_legal_in_event(cmd_name, &arg_refs, event, events, profiles) {
             // Legal — only an informational profile hint may fire.  Namespace
             // profiles (`HTTP::respond` ⇒ HTTP) take precedence over the
             // command's own `event_requires.profiles`.
@@ -292,12 +296,18 @@ impl Analyser {
                 .iter()
                 .map(String::as_str)
                 .collect();
-            let hint = cmd_name
-                .split_once("::")
-                .and_then(|(prefix, _)| profiles.get_namespace(prefix))
-                .and_then(|ns| profile_info_description(ns.profiles, &file_profiles, profiles))
+            let hint = (!requirements.matched_form)
+                .then(|| {
+                    cmd_name
+                        .split_once("::")
+                        .and_then(|(prefix, _)| profiles.get_namespace(prefix))
+                        .and_then(|ns| {
+                            profile_info_description(ns.profiles, &file_profiles, profiles)
+                        })
+                })
+                .flatten()
                 .or_else(|| {
-                    spec.event_requires.as_ref().and_then(|req| {
+                    requirements.requires.and_then(|req| {
                         profile_info_description(req.profiles, &file_profiles, profiles)
                     })
                 });
@@ -313,9 +323,28 @@ impl Analyser {
             return;
         }
 
+        // A registry-declared call form can have a closed set of legal events
+        // (for example, a read form that only has a live message in one event).
+        // Report that exact contract before the broader layer/profile fallback.
+        // This is entirely form-data-driven: the analyser does not name the
+        // command or its selector words.
+        if !requirements.only_in.is_empty() && !requirements.only_in.contains(&event) {
+            self.result.diagnostics.push(Diagnostic {
+                code: DiagCode::Irule1001,
+                span: cmd_tok.span,
+                message: format!(
+                    "'{cmd_name}' cannot be used in {event}. Available in: {}.",
+                    requirements.only_in.join(", ")
+                ),
+                severity: Severity::Warning,
+                fixes: Vec::new(),
+            });
+            return;
+        }
+
         // Illegal — produce a detailed warning.
         if spec.excluded_events.contains(&event) {
-            let valid = registry.irules_events_for_command(cmd_name, events, profiles);
+            let valid = registry.irules_events_for_call(cmd_name, &arg_refs, events, profiles);
             let mut hint = String::new();
             if !valid.is_empty() {
                 let shown: Vec<&str> = valid.iter().take(5).copied().collect();
@@ -338,7 +367,7 @@ impl Analyser {
 
         // Layer-based requirements — produce a reasoned warning.  An unknown
         // event has no props to explain, so emit the generic form.
-        if let Some(req) = spec.event_requires.as_ref() {
+        if let Some(req) = requirements.requires {
             let message = match events.get_props(event) {
                 None => format!("'{cmd_name}' may not work in {event}."),
                 Some(props) => {
@@ -414,6 +443,7 @@ impl Analyser {
     fn emit_irule5007_event_context(
         &mut self,
         cmd_name: &str,
+        args: &[String],
         cmd_tok: Token,
         event: Option<&str>,
     ) {
@@ -426,9 +456,11 @@ impl Analyser {
         if registry.is_irules_top_level_only(cmd_name) {
             return;
         }
-        let requires_event = registry
-            .get(cmd_name)
-            .is_some_and(|s| s.event_requires.is_some());
+        let arg_refs: Vec<&str> = args.iter().map(String::as_str).collect();
+        let requires_event = registry.get(cmd_name).is_some_and(|spec| {
+            let requirements = spec.event_requirements_for_args(&arg_refs);
+            requirements.requires.is_some() || !requirements.only_in.is_empty()
+        });
         if !requires_event {
             return;
         }
@@ -589,27 +621,30 @@ impl Analyser {
         });
     }
 
-    /// **IRULE1004.** `when` block missing an explicit `priority`.
-    fn emit_irule1004_when_missing_priority(
+    /// **IRULE1004.** An event-handler command whose registry policy requires
+    /// an explicit priority has omitted its priority keyword.
+    fn emit_irule1004_event_handler_missing_priority(
         &mut self,
         cmd_name: &str,
         args: &[String],
         cmd_tok: Token,
     ) {
-        if cmd_name != "when" {
+        let Some(policy) = self
+            .registry
+            .and_then(|registry| registry.event_handler_priority(cmd_name))
+        else {
             return;
-        }
-        // when EVENT { body }            → args = [EVENT, body]
-        // when EVENT priority N { body } → args = [EVENT, "priority", N, body]
-        if args.len() >= 2 && args[1] == "priority" {
+        };
+        if !policy.warn_when_implicit || args.iter().skip(1).any(|arg| arg == policy.keyword) {
             return;
         }
         self.result.diagnostics.push(Diagnostic {
             code: DiagCode::Irule1004,
             span: cmd_tok.span,
-            message:
-                "'when' missing an explicit priority. Add 'priority <N>' to control execution order."
-                    .to_string(),
+            message: format!(
+                "'{cmd_name}' missing an explicit {}. Add '{} <N>' to control execution order.",
+                policy.keyword, policy.keyword,
+            ),
             severity: Severity::Hint,
             fixes: Vec::new(),
         });
@@ -1118,8 +1153,10 @@ mod tests {
     }
 
     #[test]
-    fn irule1004_fires_for_when_without_priority() {
-        assert!(has("when HTTP_REQUEST { set x 1 }", "IRULE1004"));
+    fn irule1004_is_quiet_for_bigip_default_priority() {
+        // BIG-IP gives every `when` handler priority 500 when the clause is
+        // omitted, so a bare handler is valid and must not produce a hint.
+        assert!(!has("when HTTP_REQUEST { set x 1 }", "IRULE1004"));
     }
 
     #[test]
@@ -1401,6 +1438,84 @@ mod tests {
         let src =
             "when CLIENTSSL_HANDSHAKE { log local0. hi }\nwhen HTTP_REQUEST { SSL::cipher name }";
         assert!(irule1001(src).is_empty());
+    }
+
+    #[test]
+    fn irule1001_fp_map_configuration_is_not_limited_to_fix_message() {
+        // FP: `FIX::tag map set` is configuration. F5 documents it as valid
+        // in any event, unlike `FIX::tag get`; the form distinction is in the
+        // registry, not this checker.
+        assert!(irule1001("when RULE_INIT { FIX::tag map set client_1 tag_map }").is_empty());
+    }
+
+    #[test]
+    fn irule1001_tp_fix_message_read_rejects_an_unrelated_event() {
+        // TP: the live-message read form has a deliberately closed event
+        // surface. This also pins the generic `only_in` diagnostic wording.
+        assert_eq!(
+            irule1001("when RULE_INIT { FIX::tag get 49 }"),
+            vec![(
+                (Severity::Warning),
+                "'FIX::tag' cannot be used in RULE_INIT. Available in: FIX_MESSAGE.".to_string()
+            )]
+        );
+    }
+
+    #[test]
+    fn irule1001_tn_fix_message_read_is_accepted_in_its_documented_event() {
+        // TN: the same `get` form is legal at FIX_MESSAGE, whose event data
+        // supplies the required FIX profile.
+        assert!(irule1001("when FIX_MESSAGE { FIX::tag get 49 }").is_empty());
+    }
+
+    #[test]
+    fn irule1001_mqtt_payload_forms_follow_registry_event_contracts() {
+        // The current-message forms are available at ingress, while a bare
+        // collected-payload read is limited to the corresponding DATA event.
+        for form in ["length", "replace bytes", "prepend bytes"] {
+            assert!(
+                irule1001(&format!(
+                    "when MQTT_CLIENT_INGRESS {{ MQTT::payload {form} }}"
+                ))
+                .is_empty(),
+                "MQTT::payload {form} must be valid at ingress"
+            );
+        }
+        assert_eq!(
+            irule1001("when MQTT_CLIENT_INGRESS { set bytes [MQTT::payload] }"),
+            vec![(
+                Severity::Warning,
+                "'MQTT::payload' cannot be used in MQTT_CLIENT_INGRESS. Available in: MQTT_CLIENT_DATA, MQTT_SERVER_DATA."
+                    .to_string(),
+            )]
+        );
+        assert!(
+            irule1001("when MQTT_CLIENT_DATA { set bytes [MQTT::payload] }").is_empty(),
+            "the bare collected-payload form is valid in MQTT_CLIENT_DATA"
+        );
+        assert!(
+            irule1001("when MQTT_CLIENT_INGRESS { MQTT::payload $form bytes }").is_empty(),
+            "a dynamic form must fall back to the profile requirement"
+        );
+    }
+
+    #[test]
+    fn irule1001_fn_prevention_documented_examples_are_not_invalidated() {
+        // These were false warnings caused by treating optional protocol
+        // consumers as mandatory requirements. The generic event-contract
+        // test covers every registry example; retain focused regression cases
+        // for the two data rows that first exposed the problem.
+        assert!(irule1001("when HTTP_REQUEST { active_members web_pool }").is_empty());
+        assert!(irule1001("when HTTP_REQUEST { snat automap }").is_empty());
+    }
+
+    #[test]
+    fn irule5007_event_form_requires_context_only_for_the_read_form() {
+        // The form resolver is shared with IRULE1001. A map configuration at
+        // top level is allowed, while a live FIX-message read still needs its
+        // event context — neither branch knows the command name.
+        assert!(!has("FIX::tag map set client_1 tag_map", "IRULE5007"));
+        assert!(has("FIX::tag get 49", "IRULE5007"));
     }
 
     #[test]

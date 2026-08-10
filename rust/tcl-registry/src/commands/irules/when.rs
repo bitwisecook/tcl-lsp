@@ -72,6 +72,7 @@ pub const fn spec() -> CommandSpec {
             .union(Traits::IS_EVENT_HANDLER)
             .union(Traits::IRULES_TOP_LEVEL_ONLY),
         dialects: Some(DialectSet::IRULES),
+        event_handler_priority: Some(BIGIP_EVENT_HANDLER_PRIORITY),
         arity: Arity::new(2, 6),
         arg_role_resolver: Some(when_arg_roles),
         // The event name (argument 0) is the handler's outline entry: an

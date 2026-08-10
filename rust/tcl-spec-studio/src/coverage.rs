@@ -199,6 +199,10 @@ pub fn witness_command_spec(spec: &CommandSpec) {
         unsafe_command: _,
         closed_value_args: _,
         event_requires: _,
+        event_requirement_forms: _,
+        data_collection: _,
+        side_switch_target: _,
+        event_handler_priority: _,
         options: _,
         reserved_trailing_words: _,
         arg_values: _,
@@ -303,6 +307,16 @@ pub const COMMAND_SPEC: &[Field] = &[
     f("unsafe_command", Surface::Key("unsafe_command")),
     f("closed_value_args", Surface::Key("closed_value_args")),
     f("event_requires", Surface::Key("event_requires")),
+    f(
+        "event_requirement_forms",
+        Surface::Key("event_requirement_forms"),
+    ),
+    f("data_collection", Surface::Key("data_collection")),
+    f("side_switch_target", Surface::Key("side_switch_target")),
+    f(
+        "event_handler_priority",
+        Surface::Key("event_handler_priority"),
+    ),
     f("options", Surface::Key("options")),
     f(
         "reserved_trailing_words",

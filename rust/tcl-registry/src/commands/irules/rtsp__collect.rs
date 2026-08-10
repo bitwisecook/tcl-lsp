@@ -43,6 +43,7 @@ pub const fn spec() -> CommandSpec {
             connection_side: ConnectionSide::Both,
             dialects: None,
         }],
+        data_collection: Some(RTSP_COLLECT),
         ..CommandSpec::DEFAULT
     }
 }

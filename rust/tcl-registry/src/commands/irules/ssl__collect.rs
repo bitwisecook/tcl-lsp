@@ -23,6 +23,7 @@ pub const fn spec() -> CommandSpec {
         name: "SSL::collect",
         dialects: Some(DialectSet::IRULES),
         arity: Arity::at_least(0),
+        data_collection: Some(SSL_COLLECT),
         hover: Some(HoverSnippet {
             summary: "Collect plaintext data after SSL offloading.",
             synopsis: &["SSL::collect (LENGTH)?"],

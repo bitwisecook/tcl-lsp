@@ -976,7 +976,8 @@ fn parse_limit_int(bytes: &[u8]) -> Result<i64, Vec<u8>> {
 
 impl Interp {
     /// Create an interp: global frame, the built-in command set, an empty
-    /// result.
+    /// result, and the predefined variables that C installs in
+    /// `Tcl_CreateInterp`.
     pub fn new() -> Interp {
         let result = obj::new_obj();
         // SAFETY: `result` is freshly created; the interp takes the owning ref.
@@ -1559,14 +1560,12 @@ impl Interp {
         self.namespaces.borrow_mut()
     }
 
-    /// Bootstrap the standard library like C's `Tcl_Init`: set the startup
-    /// globals (`tcl_library` from `$TCL_LIBRARY`, version/platform/env/argv,
-    /// `auto_path`), then `source $tcl_library/init.tcl`. After this the
+    /// Bootstrap the standard library like C's `Tcl_Init`: source
+    /// `$tcl_library/init.tcl`. After this the
     /// pure-Tcl `unknown`/auto-load/`package` machinery is live, so
     /// `package require` works through `pkgIndex.tcl`/`tclIndex`.
-    /// Set the predefined startup globals (`tcl_version`/`tcl_platform`/`env`/
-    /// `argv`/…) — the cheap half of `Tcl_Init`, shared by the main interp's
-    /// `init_library` and each child interpreter (`interp create`).
+    /// Set the predefined variables (`tcl_version`/`tcl_platform`/`env`/
+    /// `argv`/…) that C installs in `Tcl_CreateInterp`, before `Tcl_Init`.
     pub(crate) fn set_startup_globals(&mut self) {
         let lib = self.host().env().get("TCL_LIBRARY").unwrap_or_default();
         let set = |i: &mut Interp, name: &[u8], val: &[u8]| {
@@ -1654,7 +1653,6 @@ impl Interp {
     }
 
     pub fn init_library(&mut self) -> Code {
-        self.set_startup_globals();
         let lib = self.host().env().get("TCL_LIBRARY").unwrap_or_default();
         // Source init.tcl, which sets up unknown/auto-load/package + appends
         // tcl_library (and its parent) to auto_path.

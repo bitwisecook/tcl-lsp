@@ -33,14 +33,16 @@
 //! IRULE4004 (per-request set hoistable to once-per-connection) — build
 //! on the richer cross-event analysis in `connection_scope.rs`.
 
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use std::sync::OnceLock;
 use tcl_core_types::DiagCode;
 
 use tcl_lexer::Span;
-use tcl_registry::CommandRegistry;
-use tcl_registry::events::EventRegistry;
-use tcl_registry::side_effects::SideEffectTarget;
+use tcl_registry::events::{
+    CollectionReleaseRequirement, DataCollectionAction, EventRegistry, PayloadCollectionRequirement,
+};
+use tcl_registry::side_effects::{ConnectionSide, SideEffectTarget};
+use tcl_registry::{CommandRegistry, Traits};
 
 use crate::cfg_builder::build_cfg;
 use crate::compilation_unit::CompilationUnit;
@@ -82,15 +84,18 @@ fn commits_response_commands() -> &'static HashSet<String> {
     })
 }
 
-/// Registered `HTTP::` namespace commands.
-/// Only *registered* commands count, so an unregistered `HTTP::log` does not
-/// trip IRULE1201 (the set of 32 registered commands).
-fn http_namespace_commands() -> &'static HashSet<String> {
+/// Registered commands that require a live HTTP transaction context.
+fn requires_http_context_commands() -> &'static HashSet<String> {
     static SET: OnceLock<HashSet<String>> = OnceLock::new();
     SET.get_or_init(|| {
-        irules_registry()
+        let registry = irules_registry();
+        registry
             .command_names()
-            .filter(|name| name.starts_with("HTTP::"))
+            .filter(|name| {
+                registry
+                    .get(name)
+                    .is_some_and(|spec| spec.traits.contains(Traits::REQUIRES_HTTP_CONTEXT))
+            })
             .map(String::from)
             .collect()
     })
@@ -592,40 +597,22 @@ pub fn find_unguarded_drop_warnings(
 
 // IRULE1005 / IRULE1006 / IRULE1007 / IRULE1008 — collect/release/payload
 //
-// Cross-event analysis: classifies every `*::collect` / `*::release` /
-// `*::payload` call across every `::when::*` proc body, then emits:
+// Cross-event analysis: classifies registry-declared collection operations
+// across every `::when::*` proc body, then emits:
 //
 //   * IRULE1005 — `*_DATA` event handler exists but no matching
 //     `*::collect` for the corresponding protocol.
-//   * IRULE1006 — `*::payload` access without matching `*::collect`.
-//   * IRULE1007 — `*::collect` without matching `*::release` on the
-//     same connection side.
-//   * IRULE1008 — `*::release` without matching `*::collect` on the
-//     same connection side.
+//   * IRULE1006 — a payload that requires collection without a matching
+//     collect (not UDP or ASM payloads, which are immediately available).
+//   * IRULE1007 — a collection without an explicit or registry-declared
+//     implicit release on the same connection side.
+//   * IRULE1008 — a release without matching collection on the same
+//     connection side.
 //
-// Side awareness: events starting with SERVER prefer the server side;
-// CLIENT prefer client; `_RESPONSE` events default to server, `_REQUEST`
-// to client; the registry's `EventProps.client_side` / `server_side`
-// flags override when set exclusively.
-
-fn default_collect_side(event_name: &str) -> &'static str {
-    let upper = event_name.to_ascii_uppercase();
-    // Strip any priority index suffix (`HTTP_REQUEST#1` → `HTTP_REQUEST`).
-    let base = upper.split('#').next().unwrap_or(upper.as_str());
-    if base.starts_with("SERVER") {
-        return "server";
-    }
-    if base.starts_with("CLIENT") {
-        return "client";
-    }
-    if base.contains("_RESPONSE") {
-        return "server";
-    }
-    if base.contains("_REQUEST") {
-        return "client";
-    }
-    "client"
-}
+// Side awareness: `EventProps::command_side` declares the event's execution
+// side. Nested side-switch bodies apply their registry-declared
+// `CommandSpec::side_switch_target`; no command or event spelling is decoded
+// here.
 
 #[derive(Default)]
 struct CollectFlowState {
@@ -633,37 +620,101 @@ struct CollectFlowState {
     collected: std::collections::HashMap<String, std::collections::HashSet<String>>,
     /// Same shape for release calls.
     released: std::collections::HashMap<String, std::collections::HashSet<String>>,
-    /// `(protocol, side, span)` for every collect call.
-    collect_calls: Vec<(String, String, Span)>,
-    release_calls: Vec<(String, String, Span)>,
-    payload_calls: Vec<(String, String, Span)>,
+    /// Each collect call, including the release policy declared by its spec.
+    collect_calls: Vec<CollectionCall>,
+    /// Each release call.
+    release_calls: Vec<CollectionCall>,
+    /// Each payload call, including whether its spec requires a collect.
+    payload_calls: Vec<PayloadCall>,
 }
 
-fn classify_collect_command(cmd: &str, side: &str, span: Span, state: &mut CollectFlowState) {
-    if let Some(proto) = cmd.strip_suffix("::collect") {
-        let p = proto.to_ascii_uppercase();
-        state
-            .collected
-            .entry(p.clone())
-            .or_default()
-            .insert(side.to_string());
-        state.collect_calls.push((p, side.to_string(), span));
-    } else if let Some(proto) = cmd.strip_suffix("::release") {
-        let p = proto.to_ascii_uppercase();
-        state
-            .released
-            .entry(p.clone())
-            .or_default()
-            .insert(side.to_string());
-        state.release_calls.push((p, side.to_string(), span));
-    } else if let Some(proto) = cmd.strip_suffix("::payload") {
-        let p = proto.to_ascii_uppercase();
-        state.payload_calls.push((p, side.to_string(), span));
+/// One collect or release operation observed in a `when` body.
+struct CollectionCall {
+    protocol: String,
+    event: String,
+    side: String,
+    span: Span,
+    release_requirement: CollectionReleaseRequirement,
+}
+
+/// One payload operation observed in a `when` body.
+struct PayloadCall {
+    protocol: String,
+    side: String,
+    span: Span,
+    collection_requirement: PayloadCollectionRequirement,
+}
+
+/// Record a registry-declared data-collection operation.
+///
+/// This deliberately does not infer semantics from a `::payload` suffix:
+/// `UDP::payload` and `ASM::payload` are immediately available, while TCP,
+/// HTTP, and SSL payloads require collection.  New protocol commands join the
+/// analysis by declaring [`tcl_registry::DataCollectionOperation`] in their
+/// command specs.
+fn classify_collect_command(
+    command: &str,
+    args: &[String],
+    event: &str,
+    side: &str,
+    span: Span,
+    state: &mut CollectFlowState,
+    registry: &CommandRegistry,
+) {
+    let Some(operation) = registry.data_collection_operation(command) else {
+        return;
+    };
+    let arg_words: Vec<&str> = args.iter().map(String::as_str).collect();
+    let protocol = operation.protocol.name.to_string();
+    match operation.action {
+        DataCollectionAction::Collect => {
+            state
+                .collected
+                .entry(protocol.clone())
+                .or_default()
+                .insert(side.to_string());
+            state.collect_calls.push(CollectionCall {
+                protocol,
+                event: event.to_owned(),
+                side: side.to_string(),
+                span,
+                release_requirement: operation.protocol.release_requirement,
+            });
+        }
+        DataCollectionAction::Release => {
+            state
+                .released
+                .entry(protocol.clone())
+                .or_default()
+                .insert(side.to_string());
+            state.release_calls.push(CollectionCall {
+                protocol,
+                event: event.to_owned(),
+                side: side.to_string(),
+                span,
+                release_requirement: operation.protocol.release_requirement,
+            });
+        }
+        DataCollectionAction::Payload => {
+            let Some(collection_requirement) = operation.payload_requirement_for_args(&arg_words)
+            else {
+                // Dynamic/unknown call form: it may select a payload form
+                // whose availability differs, so abstain rather than guess.
+                return;
+            };
+            state.payload_calls.push(PayloadCall {
+                protocol,
+                side: side.to_string(),
+                span,
+                collection_requirement,
+            });
+        }
     }
 }
 
 fn scan_when_body_for_collect_flow(
     fu: &crate::compilation_unit::FunctionUnit,
+    event: &str,
     side: &str,
     state: &mut CollectFlowState,
     registry: &CommandRegistry,
@@ -676,7 +727,7 @@ fn scan_when_body_for_collect_flow(
             continue;
         };
         for stmt in &block.statements {
-            classify_stmt_for_collect_flow(stmt, side, state, registry, fu.base_offset);
+            classify_stmt_for_collect_flow(stmt, event, side, state, registry, fu.base_offset);
         }
     }
 }
@@ -692,6 +743,7 @@ fn scan_when_body_for_collect_flow(
 /// `args[0]`); both shapes keep the body text in `args[0]`.
 fn classify_stmt_for_collect_flow(
     stmt: &Statement,
+    event: &str,
     side: &str,
     state: &mut CollectFlowState,
     registry: &CommandRegistry,
@@ -720,6 +772,7 @@ fn classify_stmt_for_collect_flow(
             canonical_command,
             span,
             args,
+            tokens,
             ..
         }
         | Statement::Barrier {
@@ -727,35 +780,38 @@ fn classify_stmt_for_collect_flow(
             canonical_command,
             span,
             args,
+            tokens,
             ..
         } => {
             // Normalise to the resolved/canonical head and strip a leading
-            // `::`: IR can legally carry `::clientside` or an alias, and the
-            // bare-name `is_side_switch` lookup + the side-flip `match` would
-            // otherwise miss it (and the `match`'s `_ => peer` arm would treat
-            // an unrecognised side-switch head as `peer`).
+            // `::`: IR can legally carry a global spelling or an alias. The
+            // registry owns both the side-switch membership and the exact
+            // client/server/peer transition, so this walker has no command
+            // spelling knowledge.
             let head = canonical_command
                 .as_deref()
                 .unwrap_or(command)
                 .trim_start_matches(':');
-            if registry.is_side_switch(head) {
-                let inner_side = match head {
-                    "clientside" => "client",
-                    "serverside" => "server",
-                    // peer — the opposite-side context.
-                    _ if side == "client" => "server",
-                    _ => "client",
-                };
-                if let Some(body) = args.first() {
-                    scan_side_switch_body(body, inner_side, state, registry);
+            if let Some(target) = registry.side_switch_target(head) {
+                let inner_side = target.execution_side(side);
+                if let Some(body) = args.first()
+                    && tokens
+                        .as_ref()
+                        .is_some_and(|tokens| tokens.arg_is_braced_literal(0))
+                    && let Some(body_span) = tokens
+                        .as_ref()
+                        .and_then(|tokens| tokens.argv.get(1).copied())
+                {
+                    let body_base = base_offset + i64::from(body_span.start()) + 1;
+                    scan_side_switch_body(body, event, inner_side, state, registry, body_base);
                 }
             } else {
-                classify_collect_command(command, side, abs(*span), state);
+                classify_collect_command(head, args, event, side, abs(*span), state, registry);
             }
         }
         Statement::AssignValue { value, span, .. } => {
-            if let Some((cmd, _)) = parse_command_substitution(value.trim()) {
-                classify_collect_command(&cmd, side, abs(*span), state);
+            if let Some((cmd, sub_args)) = parse_command_substitution(value.trim()) {
+                classify_collect_command(&cmd, &sub_args, event, side, abs(*span), state, registry);
             }
         }
         _ => {}
@@ -768,9 +824,11 @@ fn classify_stmt_for_collect_flow(
 /// control flow is flattened the same way the enclosing `when` body is.
 fn scan_side_switch_body(
     body_text: &str,
+    event: &str,
     side: &str,
     state: &mut CollectFlowState,
     registry: &CommandRegistry,
+    base_offset: i64,
 ) {
     // iRules side-switch flow — lower under the iRules dialect so `{*}` is
     // literal and `}{` splits words.
@@ -785,10 +843,7 @@ fn scan_side_switch_body(
             continue;
         };
         for stmt in &block.statements {
-            // Side-switch bodies are re-lowered to their own CFG, so spans are
-            // already relative to this fresh build's origin (0) — independent of
-            // the enclosing unit's `base_offset`.
-            classify_stmt_for_collect_flow(stmt, side, state, registry, 0);
+            classify_stmt_for_collect_flow(stmt, event, side, state, registry, base_offset);
         }
     }
 }
@@ -800,62 +855,99 @@ pub fn find_collect_flow_warnings(
     registry: &CommandRegistry,
     dialect: Option<&str>,
 ) -> Vec<IrulesCheckWarning> {
-    let mut out = Vec::new();
     if !is_irules_dialect(dialect) {
-        return out;
+        return Vec::new();
     }
-    // Pass 1: classify across all when bodies.
+    let (state, events_seen) = collect_flow_state(cu, registry);
+    let events = EventRegistry::build();
+    let mut out = Vec::new();
+    emit_missing_data_collect_warnings(cu, registry, &events, &events_seen, &state, &mut out);
+    emit_payload_without_collect_warnings(&state, &mut out);
+    emit_collect_without_release_warnings(&events, &events_seen, &state, &mut out);
+    emit_release_without_collect_warnings(&state, &mut out);
+    out
+}
+
+/// Classify each iRules event handler and retain its bare event name.
+fn collect_flow_state(
+    cu: &CompilationUnit,
+    registry: &CommandRegistry,
+) -> (CollectFlowState, Vec<String>) {
     let mut state = CollectFlowState::default();
     let mut events_seen: Vec<String> = Vec::new();
+    let events = EventRegistry::build();
     for fu in cu.analysable_functions() {
         if let Some(event) = fu.name.strip_prefix("::when::") {
             let bare = event.split('#').next().unwrap_or(event).to_string();
             events_seen.push(bare.clone());
-            let side = default_collect_side(event);
-            scan_when_body_for_collect_flow(fu, side, &mut state, registry);
+            let Some(side) = events
+                .get_props(&bare)
+                .and_then(tcl_registry::events::EventProps::command_side)
+                .and_then(|side| match side {
+                    ConnectionSide::Client => Some("client"),
+                    ConnectionSide::Server => Some("server"),
+                    _ => None,
+                })
+            else {
+                // Unknown or genuinely both-sided event context is not proof
+                // of either lifecycle direction. Abstain instead of deriving
+                // a side from the event's spelling.
+                continue;
+            };
+            scan_when_body_for_collect_flow(fu, &bare, side, &mut state, registry);
         }
     }
+    (state, events_seen)
+}
 
-    // Pass 2: emit per-event IRULE1005 (using the first when proc as
-    // anchor span; finer span resolution requires the `when` event-token
-    // span which the analyser layer carries). The collect requirement of
-    // each `*_DATA` event (protocols + side) comes from the event
-    // registry's `EventProps`, not a table here.
-    let events = EventRegistry::build();
+/// Emit IRULE1005 for data-event protocols that are certainly not collected.
+fn emit_missing_data_collect_warnings(
+    cu: &CompilationUnit,
+    registry: &CommandRegistry,
+    events: &EventRegistry,
+    events_seen: &[String],
+    state: &CollectFlowState,
+    out: &mut Vec<IrulesCheckWarning>,
+) {
+    // The event table owns protocol and side requirements. The first event
+    // statement is a fallback anchor until the analyser exposes event-token
+    // spans directly to this flow pass.
     let mut emitted_events: std::collections::HashSet<&str> = std::collections::HashSet::new();
-    for event in &events_seen {
+    for event in events_seen {
         let Some((protocols, required_side)) = events.data_collect_requirement(event) else {
             continue;
         };
         if !emitted_events.insert(event.as_str()) {
             continue;
         }
-        let satisfied = protocols.iter().any(|p| {
-            state
-                .collected
-                .get(&p.to_ascii_uppercase())
-                .is_some_and(|s| s.contains(required_side))
+        let satisfied = protocols.iter().any(|protocol_name| {
+            let Some(protocol) = registry.data_collection_protocol(protocol_name) else {
+                // The event table must not be treated as proof for a protocol
+                // whose command surface is absent from this registry profile.
+                return false;
+            };
+            protocol.payload_requirement == PayloadCollectionRequirement::NotRequired
+                || state
+                    .collected
+                    .get(protocol.name)
+                    .is_some_and(|s| s.contains(required_side))
         });
         if satisfied {
             continue;
         }
-        // Anchor on the first statement of the event's CFG.
-        let qname = format!("::when::{event}");
-        let anchor_span = cu
-            .functions()
-            .find(|fu| fu.name == qname || fu.name.starts_with(&format!("{qname}#")))
-            .and_then(|fu| {
-                let s = fu
-                    .cfg
-                    .blocks
-                    .get(&fu.cfg.entry)
-                    .and_then(|b| b.statements.first().map(crate::ir::Statement::span))?;
-                Some(fu.abs_span(s))
-            })
-            .unwrap_or(Span::new(0, 0));
-        let proto_hint: Vec<String> = protocols.iter().map(|p| format!("{p}::collect")).collect();
+        let proto_hint: Vec<&str> = protocols
+            .iter()
+            .filter_map(|protocol| registry.data_collection_collect_command(protocol))
+            .map(|spec| spec.name)
+            .collect();
+        if proto_hint.is_empty() {
+            // The registry says each applicable protocol supplies payload
+            // without an explicit collect, so the source cannot be proved to
+            // miss one. This is intentionally an abstention, not a warning.
+            continue;
+        }
         out.push(IrulesCheckWarning {
-            span: anchor_span,
+            span: event_anchor_span(cu, event),
             code: DiagCode::Irule1005,
             message: format!(
                 "'{event}' will never fire without a {required_side} {} call in another event.",
@@ -865,56 +957,118 @@ pub fn find_collect_flow_warnings(
             fixes: Vec::new(),
         });
     }
+}
 
-    // IRULE1006: payload without matching collect on same side.
-    for (proto, side, span) in &state.payload_calls {
-        let matched = state.collected.get(proto).is_some_and(|s| s.contains(side));
-        if !matched {
+/// Return the first statement span in `event`, or a stable zero-width fallback.
+fn event_anchor_span(cu: &CompilationUnit, event: &str) -> Span {
+    let qname = format!("::when::{event}");
+    cu.functions()
+        .find(|fu| fu.name == qname || fu.name.starts_with(&format!("{qname}#")))
+        .and_then(|fu| {
+            let span = fu
+                .cfg
+                .blocks
+                .get(&fu.cfg.entry)
+                .and_then(|b| b.statements.first().map(crate::ir::Statement::span))?;
+            Some(fu.abs_span(span))
+        })
+        .unwrap_or(Span::new(0, 0))
+}
+
+/// Emit IRULE1006 for payload commands that explicitly require collection.
+fn emit_payload_without_collect_warnings(
+    state: &CollectFlowState,
+    out: &mut Vec<IrulesCheckWarning>,
+) {
+    for payload in &state.payload_calls {
+        let matched = state
+            .collected
+            .get(&payload.protocol)
+            .is_some_and(|s| s.contains(&payload.side));
+        if payload.collection_requirement == PayloadCollectionRequirement::ExplicitCollect
+            && !matched
+        {
             out.push(IrulesCheckWarning {
-                span: *span,
+                span: payload.span,
                 code: DiagCode::Irule1006,
                 message: format!(
-                    "'{proto}::payload' without a {side} {proto}::collect call. The payload buffer will be empty.",
+                    "'{}::payload' without a {} {}::collect call. The payload buffer will be empty.",
+                    payload.protocol, payload.side, payload.protocol,
                 ),
                 replacement: None,
                 fixes: Vec::new(),
             });
         }
     }
+}
 
-    // IRULE1007: collect without matching release on same side.
-    for (proto, side, span) in &state.collect_calls {
-        let matched = state.released.get(proto).is_some_and(|s| s.contains(side));
-        if !matched {
+/// Emit IRULE1007 for registered collection lifecycles not released by code or event.
+fn emit_collect_without_release_warnings(
+    events: &EventRegistry,
+    events_seen: &[String],
+    state: &CollectFlowState,
+    out: &mut Vec<IrulesCheckWarning>,
+) {
+    for collect in &state.collect_calls {
+        let needs_release =
+            collect.release_requirement != CollectionReleaseRequirement::NotApplicable;
+        let released = state
+            .released
+            .get(&collect.protocol)
+            .is_some_and(|s| s.contains(&collect.side));
+        let implicitly_released = collect.release_requirement
+            == CollectionReleaseRequirement::ImplicitInDataEvent
+            && events_seen.iter().any(|event| {
+                let side = match collect.side.as_str() {
+                    "client" => ConnectionSide::Client,
+                    "server" => ConnectionSide::Server,
+                    _ => return false,
+                };
+                events.data_event_releases_collection(
+                    event,
+                    &collect.event,
+                    &collect.protocol,
+                    side,
+                )
+            });
+        if needs_release && !released && !implicitly_released {
             out.push(IrulesCheckWarning {
-                span: *span,
+                span: collect.span,
                 code: DiagCode::Irule1007,
                 message: format!(
-                    "{proto}::collect without matching {proto}::release on the {side} side; collected data is never released",
+                    "{}::collect without matching {}::release on the {} side; collected data is never released",
+                    collect.protocol, collect.protocol, collect.side,
                 ),
                 replacement: None,
                 fixes: Vec::new(),
             });
         }
     }
+}
 
-    // IRULE1008: release without matching collect on same side.
-    for (proto, side, span) in &state.release_calls {
-        let matched = state.collected.get(proto).is_some_and(|s| s.contains(side));
+/// Emit IRULE1008 for a release whose registered protocol was never collected.
+fn emit_release_without_collect_warnings(
+    state: &CollectFlowState,
+    out: &mut Vec<IrulesCheckWarning>,
+) {
+    for release in &state.release_calls {
+        let matched = state
+            .collected
+            .get(&release.protocol)
+            .is_some_and(|s| s.contains(&release.side));
         if !matched {
             out.push(IrulesCheckWarning {
-                span: *span,
+                span: release.span,
                 code: DiagCode::Irule1008,
                 message: format!(
-                    "{proto}::release without matching {proto}::collect on the {side} side; no data was collected",
+                    "{}::release without matching {}::collect on the {} side; no data was collected",
+                    release.protocol, release.protocol, release.side,
                 ),
                 replacement: None,
                 fixes: Vec::new(),
             });
         }
     }
-
-    out
 }
 
 // IRULE1201 / IRULE1202 — HTTP-after-respond / multi-respond
@@ -925,8 +1079,8 @@ pub fn find_collect_flow_warnings(
 //
 //   * IRULE1202 — a second `HTTP::respond` / `HTTP::redirect` / `redirect`
 //     on a path that already responded; only the first response takes effect.
-//   * IRULE1201 — a registered `HTTP::*` command issued on a path where a
-//     response is already committed; HTTP context is invalid post-respond.
+//   * IRULE1201 — a registry-declared HTTP-context command issued on a path
+//     where a response is already committed.
 //
 // Mutually-exclusive branches keep separate states, so `if {…} { respond }
 // else { respond }` is *not* a double-respond (avoids the linear-scan false
@@ -941,8 +1095,8 @@ struct HttpFlowState {
     respond_at: Option<u32>,
 }
 
-/// Per-event HTTP-flow warnings.  Emits IRULE1201 + IRULE1202 for each
-/// `::when::HTTP*` proc body, path-sensitively.
+/// Per-event HTTP-flow warnings. Emits IRULE1201 + IRULE1202 for each handler
+/// whose event registry entry implies an HTTP profile, path-sensitively.
 #[must_use]
 pub fn find_http_flow_warnings(
     cu: &CompilationUnit,
@@ -952,6 +1106,7 @@ pub fn find_http_flow_warnings(
     if !is_irules_dialect(dialect) {
         return out;
     }
+    let events = EventRegistry::build();
     // Iterate the *analysable* functions (honouring the complexity
     // guard) but walk their structured IR body.
     for fu in cu.analysable_functions() {
@@ -960,7 +1115,10 @@ pub fn find_http_flow_warnings(
         };
         // Strip priority index (`HTTP_REQUEST#1` → `HTTP_REQUEST`).
         let bare_event = event.split('#').next().unwrap_or(event);
-        if !bare_event.starts_with("HTTP") {
+        if !events
+            .get_props(bare_event)
+            .is_some_and(|props| props.implied_profiles.contains(&"HTTP"))
+        {
             continue;
         }
         let Some(proc) = cu.ir_module.procedures.get(&fu.name) else {
@@ -986,6 +1144,18 @@ pub fn find_http_flow_warnings(
             None,
         );
     }
+    // Distinct predecessor states can prove the same source command unsafe.
+    // The proof multiplicity is internal; the editor should receive one
+    // diagnostic per code/range/message.
+    let mut seen = HashSet::new();
+    out.retain(|warning| {
+        seen.insert((
+            warning.code,
+            warning.span.start(),
+            warning.span.end(),
+            warning.message.clone(),
+        ))
+    });
     out
 }
 
@@ -1044,7 +1214,7 @@ fn apply_http_flow_command(
             respond_at: Some(span.start()),
         };
     }
-    if state.responded && http_namespace_commands().contains(cmd) {
+    if state.responded && requires_http_context_commands().contains(cmd) {
         out.push(IrulesCheckWarning {
             span,
             code: DiagCode::Irule1201,
@@ -1287,34 +1457,15 @@ where
 
 // IRULE4004 — `set var value` in per-request event hoistable to once-per-connection
 //
-// Per-request events (HTTP_REQUEST, HTTP_REQUEST_DATA, etc.) run on
-// every request; once-per-connection events (CLIENT_ACCEPTED,
-// CLIENTSSL_HANDSHAKE) run once.  An `AssignConst` whose value
-// doesn't depend on per-request data could be hoisted to the
-// once-per-connection event, saving work per request.
+// The event registry classifies per-request and once-per-connection events.
+// An `AssignConst` whose value does not depend on per-request data could be
+// hoisted to a once-per-connection event, saving work per request.
 //
-// Flags every `set var value` in a per-request event whose value is a
-// literal (no `$` substitutions, no `[cmd]` substitutions) and whose
-// variable name is also literal.  It does not check that the variable
-// isn't reassigned later in the same body (which would change the
-// hoisting semantics).
-
-fn is_per_request_event(event: &str) -> bool {
-    // Strip priority index suffix.
-    let base = event.split('#').next().unwrap_or(event);
-    matches!(
-        base,
-        "HTTP_REQUEST"
-            | "HTTP_REQUEST_DATA"
-            | "HTTP_REQUEST_SEND"
-            | "HTTP_REQUEST_RELEASE"
-            | "HTTP_RESPONSE"
-            | "HTTP_RESPONSE_DATA"
-            | "HTTP_RESPONSE_RELEASE"
-            | "DNS_REQUEST"
-            | "DNS_RESPONSE",
-    )
-}
+// A warning is only safe when the literal scalar assignment is unconditional
+// and is the variable's sole write across the rule. Repeated initialisation is
+// commonly a deliberate per-request reset; moving it changes connection-state
+// semantics after the first request. Array elements and namespace/static
+// variables likewise need a different destination and are excluded.
 
 /// Hoistable-set warnings for IRULE4004.
 #[must_use]
@@ -1326,47 +1477,76 @@ pub fn find_hoistable_set_warnings(
     if !is_irules_dialect(dialect) {
         return out;
     }
+    let events = EventRegistry::build();
+    let mut write_counts = HashMap::<String, usize>::new();
+    // Count every lowered event, including one whose deeper analyses hit the
+    // complexity guard. A skipped handler is not evidence that no second write
+    // exists there.
+    for fu in cu.functions() {
+        if !fu.name.starts_with("::when::") {
+            continue;
+        }
+        for block in fu.cfg.blocks.values() {
+            for stmt in &block.statements {
+                match stmt {
+                    Statement::AssignConst { name, .. }
+                    | Statement::AssignExpr { name, .. }
+                    | Statement::AssignValue { name, .. }
+                    | Statement::Incr { name, .. } => {
+                        *write_counts.entry(name.clone()).or_default() += 1;
+                    }
+                    Statement::Call { defs, .. } => {
+                        for name in defs {
+                            *write_counts.entry(name.clone()).or_default() += 1;
+                        }
+                    }
+                    _ => {}
+                }
+            }
+        }
+    }
     for fu in cu.analysable_functions() {
         let Some(event) = fu.name.strip_prefix("::when::") else {
             continue;
         };
-        if !is_per_request_event(event) {
+        let event = event.split('#').next().unwrap_or(event);
+        if !events.is_per_request(event) {
             continue;
         }
-        for bn in cfg_order(&fu.cfg) {
-            if !fu.sccp.executable_blocks.contains(&bn) {
-                continue;
-            }
-            let Some(block) = fu.cfg.blocks.get(&bn) else {
-                continue;
+        let Some(block) = fu.cfg.blocks.get(&fu.cfg.entry) else {
+            continue;
+        };
+        for stmt in &block.statements {
+            let (name, value, span) = match stmt {
+                Statement::AssignConst {
+                    name, value, span, ..
+                }
+                | Statement::AssignValue {
+                    name, value, span, ..
+                } => (name, value, *span),
+                _ => continue,
             };
-            for stmt in &block.statements {
-                let (name, value, span) = match stmt {
-                    Statement::AssignConst {
-                        name, value, span, ..
-                    }
-                    | Statement::AssignValue {
-                        name, value, span, ..
-                    } => (name, value, *span),
-                    _ => continue,
-                };
-                if name.is_empty() || value.is_empty() {
-                    continue;
-                }
-                // Skip dynamic values — `$x` / `[cmd]` interpolation.
-                if value.contains('$') || value.contains('[') {
-                    continue;
-                }
-                out.push(IrulesCheckWarning {
-                    span: fu.abs_span(span),
-                    code: DiagCode::Irule4004,
-                    message: format!(
-                        "`set {name} ...` runs on every request — consider hoisting to a once-per-connection event (e.g. CLIENT_ACCEPTED).",
-                    ),
-                    replacement: None,
-                    fixes: Vec::new(),
-                });
+            if name.is_empty()
+                || value.is_empty()
+                || name.contains('(')
+                || name.contains("::")
+                || write_counts.get(name) != Some(&1)
+            {
+                continue;
             }
+            // Skip dynamic values — `$x` / `[cmd]` interpolation.
+            if value.contains('$') || value.contains('[') {
+                continue;
+            }
+            out.push(IrulesCheckWarning {
+                span: fu.abs_span(span),
+                code: DiagCode::Irule4004,
+                message: format!(
+                    "`set {name} ...` runs on every request — consider hoisting to a once-per-connection event.",
+                ),
+                replacement: None,
+                fixes: Vec::new(),
+            });
         }
     }
     out
@@ -1882,9 +2062,10 @@ mod tests {
     }
 
     #[test]
-    fn irule1005_data_event_without_collect_fires() {
-        // CLIENT_DATA needs a TCP::collect or UDP::collect somewhere.
-        let ws = flow_warnings("when CLIENT_DATA { log local0. \"data\" }");
+    fn irule1005_http_data_event_without_collect_fires() {
+        // HTTP_REQUEST_DATA has no transport alternative: HTTP::collect is
+        // required for it to fire.
+        let ws = flow_warnings("when HTTP_REQUEST_DATA { log local0. \"data\" }");
         assert!(
             ws.iter().any(|w| w.code == DiagCode::Irule1005),
             "expected IRULE1005, got {ws:?}",
@@ -1893,12 +2074,11 @@ mod tests {
 
     #[test]
     fn irule1005_satisfied_by_matching_collect() {
-        // CLIENT_ACCEPTED issues TCP::collect (client side); that
-        // satisfies CLIENT_DATA's IRULE1005.
+        // HTTP_REQUEST issues a client-side HTTP::collect, satisfying the
+        // HTTP_REQUEST_DATA requirement.
         let ws = flow_warnings(
-            "when CLIENT_ACCEPTED { TCP::collect }
-             when CLIENT_DATA { log local0. \"data\" }
-             when SERVER_CONNECTED { TCP::release }",
+            "when HTTP_REQUEST { HTTP::collect }
+             when HTTP_REQUEST_DATA { log local0. \"data\" }",
         );
         assert!(
             !ws.iter().any(|w| w.code == DiagCode::Irule1005),
@@ -1913,6 +2093,120 @@ mod tests {
             ws.iter().any(|w| w.code == DiagCode::Irule1006),
             "expected IRULE1006 on HTTP::payload without HTTP::collect, got {ws:?}",
         );
+    }
+
+    #[test]
+    fn udp_and_asm_payloads_do_not_require_collect() {
+        // F5 exposes every UDP datagram to UDP::payload, and ASM owns the
+        // payload in ASM events. Neither protocol has a corresponding
+        // `::collect` command, so suffix-based classification was a false
+        // positive for both.
+        let udp = flow_warnings("when CLIENT_DATA { UDP::payload }");
+        assert!(
+            !udp.iter()
+                .any(|w| w.code == DiagCode::Irule1005 || w.code == DiagCode::Irule1006),
+            "UDP data is available without collect, got {udp:?}",
+        );
+        let asm = flow_warnings("when ASM_REQUEST_VIOLATION { ASM::payload }");
+        assert!(
+            !asm.iter().any(|w| w.code == DiagCode::Irule1006),
+            "ASM owns its payload, got {asm:?}",
+        );
+    }
+
+    #[test]
+    fn mqtt_payload_call_forms_have_distinct_collection_requirements() {
+        let bare = flow_warnings("when MQTT_CLIENT_DATA { set bytes [MQTT::payload] }");
+        assert!(
+            bare.iter()
+                .any(|warning| warning.code == DiagCode::Irule1006),
+            "bare MQTT payload requires a prior MQTT::collect, got {bare:?}",
+        );
+
+        let append = flow_warnings("when MQTT_CLIENT_DATA { MQTT::payload append bytes }");
+        assert!(
+            append
+                .iter()
+                .any(|warning| warning.code == DiagCode::Irule1006),
+            "MQTT payload append requires collected bytes, got {append:?}",
+        );
+
+        for form in ["length", "replace bytes", "prepend bytes"] {
+            let source = format!("when MQTT_CLIENT_INGRESS {{ MQTT::payload {form} }}");
+            let warnings = flow_warnings(&source);
+            assert!(
+                !warnings
+                    .iter()
+                    .any(|warning| warning.code == DiagCode::Irule1006),
+                "MQTT payload {form} uses the current message without collect, got {warnings:?}",
+            );
+        }
+
+        let dynamic = flow_warnings("when MQTT_CLIENT_DATA { MQTT::payload $operation bytes }");
+        assert!(
+            !dynamic
+                .iter()
+                .any(|warning| warning.code == DiagCode::Irule1006),
+            "a dynamic MQTT payload form must abstain, got {dynamic:?}",
+        );
+    }
+
+    #[test]
+    fn mqtt_collection_lifecycle_balances_across_registry_events() {
+        let warnings = flow_warnings(
+            "when MQTT_CLIENT_INGRESS { MQTT::collect 200 }
+             when MQTT_CLIENT_DATA { set bytes [MQTT::payload]; MQTT::release }",
+        );
+        assert!(
+            !warnings.iter().any(|warning| matches!(
+                warning.code,
+                DiagCode::Irule1005
+                    | DiagCode::Irule1006
+                    | DiagCode::Irule1007
+                    | DiagCode::Irule1008
+            )),
+            "balanced MQTT collection should be clean, got {warnings:?}",
+        );
+    }
+
+    #[test]
+    fn every_explicit_payload_family_warns_without_collect() {
+        for (protocol, event) in [
+            ("MR", "MR_DATA"),
+            ("RTSP", "RTSP_REQUEST_DATA"),
+            ("SCTP", "CLIENT_DATA"),
+            ("WS", "WS_CLIENT_DATA"),
+        ] {
+            let source = format!("when {event} {{ set bytes [{protocol}::payload] }}");
+            let warnings = flow_warnings(&source);
+            assert!(
+                warnings
+                    .iter()
+                    .any(|warning| warning.code == DiagCode::Irule1006),
+                "{protocol} payload without collect must warn, got {warnings:?}",
+            );
+        }
+    }
+
+    #[test]
+    fn event_owned_payload_families_do_not_invent_collect_lifecycles() {
+        for (protocol, event) in [
+            ("CACHE", "CACHE_RESPONSE"),
+            ("DIAMETER", "DIAMETER_INGRESS"),
+            ("GTP", "GTP_SIGNALLING_INGRESS"),
+            ("REWRITE", "REWRITE_REQUEST_DONE"),
+            ("SIP", "SIP_REQUEST"),
+            ("XML", "XML_CONTENT_BASED_ROUTING"),
+        ] {
+            let source = format!("when {event} {{ set bytes [{protocol}::payload] }}");
+            let warnings = flow_warnings(&source);
+            assert!(
+                !warnings
+                    .iter()
+                    .any(|warning| warning.code == DiagCode::Irule1006),
+                "{protocol} payload is event-owned, got {warnings:?}",
+            );
+        }
     }
 
     #[test]
@@ -1950,18 +2244,64 @@ mod tests {
         );
     }
 
+    #[test]
+    fn http_data_event_implicitly_releases_collection() {
+        // F5 releases HTTP collection when the matching DATA event completes
+        // unless another HTTP::collect starts. An explicit HTTP::release here
+        // is optional, unlike TCP and SSL.
+        let ws = flow_warnings(
+            "when HTTP_REQUEST { HTTP::collect }
+             when HTTP_REQUEST_DATA { set payload [HTTP::payload] }",
+        );
+        assert!(
+            !ws.iter().any(|w| w.code == DiagCode::Irule1007),
+            "HTTP data event supplies the release, got {ws:?}",
+        );
+    }
+
+    #[test]
+    fn http_response_data_implicitly_releases_server_side_collection() {
+        let ws = flow_warnings(
+            "when HTTP_RESPONSE { HTTP::collect }
+             when HTTP_RESPONSE_DATA { set payload [HTTP::payload] }",
+        );
+        assert!(
+            !ws.iter().any(|warning| matches!(
+                warning.code,
+                DiagCode::Irule1005 | DiagCode::Irule1006 | DiagCode::Irule1007
+            )),
+            "registry side and implicit release should satisfy response collection, got {ws:?}",
+        );
+    }
+
+    #[test]
+    fn recollect_inside_http_data_event_still_needs_a_later_release() {
+        let ws = flow_warnings(
+            "when HTTP_REQUEST { HTTP::collect }
+             when HTTP_REQUEST_DATA { HTTP::collect }",
+        );
+        let hits = ws
+            .iter()
+            .filter(|warning| warning.code == DiagCode::Irule1007)
+            .count();
+        assert_eq!(
+            hits, 1,
+            "the setup collect is implicit-release safe, but the DATA-event recollect is not: {ws:?}",
+        );
+    }
+
     // -- side-switch body descent + peer flip -----
 
     #[test]
     fn collect_inside_clientside_body_is_seen() {
         // The collect lives inside a `clientside { ... }` nesting script.
         // With the BODY role set, the flow check descends into the body
-        // and registers the (client-side) collect, so CLIENT_DATA's
+        // and registers the (client-side) collect, so CLIENTSSL_DATA's
         // IRULE1005 requirement is satisfied.  Without the descent the
-        // collect was invisible and CLIENT_DATA wrongly fired IRULE1005.
+        // collect was invisible and CLIENTSSL_DATA wrongly fired IRULE1005.
         let ws = flow_warnings(
-            "when CLIENT_ACCEPTED { clientside { TCP::collect } }
-             when CLIENT_DATA { log local0. \"data\" }",
+            "when CLIENTSSL_HANDSHAKE { clientside { SSL::collect } }
+             when CLIENTSSL_DATA { log local0. \"data\" }",
         );
         assert!(
             !ws.iter().any(|w| w.code == DiagCode::Irule1005),
@@ -1971,14 +2311,14 @@ mod tests {
 
     #[test]
     fn peer_flips_side_for_collect_flow() {
-        // `peer { TCP::collect }` evaluates under the *opposite* side of
-        // the surrounding event.  In the client-side CLIENT_ACCEPTED it
-        // issues a *server*-side collect, so it satisfies SERVER_DATA but
-        // NOT CLIENT_DATA — the inverse of a plain `clientside` collect.
+        // `peer { SSL::collect }` evaluates under the *opposite* side of
+        // the surrounding client-side event. It therefore satisfies
+        // SERVERSSL_DATA but not CLIENTSSL_DATA — the inverse of a plain
+        // client-side collection.
         let ws = flow_warnings(
-            "when CLIENT_ACCEPTED { peer { TCP::collect } }
-             when CLIENT_DATA { log local0. \"c\" }
-             when SERVER_DATA { log local0. \"s\" }",
+            "when CLIENTSSL_HANDSHAKE { peer { SSL::collect } }
+             when CLIENTSSL_DATA { log local0. \"c\" }
+             when SERVERSSL_DATA { log local0. \"s\" }",
         );
         let irule1005: Vec<&str> = ws
             .iter()
@@ -1988,12 +2328,24 @@ mod tests {
         assert_eq!(
             irule1005.len(),
             1,
-            "expected exactly one IRULE1005 (CLIENT_DATA only), got {ws:?}",
+            "expected exactly one IRULE1005 (CLIENTSSL_DATA only), got {ws:?}",
         );
         assert!(
-            irule1005[0].contains("CLIENT_DATA"),
-            "the surviving IRULE1005 must be CLIENT_DATA (peer flipped the collect to the server side), got {irule1005:?}",
+            irule1005[0].contains("CLIENTSSL_DATA"),
+            "the surviving IRULE1005 must be CLIENTSSL_DATA (peer flipped the collect to the server side), got {irule1005:?}",
         );
+    }
+
+    #[test]
+    fn nested_side_switch_warning_keeps_its_absolute_source_span() {
+        let source = "when CLIENT_ACCEPTED {\n  serverside {\n    TCP::payload\n  }\n}";
+        let warning = flow_warnings(source)
+            .into_iter()
+            .find(|warning| warning.code == DiagCode::Irule1006)
+            .expect("server-side payload without collect");
+        let start = usize::try_from(warning.span.start()).unwrap();
+        let end = usize::try_from(warning.span.end()).unwrap();
+        assert_eq!(&source[start..end], "TCP::payload");
     }
 
     #[test]
@@ -2002,6 +2354,10 @@ mod tests {
         let r = registry();
         for cmd in ["clientside", "serverside", "peer"] {
             assert!(r.is_side_switch(cmd), "{cmd} must be a side-switch");
+            assert!(
+                r.side_switch_target(cmd).is_some(),
+                "{cmd} must declare its side-switch target",
+            );
             assert_eq!(
                 r.arg_indices_for_role(cmd, &["{ TCP::collect }"], tcl_registry::ArgRole::Body),
                 vec![0],
@@ -2058,6 +2414,33 @@ mod tests {
         assert!(
             ws.iter().any(|w| w.code == DiagCode::Irule1201),
             "expected IRULE1201, got {ws:?}",
+        );
+    }
+
+    #[test]
+    fn irule1201_uses_the_event_profile_instead_of_its_name() {
+        // FN regression: ASM_RESPONSE_VIOLATION does not start with `HTTP`,
+        // but its event descriptor implies the HTTP profile.
+        let ws = http_warnings(
+            "when ASM_RESPONSE_VIOLATION { HTTP::respond 200 content ok; HTTP::header insert X-Test yes }",
+        );
+        assert!(
+            ws.iter().any(|w| w.code == DiagCode::Irule1201),
+            "expected profile-driven IRULE1201, got {ws:?}",
+        );
+    }
+
+    #[test]
+    fn irule1201_allows_the_registered_response_state_query() {
+        // FP regression: checking whether a response has been sent is the
+        // purpose of HTTP::has_responded, so its spec does not require the
+        // still-live transaction context.
+        let ws = http_warnings(
+            "when HTTP_REQUEST { HTTP::respond 200 content ok; set sent [HTTP::has_responded] }",
+        );
+        assert!(
+            !ws.iter().any(|w| w.code == DiagCode::Irule1201),
+            "HTTP::has_responded must remain valid after commit, got {ws:?}",
         );
     }
 
@@ -2173,6 +2556,29 @@ mod tests {
     }
 
     #[test]
+    fn irule1202_reports_one_diagnostic_for_multiple_predecessor_proofs() {
+        let ws = http_warnings(
+            "when HTTP_REQUEST {\
+             if {$x} { HTTP::respond 200 content a } \
+             else { HTTP::respond 404 content b }; \
+             HTTP::respond 500 content c \
+             }",
+        );
+        let final_respond: Vec<_> = ws
+            .iter()
+            .filter(|warning| {
+                warning.code == DiagCode::Irule1202
+                    && warning.message.contains("Multiple 'HTTP::respond'")
+            })
+            .collect();
+        assert_eq!(
+            final_respond.len(),
+            1,
+            "one source command must produce one diagnostic, got {ws:?}",
+        );
+    }
+
+    #[test]
     fn irule1201_quiet_when_respond_and_use_are_exclusive() {
         // respond in one branch, an HTTP command in the *other* — no path
         // both responds and then uses HTTP, so nothing fires.
@@ -2198,7 +2604,7 @@ mod tests {
     #[test]
     fn irule1201_quiet_on_unregistered_http_subcommand() {
         // `HTTP::log` is not a registered HTTP:: command, so it must not trip
-        // IRULE1201 (matches the registry-derived namespace set).
+        // IRULE1201 (it carries no registry context trait).
         assert!(
             !http_codes("when HTTP_REQUEST { HTTP::respond 200 content a; HTTP::log foo }")
                 .contains(&"IRULE1201".to_string())
@@ -2243,6 +2649,17 @@ mod tests {
     }
 
     #[test]
+    fn irule4004_registry_only_per_request_event_fires() {
+        // TP: ASM_REQUEST_DONE was absent from the old compiler-local list.
+        // The registry's per-request classification is now the sole oracle.
+        let ws = hoist_warnings(r#"when ASM_REQUEST_DONE { set svc "foo" }"#);
+        assert!(
+            ws.iter().any(|w| w.code == DiagCode::Irule4004),
+            "expected registry-driven IRULE4004, got {ws:?}",
+        );
+    }
+
+    #[test]
     fn irule4004_dynamic_set_clean() {
         // Value depends on per-request data — can't hoist.
         let ws = hoist_warnings("when HTTP_REQUEST { set svc [HTTP::host] }");
@@ -2262,12 +2679,93 @@ mod tests {
     }
 
     #[test]
+    fn irule4004_per_request_reset_is_not_hoistable() {
+        // FP regression from the third-party corpus: moving the initial zero
+        // changes later requests after a branch sets the connection variable.
+        let ws = hoist_warnings(
+            "when HTTP_REQUEST { set is_reject 0; if {[HTTP::path] eq \"/deny\"} { set is_reject 1 } }",
+        );
+        assert!(
+            !ws.iter().any(|w| w.code == DiagCode::Irule4004),
+            "a per-request reset must stay in the request event, got {ws:?}",
+        );
+    }
+
+    #[test]
+    fn irule4004_conditional_literal_set_is_not_hoistable() {
+        let ws = hoist_warnings(
+            "when HTTP_REQUEST { if {[HTTP::path] eq \"/health\"} { set health_check 1 } }",
+        );
+        assert!(
+            !ws.iter().any(|w| w.code == DiagCode::Irule4004),
+            "hoisting a conditional assignment would make it unconditional, got {ws:?}",
+        );
+    }
+
+    #[test]
+    fn irule4004_cross_event_write_is_not_hoistable() {
+        let ws =
+            hoist_warnings("when HTTP_REQUEST { set state 0 }\nwhen HTTP_RESPONSE { set state 1 }");
+        assert!(
+            !ws.iter().any(|w| w.code == DiagCode::Irule4004),
+            "a connection variable written by another event is not invariant, got {ws:?}",
+        );
+    }
+
+    #[test]
+    fn irule4004_counts_writes_in_complexity_guarded_events() {
+        let padding = "x".repeat(crate::ssa::DEEP_ANALYSIS_BODY_BYTES);
+        let source = format!(
+            "when HTTP_REQUEST {{ set state 0 }}\n\
+             when HTTP_RESPONSE {{ # {padding}\n set state 1 }}"
+        );
+        let cu = CompilationUnit::build_for(&source, &registry(), false);
+        let response = cu
+            .functions()
+            .find(|fu| fu.name.starts_with("::when::HTTP_RESPONSE"))
+            .expect("HTTP_RESPONSE event is lowered");
+        assert!(
+            response.complexity_guarded,
+            "the control event must be guarded"
+        );
+
+        let ws = find_hoistable_set_warnings(&cu, Some("f5-irules"));
+        assert!(
+            !ws.iter().any(|w| w.code == DiagCode::Irule4004),
+            "a guarded event's second write must suppress the hoist warning, got {ws:?}",
+        );
+    }
+
+    #[test]
+    fn irule4004_array_and_static_destinations_abstain() {
+        let ws = hoist_warnings(
+            "when HTTP_REQUEST { set state(current) 0; set static::feature_enabled 1 }",
+        );
+        assert!(
+            !ws.iter().any(|w| w.code == DiagCode::Irule4004),
+            "array and static variables need different hoist destinations, got {ws:?}",
+        );
+    }
+
+    #[test]
     fn irule4004_set_in_once_per_connection_clean() {
-        // CLIENT_ACCEPTED already runs once-per-connection; nothing to hoist.
+        // FP control: the registry classifies CLIENT_ACCEPTED as
+        // once-per-connection, so there is nothing to hoist.
         let ws = hoist_warnings(r#"when CLIENT_ACCEPTED { set svc "foo" }"#);
         assert!(
             !ws.iter().any(|w| w.code == DiagCode::Irule4004),
             "no IRULE4004 expected — already once-per-connection, got {ws:?}",
+        );
+    }
+
+    #[test]
+    fn irule4004_unknown_event_abstains() {
+        // TN: an event absent from the registry is not guessed to be
+        // per-request from its spelling.
+        let ws = hoist_warnings(r#"when CUSTOM_REQUEST { set svc "foo" }"#);
+        assert!(
+            !ws.iter().any(|w| w.code == DiagCode::Irule4004),
+            "unknown event should abstain, got {ws:?}",
         );
     }
 

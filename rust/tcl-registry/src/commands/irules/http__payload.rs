@@ -24,6 +24,7 @@ pub const fn spec() -> CommandSpec {
         traits: Traits::PURE.union(Traits::CSE_CANDIDATE),
         dialects: Some(DialectSet::IRULES),
         arity: Arity::at_least(0),
+        data_collection: Some(HTTP_PAYLOAD),
         hover: Some(HoverSnippet {
             summary: "Queries for or manipulates HTTP payload information.",
             synopsis: &[

@@ -58,6 +58,7 @@ pub const fn spec() -> CommandSpec {
             replace_data_index: 1,
             ..BytePayloadSpec::DEFAULT
         }),
+        data_collection: Some(DIAMETER_PAYLOAD),
         ..CommandSpec::DEFAULT
     }
 }

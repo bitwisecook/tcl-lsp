@@ -409,10 +409,10 @@ diagnostic_codes! {
     Irule1001 => "IRULE1001", diag(Irules, true, "Command invalid or ineffective in this iRules event.");
     Irule1002 => "IRULE1002", diag(Irules, true, "Unknown iRules event name.");
     Irule1003 => "IRULE1003", diag(Irules, true, "Deprecated iRules event.", tag: Deprecated);
-    Irule1004 => "IRULE1004", diag(Irules, true, "`when` block missing explicit `priority`.");
-    Irule1005 => "IRULE1005", diag(Irules, true, "Data event without a matching `*::collect` call.");
-    Irule1006 => "IRULE1006", diag(Irules, true, "`*::payload` without a matching `*::collect` call.");
-    Irule1007 => "IRULE1007", diag(Irules, true, "`*::collect` without a matching `*::release` on the same connection side.");
+    Irule1004 => "IRULE1004", diag(Irules, true, "Explicit event priority required by the registry policy.");
+    Irule1005 => "IRULE1005", diag(Irules, true, "Data event without its required registered collection operation.");
+    Irule1006 => "IRULE1006", diag(Irules, true, "Payload access without its required registered collection operation.");
+    Irule1007 => "IRULE1007", diag(Irules, true, "Collection without its required registered release operation on the same connection side.");
     Irule1008 => "IRULE1008", diag(Irules, true, "`*::release` without a matching `*::collect` on the same connection side.");
     Irule1201 => "IRULE1201", diag(Irules, true, "HTTP command used after `HTTP::respond`/`HTTP::redirect`.");
     Irule1202 => "IRULE1202", diag(Irules, true, "Multiple `HTTP::respond`/`HTTP::redirect` on different branches.");

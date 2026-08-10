@@ -758,13 +758,34 @@ mod tests {
     }
 
     #[test]
-    fn info_version_and_procs() {
+    fn fresh_interp_exposes_c_create_interp_versions() {
         leak_free(|i| {
-            // `info tclversion`/`patchlevel` read the globals (set by a full
-            // interp's init; a bare test interp seeds them here).
-            run(i, b"set ::tcl_version 9.0; set ::tcl_patchLevel 9.0.4");
+            // C installs these globals in `Tcl_CreateInterp`, before `Tcl_Init`;
+            // every fresh Rust interp must expose the same core lifecycle.
             assert_eq!(run(i, b"info tclversion"), b"9.0");
             assert_eq!(run(i, b"info patchlevel"), b"9.0.4");
+        });
+    }
+
+    #[test]
+    fn info_patchlevel_still_errors_after_global_is_unset() {
+        leak_free(|i| {
+            // The command still reads the variable rather than hiding a
+            // constant: explicitly unsetting it keeps C's error behaviour.
+            assert_eq!(
+                i.eval_str(b"unset ::tcl_patchLevel; info patchlevel"),
+                Code::Error
+            );
+            assert_eq!(
+                i.result_bytes(),
+                b"can't read \"tcl_patchLevel\": no such variable"
+            );
+        });
+    }
+
+    #[test]
+    fn info_procs() {
+        leak_free(|i| {
             run(i, b"proc greet {name {g hi}} {return $g-$name}");
             assert_eq!(run(i, b"info args greet"), b"name g");
             assert_eq!(run(i, b"info body greet"), b"return $g-$name");

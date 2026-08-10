@@ -17,7 +17,10 @@ Why does the analyser report that payload data is accessed without a preceding `
 
 ## Why
 
-Payload is empty because no `collect` call reserved the data. The command returns an empty string or raises an error at runtime.
+HTTP, TCP, SSL, MQTT, message routing (MR), RTSP, SCTP, and WebSocket payload
+access can need an earlier matching `collect` call. Without it, the payload may
+be empty or the command may fail at runtime. The analyser takes the lifecycle,
+event side, and command call-form rules from the command registry.
 
 ## Symptoms
 
@@ -39,6 +42,15 @@ Call `HTTP::collect` before accessing the payload:
 when HTTP_REQUEST { HTTP::collect 1024 }
 when HTTP_REQUEST_DATA { set p [HTTP::payload] }
 ```
+
+## Limits
+
+`UDP::payload` is the current datagram. ASM, CACHE, DIAMETER, GTP, REWRITE,
+SIP, and XML payload commands receive their data from the current protocol or
+profile event, so they do not produce this warning. `MQTT::payload length`,
+`replace`, and `prepend` operate on the current PUBLISH message; the bare and
+`append` forms require collected data. The analyser abstains when a dynamic
+argument prevents it from selecting the MQTT form.
 
 ## How to suppress
 

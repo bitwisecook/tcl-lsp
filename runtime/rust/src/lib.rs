@@ -141,6 +141,7 @@ pub mod subst;
 /// TclObj` (the value seam).
 pub mod value_ops;
 pub mod vars;
+mod version;
 
 #[cfg(test)]
 mod tests {

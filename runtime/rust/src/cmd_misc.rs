@@ -25,6 +25,7 @@
 
 use crate::interp::{obj_bytes, Code, Interp};
 use crate::obj::TclObj;
+use crate::version::BUILD_INFO;
 
 /// Register the misc bootstrap commands.
 pub fn install(interp: &mut Interp) {
@@ -80,11 +81,6 @@ fn unsupported_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     m.extend_from_slice(b"\" is not supported under the WASM runtime");
     interp.set_error(&m)
 }
-
-/// The runtime's build-info string (`<patchlevel>+<commit>.<features…>`). None of
-/// the boolean feature words (`debug`/`purify`/`memdebug`/`no-deprecate`) are
-/// present, so those constraints resolve false.
-const BUILD_INFO: &[u8] = b"9.0.4+0000000000000000000000000000000000000000.rust";
 
 /// `tcl::build-info ?option?` — mirrors C's `BuildInfoObjCmd` (`tclBasic.c`):
 /// no arg → the full string; `patchlevel` → up to `+`; `version` → `major.minor`;

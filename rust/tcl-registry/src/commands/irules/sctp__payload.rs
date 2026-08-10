@@ -45,6 +45,7 @@ pub const fn spec() -> CommandSpec {
         }],
         taint_source: Some(TaintColour::TAINTED),
         byte_array_payload: Some(BytePayloadSpec::DEFAULT),
+        data_collection: Some(SCTP_PAYLOAD),
         ..CommandSpec::DEFAULT
     }
 }

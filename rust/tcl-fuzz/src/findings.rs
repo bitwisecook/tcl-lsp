@@ -84,18 +84,19 @@ pub struct Finding {
     /// Subject engine's stderr, when it ran.
     #[serde(default)]
     pub subject_stderr: String,
+    /// Stable reference backend identity (`tclsh`, `tclvm`, or
+    /// `runtime-rust`).
+    #[serde(default)]
+    pub reference_engine: String,
+    /// Stable subject backend identity.
+    #[serde(default)]
+    pub subject_engine: String,
     /// The Tcl release the **reference** engine reported
-    /// (`[info patchlevel]`), when it could be probed.
-    ///
-    /// A divergence is evidence of a bug only when both engines speak the same
-    /// version of the language. Issue #1328 filed eight findings against a
-    /// `tclsh8.6` oracle; re-run against 9.0.4 every one of them vanished,
-    /// each being a deliberate cross-version change rather than a defect. The
-    /// registry recorded nothing about the oracle, so that was invisible and
-    /// had to be re-derived by hand. It is recorded now.
+    /// (`[info patchlevel]`), when it could be probed. A divergence is evidence
+    /// of a bug only when both engines speak the same version of the language.
     #[serde(default)]
     pub reference_version: Option<String>,
-    /// The Tcl release the **subject** engine reported.
+    /// Subject `[info patchlevel]`, when probing succeeded.
     #[serde(default)]
     pub subject_version: Option<String>,
     /// Whether the two engines emulate different Tcl release *lines*. `true`
@@ -105,19 +106,29 @@ pub struct Finding {
     pub version_skew: bool,
 }
 
+/// The backend outcomes and identities attached to one finding.
+///
+/// Keeping this execution context together prevents callers from accidentally
+/// swapping one outcome while leaving its engine identity unchanged.
+pub struct FindingContext<'a> {
+    /// Reference backend outcome.
+    pub reference: &'a Outcome,
+    /// Subject backend outcome.
+    pub subject: &'a Outcome,
+    /// Stable reference backend identity.
+    pub reference_engine: &'a str,
+    /// Stable subject backend identity.
+    pub subject_engine: &'a str,
+    /// Backend versions probed for this campaign.
+    pub versions: &'a crate::version::PairVersions,
+}
+
 impl Finding {
     /// Build a finding from a campaign iteration's outcomes.
     #[must_use]
-    pub fn new(
-        seed: u64,
-        category: Category,
-        script: &str,
-        reference: &Outcome,
-        subject: &Outcome,
-        versions: &crate::version::PairVersions,
-    ) -> Self {
-        let (reference_stdout, reference_stderr, reference_errored) = unpack(reference);
-        let (subject_stdout, subject_stderr, subject_errored) = unpack(subject);
+    pub fn new(seed: u64, category: Category, script: &str, context: &FindingContext<'_>) -> Self {
+        let (reference_stdout, reference_stderr, reference_errored) = unpack(context.reference);
+        let (subject_stdout, subject_stderr, subject_errored) = unpack(context.subject);
         Self {
             seed,
             category,
@@ -128,9 +139,19 @@ impl Finding {
             subject_errored,
             reference_stderr,
             subject_stderr,
-            reference_version: versions.reference.as_ref().map(|v| v.patchlevel.clone()),
-            subject_version: versions.subject.as_ref().map(|v| v.patchlevel.clone()),
-            version_skew: versions.skewed(),
+            reference_engine: context.reference_engine.to_owned(),
+            subject_engine: context.subject_engine.to_owned(),
+            reference_version: context
+                .versions
+                .reference
+                .as_ref()
+                .map(|version| version.patchlevel.clone()),
+            subject_version: context
+                .versions
+                .subject
+                .as_ref()
+                .map(|version| version.patchlevel.clone()),
+            version_skew: context.versions.skewed(),
         }
     }
 }
@@ -150,6 +171,32 @@ fn unpack(o: &Outcome) -> (String, String, bool) {
 /// On-disk findings registry rooted at a directory.
 pub struct Registry {
     dir: PathBuf,
+}
+
+/// Directory-backed persistence for single-file reproducers from fuzzer arms
+/// that do not have a paired-engine [`Registry`] finding.
+pub struct ReproducerStore {
+    dir: PathBuf,
+}
+
+impl ReproducerStore {
+    /// Open (creating if needed) the directory for standalone reproducers.
+    ///
+    /// # Errors
+    /// If the directory cannot be created.
+    pub fn open(dir: impl Into<PathBuf>) -> std::io::Result<Self> {
+        let dir = dir.into();
+        std::fs::create_dir_all(&dir)?;
+        Ok(Self { dir })
+    }
+
+    /// Persist one reproducer under its stable file name.
+    ///
+    /// # Errors
+    /// If the reproducer cannot be written.
+    pub fn write(&self, file_name: &str, contents: impl AsRef<[u8]>) -> std::io::Result<()> {
+        std::fs::write(self.dir.join(file_name), contents)
+    }
 }
 
 impl Registry {
@@ -233,17 +280,21 @@ mod tests {
             7,
             Category::StdoutMismatch,
             "puts 1",
-            &Outcome::Ran {
-                stdout: "1\n".into(),
-                stderr: String::new(),
-                errored: false,
+            &FindingContext {
+                reference: &Outcome::Ran {
+                    stdout: "1\n".into(),
+                    stderr: String::new(),
+                    errored: false,
+                },
+                subject: &Outcome::Ran {
+                    stdout: "2\n".into(),
+                    stderr: String::new(),
+                    errored: false,
+                },
+                reference_engine: "tclsh",
+                subject_engine: "tclvm",
+                versions: &crate::version::PairVersions::default(),
             },
-            &Outcome::Ran {
-                stdout: "2\n".into(),
-                stderr: String::new(),
-                errored: false,
-            },
-            &crate::version::PairVersions::default(),
         );
         assert!(reg.record(&f).unwrap());
         assert!(
@@ -272,18 +323,52 @@ mod tests {
             11,
             Category::StatusMismatch,
             "namespace eval n { append i baz }",
-            &ran("a\n"),
-            &ran("b\n"),
-            &crate::version::PairVersions {
-                reference: Some(crate::version::EngineVersion::parse("8.6.16")),
-                subject: Some(crate::version::EngineVersion::parse("9.0.4")),
+            &FindingContext {
+                reference: &ran("a\n"),
+                subject: &ran("b\n"),
+                reference_engine: "tclsh",
+                subject_engine: "runtime-rust",
+                versions: &crate::version::PairVersions {
+                    reference: Some(crate::version::EngineVersion::parse("8.6.16")),
+                    subject: Some(crate::version::EngineVersion::parse("9.0.4")),
+                },
             },
         );
         assert!(reg.record(&f).unwrap());
         let back = reg.load(11).unwrap();
+        assert_eq!(back.reference_engine, "tclsh");
+        assert_eq!(back.subject_engine, "runtime-rust");
         assert_eq!(back.reference_version.as_deref(), Some("8.6.16"));
         assert_eq!(back.subject_version.as_deref(), Some("9.0.4"));
         assert!(back.version_skew, "8.6 oracle vs 9.0 subject is skew");
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn reproducer_store_creates_its_directory_and_persists_a_script() {
+        let dir = tmp("reproducer-success");
+        let store = ReproducerStore::open(&dir).expect("creates findings directory");
+        store
+            .write("seed-7.tcl", "puts reproduced")
+            .expect("writes reproducer");
+        assert_eq!(
+            std::fs::read_to_string(dir.join("seed-7.tcl")).unwrap(),
+            "puts reproduced"
+        );
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn reproducer_store_surfaces_directory_and_write_failures() {
+        let parent_file = tmp("reproducer-parent-file");
+        std::fs::write(&parent_file, "not a directory").unwrap();
+        assert!(ReproducerStore::open(parent_file.join("findings")).is_err());
+        let _ = std::fs::remove_file(&parent_file);
+
+        let dir = tmp("reproducer-write-error");
+        let store = ReproducerStore::open(&dir).unwrap();
+        std::fs::create_dir(dir.join("not-a-file")).unwrap();
+        assert!(store.write("not-a-file", "puts lost").is_err());
         let _ = std::fs::remove_dir_all(&dir);
     }
 }

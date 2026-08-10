@@ -44,7 +44,7 @@ pub(crate) const EVENT_DESCRIPTIONS: &[(&str, &str)] = &[
     ),
     (
         "CLIENT_DATA",
-        "Fires when client data is received while the connection is in collect state (requires TCP::collect or UDP::collect). On UDP virtual servers, fires on every datagram including the first.",
+        "Fires when client data is received while TCP is in collect state (requires TCP::collect). On UDP virtual servers, it fires on every datagram including the first; UDP payload is available without a collect command.",
     ),
     (
         "CLIENT_CLOSED",
@@ -76,7 +76,7 @@ pub(crate) const EVENT_DESCRIPTIONS: &[(&str, &str)] = &[
     ),
     (
         "SERVER_DATA",
-        "Fires when new data is received from the server while the connection is in collect state (requires TCP::collect in SERVER_CONNECTED). On UDP, fires on every server datagram.",
+        "Fires when new data is received from the server while TCP is in collect state (requires TCP::collect in SERVER_CONNECTED). On UDP virtual servers, it fires on every server datagram and payload is available without a collect command.",
     ),
     (
         "SERVER_CLOSED",

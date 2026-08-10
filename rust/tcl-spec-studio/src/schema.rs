@@ -605,6 +605,42 @@ pub const COMMAND_FIELDS: &[FieldSchema] = &[
         "Layer-based iRules event requirements used by the IRULE1001 validity check.",
     ),
     f(
+        "event_requirement_forms",
+        "Event requirement forms",
+        ADVANCED,
+        FieldKind::RustExpr {
+            hint: "&[EventRequirementForm { .. }]",
+        },
+        "Argument-prefix-specific iRules event contracts that override the command-level requirements.",
+    ),
+    f(
+        "data_collection",
+        "Data collection",
+        ADVANCED,
+        FieldKind::RustExpr {
+            hint: "Some(HTTP_COLLECT)",
+        },
+        "Registry descriptor for a collect, release, or payload operation.",
+    ),
+    f(
+        "side_switch_target",
+        "Side-switch target",
+        ADVANCED,
+        FieldKind::RustExpr {
+            hint: "Some(SideSwitchTarget::Client)",
+        },
+        "Connection-side context selected while evaluating this command's body.",
+    ),
+    f(
+        "event_handler_priority",
+        "Event-handler priority",
+        ADVANCED,
+        FieldKind::RustExpr {
+            hint: "Some(BIGIP_EVENT_HANDLER_PRIORITY)",
+        },
+        "Runtime default and implicit-priority policy for an event-handler command.",
+    ),
+    f(
         "options",
         "Options",
         OPTS,

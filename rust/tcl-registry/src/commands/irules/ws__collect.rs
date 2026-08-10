@@ -53,6 +53,7 @@ pub const fn spec() -> CommandSpec {
             connection_side: ConnectionSide::Both,
             dialects: None,
         }],
+        data_collection: Some(WS_COLLECT),
         ..CommandSpec::DEFAULT
     }
 }

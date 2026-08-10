@@ -192,7 +192,7 @@
     },
     {
       "name": "CLIENT_DATA",
-      "description": "Fires when client data is received while the connection is in collect state (requires TCP::collect or UDP::collect). On UDP virtual servers, fires on every datagram including the first."
+      "description": "Fires when client data is received while TCP is in collect state (requires TCP::collect). On UDP virtual servers, it fires on every datagram including the first; UDP payload is available without a collect command."
     },
     {
       "name": "CONNECTOR_OPEN",
@@ -609,7 +609,7 @@
     },
     {
       "name": "SERVER_DATA",
-      "description": "Fires when new data is received from the server while the connection is in collect state (requires TCP::collect in SERVER_CONNECTED). On UDP, fires on every server datagram."
+      "description": "Fires when new data is received from the server while TCP is in collect state (requires TCP::collect in SERVER_CONNECTED). On UDP virtual servers, it fires on every server datagram and payload is available without a collect command."
     },
     {
       "name": "SERVER_INIT",

@@ -342,31 +342,29 @@ fn argument_value_has_documentation() {
 // -- TestIrulesCollectCodeActions ----------------------------------------
 
 #[test]
-fn irule1005_adds_collect_bootstrap_options() {
+fn irule1005_adds_only_registered_collect_bootstrap() {
     let mut lsp = Lsp::irules();
     let uri = open_irule(
         &mut lsp,
-        "when CLIENT_DATA {\n    set payload [TCP::payload]\n}\n",
+        "when HTTP_REQUEST_DATA {\n    set payload [HTTP::payload]\n}\n",
     );
     let d = diag(
         "IRULE1005",
-        "'CLIENT_DATA' will never fire without a TCP::collect or UDP::collect call in another event.",
+        "'HTTP_REQUEST_DATA' will never fire without a client HTTP::collect call in another event.",
         (0, 5),
-        (0, 16),
+        (0, 22),
     );
-    let actions = lsp.code_actions(&uri, range((0, 5), (0, 16)), json!([d]));
+    let actions = lsp.code_actions(&uri, range((0, 5), (0, 22)), json!([d]));
     let snippets = ca_new_texts(&actions);
     assert!(
         snippets
             .iter()
-            .any(|s| s.contains("when CLIENT_ACCEPTED") && s.contains("TCP::collect")),
+            .any(|s| s.contains("when HTTP_REQUEST") && s.contains("HTTP::collect")),
         "{snippets:?}"
     );
     assert!(
-        snippets
-            .iter()
-            .any(|s| s.contains("when CLIENT_ACCEPTED") && s.contains("UDP::collect")),
-        "{snippets:?}"
+        snippets.iter().all(|s| !s.contains("UDP::collect")),
+        "only registry-declared collect commands are offered: {snippets:?}",
     );
 }
 
@@ -1226,27 +1224,28 @@ fn constant_in_http_sink_is_silent() {
 // -- TestIrulesByteArrayCorruption ---------------------------------------
 // S110 byte-array corruption on the wire (F5 KB K22406348).
 
-/// A deep-tier iRules code that fires for every `*::payload` body here.
-const DEEP_MARKER: &str = "IRULE1006";
-
 /// Open `source` and poll the version-1 publish until the deep marker lands,
 /// returning the final (basic + deep) diagnostics (`_deep_diags`).
-fn deep_diags(lsp: &mut Lsp, source: &str) -> Vec<Value> {
+fn deep_diags_for(lsp: &mut Lsp, source: &str, marker: &str) -> Vec<Value> {
     let uri = unique_uri("irule");
     lsp.open_ready_lang(&uri, source, "tcl-irule");
     let deadline = std::time::Instant::now() + scaled_timeout(Duration::from_secs(25));
     let mut diags = Vec::new();
     while std::time::Instant::now() < deadline {
         diags = lsp.await_diagnostics_version(&uri, Some(1), Duration::from_secs(25));
-        if diags.iter().any(|d| code_str(d) == DEEP_MARKER) {
+        if diags.iter().any(|d| code_str(d) == marker) {
             return diags;
         }
         std::thread::sleep(Duration::from_millis(200));
     }
     panic!(
-        "deep diagnostics ({DEEP_MARKER}) never published; saw {:?}",
+        "deep diagnostics ({marker}) never published; saw {:?}",
         irules_codes(&diags)
     );
+}
+
+fn deep_diags(lsp: &mut Lsp, source: &str) -> Vec<Value> {
+    deep_diags_for(lsp, source, "IRULE1006")
 }
 
 #[test]
@@ -1329,7 +1328,7 @@ fn mqtt_payload_roundtrip_fires_s110() {
     let mut lsp = Lsp::irules();
     let diags = deep_diags(
         &mut lsp,
-        "when MQTT_MESSAGE {\n\
+        "when MQTT_CLIENT_DATA {\n\
         \x20   set p [MQTT::payload]\n\
         \x20   set bad \"$p x\"\n\
         \x20   MQTT::payload replace $bad\n\
@@ -1338,23 +1337,40 @@ fn mqtt_payload_roundtrip_fires_s110() {
     let s110: Vec<&Value> = diags.iter().filter(|d| code_str(d) == "S110").collect();
     assert!(!s110.is_empty(), "{:?}", irules_codes(&diags));
     assert_eq!(s110[0].get("severity").and_then(Value::as_i64), Some(2)); // Warning
+    assert_eq!(
+        diags
+            .iter()
+            .filter(|diagnostic| code_str(diagnostic) == "IRULE1006")
+            .count(),
+        1,
+        "only the bare read needs MQTT::collect; replace uses the current message: {:?}",
+        irules_codes(&diags),
+    );
 }
 
 #[test]
-fn diameter_payload_roundtrip_fires_s110() {
-    // DIAMETER `replace PAYLOAD` — data operand at index 1.
+fn diameter_payload_roundtrip_fires_s110_without_collect_warning() {
+    // DIAMETER `replace PAYLOAD` — data operand at index 1. DIAMETER events
+    // own the current message payload; the namespace has no collect/release
+    // lifecycle, so S110 must survive without an invented IRULE1006.
     let mut lsp = Lsp::irules();
-    let diags = deep_diags(
+    let diags = deep_diags_for(
         &mut lsp,
         "when DIAMETER_INGRESS {\n\
         \x20   set p [DIAMETER::payload]\n\
         \x20   set bad \"$p x\"\n\
         \x20   DIAMETER::payload replace $bad\n\
         }\n",
+        "S110",
     );
     let s110: Vec<&Value> = diags.iter().filter(|d| code_str(d) == "S110").collect();
     assert!(!s110.is_empty(), "{:?}", irules_codes(&diags));
     assert_eq!(s110[0].get("severity").and_then(Value::as_i64), Some(2)); // Warning
+    assert!(
+        !irules_codes(&diags).contains("IRULE1006"),
+        "DIAMETER payload is event-owned: {:?}",
+        irules_codes(&diags),
+    );
 }
 
 // -- TestIrulesWhenBodyAnalysed ------------------------------------------
@@ -1400,6 +1416,48 @@ fn diags_until(lsp: &mut Lsp, source: &str, marker: &str) -> Vec<Value> {
     panic!("{marker} never published; saw {:?}", irules_codes(&diags));
 }
 
+#[test]
+fn http_response_data_implicit_release_is_clean_end_to_end() {
+    // FP regression: the registry maps both handlers to the server side and
+    // declares HTTP_RESPONSE_DATA as HTTP_RESPONSE's implicit-release event.
+    let mut lsp = Lsp::irules();
+    let uri = unique_uri("irule");
+    lsp.open_ready_lang(
+        &uri,
+        "when HTTP_RESPONSE { HTTP::collect }\n\
+         when HTTP_RESPONSE_DATA { set payload [HTTP::payload] }\n",
+        "tcl-irule",
+    );
+    let diags =
+        lsp.await_diagnostics_version(&uri, Some(1), scaled_timeout(Duration::from_secs(25)));
+    let codes = irules_codes(&diags);
+    assert!(!codes.contains("IRULE1005"), "{codes:?}");
+    assert!(!codes.contains("IRULE1006"), "{codes:?}");
+    assert!(!codes.contains("IRULE1007"), "{codes:?}");
+}
+
+#[test]
+fn recollect_inside_http_data_event_reports_irule1007_end_to_end() {
+    // TP/FN regression: the first collection is released implicitly, but a
+    // subsequent collection inside the DATA event needs a later release.
+    let mut lsp = Lsp::irules();
+    let diags = diags_until(
+        &mut lsp,
+        "when HTTP_REQUEST { HTTP::collect }\n\
+         when HTTP_REQUEST_DATA { HTTP::collect }\n",
+        "IRULE1007",
+    );
+    assert_eq!(
+        diags
+            .iter()
+            .filter(|diag| code_str(diag) == "IRULE1007")
+            .count(),
+        1,
+        "{:?}",
+        irules_codes(&diags),
+    );
+}
+
 /// `$x contains "cd"` with `$x` a known literal is a constant condition, so the
 /// alternate branch is unreachable and I230 fires.
 ///
@@ -1435,8 +1493,9 @@ fn i230_fires_on_irules_word_operator_condition() {
 
 /// FP guard: neither operand of `$x contains $y` is knowable here, so the
 /// condition is not constant and I230 must stay silent — the fold is proven,
-/// not assumed from the operator. `IRULE1004` (the missing-priority hint on the
-/// `when` handler) is the settle marker.
+/// not assumed from the operator. `IRULE3102` (the unnormalised URI getter)
+/// is the deep-diagnostic settle marker; a bare `when` uses BIG-IP's valid
+/// default priority and does not manufacture IRULE1004.
 #[test]
 fn i230_silent_on_non_constant_irules_word_operator_condition() {
     let mut lsp = Lsp::irules();
@@ -1447,7 +1506,7 @@ fn i230_silent_on_non_constant_irules_word_operator_condition() {
         \x20   set x [HTTP::host]\n\
         \x20   if {$x contains $y} { HTTP::respond 200 }\n\
         }\n",
-        "IRULE1004",
+        "IRULE3102",
     );
     assert!(
         !irules_codes(&diags).contains("I230"),

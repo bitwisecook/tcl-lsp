@@ -1,7 +1,7 @@
-# KCS: IRULE1004 — Why does the analyser hint about a missing event priority?
+# KCS: IRULE1004 — Why is an omitted event priority accepted?
 
 > **Audience:** User
-> **Type:** Issue
+> **Type:** Diagnostic
 
 ## Applies to
 
@@ -13,35 +13,38 @@ default, dialect:irule
 
 ## Question
 
-Why does the analyser show a hint that a `when` block is missing an explicit priority?
+Why does a `when` block without an explicit priority not show a diagnostic?
 
 ## Why
 
-Without a priority, execution order across multiple iRules bound to the same virtual server is unpredictable. Explicit priorities make the ordering deterministic.
+BIG-IP gives a `when` handler priority **500** when the clause is omitted. The
+handler is valid, so the analyser does not report `IRULE1004` for ordinary
+iRules. Add an explicit priority when your deployment needs a deliberate order
+between multiple rules.
 
 ## Symptoms
 
-- A blue squiggle (hint severity) appears on the `when` keyword, with the message "when block missing explicit priority".
+- No squiggle appears for a valid handler that relies on BIG-IP's default.
 
-## Example that triggers it
+## Valid default-priority example
 
 ```tcl
 when HTTP_REQUEST { pool main }
 ```
 
-The analyser reports **`IRULE1004`** because no `priority` clause is specified.
+The analyser accepts this and BIG-IP runs it at priority 500.
 
-## Fix
+## When to make the priority explicit
 
-Add an explicit priority value:
+Use an explicit priority when the order matters:
 
 ```tcl
 when HTTP_REQUEST priority 500 { pool main }
 ```
 
-## How to suppress
-
-Add `# noqa: IRULE1004` at the end of the offending line.
+`IRULE1004` remains available for a dialect whose command-registry policy
+requires explicit priorities. The standard BIG-IP policy does not enable that
+rule, because an omitted value has defined runtime behaviour.
 
 ## Related
 

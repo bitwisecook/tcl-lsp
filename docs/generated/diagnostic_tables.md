@@ -119,10 +119,10 @@
 | IRULE1001 | irules | Command invalid or ineffective in this iRules event. | ✓ |
 | IRULE1002 | irules | Unknown iRules event name. | ✓ |
 | IRULE1003 | irules | Deprecated iRules event. | ✓ |
-| IRULE1004 | irules | `when` block missing explicit `priority`. | ✓ |
-| IRULE1005 | irules | Data event without a matching `*::collect` call. | ✓ |
-| IRULE1006 | irules | `*::payload` without a matching `*::collect` call. | ✓ |
-| IRULE1007 | irules | `*::collect` without a matching `*::release` on the same connection side. | ✓ |
+| IRULE1004 | irules | Explicit event priority required by the registry policy. | ✓ |
+| IRULE1005 | irules | Data event without its required registered collection operation. | ✓ |
+| IRULE1006 | irules | Payload access without its required registered collection operation. | ✓ |
+| IRULE1007 | irules | Collection without its required registered release operation on the same connection side. | ✓ |
 | IRULE1008 | irules | `*::release` without a matching `*::collect` on the same connection side. | ✓ |
 | IRULE1201 | irules | HTTP command used after `HTTP::respond`/`HTTP::redirect`. | ✓ |
 | IRULE1202 | irules | Multiple `HTTP::respond`/`HTTP::redirect` on different branches. | ✓ |

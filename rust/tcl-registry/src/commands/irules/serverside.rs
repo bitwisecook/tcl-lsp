@@ -22,6 +22,7 @@ pub const fn spec() -> CommandSpec {
     CommandSpec {
         name: "serverside",
         traits: Traits::IS_SIDE_SWITCH,
+        side_switch_target: Some(SideSwitchTarget::Server),
         dialects: Some(DialectSet::IRULES),
         // `serverside (NESTING_SCRIPT)?` — the bare query form (0 args,
         // returns 1/0) or a single optional nesting-script body (#501).

@@ -40,6 +40,15 @@ when CLIENT_ACCEPTED { TCP::collect 1024 }
 when CLIENT_DATA { TCP::release }
 ```
 
+## Limits
+
+TCP and SSL collections require an explicit matching `release`. HTTP releases
+its collected data implicitly when its matching request or response data event
+finishes, so a complete HTTP data-event handler does not produce this warning.
+If that data event issues another `HTTP::collect`, the new collection needs a
+later data event or an explicit `HTTP::release`. The analyser cannot follow
+releases through dynamically constructed commands.
+
 ## How to suppress
 
 Add `# noqa: IRULE1007` at the end of the offending line.
