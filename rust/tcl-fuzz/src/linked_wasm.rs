@@ -53,7 +53,7 @@ impl Case {
     #[must_use]
     pub fn from_seed(seed: u64) -> Self {
         Self {
-            name: format!("n{:016x}", seed),
+            name: format!("n{seed:016x}"),
         }
     }
 

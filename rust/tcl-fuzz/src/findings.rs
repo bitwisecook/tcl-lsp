@@ -106,21 +106,29 @@ pub struct Finding {
     pub version_skew: bool,
 }
 
+/// The backend outcomes and identities attached to one finding.
+///
+/// Keeping this execution context together prevents callers from accidentally
+/// swapping one outcome while leaving its engine identity unchanged.
+pub struct FindingContext<'a> {
+    /// Reference backend outcome.
+    pub reference: &'a Outcome,
+    /// Subject backend outcome.
+    pub subject: &'a Outcome,
+    /// Stable reference backend identity.
+    pub reference_engine: &'a str,
+    /// Stable subject backend identity.
+    pub subject_engine: &'a str,
+    /// Backend versions probed for this campaign.
+    pub versions: &'a crate::version::PairVersions,
+}
+
 impl Finding {
     /// Build a finding from a campaign iteration's outcomes.
     #[must_use]
-    pub fn new(
-        seed: u64,
-        category: Category,
-        script: &str,
-        reference: &Outcome,
-        subject: &Outcome,
-        reference_engine: &str,
-        subject_engine: &str,
-        versions: &crate::version::PairVersions,
-    ) -> Self {
-        let (reference_stdout, reference_stderr, reference_errored) = unpack(reference);
-        let (subject_stdout, subject_stderr, subject_errored) = unpack(subject);
+    pub fn new(seed: u64, category: Category, script: &str, context: &FindingContext<'_>) -> Self {
+        let (reference_stdout, reference_stderr, reference_errored) = unpack(context.reference);
+        let (subject_stdout, subject_stderr, subject_errored) = unpack(context.subject);
         Self {
             seed,
             category,
@@ -131,17 +139,19 @@ impl Finding {
             subject_errored,
             reference_stderr,
             subject_stderr,
-            reference_engine: reference_engine.to_owned(),
-            subject_engine: subject_engine.to_owned(),
-            reference_version: versions
+            reference_engine: context.reference_engine.to_owned(),
+            subject_engine: context.subject_engine.to_owned(),
+            reference_version: context
+                .versions
                 .reference
                 .as_ref()
                 .map(|version| version.patchlevel.clone()),
-            subject_version: versions
+            subject_version: context
+                .versions
                 .subject
                 .as_ref()
                 .map(|version| version.patchlevel.clone()),
-            version_skew: versions.skewed(),
+            version_skew: context.versions.skewed(),
         }
     }
 }
@@ -244,19 +254,21 @@ mod tests {
             7,
             Category::StdoutMismatch,
             "puts 1",
-            &Outcome::Ran {
-                stdout: "1\n".into(),
-                stderr: String::new(),
-                errored: false,
+            &FindingContext {
+                reference: &Outcome::Ran {
+                    stdout: "1\n".into(),
+                    stderr: String::new(),
+                    errored: false,
+                },
+                subject: &Outcome::Ran {
+                    stdout: "2\n".into(),
+                    stderr: String::new(),
+                    errored: false,
+                },
+                reference_engine: "tclsh",
+                subject_engine: "tclvm",
+                versions: &crate::version::PairVersions::default(),
             },
-            &Outcome::Ran {
-                stdout: "2\n".into(),
-                stderr: String::new(),
-                errored: false,
-            },
-            "tclsh",
-            "tclvm",
-            &crate::version::PairVersions::default(),
         );
         assert!(reg.record(&f).unwrap());
         assert!(
@@ -285,13 +297,15 @@ mod tests {
             11,
             Category::StatusMismatch,
             "namespace eval n { append i baz }",
-            &ran("a\n"),
-            &ran("b\n"),
-            "tclsh",
-            "runtime-rust",
-            &crate::version::PairVersions {
-                reference: Some(crate::version::EngineVersion::parse("8.6.16")),
-                subject: Some(crate::version::EngineVersion::parse("9.0.4")),
+            &FindingContext {
+                reference: &ran("a\n"),
+                subject: &ran("b\n"),
+                reference_engine: "tclsh",
+                subject_engine: "runtime-rust",
+                versions: &crate::version::PairVersions {
+                    reference: Some(crate::version::EngineVersion::parse("8.6.16")),
+                    subject: Some(crate::version::EngineVersion::parse("9.0.4")),
+                },
             },
         );
         assert!(reg.record(&f).unwrap());

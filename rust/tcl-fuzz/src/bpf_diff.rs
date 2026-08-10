@@ -51,9 +51,11 @@ impl Case {
     pub fn from_seed(seed: u64) -> Self {
         // Keep the packet small but leave enough address variation to exercise
         // the emitter's immediate-offset encoding and bounds proof.
+        let selected_bits = (seed >> 8) & u64::from(u8::MAX);
+        let selected_byte = u8::try_from(selected_bits).expect("selected byte is masked to u8");
         Self {
             offset: (seed % 48) as u8,
-            selected_byte: (seed >> 8) as u8,
+            selected_byte,
         }
     }
 
@@ -167,5 +169,12 @@ mod tests {
         let generated = source(Case::from_seed(7)).expect("registry shape");
         assert!(generated.starts_with("when "));
         assert!(generated.contains("SOCKET_FILTER"));
+    }
+
+    #[test]
+    fn seed_mapping_selects_exactly_the_second_byte() {
+        let case = Case::from_seed(0xABCD_EF12_3456_789A);
+        assert_eq!(case.offset, 10);
+        assert_eq!(case.selected_byte, 0x78);
     }
 }
