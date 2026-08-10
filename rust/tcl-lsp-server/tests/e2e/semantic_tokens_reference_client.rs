@@ -1102,10 +1102,12 @@ fn range_semantic_tokens_no_spurious_refresh_when_converged() {
     // along with it.  The refresh assertion below is asserted in
     // *every* case, because "no spurious refresh" must hold on all of them; the
     // outcome is reported so a run that did not exercise the compare is visible
-    // rather than silently vacuous.
+    // rather than silently vacuous. This wait observes the detached deep-tier
+    // comparison; first-response latency is asserted separately, so it needs
+    // enough headroom for a debug server on a loaded CI runner.
     let settled = lsp.await_log(
         &["semantic_tokens.range_convergence.settled", uri.as_str()],
-        Duration::from_secs(20),
+        Duration::from_mins(1),
         log_since,
     );
     eprintln!("range_semantic_tokens_no_spurious_refresh_when_converged: {settled}");
