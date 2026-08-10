@@ -794,14 +794,14 @@ fn function_facts(
             {
                 facts.direct_assignments.insert(span_key(*span));
             }
-            let (command, tokens) = match statement {
-                Statement::Call {
-                    command, tokens, ..
-                }
-                | Statement::Barrier {
-                    command, tokens, ..
-                } => (command, tokens),
-                _ => continue,
+            let (Statement::Call {
+                command, tokens, ..
+            }
+            | Statement::Barrier {
+                command, tokens, ..
+            }) = statement
+            else {
+                continue;
             };
             let bare = statement
                 .canonical_command_or_source()
