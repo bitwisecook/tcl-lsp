@@ -327,6 +327,10 @@ pub struct SourceFile {
     /// almost no document declares a metaclass.
     #[returns(ref)]
     pub workspace_class_factories: Option<Arc<tcl_compiler::analyser::ClassFactoryIndex>>,
+    /// Monotonic revision of workspace sidecar stubs. The server advances this
+    /// input for every `<dialect>.tcl.stubs` create/change/delete, so Salsa
+    /// invalidates analyses that read an external declaration bundle.
+    pub sidecar_stubs_epoch: u64,
 }
 
 impl SourceFile {
@@ -340,7 +344,7 @@ impl SourceFile {
         dialect: String,
         path: Option<String>,
     ) -> Self {
-        Self::with_call_site_evidence(db, text, dialect, path, None, None)
+        Self::with_call_site_evidence(db, text, dialect, path, None, None, 0)
     }
 }
 
@@ -402,6 +406,7 @@ pub fn file_analysis(
     file: SourceFile,
     config: AnalyserConfig,
 ) -> Arc<AnalysisResult> {
+    let _sidecar_stubs_epoch = file.sidecar_stubs_epoch(db);
     let disabled: HashSet<String> = config.disabled_diagnostics(db).iter().cloned().collect();
     let extra: HashSet<String> = config.extra_commands(db).iter().cloned().collect();
     let mut analyser = Analyser::with_disabled_diagnostics(disabled)
@@ -2884,6 +2889,7 @@ pub fn file_analysis_incremental(
     file: SourceFile,
     config: AnalyserConfig,
 ) -> Arc<AnalysisResult> {
+    let _sidecar_stubs_epoch = file.sidecar_stubs_epoch(db);
     let disabled_vec = config.disabled_diagnostics(db).clone();
     let non_ascii = config.non_ascii_mode(db);
     let extra_commands: HashSet<String> = config.extra_commands(db).iter().cloned().collect();
@@ -4328,6 +4334,47 @@ mod tests {
             let full = file_analysis(&db, file, cfg);
             assert_eq!(*inc, *full, "incremental != full for:\n{src}");
         }
+    }
+
+    #[test]
+    fn sidecar_stubs_reach_incremental_proc_bodies_and_invalidate() {
+        use salsa::Setter as _;
+
+        let root = std::env::temp_dir().join(format!(
+            "tcl-lsp-sidecar-incremental-{}-{}",
+            std::process::id(),
+            std::thread::current().name().unwrap_or("test")
+        ));
+        let src_dir = root.join("src");
+        std::fs::create_dir_all(&src_dir).unwrap();
+        let sidecar = root.join("tcl8.6.tcl.stubs");
+        std::fs::write(&sidecar, "stub sidecar_cmd {value}\n").unwrap();
+        let path = src_dir.join("main.tcl");
+        let mut db = TclDatabase::default();
+        let config = cfg(&db);
+        let file = SourceFile::new(
+            &db,
+            "proc f {} { sidecar_cmd 1 }\n".to_owned(),
+            "tcl8.6".to_owned(),
+            Some(path.display().to_string()),
+        );
+
+        let initial = file_analysis_incremental(&db, file, config);
+        assert!(
+            !initial.diagnostics.iter().any(|d| d.code == DiagCode::W123),
+            "sidecar command must resolve inside a proc body: {:?}",
+            initial.diagnostics
+        );
+        assert_eq!(*initial, *file_analysis(&db, file, config));
+
+        std::fs::write(&sidecar, "stub replacement_cmd {value}\n").unwrap();
+        file.set_sidecar_stubs_epoch(&mut db).to(1);
+        let changed = file_analysis_incremental(&db, file, config);
+        assert!(
+            changed.diagnostics.iter().any(|d| d.code == DiagCode::W123),
+            "the unchanged source must be reanalysed after its sidecar changes"
+        );
+        let _ = std::fs::remove_dir_all(root);
     }
 
     #[test]

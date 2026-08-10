@@ -350,11 +350,16 @@ impl Analyser {
             .filter(|name| profile.resolve_command(registry, name).is_some())
             .map(str::to_string)
             .collect();
-        // Inline ``# tcl-lsp: stub NAME ...``
-        // declarations contribute to the candidate set and the
-        // suppression set so users who declared a stub for a
-        // command don't get spurious W123s.
-        let stub_names: HashSet<String> = super::utils::scan_stub_command_names(&self.source);
+        // Inline and sidecar stub declarations contribute to the candidate
+        // set and suppression set. `result.stub_commands` is the one
+        // provenance-aware declaration surface built at analysis setup; scanning
+        // the source here would silently omit `<dialect>.tcl.stubs` bundles.
+        let stub_names: HashSet<String> = self
+            .result
+            .stub_commands
+            .iter()
+            .map(|stub| stub.name.clone())
+            .collect();
         // These two tail sets feed only the "did you mean…?" candidate
         // list below — resolution itself uses `proc_defs_by_tail` /
         // `class_defs_by_tail` (built further down), which check each

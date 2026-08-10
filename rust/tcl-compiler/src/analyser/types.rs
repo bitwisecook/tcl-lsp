@@ -2481,6 +2481,10 @@ pub struct StubCommandDef {
     /// Trailing flag set (``-barrier`` / ``-loop`` / ``-pure``
     /// / ``-mutator`` / ``-unsafe`` / ``-scope_alias``).
     pub flags: StubFlags,
+    /// `true` when this declaration came from a workspace sidecar rather than
+    /// the analysed document. Such declarations participate in resolution but
+    /// cannot produce source-positioned shadow diagnostics.
+    pub from_sidecar: bool,
 }
 
 impl StubCommandDef {
@@ -2544,6 +2548,8 @@ pub struct StubExprDef {
     pub arity: u32,
     /// Span of the comment line carrying the directive.
     pub range: Span,
+    /// See [`StubCommandDef::from_sidecar`].
+    pub from_sidecar: bool,
 }
 
 /// `regexp` / `regsub` / `switch -regexp` literal-pattern record.

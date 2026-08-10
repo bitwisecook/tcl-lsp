@@ -2876,7 +2876,7 @@ options. To unset a variable whose name begins with `-`, put `--` before it \
                 .result
                 .stub_commands
                 .iter()
-                .filter(|s| commands.contains(s.name.trim_start_matches(':')))
+                .filter(|s| !s.from_sidecar && commands.contains(s.name.trim_start_matches(':')))
                 .map(|s| (s.name.clone(), s.range))
                 .collect();
             for (name, span) in hits {
@@ -2898,9 +2898,10 @@ options. To unset a variable whose name begins with `-`, put `--` before it \
                 .stub_expr_defs
                 .iter()
                 .filter(|s| {
-                    is_builtin_math_function(&s.name)
-                        || is_builtin_expr_op(&s.name)
-                        || (irules && is_irules_only_expr_op(&s.name))
+                    !s.from_sidecar
+                        && (is_builtin_math_function(&s.name)
+                            || is_builtin_expr_op(&s.name)
+                            || (irules && is_irules_only_expr_op(&s.name)))
                 })
                 .map(|s| (s.name.clone(), s.kind.clone(), s.range))
                 .collect();

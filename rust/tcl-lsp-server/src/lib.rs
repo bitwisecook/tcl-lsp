@@ -4879,6 +4879,35 @@ impl Backend {
         }
     }
 
+    /// Invalidate every tracked analysis after a sidecar-stub change. A source
+    /// may inherit its nearest `<dialect>.tcl.stubs` from any ancestor, so the
+    /// rare event deliberately advances every loaded source instead of trying
+    /// to maintain a second, fallible ancestor dependency graph.
+    async fn invalidate_sidecar_stubs(&self) {
+        use salsa::Setter as _;
+        let tracked: Vec<Uri> = {
+            let mut db = self.db.lock().await;
+            let files = self.db_files.lock().await;
+            let mut uris = Vec::with_capacity(files.len());
+            for (uri, file) in files.iter() {
+                let next = file.sidecar_stubs_epoch(&*db).wrapping_add(1);
+                file.set_sidecar_stubs_epoch(&mut *db).to(next);
+                uris.push(uri.clone());
+            }
+            uris
+        };
+        let open: Vec<(Uri, String)> = {
+            let docs = self.documents.lock().await;
+            tracked
+                .into_iter()
+                .filter_map(|uri| docs.get(&uri).map(|doc| (uri, doc.dialect.clone())))
+                .collect()
+        };
+        for (uri, dialect) in open {
+            self.reschedule_diagnostics(uri, dialect).await;
+        }
+    }
+
     /// Retire the salsa `SourceFile` input for `uri` (on `did_close`).  Lock
     /// order is `db` → `db_files` → `db_tombstones` → `db_project`, matching
     /// [`Self::db_set_source`].
@@ -12431,6 +12460,13 @@ impl Backend {
                         kind: all_kinds,
                     },
                     FileSystemWatcher {
+                        // Sidecars are external analysis inputs, not Tcl
+                        // source documents. Their events advance the tracked
+                        // sidecar epoch and republish affected open documents.
+                        glob_pattern: GlobPattern::String("**/*.tcl.stubs".to_owned()),
+                        kind: all_kinds,
+                    },
+                    FileSystemWatcher {
                         // The project config the layered settings live-reload
                         // from ([`is_config_file`]). Registered here rather than
                         // left to each client's own `synchronize.fileEvents`, so
@@ -14006,6 +14042,7 @@ impl LanguageServer for Backend {
         // definition / references / rename / call-hierarchy keep seeing the
         // project's true on-disk state between restarts.
         let mut config_changed = false;
+        let mut sidecar_changed = false;
         // Reduce to the *last* event per URI before partitioning: a batch can
         // legitimately name the same path twice (a delete-and-recreate a
         // branch switch or a rapid rename can coalesce into one
@@ -14019,6 +14056,10 @@ impl LanguageServer for Backend {
             // layered config — a live-reload for these files.
             if is_config_file(&change.uri) {
                 config_changed = true;
+                continue;
+            }
+            if is_sidecar_stubs_file(&change.uri) {
+                sidecar_changed = true;
                 continue;
             }
             // Only Tcl sources drive the index.  The server's own registration
@@ -14037,6 +14078,9 @@ impl LanguageServer for Backend {
                 continue;
             }
             last_kind.insert(change.uri, change.typ);
+        }
+        if sidecar_changed {
+            self.invalidate_sidecar_stubs().await;
         }
         // Partition the (deduplicated) event set so the disk-backed work below
         // runs once per kind — a parallel read+analyse and one batched
@@ -17362,6 +17406,21 @@ fn is_config_file(uri: &Uri) -> bool {
         || s.ends_with("\\.tcl-lsp.ini")
         || s.ends_with("/tcl-lsp/config.ini")
         || s.ends_with("\\tcl-lsp\\config.ini")
+}
+
+/// Whether `uri` is a workspace sidecar declaration bundle. It is purposely
+/// kept outside [`is_tcl_source`]: a `.tcl.stubs` file controls analysis but is
+/// never itself indexed or diagnosed as Tcl source.
+fn is_sidecar_stubs_file(uri: &Uri) -> bool {
+    uri.to_file_path()
+        .and_then(|path| {
+            path.file_name()
+                .map(|name| name.to_string_lossy().into_owned())
+        })
+        .is_some_and(|name| {
+            let name = name.to_ascii_lowercase();
+            name.ends_with(".tcl.stubs") && name.len() > ".tcl.stubs".len()
+        })
 }
 
 /// Read an INI config file at `path` (if present/readable) into the

@@ -470,6 +470,7 @@ pub fn scan_source_for_stubs(
                 kind: kind.to_string(),
                 arity,
                 range: span,
+                from_sidecar: false,
             });
             continue;
         }
@@ -517,11 +518,37 @@ pub fn scan_sidecar_stubs(
                 adapted.push('\n');
             }
             adapted.push_str("# tcl-lsp: stubs-end\n");
-            return scan_source_for_stubs(&adapted);
+            let (mut cmds, mut exprs) = scan_source_for_stubs(&adapted);
+            for stub in &mut cmds {
+                stub.from_sidecar = true;
+            }
+            for stub in &mut exprs {
+                stub.from_sidecar = true;
+            }
+            return (cmds, exprs);
         }
         dir = current.parent();
     }
     (Vec::new(), Vec::new())
+}
+
+/// Whether the source's nearest ancestor sidecar is readable. The incremental
+/// analyser uses this as a correctness gate: sidecar signatures affect
+/// isolated proc bodies, so their presence selects the full analyser until
+/// those signatures are part of every per-body memo key.
+#[must_use]
+pub fn has_sidecar_stubs(file_path: Option<&str>, dialect: &str) -> bool {
+    let Some(file_path) = file_path else {
+        return false;
+    };
+    let mut dir = std::path::Path::new(file_path).parent();
+    while let Some(current) = dir {
+        if current.join(format!("{dialect}.tcl.stubs")).is_file() {
+            return true;
+        }
+        dir = current.parent();
+    }
+    false
 }
 
 /// Strip a leading ``tcl-lsp:`` keyword (case-insensitive) from
@@ -596,6 +623,7 @@ fn parse_command_stub(line: &str, range: tcl_lexer::Span) -> Option<super::types
         args,
         range,
         flags,
+        from_sidecar: false,
     })
 }
 
