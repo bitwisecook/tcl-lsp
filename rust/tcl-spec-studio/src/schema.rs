@@ -530,16 +530,6 @@ pub const COMMAND_FIELDS: &[FieldSchema] = &[
         "Emitter for the value-position and catch-body paths.",
     ),
     f(
-        "wasm_codegen_hook",
-        "WASM codegen hook",
-        HOOKS,
-        FieldKind::Enum {
-            catalogue: "wasmCodegenHook",
-            optional: true,
-        },
-        "Per-command analysis-aware WASM object-operation emitter.",
-    ),
-    f(
         "bpf_op",
         "BPF-Tcl lowering descriptor",
         HOOKS,
@@ -1255,16 +1245,6 @@ pub const SUBCOMMAND_FIELDS: &[FieldSchema] = &[
         "Value-position emitter, overriding the command's when this subcommand matches.",
     ),
     f(
-        "wasm_codegen_hook",
-        "WASM codegen hook",
-        HOOKS,
-        FieldKind::Enum {
-            catalogue: "wasmCodegenHook",
-            optional: true,
-        },
-        "Analysis-aware WASM emitter for this subcommand.",
-    ),
-    f(
         "analyser_hook",
         "Analyser hook",
         HOOKS,
@@ -1638,7 +1618,6 @@ pub fn catalogues() -> Value {
         "loweringHook": entries(catalogue::LOWERING_HOOKS),
         "codegenHook": entries(catalogue::CODEGEN_HOOKS),
         "inlineCodegenHook": entries(catalogue::INLINE_CODEGEN_HOOKS),
-        "wasmCodegenHook": entries(catalogue::WASM_CODEGEN_HOOKS),
         "analyserHook": entries(catalogue::ANALYSER_HOOKS),
         "traits": entries(catalogue::TRAITS),
         "taintColour": entries(catalogue::TAINT_COLOURS),

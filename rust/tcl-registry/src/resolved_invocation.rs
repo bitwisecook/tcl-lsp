@@ -47,7 +47,7 @@ use crate::types::{ReturnElements, TclType, VarElementsEffect, VarWriteTyping};
 use crate::world_effect::TransitionEffectCoverages;
 use crate::world_effect::{EffectFootprint, ResolvedWorldEffects};
 
-fn descriptor_operation(
+pub(crate) fn descriptor_operation(
     semantic: Option<SemanticOperationId>,
     lowering: Option<LoweringHookId>,
     codegen: Option<CodegenHookId>,

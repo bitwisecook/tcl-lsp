@@ -703,11 +703,6 @@ fn subcommand_hooks(d: &mut Draft, sub: &SubCommand, lost: &mut Unrecovered) {
             .map_or(Value::Null, |h| json!(catalogue::variant_name(&h))),
     );
     d.insert(
-        "wasm_codegen_hook".into(),
-        sub.wasm_codegen_hook
-            .map_or(Value::Null, |h| json!(catalogue::variant_name(&h))),
-    );
-    d.insert(
         "analyser_hook".into(),
         sub.analyser_hook
             .map_or(Value::Null, |h| json!(catalogue::variant_name(&h))),
@@ -989,11 +984,6 @@ fn command_hooks(d: &mut Draft, spec: &CommandSpec, lost: &mut Unrecovered) {
     d.insert(
         "inline_codegen_hook".into(),
         spec.inline_codegen_hook
-            .map_or(Value::Null, |h| json!(catalogue::variant_name(&h))),
-    );
-    d.insert(
-        "wasm_codegen_hook".into(),
-        spec.wasm_codegen_hook
             .map_or(Value::Null, |h| json!(catalogue::variant_name(&h))),
     );
     d.insert(

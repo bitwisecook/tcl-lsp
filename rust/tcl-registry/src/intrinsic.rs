@@ -73,6 +73,12 @@ pub enum IntrinsicId {
     ArraySize,
     /// Concatenate lists.
     Concat,
+    /// Write a value to a Tcl channel.
+    ///
+    /// The operation covers the complete `puts` semantic surface. Backends must
+    /// still select only invocation forms whose option and channel shape they
+    /// implement directly.
+    ChannelWrite,
 }
 
 impl IntrinsicId {

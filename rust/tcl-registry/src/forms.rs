@@ -35,7 +35,7 @@ use crate::arity::Arity;
 use crate::completion::CompletionDescriptor;
 use crate::dialects::DialectSet;
 use crate::dispatch_stability::DispatchDependencyDescriptor;
-use crate::hooks::{CodegenHookId, LoweringHookId, WasmCodegenHookId};
+use crate::hooks::{CodegenHookId, LoweringHookId};
 use crate::hover::OptionSpec;
 use crate::semantic_operation::SemanticOperationId;
 use crate::state_transition::StateTransitionDescriptor;
@@ -104,10 +104,6 @@ pub struct CommandForm {
     /// `TclVM` bytecode codegen hook identifier for this form. See
     /// [`crate::CommandSpec::codegen_hook`].
     pub codegen_hook: Option<CodegenHookId>,
-
-    /// WASM-runtime codegen hook identifier for this form. See
-    /// [`crate::CommandSpec::wasm_codegen_hook`].
-    pub wasm_codegen_hook: Option<WasmCodegenHookId>,
 }
 
 impl CommandForm {
@@ -125,7 +121,6 @@ impl CommandForm {
         dispatch_dependencies: None,
         lowering_hook: None,
         codegen_hook: None,
-        wasm_codegen_hook: None,
     };
 }
 

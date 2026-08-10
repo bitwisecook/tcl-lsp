@@ -39,10 +39,9 @@ use super::encoding::{leb128_signed, leb128_unsigned};
 use super::ir::{ValType, WasmData, WasmFunction, WasmInstruction, WasmModule, WasmOp};
 use std::collections::{HashMap, HashSet};
 
-use tcl_dialect::DialectSet;
 use tcl_lexer::Span;
-use tcl_registry::hooks::WasmCodegenHookId;
-use tcl_registry::{CommandRegistry, TclType};
+use tcl_registry::hooks::LoweringHookId;
+use tcl_registry::{CommandRegistry, IntrinsicId, SemanticOperationId, TclType};
 use tcl_syntax::expr::{BinOp, ExprNode};
 
 use crate::codegen::cmd_subst::{is_pure_cmd_subst, parse_cmd_parts};
@@ -54,6 +53,7 @@ use crate::command_binding::{
 };
 use crate::compilation_unit::{CompilationUnit, FunctionUnit};
 use crate::ir::{Module, Procedure, Statement};
+use crate::registry_invocation::{RegistryInvocationResolution, resolve_command_tokens};
 
 /// Block type byte for a structured op (`block`/`loop`/`if`) yielding no value.
 const BLOCK_VOID: u8 = 0x40;
@@ -112,7 +112,7 @@ struct AotImports {
 
 #[derive(Default)]
 struct FunctionFacts {
-    hooks: HashMap<(u32, u32), WasmCodegenHookId>,
+    operations: HashMap<(u32, u32), SemanticOperationId>,
     direct_assignments: HashSet<(u32, u32)>,
     direct_calls: HashMap<(u32, u32, String), String>,
 }
@@ -385,11 +385,11 @@ impl WasmEmitter {
             Statement::Call {
                 span, args, tokens, ..
             } => {
-                let Some(hook) = self.facts.hooks.get(&span_key(*span)).copied() else {
+                let Some(operation) = self.facts.operations.get(&span_key(*span)).copied() else {
                     return false;
                 };
-                match hook {
-                    WasmCodegenHookId::Proc => {
+                match operation {
+                    SemanticOperationId::StructuredLowering(LoweringHookId::Proc) => {
                         let Some(proc) = self.procedures_by_span.get(&span_key(*span)).cloned()
                         else {
                             return false;
@@ -404,7 +404,7 @@ impl WasmEmitter {
                         self.emit_completion_dispatch();
                         true
                     }
-                    WasmCodegenHookId::Puts
+                    SemanticOperationId::Intrinsic(IntrinsicId::ChannelWrite)
                         if args.len() == 1
                             && !tokens
                                 .as_ref()
@@ -419,10 +419,9 @@ impl WasmEmitter {
                         self.emit_completion_dispatch();
                         true
                     }
-                    WasmCodegenHookId::Set
-                    | WasmCodegenHookId::Expr
-                    | WasmCodegenHookId::Return
-                    | WasmCodegenHookId::Puts => false,
+                    SemanticOperationId::Invoke
+                    | SemanticOperationId::Intrinsic(_)
+                    | SemanticOperationId::StructuredLowering(_) => false,
                 }
             }
             _ => false,
@@ -683,13 +682,13 @@ fn direct_expr_supported(expr: &ExprNode, params: &HashSet<&str>) -> bool {
     }
 }
 
-fn wasm_hook_is_trusted(
+fn wasm_operation_is_trusted(
     registry: &CommandRegistry,
     mutations: &ModuleCommandMutations,
-    hook: WasmCodegenHookId,
+    operation: SemanticOperationId,
 ) -> bool {
     let mut commands = registry
-        .command_names_for_wasm_codegen_hook(hook)
+        .command_names_for_semantic_operation(operation)
         .peekable();
     commands.peek().is_some() && commands.all(|command| mutations.trusts(command))
 }
@@ -708,8 +707,16 @@ fn direct_proc_eligible(
             .is_some_and(|name| name.contains("::"))
         || module.redefined_procedures.contains(&proc.qualified_name)
         || unit.complexity_guarded
-        || !wasm_hook_is_trusted(registry, mutations, WasmCodegenHookId::Expr)
-        || !wasm_hook_is_trusted(registry, mutations, WasmCodegenHookId::Return)
+        || !wasm_operation_is_trusted(
+            registry,
+            mutations,
+            SemanticOperationId::StructuredLowering(LoweringHookId::Expr),
+        )
+        || !wasm_operation_is_trusted(
+            registry,
+            mutations,
+            SemanticOperationId::StructuredLowering(LoweringHookId::Return),
+        )
         || !matches!(
             unit.return_type.tcl_type(),
             Some(TclType::Int | TclType::Double | TclType::Numeric)
@@ -773,41 +780,42 @@ fn function_facts(
                 span,
                 name,
                 name_braced,
-                value,
                 ..
             } = statement
                 && (*name_braced || !crate::naming::is_dynamic_word(name))
                 && registry
-                    .command_names_for_wasm_codegen_hook(WasmCodegenHookId::Set)
+                    .command_names_for_semantic_operation(SemanticOperationId::StructuredLowering(
+                        LoweringHookId::Set,
+                    ))
                     .any(|command| {
                         bindings.is_original_builtin_at(block, stmt_idx, command)
                             && mutations.trusts(command)
-                            && registry
-                                .resolve_call(command, &[name, value], DialectSet::empty())
-                                .is_some_and(|resolved| {
-                                    resolved.wasm_codegen_hook == Some(WasmCodegenHookId::Set)
-                                })
                     })
             {
                 facts.direct_assignments.insert(span_key(*span));
             }
-            let (Statement::Call { command, args, .. } | Statement::Barrier { command, args, .. }) =
-                statement
-            else {
-                continue;
+            let (command, tokens) = match statement {
+                Statement::Call {
+                    command, tokens, ..
+                }
+                | Statement::Barrier {
+                    command, tokens, ..
+                } => (command, tokens),
+                _ => continue,
             };
             let bare = statement
                 .canonical_command_or_source()
                 .strip_prefix("::")
                 .unwrap_or_else(|| statement.canonical_command_or_source());
-            let arg_refs: Vec<&str> = args.iter().map(String::as_str).collect();
             if bindings.is_original_builtin_at(block, stmt_idx, command)
                 && mutations.trusts(bare)
-                && let Some(hook) = registry
-                    .resolve_call(bare, &arg_refs, DialectSet::empty())
-                    .and_then(|resolved| resolved.wasm_codegen_hook)
+                && let Some(tokens) = tokens
+                && let Ok(RegistryInvocationResolution::Resolved(invocation)) =
+                    resolve_command_tokens(registry, unit.semantic_facts.dialect(), tokens)
             {
-                facts.hooks.insert(span_key(statement.span()), hook);
+                facts
+                    .operations
+                    .insert(span_key(statement.span()), invocation.operation);
             }
             if !is_top {
                 continue;

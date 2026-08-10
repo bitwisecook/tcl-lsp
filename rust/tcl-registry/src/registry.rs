@@ -36,9 +36,7 @@ use crate::events::{
     DataCollectionAction, DataCollectionOperation, DataCollectionProtocol, EventHandlerPriority,
 };
 use crate::forms::CommandForm;
-use crate::hooks::{
-    AnalyserHookId, CodegenHookId, InlineCodegenHookId, LoweringHookId, WasmCodegenHookId,
-};
+use crate::hooks::{AnalyserHookId, CodegenHookId, InlineCodegenHookId, LoweringHookId};
 use crate::lifecycle::{Lifecycle, LifecycleState};
 use crate::resolved_invocation::{
     InvocationResolutionUnresolved, ResolvedInvocation, ResolvedSubcommand,
@@ -992,15 +990,26 @@ impl CommandRegistry {
         self.by_name.keys().map(String::as_str)
     }
 
-    /// Return command names whose command-level spec selects `hook` for WASM.
-    pub fn command_names_for_wasm_codegen_hook(
+    /// Return command names whose command-level descriptor selects `operation`.
+    ///
+    /// This uses the same target-neutral descriptor precedence as structured
+    /// invocation resolution. It is intended for whole-module trust proofs that
+    /// need to quantify over every registry spelling of one semantic operation.
+    pub fn command_names_for_semantic_operation(
         &self,
-        hook: WasmCodegenHookId,
+        operation: crate::SemanticOperationId,
     ) -> impl Iterator<Item = &str> {
         self.by_name.iter().filter_map(move |(name, specs)| {
             specs
                 .iter()
-                .any(|spec| spec.wasm_codegen_hook == Some(hook))
+                .any(|spec| {
+                    crate::resolved_invocation::descriptor_operation(
+                        spec.semantic_operation,
+                        spec.lowering_hook,
+                        spec.codegen_hook,
+                        spec.inline_codegen_hook,
+                    ) == Some(operation)
+                })
                 .then_some(name.as_str())
         })
     }
@@ -2461,7 +2470,6 @@ impl CommandRegistry {
             lowering_hook: spec.lowering_hook,
             codegen_hook: spec.codegen_hook,
             inline_codegen_hook: spec.inline_codegen_hook,
-            wasm_codegen_hook: spec.wasm_codegen_hook,
             analyser_hook: spec.analyser_hook,
         };
 
@@ -2474,10 +2482,6 @@ impl CommandRegistry {
                 .and_then(|f| f.codegen_hook)
                 .or(sub.codegen_hook)
                 .or(spec.codegen_hook);
-            resolved.wasm_codegen_hook = form
-                .and_then(|f| f.wasm_codegen_hook)
-                .or(sub.wasm_codegen_hook)
-                .or(spec.wasm_codegen_hook);
             // Forms carry no inline hook — the inline emitters guard
             // their own applicability (arity / shape) at the dispatch
             // site, so subcommand-level wins over command-level.
@@ -2492,7 +2496,6 @@ impl CommandRegistry {
         if let Some(f) = form {
             resolved.lowering_hook = f.lowering_hook.or(spec.lowering_hook);
             resolved.codegen_hook = f.codegen_hook.or(spec.codegen_hook);
-            resolved.wasm_codegen_hook = f.wasm_codegen_hook.or(spec.wasm_codegen_hook);
             resolved.form = Some(f);
         }
         Some(resolved)
@@ -2802,8 +2805,6 @@ pub struct ResolvedCall<'r> {
     /// Effective inline (value-position / catch-body) codegen hook
     /// identifier (subcommand-level wins over command-level).
     pub inline_codegen_hook: Option<InlineCodegenHookId>,
-    /// Effective WASM-target codegen hook identifier.
-    pub wasm_codegen_hook: Option<WasmCodegenHookId>,
     /// Effective analyser handler-family hook identifier
     /// (subcommand-level wins over command-level).
     pub analyser_hook: Option<AnalyserHookId>,
@@ -5546,7 +5547,7 @@ mod tests {
     }
 
     #[test]
-    fn resolve_invocation_uses_invoke_for_a_registry_operation_without_a_specialisation() {
+    fn resolve_invocation_identifies_channel_write_without_selecting_a_backend() {
         let reg = CommandRegistry::build_default();
         let args = ["hello"];
         let resolved = reg
@@ -5555,7 +5556,14 @@ mod tests {
 
         assert_eq!(
             resolved.semantics.operation,
-            crate::SemanticOperationId::Invoke
+            crate::SemanticOperationId::Intrinsic(crate::IntrinsicId::ChannelWrite)
+        );
+        assert_eq!(
+            reg.command_names_for_semantic_operation(crate::SemanticOperationId::Intrinsic(
+                crate::IntrinsicId::ChannelWrite,
+            ))
+            .collect::<Vec<_>>(),
+            vec!["puts"]
         );
     }
 

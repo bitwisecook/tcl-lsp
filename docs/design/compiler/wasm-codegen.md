@@ -66,11 +66,11 @@ generic argv plan through `BackendRegistry`, and either returns a complete
 module or a typed decline.
 
 The two compiler paths share WASM IR and runtime ABI infrastructure, but their
-selection mechanisms have not yet been unified. The tree-walker uses
-registry-stamped `WasmCodegenHookId` values together with existing analysis
-proofs. The generic-invoke path selects by target-neutral
-`SemanticOperationId`. Existing tree-walker behaviour remains the baseline
-until equivalent common facts and plans replace each specialisation.
+plan construction has not yet been unified. Both select by target-neutral
+`SemanticOperationId`; the tree-walker combines that identity with its existing
+binding and mutation proofs, while the generic-invoke path uses the common
+backend registry. Existing tree-walker behaviour remains the baseline until
+equivalent common proof-bearing plans replace each specialisation.
 
 ## Target-independent stages
 
@@ -219,7 +219,8 @@ compiler facts agree:
    rename or alias that binding later.
 4. A direct arithmetic procedure has a numeric return in the type lattice and
    a supported expression tree.
-5. The command's `CommandSpec.wasm_codegen_hook` selects the runtime operation.
+5. The registry's target-neutral `SemanticOperationId` selects the runtime
+   operation.
 
 If any proof is absent, the structured walk passes the statement's original
 source span to `tcl_eval_code`. This keeps dynamic Tcl semantics as the

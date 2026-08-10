@@ -428,34 +428,6 @@ pub enum AnalyserHookId {
     Load,
 }
 
-/// Typed identifier for a WASM-runtime codegen specialisation.
-///
-/// Used by the WASM-target codegen path. The registry stamp selects the
-/// semantic emitter; applicability still depends on the compiler's binding
-/// lattice proving that the call reaches the stamped command.
-///
-/// The field exists on
-/// [`crate::CommandSpec`] / [`crate::SubCommand`] /
-/// [`crate::forms::CommandForm`] so the per-command coverage
-/// audit can track WASM hook stamping alongside the `TclVM` hook.
-///
-/// Add a variant here when a WASM-side specialisation is added;
-/// keep it in sync with whatever dispatcher the WASM emitter
-/// uses on the compiler side.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum WasmCodegenHookId {
-    /// Store a literal value through Tcl's variable machinery.
-    Set,
-    /// Evaluate a supported expression through the direct object ABI.
-    Expr,
-    /// Return a direct expression result from a generated procedure.
-    Return,
-    /// Register a lowered procedure definition without evaluating its source.
-    Proc,
-    /// Write the single-argument stdout form through the runtime channel API.
-    Puts,
-}
-
 /// Compile-time constant folder.
 ///
 /// Given resolved constant argument strings, returns the computed

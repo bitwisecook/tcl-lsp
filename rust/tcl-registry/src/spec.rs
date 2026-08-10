@@ -35,7 +35,7 @@ use crate::forms::{CommandForm, SubCommandForm};
 use crate::frame_effect::FrameEffectSpec;
 use crate::hooks::{
     AnalyserHookId, ArgTypeHint, CodegenHookId, ConstFoldFn, InlineCodegenHookId, LoweringHookId,
-    TclVersion, VersionedConstFoldFn, WasmCodegenHookId,
+    TclVersion, VersionedConstFoldFn,
 };
 use crate::hover::{ArgValue, FormSpec, HoverSnippet, OptionSpec};
 use crate::lifecycle::{Lifecycle, LifecycleState};
@@ -715,10 +715,6 @@ pub struct CommandSpec {
     /// paths use their generic invoke emission for this command.
     pub inline_codegen_hook: Option<InlineCodegenHookId>,
 
-    /// WASM-runtime codegen hook ID for the analysis-aware object-operation
-    /// emitter. `None` keeps generic WASM emission available.
-    pub wasm_codegen_hook: Option<WasmCodegenHookId>,
-
     /// Analyser handler-family hook ID — picks the per-command
     /// handler in the analyser's central dispatch
     /// (`tcl_compiler::analyser`). `None` means the analyser has no
@@ -1330,7 +1326,6 @@ impl CommandSpec {
         bpf_op: None,
         codegen_hook: None,
         inline_codegen_hook: None,
-        wasm_codegen_hook: None,
         analyser_hook: None,
         command_table_effect: None,
         side_effects: &[],
@@ -1968,10 +1963,6 @@ pub struct SubCommand {
     /// (`dict get` / `info exists`).
     pub inline_codegen_hook: Option<InlineCodegenHookId>,
 
-    /// WASM-runtime codegen hook ID. See
-    /// [`CommandSpec::wasm_codegen_hook`].
-    pub wasm_codegen_hook: Option<WasmCodegenHookId>,
-
     /// Analyser handler-family hook ID.
     /// See [`CommandSpec::analyser_hook`]. Overrides the parent's when
     /// the call resolves to this subcommand (`namespace eval` /
@@ -2232,7 +2223,6 @@ impl SubCommand {
         lowering_hook: None,
         codegen_hook: None,
         inline_codegen_hook: None,
-        wasm_codegen_hook: None,
         analyser_hook: None,
         command_table_effect: None,
         options: &[],

@@ -151,7 +151,7 @@ pub mod prelude {
     };
     pub use crate::hooks::{
         AnalyserHookId, ArgTypeHint, CodegenHookId, LoweringHookId, TclVersion,
-        VersionedConstFoldFn, WasmCodegenHookId,
+        VersionedConstFoldFn,
     };
     pub use crate::hover::{
         ArgValue, FormKind, FormSpec, HoverSnippet, IntegerDomain, OptionArg, OptionArity,
