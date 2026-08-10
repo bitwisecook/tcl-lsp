@@ -84,6 +84,10 @@ pub enum PerItemFallback {
     /// An inline `tcl-lsp: stub` directive; stub overlays are modelled only on
     /// the full path.
     StubDirective,
+    /// A nearest `<dialect>.tcl.stubs` sidecar is present. Its signatures must
+    /// reach every isolated proc body, so use the full analyser until the
+    /// per-body memo key carries the complete overlay.
+    SidecarStub,
     /// Tk checks are live, and their whole-file state (created widgets,
     /// per-parent geometry) is not visible to an isolated body.
     ///
@@ -128,6 +132,7 @@ impl PerItemFallback {
         match self {
             Self::IncompleteScript => "incomplete-script",
             Self::StubDirective => "stub-directive",
+            Self::SidecarStub => "sidecar-stub",
             Self::TkActive => "tk-active",
             Self::GhostRecovery => "ghost-recovery",
             Self::PartialCommand => "partial-command",
@@ -295,6 +300,8 @@ impl Analyser {
         let entry_gate = if tcl_lexer::script_is_complete(source) {
             if source.contains("tcl-lsp: stub") {
                 Some(PerItemFallback::StubDirective)
+            } else if super::utils::has_sidecar_stubs(self.file_path.as_deref(), dialect) {
+                Some(PerItemFallback::SidecarStub)
             } else if dialect == "tk" {
                 Some(PerItemFallback::TkActive)
             } else {

@@ -320,6 +320,17 @@ impl Analyser {
             .collect()
     }
 
+    /// Names declared by inline or sidecar stubs.  The analysis setup
+    /// assembles this shared, provenance-aware declaration surface, so this
+    /// must not rescan just the source document and omit sidecar bundles.
+    fn stub_command_names(&self) -> HashSet<String> {
+        self.result
+            .stub_commands
+            .iter()
+            .map(|stub| stub.name.clone())
+            .collect()
+    }
+
     /// Build the [`W123KnownNames`] sets consulted by the unresolved-command
     /// pass: registry names enabled in the active dialect, user proc / class /
     /// alias / ensemble simple-name tails, inline-stub names, and the
@@ -350,11 +361,7 @@ impl Analyser {
             .filter(|name| profile.resolve_command(registry, name).is_some())
             .map(str::to_string)
             .collect();
-        // Inline ``# tcl-lsp: stub NAME ...``
-        // declarations contribute to the candidate set and the
-        // suppression set so users who declared a stub for a
-        // command don't get spurious W123s.
-        let stub_names: HashSet<String> = super::utils::scan_stub_command_names(&self.source);
+        let stub_names = self.stub_command_names();
         // These two tail sets feed only the "did you mean…?" candidate
         // list below — resolution itself uses `proc_defs_by_tail` /
         // `class_defs_by_tail` (built further down), which check each

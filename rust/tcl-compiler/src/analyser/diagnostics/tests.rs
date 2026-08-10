@@ -2456,6 +2456,39 @@ fn arity_codes(src: &str, dialect: &str) -> Vec<String> {
 }
 
 #[test]
+fn irules_arity_accepts_documented_pool_log_and_class_iteration_forms() {
+    // Oracle: /Users/jimd/src/bigip-extract/man-21.0.0.1-0.0.13/
+    // ltm_rule_command_{pool,log,class}.3. These forms were found in the
+    // #1181 corpus by `cargo xtask fp-sweep` (issue #1316).
+    for src in [
+        "pool /Common/web member 192.0.2.10 443\n",
+        "log -noname 192.0.2.20:514 local0.info message\n",
+        "class nextelement -index -name -value -element -list -- /Common/users search_id\n",
+        "class anymore /Common/users search_id\n",
+        "class donesearch /Common/users search_id\n",
+    ] {
+        assert_eq!(
+            arity_codes(src, "f5-irules"),
+            Vec::<String>::new(),
+            "{src:?}"
+        );
+    }
+
+    // Keep the upper bounds useful after widening the three valid forms.
+    for src in [
+        "pool /Common/web member 192.0.2.10 443 extra\n",
+        "log 192.0.2.20 local0.info message extra\n",
+        "class nextelement /Common/users search_id extra\n",
+    ] {
+        assert_eq!(
+            arity_codes(src, "f5-irules"),
+            vec!["E003".to_owned()],
+            "{src:?}"
+        );
+    }
+}
+
+#[test]
 fn e003_fires_for_same_file_proc_call_too_many_args() {
     // The reported bug: a same-file call to a 7-parameter proc with 8
     // arguments produced no diagnostic at all. `arg8` inside the body

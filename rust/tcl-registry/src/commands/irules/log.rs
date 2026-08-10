@@ -23,10 +23,16 @@ pub const fn spec() -> CommandSpec {
         name: "log",
         traits: Traits::DIAGRAM_ACTION,
         dialects: Some(DialectSet::IRULES),
-        arity: Arity::new(1, 2),
+        // Remote logging has remote address, facility, and message as its
+        // three positional arguments. `-noname` is an OptionSpec and is
+        // consumed before this positional arity is checked.
+        arity: Arity::new(1, 3),
         hover: Some(HoverSnippet {
             summary: "Write a message to BIG-IP logging facilities.",
-            synopsis: &["log ?facility.level? message"],
+            synopsis: &[
+                "log ?-noname? ?facility.level? message",
+                "log ?-noname? remote_ip?:port? facility.level message",
+            ],
             snippet: "Common form: `log local0. \"message\"`.",
             source: "https://clouddocs.f5.com/api/irules/log.html",
             examples: "",

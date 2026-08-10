@@ -1575,9 +1575,17 @@ impl Analyser {
         // user-declared stubs as first-class commands (without
         // mutating the global registry).
         let (stub_cmds, stub_exprs) = super::utils::scan_source_for_stubs(source);
-        self.stub_overlay = Some(super::types::build_stub_overlay(&stub_cmds));
-        self.result.stub_commands = stub_cmds;
-        self.result.stub_expr_defs = stub_exprs;
+        let (sidecar_cmds, sidecar_exprs) =
+            super::utils::scan_sidecar_stubs(self.file_path.as_deref(), dialect);
+        let mut overlay_cmds = sidecar_cmds;
+        // The document-local declaration is nearest in scope and wins over a
+        // workspace sidecar with the same name.
+        overlay_cmds.extend(stub_cmds.iter().cloned());
+        self.stub_overlay = Some(super::types::build_stub_overlay(&overlay_cmds));
+        self.result.stub_commands = overlay_cmds;
+        let mut all_exprs = sidecar_exprs;
+        all_exprs.extend(stub_exprs);
+        self.result.stub_expr_defs = all_exprs;
 
         // Segment with re-segmentation recovery so an unclosed delimiter
         // mid-file doesn't drop later top-level declarations.
@@ -2054,9 +2062,15 @@ impl Analyser {
         // resolution (W123 / W307 / param-trait inference) sees the same stub
         // surface and ``analyse_commands`` stays byte-identical to ``analyse``.
         let (stub_cmds, stub_exprs) = super::utils::scan_source_for_stubs(source);
-        self.stub_overlay = Some(super::types::build_stub_overlay(&stub_cmds));
-        self.result.stub_commands = stub_cmds;
-        self.result.stub_expr_defs = stub_exprs;
+        let (sidecar_cmds, sidecar_exprs) =
+            super::utils::scan_sidecar_stubs(self.file_path.as_deref(), dialect);
+        let mut overlay_cmds = sidecar_cmds;
+        overlay_cmds.extend(stub_cmds.iter().cloned());
+        self.stub_overlay = Some(super::types::build_stub_overlay(&overlay_cmds));
+        self.result.stub_commands = overlay_cmds;
+        let mut all_exprs = sidecar_exprs;
+        all_exprs.extend(stub_exprs);
+        self.result.stub_expr_defs = all_exprs;
 
         let file_env_pushed = self.seed_file_scope_env(source);
         self.analyse_commands_inner(commands);

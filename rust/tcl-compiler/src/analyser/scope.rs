@@ -2754,6 +2754,34 @@ mod tests {
     }
 
     #[test]
+    fn sidecar_stub_shadows_never_point_into_the_source_document() {
+        let root = std::env::temp_dir().join(format!(
+            "tcl-lsp-sidecar-shadow-{}-{}",
+            std::process::id(),
+            std::thread::current().name().unwrap_or("test")
+        ));
+        std::fs::create_dir_all(&root).unwrap();
+        std::fs::write(
+            root.join("tcl.tcl.stubs"),
+            "stub set {value}\nstub expr-func sin 1\n",
+        )
+        .unwrap();
+        let source = root.join("main.tcl");
+        let result = Analyser::new()
+            .with_file_path(Some(source.display().to_string()))
+            .analyse("set value 1\n", "tcl");
+        assert!(
+            !result
+                .diagnostics
+                .iter()
+                .any(|d| matches!(d.code, DiagCode::W116 | DiagCode::W117)),
+            "sidecar shadow diagnostics must not be published on source spans: {:?}",
+            result.diagnostics
+        );
+        let _ = std::fs::remove_dir_all(root);
+    }
+
+    #[test]
     fn w127_fires_for_value_outside_closed_set() {
         let src = "when HTTP_REQUEST { HTTP::version \"2.0\" }";
         assert!(diag_codes(src, "f5-irules").contains(&"W127".to_string()));

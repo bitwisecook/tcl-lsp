@@ -104,24 +104,25 @@ use tower_lsp_server::ls_types::{
     DocumentHighlightKind, DocumentHighlightParams, DocumentLink, DocumentLinkOptions,
     DocumentLinkParams, DocumentRangeFormattingParams, DocumentSymbol, DocumentSymbolParams,
     DocumentSymbolResponse, Documentation, ExecuteCommandOptions, ExecuteCommandParams,
-    FileChangeType, FileOperationFilter, FileOperationPattern, FileOperationPatternOptions,
-    FileOperationRegistrationOptions, FileSystemWatcher, FoldingRange, FoldingRangeKind,
-    FoldingRangeParams, FoldingRangeProviderCapability, FullDocumentDiagnosticReport, GlobPattern,
-    GotoDefinitionParams, GotoDefinitionResponse, Hover, HoverContents, HoverParams,
-    HoverProviderCapability, ImplementationProviderCapability, InitializeParams, InitializeResult,
-    InitializedParams, InlayHint, InlayHintKind, InlayHintLabel, InlayHintParams,
-    LinkedEditingRangeParams, LinkedEditingRanges, Location, MarkupContent, MarkupKind,
-    MessageType, OneOf, OptionalVersionedTextDocumentIdentifier, ParameterInformation,
-    ParameterLabel, Position, PositionEncodingKind, PrepareRenameResponse, Range, ReferenceParams,
-    Registration, RelatedFullDocumentDiagnosticReport, RelatedUnchangedDocumentDiagnosticReport,
-    RenameFilesParams, RenameOptions, RenameParams, SelectionRange, SelectionRangeParams,
-    SelectionRangeProviderCapability, SemanticTokens as LspSemanticTokens, SemanticTokensDelta,
-    SemanticTokensDeltaParams, SemanticTokensEdit, SemanticTokensFullDeltaResult,
-    SemanticTokensFullOptions, SemanticTokensLegend, SemanticTokensOptions, SemanticTokensParams,
-    SemanticTokensRangeParams, SemanticTokensRangeResult, SemanticTokensResult,
-    SemanticTokensServerCapabilities, ServerCapabilities, ServerInfo, SignatureHelp,
-    SignatureHelpOptions, SignatureHelpParams, SignatureInformation, SymbolInformation, SymbolKind,
-    TextDocumentEdit, TextDocumentPositionParams, TextDocumentSyncCapability, TextDocumentSyncKind,
+    FileChangeType, FileEvent, FileOperationFilter, FileOperationPattern,
+    FileOperationPatternOptions, FileOperationRegistrationOptions, FileSystemWatcher, FoldingRange,
+    FoldingRangeKind, FoldingRangeParams, FoldingRangeProviderCapability,
+    FullDocumentDiagnosticReport, GlobPattern, GotoDefinitionParams, GotoDefinitionResponse, Hover,
+    HoverContents, HoverParams, HoverProviderCapability, ImplementationProviderCapability,
+    InitializeParams, InitializeResult, InitializedParams, InlayHint, InlayHintKind,
+    InlayHintLabel, InlayHintParams, LinkedEditingRangeParams, LinkedEditingRanges, Location,
+    MarkupContent, MarkupKind, MessageType, OneOf, OptionalVersionedTextDocumentIdentifier,
+    ParameterInformation, ParameterLabel, Position, PositionEncodingKind, PrepareRenameResponse,
+    Range, ReferenceParams, Registration, RelatedFullDocumentDiagnosticReport,
+    RelatedUnchangedDocumentDiagnosticReport, RenameFilesParams, RenameOptions, RenameParams,
+    SelectionRange, SelectionRangeParams, SelectionRangeProviderCapability,
+    SemanticTokens as LspSemanticTokens, SemanticTokensDelta, SemanticTokensDeltaParams,
+    SemanticTokensEdit, SemanticTokensFullDeltaResult, SemanticTokensFullOptions,
+    SemanticTokensLegend, SemanticTokensOptions, SemanticTokensParams, SemanticTokensRangeParams,
+    SemanticTokensRangeResult, SemanticTokensResult, SemanticTokensServerCapabilities,
+    ServerCapabilities, ServerInfo, SignatureHelp, SignatureHelpOptions, SignatureHelpParams,
+    SignatureInformation, SymbolInformation, SymbolKind, TextDocumentEdit,
+    TextDocumentPositionParams, TextDocumentSyncCapability, TextDocumentSyncKind,
     TextDocumentSyncOptions, TextEdit, TypeDefinitionProviderCapability, TypeHierarchyItem,
     TypeHierarchyPrepareParams, TypeHierarchySubtypesParams, TypeHierarchySupertypesParams,
     UnchangedDocumentDiagnosticReport, Uri, WatchKind, WillSaveTextDocumentParams,
@@ -3325,6 +3326,7 @@ async fn refine_and_lift_diagnostics(
             &disabled,
             &analysis_lifts.suppressed_lines,
         ));
+        suppress_duplicate_o120(&mut diagnostics);
         diagnostics.extend(lift_source_style_diagnostics(
             &lift_text,
             decode_report.as_ref(),
@@ -4875,6 +4877,35 @@ impl Backend {
             // Membership changed — re-set the `Project` file set.
             let mut project = self.db_project.lock().await;
             Self::sync_db_project(&mut db, &files, &mut project);
+        }
+    }
+
+    /// Invalidate every tracked analysis after a sidecar-stub change. A source
+    /// may inherit its nearest `<dialect>.tcl.stubs` from any ancestor, so the
+    /// rare event deliberately advances every loaded source instead of trying
+    /// to maintain a second, fallible ancestor dependency graph.
+    async fn invalidate_sidecar_stubs(&self) {
+        use salsa::Setter as _;
+        let tracked: Vec<Uri> = {
+            let mut db = self.db.lock().await;
+            let files = self.db_files.lock().await;
+            let mut uris = Vec::with_capacity(files.len());
+            for (uri, file) in files.iter() {
+                let next = file.sidecar_stubs_epoch(&*db).wrapping_add(1);
+                file.set_sidecar_stubs_epoch(&mut *db).to(next);
+                uris.push(uri.clone());
+            }
+            uris
+        };
+        let open: Vec<(Uri, String)> = {
+            let docs = self.documents.lock().await;
+            tracked
+                .into_iter()
+                .filter_map(|uri| docs.get(&uri).map(|doc| (uri, doc.dialect.clone())))
+                .collect()
+        };
+        for (uri, dialect) in open {
+            self.reschedule_diagnostics(uri, dialect).await;
         }
     }
 
@@ -12145,6 +12176,7 @@ impl Backend {
                 &disabled,
                 &analysis.suppressed_lines,
             ));
+            suppress_duplicate_o120(&mut diagnostics);
             diagnostics.extend(lift_source_style_diagnostics(
                 &text,
                 decode_report.as_ref(),
@@ -12426,6 +12458,13 @@ impl Backend {
                         // carry no `ignoreCase` option and VS Code matches them
                         // case-sensitively on Linux (issue #1215).
                         glob_pattern: GlobPattern::String(tcl_source_watch_glob()),
+                        kind: all_kinds,
+                    },
+                    FileSystemWatcher {
+                        // Sidecars are external analysis inputs, not Tcl
+                        // source documents. Their events advance the tracked
+                        // sidecar epoch and republish affected open documents.
+                        glob_pattern: GlobPattern::String("**/*.tcl.stubs".to_owned()),
                         kind: all_kinds,
                     },
                     FileSystemWatcher {
@@ -14003,38 +14042,10 @@ impl LanguageServer for Backend {
         // file, a deletion — must refresh the cross-document index so
         // definition / references / rename / call-hierarchy keep seeing the
         // project's true on-disk state between restarts.
-        let mut config_changed = false;
-        // Reduce to the *last* event per URI before partitioning: a batch can
-        // legitimately name the same path twice (a delete-and-recreate a
-        // branch switch or a rapid rename can coalesce into one
-        // `didChangeWatchedFiles` notification), and the serial per-file path
-        // this replaces applied each event as it arrived, so only the last
-        // one for a given URI survived. A HashMap insert naturally keeps that
-        // "last write wins" semantics without needing to preserve array order.
-        let mut last_kind: HashMap<Uri, FileChangeType> = HashMap::new();
-        for change in params.changes {
-            // A project `.tcl-lsp.ini` (or user `config.ini`) edit re-applies the
-            // layered config — a live-reload for these files.
-            if is_config_file(&change.uri) {
-                config_changed = true;
-                continue;
-            }
-            // Only Tcl sources drive the index.  The server's own registration
-            // is exactly [`tcl_source_watch_glob`], but a client may watch more
-            // broadly through its own `synchronize.fileEvents` (or a `**/*`
-            // config), and a non-Tcl path must not enter the resolution domain
-            // or have diagnostics published against it.  Case-folded by
-            // [`is_tcl_source`], the same predicate the workspace scan uses, so
-            // an `UPPER.TCL` event is kept (issue #1215).  A non-`file` URI has
-            // no path to test and is left to the handlers below.
-            if change
-                .uri
-                .to_file_path()
-                .is_some_and(|path| !is_tcl_source(&path))
-            {
-                continue;
-            }
-            last_kind.insert(change.uri, change.typ);
+        let (config_changed, sidecar_changed, last_kind) =
+            partition_watched_file_changes(params.changes);
+        if sidecar_changed {
+            self.invalidate_sidecar_stubs().await;
         }
         // Partition the (deduplicated) event set so the disk-backed work below
         // runs once per kind — a parallel read+analyse and one batched
@@ -17362,6 +17373,46 @@ fn is_config_file(uri: &Uri) -> bool {
         || s.ends_with("\\tcl-lsp\\config.ini")
 }
 
+/// Whether `uri` is a workspace sidecar declaration bundle. It is purposely
+/// kept outside [`is_tcl_source`]: a `.tcl.stubs` file controls analysis but is
+/// never itself indexed or diagnosed as Tcl source.
+fn is_sidecar_stubs_file(uri: &Uri) -> bool {
+    uri.to_file_path()
+        .and_then(|path| {
+            path.file_name()
+                .map(|name| name.to_string_lossy().into_owned())
+        })
+        .is_some_and(|name| {
+            let name = name.to_ascii_lowercase();
+            name.ends_with(".tcl.stubs") && name.len() > ".tcl.stubs".len()
+        })
+}
+
+/// Split watched events into config / sidecar flags and the final event for
+/// each Tcl source.  A batch may contain a path more than once, so the last
+/// event wins, matching the old serial handling.
+fn partition_watched_file_changes(
+    changes: Vec<FileEvent>,
+) -> (bool, bool, HashMap<Uri, FileChangeType>) {
+    let mut config_changed = false;
+    let mut sidecar_changed = false;
+    let mut last_kind = HashMap::new();
+    for change in changes {
+        if is_config_file(&change.uri) {
+            config_changed = true;
+        } else if is_sidecar_stubs_file(&change.uri) {
+            sidecar_changed = true;
+        } else if change
+            .uri
+            .to_file_path()
+            .is_none_or(|path| is_tcl_source(&path))
+        {
+            last_kind.insert(change.uri, change.typ);
+        }
+    }
+    (config_changed, sidecar_changed, last_kind)
+}
+
 /// Read an INI config file at `path` (if present/readable) into the
 /// editor-shape `tclLsp` settings JSON for its `layer`. Missing or unreadable
 /// files yield an empty object, so a layer simply contributes nothing.
@@ -19751,6 +19802,34 @@ fn lift_compiler_diagnostics(
     out
 }
 
+/// Keep one user-facing squiggle when the analyser's W110 and optimiser's
+/// O120 identify the same string-comparison operator.  W110 owns this case at
+/// the LSP boundary: it is the semantics-aware analyser warning and is the
+/// diagnostic used by the safe-fix path.  O120 is still published when W110
+/// is absent (for optimiser-only callers and when the analyser has been
+/// disabled), and distinct ranges are never coalesced.
+fn suppress_duplicate_o120(diagnostics: &mut Vec<tower_lsp_server::ls_types::Diagnostic>) {
+    let w110_ranges: Vec<_> = diagnostics
+        .iter()
+        .filter(|d| {
+            matches!(
+                d.code.as_ref(),
+                Some(tower_lsp_server::ls_types::NumberOrString::String(code)) if code == "W110"
+            )
+        })
+        .map(|d| d.range)
+        .collect();
+    if w110_ranges.is_empty() {
+        return;
+    }
+    diagnostics.retain(|d| {
+        !(matches!(
+            d.code.as_ref(),
+            Some(tower_lsp_server::ls_types::NumberOrString::String(code)) if code == "O120"
+        ) && w110_ranges.contains(&d.range))
+    });
+}
+
 /// Build an empty `DocumentDiagnosticReportResult` for callers
 /// that hit a no-document or no-analysis path.
 fn empty_diagnostic_report() -> DocumentDiagnosticReportResult {
@@ -20534,8 +20613,47 @@ fn lift_folding_range(r: tcl_lsp_core::folding::FoldingRange) -> FoldingRange {
 mod tests {
     use super::*;
     use tower_lsp_server::ls_types::{
-        PartialResultParams, ReferenceContext, TextDocumentIdentifier, WorkDoneProgressParams,
+        Diagnostic, DiagnosticSeverity, NumberOrString, PartialResultParams, Range,
+        ReferenceContext, TextDocumentIdentifier, WorkDoneProgressParams,
     };
+
+    fn lifted_diag(code: &str, range: Range) -> Diagnostic {
+        Diagnostic {
+            range,
+            severity: Some(DiagnosticSeverity::WARNING),
+            code: Some(NumberOrString::String(code.to_owned())),
+            code_description: None,
+            source: Some("test".to_owned()),
+            message: code.to_owned(),
+            related_information: None,
+            tags: None,
+            data: None,
+        }
+    }
+
+    #[test]
+    fn duplicate_o120_is_removed_only_for_matching_w110_range() {
+        let same = Range::new(Position::new(1, 2), Position::new(1, 4));
+        let other = Range::new(Position::new(3, 0), Position::new(3, 2));
+        let mut diagnostics = vec![
+            lifted_diag("W110", same),
+            lifted_diag("O120", same),
+            lifted_diag("O120", other),
+        ];
+        suppress_duplicate_o120(&mut diagnostics);
+        let codes: Vec<_> = diagnostics
+            .iter()
+            .filter_map(|d| match d.code.as_ref() {
+                Some(NumberOrString::String(code)) => Some(code.as_str()),
+                _ => None,
+            })
+            .collect();
+        assert_eq!(codes, ["W110", "O120"]);
+
+        let mut optimiser_only = vec![lifted_diag("O120", same)];
+        suppress_duplicate_o120(&mut optimiser_only);
+        assert_eq!(optimiser_only.len(), 1, "O120 survives without W110");
+    }
 
     // ---- #723 W120 workspace-refinement helpers ----------------------------
 

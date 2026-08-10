@@ -470,6 +470,7 @@ pub fn scan_source_for_stubs(
                 kind: kind.to_string(),
                 arity,
                 range: span,
+                from_sidecar: false,
             });
             continue;
         }
@@ -478,6 +479,76 @@ pub fn scan_source_for_stubs(
         }
     }
     (cmds, exprs)
+}
+
+/// Load the nearest workspace sidecar named `<dialect>.tcl.stubs` and parse
+/// its declarations using the same grammar as inline stubs.  Sidecars are
+/// deliberately searched from the source directory upwards: a package or
+/// workspace can provide a broad bundle at its root while a nested project
+/// can override it with a nearer file.  The source itself is never modified,
+/// so all source spans remain stable; sidecar declaration spans are synthetic
+/// and are only retained for the normal stub metadata surface.
+#[must_use]
+pub fn scan_sidecar_stubs(
+    file_path: Option<&str>,
+    dialect: &str,
+) -> (
+    Vec<super::types::StubCommandDef>,
+    Vec<super::types::StubExprDef>,
+) {
+    let Some(file_path) = file_path else {
+        return (Vec::new(), Vec::new());
+    };
+    let mut dir = std::path::Path::new(file_path).parent();
+    while let Some(current) = dir {
+        let sidecar = current.join(format!("{dialect}.tcl.stubs"));
+        if let Ok(content) = std::fs::read_to_string(&sidecar) {
+            // Sidecar syntax is one declaration per line, without the inline
+            // comment prefix or begin/end markers.  Adapt it into the
+            // canonical scanner rather than maintaining a second parser.
+            let mut adapted = String::from("# tcl-lsp: stubs-begin\n");
+            for line in content.lines() {
+                let trimmed = line.trim_start();
+                if trimmed.starts_with('#') {
+                    adapted.push_str(trimmed);
+                } else {
+                    adapted.push_str("# tcl-lsp: ");
+                    adapted.push_str(line);
+                }
+                adapted.push('\n');
+            }
+            adapted.push_str("# tcl-lsp: stubs-end\n");
+            let (mut cmds, mut exprs) = scan_source_for_stubs(&adapted);
+            for stub in &mut cmds {
+                stub.from_sidecar = true;
+            }
+            for stub in &mut exprs {
+                stub.from_sidecar = true;
+            }
+            return (cmds, exprs);
+        }
+        dir = current.parent();
+    }
+    (Vec::new(), Vec::new())
+}
+
+/// Whether the source's nearest ancestor sidecar is readable. The incremental
+/// analyser uses this as a correctness gate: sidecar signatures affect
+/// isolated proc bodies, so their presence selects the full analyser until
+/// those signatures are part of every per-body memo key.
+#[must_use]
+pub fn has_sidecar_stubs(file_path: Option<&str>, dialect: &str) -> bool {
+    let Some(file_path) = file_path else {
+        return false;
+    };
+    let mut dir = std::path::Path::new(file_path).parent();
+    while let Some(current) = dir {
+        if current.join(format!("{dialect}.tcl.stubs")).is_file() {
+            return true;
+        }
+        dir = current.parent();
+    }
+    false
 }
 
 /// Strip a leading ``tcl-lsp:`` keyword (case-insensitive) from
@@ -552,6 +623,7 @@ fn parse_command_stub(line: &str, range: tcl_lexer::Span) -> Option<super::types
         args,
         range,
         flags,
+        from_sidecar: false,
     })
 }
 
@@ -1129,6 +1201,33 @@ mod concat_script_window_tests {
 mod tests {
     use super::*;
     use tcl_lexer::Span;
+
+    #[test]
+    fn sidecar_stubs_load_nearest_dialect_bundle() {
+        let root = std::env::temp_dir().join(format!(
+            "tcl-lsp-sidecar-stubs-{}-{}",
+            std::process::id(),
+            std::thread::current().name().unwrap_or("test")
+        ));
+        let nested = root.join("src");
+        std::fs::create_dir_all(&nested).unwrap();
+        std::fs::write(
+            root.join("tcl8.6.tcl.stubs"),
+            "# package API\nstub db_eval {sql script:body} -barrier\n",
+        )
+        .unwrap();
+        let file = nested.join("main.tcl");
+        let (commands, exprs) = scan_sidecar_stubs(Some(file.to_str().unwrap()), "tcl8.6");
+        assert_eq!(exprs.len(), 0);
+        assert_eq!(commands.len(), 1);
+        assert_eq!(commands[0].name, "db_eval");
+        assert!(
+            commands[0]
+                .flags
+                .contains(super::super::types::StubFlags::BARRIER)
+        );
+        let _ = std::fs::remove_dir_all(root);
+    }
 
     #[test]
     fn parse_file_suppression_finds_codes() {
