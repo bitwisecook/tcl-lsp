@@ -29,8 +29,9 @@
 //! cached vs recomputed path has no JSON-RPC surface and stays in
 //! `tests/test_hover.py`.
 
-use crate::common::helpers::hover_text;
+use crate::common::helpers::{hover_text, starts, symbol_names};
 use crate::common::{Lsp, unique_uri};
+use serde_json::json;
 
 /// Hover text at a position (`_hover` in the pytest suite).
 fn hover(lsp: &mut Lsp, uri: &str, line: u32, ch: u32) -> String {
@@ -198,6 +199,99 @@ fn proc_no_comment_bleed() {
                second\n";
     lsp.open_ready(&uri, src);
     assert!(!hover(&mut lsp, &uri, 5, 2).contains("internal comment"));
+}
+
+// -- Issue #1337: declaration-site proc hover ---------------------------
+
+/// Declaration hover must be independent of whether the proc is referenced
+/// elsewhere in the document.  Exercise the live server rather than the core
+/// provider so this also covers the configured feature gate and the server's
+/// settled analysis path.
+#[test]
+fn proc_declaration_hover_is_independent_of_references_1337() {
+    let cases = [
+        (
+            "undocumented and unreferenced",
+            "proc greet {name} { return $name }\n",
+            0,
+            false,
+        ),
+        (
+            "documented and unreferenced",
+            "# Return the supplied name.\nproc greet {name} { return $name }\n",
+            1,
+            true,
+        ),
+        (
+            "undocumented and referenced",
+            "proc greet {name} { return $name }\ngreet Ada\n",
+            0,
+            false,
+        ),
+        (
+            "documented and referenced",
+            "# Return the supplied name.\nproc greet {name} { return $name }\ngreet Ada\n",
+            1,
+            true,
+        ),
+    ];
+
+    for (case, source, declaration_line, documented) in cases {
+        let mut lsp = Lsp::tcl();
+        let uri = unique_uri("tcl");
+        lsp.open_ready(&uri, source);
+
+        // TP/FN: the declaration is a hover target even without any call.
+        let text = hover(&mut lsp, &uri, declaration_line, 6);
+        assert!(text.contains("proc ::greet {name}"), "{case}: {text:?}");
+        assert_eq!(
+            text.contains("Return the supplied name."),
+            documented,
+            "{case}: {text:?}"
+        );
+
+        // Navigation and outline must agree that the same declaration exists.
+        assert_eq!(
+            starts(&lsp.definition(&uri, declaration_line, 6)),
+            [(i64::from(declaration_line), 5)].into(),
+            "{case}: definition did not return the declaration",
+        );
+        assert!(
+            symbol_names(&lsp.document_symbols(&uri)).contains("greet"),
+            "{case}: document symbols did not include the declaration",
+        );
+    }
+}
+
+#[test]
+fn proc_declaration_hover_respects_the_settled_hover_toggle_1337() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    lsp.open_ready(&uri, "proc greet {name} { return $name }\n");
+
+    assert!(
+        hover(&mut lsp, &uri, 0, 6).contains("proc ::greet {name}"),
+        "enabled baseline"
+    );
+
+    // TN/FP: an explicitly disabled hover feature returns no hover, while the
+    // unrelated definition and outline providers remain available.
+    lsp.apply_configuration_settle(json!({ "features": { "hover": false } }), &uri, |cfg| {
+        cfg["features"]["hover"] == false
+    });
+    assert!(hover_text(&lsp.hover(&uri, 0, 6)).is_empty());
+    assert_eq!(starts(&lsp.definition(&uri, 0, 6)), [(0, 5)].into());
+    assert!(symbol_names(&lsp.document_symbols(&uri)).contains("greet"));
+
+    // A settled re-enable restores the declaration hover, proving that a null
+    // at this location is a feature-toggle result, not a cached proc export.
+    lsp.apply_configuration_settle(json!({ "features": { "hover": true } }), &uri, |cfg| {
+        cfg["features"]["hover"] == true
+    });
+    assert!(
+        hover(&mut lsp, &uri, 0, 6).contains("proc ::greet {name}"),
+        "hover did not recover after the settled re-enable"
+    );
 }
 
 #[test]
