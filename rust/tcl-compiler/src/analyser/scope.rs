@@ -634,13 +634,7 @@ impl<A> KnownPredicateCtx<'_, A> {
     }
 
     fn known(&self, qualified: &str, call_off: u32) -> bool {
-        self.procs
-            .get(qualified)
-            .is_some_and(|p| self.live_for_call(qualified, p.name_span.start(), call_off))
-            || self
-                .classes
-                .get(qualified)
-                .is_some_and(|c| self.live_for_call(qualified, c.name_span.start(), call_off))
+        self.user_definition_known(qualified, call_off)
             || (self.aliases.contains_key(qualified)
                 && self
                     .alias_offsets
@@ -653,6 +647,36 @@ impl<A> KnownPredicateCtx<'_, A> {
                     .is_none_or(|&off| self.live_for_call(qualified, off, call_off)))
             || (self.builtins.contains(qualified.trim_start_matches(':'))
                 && !self.renamed_away.contains(qualified))
+    }
+
+    /// Whether this candidate is specifically a proc/class definition which
+    /// is live for this call.  Kept separate from [`Self::known`] so indexed
+    /// reference settlement can preserve a position-sensitive definition
+    /// target without mistaking a builtin, alias, or rename target for that
+    /// historical definition.
+    fn user_definition_known(&self, qualified: &str, call_off: u32) -> bool {
+        self.procs
+            .get(qualified)
+            .is_some_and(|p| self.live_for_call(qualified, p.name_span.start(), call_off))
+            || self
+                .classes
+                .get(qualified)
+                .is_some_and(|c| self.live_for_call(qualified, c.name_span.start(), call_off))
+    }
+}
+
+/// Record the candidate which the local, position-sensitive command table
+/// selected, including whether it is a navigable proc/class definition.
+fn record_known_winner<A>(
+    inv: &mut crate::signature_scan::types::SignatureCommandInvocation,
+    resolved: &str,
+    winner: &str,
+    known_ctx: &KnownPredicateCtx<'_, A>,
+    call_off: u32,
+) {
+    inv.resolved_user_definition = known_ctx.user_definition_known(winner, call_off);
+    if winner != resolved {
+        inv.resolved_qualified_name = Some(winner.to_owned());
     }
 }
 
@@ -1143,6 +1167,8 @@ impl Analyser {
             // its (empty) candidate list untouched.
             if inv.name.starts_with("::") {
                 inv.resolution_candidates = vec![inv.name.clone()];
+                inv.resolved_user_definition =
+                    known_ctx.user_definition_known(&inv.name, inv.range.start());
                 continue;
             }
             let Some(resolved) = inv.resolved_qualified_name.clone() else {
@@ -1192,10 +1218,8 @@ impl Analyser {
                                 &inv.name, dialect,
                             ))
                 });
-                if let Some(w) = winner
-                    && w != resolved
-                {
-                    inv.resolved_qualified_name = Some(w);
+                if let Some(w) = winner {
+                    record_known_winner(inv, &resolved, &w, &known_ctx, call_off);
                 }
                 continue;
             }
@@ -1258,9 +1282,8 @@ impl Analyser {
             let known_here = |c: &str| known_ctx.known(c, call_off);
             if let Some(winner) =
                 crate::naming::resolve_command_with(search_ns, &search_path, &inv.name, &known_here)
-                && winner != resolved
             {
-                inv.resolved_qualified_name = Some(winner);
+                record_known_winner(inv, &resolved, &winner, &known_ctx, call_off);
             }
             // No candidate known in this file: keep the local-first guess for
             // cross-file consumers (the reference matchers treat it, and the
@@ -1298,13 +1321,13 @@ fn settle_prebuilt_candidates<A>(
         return;
     }
     let call_off = inv.range.start();
-    if let Some(winner) = inv
+    let winner = inv
         .resolution_candidates
         .iter()
         .find(|c| known_ctx.known(c, call_off))
-        && *winner != resolved
-    {
-        inv.resolved_qualified_name = Some(winner.clone());
+        .cloned();
+    if let Some(winner) = winner {
+        record_known_winner(inv, &resolved, &winner, known_ctx, call_off);
     }
 }
 
@@ -3079,6 +3102,10 @@ mod tests {
             Some("::foo::bar"),
             "a call before the deletion must still resolve to the local candidate"
         );
+        assert!(
+            bar_call.resolved_user_definition,
+            "the position-sensitive winner is a live user definition at this call"
+        );
     }
 
     #[test]
@@ -3117,6 +3144,10 @@ mod tests {
             bar_call.resolved_qualified_name.as_deref(),
             Some("::bar"),
             "a call genuinely after the deletion must fall back to the global candidate"
+        );
+        assert!(
+            bar_call.resolved_user_definition,
+            "the global fallback is itself a live user definition"
         );
     }
 

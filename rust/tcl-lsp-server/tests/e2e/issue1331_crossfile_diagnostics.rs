@@ -107,6 +107,16 @@ fn message_of(diags: &[Value], code: &str) -> Option<String> {
         .map(ToOwned::to_owned)
 }
 
+fn has_message(diags: &[Value], code: &str, fragment: &str) -> bool {
+    diags.iter().any(|diagnostic| {
+        diagnostic.get("code").and_then(Value::as_str) == Some(code)
+            && diagnostic
+                .get("message")
+                .and_then(Value::as_str)
+                .is_some_and(|message| message.contains(fragment))
+    })
+}
+
 /// The file name of `uri`, which is what a sibling document writes in its
 /// `source` statement.
 fn basename(uri: &str) -> String {
@@ -136,6 +146,18 @@ fn settled(lsp: &Lsp, uri: &str, settled: impl Fn(&[Value]) -> bool) -> Vec<Valu
 /// only one of the two would show up here as a disagreement.
 fn final_diagnostics(lsp: &mut Lsp, uri: &str) -> Vec<Value> {
     lsp.pull_diagnostics(uri)
+}
+
+/// Replace an open document and wait until its deep publish has atomically
+/// installed the new workspace-index facts.
+fn replace_and_wait_for_index(lsp: &mut Lsp, uri: &str, version: i64, text: &str) {
+    let since = lsp.notification_cursor();
+    lsp.replace_document(uri, version, text);
+    lsp.await_log(
+        &["workspace_state.update", uri],
+        Duration::from_secs(20),
+        since,
+    );
 }
 
 // ---------------------------------------------------------------------------
@@ -215,6 +237,53 @@ fn an_opted_in_exact_cross_file_arity_is_reported_once_on_push_and_pull() {
             "[{surface}] an unrelated unknown command must remain reported: {w123}",
         );
     }
+}
+
+/// An open definition edit changes another open document's diagnostics without
+/// touching the caller. This pins add, arity-change, and removal invalidation,
+/// including the push result and the revision-keyed pull cache.
+#[test]
+fn definition_edits_republish_open_callers_and_invalidate_their_pull_cache() {
+    let mut lsp = Lsp::tcl();
+    let deflib = unique_uri("tcl");
+    lsp.open_ready(&deflib, "# definition arrives later\n");
+    let caller = unique_uri("tcl");
+    lsp.open_ready(&caller, "libtest 1 2\nneverDefinedAnywhereAtAll x\n");
+    settled(&lsp, &caller, |diags| has_message(diags, "W123", "libtest"));
+
+    // Add: the old W123 is replaced by the exact cross-file arity error.
+    replace_and_wait_for_index(&mut lsp, &deflib, 2, DEFLIB);
+    let pushed = settled(&lsp, &caller, |diags| {
+        has(diags, "E002") && !has_message(diags, "W123", "libtest")
+    });
+    assert!(has(&pushed, "E002"), "the caller must be republished");
+    let pulled = final_diagnostics(&mut lsp, &caller);
+    assert!(has(&pulled, "E002") && !has_message(&pulled, "W123", "libtest"));
+
+    // Arity change: two arguments now fit. The unrelated W123 is the positive
+    // deep-pass marker, so the absence assertion cannot pass on the fast tier.
+    replace_and_wait_for_index(
+        &mut lsp,
+        &deflib,
+        3,
+        "proc libtest {a b} { return [expr {$a + $b}] }\n",
+    );
+    let pushed = settled(&lsp, &caller, |diags| {
+        has_message(diags, "W123", "neverDefinedAnywhereAtAll")
+            && !has(diags, "E002")
+            && !has(diags, "E003")
+            && !has(diags, "E005")
+    });
+    assert!(!has(&pushed, "E002"), "the stale arity error must clear");
+    let pulled = final_diagnostics(&mut lsp, &caller);
+    assert!(!has(&pulled, "E002") && !has(&pulled, "E003") && !has(&pulled, "E005"));
+
+    // Remove: the exact command no longer exists, so W123 returns.
+    replace_and_wait_for_index(&mut lsp, &deflib, 4, "# libtest removed\n");
+    let pushed = settled(&lsp, &caller, |diags| has_message(diags, "W123", "libtest"));
+    assert!(has_message(&pushed, "W123", "libtest"));
+    let pulled = final_diagnostics(&mut lsp, &caller);
+    assert!(has_message(&pulled, "W123", "libtest"));
 }
 
 /// **The control the issue used.** `textDocument/definition` on the same token
@@ -329,6 +398,35 @@ fn a_literal_source_carries_package_require_tk_up() {
         "Tk is loaded by the time `winfo` runs: {:?}",
         codes(&diags),
     );
+}
+
+/// A sourced child's package facts are a live dependency of the sourcing
+/// document. Adding and removing the require must republish the untouched
+/// parent and invalidate its pull-cache entry.
+#[test]
+fn sourced_child_package_edits_republish_the_open_parent() {
+    let mut lsp = Lsp::tcl();
+    let child = unique_uri("tcl");
+    lsp.open_ready(&child, "# Tk not loaded yet\n");
+    let parent = unique_uri("tcl");
+    let parent_text = format!(
+        "source {}\nwinfo exists .l\nneverDefinedAnywhereAtAll x\n",
+        basename(&child),
+    );
+    lsp.open_ready(&parent, &parent_text);
+    settled(&lsp, &parent, |diags| has(diags, "W120"));
+
+    replace_and_wait_for_index(&mut lsp, &child, 2, "package require Tk\n");
+    let pushed = settled(&lsp, &parent, |diags| {
+        has_message(diags, "W123", "neverDefinedAnywhereAtAll") && !has(diags, "W120")
+    });
+    assert!(!has(&pushed, "W120"));
+    assert!(!has(&final_diagnostics(&mut lsp, &parent), "W120"));
+
+    replace_and_wait_for_index(&mut lsp, &child, 3, "# Tk removed again\n");
+    let pushed = settled(&lsp, &parent, |diags| has(diags, "W120"));
+    assert!(has(&pushed, "W120"));
+    assert!(has(&final_diagnostics(&mut lsp, &parent), "W120"));
 }
 
 /// **The reported bug, computed form** — `[file join [file dirname [info

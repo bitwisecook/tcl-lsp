@@ -87,6 +87,8 @@ suite("Cross-file diagnostics in a multi-file workspace (#1331, #1332)", () => {
   const sourceTk = getDocUri("crossFileSourceTk.tcl");
   const sourceMain = getDocUri("crossFileSourceMain.tcl");
   const noTk = getDocUri("crossFileNoTk.tcl");
+  const mutableDef = getDocUri("crossFileMutableDef.tcl");
+  const mutableCaller = getDocUri("crossFileMutableCaller.tcl");
 
   test("a call to a proc defined in another file is not flagged unknown", async () => {
     await activate(defLib);
@@ -186,6 +188,32 @@ suite("Cross-file diagnostics in a multi-file workspace (#1331, #1332)", () => {
       codes.includes("W120"),
       `nothing loads Tk here, so the warning is correct and must stand; ` +
         `got: ${JSON.stringify(codes)}`,
+    );
+  });
+
+  test("editing a definition clears an untouched caller's stale arity error", async () => {
+    await activate(mutableDef);
+    await openUntil(mutableCaller, "E002");
+    const definition = await vscode.workspace.openTextDocument(mutableDef);
+    const fullRange = new vscode.Range(
+      definition.positionAt(0),
+      definition.positionAt(definition.getText().length),
+    );
+    const edit = new vscode.WorkspaceEdit();
+    edit.replace(mutableDef, fullRange, "proc livearity {a b} { return [expr {$a + $b}] }\n");
+    assert.ok(await vscode.workspace.applyEdit(edit), "definition edit must apply");
+
+    await pollUntil(
+      () => codesFor(mutableCaller),
+      (codes) => codes.includes("W123") && !codes.includes("E002"),
+      {
+        timeout: 30_000,
+        label: "the untouched caller to be republished after an arity edit",
+      },
+    );
+    assert.ok(
+      !codesFor(mutableCaller).includes("E002"),
+      "the Problems panel must clear the old three-argument verdict",
     );
   });
 });

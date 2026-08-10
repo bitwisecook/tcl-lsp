@@ -1044,6 +1044,9 @@ struct DiagInputs {
     non_ascii_mode: NonAsciiMode,
     opt_disabled: HashSet<String>,
     documents: Arc<Mutex<HashMap<Uri, DocumentState>>>,
+    /// Open-document diagnostic workers, used to invalidate only consumers of
+    /// workspace facts changed by this publication.
+    diag_slots: Arc<Mutex<HashMap<Uri, DiagSlot>>>,
     workspace_index: Arc<RwLock<core_workspace_index::WorkspaceIndex>>,
     /// M9: the applied source-site seed record (see [`Backend`]); the publish
     /// path invalidates a document's entry when it re-indexes it standalone,
@@ -1214,6 +1217,7 @@ async fn deliver_diagnostics(
 struct DeliveryCtx<'a> {
     client: &'a Client,
     documents: &'a Arc<Mutex<HashMap<Uri, DocumentState>>>,
+    diag_slots: &'a Arc<Mutex<HashMap<Uri, DiagSlot>>>,
     pull_diag_cache: &'a Arc<Mutex<HashMap<Uri, PullDiagEntry>>>,
     /// The closed-file generation map, consulted by the currency guard for a
     /// [`DiagCurrency::ClosedFromDisk`] run (#865).
@@ -1786,10 +1790,10 @@ async fn shared_recovery_names(
     let mut names: HashSet<String> = key.base.iter().cloned().collect();
     {
         let index = ctx.workspace_index.read().await;
-        for p in index.procs() {
+        for p in index.live_procs() {
             tcl_compiler::analyser::utils::insert_qualified_and_tail(&mut names, &p.qualified_name);
         }
-        for c in index.classes() {
+        for c in index.live_classes() {
             tcl_compiler::analyser::utils::insert_qualified_and_tail(&mut names, &c.qualified_name);
         }
     }
@@ -2746,6 +2750,7 @@ async fn run_diagnostics_core(inputs: DiagInputs, uri: &Uri, job: DiagJob) -> bo
         non_ascii_mode,
         opt_disabled,
         documents,
+        diag_slots,
         workspace_index,
         rehomed_source_seeds,
         rehoming_gate,
@@ -2759,10 +2764,8 @@ async fn run_diagnostics_core(inputs: DiagInputs, uri: &Uri, job: DiagJob) -> bo
         closed_diag_gen,
         toggles,
         client_supports_pull,
-        // The worker captures the job from these before calling us; unused here.
-        db_files: _,
-        db_config: _,
-        folder_db_configs: _,
+        // The worker captured the job from the remaining handles already.
+        ..
     } = inputs;
     let DiagJob {
         text,
@@ -2787,6 +2790,7 @@ async fn run_diagnostics_core(inputs: DiagInputs, uri: &Uri, job: DiagJob) -> bo
     let delivery = DeliveryCtx {
         client: &client,
         documents: &documents,
+        diag_slots: &diag_slots,
         pull_diag_cache: &pull_diag_cache,
         closed_diag_gen: &closed_diag_gen,
         uri,
@@ -3354,6 +3358,215 @@ struct PublishTiming<'a> {
     line_count: usize,
 }
 
+/// The workspace facts from one document that can change another open
+/// document's diagnostics.
+#[derive(Debug, Default, PartialEq, Eq)]
+struct IndexedDiagnosticFacts {
+    procs: HashSet<(String, tcl_registry::Arity)>,
+    classes: HashSet<String>,
+    links: Vec<core_workspace_index::WorkspaceCommandLink>,
+    sources: Vec<core_workspace_index::WorkspaceSource>,
+    package_requires: Vec<core_workspace_index::WorkspacePackageRequire>,
+    package_provides: Vec<core_workspace_index::WorkspacePackageProvide>,
+    package_ifneededs: Vec<core_workspace_index::WorkspacePackageIfneeded>,
+    package_prefers: Vec<core_workspace_index::WorkspacePackagePrefer>,
+}
+
+impl IndexedDiagnosticFacts {
+    fn capture(index: &core_workspace_index::WorkspaceIndex, uri: &str) -> Self {
+        Self {
+            procs: index
+                .live_procs_in(uri)
+                .into_iter()
+                .map(|proc_def| (proc_def.qualified_name.clone(), proc_def.arity))
+                .collect(),
+            classes: index
+                .live_classes_in(uri)
+                .into_iter()
+                .map(|class_def| class_def.qualified_name.clone())
+                .collect(),
+            links: index
+                .command_links()
+                .filter(|link| link.uri == uri)
+                .cloned()
+                .collect(),
+            sources: index
+                .sources()
+                .filter(|source| source.uri == uri)
+                .cloned()
+                .collect(),
+            package_requires: index
+                .package_requires()
+                .filter(|require| require.uri == uri)
+                .cloned()
+                .collect(),
+            package_provides: index
+                .package_provides()
+                .filter(|provide| provide.uri == uri)
+                .cloned()
+                .collect(),
+            package_ifneededs: index
+                .package_ifneededs()
+                .filter(|ifneeded| ifneeded.uri == uri)
+                .cloned()
+                .collect(),
+            package_prefers: index
+                .package_prefers()
+                .filter(|prefer| prefer.uri == uri)
+                .cloned()
+                .collect(),
+        }
+    }
+
+    fn change_to(&self, newer: &Self) -> IndexedDiagnosticChange {
+        let mut command_names: HashSet<String> = self
+            .procs
+            .symmetric_difference(&newer.procs)
+            .map(|(name, _)| name.clone())
+            .collect();
+        command_names.extend(self.classes.symmetric_difference(&newer.classes).cloned());
+        if self.links != newer.links {
+            command_names.extend(
+                self.links
+                    .iter()
+                    .chain(&newer.links)
+                    .map(|link| link.linked_qname.clone()),
+            );
+        }
+        IndexedDiagnosticChange {
+            command_names,
+            source_or_package_changed: self.sources != newer.sources
+                || self.package_requires != newer.package_requires
+                || self.package_provides != newer.package_provides
+                || self.package_ifneededs != newer.package_ifneededs
+                || self.package_prefers != newer.package_prefers,
+        }
+    }
+}
+
+#[derive(Debug, Default, PartialEq, Eq)]
+struct IndexedDiagnosticChange {
+    command_names: HashSet<String>,
+    source_or_package_changed: bool,
+}
+
+/// Documents whose own call-site records consume one of the changed command
+/// signatures. Both exact qualified candidates and the opt-in W123 tail tier
+/// are dependencies; unrelated open documents are deliberately absent.
+fn command_diagnostic_consumers(
+    index: &core_workspace_index::WorkspaceIndex,
+    changed_names: &HashSet<String>,
+) -> HashSet<String> {
+    if changed_names.is_empty() {
+        return HashSet::new();
+    }
+    let qualified: HashSet<&str> = changed_names
+        .iter()
+        .map(|name| name.trim_start_matches("::"))
+        .collect();
+    let tails: HashSet<&str> = qualified
+        .iter()
+        .map(|name| name.rsplit("::").next().unwrap_or(name))
+        .collect();
+    index
+        .invocations()
+        .filter(|invocation| {
+            tails.contains(invocation.name.trim_start_matches("::"))
+                || invocation
+                    .resolution_candidates
+                    .iter()
+                    .any(|candidate| qualified.contains(candidate.trim_start_matches("::")))
+        })
+        .map(|invocation| invocation.uri.clone())
+        .collect()
+}
+
+/// Source ancestors consume a child's package facts; source descendants
+/// consume an ancestor's package facts. Walk each direction separately so a
+/// sibling under the same parent is not spuriously refreshed.
+fn source_diagnostic_consumers(
+    index: &core_workspace_index::WorkspaceIndex,
+    changed_uri: &str,
+) -> HashSet<String> {
+    source_diagnostic_consumers_with_sources(index, changed_uri, None)
+}
+
+/// [`source_diagnostic_consumers`] with one document's source rows replaced.
+/// The publish path uses this after the atomic index replacement to recover
+/// the pre-change graph without scanning the workspace before every ordinary
+/// body-only publish.
+fn source_diagnostic_consumers_with_sources(
+    index: &core_workspace_index::WorkspaceIndex,
+    changed_uri: &str,
+    replacement: Option<&[core_workspace_index::WorkspaceSource]>,
+) -> HashSet<String> {
+    fn closure(
+        initial: &str,
+        edges: &[tcl_lsp_core::source_graph::RunEdge],
+        forward: bool,
+    ) -> HashSet<String> {
+        let mut seen: HashSet<String> = HashSet::new();
+        let mut pending = vec![initial.to_owned()];
+        while let Some(current) = pending.pop() {
+            for edge in edges {
+                let next = if forward && edge.parent == current {
+                    Some(edge.child.as_str())
+                } else if !forward && edge.child == current {
+                    Some(edge.parent.as_str())
+                } else {
+                    None
+                };
+                if let Some(next) = next
+                    && next != initial
+                    && seen.insert(next.to_owned())
+                {
+                    pending.push(next.to_owned());
+                }
+            }
+        }
+        seen
+    }
+
+    let mut edges = workspace_source_edges(index);
+    if let Some(sources) = replacement {
+        edges.retain(|edge| edge.parent != changed_uri);
+        edges.extend(sources.iter().filter_map(|source| {
+            resolve_source_edge(&source.uri, &source.raw_path, source.is_literal).map(|child| {
+                tcl_lsp_core::source_graph::RunEdge {
+                    parent: source.uri.clone(),
+                    child,
+                    at: source.range.start(),
+                    enclosing_body: source.enclosing_body,
+                    kind: tcl_lsp_core::source_graph::RunEdgeKind::Source,
+                }
+            })
+        }));
+    }
+    let mut consumers = closure(changed_uri, &edges, true);
+    consumers.extend(closure(changed_uri, &edges, false));
+    consumers
+}
+
+/// Add open documents whose configured entry-point inheritance reads the
+/// changed document's package facts.
+async fn add_entry_point_diagnostic_consumers(
+    slots: &Arc<Mutex<HashMap<Uri, DiagSlot>>>,
+    changed_uri: &str,
+    consumers: &mut HashSet<String>,
+) {
+    let slots = slots.lock().await;
+    for (uri, slot) in slots.iter() {
+        let Some(inputs) = &slot.latest_inputs else {
+            continue;
+        };
+        if inputs.entry_points.iter().any(|entry| {
+            entry_point_uri(entry, inputs.folder_root.as_deref()).as_deref() == Some(changed_uri)
+        }) {
+            consumers.insert(uri.as_str().to_owned());
+        }
+    }
+}
+
 /// Publish the lifted diagnostics: re-check currency, refresh the workspace
 /// index, prime the pull cache, deliver to the client, and log timing.  Always
 /// settled (`true`) — a stale revision or a lift-worker panic both keep the
@@ -3381,7 +3594,7 @@ async fn publish_diagnostics_result(
         }
     };
     let diag_count = diags.len();
-    {
+    let peers = {
         // A workspace query holds this gate from source-site reconciliation
         // through its final index snapshot. Take it before `documents` (the
         // same order as reconciliation's `read_document`) so this standalone
@@ -3415,14 +3628,40 @@ async fn publish_diagnostics_result(
         let orphaned = docs
             .get(delivery.uri)
             .is_some_and(|doc| doc.backing_file_deleted);
-        {
+        let (change, mut consumers) = {
             let mut index = workspace_index.write().await;
+            let before = IndexedDiagnosticFacts::capture(&index, delivery.uri.as_str());
             if orphaned {
                 index.remove_document(delivery.uri.as_str());
             } else {
                 index.replace_document(delivery.uri.as_str(), analysis);
             }
+            let after = IndexedDiagnosticFacts::capture(&index, delivery.uri.as_str());
+            let change = before.change_to(&after);
+            let mut consumers = command_diagnostic_consumers(&index, &change.command_names);
+            if change.source_or_package_changed {
+                consumers.extend(source_diagnostic_consumers_with_sources(
+                    &index,
+                    delivery.uri.as_str(),
+                    Some(&before.sources),
+                ));
+                consumers.extend(source_diagnostic_consumers(&index, delivery.uri.as_str()));
+            }
+            (change, consumers)
+        };
+        if change.source_or_package_changed {
+            add_entry_point_diagnostic_consumers(
+                delivery.diag_slots,
+                delivery.uri.as_str(),
+                &mut consumers,
+            )
+            .await;
         }
+        let peers: Vec<Uri> = consumers
+            .into_iter()
+            .filter_map(|consumer| Uri::from_str(&consumer).ok())
+            .filter(|consumer| consumer != delivery.uri && docs.contains_key(consumer))
+            .collect();
         // The document is now indexed standalone: invalidate its applied
         // source-site seed record (M9) so the next cross-document query
         // re-applies the seeded views.
@@ -3431,12 +3670,23 @@ async fn publish_diagnostics_result(
             .await
             .remove(delivery.uri.as_str());
         drop(rehoming_guard);
+        // A pull arriving after this index update but before the peer worker
+        // republishes must compute against the new facts, never return the old
+        // cache entry merely because the peer's text revision did not change.
+        if !peers.is_empty() {
+            let mut cache = delivery.pull_diag_cache.lock().await;
+            for peer in &peers {
+                cache.remove(peer);
+            }
+        }
         // Keep the pull-diagnostic cache in lock-step with the push: a
         // `textDocument/diagnostic` request now returns this exact set with
         // a fresh `result_id`, and an editor that already holds it gets a
         // cheap `Unchanged` report.
         delivery.cache_and_deliver(diags).await;
-    }
+        peers
+    };
+    reschedule_peers(delivery.diag_slots, delivery.uri, peers).await;
     let elapsed_ms = timing.started.elapsed().as_secs_f64() * 1000.0;
     // The analyser runs a single, full ("deep") pass per publish — there is
     // no separate fast/deep split.  Emit the
@@ -11666,6 +11916,7 @@ impl Backend {
             non_ascii_mode,
             opt_disabled,
             documents: Arc::clone(&self.documents),
+            diag_slots: Arc::clone(&self.diag_slots),
             workspace_index: Arc::clone(&self.workspace_index),
             rehomed_source_seeds: Arc::clone(&self.rehomed_source_seeds),
             rehoming_gate: Arc::clone(&self.rehoming_gate),
@@ -18424,19 +18675,24 @@ fn settle_call_against_workspace<'a>(
 
 /// One document's unresolved call sites, settled against the workspace by
 /// [`settle_call_against_workspace`] (issue #1331).
+type ProcArityRange = (u32, Option<u32>);
+type ProcArityUnion = Vec<ProcArityRange>;
+
 #[derive(Debug, Default)]
 struct CrossFileCalls {
     /// Spans of call sites the workspace *does* resolve. Keyed exactly as a
     /// diagnostic's own span is — the analyser raises W123 at the invocation's
     /// range — so a W123 is matched by span, never by re-parsing its message.
     resolved: HashSet<(u32, u32)>,
-    /// For a site that settles on workspace **procs**, the `(min, max)`
-    /// envelope over every proc sharing the settled qualified name. Absent
+    /// For a site that settles on workspace **procs**, the individual
+    /// `(min, max)` ranges of every proc sharing the settled qualified name.
+    /// Keeping the ranges separate matters when their union is disjoint:
+    /// exact-one plus exact-three does not admit two arguments. Absent
     /// when the site settles on something with no fixed signature (a class,
     /// an `interp alias`, an ensemble, a `namespace import` link) or on
     /// nothing at all — those resolve the command but must never draw an
     /// arity error.
-    arity: HashMap<(u32, u32), (u32, Option<u32>)>,
+    arity: HashMap<(u32, u32), ProcArityUnion>,
 }
 
 /// Settle every unresolved call site in `analysis` against the workspace
@@ -18486,14 +18742,14 @@ fn settle_cross_file_calls(
             continue;
         };
         out.resolved.insert(key);
-        if let Some(envelope) = workspace_proc_arity(index, settled) {
-            out.arity.insert(key, envelope);
+        if let Some(ranges) = workspace_proc_arities(index, settled) {
+            out.arity.insert(key, ranges);
         }
     }
     out
 }
 
-/// The `(min, max)` argument envelope of the workspace procs named exactly
+/// The argument-range union of the workspace procs named exactly
 /// `qualified_name`, or `None` when that name is **not** answerable as a proc
 /// signature.
 ///
@@ -18509,12 +18765,14 @@ fn settle_cross_file_calls(
 ///   leading arguments, which shifts the count the callee sees.
 ///
 /// Where several procs share the name (the same file re-analysed under two
-/// `source`-site namespace seeds, or a genuine redefinition), the envelope is
-/// their union: an argument count that fits *any* of them is not an error.
-fn workspace_proc_arity(
+/// `source`-site namespace seeds, or a genuine redefinition), an argument
+/// count that fits *any* range is not an error. The ranges are not collapsed
+/// to their outer envelope: doing so would fill gaps the definitions do not
+/// accept.
+fn workspace_proc_arities(
     index: &core_workspace_index::WorkspaceIndex,
     qualified_name: &str,
-) -> Option<(u32, Option<u32>)> {
+) -> Option<ProcArityUnion> {
     let target = qualified_name.trim_start_matches("::");
     let same = |q: &str| q.trim_start_matches("::") == target;
     if index.live_classes().any(|c| same(&c.qualified_name)) {
@@ -18532,28 +18790,33 @@ fn workspace_proc_arity(
     {
         return None;
     }
-    let mut min: Option<u32> = None;
-    let mut max: Option<Option<u32>> = None;
-    for arity in index
+    let mut ranges: Vec<(u32, Option<u32>)> = index
         .live_procs()
         .filter(|p| same(&p.qualified_name))
         .map(|p| p.arity)
-    {
-        let lo = u32::from(arity.min);
-        let hi = if arity.is_unlimited() {
-            None
-        } else {
-            Some(u32::from(arity.max))
-        };
-        min = Some(min.map_or(lo, |m: u32| m.min(lo)));
-        // Any unbounded member makes the union unbounded.
-        max = Some(match max {
-            None => hi,
-            Some(None) => None,
-            Some(Some(prev)) => hi.map(|h| h.max(prev)),
-        });
-    }
-    Some((min?, max?))
+        .map(|arity| {
+            (
+                u32::from(arity.min),
+                (!arity.is_unlimited()).then(|| u32::from(arity.max)),
+            )
+        })
+        .collect();
+    ranges.sort_unstable();
+    ranges.dedup();
+    (!ranges.is_empty()).then_some(ranges)
+}
+
+/// Render a compact argument-count union for the E005 gap verdict.
+fn display_arity_ranges(ranges: &[ProcArityRange]) -> String {
+    ranges
+        .iter()
+        .map(|&(min, max)| match max {
+            Some(max) if min == max => min.to_string(),
+            Some(max) => format!("{min}..={max}"),
+            None => format!("at least {min}"),
+        })
+        .collect::<Vec<_>>()
+        .join(" or ")
 }
 
 /// The cross-file wrong-argument-count diagnostics for `calls` — `E002` (too
@@ -18565,8 +18828,9 @@ fn workspace_proc_arity(
 /// for a `{*}`-expanded call (the true count is a runtime fact) and for a
 /// command-prefix callback head, and both are skipped. A count inside the
 /// resolved proc's envelope is silence, which is what makes an `args`-tailed
-/// or defaulted signature abstain — the envelope is open-ended or wide, so
-/// nothing fits outside it.
+/// or defaulted signature abstain — one of its ranges accepts the count. A
+/// count in a gap between disjoint ranges reports E005 (wrong count shape),
+/// rather than being mislabeled as globally too few or too many.
 fn cross_file_arity_diagnostics(
     analysis: &AnalysisResult,
     calls: &CrossFileCalls,
@@ -18576,10 +18840,22 @@ fn cross_file_arity_diagnostics(
     let mut out = Vec::new();
     for inv in &analysis.command_invocations {
         let key = (inv.range.start(), inv.range.end());
-        let (Some(&(min, max)), Some(argc)) = (calls.arity.get(&key), inv.argc) else {
+        let (Some(ranges), Some(argc)) = (calls.arity.get(&key), inv.argc) else {
             continue;
         };
         let argc = u32::try_from(argc).unwrap_or(u32::MAX);
+        if ranges
+            .iter()
+            .any(|&(min, max)| argc >= min && max.is_none_or(|max| argc <= max))
+        {
+            continue;
+        }
+        let min = ranges.iter().map(|&(min, _)| min).min().unwrap_or(0);
+        let max = ranges
+            .iter()
+            .filter_map(|&(_, max)| max)
+            .max()
+            .filter(|_| ranges.iter().all(|&(_, max)| max.is_some()));
         let (code, message) = if argc < min {
             (
                 DiagCode::E002,
@@ -18588,7 +18864,7 @@ fn cross_file_arity_diagnostics(
                     inv.name
                 ),
             )
-        } else if max.is_some_and(|m| argc > m) {
+        } else if max.is_some_and(|max| argc > max) {
             (
                 DiagCode::E003,
                 format!(
@@ -18598,7 +18874,14 @@ fn cross_file_arity_diagnostics(
                 ),
             )
         } else {
-            continue;
+            (
+                DiagCode::E005,
+                format!(
+                    "Wrong argument-count shape for '{}': expected {}, got {argc}",
+                    inv.name,
+                    display_arity_ranges(ranges),
+                ),
+            )
         };
         if is_disabled(code.as_str()) {
             continue;
@@ -20867,6 +21150,51 @@ mod tests {
         assert!(arity_codes(&analysis, &settled).is_empty());
     }
 
+    /// **TP — disjoint union.** Two indexed runtime identities accepting
+    /// exactly one and exactly three arguments do not accept the gap at two.
+    /// C Tcl 9.0.4 rejects `p x y` under either definition: exact-one says
+    /// `p a`, and exact-three says `p a b c`. The workspace may not know which
+    /// identity runs, but it does know the call fits neither.
+    #[test]
+    fn disjoint_cross_file_arity_ranges_reject_the_gap() {
+        let second = Uri::from_file_path("/proj/deflib2.tcl").unwrap();
+        let (analysis, settled) = settle(
+            &caller_uri(),
+            "p 1 2\n",
+            &[
+                (&deflib(), "proc p {a} {}\n"),
+                (&second, "proc p {a b c} {}\n"),
+            ],
+        );
+        assert_eq!(arity_codes(&analysis, &settled), ["E005"]);
+        let diagnostics = cross_file_arity_diagnostics(&analysis, &settled, |_| false);
+        assert_eq!(
+            diagnostics[0].message,
+            "Wrong argument-count shape for 'p': expected 1 or 3, got 2",
+        );
+    }
+
+    /// **TN/FP guard.** Every member of a disjoint arity union remains valid;
+    /// preserving the gap must not turn the union into an intersection.
+    #[test]
+    fn disjoint_cross_file_arity_ranges_accept_each_member() {
+        let second = Uri::from_file_path("/proj/deflib2.tcl").unwrap();
+        for call in ["p 1\n", "p 1 2 3\n"] {
+            let (analysis, settled) = settle(
+                &caller_uri(),
+                call,
+                &[
+                    (&deflib(), "proc p {a} {}\n"),
+                    (&second, "proc p {a b c} {}\n"),
+                ],
+            );
+            assert!(
+                arity_codes(&analysis, &settled).is_empty(),
+                "one indexed proc accepts `{call}`: {settled:?}",
+            );
+        }
+    }
+
     /// **FP guard — the precision that lets this tier be on by default.** A
     /// bare `buried` called at global scope has candidates `::buried` only; a
     /// `proc ::deep::buried` matches none of them, so the call must NOT
@@ -21027,6 +21355,70 @@ mod tests {
         );
         let out = cross_file_arity_diagnostics(&analysis, &settled, |code| code == "E002");
         assert!(out.is_empty(), "{out:?}");
+    }
+
+    /// **TP/FP/TN/FN for targeted index invalidation.** A signature edit wakes
+    /// the document that calls that name, but neither an unrelated caller nor
+    /// a body-only edit causes a workspace-wide diagnostics refresh.
+    #[test]
+    fn indexed_signature_changes_select_only_their_callers() {
+        let lib = Uri::from_file_path("/proj/lib.tcl").unwrap();
+        let caller = Uri::from_file_path("/proj/caller.tcl").unwrap();
+        let unrelated = Uri::from_file_path("/proj/unrelated.tcl").unwrap();
+        let mut index = ws_index(&[
+            (&lib, "proc helper {a} {}\n"),
+            (&caller, "helper 1 2\n"),
+            (&unrelated, "other 1 2\n"),
+        ]);
+        let before = IndexedDiagnosticFacts::capture(&index, lib.as_str());
+        let edited = Analyser::new()
+            .analyse("proc helper {a b} {}\n", "tcl8.6")
+            .clone();
+        index.replace_document(lib.as_str(), &edited);
+        let after = IndexedDiagnosticFacts::capture(&index, lib.as_str());
+        let change = before.change_to(&after);
+        assert_eq!(
+            change.command_names,
+            HashSet::from(["::helper".to_owned()]),
+            "an arity edit changes the callable signature without changing its name",
+        );
+        assert_eq!(
+            command_diagnostic_consumers(&index, &change.command_names),
+            HashSet::from([caller.as_str().to_owned()]),
+            "only the matching caller consumes this signature",
+        );
+
+        let stable = IndexedDiagnosticFacts::capture(&index, lib.as_str());
+        let body_only = Analyser::new()
+            .analyse("proc helper {a b} { return $a }\n", "tcl8.6")
+            .clone();
+        index.replace_document(lib.as_str(), &body_only);
+        assert_eq!(
+            stable.change_to(&IndexedDiagnosticFacts::capture(&index, lib.as_str())),
+            IndexedDiagnosticChange::default(),
+            "a body-only edit changes no cross-file diagnostic fact",
+        );
+    }
+
+    /// Source dependencies are directional. A changed child wakes its sourcing
+    /// ancestors and anything it sources in turn, but not a sibling under the
+    /// same parent.
+    #[test]
+    fn source_fact_changes_select_ancestors_and_descendants_not_siblings() {
+        let root = Uri::from_file_path("/proj/root.tcl").unwrap();
+        let child = Uri::from_file_path("/proj/child.tcl").unwrap();
+        let grandchild = Uri::from_file_path("/proj/grandchild.tcl").unwrap();
+        let sibling = Uri::from_file_path("/proj/sibling.tcl").unwrap();
+        let index = ws_index(&[
+            (&root, "source child.tcl\nsource sibling.tcl\n"),
+            (&child, "source grandchild.tcl\npackage require Tk\n"),
+            (&grandchild, "winfo exists .x\n"),
+            (&sibling, "winfo exists .y\n"),
+        ]);
+        assert_eq!(
+            source_diagnostic_consumers(&index, child.as_str()),
+            HashSet::from([root.as_str().to_owned(), grandchild.as_str().to_owned(),]),
+        );
     }
 
     // ---- #1332 the `source` up direction, position-gated -------------------
@@ -25398,6 +25790,7 @@ mod tests {
         let ctx = |generation: u64| DeliveryCtx {
             client: &backend.client,
             documents: &backend.documents,
+            diag_slots: &backend.diag_slots,
             pull_diag_cache: &backend.pull_diag_cache,
             closed_diag_gen: &backend.closed_diag_gen,
             uri: &uri,
@@ -30319,6 +30712,7 @@ mod tests {
             let delivery = DeliveryCtx {
                 client: &publisher_backend.client,
                 documents: &publisher_backend.documents,
+                diag_slots: &publisher_backend.diag_slots,
                 pull_diag_cache: &publisher_backend.pull_diag_cache,
                 closed_diag_gen: &publisher_backend.closed_diag_gen,
                 uri: &publisher_b,

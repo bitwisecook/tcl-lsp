@@ -2079,6 +2079,7 @@ impl Analyser {
                 name: value.clone(),
                 range: span,
                 resolved_qualified_name: Some(winner),
+                resolved_user_definition: true,
                 resolution_candidates: crate::naming::bareword_resolution_candidates(&ns, &value),
                 argc: None,
                 callback_arity: None,

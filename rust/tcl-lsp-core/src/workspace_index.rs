@@ -463,6 +463,12 @@ pub struct WorkspaceInvocation {
     /// settle which definition the call names, wherever it lives — see
     /// [`WorkspaceIndex::invocations_of`].
     pub resolution_candidates: Vec<String>,
+    /// The analyser proved that [`Self::resolution_candidates`]'s selected
+    /// target is a proc/class definition in this same document and live for
+    /// this call's execution position.  Unlike the workspace's final
+    /// live-name set, this remains true for a call which provably ran before
+    /// a later load-level deletion.
+    pub resolved_user_definition: Option<String>,
     /// Byte span of the command-head token in `uri`'s source.
     pub range: Span,
     /// The span does not carry the written command name (an indirect site —
@@ -1054,6 +1060,16 @@ fn sorted_names(names: &std::collections::HashSet<String>) -> Vec<String> {
     out
 }
 
+fn resolved_user_definition(
+    inv: &tcl_compiler::signature_scan::types::SignatureCommandInvocation,
+) -> Option<String> {
+    if inv.resolved_user_definition {
+        inv.resolved_qualified_name.clone()
+    } else {
+        None
+    }
+}
+
 /// The fourteen record tables **one document** contributes to the index.
 ///
 /// Grouping the tables per document is what makes
@@ -1382,6 +1398,7 @@ impl DocumentRecords {
                 uri: uri.to_owned(),
                 name: inv.name.clone(),
                 resolution_candidates: inv.resolution_candidates.clone(),
+                resolved_user_definition: resolved_user_definition(inv),
                 range: inv.range,
                 indirect: inv.indirect,
                 rename_safe: inv.rename_safe,
@@ -2048,13 +2065,13 @@ impl WorkspaceIndex {
     pub fn command_names(&self) -> Arc<HashSet<String>> {
         self.command_names.get_or_build(|| {
             let mut names: HashSet<String> = HashSet::new();
-            for p in self.procs() {
+            for p in self.live_procs() {
                 tcl_compiler::analyser::utils::insert_qualified_and_tail(
                     &mut names,
                     &p.qualified_name,
                 );
             }
-            for c in self.classes() {
+            for c in self.live_classes() {
                 tcl_compiler::analyser::utils::insert_qualified_and_tail(
                     &mut names,
                     &c.qualified_name,
@@ -2725,6 +2742,26 @@ impl WorkspaceIndex {
         })
     }
 
+    /// Live procs contributed by one document, without walking every other
+    /// document's definition table.
+    #[must_use]
+    pub fn live_procs_in(&self, uri: &str) -> Vec<&WorkspaceProc> {
+        let Some(&slot) = self.slots.get(uri) else {
+            return Vec::new();
+        };
+        self.docs[slot]
+            .procs
+            .iter()
+            .filter(|proc_def| {
+                self.definition_name_is_live(
+                    &proc_def.uri,
+                    &proc_def.qualified_name,
+                    proc_def.name_span.start(),
+                )
+            })
+            .collect()
+    }
+
     /// Every indexed class.
     pub fn classes(&self) -> impl Iterator<Item = &WorkspaceClass> {
         self.docs.iter().flat_map(|doc| doc.classes.iter())
@@ -2741,6 +2778,26 @@ impl WorkspaceIndex {
                 class_def.name_span.start(),
             )
         })
+    }
+
+    /// Live classes contributed by one document, without walking every other
+    /// document's definition table.
+    #[must_use]
+    pub fn live_classes_in(&self, uri: &str) -> Vec<&WorkspaceClass> {
+        let Some(&slot) = self.slots.get(uri) else {
+            return Vec::new();
+        };
+        self.docs[slot]
+            .classes
+            .iter()
+            .filter(|class_def| {
+                self.definition_name_is_live(
+                    &class_def.uri,
+                    &class_def.qualified_name,
+                    class_def.name_span.start(),
+                )
+            })
+            .collect()
     }
 
     /// Every indexed `namespace import` / `interp alias` / `rename` link.
@@ -3897,6 +3954,9 @@ impl WorkspaceIndex {
         // relies on does not see it in either direction.
         let forced_shadow = links.is_some()
             && wci.forced_shadow_over_candidates(&inv.name, &inv.resolution_candidates, call);
+        if !forced_shadow && let Some(winner) = inv.resolved_user_definition.as_deref() {
+            return Some(winner.trim_start_matches("::").to_owned());
+        }
         if !forced_shadow
             && let Some(winner) = inv
                 .resolution_candidates
@@ -4108,10 +4168,10 @@ impl WorkspaceIndex {
     fn defined_command_names(&self, include_links: bool) -> Arc<HashSet<String>> {
         self.defined_names[usize::from(include_links)].get_or_build(|| {
             let mut names: HashSet<String> = self
-                .procs()
+                .live_procs()
                 .map(|p| p.qualified_name.trim_start_matches("::").to_owned())
                 .chain(
-                    self.classes()
+                    self.live_classes()
                         .map(|c| c.qualified_name.trim_start_matches("::").to_owned()),
                 )
                 .collect();
@@ -6086,6 +6146,113 @@ mod tests {
         let calls = index.invocations_of("::helper", "file:///a.tcl");
         assert_eq!(calls.len(), 1);
         assert_eq!(calls[0].uri, "file:///b.tcl");
+    }
+
+    #[test]
+    fn settled_invocations_keep_a_definition_called_before_its_later_deletion() {
+        // TP / regression: the final command table has retired
+        // `::foo::bar`, but `foo::caller` demonstrably ran before that
+        // retirement.  The analyser's per-site resolution must outrank the
+        // final-state name set for this one historical invocation.
+        let src = "proc bar {} { return global }\nnamespace eval foo {\n    proc bar {} { return local }\n    proc caller {} { return [bar] }\n}\nfoo::caller\nrename foo::bar {}\n";
+        let call = u32::try_from(src.find("[bar]").expect("call") + 1).expect("offset");
+        let analysis = analyse(src);
+        let index = WorkspaceIndex::from_documents([("file:///life.tcl", &analysis)]);
+
+        assert!(
+            !index.defined_command_names(false).contains("foo::bar"),
+            "the final-state cache must still hide the retired name",
+        );
+        assert!(
+            index
+                .invocations_of("::foo::bar", "")
+                .iter()
+                .any(|inv| inv.range.start() == call),
+            "the earlier call must remain attached to the local definition",
+        );
+        assert!(
+            index
+                .invocations_of("::bar", "")
+                .iter()
+                .all(|inv| inv.range.start() != call),
+            "the earlier call must not also settle to the global fallback",
+        );
+    }
+
+    #[test]
+    fn settled_invocations_fall_back_after_a_local_definition_is_deleted() {
+        // FN guard: moving the execution point past the deletion changes the
+        // same candidate list's winner to the global definition.
+        let src = "proc bar {} { return global }\nnamespace eval foo {\n    proc bar {} { return local }\n    rename foo::bar {}\n    proc caller {} { return [bar] }\n}\nfoo::caller\n";
+        let call = u32::try_from(src.find("[bar]").expect("call") + 1).expect("offset");
+        let analysis = analyse(src);
+        let index = WorkspaceIndex::from_documents([("file:///life.tcl", &analysis)]);
+
+        assert!(
+            index
+                .invocations_of("::foo::bar", "")
+                .iter()
+                .all(|inv| inv.range.start() != call),
+            "the deleted local definition must not retain the later call",
+        );
+        assert!(
+            index
+                .invocations_of("::bar", "")
+                .iter()
+                .any(|inv| inv.range.start() == call),
+            "the later call must settle to the live global definition",
+        );
+    }
+
+    #[test]
+    fn a_later_alias_does_not_retarget_an_earlier_definition_call() {
+        // FP/TN guard for the link-following reference view: final state has
+        // re-established `target` as an alias of `replacement`, but the first
+        // call ran while `target` still named its original proc.  A final-state
+        // link must not rewrite that historical target.
+        let src = "proc target {} {}\nproc replacement {} {}\ntarget\nrename target {}\ninterp alias {} target {} replacement\ntarget\n";
+        let first = u32::try_from(src.find("\ntarget\n").expect("first call") + 1).expect("offset");
+        let second =
+            u32::try_from(src.rfind("\ntarget\n").expect("second call") + 1).expect("offset");
+        let analysis = analyse(src);
+        let index = WorkspaceIndex::from_documents([("file:///life.tcl", &analysis)]);
+
+        let original = index.linked_invocations_of("::target", "");
+        assert!(original.iter().any(|inv| inv.range.start() == first));
+        assert!(original.iter().all(|inv| inv.range.start() != second));
+        let replacement = index.linked_invocations_of("::replacement", "");
+        assert!(replacement.iter().all(|inv| inv.range.start() != first));
+        assert!(replacement.iter().any(|inv| inv.range.start() == second));
+    }
+
+    #[test]
+    fn settled_class_invocations_are_position_sensitive_across_destruction() {
+        // Type guard: classes install ordinary commands and use the same
+        // generic per-site definition fact as procs.
+        let before_src = "oo::class create Dog {}\nDog new\nrename Dog {}\n";
+        let before_call = u32::try_from(before_src.find("Dog new").expect("call")).expect("offset");
+        let before = analyse(before_src);
+        let before_index = WorkspaceIndex::from_documents([("file:///before.tcl", &before)]);
+        assert!(!before_index.defined_command_names(false).contains("Dog"));
+        assert!(
+            before_index
+                .invocations_of("::Dog", "")
+                .iter()
+                .any(|inv| inv.range.start() == before_call),
+            "a class call before destruction still reaches that class command",
+        );
+
+        let after_src = "oo::class create Dog {}\nrename Dog {}\nDog new\n";
+        let after_call = u32::try_from(after_src.find("Dog new").expect("call")).expect("offset");
+        let after = analyse(after_src);
+        let after_index = WorkspaceIndex::from_documents([("file:///after.tcl", &after)]);
+        assert!(
+            after_index
+                .invocations_of("::Dog", "")
+                .iter()
+                .all(|inv| inv.range.start() != after_call),
+            "a destroyed class command must not regain the later call",
+        );
     }
 
     #[test]
@@ -8531,6 +8698,18 @@ mod tests {
             index.live_procs().all(|proc_def| proc_def.name != "helper"),
             "the direct command view must not expose the vacated name",
         );
+        assert!(
+            !index.command_names().contains("helper"),
+            "the W123 cache must be built from live definitions",
+        );
+        assert!(
+            !index.defined_command_names(false).contains("helper"),
+            "the settled-target cache must not retain the vacated source name",
+        );
+        assert!(
+            index.defined_command_names(true).contains("moved"),
+            "the link-aware settled-target cache keeps the rename destination",
+        );
     }
 
     #[test]
@@ -8560,6 +8739,8 @@ mod tests {
                 .live_classes()
                 .all(|class_def| class_def.name != "Dog")
         );
+        assert!(!index.command_names().contains("Dog"));
+        assert!(!index.defined_command_names(false).contains("Dog"));
     }
 
     #[test]
