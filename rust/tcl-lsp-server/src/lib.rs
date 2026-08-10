@@ -2071,7 +2071,10 @@ async fn refresh_cross_file_evidence(
         slots,
         self_uri: uri,
     };
-    let factory_moved = sync_workspace_class_factories(handles, Some(wake)).await;
+    let ClassFactorySync {
+        moved: factory_moved,
+        affected_names,
+    } = sync_workspace_class_factories(handles, Some(wake)).await;
     let oracle_moved = !factory_moved.is_empty();
     for uri in factory_moved {
         if !changed.contains(&uri) {
@@ -2084,7 +2087,7 @@ async fn refresh_cross_file_evidence(
     // Only when the oracle actually moved: an unchanged oracle re-indexes
     // nothing, so the ordinary editing loop pays nothing for this.
     if oracle_moved {
-        reindex_unopened_factory_consumers(handles).await;
+        reindex_unopened_factory_consumers(handles, &affected_names).await;
     }
     // Re-analyse *this* document only when the refresh gave it evidence
     // that can actually change its result: a non-empty table means some
@@ -2142,16 +2145,17 @@ async fn refresh_cross_file_evidence(
 ///
 /// Lock order is the global one — `rehoming_gate` → `documents` → `db` →
 /// `workspace_index`.
-async fn reindex_unopened_factory_consumers(handles: &EvidenceHandles) {
+async fn reindex_unopened_factory_consumers(
+    handles: &EvidenceHandles,
+    affected_factory_names: &HashSet<String>,
+) {
+    if affected_factory_names.is_empty() {
+        return;
+    }
     let (oracle, texts) = {
         let db = handles.db.lock().await;
         let files = handles.db_files.lock().await;
-        let Some(oracle) = Backend::published_class_factories(&db, &files) else {
-            return;
-        };
-        if oracle.is_empty() {
-            return;
-        }
+        let oracle = Backend::published_class_factories(&db, &files);
         let texts: HashMap<Uri, (String, String)> = files
             .iter()
             .map(|(uri, &file)| {
@@ -2163,8 +2167,8 @@ async fn reindex_unopened_factory_consumers(handles: &EvidenceHandles) {
             .collect();
         (oracle, texts)
     };
-    let keys: HashSet<&str> = oracle
-        .keys()
+    let keys: HashSet<&str> = affected_factory_names
+        .iter()
         .map(|k| k.trim_start_matches("::"))
         .collect::<HashSet<&str>>();
     let candidates = handles
@@ -2198,12 +2202,12 @@ async fn reindex_unopened_factory_consumers(handles: &EvidenceHandles) {
     if work.is_empty() {
         return;
     }
-    let oracle_for_task = Arc::clone(&oracle);
+    let oracle_for_task = oracle.clone();
     let analysed = tokio::task::spawn_blocking(move || {
         work.into_iter()
             .map(|(uri, text, dialect)| {
                 let analysis = Analyser::new()
-                    .with_workspace_class_factories(Some(Arc::clone(&oracle_for_task)))
+                    .with_workspace_class_factories(oracle_for_task.clone())
                     .analyse(&text, &dialect)
                     .clone();
                 (uri, analysis)
@@ -2490,15 +2494,20 @@ const CLASS_FACTORY_SYNC_ROUNDS: usize = 16;
 async fn sync_workspace_class_factories(
     handles: &EvidenceHandles,
     wake: Option<RoundReschedule<'_>>,
-) -> Vec<Uri> {
+) -> ClassFactorySync {
+    let before = published_factory_names(handles).await;
     let mut changed: Vec<Uri> = Vec::new();
     let mut seen: HashSet<Uri> = HashSet::new();
+    let mut settled = false;
     for _ in 0..CLASS_FACTORY_SYNC_ROUNDS {
         match sync_workspace_class_factories_round(handles).await {
             // The fixpoint: every file already carries the index the project
             // proves, so another round would recompute a byte-identical one
             // off unchanged inputs.
-            ClassFactoryRound::Settled => return changed,
+            ClassFactoryRound::Settled => {
+                settled = true;
+                break;
+            }
             ClassFactoryRound::Cancelled => {}
             ClassFactoryRound::Moved(moved) => {
                 if let Some(wake) = wake.as_ref() {
@@ -2512,13 +2521,40 @@ async fn sync_workspace_class_factories(
             }
         }
     }
-    eprintln!(
-        "tcl-lsp: the workspace class-factory index did not settle in \
-         {CLASS_FACTORY_SYNC_ROUNDS} rounds; publishing what has been proved so far. \
-         Classes made by a metaclass deeper than that in the chain may not resolve \
-         until the next sync."
-    );
-    changed
+    if !settled {
+        eprintln!(
+            "tcl-lsp: the workspace class-factory index did not settle in \
+             {CLASS_FACTORY_SYNC_ROUNDS} rounds; publishing what has been proved so far. \
+             Classes made by a metaclass deeper than that in the chain may not resolve \
+             until the next sync."
+        );
+    }
+    let mut affected_names = before;
+    affected_names.extend(published_factory_names(handles).await);
+    ClassFactorySync {
+        moved: changed,
+        affected_names,
+    }
+}
+
+/// The publication transition produced by a class-factory fixpoint.
+///
+/// `affected_names` is the union of the oracle keys before and after the
+/// transition.  Consumers of a removed factory therefore remain discoverable
+/// even when the new oracle is empty.
+struct ClassFactorySync {
+    moved: Vec<Uri>,
+    affected_names: HashSet<String>,
+}
+
+async fn published_factory_names(handles: &EvidenceHandles) -> HashSet<String> {
+    let db = handles.db.lock().await;
+    let files = handles.db_files.lock().await;
+    Backend::published_class_factories(&db, &files)
+        .as_deref()
+        .into_iter()
+        .flat_map(|index| index.keys().cloned())
+        .collect()
 }
 
 /// Where [`sync_workspace_class_factories`] sends each round's invalidated
@@ -4354,9 +4390,10 @@ struct MethodFamily {
 /// [`Backend::workspace_class_analyses`].
 struct WorkspaceClassAnalysis {
     /// Hash of everything the analysis depends on: the document's text and
-    /// dialect, and the workspace class set.  Recomputing it is a few
-    /// microseconds against the several milliseconds of a re-analysis.
-    fingerprint: (u64, u64),
+    /// dialect, both workspace class sets, and the class-factory oracle.
+    /// Recomputing it is a few microseconds against the several milliseconds
+    /// of a re-analysis.
+    fingerprint: (u64, u64, u64, u64),
     analysis: Arc<AnalysisResult>,
 }
 
@@ -4383,6 +4420,31 @@ fn class_set_fingerprint(classes: &std::collections::HashSet<String>) -> u64 {
         combined = combined.wrapping_add(hasher.finish());
     }
     combined
+}
+
+/// Deterministic hash of the registry-derived class-factory oracle, for
+/// [`WorkspaceClassAnalysis::fingerprint`].  The oracle is a `BTreeMap`, so
+/// its iteration order is part of its stable representation.
+fn class_factory_fingerprint(factories: Option<&tcl_compiler::analyser::ClassFactoryIndex>) -> u64 {
+    use std::hash::{Hash as _, Hasher as _};
+    let mut hasher = std::hash::DefaultHasher::new();
+    factories.hash(&mut hasher);
+    hasher.finish()
+}
+
+fn workspace_class_analysis_fingerprint(
+    source: &str,
+    dialect: &str,
+    classes: &HashSet<String>,
+    bare_word_classes: &HashSet<String>,
+    factories: Option<&tcl_compiler::analyser::ClassFactoryIndex>,
+) -> (u64, u64, u64, u64) {
+    (
+        document_fingerprint(source, dialect),
+        class_set_fingerprint(classes),
+        class_set_fingerprint(bare_word_classes),
+        class_factory_fingerprint(factories),
+    )
 }
 
 /// One document a consumer scan visits, with the text and index needed to
@@ -8046,9 +8108,12 @@ impl Backend {
         // manufactures through a cross-file metaclass at all, and a method
         // lookup on one would miss where the cached tier resolves it.
         let workspace_class_factories = self.class_factories_for(uri).await;
-        let fingerprint = (
-            document_fingerprint(source, dialect),
-            class_set_fingerprint(&workspace_classes),
+        let fingerprint = workspace_class_analysis_fingerprint(
+            source,
+            dialect,
+            &workspace_classes,
+            &workspace_bare_word_classes,
+            workspace_class_factories.as_deref(),
         );
         if let Some(hit) = self
             .workspace_class_analyses
@@ -12514,12 +12579,12 @@ impl Backend {
             documents: Arc::clone(&self.documents),
             rehoming_gate: Arc::clone(&self.rehoming_gate),
         };
-        sync_workspace_class_factories(&scan_handles, None).await;
+        let factory_sync = sync_workspace_class_factories(&scan_handles, None).await;
         // …then re-index the unopened documents that oracle can change
         // (issue #1304). Must follow the publish: the classes a cross-file
         // metaclass manufactures only exist in an analysis that carried the
         // oracle, and the scan's own pass could not have.
-        reindex_unopened_factory_consumers(&scan_handles).await;
+        reindex_unopened_factory_consumers(&scan_handles, &factory_sync.affected_names).await;
         // In-process readiness signal, released before the log line so a
         // handler waiting on it is not held up by a client round-trip.
         self.workspace_scan_ready.mark_complete();
@@ -26480,6 +26545,150 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn removing_the_last_factory_reindexes_unopened_consumers_with_an_empty_oracle() {
+        let root = unique_scratch_dir("metaclass-remove-last");
+        write_metaclass_workspace(&root);
+        let backend = test_backend();
+        *backend.workspace_folders.lock().await = vec![Uri::from_file_path(&root).unwrap()];
+        backend.scan_workspace_folders().await;
+        assert_eq!(
+            backend
+                .workspace_index
+                .read()
+                .await
+                .classes_named("::IconList")
+                .len(),
+            1
+        );
+
+        std::fs::write(root.join("megawidget.tcl"), "# factory removed\n").unwrap();
+        backend.scan_workspace_folders().await;
+
+        assert!(
+            backend
+                .workspace_index
+                .read()
+                .await
+                .classes_named("::IconList")
+                .is_empty(),
+            "an unopened consumer must lose classes manufactured only by the old oracle"
+        );
+        let analysis = scanned_analysis(&backend, &root, "iconlist.tcl").await;
+        assert!(!analysis.all_classes.contains_key("::IconList"));
+        std::fs::remove_dir_all(&root).ok();
+    }
+
+    #[tokio::test]
+    async fn dropping_one_factory_reindexes_its_consumers_while_retaining_others() {
+        let root = unique_scratch_dir("metaclass-drop-one");
+        write_metaclass_workspace(&root);
+        std::fs::write(
+            root.join("other-factory.tcl"),
+            concat!(
+                "namespace eval ::other {}\n",
+                "oo::class create ::other::Factory {\n",
+                "    superclass oo::class\n",
+                "    self method create {name body} { next $name $body }\n",
+                "}\n",
+            ),
+        )
+        .unwrap();
+        std::fs::write(
+            root.join("other-consumer.tcl"),
+            "::other::Factory create ::Kept { method ok {} {} }\n",
+        )
+        .unwrap();
+        let backend = test_backend();
+        *backend.workspace_folders.lock().await = vec![Uri::from_file_path(&root).unwrap()];
+        backend.scan_workspace_folders().await;
+        {
+            let index = backend.workspace_index.read().await;
+            assert_eq!(index.classes_named("::IconList").len(), 1);
+            assert_eq!(index.classes_named("::Kept").len(), 1);
+        }
+
+        std::fs::write(root.join("megawidget.tcl"), "# one factory removed\n").unwrap();
+        backend.scan_workspace_folders().await;
+
+        let index = backend.workspace_index.read().await;
+        assert!(index.classes_named("::IconList").is_empty());
+        assert_eq!(index.classes_named("::Kept").len(), 1);
+        drop(index);
+        std::fs::remove_dir_all(&root).ok();
+    }
+
+    #[test]
+    fn workspace_class_cache_key_covers_bare_word_and_factory_oracles() {
+        let classes = HashSet::from(["::Widget".to_owned()]);
+        let no_bare_words = HashSet::new();
+        let bare_words = HashSet::from(["::Widget".to_owned()]);
+        let base = workspace_class_analysis_fingerprint(
+            "Widget .w\n",
+            "tcl9.0",
+            &classes,
+            &no_bare_words,
+            None,
+        );
+        let changed_bare_words = workspace_class_analysis_fingerprint(
+            "Widget .w\n",
+            "tcl9.0",
+            &classes,
+            &bare_words,
+            None,
+        );
+        assert_ne!(base, changed_bare_words);
+
+        let analysis = Analyser::new()
+            .analyse("oo::class create Meta { superclass oo::class }\n", "tcl9.0")
+            .clone();
+        let factories = analysis.class_factories();
+        let changed_factories = workspace_class_analysis_fingerprint(
+            "Widget .w\n",
+            "tcl9.0",
+            &classes,
+            &no_bare_words,
+            Some(&factories),
+        );
+        assert_ne!(base, changed_factories);
+
+        let changed_analysis = Analyser::new()
+            .analyse(
+                concat!(
+                    "oo::class create Meta {\n",
+                    "  superclass oo::class\n",
+                    "  method unknown {w args} {\n",
+                    "    [self] create ::$w\n",
+                    "    return $w\n",
+                    "  }\n",
+                    "}\n",
+                ),
+                "tcl9.0",
+            )
+            .clone();
+        let changed_factory_content = changed_analysis.class_factories();
+        assert_eq!(
+            factories.keys().collect::<Vec<_>>(),
+            changed_factory_content.keys().collect::<Vec<_>>()
+        );
+        assert_ne!(
+            workspace_class_analysis_fingerprint(
+                "Widget .w\n",
+                "tcl9.0",
+                &classes,
+                &no_bare_words,
+                Some(&factories),
+            ),
+            workspace_class_analysis_fingerprint(
+                "Widget .w\n",
+                "tcl9.0",
+                &classes,
+                &no_bare_words,
+                Some(&changed_factory_content),
+            )
+        );
+    }
+
+    #[tokio::test]
     async fn scan_workspace_folders_skips_open_documents() {
         let root = unique_scratch_dir("scan-open");
         let on_disk = root.join("buf.tcl");
@@ -27930,10 +28139,12 @@ mod tests {
     /// across that tail freezes hover / completion / semantic tokens in every
     /// open document for as long as the close takes.
     ///
-    /// The `db` mutex stands in for the tail's cost: the ordered mutations (the
-    /// documents map, the index entry) never take it, and the reindex always
-    /// does, so holding it here pins the close inside its tail — with the turn
-    /// necessarily already handed on, or, before the fix, still held.
+    /// The `rehoming_gate` stands in for the tail's cost: the ordered mutations
+    /// (the documents map, the index entry) never take it, and the reindex takes
+    /// it before any other tail lock. Holding that first lock pins the close
+    /// without letting the tail hold `documents` while this test inspects it.
+    /// Using the later `db` lock here made the test itself racy: the reindex
+    /// could win `documents`, block on `db`, and deadlock the inspection below.
     #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
     async fn did_close_hands_its_edit_turn_on_before_the_reindex_tail() {
         let backend = Arc::new(test_backend());
@@ -27943,7 +28154,7 @@ mod tests {
         let uri = Uri::from_file_path(&on_disk).unwrap();
         register(&backend, &uri, "proc foo {} {}\n").await;
 
-        let db_held = backend.db.lock().await;
+        let rehoming_held = backend.rehoming_gate.lock().await;
         let closing = tokio::spawn({
             let backend = Arc::clone(&backend);
             let uri = uri.clone();
@@ -27959,7 +28170,7 @@ mod tests {
         assert!(
             one_edit_turn_released(&backend).await,
             "did_close must release its turn before the reindex, which cannot \
-             run while the db lock is held",
+             run while the rehoming gate is held",
         );
         assert!(
             !backend.documents.lock().await.contains_key(&uri),
@@ -27970,10 +28181,10 @@ mod tests {
             "the closed republish is the tail; it must still be pending here",
         );
 
-        drop(db_held);
+        drop(rehoming_held);
         tokio::time::timeout(std::time::Duration::from_secs(30), closing)
             .await
-            .expect("the close must finish once its tail can take the db lock")
+            .expect("the close must finish once its tail can take the rehoming gate")
             .expect("did_close panicked");
         assert!(
             backend.closed_diag_gen.lock().await.contains_key(&uri),
@@ -31702,7 +31913,7 @@ mod tests {
         backend.workspace_class_analyses.lock().await.insert(
             old.clone(),
             WorkspaceClassAnalysis {
-                fingerprint: (0, 0),
+                fingerprint: (0, 0, 0, 0),
                 analysis: Arc::default(),
             },
         );
@@ -31801,7 +32012,7 @@ mod tests {
         backend.workspace_class_analyses.lock().await.insert(
             uri.clone(),
             WorkspaceClassAnalysis {
-                fingerprint: (0, 0),
+                fingerprint: (0, 0, 0, 0),
                 analysis: Arc::default(),
             },
         );

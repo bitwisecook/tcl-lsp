@@ -39,6 +39,8 @@ use crate::alias::{detect_interp_alias, resolve_alias};
 use crate::parsing::syntax::descend::descend_token;
 use crate::parsing::syntax::segment::segments_from_tree;
 use crate::segmenter::SegmentedCommand;
+use crate::signature_scan::params::bind_proc_formals;
+use crate::signature_scan::types::ParamDef;
 use crate::signature_scan::types::SignatureCommandAlias;
 
 use super::state::Analyser;
@@ -311,13 +313,47 @@ const MAX_UNKNOWN_BODY_DEPTH: u32 = 8;
 struct ParameterisedCreation {
     /// Qualified name of the proc whose body holds the call.
     proc_qname: String,
-    /// That proc's parameter names, in declaration order.
-    params: Vec<String>,
+    /// That proc's Tcl formals, including defaults and the trailing `args`
+    /// collector.
+    params: Vec<ParamDef>,
     /// The name word, as written (`${ns}::class`).
     name_word: String,
     /// Source offset of the creation call.  Literal-provenance evaluation
     /// executes only dominating assignments before this point.
     call_off: u32,
+    /// Registry-described control bodies enclosing the creation, from the
+    /// proc body inwards.  Each body must be selected by its controller for
+    /// the creation to materialise.
+    control_path: Vec<ControlArm>,
+}
+
+#[derive(Clone, Copy)]
+struct ParameterisedProc<'a> {
+    qname: &'a str,
+    params: &'a [ParamDef],
+}
+
+#[derive(Clone)]
+struct ControlArm {
+    controller: SegmentedCommand,
+    body_span: Span,
+}
+
+#[derive(Default)]
+struct ControlArms {
+    arms: Vec<ControlArm>,
+    complete: bool,
+}
+
+struct LoadTimeCall {
+    args: Vec<String>,
+    control_path: Vec<ControlArm>,
+    call_off: u32,
+}
+
+enum StaticScriptOutcome {
+    FallsThrough(String),
+    Returns(String),
 }
 
 /// `word` with each `$name` / `${name}` reading one of `params` replaced by
@@ -516,8 +552,17 @@ enum UnknownBodyEvidence {
     ReturnsWord,
     /// It completes the member with something else — fatal to the proof.
     ReturnsSomethingElse,
+    /// It ends this path with a non-normal completion and returns no handle.
+    Terminates,
     /// It says nothing either way.
     Nothing,
+}
+
+#[derive(Default)]
+struct UnknownPathProof {
+    proved_return: bool,
+    invalid_return: bool,
+    fallthrough_constructed: Vec<bool>,
 }
 
 /// Whether `head` is a bracketed self-receiver word — `[self]` / `[self
@@ -4187,6 +4232,7 @@ impl Analyser {
     /// Dispatched via [`tcl_registry::hooks::AnalyserHookId::Switch`].
     pub fn handle_switch_command(
         &mut self,
+        cmd_name: &str,
         args: &[String],
         arg_tokens: &[Token],
         scope_path: &[usize],
@@ -4195,28 +4241,18 @@ impl Analyser {
             return false;
         }
 
-        // Scan and skip option flags. ``--`` ends the option
-        // section explicitly (and is consumed).
-        let mut i = 0;
-        let mut is_regexp = false;
-        while i < args.len() && args[i].starts_with('-') {
-            if args[i] == "-regexp" {
-                is_regexp = true;
-            }
-            if args[i] == "--" {
-                i += 1;
-                break;
-            }
-            i += 1;
-        }
-        // Skip the ``string`` argument that follows the options.
-        i += 1;
-
-        if i >= args.len() {
+        let Some(registry) = self.registry else {
             return true;
-        }
+        };
+        let arg_refs: Vec<&str> = args.iter().map(String::as_str).collect();
+        let Some((case, invocation)) =
+            registry.case_invocation(cmd_name, &arg_refs, self.profile.availability_mask)
+        else {
+            return true;
+        };
+        let is_regexp = invocation.mode == tcl_registry::spec::CaseMatchMode::Regexp;
 
-        if i == args.len() - 1 {
+        if let Some(i) = invocation.clause_list_index {
             // Form 2 — single braced body containing all pairs.
             let body_text = args[i].clone();
             let Some(body_tok) = arg_tokens.get(i).copied() else {
@@ -4224,31 +4260,49 @@ impl Analyser {
             };
             let elements =
                 crate::segmenter::flatten_clause_list_elements(&self.source, &body_text, body_tok);
+            let clause_count = elements.len() / 2;
             let mut j = 0;
             while j + 1 < elements.len() {
                 let (pat_text, pat_tok) = &elements[j];
                 let (body_text, body_tok) = &elements[j + 1];
                 if is_regexp {
-                    self.record_switch_regexp_pattern(pat_text, *pat_tok, scope_path);
+                    self.record_switch_regexp_pattern(
+                        cmd_name,
+                        case,
+                        pat_text,
+                        *pat_tok,
+                        (j / 2, clause_count),
+                        scope_path,
+                    );
                 }
-                if body_text != "-" {
+                if case.fallthrough_body != Some(body_text.as_str()) {
                     self.analyse_body(body_text, *body_tok, scope_path);
                 }
                 j += 2;
             }
-        } else {
+        } else if let Some(mut i) = invocation.inline_clause_start {
             // Form 1 — pattern/body pairs inline in args/arg_tokens.
+            let clause_count = (args.len() - i) / 2;
+            let mut clause_index = 0usize;
             while i + 1 < args.len() {
                 if is_regexp && let Some(pat_tok) = arg_tokens.get(i).copied() {
-                    self.record_switch_regexp_pattern(&args[i], pat_tok, scope_path);
+                    self.record_switch_regexp_pattern(
+                        cmd_name,
+                        case,
+                        &args[i],
+                        pat_tok,
+                        (clause_index, clause_count),
+                        scope_path,
+                    );
                 }
                 let body_text = &args[i + 1];
                 if let Some(body_tok) = arg_tokens.get(i + 1).copied()
-                    && body_text != "-"
+                    && case.fallthrough_body != Some(body_text.as_str())
                 {
                     self.analyse_body(body_text, body_tok, scope_path);
                 }
                 i += 2;
+                clause_index += 1;
             }
         }
         true
@@ -4260,11 +4314,20 @@ impl Analyser {
     /// `const_strings` map (the ``regex-vars`` propagation);
     /// `Cmd` substitutions are skipped (can't statically
     /// resolve).
-    fn record_switch_regexp_pattern(&mut self, pattern: &str, tok: Token, scope_path: &[usize]) {
-        if pattern == "default" {
+    fn record_switch_regexp_pattern(
+        &mut self,
+        command: &str,
+        case: tcl_registry::spec::CaseListSpec,
+        pattern: &str,
+        tok: Token,
+        clause_position: (usize, usize),
+        scope_path: &[usize],
+    ) {
+        let (clause_index, clause_count) = clause_position;
+        if case.is_keyword_pattern(pattern, clause_index, clause_count) {
             return;
         }
-        self.record_regex_pattern_token(pattern, tok, "switch", scope_path);
+        self.record_regex_pattern_token(pattern, tok, command, scope_path);
     }
 
     /// Handle `catch SCRIPT ?RESULTVAR? ?OPTIONSVAR?`.
@@ -5773,21 +5836,22 @@ impl Analyser {
     /// Fact 2 is the one the issue insists on: an `unknown` that returns
     /// something else — `return [self]`, a formatted string, a bare `next`
     /// fall-through — must **not** be read this way, because the value the
-    /// caller binds is then not an object handle at all. Every `Result` word
-    /// in the body must be the first parameter; one that is not collapses the
-    /// whole proof to `false`, and so does a body with no `Result` word.
+    /// caller binds is then not an object handle at all. Every reachable
+    /// normal-result path must return the first parameter after constructing
+    /// it; a different result collapses the proof to `false`, and a body with
+    /// no such path proves nothing. Registry completion semantics distinguish
+    /// that normal result from `return -code error`, `error`, loop transfer,
+    /// and other terminating completions.
     ///
     /// Deliberate residuals, both in the abstaining direction except where
     /// noted:
     ///
-    /// * a body that also falls through to `next` (Tk's does, for a word that
-    ///   is not a widget path) is still accepted. The fall-through reaches the
-    ///   inherited `unknown`, which raises `unknown method "…"` on tclsh 9.0.4
-    ///   and 8.6.16, so it never returns a value that could be mistaken for a
-    ///   handle. A metaclass whose fall-through *does* return normally would
-    ///   have that path's value treated as the word — the one over-approximation
-    ///   here, and it needs a `return` on the constructing path to be reached
-    ///   at all;
+    /// * a body that also dispatches through `next` (Tk's does, for a word
+    ///   that is not a widget path) is accepted only when the actual class MRO
+    ///   proves that the next provider terminates. A visible user provider
+    ///   that returns normally invalidates the proof; an incomplete hierarchy
+    ///   abstains. At a proved built-in chain end, completion comes from the
+    ///   definition grammar rather than from the dispatch keyword;
     /// * a construction written through a variable holding the name
     ///   (`set n $w; [self] create $n`) is not followed, and abstains;
     /// * the member is looked up on the **metaclass**, because it is
@@ -5810,30 +5874,254 @@ impl Analyser {
         let Some(word_param) = member.params.first().map(|p| p.name.as_str()) else {
             return false;
         };
-        let Some(blocks) = self.member_body_script_blocks(member) else {
+        let Some(proof) = self.unknown_script_path_proof(
+            meta,
+            class,
+            member.body_span,
+            word_param,
+            vec![false],
+            0,
+        ) else {
             return false;
         };
-        let mut proved = false;
-        for block in blocks {
-            let mut constructs = false;
-            let mut returns_word = false;
-            for seg in &block {
-                match self.unknown_body_evidence(meta, seg, word_param) {
-                    UnknownBodyEvidence::Constructs => constructs = true,
-                    UnknownBodyEvidence::ReturnsWord => returns_word = true,
-                    UnknownBodyEvidence::ReturnsSomethingElse => return false,
-                    UnknownBodyEvidence::Nothing => {}
+        proof.proved_return && !proof.invalid_return && proof.fallthrough_constructed.is_empty()
+    }
+
+    fn unknown_script_path_proof(
+        &self,
+        meta: &UserMetaclass,
+        class: &ClassDef,
+        body_span: Span,
+        word_param: &str,
+        mut states: Vec<bool>,
+        depth: u32,
+    ) -> Option<UnknownPathProof> {
+        if depth > MAX_UNKNOWN_BODY_DEPTH {
+            return None;
+        }
+        let registry = self.registry?;
+        let mut proof = UnknownPathProof::default();
+        for seg in self.direct_statements_in_span(body_span)? {
+            if states.is_empty() {
+                break;
+            }
+            if registry.get(seg.name()).and_then(|spec| spec.lowering_hook)
+                == Some(tcl_registry::hooks::LoweringHookId::If)
+            {
+                let (body_spans, has_fallthrough) =
+                    self.possible_if_body_spans(&seg, word_param)?;
+                let mut next_states = Vec::new();
+                for state in states {
+                    for span in &body_spans {
+                        let nested = self.unknown_script_path_proof(
+                            meta,
+                            class,
+                            *span,
+                            word_param,
+                            vec![state],
+                            depth + 1,
+                        )?;
+                        proof.proved_return |= nested.proved_return;
+                        proof.invalid_return |= nested.invalid_return;
+                        next_states.extend(nested.fallthrough_constructed);
+                    }
+                    if has_fallthrough {
+                        next_states.push(state);
+                    }
+                }
+                states = next_states;
+                continue;
+            }
+            if registry
+                .get(seg.name())
+                .and_then(|spec| spec.lowering_hook)
+                .is_some_and(|hook| {
+                    matches!(
+                        hook,
+                        tcl_registry::hooks::LoweringHookId::Switch
+                            | tcl_registry::hooks::LoweringHookId::Try
+                    )
+                })
+            {
+                return None;
+            }
+            match self.unknown_body_evidence(meta, class, &seg, word_param) {
+                UnknownBodyEvidence::Constructs => states.fill(true),
+                UnknownBodyEvidence::ReturnsWord => {
+                    proof.invalid_return |= states.iter().any(|constructed| !constructed);
+                    proof.proved_return |= states.iter().any(|constructed| *constructed);
+                    states.clear();
+                }
+                UnknownBodyEvidence::ReturnsSomethingElse => {
+                    proof.invalid_return = true;
+                    states.clear();
+                }
+                UnknownBodyEvidence::Terminates => states.clear(),
+                UnknownBodyEvidence::Nothing => {}
+            }
+        }
+        proof.fallthrough_constructed = states;
+        Some(proof)
+    }
+
+    fn possible_if_body_spans(
+        &self,
+        seg: &SegmentedCommand,
+        _word_param: &str,
+    ) -> Option<(Vec<Span>, bool)> {
+        let registry = self.registry?;
+        let args: Vec<&str> = seg.args().iter().map(String::as_str).collect();
+        if registry.invocation_completion(seg.name(), &args, self.profile.availability_mask)
+            != tcl_registry::registry::InvocationCompletion::FallsThrough
+            || registry.control_invocation_valid(seg.name(), &args, self.profile.availability_mask)
+                != Some(true)
+        {
+            return None;
+        }
+        let exprs = registry.arg_indices_for_role(seg.name(), &args, tcl_registry::ArgRole::Expr);
+        let bodies = registry.arg_indices_for_role(seg.name(), &args, tcl_registry::ArgRole::Body);
+        if bodies.iter().any(|body| {
+            registry.control_arm_semantics(seg.name(), &args, *body)
+                != Some(tcl_registry::registry::ControlArmSemantics::Selected)
+        }) {
+            return None;
+        }
+        let mut all_known = true;
+        let mut selected = None;
+        for (branch, expr_idx) in exprs.iter().copied().enumerate() {
+            match self.literal_boolean_expr(seg.args().get(expr_idx)?) {
+                Some(true) => {
+                    selected = bodies.get(branch).copied();
+                    break;
+                }
+                Some(false) => {}
+                None => {
+                    all_known = false;
+                    break;
                 }
             }
-            // Evidence is path-local. A return in one script arm cannot be
-            // paired with a construction in a sibling arm: those are
-            // mutually exclusive executions in `if`/`switch`/`try`.
-            if returns_word && !constructs {
-                return false;
-            }
-            proved |= constructs && returns_word;
         }
-        proved
+        if all_known {
+            if selected.is_none() && bodies.len() > exprs.len() {
+                selected = bodies.last().copied();
+            }
+            let spans = selected
+                .and_then(|idx| seg.arg_tokens().get(idx).map(|token| token.span))
+                .into_iter()
+                .collect();
+            return Some((spans, selected.is_none()));
+        }
+        let spans = bodies
+            .iter()
+            .filter_map(|idx| seg.arg_tokens().get(*idx).map(|token| token.span))
+            .collect();
+        Some((spans, bodies.len() <= exprs.len()))
+    }
+
+    fn literal_boolean_expr(&self, word: &str) -> Option<bool> {
+        if !crate::var_refs::scan_var_ref_forms(word).is_empty() || word.contains('[') {
+            return None;
+        }
+        let expr = word
+            .trim()
+            .strip_prefix('{')
+            .and_then(|value| value.strip_suffix('}'))
+            .unwrap_or(word.trim());
+        crate::static_loops::evaluate_expr_with_constants(
+            &crate::parse_expr(expr, Some(self.dialect())),
+            &crate::static_loops::StaticEnv::new(),
+            crate::tcl_expr_eval::FoldPolicy::default(),
+        )
+        .map(|value| value != 0)
+    }
+
+    /// Resolve a method-chain continuation from the current metaclass's
+    /// actual linearised hierarchy. A user-defined next provider is judged
+    /// from its body; only a proved chain end may use the registry-declared
+    /// completion of the class system's built-in fallback.
+    fn next_chain_terminates(
+        &self,
+        meta: &UserMetaclass,
+        class: &ClassDef,
+        args: &[&str],
+        anchor_arg: Option<usize>,
+    ) -> Option<bool> {
+        if class.inheritance_unknown {
+            return None;
+        }
+        let method = meta.grammar.unknown_dispatch_method?;
+        let mut classes = self.result.all_classes.clone();
+        classes.insert(class.qualified_name.clone(), class.clone());
+        let hierarchy = super::class_hierarchy::build_class_hierarchy(classes.clone());
+        if !hierarchy.errors.is_empty() {
+            return None;
+        }
+        if hierarchy.method_target(&class.qualified_name, method)
+            != Some(class.qualified_name.as_str())
+        {
+            return None;
+        }
+        let mro = hierarchy.mro_map.get(&class.qualified_name)?;
+        let current = mro.iter().position(|name| name == &class.qualified_name)?;
+        let scan_from = if let Some(anchor_arg) = anchor_arg {
+            let written = args.get(anchor_arg)?;
+            if crate::naming::is_dynamic_word(written) {
+                return None;
+            }
+            let namespace = class
+                .qualified_name
+                .rsplit_once("::")
+                .map_or("", |(namespace, _)| namespace);
+            let qualified = crate::naming::qualify(namespace, written);
+            let anchor = mro.iter().position(|name| name == &qualified)?;
+            (anchor > current).then_some(anchor)?
+        } else {
+            current + 1
+        };
+        for (index, ancestor) in mro.iter().enumerate().skip(scan_from) {
+            if let Some(provider) = classes.get(ancestor) {
+                if let Some(definition) = provider.methods.get(method) {
+                    return self.method_body_terminates(definition);
+                }
+                continue;
+            }
+            if ancestor.trim_start_matches(':') == meta.root_command.trim_start_matches(':') {
+                return Self::builtin_next_completion(meta.grammar, method, index, mro.len());
+            }
+            return None;
+        }
+        None
+    }
+
+    fn builtin_next_completion(
+        grammar: &tcl_registry::definer::DefinitionBodyGrammar,
+        method: &str,
+        provider_index: usize,
+        mro_len: usize,
+    ) -> Option<bool> {
+        (provider_index + 1 == mro_len).then_some(grammar.builtin_method_terminates(method))
+    }
+
+    fn method_body_terminates(&self, method: &super::types::MethodDef) -> Option<bool> {
+        let registry = self.registry?;
+        for seg in self.direct_statements_in_span(method.body_span)? {
+            let args: Vec<&str> = seg.args().iter().map(String::as_str).collect();
+            match registry.invocation_completion(seg.name(), &args, self.profile.availability_mask)
+            {
+                tcl_registry::registry::InvocationCompletion::FallsThrough => {
+                    let controls = self.control_arms_for_segment(&seg);
+                    if !controls.complete || !controls.arms.is_empty() {
+                        return None;
+                    }
+                }
+                tcl_registry::registry::InvocationCompletion::ReturnsResult(_) => {
+                    return Some(false);
+                }
+                tcl_registry::registry::InvocationCompletion::Terminates => return Some(true),
+                tcl_registry::registry::InvocationCompletion::Unknown => return None,
+            }
+        }
+        Some(false)
     }
 
     /// What one statement of an unknown-dispatch body contributes to
@@ -5841,6 +6129,7 @@ impl Analyser {
     fn unknown_body_evidence(
         &self,
         meta: &UserMetaclass,
+        class: &ClassDef,
         seg: &SegmentedCommand,
         word_param: &str,
     ) -> UnknownBodyEvidence {
@@ -5848,82 +6137,80 @@ impl Analyser {
             return UnknownBodyEvidence::Nothing;
         };
         let args: Vec<&str> = seg.args().iter().map(String::as_str).collect();
-        // The command's own result word, when it has one — registry data
-        // (`return`'s resolver stamps `ArgRole::Result` on the bare form), so
-        // `return` is never named here and `::return` classifies identically.
-        if let Some(idx) = registry
-            .arg_indices_for_role(seg.name(), &args, tcl_registry::ArgRole::Result)
-            .first()
-            .copied()
-            && let Some(word) = args.get(idx)
-        {
-            return if crate::value_shapes::whole_word_scalar_var_name(word) == Some(word_param) {
-                UnknownBodyEvidence::ReturnsWord
-            } else {
-                UnknownBodyEvidence::ReturnsSomethingElse
-            };
-        }
-        // A construction on this very class: `[self] create $w …` / `my
-        // create $w …`. The receiver is registry data
-        // (`is_self_receiver_call` / `method_dispatch_keyword`), and so is the
-        // manufacturer word and which of its arguments names the instance.
+        // A compound self receiver is not itself a registry command head, so
+        // classify its registry-described manufacturer method before asking
+        // for ordinary command completion. The full dispatch shape remains
+        // typed by the self-receiver hook and the definition grammar.
         let head = seg.name();
         let receiver_is_self = registry
             .method_dispatch_keyword(head)
             .is_some_and(|kind| kind == tcl_registry::registry::MethodDispatchKind::SelfDispatch)
             || bracketed_self_receiver(registry, head);
-        if !receiver_is_self {
-            return UnknownBodyEvidence::Nothing;
+        if receiver_is_self
+            && let Some(manufacturer) = args.first().and_then(|kw| meta.grammar.manufacturer(kw))
+        {
+            let Some(name_arg) = manufacturer.names_instance_at else {
+                return UnknownBodyEvidence::Nothing;
+            };
+            // The instance-name word must be exactly the fallback's own first
+            // parameter, optionally with Tcl's global namespace qualifier.
+            return if args.get(name_arg as usize).is_some_and(|word| {
+                let name_word = word.strip_prefix("::").unwrap_or(word);
+                crate::value_shapes::whole_word_scalar_var_name(name_word) == Some(word_param)
+            }) {
+                UnknownBodyEvidence::Constructs
+            } else {
+                UnknownBodyEvidence::Nothing
+            };
         }
-        let Some(manufacturer) = args.first().and_then(|kw| meta.grammar.manufacturer(kw)) else {
-            return UnknownBodyEvidence::Nothing;
-        };
-        let Some(name_arg) = manufacturer.names_instance_at else {
-            return UnknownBodyEvidence::Nothing;
-        };
-        // The instance-name word must be exactly the fallback's own first
-        // parameter, optionally with Tcl's global namespace qualifier.  A
-        // mere occurrence is not enough: `[self] create $w.hull` constructs
-        // a different command from the `$w` the method returns and therefore
-        // proves no handle.  `::$w` is the useful exception — Tk-style code
-        // uses it to make the global spelling explicit, and Tcl's ordinary
-        // command lookup reaches that same global command from a bare `$w`.
-        if args.get(name_arg as usize).is_some_and(|word| {
-            let name_word = word.strip_prefix("::").unwrap_or(word);
-            crate::value_shapes::whole_word_scalar_var_name(name_word) == Some(word_param)
-        }) {
-            UnknownBodyEvidence::Constructs
-        } else {
-            UnknownBodyEvidence::Nothing
+        let completion =
+            registry.invocation_completion(seg.name(), &args, self.profile.availability_mask);
+        if registry.method_dispatch_keyword(seg.name())
+            == Some(tcl_registry::registry::MethodDispatchKind::NextChain)
+        {
+            if completion != tcl_registry::registry::InvocationCompletion::FallsThrough {
+                return UnknownBodyEvidence::ReturnsSomethingElse;
+            }
+            let anchor_arg = registry
+                .arg_indices_for_role(seg.name(), &args, tcl_registry::ArgRole::Name)
+                .into_iter()
+                .next();
+            return self
+                .next_chain_terminates(meta, class, &args, anchor_arg)
+                .map_or(UnknownBodyEvidence::ReturnsSomethingElse, |terminates| {
+                    if terminates {
+                        UnknownBodyEvidence::Terminates
+                    } else {
+                        UnknownBodyEvidence::ReturnsSomethingElse
+                    }
+                });
         }
+        match completion {
+            tcl_registry::registry::InvocationCompletion::ReturnsResult(Some(idx)) => {
+                let Some(word) = args.get(idx) else {
+                    return UnknownBodyEvidence::ReturnsSomethingElse;
+                };
+                return if crate::value_shapes::whole_word_scalar_var_name(word) == Some(word_param)
+                {
+                    UnknownBodyEvidence::ReturnsWord
+                } else {
+                    UnknownBodyEvidence::ReturnsSomethingElse
+                };
+            }
+            tcl_registry::registry::InvocationCompletion::ReturnsResult(None)
+            | tcl_registry::registry::InvocationCompletion::Unknown => {
+                return UnknownBodyEvidence::ReturnsSomethingElse;
+            }
+            tcl_registry::registry::InvocationCompletion::Terminates => {
+                return UnknownBodyEvidence::Terminates;
+            }
+            tcl_registry::registry::InvocationCompletion::FallsThrough => {}
+        }
+        UnknownBodyEvidence::Nothing
     }
 
-    /// The direct statements of each independently executed script block in
-    /// `member`'s body. The outer body and every nested `if`/`switch`/`try`
-    /// arm are separate entries, so a construction in one arm can never be
-    /// combined with a return in a sibling arm.
-    ///
-    /// Registry-driven descent: a word is recursed into only when its role
-    /// [`carries_script`](tcl_registry::ArgRole::carries_script), so no
-    /// command word is named here.
-    fn member_body_script_blocks(
-        &self,
-        member: &super::types::MethodDef,
-    ) -> Option<Vec<Vec<SegmentedCommand>>> {
-        let start = member.body_span.start() as usize;
-        let end = member.body_span.end() as usize;
-        let raw = self.source.get(start..end)?;
-        // `MethodDef` keeps the body **word**'s span, whose start sits on the
-        // opening delimiter; the script is its content.
-        let (body, base) = raw
-            .strip_prefix(['{', '"'])
-            .map_or((raw, start), |inner| (inner, start.saturating_add(1)));
-        let mut out = Vec::new();
-        self.collect_script_blocks(body, u32::try_from(base).unwrap_or(0), 0, &mut out);
-        Some(out)
-    }
-
-    /// Recursive worker for [`Self::member_body_script_blocks`].
+    /// Registry-driven recursive script-block collection for broad structural
+    /// scans that do not claim control-flow reachability.
     fn collect_script_blocks(
         &self,
         text: &str,
@@ -6008,7 +6295,12 @@ impl Analyser {
     ///   be homed against the call site's namespace, which this pass does not
     ///   model, so it abstains instead of homing it wrongly;
     /// * a name word carrying a command substitution, a backslash escape, or
-    ///   an unbound interpolation resolves to nothing.
+    ///   an unbound interpolation resolves to nothing;
+    /// * nested control-flow bodies are retained as paths. Typed registry
+    ///   hooks select `if`/`switch` arms and the unconditional parts of
+    ///   `try`; a dynamic condition, handler-only path, loop, or unsupported
+    ///   control shape abstains instead of flattening its body into the
+    ///   unconditional stream.
     ///
     /// No command is named here and no framework is special-cased: the
     /// manufacturer words come from the registry
@@ -6037,8 +6329,12 @@ impl Analyser {
                 continue;
             };
             let mut seen: std::collections::HashSet<String> = std::collections::HashSet::new();
-            for binding in values {
-                let Some(resolved) = self.resolve_parameterised_creation_name(&candidate, binding)
+            for call in values {
+                if !self.load_time_call_is_reachable(call) {
+                    continue;
+                }
+                let Some(resolved) =
+                    self.resolve_parameterised_creation_name(&candidate, &call.args)
                 else {
                     continue;
                 };
@@ -6053,6 +6349,228 @@ impl Analyser {
                 self.retract_unresolved_class(&candidate);
             }
         }
+    }
+
+    fn load_time_call_is_reachable(&mut self, call: &LoadTimeCall) -> bool {
+        let mut body_span = Span::new(0, u32::try_from(self.source.len()).unwrap_or(u32::MAX));
+        let env = std::collections::HashMap::new();
+        for arm in &call.control_path {
+            if !self.static_prefix_falls_through(body_span, arm.controller.span.start())
+                || self.control_body_is_selected("", arm, &env, 0) != Some(true)
+            {
+                return false;
+            }
+            body_span = arm.body_span;
+        }
+        self.static_prefix_falls_through(body_span, call.call_off)
+    }
+
+    fn static_prefix_falls_through(&mut self, body_span: Span, stop_off: u32) -> bool {
+        if self.registry.is_none() {
+            return false;
+        }
+        let Some(statements) = self.direct_statements_in_span(body_span) else {
+            return false;
+        };
+        for seg in statements
+            .into_iter()
+            .take_while(|seg| seg.span.start() < stop_off)
+        {
+            if !self.static_statement_falls_through(&seg, 0) {
+                return false;
+            }
+        }
+        true
+    }
+
+    /// Prove that a statically declared procedure call completes normally.
+    /// `return` is normal completion at the caller, while registry-declared
+    /// non-normal completions and unresolved statements make the proof
+    /// abstain. Calls through a recorded class-factory oracle are ordinary
+    /// fallthrough statements when their exported manufacturer layout is
+    /// valid; no factory command spelling is known here.
+    fn static_user_proc_call_falls_through(
+        &mut self,
+        caller: &str,
+        seg: &SegmentedCommand,
+        depth: u32,
+        stack: &mut Vec<String>,
+    ) -> Option<bool> {
+        if depth >= MAX_UNKNOWN_BODY_DEPTH {
+            return None;
+        }
+        let qname = self.resolve_static_proc_name(caller, seg.name())?;
+        if stack.iter().any(|active| active == &qname) {
+            return None;
+        }
+        let proc_def = self.result.all_procs.get(&qname)?.clone();
+        if proc_def.params_computed {
+            return None;
+        }
+        let actuals: Vec<Option<String>> = seg.args().iter().cloned().map(Some).collect();
+        bind_proc_formals(&proc_def.params, &actuals)?;
+        stack.push(qname.clone());
+        let result = self.static_proc_body_falls_through(&qname, proc_def.body_span, depth, stack);
+        stack.pop();
+        result
+    }
+
+    fn static_proc_body_falls_through(
+        &mut self,
+        qname: &str,
+        body_span: Span,
+        depth: u32,
+        stack: &mut Vec<String>,
+    ) -> Option<bool> {
+        let registry = self.registry?;
+        for seg in self.direct_statements_in_span(body_span)? {
+            let args: Vec<&str> = seg.args().iter().map(String::as_str).collect();
+            match registry.invocation_completion(seg.name(), &args, self.profile.availability_mask)
+            {
+                tcl_registry::registry::InvocationCompletion::ReturnsResult(_) => {
+                    return Some(true);
+                }
+                tcl_registry::registry::InvocationCompletion::Terminates => return Some(false),
+                tcl_registry::registry::InvocationCompletion::Unknown => {
+                    if registry.get(seg.name()).is_some() {
+                        return None;
+                    }
+                    if self.known_factory_invocation_falls_through(qname, &seg) {
+                        continue;
+                    }
+                    if self.static_user_proc_call_falls_through(qname, &seg, depth + 1, stack)? {
+                        continue;
+                    }
+                    return Some(false);
+                }
+                tcl_registry::registry::InvocationCompletion::FallsThrough => {
+                    if !self.static_statement_falls_through(&seg, depth + 1) {
+                        return None;
+                    }
+                }
+            }
+        }
+        Some(true)
+    }
+
+    fn known_factory_invocation_falls_through(&self, caller: &str, seg: &SegmentedCommand) -> bool {
+        if crate::naming::is_dynamic_word(seg.name()) {
+            return false;
+        }
+        let namespace = caller
+            .rsplit_once("::")
+            .map_or("", |(namespace, _)| namespace);
+        let candidates = crate::naming::bareword_resolution_candidates(namespace, seg.name());
+        let Some(factory) = self.class_factory_for_candidates(&candidates, seg.arg_tokens()) else {
+            return false;
+        };
+        let Some(method) = seg.args().first() else {
+            return false;
+        };
+        if !factory.exported_manufacturers.contains(method) {
+            return false;
+        }
+        let Some(grammar) = self.definition_grammar(&factory.root_metaclass) else {
+            return false;
+        };
+        let Some(manufacturer) = grammar.manufacturer(method) else {
+            return false;
+        };
+        manufacturer_layout(&factory, manufacturer, seg.args(), seg.arg_tokens())
+            .is_some_and(|layout| layout.name_arg < seg.args().len())
+    }
+
+    fn static_statement_falls_through(&mut self, seg: &SegmentedCommand, depth: u32) -> bool {
+        if depth >= MAX_UNKNOWN_BODY_DEPTH {
+            return false;
+        }
+        let Some(registry) = self.registry else {
+            return false;
+        };
+        let args: Vec<&str> = seg.args().iter().map(String::as_str).collect();
+        match registry.invocation_completion(seg.name(), &args, self.profile.availability_mask) {
+            tcl_registry::registry::InvocationCompletion::FallsThrough => {}
+            tcl_registry::registry::InvocationCompletion::Unknown
+                if registry.get(seg.name()).is_none() =>
+            {
+                if self.known_factory_invocation_falls_through("", seg) {
+                    return true;
+                }
+                return self
+                    .static_user_proc_call_falls_through("", seg, depth + 1, &mut Vec::new())
+                    .unwrap_or(false);
+            }
+            _ => return false,
+        }
+        let is_control = registry
+            .invocation_traits(seg.name(), &args, self.profile.availability_mask)
+            .contains(tcl_registry::Traits::CONTROL_FLOW);
+        if is_control
+            && registry.control_invocation_valid(seg.name(), &args, self.profile.availability_mask)
+                != Some(true)
+        {
+            return false;
+        }
+        let controls = self.control_arms_for_segment(seg);
+        if !controls.complete {
+            return false;
+        }
+        let arms = controls.arms;
+        if arms.is_empty() {
+            return true;
+        }
+
+        let mut selected = Vec::new();
+        let mut saw_typed_arm = false;
+        let mut saw_propagating_arm = false;
+        for arm in arms {
+            let Some(semantics) = self.control_arm_semantics_for(&arm) else {
+                if is_control {
+                    return false;
+                }
+                continue;
+            };
+            saw_typed_arm = true;
+            match semantics {
+                tcl_registry::registry::ControlArmSemantics::Always
+                | tcl_registry::registry::ControlArmSemantics::FrameBoundary => {
+                    saw_propagating_arm = true;
+                    if !self.static_prefix_falls_through(arm.body_span, arm.body_span.end()) {
+                        return false;
+                    }
+                }
+                tcl_registry::registry::ControlArmSemantics::Selected => selected.push(arm),
+                tcl_registry::registry::ControlArmSemantics::CompletionBoundary => {}
+                tcl_registry::registry::ControlArmSemantics::Uncertain => return false,
+            }
+        }
+        if !saw_typed_arm || selected.is_empty() {
+            return true;
+        }
+        if saw_propagating_arm {
+            return false;
+        }
+
+        let env = std::collections::HashMap::new();
+        let mut selected_body = None;
+        let mut selection_unknown = false;
+        for arm in selected {
+            match self.control_body_is_selected("", &arm, &env, depth + 1) {
+                Some(true) if selected_body.is_none() => selected_body = Some(arm.body_span),
+                Some(true) => return false,
+                Some(false) => {}
+                None => {
+                    selection_unknown = true;
+                    if !self.static_prefix_falls_through(arm.body_span, arm.body_span.end()) {
+                        return false;
+                    }
+                }
+            }
+        }
+        if selection_unknown {
+            return true;
+        }
+        selected_body.is_none_or(|span| self.static_prefix_falls_through(span, span.end()))
     }
 
     /// The placeholder record made by the ordinary walk for `candidate`.
@@ -6125,21 +6643,33 @@ impl Analyser {
         candidate: &ParameterisedCreation,
         binding: &[String],
     ) -> Option<String> {
-        let mut env: std::collections::HashMap<String, String> = candidate
-            .params
-            .iter()
-            .zip(binding)
-            .filter(|(_, value)| !tcl_syntax::naming::is_dynamic_word(value))
-            .map(|(name, value)| (name.clone(), value.clone()))
-            .collect();
+        let actuals: Vec<Option<String>> = binding.iter().cloned().map(Some).collect();
+        let mut env: std::collections::HashMap<String, String> =
+            bind_proc_formals(&candidate.params, &actuals)?
+                .into_iter()
+                .filter_map(|(name, value)| value.map(|value| (name, value)))
+                .filter(|(_, value)| !tcl_syntax::naming::is_dynamic_word(value))
+                .collect();
         let proc_def = self.result.all_procs.get(&candidate.proc_qname)?.clone();
-        let statements = self.direct_statements_in_span(proc_def.body_span)?;
-        for seg in statements {
-            if seg.span.start() >= candidate.call_off {
-                break;
+        let mut body_span = proc_def.body_span;
+        for arm in &candidate.control_path {
+            self.apply_static_path_prefix(
+                &candidate.proc_qname,
+                body_span,
+                arm.controller.span.start(),
+                &mut env,
+            )?;
+            if !self.control_body_is_selected(&candidate.proc_qname, arm, &env, 0)? {
+                return None;
             }
-            self.apply_static_provenance_statement(&candidate.proc_qname, &seg, &mut env, 0)?;
+            body_span = arm.body_span;
         }
+        self.apply_static_path_prefix(
+            &candidate.proc_qname,
+            body_span,
+            candidate.call_off,
+            &mut env,
+        )?;
         self.static_word_value(
             &candidate.name_word,
             &candidate.proc_qname,
@@ -6147,6 +6677,274 @@ impl Analyser {
             &mut Vec::new(),
             0,
         )
+    }
+
+    /// Execute the direct, dominating prefix of one selected script body.
+    /// A Tcl result completion ends the path; statements after it cannot
+    /// contribute provenance to a later creation.
+    fn apply_static_path_prefix(
+        &mut self,
+        proc_qname: &str,
+        body_span: Span,
+        stop_off: u32,
+        env: &mut std::collections::HashMap<String, String>,
+    ) -> Option<()> {
+        for seg in self.direct_statements_in_span(body_span)? {
+            if seg.span.start() >= stop_off {
+                break;
+            }
+            if !self.static_statement_falls_through(&seg, 0) {
+                return None;
+            }
+            self.apply_static_provenance_statement(proc_qname, &seg, env, 0)?;
+        }
+        Some(())
+    }
+
+    /// Whether the typed control-flow command selects `arm` for the current
+    /// literal environment.  Unknown conditions and unsupported control
+    /// shapes abstain; no nested body is flattened into an unconditional
+    /// statement stream.
+    fn control_body_is_selected(
+        &mut self,
+        proc_qname: &str,
+        arm: &ControlArm,
+        env: &std::collections::HashMap<String, String>,
+        depth: u32,
+    ) -> Option<bool> {
+        let registry = self.registry?;
+        let spec = registry.get(arm.controller.name())?;
+        match self.control_arm_semantics_for(arm)? {
+            tcl_registry::registry::ControlArmSemantics::Always => return Some(true),
+            tcl_registry::registry::ControlArmSemantics::Selected => {}
+            tcl_registry::registry::ControlArmSemantics::FrameBoundary
+            | tcl_registry::registry::ControlArmSemantics::Uncertain => return None,
+            tcl_registry::registry::ControlArmSemantics::CompletionBoundary => {
+                return Some(true);
+            }
+        }
+        match spec.lowering_hook? {
+            tcl_registry::hooks::LoweringHookId::If => {
+                self.if_body_is_selected(proc_qname, arm, env, depth)
+            }
+            tcl_registry::hooks::LoweringHookId::Switch => {
+                self.switch_body_is_selected(proc_qname, arm, env, depth)
+            }
+            _ => None,
+        }
+    }
+
+    /// Resolve typed semantics for either a direct body argument or one body
+    /// nested inside a registry-described case-list argument. The latter's
+    /// token span belongs to a list element, not the controller argv, so its
+    /// owning clause-list position must be recovered through `CaseListSpec`.
+    fn control_arm_semantics_for(
+        &self,
+        arm: &ControlArm,
+    ) -> Option<tcl_registry::registry::ControlArmSemantics> {
+        let registry = self.registry?;
+        let args: Vec<&str> = arm.controller.args().iter().map(String::as_str).collect();
+        let direct = arm
+            .controller
+            .arg_tokens()
+            .iter()
+            .position(|token| token.span == arm.body_span);
+        let body_index = direct.or_else(|| {
+            let (_, invocation) = registry.case_invocation(
+                arm.controller.name(),
+                &args,
+                self.profile.availability_mask,
+            )?;
+            let index = invocation.clause_list_index?;
+            let container = arm.controller.arg_tokens().get(index)?.span;
+            (container.start() <= arm.body_span.start() && arm.body_span.end() <= container.end())
+                .then_some(index)
+        })?;
+        registry.control_arm_semantics(arm.controller.name(), &args, body_index)
+    }
+
+    fn control_arms_for_segment(&self, seg: &SegmentedCommand) -> ControlArms {
+        let Some(registry) = self.registry else {
+            return ControlArms::default();
+        };
+        let args: Vec<&str> = seg.args().iter().map(String::as_str).collect();
+        let mut indices =
+            registry.arg_indices_for_role(seg.name(), &args, tcl_registry::ArgRole::Body);
+        indices.sort_unstable();
+        indices.dedup();
+        let case_call = registry
+            .case_invocation(seg.name(), &args, self.profile.availability_mask)
+            .and_then(|(_, invocation)| invocation.clause_list_index);
+        let mut arms = Vec::new();
+        let mut complete = true;
+        for idx in indices {
+            let (Some(word), Some(token)) =
+                (seg.args().get(idx), seg.arg_tokens().get(idx).copied())
+            else {
+                complete = false;
+                continue;
+            };
+            if case_call == Some(idx) {
+                let elements =
+                    crate::segmenter::flatten_clause_list_elements(&self.source, word, token);
+                for pair in elements.chunks_exact(2) {
+                    let body_word = &pair[1].0;
+                    let body_token = pair[1].1;
+                    if body_token.kind == TokenType::Str
+                        || (body_token.kind == TokenType::Esc
+                            && !tcl_syntax::naming::is_dynamic_word(body_word)
+                            && !body_word.contains('\\'))
+                    {
+                        arms.push(ControlArm {
+                            controller: seg.clone(),
+                            body_span: body_token.span,
+                        });
+                    } else {
+                        complete = false;
+                    }
+                }
+            } else if token.kind == TokenType::Str
+                || (token.kind == TokenType::Esc
+                    && !tcl_syntax::naming::is_dynamic_word(word)
+                    && !word.contains('\\'))
+            {
+                arms.push(ControlArm {
+                    controller: seg.clone(),
+                    body_span: token.span,
+                });
+            } else {
+                complete = false;
+            }
+        }
+        ControlArms { arms, complete }
+    }
+
+    fn if_body_is_selected(
+        &mut self,
+        proc_qname: &str,
+        arm: &ControlArm,
+        env: &std::collections::HashMap<String, String>,
+        depth: u32,
+    ) -> Option<bool> {
+        let registry = self.registry?;
+        let args: Vec<&str> = arm.controller.args().iter().map(String::as_str).collect();
+        let exprs = registry.arg_indices_for_role(
+            arm.controller.name(),
+            &args,
+            tcl_registry::ArgRole::Expr,
+        );
+        let bodies = registry.arg_indices_for_role(
+            arm.controller.name(),
+            &args,
+            tcl_registry::ArgRole::Body,
+        );
+        let wanted = arm
+            .controller
+            .arg_tokens()
+            .iter()
+            .position(|token| token.span == arm.body_span)?;
+        for (branch, expr_idx) in exprs.iter().copied().enumerate() {
+            let selected = self.static_expr_value(
+                arm.controller.args().get(expr_idx)?,
+                proc_qname,
+                env,
+                &mut Vec::new(),
+                depth,
+            )?;
+            if selected {
+                return Some(bodies.get(branch).copied() == Some(wanted));
+            }
+        }
+        Some(exprs.len() < bodies.len() && bodies.last().copied() == Some(wanted))
+    }
+
+    fn switch_body_is_selected(
+        &mut self,
+        proc_qname: &str,
+        arm: &ControlArm,
+        env: &std::collections::HashMap<String, String>,
+        depth: u32,
+    ) -> Option<bool> {
+        let registry = self.registry?;
+        let args: Vec<&str> = arm.controller.args().iter().map(String::as_str).collect();
+        let (case, invocation) = registry.case_invocation(
+            arm.controller.name(),
+            &args,
+            self.profile.availability_mask,
+        )?;
+        if usize::from(case.subject_args) != 1 {
+            return None;
+        }
+        if invocation.mode == tcl_registry::spec::CaseMatchMode::Regexp {
+            return None;
+        }
+        let subject = self.static_word_value(
+            arm.controller.args().get(invocation.subject_index?)?,
+            proc_qname,
+            env,
+            &mut Vec::new(),
+            depth,
+        )?;
+
+        let mut clauses: Vec<(String, String, Span)> = Vec::new();
+        if let Some(list_index) = invocation.clause_list_index {
+            let word = arm.controller.args().get(list_index)?;
+            let token = *arm.controller.arg_tokens().get(list_index)?;
+            let elements =
+                crate::segmenter::flatten_clause_list_elements(&self.source, word, token);
+            for pair in elements.chunks_exact(2) {
+                clauses.push((pair[0].0.clone(), pair[1].0.clone(), pair[1].1.span));
+            }
+        } else {
+            let mut idx = invocation.inline_clause_start?;
+            while idx + 1 < arm.controller.args().len() {
+                let pattern = self.static_word_value(
+                    arm.controller.args().get(idx)?,
+                    proc_qname,
+                    env,
+                    &mut Vec::new(),
+                    depth,
+                )?;
+                let body_span = arm.controller.arg_tokens().get(idx + 1)?.span;
+                clauses.push((
+                    pattern,
+                    arm.controller.args().get(idx + 1)?.clone(),
+                    body_span,
+                ));
+                idx += 2;
+            }
+        }
+
+        let mut default = None;
+        let mut selected = None;
+        for (idx, (pattern, _, _body_span)) in clauses.iter().enumerate() {
+            if case.is_keyword_pattern(pattern, idx, clauses.len()) {
+                default.get_or_insert(idx);
+                continue;
+            }
+            let matched = match invocation.mode {
+                tcl_registry::spec::CaseMatchMode::Exact if invocation.nocase => {
+                    pattern.to_lowercase() == subject.to_lowercase()
+                }
+                tcl_registry::spec::CaseMatchMode::Exact => pattern == &subject,
+                tcl_registry::spec::CaseMatchMode::Glob => {
+                    tcl_syntax::glob::string_case_match(pattern, &subject, invocation.nocase)
+                }
+                tcl_registry::spec::CaseMatchMode::Regexp => return None,
+            };
+            if matched {
+                selected = Some(idx);
+                break;
+            }
+        }
+        let mut selected = selected.or(default)?;
+        while clauses
+            .get(selected)
+            .is_some_and(|(_, body, _)| case.fallthrough_body == Some(body.as_str()))
+        {
+            selected += 1;
+        }
+        Some(clauses.get(selected)?.2 == arm.body_span)
     }
 
     /// Apply one dominating statement to the literal environment.  Binding
@@ -6182,7 +6980,7 @@ impl Analyser {
                     proc_qname,
                     env,
                     &mut Vec::new(),
-                    depth + 1,
+                    depth,
                 )
             {
                 if condition {
@@ -6217,13 +7015,8 @@ impl Analyser {
             )
             && let Some(bound) = binding.resolve(&args)
         {
-            let value = self.static_word_value(
-                bound.class_word,
-                proc_qname,
-                env,
-                &mut Vec::new(),
-                depth + 1,
-            );
+            let value =
+                self.static_word_value(bound.class_word, proc_qname, env, &mut Vec::new(), depth);
             if let Some(value) = value {
                 env.insert(bound.name.to_owned(), value);
             } else {
@@ -6386,9 +7179,9 @@ impl Analyser {
         if let Some((head, args)) = crate::value_shapes::parse_command_substitution(unquoted) {
             let values: Vec<Option<String>> = args
                 .iter()
-                .map(|arg| self.static_word_value(arg, proc_qname, env, stack, depth + 1))
+                .map(|arg| self.static_word_value(arg, proc_qname, env, stack, depth))
                 .collect();
-            return self.static_command_value(&head, &values, proc_qname, env, stack, depth + 1);
+            return self.static_command_value(&head, &values, proc_qname, env, stack, depth);
         }
         let mut names: Vec<String> = env.keys().cloned().collect();
         names.sort();
@@ -6561,30 +7354,95 @@ impl Analyser {
             return None;
         }
         let mut env = std::collections::HashMap::new();
-        for (param, value) in proc_def.params.iter().zip(args) {
+        for (name, value) in bind_proc_formals(&proc_def.params, args)? {
             if let Some(value) = value {
-                env.insert(param.name.clone(), value.clone());
+                env.insert(name, value);
             }
         }
-        let statements = self.direct_statements_in_span(proc_def.body_span)?;
+        match self.static_script_result(qname, proc_def.body_span, &mut env, stack, depth)? {
+            StaticScriptOutcome::FallsThrough(value) | StaticScriptOutcome::Returns(value) => {
+                Some(value)
+            }
+        }
+    }
+
+    fn static_script_result(
+        &mut self,
+        qname: &str,
+        body_span: Span,
+        env: &mut std::collections::HashMap<String, String>,
+        stack: &mut Vec<String>,
+        depth: u32,
+    ) -> Option<StaticScriptOutcome> {
+        if depth > MAX_UNKNOWN_BODY_DEPTH {
+            return None;
+        }
+        let statements = self.direct_statements_in_span(body_span)?;
         let mut result = String::new();
         for seg in statements {
             let registry = self.registry?;
             let raw_args: Vec<&str> = seg.args().iter().map(String::as_str).collect();
-            if let Some(idx) = registry
-                .arg_indices_for_role(seg.name(), &raw_args, tcl_registry::ArgRole::Result)
-                .first()
-                .copied()
-            {
-                return self.static_word_value(seg.args().get(idx)?, qname, &env, stack, depth + 1);
+            match registry.invocation_completion(
+                seg.name(),
+                &raw_args,
+                self.profile.availability_mask,
+            ) {
+                tcl_registry::registry::InvocationCompletion::ReturnsResult(Some(idx)) => {
+                    let value =
+                        self.static_word_value(seg.args().get(idx)?, qname, env, stack, depth)?;
+                    return Some(StaticScriptOutcome::Returns(value));
+                }
+                tcl_registry::registry::InvocationCompletion::ReturnsResult(None) => {
+                    return Some(StaticScriptOutcome::Returns(String::new()));
+                }
+                tcl_registry::registry::InvocationCompletion::Terminates
+                | tcl_registry::registry::InvocationCompletion::Unknown => return None,
+                tcl_registry::registry::InvocationCompletion::FallsThrough => {}
             }
             let spec = registry.get(seg.name())?;
             if spec
                 .traits
                 .contains(tcl_registry::Traits::BRANCH_SELECTED_BODY)
             {
-                self.apply_static_provenance_statement(qname, &seg, &mut env, depth + 1)?;
-                result.clear();
+                if registry.control_invocation_valid(
+                    seg.name(),
+                    &raw_args,
+                    self.profile.availability_mask,
+                ) != Some(true)
+                {
+                    return None;
+                }
+                if !matches!(
+                    spec.lowering_hook,
+                    Some(
+                        tcl_registry::hooks::LoweringHookId::If
+                            | tcl_registry::hooks::LoweringHookId::Switch
+                    )
+                ) {
+                    return None;
+                }
+                let mut selected = None;
+                let controls = self.control_arms_for_segment(&seg);
+                if !controls.complete {
+                    return None;
+                }
+                for arm in controls.arms {
+                    match self.control_body_is_selected(qname, &arm, env, depth) {
+                        Some(true) if selected.is_none() => selected = Some(arm.body_span),
+                        Some(true) | None => return None,
+                        Some(false) => {}
+                    }
+                }
+                if let Some(span) = selected {
+                    match self.static_script_result(qname, span, env, stack, depth + 1)? {
+                        StaticScriptOutcome::Returns(value) => {
+                            return Some(StaticScriptOutcome::Returns(value));
+                        }
+                        StaticScriptOutcome::FallsThrough(value) => result = value,
+                    }
+                } else {
+                    result.clear();
+                }
                 continue;
             }
             if let Some(binding) = spec.binds_handle
@@ -6594,19 +7452,18 @@ impl Analyser {
                 )
                 && let Some(bound) = binding.resolve(&raw_args)
             {
-                result = self.static_word_value(bound.class_word, qname, &env, stack, depth + 1)?;
+                result = self.static_word_value(bound.class_word, qname, env, stack, depth)?;
                 env.insert(bound.name.to_owned(), result.clone());
                 continue;
             }
             let values: Vec<Option<String>> = seg
                 .args()
                 .iter()
-                .map(|arg| self.static_word_value(arg, qname, &env, stack, depth + 1))
+                .map(|arg| self.static_word_value(arg, qname, env, stack, depth))
                 .collect();
-            result =
-                self.static_command_value(seg.name(), &values, qname, &env, stack, depth + 1)?;
+            result = self.static_command_value(seg.name(), &values, qname, env, stack, depth)?;
         }
-        Some(result)
+        Some(StaticScriptOutcome::FallsThrough(result))
     }
 
     fn static_expr_value(
@@ -6640,8 +7497,8 @@ impl Analyser {
                 }
             }
             let end = end?;
-            let folded =
-                self.static_word_value(expr.get(start..end)?, proc_qname, env, stack, depth + 1)?;
+            let substitution = expr.get(start..end)?;
+            let folded = self.static_word_value(substitution, proc_qname, env, stack, depth)?;
             expr.replace_range(start..end, &folded);
         }
         let static_env: crate::static_loops::StaticEnv = env
@@ -6668,9 +7525,14 @@ impl Analyser {
         let start = span.start() as usize;
         let end = span.end() as usize;
         let raw = self.source.get(start..end)?;
-        let (body, base) = raw
-            .strip_prefix(['{', '"'])
-            .map_or((raw, start), |inner| (inner, start.saturating_add(1)));
+        let (body, base) = if matches!(raw, "}" | "{}") {
+            // A closed empty braced word has the lexer's degenerate span on
+            // its closing delimiter. It contains no script to execute.
+            ("", start)
+        } else {
+            raw.strip_prefix(['{', '"'])
+                .map_or((raw, start), |inner| (inner, start.saturating_add(1)))
+        };
         Some(crate::segmenter::segment_commands_with_offset_and_config(
             body,
             u32::try_from(base).unwrap_or(0),
@@ -6724,38 +7586,115 @@ impl Analyser {
             if proc_def.params_computed || proc_def.params.is_empty() {
                 continue;
             }
-            let params: Vec<String> = proc_def.params.iter().map(|p| p.name.clone()).collect();
-            let Some(body) = self.statements_in_span(proc_def.body_span) else {
-                continue;
-            };
-            for seg in body {
-                let args = seg.args().to_vec();
-                let Some(first) = args.first() else { continue };
-                if !registry.is_manufacturer_method(first) {
-                    continue;
-                }
-                // Which word names the instance is registry data; the union
-                // over families is enough here because
-                // `handle_oo_class_command` re-derives the real layout from
-                // the metaclass it resolves.
-                let Some(name_arg) = registry.uniform_manufacturer_names_instance_at(first) else {
-                    continue;
-                };
-                let Some(name_word) = args.get(name_arg) else {
-                    continue;
-                };
-                if crate::var_refs::scan_var_ref_forms(name_word).is_empty() {
-                    continue;
-                }
-                out.push(ParameterisedCreation {
-                    proc_qname: qname.clone(),
-                    params: params.clone(),
-                    name_word: name_word.clone(),
-                    call_off: seg.span.start(),
-                });
-            }
+            self.collect_parameterised_creation_sites(
+                registry,
+                ParameterisedProc {
+                    qname,
+                    params: &proc_def.params,
+                },
+                proc_def.body_span,
+                &mut Vec::new(),
+                0,
+                &mut out,
+            );
         }
         out
+    }
+
+    fn collect_parameterised_creation_sites(
+        &self,
+        registry: &tcl_registry::CommandRegistry,
+        proc_context: ParameterisedProc<'_>,
+        body_span: Span,
+        control_path: &mut Vec<ControlArm>,
+        depth: u32,
+        out: &mut Vec<ParameterisedCreation>,
+    ) {
+        if depth >= MAX_UNKNOWN_BODY_DEPTH {
+            return;
+        }
+        let Some(statements) = self.direct_statements_in_span(body_span) else {
+            return;
+        };
+        for seg in statements {
+            let args: Vec<&str> = seg.args().iter().map(String::as_str).collect();
+            if let Some(first) = seg.args().first()
+                && registry.is_manufacturer_method(first)
+                && let Some(name_arg) = registry.uniform_manufacturer_names_instance_at(first)
+                && let Some(name_word) = seg.args().get(name_arg)
+                && !crate::var_refs::scan_var_ref_forms(name_word).is_empty()
+            {
+                out.push(ParameterisedCreation {
+                    proc_qname: proc_context.qname.to_owned(),
+                    params: proc_context.params.to_vec(),
+                    name_word: name_word.clone(),
+                    call_off: seg.span.start(),
+                    control_path: control_path.clone(),
+                });
+            }
+
+            let case_call = registry
+                .case_invocation(seg.name(), &args, self.profile.availability_mask)
+                .and_then(|(_, invocation)| invocation.clause_list_index);
+            let mut body_indices =
+                registry.arg_indices_for_role(seg.name(), &args, tcl_registry::ArgRole::Body);
+            body_indices.sort_unstable();
+            body_indices.dedup();
+            for body_idx in body_indices {
+                let (Some(word), Some(token)) = (
+                    seg.args().get(body_idx),
+                    seg.arg_tokens().get(body_idx).copied(),
+                ) else {
+                    continue;
+                };
+                if case_call == Some(body_idx) {
+                    let elements =
+                        crate::segmenter::flatten_clause_list_elements(&self.source, word, token);
+                    for pair in elements.chunks_exact(2) {
+                        let body_token = pair[1].1;
+                        if body_token.kind != TokenType::Str {
+                            continue;
+                        }
+                        control_path.push(ControlArm {
+                            controller: seg.clone(),
+                            body_span: body_token.span,
+                        });
+                        self.collect_parameterised_creation_sites(
+                            registry,
+                            ParameterisedProc {
+                                qname: proc_context.qname,
+                                params: proc_context.params,
+                            },
+                            body_token.span,
+                            control_path,
+                            depth + 1,
+                            out,
+                        );
+                        control_path.pop();
+                    }
+                    continue;
+                }
+                if token.kind != TokenType::Str {
+                    continue;
+                }
+                control_path.push(ControlArm {
+                    controller: seg.clone(),
+                    body_span: token.span,
+                });
+                self.collect_parameterised_creation_sites(
+                    registry,
+                    ParameterisedProc {
+                        qname: proc_context.qname,
+                        params: proc_context.params,
+                    },
+                    token.span,
+                    control_path,
+                    depth + 1,
+                    out,
+                );
+                control_path.pop();
+            }
+        }
     }
 
     /// The **load-time** call sites in this document, keyed by the qualified
@@ -6764,30 +7703,92 @@ impl Analyser {
     /// A call inside a proc or class body is excluded: it runs at call time,
     /// if ever, so it proves nothing about what sourcing this file creates —
     /// the same rule [`Self::publish_load_level_destructions`] applies.
-    fn load_time_call_arguments(&self) -> std::collections::HashMap<String, Vec<Vec<String>>> {
-        let mut out: std::collections::HashMap<String, Vec<Vec<String>>> =
-            std::collections::HashMap::new();
-        let Some(statements) = self.statements_in_span(Span::new(
+    fn load_time_call_arguments(&self) -> std::collections::HashMap<String, Vec<LoadTimeCall>> {
+        let mut out = std::collections::HashMap::new();
+        self.collect_load_time_calls(
+            Span::new(0, u32::try_from(self.source.len()).unwrap_or(u32::MAX)),
+            &mut Vec::new(),
             0,
-            u32::try_from(self.source.len()).unwrap_or(u32::MAX),
-        )) else {
-            return out;
+            &mut out,
+        );
+        out
+    }
+
+    fn collect_load_time_calls(
+        &self,
+        body_span: Span,
+        control_path: &mut Vec<ControlArm>,
+        depth: u32,
+        out: &mut std::collections::HashMap<String, Vec<LoadTimeCall>>,
+    ) {
+        if depth >= MAX_UNKNOWN_BODY_DEPTH {
+            return;
+        }
+        let Some(registry) = self.registry else {
+            return;
+        };
+        let Some(statements) = self.direct_statements_in_span(body_span) else {
+            return;
         };
         for seg in statements {
-            if self
+            if !self
                 .result
                 .offset_is_inside_any_definition_body(seg.span.start())
             {
-                continue;
+                let head = crate::naming::normalise_qualified_name(seg.name());
+                if !head.is_empty() {
+                    let qualified = format!("::{}", head.trim_start_matches("::"));
+                    out.entry(qualified).or_default().push(LoadTimeCall {
+                        args: seg.args().to_vec(),
+                        control_path: control_path.clone(),
+                        call_off: seg.span.start(),
+                    });
+                }
             }
-            let head = crate::naming::normalise_qualified_name(seg.name());
-            if head.is_empty() {
-                continue;
+
+            let args: Vec<&str> = seg.args().iter().map(String::as_str).collect();
+            let mut body_indices =
+                registry.arg_indices_for_role(seg.name(), &args, tcl_registry::ArgRole::Body);
+            body_indices.sort_unstable();
+            body_indices.dedup();
+            let case_call = registry
+                .case_invocation(seg.name(), &args, self.profile.availability_mask)
+                .and_then(|(_, invocation)| invocation.clause_list_index);
+            for body_idx in body_indices {
+                let (Some(word), Some(token)) = (
+                    seg.args().get(body_idx),
+                    seg.arg_tokens().get(body_idx).copied(),
+                ) else {
+                    continue;
+                };
+                if case_call == Some(body_idx) {
+                    let elements =
+                        crate::segmenter::flatten_clause_list_elements(&self.source, word, token);
+                    for pair in elements.chunks_exact(2) {
+                        let body_token = pair[1].1;
+                        if body_token.kind != TokenType::Str {
+                            continue;
+                        }
+                        control_path.push(ControlArm {
+                            controller: seg.clone(),
+                            body_span: body_token.span,
+                        });
+                        self.collect_load_time_calls(body_token.span, control_path, depth + 1, out);
+                        control_path.pop();
+                    }
+                    continue;
+                }
+                if token.kind != TokenType::Str {
+                    continue;
+                }
+                control_path.push(ControlArm {
+                    controller: seg.clone(),
+                    body_span: token.span,
+                });
+                self.collect_load_time_calls(token.span, control_path, depth + 1, out);
+                control_path.pop();
             }
-            let qualified = format!("::{}", head.trim_start_matches("::"));
-            out.entry(qualified).or_default().push(seg.args().to_vec());
         }
-        out
     }
 
     /// The statements of the script at `span`, plus those of every nested
@@ -8370,6 +9371,28 @@ impl Analyser {
 mod tests {
     use super::*;
     use tcl_lexer::Span;
+
+    #[test]
+    fn builtin_next_completion_requires_the_actual_mro_end() {
+        assert_eq!(
+            Analyser::builtin_next_completion(
+                &tcl_registry::definer::TCLOO_GRAMMAR,
+                "unknown",
+                0,
+                2,
+            ),
+            None
+        );
+        assert_eq!(
+            Analyser::builtin_next_completion(
+                &tcl_registry::definer::TCLOO_GRAMMAR,
+                "unknown",
+                1,
+                2,
+            ),
+            Some(true)
+        );
+    }
 
     #[test]
     fn dynamic_command_name_patterns_keep_only_proven_fixed_fragments() {
@@ -11805,10 +12828,17 @@ mod tests {
 
     // handle_switch_command
 
+    fn switch_analyser() -> Analyser {
+        let mut analyser = Analyser::new();
+        analyser.registry = Some(tcl_registry::registry_for_dialect("tcl"));
+        analyser
+    }
+
     #[test]
     fn handle_switch_returns_true_for_canonical_shape() {
-        let mut a = Analyser::new();
+        let mut a = switch_analyser();
         let handled = a.handle_switch_command(
+            "switch",
             &["$x".to_string(), "{a {puts a} b {puts b}}".to_string()],
             &[esc_tok(span(7, 9)), str_tok(span(10, 36))],
             &[],
@@ -11818,8 +12848,8 @@ mod tests {
 
     #[test]
     fn handle_switch_too_few_args_returns_false() {
-        let mut a = Analyser::new();
-        let handled = a.handle_switch_command(&["$x".to_string()], &[], &[]);
+        let mut a = switch_analyser();
+        let handled = a.handle_switch_command("switch", &["$x".to_string()], &[], &[]);
         assert!(!handled);
     }
 
@@ -11829,8 +12859,9 @@ mod tests {
         // Each arm body should land its ``set`` in the
         // surrounding scope.  Source layout has the bodies at
         // offsets 13..23 (``{set y 1}``) and 27..37 (``{set z 2}``).
-        let mut a = Analyser::new();
+        let mut a = switch_analyser();
         a.handle_switch_command(
+            "switch",
             &[
                 "$x".to_string(),
                 "a".to_string(),
@@ -11857,12 +12888,13 @@ mod tests {
         // The single braced body holds all pattern/body pairs;
         // ``flatten_clause_list_elements`` re-segments to surface
         // each pair, then each body recurses.
-        let mut a = Analyser::new();
+        let mut a = switch_analyser();
         let body_text = " a {set y 1} b {set z 2} ".to_string();
         // body span: outer source positions 10..(10 + len(body)+2).
         // body_text has 25 chars, plus surrounding braces → token
         // span 10..37, content_offset = 1 to skip the opening ``{``.
         a.handle_switch_command(
+            "switch",
             &["$x".to_string(), body_text],
             &[esc_tok(span(7, 9)), str_tok(span(10, 37))],
             &[],
@@ -11876,8 +12908,9 @@ mod tests {
         // ``switch $x a - b {set y 1}`` — the ``-`` body for
         // pattern ``a`` is fall-through (next arm fires); only
         // ``b``'s body should be walked.
-        let mut a = Analyser::new();
+        let mut a = switch_analyser();
         a.handle_switch_command(
+            "switch",
             &[
                 "$x".to_string(),
                 "a".to_string(),
@@ -11902,8 +12935,9 @@ mod tests {
         // ``switch -- $x a {set y 1}`` — ``--`` ends the option
         // section; the string arg follows.  Walker still finds
         // the arm body and lands ``y``.
-        let mut a = Analyser::new();
+        let mut a = switch_analyser();
         a.handle_switch_command(
+            "switch",
             &[
                 "--".to_string(),
                 "$x".to_string(),
@@ -11925,9 +12959,10 @@ mod tests {
     fn handle_switch_dynamic_form2_body_skips_walk() {
         // Form 2 with a dynamic body (``$body`` instead of a
         // braced literal) yields no elements; the walk no-ops.
-        let mut a = Analyser::new();
+        let mut a = switch_analyser();
         let var_tok = Token::new(TokenType::Var, span(10, 15));
         a.handle_switch_command(
+            "switch",
             &["$x".to_string(), "$body".to_string()],
             &[esc_tok(span(7, 9)), var_tok],
             &[],

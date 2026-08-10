@@ -78,6 +78,77 @@ pub struct EventInfo {
     pub valid_commands: Vec<String>,
 }
 
+/// How a registry-described control-flow body relates to its enclosing call.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ControlArmSemantics {
+    /// The body always runs once the enclosing command is reached.
+    Always,
+    /// Run-time selection decides whether the body runs.
+    Selected,
+    /// The body runs, but in a frame that cannot inherit caller locals.
+    FrameBoundary,
+    /// The body runs, but its completion is contained by the enclosing call.
+    CompletionBoundary,
+    /// The body is conditional or repeated in a way this descriptor does not
+    /// statically select.
+    Uncertain,
+}
+
+/// The completion effect of one concrete registry invocation.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum InvocationCompletion {
+    /// Execution may continue with the following statement.
+    FallsThrough,
+    /// A normal procedure result, optionally naming its result argument.
+    ReturnsResult(Option<usize>),
+    /// A non-normal or otherwise non-result completion ends this path.
+    Terminates,
+    /// Dynamic or invalid completion options prevent a sound classification.
+    Unknown,
+}
+
+fn try_control_arms(args: &[&str]) -> Option<Vec<(usize, ControlArmSemantics)>> {
+    args.first()?;
+    let mut arms = vec![(0usize, ControlArmSemantics::Always)];
+    let mut trailing_fallthrough = false;
+    let mut i = 1usize;
+    while i < args.len() {
+        match args.get(i).copied() {
+            Some("finally") if i + 2 == args.len() && !trailing_fallthrough => {
+                arms.push((i + 1, ControlArmSemantics::Always));
+                i += 2;
+            }
+            Some("on" | "trap") if i + 3 < args.len() => {
+                let clause = args[i];
+                let selector = args[i + 1];
+                if (clause == "on"
+                    && !matches!(selector, "ok" | "error" | "return" | "break" | "continue")
+                    && selector.parse::<i64>().is_err())
+                    || (clause == "trap"
+                        && (tcl_syntax::naming::is_dynamic_word(selector)
+                            || tcl_syntax::list::split_list(selector).is_err()))
+                {
+                    return None;
+                }
+                if tcl_syntax::naming::is_dynamic_word(args[i + 2]) {
+                    return None;
+                }
+                let variables = tcl_syntax::list::split_list(args[i + 2]).ok()?;
+                if variables.len() > 2 {
+                    return None;
+                }
+                trailing_fallthrough = crate::commands::tcl::try_body_is_fallthrough(args[i + 3]);
+                if !trailing_fallthrough {
+                    arms.push((i + 3, ControlArmSemantics::Selected));
+                }
+                i += 4;
+            }
+            _ => return None,
+        }
+    }
+    (!trailing_fallthrough).then_some(arms)
+}
+
 impl EventInfo {
     /// Number of commands valid in this event.
     #[must_use]
@@ -1412,6 +1483,177 @@ impl CommandRegistry {
             return Traits::empty();
         };
         resolved.spec.traits | resolved.sub.map_or_else(Traits::empty, |sub| sub.traits)
+    }
+
+    /// Classify one body argument of a typed control-flow invocation.
+    /// Dynamic clause grammar stays here beside the registry hook, so a
+    /// consumer never recognises a command or structural keyword by name.
+    #[must_use]
+    pub fn control_arm_semantics(
+        &self,
+        name: &str,
+        args: &[&str],
+        body_index: usize,
+    ) -> Option<ControlArmSemantics> {
+        use crate::hooks::LoweringHookId;
+        let resolved = self.resolve_call(name, args, DialectSet::empty())?;
+        match resolved.lowering_hook? {
+            LoweringHookId::If => {
+                if (resolved.spec.clause_shape_check?)(args).is_some() {
+                    return None;
+                }
+                self.arg_indices_for_role(name, args, ArgRole::Body)
+                    .contains(&body_index)
+                    .then_some(ControlArmSemantics::Selected)
+            }
+            LoweringHookId::Switch => Some(ControlArmSemantics::Selected),
+            LoweringHookId::NamespaceEval => Some(ControlArmSemantics::FrameBoundary),
+            LoweringHookId::Catch => Some(ControlArmSemantics::CompletionBoundary),
+            LoweringHookId::For
+            | LoweringHookId::While
+            | LoweringHookId::Foreach
+            | LoweringHookId::Lmap
+            | LoweringHookId::ForeachLine => Some(ControlArmSemantics::Uncertain),
+            LoweringHookId::Try => try_control_arms(args)?
+                .into_iter()
+                .find_map(|(idx, semantics)| (idx == body_index).then_some(semantics)),
+            _ => None,
+        }
+    }
+
+    /// Whether a typed control invocation's complete grammar is valid.
+    /// `None` means the command has no typed control grammar.
+    #[must_use]
+    pub fn control_invocation_valid(
+        &self,
+        name: &str,
+        args: &[&str],
+        dialect: DialectSet,
+    ) -> Option<bool> {
+        use crate::hooks::LoweringHookId;
+        let resolved = self.resolve_call(name, args, dialect)?;
+        let hook = resolved.lowering_hook?;
+        match hook {
+            LoweringHookId::If => Some((resolved.spec.clause_shape_check?)(args).is_none()),
+            LoweringHookId::Switch => Some(self.case_invocation(name, args, dialect).is_some()),
+            LoweringHookId::Try => Some(try_control_arms(args).is_some()),
+            LoweringHookId::NamespaceEval
+            | LoweringHookId::Catch
+            | LoweringHookId::For
+            | LoweringHookId::While
+            | LoweringHookId::Foreach
+            | LoweringHookId::Lmap
+            | LoweringHookId::ForeachLine => Some(true),
+            _ => None,
+        }
+    }
+
+    /// Parse a case-list invocation using only options available in this
+    /// registry profile. This is the dialect-aware entry point for consumers:
+    /// the descriptor owns the layout, while [`crate::ProfileQueries`] owns
+    /// option availability and value arity.
+    #[must_use]
+    pub fn case_invocation(
+        &self,
+        name: &str,
+        args: &[&str],
+        dialect: DialectSet,
+    ) -> Option<(crate::spec::CaseListSpec, crate::spec::CaseInvocation)> {
+        let resolved = self.resolve_call(name, args, dialect)?;
+        let case = resolved.spec.case_list?;
+        let options = self.profile().map_or_else(
+            || resolved.spec.option_specs(Some(dialect)),
+            |profile| crate::ProfileQueries::available_option_specs(profile, resolved.spec),
+        );
+        Some((*case, case.invocation(args, &options)?))
+    }
+
+    /// Classify whether a concrete invocation falls through, returns a normal
+    /// procedure result, or terminates with another completion code.
+    #[must_use]
+    pub fn invocation_completion(
+        &self,
+        name: &str,
+        args: &[&str],
+        dialect: DialectSet,
+    ) -> InvocationCompletion {
+        use crate::hooks::LoweringHookId;
+        let Some(resolved) = self.resolve_call(name, args, dialect) else {
+            return InvocationCompletion::Unknown;
+        };
+        let positional_len = args
+            .len()
+            .saturating_sub(usize::from(resolved.sub.is_some()));
+        let invocation_arity = u16::try_from(positional_len).unwrap_or(u16::MAX);
+        if !resolved.arity().accepts(invocation_arity) {
+            return InvocationCompletion::Unknown;
+        }
+        if resolved.lowering_hook == Some(LoweringHookId::Return) {
+            let mut i = 0usize;
+            let mut code = Some(true);
+            let mut level = Some(1_i64);
+            while let Some(word) = args.get(i).copied() {
+                match word {
+                    "--" => {
+                        i += 1;
+                        break;
+                    }
+                    "-code" => {
+                        let Some(value) = args.get(i + 1).copied() else {
+                            return InvocationCompletion::Unknown;
+                        };
+                        code = match value {
+                            "ok" | "0" => Some(true),
+                            "error" | "return" | "break" | "continue" | "1" | "2" | "3" | "4" => {
+                                Some(false)
+                            }
+                            value if value.parse::<i64>().is_ok() => Some(false),
+                            _ => None,
+                        };
+                        i += 2;
+                    }
+                    "-level" => {
+                        let Some(value) = args.get(i + 1).copied() else {
+                            return InvocationCompletion::Unknown;
+                        };
+                        level = value.parse::<i64>().ok().filter(|value| *value >= 0);
+                        i += 2;
+                    }
+                    "-options" | "-errorcode" | "-errorinfo" | "-errorstack" => {
+                        return InvocationCompletion::Unknown;
+                    }
+                    _ if word.starts_with('-') => return InvocationCompletion::Unknown,
+                    _ => break,
+                }
+            }
+            if args.len().saturating_sub(i) > 1 {
+                return InvocationCompletion::Unknown;
+            }
+            if code == Some(false) {
+                return InvocationCompletion::Terminates;
+            }
+            if code.is_none() || level.is_none() {
+                return InvocationCompletion::Unknown;
+            }
+            if level == Some(0) {
+                return InvocationCompletion::FallsThrough;
+            }
+            let result = (i < args.len()).then_some(i);
+            return InvocationCompletion::ReturnsResult(result);
+        }
+
+        let traits =
+            resolved.spec.traits | resolved.sub.map_or_else(Traits::empty, |sub| sub.traits);
+        if traits.intersects(
+            Traits::TERMINATES_BLOCK
+                | Traits::BREAKS_LOOP
+                | Traits::CONTINUES_LOOP
+                | Traits::REPLACES_FRAME,
+        ) {
+            InvocationCompletion::Terminates
+        } else {
+            InvocationCompletion::FallsThrough
+        }
     }
 
     /// Whether `name` is valid only at the top level of an iRule script
@@ -5003,6 +5245,226 @@ mod tests {
             reg.invocation_traits("namespace", &["eval", "ns", "{}"], empty)
                 .contains(Traits::LANGUAGE_KEYWORD),
             "the parent `namespace` spec's own bits survive composition"
+        );
+    }
+
+    #[test]
+    fn typed_control_arms_are_registry_owned() {
+        let reg = CommandRegistry::build_default();
+        assert_eq!(
+            reg.control_arm_semantics("try", &["{}", "finally", "{}"], 2),
+            Some(ControlArmSemantics::Always)
+        );
+        assert_eq!(
+            reg.control_arm_semantics("try", &["{}", "on", "error", "{m o}", "{}"], 4,),
+            Some(ControlArmSemantics::Selected)
+        );
+        assert_eq!(
+            reg.control_arm_semantics("namespace", &["eval", "::ns", "{}"], 2),
+            Some(ControlArmSemantics::FrameBoundary)
+        );
+        assert_eq!(
+            reg.control_arm_semantics("try", &["{}", "finally", "{}", "orphan"], 0),
+            None,
+            "a malformed trailing clause invalidates even the main arm"
+        );
+        for args in [
+            &["{}", "on", "bogus", "{}", "{}"][..],
+            &["{}", "on", "ok", "a b c", "{}"][..],
+            &["{}", "on", "ok", "{}", "-"][..],
+        ] {
+            assert_eq!(reg.control_arm_semantics("try", args, 0), None);
+        }
+        assert_eq!(
+            reg.control_invocation_valid(
+                "try",
+                &["{}", "on", "ok", "{}", "-"],
+                DialectSet::empty(),
+            ),
+            Some(false),
+            "a terminal handler fallthrough has no following script"
+        );
+        assert_eq!(
+            reg.control_arm_semantics("try", &["{}", "finally", "-"], 2),
+            Some(ControlArmSemantics::Always),
+            "a finally body is a script, so `-` has no fallthrough meaning there"
+        );
+        let chained_fallthrough = [
+            "{}",
+            "on",
+            "error",
+            "{}",
+            "-",
+            "on",
+            "error",
+            "{}",
+            "{set r fell}",
+        ];
+        assert_eq!(
+            reg.control_invocation_valid("try", &chained_fallthrough, DialectSet::empty()),
+            Some(true)
+        );
+        assert_eq!(
+            reg.control_arm_semantics("try", &chained_fallthrough, 8),
+            Some(ControlArmSemantics::Selected)
+        );
+        assert_eq!(
+            reg.control_invocation_valid("if", &["1", "then"], DialectSet::empty()),
+            Some(false)
+        );
+        assert_eq!(
+            reg.control_invocation_valid("if", &["1", "a", "b"], DialectSet::empty()),
+            Some(true)
+        );
+        assert_eq!(
+            reg.control_arm_semantics("if", &["1", "a", "b"], 2),
+            Some(ControlArmSemantics::Selected)
+        );
+    }
+
+    #[test]
+    fn invocation_completion_is_registry_owned() {
+        let reg = CommandRegistry::build_default();
+        assert_eq!(
+            reg.invocation_completion("return", &["-code", "error", "$w"], DialectSet::empty(),),
+            InvocationCompletion::Terminates
+        );
+        assert_eq!(
+            reg.invocation_completion("return", &["$w"], DialectSet::empty()),
+            InvocationCompletion::ReturnsResult(Some(0))
+        );
+        assert_eq!(
+            reg.invocation_completion("return", &["-level", "0", "$w"], DialectSet::empty(),),
+            InvocationCompletion::FallsThrough
+        );
+        for args in [
+            &["-level", "0", "-code", "error", "$w"][..],
+            &["-code", "error", "-level", "0", "$w"][..],
+        ] {
+            assert_eq!(
+                reg.invocation_completion("return", args, DialectSet::empty()),
+                InvocationCompletion::Terminates
+            );
+        }
+        for args in [
+            &["-level", "$dynamic", "$w"][..],
+            &["-level", "-1", "$w"][..],
+            &["$w", "extra"][..],
+        ] {
+            assert_eq!(
+                reg.invocation_completion("return", args, DialectSet::empty()),
+                InvocationCompletion::Unknown
+            );
+        }
+        assert_eq!(
+            reg.invocation_completion("not-a-command", &[], DialectSet::empty()),
+            InvocationCompletion::Unknown
+        );
+        assert_eq!(
+            reg.invocation_completion("set", &[], DialectSet::empty()),
+            InvocationCompletion::Unknown
+        );
+    }
+
+    #[test]
+    fn case_list_invocation_layout_is_registry_owned() {
+        use crate::spec::CaseMatchMode;
+        let reg = crate::registry_for_dialect("tcl9.0");
+        let Some((_, two_arg)) =
+            reg.case_invocation("switch", &["-glob", "default {}"], DialectSet::TCL90)
+        else {
+            panic!("two-argument case form must parse");
+        };
+        assert_eq!(two_arg.subject_index, Some(0));
+        assert_eq!(two_arg.mode, CaseMatchMode::Exact);
+        assert_eq!(two_arg.clause_list_index, Some(1));
+
+        let Some((_, options)) = reg.case_invocation(
+            "switch",
+            &["-glob", "-nocase", "--", "subject", "p {}"],
+            DialectSet::TCL90,
+        ) else {
+            panic!("option-bearing case form must parse");
+        };
+        assert_eq!(options.subject_index, Some(3));
+        assert_eq!(options.mode, CaseMatchMode::Glob);
+        assert!(options.nocase);
+        assert!(
+            reg.case_invocation(
+                "switch",
+                &["subject", "pattern", "body", "orphan"],
+                DialectSet::TCL90,
+            )
+            .is_none()
+        );
+        assert!(
+            reg.case_invocation(
+                "switch",
+                &["subject", "pattern {} orphan"],
+                DialectSet::TCL90
+            )
+            .is_none()
+        );
+
+        let tcl84 = crate::registry_for_dialect("tcl8.4");
+        assert!(
+            tcl84
+                .case_invocation(
+                    "switch",
+                    &["-nocase", "subject", "pattern {}"],
+                    DialectSet::TCL84,
+                )
+                .is_none()
+        );
+        let tcl85 = crate::registry_for_dialect("tcl8.5");
+        assert!(
+            tcl85
+                .case_invocation(
+                    "switch",
+                    &["-nocase", "subject", "pattern {}"],
+                    DialectSet::TCL85,
+                )
+                .is_some()
+        );
+        let default = CommandRegistry::build_default();
+        assert!(
+            default
+                .case_invocation("switch", &["subject", "pattern {}"], DialectSet::TCL90,)
+                .is_some()
+        );
+        assert!(
+            reg.case_invocation("switch", &["subject", "pattern -"], DialectSet::TCL90)
+                .is_none()
+        );
+
+        let expect = crate::registry_for_dialect("expect");
+        assert!(
+            expect
+                .case_invocation(
+                    "expect",
+                    &["\"password:\" {send pw} -re {ye+s} {send yes} timeout {puts slow}"],
+                    DialectSet::EXPECT,
+                )
+                .is_some(),
+            "clause-leading flags must not break valid Expect pattern/body pairs"
+        );
+        assert!(
+            expect
+                .case_invocation("expect", &["{-re} {send literal}"], DialectSet::EXPECT,)
+                .is_some(),
+            "a braced flag-shaped pattern is literal text, not a clause flag"
+        );
+        assert!(
+            expect
+                .case_invocation("expect", &["-re {ye+s}"], DialectSet::EXPECT)
+                .is_none(),
+            "a clause without its body must remain invalid"
+        );
+        assert!(
+            expect
+                .case_invocation("expect", &["-timeout"], DialectSet::EXPECT)
+                .is_none(),
+            "a value-taking clause flag without a value/pattern/body is invalid"
         );
     }
 

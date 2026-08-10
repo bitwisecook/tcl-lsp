@@ -3385,19 +3385,28 @@ fn insert_case_list_override(
     // form only: the inline `pat body …` form leaves more than one trailing
     // word and `clause_list_call` answers `None` for it.
     let args: Vec<&str> = seg.texts.iter().skip(1).map(String::as_str).collect();
-    let shape = tcl_syntax::case_list::CallShape {
-        subject_args: usize::from(spec.subject_args),
-        regex_option: spec.regex_option,
-        value_options: spec.value_options,
+    let dialect = registry
+        .profile()
+        .map_or_else(tcl_dialect::DialectSet::empty, |profile| {
+            profile.availability_mask
+        });
+    let Some((_, invocation)) = registry.case_invocation(&seg.texts[0], &args, dialect) else {
+        return;
     };
-    let Some(call) = tcl_syntax::case_list::clause_list_call(&args, &shape) else {
+    let Some(index) = invocation.clause_list_index else {
         return;
     };
     // `args` is 0-based post-command-name; `seg.texts` / `seg.argv` are 1-based.
-    if let Some(tok) = seg.argv.get(call.index + 1)
+    if let Some(tok) = seg.argv.get(index + 1)
         && matches!(tok.kind, TokenType::Str)
     {
-        overrides.insert(tok.span.start(), ArgOverride::CaseList(spec, call.regexp));
+        overrides.insert(
+            tok.span.start(),
+            ArgOverride::CaseList(
+                spec,
+                invocation.mode == tcl_registry::spec::CaseMatchMode::Regexp,
+            ),
+        );
     }
 }
 

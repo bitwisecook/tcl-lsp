@@ -4947,6 +4947,195 @@ mod class_factories {
     }
 
     #[test]
+    fn unknown_dispatch_cannot_construct_after_return_completion() {
+        // FP guard: Tcl stops the path at `return`; a later construction is
+        // unreachable and cannot prove that the returned word names an
+        // object.
+        let src = concat!(
+            "oo::class create Meta {\n",
+            "    superclass oo::class\n",
+            "    method unknown {w args} {\n",
+            "        return $w\n",
+            "        [self] create ::$w {*}$args\n",
+            "    }\n",
+            "}\n",
+        );
+        assert!(!factory_of(src, "::Meta").unknown_binds_instance);
+    }
+
+    #[test]
+    fn unknown_dispatch_ignores_an_unselected_construction_arm() {
+        let src = concat!(
+            "oo::class create Meta {\n",
+            "    superclass oo::class\n",
+            "    method unknown {w args} {\n",
+            "        if {0} { [self] create ::$w; return $w }\n",
+            "    }\n",
+            "}\n",
+        );
+        assert!(!factory_of(src, "::Meta").unknown_binds_instance);
+    }
+
+    #[test]
+    fn unknown_dispatch_requires_construction_on_every_dynamic_return_path() {
+        let src = concat!(
+            "oo::class create Meta {\n",
+            "    superclass oo::class\n",
+            "    method unknown {w args} {\n",
+            "        if {$runtime} { [self] create ::$w }\n",
+            "        return $w\n",
+            "    }\n",
+            "}\n",
+        );
+        assert!(!factory_of(src, "::Meta").unknown_binds_instance);
+    }
+
+    #[test]
+    fn unknown_dispatch_dynamic_arm_cannot_leave_a_normal_fallthrough_path() {
+        let src = concat!(
+            "oo::class create Meta {\n",
+            "    superclass oo::class\n",
+            "    method unknown {w args} {\n",
+            "        if {$runtime} { [self] create ::$w; return $w }\n",
+            "    }\n",
+            "}\n",
+        );
+        assert!(!factory_of(src, "::Meta").unknown_binds_instance);
+    }
+
+    #[test]
+    fn unknown_dispatch_next_to_a_normally_returning_provider_abstains() {
+        let src = concat!(
+            "oo::class create ParentMeta {\n",
+            "    superclass oo::class\n",
+            "    method unknown {w args} { return inherited }\n",
+            "}\n",
+            "oo::class create Meta {\n",
+            "    superclass ParentMeta\n",
+            "    method unknown {w args} {\n",
+            "        if {[string match .* $w]} {\n",
+            "            [self] create ::$w {*}$args\n",
+            "            return $w\n",
+            "        }\n",
+            "        next $w {*}$args\n",
+            "    }\n",
+            "}\n",
+        );
+        assert!(
+            !factory_of(src, "::Meta").unknown_binds_instance,
+            "a normal inherited fallback result prevents a handle proof"
+        );
+    }
+
+    #[test]
+    fn unknown_dispatch_nextto_uses_its_registry_declared_anchor() {
+        let src = concat!(
+            "oo::class create ParentMeta {\n",
+            "    superclass oo::class\n",
+            "    method unknown {w args} { return inherited }\n",
+            "}\n",
+            "oo::class create Meta {\n",
+            "    superclass ParentMeta\n",
+            "    method unknown {w args} {\n",
+            "        if {[string match .* $w]} {\n",
+            "            [self] create ::$w {*}$args\n",
+            "            return $w\n",
+            "        }\n",
+            "        nextto ParentMeta $w {*}$args\n",
+            "    }\n",
+            "}\n",
+        );
+        assert!(!factory_of(src, "::Meta").unknown_binds_instance);
+    }
+
+    #[test]
+    fn unknown_dispatch_next_abstains_on_a_cyclic_hierarchy() {
+        // Malformed-input conservatism: C Tcl 9.0.4 rejects the forward
+        // mixin names below, and also rejects an equivalent post-definition
+        // CycleA <-> CycleB update with "may not mix a class into itself".
+        // The analyser still records enough partial structure to encounter
+        // the relation cycle, but must never treat its truncated MRO as a
+        // proved route to the terminal builtin fallback.
+        let src = concat!(
+            "oo::class create CycleA { mixin CycleB }\n",
+            "oo::class create CycleB { mixin CycleA }\n",
+            "oo::class create Meta {\n",
+            "    superclass oo::class\n",
+            "    mixin CycleA\n",
+            "    method unknown {w args} {\n",
+            "        if {[string match .* $w]} {\n",
+            "            [self] create ::$w {*}$args\n",
+            "            return $w\n",
+            "        }\n",
+            "        next $w {*}$args\n",
+            "    }\n",
+            "}\n",
+        );
+        assert!(!factory_of(src, "::Meta").unknown_binds_instance);
+    }
+
+    #[test]
+    fn unknown_dispatch_next_abstains_on_an_incomplete_hierarchy() {
+        let src = concat!(
+            "oo::class create Meta {\n",
+            "    superclass oo::class ::External\n",
+            "    method unknown {w args} {\n",
+            "        if {[string match .* $w]} {\n",
+            "            [self] create ::$w {*}$args\n",
+            "            return $w\n",
+            "        }\n",
+            "        next $w {*}$args\n",
+            "    }\n",
+            "}\n",
+        );
+        assert!(!factory_of(src, "::Meta").unknown_binds_instance);
+    }
+
+    #[test]
+    fn unknown_dispatch_rejects_a_malformed_if_path() {
+        let src = concat!(
+            "oo::class create Meta {\n",
+            "    superclass oo::class\n",
+            "    method unknown {w args} {\n",
+            "        if {1}\n",
+            "        [self] create ::$w\n",
+            "        return $w\n",
+            "    }\n",
+            "}\n",
+        );
+        assert!(!factory_of(src, "::Meta").unknown_binds_instance);
+    }
+
+    #[test]
+    fn unknown_dispatch_non_normal_return_does_not_prove_a_handle() {
+        let src = concat!(
+            "oo::class create Meta {\n",
+            "    superclass oo::class\n",
+            "    method unknown {w args} {\n",
+            "        [self] create ::$w\n",
+            "        return -code error $w\n",
+            "    }\n",
+            "}\n",
+        );
+        assert!(!factory_of(src, "::Meta").unknown_binds_instance);
+    }
+
+    #[test]
+    fn unknown_dispatch_stops_at_an_earlier_terminating_command() {
+        let src = concat!(
+            "oo::class create Meta {\n",
+            "    superclass oo::class\n",
+            "    method unknown {w args} {\n",
+            "        error stopped\n",
+            "        [self] create ::$w\n",
+            "        return $w\n",
+            "    }\n",
+            "}\n",
+        );
+        assert!(!factory_of(src, "::Meta").unknown_binds_instance);
+    }
+
+    #[test]
     fn unknown_dispatch_returning_something_else_abstains() {
         // TN (#1303) — it constructs, but hands back the *class*, so the
         // caller's variable is not the new object's name. Guessing here would
@@ -5359,6 +5548,507 @@ mod class_factories {
                 result.all_classes.keys().collect::<Vec<_>>()
             );
         }
+    }
+
+    #[test]
+    fn computed_creation_materialises_only_the_selected_if_arm() {
+        let source = |enabled: &str| {
+            format!(
+                "namespace eval ::T {{}}\n\
+                 oo::class create ::T::Mother {{ superclass oo::class }}\n\
+                 proc ::T::mk {{name enabled}} {{\n\
+                     if {{$enabled}} {{ ::T::Mother create ${{name}}::class {{}} }}\n\
+                 }}\n\
+                 ::T::mk ::T::D {enabled}\n"
+            )
+        };
+        assert!(
+            analysis(&source("1"), "tcl9.0")
+                .all_classes
+                .contains_key("::T::D::class")
+        );
+        assert!(
+            !analysis(&source("0"), "tcl9.0")
+                .all_classes
+                .contains_key("::T::D::class")
+        );
+        assert!(
+            !analysis(&source("$runtime"), "tcl9.0")
+                .all_classes
+                .contains_key("::T::D::class")
+        );
+    }
+
+    #[test]
+    fn computed_creation_requires_the_load_time_call_path_to_execute() {
+        let source = |condition: &str| {
+            format!(
+                "namespace eval ::T {{}}\n\
+                 oo::class create ::T::Mother {{ superclass oo::class }}\n\
+                 proc ::T::mk {{name}} {{\n\
+                     ::T::Mother create ${{name}}::class {{}}\n\
+                 }}\n\
+                 if {{{condition}}} {{ ::T::mk ::T::Ghost }}\n"
+            )
+        };
+        assert!(
+            !analysis(&source("0"), "tcl9.0")
+                .all_classes
+                .contains_key("::T::Ghost::class")
+        );
+        assert!(
+            analysis(&source("1"), "tcl9.0")
+                .all_classes
+                .contains_key("::T::Ghost::class")
+        );
+        assert!(
+            !analysis(&source("$runtime"), "tcl9.0")
+                .all_classes
+                .contains_key("::T::Ghost::class")
+        );
+    }
+
+    #[test]
+    fn load_time_call_requires_every_dominating_prefix_to_fall_through() {
+        let base = concat!(
+            "namespace eval ::T {}\n",
+            "oo::class create ::T::Mother { superclass oo::class }\n",
+            "proc ::T::mk {name} { ::T::Mother create ${name}::class {} }\n",
+        );
+        let top = format!("{base}error stopped\n::T::mk ::T::TopGhost\n");
+        assert!(
+            !analysis(&top, "tcl9.0")
+                .all_classes
+                .contains_key("::T::TopGhost::class")
+        );
+
+        let arm = format!("{base}if {{1}} {{\n  error stopped\n  ::T::mk ::T::ArmGhost\n}}\n");
+        assert!(
+            !analysis(&arm, "tcl9.0")
+                .all_classes
+                .contains_key("::T::ArmGhost::class")
+        );
+
+        let live = format!("{base}if {{1}} {{ set x ok; ::T::mk ::T::Live }}\n");
+        assert!(
+            analysis(&live, "tcl9.0")
+                .all_classes
+                .contains_key("::T::Live::class")
+        );
+
+        let proc_error = format!(
+            "{base}proc ::T::stop {{}} {{ error stopped }}\n::T::stop\n::T::mk ::T::ProcGhost\n"
+        );
+        assert!(
+            !analysis(&proc_error, "tcl9.0")
+                .all_classes
+                .contains_key("::T::ProcGhost::class"),
+            "a prior user procedure with non-normal completion blocks the later call"
+        );
+    }
+
+    #[test]
+    fn load_time_call_requires_nested_control_to_reach_its_end() {
+        let base = concat!(
+            "namespace eval ::T {}\n",
+            "oo::class create ::T::Mother { superclass oo::class }\n",
+            "proc ::T::mk {name} { ::T::Mother create ${name}::class {} }\n",
+        );
+        for prefix in [
+            "if {1} { error stopped }",
+            "switch yes { yes { error stopped } }",
+            "try {} finally { error stopped }",
+            "while {0} {}",
+            "notARegisteredCommand",
+        ] {
+            let src = format!("{base}{prefix}\n::T::mk ::T::Ghost\n");
+            assert!(
+                !analysis(&src, "tcl9.0")
+                    .all_classes
+                    .contains_key("::T::Ghost::class"),
+                "prefix must abstain: {prefix}"
+            );
+        }
+
+        let live = format!("{base}if {{0}} {{ error stopped }}\n::T::mk ::T::Live\n");
+        assert!(
+            analysis(&live, "tcl9.0")
+                .all_classes
+                .contains_key("::T::Live::class")
+        );
+    }
+
+    #[test]
+    fn malformed_and_handler_dependent_prefixes_do_not_publish_factories() {
+        let base = concat!(
+            "namespace eval ::T {}\n",
+            "oo::class create ::T::Mother { superclass oo::class }\n",
+            "proc ::T::mk {name} { ::T::Mother create ${name}::class {} }\n",
+        );
+        for prefix in [
+            "set",
+            "if {1}",
+            "if {1} then",
+            "if {0} {} else \"error stopped\"",
+            "switch yes { yes \"error stopped\" }",
+            "try {} finally \"error stopped\"",
+            "try {} on ok {} { error stopped }",
+        ] {
+            let src = format!("{base}{prefix}\n::T::mk ::T::Ghost\n");
+            assert!(
+                !analysis(&src, "tcl9.0")
+                    .all_classes
+                    .contains_key("::T::Ghost::class"),
+                "prefix must abstain: {prefix}"
+            );
+        }
+    }
+
+    #[test]
+    fn load_time_switch_and_try_paths_select_only_executed_factory_calls() {
+        let src = concat!(
+            "namespace eval ::T {}\n",
+            "oo::class create ::T::Mother { superclass oo::class }\n",
+            "proc ::T::mk {name} { ::T::Mother create ${name}::class {} }\n",
+            "switch no {\n",
+            "    yes { ::T::mk ::T::SwitchGhost }\n",
+            "    default { ::T::mk ::T::SwitchReal }\n",
+            "}\n",
+            "try {} on error {message options} {\n",
+            "    ::T::mk ::T::HandlerGhost\n",
+            "} finally {\n",
+            "    ::T::mk ::T::FinallyReal\n",
+            "}\n",
+        );
+        let result = analysis(src, "tcl9.0");
+        assert!(result.all_classes.contains_key("::T::SwitchReal::class"));
+        assert!(result.all_classes.contains_key("::T::FinallyReal::class"));
+        assert!(!result.all_classes.contains_key("::T::SwitchGhost::class"));
+        assert!(!result.all_classes.contains_key("::T::HandlerGhost::class"));
+    }
+
+    #[test]
+    fn computed_creation_after_a_non_normal_completion_is_unreachable() {
+        for terminator in [
+            "error stopped",
+            "throw {TEST STOP} stopped",
+            "break",
+            "continue",
+        ] {
+            let src = format!(
+                "namespace eval ::T {{}}\n\
+                 oo::class create ::T::Mother {{ superclass oo::class }}\n\
+                 proc ::T::mk {{name}} {{\n\
+                     {terminator}\n\
+                     ::T::Mother create ${{name}}::class {{}}\n\
+                 }}\n\
+                 ::T::mk ::T::Ghost\n"
+            );
+            assert!(
+                !analysis(&src, "tcl9.0")
+                    .all_classes
+                    .contains_key("::T::Ghost::class"),
+                "{terminator} must stop provenance"
+            );
+        }
+    }
+
+    #[test]
+    fn computed_creation_materialises_only_the_selected_switch_arm() {
+        let source = |selector: &str| {
+            format!(
+                "namespace eval ::T {{}}\n\
+                 oo::class create ::T::Mother {{ superclass oo::class }}\n\
+                 proc ::T::mk {{name selector}} {{\n\
+                     switch $selector {{\n\
+                         yes {{ ::T::Mother create ${{name}}::class {{}} }}\n\
+                         default {{ set unrelated no }}\n\
+                     }}\n\
+                 }}\n\
+                 ::T::mk ::T::D {selector}\n"
+            )
+        };
+        assert!(
+            analysis(&source("yes"), "tcl9.0")
+                .all_classes
+                .contains_key("::T::D::class")
+        );
+        assert!(
+            !analysis(&source("no"), "tcl9.0")
+                .all_classes
+                .contains_key("::T::D::class")
+        );
+        assert!(
+            !analysis(&source("$runtime"), "tcl9.0")
+                .all_classes
+                .contains_key("::T::D::class")
+        );
+    }
+
+    #[test]
+    fn computed_creation_switch_supports_registry_modes_and_fallthrough() {
+        let src = concat!(
+            "namespace eval ::T {}\n",
+            "oo::class create ::T::Mother { superclass oo::class }\n",
+            "proc ::T::mk {name selector} {\n",
+            "    switch -glob -- $selector {\n",
+            "        D* -\n",
+            "        fallback { ::T::Mother create ${name}::class {} }\n",
+            "        default {}\n",
+            "    }\n",
+            "}\n",
+            "::T::mk ::T::D Dialect\n",
+        );
+        assert!(
+            analysis(src, "tcl9.0")
+                .all_classes
+                .contains_key("::T::D::class")
+        );
+
+        let exact = src.replace("switch -glob", "switch -exact");
+        assert!(
+            !analysis(&exact, "tcl9.0")
+                .all_classes
+                .contains_key("::T::D::class")
+        );
+
+        let nocase = src
+            .replace("switch -glob", "switch -glob -nocase")
+            .replace("::T::mk ::T::D Dialect", "::T::mk ::T::D dialect");
+        assert!(
+            analysis(&nocase, "tcl9.0")
+                .all_classes
+                .contains_key("::T::D::class")
+        );
+
+        let regexp = src.replace("switch -glob", "switch -regexp");
+        assert!(
+            !analysis(&regexp, "tcl9.0")
+                .all_classes
+                .contains_key("::T::D::class"),
+            "unsupported regexp selection must abstain"
+        );
+    }
+
+    #[test]
+    fn switch_default_is_special_only_in_the_final_clause() {
+        let src = concat!(
+            "namespace eval ::T {}\n",
+            "oo::class create ::T::Mother { superclass oo::class }\n",
+            "proc ::T::mk {name selector} {\n",
+            "    switch $selector {\n",
+            "        default { ::T::Mother create ${name}::class {} }\n",
+            "        yes {}\n",
+            "    }\n",
+            "}\n",
+            "::T::mk ::T::Ghost no\n",
+        );
+        assert!(
+            !analysis(src, "tcl9.0")
+                .all_classes
+                .contains_key("::T::Ghost::class")
+        );
+    }
+
+    #[test]
+    fn switch_with_an_orphan_braced_clause_never_materialises_a_class() {
+        let src = concat!(
+            "namespace eval ::T {}\n",
+            "oo::class create ::T::Mother { superclass oo::class }\n",
+            "proc ::T::mk {name selector} {\n",
+            "    switch $selector {\n",
+            "        yes { ::T::Mother create ${name}::class {} }\n",
+            "        orphan\n",
+            "    }\n",
+            "}\n",
+            "::T::mk ::T::Ghost yes\n",
+        );
+        assert!(
+            !analysis(src, "tcl9.0")
+                .all_classes
+                .contains_key("::T::Ghost::class")
+        );
+    }
+
+    #[test]
+    fn switch_with_a_final_fallthrough_body_never_materialises_a_class() {
+        let src = concat!(
+            "namespace eval ::T {}\n",
+            "oo::class create ::T::Mother { superclass oo::class }\n",
+            "proc ::T::mk {name selector} {\n",
+            "    switch $selector {\n",
+            "        yes { ::T::Mother create ${name}::class {} }\n",
+            "        default -\n",
+            "    }\n",
+            "}\n",
+            "::T::mk ::T::Ghost yes\n",
+        );
+        assert!(
+            !analysis(src, "tcl9.0")
+                .all_classes
+                .contains_key("::T::Ghost::class")
+        );
+    }
+
+    #[test]
+    fn computed_creation_reuses_nested_prefix_reachability() {
+        let src = concat!(
+            "namespace eval ::T {}\n",
+            "oo::class create ::T::Mother { superclass oo::class }\n",
+            "proc ::T::mk {name} {\n",
+            "    if {1} { error stopped }\n",
+            "    ::T::Mother create ${name}::class {}\n",
+            "}\n",
+            "::T::mk ::T::Ghost\n",
+        );
+        assert!(
+            !analysis(src, "tcl9.0")
+                .all_classes
+                .contains_key("::T::Ghost::class")
+        );
+    }
+
+    #[test]
+    fn helper_proc_branch_result_drives_computed_creation() {
+        let src = concat!(
+            "namespace eval ::T {}\n",
+            "oo::class create ::T::Mother { superclass oo::class }\n",
+            "proc ::T::choose {enabled yes no} {\n",
+            "    if {$enabled} { return $yes } else { return $no }\n",
+            "}\n",
+            "proc ::T::mk {name} {\n",
+            "    set selected [::T::choose 1 $name ::T::Wrong]\n",
+            "    ::T::Mother create ${selected}::class {}\n",
+            "}\n",
+            "::T::mk ::T::Right\n",
+        );
+        let result = analysis(src, "tcl9.0");
+        assert!(result.all_classes.contains_key("::T::Right::class"));
+        assert!(!result.all_classes.contains_key("::T::Wrong::class"));
+    }
+
+    #[test]
+    fn malformed_helper_branch_cannot_fabricate_a_computed_creation_name() {
+        let src = concat!(
+            "namespace eval ::T {}\n",
+            "oo::class create ::T::Mother { superclass oo::class }\n",
+            "proc ::T::choose {name} {\n",
+            "    if {1} then\n",
+            "    return $name\n",
+            "}\n",
+            "proc ::T::mk {name} {\n",
+            "    set selected [::T::choose $name]\n",
+            "    ::T::Mother create ${selected}::class {}\n",
+            "}\n",
+            "::T::mk ::T::Ghost\n",
+        );
+        assert!(
+            !analysis(src, "tcl9.0")
+                .all_classes
+                .contains_key("::T::Ghost::class")
+        );
+    }
+
+    #[test]
+    fn deep_helper_call_chain_cannot_exhaust_the_provenance_budget() {
+        use std::fmt::Write as _;
+
+        let mut src = concat!(
+            "namespace eval ::T {}\n",
+            "oo::class create ::T::Mother { superclass oo::class }\n",
+        )
+        .to_owned();
+        for index in 0..10 {
+            let next = index + 1;
+            let _ = writeln!(
+                src,
+                "proc ::T::step{index} {{name}} {{ return [::T::step{next} $name] }}"
+            );
+        }
+        src.push_str("proc ::T::step10 {name} { return $name }\n");
+        src.push_str(concat!(
+            "proc ::T::mk {name} {\n",
+            "    set selected [::T::step0 $name]\n",
+            "    ::T::Mother create ${selected}::class {}\n",
+            "}\n",
+            "::T::mk ::T::Ghost\n",
+        ));
+
+        assert!(
+            !analysis(&src, "tcl9.0")
+                .all_classes
+                .contains_key("::T::Ghost::class"),
+            "a helper chain beyond the bounded proof budget must abstain"
+        );
+    }
+
+    #[test]
+    fn computed_creation_in_try_finally_is_selected_but_handler_abstains() {
+        let finally_src = concat!(
+            "namespace eval ::T {}\n",
+            "oo::class create ::T::Mother { superclass oo::class }\n",
+            "proc ::T::mk {name} {\n",
+            "    try {} finally { ::T::Mother create ${name}::class {} }\n",
+            "}\n",
+            "::T::mk ::T::D\n",
+        );
+        assert!(
+            analysis(finally_src, "tcl9.0")
+                .all_classes
+                .contains_key("::T::D::class")
+        );
+
+        let handler_src = concat!(
+            "namespace eval ::T {}\n",
+            "oo::class create ::T::Mother { superclass oo::class }\n",
+            "proc ::T::mk {name} {\n",
+            "    try {} on error {message options} {\n",
+            "        ::T::Mother create ${name}::class {}\n",
+            "    }\n",
+            "}\n",
+            "::T::mk ::T::D\n",
+        );
+        assert!(
+            !analysis(handler_src, "tcl9.0")
+                .all_classes
+                .contains_key("::T::D::class")
+        );
+    }
+
+    #[test]
+    fn computed_creation_does_not_carry_proc_locals_across_namespace_eval() {
+        let src = concat!(
+            "namespace eval ::T {}\n",
+            "oo::class create ::T::Mother { superclass oo::class }\n",
+            "proc ::T::mk {name} {\n",
+            "    namespace eval ::Other {\n",
+            "        ::T::Mother create ${name}::class {}\n",
+            "    }\n",
+            "}\n",
+            "::T::mk ::T::Ghost\n",
+        );
+        assert!(
+            !analysis(src, "tcl9.0")
+                .all_classes
+                .contains_key("::T::Ghost::class")
+        );
+    }
+
+    #[test]
+    fn computed_creation_uses_default_proc_formals() {
+        let src = concat!(
+            "namespace eval ::T {}\n",
+            "oo::class create ::T::Mother { superclass oo::class }\n",
+            "proc ::T::mk {{name ::T::D}} {\n",
+            "    ::T::Mother create ${name}::class {}\n",
+            "}\n",
+            "::T::mk\n",
+        );
+        assert!(
+            analysis(src, "tcl9.0")
+                .all_classes
+                .contains_key("::T::D::class")
+        );
     }
 
     #[test]

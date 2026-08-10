@@ -337,6 +337,35 @@ fn literal_call_resolves_a_computed_metaclass_name() {
     assert_eq!(found[0].uri, widget, "{found:?}");
 }
 
+/// FP (#1306) — a literal call does not make a computed creation
+/// unconditional.  The registry-selected false `if` path never creates the
+/// metaclass, so navigation must not invent the downstream method.
+#[test]
+fn computed_metaclass_in_a_false_branch_resolves_nothing() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    lsp.open_ready(
+        &uri,
+        concat!(
+            "namespace eval ::T {}\n",
+            "oo::class create ::T::Mother { superclass oo::class }\n",
+            "proc ::T::mk {name enabled} {\n",
+            "  if {$enabled} {\n",
+            "    ::T::Mother create ${name}::class { superclass ::T::Mother }\n",
+            "  }\n",
+            "}\n",
+            "::T::mk ::T::D 0\n",
+            "::T::D::class create ::T::Widget { method go {} { return went } }\n",
+            "set w [::T::Widget new]\n",
+            "puts [$w go]\n",
+        ),
+    );
+    assert!(
+        locations(&lsp.definition(&uri, 10, 10)).is_empty(),
+        "a creation in an unselected arm must not publish a method target"
+    );
+}
+
 /// TP (#1304) — the metaclass and the class it manufactures are discovered by
 /// the startup scan and remain unopened. Opening only the consumer must still
 /// resolve its method through the settled workspace factory index.

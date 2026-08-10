@@ -3051,7 +3051,8 @@ pub(crate) fn nested_dispatch_regions(
     // ([`tcl_registry::CaseListSpec`], never a hardcoded "switch" check) and
     // recurse into each clause's own body word instead.
     if let Some(case_list) = registry.get(cmd_name).and_then(|s| s.case_list)
-        && let Some(clause_regions) = case_list_clause_body_regions(source, case_list, &args, cmd)
+        && let Some(clause_regions) =
+            case_list_clause_body_regions(source, registry, cmd_name, case_list, &args, cmd)
     {
         regions.extend(clause_regions);
         return regions;
@@ -3323,6 +3324,8 @@ fn definition_body_regions_naming(
 /// `clause_flags`) `case_list` command.
 fn case_list_clause_body_regions(
     source: &str,
+    registry: &tcl_registry::CommandRegistry,
+    name: &str,
     case_list: &tcl_registry::CaseListSpec,
     args: &[&str],
     cmd: &tcl_compiler::segmenter::SegmentedCommand,
@@ -3330,15 +3333,15 @@ fn case_list_clause_body_regions(
     if !case_list.clause_flags.is_empty() {
         return None;
     }
-    // Locating the list is `tcl_syntax`'s one implementation, shared with the
-    // semantic-token walker and the fold walk.  `None` = the inline pairs
-    // shape (or no clause-list argument at all) — not this function's concern.
-    let shape = tcl_syntax::case_list::CallShape {
-        subject_args: usize::from(case_list.subject_args),
-        regex_option: case_list.regex_option,
-        value_options: case_list.value_options,
-    };
-    let i = tcl_syntax::case_list::clause_list_call(args, &shape)?.index;
+    // Locating the list and validating its complete option grammar is the
+    // registry's typed case invocation. `None` = inline pairs or invalid.
+    let dialect = registry
+        .profile()
+        .map_or_else(tcl_dialect::DialectSet::empty, |profile| {
+            profile.availability_mask
+        });
+    let (_, invocation) = registry.case_invocation(name, args, dialect)?;
+    let i = invocation.clause_list_index?;
     // `args` is 0-based post-command-name; `cmd.texts`/`cmd.argv` are
     // 1-based (index 0 is the command name), so the clause-list word is at
     // `i + 1` in both.

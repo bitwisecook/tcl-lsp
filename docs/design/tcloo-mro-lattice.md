@@ -393,7 +393,20 @@ silently dropped the class.
 
 - No second dataflow engine — the SSA type lattice is reused.
 - No arbitrary interprocedural execution. Only the narrow literal, top-level
-  proc-argument binding used for computed metaclass names is modelled.
+  proc-argument binding used for computed metaclass names is modelled. That
+  binding follows Tcl defaults and the trailing `args` list, and a creation in
+  nested control flow is accepted only when registry-selected `if`, `switch`,
+  or `try` bodies prove that its path executes. Dynamic or unsupported path
+  selection abstains. The same path rule applies to the load-time call site:
+  text inside an unselected arm is not a call, and every earlier selected
+  control body must itself reach its end. Static switch selection honours the
+  profile-available registry modes, validated clause pairs, and `-`
+  fallthrough relation; loops and unresolved heads abstain.
 - No proof from dynamic fallback bodies. If the fallback's construct and
-  return relationship is not readable on one script path, object typing
-  abstains and W307/W308 remain conservative.
+  return relationship is not readable in execution order on one script path,
+  object typing abstains and W307/W308 remain conservative. A construction
+  after any registry-declared terminating completion is unreachable and
+  contributes no proof; a non-normal `return -code …` is not an object result.
+  A `next` path is terminal only when the recorded class MRO reaches a proved
+  terminating provider or the registry-described built-in chain end. A user
+  superclass fallback that returns normally prevents object typing.

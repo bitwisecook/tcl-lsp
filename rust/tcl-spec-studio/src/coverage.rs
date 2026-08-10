@@ -897,6 +897,7 @@ pub fn witness_definition_body_grammar(grammar: &DefinitionBodyGrammar) {
         member_body_namespace_path: _,
         builtin_type_methods: _,
         builtin_object_methods: _,
+        builtin_terminating_methods: _,
         member_body_commands: _,
         bare_word_construction: _,
         bare_word_construction_hint: _,
@@ -917,6 +918,10 @@ pub const DEFINITION_BODY_GRAMMAR: &[Field] = &[
     ),
     f("builtin_type_methods", Surface::Excluded(NAMED_CONSTANT)),
     f("builtin_object_methods", Surface::Excluded(NAMED_CONSTANT)),
+    f(
+        "builtin_terminating_methods",
+        Surface::Excluded(NAMED_CONSTANT),
+    ),
     f("member_body_commands", Surface::Excluded(NAMED_CONSTANT)),
     f("bare_word_construction", Surface::Excluded(NAMED_CONSTANT)),
     f(
@@ -1014,11 +1019,17 @@ pub fn witness_case_list_spec(spec: &CaseListSpec) {
     let CaseListSpec {
         subject_args: _,
         regex_option: _,
-        value_options: _,
+        exact_option: _,
+        glob_option: _,
+        nocase_option: _,
+        end_options_option: _,
+        fallthrough_body: _,
+        value_options_require_regex: _,
         clause_flags: _,
         clause_regex_flag: _,
         clause_value_flags: _,
         keyword_patterns: _,
+        keyword_patterns_require_final: _,
     } = spec;
 }
 
@@ -1026,11 +1037,23 @@ pub fn witness_case_list_spec(spec: &CaseListSpec) {
 pub const CASE_LIST_SPEC: &[Field] = &[
     f("subject_args", Surface::Excluded(NAMED_CONSTANT)),
     f("regex_option", Surface::Excluded(NAMED_CONSTANT)),
-    f("value_options", Surface::Excluded(NAMED_CONSTANT)),
+    f("exact_option", Surface::Excluded(NAMED_CONSTANT)),
+    f("glob_option", Surface::Excluded(NAMED_CONSTANT)),
+    f("nocase_option", Surface::Excluded(NAMED_CONSTANT)),
+    f("end_options_option", Surface::Excluded(NAMED_CONSTANT)),
+    f("fallthrough_body", Surface::Excluded(NAMED_CONSTANT)),
+    f(
+        "value_options_require_regex",
+        Surface::Excluded(NAMED_CONSTANT),
+    ),
     f("clause_flags", Surface::Excluded(NAMED_CONSTANT)),
     f("clause_regex_flag", Surface::Excluded(NAMED_CONSTANT)),
     f("clause_value_flags", Surface::Excluded(NAMED_CONSTANT)),
     f("keyword_patterns", Surface::Excluded(NAMED_CONSTANT)),
+    f(
+        "keyword_patterns_require_final",
+        Surface::Excluded(NAMED_CONSTANT),
+    ),
 ];
 
 #[cfg(test)]

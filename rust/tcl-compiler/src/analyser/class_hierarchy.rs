@@ -526,6 +526,54 @@ fn build_supers_mixins_maps(
     (supers_map, mixins_map)
 }
 
+/// Whether the combined, already-normalised superclass/mixin graph reachable
+/// from `start` revisits a node on its active path. The shared MRO primitive
+/// deliberately cuts off mixin revisits, but an analysis hierarchy records
+/// every relation cycle as an error so downstream proofs never mistake that
+/// truncated order for a complete method chain.
+fn has_relation_cycle(
+    start: &str,
+    supers_map: &HashMap<String, Vec<String>>,
+    mixins_map: &HashMap<String, Vec<String>>,
+) -> bool {
+    fn visit(
+        class_name: &str,
+        supers_map: &HashMap<String, Vec<String>>,
+        mixins_map: &HashMap<String, Vec<String>>,
+        active: &mut HashSet<String>,
+        complete: &mut HashSet<String>,
+    ) -> bool {
+        if active.contains(class_name) {
+            return true;
+        }
+        if complete.contains(class_name) {
+            return false;
+        }
+        active.insert(class_name.to_owned());
+        let relations = supers_map
+            .get(class_name)
+            .into_iter()
+            .flatten()
+            .chain(mixins_map.get(class_name).into_iter().flatten());
+        for relation in relations {
+            if visit(relation, supers_map, mixins_map, active, complete) {
+                return true;
+            }
+        }
+        active.remove(class_name);
+        complete.insert(class_name.to_owned());
+        false
+    }
+
+    visit(
+        start,
+        supers_map,
+        mixins_map,
+        &mut HashSet::new(),
+        &mut HashSet::new(),
+    )
+}
+
 /// Build the method-provider map: `(class, method) -> first ancestor
 /// in MRO order that provides the method`.
 fn build_method_providers(
@@ -595,6 +643,14 @@ pub fn build_class_hierarchy<S: std::hash::BuildHasher>(
     // lookups don't return ``None``.
     let mut mro_map: HashMap<String, Vec<String>> = mro_map_raw;
     let mut errors = errors_pass1;
+    for qname in classes.keys() {
+        if has_relation_cycle(qname, &supers_map, &mixins_map) {
+            let error = format!("cycle detected in class relation hierarchy for {qname}");
+            if !errors.contains(&error) {
+                errors.push(error);
+            }
+        }
+    }
     for qname in classes.keys() {
         if !mro_map.contains_key(qname) {
             mro_map.insert(qname.clone(), vec![qname.clone()]);
@@ -859,6 +915,24 @@ mod tests {
         assert!(!h.errors.is_empty());
         // Cycle classes get single-element MRO fallback.
         assert_eq!(h.mro_map["::A"], vec!["::A"]);
+    }
+
+    #[test]
+    fn relation_cycle_errors_distinguish_a_mixin_cycle_from_a_diamond() {
+        let cyclic = build_class_hierarchy(map(vec![
+            cls("::A", &[], &["::B"], &[]),
+            cls("::B", &[], &["::A"], &[]),
+            cls("::C", &[], &["::A"], &[]),
+        ]));
+        assert!(!cyclic.errors.is_empty());
+
+        let diamond = build_class_hierarchy(map(vec![
+            cls("::Root", &[], &[], &[]),
+            cls("::Left", &["::Root"], &[], &[]),
+            cls("::Right", &["::Root"], &[], &[]),
+            cls("::Leaf", &["::Left", "::Right"], &[], &[]),
+        ]));
+        assert!(diamond.errors.is_empty());
     }
 
     #[test]

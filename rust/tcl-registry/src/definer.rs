@@ -656,6 +656,11 @@ pub struct DefinitionBodyGrammar {
     /// Empty for a family with no such built-ins.
     pub builtin_object_methods: &'static [BuiltinObjectMethod],
 
+    /// Built-in object methods that cannot complete normally. Consumers use
+    /// this only after proving that method dispatch reaches the built-in
+    /// implementation; a user override is governed by its own body.
+    pub builtin_terminating_methods: &'static [&'static str],
+
     /// Commands this class system makes available **inside every member
     /// body** and nowhere else — snit's `install NAME using TYPE …`.
     ///
@@ -865,6 +870,13 @@ impl DefinitionBodyGrammar {
                     || reach == MethodReach::SelfDispatch)
         })?;
         Some(&self.builtin_object_methods[idx])
+    }
+
+    /// Whether the family's built-in implementation always terminates with a
+    /// non-normal completion.
+    #[must_use]
+    pub fn builtin_method_terminates(&self, name: &str) -> bool {
+        self.builtin_terminating_methods.contains(&name)
     }
 
     /// The member-body command `name` names, if this family injects one (see
@@ -1104,6 +1116,7 @@ pub const TCLOO_GRAMMAR: DefinitionBodyGrammar = DefinitionBodyGrammar {
     // here.
     builtin_type_methods: &["destroy"],
     builtin_object_methods: TCLOO_BUILTIN_OBJECT_METHODS,
+    builtin_terminating_methods: &["unknown"],
     // TclOO injects no extra *commands* into a method body — its helpers
     // (`my` / `next` / `self` / `link` / `classvariable`) are real global
     // commands in `::oo::Helpers` with their own specs, reached through
@@ -1336,6 +1349,7 @@ pub const SNIT_GRAMMAR: DefinitionBodyGrammar = DefinitionBodyGrammar {
     // info, destroy."  `create` is left out — see the field's doc comment.
     builtin_type_methods: &["info", "destroy"],
     builtin_object_methods: SNIT_BUILTIN_OBJECT_METHODS,
+    builtin_terminating_methods: &[],
     member_body_commands: SNIT_MEMBER_BODY_COMMANDS,
     // snit(n), "The Type Command": `$type name ?args?` with a non-typemethod
     // first word is `$type create name ?args?`.
@@ -1366,6 +1380,7 @@ pub const SNIT_WIDGET_GRAMMAR: DefinitionBodyGrammar = DefinitionBodyGrammar {
     // info, destroy."  `create` is left out — see the field's doc comment.
     builtin_type_methods: &["info", "destroy"],
     builtin_object_methods: SNIT_BUILTIN_OBJECT_METHODS,
+    builtin_terminating_methods: &[],
     member_body_commands: SNIT_WIDGET_MEMBER_BODY_COMMANDS,
     // snit(n), "The Type Command": `$type name ?args?` with a non-typemethod
     // first word is `$type create name ?args?`.
@@ -1465,6 +1480,7 @@ pub const ITCL_GRAMMAR: DefinitionBodyGrammar = DefinitionBodyGrammar {
     // than built-in typemethods on the class command itself.
     builtin_type_methods: &[],
     builtin_object_methods: ITCL_BUILTIN_OBJECT_METHODS,
+    builtin_terminating_methods: &[],
     member_body_commands: &[],
     // itcl constructs through `ClassName objName` *at the class command* —
     // but only via the documented `ClassName objName ?args?` form, which the

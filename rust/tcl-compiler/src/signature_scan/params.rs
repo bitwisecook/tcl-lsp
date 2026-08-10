@@ -28,7 +28,7 @@
 use std::borrow::Cow;
 
 use tcl_lexer::backslash_subst;
-use tcl_syntax::list::{find_element, split_list};
+use tcl_syntax::list::{find_element, join_list, split_list};
 
 use super::types::ParamDef;
 
@@ -128,6 +128,54 @@ pub fn parse_param_list(param_str: &str) -> Vec<ParamDef> {
         .iter()
         .filter_map(|spec| spec_to_param(spec))
         .collect()
+}
+
+/// Bind call arguments to Tcl procedure formals.
+///
+/// Missing fixed arguments use their declared defaults.  A final formal named
+/// `args` receives every remaining argument as one correctly quoted Tcl list,
+/// including the empty list when there are no remaining arguments.  `None`
+/// actuals carry an unknown run-time value through the binding; an unknown
+/// element of `args` therefore makes the packed list unknown without making
+/// the call's arity invalid.
+///
+/// Returns `None` only when the call has too few required arguments or too
+/// many arguments for a non-variadic signature.
+#[must_use]
+pub fn bind_proc_formals(
+    params: &[ParamDef],
+    actuals: &[Option<String>],
+) -> Option<Vec<(String, Option<String>)>> {
+    let variadic = params.last().is_some_and(|param| param.name == "args");
+    let fixed_len = params.len().saturating_sub(usize::from(variadic));
+    if actuals.len() > fixed_len && !variadic {
+        return None;
+    }
+
+    let mut bound = Vec::with_capacity(params.len());
+    for (idx, param) in params.iter().take(fixed_len).enumerate() {
+        let value = if let Some(value) = actuals.get(idx) {
+            value.clone()
+        } else {
+            let raw = param.default_value.as_deref()?;
+            let mut values = split_list(raw).ok()?;
+            if values.len() != 1 {
+                return None;
+            }
+            Some(values.remove(0).into_owned())
+        };
+        bound.push((param.name.clone(), value));
+    }
+    if variadic {
+        let rest = &actuals[fixed_len.min(actuals.len())..];
+        let packed = rest
+            .iter()
+            .cloned()
+            .collect::<Option<Vec<_>>>()
+            .map(join_list);
+        bound.push(("args".to_owned(), packed));
+    }
+    Some(bound)
 }
 
 /// Turn one parameter *spec* (a list element value, delimiters already
@@ -685,6 +733,66 @@ mod tests {
         assert_eq!(
             params[0].default_value.as_deref(),
             Some("default with spaces")
+        );
+    }
+
+    #[test]
+    fn proc_formal_binding_uses_defaults_and_checks_arity() {
+        let params = parse_param_list("required {optional {two words}}");
+        let bound = bind_proc_formals(&params, &[Some("value".to_owned())]);
+        assert_eq!(
+            bound,
+            Some(vec![
+                ("required".to_owned(), Some("value".to_owned())),
+                ("optional".to_owned(), Some("two words".to_owned())),
+            ])
+        );
+        assert_eq!(bind_proc_formals(&params, &[]), None);
+        assert_eq!(
+            bind_proc_formals(
+                &params,
+                &[
+                    Some("one".to_owned()),
+                    Some("two".to_owned()),
+                    Some("three".to_owned()),
+                ],
+            ),
+            None
+        );
+    }
+
+    #[test]
+    fn proc_formal_binding_packs_zero_one_and_many_args_as_a_tcl_list() {
+        let params = parse_param_list("head args");
+        for (tail, expected) in [
+            (Vec::<&str>::new(), Vec::<&str>::new()),
+            (vec!["one"], vec!["one"]),
+            (
+                vec!["two words", "brace { value", r"back\slash", ""],
+                vec!["two words", "brace { value", r"back\slash", ""],
+            ),
+        ] {
+            let mut actuals = vec![Some("head".to_owned())];
+            actuals.extend(tail.into_iter().map(|value| Some(value.to_owned())));
+            let Some(bound) = bind_proc_formals(&params, &actuals) else {
+                panic!("valid variadic call did not bind");
+            };
+            let Some(Some(packed)) = bound.last().map(|(_, value)| value) else {
+                panic!("args binding was not a known Tcl list");
+            };
+            let Ok(elements) = split_list(packed) else {
+                panic!("args binding was not list-parseable");
+            };
+            assert_eq!(elements, expected);
+        }
+    }
+
+    #[test]
+    fn proc_formal_binding_preserves_unknown_variadic_values() {
+        let params = parse_param_list("args");
+        assert_eq!(
+            bind_proc_formals(&params, &[Some("known".to_owned()), None]),
+            Some(vec![("args".to_owned(), None)])
         );
     }
 

@@ -283,9 +283,18 @@ pub struct CaseListSpec {
     pub subject_args: u8,
     /// A *command* option that makes every pattern a regex (`switch -regexp`).
     pub regex_option: Option<&'static str>,
-    /// Command options that consume a following value word (`switch -matchvar
-    /// var`), so the value is not mistaken for the subject.
-    pub value_options: &'static [&'static str],
+    /// Command option selecting literal equality (the default switch mode).
+    pub exact_option: Option<&'static str>,
+    /// Command option selecting Tcl glob matching.
+    pub glob_option: Option<&'static str>,
+    /// Command option making the selected comparison mode case-insensitive.
+    pub nocase_option: Option<&'static str>,
+    /// Command option ending command-level option parsing.
+    pub end_options_option: Option<&'static str>,
+    /// Body word that falls through to the following clause's body.
+    pub fallthrough_body: Option<&'static str>,
+    /// Value-taking options legal only in regular-expression mode.
+    pub value_options_require_regex: &'static [&'static str],
     /// Flags that may precede a pattern *inside* the list (Expect's `-re`,
     /// `-gl`, `-ex`, `-nocase`, `-timeout`).  Empty means no clause flags.
     pub clause_flags: &'static [&'static str],
@@ -296,6 +305,34 @@ pub struct CaseListSpec {
     /// Patterns that are keywords, not match text (`default`; Expect's
     /// `timeout` / `eof` / `full_buffer`).
     pub keyword_patterns: &'static [&'static str],
+    /// Whether a keyword pattern is special only in the final clause.
+    pub keyword_patterns_require_final: bool,
+}
+
+/// Registry-owned comparison mode for a case-list invocation.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CaseMatchMode {
+    /// Literal string equality.
+    Exact,
+    /// Tcl glob matching.
+    Glob,
+    /// Regular-expression matching; static consumers may abstain.
+    Regexp,
+}
+
+/// Validated command-level layout of a case-list invocation.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct CaseInvocation {
+    /// Subject word index, when the command has one.
+    pub subject_index: Option<usize>,
+    /// Single braced clause-list word, or `None` for inline pairs.
+    pub clause_list_index: Option<usize>,
+    /// First inline pattern index when not using a clause-list word.
+    pub inline_clause_start: Option<usize>,
+    /// Comparison mode selected by registry-declared options.
+    pub mode: CaseMatchMode,
+    /// Whether matching is case-insensitive.
+    pub nocase: bool,
 }
 
 impl CaseListSpec {
@@ -303,28 +340,154 @@ impl CaseListSpec {
     pub const SWITCH: Self = Self {
         subject_args: 1,
         regex_option: Some("-regexp"),
-        value_options: &["-matchvar", "-indexvar"],
+        exact_option: Some("-exact"),
+        glob_option: Some("-glob"),
+        nocase_option: Some("-nocase"),
+        end_options_option: Some("--"),
+        fallthrough_body: Some("-"),
+        value_options_require_regex: &["-matchvar", "-indexvar"],
         clause_flags: &[],
         clause_regex_flag: None,
         clause_value_flags: &[],
         keyword_patterns: &["default"],
+        keyword_patterns_require_final: true,
     };
 
     /// The Expect `expect { ?-flags? pat body … }` shape.
     pub const EXPECT: Self = Self {
         subject_args: 0,
         regex_option: None,
+        exact_option: None,
+        glob_option: None,
+        nocase_option: Some("-nocase"),
+        end_options_option: Some("--"),
+        fallthrough_body: None,
         // `-timeout` / `-i` also appear as *command-level* options ahead of the
         // list (`expect -timeout 5 { … }`, `expect -i $spawn { … }`).  Leaving
         // this empty stopped the option scan on the value word, so the braced
         // list was never recognised as a clause list and its bodies were never
         // recursed.
-        value_options: &["-timeout", "-i"],
+        value_options_require_regex: &[],
         clause_flags: &["-re", "-gl", "-ex", "-nocase", "-timeout", "-i", "--"],
         clause_regex_flag: Some("-re"),
         clause_value_flags: &["-timeout", "-i"],
         keyword_patterns: &["timeout", "eof", "default", "full_buffer"],
+        keyword_patterns_require_final: false,
     };
+
+    /// Parse and validate this case-list command's option/subject/clause
+    /// layout. The two-argument switch exception, `--`, option values, and
+    /// pair arity are all registry-owned here.
+    #[must_use]
+    pub fn invocation(
+        self,
+        args: &[&str],
+        options: &[&crate::hover::OptionSpec],
+    ) -> Option<CaseInvocation> {
+        let mut mode = CaseMatchMode::Exact;
+        let mut nocase = false;
+        let mut saw_regex_value_option = false;
+        let mut i = 0usize;
+        if !(self.subject_args == 1 && args.len() == 2) {
+            while let Some(word) = args.get(i).copied() {
+                if !word.starts_with('-') {
+                    break;
+                }
+                let option = options
+                    .iter()
+                    .copied()
+                    .find(|option| option.matches(word))?;
+                let option_name = option.name;
+                if self.end_options_option == Some(option_name) {
+                    i += 1;
+                    break;
+                }
+                if self.exact_option == Some(option_name) {
+                    mode = CaseMatchMode::Exact;
+                    i += 1;
+                } else if self.glob_option == Some(option_name) {
+                    mode = CaseMatchMode::Glob;
+                    i += 1;
+                } else if self.regex_option == Some(option_name) {
+                    mode = CaseMatchMode::Regexp;
+                    i += 1;
+                } else if self.nocase_option == Some(option_name) {
+                    nocase = true;
+                    i += 1;
+                } else {
+                    let consumed = option.value_word_count(args, i);
+                    if consumed == 0 {
+                        return None;
+                    }
+                    saw_regex_value_option |=
+                        self.value_options_require_regex.contains(&option_name);
+                    i += 1 + consumed;
+                }
+            }
+        }
+        if saw_regex_value_option && mode != CaseMatchMode::Regexp {
+            return None;
+        }
+        let subject_index = (self.subject_args == 1).then_some(i);
+        i += usize::from(self.subject_args);
+        if i >= args.len() {
+            return None;
+        }
+        let remaining = args.len() - i;
+        if remaining == 1 {
+            // Validate the list grammar first, then its registry-declared
+            // clause grammar.  Strict pattern/body parity is sufficient for
+            // `switch`, but not for Expect: a clause may start with `-re` or
+            // a value-taking `-timeout 5`, so counting raw list elements
+            // rejects valid clauses and leaves generic consumers unable to
+            // recurse their bodies.
+            let elements = tcl_syntax::list::split_list(args[i]).ok()?;
+            let shape = tcl_syntax::case_list::CaseListShape {
+                clause_flags: self.clause_flags,
+                clause_value_flags: self.clause_value_flags,
+            };
+            let clauses = tcl_syntax::case_list::split_case_list(args[i], &shape);
+            if clauses
+                .iter()
+                .any(|clause| clause.pattern.is_none() || clause.body.is_none())
+            {
+                return None;
+            }
+            if elements.last().is_some_and(|body| {
+                self.fallthrough_body
+                    .is_some_and(|marker| body.as_ref() == marker)
+            }) {
+                return None;
+            }
+            Some(CaseInvocation {
+                subject_index,
+                clause_list_index: Some(i),
+                inline_clause_start: None,
+                mode,
+                nocase,
+            })
+        } else if remaining >= 2
+            && remaining.is_multiple_of(2)
+            && self.fallthrough_body != args.last().copied()
+        {
+            Some(CaseInvocation {
+                subject_index,
+                clause_list_index: None,
+                inline_clause_start: Some(i),
+                mode,
+                nocase,
+            })
+        } else {
+            None
+        }
+    }
+
+    /// Whether `pattern` is a special keyword at this clause position.
+    #[must_use]
+    pub fn is_keyword_pattern(self, pattern: &str, index: usize, total: usize) -> bool {
+        self.keyword_patterns.contains(&pattern)
+            && (!self.keyword_patterns_require_final || index + 1 == total)
+    }
 }
 
 /// Option-flag spellings whose value is a credential on *any* command

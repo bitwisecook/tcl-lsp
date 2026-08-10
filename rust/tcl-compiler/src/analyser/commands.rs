@@ -1232,7 +1232,7 @@ impl Analyser {
             Hook::Uplevel => self.handle_uplevel_command(args, arg_tokens, scope_path),
             Hook::Foreach => self.handle_foreach_command(args, arg_tokens, scope_path),
             Hook::For => self.handle_for_command(args, arg_tokens, scope_path),
-            Hook::Switch => self.handle_switch_command(args, arg_tokens, scope_path),
+            Hook::Switch => self.handle_switch_command(cmd_name, args, arg_tokens, scope_path),
             Hook::Catch => self.handle_catch_command(args, arg_tokens, scope_path),
             // `traits` are this invocation's own, from the same resolution
             // that produced the hook — the handler reads

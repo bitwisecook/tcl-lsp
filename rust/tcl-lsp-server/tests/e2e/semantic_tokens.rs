@@ -2021,6 +2021,53 @@ fn test_expect_clause_list_patterns_and_bodies() {
     );
 }
 
+/// A braced word that happens to spell an Expect clause flag is a literal
+/// pattern.  The registry-owned clause grammar must still recurse its paired
+/// body, without painting that pattern as an option decorator.
+#[test]
+fn test_expect_clause_list_braced_flag_pattern_is_literal() {
+    let mut lsp = Lsp::tcl();
+    let leg = legend(&lsp);
+    let src = "expect { {-re} { set matched 1 } }\n";
+    let uri = unique_uri("exp");
+    lsp.open_document_lang(&uri, src, "tcl-expect", 1);
+    lsp.await_diagnostics_version(&uri, Some(1), std::time::Duration::from_secs(30));
+    let tokens = typed(&mut lsp, &leg, &uri);
+
+    assert!(
+        tokens
+            .iter()
+            .any(|t| covered(src, t) == "set" && t.ttype == "function"),
+        "the literal pattern's body must recurse: {tokens:?}",
+    );
+    assert!(
+        !tokens
+            .iter()
+            .any(|t| covered(src, t) == "-re" && t.ttype == "decorator"),
+        "a braced flag-shaped pattern must not become a decorator: {tokens:?}",
+    );
+}
+
+/// An incomplete clause has no script body to recurse.  Rejecting the typed
+/// case-list shape avoids fabricating code tokens from its pattern text.
+#[test]
+fn test_expect_incomplete_clause_does_not_fabricate_a_body() {
+    let mut lsp = Lsp::tcl();
+    let leg = legend(&lsp);
+    let src = "expect { -re {set ghost 1} }\n";
+    let uri = unique_uri("exp");
+    lsp.open_document_lang(&uri, src, "tcl-expect", 1);
+    lsp.await_diagnostics_version(&uri, Some(1), std::time::Duration::from_secs(30));
+    let tokens = typed(&mut lsp, &leg, &uri);
+
+    assert!(
+        !tokens
+            .iter()
+            .any(|t| covered(src, t) == "set" && t.ttype == "function"),
+        "an incomplete clause's pattern must not be treated as a body: {tokens:?}",
+    );
+}
+
 /// Issue #1138 idx 100: Tk's `library/tk.tcl:289` builds its `upvar` with
 /// `list` — `uplevel #0 [list upvar #0 ::tk::Priv.$disp ::tk::Priv]` — and
 /// declares the same cell as a plain `variable ::tk::Priv` on the next line.
