@@ -23,10 +23,13 @@ pub const fn spec() -> CommandSpec {
         name: "pool",
         traits: Traits::DIAGRAM_ACTION,
         dialects: Some(DialectSet::IRULES),
-        arity: Arity::new(1, 3),
+        // The optional member form includes the literal `member` selector:
+        // `pool POOL member ADDRESS PORT`.  It is therefore four words after
+        // the command name, not three.
+        arity: Arity::new(1, 4),
         hover: Some(HoverSnippet {
             summary: "Select a load-balancing pool for the current flow.",
-            synopsis: &["pool pool_name ?member_addr member_port?"],
+            synopsis: &["pool <pool_name> [member <addr> [<port>]]"],
             snippet: "Can direct traffic to a pool, optionally pinning to a specific member.",
             source: "https://clouddocs.f5.com/api/irules/pool.html",
             examples: "",
@@ -44,7 +47,7 @@ pub const fn spec() -> CommandSpec {
         }),
         forms: &[FormSpec {
             kind: FormKind::Default,
-            synopsis: "pool pool_name ?member_addr member_port?",
+            synopsis: "pool <pool_name> [member <addr> [<port>]]",
             dialects: None,
         }],
         side_effects: &[SideEffect {

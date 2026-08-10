@@ -329,15 +329,42 @@ const SUBCOMMANDS: &[SubCommand] = &[
     },
     SubCommand {
         name: "nextelement",
-        arity: Arity::exact(1),
+        arity: Arity::exact(2),
         detail: "Get next element during iteration.",
-        synopsis: "class nextelement ?options? ?--? <search_id>",
+        synopsis: "class nextelement ?options? ?--? <class> <search_id>",
         options: const {
             &[
+                OptionSpec {
+                    name: "-index",
+                    value: OptionValue::flag(),
+                    detail: "Return index instead of element.",
+                    dialects: None,
+                    aliases: &[],
+                    lifecycle: Lifecycle::UNSPECIFIED,
+                    min_abbrev: None,
+                },
                 OptionSpec {
                     name: "-value",
                     value: OptionValue::flag(),
                     detail: "Return value instead of name.",
+                    dialects: None,
+                    aliases: &[],
+                    lifecycle: Lifecycle::UNSPECIFIED,
+                    min_abbrev: None,
+                },
+                OptionSpec {
+                    name: "-element",
+                    value: OptionValue::flag(),
+                    detail: "Return name and value as one element.",
+                    dialects: None,
+                    aliases: &[],
+                    lifecycle: Lifecycle::UNSPECIFIED,
+                    min_abbrev: None,
+                },
+                OptionSpec {
+                    name: "-list",
+                    value: OptionValue::flag(),
+                    detail: "Always return a list.",
                     dialects: None,
                     aliases: &[],
                     lifecycle: Lifecycle::UNSPECIFIED,
@@ -367,17 +394,17 @@ const SUBCOMMANDS: &[SubCommand] = &[
     },
     SubCommand {
         name: "anymore",
-        arity: Arity::exact(1),
+        arity: Arity::exact(2),
         detail: "Check if more elements remain.",
-        synopsis: "class anymore <search_id>",
+        synopsis: "class anymore <class> <search_id>",
         pure: true,
         ..SubCommand::DEFAULT
     },
     SubCommand {
         name: "donesearch",
-        arity: Arity::exact(1),
+        arity: Arity::exact(2),
         detail: "End a data group iteration.",
-        synopsis: "class donesearch <search_id>",
+        synopsis: "class donesearch <class> <search_id>",
         ..SubCommand::DEFAULT
     },
 ];

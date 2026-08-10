@@ -1574,7 +1574,11 @@ impl Analyser {
         // overlay so analyser / compiler queries see the
         // user-declared stubs as first-class commands (without
         // mutating the global registry).
-        let (stub_cmds, stub_exprs) = super::utils::scan_source_for_stubs(source);
+        let (mut stub_cmds, mut stub_exprs) = super::utils::scan_source_for_stubs(source);
+        let (sidecar_cmds, sidecar_exprs) =
+            super::utils::scan_sidecar_stubs(self.file_path.as_deref(), dialect);
+        stub_cmds.extend(sidecar_cmds);
+        stub_exprs.extend(sidecar_exprs);
         self.stub_overlay = Some(super::types::build_stub_overlay(&stub_cmds));
         self.result.stub_commands = stub_cmds;
         self.result.stub_expr_defs = stub_exprs;

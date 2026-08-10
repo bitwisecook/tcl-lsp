@@ -226,7 +226,8 @@ enum Command {
         #[arg(long = "code", required = true)]
         codes: Vec<String>,
         /// Corpus directory or file to sweep (repeatable). A directory is
-        /// walked recursively for Tcl/iRules source files.
+        /// walked recursively for Tcl/iRules source files, direct `.txt`
+        /// iRules, and iRules code blocks embedded in `.rst` documents.
         #[arg(long = "corpus", required = true)]
         corpus: Vec<PathBuf>,
         /// Sample locations printed per message shape.

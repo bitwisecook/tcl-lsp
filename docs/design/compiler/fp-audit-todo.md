@@ -1088,9 +1088,12 @@ fixed; the probe scripts are named where they exist.
      (computed via LoopForest natural-loop bodies, keyed by header)
      prevents cross-loop pollution.  Sample tcllib impact: 93 → 30
      (-68%) on 6 high-S102 files; me_cpucore.tcl 48 → 3.
-- [~] **W123** unresolved command (1761) — mostly real missing stubs (argparse,
-  dget/dexist, custom widget cmds). Not analyser FPs, but a per-package stub
-  pass would cut noise. Triage which are stdlib-ish vs project-local.
+- [x] **W123** unresolved command (1761) — TRUE POSITIVES for commands whose
+  defining packages or factories are outside the analysed source. The Rust
+  analyser now loads the nearest workspace `<dialect>.tcl.stubs` sidecar through
+  the same overlay as inline stubs, so projects can supply authoritative
+  argparse, dict-extension, and custom-widget signatures without globally
+  guessing third-party APIs.
 
 ---
 
@@ -1339,9 +1342,20 @@ can simplify this" suggestion. None swept yet.
 
 ## NOT YET INSPECTED — errors (Exxx) + hints
 
-- [~] **E001** missing subcommand / **E002** too few args / **E003** too many
-  args — arity. Sweep for custom-arity commands (ensembles, varargs) that may
-  miscount. (E002/E003 fire in corpus.)  **One lexer-root-cause FP class fixed
+- [x] **E001** missing subcommand / **E002** too few args / **E003** too many
+  args — RESOLVED. The native sweep was rerun over all 416 recognised Tcl and
+  iRules files in the local #1181 corpus (`tcl-lsp-testsrc`). Its two E001 and
+  five E002 results are deliberate malformed/unsupported fixtures; three
+  `set name = value` E003 results are genuine Tcl errors. The remaining twelve
+  E003 results exposed three iRules registry arity gaps, now corrected with
+  paired TP/FP regressions: `pool POOL member ADDR PORT` (three corpus sites),
+  remote `log IP facility.level message` (two), and `class nextelement
+  ?options? CLASS SEARCH_ID` (four). `class anymore` and `class donesearch`
+  share the same two-positional iteration contract and were corrected with the
+  same registry pass. Oracle: `/Users/jimd/src/bigip-extract/man-21.0.0.1-0.0.13/`
+  `ltm_rule_command_pool.3`, `ltm_rule_command_log.3`, and
+  `ltm_rule_command_class.3` (the latter also restored `nextelement`'s
+  `-index`/`-element`/`-list` options). **One lexer-root-cause FP class fixed
   (FP-STY-15):** every corpus E002/E205 firing (tcltest.tcl, csv.tcl) was a
   quoted word ending in the regex end-anchor `$"` (`regsub "\n$" …`,
   `string match "abc$" …`) — the lexer misread the closing quote as a new
@@ -1488,11 +1502,18 @@ dedicated iRules corpus + the Tk stdlib for a real sweep.
   The corpus is not vendored: it remains third-party code under its own
   licences in `tmp/`.
 
-  Two corpus legs are additionally invisible to `fp-sweep`, which only walks
-  recognised Tcl/iRules extensions: `f5devcentral/f5-agility-labs-irules`
-  (~31 iRules embedded in `.rst` lab documents) and `f5devcentral/irules-toolbox`
-  (~186 `.txt` snippets). Extracting those into sweepable files would widen the
-  corpus further and is not yet done.
+  2026-08 completion: `fp-sweep` now also admits direct `.txt` iRules carrying
+  a `when EVENT` signature and extracts iRules-bearing reStructuredText `code`
+  / `code-block` directives while preserving their original document line
+  numbers. A combined run over `tcl-lsp-testsrc/irules` and the pinned
+  `f5-agility-labs-irules` checkout scanned 647 source files as 652 analysis
+  documents: 416 native sources, 200 `.txt` iRules, and 36 blocks from the 31
+  `.rst` lab documents. The seven `.tmsh` files enumerated by #1181 were also
+  inspected: they are BIG-IP configuration/data-group or iCall artefacts and
+  none contains a `when EVENT` handler, so they correctly remain outside this
+  iRules diagnostic sweep. The event signature accepts the optional
+  `priority` / `timing` tail and the next-line opening-brace form present in
+  the extracted BIG-IP man-page schema under `bigip-extract`.
 - [x] **TK1001/1002/1003** geometry/parent/option (0 corpus) — the Tk geometry
   W001 fix added coverage; sweep a real Tk app for TK100x FPs. 2026-08:
   TK1001 verified synthetically — mixing `pack`/`grid` on the same parent
@@ -1515,20 +1536,20 @@ dedicated iRules corpus + the Tk stdlib for a real sweep.
   synthetic `pkgIndex.tcl` (`package ifneeded foo 1.0 [list source [file
   join $dir foo.tcl]]`): no W210 on `$dir`. This checklist just never got
   updated when the fix landed.
-- [ ] **W110 / O120 near-duplicate** — 1020+ ranges are byte-identical between
-  the two. Policy call: which subsystem owns the user-facing squiggle. Still
-  open — a genuine product decision (which subsystem's diagnostic a user
-  sees, or whether both should keep firing), not a correctness bug; 2026-08
-  sweep reconfirmed both still fire on the same real sites (7 W120 corpus
-  firings this session were all clean `eq`/`ne`-worthy `==`-on-strings; no
-  W110/O120 pair was inspected side-by-side for exact range overlap this
-  session — the policy call itself needs a maintainer decision, not more
-  sweeping).
-- [ ] **W123 per-package stubs** — argparse / dict-extension (dget/dexist) /
-  custom widget commands. A stub bundle would cut ~half the W123 noise.
-  Still open — a content/registry-authoring task (writing stub bundles for
-  common third-party packages), not an analyser defect; out of scope for
-  this sweep.
+- [x] **W110 / O120 near-duplicate** — W110 owns the user-facing squiggle at
+  the LSP publication boundary because it is the analyser's semantics-aware
+  warning and the safe-fix path's source diagnostic. Exact same-range O120
+  suggestions are suppressed; O120 remains available when W110 is absent and
+  on distinct ranges. This prevents duplicate editor noise without changing
+  optimiser output or CLI/library callers.
+- [x] **W123 per-package stubs** — workspace-wide `<dialect>.tcl.stubs`
+  sidecars are now loaded by the Rust analyser (nearest source-directory
+  ancestor wins) through the same parser and overlay as inline stubs, so
+  projects can provide authoritative argparse/dict-extension/custom-widget
+  signatures without changing the global registry. No bundled third-party
+  API declarations were added: the available test corpus contains no
+  authoritative `dget`/`dexist` or custom-widget package sources, and
+  inventing signatures would be less safe than requiring a sidecar.
 
 ## Process
 

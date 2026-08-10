@@ -3325,6 +3325,7 @@ async fn refine_and_lift_diagnostics(
             &disabled,
             &analysis_lifts.suppressed_lines,
         ));
+        suppress_duplicate_o120(&mut diagnostics);
         diagnostics.extend(lift_source_style_diagnostics(
             &lift_text,
             decode_report.as_ref(),
@@ -12145,6 +12146,7 @@ impl Backend {
                 &disabled,
                 &analysis.suppressed_lines,
             ));
+            suppress_duplicate_o120(&mut diagnostics);
             diagnostics.extend(lift_source_style_diagnostics(
                 &text,
                 decode_report.as_ref(),
@@ -19751,6 +19753,34 @@ fn lift_compiler_diagnostics(
     out
 }
 
+/// Keep one user-facing squiggle when the analyser's W110 and optimiser's
+/// O120 identify the same string-comparison operator.  W110 owns this case at
+/// the LSP boundary: it is the semantics-aware analyser warning and is the
+/// diagnostic used by the safe-fix path.  O120 is still published when W110
+/// is absent (for optimiser-only callers and when the analyser has been
+/// disabled), and distinct ranges are never coalesced.
+fn suppress_duplicate_o120(diagnostics: &mut Vec<tower_lsp_server::ls_types::Diagnostic>) {
+    let w110_ranges: Vec<_> = diagnostics
+        .iter()
+        .filter(|d| {
+            matches!(
+                d.code.as_ref(),
+                Some(tower_lsp_server::ls_types::NumberOrString::String(code)) if code == "W110"
+            )
+        })
+        .map(|d| d.range)
+        .collect();
+    if w110_ranges.is_empty() {
+        return;
+    }
+    diagnostics.retain(|d| {
+        !(matches!(
+            d.code.as_ref(),
+            Some(tower_lsp_server::ls_types::NumberOrString::String(code)) if code == "O120"
+        ) && w110_ranges.contains(&d.range))
+    });
+}
+
 /// Build an empty `DocumentDiagnosticReportResult` for callers
 /// that hit a no-document or no-analysis path.
 fn empty_diagnostic_report() -> DocumentDiagnosticReportResult {
@@ -20534,8 +20564,47 @@ fn lift_folding_range(r: tcl_lsp_core::folding::FoldingRange) -> FoldingRange {
 mod tests {
     use super::*;
     use tower_lsp_server::ls_types::{
-        PartialResultParams, ReferenceContext, TextDocumentIdentifier, WorkDoneProgressParams,
+        Diagnostic, DiagnosticSeverity, NumberOrString, PartialResultParams, Range,
+        ReferenceContext, TextDocumentIdentifier, WorkDoneProgressParams,
     };
+
+    fn lifted_diag(code: &str, range: Range) -> Diagnostic {
+        Diagnostic {
+            range,
+            severity: Some(DiagnosticSeverity::WARNING),
+            code: Some(NumberOrString::String(code.to_owned())),
+            code_description: None,
+            source: Some("test".to_owned()),
+            message: code.to_owned(),
+            related_information: None,
+            tags: None,
+            data: None,
+        }
+    }
+
+    #[test]
+    fn duplicate_o120_is_removed_only_for_matching_w110_range() {
+        let same = Range::new(Position::new(1, 2), Position::new(1, 4));
+        let other = Range::new(Position::new(3, 0), Position::new(3, 2));
+        let mut diagnostics = vec![
+            lifted_diag("W110", same),
+            lifted_diag("O120", same),
+            lifted_diag("O120", other),
+        ];
+        suppress_duplicate_o120(&mut diagnostics);
+        let codes: Vec<_> = diagnostics
+            .iter()
+            .filter_map(|d| match d.code.as_ref() {
+                Some(NumberOrString::String(code)) => Some(code.as_str()),
+                _ => None,
+            })
+            .collect();
+        assert_eq!(codes, ["W110", "O120"]);
+
+        let mut optimiser_only = vec![lifted_diag("O120", same)];
+        suppress_duplicate_o120(&mut optimiser_only);
+        assert_eq!(optimiser_only.len(), 1, "O120 survives without W110");
+    }
 
     // ---- #723 W120 workspace-refinement helpers ----------------------------
 
