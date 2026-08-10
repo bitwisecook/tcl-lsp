@@ -722,15 +722,35 @@ impl WasmModule {
         }
 
         for seg in &self.data_segments {
-            let escaped = String::from_utf8_lossy(&seg.data)
-                .replace('\\', "\\\\")
-                .replace('"', "\\\"");
+            let escaped = escape_wat_bytes(&seg.data);
             lines.push(format!("  (data (i32.const {}) \"{escaped}\")", seg.offset));
         }
 
         lines.push(")".to_owned());
         lines.join("\n")
     }
+}
+
+/// Escape raw data-segment bytes for a WAT string literal without changing
+/// their value. Printable ASCII stays readable; quotes and backslashes use
+/// their named escapes, and every other byte uses WAT's two-digit hex escape.
+fn escape_wat_bytes(bytes: &[u8]) -> String {
+    const HEX: &[u8; 16] = b"0123456789abcdef";
+
+    let mut escaped = String::with_capacity(bytes.len());
+    for &byte in bytes {
+        match byte {
+            b'"' => escaped.push_str("\\\""),
+            b'\\' => escaped.push_str("\\\\"),
+            0x20..=0x7e => escaped.push(char::from(byte)),
+            _ => {
+                escaped.push('\\');
+                escaped.push(char::from(HEX[usize::from(byte >> 4)]));
+                escaped.push(char::from(HEX[usize::from(byte & 0x0f)]));
+            }
+        }
+    }
+    escaped
 }
 
 /// Format one instruction for WAT, indented. Operand-bearing ops decode their
@@ -847,6 +867,31 @@ mod tests {
         assert!(wat.contains("i64.const 42"));
         assert!(wat.contains("return"));
         assert!(wat.trim_end().ends_with(')'));
+    }
+
+    #[test]
+    fn to_wat_escapes_data_segments_without_changing_bytes() {
+        let mut m = WasmModule::new();
+        m.data_segments.push(WasmData {
+            offset: 17,
+            data: vec![
+                b'a', b'\n', b'\t', 0, b'"', b'\\', b' ', 0x7f, 0x80, 0xff, b'z',
+            ],
+        });
+
+        let wat = m.to_wat();
+        assert!(
+            wat.contains(r#"(data (i32.const 17) "a\0a\09\00\"\\ \7f\80\ffz")"#),
+            "{wat}"
+        );
+        let data_line = wat
+            .lines()
+            .find(|line| line.contains("(data "))
+            .expect("rendered data segment");
+        assert!(
+            data_line.bytes().all(|byte| !byte.is_ascii_control()),
+            "data segment contains an unescaped control byte: {data_line:?}"
+        );
     }
 
     #[test]

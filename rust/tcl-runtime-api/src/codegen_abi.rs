@@ -120,6 +120,15 @@ impl CodegenAbiImportId {
 
 /// wasm32 linear-memory pointer width.
 pub const WASM32_POINTER_BYTES: i32 = 4;
+/// First byte of the immutable data window reserved for generated wasm32 code.
+///
+/// The runtime's downward-growing shadow stack occupies the preceding MiB.
+pub const WASM32_CODEGEN_DATA_START: i64 = 0x10_0000;
+/// Exclusive end of the immutable data window reserved for generated wasm32 code.
+///
+/// Linked runtime data starts here (`wasm-ld --global-base=0x20_0000`), so the
+/// complete generated constant pool must stay below this address.
+pub const WASM32_CODEGEN_DATA_END: i64 = 0x20_0000;
 /// Offset of `TclCompletionAbi.code`.
 pub const WASM32_COMPLETION_CODE_OFFSET: i32 = 0;
 /// Offset of `TclCompletionAbi.result`.

@@ -54,6 +54,7 @@ use crate::command_binding::{
 use crate::compilation_unit::{CompilationUnit, FunctionUnit};
 use crate::ir::{Module, Procedure, Statement};
 use crate::registry_invocation::{RegistryInvocationResolution, resolve_command_tokens};
+use tcl_runtime_api::codegen_abi::WASM32_CODEGEN_DATA_START;
 
 /// Block type byte for a structured op (`block`/`loop`/`if`) yielding no value.
 const BLOCK_VOID: u8 = 0x40;
@@ -78,7 +79,7 @@ const TCL_CONTINUE: i64 = 4;
 /// leaving `[RESERVED_DATA_BASE, runtime data)` free; the emitter relocates its
 /// constant pool into that gap. `0x10_0000` (1 MiB) is the runtime's default
 /// shadow-stack top, so the gap begins there.
-pub const RESERVED_DATA_BASE: i64 = 0x10_0000;
+pub const RESERVED_DATA_BASE: i64 = WASM32_CODEGEN_DATA_START;
 
 /// Indices of the `"tcl"` host imports the emitted module calls.
 struct Imports {

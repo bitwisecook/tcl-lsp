@@ -36,8 +36,8 @@ use crate::executable_ir::{
 use crate::ir::WordExpr;
 use tcl_registry::SemanticOperationId;
 use tcl_runtime_api::codegen_abi::{
-    CodegenAbiImportId, CodegenAbiValueType, WASM32_COMPLETION_ALIGN,
-    WASM32_COMPLETION_CODE_OFFSET, WASM32_COMPLETION_OPTIONS_OFFSET,
+    CodegenAbiImportId, CodegenAbiValueType, WASM32_CODEGEN_DATA_END, WASM32_CODEGEN_DATA_START,
+    WASM32_COMPLETION_ALIGN, WASM32_COMPLETION_CODE_OFFSET, WASM32_COMPLETION_OPTIONS_OFFSET,
     WASM32_COMPLETION_RESULT_OFFSET, WASM32_COMPLETION_SIZE, WASM32_POINTER_BYTES,
 };
 
@@ -140,6 +140,8 @@ pub enum WasmExecutableInvokeDecline {
     FrameTooLarge,
     /// The caller selected an invalid data-region base.
     InvalidDataBase,
+    /// The literal constant pool would escape the runtime-reserved data window.
+    ConstantPoolOutOfBounds,
     /// The requested generated export name is empty.
     EmptyFunctionName,
 }
@@ -233,13 +235,14 @@ pub fn plan_wasm_generic_invoke_named(
 }
 
 /// Emit an already-planned generic invocation at a caller-owned immutable data
-/// base. Only literal bytes are data segments; argv and completion scratch are
-/// dynamically allocated through the runtime call-frame ABI.
+/// base inside the shared wasm32 code-generation data window. Only literal
+/// bytes are data segments; argv and completion scratch are dynamically
+/// allocated through the runtime call-frame ABI.
 pub fn emit_wasm_generic_invoke_at(
     plan: &WasmGenericInvokePlan,
     data_base: i64,
 ) -> Result<WasmModule, WasmExecutableInvokeDecline> {
-    if data_base < 0 || data_base > i64::from(i32::MAX) {
+    if !(WASM32_CODEGEN_DATA_START..WASM32_CODEGEN_DATA_END).contains(&data_base) {
         return Err(WasmExecutableInvokeDecline::InvalidDataBase);
     }
     let layout = WasmCallFrameLayout::for_argc(plan.argv_literals.len())?;
@@ -389,9 +392,9 @@ fn data_segments(
             i64::try_from(word.len()).map_err(|_| WasmExecutableInvokeDecline::LiteralTooLong)?;
         let next = offset
             .checked_add(length)
-            .ok_or(WasmExecutableInvokeDecline::InvalidDataBase)?;
-        if next > i64::from(i32::MAX) {
-            return Err(WasmExecutableInvokeDecline::InvalidDataBase);
+            .ok_or(WasmExecutableInvokeDecline::ConstantPoolOutOfBounds)?;
+        if next > WASM32_CODEGEN_DATA_END {
+            return Err(WasmExecutableInvokeDecline::ConstantPoolOutOfBounds);
         }
         data.push(WasmData {
             offset,
@@ -804,8 +807,8 @@ mod tests {
     fn literal_generic_plan_uses_argv_transport_not_eval_source() {
         let plan = plan_default(&staged(&["string", "length", "abc"]))
             .expect("literal staged function plans");
-        let module =
-            emit_wasm_generic_invoke_at(&plan, 4096).expect("literal staged function lowers");
+        let module = emit_wasm_generic_invoke_at(&plan, WASM32_CODEGEN_DATA_START)
+            .expect("literal staged function lowers");
         let mut module = module;
         assert_eq!(module.functions[0].name, "::executable_generic_invoke_0");
         let wat = module.to_wat();
@@ -823,7 +826,8 @@ mod tests {
     fn transport_returns_full_completion_handles_for_error_or_custom_code() {
         let plan = plan_default(&staged(&["return", "-code", "73", "value"]))
             .expect("literal generic invocation plans");
-        let module = emit_wasm_generic_invoke_at(&plan, 4096).expect("plan emits");
+        let module =
+            emit_wasm_generic_invoke_at(&plan, WASM32_CODEGEN_DATA_START).expect("plan emits");
         assert_eq!(module.functions[0].results, vec![ValType::I32; 3]);
         let names = module
             .imports
@@ -908,5 +912,34 @@ mod tests {
             plan_wasm_generic_invoke_named(&staged(&["list", "x"]), "::unit::call".to_string())
                 .expect("named plan");
         assert_eq!(plan.function_name, "::unit::call");
+    }
+
+    #[test]
+    fn constant_pool_stays_inside_the_shared_codegen_data_window() {
+        let one_byte = plan_default(&staged(&["x"])).expect("one-byte literal plans");
+        assert!(emit_wasm_generic_invoke_at(&one_byte, WASM32_CODEGEN_DATA_END - 1).is_ok());
+        assert!(matches!(
+            emit_wasm_generic_invoke_at(&one_byte, WASM32_CODEGEN_DATA_START - 1),
+            Err(WasmExecutableInvokeDecline::InvalidDataBase)
+        ));
+        assert!(matches!(
+            emit_wasm_generic_invoke_at(&one_byte, WASM32_CODEGEN_DATA_END),
+            Err(WasmExecutableInvokeDecline::InvalidDataBase)
+        ));
+
+        let two_bytes = plan_default(&staged(&["x", "y"])).expect("two-byte pool plans");
+        assert!(matches!(
+            emit_wasm_generic_invoke_at(&two_bytes, WASM32_CODEGEN_DATA_END - 1),
+            Err(WasmExecutableInvokeDecline::ConstantPoolOutOfBounds)
+        ));
+
+        let mut oversized = one_byte;
+        let window_bytes = usize::try_from(WASM32_CODEGEN_DATA_END - WASM32_CODEGEN_DATA_START)
+            .expect("reserved data-window size fits usize");
+        oversized.argv_literals[0] = "x".repeat(window_bytes + 1);
+        assert!(matches!(
+            emit_wasm_generic_invoke_at(&oversized, WASM32_CODEGEN_DATA_START),
+            Err(WasmExecutableInvokeDecline::ConstantPoolOutOfBounds)
+        ));
     }
 }
