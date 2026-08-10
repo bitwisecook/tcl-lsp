@@ -3256,10 +3256,13 @@ fn large_file_publishes_fast_tier_before_deep_tier() {
     lsp.open_document_lang(&uri, &big, "tcl", 1);
     // The `[timing] deep diagnostics` log fires only from the deep publish, so it
     // is the reliable "deep pass finished" barrier; both publishes are buffered
-    // by the time it arrives.
+    // by the time it arrives. This deadline observes eventual convergence rather
+    // than imposing a deep-tier latency budget: the fast-tier deadline above is
+    // the user-visible latency contract, while a loaded CI runner can legitimately
+    // take longer to finish the deliberately large deep analysis.
     lsp.await_log(
         &["deep diagnostics", uri.as_str()],
-        Duration::from_secs(45),
+        Duration::from_secs(75),
         since,
     );
 
