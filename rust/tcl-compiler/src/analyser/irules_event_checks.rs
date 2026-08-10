@@ -1469,6 +1469,37 @@ mod tests {
     }
 
     #[test]
+    fn irule1001_mqtt_payload_forms_follow_registry_event_contracts() {
+        // The current-message forms are available at ingress, while a bare
+        // collected-payload read is limited to the corresponding DATA event.
+        for form in ["length", "replace bytes", "prepend bytes"] {
+            assert!(
+                irule1001(&format!(
+                    "when MQTT_CLIENT_INGRESS {{ MQTT::payload {form} }}"
+                ))
+                .is_empty(),
+                "MQTT::payload {form} must be valid at ingress"
+            );
+        }
+        assert_eq!(
+            irule1001("when MQTT_CLIENT_INGRESS { set bytes [MQTT::payload] }"),
+            vec![(
+                Severity::Warning,
+                "'MQTT::payload' cannot be used in MQTT_CLIENT_INGRESS. Available in: MQTT_CLIENT_DATA, MQTT_SERVER_DATA."
+                    .to_string(),
+            )]
+        );
+        assert!(
+            irule1001("when MQTT_CLIENT_DATA { set bytes [MQTT::payload] }").is_empty(),
+            "the bare collected-payload form is valid in MQTT_CLIENT_DATA"
+        );
+        assert!(
+            irule1001("when MQTT_CLIENT_INGRESS { MQTT::payload $form bytes }").is_empty(),
+            "a dynamic form must fall back to the profile requirement"
+        );
+    }
+
+    #[test]
     fn irule1001_fn_prevention_documented_examples_are_not_invalidated() {
         // These were false warnings caused by treating optional protocol
         // consumers as mandatory requirements. The generic event-contract

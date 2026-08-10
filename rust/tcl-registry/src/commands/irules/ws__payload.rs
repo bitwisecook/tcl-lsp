@@ -58,6 +58,7 @@ pub const fn spec() -> CommandSpec {
             dialects: None,
         }],
         taint_source: Some(TaintColour::TAINTED),
+        data_collection: Some(WS_PAYLOAD),
         ..CommandSpec::DEFAULT
     }
 }

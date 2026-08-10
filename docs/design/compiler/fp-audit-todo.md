@@ -162,8 +162,13 @@ reproducer and registry-level regression test.
   remains useful when a deployment needs a deliberate rule order.
 - **IRULE1006 (four findings)** used a `*::payload` spelling rule. That
   incorrectly required a non-existent `UDP::collect` and an ASM collect step.
-  Payload availability is now declared per command in the command registry:
-  TCP, HTTP, and SSL require collection; UDP and ASM do not.
+  Payload availability is now declared per command in the command registry.
+  HTTP, TCP, SSL, MQTT, MR, RTSP, SCTP, and WebSocket declare their collection
+  lifecycles, including explicit versus data-event release. Payload supplied
+  by ASM, CACHE, DIAMETER, GTP, REWRITE, SIP, UDP, and XML events is explicitly
+  classified as immediately available. MQTT also declares its call-form
+  split: bare and `append` need collection, while `length`, `replace`, and
+  `prepend` operate on the current PUBLISH message.
 - **IRULE1007 (four findings)** required `HTTP::release` after every
   `HTTP::collect`. BIG-IP implicitly releases HTTP data at the matching data
   event unless a new collect starts. That release policy is registry data and

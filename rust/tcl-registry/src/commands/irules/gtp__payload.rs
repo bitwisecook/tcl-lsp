@@ -64,6 +64,7 @@ pub const fn spec() -> CommandSpec {
             message_flag_shift: true,
             ..BytePayloadSpec::DEFAULT
         }),
+        data_collection: Some(GTP_PAYLOAD),
         ..CommandSpec::DEFAULT
     }
 }

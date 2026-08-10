@@ -3123,4 +3123,110 @@ fn builtin_object_methods_are_reach_gated() {
             "{what} constructs through its own type command, never `new`"
         );
     }
+
+#[test]
+fn irules_payload_lifecycle_inventory_is_registry_complete() {
+    use tcl_registry::DataCollectionAction::{Collect, Payload, Release};
+
+    let mut reg = CommandRegistry::build_default();
+    reg.load_dialect(DialectSet::IRULES);
+    let mut actual: Vec<_> = reg
+        .command_names()
+        .filter_map(|name| {
+            reg.data_collection_operation(name)
+                .map(|op| (name.to_string(), op.protocol.name, op.action))
+        })
+        .collect();
+    actual.sort_unstable_by(|left, right| left.0.cmp(&right.0));
+
+    let mut expected = vec![
+        ("ASM::payload".to_string(), "ASM", Payload),
+        ("CACHE::payload".to_string(), "CACHE", Payload),
+        ("DIAMETER::payload".to_string(), "DIAMETER", Payload),
+        ("GTP::payload".to_string(), "GTP", Payload),
+        ("HTTP::collect".to_string(), "HTTP", Collect),
+        ("HTTP::payload".to_string(), "HTTP", Payload),
+        ("HTTP::release".to_string(), "HTTP", Release),
+        ("MQTT::collect".to_string(), "MQTT", Collect),
+        ("MQTT::payload".to_string(), "MQTT", Payload),
+        ("MQTT::release".to_string(), "MQTT", Release),
+        ("MR::collect".to_string(), "MR", Collect),
+        ("MR::payload".to_string(), "MR", Payload),
+        ("MR::release".to_string(), "MR", Release),
+        ("REWRITE::payload".to_string(), "REWRITE", Payload),
+        ("RTSP::collect".to_string(), "RTSP", Collect),
+        ("RTSP::payload".to_string(), "RTSP", Payload),
+        ("RTSP::release".to_string(), "RTSP", Release),
+        ("SCTP::collect".to_string(), "SCTP", Collect),
+        ("SCTP::payload".to_string(), "SCTP", Payload),
+        ("SCTP::release".to_string(), "SCTP", Release),
+        ("SIP::payload".to_string(), "SIP", Payload),
+        ("SSL::collect".to_string(), "SSL", Collect),
+        ("SSL::payload".to_string(), "SSL", Payload),
+        ("SSL::release".to_string(), "SSL", Release),
+        ("TCP::collect".to_string(), "TCP", Collect),
+        ("TCP::payload".to_string(), "TCP", Payload),
+        ("TCP::release".to_string(), "TCP", Release),
+        ("UDP::payload".to_string(), "UDP", Payload),
+        ("WS::collect".to_string(), "WS", Collect),
+        ("WS::payload".to_string(), "WS", Payload),
+        ("WS::release".to_string(), "WS", Release),
+        ("XML::payload".to_string(), "XML", Payload),
+    ];
+    expected.sort_unstable_by(|left, right| left.0.cmp(&right.0));
+    assert_eq!(actual, expected);
+
+    // UDP::release ends UDP::hold rather than a payload-collection lifecycle.
+    // XML::collect/release are retired legacy XML parser controls; the current
+    // XML::payload is event-owned. Neither pair belongs in this inventory.
+    assert!(reg.data_collection_operation("UDP::release").is_none());
+    assert!(reg.data_collection_operation("XML::collect").is_none());
+    assert!(reg.data_collection_operation("XML::release").is_none());
+}
+
+#[test]
+fn mqtt_payload_forms_declare_event_and_collection_contracts() {
+    use tcl_registry::PayloadCollectionRequirement::{ExplicitCollect, NotRequired};
+
+    let mut reg = CommandRegistry::build_default();
+    reg.load_dialect(DialectSet::IRULES);
+    let operation = reg
+        .data_collection_operation("MQTT::payload")
+        .expect("MQTT payload lifecycle descriptor");
+    assert_eq!(
+        operation.payload_requirement_for_args(&[]),
+        Some(ExplicitCollect)
+    );
+    assert_eq!(
+        operation.payload_requirement_for_args(&["append", "bytes"]),
+        Some(ExplicitCollect)
+    );
+    for form in ["length", "replace", "prepend"] {
+        assert_eq!(
+            operation.payload_requirement_for_args(&[form]),
+            Some(NotRequired),
+            "{form} is available on the current MQTT PUBLISH message"
+        );
+    }
+    assert_eq!(operation.payload_requirement_for_args(&["$form"]), None);
+
+    let mqtt = reg.get("MQTT::payload").expect("MQTT payload spec");
+    let ingress = mqtt.event_requirements_for_args(&["length"]);
+    assert!(ingress.matched_form);
+    assert!(ingress.only_in.contains(&"MQTT_CLIENT_INGRESS"));
+    let collected = mqtt.event_requirements_for_args(&[]);
+    assert!(collected.matched_form);
+    assert_eq!(collected.only_in, &["MQTT_CLIENT_DATA", "MQTT_SERVER_DATA"]);
+    let dynamic = mqtt.event_requirements_for_args(&["$form"]);
+    assert!(!dynamic.matched_form);
+    assert!(dynamic.only_in.is_empty());
+
+    let diameter = reg
+        .data_collection_operation("DIAMETER::payload")
+        .expect("DIAMETER payload availability descriptor");
+    assert_eq!(
+        diameter.payload_requirement_for_args(&[]),
+        Some(NotRequired)
+    );
+    assert!(reg.get("DIAMETER::collect").is_none());
 }

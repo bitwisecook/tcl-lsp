@@ -120,10 +120,13 @@ pub mod prelude {
     };
     pub use crate::dialects::DialectSet;
     pub use crate::events::{
-        ASM_PAYLOAD, BIGIP_EVENT_HANDLER_PRIORITY, DataCollectionAction, DataCollectionOperation,
-        EventHandlerPriority, EventRequirementForm, EventRequires, HTTP_COLLECT, HTTP_PAYLOAD,
-        HTTP_RELEASE, SSL_COLLECT, SSL_PAYLOAD, SSL_RELEASE, TCP_COLLECT, TCP_PAYLOAD, TCP_RELEASE,
-        UDP_PAYLOAD,
+        ASM_PAYLOAD, BIGIP_EVENT_HANDLER_PRIORITY, CACHE_PAYLOAD, DIAMETER_PAYLOAD,
+        DataCollectionAction, DataCollectionOperation, EventHandlerPriority, EventRequirementForm,
+        EventRequires, GTP_PAYLOAD, HTTP_COLLECT, HTTP_PAYLOAD, HTTP_RELEASE, MQTT_COLLECT,
+        MQTT_PAYLOAD, MQTT_RELEASE, MR_COLLECT, MR_PAYLOAD, MR_RELEASE, REWRITE_PAYLOAD,
+        RTSP_COLLECT, RTSP_PAYLOAD, RTSP_RELEASE, SCTP_COLLECT, SCTP_PAYLOAD, SCTP_RELEASE,
+        SIP_PAYLOAD, SSL_COLLECT, SSL_PAYLOAD, SSL_RELEASE, TCP_COLLECT, TCP_PAYLOAD, TCP_RELEASE,
+        UDP_PAYLOAD, WS_COLLECT, WS_PAYLOAD, WS_RELEASE, XML_PAYLOAD,
     };
     pub use crate::forms::{CommandForm, SubCommandForm};
     pub use crate::frame_effect::{FrameArgLayout, FrameEffectSpec, FrameLevel, FrameLevelWord};
@@ -172,6 +175,7 @@ pub use dialects::{
 pub use events::{
     CollectionReleaseRequirement, DataCollectionAction, DataCollectionOperation,
     DataCollectionProtocol, EventHandlerPriority, PayloadCollectionRequirement,
+    PayloadCollectionRequirementForm,
 };
 pub use frame_effect::{FrameArgLayout, FrameEffectSpec, FrameLevel, FrameLevelWord};
 pub use handle_binding::{

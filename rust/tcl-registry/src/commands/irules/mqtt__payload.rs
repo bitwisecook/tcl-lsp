@@ -83,6 +83,52 @@ const SUBCOMMANDS: &[SubCommand] = &[
     },
 ];
 
+const MQTT_REQUIREMENTS: EventRequires = EventRequires {
+    client_side: false,
+    server_side: false,
+    transport: None,
+    profiles: &["MQTT"],
+    also_in: &[],
+    init_only: false,
+    flow: false,
+    capability: None,
+};
+
+const MQTT_MESSAGE_EVENTS: &[&str] = &[
+    "MQTT_CLIENT_INGRESS",
+    "MQTT_SERVER_INGRESS",
+    "MQTT_CLIENT_DATA",
+    "MQTT_SERVER_DATA",
+];
+const MQTT_DATA_EVENTS: &[&str] = &["MQTT_CLIENT_DATA", "MQTT_SERVER_DATA"];
+const EVENT_REQUIREMENT_FORMS: &[EventRequirementForm] = &[
+    EventRequirementForm {
+        argument_prefix: &["length"],
+        requires: Some(MQTT_REQUIREMENTS),
+        only_in: MQTT_MESSAGE_EVENTS,
+    },
+    EventRequirementForm {
+        argument_prefix: &["replace"],
+        requires: Some(MQTT_REQUIREMENTS),
+        only_in: MQTT_MESSAGE_EVENTS,
+    },
+    EventRequirementForm {
+        argument_prefix: &["prepend"],
+        requires: Some(MQTT_REQUIREMENTS),
+        only_in: MQTT_MESSAGE_EVENTS,
+    },
+    EventRequirementForm {
+        argument_prefix: &["append"],
+        requires: Some(MQTT_REQUIREMENTS),
+        only_in: MQTT_DATA_EVENTS,
+    },
+    EventRequirementForm {
+        argument_prefix: &[],
+        requires: Some(MQTT_REQUIREMENTS),
+        only_in: MQTT_DATA_EVENTS,
+    },
+];
+
 pub const fn spec() -> CommandSpec {
     CommandSpec {
         name: "MQTT::payload",
@@ -100,16 +146,8 @@ pub const fn spec() -> CommandSpec {
             examples: "#Example: Redirect PUBLISH that has payloads with blocked keywords defined in\n#blacklisted_keywords_datagroup in first 200 bytes. Prepend a admin message in\n#the payload.\n#\nwhen MQTT_CLIENT_INGRESS {\n    set type [MQTT::type]\n    switch $type {\n       \"PUBLISH\" {\n          if { [class exists  blacklisted_keywords_datagroup] } {\n             MQTT::collect 200\n          }\n       }\n    }\n}",
             return_value: "When called without an argument, this command returns the collected payload of MQTT PUBLISH message.",
         }),
-        event_requires: Some(EventRequires {
-            client_side: false,
-            server_side: false,
-            transport: None,
-            profiles: &["MQTT"],
-            also_in: &[],
-            init_only: false,
-            flow: false,
-            capability: None,
-        }),
+        event_requires: Some(MQTT_REQUIREMENTS),
+        event_requirement_forms: EVENT_REQUIREMENT_FORMS,
         forms: &[FormSpec {
             kind: FormKind::Default,
             synopsis: "MQTT::payload ?subcommand? ?args?",
@@ -128,6 +166,7 @@ pub const fn spec() -> CommandSpec {
             replace_data_index: 1,
             ..BytePayloadSpec::DEFAULT
         }),
+        data_collection: Some(MQTT_PAYLOAD),
         ..CommandSpec::DEFAULT
     }
 }

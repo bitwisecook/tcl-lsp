@@ -654,6 +654,7 @@ struct PayloadCall {
 /// command specs.
 fn classify_collect_command(
     command: &str,
+    args: &[String],
     event: &str,
     side: &str,
     span: Span,
@@ -663,6 +664,7 @@ fn classify_collect_command(
     let Some(operation) = registry.data_collection_operation(command) else {
         return;
     };
+    let arg_words: Vec<&str> = args.iter().map(String::as_str).collect();
     let protocol = operation.protocol.name.to_string();
     match operation.action {
         DataCollectionAction::Collect => {
@@ -693,12 +695,20 @@ fn classify_collect_command(
                 release_requirement: operation.protocol.release_requirement,
             });
         }
-        DataCollectionAction::Payload => state.payload_calls.push(PayloadCall {
-            protocol,
-            side: side.to_string(),
-            span,
-            collection_requirement: operation.protocol.payload_requirement,
-        }),
+        DataCollectionAction::Payload => {
+            let Some(collection_requirement) = operation.payload_requirement_for_args(&arg_words)
+            else {
+                // Dynamic/unknown call form: it may select a payload form
+                // whose availability differs, so abstain rather than guess.
+                return;
+            };
+            state.payload_calls.push(PayloadCall {
+                protocol,
+                side: side.to_string(),
+                span,
+                collection_requirement,
+            });
+        }
     }
 }
 
@@ -796,12 +806,12 @@ fn classify_stmt_for_collect_flow(
                     scan_side_switch_body(body, event, inner_side, state, registry, body_base);
                 }
             } else {
-                classify_collect_command(head, event, side, abs(*span), state, registry);
+                classify_collect_command(head, args, event, side, abs(*span), state, registry);
             }
         }
         Statement::AssignValue { value, span, .. } => {
-            if let Some((cmd, _)) = parse_command_substitution(value.trim()) {
-                classify_collect_command(&cmd, event, side, abs(*span), state, registry);
+            if let Some((cmd, sub_args)) = parse_command_substitution(value.trim()) {
+                classify_collect_command(&cmd, &sub_args, event, side, abs(*span), state, registry);
             }
         }
         _ => {}
@@ -2102,6 +2112,101 @@ mod tests {
             !asm.iter().any(|w| w.code == DiagCode::Irule1006),
             "ASM owns its payload, got {asm:?}",
         );
+    }
+
+    #[test]
+    fn mqtt_payload_call_forms_have_distinct_collection_requirements() {
+        let bare = flow_warnings("when MQTT_CLIENT_DATA { set bytes [MQTT::payload] }");
+        assert!(
+            bare.iter()
+                .any(|warning| warning.code == DiagCode::Irule1006),
+            "bare MQTT payload requires a prior MQTT::collect, got {bare:?}",
+        );
+
+        let append = flow_warnings("when MQTT_CLIENT_DATA { MQTT::payload append bytes }");
+        assert!(
+            append
+                .iter()
+                .any(|warning| warning.code == DiagCode::Irule1006),
+            "MQTT payload append requires collected bytes, got {append:?}",
+        );
+
+        for form in ["length", "replace bytes", "prepend bytes"] {
+            let source = format!("when MQTT_CLIENT_INGRESS {{ MQTT::payload {form} }}");
+            let warnings = flow_warnings(&source);
+            assert!(
+                !warnings
+                    .iter()
+                    .any(|warning| warning.code == DiagCode::Irule1006),
+                "MQTT payload {form} uses the current message without collect, got {warnings:?}",
+            );
+        }
+
+        let dynamic = flow_warnings("when MQTT_CLIENT_DATA { MQTT::payload $operation bytes }");
+        assert!(
+            !dynamic
+                .iter()
+                .any(|warning| warning.code == DiagCode::Irule1006),
+            "a dynamic MQTT payload form must abstain, got {dynamic:?}",
+        );
+    }
+
+    #[test]
+    fn mqtt_collection_lifecycle_balances_across_registry_events() {
+        let warnings = flow_warnings(
+            "when MQTT_CLIENT_INGRESS { MQTT::collect 200 }
+             when MQTT_CLIENT_DATA { set bytes [MQTT::payload]; MQTT::release }",
+        );
+        assert!(
+            !warnings.iter().any(|warning| matches!(
+                warning.code,
+                DiagCode::Irule1005
+                    | DiagCode::Irule1006
+                    | DiagCode::Irule1007
+                    | DiagCode::Irule1008
+            )),
+            "balanced MQTT collection should be clean, got {warnings:?}",
+        );
+    }
+
+    #[test]
+    fn every_explicit_payload_family_warns_without_collect() {
+        for (protocol, event) in [
+            ("MR", "MR_DATA"),
+            ("RTSP", "RTSP_REQUEST_DATA"),
+            ("SCTP", "CLIENT_DATA"),
+            ("WS", "WS_CLIENT_DATA"),
+        ] {
+            let source = format!("when {event} {{ set bytes [{protocol}::payload] }}");
+            let warnings = flow_warnings(&source);
+            assert!(
+                warnings
+                    .iter()
+                    .any(|warning| warning.code == DiagCode::Irule1006),
+                "{protocol} payload without collect must warn, got {warnings:?}",
+            );
+        }
+    }
+
+    #[test]
+    fn event_owned_payload_families_do_not_invent_collect_lifecycles() {
+        for (protocol, event) in [
+            ("CACHE", "CACHE_RESPONSE"),
+            ("DIAMETER", "DIAMETER_INGRESS"),
+            ("GTP", "GTP_SIGNALLING_INGRESS"),
+            ("REWRITE", "REWRITE_REQUEST_DONE"),
+            ("SIP", "SIP_REQUEST"),
+            ("XML", "XML_CONTENT_BASED_ROUTING"),
+        ] {
+            let source = format!("when {event} {{ set bytes [{protocol}::payload] }}");
+            let warnings = flow_warnings(&source);
+            assert!(
+                !warnings
+                    .iter()
+                    .any(|warning| warning.code == DiagCode::Irule1006),
+                "{protocol} payload is event-owned, got {warnings:?}",
+            );
+        }
     }
 
     #[test]

@@ -1224,27 +1224,28 @@ fn constant_in_http_sink_is_silent() {
 // -- TestIrulesByteArrayCorruption ---------------------------------------
 // S110 byte-array corruption on the wire (F5 KB K22406348).
 
-/// A deep-tier iRules code that fires for every `*::payload` body here.
-const DEEP_MARKER: &str = "IRULE1006";
-
 /// Open `source` and poll the version-1 publish until the deep marker lands,
 /// returning the final (basic + deep) diagnostics (`_deep_diags`).
-fn deep_diags(lsp: &mut Lsp, source: &str) -> Vec<Value> {
+fn deep_diags_for(lsp: &mut Lsp, source: &str, marker: &str) -> Vec<Value> {
     let uri = unique_uri("irule");
     lsp.open_ready_lang(&uri, source, "tcl-irule");
     let deadline = std::time::Instant::now() + scaled_timeout(Duration::from_secs(25));
     let mut diags = Vec::new();
     while std::time::Instant::now() < deadline {
         diags = lsp.await_diagnostics_version(&uri, Some(1), Duration::from_secs(25));
-        if diags.iter().any(|d| code_str(d) == DEEP_MARKER) {
+        if diags.iter().any(|d| code_str(d) == marker) {
             return diags;
         }
         std::thread::sleep(Duration::from_millis(200));
     }
     panic!(
-        "deep diagnostics ({DEEP_MARKER}) never published; saw {:?}",
+        "deep diagnostics ({marker}) never published; saw {:?}",
         irules_codes(&diags)
     );
+}
+
+fn deep_diags(lsp: &mut Lsp, source: &str) -> Vec<Value> {
+    deep_diags_for(lsp, source, "IRULE1006")
 }
 
 #[test]
@@ -1327,7 +1328,7 @@ fn mqtt_payload_roundtrip_fires_s110() {
     let mut lsp = Lsp::irules();
     let diags = deep_diags(
         &mut lsp,
-        "when MQTT_MESSAGE {\n\
+        "when MQTT_CLIENT_DATA {\n\
         \x20   set p [MQTT::payload]\n\
         \x20   set bad \"$p x\"\n\
         \x20   MQTT::payload replace $bad\n\
@@ -1336,23 +1337,40 @@ fn mqtt_payload_roundtrip_fires_s110() {
     let s110: Vec<&Value> = diags.iter().filter(|d| code_str(d) == "S110").collect();
     assert!(!s110.is_empty(), "{:?}", irules_codes(&diags));
     assert_eq!(s110[0].get("severity").and_then(Value::as_i64), Some(2)); // Warning
+    assert_eq!(
+        diags
+            .iter()
+            .filter(|diagnostic| code_str(diagnostic) == "IRULE1006")
+            .count(),
+        1,
+        "only the bare read needs MQTT::collect; replace uses the current message: {:?}",
+        irules_codes(&diags),
+    );
 }
 
 #[test]
-fn diameter_payload_roundtrip_fires_s110() {
-    // DIAMETER `replace PAYLOAD` — data operand at index 1.
+fn diameter_payload_roundtrip_fires_s110_without_collect_warning() {
+    // DIAMETER `replace PAYLOAD` — data operand at index 1. DIAMETER events
+    // own the current message payload; the namespace has no collect/release
+    // lifecycle, so S110 must survive without an invented IRULE1006.
     let mut lsp = Lsp::irules();
-    let diags = deep_diags(
+    let diags = deep_diags_for(
         &mut lsp,
         "when DIAMETER_INGRESS {\n\
         \x20   set p [DIAMETER::payload]\n\
         \x20   set bad \"$p x\"\n\
         \x20   DIAMETER::payload replace $bad\n\
         }\n",
+        "S110",
     );
     let s110: Vec<&Value> = diags.iter().filter(|d| code_str(d) == "S110").collect();
     assert!(!s110.is_empty(), "{:?}", irules_codes(&diags));
     assert_eq!(s110[0].get("severity").and_then(Value::as_i64), Some(2)); // Warning
+    assert!(
+        !irules_codes(&diags).contains("IRULE1006"),
+        "DIAMETER payload is event-owned: {:?}",
+        irules_codes(&diags),
+    );
 }
 
 // -- TestIrulesWhenBodyAnalysed ------------------------------------------

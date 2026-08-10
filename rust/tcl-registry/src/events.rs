@@ -109,6 +109,55 @@ pub struct DataCollectionOperation {
     pub protocol: DataCollectionProtocol,
     /// The command's operation in that lifecycle.
     pub action: DataCollectionAction,
+    /// Argument-prefix overrides for payload availability.
+    ///
+    /// Most payload commands have one rule for every call form. MQTT is the
+    /// important exception: its no-argument and `append` forms read collected
+    /// bytes, while `length`, `replace`, and `prepend` can operate on the
+    /// current PUBLISH message before collection. Keeping those forms here
+    /// prevents the analyser from inferring semantics from subcommand names.
+    pub payload_requirement_forms: &'static [PayloadCollectionRequirementForm],
+}
+
+/// Payload availability override for one literal command-argument prefix.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct PayloadCollectionRequirementForm {
+    /// Literal leading words after the command name that select this form.
+    pub argument_prefix: &'static [&'static str],
+    /// Whether this selected form needs a preceding collect.
+    pub requirement: PayloadCollectionRequirement,
+}
+
+impl PayloadCollectionRequirementForm {
+    /// Whether `args` begins with this form's literal selector.
+    #[must_use]
+    pub fn matches(&self, args: &[&str]) -> bool {
+        args.starts_with(self.argument_prefix)
+    }
+}
+
+impl DataCollectionOperation {
+    /// Resolve payload availability for one invocation.
+    ///
+    /// `None` means the call has a dynamic or unknown form and the consumer
+    /// must abstain. Non-payload operations do not have a payload requirement.
+    #[must_use]
+    pub fn payload_requirement_for_args(
+        &self,
+        args: &[&str],
+    ) -> Option<PayloadCollectionRequirement> {
+        if self.action != DataCollectionAction::Payload {
+            return None;
+        }
+        if self.payload_requirement_forms.is_empty() || args.is_empty() {
+            return Some(self.protocol.payload_requirement);
+        }
+        self.payload_requirement_forms
+            .iter()
+            .filter(|form| form.matches(args))
+            .max_by_key(|form| form.argument_prefix.len())
+            .map(|form| form.requirement)
+    }
 }
 
 /// How an iRules event-handler command treats an omitted priority clause.
@@ -167,6 +216,49 @@ const TCP_BOOTSTRAP_EVENTS: &[DataCollectionBootstrap] = &[
     },
 ];
 
+const MQTT_BOOTSTRAP_EVENTS: &[DataCollectionBootstrap] = &[
+    DataCollectionBootstrap {
+        event_prefix: "MQTT_SERVER",
+        setup_event: "MQTT_SERVER_INGRESS",
+    },
+    DataCollectionBootstrap {
+        event_prefix: "MQTT",
+        setup_event: "MQTT_CLIENT_INGRESS",
+    },
+];
+
+const MR_BOOTSTRAP_EVENTS: &[DataCollectionBootstrap] = &[DataCollectionBootstrap {
+    event_prefix: "",
+    setup_event: "MR_INGRESS",
+}];
+
+const RTSP_BOOTSTRAP_EVENTS: &[DataCollectionBootstrap] = &[
+    DataCollectionBootstrap {
+        event_prefix: "RTSP_RESPONSE",
+        setup_event: "RTSP_RESPONSE",
+    },
+    DataCollectionBootstrap {
+        event_prefix: "RTSP",
+        setup_event: "RTSP_REQUEST",
+    },
+];
+
+const SCTP_BOOTSTRAP_EVENTS: &[DataCollectionBootstrap] = &[DataCollectionBootstrap {
+    event_prefix: "",
+    setup_event: "CLIENT_ACCEPTED",
+}];
+
+const WS_BOOTSTRAP_EVENTS: &[DataCollectionBootstrap] = &[
+    DataCollectionBootstrap {
+        event_prefix: "WS_SERVER",
+        setup_event: "WS_SERVER_FRAME",
+    },
+    DataCollectionBootstrap {
+        event_prefix: "WS",
+        setup_event: "WS_CLIENT_FRAME",
+    },
+];
+
 const HTTP_COLLECTION: DataCollectionProtocol = DataCollectionProtocol {
     name: "HTTP",
     payload_requirement: PayloadCollectionRequirement::ExplicitCollect,
@@ -202,61 +294,191 @@ const ASM_COLLECTION: DataCollectionProtocol = DataCollectionProtocol {
     bootstrap_events: &[],
 };
 
+const MQTT_COLLECTION: DataCollectionProtocol = DataCollectionProtocol {
+    name: "MQTT",
+    payload_requirement: PayloadCollectionRequirement::ExplicitCollect,
+    release_requirement: CollectionReleaseRequirement::ExplicitRelease,
+    bootstrap_events: MQTT_BOOTSTRAP_EVENTS,
+};
+
+const MR_COLLECTION: DataCollectionProtocol = DataCollectionProtocol {
+    name: "MR",
+    payload_requirement: PayloadCollectionRequirement::ExplicitCollect,
+    release_requirement: CollectionReleaseRequirement::ExplicitRelease,
+    bootstrap_events: MR_BOOTSTRAP_EVENTS,
+};
+
+const RTSP_COLLECTION: DataCollectionProtocol = DataCollectionProtocol {
+    name: "RTSP",
+    payload_requirement: PayloadCollectionRequirement::ExplicitCollect,
+    release_requirement: CollectionReleaseRequirement::ImplicitInDataEvent,
+    bootstrap_events: RTSP_BOOTSTRAP_EVENTS,
+};
+
+const SCTP_COLLECTION: DataCollectionProtocol = DataCollectionProtocol {
+    name: "SCTP",
+    payload_requirement: PayloadCollectionRequirement::ExplicitCollect,
+    release_requirement: CollectionReleaseRequirement::ExplicitRelease,
+    bootstrap_events: SCTP_BOOTSTRAP_EVENTS,
+};
+
+const WS_COLLECTION: DataCollectionProtocol = DataCollectionProtocol {
+    name: "WS",
+    payload_requirement: PayloadCollectionRequirement::ExplicitCollect,
+    release_requirement: CollectionReleaseRequirement::ImplicitInDataEvent,
+    bootstrap_events: WS_BOOTSTRAP_EVENTS,
+};
+
+const CACHE_PAYLOAD_AVAILABLE: DataCollectionProtocol = immediate_payload("CACHE");
+const DIAMETER_PAYLOAD_AVAILABLE: DataCollectionProtocol = immediate_payload("DIAMETER");
+const GTP_PAYLOAD_AVAILABLE: DataCollectionProtocol = immediate_payload("GTP");
+const REWRITE_PAYLOAD_AVAILABLE: DataCollectionProtocol = immediate_payload("REWRITE");
+const SIP_PAYLOAD_AVAILABLE: DataCollectionProtocol = immediate_payload("SIP");
+const XML_PAYLOAD_AVAILABLE: DataCollectionProtocol = immediate_payload("XML");
+
+const fn immediate_payload(name: &'static str) -> DataCollectionProtocol {
+    DataCollectionProtocol {
+        name,
+        payload_requirement: PayloadCollectionRequirement::NotRequired,
+        release_requirement: CollectionReleaseRequirement::NotApplicable,
+        bootstrap_events: &[],
+    }
+}
+
+const fn operation(
+    protocol: DataCollectionProtocol,
+    action: DataCollectionAction,
+) -> DataCollectionOperation {
+    DataCollectionOperation {
+        protocol,
+        action,
+        payload_requirement_forms: &[],
+    }
+}
+
 /// `HTTP::collect` data-collection metadata.
-pub const HTTP_COLLECT: DataCollectionOperation = DataCollectionOperation {
-    protocol: HTTP_COLLECTION,
-    action: DataCollectionAction::Collect,
-};
+pub const HTTP_COLLECT: DataCollectionOperation =
+    operation(HTTP_COLLECTION, DataCollectionAction::Collect);
 /// `HTTP::release` data-collection metadata.
-pub const HTTP_RELEASE: DataCollectionOperation = DataCollectionOperation {
-    protocol: HTTP_COLLECTION,
-    action: DataCollectionAction::Release,
-};
+pub const HTTP_RELEASE: DataCollectionOperation =
+    operation(HTTP_COLLECTION, DataCollectionAction::Release);
 /// `HTTP::payload` data-collection metadata.
-pub const HTTP_PAYLOAD: DataCollectionOperation = DataCollectionOperation {
-    protocol: HTTP_COLLECTION,
-    action: DataCollectionAction::Payload,
-};
+pub const HTTP_PAYLOAD: DataCollectionOperation =
+    operation(HTTP_COLLECTION, DataCollectionAction::Payload);
 /// `TCP::collect` data-collection metadata.
-pub const TCP_COLLECT: DataCollectionOperation = DataCollectionOperation {
-    protocol: TCP_COLLECTION,
-    action: DataCollectionAction::Collect,
-};
+pub const TCP_COLLECT: DataCollectionOperation =
+    operation(TCP_COLLECTION, DataCollectionAction::Collect);
 /// `TCP::release` data-collection metadata.
-pub const TCP_RELEASE: DataCollectionOperation = DataCollectionOperation {
-    protocol: TCP_COLLECTION,
-    action: DataCollectionAction::Release,
-};
+pub const TCP_RELEASE: DataCollectionOperation =
+    operation(TCP_COLLECTION, DataCollectionAction::Release);
 /// `TCP::payload` data-collection metadata.
-pub const TCP_PAYLOAD: DataCollectionOperation = DataCollectionOperation {
-    protocol: TCP_COLLECTION,
-    action: DataCollectionAction::Payload,
-};
+pub const TCP_PAYLOAD: DataCollectionOperation =
+    operation(TCP_COLLECTION, DataCollectionAction::Payload);
 /// `SSL::collect` data-collection metadata.
-pub const SSL_COLLECT: DataCollectionOperation = DataCollectionOperation {
-    protocol: SSL_COLLECTION,
-    action: DataCollectionAction::Collect,
-};
+pub const SSL_COLLECT: DataCollectionOperation =
+    operation(SSL_COLLECTION, DataCollectionAction::Collect);
 /// `SSL::release` data-collection metadata.
-pub const SSL_RELEASE: DataCollectionOperation = DataCollectionOperation {
-    protocol: SSL_COLLECTION,
-    action: DataCollectionAction::Release,
-};
+pub const SSL_RELEASE: DataCollectionOperation =
+    operation(SSL_COLLECTION, DataCollectionAction::Release);
 /// `SSL::payload` data-collection metadata.
-pub const SSL_PAYLOAD: DataCollectionOperation = DataCollectionOperation {
-    protocol: SSL_COLLECTION,
-    action: DataCollectionAction::Payload,
-};
+pub const SSL_PAYLOAD: DataCollectionOperation =
+    operation(SSL_COLLECTION, DataCollectionAction::Payload);
 /// `UDP::payload` data-collection metadata.
-pub const UDP_PAYLOAD: DataCollectionOperation = DataCollectionOperation {
-    protocol: UDP_COLLECTION,
-    action: DataCollectionAction::Payload,
-};
+pub const UDP_PAYLOAD: DataCollectionOperation =
+    operation(UDP_COLLECTION, DataCollectionAction::Payload);
 /// `ASM::payload` data-collection metadata.
-pub const ASM_PAYLOAD: DataCollectionOperation = DataCollectionOperation {
-    protocol: ASM_COLLECTION,
+pub const ASM_PAYLOAD: DataCollectionOperation =
+    operation(ASM_COLLECTION, DataCollectionAction::Payload);
+
+/// `MQTT::collect` data-collection metadata.
+pub const MQTT_COLLECT: DataCollectionOperation =
+    operation(MQTT_COLLECTION, DataCollectionAction::Collect);
+/// `MQTT::release` data-collection metadata.
+pub const MQTT_RELEASE: DataCollectionOperation =
+    operation(MQTT_COLLECTION, DataCollectionAction::Release);
+const MQTT_PAYLOAD_REQUIREMENT_FORMS: &[PayloadCollectionRequirementForm] = &[
+    PayloadCollectionRequirementForm {
+        argument_prefix: &["length"],
+        requirement: PayloadCollectionRequirement::NotRequired,
+    },
+    PayloadCollectionRequirementForm {
+        argument_prefix: &["replace"],
+        requirement: PayloadCollectionRequirement::NotRequired,
+    },
+    PayloadCollectionRequirementForm {
+        argument_prefix: &["prepend"],
+        requirement: PayloadCollectionRequirement::NotRequired,
+    },
+    PayloadCollectionRequirementForm {
+        argument_prefix: &["append"],
+        requirement: PayloadCollectionRequirement::ExplicitCollect,
+    },
+];
+/// `MQTT::payload` data-collection metadata, including call-form differences.
+pub const MQTT_PAYLOAD: DataCollectionOperation = DataCollectionOperation {
+    protocol: MQTT_COLLECTION,
     action: DataCollectionAction::Payload,
+    payload_requirement_forms: MQTT_PAYLOAD_REQUIREMENT_FORMS,
 };
+
+/// `MR::collect` data-collection metadata.
+pub const MR_COLLECT: DataCollectionOperation =
+    operation(MR_COLLECTION, DataCollectionAction::Collect);
+/// `MR::release` data-collection metadata.
+pub const MR_RELEASE: DataCollectionOperation =
+    operation(MR_COLLECTION, DataCollectionAction::Release);
+/// `MR::payload` data-collection metadata.
+pub const MR_PAYLOAD: DataCollectionOperation =
+    operation(MR_COLLECTION, DataCollectionAction::Payload);
+
+/// `RTSP::collect` data-collection metadata.
+pub const RTSP_COLLECT: DataCollectionOperation =
+    operation(RTSP_COLLECTION, DataCollectionAction::Collect);
+/// `RTSP::release` data-collection metadata.
+pub const RTSP_RELEASE: DataCollectionOperation =
+    operation(RTSP_COLLECTION, DataCollectionAction::Release);
+/// `RTSP::payload` data-collection metadata.
+pub const RTSP_PAYLOAD: DataCollectionOperation =
+    operation(RTSP_COLLECTION, DataCollectionAction::Payload);
+
+/// `SCTP::collect` data-collection metadata.
+pub const SCTP_COLLECT: DataCollectionOperation =
+    operation(SCTP_COLLECTION, DataCollectionAction::Collect);
+/// `SCTP::release` data-collection metadata.
+pub const SCTP_RELEASE: DataCollectionOperation =
+    operation(SCTP_COLLECTION, DataCollectionAction::Release);
+/// `SCTP::payload` data-collection metadata.
+pub const SCTP_PAYLOAD: DataCollectionOperation =
+    operation(SCTP_COLLECTION, DataCollectionAction::Payload);
+
+/// `WS::collect` data-collection metadata.
+pub const WS_COLLECT: DataCollectionOperation =
+    operation(WS_COLLECTION, DataCollectionAction::Collect);
+/// `WS::release` data-collection metadata.
+pub const WS_RELEASE: DataCollectionOperation =
+    operation(WS_COLLECTION, DataCollectionAction::Release);
+/// `WS::payload` data-collection metadata.
+pub const WS_PAYLOAD: DataCollectionOperation =
+    operation(WS_COLLECTION, DataCollectionAction::Payload);
+
+/// `CACHE::payload` event-owned payload metadata.
+pub const CACHE_PAYLOAD: DataCollectionOperation =
+    operation(CACHE_PAYLOAD_AVAILABLE, DataCollectionAction::Payload);
+/// `DIAMETER::payload` event-owned payload metadata.
+pub const DIAMETER_PAYLOAD: DataCollectionOperation =
+    operation(DIAMETER_PAYLOAD_AVAILABLE, DataCollectionAction::Payload);
+/// `GTP::payload` event-owned payload metadata.
+pub const GTP_PAYLOAD: DataCollectionOperation =
+    operation(GTP_PAYLOAD_AVAILABLE, DataCollectionAction::Payload);
+/// `REWRITE::payload` event-owned payload metadata.
+pub const REWRITE_PAYLOAD: DataCollectionOperation =
+    operation(REWRITE_PAYLOAD_AVAILABLE, DataCollectionAction::Payload);
+/// `SIP::payload` event-owned payload metadata.
+pub const SIP_PAYLOAD: DataCollectionOperation =
+    operation(SIP_PAYLOAD_AVAILABLE, DataCollectionAction::Payload);
+/// `XML::payload` event-owned payload metadata.
+pub const XML_PAYLOAD: DataCollectionOperation =
+    operation(XML_PAYLOAD_AVAILABLE, DataCollectionAction::Payload);
 
 /// Per-event protocol stack properties.
 ///
@@ -294,8 +516,8 @@ pub struct EventProps {
     pub setup_event: Option<&'static str>,
     /// For a data `*_DATA` event: protocol families that can make it fire.
     ///
-    /// A family whose registry descriptor requires an explicit collect (TCP,
-    /// HTTP, SSL) needs that operation on [`Self::data_collect_side`]. A
+    /// A family whose registry descriptor requires an explicit collect needs
+    /// that operation on [`Self::data_collect_side`]. A
     /// family such as UDP can supply payload without a collect, so its
     /// presence is a valid non-collect alternative. Empty means this is not a
     /// data-collection event. (`HTTP_REQUEST_DATA` ⇒ `["HTTP"]`: it has no
@@ -426,9 +648,14 @@ pub struct EventRequirementForm {
 
 impl EventRequirementForm {
     /// Whether `args` begins with this form's literal selector.
+    /// An empty selector is the exact no-argument form, not a wildcard.
     #[must_use]
     pub fn matches(&self, args: &[&str]) -> bool {
-        args.starts_with(self.argument_prefix)
+        if self.argument_prefix.is_empty() {
+            args.is_empty()
+        } else {
+            args.starts_with(self.argument_prefix)
+        }
     }
 }
 
@@ -1305,7 +1532,7 @@ fn event_props_table_5() -> Vec<(&'static str, EventProps)> {
                 client_side: true,
                 transport: &["tcp", "udp"],
                 setup_event: Some("CLIENT_ACCEPTED"),
-                data_collect_protocols: &["TCP", "UDP"],
+                data_collect_protocols: &["TCP", "UDP", "SCTP"],
                 data_collect_side: Some(ConnectionSide::Client),
                 ..EventProps::DEFAULT
             },
@@ -1869,6 +2096,9 @@ fn event_props_table_11() -> Vec<(&'static str, EventProps)> {
                 client_side: true,
                 transport: &["tcp"],
                 implied_profiles: &["MQTT"],
+                setup_event: Some("MQTT_CLIENT_INGRESS"),
+                data_collect_protocols: &["MQTT"],
+                data_collect_side: Some(ConnectionSide::Client),
                 ..EventProps::DEFAULT
             },
         ),
@@ -1909,8 +2139,12 @@ fn event_props_table_12() -> Vec<(&'static str, EventProps)> {
             EventProps {
                 client_side: true,
                 server_side: true,
+                command_side: ConnectionSide::Server,
                 transport: &["tcp"],
                 implied_profiles: &["MQTT"],
+                setup_event: Some("MQTT_SERVER_INGRESS"),
+                data_collect_protocols: &["MQTT"],
+                data_collect_side: Some(ConnectionSide::Server),
                 ..EventProps::DEFAULT
             },
         ),
@@ -1919,6 +2153,7 @@ fn event_props_table_12() -> Vec<(&'static str, EventProps)> {
             EventProps {
                 client_side: true,
                 server_side: true,
+                command_side: ConnectionSide::Server,
                 transport: &["tcp"],
                 implied_profiles: &["MQTT"],
                 ..EventProps::DEFAULT
@@ -1929,6 +2164,7 @@ fn event_props_table_12() -> Vec<(&'static str, EventProps)> {
             EventProps {
                 client_side: true,
                 server_side: true,
+                command_side: ConnectionSide::Server,
                 transport: &["tcp"],
                 implied_profiles: &["MQTT"],
                 ..EventProps::DEFAULT
@@ -1940,6 +2176,9 @@ fn event_props_table_12() -> Vec<(&'static str, EventProps)> {
                 client_side: true,
                 transport: &["tcp"],
                 implied_profiles: &["MR"],
+                setup_event: Some("MR_INGRESS"),
+                data_collect_protocols: &["MR"],
+                data_collect_side: Some(ConnectionSide::Client),
                 ..EventProps::DEFAULT
             },
         ),
@@ -2186,6 +2425,9 @@ fn event_props_table_15() -> Vec<(&'static str, EventProps)> {
                 client_side: true,
                 transport: &["tcp"],
                 implied_profiles: &["RTSP"],
+                setup_event: Some("RTSP_REQUEST"),
+                data_collect_protocols: &["RTSP"],
+                data_collect_side: Some(ConnectionSide::Client),
                 ..EventProps::DEFAULT
             },
         ),
@@ -2194,6 +2436,7 @@ fn event_props_table_15() -> Vec<(&'static str, EventProps)> {
             EventProps {
                 client_side: true,
                 server_side: true,
+                command_side: ConnectionSide::Server,
                 transport: &["tcp"],
                 implied_profiles: &["RTSP"],
                 ..EventProps::DEFAULT
@@ -2204,8 +2447,12 @@ fn event_props_table_15() -> Vec<(&'static str, EventProps)> {
             EventProps {
                 client_side: true,
                 server_side: true,
+                command_side: ConnectionSide::Server,
                 transport: &["tcp"],
                 implied_profiles: &["RTSP"],
+                setup_event: Some("RTSP_RESPONSE"),
+                data_collect_protocols: &["RTSP"],
+                data_collect_side: Some(ConnectionSide::Server),
                 ..EventProps::DEFAULT
             },
         ),
@@ -2489,6 +2736,9 @@ fn event_props_table_18() -> Vec<(&'static str, EventProps)> {
                 client_side: true,
                 transport: &["tcp"],
                 implied_profiles: &["HTTP", "WS"],
+                setup_event: Some("WS_CLIENT_FRAME"),
+                data_collect_protocols: &["WS"],
+                data_collect_side: Some(ConnectionSide::Client),
                 ..EventProps::DEFAULT
             },
         ),
@@ -2539,8 +2789,12 @@ fn event_props_table_19() -> Vec<(&'static str, EventProps)> {
             EventProps {
                 client_side: true,
                 server_side: true,
+                command_side: ConnectionSide::Server,
                 transport: &["tcp"],
                 implied_profiles: &["HTTP", "WS"],
+                setup_event: Some("WS_SERVER_FRAME"),
+                data_collect_protocols: &["WS"],
+                data_collect_side: Some(ConnectionSide::Server),
                 ..EventProps::DEFAULT
             },
         ),
@@ -2549,6 +2803,7 @@ fn event_props_table_19() -> Vec<(&'static str, EventProps)> {
             EventProps {
                 client_side: true,
                 server_side: true,
+                command_side: ConnectionSide::Server,
                 transport: &["tcp"],
                 implied_profiles: &["HTTP", "WS"],
                 ..EventProps::DEFAULT
@@ -2559,6 +2814,7 @@ fn event_props_table_19() -> Vec<(&'static str, EventProps)> {
             EventProps {
                 client_side: true,
                 server_side: true,
+                command_side: ConnectionSide::Server,
                 transport: &["tcp"],
                 implied_profiles: &["HTTP", "WS"],
                 ..EventProps::DEFAULT
