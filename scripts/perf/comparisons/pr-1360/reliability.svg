@@ -1,0 +1,33 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="920" height="440" viewBox="0 0 920 440">
+<style>text{font:13px system-ui,sans-serif;fill:#24292f}.title{font-size:20px;font-weight:600}.base{fill:#56B4E9}.candidate{fill:#D55E00}.grid{stroke:#d0d7de;stroke-width:1}@media(prefers-color-scheme:dark){text{fill:#e6edf3}.grid{stroke:#484f58}}</style>
+<text class="title" x="460.0" y="32" text-anchor="middle">Edit and full-suite completion rate</text>
+<line class="grid" x1="90" y1="350.0" x2="880" y2="350.0"/>
+<text x="80" y="354.0" text-anchor="end">0.0</text>
+<line class="grid" x1="90" y1="294.0" x2="880" y2="294.0"/>
+<text x="80" y="298.0" text-anchor="end">22.4</text>
+<line class="grid" x1="90" y1="238.0" x2="880" y2="238.0"/>
+<text x="80" y="242.0" text-anchor="end">44.8</text>
+<line class="grid" x1="90" y1="182.0" x2="880" y2="182.0"/>
+<text x="80" y="186.0" text-anchor="end">67.2</text>
+<line class="grid" x1="90" y1="126.0" x2="880" y2="126.0"/>
+<text x="80" y="130.0" text-anchor="end">89.6</text>
+<line class="grid" x1="90" y1="70.0" x2="880" y2="70.0"/>
+<text x="80" y="74.0" text-anchor="end">112.0</text>
+<rect class="base" x="145.9" y="350.0" width="73.7" height="0.0" rx="2"/>
+<text x="182.8" y="344.0" text-anchor="middle">0.00</text>
+<rect class="candidate" x="223.7" y="308.3" width="73.7" height="41.7" rx="2"/>
+<text x="260.5" y="302.3" text-anchor="middle">16.67</text>
+<text x="221.7" y="374" text-anchor="middle">100 light edits</text>
+<rect class="base" x="409.3" y="141.7" width="73.7" height="208.3" rx="2"/>
+<text x="446.1" y="135.7" text-anchor="middle">83.33</text>
+<rect class="candidate" x="487.0" y="100.0" width="73.7" height="250.0" rx="2"/>
+<text x="523.9" y="94.0" text-anchor="middle">100.00</text>
+<text x="485.0" y="374" text-anchor="middle">400 heavy edits</text>
+<rect class="base" x="672.6" y="350.0" width="73.7" height="0.0" rx="2"/>
+<text x="709.5" y="344.0" text-anchor="middle">0.00</text>
+<rect class="candidate" x="750.3" y="225.0" width="73.7" height="125.0" rx="2"/>
+<text x="787.2" y="219.0" text-anchor="middle">50.00</text>
+<text x="748.3" y="374" text-anchor="middle">Full 15-check suite</text>
+<text x="90" y="412"><tspan class="base">■</tspan> rust base  <tspan class="candidate">■</tspan> PR candidate</text>
+<text x="880" y="412" text-anchor="end">unit: percent successful (full suite: observed attempts); median of six alternating pairs</text>
+</svg>
