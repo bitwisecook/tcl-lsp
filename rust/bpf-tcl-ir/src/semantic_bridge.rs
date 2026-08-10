@@ -163,6 +163,9 @@ impl EbpfSemanticBridge {
                     decline.clone(),
                 ));
             }
+            ExecutableAnalysisAvailability::WorldStateNotRequired { .. } => {
+                return EbpfRegionEligibility::Declined(EbpfRegionDecline::WorldStateNotRequested);
+            }
             ExecutableAnalysisAvailability::SourceDeclined(decline) => {
                 return EbpfRegionEligibility::Declined(EbpfRegionDecline::SourceDeclined(
                     decline.clone(),
@@ -409,6 +412,9 @@ pub enum EbpfRegionDecline {
     SourceDeclined(tcl_compiler::executable_ir::SourceCompatibilityDecline),
     /// Common world-state SSA could not be built for the executable function.
     WorldStateDeclined(tcl_compiler::world_state_ssa::WorldStateSsaDecline),
+    /// The interactive bundle retained invocation facts but did not request
+    /// the world-state proof graph required by this whole-region auditor.
+    WorldStateNotRequested,
     /// The enclosing function build did not retain source semantic IR.
     SourceUnavailable,
     /// The common executable region contains no-runtime-incompatible shape.

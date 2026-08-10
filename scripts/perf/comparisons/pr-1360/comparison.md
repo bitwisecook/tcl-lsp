@@ -37,10 +37,35 @@ Six measured pairs followed discarded warm-ups. Pair order alternated base→can
 
 The complete successful candidate run peaked at 2,957.0 MiB RSS. Its check wall times were: scan 35.901 s; open 0.297 s; heavy edit dispatch 0.651 s; light tokenised edits 9.234 s; hover 0.001 s; definition 0.007 s; references 1.188 s; completion 0.294 s; symbols/folding 0.193 s; lens 0.215 s; code actions 0.348 s; symbol rename 0.056 s; file rename 0.348 s; references after rename 1.162 s; close 0.313 s.
 
+## On-demand world-state follow-up
+
+The first comparison identified eager semantic-sidecar construction as the merge blocker. A matched follow-up on the rebased tree (`origin/rust` at `dae8a6269`) separated executable invocation facts from world-state SSA and then changed interactive construction to request world-state SSA only when the exact common-GVN eligibility predicate found a reusable invocation. Full `SemanticAnalysisBundle::build` remains available for code generation, eBPF auditing, and future deep LSP queries.
+
+The compiler-phase experiment built a `CompilationUnit` for every one of the same 2,432 files in a fresh process. Wall time is the median of three or four runs; RSS is a fresh representative run. The exact-demand policy found no closed reusable invocation in this corpus, so it built zero world-state graphs while retaining executable provenance for 27,443 of 28,314 functions.
+
+| Compiler construction policy | Median wall | Peak RSS | Result |
+|---|---:|---:|---|
+| `origin/rust` (no common sidecar) | 16.145 s | 318.0 MiB | Baseline |
+| Executable invocation facts, no world SSA | 17.691 s | 394.6 MiB | Measures the compact interactive layer |
+| Exact-demand world SSA | 18.040 s | 387.3 MiB | Production policy; zero graphs required by this corpus |
+| Eager executable + world SSA | 28.517 s | 2,119.2 MiB | Rejected policy |
+
+The full deterministic LSP suite then compared fresh release servers over the full corpus. All 15 checks passed in every row below.
+
+| Full LSP run | Cold scan | Peak RSS | Final RSS | Delta from eager candidate |
+|---|---:|---:|---:|---:|
+| Latest `origin/rust` | 32.771 s | 1,030.8 MiB | 1,000.5 MiB | — |
+| Eager PR candidate | 38.745 s | 2,948.2 MiB | 1,400.4 MiB | Baseline for the fix |
+| Exact-demand PR candidate | 35.605 s | 1,208.7 MiB | 1,192.2 MiB | −8.1% scan, −59.0% peak RSS |
+
+![On-demand world-state comparison](on-demand.svg)
+
+Heap snapshots explain why the RSS delta is much larger than retained semantic data: the eager candidate had about 340 MiB of live allocations but a 2.8 GiB malloc zone with 79% fragmentation, versus 335.7 MiB live and a 916 MiB zone in the base. Building thousands of temporary world-state operations, versions, and phis drives small-allocation fragmentation; moving the same graph behind `Arc` or between Salsa caches did not reduce the peak. The exact-demand policy removes that temporary allocation wave from ordinary indexing without treating a missing graph as proof.
+
 ## Merge-strategy signal
 
-The common semantic sidecar is not performance-neutral at full-corpus scale. It raises median cold-scan time and roughly triples resident memory while leaving document open/close latency unchanged. It improves heavy-burst convergence reliability in this sample, but light per-edit token requests remain unstable in both builds. The safest merge strategy is to split or gate eager semantic-sidecar construction before enabling it for every indexed function; the registry contracts, runtime ABI, and bounded backend plumbing can land independently from eager workspace materialisation.
+The common semantic sidecar is not performance-neutral at full-corpus scale. The original eager policy raised median cold-scan time and roughly tripled resident memory while leaving document open/close latency unchanged. The exact-demand policy removes most of that cost and keeps the machinery available for code generation and future deep, revision-keyed LSP queries. A later optimisation can project the retained executable graph into a smaller GVN index, but it is not required to remove the allocator-fragmentation spike. The recommended merge strategy is therefore the exact-demand policy, with full world-state SSA remaining opt-in rather than an unconditional workspace-indexing side effect.
 
 ## Raw evidence
 
-`results/` contains all 36 measured scenario JSON files (six repetitions × two builds × three scenarios) plus the one successful full-suite candidate JSON. Each file includes per-check wall/CPU/RSS data, the 250 ms process timeline, host load, selected documents, corpus revision, and success/failure notes.
+`results/` contains all 36 measured scenario JSON files (six repetitions × two builds × three scenarios), the original successful full-suite candidate JSON, and the matched `followup-{base,eager,on-demand}.json` full-suite runs. Each file includes per-check wall/CPU/RSS data, the 250 ms process timeline, host load, selected documents, corpus revision, and success/failure notes.

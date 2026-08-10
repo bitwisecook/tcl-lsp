@@ -768,7 +768,9 @@ impl FunctionUnit {
     ) -> Self {
         self.semantic_facts = script.map_or_else(
             || SemanticAnalysisBundle::unavailable(dialect),
-            |script| SemanticAnalysisBundle::build(registry, dialect, script),
+            |script| {
+                SemanticAnalysisBundle::build_for_interactive_analysis(registry, dialect, script)
+            },
         );
         self
     }
@@ -2366,13 +2368,17 @@ mod tests {
     }
 
     #[test]
-    fn semantic_bundle_keeps_dialect_and_isolates_structured_regions() {
+    fn semantic_bundle_keeps_dialect_and_defers_unneeded_world_state() {
         let linear = CompilationUnit::build_for_dialect("puts hello", &registry(), false, "tcl8.6");
         let facts = &linear.top_level.semantic_facts;
         assert_eq!(facts.dialect(), DialectSet::TCL86);
         let executable = facts.executable();
         assert_eq!(executable.invocations().count(), 1);
-        assert!(executable.world_state_ssa().is_some());
+        assert!(executable.world_state_ssa().is_none());
+        assert!(matches!(
+            executable,
+            crate::semantic_analysis::ExecutableAnalysisAvailability::WorldStateNotRequired { .. }
+        ));
         assert_eq!(executable.completion_inputs().count(), 1);
         assert_eq!(executable.effect_inputs().count(), 1);
 
@@ -2385,7 +2391,15 @@ mod tests {
         let structured = structured.top_level.semantic_facts.executable();
         assert!(structured.function().is_some());
         assert_eq!(structured.opaque_regions().count(), 1);
-        assert!(structured.world_state_ssa().is_some());
+        assert!(structured.world_state_ssa().is_none());
+
+        let ir = crate::lowering::lower_to_ir("puts hello", &registry());
+        let explicit = crate::semantic_analysis::SemanticAnalysisBundle::build(
+            &registry(),
+            DialectSet::TCL86,
+            &ir.top_level,
+        );
+        assert!(explicit.executable().world_state_ssa().is_some());
 
         let legacy = CompilationUnit::build_for("puts hello", &registry(), false);
         assert!(matches!(

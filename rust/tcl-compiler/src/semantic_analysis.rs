@@ -93,6 +93,54 @@ impl SemanticAnalysisBundle {
         }
     }
 
+    /// Build the executable invocation facts used by interactive GVN, and
+    /// materialise world-state SSA only when an invocation can actually enter
+    /// GVN's reusable-value domain.
+    ///
+    /// The full [`Self::build`] path remains available to backends and deep
+    /// analyses that consume world-state versions directly. Ordinary LSP
+    /// indexing must not pay that graph cost merely to discover that every
+    /// invocation fails GVN's closed-world eligibility predicate.
+    #[must_use]
+    pub(crate) fn build_for_interactive_analysis(
+        registry: &CommandRegistry,
+        dialect: DialectSet,
+        script: &Script,
+    ) -> Self {
+        if dialect.canonical_name().is_none() {
+            return Self {
+                dialect,
+                executable: ExecutableAnalysisAvailability::DialectUnavailable { dialect },
+            };
+        }
+        let executable = match build_linear_executable_ir(
+            registry,
+            dialect,
+            ExecutableFunctionId::new(0),
+            script,
+        ) {
+            Ok(function) if interactive_gvn_needs_world_state(&function) => {
+                match build_executable_world_state_ssa(&function) {
+                    Ok(world_state_ssa) => {
+                        ExecutableAnalysisAvailability::Available(ExecutableSemanticFacts {
+                            function,
+                            world_state_ssa,
+                        })
+                    }
+                    Err(decline) => {
+                        ExecutableAnalysisAvailability::WorldStateDeclined { function, decline }
+                    }
+                }
+            }
+            Ok(function) => ExecutableAnalysisAvailability::WorldStateNotRequired { function },
+            Err(decline) => ExecutableAnalysisAvailability::SourceDeclined(decline),
+        };
+        Self {
+            dialect,
+            executable,
+        }
+    }
+
     /// Build an explicit unavailable bundle for a function build that did not
     /// retain a source script.
     #[must_use]
@@ -143,6 +191,13 @@ pub enum ExecutableAnalysisAvailability {
         /// Why the common world-state SSA builder declined it.
         decline: WorldStateSsaDecline,
     },
+    /// Executable invocation facts were retained, but no invocation could
+    /// enter interactive GVN's reusable-value domain, so no world-state graph
+    /// was requested.
+    WorldStateNotRequired {
+        /// The validated executable semantic function.
+        function: ExecutableFunction,
+    },
     /// The source IR was outside the deliberately narrow executable subset.
     SourceDeclined(SourceCompatibilityDecline),
     /// No source script was supplied by this function-build entry point.
@@ -156,7 +211,8 @@ impl ExecutableAnalysisAvailability {
     pub const fn function(&self) -> Option<&ExecutableFunction> {
         match self {
             Self::Available(facts) => Some(&facts.function),
-            Self::WorldStateDeclined { function, .. } => Some(function),
+            Self::WorldStateDeclined { function, .. }
+            | Self::WorldStateNotRequired { function } => Some(function),
             Self::DialectUnavailable { .. } | Self::SourceDeclined(_) | Self::SourceUnavailable => {
                 None
             }
@@ -169,6 +225,7 @@ impl ExecutableAnalysisAvailability {
         match self {
             Self::Available(facts) => Some(&facts.world_state_ssa),
             Self::WorldStateDeclined { .. }
+            | Self::WorldStateNotRequired { .. }
             | Self::DialectUnavailable { .. }
             | Self::SourceDeclined(_)
             | Self::SourceUnavailable => None,
@@ -277,6 +334,21 @@ impl ExecutableAnalysisAvailability {
                     .map(|_| InvocationEffectInput::ConservativeUnknown),
             )
     }
+}
+
+fn interactive_gvn_needs_world_state(function: &ExecutableFunction) -> bool {
+    function.blocks.iter().any(|block| {
+        block.instructions.iter().any(|instruction| {
+            let crate::executable_ir::ExecutableInstruction::Invoke(invoke) = instruction else {
+                return false;
+            };
+            matches!(
+                &invoke.resolution,
+                InvocationResolution::Resolved(facts)
+                    if crate::gvn::resolved_invocation_is_gvn_eligible(facts)
+            )
+        })
+    })
 }
 
 /// Executable semantic facts whose common derivations all succeeded.

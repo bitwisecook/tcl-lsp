@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="920" height="480" viewBox="0 0 920 480">
+<style>text{font:13px system-ui,sans-serif;fill:#24292f}.title{font-size:20px;font-weight:600}.panel{font-size:15px;font-weight:600}.base{fill:#56B4E9}.eager{fill:#D55E00}.demand{fill:#009E73}.grid{stroke:#d0d7de;stroke-width:1}@media(prefers-color-scheme:dark){text{fill:#e6edf3}.grid{stroke:#484f58}}</style>
+<text class="title" x="460" y="30" text-anchor="middle">Full #1181 corpus: eager vs on-demand world-state SSA</text>
+<text class="panel" x="245" y="62" text-anchor="middle">Cold workspace scan (seconds)</text>
+<line class="grid" x1="55" y1="370" x2="435" y2="370"/>
+<line class="grid" x1="55" y1="220" x2="435" y2="220"/>
+<line class="grid" x1="55" y1="70" x2="435" y2="70"/>
+<text x="48" y="374" text-anchor="end">0</text><text x="48" y="224" text-anchor="end">22.5</text><text x="48" y="74" text-anchor="end">45</text>
+<rect class="base" x="90" y="151.5" width="75" height="218.5" rx="2"/><text x="127.5" y="144" text-anchor="middle">32.77</text>
+<rect class="eager" x="205" y="111.7" width="75" height="258.3" rx="2"/><text x="242.5" y="104" text-anchor="middle">38.75</text>
+<rect class="demand" x="320" y="132.6" width="75" height="237.4" rx="2"/><text x="357.5" y="125" text-anchor="middle">35.61</text>
+<text x="127.5" y="392" text-anchor="middle">rust base</text><text x="242.5" y="392" text-anchor="middle">eager</text><text x="357.5" y="392" text-anchor="middle">on-demand</text>
+<text class="panel" x="690" y="62" text-anchor="middle">Peak RSS (MiB)</text>
+<line class="grid" x1="500" y1="370" x2="880" y2="370"/>
+<line class="grid" x1="500" y1="220" x2="880" y2="220"/>
+<line class="grid" x1="500" y1="70" x2="880" y2="70"/>
+<text x="493" y="374" text-anchor="end">0</text><text x="493" y="224" text-anchor="end">1,650</text><text x="493" y="74" text-anchor="end">3,300</text>
+<rect class="base" x="535" y="276.3" width="75" height="93.7" rx="2"/><text x="572.5" y="268.8" text-anchor="middle">1,031</text>
+<rect class="eager" x="650" y="102.0" width="75" height="268.0" rx="2"/><text x="687.5" y="94.5" text-anchor="middle">2,948</text>
+<rect class="demand" x="765" y="260.1" width="75" height="109.9" rx="2"/><text x="802.5" y="252.6" text-anchor="middle">1,209</text>
+<text x="572.5" y="392" text-anchor="middle">rust base</text><text x="687.5" y="392" text-anchor="middle">eager</text><text x="802.5" y="392" text-anchor="middle">on-demand</text>
+<text x="460" y="438" text-anchor="middle"><tspan class="base">■</tspan> latest origin/rust   <tspan class="eager">■</tspan> eager PR   <tspan class="demand">■</tspan> exact-demand PR</text>
+<text x="460" y="462" text-anchor="middle">One matched deterministic full-suite run per policy; all 15 checks passed</text>
+</svg>

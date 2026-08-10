@@ -829,7 +829,9 @@ impl GvnSemanticFacts {
 /// explicit pure/CSE registry traits and a closed, empty transition set, no
 /// direct state accesses, and no callback barrier.  The world-state SSA must
 /// also have built successfully before this helper is consulted.
-fn resolved_invocation_is_gvn_eligible(resolved: &tcl_registry::InvocationFacts) -> bool {
+pub(crate) fn resolved_invocation_is_gvn_eligible(
+    resolved: &tcl_registry::InvocationFacts,
+) -> bool {
     if !resolved
         .traits
         .contains(Traits::PURE.union(Traits::CSE_CANDIDATE))
@@ -1960,6 +1962,10 @@ mod tests {
             false,
             "tcl8.6",
         );
+        assert!(matches!(
+            cu.top_level.semantic_facts.executable(),
+            ExecutableAnalysisAvailability::Available(_)
+        ));
         let redundancies = find_redundancies_for_function(&registry, &cu.top_level, Some("tcl8.6"));
         assert_eq!(redundancies.len(), 1);
         assert_eq!(redundancies[0].expression_text, "test::pure_cse value");
