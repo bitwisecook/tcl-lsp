@@ -13,6 +13,7 @@ compiler and language-server consumers project the typed facts generically.
 | `rename` | complete | corrected namespace-creation transition and hover text | Tcl 9.0.4 and Tcl 8.5 executable oracles; Tcl 9.0 manpage |
 | `package` | complete with typed abstention | corrected Tcl 8.4/8.5 `vsatisfies` arity split | Tcl 9.0.4 primary; Tcl 8.6.18 and 8.5.9 cross-checks |
 | `namespace` | complete with typed abstentions | declared nested ensemble management dispatcher | Tcl 9.0.4 primary; Tcl 8.5.9 cross-check |
+| `source` | complete with typed abstentions | corrected Tcl 9 option forms and exact option spellings | Tcl 9.0.4 primary; Tcl 8.6.18 and 8.5.9 cross-checks |
 
 ## `rename`
 
@@ -175,3 +176,53 @@ performed by an arbitrary evaluated script. Those cases remain typed
 namespace/command-binding/interpreter-state uncertainty; the audit makes no
 new diagnostic or optimisation claim for them. The Rust VM/WASM runtime's
 implementation completeness is also outside this registry oracle tranche.
+
+## `source`
+
+### Evidence availability
+
+The requested `/Users/jimd/src/tcl-[89]*` source glob and the repository's
+fetched Tcl source trees are absent. The primary executable oracle was
+`/opt/homebrew/bin/tclsh9.0` (Tcl 9.0.4), cross-checked with Tcl 8.6.18 and
+8.5.9. Tcl 9.0.4's installed `source` manual was read from
+`/opt/homebrew/share/man/mann/source.ntcl`. Tcl 8.4 and 9.1 executable/source
+oracles remain unavailable.
+
+### Verified contract
+
+| Surface | Verdict |
+| --- | --- |
+| Forms and options | `source fileName` is universal. Tcl 8.5+ adds `-encoding encodingName fileName`; Tcl 9 adds a separate `-nopkg fileName` form. Tcl 9.0.4 rejects combining `-encoding` and `-nopkg`, and Tcl 8.5/8.6 reject `-nopkg`. The complete option spellings are required: `-enc` and `-nop` are rejected across the checked releases. The registry now exposes separate Tcl 9 forms and full-length option abbreviation floors. |
+| Caller frame and namespace | The file is evaluated in the caller's current interpreter, call frame, and namespace. A top-level `set` in a sourced file can create or overwrite a local in the caller's proc. `info script` reports the path spelling supplied to `source`: a relative name remains relative and a symlink name is not canonicalised. |
+| Result and completion | The result is the last command's result. A top-level `return value` ends the sourced file and returns normally from `source`; it does not unwind the caller. Errors propagate with their result and completion code. An empty file returns the empty string. |
+| File reading and encoding | Reading stops at the first ASCII `^Z` byte. Tcl 8.5/8.6 default to the system encoding when `-encoding` is omitted; Tcl 9 defaults to UTF-8. A leading BOM is ignored for the documented Unicode encodings. Missing files and invalid encodings are file/read errors, not package-resolution facts. |
+| Resolution and identity | Relative names resolve against the process's current working directory, not the directory of the calling file. Each invocation reads the target again; Tcl does not cache a successful `source` by path or inode. Repeated-source elimination is therefore unsound without an external proof that the file is immutable and side-effect free. |
+| Safe and child interpreters | `source` is hidden in a newly created safe interpreter and remains unavailable to a child created inside it. Explicit `interp expose` makes it callable again. Package databases, command tables, namespaces, and file execution are interpreter-local. |
+| Traces and dynamic execution | Execution traces can observe `source` enter/leave and can affect completion. A sourced script may call arbitrary commands, load packages, mutate namespaces, or re-enter the caller. A computed filename cannot soundly identify a target file; the existing registry Source hook records a dynamic target and generic workspace/package consumers widen. |
+
+### Registry and consumer verdict
+
+The existing registry correctly carries `SOURCES_FILE`, external-unit loading,
+dynamic-evaluation barrier, safe-interpreter hiding, file-read effects, the
+caller-frame hook, and the Tcl 8.5/9 option gates. This tranche corrects only
+the high-confidence Tcl 9 form/option facts and tests them in the registry.
+The `Source` analyser hook remains the generic hand-off for recording a
+source target and caller namespace; no compiler or LSP path rewrite was added.
+Any future source-specific quick fix must be returned by a registry-owned hook
+from generic resolved invocation/context facts, with the analyser/LSP applying
+only the resulting edit plan.
+
+No safe diagnostic or optimisation is added for repeated loads, dynamic
+filenames, package initialisation, or arbitrary source-file effects. A
+literal source target can feed existing document-link and workspace source
+graph resolution, but it does not prove the target is executed exactly once.
+
+### Release-gate matrix
+
+| Release | Gate result |
+| --- | --- |
+| Tcl 8.4 | Source/executable unavailable. Existing registry retains the classic-Mac `-rsrc`/`-rsrcid` hover forms and records the known platform-locked arity gap; no new 8.4 runtime claim is made. |
+| Tcl 8.5 | Executable oracle 8.5.9 confirms caller-frame evaluation, result/return/error propagation, `-encoding`, exact option spelling, ^Z termination, and repeated-load behaviour. |
+| Tcl 8.6 | Executable oracle 8.6.18 confirms the Tcl 8.5 source surface and rejection of Tcl 9 `-nopkg`. |
+| Tcl 9.0 | Primary executable oracle 9.0.4 confirms UTF-8 default, separate `-nopkg`, option non-combination, safe-interpreter hiding, traces, and path identity. |
+| Tcl 9.1 | Source/executable unavailable; no new 9.1-specific claim is made. |

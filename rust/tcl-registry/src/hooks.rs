@@ -408,7 +408,8 @@ pub enum AnalyserHookId {
     /// takes the highest acceptable version or the highest acceptable
     /// *stable* one (issue #1126 item 1).
     PackagePrefer,
-    /// `source ?-encoding enc? fileName` — records the source target.
+    /// `source fileName`, `source -encoding enc fileName`, or Tcl 9's
+    /// `source -nopkg fileName` — records the source target.
     Source,
     /// `append varName ?value ...?` — read-modify-write variable
     /// definition.
