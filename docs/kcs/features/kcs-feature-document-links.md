@@ -78,10 +78,13 @@ underlining all of it would hide the colouring of `file`, `join`, and
   guarded assignment is not known: Tk's own `$::ttk::library` abstains
   because its `set` hides behind `if {![info exists library]}`, so its
   value genuinely is not static.
-- **No link through another file's variable.** A namespace variable
-  assigned in one file and read in a `source` in another (OSVVM's
-  `$::osvvm::OsvvmScriptDirectory` shape) is not resolved — constants
-  are a per-document fact.
+- **A variable from another file resolves only on agreement.** A
+  namespace variable assigned in one file and read in a `source` in
+  another (OSVVM's `$::osvvm::OsvvmScriptDirectory` shape) resolves
+  when every file that sources the reader supplies the same value for
+  it, established before its `source` statement. One dissenting or
+  silent route drops the name: whichever file actually ran, a kept
+  value is the value. A reader nothing sources gets no imports at all.
 - **No link on a relative `file normalize`.** `[file normalize lib]`
   resolves against the interpreter's working directory at run time,
   which is not knowable statically, so it does not fold. Anchor it —

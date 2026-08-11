@@ -113,7 +113,16 @@ them to the host's resolver, so both the chained `set dir …; set sourceDir
 [file join $dir src]; source [file join $sourceDir x.tcl]` idiom and the
 namespace-variable `namespace eval ::snit:: { variable library [file dirname
 [info script]] }; source [file join $::snit::library main1.tcl]` idiom *do*
-resolve and rank), and for a host that installs no resolver.
+resolve and rank), and for a host that installs no resolver.  Cross-file
+constants extend the same fact one hop further (issue #1368):
+`WorkspaceIndex::imported_constants` computes, per document, the values its
+source-graph ancestors establish before it runs — position-gated at each
+parent's `source` statement, agreed across every route that reaches the
+reader, and iterated with the edge set in whole rounds so a shipped edge is
+always consistent with the shipped import map (a non-converging workspace
+ships no imports rather than a map its own edges contradict).  The host
+installs a `ConstantFolder` alongside the `SourceResolver` so the index can
+compute what one document provides to those it sources.
 `None` folds to "abstain toward answering" in both decision functions: an
 unrankable install counts, an unrankable removal revokes nothing.  A workspace
 with no resolvable `source` edge therefore behaves exactly as it did before the

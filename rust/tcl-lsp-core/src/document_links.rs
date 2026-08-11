@@ -97,6 +97,12 @@ pub struct DocumentLink {
 /// `clippy::too_many_arguments`).
 #[derive(Debug, Clone, Copy, Default)]
 pub struct LinkContext<'a> {
+    /// The document's **imported** path constants — values source-graph
+    /// ancestors establish before it runs
+    /// (`WorkspaceIndex::imported_path_constants_for`, issue #1368).  `None`
+    /// means no import view is available (single-file callers), which only
+    /// costs coverage, never correctness.
+    pub imported_constants: Option<&'a std::collections::HashMap<String, String>>,
     /// Directory relative paths resolve against — typically the document's
     /// own enclosing directory.  `None` leaves relative paths unresolvable,
     /// so only absolute ones produce links.
@@ -144,6 +150,7 @@ pub fn document_links_with_home(
         source,
         dialect,
         &LinkContext {
+            imported_constants: None,
             workspace_root,
             home,
             script_path: None,
@@ -164,14 +171,22 @@ pub fn document_links_in_context(
         workspace_root,
         home,
         script_path,
+        imported_constants: _,
     } = *ctx;
     let line_index = LineIndex::new(source);
     let mut links = Vec::new();
     // Constant single-assignment `set` map for the `set dir [file dirname
     // [info script]] … source [file join $dir x.tcl]` idiom (issue #1140
     // idx 41), built once per request.  Chained assignments fold too, so a
-    // directory reached through an intermediate resolves (issue #775).
-    let constants = tcl_compiler::auto_path_eval::constant_path_vars(source, dialect, script_path);
+    // directory reached through an intermediate resolves (issue #775), and
+    // an import view from the host makes values sourced-in from ancestor
+    // documents resolve exactly as they do for navigation (issue #1368).
+    let no_imports = std::collections::HashMap::new();
+    let constants = tcl_compiler::auto_path_eval::fold_constant_assignments_with_imports(
+        &tcl_compiler::auto_path_eval::constant_path_assignments(source, dialect),
+        script_path,
+        ctx.imported_constants.unwrap_or(&no_imports),
+    );
 
     for seg in segment_commands_with_offset_and_config(
         source,
@@ -634,6 +649,7 @@ mod tests {
             src,
             "tcl",
             &LinkContext {
+                imported_constants: None,
                 workspace_root: Some("/proj"),
                 home: None,
                 script_path: Some("/proj/test/caller.tcl"),
@@ -670,6 +686,7 @@ mod tests {
                 src,
                 "tcl",
                 &LinkContext {
+                    imported_constants: None,
                     workspace_root: Some("/proj"),
                     home: None,
                     script_path: Some("/proj/test/caller.tcl"),
@@ -702,6 +719,7 @@ mod tests {
     #[test]
     fn a_relative_computed_source_path_anchors_like_the_literal_beside_it_923_idx41() {
         let ctx = LinkContext {
+            imported_constants: None,
             workspace_root: Some("/proj"),
             home: None,
             script_path: Some("/proj/test/caller.tcl"),
@@ -741,6 +759,7 @@ mod tests {
             src,
             "tcl",
             &LinkContext {
+                imported_constants: None,
                 workspace_root: Some("/proj/test"),
                 home: None,
                 script_path: Some("/proj/test/main.tcl"),
@@ -772,6 +791,7 @@ mod tests {
             src,
             "tcl",
             &LinkContext {
+                imported_constants: None,
                 workspace_root: Some("/proj"),
                 home: None,
                 script_path: Some("/proj/test/arbitaryTest.tcl"),
@@ -803,6 +823,7 @@ mod tests {
             src,
             "tcl",
             &LinkContext {
+                imported_constants: None,
                 workspace_root: Some("/proj"),
                 home: None,
                 script_path: Some("/proj/SpiceGenTcl.tcl"),
@@ -848,6 +869,7 @@ mod tests {
             src,
             "tcl",
             &LinkContext {
+                imported_constants: None,
                 workspace_root: Some("/proj"),
                 home: None,
                 script_path: Some("/proj/main.tcl"),

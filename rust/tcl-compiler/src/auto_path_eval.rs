@@ -360,6 +360,11 @@ pub struct PathConstantWrite {
     /// executes inside `namespace eval alited`, so `$LIBDIR` reads
     /// `::alited::LIBDIR`.
     pub ns: String,
+    /// Byte offset of the writing command in its document.  Cross-file
+    /// import (issue #1368) is position-gated on it: a parent's write flows
+    /// to a sourced child only when it precedes the `source` statement, so
+    /// an assignment *after* the source contributes nothing to it.
+    pub at: u32,
     /// What this fact says about the name.
     pub value: PathConstantValue,
 }
@@ -416,7 +421,7 @@ pub fn constant_path_assignments_from_commands(
     dialect: &str,
 ) -> Vec<PathConstantWrite> {
     let mut out: Vec<PathConstantWrite> = Vec::new();
-    collect_writes(commands, dialect, "", &mut out);
+    collect_writes(commands, dialect, "", 0, &mut out);
     out
 }
 
@@ -479,6 +484,7 @@ fn collect_writes(
     commands: &[crate::segmenter::SegmentedCommand],
     dialect: &str,
     ns_prefix: &str,
+    base_offset: u32,
     out: &mut Vec<PathConstantWrite>,
 ) {
     let seen = |out: &Vec<PathConstantWrite>, key: &str| out.iter().any(|w| w.name == key);
@@ -493,10 +499,12 @@ fn collect_writes(
                 if !is_plain_scalar_name(name) {
                     continue;
                 }
-                let push = |out: &mut Vec<PathConstantWrite>, key: String, value| {
+                let at = base_offset + seg.span.start();
+                let push = move |out: &mut Vec<PathConstantWrite>, key: String, value| {
                     out.push(PathConstantWrite {
                         name: key,
                         ns: ns_prefix.to_owned(),
+                        at,
                         value,
                     });
                 };
@@ -546,6 +554,7 @@ fn collect_writes(
                     out.push(PathConstantWrite {
                         name: key,
                         ns: ns_prefix.to_owned(),
+                        at: base_offset + seg.span.start(),
                         value,
                     });
                     i += 2;
@@ -576,12 +585,17 @@ fn collect_writes(
                 } else {
                     canon(&format!("{ns_prefix}::{}", words[2]))
                 };
+                let body_base = base_offset
+                    + seg
+                        .argv
+                        .get(3)
+                        .map_or(0, |tok| tok.span.start() + u32::from(tok.content_offset));
                 let body_commands = segment_commands_with_offset_and_config(
                     &words[3],
                     0,
                     tcl_lexer::LexerConfig::for_dialect(dialect),
                 );
-                collect_writes(&body_commands, dialect, &child_prefix, out);
+                collect_writes(&body_commands, dialect, &child_prefix, body_base, out);
             }
             _ => {}
         }
@@ -637,6 +651,37 @@ pub fn fold_constant_assignments(
     assignments: &[PathConstantWrite],
     info_script: Option<&str>,
 ) -> HashMap<String, String> {
+    fold_constant_assignments_with_imports(assignments, info_script, &HashMap::new())
+}
+
+/// [`fold_constant_assignments`] with **imported** constants — values a
+/// source-graph ancestor established before this document runs (issue
+/// #1368; OSVVM's `StartUpShared.tcl` reads `::osvvm::OsvvmScriptDirectory`,
+/// which every file that sources it assigns first).
+///
+/// The returned map is the document's complete view: the imports, overlaid
+/// by the document's own folds.  Ownership rules, each load-bearing:
+///
+/// * A name this document **writes** ([`PathConstantValue::Raw`] or
+///   [`PathConstantValue::Poisoned`]) never answers from the import: a
+///   foldable single write replaces it, and an unfoldable or multiply
+///   written one *removes* it — the runtime overwrote the inherited value
+///   with something unknowable, so keeping the import would answer with a
+///   value the variable no longer has.
+/// * A bare [`PathConstantValue::Declared`] keeps the import: `variable X`
+///   inside the namespace does not unset a variable the ancestor already
+///   set.  (OSVVM's guarded `if {![info exists …]} { variable … }` writes
+///   are invisible to this tier, which is exactly right — under a sourcing
+///   parent the guard is false and the import is the value.)
+/// * Namespace membership for bare in-body reads includes imported names,
+///   so `variable home [file normalize ${OsvvmScriptDirectory}/..]` chains
+///   off the import inside `namespace eval ::osvvm`.
+#[must_use]
+pub fn fold_constant_assignments_with_imports(
+    assignments: &[PathConstantWrite],
+    info_script: Option<&str>,
+    imported: &HashMap<String, String>,
+) -> HashMap<String, String> {
     let mut writes: HashMap<&str, usize> = HashMap::new();
     let mut known_names: std::collections::HashSet<&str> = std::collections::HashSet::new();
     for w in assignments {
@@ -648,6 +693,8 @@ pub fn fold_constant_assignments(
             PathConstantValue::Declared => {}
         }
     }
+    // Own writes shadow the import entirely — see the ownership rules above.
+    let blocked = &writes;
     let mut constants: HashMap<String, String> = HashMap::new();
     for w in assignments {
         let PathConstantValue::Raw(raw) = &w.value else {
@@ -660,15 +707,34 @@ pub fn fold_constant_assignments(
         // namespace first (recorded on the fact — not derivable from the
         // key, whose namespace is the *target*'s).
         let resolve = |name: &str| -> Option<String> {
+            let one = |key: &str| -> Option<String> {
+                if blocked.contains_key(key) {
+                    // Own-written: the document's fold is the only truth —
+                    // absent/poisoned means abstain, never the import.
+                    constants.get(key).cloned()
+                } else {
+                    imported.get(key).cloned()
+                }
+            };
             if !name.contains("::") && !w.ns.is_empty() {
                 let ns_key = format!("{}::{name}", w.ns);
-                if known_names.contains(ns_key.as_str()) {
-                    // The namespace has this name: resolve from it alone —
-                    // absent/poisoned means abstain, not "try the global".
-                    return constants.get(&ns_key).cloned();
+                if known_names.contains(ns_key.as_str()) || imported.contains_key(&ns_key) {
+                    // The namespace has this name: resolve from it alone,
+                    // never the global.
+                    return one(&ns_key);
                 }
             }
-            lookup_constant(&constants, name)
+            if let Some(v) = lookup_constant(&constants, name) {
+                return Some(v);
+            }
+            if name.contains("::") {
+                let rooted = canon(name);
+                if blocked.contains_key(rooted.as_str()) {
+                    return None;
+                }
+                return imported.get(&rooted).cloned();
+            }
+            one(name)
         };
         // A literal keeps its own text: a path with spaces (`set d "my dir"`)
         // is one path value, not the several words the expression parser
@@ -682,7 +748,16 @@ pub fn fold_constant_assignments(
             constants.insert(w.name.clone(), value);
         }
     }
-    constants
+    if imported.is_empty() {
+        return constants;
+    }
+    let mut merged: HashMap<String, String> = imported
+        .iter()
+        .filter(|(name, _)| !blocked.contains_key(name.as_str()))
+        .map(|(name, value)| (name.clone(), value.clone()))
+        .collect();
+    merged.extend(constants);
+    merged
 }
 
 /// A native filesystem path as Tcl's slash form.
@@ -1505,6 +1580,79 @@ mod tests {
             )
             .as_deref(),
             Some("/app/src/lib/hl_tcl/hl_c.tcl"),
+        );
+    }
+
+    // Cross-file imports (issue #1368) — the fold-level half: how one
+    // document's fold consumes values its source-graph ancestors provide.
+    // The graph half lives with the workspace index.
+
+    /// OSVVM's `StartUpShared.tcl` shape: the reader's only writes of the
+    /// imported name are if-guarded (invisible), an unguarded `variable` in
+    /// the same namespace chains off the imported value by bare reference,
+    /// and a `source` folds through the qualified one.
+    #[test]
+    fn osvvm_reader_chains_off_an_imported_namespace_constant() {
+        let imported: HashMap<String, String> = [(
+            "::osvvm::OsvvmScriptDirectory".to_owned(),
+            "/scripts".to_owned(),
+        )]
+        .into_iter()
+        .collect();
+        let src = "namespace eval ::osvvm {\n\
+                   \x20   if {![info exists OsvvmScriptDirectory]} {\n\
+                   \x20       variable OsvvmScriptDirectory ${SCRIPT_DIR}\n\
+                   \x20   }\n\
+                   \x20   variable OsvvmHomeDirectory [file normalize ${OsvvmScriptDirectory}/..]\n\
+                   }\n";
+        let merged = fold_constant_assignments_with_imports(
+            &constant_path_assignments(src, "tcl"),
+            Some("/scripts/StartUpShared.tcl"),
+            &imported,
+        );
+        assert_eq!(
+            merged
+                .get("::osvvm::OsvvmHomeDirectory")
+                .map(String::as_str),
+            Some("/"),
+            "the in-namespace bare read must chain off the import: {merged:?}",
+        );
+        // The import itself survives into the merged view for the reader's
+        // own `source ${::osvvm::OsvvmScriptDirectory}/x.tcl` lines.
+        assert_eq!(
+            evaluate_auto_path_expr_with_constants(
+                "${::osvvm::OsvvmScriptDirectory}/OsvvmScriptsCore.tcl",
+                Some("/scripts/StartUpShared.tcl"),
+                &merged,
+            )
+            .as_deref(),
+            Some("/scripts/OsvvmScriptsCore.tcl"),
+        );
+    }
+
+    /// A name the reader itself writes never answers from the import: a
+    /// foldable single write replaces it, an unfoldable one removes it —
+    /// the runtime overwrote the inherited value with something this tier
+    /// cannot know.
+    #[test]
+    fn an_own_write_shadows_or_removes_the_import() {
+        let imported: HashMap<String, String> = [("dir".to_owned(), "/inherited".to_owned())]
+            .into_iter()
+            .collect();
+        let replaced = fold_constant_assignments_with_imports(
+            &constant_path_assignments("set dir /own\n", "tcl"),
+            None,
+            &imported,
+        );
+        assert_eq!(replaced.get("dir").map(String::as_str), Some("/own"));
+        let removed = fold_constant_assignments_with_imports(
+            &constant_path_assignments("set dir [pwd]\n", "tcl"),
+            None,
+            &imported,
+        );
+        assert!(
+            !removed.contains_key("dir"),
+            "an unfoldable own write must remove the import, not defer to it: {removed:?}",
         );
     }
 

@@ -3538,6 +3538,7 @@ fn source_diagnostic_consumers_with_sources(
                 &source.raw_path,
                 source.is_literal,
                 index.path_constant_assignments(&source.uri),
+                &index.imported_path_constants_for(&source.uri),
             )
             .map(|child| tcl_lsp_core::source_graph::RunEdge {
                 parent: source.uri.clone(),
@@ -15681,6 +15682,13 @@ impl LanguageServer for Backend {
         // path resolves through the same evaluator the source graph uses
         // instead of being fabricated from raw text (issue #1140 idx 41).
         let home = std::env::var("HOME").ok();
+        // The document's imported constants (issue #1368), so a link through
+        // a value an ancestor document assigns resolves exactly as the same
+        // line resolves for navigation.
+        let imported = {
+            let index = self.workspace_index.read().await;
+            index.imported_path_constants_for(uri.as_str())
+        };
         // Pure-CPU segmentation on a worker so a parser panic is contained
         // as a JSON-RPC error.
         let (text, dialect) = (doc.text.clone(), doc.dialect.clone());
@@ -15689,6 +15697,7 @@ impl LanguageServer for Backend {
                 &text,
                 &dialect,
                 &core_document_links::LinkContext {
+                    imported_constants: Some(&imported),
                     workspace_root: workspace_root.as_deref(),
                     home: home.as_deref(),
                     script_path: doc_path.as_deref(),
@@ -19191,6 +19200,7 @@ fn workspace_source_edges(
                 &s.raw_path,
                 s.is_literal,
                 index.path_constant_assignments(&s.uri),
+                &index.imported_path_constants_for(&s.uri),
             )
             .map(|child| tcl_lsp_core::source_graph::RunEdge {
                 parent: s.uri.clone(),
@@ -19254,6 +19264,7 @@ fn compute_source_inheritance(
             &src.raw_path,
             src.is_literal,
             &analysis.path_constant_assignments,
+            &index.imported_path_constants_for(uri_str),
         ) {
             Some(child) if index.contains_document(&child) => {
                 own_edges.push(tcl_lsp_core::source_graph::RunEdge {
@@ -19340,8 +19351,26 @@ fn resolve_source_uri(parent_uri: &str, raw_path: &str) -> Option<String> {
 /// end up with an empty order and answer a different question from the rest.
 fn new_workspace_index() -> core_workspace_index::WorkspaceIndex {
     let mut index = core_workspace_index::WorkspaceIndex::new();
-    index.set_source_resolver(resolve_source_edge);
+    index.set_source_resolver(resolve_source_edge, fold_document_constants);
     index
+}
+
+/// The [`core_workspace_index::ConstantFolder`] this server installs: the
+/// shared chain fold, with the document URI's filesystem path standing in
+/// for `[info script]`.  A URI outside the filesystem folds path-blind
+/// (literal constants still carry; `[info script]` idioms abstain).
+fn fold_document_constants(
+    uri: &str,
+    writes: &[tcl_compiler::auto_path_eval::PathConstantWrite],
+    imported: &HashMap<String, String>,
+) -> HashMap<String, String> {
+    let parsed = Uri::from_str(uri).ok();
+    let path = parsed.as_ref().and_then(Uri::to_file_path);
+    tcl_compiler::auto_path_eval::fold_constant_assignments_with_imports(
+        writes,
+        path.as_deref().and_then(std::path::Path::to_str),
+        imported,
+    )
 }
 
 /// [`resolve_source_uri`] extended with the M9 stage-9.2 computed-path tier:
@@ -19363,15 +19392,17 @@ fn resolve_source_edge(
     raw_path: &str,
     is_literal: bool,
     raw_constants: &[tcl_compiler::auto_path_eval::PathConstantWrite],
+    imported: &HashMap<String, String>,
 ) -> Option<String> {
     if is_literal {
         return resolve_source_uri(parent_uri, raw_path);
     }
     let parent = Uri::from_str(parent_uri).ok()?;
     let parent_path = parent.to_file_path()?;
-    let constants = tcl_compiler::auto_path_eval::fold_constant_assignments(
+    let constants = tcl_compiler::auto_path_eval::fold_constant_assignments_with_imports(
         raw_constants,
         parent_path.to_str(),
+        imported,
     );
     let folded = tcl_compiler::auto_path_eval::evaluate_auto_path_expr_with_constants(
         raw_path,

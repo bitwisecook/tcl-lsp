@@ -493,6 +493,37 @@ fn a_chained_computed_source_path_behaves_like_the_direct_one() {
     );
 }
 
+/// **The cross-file form** (issue #1368) — OSVVM's shape: the parent assigns
+/// a namespace constant and sources the reader; the reader sources the Tk
+/// file *through the imported constant*, a value its own text never assigns.
+/// The reader's edge must resolve exactly as if the assignment were local.
+#[test]
+fn a_source_through_an_imported_constant_behaves_like_a_local_one() {
+    let mut lsp = Lsp::tcl();
+    let tk_file = unique_uri("tcl");
+    lsp.open_ready(&tk_file, "package require Tk\n");
+    let reader = unique_uri("tcl");
+    let reader_text = format!(
+        "source [file join ${{::cfg::dir}} {}]\nwinfo exists .l\n",
+        basename(&tk_file),
+    );
+    let parent = unique_uri("tcl");
+    let parent_text = format!(
+        "namespace eval ::cfg {{\n    variable dir [file dirname [file normalize [info script]]]\n}}\nsource {}\n",
+        basename(&reader),
+    );
+    lsp.open_ready(&parent, &parent_text);
+    lsp.open_ready(&reader, &reader_text);
+
+    let diags = settled(&lsp, &reader, |d| !has(d, "W120"));
+    assert!(
+        !has(&diags, "W120"),
+        "the imported constant resolves the reader's source, so Tk is known \
+         loaded: {:?}",
+        codes(&diags),
+    );
+}
+
 /// **TN — the control that proves option (2) was not applied globally.** A
 /// file that neither requires Tk nor sources anything still gets its W120.
 #[test]
