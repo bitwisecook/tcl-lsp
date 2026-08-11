@@ -43,6 +43,15 @@
 //!   `workspace_root` parameter is sufficient for the
 //!   common single-root case.
 //!
+//! A resolved target is only half the link: the **range** it is offered on
+//! must not span code.  A link is painted as one flat run, so a range
+//! covering a whole `[file join $dir x.tcl]` hides every token boundary
+//! inside it and the substitution stops looking like the command sequence
+//! it is (issue #775).  [`link_anchor`] is the rule — a literal word links
+//! whole, a substitution links on its trailing literal word alone — and
+//! `tests/e2e/semantic_tokens.rs` pins the invariant it exists to keep: no
+//! link range covers more than one semantic token.
+//!
 //! Also handled:
 //!
 //! * Tilde expansion (`~/path/to/file`) — via the
@@ -53,7 +62,7 @@
 //!   relative arg.
 
 use tcl_compiler::segmenter::segment_commands_with_offset_and_config;
-use tcl_lexer::LineIndex;
+use tcl_lexer::{LineIndex, Token, TokenType};
 
 /// One link in a document — target URI plus the source range.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -239,13 +248,11 @@ pub fn document_links_in_context(
         };
         let arg_tok = seg.argv.get(idx);
         let Some(arg_tok) = arg_tok else { continue };
-        // Start at the path *content*: a braced/quoted `source {…}` / `source "…"`
-        // must underline the path, not the opening delimiter.
-        let start = line_index.position_at_utf16(
-            arg_tok.span.start() + u32::from(arg_tok.content_offset),
-            source,
-        );
-        let end = line_index.position_at_utf16(arg_tok.span.end(), source);
+        let Some((anchor_start, anchor_end)) = link_anchor(source, dialect, arg_tok) else {
+            continue;
+        };
+        let start = line_index.position_at_utf16(anchor_start, source);
+        let end = line_index.position_at_utf16(anchor_end, source);
         links.push(DocumentLink {
             start_line: start.line,
             start_character: start.character.get(),
@@ -257,6 +264,65 @@ pub fn document_links_in_context(
     }
 
     links
+}
+
+/// The byte range a `source` link should underline inside its path argument,
+/// or `None` when no range can carry the link and the provider must emit none.
+///
+/// A literal path word *is* the link, so the whole word (past any opening
+/// delimiter) is the range.  A computed one — `source [file join $dir x.tcl]`
+/// — is not: it is a command sequence with highlighting of its own, and an
+/// editor paints a link range in one flat link colour plus an underline.
+/// Spanning the whole substitution therefore erases that highlighting, which
+/// is what issue #775 reports seeing — `file`, `join`, `$currentDir`, and the
+/// file name all collapsing into one link-coloured run — and it also asserts
+/// something untrue, that the *code* is the link rather than the file it
+/// names.
+///
+/// So a substitution anchors on its **last** word, and only when that word is
+/// a plain literal: the file name, which is both the part a reader clicks and
+/// the only part that survives evaluation as itself.  Every idiom this
+/// provider resolves ends in one — `[file join $dir x.tcl]`, `[file join
+/// [file dirname [info script]] util.tcl]`, `[file join lib helper.tcl]`.
+///
+/// Strictly the *last* word, never the last literal one: scanning backwards
+/// for any literal makes `[file join $dir $name]` anchor on the subcommand
+/// word `join`, underlining a piece of the call rather than a path.  A
+/// substitution whose last word is not a literal yields `None` and so no link
+/// at all, the same abstention the unresolvable paths take — a missing link
+/// costs a click, a link over code costs the highlighting of the whole line.
+///
+/// A single-word substitution (`[pwd]`) has only its command name to offer
+/// and so abstains too, hence the `1..` lower bound.
+fn link_anchor(source: &str, dialect: &str, arg: &Token) -> Option<(u32, u32)> {
+    let content_start = arg.span.start() + u32::from(arg.content_offset);
+    if arg.kind != TokenType::Cmd {
+        return Some((content_start, arg.span.end()));
+    }
+    // A `Cmd` token's span runs from the `[` to the closing `]`, and
+    // `content_offset` steps past the `[`, so this slice is exactly the
+    // substitution's inner text — byte-identical to `source` at
+    // `content_start`, which is what makes rebasing the inner spans truthful.
+    let inner = source.get(content_start as usize..arg.span.end() as usize)?;
+    let seg = segment_commands_with_offset_and_config(
+        inner,
+        content_start,
+        tcl_lexer::LexerConfig::for_file_dialect(dialect),
+    )
+    .pop()?;
+    let last = seg.texts.len().checked_sub(1).filter(|i| *i >= 1)?;
+    let text = seg.texts.get(last)?;
+    if text.is_empty()
+        || carries_substitution(text)
+        || seg.single_token_word.get(last) != Some(&true)
+    {
+        return None;
+    }
+    let tok = seg.argv.get(last)?;
+    Some((
+        tok.span.start() + u32::from(tok.content_offset),
+        tok.span.end(),
+    ))
 }
 
 /// Whether `text` still carries an unevaluated substitution — a `$`
@@ -715,6 +781,13 @@ mod tests {
     /// with `set v helper.tcl; source $v` loads `other/helper.tcl`), which is
     /// unknowable statically; what must never happen is the two spellings
     /// disagreeing, or the answer depending on how the editor was launched.
+    ///
+    /// The computed spelling is `[file join $dir helper.tcl]` rather than this
+    /// test's original `[file join $v]` (with `set v helper.tcl`): since #775
+    /// a substitution must end in a literal word to have anything to anchor
+    /// its link on, and `[file join $v]` ends in a variable.  The claim under
+    /// test — a *relative* computed result anchoring on `workspace_root` like
+    /// the literal beside it — is unchanged, since `dir` folds to `.`.
     #[test]
     fn a_relative_computed_source_path_anchors_like_the_literal_beside_it_923_idx41() {
         let ctx = LinkContext {
@@ -723,8 +796,11 @@ mod tests {
             script_path: Some("/proj/test/caller.tcl"),
         };
         let literal = document_links_in_context("source helper.tcl\n", "tcl", &ctx);
-        let computed =
-            document_links_in_context("set v helper.tcl\nsource [file join $v]\n", "tcl", &ctx);
+        let computed = document_links_in_context(
+            "set dir .\nsource [file join $dir helper.tcl]\n",
+            "tcl",
+            &ctx,
+        );
         assert_eq!(literal.len(), 1, "{literal:?}");
         assert_eq!(computed.len(), 1, "{computed:?}");
         assert_eq!(
@@ -732,6 +808,87 @@ mod tests {
             "a computed relative path must anchor exactly like the literal one",
         );
         assert_eq!(literal[0].target, "file:///proj/helper.tcl");
+    }
+
+    // Issue #775 — a `source` link must never span the code inside a
+    // command substitution.  The reporter's file is
+    // georgtree/SpiceGenTcl's `test/arbitaryTest.tcl` shape: `set
+    // currentDir [file … [info script]]` then `source [file join
+    // $currentDir <name>.tcl]`.  The argument's own semantic tokens were
+    // always correct (that is what the earlier fix pinned, in
+    // `tests/e2e/semantic_tokens.rs`); what the reporter actually sees is
+    // this link, painted flat over `file join $currentDir <name>.tcl`.
+
+    /// The link on a computed path anchors on the file name alone, leaving
+    /// the rest of the substitution — `file`, `join`, `$currentDir` — free to
+    /// carry its own highlighting.
+    #[test]
+    fn a_computed_source_link_anchors_on_the_file_name_only_775() {
+        let src = "set currentDir [file dirname [info script]]\n\
+                   source [file join $currentDir esd_pulse_circuit.tcl]\n";
+        let links = document_links_in_context(
+            src,
+            "tcl",
+            &LinkContext {
+                workspace_root: Some("/proj/test"),
+                home: None,
+                script_path: Some("/proj/test/main.tcl"),
+            },
+        );
+        assert_eq!(links.len(), 1, "{links:?}");
+        let line = src.lines().nth(1).expect("the source line");
+        let covered = &line[links[0].start_character as usize..links[0].end_character as usize];
+        assert_eq!(
+            covered, "esd_pulse_circuit.tcl",
+            "the link must cover the file name, not the substitution: {links:?}",
+        );
+        // Navigation is kept, not traded away for the highlighting.
+        assert_eq!(links[0].target, "file:///proj/test/esd_pulse_circuit.tcl");
+    }
+
+    /// The same narrowing for a fully literal `[file join …]`: the joined
+    /// path's *name* is the link, not the `file join` call that builds it.
+    #[test]
+    fn a_literal_file_join_link_anchors_on_the_file_name_only_775() {
+        let src = "source [file join lib helper.tcl]\n";
+        let links = document_links(src, "tcl", Some("/proj"));
+        assert_eq!(links.len(), 1, "{links:?}");
+        let covered = &src[links[0].start_character as usize..links[0].end_character as usize];
+        assert_eq!(covered, "helper.tcl", "{links:?}");
+        assert_eq!(links[0].target, "file:///proj/lib/helper.tcl");
+    }
+
+    /// A substitution with no literal word to anchor on emits no link at all,
+    /// rather than falling back to a range that spans code.
+    #[test]
+    fn a_computed_source_path_with_no_literal_word_produces_no_link_775() {
+        let src = "set dir [file dirname [info script]]\n\
+                   set name helper.tcl\n\
+                   source [file join $dir $name]\n";
+        let links = document_links_in_context(
+            src,
+            "tcl",
+            &LinkContext {
+                workspace_root: Some("/proj"),
+                home: None,
+                script_path: Some("/proj/main.tcl"),
+            },
+        );
+        assert!(
+            links.is_empty(),
+            "no anchor means no link, never a link over code: {links:?}",
+        );
+    }
+
+    /// A plain literal path is unaffected by the narrowing — the whole word
+    /// stays the link, since it is the file name.
+    #[test]
+    fn a_literal_source_link_still_covers_the_whole_word_775() {
+        let src = "source lib/helper.tcl\n";
+        let links = document_links(src, "tcl", Some("/proj"));
+        assert_eq!(links.len(), 1, "{links:?}");
+        let covered = &src[links[0].start_character as usize..links[0].end_character as usize];
+        assert_eq!(covered, "lib/helper.tcl", "{links:?}");
     }
 
     #[test]

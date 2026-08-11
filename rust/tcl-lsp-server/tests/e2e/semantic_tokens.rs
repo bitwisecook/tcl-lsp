@@ -1319,6 +1319,65 @@ fn test_source_command_substitution_argument_is_tokenised() {
 }
 
 #[test]
+fn test_document_link_never_spans_more_than_one_semantic_token() {
+    // Issue #775, the second time.  Correct semantic tokens (the test above)
+    // are not enough to make the argument *look* highlighted: an editor paints
+    // a document-link range in one flat link colour plus an underline, so a
+    // link spanning `file join $currentDir esd_pulse_circuit.tcl` erases every
+    // token boundary inside it and the whole substitution reads as one word —
+    // exactly what the reporter's screenshots show, both times.
+    //
+    // The token assertions above passed throughout that, which is why they did
+    // not hold the fix.  This is the property that actually failed: a link may
+    // cover at most one token, because covering two means hiding the boundary
+    // between them.  Stated over links in general, so it also holds for
+    // `package require` and for whatever gains a link next.
+    let mut lsp = Lsp::tcl();
+    let lg = legend(&lsp);
+    let src = "package require tcltest\n\
+               set currentDir [file dirname [info script]]\n\
+               source [file join $currentDir esd_pulse_circuit.tcl]\n\
+               source helper.tcl\n";
+    let uri = open_doc(&mut lsp, src);
+    let tokens = typed(&mut lsp, &lg, &uri);
+    let links = lsp.document_links(&uri);
+    let links = links.as_array().expect("documentLink array");
+    assert!(
+        !links.is_empty(),
+        "expected links to assert about: {links:?}"
+    );
+    for link in links {
+        let range = &link["range"];
+        let (line, start, end) = (
+            range["start"]["line"].as_i64().expect("start line"),
+            range["start"]["character"].as_i64().expect("start char"),
+            range["end"]["character"].as_i64().expect("end char"),
+        );
+        assert_eq!(
+            line,
+            range["end"]["line"].as_i64().expect("end line"),
+            "a source/package link is single-line: {link}",
+        );
+        let overlapping: Vec<&str> = tokens
+            .iter()
+            .filter(|t| t.line == line && t.char < end && t.char + t.length > start)
+            .map(|t| covered(src, t))
+            .collect();
+        assert!(
+            overlapping.len() <= 1,
+            "link over {:?} covers {} semantic tokens ({overlapping:?}) — an editor \
+             paints it as one flat run, hiding every boundary inside it: {link}",
+            src.split('\n')
+                .nth(usize::try_from(line).unwrap())
+                .unwrap_or("")
+                .get(usize::try_from(start).unwrap()..usize::try_from(end).unwrap())
+                .unwrap_or(""),
+            overlapping.len(),
+        );
+    }
+}
+
+#[test]
 fn test_global_declares_every_name() {
     // Peer of #774: `global a b c` declares every name as a variable.
     let mut lsp = Lsp::tcl();
