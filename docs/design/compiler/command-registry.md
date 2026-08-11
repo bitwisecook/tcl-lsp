@@ -351,6 +351,16 @@ invocation falls outside bounds.  Each `SubCommand` has its own arity.
 | `COMMAND_PREFIX` | A callback command reference (`lsort -command cb`) whose first word is invoked at runtime with further arguments appended; recognises a literal bareword, a braced `{cmd extra}` multi-word prefix, and a `[list cmd extra]`-quoted prefix (gated on the `BUILDS_COMMAND_PREFIX` trait, below) -- distinct from `BODY` since the word is a reference, not code |
 | `LAMBDA_LITERAL` | A `{argList body ?namespace?}` anonymous-lambda literal (`apply`'s argument shape) -- a *list*, not a script directly; element 0 is a parameter list, element 1 is the body to recurse into |
 
+Command-prefix callback arity is a registry contract, not an analyser guess.
+`AppendedArity` can be `Exactly(n)`, a finite non-contiguous `OneOf` set,
+`AtLeast(n)`, or `Unknown`. Value-dependent resolvers receive structured
+source-word facts and may expose a Tcl value only when it is literal. For
+example, execution-trace operations select exactly 2, exactly 4, or `{2, 4}`
+appended arguments from their literal operation list; substituted, expanded,
+malformed, or invalid lists abstain. The workspace callback checker then
+requires a fixed, defaulted, or trailing-`args` procedure to accept every
+finite alternative.
+
 Two predicates on `ArgRole` itself answer the cross-cutting questions
 consumers must not each re-derive. Both are exhaustive `match`es, so a new
 role fails to compile until someone decides which side it falls on:
