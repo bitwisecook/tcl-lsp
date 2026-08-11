@@ -49,6 +49,45 @@ fn has_code(src: &str, dialect: &str, code: &str) -> bool {
 }
 
 #[test]
+fn e006_rejects_invalid_literal_formal_parameter_lists_from_registry_roles() {
+    // Tcl 9.0.4 rejects a formal specifier with three fields, a namespace
+    // qualified name, and an array element.  Duplicate parameter names remain
+    // legal, and a value computed at runtime is deliberately outside the
+    // analyser's proof boundary.
+    for src in [
+        "proc invalid {{a b c}} {}\n",
+        "proc invalid {a::b} {}\n",
+        "proc invalid {a(x)} {}\n",
+    ] {
+        assert!(has_code(src, "tcl9.0", "E006"), "expected E006 for {src:?}");
+    }
+    for src in [
+        "proc duplicate {a a} {}\n",
+        "set params {a::b}\nproc dynamic $params {}\n",
+    ] {
+        assert!(!has_code(src, "tcl9.0", "E006"), "must abstain for {src:?}");
+    }
+}
+
+#[test]
+fn e006_discovers_definition_body_and_lambda_parameter_shapes() {
+    // These are not ordinary top-level command arguments.  The TclOO method
+    // shape comes from DefinitionBodyGrammar::member / MemberSpec::arg_roles;
+    // `apply`'s nested first field comes from ArgRole::LambdaLiteral.
+    assert!(has_code(
+        "oo::class create C { method invalid {{a b c}} {} }\n",
+        "tcl9.0",
+        "E006",
+    ));
+    assert!(has_code(
+        "oo::class create C {}\noo::define C method invalid {{a b c}} {}\n",
+        "tcl9.0",
+        "E006",
+    ));
+    assert!(has_code("apply {{{a b c}} {return 1}}\n", "tcl9.0", "E006",));
+}
+
+#[test]
 fn w311_flags_binary_encoding_with_translation() {
     assert!(has_code(
         "fconfigure $ch -encoding binary -translation lf\n",

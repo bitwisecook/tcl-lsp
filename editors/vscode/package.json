@@ -3955,12 +3955,40 @@
             "markdownDescription": "Display severity for **E005:** Wrong argument-count shape for command — an in-range count that doesn't fit the command's key/value-pair or paired-argument pattern (e.g. an odd `dict create` tail, an unpaired `foreach` list, or a `switch` count matching neither its shorthand nor its pattern/body-pair form).",
             "order": 3
           },
+          "tclLsp.diagnostics.E006": {
+            "scope": "resource",
+            "type": "boolean",
+            "default": true,
+            "markdownDescription": "**E006:** Invalid literal formal-parameter list — Tcl cannot create the procedure or method.",
+            "order": 4
+          },
+          "tclLsp.diagnosticSeverity.E006": {
+            "scope": "resource",
+            "type": "string",
+            "default": "default",
+            "enum": [
+              "default",
+              "error",
+              "warning",
+              "information",
+              "hint"
+            ],
+            "enumDescriptions": [
+              "Use the analyser's built-in severity",
+              "Report as an error",
+              "Report as a warning",
+              "Report as information",
+              "Report as a hint (faded)"
+            ],
+            "markdownDescription": "Display severity for **E006:** Invalid literal formal-parameter list — Tcl cannot create the procedure or method.",
+            "order": 4
+          },
           "tclLsp.diagnostics.E200": {
             "scope": "resource",
             "type": "boolean",
             "default": true,
             "markdownDescription": "**E200:** Unterminated command — the parser could not tell where it ends (missing `]` / `\"` / `}`).",
-            "order": 4
+            "order": 5
           },
           "tclLsp.diagnosticSeverity.E200": {
             "scope": "resource",
@@ -3981,7 +4009,7 @@
               "Report as a hint (faded)"
             ],
             "markdownDescription": "Display severity for **E200:** Unterminated command — the parser could not tell where it ends (missing `]` / `\"` / `}`).",
-            "order": 4
+            "order": 5
           }
         }
       },

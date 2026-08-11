@@ -60,6 +60,13 @@ export const DIAGNOSTICS: DiagnosticDef[] = [
     defaultEnabled: true,
   },
   {
+    code: "E006",
+    section: "error",
+    description:
+      "Invalid literal formal-parameter list — Tcl cannot create the procedure or method.",
+    defaultEnabled: true,
+  },
+  {
     code: "E200",
     section: "error",
     description:

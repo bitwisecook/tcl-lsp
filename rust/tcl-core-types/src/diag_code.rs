@@ -391,6 +391,7 @@ diagnostic_codes! {
     E003 => "E003", diag(Error, true, "Too many arguments for command.");
     E004 => "E004", diag_internal(Error, true, "Malformed `if` command — missing clauses or extra words after `else`.");
     E005 => "E005", diag(Error, true, "Wrong argument-count shape for command — an in-range count that doesn't fit the command's key/value-pair or paired-argument pattern (e.g. an odd `dict create` tail, an unpaired `foreach` list, or a `switch` count matching neither its shorthand nor its pattern/body-pair form).");
+    E006 => "E006", diag(Error, true, "Invalid literal formal-parameter list — Tcl cannot create the procedure or method.");
     E100 => "E100", diag_internal(Error, true, "Unmatched `]` — missing opening `[`?");
     E101 => "E101", diag_internal(Error, true, "Missing `{` after `switch` — case bodies follow without braces.");
     E102 => "E102", diag_internal(Error, true, "Unmatched `}` — missing opening `{`?");

@@ -111,6 +111,17 @@ fn arity_error_is_e002_with_error_severity() {
     assert_eq!(e002[0].get("severity").and_then(Value::as_i64), Some(1)); // Error
 }
 
+#[test]
+fn invalid_literal_formal_parameter_list_is_e006() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let diags = lsp.open_ready(&uri, "proc invalid {{name default extra}} {}\n");
+    let e006 = with_code(&diags, "E006");
+    assert_eq!(e006.len(), 1, "got {diags:?}");
+    assert_eq!(e006[0].get("severity").and_then(Value::as_i64), Some(1));
+    assert!(message(&e006[0]).contains("too many fields"));
+}
+
 // -- E004 malformed `if` — end-to-end. Each message/range is
 // cross-checked against tclsh 8.6 and Tcl 9.0.4's `Tcl_IfObjCmd` source
 // in the unit-level truth table (`tcl-registry`'s

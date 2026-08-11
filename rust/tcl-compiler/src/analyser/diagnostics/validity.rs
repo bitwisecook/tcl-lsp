@@ -159,6 +159,78 @@ fn widened_word_span(tok: tcl_lexer::Token, source: &str) -> tcl_lexer::Span {
     tcl_lexer::Span::new(tok.span.start(), widen_token_end(tok, source))
 }
 
+/// Emit E006 for every registry-identified, statically-known formal-parameter
+/// list that Tcl would reject while creating its callable.  Callers supply the
+/// role-derived indices so this routine deliberately has no knowledge of the
+/// command or definition-body member that owns the list.
+pub(in crate::analyser) fn emit_invalid_formal_parameter_list_diagnostics(
+    analyser: &mut Analyser,
+    args: &[String],
+    arg_tokens: &[tcl_lexer::Token],
+    parameter_indices: &[usize],
+) {
+    for &index in parameter_indices {
+        let (Some(params), Some(token)) = (args.get(index), arg_tokens.get(index)) else {
+            continue;
+        };
+        // A braced word is literal even when its eventual formal names contain
+        // `$` / `[`.  Every other accepted shape must be free of outer Tcl
+        // substitutions; a computed value can be valid or invalid at runtime,
+        // so reporting it would be an unsound claim.
+        let literal = token.kind == tcl_lexer::TokenType::Str
+            || (token.kind != tcl_lexer::TokenType::Expand && !has_substitution(params, token));
+        if !literal {
+            continue;
+        }
+        let Err(error) = crate::signature_scan::params::parse_param_list_strict(params) else {
+            continue;
+        };
+        analyser.result.diagnostics.push(super::types::Diagnostic {
+            code: DiagCode::E006,
+            span: widened_word_span(*token, &analyser.source),
+            message: format!("Invalid formal parameter list: {error}"),
+            severity: Severity::Error,
+            fixes: Vec::new(),
+        });
+    }
+}
+
+/// E006's lambda-literal companion.  `ArgRole::LambdaLiteral` declares the
+/// standard `{parameters body ?namespace?}` value shape, so a consumer can
+/// discover the nested parameter list without knowing the command that owns
+/// the literal.
+pub(in crate::analyser) fn emit_invalid_lambda_parameter_list_diagnostics(
+    analyser: &mut Analyser,
+    args: &[String],
+    arg_tokens: &[tcl_lexer::Token],
+    lambda_indices: &[usize],
+) {
+    for &index in lambda_indices {
+        let (Some(lambda), Some(token)) = (args.get(index), arg_tokens.get(index)) else {
+            continue;
+        };
+        if token.kind != tcl_lexer::TokenType::Str {
+            continue;
+        }
+        let Ok(fields) = tcl_syntax::list::split_list(lambda) else {
+            continue;
+        };
+        let Some(params) = fields.first() else {
+            continue;
+        };
+        let Err(error) = crate::signature_scan::params::parse_param_list_strict(params) else {
+            continue;
+        };
+        analyser.result.diagnostics.push(super::types::Diagnostic {
+            code: DiagCode::E006,
+            span: widened_word_span(*token, &analyser.source),
+            message: format!("Invalid formal parameter list: {error}"),
+            severity: Severity::Error,
+            fixes: Vec::new(),
+        });
+    }
+}
+
 /// Two shape-based reasons `first_arg` is never W001 regardless of whether
 /// it names a real subcommand of the resolved ensemble — split out of
 /// [`Analyser::emit_w001_unknown_subcommand`] to keep that function under

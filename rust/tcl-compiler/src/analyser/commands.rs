@@ -953,20 +953,8 @@ impl Analyser {
             // instance's class entirely.
             self.record_pending_instance_class_site(cmd_name, args, arg_tokens);
 
-            // Generic EXPR-argument walk via the command registry's
-            // ``ArgRole::Expr``.  Picks up the condition arg of
-            // ``if`` / ``elseif`` / ``while`` / the cond+next slots
-            // of ``for`` / the body of ``expr`` / etc.  Currently
-            // hosts the W110 (``==``/``!=`` vs ``eq``/``ne``)
-            // emitter; future EXPR-role checks slot in here.
-            //
-            // Run *before* the early-returning handlers
-            // (``handle_for_command`` / ``handle_foreach_command`` /
-            // ``handle_switch_command`` / ``handle_catch_command`` /
-            // ``handle_try_command``) so EXPR-role args on those
-            // commands aren't skipped — none of those handlers
-            // process EXPR args themselves (they own *body*
-            // recursion only), so this can't double-fire.
+            // Registry-owned expression arguments must be diagnosed before
+            // body-owning handlers take their early-return paths.
             self.dispatch_expr_arguments(cmd_name, args, arg_tokens, cmd_tok);
 
             // Dispatch-site diagnostic emitters (W302 / W001 / E004 / W101
@@ -988,6 +976,37 @@ impl Analyser {
         } // end `if !self.structure_only`
 
         self.dispatch_command_handlers(cmd_name, args, arg_tokens, arg_single, cmd_tok, scope_path);
+    }
+
+    /// Run E006 for the argument shapes the active command spec identifies as
+    /// formal lists. This is deliberately a registry-only query, including
+    /// resolver-defined roles and nested lambda literals.
+    fn emit_formal_parameter_list_diagnostics(
+        &mut self,
+        cmd_name: &str,
+        args: &[String],
+        arg_tokens: &[Token],
+    ) {
+        let Some(registry) = self.registry else {
+            return;
+        };
+        let arg_refs: Vec<&str> = args.iter().map(String::as_str).collect();
+        let parameter_indices =
+            registry.arg_indices_for_role(cmd_name, &arg_refs, ArgRole::ParamList);
+        super::diagnostics::emit_invalid_formal_parameter_list_diagnostics(
+            self,
+            args,
+            arg_tokens,
+            &parameter_indices,
+        );
+        let lambda_indices =
+            registry.arg_indices_for_role(cmd_name, &arg_refs, ArgRole::LambdaLiteral);
+        super::diagnostics::emit_invalid_lambda_parameter_list_diagnostics(
+            self,
+            args,
+            arg_tokens,
+            &lambda_indices,
+        );
     }
 
     /// Record an iRules `call PROC ARG...`'s target as its own
@@ -1520,6 +1539,7 @@ impl Analyser {
             scope_path,
             presubstituted_args,
         } = *site;
+        self.emit_formal_parameter_list_diagnostics(cmd_name, args, arg_tokens);
         // W302 dispatches off the registry's own `AnalyserHookId::Catch`
         // stamp rather than the literal head text, so any spelling the
         // registry resolves to that spec is covered without the analyser
