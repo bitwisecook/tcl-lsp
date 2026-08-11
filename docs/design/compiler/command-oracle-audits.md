@@ -12,6 +12,7 @@ compiler and language-server consumers project the typed facts generically.
 | --- | --- | --- | --- |
 | `rename` | complete | corrected namespace-creation transition and hover text | Tcl 9.0.4 and Tcl 8.5 executable oracles; Tcl 9.0 manpage |
 | `package` | complete with typed abstention | corrected Tcl 8.4/8.5 `vsatisfies` arity split | Tcl 9.0.4 primary; Tcl 8.6.18 and 8.5.9 cross-checks |
+| `namespace` | complete with typed abstentions | declared nested ensemble management dispatcher | Tcl 9.0.4 primary; Tcl 8.5.9 cross-check |
 
 ## `rename`
 
@@ -118,3 +119,59 @@ boundaries retain their generic external-unit and interpreter-state effects.
 | Tcl 8.6 | Tcl 8.6.18 confirms the same surface except Tcl 9-only `files`; error-code structure remains Tcl 8.x-specific. |
 | Tcl 9.0 | Tcl 9.0.4 and its manpage confirm `files`, selection, lifecycle, global load scripts, and Tcl 9 error-code families. |
 | Tcl 9.1 | Source and executable unavailable; existing registry inclusion is retained but not newly asserted. |
+
+## `namespace`
+
+### Evidence availability
+
+The requested source glob `/Users/jimd/src/tcl-[89]*` had no matches. The
+repository's fetched Tcl-source directories were also absent, so this audit
+does not claim a source-code reading of `tclNamesp.c`.
+
+The primary executable oracle was `/opt/homebrew/bin/tclsh9.0` (Tcl 9.0.4),
+with its installed `namespace(n)` manual. Version-boundary checks used
+`/usr/bin/tclsh8.5` (Tcl 8.5.9). Tcl 8.4, 8.6, and 9.1 executables were not
+available to this worktree.
+
+### Verified contract
+
+| Surface | Verdict |
+| --- | --- |
+| Dispatch and abbreviation | The outer dispatcher has exactly `children`, `code`, `current`, `delete`, `ensemble`, `eval`, `exists`, `export`, `forget`, `import`, `inscope`, `origin`, `parent`, `path`, `qualifiers`, `tail`, `unknown`, `upvar`, and `which`; each accepts a unique non-empty prefix. The `namespace ensemble` management dispatcher is exactly `create`, `configure`, and `exists`, also prefix-resolved. |
+| Namespace identity and lifecycle | Relative namespace words resolve only below the current namespace. `eval` creates its target and missing ancestors; `inscope`, `children`, `delete`, `parent`, `path`, and `upvar` require existing namespaces. `delete` removes a namespace tree, but a currently executing frame is retained until return and is no longer name-resolvable. |
+| Code execution | `eval` concatenates its script words as `eval` does; `inscope` appends later words as list elements; `code` returns an `::namespace inscope NS script` callback prefix. The registry records structural bodies, concatenation/list-append distinctions, and the wrapped-prefix fact. |
+| Import/export and lookup | Export patterns are namespace-local, append-only until `-clear`, and may name commands not yet defined. Imports have snapshot semantics, demand a qualified exporting namespace, and reject collisions unless the single leading `-force` replaces the target binding. `forget` removes imported aliases only. `origin` follows an import chain, while `which` is a non-throwing command/variable probe. |
+| Path and unknown dispatch | `path` replaces the current namespace's command-resolution path (Tcl 8.5+); bare command resolution is current namespace, path, global namespace, then a per-namespace unknown handler. A non-empty `unknown` handler makes failed command lookup dynamically provider-dependent; an empty handler resets it. |
+| Ensembles | `create` makes the current namespace's ensemble unless `-command` supplies the command name; `configure` observes or mutates it; `exists` probes it. `-map`, `-subcommands`, `-prefixes`, `-unknown`, and `-command` date from Tcl 8.5; `-parameters` is Tcl 8.6+. Map targets are command prefixes, and a later map replacement removes stale map dispatch. |
+| Names as data | `qualifiers` and `tail` are pure string splits, independent of namespace existence. `import`, `export`, and `forget` operands are patterns, not namespace symbols. `origin` is a command-name reference; `which -command` is a command-name probe; `which -variable` is a variable read; `upvar` writes only each local pair target. |
+| Dynamic, child/safe, and trace cases | Computed namespace, path, handler, map, import, and ensemble operands retain the registry's conservative unknown/dynamic state rather than inventing bindings. Namespace state is interpreter-local, so child/safe interpreter and alias effects are intentionally represented through the generic interpreter and command-binding facts. `namespace delete` is destructive; trace/re-entrancy ordering is not promoted to a stronger static transition. |
+| Results | Query forms return their documented scalar/list values; successful state-mutating forms normally return the empty string. Result stability is encoded where it drives consumers (`Boolean`, `List`, `String`, and const-fold descriptors), without treating stateful queries as pure. |
+
+### Version and dialect verdict
+
+`namespace` is core Tcl (`ALL_TCL`) and absent from the iRules profile through
+ordinary registry availability. Tcl 8.5 adds `ensemble`, `path`, `unknown`,
+and `upvar`; Tcl 8.5 requires an `upvar` pair, whereas Tcl 8.6+ permits the
+namespace-only no-op. The Tcl 8.5 and 9.0.4 runs directly confirmed the
+`upvar` split, the 8.5 ensemble/path/unknown surface, prefix dispatch, import
+collision/`-force`, `code`'s generated prefix, path resolution, and deletion.
+
+### Registry and consumer verdict
+
+The existing command spec already held the command-level arity, roles,
+effects, dynamic-evaluation, namespace declaration, import/export lifecycle,
+path, unknown-handler, ensemble-mutation, and constant-fold facts. This
+tranche adds the one missing static surface: `namespace ensemble`'s second
+dispatcher is now `SubCommand::sub_subcommands`. Generic semantic-token,
+hover, and completion consumers therefore discover `create`, `configure`, and
+`exists`, including Tcl's unique-prefix rule, without a compiler or LSP
+command-name branch.
+
+### Typed abstentions
+
+No static result can soundly predict a dynamic handler's result, computed
+path/map/import target, command trace re-entrancy, or an alias/rename mutation
+performed by an arbitrary evaluated script. Those cases remain typed
+namespace/command-binding/interpreter-state uncertainty; the audit makes no
+new diagnostic or optimisation claim for them. The Rust VM/WASM runtime's
+implementation completeness is also outside this registry oracle tranche.
