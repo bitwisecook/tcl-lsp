@@ -43,6 +43,8 @@ User-facing compiler troubleshooting and how-tos live in
   diagnostic / optimisation / shimmer code inventory: which codes have been
   swept against the corpus for false positives and which remain, plus the
   resolved fixes and confirmed-true-positive outcomes.
+- [command-oracle-audits.md](command-oracle-audits.md) — per-command Tcl
+  oracle queue, evidence availability, and registry verdicts.
 
 ## Pipeline stages
 

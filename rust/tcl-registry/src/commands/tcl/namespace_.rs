@@ -271,30 +271,7 @@ fn fold_qualifiers(args: &[&str]) -> Option<String> {
     let [s] = args else {
         return None;
     };
-    let b = s.as_bytes();
-    // `NamespaceQualifiersCmd`: walk back from the terminator; on the first
-    // `::` step back over it plus any further run of `:`, and take everything
-    // to its left.  Falling off the front (no `::`, or nothing but colons
-    // before it) yields the empty string.
-    let mut p = b.len();
-    let mut end: Option<usize> = None;
-    while p > 0 {
-        p -= 1;
-        if b[p] == b':' && p > 0 && b[p - 1] == b':' {
-            // Step left to the start of the maximal `:` run this pair ends;
-            // the qualifier is everything before it, and nothing at all when
-            // the run reaches the front of the string.
-            let mut q = p - 1;
-            while q > 0 && b[q - 1] == b':' {
-                q -= 1;
-            }
-            if q > 0 {
-                end = Some(q);
-            }
-            break;
-        }
-    }
-    Some(end.map_or_else(String::new, |e| s[..e].to_owned()))
+    Some(crate::state_transition::namespace_qualifiers(s).to_owned())
 }
 
 fn fold_tail(args: &[&str]) -> Option<String> {

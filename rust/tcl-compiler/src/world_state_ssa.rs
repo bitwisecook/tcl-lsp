@@ -2070,6 +2070,35 @@ mod tests {
     }
 
     #[test]
+    fn rename_target_namespace_transition_projects_its_created_lineage() {
+        // The registry emits this companion fact for `rename old
+        // ::created::target`; Tcl creates the target namespace if it is
+        // missing.  The world-state projection must retain that fact rather
+        // than treating the move as only a command-table update.
+        let facts = [StateTransitionFact {
+            transition: StateTransition::Namespace(NamespaceTransition::Ensure {
+                namespace: NamespaceTransitionTarget::Named(TransitionSubject::Literal(
+                    "::created".to_owned(),
+                )),
+            }),
+            commit: StateTransitionCommit::MayCommitBeforeAbruptCompletion,
+        }];
+
+        assert!(
+            project_transition_facts(&facts)
+                .iter()
+                .any(|intent| matches!(
+                    &intent.location,
+                    WorldRegion::NamespaceLineage {
+                        interpreter: WorldInterpreterScope::Current,
+                        namespace: WorldNamespaceScope::Named(namespace),
+                    } if namespace == "::created"
+                ) && intent.commit
+                    == StateTransitionCommit::MayCommitBeforeAbruptCompletion)
+        );
+    }
+
+    #[test]
     fn interpreter_transitions_project_lifecycle_policy_and_reverse_alias_safety() {
         let facts = [
             StateTransitionFact {

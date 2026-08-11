@@ -104,6 +104,34 @@ impl TransitionSubject {
     }
 }
 
+/// Return the namespace qualifier Tcl derives from a command or variable name.
+///
+/// This is the same byte-oriented operation exposed by `namespace qualifiers`:
+/// it splits at the final `::` run without consulting the interpreter's
+/// namespace table.  Keeping it here makes registry transition resolvers use
+/// one Tcl-compatible spelling rule when a command implicitly creates a
+/// namespace for a qualified target.
+#[must_use]
+pub fn namespace_qualifiers(name: &str) -> &str {
+    let bytes = name.as_bytes();
+    let mut position = bytes.len();
+    while position > 0 {
+        position -= 1;
+        if bytes[position] == b':' && position > 0 && bytes[position - 1] == b':' {
+            let mut qualifier_end = position - 1;
+            while qualifier_end > 0 && bytes[qualifier_end - 1] == b':' {
+                qualifier_end -= 1;
+            }
+            return if qualifier_end == 0 {
+                ""
+            } else {
+                &name[..qualifier_end]
+            };
+        }
+    }
+    ""
+}
+
 /// A transition that changes a Tcl command binding.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum CommandBindingTransition {
