@@ -21,7 +21,7 @@ use crate::prelude::*;
 use crate::world_effect::{
     EffectAccess, EffectAccessMode, EffectFootprint, InterpreterScope, NamespaceScope, SubjectScope,
 };
-use tcl_cmd_core::trace::{TraceKind, parse_ops, resolve_type};
+use tcl_cmd_core::trace::{TraceKind, parse_legacy_variable_ops, parse_ops, resolve_type};
 
 // Command-level fallback for call sites where the actual subcommand can't
 // be resolved statically (`dialect_side_effect_hints` in
@@ -52,9 +52,16 @@ const TRACE_ADD_TRANSITION_DOMAINS: &[StateTransitionDomain] = &[
 ];
 
 const TRACE_REMOVE_TRANSITION_DOMAINS: &[StateTransitionDomain] = &[
+    StateTransitionDomain::VariableCells,
     StateTransitionDomain::CommandTraces,
     StateTransitionDomain::ExecutionTraces,
     StateTransitionDomain::VariableTraces,
+];
+
+const TRACE_INFO_RESULT_DOMAINS: &[WorldStateDomain] = &[
+    WorldStateDomain::VariableTraces,
+    WorldStateDomain::CommandTraces,
+    WorldStateDomain::ExecutionTraces,
 ];
 
 const TRACE_EFFECT_COVERAGE: &[TransitionEffectCoverage] = &[
@@ -76,6 +83,20 @@ const TRACE_EFFECT_COVERAGE: &[TransitionEffectCoverage] = &[
             WorldStateDomain::VariableTraces,
             WorldStateDomain::CommandTraces,
             WorldStateDomain::ExecutionTraces,
+        ],
+    },
+];
+
+const LEGACY_TRACE_EFFECT_COVERAGE: &[TransitionEffectCoverage] = &[
+    TransitionEffectCoverage {
+        source: WorldEffectWriteSource::LegacySideEffect(SideEffectTarget::InterpState),
+        domains: &[WorldStateDomain::InterpreterPolicy],
+    },
+    TransitionEffectCoverage {
+        source: WorldEffectWriteSource::DeclaredWorldEffect,
+        domains: &[
+            WorldStateDomain::VariableStore,
+            WorldStateDomain::VariableTraces,
         ],
     },
 ];
@@ -103,6 +124,24 @@ const TRACE_REMOVE_TRANSITIONS: StateTransitionDescriptor = StateTransitionDescr
         domains: TRACE_REMOVE_TRANSITION_DOMAINS,
     }],
     effect_coverage: TRACE_EFFECT_COVERAGE,
+    commit: StateTransitionCommit::OnOkOnly,
+};
+
+const LEGACY_TRACE_ADD_TRANSITIONS: StateTransitionDescriptor = StateTransitionDescriptor {
+    composition: StateTransitionComposition::Extend,
+    resolver: Some(legacy_trace_add_state_transitions),
+    argument_shape: StateTransitionArgumentShape::Positional,
+    dynamic_widening: &[],
+    effect_coverage: LEGACY_TRACE_EFFECT_COVERAGE,
+    commit: StateTransitionCommit::OnOkOnly,
+};
+
+const LEGACY_TRACE_REMOVE_TRANSITIONS: StateTransitionDescriptor = StateTransitionDescriptor {
+    composition: StateTransitionComposition::Extend,
+    resolver: Some(legacy_trace_remove_state_transitions),
+    argument_shape: StateTransitionArgumentShape::Positional,
+    dynamic_widening: &[],
+    effect_coverage: LEGACY_TRACE_EFFECT_COVERAGE,
     commit: StateTransitionCommit::OnOkOnly,
 };
 
@@ -227,6 +266,32 @@ const TRACE_INFO_DYNAMIC_EFFECT_ACCESSES: &[StaticEffectAccess] = &[
     ),
 ];
 
+const LEGACY_TRACE_DYNAMIC_EFFECT_ACCESSES: &[StaticEffectAccess] = &[
+    StaticEffectAccess::new(
+        WorldStateDomain::VariableStore,
+        EffectAccessMode::ReadWrite,
+        StaticInterpreterScope::Current,
+        StaticNamespaceScope::Current,
+        StaticSubjectScope::Wildcard,
+    ),
+    StaticEffectAccess::new(
+        WorldStateDomain::VariableTraces,
+        EffectAccessMode::ReadWrite,
+        StaticInterpreterScope::Current,
+        StaticNamespaceScope::Current,
+        StaticSubjectScope::Wildcard,
+    ),
+];
+
+const LEGACY_TRACE_INFO_DYNAMIC_EFFECT_ACCESSES: &[StaticEffectAccess] =
+    &[StaticEffectAccess::new(
+        WorldStateDomain::VariableTraces,
+        EffectAccessMode::Read,
+        StaticInterpreterScope::Current,
+        StaticNamespaceScope::Current,
+        StaticSubjectScope::Wildcard,
+    )];
+
 const TRACE_ADD_EFFECTS: WorldEffectDescriptor = WorldEffectDescriptor {
     composition: WorldEffectComposition::Extend,
     static_footprint: StaticEffectFootprint::EMPTY,
@@ -253,6 +318,36 @@ const TRACE_INFO_EFFECTS: WorldEffectDescriptor = WorldEffectDescriptor {
     resolver: Some(trace_info_world_effects),
     dynamic_fallback: WorldEffectDynamicFallback::Declared(StaticEffectFootprint {
         accesses: TRACE_INFO_DYNAMIC_EFFECT_ACCESSES,
+        callback: CallbackEffect::NONE,
+    }),
+};
+
+const LEGACY_TRACE_ADD_EFFECTS: WorldEffectDescriptor = WorldEffectDescriptor {
+    composition: WorldEffectComposition::Extend,
+    static_footprint: StaticEffectFootprint::EMPTY,
+    resolver: Some(legacy_trace_add_world_effects),
+    dynamic_fallback: WorldEffectDynamicFallback::Declared(StaticEffectFootprint {
+        accesses: LEGACY_TRACE_DYNAMIC_EFFECT_ACCESSES,
+        callback: CallbackEffect::NONE,
+    }),
+};
+
+const LEGACY_TRACE_REMOVE_EFFECTS: WorldEffectDescriptor = WorldEffectDescriptor {
+    composition: WorldEffectComposition::Extend,
+    static_footprint: StaticEffectFootprint::EMPTY,
+    resolver: Some(legacy_trace_remove_world_effects),
+    dynamic_fallback: WorldEffectDynamicFallback::Declared(StaticEffectFootprint {
+        accesses: LEGACY_TRACE_DYNAMIC_EFFECT_ACCESSES,
+        callback: CallbackEffect::NONE,
+    }),
+};
+
+const LEGACY_TRACE_INFO_EFFECTS: WorldEffectDescriptor = WorldEffectDescriptor {
+    composition: WorldEffectComposition::Extend,
+    static_footprint: StaticEffectFootprint::EMPTY,
+    resolver: Some(legacy_trace_info_world_effects),
+    dynamic_fallback: WorldEffectDynamicFallback::Declared(StaticEffectFootprint {
+        accesses: LEGACY_TRACE_INFO_DYNAMIC_EFFECT_ACCESSES,
         callback: CallbackEffect::NONE,
     }),
 };
@@ -342,6 +437,67 @@ fn trace_remove_state_transitions(arguments: InvocationArguments<'_>) -> StateTr
     })
 }
 
+fn legacy_trace_operations(op_string: TransitionSubject) -> Option<TraceOperationSet> {
+    match op_string {
+        TransitionSubject::Literal(op_string) => {
+            let parsed = parse_legacy_variable_ops(op_string.as_bytes()).ok()?;
+            ["array", "read", "unset", "write"]
+                .into_iter()
+                .filter(|operation| parsed.contains(operation))
+                .map(trace_operation)
+                .collect::<Option<Vec<_>>>()
+                .map(TraceOperationSet::Known)
+        }
+        unknown @ TransitionSubject::Unknown { .. } => Some(TraceOperationSet::Unknown(unknown)),
+    }
+}
+
+fn legacy_trace_state_transition(
+    arguments: InvocationArguments<'_>,
+    action: fn(TraceTarget, TraceOperationSet, TransitionSubject) -> TraceTransition,
+) -> StateTransitions {
+    let mut transitions = StateTransitions::default();
+    if arguments.exact_argv_len() != Some(4) {
+        return transitions;
+    }
+    let (Some(target), Some(op_string), Some(prefix)) = (
+        TransitionSubject::from_argument(arguments, 1),
+        TransitionSubject::from_argument(arguments, 2),
+        TransitionSubject::from_argument(arguments, 3),
+    ) else {
+        return transitions;
+    };
+    let Some(operations) = legacy_trace_operations(op_string) else {
+        return transitions;
+    };
+    transitions.push(StateTransition::Trace(action(
+        TraceTarget::Variable(target),
+        operations,
+        prefix,
+    )));
+    transitions
+}
+
+fn legacy_trace_add_state_transitions(arguments: InvocationArguments<'_>) -> StateTransitions {
+    legacy_trace_state_transition(arguments, |target, operations, prefix| {
+        TraceTransition::Add {
+            target,
+            operations,
+            prefix,
+        }
+    })
+}
+
+fn legacy_trace_remove_state_transitions(arguments: InvocationArguments<'_>) -> StateTransitions {
+    legacy_trace_state_transition(arguments, |target, operations, prefix| {
+        TraceTransition::Remove {
+            target,
+            operations,
+            prefix,
+        }
+    })
+}
+
 fn trace_effect_access(
     footprint: &mut EffectFootprint,
     domain: WorldStateDomain,
@@ -416,11 +572,59 @@ fn trace_add_world_effects(arguments: InvocationArguments<'_>) -> EffectFootprin
 }
 
 fn trace_remove_world_effects(arguments: InvocationArguments<'_>) -> EffectFootprint {
-    trace_world_effects(arguments, EffectAccessMode::ReadWrite, false)
+    // Removing the last trace from an otherwise undefined variable destroys
+    // the placeholder cell that `trace add variable` created. This is visible
+    // through `namespace which -variable`, so removal touches both domains.
+    trace_world_effects(arguments, EffectAccessMode::ReadWrite, true)
 }
 
 fn trace_info_world_effects(arguments: InvocationArguments<'_>) -> EffectFootprint {
     trace_world_effects(arguments, EffectAccessMode::Read, false)
+}
+
+fn legacy_trace_world_effects(
+    arguments: InvocationArguments<'_>,
+    trace_mode: EffectAccessMode,
+) -> EffectFootprint {
+    let mut footprint = EffectFootprint::default();
+    let Some(target) = arguments.literal_at(1) else {
+        return footprint;
+    };
+    trace_effect_access(
+        &mut footprint,
+        WorldStateDomain::VariableStore,
+        EffectAccessMode::ReadWrite,
+        target,
+    );
+    trace_effect_access(
+        &mut footprint,
+        WorldStateDomain::VariableTraces,
+        trace_mode,
+        target,
+    );
+    footprint
+}
+
+fn legacy_trace_add_world_effects(arguments: InvocationArguments<'_>) -> EffectFootprint {
+    legacy_trace_world_effects(arguments, EffectAccessMode::ReadWrite)
+}
+
+fn legacy_trace_remove_world_effects(arguments: InvocationArguments<'_>) -> EffectFootprint {
+    legacy_trace_world_effects(arguments, EffectAccessMode::ReadWrite)
+}
+
+fn legacy_trace_info_world_effects(arguments: InvocationArguments<'_>) -> EffectFootprint {
+    let mut footprint = EffectFootprint::default();
+    let Some(target) = arguments.literal_at(1) else {
+        return footprint;
+    };
+    trace_effect_access(
+        &mut footprint,
+        WorldStateDomain::VariableTraces,
+        EffectAccessMode::Read,
+        target,
+    );
+    footprint
 }
 
 /// Resolve a `trace add|remove` type word (`variable`/`command`/
@@ -707,6 +911,9 @@ static SUBCOMMANDS: &[SubCommand] = &[
         synopsis: "trace info type name",
         pure: true,
         return_type: Some(TclType::List),
+        result_stability: Some(ResultStability::ReadsVersionedWorld(
+            TRACE_INFO_RESULT_DOMAINS,
+        )),
         arg_values: &[(0, TRACE_TYPE_VALUES)],
         closed_value_args: &[0],
         arg_values_accept_prefix: true,
@@ -767,6 +974,8 @@ static SUBCOMMANDS: &[SubCommand] = &[
             connection_side: ConnectionSide::None,
             dialects: None,
         }],
+        world_effects: Some(LEGACY_TRACE_ADD_EFFECTS),
+        state_transitions: Some(LEGACY_TRACE_ADD_TRANSITIONS),
         // Deprecated legacy form; removed in Tcl 9.0 (8.4-8.6 only) — the
         // 9.0/9.1 trace.n manpages drop both the SYNOPSIS line and the
         // entire "For backwards compatibility..." paragraph describing it.
@@ -791,6 +1000,8 @@ static SUBCOMMANDS: &[SubCommand] = &[
             connection_side: ConnectionSide::None,
             dialects: None,
         }],
+        world_effects: Some(LEGACY_TRACE_REMOVE_EFFECTS),
+        state_transitions: Some(LEGACY_TRACE_REMOVE_TRANSITIONS),
         // Deprecated legacy form; removed in Tcl 9.0 (8.4-8.6 only).
         dialects: Some(DialectSet::TCL8X),
         ..SubCommand::DEFAULT
@@ -803,6 +1014,9 @@ static SUBCOMMANDS: &[SubCommand] = &[
         synopsis: "trace vinfo name",
         pure: true,
         return_type: Some(TclType::List),
+        result_stability: Some(ResultStability::ReadsVersionedWorld(&[
+            WorldStateDomain::VariableTraces,
+        ])),
         side_effects: &[SideEffect {
             target: SideEffectTarget::InterpState,
             reads: true,
@@ -810,6 +1024,8 @@ static SUBCOMMANDS: &[SubCommand] = &[
             connection_side: ConnectionSide::None,
             dialects: None,
         }],
+        world_effects: Some(LEGACY_TRACE_INFO_EFFECTS),
+        state_transitions: Some(StateTransitionDescriptor::EMPTY),
         // Deprecated legacy form; removed in Tcl 9.0 (8.4-8.6 only).
         dialects: Some(DialectSet::TCL8X),
         ..SubCommand::DEFAULT
@@ -883,6 +1099,9 @@ pub fn spec() -> CommandSpec {
         }),
         forms: FORMS,
         side_effects: SIDE_EFFECTS,
+        dispatch_dependencies: Some(DispatchDependencyDescriptor::replace(
+            DispatchDependencies::NONE,
+        )),
         ..CommandSpec::DEFAULT
     }
 }
@@ -1087,6 +1306,164 @@ mod tests {
                 .map(StateTransitions::facts),
             Some([StateTransitionFact {
                 transition: StateTransition::Trace(TraceTransition::Add { .. }),
+                commit: StateTransitionCommit::OnOkOnly,
+            }])
+        ));
+    }
+
+    #[test]
+    fn oracle_profiles_keep_legacy_forms_in_tcl8_only() {
+        let registry = CommandRegistry::build_default();
+        for dialect in [DialectSet::TCL84, DialectSet::TCL85, DialectSet::TCL86] {
+            for (arguments, expected) in [
+                (&["variable", "item", "rw", "prefix"][..], "variable"),
+                (&["vdelete", "item", "rw", "prefix"][..], "vdelete"),
+                (&["vinfo", "item"][..], "vinfo"),
+            ] {
+                let canonical = registry
+                    .resolve_invocation("trace", arguments, dialect)
+                    .and_then(|invocation| {
+                        invocation
+                            .facts()
+                            .subcommand
+                            .canonical_name()
+                            .map(str::to_owned)
+                    });
+                assert_eq!(canonical.as_deref(), Some(expected));
+            }
+        }
+        for dialect in [DialectSet::TCL90, DialectSet::TCL91] {
+            for arguments in [
+                &["variable", "item", "rw", "prefix"][..],
+                &["vdelete", "item", "rw", "prefix"][..],
+                &["vinfo", "item"][..],
+            ] {
+                let canonical = registry
+                    .resolve_invocation("trace", arguments, dialect)
+                    .and_then(|invocation| {
+                        invocation
+                            .facts()
+                            .subcommand
+                            .canonical_name()
+                            .map(str::to_owned)
+                    });
+                assert_eq!(canonical, None);
+            }
+        }
+    }
+
+    #[test]
+    fn legacy_forms_resolve_to_the_same_typed_variable_trace_domains() {
+        let registry = CommandRegistry::build_default();
+        let add = registry
+            .resolve_invocation(
+                "trace",
+                &["variable", "item", "awrw", "prefix"],
+                DialectSet::TCL86,
+            )
+            .expect("legacy add resolves")
+            .facts();
+        let remove = registry
+            .resolve_invocation(
+                "trace",
+                &["vdelete", "item", "awrw", "prefix"],
+                DialectSet::TCL86,
+            )
+            .expect("legacy remove resolves")
+            .facts();
+
+        for (facts, expected) in [(&add, true), (&remove, false)] {
+            assert!(facts.effects.accesses().iter().any(|access| {
+                access.domain == WorldStateDomain::VariableStore
+                    && access.mode == EffectAccessMode::Read
+            }));
+            assert!(facts.effects.accesses().iter().any(|access| {
+                access.domain == WorldStateDomain::VariableTraces
+                    && access.mode == EffectAccessMode::Read
+            }));
+            let declared = facts
+                .state_transitions
+                .declared()
+                .expect("legacy transition is declared");
+            assert!(
+                matches!(
+                    declared.facts(),
+                    [StateTransitionFact {
+                        transition: StateTransition::Trace(TraceTransition::Add {
+                            target: TraceTarget::Variable(TransitionSubject::Literal(target)),
+                            operations: TraceOperationSet::Known(operations),
+                            ..
+                        }),
+                        ..
+                    }] if expected && target == "item" && operations.as_slice() == [
+                        TraceOperation::Array,
+                        TraceOperation::Read,
+                        TraceOperation::Write,
+                    ]
+                ) || matches!(
+                    declared.facts(),
+                    [StateTransitionFact {
+                        transition: StateTransition::Trace(TraceTransition::Remove {
+                            target: TraceTarget::Variable(TransitionSubject::Literal(target)),
+                            operations: TraceOperationSet::Known(operations),
+                            ..
+                        }),
+                        ..
+                    }] if !expected && target == "item" && operations.as_slice() == [
+                        TraceOperation::Array,
+                        TraceOperation::Read,
+                        TraceOperation::Write,
+                    ]
+                )
+            );
+        }
+    }
+
+    #[test]
+    fn trace_info_results_and_dispatch_are_registry_versioned() {
+        let registry = CommandRegistry::build_default();
+        let facts = registry
+            .resolve_invocation(
+                "trace",
+                &["info", "execution", "llength"],
+                DialectSet::TCL90,
+            )
+            .expect("trace info resolves")
+            .facts();
+
+        assert_eq!(
+            facts.result_stability,
+            ResultStability::ReadsVersionedWorld(TRACE_INFO_RESULT_DOMAINS)
+        );
+        assert_eq!(facts.dispatch_dependencies, DispatchDependencies::BASE);
+    }
+
+    #[test]
+    fn removing_a_variable_trace_touches_the_placeholder_cell() {
+        let registry = CommandRegistry::build_default();
+        let facts = registry
+            .resolve_invocation(
+                "trace",
+                &["remove", "variable", "item", "write", "prefix"],
+                DialectSet::TCL90,
+            )
+            .expect("trace remove resolves")
+            .facts();
+
+        assert!(facts.effects.accesses().iter().any(|access| {
+            access.domain == WorldStateDomain::VariableStore
+                && access.mode == EffectAccessMode::Read
+        }));
+        assert!(matches!(
+            facts
+                .state_transitions
+                .declared()
+                .map(StateTransitions::facts),
+            Some([StateTransitionFact {
+                transition: StateTransition::Trace(TraceTransition::Remove {
+                    target: TraceTarget::Variable(_),
+                    ..
+                }),
                 commit: StateTransitionCommit::OnOkOnly,
             }])
         ));

@@ -710,8 +710,19 @@ fn append_trace_remove(
     target: &TraceTarget,
 ) {
     let (trace_kind, target) = match target {
-        // Tcl permits removing a variable trace from a missing cell, so this changes only registration.
-        TraceTarget::Variable(target) => (WorldRegionKind::VariableTraces, target),
+        TraceTarget::Variable(target) => {
+            // Removing the final trace from an otherwise undefined variable
+            // also releases the placeholder cell created by trace
+            // registration. That is observable through `namespace which
+            // -variable`, even though removing a trace from a completely
+            // missing variable is a no-op.
+            append_read_write(
+                intents,
+                commit,
+                variable_region(WorldInterpreterScope::Current, target),
+            );
+            (WorldRegionKind::VariableTraces, target)
+        }
         TraceTarget::Command(target) => {
             push_intent(
                 intents,
@@ -2027,6 +2038,51 @@ mod tests {
                 ..
             } if name == "worker"
         )));
+    }
+
+    #[test]
+    fn variable_trace_removal_projects_placeholder_cell_and_trace_table() {
+        let facts = [StateTransitionFact {
+            transition: StateTransition::Trace(tcl_registry::TraceTransition::Remove {
+                target: tcl_registry::TraceTarget::Variable(TransitionSubject::Literal(
+                    "item".to_owned(),
+                )),
+                operations: tcl_registry::TraceOperationSet::Known(vec![
+                    tcl_registry::TraceOperation::Write,
+                ]),
+                prefix: TransitionSubject::Literal("callback".to_owned()),
+            }),
+            commit: StateTransitionCommit::OnOkOnly,
+        }];
+        let intents = project_transition_facts(&facts);
+
+        for kind in [
+            WorldRegionKind::VariableStore,
+            WorldRegionKind::VariableTraces,
+        ] {
+            assert!(intents.iter().any(|intent| {
+                intent.kind == WorldStateIntentKind::Use
+                    && matches!(
+                        &intent.location,
+                        WorldRegion::Scoped {
+                            kind: actual,
+                            subject: WorldSubjectScope::Named(name),
+                            ..
+                        } if *actual == kind && name == "item"
+                    )
+            }));
+            assert!(intents.iter().any(|intent| {
+                intent.kind == WorldStateIntentKind::Def
+                    && matches!(
+                        &intent.location,
+                        WorldRegion::Scoped {
+                            kind: actual,
+                            subject: WorldSubjectScope::Named(name),
+                            ..
+                        } if *actual == kind && name == "item"
+                    )
+            }));
+        }
     }
 
     #[test]

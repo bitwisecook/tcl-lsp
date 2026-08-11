@@ -95,6 +95,36 @@ pub fn parse_ops(spec: &[u8], kind: TraceKind) -> Result<Vec<&'static str>, CmdE
     Ok(out)
 }
 
+/// Parse the deprecated Tcl 8.x variable-trace operation string.
+///
+/// Unlike modern `trace add variable`, the legacy `trace variable` and
+/// `trace vdelete` forms take a concatenation of the letters `r`, `w`, `u`,
+/// and `a`, not a Tcl list. Repeated letters collapse because C stores the
+/// selection as flags; the result uses the legacy `rwua` reporting order.
+///
+/// # Errors
+/// An empty string or any byte outside `rwua` produces C Tcl's legacy error.
+pub fn parse_legacy_variable_ops(spec: &[u8]) -> Result<Vec<&'static str>, CmdError> {
+    if spec.is_empty() || spec.iter().any(|byte| !b"rwua".contains(byte)) {
+        let got = String::from_utf8_lossy(spec);
+        return Err(CmdError::new(format!(
+            "bad operations \"{got}\": should be one or more of rwua"
+        )));
+    }
+    let mut operations = Vec::new();
+    for (letter, operation) in [
+        (b'r', "read"),
+        (b'w', "write"),
+        (b'u', "unset"),
+        (b'a', "array"),
+    ] {
+        if spec.contains(&letter) {
+            operations.push(operation);
+        }
+    }
+    Ok(operations)
+}
+
 /// `bad type "X": must be execution, command, or variable` — the trace-type
 /// option error (`trace add|remove|info <type> …`). C's `traceTypeOptions`
 /// reports it as a `bad option`.
@@ -144,13 +174,29 @@ pub fn resolve_type(got: &str) -> Result<TraceKind, CmdError> {
 
 #[cfg(test)]
 mod tests {
-    use super::{TraceKind, parse_ops};
+    use super::{TraceKind, parse_legacy_variable_ops, parse_ops};
 
     #[test]
     fn operations_are_a_canonical_set() {
         assert_eq!(
             parse_ops(b"write read write unset", TraceKind::Variable).unwrap(),
             vec!["read", "unset", "write"]
+        );
+    }
+
+    #[test]
+    fn legacy_variable_operations_are_flags_not_a_list() {
+        assert_eq!(
+            parse_legacy_variable_ops(b"awrw").unwrap(),
+            vec!["read", "write", "array"]
+        );
+        assert_eq!(
+            parse_legacy_variable_ops(b"").unwrap_err().message(),
+            "bad operations \"\": should be one or more of rwua"
+        );
+        assert_eq!(
+            parse_legacy_variable_ops(b"read").unwrap_err().message(),
+            "bad operations \"read\": should be one or more of rwua"
         );
     }
 }
