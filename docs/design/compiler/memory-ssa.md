@@ -101,9 +101,12 @@ over-approximation.
 
 ## Module Location
 
-- **Source**: `compiler/memory_ssa.py`
-- **Integration**: `compiler/core_analyses.py` (built in `analyse_function`)
-- **Key functions**: `compute_aliases()`, `build_memory_ssa()`
+- **Source**: `rust/tcl-compiler/src/memory_ssa.rs`, with storage places in
+  `rust/tcl-compiler/src/place.rs`.
+- **Integration**: `rust/tcl-compiler/src/compilation_unit.rs` and the common
+  semantic analysis sidecar.
+- **Key APIs**: `MemorySsaFunction`, alias-set construction, and the
+  `with_memory_ssa()` consumer path used by Explorer and diagnostics.
 
 ## Example
 

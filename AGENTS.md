@@ -339,18 +339,18 @@ describe the same command surface, arity bounds, and sub-commands.
 
 ## Optional WASM extensions
 
-The compiler can ship *optional* runtime features the user's program
-requests via `package require`.  The `tcl-compiler` WASM link/bundle
-step selects the runtime backing based on the `package require` calls it
-finds in the merged IR, then links it with the user-code module to
-produce a single bundled `.wasm`.
+Current Rust WASM builds can enable the `wasm_stdlib` feature in
+`runtime/rust/Cargo.toml`. It embeds Tcl scripts, package indices, and the
+Tcl-level `tcltest` package in the runtime VFS. This lets a filesystem-backed
+interpreter load scripts through normal `source` and `package require`
+machinery.
 
-The first extension is **Tcltest**: the Tcl 9 `tcltest` C-tier `test*`
-command surface.  PORTABLE / PARTIAL commands have functional
-implementations; NOT-PORTABLE ones (sockets, threads, fork, native FS
-hooks) raise an explicit "not supported under WASM" error.  See
-[`docs/design/compiler/wasm-extensions.md`](docs/design/compiler/wasm-extensions.md)
-for the contract and full per-cluster file layout.
+There is not yet a compiler package-require scan, extension selector, variant
+runtime artefact, or compiled Tcltest C-tier `test*` command surface. The
+runtime's embedded Tcltest files must not be described as a port of those C
+commands. Package-driven extension bundling is documented only as **Future
+desired state — written and reviewed 2026-08-11** in
+[`docs/design/compiler/wasm-extensions.md`](docs/design/compiler/wasm-extensions.md).
 
 ## Workflow requirements
 

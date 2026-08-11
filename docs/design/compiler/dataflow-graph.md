@@ -70,14 +70,14 @@ AliasInfo
 
 | Consumer | Entry Point | Format |
 |----------|-------------|--------|
-| Compiler explorer | `tooling/explorer/pipeline.py` | JSON dict via `dataflow_graph_to_dict()` |
-| MCP tools | `ai/mcp/tcl_mcp_server.py` | JSON dict |
-| AI skills | `ai/claude/tcl_ai.py` | Mermaid string |
-| CLI | `ai/claude/tcl_ai.py` | Mermaid string |
+| Compiler Explorer | `rust/tcl-explorer/src/serialise.rs` | Structured JSON payload |
+| MCP tools | Native MCP compiler consumers | Registry/compiler facts |
+| CLI | `rust/tcl-cli` Explorer command | Shared Explorer payload |
 
 ## Module Location
 
-- **Source**: `compiler/dataflow_graph.py`
-- **Entry point**: `extract_dataflow_graph(source, cu=None)`
-- **Per-function**: `extract_function_dataflow(name, ssa, analysis)`
-- **Tests**: `tests/test_dataflow_graph.py`
+- **Source**: `rust/tcl-compiler/src/dataflow_graph.rs` and
+  `rust/tcl-explorer/src/serialise.rs`.
+- **Entry point**: the retained `CompilationUnit` dataflow facts consumed by
+  the Explorer serialiser.
+- **Tests**: Rust compiler and `tcl-explorer` crate tests.

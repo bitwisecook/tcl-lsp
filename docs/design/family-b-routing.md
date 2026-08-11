@@ -1,10 +1,8 @@
 # Family-B contract & command routing — outcomes
 
-Companion to [`common-runtime-emitter-architecture.md`](common-runtime-emitter-architecture.md)
-(§4 Family B). Records what the Family-B runtime contract looks like once
-implemented on both runtimes, which command families were lifted to shared
-cores, the bugs that lifting surfaced, and — importantly — the boundaries where
-a command **cannot** be a shared body.
+Records what the Family-B runtime contract looks like on both runtimes, which
+command families were lifted to shared cores, the bugs that lifting surfaced,
+and — importantly — the boundaries where a command **cannot** be a shared body.
 
 ## 1. The contract (`tcl-runtime-api`)
 

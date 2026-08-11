@@ -15,13 +15,8 @@ rules for the KCS/documentation split live in
 
 - [compiler-architecture.md](compiler-architecture.md) — high-level map of
   the multi-pass compiler pipeline with diagrams and cross-links.
-- [common-runtime-emitter-architecture.md](common-runtime-emitter-architecture.md)
-  — steering doc reasoning across the whole space (TCLVM bytecode emitter, WASM
-  emitter, and the runtimes/VM) to fix the right split and interface shapes: the
-  two interface families (emitter vs runtime-state), why the bytecode VM is a
-  reified-state runtime, and the WASM migration path (WASM engine untouched).
-- [family-b-routing.md](family-b-routing.md) — companion to the above (§4
-  Family B): the Family-B runtime contract as implemented on both runtimes,
+- [family-b-routing.md](family-b-routing.md) — the Family-B runtime contract
+  as implemented on both runtimes,
   which command families were lifted to shared cores, the bugs that surfaced,
   and the boundaries where a command cannot be a shared body.
 - [example-script-walkthroughs.md](example-script-walkthroughs.md) — full
@@ -157,9 +152,8 @@ surface.
   environment layout, activation scripts, tclsh wrapper.
 - [contracts/tclpkg-lsp.md](contracts/tclpkg-lsp.md) — project root
   detection, W130–W134 diagnostics, code actions.
-- [contracts/explorer-view-audit.md](contracts/explorer-view-audit.md) —
-  audit of the compiler-explorer views to represent the Rust compiler,
-  not the Python one.
+- [contracts/explorer-compiler-coverage.md](contracts/explorer-compiler-coverage.md)
+  — coverage contract for durable Rust compiler artefacts in Explorer.
 
 ## Compiler internals
 
@@ -318,13 +312,8 @@ chunk-by-chunk dispatch story lives in
 ## Optional WASM extensions
 
 - [compiler/wasm-extensions.md](compiler/wasm-extensions.md) —
-  contract for shipping optional runtime features the user's
-  program requests via ``package require``. Variant runtimes today;
-  deferred Stage 2 plan for separately-merged extension WASMs.
-  Includes the file layout for the in-tree tcltest port (every ~107
-  upstream tcltest command registered, PORTABLE/PARTIAL ones
-  implemented and NOT-PORTABLE ones stubbed with explicit error
-  messages).
+  current `wasm_stdlib` embedding boundary and the explicitly dated,
+  not-yet-implemented package-driven extension design.
 
 - [compiler/byte-array-corruption.md](compiler/byte-array-corruption.md)
   — the `S110` byte-array corruption diagnostic: binary data forced
