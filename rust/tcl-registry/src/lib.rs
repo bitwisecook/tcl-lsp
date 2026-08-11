@@ -89,6 +89,7 @@ pub mod profile_queries;
 pub mod profiles;
 pub mod registry;
 pub mod repeated;
+pub mod representation;
 pub mod resolved_invocation;
 pub mod result_stability;
 pub mod scoped;
@@ -164,6 +165,7 @@ pub mod prelude {
     pub use crate::patterns::{FormatType, PatternType};
     pub use crate::presentation::ArgPresentation;
     pub use crate::repeated::RepeatedArgLayout;
+    pub use crate::representation::RepresentationEffect;
     pub use crate::result_stability::ResultStability;
     pub use crate::scoped::{ScopedCommand, ScopedCommandEnv};
     pub use crate::semantic_operation::{InlineBodyErrorContext, SemanticOperationId};
@@ -239,6 +241,7 @@ pub use registry::{
     CommandRegistry, FormatStringArg, MethodDispatchKind, ResolvedCall, ResolvedTerminator,
 };
 pub use repeated::RepeatedArgLayout;
+pub use representation::RepresentationEffect;
 pub use resolved_invocation::{
     InvocationFacts, InvocationOptions, InvocationResolutionUnresolved, InvocationSemantics,
     OwnedSubcommandResolution, ResolvedForm, ResolvedInvocation, ResolvedSubcommand,

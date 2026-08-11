@@ -37,6 +37,7 @@ use crate::dialects::DialectSet;
 use crate::dispatch_stability::DispatchDependencyDescriptor;
 use crate::hooks::{CodegenHookId, LoweringHookId};
 use crate::hover::OptionSpec;
+use crate::representation::RepresentationEffect;
 use crate::result_stability::ResultStability;
 use crate::semantic_operation::SemanticOperationId;
 use crate::state_transition::StateTransitionDescriptor;
@@ -86,6 +87,10 @@ pub struct CommandForm {
     /// `None` inherits the resolved subcommand or command declaration.
     pub result_stability: Option<ResultStability>,
 
+    /// Tcl value-representation effect specific to this form. `None` inherits
+    /// the subcommand or command declaration.
+    pub representation_effect: Option<RepresentationEffect>,
+
     /// Mutable Tcl-world effects specific to this concrete form.
     ///
     /// A matching form is applied after its subcommand and parent-command
@@ -122,6 +127,7 @@ impl CommandForm {
         semantic_operation: None,
         completion: None,
         result_stability: None,
+        representation_effect: None,
         world_effects: None,
         state_transitions: None,
         dispatch_dependencies: None,

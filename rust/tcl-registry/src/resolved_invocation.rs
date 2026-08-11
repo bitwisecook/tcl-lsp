@@ -36,6 +36,7 @@ use crate::hooks::{CodegenHookId, InlineCodegenHookId, LoweringHookId};
 use crate::hover::OptionSpec;
 use crate::intrinsic::IntrinsicId;
 use crate::invocation_words::{InvocationWordKind, InvocationWords};
+use crate::representation::RepresentationEffect;
 use crate::result_stability::ResultStability;
 use crate::semantic_operation::SemanticOperationId;
 use crate::side_effects::SideEffect;
@@ -121,6 +122,11 @@ fn resolve_invocation_semantics<'r>(
             .and_then(|form| form.result_stability)
             .or(sub.and_then(|sub| sub.result_stability))
             .or(spec.result_stability)
+            .unwrap_or_default(),
+        representation_effect: form
+            .and_then(|form| form.representation_effect)
+            .or(sub.and_then(|sub| sub.representation_effect))
+            .or(spec.representation_effect)
             .unwrap_or_default(),
         traits: spec.traits
             | sub.map_or_else(Traits::empty, |sub| {
@@ -457,6 +463,8 @@ pub struct InvocationSemantics<'r> {
     pub completion: CompletionDescriptor,
     /// Registry-declared dependency contract for the invocation's result.
     pub result_stability: ResultStability,
+    /// Effective Tcl value-representation effect.
+    pub representation_effect: RepresentationEffect,
     /// Additive command and subcommand behaviour traits.
     pub traits: Traits,
     /// Effective arity after command/subcommand/form resolution.
@@ -559,6 +567,8 @@ pub struct InvocationFacts {
     pub completion: CompletionDescriptor,
     /// Registry-declared dependency contract for the invocation's result.
     pub result_stability: ResultStability,
+    /// Effective Tcl value-representation effect.
+    pub representation_effect: RepresentationEffect,
     /// Fully resolved mutable-world footprint.
     ///
     /// Writes covered by [`Self::transition_effect_coverage`] have already
@@ -732,6 +742,7 @@ impl<'r, 'w> ResolvedInvocation<'r, 'w> {
             operation: self.semantics.operation,
             completion: self.semantics.completion,
             result_stability: self.semantics.result_stability,
+            representation_effect: self.semantics.representation_effect,
             effects: self.effect_footprint_with_transition_coverage(&transition_effect_coverage),
             state_transitions: if self.semantics.state_transitions.is_declared() {
                 StateTransitionKnowledge::Declared(transitions)

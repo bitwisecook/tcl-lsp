@@ -42,6 +42,7 @@ use crate::lifecycle::{Lifecycle, LifecycleState};
 use crate::patterns::{FormatType, PatternType};
 use crate::presentation::ArgPresentation;
 use crate::repeated::RepeatedArgLayout;
+use crate::representation::RepresentationEffect;
 use crate::side_effects::{SideEffect, StorageType};
 use crate::state_transition::StateTransitionDescriptor;
 use crate::symbol_def::SymbolDef;
@@ -618,6 +619,10 @@ pub struct CommandSpec {
     /// writes in place (`lappend` appends value words as elements). See
     /// [`VarElementsEffect`].
     pub var_elements_effect: Option<VarElementsEffect>,
+
+    /// Effect on Tcl's dual string/internal representation or shared-object
+    /// storage. A resolved subcommand or form may override this declaration.
+    pub representation_effect: Option<RepresentationEffect>,
 
     /// Per-argument type hints. Each tuple is `(arg_index, hint)`.
     pub arg_types: &'static [(u8, ArgTypeHint)],
@@ -1312,6 +1317,7 @@ impl CommandSpec {
         var_write_typing: VarWriteTyping::ReturnValue,
         return_elements: None,
         var_elements_effect: None,
+        representation_effect: None,
         arg_types: &[],
         subcommands: &[],
         prefix_matching: PrefixMatching::Enabled,
@@ -1953,6 +1959,10 @@ pub struct SubCommand {
     /// subcommand (`dict set var … value`). See [`VarElementsEffect`].
     pub var_elements_effect: Option<VarElementsEffect>,
 
+    /// Effect on Tcl's dual string/internal representation or shared-object
+    /// storage. `None` inherits the parent command declaration.
+    pub representation_effect: Option<RepresentationEffect>,
+
     /// Per-argument type hints.
     pub arg_types: &'static [(u8, ArgTypeHint)],
 
@@ -2238,6 +2248,7 @@ impl SubCommand {
         var_write_typing: VarWriteTyping::ReturnValue,
         return_elements: None,
         var_elements_effect: None,
+        representation_effect: None,
         arg_types: &[],
         pure: false,
         mutator: false,
