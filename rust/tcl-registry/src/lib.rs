@@ -173,14 +173,14 @@ pub mod prelude {
         ObjectClassSpec, OoContextFact, SubCommand, SubSubCommand, VersionedArgValue,
     };
     pub use crate::state_transition::{
-        CallerFrameSelection, ChildInterpreterSafety, CommandBindingTransition,
-        InterpreterTransition, NamespaceTransition, NamespaceTransitionTarget, ObjectDispatchKind,
-        ObjectDispatchLayer, ObjectDispatchTarget, ObjectDispatchTransition,
-        ObjectPrivateNamespace, StateTransition, StateTransitionArgumentShape,
-        StateTransitionCommit, StateTransitionComposition, StateTransitionDescriptor,
-        StateTransitionDomain, StateTransitionOperandLayout, StateTransitionResolver,
-        StateTransitionWideningRule, StateTransitions, TraceOperation, TraceOperationSet,
-        TraceTarget, TraceTransition, TransitionSubject, VariableAliasTarget,
+        CallerFrameSelection, ChildInterpreterSafety, CommandBindingDefinitionKind,
+        CommandBindingTransition, InterpreterTransition, NamespaceTransition,
+        NamespaceTransitionTarget, ObjectDispatchKind, ObjectDispatchLayer, ObjectDispatchTarget,
+        ObjectDispatchTransition, ObjectPrivateNamespace, StateTransition,
+        StateTransitionArgumentShape, StateTransitionCommit, StateTransitionComposition,
+        StateTransitionDescriptor, StateTransitionDomain, StateTransitionOperandLayout,
+        StateTransitionResolver, StateTransitionWideningRule, StateTransitions, TraceOperation,
+        TraceOperationSet, TraceTarget, TraceTransition, TransitionSubject, VariableAliasTarget,
         VariableCellAliasTransition,
     };
     pub use crate::symbol_def::{DefinedSymbolKind, SymbolDef};
@@ -255,15 +255,15 @@ pub use special_vars::{
 };
 pub use state_transition::{
     AbruptTransitionTransfer, CallerFrameSelection, ChildInterpreterSafety,
-    CommandBindingTransition, InterpreterTransition, NamespaceTransition,
-    NamespaceTransitionTarget, ObjectDispatchKind, ObjectDispatchLayer, ObjectDispatchTarget,
-    ObjectDispatchTransition, ObjectPrivateNamespace, ResolvedStateTransitions, StateTransition,
-    StateTransitionArgumentShape, StateTransitionCommit, StateTransitionComposition,
-    StateTransitionDescriptor, StateTransitionDomain, StateTransitionFact,
-    StateTransitionKnowledge, StateTransitionOperandLayout, StateTransitionResolver,
-    StateTransitionWidening, StateTransitionWideningRule, StateTransitions, TraceOperation,
-    TraceOperationSet, TraceTarget, TraceTransition, TransitionSubject, VariableAliasTarget,
-    VariableCellAliasTransition,
+    CommandBindingDefinitionKind, CommandBindingTransition, InterpreterTransition,
+    NamespaceTransition, NamespaceTransitionTarget, ObjectDispatchKind, ObjectDispatchLayer,
+    ObjectDispatchTarget, ObjectDispatchTransition, ObjectPrivateNamespace,
+    ResolvedStateTransitions, StateTransition, StateTransitionArgumentShape, StateTransitionCommit,
+    StateTransitionComposition, StateTransitionDescriptor, StateTransitionDomain,
+    StateTransitionFact, StateTransitionKnowledge, StateTransitionOperandLayout,
+    StateTransitionResolver, StateTransitionWidening, StateTransitionWideningRule,
+    StateTransitions, TraceOperation, TraceOperationSet, TraceTarget, TraceTransition,
+    TransitionSubject, VariableAliasTarget, VariableCellAliasTransition,
 };
 pub use symbol_def::{DefinedSymbolKind, SymbolDef};
 pub use taint::{SetterConstraint, TaintColour};

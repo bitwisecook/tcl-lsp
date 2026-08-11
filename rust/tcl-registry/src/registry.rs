@@ -785,6 +785,35 @@ impl CommandRegistry {
             .is_some_and(|spec| spec.traits.contains(Traits::TCLOO_REQUIRES_METHOD_FRAME))
     }
 
+    /// Resolve `word` against the registry-declared universal object-command
+    /// surface.
+    ///
+    /// `TclOO` receiver commands are runtime values, so their source head is not
+    /// itself a static registry command.  This query gives common consumers
+    /// the inherited method metadata without encoding the registry entry that
+    /// owns that surface.  A dialect may supply at most one such surface; an
+    /// accidental duplicate is treated conservatively as no unique answer.
+    #[must_use]
+    pub fn object_command_method(&self, word: &str) -> Option<&SubCommand> {
+        let mut matches = self.by_name.values().filter_map(|specs| {
+            let spec = specs.last()?;
+            spec.traits
+                .contains(Traits::OBJECT_COMMAND_SURFACE)
+                .then_some(spec)?
+                .resolve_subcommand(word)
+        });
+        let method = matches.next()?;
+        matches.next().is_none().then_some(method)
+    }
+
+    /// Whether `word` is a destructive operation on the universal object
+    /// command surface.
+    #[must_use]
+    pub fn is_destructive_object_method(&self, word: &str) -> bool {
+        self.object_command_method(word)
+            .is_some_and(|method| method.destructive)
+    }
+
     /// Whether `word` is a **manufacturer method** of any definer family the
     /// registry models — `create` / `new` / `createWithNamespace` for
     /// `TclOO`, `create` for snit.

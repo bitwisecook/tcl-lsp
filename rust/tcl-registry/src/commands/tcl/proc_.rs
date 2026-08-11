@@ -62,7 +62,10 @@ fn proc_state_transitions(arguments: InvocationArguments<'_>) -> StateTransition
     let mut transitions = StateTransitions::default();
     if let Some(name) = TransitionSubject::from_argument(arguments, 0) {
         transitions.push(StateTransition::CommandBinding(
-            CommandBindingTransition::Define { name },
+            CommandBindingTransition::Define {
+                name,
+                kind: CommandBindingDefinitionKind::Procedure,
+            },
         ));
     }
     transitions

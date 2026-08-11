@@ -111,6 +111,8 @@ pub enum CommandBindingTransition {
     Define {
         /// The command name being bound.
         name: TransitionSubject,
+        /// The semantic kind of binding installed at that name.
+        kind: CommandBindingDefinitionKind,
     },
     /// Move a command binding in the current interpreter.
     Move {
@@ -144,6 +146,22 @@ pub enum CommandBindingTransition {
         /// Operands that prevented a precise define/move/delete/alias fact.
         operands: Vec<TransitionSubject>,
     },
+}
+
+/// The semantic identity installed by a command-binding definition.
+///
+/// Consumers use this to preserve useful binding information without
+/// rediscovering which command performed the definition.  It deliberately
+/// describes the resulting binding, rather than the defining command's
+/// spelling or syntax.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum CommandBindingDefinitionKind {
+    /// An ordinary Tcl command whose more-specific identity is not modelled.
+    Command,
+    /// A Tcl procedure.
+    Procedure,
+    /// A `TclOO`, snit, or other registry-described object/class command.
+    Object,
 }
 
 /// A transition of a child interpreter's lifecycle or policy.
@@ -970,6 +988,7 @@ mod tests {
         transitions.push(StateTransition::CommandBinding(
             CommandBindingTransition::Define {
                 name: TransitionSubject::Literal(name.to_owned()),
+                kind: CommandBindingDefinitionKind::Command,
             },
         ));
         transitions
@@ -1049,6 +1068,7 @@ mod tests {
             transitions.facts()[0].transition,
             StateTransition::CommandBinding(CommandBindingTransition::Define {
                 name: TransitionSubject::Literal("form".to_owned()),
+                kind: CommandBindingDefinitionKind::Command,
             })
         );
     }

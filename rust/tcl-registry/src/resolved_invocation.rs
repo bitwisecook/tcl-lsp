@@ -727,12 +727,12 @@ mod tests {
         SubjectScope, WorldEffectComposition, WorldEffectDescriptor, WorldStateDomain,
     };
     use crate::{
-        AbruptTransitionTransfer, CallerFrameSelection, CommandBindingTransition, CommandRegistry,
-        CompletionCode, CompletionCodeDomain, CompletionDescriptor, DispatchDependencies,
-        DispatchDependencyDescriptor, DispatchDependencyDomain, NamespaceTransition,
-        NamespaceTransitionTarget, Reentrancy, StateTransition, StateTransitionCommit,
-        StateTransitionDescriptor, StateTransitionDomain, StateTransitionKnowledge,
-        TransitionSubject, VariableAliasTarget,
+        AbruptTransitionTransfer, CallerFrameSelection, CommandBindingDefinitionKind,
+        CommandBindingTransition, CommandRegistry, CompletionCode, CompletionCodeDomain,
+        CompletionDescriptor, DispatchDependencies, DispatchDependencyDescriptor,
+        DispatchDependencyDomain, NamespaceTransition, NamespaceTransitionTarget, Reentrancy,
+        StateTransition, StateTransitionCommit, StateTransitionDescriptor, StateTransitionDomain,
+        StateTransitionKnowledge, TransitionSubject, VariableAliasTarget,
     };
 
     const COMMAND_CODES: &[CompletionCode] = &[CompletionCode::Error];
@@ -1263,6 +1263,7 @@ mod tests {
             transition.transition,
             StateTransition::CommandBinding(CommandBindingTransition::Define {
                 name: TransitionSubject::Literal("::precise".to_owned()),
+                kind: CommandBindingDefinitionKind::Procedure,
             })
         );
     }

@@ -293,7 +293,7 @@ fn append_command_binding(
     transition: &CommandBindingTransition,
 ) {
     match transition {
-        CommandBindingTransition::Define { name } => push_intent(
+        CommandBindingTransition::Define { name, kind: _ } => push_intent(
             intents,
             commit,
             WorldStateIntentKind::Def,

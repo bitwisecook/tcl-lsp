@@ -122,8 +122,11 @@ impl Analyser {
                 let Statement::Call { command, span, .. } = stmt else {
                     continue;
                 };
-                // The mutating commands themselves are not flagged.
-                if command.is_empty() || matches!(command.as_str(), "rename" | "interp" | "proc") {
+                // The mutation commits after this invocation's successful
+                // completion, so the point-wise binding query naturally sees
+                // the command's incoming binding here.  No mutator-name
+                // exclusion is required.
+                if command.is_empty() {
                     continue;
                 }
                 if binding.binding_at(block_id, idx, command).kind != BindingKind::Opaque {
