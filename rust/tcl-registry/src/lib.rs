@@ -66,6 +66,7 @@ pub mod commands;
 pub mod completion;
 pub mod const_fold;
 pub mod definer;
+pub mod deprecation;
 pub mod dialects;
 pub mod dispatch_stability;
 mod event_descriptions;
@@ -133,6 +134,7 @@ pub mod prelude {
         DefinerFamily, DefinitionBodyGrammar, MemberKind, MemberRefKind, MemberRetraction,
         MemberSpec, MemberVisibility, RetractionWords,
     };
+    pub use crate::deprecation::{DeprecationFixHook, DeprecationFixSafety};
     pub use crate::dialects::DialectSet;
     pub use crate::dispatch_stability::{
         DispatchDependencies, DispatchDependencyComposition, DispatchDependencyDescriptor,

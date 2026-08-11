@@ -20,10 +20,12 @@
 //! rung **W137** / **W138** / **W200**).
 //!
 //! A command, subcommand, option, or literal argument value carries a
-//! [`Lifecycle`] on its owning package's version axis (Tk, a tcllib package,
-//! `argparse`, …): the introducing release, the deprecating release, and the
-//! retiring release.  The resolved floor — the profile's library pin (§7.1)
-//! raised by any versioned `package require` — is checked against all three:
+//! [`Lifecycle`] on either its owning package's version axis (Tk, a tcllib
+//! package, `argparse`, …) or the core Tcl axis: the introducing release, the
+//! deprecating release, and the retiring release. The resolved floor — the
+//! profile's library pin raised by any versioned `package require`, or the
+//! active Tcl profile raised by `package require Tcl` — is checked against all
+//! three:
 //!
 //! * floor below `introduced` ⇒ not available yet (W135 command/subcommand
 //!   /argument value, W136 option);
@@ -48,25 +50,111 @@
 use tcl_core_types::DiagCode;
 use tcl_lexer::{Span, Token, TokenType};
 use tcl_registry::ProfileQueries as _;
+use tcl_registry::deprecation::{
+    DeprecationFixContext, DeprecationFixSafety, DeprecationFixTarget, DeprecationFixWord,
+};
+use tcl_registry::dialects::DialectSet;
 use tcl_registry::lifecycle::{Lifecycle, LifecycleState};
 
 use super::super::state::Analyser;
 use super::super::types::{Diagnostic, Severity};
 
-/// A command/option use carrying a package [`Lifecycle`], recorded during the
-/// walk and checked post-walk against the resolved `package require` floor.
+/// A lifecycle-bearing registry use, recorded during the walk and checked
+/// post-walk against its package or core-Tcl version floor.
 #[derive(Debug)]
 pub(in crate::analyser) struct VersionGateSite {
     /// Span the diagnostic anchors to (command head, or option token).
     span: Span,
-    /// The gating package (the spec's [`owning_package`]).
-    ///
-    /// [`owning_package`]: tcl_registry::CommandSpec::owning_package
-    package: &'static str,
+    /// The version axis that governs this lifecycle declaration.
+    axis: VersionGateAxis,
     /// The declared lifecycle on that package's version axis.
     lifecycle: Lifecycle,
     /// What is gated — a command, subcommand, option, or argument value.
     item: VersionGateItem,
+    /// Complete generic invocation context for a registry deprecation-fix hook.
+    fix_payload: DeprecationFixPayload,
+    /// Active profile name, supplied to a context-aware registry hook.
+    dialect: &'static str,
+}
+
+/// Version axes supported by the generic lifecycle consumer.
+#[derive(Debug, Clone, Copy)]
+enum VersionGateAxis {
+    /// A package whose version comes from a profile pin and/or `package require`.
+    Package(&'static str),
+    /// The Tcl core version selected by the active dialect profile.
+    TclCore,
+}
+
+impl VersionGateAxis {
+    const fn name(self) -> &'static str {
+        match self {
+            Self::Package(package) => package,
+            Self::TclCore => "Tcl",
+        }
+    }
+}
+
+/// Owned word fact retained until the whole-file lifecycle floor is known.
+#[derive(Debug)]
+struct StoredDeprecationFixWord {
+    spelling: String,
+    literal: bool,
+}
+
+/// The generic syntax context a lifecycle-fix hook may target.
+#[derive(Debug)]
+struct DeprecationFixPayload {
+    invocation: Span,
+    word_spans: Vec<Option<Span>>,
+    words: Vec<StoredDeprecationFixWord>,
+    matched_word_index: usize,
+}
+
+/// One registry invocation while its lifecycle sites are being recorded.
+#[derive(Clone, Copy)]
+struct LifecycleInvocation<'a> {
+    command: &'a str,
+    command_token: Token,
+    args: &'a [String],
+    arg_tokens: &'a [Token],
+    axis: VersionGateAxis,
+}
+
+fn deprecation_fix_payload(
+    command: &str,
+    command_token: Token,
+    args: &[String],
+    arg_tokens: &[Token],
+    matched_word_index: usize,
+    source: &str,
+) -> DeprecationFixPayload {
+    let command_span = super::super::utils::full_word_span(command_token, source);
+    let mut word_spans = vec![Some(command_span)];
+    let mut words = vec![StoredDeprecationFixWord {
+        spelling: command.to_owned(),
+        literal: true,
+    }];
+    for (index, arg) in args.iter().enumerate() {
+        let token = arg_tokens.get(index).copied();
+        word_spans.push(token.map(|token| super::super::utils::full_word_span(token, source)));
+        words.push(StoredDeprecationFixWord {
+            spelling: arg.clone(),
+            literal: token
+                .is_some_and(|token| !matches!(token.kind, TokenType::Var | TokenType::Cmd)),
+        });
+    }
+    let end = word_spans
+        .iter()
+        .flatten()
+        .last()
+        .map_or(command_span.end(), |span| span.end());
+    DeprecationFixPayload {
+        invocation: Span::new(command_span.start(), end),
+        word_spans,
+        words,
+        matched_word_index,
+    }
 }
 
 /// Payload distinguishing the package-version gate's syntax granularity.
@@ -140,7 +228,7 @@ fn version_gate_diagnostic(
     floor: &str,
     guarantee: &str,
 ) -> Option<(DiagCode, String)> {
-    let package = site.package;
+    let package = site.axis.name();
     let what = item_phrase(&site.item);
     match site.lifecycle.state_at(Some(floor)) {
         LifecycleState::Available => None,
@@ -172,96 +260,121 @@ impl Analyser {
     fn record_lifecycle_site(
         &mut self,
         span: Span,
-        package: &'static str,
+        axis: VersionGateAxis,
         lifecycle: Lifecycle,
         item: VersionGateItem,
+        fix_payload: DeprecationFixPayload,
     ) {
         if lifecycle.is_unspecified() {
             return;
         }
         self.version_gate_sites.push(VersionGateSite {
             span,
-            package,
+            axis,
             lifecycle,
             item,
+            fix_payload,
+            dialect: self.profile.name,
         });
     }
 
     fn record_subcommand_version_sites(
         &mut self,
-        cmd_name: &str,
-        args: &[String],
-        arg_tokens: &[Token],
-        package: &'static str,
+        invocation: LifecycleInvocation<'_>,
         sub: &tcl_registry::SubCommand,
     ) {
-        let sub_is_literal = arg_tokens
+        let sub_is_literal = invocation
+            .arg_tokens
             .first()
             .is_some_and(|tok| !matches!(tok.kind, TokenType::Var | TokenType::Cmd));
         if sub_is_literal {
             self.record_lifecycle_site(
-                arg_tokens[0].span,
-                package,
+                super::super::utils::full_word_span(invocation.arg_tokens[0], &self.source),
+                invocation.axis,
                 sub.lifecycle,
                 VersionGateItem::Subcommand {
-                    command: cmd_name.to_owned(),
+                    command: invocation.command.to_owned(),
                     subcommand: sub.name.to_owned(),
                 },
+                deprecation_fix_payload(
+                    invocation.command,
+                    invocation.command_token,
+                    invocation.args,
+                    invocation.arg_tokens,
+                    1,
+                    &self.source,
+                ),
             );
         }
         for gate in sub.versioned_arg_values {
             let arg_idx = 1usize + usize::from(gate.index);
-            let (Some(arg), Some(tok)) = (args.get(arg_idx), arg_tokens.get(arg_idx)) else {
+            let (Some(arg), Some(tok)) = (
+                invocation.args.get(arg_idx),
+                invocation.arg_tokens.get(arg_idx),
+            ) else {
                 continue;
             };
             if arg != gate.value || matches!(tok.kind, TokenType::Var | TokenType::Cmd) {
                 continue;
             }
             self.record_lifecycle_site(
-                tok.span,
-                package,
+                super::super::utils::full_word_span(*tok, &self.source),
+                invocation.axis,
                 gate.lifecycle,
                 VersionGateItem::ArgumentValue {
-                    command: cmd_name.to_owned(),
+                    command: invocation.command.to_owned(),
                     subcommand: sub.name.to_owned(),
                     value: gate.value.to_owned(),
                 },
+                deprecation_fix_payload(
+                    invocation.command,
+                    invocation.command_token,
+                    invocation.args,
+                    invocation.arg_tokens,
+                    arg_idx + 1,
+                    &self.source,
+                ),
             );
         }
     }
 
     fn record_option_version_sites(
         &mut self,
-        cmd_name: &str,
-        args: &[String],
-        arg_tokens: &[Token],
-        package: &'static str,
+        invocation: LifecycleInvocation<'_>,
         options: &[tcl_registry::hover::OptionSpec],
         start_idx: usize,
     ) {
         let mut i = start_idx;
-        while i < args.len() {
-            let arg = args[i].as_str();
+        while i < invocation.args.len() {
+            let arg = invocation.args[i].as_str();
             if arg == "--" {
                 break;
             }
-            if !is_literal_option(arg, arg_tokens.get(i)) {
+            if !is_literal_option(arg, invocation.arg_tokens.get(i)) {
                 i += 1;
                 continue;
             }
             if let Some(opt) = options.iter().find(|o| o.matches(arg)) {
-                if let Some(tok) = arg_tokens.get(i) {
+                if let Some(tok) = invocation.arg_tokens.get(i) {
                     self.record_lifecycle_site(
-                        tok.span,
-                        package,
+                        super::super::utils::full_word_span(*tok, &self.source),
+                        invocation.axis,
                         opt.lifecycle,
                         VersionGateItem::Option {
-                            command: cmd_name.to_owned(),
+                            command: invocation.command.to_owned(),
                             option: arg.to_owned(),
                         },
+                        deprecation_fix_payload(
+                            invocation.command,
+                            invocation.command_token,
+                            invocation.args,
+                            invocation.arg_tokens,
+                            i + 1,
+                            &self.source,
+                        ),
                     );
                 }
-                i += 1 + opt.value_word_count(args, i);
+                i += 1 + opt.value_word_count(invocation.args, i);
                 continue;
             }
             i += 1;
@@ -297,24 +410,42 @@ impl Analyser {
         // and a vendor-own spec needs no `required_package` to sit on the
         // axis (its pin resolves through the profile's vendor bit).
         let keyed = self.profile.keyed_version_range(spec);
-        let Some(pkg) = self
+        let axis = self
             .profile
             .keyed_pin_for(spec)
             .map(|pin| pin.package)
             .or_else(|| spec.owning_package())
-        else {
+            .map(VersionGateAxis::Package)
+            // A lifecycle on an otherwise unowned Tcl command/subcommand is
+            // governed by the selected core Tcl profile, not by a fictitious
+            // `package require`. This keeps every core command generic while
+            // allowing an explicit `package require Tcl` to raise the floor.
+            .or_else(|| {
+                spec.supports_dialect(DialectSet::ALL_TCL)
+                    .then_some(VersionGateAxis::TclCore)
+            });
+        let Some(axis) = axis else {
             return;
+        };
+        let invocation = LifecycleInvocation {
+            command: cmd_name,
+            command_token: cmd_tok,
+            args,
+            arg_tokens,
+            axis,
         };
         let effective = keyed.map_or(spec.lifecycle, |(min, max)| Lifecycle {
             introduced: min.or(spec.lifecycle.introduced),
             deprecated: spec.lifecycle.deprecated,
             retired: max.or(spec.lifecycle.retired),
+            deprecation_fix: spec.lifecycle.deprecation_fix,
         });
         self.record_lifecycle_site(
-            cmd_tok.span,
-            pkg,
+            super::super::utils::full_word_span(cmd_tok, &self.source),
+            axis,
             effective,
             VersionGateItem::Command(cmd_name.to_owned()),
+            deprecation_fix_payload(cmd_name, cmd_tok, args, arg_tokens, 0, &self.source),
         );
 
         // Option-level gates.  Resolve subcommand-scoped options when the first
@@ -327,7 +458,7 @@ impl Analyser {
             .flatten();
 
         if let Some(sub) = sub_match {
-            self.record_subcommand_version_sites(cmd_name, args, arg_tokens, pkg, sub);
+            self.record_subcommand_version_sites(invocation, sub);
         }
         let (options, start_idx) = match sub_match {
             Some(sub) => (sub.options, 1usize),
@@ -337,7 +468,7 @@ impl Analyser {
             return;
         }
 
-        self.record_option_version_sites(cmd_name, args, arg_tokens, pkg, options, start_idx);
+        self.record_option_version_sites(invocation, options, start_idx);
     }
 
     /// Emit W135/W136 for each buffered site whose package's resolved
@@ -355,24 +486,45 @@ impl Analyser {
         let sites = std::mem::take(&mut self.version_gate_sites);
         let mut new_diags: Vec<Diagnostic> = Vec::new();
         for site in sites {
-            let Some((floor, source)) = self.package_version_floor(site.package) else {
-                continue;
-            };
-            let guarantee = match source {
-                FloorSource::Require => format!("`package require` guarantees only {floor}"),
-                FloorSource::ProfilePin => {
-                    format!("{} ships {} {floor}", self.profile.name, site.package)
+            let floor_and_guarantee = match site.axis {
+                VersionGateAxis::Package(package) => {
+                    self.package_version_floor(package).map(|(floor, source)| {
+                        let guarantee = match source {
+                            FloorSource::Require => {
+                                format!("`package require` guarantees only {floor}")
+                            }
+                            FloorSource::ProfilePin => {
+                                format!("{} ships {package} {floor}", self.profile.name)
+                            }
+                        };
+                        (floor, guarantee)
+                    })
                 }
+                VersionGateAxis::TclCore => self.effective_dsl_version().map(|version| {
+                    let floor = version.as_package_version().to_owned();
+                    (
+                        floor.clone(),
+                        format!("{} targets Tcl {floor}", self.profile.name),
+                    )
+                }),
+            };
+            let Some((floor, guarantee)) = floor_and_guarantee else {
+                continue;
             };
             let Some((code, message)) = version_gate_diagnostic(&site, &floor, &guarantee) else {
                 continue;
             };
+            let fixes = (code == DiagCode::W144)
+                .then(|| lifecycle_deprecation_fix(&site, &floor))
+                .flatten()
+                .into_iter()
+                .collect();
             new_diags.push(Diagnostic {
                 code,
                 span: site.span,
                 message,
                 severity: Severity::Warning,
-                fixes: Vec::new(),
+                fixes,
             });
         }
         self.result.diagnostics.extend(new_diags);
@@ -432,6 +584,52 @@ impl Analyser {
             (None, None) => None,
         }
     }
+}
+
+/// Resolve a registry-owned lifecycle deprecation hook to an analyser edit.
+///
+/// The hook's typed target is mapped only through syntax captured while the
+/// generic registry walk recognised the lifecycle-bearing word; there is no
+/// command-specific fallback. An unavailable target (for example a malformed
+/// call missing the requested companion argument) deliberately abstains.
+fn lifecycle_deprecation_fix(
+    site: &VersionGateSite,
+    floor: &str,
+) -> Option<super::super::types::CodeFix> {
+    let words: Vec<DeprecationFixWord<'_>> = site
+        .fix_payload
+        .words
+        .iter()
+        .map(|word| DeprecationFixWord {
+            spelling: &word.spelling,
+            literal: word.literal,
+        })
+        .collect();
+    let resolved = site
+        .lifecycle
+        .deprecation_fix?
+        .resolve(DeprecationFixContext {
+            words: &words,
+            matched_word_index: site.fix_payload.matched_word_index,
+            dialect: Some(site.dialect),
+            effective_version: Some(floor),
+        })?;
+    let span = match resolved.target {
+        DeprecationFixTarget::Word(index) => site.fix_payload.word_spans.get(index).copied()??,
+        DeprecationFixTarget::Invocation => site.fix_payload.invocation,
+    };
+    let safety = match resolved.safety {
+        DeprecationFixSafety::SemanticsEquivalent => {
+            crate::irules_checks::FixSafety::SemanticsEquivalent
+        }
+        DeprecationFixSafety::RequiresReview => crate::irules_checks::FixSafety::RequiresReview,
+    };
+    Some(super::super::types::CodeFix {
+        span,
+        new_text: resolved.new_text,
+        description: resolved.description,
+        safety,
+    })
 }
 
 /// Where a resolved package-version floor came from — an explicit

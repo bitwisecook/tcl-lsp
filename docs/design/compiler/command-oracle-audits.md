@@ -14,6 +14,7 @@ compiler and language-server consumers project the typed facts generically.
 | `package` | complete with typed abstention | corrected Tcl 8.4/8.5 `vsatisfies` arity split | Tcl 9.0.4 primary; Tcl 8.6.18 and 8.5.9 cross-checks |
 | `namespace` | complete with typed abstentions | declared nested ensemble management dispatcher | Tcl 9.0.4 primary; Tcl 8.5.9 cross-check |
 | `source` | complete with typed abstentions | corrected Tcl 9 option forms and exact option spellings | Tcl 9.0.4 primary; Tcl 8.6.18 and 8.5.9 cross-checks |
+| `interp` | complete for the static core surface | retain Tcl 9's `slaves` compatibility spelling and type `target` as a Tcl list | Tcl 9.0.4 and Tcl 8.5 executable oracles; Tcl 9.0.4 `interp(n)` manpage |
 
 ## `rename`
 
@@ -226,3 +227,48 @@ graph resolution, but it does not prove the target is executed exactly once.
 | Tcl 8.6 | Executable oracle 8.6.18 confirms the Tcl 8.5 source surface and rejection of Tcl 9 `-nopkg`. |
 | Tcl 9.0 | Primary executable oracle 9.0.4 confirms UTF-8 default, separate `-nopkg`, option non-combination, safe-interpreter hiding, traces, and path identity. |
 | Tcl 9.1 | Source/executable unavailable; no new 9.1-specific claim is made. |
+
+## `interp`
+
+### Evidence availability
+
+The requested `/Users/jimd/tcl-[89]*` source glob remains absent. This
+tranche uses `/opt/homebrew/bin/tclsh9.0` (Tcl 9.0.4) as its primary
+executable oracle, `/usr/bin/tclsh8.5` (Tcl 8.5.9) for the available older
+surface, and the installed Tcl 9.0.4 manual at
+`/opt/homebrew/Cellar/tcl-tk/9.0.4/share/man/mann/interp.ntcl`. No source-code
+or Tcl 8.4, 8.6, or 9.1 executable claim is made.
+
+### Verified contract
+
+| Surface | Verdict |
+| --- | --- |
+| Dispatch and versions | The direct dispatcher accepts unique prefixes. Tcl 8.5 has `alias`, `aliases`, `bgerror`, `create`, `debug`, `delete`, `eval`, `exists`, `expose`, `hide`, `hidden`, `invokehidden`, `issafe`, `limit`, `marktrusted`, `recursionlimit`, `slaves`, `share`, `target`, and `transfer`; Tcl 8.6 adds `cancel` and `children`, both retained by Tcl 9.0. `set` remains Tcl 9.1-only. |
+| Child topology and safety | `create` makes a child command and interpreter, inheriting safe policy from a safe parent; `-safe` explicitly restricts it. Paths are relative Tcl lists, `{}` denotes the invoking interpreter, and a child cannot name an ancestor except through aliases. `delete` removes each requested child and descendants left-to-right, retaining preceding deletions if a later path errors. |
+| Alias lifecycle and dispatch | `alias` queries a source token, deletes it with an empty target path, or binds it to a target command plus prepended arguments. Target commands may be absent at creation. Alias invocation crosses interpreter domains; deleting or renaming the source token controls the alias binding. `aliases` enumerates tokens, and `target` returns either `{}` or the two-element `{targetPath targetCmd}` list. |
+| Visibility and hidden dispatch | `hide` and `expose` rename entries between ordinary and hidden command tables; names are global-table names, not namespace-relative lookups. `invokehidden` runs the hidden command without a second substitution pass, with `-global`, Tcl 8.5+ `-namespace`, and `--` controlling execution context and option parsing. Trusted ancestors, not untrusted child code, may use the safe interpreter's hidden commands. |
+| Evaluation and result transfer | `eval` concatenates script words like `concat`, evaluates them in the target interpreter's current frame, and returns both result and completion options. It is an isolated interpreter domain, not a caller-frame body. `cancel` is Tcl 8.6+; `limit`, `recursionlimit`, `debug`, and `bgerror` have query/set forms whose policy changes are typed separately from query results. |
+| Channels and policy | `share` adds a channel reference in a destination interpreter; `transfer` removes it from the source. Resource-limit callbacks and `bgerror` prefixes run later, so they are recorded as command prefixes rather than eagerly evaluated bodies. `marktrusted` changes safety policy without exposing hidden commands. |
+| Compatibility, lifecycle, and result typing | Tcl 9.0's manual documents `children` but not legacy `slaves`; the Tcl 9.0.4 oracle still accepts `interp slaves`, so it remains available in every core Tcl profile. `children` appeared in Tcl 8.6, so the registry marks `slaves` deprecated from 8.6 (not retired) and owns a semantics-equivalent matched-word hook to rewrite it to `children`. The old registry wrongly gated it to Tcl 8.x. The manual and executable agree that `interp target` is Tcl-list data, correcting its old scalar-string result type. |
+| Dynamic operands | Computed paths, command identities, handler prefixes, and scripts retain typed interpreter/command-binding/policy widening. No static state transition claims which child, hidden command, alias target, or callback result such operands denote. |
+
+### Registry and consumer verdict
+
+The existing `interp` spec already owns subcommand arities, feature gates,
+options, code-evaluation roles, prefix callbacks, interpreter topology and
+policy transitions, command-binding alias transitions, and dynamic widening.
+This tranche corrects the two observed gaps in that same registry surface:
+`slaves` now remains available under Tcl 9, with a Tcl-8.6 lifecycle warning
+and safe `children` quick fix, and `target` reports `TclType::List`. The
+generic W144 lifecycle consumer now resolves registry-owned typed fix hooks
+against core Tcl profile versions as well as package-version axes. No compiler
+or LSP consumer gained an `interp` name branch.
+
+### Typed abstentions
+
+Alias targets, hidden-command availability, callback outcomes, channel
+ownership, cancellation catch depth, and scripts assembled dynamically remain
+runtime-dependent. The registry records their affected domains and only
+materialises literal transitions; it does not infer cross-interpreter state
+from dynamic strings. Rust VM/WASM completeness is outside this oracle
+tranche.

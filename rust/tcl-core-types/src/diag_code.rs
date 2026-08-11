@@ -182,10 +182,10 @@ impl OptCategory {
 /// Tagging a newly-added diagnostic is therefore a one-token edit to its row,
 /// never a new `match` arm in a consumer.  The same holds for the
 /// *deprecated-command* diagnostics: which commands are deprecated is
-/// registry data (`CommandSpec`'s deprecation fields drive `W144`, and the
-/// iRules registry drives `IRULE1003`/`IRULE2001`/`IRULE2002`), so marking a
-/// newly-deprecated command is a spec edit and the strikethrough follows for
-/// free.
+/// registry data (a lifecycle declaration and its optional typed fix hook
+/// drive `W144`, and the iRules registry drives
+/// `IRULE1003`/`IRULE2001`/`IRULE2002`), so marking a newly-deprecated
+/// command is a spec edit and the strikethrough follows for free.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub enum DiagTag {
     /// LSP `DiagnosticTag.Unnecessary` (`1`). Unused or unreachable code —
@@ -553,7 +553,7 @@ diagnostic_codes! {
     W141 => "W141", diag(Warning, true, "Option value fails a declared shape/content check (e.g. `-errorstack` must be an even-sized list) — the option-value sibling of W127 for a value that is structurally malformed rather than outside a closed set.");
     W142 => "W142", diag(Warning, true, "Command invalid in its current lexical/dispatch context (e.g. `return` with arguments directly inside an iRules event body).");
     W143 => "W143", diag(Warning, true, "Direct call into a private `::tcl::` implementation namespace (e.g. `::tcl::dict::create`) — use the public ensemble command instead (`dict create`).");
-    W144 => "W144", diag(Warning, true, "Command/subcommand/option/argument value is deprecated at the resolved package version — still available, but the registry records a deprecating release.", tag: Deprecated);
+    W144 => "W144", diag(Warning, true, "Command/subcommand/option/argument value is deprecated at the resolved package or Tcl-core version — still available, but the registry records a deprecating release.", tag: Deprecated);
     W145 => "W145", diag(Warning, true, "Ambiguous keyword abbreviation — the prefix matches more than one subcommand or option, which is a runtime error in Tcl.");
     W146 => "W146", diag(Warning, true, "Literal argument violates a registry-declared relationship or member set (for example, a trace operation list contains an operation invalid for its trace type).");
     W200 => "W200", diag(Warning, true, "`exec` result not captured or binary format modifier requires newer Tcl.");

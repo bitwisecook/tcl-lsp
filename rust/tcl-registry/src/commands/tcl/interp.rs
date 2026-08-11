@@ -935,7 +935,10 @@ static SUBCOMMANDS: &[SubCommand] = &[
         detail: "Get alias target.",
         synopsis: "interp target path alias",
         pure: true,
-        return_type: Some(TclType::String),
+        // The result is either the empty list (for an alias targeting the
+        // invoking interpreter) or `{targetPath targetCmd}`.  It is not an
+        // arbitrary string; callers may safely consume it as Tcl-list data.
+        return_type: Some(TclType::List),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -948,9 +951,19 @@ static SUBCOMMANDS: &[SubCommand] = &[
     },
     SubCommand {
         name: "slaves",
-        // Legacy name for `interp children`; removed in Tcl 9.0 (the
-        // slave/master → child/parent rename), so 8.4-8.6 only.
-        dialects: Some(DialectSet::TCL8X),
+        // `children` was added in Tcl 8.6 as the preferred spelling. Tcl
+        // 9.0.4 still accepts `slaves` even though interp(n) documents only
+        // `children`, so this is a deprecation, not a Tcl-9 retirement.
+        dialects: Some(DialectSet::ALL_TCL),
+        lifecycle: Lifecycle {
+            deprecated: Some("8.6"),
+            deprecation_fix: Some(DeprecationFixHook::ReplaceMatchedWord {
+                replacement: "children",
+                description: "Replace deprecated 'slaves' with 'children'",
+                safety: DeprecationFixSafety::SemanticsEquivalent,
+            }),
+            ..Lifecycle::UNSPECIFIED
+        },
         arity: Arity::new(0, 1),
         detail: "Returns a Tcl list of the names of all the child interpreters.",
         synopsis: "interp slaves ?path?",
@@ -992,7 +1005,7 @@ pub fn spec() -> CommandSpec {
         hover: Some(HoverSnippet {
             summary: "Create and manipulate Tcl interpreters.",
             synopsis: &["interp subcommand ?arg arg ...?"],
-            snippet: "A child interpreter has its own namespace for commands, procedures, and variables, and connects back to its creator only through aliases (a command in the child that invokes a command in its parent or a sibling), shared environment variables, and resource-limit callbacks. `interp create -safe` creates a safe interpreter: dangerous commands such as exec, open, source, and socket are hidden rather than removed, so only a trusted ancestor can still reach them, via `interp invokehidden`. Tcl 8.4-8.6 called this relationship master/slave (`interp slaves`); Tcl 8.6 added the parent/child spelling alongside it (`interp children`), and Tcl 9.0 dropped the master/slave spelling entirely.",
+            snippet: "A child interpreter has its own namespace for commands, procedures, and variables, and connects back to its creator only through aliases (a command in the child that invokes a command in its parent or a sibling), shared environment variables, and resource-limit callbacks. `interp create -safe` creates a safe interpreter: dangerous commands such as exec, open, source, and socket are hidden rather than removed, so only a trusted ancestor can still reach them, via `interp invokehidden`. Tcl 8.6 added the preferred parent/child spelling (`interp children`) alongside the older `interp slaves`; Tcl 9.0 documents only `children`, but still accepts the legacy `slaves` compatibility spelling.",
             source: "Tcl interp(n)",
             examples: "set child [interp create -safe]\ninterp alias $child log {} puts\ninterp eval $child {log \"hello from the child\"}\ninterp delete $child",
             return_value: "Varies by subcommand: a boolean for exists/issafe, a list for aliases/hidden/children (or slaves), the new interpreter's name for create, or the evaluated script's result for eval; most state-changing subcommands (delete, hide, expose, marktrusted, share, transfer) return an empty string.",
@@ -1188,5 +1201,18 @@ mod tests {
                 ..
             }) if hidden == "puts" && visible == "puts"
         ));
+    }
+
+    #[test]
+    fn legacy_slaves_and_alias_target_keep_their_tcl9_surface() {
+        let spec = super::spec();
+        let slaves = spec
+            .resolve_subcommand_for_dialect("slaves", DialectSet::TCL90)
+            .expect("Tcl 9 accepts the legacy interp slaves spelling");
+        assert_eq!(slaves.return_type, Some(TclType::List));
+
+        let target = spec.subcommand("target").expect("interp target spec");
+        // `interp target` returns either `{}` or `{targetPath targetCmd}`.
+        assert_eq!(target.return_type, Some(TclType::List));
     }
 }

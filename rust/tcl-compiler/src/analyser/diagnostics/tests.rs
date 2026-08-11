@@ -2026,7 +2026,8 @@ fn subcommand_version_gates_fire_w002() {
         "trace variable v w {}",
         "trace vdelete v w {}",
         "trace vinfo v",
-        // `interp slaves` was renamed to `interp children` in 9.0.
+        // Tcl 8.6 introduced preferred `interp children`; Tcl 9 still
+        // accepts legacy `interp slaves` as a deprecated compatibility form.
         "interp slaves",
     ] {
         assert!(
@@ -13322,4 +13323,40 @@ fn analyse_w308_1330_quick_fix_span_matches_the_diagnostic() {
         "bakr"
     );
     assert_eq!(fix.new_text, "bark");
+}
+
+#[test]
+fn w144_core_subcommand_lifecycle_uses_registry_safe_fix() {
+    let src = "interp slaves\n";
+    for dialect in ["tcl8.6", "tcl9.0"] {
+        let result = crate::analyser::Analyser::new().analyse(src, dialect);
+        let diagnostic = result
+            .diagnostics
+            .iter()
+            .find(|diagnostic| diagnostic.code == DiagCode::W144)
+            .unwrap_or_else(|| panic!("{dialect}: expected W144, got {:?}", result.diagnostics));
+        assert_eq!(&src[diagnostic.span.as_range()], "slaves");
+        assert!(
+            diagnostic.message.contains("Tcl 8.6") || diagnostic.message.contains("Tcl 9.0"),
+            "{dialect}: W144 must use the active Tcl-core axis: {diagnostic:?}"
+        );
+        assert_eq!(diagnostic.fixes.len(), 1, "{dialect}: {diagnostic:?}");
+        let fix = &diagnostic.fixes[0];
+        assert_eq!(&src[fix.span.as_range()], "slaves");
+        assert_eq!(fix.new_text, "children");
+        assert_eq!(
+            fix.safety,
+            crate::irules_checks::FixSafety::SemanticsEquivalent
+        );
+    }
+
+    let legacy = crate::analyser::Analyser::new().analyse(src, "tcl8.5");
+    assert!(
+        !legacy
+            .diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.code == DiagCode::W144),
+        "slaves predates the Tcl 8.6 preferred spelling: {:?}",
+        legacy.diagnostics
+    );
 }

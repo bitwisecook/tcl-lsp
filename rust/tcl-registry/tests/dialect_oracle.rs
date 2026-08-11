@@ -151,6 +151,7 @@ const AUDITED_ENSEMBLES: &[&str] = &[
     "chan",
     "clock",
     "namespace",
+    "interp",
     "package",
     "binary",
     "encoding",

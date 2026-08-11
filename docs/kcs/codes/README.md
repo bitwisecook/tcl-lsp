@@ -83,7 +83,7 @@ for historical reference.
 - [W136 — option needs newer package version](kcs-diagnostic-w136-option-needs-newer-package.md)
 - [W140 — interpreter never created in this file](kcs-diagnostic-w140-interpreter-never-created.md)
 - [W143 — private Tcl implementation namespace](kcs-diagnostic-w143-private-tcl-namespace.md)
-- [W144 — deprecated at the resolved package version](kcs-diagnostic-w144-deprecated-at-resolved-version.md)
+- [W144 — deprecated at the resolved version](kcs-diagnostic-w144-deprecated-at-resolved-version.md)
 - [W145 — ambiguous keyword abbreviation](kcs-diagnostic-w145-ambiguous-abbreviation.md)
 - [W200 — exec result not captured](kcs-diagnostic-w200-exec-result-not-captured.md)
 - [W201 — manual path concatenation](kcs-diagnostic-w201-manual-path-concatenation.md)

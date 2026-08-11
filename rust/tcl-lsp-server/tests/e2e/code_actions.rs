@@ -1420,6 +1420,25 @@ fn test_w120_offers_insert_package_require_fix() {
     );
 }
 
+/// W144 lifecycle replacements are registry hooks, so the LSP receives the
+/// analyser edit without knowing which deprecated command/subcommand emitted
+/// it. `interp slaves` remains executable in Tcl 9, but `children` is the
+/// documented, semantics-equivalent spelling.
+#[test]
+fn test_w144_offers_registry_lifecycle_subcommand_fix() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let src = "# tcl-dialect: tcl9.0\ninterp slaves\n";
+    let diags = lsp.open_ready(&uri, src);
+    let actions = quickfixes_for_code(&mut lsp, &uri, &diags, "W144");
+    assert_fix_applies(
+        &actions,
+        src,
+        "Replace deprecated 'slaves' with 'children'",
+        "# tcl-dialect: tcl9.0\ninterp children\n",
+    );
+}
+
 /// W120 FP guard: with the require already present the diagnostic is silent
 /// and no insert fix is offered.
 #[test]

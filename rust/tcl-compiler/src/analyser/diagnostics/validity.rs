@@ -118,45 +118,11 @@ fn count_positionals(args: &[String], arg_expand: &[bool], start: usize) -> (usi
     (nargs_min, any_expand)
 }
 
-/// Widen a single braced (`Str`) / bracketed (`Cmd`) word token's `end`
-/// to cover its own closing delimiter — the per-token equivalent of the
-/// segmenter's `widen_word_end` (`crate::segmenter`, private to its own
-/// recovery logic, so duplicated here rather than exposed cross-module).
-/// Per the lexer's inner-end convention (see `AGENTS.md`, "Word-token
-/// closing delimiters"), a non-empty braced/bracketed word's `end()`
-/// already sits on the closer byte, one short of covering it; an empty
-/// `{}` / `[]` already has `end()` past the closer, so it is left alone
-/// (widening it could swallow an unrelated adjacent `}` / `]` from
-/// whatever encloses this word). Any other token kind
-/// (a bareword, `then`/`elseif`/`else`, a `Var`, …) has no closer to
-/// widen for.
+/// Compatibility adapter for existing end-offset consumers. The delimiter
+/// policy itself lives once in [`super::super::utils::full_word_span`], which
+/// delegates to the lexer's authoritative `word_span` helper.
 fn widen_token_end(tok: tcl_lexer::Token, source: &str) -> u32 {
-    let closer = match tok.kind {
-        tcl_lexer::TokenType::Str => b'}',
-        tcl_lexer::TokenType::Cmd => b']',
-        _ => return tok.span.end(),
-    };
-    let end = tok.span.end();
-    // Empty content (`{}` / `[]` / `""`) — the span's end already sits past
-    // the closer.  Detected arithmetically (content start reaching the end)
-    // rather than by slicing the source, so a token whose span outruns the
-    // supplied text (unit tests drive the walk with detached tokens) never
-    // panics.
-    if tok.span.start() + u32::from(tok.content_offset) >= end {
-        return end;
-    }
-    if source.as_bytes().get(end as usize) == Some(&closer) {
-        end + 1
-    } else {
-        end
-    }
-}
-
-/// A single word token's full source span, closing delimiter included
-/// (see [`widen_token_end`]) — for anchoring a diagnostic tightly on one
-/// whole word rather than dropping its last byte.
-fn widened_word_span(tok: tcl_lexer::Token, source: &str) -> tcl_lexer::Span {
-    tcl_lexer::Span::new(tok.span.start(), widen_token_end(tok, source))
+    super::super::utils::full_word_span(tok, source).end()
 }
 
 /// Emit E006 for every registry-identified, statically-known formal-parameter
@@ -185,7 +151,7 @@ pub(in crate::analyser) fn emit_invalid_formal_parameter_list_diagnostics(
         let Err(error) = crate::signature_scan::params::parse_param_list_strict(params) else {
             continue;
         };
-        let span = widened_word_span(*token, &analyser.source);
+        let span = super::super::utils::full_word_span(*token, &analyser.source);
         let fixes = tcl_syntax::formal_params::split_overlong_parameter_specifier(params, &error)
             .map(|repaired| {
                 vec![crate::analyser::types::CodeFix::review(
@@ -231,7 +197,7 @@ pub(in crate::analyser) fn emit_invalid_lambda_parameter_list_diagnostics(
         let Err(error) = crate::signature_scan::params::parse_param_list_strict(params) else {
             continue;
         };
-        let span = widened_word_span(*token, &analyser.source);
+        let span = super::super::utils::full_word_span(*token, &analyser.source);
         let fixes = tcl_syntax::formal_params::split_overlong_parameter_specifier(params, &error)
             .map(|repaired| {
                 let mut repaired_fields = fields.clone();
@@ -2247,7 +2213,7 @@ impl Analyser {
         } else {
             arg_tokens
                 .iter()
-                .map(|t| widened_word_span(*t, &self.source))
+                .map(|t| super::super::utils::full_word_span(*t, &self.source))
                 .collect()
         };
         self.pending_user_call_arity.push(PendingUserCallArity {
@@ -2645,9 +2611,9 @@ impl Analyser {
         };
 
         let word_span = |i: usize| {
-            arg_tokens
-                .get(i)
-                .map_or(cmd_tok.span, |t| widened_word_span(*t, &self.source))
+            arg_tokens.get(i).map_or(cmd_tok.span, |t| {
+                super::super::utils::full_word_span(*t, &self.source)
+            })
         };
 
         let (span, message) = match error {

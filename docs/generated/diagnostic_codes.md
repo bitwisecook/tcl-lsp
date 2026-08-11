@@ -57,7 +57,7 @@
 | W141 | warning | Option value fails a declared shape/content check (e.g. `-errorstack` must be an even-sized list) — the option-value sibling of W127 for a value that is structurally malformed rather than outside a closed set. | ✓ |
 | W142 | warning | Command invalid in its current lexical/dispatch context (e.g. `return` with arguments directly inside an iRules event body). | ✓ |
 | W143 | warning | Direct call into a private `::tcl::` implementation namespace (e.g. `::tcl::dict::create`) — use the public ensemble command instead (`dict create`). | ✓ |
-| W144 | warning | Command/subcommand/option/argument value is deprecated at the resolved package version — still available, but the registry records a deprecating release. | ✓ |
+| W144 | warning | Command/subcommand/option/argument value is deprecated at the resolved package or Tcl-core version — still available, but the registry records a deprecating release. | ✓ |
 | W145 | warning | Ambiguous keyword abbreviation — the prefix matches more than one subcommand or option, which is a runtime error in Tcl. | ✓ |
 | W146 | warning | Literal argument violates a registry-declared relationship or member set (for example, a trace operation list contains an operation invalid for its trace type). | ✓ |
 | W200 | warning | `exec` result not captured or binary format modifier requires newer Tcl. | ✓ |
