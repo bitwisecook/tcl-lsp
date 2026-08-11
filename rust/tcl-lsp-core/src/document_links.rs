@@ -31,9 +31,12 @@
 //! * Computed paths are resolved through the **source graph's own**
 //!   path evaluator
 //!   ([`tcl_compiler::auto_path_eval::evaluate_auto_path_expr`]) — the
-//!   `[file dirname [info script]]` / `[file join …]` idioms — plus a
-//!   single-`set` copy propagation for the `source [file join $dir …]`
-//!   shape.  Anything outside that subset produces **no link at all**:
+//!   `[file dirname [info script]]` / `[file join …]` idioms — plus the
+//!   shared single-assignment `set` constant map
+//!   ([`tcl_compiler::auto_path_eval::constant_path_vars`]), which folds
+//!   chains, so a directory reached through an intermediate resolves as
+//!   readily as a direct one.  Anything outside that subset produces
+//!   **no link at all**:
 //!   a `source` argument whose reconstructed text still carries `$` or
 //!   `[` is never treated as a literal path (issue #1140 idx 41 — doing
 //!   so percent-encoded the raw Tcl text into a syntactically valid but
@@ -61,6 +64,7 @@
 //!   path resolves against `workspace_root` like any other
 //!   relative arg.
 
+use tcl_compiler::auto_path_eval::carries_substitution;
 use tcl_compiler::segmenter::segment_commands_with_offset_and_config;
 use tcl_lexer::{LineIndex, Token, TokenType};
 
@@ -165,8 +169,9 @@ pub fn document_links_in_context(
     let mut links = Vec::new();
     // Constant single-assignment `set` map for the `set dir [file dirname
     // [info script]] … source [file join $dir x.tcl]` idiom (issue #1140
-    // idx 41), built once per request.
-    let constants = constant_path_vars(source, dialect, script_path);
+    // idx 41), built once per request.  Chained assignments fold too, so a
+    // directory reached through an intermediate resolves (issue #775).
+    let constants = tcl_compiler::auto_path_eval::constant_path_vars(source, dialect, script_path);
 
     for seg in segment_commands_with_offset_and_config(
         source,
@@ -325,19 +330,6 @@ fn link_anchor(source: &str, dialect: &str, arg: &Token) -> Option<(u32, u32)> {
     ))
 }
 
-/// Whether `text` still carries an unevaluated substitution — a `$`
-/// variable reference or a `[` command substitution.
-///
-/// The abstention test at the heart of issue #1140 idx 41: such a word is
-/// **not** a path, however syntactically valid a URI percent-encoding it
-/// would produce.  `single_token_word` cannot answer this — it only
-/// distinguishes "one token" from "several concatenated tokens" within a
-/// word, and a whole-word `[file join …]` or a bare `$var` is exactly one
-/// token, so the old fall-through treated both as literals.
-fn carries_substitution(text: &str) -> bool {
-    text.contains('$') || text.contains('[')
-}
-
 /// The path a `source` argument denotes, or `None` when it cannot be
 /// resolved and the provider must emit no link.
 ///
@@ -346,11 +338,12 @@ fn carries_substitution(text: &str) -> bool {
 /// 1. A plain literal — no `$`, no `[`, and a single word.
 /// 2. The literal `[file join a b c]` shorthand ([`literal_file_join`]).
 /// 3. The **source graph's own** path evaluator
-///    ([`tcl_compiler::auto_path_eval::evaluate_auto_path_expr`], the same
-///    one `resolve_source_edge` uses for the M9 namespace-rehoming source
-///    graph), after substituting any single-assignment `set` constants the
-///    document establishes — which is what carries the corpus idiom
-///    `set dir [file dirname [info script]]; source [file join $dir x.tcl]`.
+///    ([`tcl_compiler::auto_path_eval::evaluate_auto_path_expr_with_constants`],
+///    the same one `resolve_source_edge` uses for the M9 namespace-rehoming
+///    source graph), with the document's single-assignment `set` constants
+///    substituted — which is what carries the corpus idiom `set dir [file
+///    dirname [info script]]; source [file join $dir x.tcl]`, and its chained
+///    form through an intermediate directory.
 ///
 /// Anything else abstains.  A multi-token word (`$dir/x.tcl` spliced from
 /// several tokens) abstains too, for the same reason.
@@ -371,99 +364,11 @@ fn resolve_source_argument(
     if let Some(joined) = literal_file_join(path) {
         return Some(joined);
     }
-    let substituted = substitute_constants(path, constants);
-    tcl_compiler::auto_path_eval::evaluate_auto_path_expr(&substituted, script_path)
-}
-
-/// Replace every `$name` / `${name}` occurrence in `text` whose name is in
-/// `constants`, leaving unknown ones in place (so the evaluator abstains on
-/// them, as it must).
-fn substitute_constants(
-    text: &str,
-    constants: &std::collections::HashMap<String, String>,
-) -> String {
-    if constants.is_empty() || !text.contains('$') {
-        return text.to_owned();
-    }
-    let bytes = text.as_bytes();
-    let mut out = String::with_capacity(text.len());
-    let mut i = 0usize;
-    while i < bytes.len() {
-        if bytes[i] != b'$' {
-            let ch_len = text[i..].chars().next().map_or(1, char::len_utf8);
-            out.push_str(&text[i..i + ch_len]);
-            i += ch_len;
-            continue;
-        }
-        let (name, next) = if bytes.get(i + 1) == Some(&b'{') {
-            match text[i + 2..].find('}') {
-                Some(rel) => (&text[i + 2..i + 2 + rel], i + 2 + rel + 1),
-                None => ("", i + 1),
-            }
-        } else {
-            let mut j = i + 1;
-            while j < bytes.len() && (bytes[j].is_ascii_alphanumeric() || bytes[j] == b'_') {
-                j += 1;
-            }
-            (&text[i + 1..j], j)
-        };
-        match constants.get(name) {
-            Some(value) if !name.is_empty() => {
-                out.push_str(value);
-                i = next;
-            }
-            _ => {
-                out.push('$');
-                i += 1;
-            }
-        }
-    }
-    out
-}
-
-/// Path-valued variables the document assigns **exactly once** at its top
-/// level, mapped to their evaluated values.
-///
-/// Deliberately narrow: a name written by more than one `set` is dropped
-/// entirely rather than guessed at (last-write-wins would be wrong for a
-/// `source` between the two), and only values the shared path evaluator can
-/// fold are kept, so nothing here can invent a target.  `set` is located by
-/// the segmenter's own words, and its value word must itself be resolvable —
-/// a literal or a `[file …]` expression.
-fn constant_path_vars(
-    source: &str,
-    dialect: &str,
-    script_path: Option<&str>,
-) -> std::collections::HashMap<String, String> {
-    use std::collections::HashMap;
-    let mut seen: HashMap<String, Option<String>> = HashMap::new();
-    for seg in segment_commands_with_offset_and_config(
-        source,
-        0,
-        tcl_lexer::LexerConfig::for_dialect(dialect),
-    ) {
-        if seg.texts.len() != 3 || seg.texts[0] != "set" {
-            continue;
-        }
-        let name = seg.texts[1].clone();
-        if name.contains('$') || name.contains('[') || name.contains("::") {
-            continue;
-        }
-        let raw = seg.texts[2].as_str();
-        let value = if carries_substitution(raw) {
-            tcl_compiler::auto_path_eval::evaluate_auto_path_expr(raw, script_path)
-        } else {
-            Some(raw.to_owned())
-        };
-        // A second assignment to the same name poisons it: which value a
-        // later `source` sees is a flow question this provider does not ask.
-        seen.entry(name)
-            .and_modify(|slot| *slot = None)
-            .or_insert(value);
-    }
-    seen.into_iter()
-        .filter_map(|(name, value)| value.map(|v| (name, v)))
-        .collect()
+    tcl_compiler::auto_path_eval::evaluate_auto_path_expr_with_constants(
+        path,
+        script_path,
+        constants,
+    )
 }
 
 /// Try to interpret `arg` as a literal `[file join …]`
@@ -879,6 +784,44 @@ mod tests {
             &line[links[0].start_character as usize..links[0].end_character as usize],
             "testUtilities.tcl",
             "{links:?}",
+        );
+    }
+
+    /// A directory reached through an intermediate resolves like a direct
+    /// one — georgtree/SpiceGenTcl's own `SpiceGenTcl.tcl` shape, where every
+    /// one of seventeen `source` lines goes through `$sourceDir` (issue #775).
+    ///
+    /// Oracle (tclsh 8.6.16 / 9.0.4): running `/proj/SpiceGenTcl.tcl` loads
+    /// `/proj/src/generalClasses.tcl`.
+    #[test]
+    fn a_chained_computed_source_path_resolves_775() {
+        let src = "set dir [file dirname [file normalize [info script]]]\n\
+                   set sourceDir [file join $dir src]\n\
+                   source [file join $sourceDir generalClasses.tcl]\n\
+                   source [file join $sourceDir ngspice netlistParserClassNgspice.tcl]\n";
+        let links = document_links_in_context(
+            src,
+            "tcl",
+            &LinkContext {
+                workspace_root: Some("/proj"),
+                home: None,
+                script_path: Some("/proj/SpiceGenTcl.tcl"),
+            },
+        );
+        let targets: Vec<&str> = links.iter().map(|l| l.target.as_str()).collect();
+        assert_eq!(
+            targets,
+            vec![
+                "file:///proj/src/generalClasses.tcl",
+                "file:///proj/src/ngspice/netlistParserClassNgspice.tcl",
+            ],
+            "{links:?}",
+        );
+        // Still anchored on the file name, chained or not.
+        let line = src.lines().nth(2).expect("the first source line");
+        assert_eq!(
+            &line[links[0].start_character as usize..links[0].end_character as usize],
+            "generalClasses.tcl",
         );
     }
 

@@ -82,6 +82,8 @@
 //! already anchors on its own base).
 
 use crate::analyser::types::{AutoPathEntry, AutoPathForm};
+use crate::segmenter::segment_commands_with_offset_and_config;
+use std::collections::HashMap;
 
 /// A parsed word: a literal, or a command substitution
 /// `[name arg …]`.
@@ -167,6 +169,158 @@ fn fold_path_value(value: &str) -> Option<String> {
 /// supported subset.
 #[must_use]
 pub fn evaluate_auto_path_expr(raw: &str, info_script: Option<&str>) -> Option<String> {
+    evaluate_auto_path_expr_with_constants(raw, info_script, &HashMap::new())
+}
+
+/// Whether `text` still carries an unevaluated substitution — a `$` variable
+/// reference or a `[` command substitution.
+///
+/// The segmenter reconstructs a word with its `${var}` / `[cmd]` markers
+/// intact, so their absence is reliable evidence the word is a plain literal
+/// (the same test `SignatureSource::is_literal` uses).  A word that still
+/// carries one is *not* a path, however plausible it looks spelled out.
+#[must_use]
+pub fn carries_substitution(text: &str) -> bool {
+    text.contains('$') || text.contains('[')
+}
+
+/// [`evaluate_auto_path_expr`], with `constants` substituted for any `$name` /
+/// `${name}` the expression names before it is folded.
+///
+/// Names absent from `constants` are left in place, so the fold abstains on
+/// them exactly as it does on any other unevaluated substitution — passing an
+/// empty map is precisely [`evaluate_auto_path_expr`].
+#[must_use]
+pub fn evaluate_auto_path_expr_with_constants<S: std::hash::BuildHasher>(
+    raw: &str,
+    info_script: Option<&str>,
+    constants: &HashMap<String, String, S>,
+) -> Option<String> {
+    let substituted = substitute_constants(raw.trim(), constants);
+    evaluate_folded(&substituted, info_script)
+}
+
+/// Path-valued variables `source` assigns **exactly once** at its top level,
+/// mapped to their folded values — the map
+/// [`evaluate_auto_path_expr_with_constants`] consumes.
+///
+/// Assignments fold in document order, each one seeing the constants
+/// established before it, so a chain resolves:
+///
+/// ```tcl
+/// set dir       [file dirname [file normalize [info script]]]
+/// set sourceDir [file join $dir src]
+/// source [file join $sourceDir generalClasses.tcl]
+/// ```
+///
+/// Without the chain only `dir` folds, and every `source` built on
+/// `$sourceDir` abstains — the shape that leaves a whole package's worth of
+/// `source` lines unresolved (issue #775; georgtree/SpiceGenTcl's own
+/// `SpiceGenTcl.tcl` is seventeen such lines).
+///
+/// Deliberately narrow in two ways it must stay narrow:
+///
+/// * A name written by more than one top-level `set` is dropped **outright**,
+///   counted in a pre-pass rather than as the walk goes.  Last-write-wins
+///   would be wrong for a `source` sitting between the two writes, and
+///   first-write-wins wrong for one after both — so a re-assigned name
+///   contributes nothing, and contributes nothing to anything computed from
+///   it either.
+/// * Only values this evaluator can fold are kept, so nothing here can invent
+///   a target that the single-expression path would have refused.
+///
+/// Only top-level `set`s are seen at all: a body is one braced word to the
+/// segmenter, so an assignment inside a `proc` or an `if` never enters the
+/// map and never has to be reasoned about.
+#[must_use]
+pub fn constant_path_vars(
+    source: &str,
+    dialect: &str,
+    info_script: Option<&str>,
+) -> HashMap<String, String> {
+    let assignments: Vec<(String, String)> = segment_commands_with_offset_and_config(
+        source,
+        0,
+        tcl_lexer::LexerConfig::for_dialect(dialect),
+    )
+    .into_iter()
+    .filter(|seg| seg.texts.len() == 3 && seg.texts[0] == "set")
+    .map(|seg| (seg.texts[1].clone(), seg.texts[2].clone()))
+    .collect();
+    let mut writes: HashMap<&str, usize> = HashMap::new();
+    for (name, _) in &assignments {
+        *writes.entry(name.as_str()).or_default() += 1;
+    }
+    let mut constants: HashMap<String, String> = HashMap::new();
+    for (name, raw) in &assignments {
+        if writes.get(name.as_str()) != Some(&1)
+            || name.contains('$')
+            || name.contains('[')
+            || name.contains("::")
+        {
+            continue;
+        }
+        // A literal keeps its own text: a path with spaces (`set d "my dir"`)
+        // is several words to the expression parser, which would reject it,
+        // but it is a perfectly good path.
+        let value = if carries_substitution(raw) {
+            evaluate_auto_path_expr_with_constants(raw, info_script, &constants)
+        } else {
+            Some(raw.clone())
+        };
+        if let Some(value) = value {
+            constants.insert(name.clone(), value);
+        }
+    }
+    constants
+}
+
+/// Replace every `$name` / `${name}` in `text` whose name is in `constants`,
+/// leaving unknown ones in place so the fold abstains on them, as it must.
+fn substitute_constants<S: std::hash::BuildHasher>(
+    text: &str,
+    constants: &HashMap<String, String, S>,
+) -> String {
+    if constants.is_empty() || !text.contains('$') {
+        return text.to_owned();
+    }
+    let bytes = text.as_bytes();
+    let mut out = String::with_capacity(text.len());
+    let mut i = 0usize;
+    while i < bytes.len() {
+        if bytes[i] != b'$' {
+            let ch_len = text[i..].chars().next().map_or(1, char::len_utf8);
+            out.push_str(&text[i..i + ch_len]);
+            i += ch_len;
+            continue;
+        }
+        let (name, next) = if bytes.get(i + 1) == Some(&b'{') {
+            match text[i + 2..].find('}') {
+                Some(rel) => (&text[i + 2..i + 2 + rel], i + 2 + rel + 1),
+                None => ("", i + 1),
+            }
+        } else {
+            let mut j = i + 1;
+            while j < bytes.len() && (bytes[j].is_ascii_alphanumeric() || bytes[j] == b'_') {
+                j += 1;
+            }
+            (&text[i + 1..j], j)
+        };
+        match constants.get(name) {
+            Some(value) if !name.is_empty() => {
+                out.push_str(value);
+                i = next;
+            }
+            _ => {
+                out.push('$');
+                i += 1;
+            }
+        }
+    }
+    out
+}
+
+fn evaluate_folded(raw: &str, info_script: Option<&str>) -> Option<String> {
     let raw = raw.trim();
     if raw.is_empty() {
         return None;
@@ -760,6 +914,85 @@ mod tests {
                 Some("/home/tester"),
             );
         });
+    }
+
+    // Chained single-assignment constants (issue #775).
+
+    /// A directory reached through an intermediate folds, so the whole chain
+    /// resolves — georgtree/SpiceGenTcl's own `SpiceGenTcl.tcl` shape.
+    ///
+    /// Oracle (tclsh 8.6.16 / 9.0.4): running `/proj/SpiceGenTcl.tcl`, `dir`
+    /// is `/proj` and `sourceDir` is `/proj/src`.
+    #[test]
+    fn constants_fold_through_a_chain() {
+        let src = "set dir [file dirname [file normalize [info script]]]\n\
+                   set libDir [file join $dir lib]\n\
+                   set sourceDir [file join $dir src]\n";
+        let constants = constant_path_vars(src, "tcl", Some("/proj/SpiceGenTcl.tcl"));
+        assert_eq!(constants.get("dir").map(String::as_str), Some("/proj"));
+        assert_eq!(
+            constants.get("libDir").map(String::as_str),
+            Some("/proj/lib")
+        );
+        assert_eq!(
+            constants.get("sourceDir").map(String::as_str),
+            Some("/proj/src"),
+        );
+        assert_eq!(
+            evaluate_auto_path_expr_with_constants(
+                "[file join $sourceDir ngspice x.tcl]",
+                Some("/proj/SpiceGenTcl.tcl"),
+                &constants,
+            )
+            .as_deref(),
+            Some("/proj/src/ngspice/x.tcl"),
+        );
+    }
+
+    /// Order matters: a value naming a constant established *later* does not
+    /// fold, because at that point in the file the name has no value.
+    #[test]
+    fn a_constant_used_before_it_is_assigned_does_not_fold() {
+        let src = "set early [file join $late x]\n\
+                   set late /opt\n";
+        let constants = constant_path_vars(src, "tcl", None);
+        assert_eq!(constants.get("late").map(String::as_str), Some("/opt"));
+        assert!(!constants.contains_key("early"), "{constants:?}");
+    }
+
+    /// A re-assigned name contributes nothing — and nothing computed from it
+    /// contributes either, since the poison is counted in a pre-pass rather
+    /// than as the walk goes.  Which value a later `source` sees is a flow
+    /// question this map does not answer.
+    #[test]
+    fn a_reassigned_name_poisons_itself_and_its_dependents() {
+        let src = "set dir /opt/a\n\
+                   set sub [file join $dir sub]\n\
+                   set dir /opt/b\n";
+        let constants = constant_path_vars(src, "tcl", None);
+        assert!(!constants.contains_key("dir"), "{constants:?}");
+        assert!(
+            !constants.contains_key("sub"),
+            "a value computed from a poisoned name must not survive: {constants:?}",
+        );
+    }
+
+    /// A literal keeps its own text, so a path with spaces survives — the
+    /// expression parser would reject it as several words.
+    #[test]
+    fn a_literal_with_spaces_stays_a_constant() {
+        let src = "set d {my dir}\nset sub [file join $d x]\n";
+        let constants = constant_path_vars(src, "tcl", None);
+        assert_eq!(constants.get("d").map(String::as_str), Some("my dir"));
+    }
+
+    /// Assignments inside a body are not top-level and never enter the map:
+    /// the segmenter sees the `proc` body as one braced word.
+    #[test]
+    fn a_set_inside_a_body_is_not_a_top_level_constant() {
+        let src = "proc p {} {\n    set inner /opt\n}\n";
+        let constants = constant_path_vars(src, "tcl", None);
+        assert!(!constants.contains_key("inner"), "{constants:?}");
     }
 
     #[test]

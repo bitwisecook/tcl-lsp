@@ -32,6 +32,15 @@ set currentDir [file normalize [file dirname [info script]]]
 source [file join $currentDir testUtilities.tcl]
 ```
 
+Those variables chain, so a directory reached through an intermediate
+links as readily as a direct one:
+
+```tcl
+set dir       [file dirname [file normalize [info script]]]
+set sourceDir [file join $dir src]
+source [file join $sourceDir generalClasses.tcl]
+```
+
 Only the file name — `testUtilities.tcl` — is underlined, not the whole
 `[file join …]` substitution. The substitution is code, with its own
 highlighting; an editor paints a link range in one flat link colour, so
@@ -49,8 +58,12 @@ underlining all of it would hide the colouring of `file`, `join`, and
   supported subset, so the provider abstains rather than guess a target.
   A directory built with a command the subset does not model — `file
   readlink`, `pwd`, `exec` — is the usual cause, as is one assigned by
-  more than one `set`, since which value a given `source` sees is a
-  question the provider does not ask.
+  more than one top-level `set`, since which value a given `source` sees
+  is a question the provider does not ask. A re-assigned directory also
+  stops anything computed from it resolving.
+- **No link when the directory is set inside a body.** Only top-level
+  `set` commands are read, so a directory assigned inside a `proc` or an
+  `if` is not known.
 - **No link on a relative `file normalize`.** `[file normalize lib]`
   resolves against the interpreter's working directory at run time,
   which is not knowable statically, so it does not fold. Anchor it —
