@@ -421,6 +421,192 @@ fn build_cfg(funcs: &[Value], post: bool) -> Vec<ViewNode> {
     }
 }
 
+fn build_dominators(d: &Value) -> Vec<ViewNode> {
+    let mut out = Vec::new();
+    for f in arr(d, "dominators") {
+        let blocks = arr(f, "blocks")
+            .iter()
+            .map(|b| {
+                ViewNode::leaf(
+                    format!(
+                        "{} idom={}",
+                        s(b, "block"),
+                        if b["idom"].is_null() {
+                            "—".to_owned()
+                        } else {
+                            s(b, "idom")
+                        }
+                    ),
+                    vec![
+                        det("frontier", join_str_array(&b["frontier"])),
+                        det("children", join_str_array(&b["children"])),
+                    ],
+                    Some("blue"),
+                )
+            })
+            .collect();
+        out.push(ViewNode::branch(
+            format!("function {} (entry {})", s(f, "name"), s(f, "entry")),
+            Vec::new(),
+            blocks,
+            Some("cyan"),
+        ));
+    }
+    if out.is_empty() {
+        vec![ViewNode::note("(no dominator data)", "dim")]
+    } else {
+        out
+    }
+}
+
+fn build_sccp(d: &Value) -> Vec<ViewNode> {
+    let mut out = Vec::new();
+    for f in arr(d, "sccp") {
+        let mut children = Vec::new();
+        for value in arr(f, "values") {
+            children.push(ViewNode::leaf(
+                format!(
+                    "{}#{} = {}",
+                    s(value, "variable"),
+                    s(value, "version"),
+                    s(value, "lattice")
+                ),
+                Vec::new(),
+                Some("green"),
+            ));
+        }
+        children.push(ViewNode::leaf(
+            format!(
+                "executable blocks: {}",
+                join_str_array(&f["executableBlocks"])
+            ),
+            vec![det(
+                "edges",
+                f["executableEdges"]
+                    .as_array()
+                    .map_or(0, Vec::len)
+                    .to_string(),
+            )],
+            Some("cyan"),
+        ));
+        for branch in arr(f, "constantBranches") {
+            children.push(ViewNode::leaf(
+                format!("branch {}: {}", s(branch, "block"), pystr(&branch["value"])),
+                vec![
+                    det("condition", s(branch, "condition")),
+                    det("take", s(branch, "takenTarget")),
+                ],
+                Some("blue"),
+            ));
+        }
+        out.push(ViewNode::branch(
+            format!("function {}", s(f, "name")),
+            Vec::new(),
+            children,
+            Some("cyan"),
+        ));
+    }
+    if out.is_empty() {
+        vec![ViewNode::note("(no SCCP data)", "dim")]
+    } else {
+        out
+    }
+}
+
+fn build_liveness(d: &Value) -> Vec<ViewNode> {
+    let mut out = Vec::new();
+    for f in arr(d, "liveness") {
+        let mut children = Vec::new();
+        for chain in arr(f, "chains") {
+            let uses = arr(chain, "uses");
+            children.push(ViewNode::leaf(
+                format!(
+                    "{}#{} ({} uses)",
+                    s(chain, "variable"),
+                    s(chain, "version"),
+                    uses.len()
+                ),
+                vec![
+                    det("definition", s(&chain["definition"], "block")),
+                    det("kind", s(&chain["definition"], "kind")),
+                    det(
+                        "use sites",
+                        uses.iter()
+                            .map(|u| format!("{}:{}", s(u, "block"), s(u, "kind")))
+                            .collect::<Vec<_>>()
+                            .join(", "),
+                    ),
+                ],
+                Some(if uses.is_empty() { "yellow" } else { "green" }),
+            ));
+        }
+        for dead in arr(f, "deadStores") {
+            children.push(ViewNode::leaf(
+                format!(
+                    "dead store {} {}#{}",
+                    s(dead, "block"),
+                    s(dead, "variable"),
+                    s(dead, "version")
+                ),
+                vec![det("statement", s(dead, "statementIndex"))],
+                Some("yellow"),
+            ));
+        }
+        out.push(ViewNode::branch(
+            format!("function {}", s(f, "name")),
+            Vec::new(),
+            children,
+            Some("cyan"),
+        ));
+    }
+    if out.is_empty() {
+        vec![ViewNode::note("(no liveness data)", "dim")]
+    } else {
+        out
+    }
+}
+
+fn build_semantic(d: &Value) -> Vec<ViewNode> {
+    let mut out = Vec::new();
+    for f in arr(d, "semantic") {
+        let mut children = Vec::new();
+        for block in arr(f, "blocks") {
+            let instructions = arr(block, "instructions")
+                .iter()
+                .map(|i| ViewNode::leaf(s(i, "kind"), Vec::new(), None))
+                .collect();
+            children.push(ViewNode::branch(
+                format!("block {} ({})", s(block, "index"), s(block, "terminator")),
+                Vec::new(),
+                instructions,
+                Some("blue"),
+            ));
+        }
+        for decline in arr(f, "opaque") {
+            children.push(ViewNode::leaf(
+                format!("opaque region {}", s(decline, "range")),
+                Vec::new(),
+                Some("yellow"),
+            ));
+        }
+        out.push(ViewNode::branch(
+            format!("{} [{}]", s(f, "name"), s(f, "status")),
+            vec![det("decline/proof", s(f, "decline"))],
+            children,
+            Some(if s(f, "status") == "available" {
+                "green"
+            } else {
+                "yellow"
+            }),
+        ));
+    }
+    if out.is_empty() {
+        vec![ViewNode::note("(no executable semantic data)", "dim")]
+    } else {
+        out
+    }
+}
+
 // --- Per-function tables ---
 
 /// Build per-function nodes from a list, skipping functions with no
@@ -1046,38 +1232,77 @@ fn build_taint(d: &Value) -> Vec<ViewNode> {
             Some("red"),
         ));
     }
-    for f in arr(d, "taintTracking") {
-        let ents: Vec<ViewNode> = arr(f, "entries")
-            .iter()
-            .map(|e| {
-                ViewNode::leaf(
-                    format!(
-                        "{}#{}: {}",
-                        s(e, "variable"),
-                        s(e, "version"),
-                        s(e, "taint")
-                    ),
-                    vec![
-                        det("variable", s(e, "variable")),
-                        det("version", s(e, "version")),
-                        det("taint", s(e, "taint")),
-                    ],
-                    None,
-                )
-            })
-            .collect();
-        out.push(ViewNode::branch(
-            format!("tracking {}", s(f, "name")),
-            Vec::new(),
-            ents,
-            Some("cyan"),
-        ));
-    }
     if out.is_empty() {
         vec![ViewNode::note("(no tainted data flows)", "dim")]
     } else {
         out
     }
+}
+
+fn build_taint_facts(d: &Value) -> Vec<ViewNode> {
+    let mut out = Vec::new();
+    for f in arr(d, "taintFacts") {
+        let entries = arr(f, "entries")
+            .iter()
+            .map(|entry| {
+                ViewNode::leaf(
+                    format!(
+                        "{}#{}: {}",
+                        s(entry, "variable"),
+                        s(entry, "version"),
+                        s(entry, "taint")
+                    ),
+                    Vec::new(),
+                    None,
+                )
+            })
+            .collect();
+        out.push(ViewNode::branch(
+            format!("function {}", s(f, "name")),
+            Vec::new(),
+            entries,
+            Some("cyan"),
+        ));
+    }
+    if out.is_empty() {
+        vec![ViewNode::note("(no taint lattice data)", "dim")]
+    } else {
+        out
+    }
+}
+
+fn build_connection_scope(d: &Value) -> Vec<ViewNode> {
+    let scope = &d["connectionScope"];
+    if !scope["available"].as_bool().unwrap_or(false) {
+        return vec![ViewNode::note("(no connection scope)", "dim")];
+    }
+    let mut out = vec![ViewNode::leaf(
+        "cross-event definitions/imports".to_owned(),
+        vec![
+            det("definitions", join_str_array(&scope["crossEventDefs"])),
+            det("imports", join_str_array(&scope["crossEventImports"])),
+            det(
+                "racy static definitions",
+                join_str_array(&scope["racyStaticDefs"]),
+            ),
+        ],
+        Some("yellow"),
+    )];
+    for summary in arr(scope, "summaries") {
+        out.push(ViewNode::leaf(
+            format!("event {}", s(summary, "event")),
+            vec![
+                det("definitions", join_str_array(&summary["defs"])),
+                det(
+                    "uses before definition",
+                    join_str_array(&summary["usesBeforeDef"]),
+                ),
+                det("unsets", join_str_array(&summary["unsets"])),
+            ],
+            Some("blue"),
+        ));
+    }
+    out
 }
 
 fn build_irules(d: &Value) -> Vec<ViewNode> {
@@ -1387,6 +1612,10 @@ pub fn build_view(view: &str, data: &Value) -> Vec<ViewNode> {
         "cfg" => build_cfg(arr(data, "cfgPreSsa"), false),
         "ssa" => build_cfg(arr(data, "cfgPostSsa"), true),
         "worldSsa" => build_world_ssa(data),
+        "dominators" => build_dominators(data),
+        "sccp" => build_sccp(data),
+        "liveness" => build_liveness(data),
+        "semantic" => build_semantic(data),
         "loops" => build_loops(data),
         "types" => build_types(data),
         "intervals" => build_intervals(data),
@@ -1402,7 +1631,9 @@ pub fn build_view(view: &str, data: &Value) -> Vec<ViewNode> {
         "gvn" => build_gvn(data),
         "shimmer" => build_shimmer(data),
         "taint" => build_taint(data),
+        "taintFacts" => build_taint_facts(data),
         "irules" => build_irules(data),
+        "connectionScope" => build_connection_scope(data),
         "eventOrder" => build_event_order(data),
         "callouts" => build_callouts(data),
         _ => Vec::new(),

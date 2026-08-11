@@ -33,6 +33,7 @@
 #![forbid(unsafe_code)]
 
 pub mod asm;
+pub mod coverage;
 pub mod cst;
 pub mod formatters;
 pub mod render;
@@ -55,10 +56,46 @@ use tcl_registry::registry_for_dialect;
 /// taint results, so the snapshot is just a named, ordered view onto the
 /// [`CompilationUnit`]'s function table (top-level first, then procedures
 /// in qualified-name order).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum FunctionSnapshotKind {
+    /// The compilation unit's top-level script.
+    TopLevel,
+    /// A named Tcl procedure.
+    Procedure,
+    /// A `TclOO` method.
+    Method,
+    /// A synthetic `apply`/`namespace eval` body.
+    BodyUnit,
+}
+
+impl FunctionSnapshotKind {
+    /// Stable JSON/display label for the function owner.
+    #[must_use]
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::TopLevel => "top-level",
+            Self::Procedure => "procedure",
+            Self::Method => "method",
+            Self::BodyUnit => "body-unit",
+        }
+    }
+
+    const fn rank(self) -> u8 {
+        match self {
+            Self::TopLevel => 0,
+            Self::Procedure => 1,
+            Self::Method => 2,
+            Self::BodyUnit => 3,
+        }
+    }
+}
+
 #[derive(Debug, Clone, Copy)]
 pub struct FunctionSnapshot<'a> {
     /// Qualified function name (`::top` for the top-level script).
     pub name: &'a str,
+    /// Stable owner kind, retained even when names collide across tables.
+    pub kind: FunctionSnapshotKind,
     /// The full per-function unit (CFG, SSA, analyses).
     pub unit: &'a FunctionUnit,
 }
@@ -92,6 +129,7 @@ impl ExplorerResult {
     pub fn snapshots(&self) -> Vec<FunctionSnapshot<'_>> {
         let mut out = vec![FunctionSnapshot {
             name: "::top",
+            kind: FunctionSnapshotKind::TopLevel,
             unit: &self.unit.top_level,
         }];
         let mut qnames: Vec<&String> = self.unit.procedures.keys().collect();
@@ -99,40 +137,51 @@ impl ExplorerResult {
         for qname in qnames {
             out.push(FunctionSnapshot {
                 name: qname,
+                kind: FunctionSnapshotKind::Procedure,
                 unit: &self.unit.procedures[qname],
             });
         }
         out
     }
 
-    /// Every source-faithful function body carrying executable/world facts.
+    /// Every durable function unit, including `TclOO` methods and synthetic
+    /// `apply`/`namespace eval` bodies, in deterministic qualified-name order.
     ///
-    /// Unlike [`Self::snapshots`], this includes `TclOO` methods and synthetic
-    /// body units (`apply` / `namespace eval`). It is deliberately opt-in so
-    /// existing aggregate compiler views retain their established procedure
-    /// scope while World SSA exposes every durable semantic sidecar.
+    /// Coverage-complete views use this iterator so a newly retained body unit
+    /// cannot disappear from the explorer merely because it lives outside
+    /// `CompilationUnit::procedures`.
     #[must_use]
-    pub fn semantic_snapshots(&self) -> Vec<FunctionSnapshot<'_>> {
+    pub fn all_snapshots(&self) -> Vec<FunctionSnapshot<'_>> {
         let mut out = self.snapshots();
-        let mut methods: Vec<&String> = self.unit.methods.keys().collect();
-        methods.sort();
-        out.extend(methods.into_iter().map(|name| FunctionSnapshot {
-            name,
-            unit: &self.unit.methods[name],
-        }));
-        let mut body_units: Vec<&String> = self.unit.body_units.keys().collect();
-        body_units.sort();
-        out.extend(body_units.into_iter().map(|name| FunctionSnapshot {
-            name,
-            unit: &self.unit.body_units[name],
-        }));
+        let mut extra: Vec<FunctionSnapshot<'_>> = self
+            .unit
+            .methods
+            .iter()
+            .map(|(name, unit)| FunctionSnapshot {
+                name,
+                kind: FunctionSnapshotKind::Method,
+                unit,
+            })
+            .chain(
+                self.unit
+                    .body_units
+                    .iter()
+                    .map(|(name, unit)| FunctionSnapshot {
+                        name,
+                        kind: FunctionSnapshotKind::BodyUnit,
+                        unit,
+                    }),
+            )
+            .collect();
+        extra.sort_by(|a, b| a.name.cmp(b.name).then(a.kind.rank().cmp(&b.kind.rank())));
+        out.extend(extra);
         out
     }
 
     /// Total basic-block count across every function.
     #[must_use]
     pub fn total_blocks(&self) -> usize {
-        self.snapshots()
+        self.all_snapshots()
             .iter()
             .map(FunctionSnapshot::block_count)
             .sum()
