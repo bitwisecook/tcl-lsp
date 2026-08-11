@@ -163,6 +163,25 @@ The shape above is additive.  Consumers that don't understand a new
 field must ignore it; producers must never repurpose an existing field
 name with a different type.  When fields change meaning, rename them.
 
+## View descriptors and World SSA
+
+`meta.views` is the ordered Explorer view catalogue. Every entry carries an
+`id`, `label`, `payload`, `group`, and `renderKind`. Consumers use it to reconcile their
+tabs: a view without a bespoke renderer remains visible through the shared
+structured fallback rather than being silently omitted.
+
+`worldSsa` is an array of per-function compiler semantic sidecars. Each entry
+always has an `availability` object with a stable `kind`, `hasExecutableIr`,
+and optional typed `reasonKind`. When the graph is available, `locations` keep
+the precise domain, interpreter, namespace, subject, and external-resource
+identity; `operations` carry state versions plus node, CFG, or edge sites.
+`phi` operations include explicit predecessor versions and `includesInitial`.
+Resolved invocation entries retain registry-projected transitions, their
+completion commit policy, abrupt-edge transfer, and the typed proof inputs
+(result stability and dispatch dependencies) needed to explain a GVN reuse or
+abstention. A decline is data, not an empty proof: consumers must show it and
+must not infer that no mutable world state exists.
+
 ## Consumer resilience
 
 Producer and consumer ship in the same binary but are versioned by hand, and

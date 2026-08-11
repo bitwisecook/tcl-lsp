@@ -30,6 +30,8 @@ use serde_json::{Map, Value, json};
 use tcl_compiler::cfg::{Function, Terminator};
 use tcl_compiler::cfg_layout::{build_cfg_edges, ordered_block_names};
 use tcl_compiler::dataflow_graph::{FunctionInputs, extract_dataflow_graph};
+use tcl_compiler::effect_ssa::WorldStateIntentKind;
+use tcl_compiler::executable_ir::InvocationResolution;
 use tcl_compiler::gvn::{
     find_loop_invariants_for_cu, find_partial_redundancies_for_cu, find_redundancies_for_cu,
 };
@@ -44,11 +46,17 @@ use tcl_compiler::irules_checks::{
 use tcl_compiler::loops::{build_loop_forest, dominates};
 use tcl_compiler::optimiser::{apply_optimisations, find_dead_stores, optimise, optimise_by_pass};
 use tcl_compiler::segmenter::{segment_commands, segment_commands_with_offset_and_config};
+use tcl_compiler::semantic_analysis::ExecutableAnalysisAvailability;
 use tcl_compiler::shimmer::{
     find_byte_array_warnings_for_cu, find_sharing_warnings_for_cu, find_shimmer_warnings_for_cu,
     find_thunking_warnings_for_cu, type_name,
 };
+use tcl_compiler::state_ssa::adapters::{
+    WorldInterpreterScope, WorldNamespaceScope, WorldRegion, WorldRegionKind, WorldSubjectScope,
+};
+use tcl_compiler::state_ssa::{CfgStatePosition, StateOp, StateSite};
 use tcl_compiler::taint::find_taint_warnings_for_cu;
+use tcl_compiler::world_state_ssa::project_transition_facts;
 use tcl_lexer::{LexerConfig, LineIndex, Span, TokenType};
 use tcl_registry::{available_dialects, registry_for_dialect};
 use tcl_syntax::expr::ast::render_expr;
@@ -70,7 +78,15 @@ pub fn serialise_meta() -> Value {
         .collect();
     let views: Vec<Value> = VIEW_META
         .iter()
-        .map(|&(id, label, group)| json!({ "id": id, "label": label, "group": group }))
+        .map(|view| {
+            json!({
+                "id": view.id,
+                "label": view.label,
+                "payload": view.payload,
+                "group": view.group,
+                "renderKind": view.render_kind.as_str(),
+            })
+        })
         .collect();
     let severities: Vec<Value> = Severity::ALL
         .iter()
@@ -485,6 +501,365 @@ fn optimised_result(result: &ExplorerResult) -> Option<(crate::ExplorerResult, S
     }
     let unit = crate::run_pipeline(&optimised, &result.dialect);
     Some((unit, optimised))
+}
+
+/// The stable name of a tracked mutable-world domain.
+fn world_domain_name(kind: WorldRegionKind) -> &'static str {
+    match kind {
+        WorldRegionKind::InterpreterTopology => "interpreter-topology",
+        WorldRegionKind::CommandBindings => "command-bindings",
+        WorldRegionKind::NamespaceLookup => "namespace-lookup",
+        WorldRegionKind::NamespaceUnknown => "namespace-unknown",
+        WorldRegionKind::ExecutionTraces => "execution-traces",
+        WorldRegionKind::VariableTraces => "variable-traces",
+        WorldRegionKind::CommandTraces => "command-traces",
+        WorldRegionKind::ObjectDispatch => "object-dispatch",
+        WorldRegionKind::InterpreterPolicy => "interpreter-policy",
+        WorldRegionKind::PackageState => "package-state",
+        WorldRegionKind::HostCapabilities => "host-capabilities",
+        WorldRegionKind::VariableStore => "variable-store",
+        WorldRegionKind::ExternalResource(_) => "external-resource",
+    }
+}
+
+fn serialise_interpreter_scope(scope: &WorldInterpreterScope) -> Value {
+    match scope {
+        WorldInterpreterScope::Current => json!({ "kind": "current" }),
+        WorldInterpreterScope::Named(name) => json!({ "kind": "named", "name": name }),
+        WorldInterpreterScope::Any => json!({ "kind": "any" }),
+    }
+}
+
+fn serialise_namespace_scope(scope: &WorldNamespaceScope) -> Value {
+    match scope {
+        WorldNamespaceScope::Current => json!({ "kind": "current" }),
+        WorldNamespaceScope::Named(name) => json!({ "kind": "named", "name": name }),
+        WorldNamespaceScope::Any => json!({ "kind": "any" }),
+    }
+}
+
+fn serialise_subject_scope(scope: &WorldSubjectScope) -> Value {
+    match scope {
+        WorldSubjectScope::Named(name) => json!({ "kind": "named", "name": name }),
+        WorldSubjectScope::Wildcard => json!({ "kind": "wildcard" }),
+    }
+}
+
+/// Serialise a typed world-state location without falling back to a display
+/// string.  Consumers can therefore distinguish a literal identity from a
+/// dynamic wildcard, which is essential when explaining a GVN abstention.
+fn serialise_world_region(region: &WorldRegion) -> Value {
+    match region {
+        WorldRegion::Scoped {
+            kind,
+            interpreter,
+            namespace,
+            subject,
+        } => {
+            let mut value = json!({
+                "kind": "scoped",
+                "domain": world_domain_name(*kind),
+                "interpreter": serialise_interpreter_scope(interpreter),
+                "namespace": serialise_namespace_scope(namespace),
+                "subject": serialise_subject_scope(subject),
+            });
+            if let WorldRegionKind::ExternalResource(target) = kind {
+                // The external resource partition is an established registry
+                // enum, not an untyped all-external bucket. Retain its exact
+                // identity even though it has no Tcl namespace component.
+                value["externalTarget"] = json!(target.as_str());
+            }
+            value
+        }
+        WorldRegion::InterpreterWildcard { interpreter } => json!({
+            "kind": "interpreter-wildcard",
+            "domain": "all",
+            "interpreter": serialise_interpreter_scope(interpreter),
+        }),
+        WorldRegion::NamespaceSubtree {
+            interpreter,
+            namespace,
+        } => json!({
+            "kind": "namespace-subtree",
+            "domain": "namespace-owned",
+            "interpreter": serialise_interpreter_scope(interpreter),
+            "namespace": serialise_namespace_scope(namespace),
+        }),
+        WorldRegion::NamespaceLineage {
+            interpreter,
+            namespace,
+        } => json!({
+            "kind": "namespace-lineage",
+            "domain": "namespace-lookup",
+            "interpreter": serialise_interpreter_scope(interpreter),
+            "namespace": serialise_namespace_scope(namespace),
+        }),
+        WorldRegion::Any => json!({ "kind": "any", "domain": "all" }),
+    }
+}
+
+fn serialise_cfg_position(position: CfgStatePosition) -> Value {
+    match position {
+        CfgStatePosition::Phi { ordinal } => json!({ "kind": "phi", "ordinal": ordinal }),
+        CfgStatePosition::Statement { index, ordinal } => {
+            json!({ "kind": "statement", "index": index, "ordinal": ordinal })
+        }
+        CfgStatePosition::Terminator { ordinal } => {
+            json!({ "kind": "terminator", "ordinal": ordinal })
+        }
+    }
+}
+
+fn serialise_state_site(site: &StateSite) -> Value {
+    match site {
+        StateSite::Node { node, ordinal } => {
+            json!({ "kind": "node", "path": node.path(), "ordinal": ordinal })
+        }
+        StateSite::Cfg(cfg) => json!({
+            "kind": "cfg",
+            "block": cfg.block.0,
+            "position": serialise_cfg_position(cfg.position),
+        }),
+        StateSite::Edge(edge) => json!({
+            "kind": "edge",
+            "predecessor": edge.predecessor.0,
+            "successor": edge.successor.0,
+            "origin": serialise_cfg_position(edge.origin),
+        }),
+    }
+}
+
+fn serialise_world_operation(operation: &StateOp<WorldRegion>) -> Value {
+    let mut value = json!({
+        "kind": match operation {
+            StateOp::Use(_) => "use",
+            StateOp::Def(_) => "def",
+            StateOp::Phi(_) => "phi",
+            StateOp::Clobber(_) => "clobber",
+        },
+        "location": serialise_world_region(operation.location()),
+        "site": serialise_state_site(operation.site()),
+        "version": operation.version().raw(),
+        "definesVersion": operation.defines_version(),
+    });
+    match operation {
+        StateOp::Use(use_op) => value["reachingVersion"] = json!(use_op.reaching_version.raw()),
+        StateOp::Phi(phi) => {
+            value["incoming"] = Value::Array(
+                phi.incoming
+                    .iter()
+                    .map(|(block, version)| json!({ "block": block.0, "version": version.raw() }))
+                    .collect(),
+            );
+            value["includesInitial"] = json!(phi.includes_initial());
+        }
+        StateOp::Def(_) | StateOp::Clobber(_) => {}
+    }
+    value
+}
+
+fn transition_kind_name(transition: &tcl_registry::StateTransition) -> &'static str {
+    match transition {
+        tcl_registry::StateTransition::CommandBinding(_) => "command-binding",
+        tcl_registry::StateTransition::Interpreter(_) => "interpreter",
+        tcl_registry::StateTransition::VariableCellAlias(_) => "variable-cell-alias",
+        tcl_registry::StateTransition::Namespace(_) => "namespace",
+        tcl_registry::StateTransition::Trace(_) => "trace",
+        tcl_registry::StateTransition::ObjectDispatch(_) => "object-dispatch",
+        tcl_registry::StateTransition::Widen(_) => "widen",
+    }
+}
+
+fn registry_world_domain_name(domain: tcl_registry::WorldStateDomain) -> String {
+    match domain {
+        tcl_registry::WorldStateDomain::InterpreterTopology => "interpreter-topology".to_owned(),
+        tcl_registry::WorldStateDomain::CommandBindings => "command-bindings".to_owned(),
+        tcl_registry::WorldStateDomain::NamespaceLookup => "namespace-lookup".to_owned(),
+        tcl_registry::WorldStateDomain::NamespaceUnknown => "namespace-unknown".to_owned(),
+        tcl_registry::WorldStateDomain::ExecutionTraces => "execution-traces".to_owned(),
+        tcl_registry::WorldStateDomain::VariableTraces => "variable-traces".to_owned(),
+        tcl_registry::WorldStateDomain::CommandTraces => "command-traces".to_owned(),
+        tcl_registry::WorldStateDomain::OoDispatch => "object-dispatch".to_owned(),
+        tcl_registry::WorldStateDomain::InterpreterPolicy => "interpreter-policy".to_owned(),
+        tcl_registry::WorldStateDomain::PackageState => "package-state".to_owned(),
+        tcl_registry::WorldStateDomain::HostCapabilities => "host-capabilities".to_owned(),
+        tcl_registry::WorldStateDomain::VariableStore => "variable-store".to_owned(),
+        tcl_registry::WorldStateDomain::LegacyExternal(target) => {
+            format!("external-resource:{}", target.as_str())
+        }
+    }
+}
+
+fn serialise_result_stability(stability: tcl_registry::ResultStability) -> Value {
+    match stability {
+        tcl_registry::ResultStability::Unknown => json!({ "kind": "unknown", "domains": [] }),
+        tcl_registry::ResultStability::ReferentiallyTransparent => {
+            json!({ "kind": "referentially-transparent", "domains": [] })
+        }
+        tcl_registry::ResultStability::ReadsVersionedWorld(domains) => json!({
+            "kind": "reads-versioned-world",
+            "domains": domains.iter().copied().map(registry_world_domain_name).collect::<Vec<_>>(),
+        }),
+        tcl_registry::ResultStability::Volatile => json!({ "kind": "volatile", "domains": [] }),
+    }
+}
+
+fn dispatch_dependency_name(domain: tcl_registry::DispatchDependencyDomain) -> &'static str {
+    match domain {
+        tcl_registry::DispatchDependencyDomain::CommandBinding => "command-binding",
+        tcl_registry::DispatchDependencyDomain::NamespaceLookup => "namespace-lookup",
+        tcl_registry::DispatchDependencyDomain::CommandTraces => "command-traces",
+        tcl_registry::DispatchDependencyDomain::InterpreterPolicy => "interpreter-policy",
+        tcl_registry::DispatchDependencyDomain::ObjectDispatch => "object-dispatch",
+        tcl_registry::DispatchDependencyDomain::UnknownHandling => "unknown-handling",
+    }
+}
+
+fn serialise_world_invocations(availability: &ExecutableAnalysisAvailability) -> Value {
+    Value::Array(
+        availability
+            .invocations()
+            .map(|invoke| match &invoke.resolution {
+                InvocationResolution::Resolved(facts) => {
+                    let (transition_knowledge, transitions) = facts.state_transitions.declared().map_or_else(
+                        || ("unknown", Vec::new()),
+                        |declared| (
+                            "declared",
+                            declared
+                                .facts()
+                                .iter()
+                                .map(|fact| {
+                                    let intents = project_transition_facts(std::slice::from_ref(fact));
+                                    let (commit, abrupt_transfer) = match fact.commit {
+                                        tcl_registry::StateTransitionCommit::OnOkOnly => ("on-ok-only", "unchanged"),
+                                        tcl_registry::StateTransitionCommit::MayCommitBeforeAbruptCompletion => {
+                                            ("may-commit-before-abrupt-completion", "join-with-transition")
+                                        }
+                                    };
+                                    json!({
+                                        "kind": transition_kind_name(&fact.transition),
+                                        "commit": commit,
+                                        "abruptTransfer": abrupt_transfer,
+                                        "intents": intents.into_iter().map(|intent| json!({
+                                            "kind": match intent.kind {
+                                                WorldStateIntentKind::Use => "use",
+                                                WorldStateIntentKind::Def => "def",
+                                                WorldStateIntentKind::Clobber => "clobber",
+                                            },
+                                            "location": serialise_world_region(&intent.location),
+                                            "commit": match intent.commit {
+                                                tcl_registry::StateTransitionCommit::OnOkOnly => "on-ok-only",
+                                                tcl_registry::StateTransitionCommit::MayCommitBeforeAbruptCompletion => "may-commit-before-abrupt-completion",
+                                            },
+                                        })).collect::<Vec<_>>(),
+                                    })
+                                })
+                                .collect(),
+                        ),
+                    );
+                    json!({
+                        "resolution": "resolved",
+                        "command": facts.canonical_command,
+                        "node": invoke.node.path(),
+                        "completion": invoke.completion.index(),
+                        "transitionKnowledge": transition_knowledge,
+                        "transitions": transitions,
+                        "proof": {
+                            "resultStability": serialise_result_stability(facts.result_stability),
+                            "dispatchDependencies": facts.dispatch_dependencies.iter()
+                                .map(dispatch_dependency_name).collect::<Vec<_>>(),
+                            "argumentRolesComplete": facts.arg_roles_complete,
+                        },
+                    })
+                }
+                InvocationResolution::Unresolved(reason) => {
+                    let abstention = match reason {
+                        tcl_compiler::registry_invocation::OwnedInvocationResolutionUnresolved::ComputedHead { .. } => "computed-head",
+                        tcl_compiler::registry_invocation::OwnedInvocationResolutionUnresolved::UnknownLiteralHead { .. } => "unknown-literal-head",
+                    };
+                    json!({
+                        "resolution": "unresolved",
+                        "node": invoke.node.path(),
+                        "completion": invoke.completion.index(),
+                        "proof": { "abstention": abstention },
+                    })
+                }
+            })
+            .collect(),
+    )
+}
+
+fn availability_kind(availability: &ExecutableAnalysisAvailability) -> &'static str {
+    match availability {
+        ExecutableAnalysisAvailability::DialectUnavailable { .. } => "dialect-unavailable",
+        ExecutableAnalysisAvailability::Available(_) => "available",
+        ExecutableAnalysisAvailability::WorldStateDeclined { .. } => "world-state-declined",
+        ExecutableAnalysisAvailability::WorldStateNotRequired { .. } => "world-state-not-required",
+        ExecutableAnalysisAvailability::SourceDeclined(_) => "source-declined",
+        ExecutableAnalysisAvailability::SourceUnavailable => "source-unavailable",
+    }
+}
+
+fn availability_reason_kind(availability: &ExecutableAnalysisAvailability) -> Option<&'static str> {
+    match availability {
+        ExecutableAnalysisAvailability::DialectUnavailable { .. }
+        | ExecutableAnalysisAvailability::Available(_)
+        | ExecutableAnalysisAvailability::WorldStateNotRequired { .. }
+        | ExecutableAnalysisAvailability::SourceUnavailable => None,
+        ExecutableAnalysisAvailability::WorldStateDeclined { decline, .. } => Some(match decline {
+            tcl_compiler::world_state_ssa::WorldStateSsaDecline::InvalidExecutableIr(_) => "invalid-executable-ir",
+            tcl_compiler::world_state_ssa::WorldStateSsaDecline::BlockIdOverflow { .. } => "block-id-overflow",
+            tcl_compiler::world_state_ssa::WorldStateSsaDecline::StateSiteOverflow { .. } => "state-site-overflow",
+            tcl_compiler::world_state_ssa::WorldStateSsaDecline::MissingCompletionSwitch { .. } => "missing-completion-switch",
+            tcl_compiler::world_state_ssa::WorldStateSsaDecline::CompletionSwitchMismatch { .. } => "completion-switch-mismatch",
+            tcl_compiler::world_state_ssa::WorldStateSsaDecline::MissingOkCompletionEdge { .. } => "missing-ok-completion-edge",
+            tcl_compiler::world_state_ssa::WorldStateSsaDecline::MissingCfgEdge { .. } => "missing-cfg-edge",
+            tcl_compiler::world_state_ssa::WorldStateSsaDecline::MissingStatePredecessor { .. } => "missing-state-predecessor",
+            tcl_compiler::world_state_ssa::WorldStateSsaDecline::MissingStateVersion => "missing-state-version",
+            tcl_compiler::world_state_ssa::WorldStateSsaDecline::InvalidStateSsa(_) => "invalid-state-ssa",
+        }),
+        ExecutableAnalysisAvailability::SourceDeclined(decline) => Some(match decline {
+            tcl_compiler::executable_ir::SourceCompatibilityDecline::EmptyScript => "empty-script",
+            tcl_compiler::executable_ir::SourceCompatibilityDecline::UnsupportedStatement { .. } => "unsupported-statement",
+            tcl_compiler::executable_ir::SourceCompatibilityDecline::MissingCommandTokens { .. } => "missing-command-tokens",
+            tcl_compiler::executable_ir::SourceCompatibilityDecline::InconsistentCommandTokens { .. } => "inconsistent-command-tokens",
+            tcl_compiler::executable_ir::SourceCompatibilityDecline::MissingCommandHead { .. } => "missing-command-head",
+            tcl_compiler::executable_ir::SourceCompatibilityDecline::IncompleteRegistryResolution { .. } => "incomplete-registry-resolution",
+        }),
+    }
+}
+
+/// Serialise the compiler's existing typed world-state SSA sidecar.
+///
+/// The availability discriminant is always emitted, including every decline,
+/// so front ends explain why proof data is absent rather than treating absent
+/// operations as proof that no mutable world state exists.
+fn serialise_world_ssa(result: &ExplorerResult) -> Value {
+    Value::Array(
+        result
+            .semantic_snapshots()
+            .into_iter()
+            .map(|snapshot| {
+                let availability = snapshot.unit.semantic_facts.executable();
+                let state = availability.world_state_ssa();
+                json!({
+                    "name": snapshot.name,
+                    "availability": {
+                        "kind": availability_kind(availability),
+                        "hasExecutableIr": availability.function().is_some(),
+                        "reasonKind": availability_reason_kind(availability),
+                    },
+                    "locations": state.map_or_else(Vec::new, |state| {
+                        state.locations.iter().map(serialise_world_region).collect()
+                    }),
+                    "operations": state.map_or_else(Vec::new, |state| {
+                        state.state.operations().iter().map(serialise_world_operation).collect()
+                    }),
+                    "invocations": serialise_world_invocations(availability),
+                })
+            })
+            .collect(),
+    )
 }
 
 /// Serialise the `gvn` view: redundant-computation hints (GVN/CSE + PRE +
@@ -1846,6 +2221,7 @@ pub fn serialise_result(result: &ExplorerResult) -> Value {
         );
     }
     out.insert("unitScope".to_owned(), serialise_unit_scope(result));
+    out.insert("worldSsa".to_owned(), serialise_world_ssa(result));
     out.insert("types".to_owned(), serialise_types(result));
     // Honour the document's dialect so the CST and segment views tokenise
     // `{*}` / iRules braces the same way the rest of the pipeline does.
@@ -1967,16 +2343,16 @@ mod tests {
         let meta = serialise_meta();
         // 16 dialects: the prior 15 + `tcl9.1` (the Tcl 9.1 sync).
         assert_eq!(meta["dialects"].as_array().unwrap().len(), 16);
-        // 27 views: the base 24 minus the dropped `greentree` tab (Rust has a
+        // 28 views: the base 24 minus the dropped `greentree` tab (Rust has a
         // single red-green CST) plus the Rust-native `structuralIndex`,
         // `sourceMap`, and `optimiserPasses` views, plus `unitScope`
         // (issue #977's cross-file caller evidence).
-        assert_eq!(meta["views"].as_array().unwrap().len(), 27);
+        assert_eq!(meta["views"].as_array().unwrap().len(), 28);
         assert_eq!(meta["severities"], json!(["error", "warning", "info"]));
         // The parse-tree tab is the CST; there is no `greentree` entry.
         assert_eq!(
             meta["views"][0],
-            json!({ "id": "cst", "label": "CST", "group": "compiler" })
+            json!({ "id": "cst", "label": "CST", "payload": "cst", "group": "compiler", "renderKind": "frontend" })
         );
         assert!(
             !meta["views"]
@@ -2019,6 +2395,63 @@ mod tests {
             json!([]),
             "the `$cmd dev` dispatch also reaches helper, with a differing literal",
         );
+    }
+
+    #[test]
+    fn world_ssa_view_keeps_versions_transitions_and_typed_availability() {
+        let data = serialise_result(&run_pipeline("puts hello\n", "tcl9.0"));
+        let top = data["worldSsa"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|function| function["name"] == "::top")
+            .expect("top-level world sidecar");
+        assert!(
+            top["availability"]["hasExecutableIr"].as_bool().unwrap(),
+            "the availability payload must distinguish an absent graph from absent executable IR"
+        );
+        assert!(top["availability"]["kind"].is_string());
+        assert!(
+            !top["operations"].as_array().unwrap().is_empty(),
+            "Explorer explicitly requests deep World SSA rather than the interactive no-graph path: {top}",
+        );
+        assert!(
+            top["operations"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .all(|operation| {
+                    operation["location"]["domain"].is_string()
+                        && operation["version"].is_number()
+                        && operation["site"]["kind"].is_string()
+                }),
+            "world operations keep structured location, version, and CFG/site evidence",
+        );
+    }
+
+    #[test]
+    fn world_ssa_decline_preserves_transition_policy_evidence() {
+        let data = serialise_result(&run_pipeline(
+            "interp create child\ninterp hide child puts\n",
+            "tcl9.0",
+        ));
+        let top = data["worldSsa"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|function| function["name"] == "::top")
+            .unwrap();
+        assert_eq!(top["availability"]["kind"], "world-state-declined");
+        let transition = top["invocations"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .flat_map(|invoke| invoke["transitions"].as_array().unwrap())
+            .next()
+            .expect("registry transition projection");
+        assert!(transition["kind"].is_string());
+        assert!(transition["commit"].is_string());
+        assert!(transition["abruptTransfer"].is_string());
     }
 
     #[test]

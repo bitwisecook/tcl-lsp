@@ -68,6 +68,34 @@ suite("Compiler Explorer webview", () => {
     }
   });
 
+  test("reconciles registry-described views with a generic fallback", () => {
+    assert.ok(
+      core.includes("function reconcileExplorerViews"),
+      "shared Explorer core must derive missing panes from meta.views",
+    );
+    assert.ok(
+      core.includes("function renderGenericExplorerView"),
+      "a registry-described view without a bespoke renderer must remain visible",
+    );
+    const renderAll = html.slice(html.indexOf("function renderAll()"));
+    assert.ok(renderAll.includes("reconcileExplorerViews()"));
+    assert.ok(renderAll.includes("renderGenericExplorerView(view)"));
+    for (const alias of [
+      "structuralIndex: 'structural-index'",
+      "sourceMap: 'source-map'",
+      "eventOrder: 'event-order'",
+    ]) {
+      assert.ok(
+        core.includes(alias),
+        `descriptor ${alias} must reuse its existing pane instead of creating a duplicate tab`,
+      );
+    }
+    assert.ok(
+      core.includes("data[view.payload || view.id]"),
+      "generic views must use the descriptor-owned JSON payload key",
+    );
+  });
+
   test("the spinner is cleared in a finally so a render failure cannot wedge it", () => {
     const handler = html.slice(html.indexOf("case 'result':"));
     const caseBody = handler.slice(0, handler.indexOf("case 'error':"));

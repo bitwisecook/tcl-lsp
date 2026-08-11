@@ -121,6 +121,57 @@ pub enum SideEffectTarget {
     Unknown,
 }
 
+impl SideEffectTarget {
+    /// Stable registry vocabulary for serialised effect and world-state views.
+    #[must_use]
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::Variable => "variable",
+            Self::SessionTable => "session-table",
+            Self::PersistenceTable => "persistence-table",
+            Self::DataGroup => "data-group",
+            Self::HttpHeader => "http-header",
+            Self::HttpBody => "http-body",
+            Self::HttpStatus => "http-status",
+            Self::HttpUri => "http-uri",
+            Self::HttpCookie => "http-cookie",
+            Self::HttpMethod => "http-method",
+            Self::Http2State => "http2-state",
+            Self::ResponseCommit => "response-commit",
+            Self::ConnectionControl => "connection-control",
+            Self::TcpState => "tcp-state",
+            Self::SslState => "ssl-state",
+            Self::UdpState => "udp-state",
+            Self::PoolSelection => "pool-selection",
+            Self::NodeSelection => "node-selection",
+            Self::SnatSelection => "snat-selection",
+            Self::FileIo => "file-io",
+            Self::NetworkIo => "network-io",
+            Self::LogIo => "log-io",
+            Self::StreamProfile => "stream-profile",
+            Self::DnsState => "dns-state",
+            Self::ClassificationState => "classification-state",
+            Self::Dosl7State => "dosl7-state",
+            Self::FlowState => "flow-state",
+            Self::LsnState => "lsn-state",
+            Self::FtpState => "ftp-state",
+            Self::IcapState => "icap-state",
+            Self::MessageState => "message-state",
+            Self::IStats => "istats",
+            Self::ApmState => "apm-state",
+            Self::AsmState => "asm-state",
+            Self::BigipConfig => "bigip-config",
+            Self::ProcDefinition => "proc-definition",
+            Self::NamespaceState => "namespace-state",
+            Self::InterpState => "interp-state",
+            Self::Process => "process",
+            Self::ChannelIo => "channel-io",
+            Self::EventControl => "event-control",
+            Self::Unknown => "unknown",
+        }
+    }
+}
+
 /// Which connection side a command operates on (iRules).
 ///
 /// Variant names match the consumer's

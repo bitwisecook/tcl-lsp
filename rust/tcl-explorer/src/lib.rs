@@ -105,6 +105,30 @@ impl ExplorerResult {
         out
     }
 
+    /// Every source-faithful function body carrying executable/world facts.
+    ///
+    /// Unlike [`Self::snapshots`], this includes `TclOO` methods and synthetic
+    /// body units (`apply` / `namespace eval`). It is deliberately opt-in so
+    /// existing aggregate compiler views retain their established procedure
+    /// scope while World SSA exposes every durable semantic sidecar.
+    #[must_use]
+    pub fn semantic_snapshots(&self) -> Vec<FunctionSnapshot<'_>> {
+        let mut out = self.snapshots();
+        let mut methods: Vec<&String> = self.unit.methods.keys().collect();
+        methods.sort();
+        out.extend(methods.into_iter().map(|name| FunctionSnapshot {
+            name,
+            unit: &self.unit.methods[name],
+        }));
+        let mut body_units: Vec<&String> = self.unit.body_units.keys().collect();
+        body_units.sort();
+        out.extend(body_units.into_iter().map(|name| FunctionSnapshot {
+            name,
+            unit: &self.unit.body_units[name],
+        }));
+        out
+    }
+
     /// Total basic-block count across every function.
     #[must_use]
     pub fn total_blocks(&self) -> usize {
@@ -133,7 +157,12 @@ pub fn run_pipeline(source: &str, dialect: &str) -> ExplorerResult {
     // `aliases` list degrades to empty.
     let unit = CompilationUnit::build_for_dialect(source, registry, false, dialect)
         .with_interprocedural(registry, Some(dialect))
-        .with_memory_ssa(registry, DialectProfile::by_name(dialect).availability_mask);
+        .with_memory_ssa(registry, DialectProfile::by_name(dialect).availability_mask)
+        // The ordinary compiler path builds world SSA only when interactive
+        // GVN can consume it. Explorer is an explicit inspection surface, so
+        // it asks for the complete source-faithful sidecar and displays typed
+        // declines rather than silently presenting an empty graph.
+        .with_deep_semantic_analysis(registry, DialectProfile::by_name(dialect).availability_mask);
 
     ExplorerResult {
         source: source.to_owned(),

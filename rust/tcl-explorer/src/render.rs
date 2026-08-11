@@ -31,7 +31,8 @@
 
 use serde_json::Value;
 
-use crate::view_tree::{TREE_VIEWS, ViewNode, build_view};
+use crate::view_tree::{ViewNode, build_view};
+use crate::views::tree_view_ids;
 
 const RESET: &str = "\x1b[0m";
 
@@ -73,7 +74,7 @@ fn paint(text: &str, style: Option<&str>, use_colour: bool) -> String {
 #[must_use]
 pub fn render_all(data: &Value, show: &[String], use_colour: bool) -> String {
     let mut out = String::new();
-    for &view in TREE_VIEWS {
+    for view in tree_view_ids() {
         if !selected(view, show) {
             continue;
         }
@@ -221,9 +222,10 @@ mod tests {
 
     #[test]
     fn render_all_includes_headers_and_asm() {
-        let d = data("set x 1");
+        let d = data("interp create child");
         let text = render_all(&d, &[], false);
         assert!(text.contains("=== ir ==="));
+        assert!(text.contains("=== worldSsa ==="));
         assert!(text.contains("=== asm ==="));
         assert!(text.contains("=== wasm ==="));
     }
