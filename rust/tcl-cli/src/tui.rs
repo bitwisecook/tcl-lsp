@@ -60,7 +60,7 @@ macro_rules! dec_reset {
     };
 }
 
-use tcl_explorer::view_tree::TREE_VIEWS;
+use tcl_explorer::views::tree_view_ids;
 use tcl_explorer::{ViewNode, build_view};
 
 /// One visible (un-collapsed) tree row.
@@ -74,6 +74,7 @@ struct VisibleRow {
 /// Explorer TUI state — pure; no terminal I/O.
 struct App {
     data: Value,
+    views: Vec<&'static str>,
     view_idx: usize,
     roots: Vec<ViewNode>,
     expanded: HashSet<Vec<usize>>,
@@ -82,11 +83,13 @@ struct App {
 
 impl App {
     fn new(data: Value) -> Self {
+        let views: Vec<_> = tree_view_ids().collect();
         // Open on `ir` — the IR is the most useful entry point into the views.
-        let view_idx = TREE_VIEWS.iter().position(|v| *v == "ir").unwrap_or(0);
-        let roots = build_view(TREE_VIEWS[view_idx], &data);
+        let view_idx = views.iter().position(|v| *v == "ir").unwrap_or(0);
+        let roots = build_view(views[view_idx], &data);
         Self {
             data,
+            views,
             view_idx,
             roots,
             expanded: HashSet::new(),
@@ -95,13 +98,13 @@ impl App {
     }
 
     fn current_view(&self) -> &'static str {
-        TREE_VIEWS[self.view_idx]
+        self.views[self.view_idx]
     }
 
     /// Switch to view `idx` (wrapping), rebuilding the forest and resetting
     /// the cursor/expansion.
     fn set_view(&mut self, idx: usize) {
-        self.view_idx = idx % TREE_VIEWS.len();
+        self.view_idx = idx % self.views.len();
         self.roots = build_view(self.current_view(), &self.data);
         self.expanded.clear();
         self.cursor = 0;
@@ -112,7 +115,7 @@ impl App {
     }
 
     fn prev_view(&mut self) {
-        self.set_view((self.view_idx + TREE_VIEWS.len() - 1) % TREE_VIEWS.len());
+        self.set_view((self.view_idx + self.views.len() - 1) % self.views.len());
     }
 
     /// The currently visible rows, honouring the expanded set.
@@ -273,7 +276,7 @@ fn draw(frame: &mut ratatui::Frame, app: &App) {
         .split(cols[1]);
 
     // Sidebar: view list.
-    let views: Vec<ListItem> = TREE_VIEWS.iter().map(|v| ListItem::new(*v)).collect();
+    let views: Vec<ListItem> = app.views.iter().map(|v| ListItem::new(*v)).collect();
     let mut vstate = ListState::default();
     vstate.select(Some(app.view_idx));
     frame.render_stateful_widget(
@@ -390,7 +393,7 @@ mod tests {
         let mut a = app("set x 1");
         a.set_view(0);
         a.prev_view();
-        assert_eq!(a.view_idx, TREE_VIEWS.len() - 1);
+        assert_eq!(a.view_idx, a.views.len() - 1);
         a.next_view();
         assert_eq!(a.view_idx, 0);
     }
@@ -399,7 +402,7 @@ mod tests {
     fn expand_reveals_children() {
         // The IR view's top-level node has children (the statements).
         let mut a = app("set x 1\nset y 2");
-        a.set_view(TREE_VIEWS.iter().position(|v| *v == "ir").unwrap());
+        a.set_view(a.views.iter().position(|v| *v == "ir").unwrap());
         let before = a.visible().len();
         a.cursor = 0;
         a.toggle();
