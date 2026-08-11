@@ -650,7 +650,7 @@ mod tests {
 
     #[test]
     fn calls_resolve_a_target() {
-        // The compatibility plan boxes unsupported leaf commands as a `call` to an
+        // General lowering boxes unsupported leaf commands as a `call` to an
         // imported host function; every such call must resolve a target label.
         let entries = wasm_entries("set x 1\nputs hello");
         let mut saw_call = false;

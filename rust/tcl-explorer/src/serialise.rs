@@ -228,7 +228,7 @@ fn serialise_children(stmt: &Statement, li: &LineIndex, source: &str) -> Option<
 /// section come from `wasm_to_explorer_json` itself.
 fn serialise_wasm(result: &ExplorerResult) -> Value {
     use tcl_compiler::codegen::wasm::{
-        WasmCodegenPlan, WasmCompatibilityReason, WasmCompileOptions, compile_wasm,
+        WasmCodegenPlan, WasmCompileOptions, WasmSemanticDecline, compile_wasm,
     };
 
     let registry = registry_for_dialect(&result.dialect);
@@ -248,31 +248,31 @@ fn serialise_wasm(result: &ExplorerResult) -> Value {
             WasmCodegenPlan::GenericInvoke { .. } => json!({
                 "kind": wasm.plan.as_str(),
                 "operation": wasm.plan.operation_kind(),
-                "compatibility": Value::Null,
+                "semanticDecline": Value::Null,
             }),
-            WasmCodegenPlan::Compatibility { reason } => {
-                let evidence = match reason {
-                    WasmCompatibilityReason::Packaging(constraint) => json!({
-                        "kind": reason.as_str(),
+            WasmCodegenPlan::General { semantic_decline } => {
+                let evidence = match semantic_decline {
+                    WasmSemanticDecline::Packaging(constraint) => json!({
+                        "kind": semantic_decline.as_str(),
                         "detailKind": constraint.as_str(),
                     }),
-                    WasmCompatibilityReason::ExecutableUnavailable(decline) => json!({
-                        "kind": reason.as_str(),
+                    WasmSemanticDecline::ExecutableUnavailable(decline) => json!({
+                        "kind": semantic_decline.as_str(),
                         "availability": decline.as_str(),
                         "detailKind": decline.detail_kind(),
                     }),
-                    WasmCompatibilityReason::SemanticPlansDisabled
-                    | WasmCompatibilityReason::BackendSelection(_)
-                    | WasmCompatibilityReason::Emission(_)
-                    | WasmCompatibilityReason::SelectorRegistration => json!({
-                        "kind": reason.as_str(),
-                        "detailKind": reason.detail_kind(),
+                    WasmSemanticDecline::SemanticPlansDisabled
+                    | WasmSemanticDecline::BackendSelection(_)
+                    | WasmSemanticDecline::PlanLayout(_)
+                    | WasmSemanticDecline::SelectorRegistration => json!({
+                        "kind": semantic_decline.as_str(),
+                        "detailKind": semantic_decline.detail_kind(),
                     }),
                 };
                 json!({
                     "kind": wasm.plan.as_str(),
                     "operation": Value::Null,
-                    "compatibility": evidence,
+                    "semanticDecline": evidence,
                 })
             }
         };
@@ -2979,7 +2979,7 @@ mod tests {
         let header = &wasm.as_array().expect("WASM entries")[0];
 
         assert_eq!(header["codegenPlan"]["kind"], "generic-invoke");
-        assert!(header["codegenPlan"]["compatibility"].is_null());
+        assert!(header["codegenPlan"]["semanticDecline"].is_null());
         assert!(
             header["text"]
                 .as_str()
@@ -2989,15 +2989,18 @@ mod tests {
     }
 
     #[test]
-    fn wasm_view_exposes_typed_compatibility_decline() {
+    fn wasm_view_exposes_typed_semantic_decline() {
         let result = run_pipeline("string length $value", "tcl8.6");
         let wasm = serialise_result(&result)["wasm"].clone();
         let plan = &wasm.as_array().expect("WASM entries")[0]["codegenPlan"];
 
-        assert_eq!(plan["kind"], "compatibility");
-        assert_eq!(plan["compatibility"]["kind"], "backend-selection-declined");
+        assert_eq!(plan["kind"], "general");
         assert_eq!(
-            plan["compatibility"]["detailKind"],
+            plan["semanticDecline"]["kind"],
+            "backend-selection-declined"
+        );
+        assert_eq!(
+            plan["semanticDecline"]["detailKind"],
             "no-viable-semantic-plan"
         );
     }

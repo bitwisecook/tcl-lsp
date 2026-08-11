@@ -79,6 +79,36 @@ fn no_production_surface_exposes_a_legacy_codegen_selector() {
 }
 
 #[test]
+fn wasm_has_one_module_emitter_for_semantic_and_general_plans() {
+    let root = workspace_root();
+    let wasm_dir = root.join("rust/tcl-compiler/src/codegen/wasm");
+    assert!(
+        !wasm_dir.join("executable.rs").exists(),
+        "the former parallel executable-IR emitter must not return"
+    );
+
+    let backend = source(&root, "rust/tcl-compiler/src/codegen/wasm/backend.rs");
+    let pipeline = source(&root, "rust/tcl-compiler/src/codegen/wasm/pipeline.rs");
+    let semantic_plan = source(&root, "rust/tcl-compiler/src/codegen/wasm/semantic_plan.rs");
+    let production = format!("{backend}\n{pipeline}\n{semantic_plan}");
+    assert_eq!(
+        production.matches("fn emit_wasm(").count(),
+        1,
+        "WASM must have exactly one module-emission entry"
+    );
+    assert_eq!(
+        production.matches("WasmModule::new()").count(),
+        1,
+        "semantic and general plans must share one module constructor"
+    );
+    assert!(!production.contains("emit_wasm_generic"));
+    assert!(!production.contains("WasmCodegenPlan::Compatibility"));
+    assert!(!production.contains("WasmCompatibilityReason"));
+    assert!(backend.contains("WasmEmissionMode::SemanticInvoke"));
+    assert!(backend.contains("WasmEmissionMode::General"));
+}
+
+#[test]
 fn architecture_doc_does_not_advertise_removed_backend_choices() {
     let root = workspace_root();
     let document = source(&root, "docs/design/compiler/wasm-codegen.md");

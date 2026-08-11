@@ -27,16 +27,17 @@
 
 mod backend;
 mod encoding;
-mod executable;
 mod ir;
 mod pipeline;
+mod semantic_plan;
 
 pub use backend::RESERVED_DATA_BASE;
-pub use executable::WasmExecutableInvokeDecline;
 pub use ir::{
     SectionId, ValType, WasmData, WasmFunction, WasmImport, WasmInstruction, WasmModule, WasmOp,
 };
+pub use pipeline::WasmSemanticDecline;
 pub use pipeline::{
-    WasmCodegenPlan, WasmCompatibilityReason, WasmCompilation, WasmCompileOptions,
-    WasmExecutableAvailabilityDecline, WasmPackagingConstraint, compile_wasm,
+    WasmCodegenPlan, WasmCompilation, WasmCompileOptions, WasmExecutableAvailabilityDecline,
+    WasmPackagingConstraint, compile_wasm,
 };
+pub use semantic_plan::WasmExecutableInvokeDecline;

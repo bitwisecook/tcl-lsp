@@ -125,7 +125,7 @@ pub fn run_compwasm(input: &InputArgs, wat_output: Option<&std::path::Path>) -> 
         OutputTarget::File(path) => path.display().to_string(),
     };
     eprintln!("wrote wasm binary ({} bytes) to {where_to}", bytes.len());
-    if let Some(reason) = wasm.plan.compatibility_reason() {
+    if let Some(reason) = wasm.plan.semantic_decline() {
         eprintln!(
             "codegen plan: {} ({}: {})",
             wasm.plan.as_str(),

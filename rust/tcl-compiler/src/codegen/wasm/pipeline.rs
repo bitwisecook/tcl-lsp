@@ -18,10 +18,9 @@
 
 //! The one public Tcl-to-WebAssembly compilation pipeline.
 //!
-//! Common executable IR and [`BackendRegistry`] selection are the first
-//! production rung. The established broad-program emitter is retained only as
-//! a private compatibility plan selected after a typed decline. It is not a
-//! separately named backend and cannot be chosen through the CLI or Explorer.
+//! Common executable IR and [`BackendRegistry`] selection choose an input mode
+//! for one emitter. A typed semantic decline selects general structured
+//! lowering inside that emitter; it never selects another implementation.
 
 use std::ops::{Deref, DerefMut};
 
@@ -41,11 +40,12 @@ use crate::target_contract::{
     LegalisationRequirements, TargetCapabilities, TargetContract, TargetFamily,
 };
 
-use super::executable::{
-    WasmExecutableInvokeDecline, WasmGenericInvokePlan, emit_wasm_generic_invoke_at,
-    plan_wasm_generic_invoke_named,
+use super::semantic_plan::{
+    WasmExecutableInvokeDecline, WasmGenericInvokePlan, plan_wasm_generic_invoke_named,
+    validate_plan_layout,
 };
 use super::{RESERVED_DATA_BASE, WasmModule, backend};
+use backend::WasmEmissionMode;
 
 /// Packaging and semantic-plan policy for [`compile_wasm`].
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -89,7 +89,7 @@ impl WasmCompileOptions {
     /// `initialise_library` additionally loads the embedded standard library
     /// before entering the compiled program. Standalone bootstrap synthesis is
     /// not yet represented in executable IR, so this packaging shape records a
-    /// typed compatibility plan.
+    /// typed semantic decline on the general plan.
     #[must_use]
     pub const fn standalone(initialise_library: bool) -> Self {
         Self {
@@ -101,7 +101,7 @@ impl WasmCompileOptions {
     /// Relocate the immutable data pool to a caller-selected address.
     ///
     /// Production modules should keep the runtime-reserved default. This
-    /// option exists for ABI boundary tests and compatibility-only hosts.
+    /// option exists for ABI boundary tests and evaluation-only hosts.
     #[must_use]
     pub const fn with_data_base(mut self, data_base: i64) -> Self {
         self.data_base = data_base;
@@ -112,8 +112,8 @@ impl WasmCompileOptions {
     ///
     /// The differential test host currently implements the source-evaluation
     /// ABI only. This option does not choose another public backend: the sole
-    /// pipeline records [`WasmCompatibilityReason::SemanticPlansDisabled`] and
-    /// disables compatibility-emitter specialisations that require more host
+    /// pipeline records [`WasmSemanticDecline::SemanticPlansDisabled`] and
+    /// disables analysis specialisations that require more host
     /// imports.
     #[must_use]
     pub const fn for_eval_only_test_host(mut self) -> Self {
@@ -132,7 +132,7 @@ impl WasmCompileOptions {
         }
     }
 
-    pub(super) const fn compatibility_specialisations(self) -> bool {
+    pub(super) const fn analysis_specialisations(self) -> bool {
         matches!(self.plan_policy, WasmPlanPolicy::SemanticFirst)
     }
 }
@@ -208,10 +208,10 @@ impl WasmExecutableAvailabilityDecline {
     }
 }
 
-/// Why the canonical semantic plan ladder selected compatibility emission.
+/// Why semantic prebuilt-argv selection declined to general lowering.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub enum WasmCompatibilityReason {
-    /// The caller's isolated host implements only the compatibility ABI.
+pub enum WasmSemanticDecline {
+    /// The caller's isolated host implements only the general evaluation ABI.
     SemanticPlansDisabled,
     /// The requested package shape is not yet expressed by executable IR.
     Packaging(WasmPackagingConstraint),
@@ -219,13 +219,13 @@ pub enum WasmCompatibilityReason {
     ExecutableUnavailable(WasmExecutableAvailabilityDecline),
     /// The WASM backend registry declined every generic invocation selector.
     BackendSelection(BackendDeclineReason<WasmExecutableInvokeDecline>),
-    /// The selected immutable plan could not be encoded at the requested layout.
-    Emission(WasmExecutableInvokeDecline),
+    /// The selected immutable plan is not legal at the requested module layout.
+    PlanLayout(WasmExecutableInvokeDecline),
     /// Construction of the fixed WASM selector registry failed.
     SelectorRegistration,
 }
 
-impl WasmCompatibilityReason {
+impl WasmSemanticDecline {
     /// Stable Explorer/API spelling.
     #[must_use]
     pub const fn as_str(&self) -> &'static str {
@@ -234,12 +234,12 @@ impl WasmCompatibilityReason {
             Self::Packaging(_) => "packaging-constraint",
             Self::ExecutableUnavailable(_) => "executable-ir-unavailable",
             Self::BackendSelection(_) => "backend-selection-declined",
-            Self::Emission(_) => "semantic-plan-emission-declined",
+            Self::PlanLayout(_) => "semantic-plan-layout-declined",
             Self::SelectorRegistration => "selector-registration-failed",
         }
     }
 
-    /// Stable precise reason inside the compatibility class.
+    /// Stable precise reason inside the semantic-decline class.
     #[must_use]
     pub const fn detail_kind(&self) -> &'static str {
         match self {
@@ -252,7 +252,7 @@ impl WasmCompatibilityReason {
             Self::BackendSelection(BackendDeclineReason::NoViablePlan { .. }) => {
                 "no-viable-semantic-plan"
             }
-            Self::Emission(decline) => decline.as_str(),
+            Self::PlanLayout(decline) => decline.as_str(),
             Self::SelectorRegistration => "duplicate-selector",
         }
     }
@@ -266,10 +266,10 @@ pub enum WasmCodegenPlan {
         /// Registry-owned semantic operation retained by the selected plan.
         operation: SemanticOperationId,
     },
-    /// The common semantic rung declined and broad source-compatible emission ran.
-    Compatibility {
-        /// Typed reason the semantic rung could not emit the whole module.
-        reason: WasmCompatibilityReason,
+    /// General structured lowering ran in the same emitter.
+    General {
+        /// Typed reason the narrower semantic input mode was not selected.
+        semantic_decline: WasmSemanticDecline,
     },
 }
 
@@ -279,16 +279,16 @@ impl WasmCodegenPlan {
     pub const fn as_str(&self) -> &'static str {
         match self {
             Self::GenericInvoke { .. } => "generic-invoke",
-            Self::Compatibility { .. } => "compatibility",
+            Self::General { .. } => "general",
         }
     }
 
-    /// Typed compatibility reason, when the first semantic rung declined.
+    /// Typed reason the narrow semantic input mode declined.
     #[must_use]
-    pub const fn compatibility_reason(&self) -> Option<&WasmCompatibilityReason> {
+    pub const fn semantic_decline(&self) -> Option<&WasmSemanticDecline> {
         match self {
             Self::GenericInvoke { .. } => None,
-            Self::Compatibility { reason } => Some(reason),
+            Self::General { semantic_decline } => Some(semantic_decline),
         }
     }
 
@@ -305,7 +305,7 @@ impl WasmCodegenPlan {
             Self::GenericInvoke {
                 operation: SemanticOperationId::StructuredLowering(_),
             } => Some("structured-lowering"),
-            Self::Compatibility { .. } => None,
+            Self::General { .. } => None,
         }
     }
 }
@@ -315,7 +315,7 @@ impl WasmCodegenPlan {
 pub struct WasmCompilation {
     /// Generated module consumed by encoding, rendering, linking, and bundling.
     pub module: WasmModule,
-    /// Selected semantic or compatibility plan.
+    /// Selected semantic or general plan.
     pub plan: WasmCodegenPlan,
 }
 
@@ -368,61 +368,54 @@ impl<'a>
 ///
 /// This is the sole production code-generation entry point. It first consumes
 /// the executable semantic facts already attached to the compilation unit and
-/// selects a plan through [`BackendRegistry`]. A typed decline selects the
-/// private broad-coverage compatibility emitter; it never selects another
-/// public backend.
+/// selects a plan through [`BackendRegistry`]. The result then enters the sole
+/// module emitter exactly once, either as a selected semantic invocation or as
+/// general structured lowering carrying a typed semantic decline.
 #[must_use]
 pub fn compile_wasm(
     unit: &CompilationUnit,
     registry: &CommandRegistry,
     options: WasmCompileOptions,
 ) -> WasmCompilation {
-    match select_semantic_plan(unit, options) {
-        Ok(plan) => match emit_wasm_generic_invoke_at(&plan, options.data_base) {
-            Ok(module) => WasmCompilation {
-                module,
-                plan: WasmCodegenPlan::GenericInvoke {
-                    operation: plan.operation,
+    let (semantic_plan, evidence) = match select_semantic_plan(unit, options) {
+        Ok(plan) => match validate_plan_layout(&plan, options.data_base) {
+            Ok(()) => {
+                let operation = plan.operation;
+                (Some(plan), WasmCodegenPlan::GenericInvoke { operation })
+            }
+            Err(decline) => (
+                None,
+                WasmCodegenPlan::General {
+                    semantic_decline: WasmSemanticDecline::PlanLayout(decline),
                 },
-            },
-            Err(decline) => emit_compatibility(
-                unit,
-                registry,
-                options,
-                WasmCompatibilityReason::Emission(decline),
             ),
         },
-        Err(reason) => emit_compatibility(unit, registry, options, reason),
-    }
-}
-
-fn emit_compatibility(
-    unit: &CompilationUnit,
-    registry: &CommandRegistry,
-    options: WasmCompileOptions,
-    reason: WasmCompatibilityReason,
-) -> WasmCompilation {
+        Err(semantic_decline) => (None, WasmCodegenPlan::General { semantic_decline }),
+    };
+    let mode = semantic_plan
+        .as_ref()
+        .map_or(WasmEmissionMode::General, WasmEmissionMode::SemanticInvoke);
     WasmCompilation {
-        module: backend::emit_wasm(unit, registry, options),
-        plan: WasmCodegenPlan::Compatibility { reason },
+        module: backend::emit_wasm(unit, registry, options, mode),
+        plan: evidence,
     }
 }
 
 fn select_semantic_plan(
     unit: &CompilationUnit,
     options: WasmCompileOptions,
-) -> Result<WasmGenericInvokePlan, WasmCompatibilityReason> {
+) -> Result<WasmGenericInvokePlan, WasmSemanticDecline> {
     if matches!(options.plan_policy, WasmPlanPolicy::EvalOnlyTestHost) {
-        return Err(WasmCompatibilityReason::SemanticPlansDisabled);
+        return Err(WasmSemanticDecline::SemanticPlansDisabled);
     }
     if options.is_standalone() {
-        return Err(WasmCompatibilityReason::Packaging(
+        return Err(WasmSemanticDecline::Packaging(
             WasmPackagingConstraint::StandaloneBootstrap,
         ));
     }
     let availability = unit.top_level.semantic_facts.executable();
     let function = availability.function().ok_or_else(|| {
-        WasmCompatibilityReason::ExecutableUnavailable(match availability {
+        WasmSemanticDecline::ExecutableUnavailable(match availability {
             ExecutableAnalysisAvailability::DialectUnavailable { .. } => {
                 WasmExecutableAvailabilityDecline::DialectUnavailable
             }
@@ -451,7 +444,7 @@ fn select_semantic_plan(
             LegalisationRequirements::new(),
             GenericInvokeSelector,
         )
-        .map_err(|_| WasmCompatibilityReason::SelectorRegistration)?;
+        .map_err(|_| WasmSemanticDecline::SelectorRegistration)?;
     let operation = selection_operation(function);
     let context = GenericSelectionContext { function };
     match selector_registry.select_with_context(
@@ -463,9 +456,7 @@ fn select_semantic_plan(
         &context,
     ) {
         BackendSelection::Selected(selected) => Ok(selected.into_plan()),
-        BackendSelection::Declined(decline) => {
-            Err(WasmCompatibilityReason::BackendSelection(decline))
-        }
+        BackendSelection::Declined(decline) => Err(WasmSemanticDecline::BackendSelection(decline)),
     }
 }
 
@@ -539,7 +530,7 @@ mod tests {
     }
 
     #[test]
-    fn broad_source_records_typed_compatibility_decline() {
+    fn broad_source_records_typed_semantic_decline_on_general_plan() {
         let registry = CommandRegistry::build_default();
         let mut output = compile_wasm(
             &unit("string length $value", &registry),
@@ -547,9 +538,9 @@ mod tests {
             WasmCompileOptions::hosted(),
         );
 
-        let WasmCodegenPlan::Compatibility {
-            reason:
-                WasmCompatibilityReason::BackendSelection(BackendDeclineReason::NoViablePlan {
+        let WasmCodegenPlan::General {
+            semantic_decline:
+                WasmSemanticDecline::BackendSelection(BackendDeclineReason::NoViablePlan {
                     attempts,
                     ..
                 }),
@@ -562,7 +553,7 @@ mod tests {
     }
 
     #[test]
-    fn standalone_records_packaging_compatibility_without_another_backend() {
+    fn standalone_records_packaging_decline_on_the_same_emitter() {
         let registry = CommandRegistry::build_default();
         let output = compile_wasm(
             &unit("puts hello", &registry),
@@ -572,8 +563,8 @@ mod tests {
 
         assert_eq!(
             output.plan,
-            WasmCodegenPlan::Compatibility {
-                reason: WasmCompatibilityReason::Packaging(
+            WasmCodegenPlan::General {
+                semantic_decline: WasmSemanticDecline::Packaging(
                     WasmPackagingConstraint::StandaloneBootstrap
                 )
             }
@@ -584,5 +575,25 @@ mod tests {
                 .iter()
                 .any(|function| function.name == "_start")
         );
+    }
+
+    #[test]
+    fn invalid_semantic_layout_declines_before_the_single_emitter_runs() {
+        let registry = CommandRegistry::build_default();
+        let mut output = compile_wasm(
+            &unit("string length hello", &registry),
+            &registry,
+            WasmCompileOptions::hosted().with_data_base(0),
+        );
+
+        assert_eq!(
+            output.plan,
+            WasmCodegenPlan::General {
+                semantic_decline: WasmSemanticDecline::PlanLayout(
+                    WasmExecutableInvokeDecline::InvalidDataBase
+                )
+            }
+        );
+        assert!(output.to_wat().contains("tcl_eval_code"));
     }
 }

@@ -21,7 +21,7 @@
 //! modules that fail to instantiate or trap.
 //!
 //! This is the **tractable slice** of the WASM third differential arm. The
-//! compatibility plan boxes every unsupported leaf command as a `call` to an imported
+//! general lowering boxes every unsupported leaf command as a `call` to an imported
 //! `tcl_eval_code`; without an interpreter-backed host the module cannot
 //! *evaluate* Tcl, so a *value* differential against `tclsh` is not possible
 //! here. What

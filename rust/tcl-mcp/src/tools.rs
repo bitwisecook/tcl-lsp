@@ -412,22 +412,22 @@ fn compile_wasm(args: &Value) -> Value {
         tcl_compiler::codegen::wasm::WasmCompileOptions::hosted(),
     );
     let codegen_plan = wasm.plan.as_str();
-    let compatibility_reason = wasm
+    let semantic_decline = wasm
         .plan
-        .compatibility_reason()
-        .map(tcl_compiler::codegen::wasm::WasmCompatibilityReason::as_str);
-    let compatibility_detail = wasm
+        .semantic_decline()
+        .map(tcl_compiler::codegen::wasm::WasmSemanticDecline::as_str);
+    let semantic_decline_detail = wasm
         .plan
-        .compatibility_reason()
-        .map(tcl_compiler::codegen::wasm::WasmCompatibilityReason::detail_kind);
+        .semantic_decline()
+        .map(tcl_compiler::codegen::wasm::WasmSemanticDecline::detail_kind);
     let function_count = wasm.functions.len();
     let bytes = wasm.to_bytes();
     let wat = wasm.to_wat();
     json!({
         "pipeline": "canonical",
         "codegen_plan": codegen_plan,
-        "compatibility_reason": compatibility_reason,
-        "compatibility_detail": compatibility_detail,
+        "semantic_decline": semantic_decline,
+        "semantic_decline_detail": semantic_decline_detail,
         "wat": wat,
         "byte_length": bytes.len(),
         "function_count": function_count,
@@ -619,7 +619,7 @@ mod wasm_pipeline_tests {
         .expect("compile_wasm tool");
         assert_eq!(result["pipeline"], "canonical");
         assert_eq!(result["codegen_plan"], "generic-invoke");
-        assert!(result["compatibility_reason"].is_null());
+        assert!(result["semantic_decline"].is_null());
         assert!(result["wat"].as_str().unwrap().contains("tcl_invoke_argv"));
     }
 }
