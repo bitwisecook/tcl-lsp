@@ -160,14 +160,16 @@ source).  Imports have no disassembly to jump to.
 
 ## Emitter contract
 
-`_WasmEmitter._emit` stamps `self._current_range` onto every emitted
-instruction.  `_record_stmt_context` (called at the top of
-`_emit_stmt` and at every CFG block entry via the terminator-range
-stamp) keeps that range up to date.  Callers that open a structural
-op (`block` / `loop` / `if`) may pass `label=` to `_emit` to attach a
-human-readable tag (e.g. `foreach`, `if`, `catch body`) that the
-explorer surfaces in both the open's inline label and in the target
-hint on every `br` / `br_if` that lands on its matching close.
+The canonical `compile_wasm` pipeline produces a `WasmModule` whose
+instructions retain source ranges and optional structural labels. Both the
+semantic executable-IR emitter and the private typed compatibility plan write
+the same target IR; Explorer never invokes an emitter of its own.
+
+`wasm_to_explorer_json` derives block nesting and branch targets from that
+shared instruction stream. Structural operations (`block`, `loop`, and `if`)
+may carry a human-readable label such as `foreach`, `if`, or `catch body`.
+Explorer surfaces the label on the opening operation and on every `br` or
+`br_if` whose decoded target reaches the matching close.
 
 ## Versioning
 

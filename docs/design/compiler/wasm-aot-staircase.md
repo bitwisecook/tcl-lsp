@@ -5,6 +5,14 @@
 > from "every proc gets a Tcl frame" down to "small leaf procs are inlined into
 > static WASM with no frame overhead".
 
+> **Historical implementation record:** the staircase was executed while the
+> retired Python compiler was still present. Detailed stage pages preserve
+> file names, flags, and emitter classes from that implementation as evidence
+> of what was measured; they are not current APIs. The production Rust
+> architecture has one public entry, `codegen::wasm::compile_wasm`, documented
+> in [`wasm-codegen.md`](wasm-codegen.md). Its private typed compatibility plan
+> is not a second or selectable backend.
+
 ## North star
 
 The Tcl-WASM AOT compiler should emit static WASM wherever it can prove the

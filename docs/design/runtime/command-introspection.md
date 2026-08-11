@@ -373,39 +373,24 @@ Three layers:
 
 ### 8.1 Compiler direct-call invalidation (resolved)
 
-The WASM compiler builds a ``proc_index: dict[str, (func_idx,
-n_params)]`` at compile time (``codegen/wasm/__init__.py``) that
-lets ``_resolve_proc`` emit a direct ``call $::foo`` for any
-proc defined in the same translation unit.  That shortcut is
-unsound for procs whose runtime dispatch state may change —
-``interp hide`` moves the Command into the hidden table,
-``rename`` moves it to a different ``cmd_table`` key, and
-``interp expose`` restores a previously hidden binding.
+Command introspection and mutation make a direct call unsound unless the
+binding is proved stable at that program point. The Rust compiler obtains the
+relevant command-table and interpreter-state transitions from
+`tcl-registry`; it does not recognise `rename`, `interp hide`, or `interp
+expose` in the WASM emitter.
 
-The compiler now invalidates ``proc_index`` entries for any
-proc name that appears as the target of ``rename`` /
-``interp hide`` / ``interp expose`` anywhere in the module
-(``_collect_dynamically_modified_procs`` in
-``compiler/codegen/wasm/proc_scan.py`` walks the IR).  Affected
-calls downgrade to the ``tcl_eval`` eval-fallback path, which
-routes through ``proc_lookup`` and observes the live
-cmd-table / hidden-table state.
+Common command-binding analysis tracks literal changes precisely and widens to
+an unknown wildcard after an unbounded mutation. The canonical semantic WASM
+plan uses world-state and dispatch-dependency evidence. Its private
+broad-coverage compatibility plan uses `scan_module_command_mutations`, with
+`ModuleCommandMutations::trusts` and `trusts_proc_binding` as the generic
+guards. Affected calls use live runtime dispatch; an unrelated, proved-stable
+procedure can retain direct-call specialisation.
 
-``rename foo bar`` invalidates both ``foo`` (gone) and ``bar``
-(new) so subsequent calls to either name are dispatched via the
-runtime.  The invalidation is per-module — a proc that's hidden
-in module A is unaffected in module B, matching Tcl's single-
-interp scope.
-
-End-to-end tests pin the behaviour:
-
-* ``test_wasm_execution.py::TestInterpHideExpose::test_hide_makes_same_unit_call_fail``
-* ``test_wasm_execution.py::TestInterpHideExpose::test_rename_makes_old_name_unreachable_in_same_unit``
-* ``test_wasm_execution.py::TestInfoIntrospection::test_hide_and_catch_snippet_compiles``
-
-Unaffected procs (the common case) keep the direct-call
-specialisation — invalidation is surgical, not a blanket
-downgrade.
+Procedure indices remain deterministic module-layout and diagnostic metadata.
+They are not an independently filtered callable map. All WebAssembly emission
+enters through `tcl_compiler::codegen::wasm::compile_wasm`, and a missing
+binding proof produces a typed decline rather than a second backend.
 
 ### 8.2 `TestCounterBundle` stays xfail
 

@@ -1,43 +1,68 @@
-# KCS: codegen module map
+# Code-generation module map
 
-## Goal
+Rust code generation lives in `rust/tcl-compiler/src/codegen/`. The shared
+compiler front end builds IR, CFG, SSA, semantic analysis, and structured
+lowering before target emission.
 
-Keep code generation behaviour stable while reducing review and maintenance cost by splitting mixed concerns into focused modules.  The shared compiler front-end (parse → IR → CFG → SSA → lowering) feeds two back-ends that live side-by-side under `compiler/codegen/`.
+## Common and bytecode modules
 
-## Current split
+The `codegen` module exports the bytecode API used by the VM and exposes the
+WASM submodule:
 
-`compiler/codegen/` is a thin doc-only parent; it re-exports nothing so neither back-end is privileged.  Callers import a back-end explicitly.
+- `backend.rs` — target-agnostic `Backend` trait and `BytecodeBackend`;
+- `emitter/` — bytecode module and function orchestration;
+- `statements.rs`, `expressions.rs`, `values.rs`, `control_flow.rs`, and
+  `cmd_subst.rs` — bytecode lowering by IR concern;
+- `peephole.rs` — bytecode-local rewrites;
+- `emit.rs` and `structured.rs` — common structured-emission seam; and
+- `wasm/` — the canonical Tcl-to-WebAssembly pipeline.
 
-### Bytecode back-end — `compiler/codegen/bytecode/`
+Bytecode artefact types, instruction layout, and formatting live in the leaf
+`tcl-bytecode` crate and are re-exported by `tcl-compiler::codegen`. The VM is
+an execution artefact; it is not a selectable Tcl-to-WebAssembly backend.
 
-- `__init__.py` — bytecode public API (`codegen_function`, `codegen_module`, `FunctionAsm`, `Instruction`, `ModuleAsm`, `Op`, `format_*`).
-- `_emitter.py` — emission flow + mixin integration.
-- `opcodes.py` — opcode enum/metadata and expression op maps.
-- `layout.py` — jump-size optimisation and label/offset layout.
-- `format.py` — disassembly text rendering.
-- `_types.py`, `_statements.py`, `_expressions.py`, `_values.py`, `_control_flow.py`, `_cmd_subst.py`, `_helpers.py`, `_peephole.py` — emitter mixins and shared types.
-- `bytecoded/` — per-command bytecode emit hooks.
+## WASM modules
 
-### WASM back-end — `compiler/codegen/wasm/`
+`rust/tcl-compiler/src/codegen/wasm/` has one public compilation entry:
 
-- `__init__.py` — WASM public API (`wasm_codegen_module`, `wasm_codegen_function`, `WasmModule`, `WasmFunction`).
-- `link.py` — whole-program linker (`wasm_link`, `wasm_link_sources`, `wasm_link_bundled`, `merge_ir_modules`).
-- `_emitter/`, `_ir.py`, `_encoding.py`, `_imports.py`, `_parsing.py`, `_scan.py`, `_bundle.py`, `extensions.py`, `_ownership.py` — WASM emitter internals.
+- `mod.rs` exports `compile_wasm`, `WasmCompilation`, typed plan evidence,
+  packaging options, and WASM IR types;
+- `pipeline.rs` owns the sole public semantic-plan ladder;
+- `executable.rs` plans and emits generic prebuilt-argv invocation from common
+  executable IR;
+- `backend.rs` is the private broad-coverage compatibility emitter selected
+  only after a typed decline;
+- `ir.rs` owns the target module, function, instruction, import, and data
+  vocabulary; and
+- `encoding.rs` serialises the target IR.
 
-## Migration guidance
+`backend`, `executable`, and `pipeline` are internal implementation modules.
+Consumers do not select or invoke them directly.
 
-1. Prefer adding new opcode metadata in `bytecode/opcodes.py`.
-2. Keep offset math and jump shrinking in `bytecode/layout.py`.
-3. Keep disassembly string/rendering changes in `bytecode/format.py`.
-4. Use each back-end's `__init__.py` for high-level emission flow and public API wiring.
-5. Import a back-end explicitly (`from compiler.codegen.bytecode import …` / `from compiler.codegen.wasm import …`); do not add re-exports to the parent `compiler/codegen/__init__.py`.
+## Public consumer contract
 
-## Related files
+Every production consumer builds a complete `CompilationUnit` and calls:
 
-- `compiler/codegen/__init__.py`
-- `compiler/codegen/bytecode/__init__.py`
-- `compiler/codegen/bytecode/opcodes.py`
-- `compiler/codegen/bytecode/layout.py`
-- `compiler/codegen/bytecode/format.py`
-- `compiler/codegen/wasm/__init__.py`
-- `compiler/codegen/wasm/link.py`
+```rust,ignore
+let output = compile_wasm(&unit, registry, WasmCompileOptions::hosted());
+```
+
+`WasmCompilation` contains the module plus `WasmCodegenPlan`. The plan records
+either the semantic operation selected from executable IR or the typed reason
+that the private compatibility plan was required. The CLI, Explorer, fuzzer,
+MCP tool, runtime linker, and standalone packager all consume this API.
+
+There is no public backend enum, command-line backend selector, or IR-only WASM
+emitter. Link and bundle code consumes the resulting `WasmModule`; packaging
+is downstream of code generation and does not create another compiler path.
+
+## Extension rule
+
+New command behaviour starts in `tcl-registry` as data, flags, callbacks, or
+typed hooks. Common analyses project those facts into executable IR. A WASM
+implementation is selected by semantic operation through `BackendRegistry`
+and must decline with a typed reason when its proof is incomplete. It must not
+match a Tcl command name in the compiler or add another public emitter.
+
+See [`wasm-codegen.md`](wasm-codegen.md) for the complete pipeline and runtime
+ABI contract.

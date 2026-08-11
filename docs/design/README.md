@@ -419,8 +419,10 @@ are its rules, and what are the failure modes". One contract per file.
 - [vscode-extension.md](contracts/vscode-extension.md) — VS Code
   extension integration contracts.
 - [wasm-explorer-view.md](contracts/wasm-explorer-view.md) — JSON
-  shape produced by `WasmModule.to_explorer_json()` and consumed by
+  shape produced by `wasm_to_explorer_json` and consumed by
   the compiler explorer disassembly panel.
+- [explorer-compiler-coverage.md](contracts/explorer-compiler-coverage.md) —
+  durable compiler artefacts that every Explorer front-end must expose.
 - [differential-fuzzing.md](contracts/differential-fuzzing.md) —
   differential fuzzing oracle and coverage-guided mutation contracts.
 - [pipeline-lsp-first.md](contracts/pipeline-lsp-first.md) — pipeline
