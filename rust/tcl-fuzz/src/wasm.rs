@@ -21,13 +21,13 @@
 //! modules that fail to instantiate or trap.
 //!
 //! This is the **tractable slice** of the WASM third differential arm. The
-//! eval-fallback emitter boxes every leaf command as a `call` to an imported
+//! compatibility plan boxes every unsupported leaf command as a `call` to an imported
 //! `tcl_eval_code`; without an interpreter-backed host the module cannot
 //! *evaluate* Tcl, so a *value* differential against `tclsh` is not possible
 //! here. What
 //! **is** possible — and valuable — is exercising the WASM **codegen** over the
-//! fuzzer's randomised programs: a generated program that makes
-//! `wasm_codegen_module` panic, emits a module that `wasmtime` rejects, or traps
+//! fuzzer's randomised programs: a generated program that makes the canonical
+//! `compile_wasm` pipeline panic, emits a module that `wasmtime` rejects, or traps
 //! at run time, is a real codegen bug. We satisfy the module's `tcl_*` imports
 //! with the same tiny host stub the `tcl-compiler` end-to-end execution test
 //! uses (`tcl_expr_bool` returns `0`, so control flow terminates), invoke
@@ -41,9 +41,9 @@ use std::path::Path;
 use std::process::Command;
 
 use tcl_compiler::codegen::wasm::{
-    ValType, WasmFunction, WasmInstruction, WasmModule, WasmOp, wasm_codegen_module,
+    ValType, WasmCompileOptions, WasmFunction, WasmInstruction, WasmModule, WasmOp, compile_wasm,
 };
-use tcl_compiler::lowering::lower_to_ir;
+use tcl_compiler::compilation_unit::CompilationUnit;
 use tcl_registry::CommandRegistry;
 
 /// The outcome of running one generated program through the WASM arm.
@@ -76,8 +76,15 @@ fn compile_to_wasm(src: &str) -> Result<Vec<u8>, String> {
     let src = src.to_owned();
     let result = std::panic::catch_unwind(move || {
         let registry = CommandRegistry::build_default();
-        let module = lower_to_ir(&src, &registry);
-        wasm_codegen_module(&module, &src).to_bytes()
+        let unit = CompilationUnit::build_for(&src, &registry, false);
+        compile_wasm(
+            &unit,
+            &registry,
+            WasmCompileOptions::hosted()
+                .for_eval_only_test_host()
+                .with_data_base(0),
+        )
+        .to_bytes()
     });
     result.map_err(|e| {
         e.downcast_ref::<&str>()

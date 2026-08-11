@@ -402,40 +402,36 @@ fn optimize(args: &Value) -> Value {
 fn compile_wasm(args: &Value) -> Value {
     let source = arg_str(args, "source");
     let dialect = resolve_dialect(args, source);
-    // Default to the bytecode-VM backend (`RUST_ISSUE_008`): it is the primary
-    // wasm compile target and runs coroutines. `tree-walker` selects the legacy
-    // eval-fallback emitter, the only one that yields a per-script WAT module.
-    if arg_str(args, "backend") == "tree-walker" {
-        let ir = tcl_compiler::lowering::lower_to_ir(source, registry(&dialect));
-        let mut wasm = tcl_compiler::codegen::wasm::wasm_codegen_module(&ir, source);
-        let function_count = wasm.functions.len();
-        let bytes = wasm.to_bytes();
-        let wat = wasm.to_wat();
-        json!({
-            "backend": "tree-walker",
-            "wat": wat,
-            "byte_length": bytes.len(),
-            "function_count": function_count,
-        })
-    } else {
-        // The VM backend compiles to bytecode (the artifact the shipped
-        // `vm.wasm` runner executes). Bytecode is not serialisable, so there
-        // is no per-script WAT; the disassembly is its introspectable form.
-        let ir = tcl_compiler::lowering::lower_to_ir_for_bytecode(source, registry(&dialect));
-        let cfg = tcl_compiler::cfg_builder::build_cfg_codegen(&ir, false);
-        let module = tcl_compiler::codegen::codegen_module(&cfg, &ir, registry(&dialect));
-        let disassembly = tcl_compiler::codegen::format::format_module_asm(&module);
-        let function_count = 1 + module.procedures.len();
-        json!({
-            "backend": "vm",
-            "disassembly": disassembly,
-            "function_count": function_count,
-            "note": "The VM backend ships a generic vm.wasm runner (built via \
-                     `make tcl-vm-wasm`) that compiles and runs Tcl — coroutines \
-                     included — at run time over its tcl_alloc/tcl_eval/tcl_dealloc \
-                     linear-memory ABI. Pass backend=tree-walker for a per-script WAT module.",
-        })
-    }
+    let registry = registry(&dialect);
+    let unit = tcl_compiler::compilation_unit::CompilationUnit::build_for_dialect(
+        source, registry, false, &dialect,
+    );
+    let mut wasm = tcl_compiler::codegen::wasm::compile_wasm(
+        &unit,
+        registry,
+        tcl_compiler::codegen::wasm::WasmCompileOptions::hosted(),
+    );
+    let codegen_plan = wasm.plan.as_str();
+    let compatibility_reason = wasm
+        .plan
+        .compatibility_reason()
+        .map(tcl_compiler::codegen::wasm::WasmCompatibilityReason::as_str);
+    let compatibility_detail = wasm
+        .plan
+        .compatibility_reason()
+        .map(tcl_compiler::codegen::wasm::WasmCompatibilityReason::detail_kind);
+    let function_count = wasm.functions.len();
+    let bytes = wasm.to_bytes();
+    let wat = wasm.to_wat();
+    json!({
+        "pipeline": "canonical",
+        "codegen_plan": codegen_plan,
+        "compatibility_reason": compatibility_reason,
+        "compatibility_detail": compatibility_detail,
+        "wat": wat,
+        "byte_length": bytes.len(),
+        "function_count": function_count,
+    })
 }
 
 /// Run a cursor-addressed refactoring, returning its result dict or `null`.
@@ -600,6 +596,31 @@ mod find_legacy_tests {
             .find(|p| p["code"] == "W100")
             .unwrap_or_else(|| panic!("no W100 pattern in {result}"));
         assert_eq!(w100["conversion"], "Unbraced expr -> braced expr");
+    }
+}
+
+#[cfg(test)]
+mod wasm_pipeline_tests {
+    use super::*;
+
+    #[test]
+    fn compile_tool_uses_canonical_semantic_plan_without_backend_parameter() {
+        let schema = tool_schemas()
+            .into_iter()
+            .find(|(name, _, _)| *name == "compile_wasm")
+            .expect("compile_wasm schema")
+            .2;
+        assert!(schema["properties"].get("backend").is_none());
+
+        let result = dispatch(
+            "compile_wasm",
+            &json!({ "source": "string length hello", "dialect": "tcl9.0" }),
+        )
+        .expect("compile_wasm tool");
+        assert_eq!(result["pipeline"], "canonical");
+        assert_eq!(result["codegen_plan"], "generic-invoke");
+        assert!(result["compatibility_reason"].is_null());
+        assert!(result["wat"].as_str().unwrap().contains("tcl_invoke_argv"));
     }
 }
 
@@ -1174,11 +1195,6 @@ const DIALECT: Param = (
 );
 const LINE: Param = ("line", "integer", "0-based line of the cursor");
 const CHAR: Param = ("character", "integer", "0-based character of the cursor");
-const BACKEND: Param = (
-    "backend",
-    "string",
-    "wasm backend: vm (default, bytecode VM runner) | tree-walker (eval-fallback WAT)",
-);
 const START_LINE: Param = (
     "start_line",
     "integer",
@@ -1312,10 +1328,9 @@ const TOOLS: &[ToolDef] = &[
     },
     ToolDef {
         name: "compile_wasm",
-        description: "Compile to WebAssembly. backend=vm (default) returns the bytecode \
-                      disassembly the shipped vm.wasm runner executes; backend=tree-walker \
-                      returns a per-script WAT module + counts.",
-        params: &[SRC, DIALECT, BACKEND],
+        description: "Compile through the canonical analysis-aware WebAssembly pipeline and \
+                      return the per-script WAT module and counts.",
+        params: &[SRC, DIALECT],
         required: &["source"],
         handler: compile_wasm,
     },

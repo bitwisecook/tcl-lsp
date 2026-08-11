@@ -22,8 +22,8 @@
 //! This is Family-A of the cross-backend architecture
 //! (`docs/design/common-runtime-emitter-architecture.md` §3): a backend
 //! implements `Emit` to map the *structure* of a Tcl procedure onto its own
-//! artifact. The first implementor is the greenfield WASM backend
-//! ([`crate::codegen::wasm::backend`]); the working bytecode emitter is
+//! artifact. The first implementor is the canonical WASM pipeline's private
+//! compatibility plan ([`crate::codegen::wasm::compile_wasm`]); the working bytecode emitter is
 //! deliberately **not** retrofitted onto it (per the red-team: that is a rewrite,
 //! not a refactor — it stays on its own driver behind the byte-identity gate).
 //!

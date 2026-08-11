@@ -16,40 +16,27 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! WASM codegen backend (compiler-explorer `wasm` / `wasmOptimised` views).
+//! Canonical Tcl-to-WebAssembly compilation and its target IR.
 //!
-//! This is a second codegen backend, separate from the Tcl-bytecode emitter
-//! in [`crate::codegen`]: it lowers the IR/CFG directly to WebAssembly,
-//! targeting a runtime ABI (imported `tcl_*` host functions over a shared
-//! linear memory).
-//!
-//! This module is the WASM IR: value types, the opcode set, per-function /
-//! per-module containers, LEB128 + section **binary encoding**
-//! ([`WasmModule::to_bytes`]) and **WAT** text rendering
-//! ([`WasmModule::to_wat`]). It has no dependency on the emitter and can be
-//! built and tested in isolation.
+//! [`compile_wasm`] is the sole production entry point. It consumes a complete
+//! compiler unit and targets the shared `runtime/rust` ABI. Binary encoding,
+//! WAT rendering, Explorer views, runtime linking, and standalone packaging
+//! all consume the same [`WasmModule`].
 
 #![allow(dead_code)]
 
-pub mod backend;
+mod backend;
 mod encoding;
 mod executable;
 mod ir;
 mod pipeline;
 
-pub use backend::{
-    RESERVED_DATA_BASE, wasm_codegen_compilation_unit, wasm_codegen_compilation_unit_based,
-    wasm_codegen_module, wasm_codegen_module_based, wasm_codegen_module_standalone,
-    wasm_codegen_module_standalone_init,
-};
-pub use executable::{
-    WasmExecutableInvokeDecline, WasmGenericInvokePlan, WasmStageProof,
-    emit_wasm_generic_invoke_at, plan_wasm_generic_invoke_named,
-};
+pub use backend::RESERVED_DATA_BASE;
+pub use executable::WasmExecutableInvokeDecline;
 pub use ir::{
     SectionId, ValType, WasmData, WasmFunction, WasmImport, WasmInstruction, WasmModule, WasmOp,
 };
 pub use pipeline::{
-    LiteralSafeWasmDecline, LiteralSafeWasmOptions, LiteralSafeWasmOutput,
-    compile_literal_safe_wasm,
+    WasmCodegenPlan, WasmCompatibilityReason, WasmCompilation, WasmCompileOptions,
+    WasmExecutableAvailabilityDecline, WasmPackagingConstraint, compile_wasm,
 };

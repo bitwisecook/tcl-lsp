@@ -227,10 +227,12 @@ fn serialise_children(stmt: &Statement, li: &LineIndex, source: &str) -> Option<
 /// module-wide counts (`functionCount` / `totalInstrCount`) and the type
 /// section come from `wasm_to_explorer_json` itself.
 fn serialise_wasm(result: &ExplorerResult) -> Value {
-    use tcl_compiler::codegen::wasm::wasm_codegen_compilation_unit;
+    use tcl_compiler::codegen::wasm::{
+        WasmCodegenPlan, WasmCompatibilityReason, WasmCompileOptions, compile_wasm,
+    };
 
     let registry = registry_for_dialect(&result.dialect);
-    let mut wasm = wasm_codegen_compilation_unit(&result.unit, registry);
+    let mut wasm = compile_wasm(&result.unit, registry, WasmCompileOptions::hosted());
     let wat = wasm.to_wat();
 
     // Rich per-instruction entries (module header first, then functions).
@@ -242,6 +244,39 @@ fn serialise_wasm(result: &ExplorerResult) -> Value {
     // `name`/`instrCount` on each function entry, both already present).
     if let Some(Value::Object(header)) = entries.first_mut() {
         header.insert("text".to_owned(), Value::String(wat));
+        let plan = match &wasm.plan {
+            WasmCodegenPlan::GenericInvoke { .. } => json!({
+                "kind": wasm.plan.as_str(),
+                "operation": wasm.plan.operation_kind(),
+                "compatibility": Value::Null,
+            }),
+            WasmCodegenPlan::Compatibility { reason } => {
+                let evidence = match reason {
+                    WasmCompatibilityReason::Packaging(constraint) => json!({
+                        "kind": reason.as_str(),
+                        "detailKind": constraint.as_str(),
+                    }),
+                    WasmCompatibilityReason::ExecutableUnavailable(decline) => json!({
+                        "kind": reason.as_str(),
+                        "availability": decline.as_str(),
+                        "detailKind": decline.detail_kind(),
+                    }),
+                    WasmCompatibilityReason::SemanticPlansDisabled
+                    | WasmCompatibilityReason::BackendSelection(_)
+                    | WasmCompatibilityReason::Emission(_)
+                    | WasmCompatibilityReason::SelectorRegistration => json!({
+                        "kind": reason.as_str(),
+                        "detailKind": reason.detail_kind(),
+                    }),
+                };
+                json!({
+                    "kind": wasm.plan.as_str(),
+                    "operation": Value::Null,
+                    "compatibility": evidence,
+                })
+            }
+        };
+        header.insert("codegenPlan".to_owned(), plan);
     }
     Value::Array(entries)
 }
@@ -2934,6 +2969,36 @@ mod tests {
                 .iter()
                 .any(|v| v["id"] == "greentree"),
             "greentree tab must be dropped"
+        );
+    }
+
+    #[test]
+    fn wasm_view_exposes_canonical_semantic_plan_and_serialised_output() {
+        let result = run_pipeline("string length hello", "tcl8.6");
+        let wasm = serialise_result(&result)["wasm"].clone();
+        let header = &wasm.as_array().expect("WASM entries")[0];
+
+        assert_eq!(header["codegenPlan"]["kind"], "generic-invoke");
+        assert!(header["codegenPlan"]["compatibility"].is_null());
+        assert!(
+            header["text"]
+                .as_str()
+                .expect("serialised WAT")
+                .contains("tcl_invoke_argv")
+        );
+    }
+
+    #[test]
+    fn wasm_view_exposes_typed_compatibility_decline() {
+        let result = run_pipeline("string length $value", "tcl8.6");
+        let wasm = serialise_result(&result)["wasm"].clone();
+        let plan = &wasm.as_array().expect("WASM entries")[0]["codegenPlan"];
+
+        assert_eq!(plan["kind"], "compatibility");
+        assert_eq!(plan["compatibility"]["kind"], "backend-selection-declined");
+        assert_eq!(
+            plan["compatibility"]["detailKind"],
+            "no-viable-semantic-plan"
         );
     }
 

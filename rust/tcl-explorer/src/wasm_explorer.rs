@@ -19,8 +19,8 @@
 //! Rich per-instruction explorer view for the WASM codegen output.
 //!
 //! Built over the
-//! [`WasmModule`](tcl_compiler::codegen::wasm::WasmModule) the eval-fallback
-//! emitter produces. It resolves, per instruction:
+//! [`WasmModule`](tcl_compiler::codegen::wasm::WasmModule) the canonical
+//! compiler produces. It resolves, per instruction:
 //!
 //! * `call` target names (imports and internal functions),
 //! * `br` / `br_if` targets (the opening/closing of the enclosing structured
@@ -548,8 +548,11 @@ mod tests {
     fn wasm_entries(src: &str) -> Vec<Value> {
         let result = run_pipeline(src, "tcl8.6");
         let registry = tcl_registry::registry_for_dialect(&result.dialect);
-        let module =
-            tcl_compiler::codegen::wasm::wasm_codegen_compilation_unit(&result.unit, registry);
+        let module = tcl_compiler::codegen::wasm::compile_wasm(
+            &result.unit,
+            registry,
+            tcl_compiler::codegen::wasm::WasmCompileOptions::hosted(),
+        );
         let li = LineIndex::new(&result.source);
         wasm_to_explorer_json(&module, &li, &result.source)
     }
@@ -647,7 +650,7 @@ mod tests {
 
     #[test]
     fn calls_resolve_a_target() {
-        // The eval-fallback emitter boxes leaf commands as a `call` to an
+        // The compatibility plan boxes unsupported leaf commands as a `call` to an
         // imported host function; every such call must resolve a target label.
         let entries = wasm_entries("set x 1\nputs hello");
         let mut saw_call = false;

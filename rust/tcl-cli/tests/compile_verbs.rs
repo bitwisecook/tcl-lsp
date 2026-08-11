@@ -24,10 +24,8 @@
 //! so the verbs are asserted to faithfully render whatever the current
 //! pipeline produces — a valid disassembly and a structurally valid WASM module.
 //!
-//! The `compwasm` plumbing tests (output-path selection, WAT dump) pin
-//! `--backend tree-walker`: it is the hermetic emitter that needs no prebuilt
-//! artifact. The default `vm` backend ships the `make tcl-vm-wasm` runner, so
-//! `compwasm_vm_backend_emits_runner` exercises it and skips when it is absent.
+//! The `compwasm` plumbing tests pin the one analysis-aware per-script WASM
+//! pipeline, including output-path selection and WAT rendering.
 
 use std::process::Command;
 
@@ -124,8 +122,6 @@ fn compwasm_emits_valid_module_header() {
     let out = Command::new(env!("CARGO_BIN_EXE_tcl"))
         .args([
             "compwasm",
-            "--backend",
-            "tree-walker",
             "--source",
             "set x 5\nputs $x\n",
             "-o",
@@ -154,12 +150,26 @@ fn compwasm_emits_valid_module_header() {
     let _ = std::fs::remove_dir_all(&dir);
 }
 
-/// The opt-in executable-IR path must use the generic argv runtime service,
-/// not quietly fall back to source-level `eval`.  A single literal command is
-/// its deliberately bounded supported surface.
 #[test]
-fn compwasm_generic_invoke_emits_argv_transport_without_eval_import() {
-    let dir = std::env::temp_dir().join("tcl_compwasm_generic_invoke");
+fn compwasm_rejects_removed_backend_selection() {
+    let output = Command::new(env!("CARGO_BIN_EXE_tcl"))
+        .args(["compwasm", "--backend", "vm", "--source", "set x 1"])
+        .output()
+        .expect("spawn tcl");
+    assert!(
+        !output.status.success(),
+        "the removed backend selector must not remain accepted"
+    );
+    assert!(
+        String::from_utf8_lossy(&output.stderr).contains("unexpected argument '--backend'"),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+}
+
+#[test]
+fn compwasm_literal_uses_canonical_semantic_argv_plan() {
+    let dir = std::env::temp_dir().join("tcl_compwasm_canonical_semantic");
     std::fs::create_dir_all(&dir).expect("mkdir");
     let wasm_path = dir.join("out.wasm");
     let wat_path = dir.join("out.wat");
@@ -167,10 +177,10 @@ fn compwasm_generic_invoke_emits_argv_transport_without_eval_import() {
     let output = Command::new(env!("CARGO_BIN_EXE_tcl"))
         .args([
             "compwasm",
-            "--backend",
-            "generic-invoke",
             "--source",
             "string length hello",
+            "--dialect",
+            "tcl8.6",
             "-o",
             wasm_path.to_str().expect("utf-8 output path"),
             "--wat-output",
@@ -180,7 +190,7 @@ fn compwasm_generic_invoke_emits_argv_transport_without_eval_import() {
         .expect("spawn tcl");
     assert!(
         output.status.success(),
-        "generic-invoke compwasm failed: {}",
+        "canonical compwasm failed: {}",
         String::from_utf8_lossy(&output.stderr)
     );
     let bytes = std::fs::read(&wasm_path).expect("read wasm");
@@ -202,13 +212,7 @@ fn compwasm_defaults_to_out_wasm_file() {
 
     let out = Command::new(env!("CARGO_BIN_EXE_tcl"))
         .current_dir(&dir)
-        .args([
-            "compwasm",
-            "--backend",
-            "tree-walker",
-            "--source",
-            "set x 1\n",
-        ])
+        .args(["compwasm", "--source", "set x 1\n"])
         .output()
         .expect("spawn tcl");
     assert!(
@@ -228,61 +232,6 @@ fn compwasm_defaults_to_out_wasm_file() {
 #[test]
 fn compwasm_dash_o_writes_stdout() {
     // An explicit `-o -` still selects stdout.
-    let out = run_tcl(&[
-        "compwasm",
-        "--backend",
-        "tree-walker",
-        "--source",
-        "set x 1\n",
-        "-o",
-        "-",
-    ]);
+    let out = run_tcl(&["compwasm", "--source", "set x 1\n", "-o", "-"]);
     assert_eq!(&out[0..4], b"\0asm", "stdout payload is not a wasm module");
-}
-
-#[test]
-fn compwasm_vm_backend_emits_runner() {
-    // The default `vm` backend ships the prebuilt generic runner (`vm.wasm`,
-    // built by `make tcl-vm-wasm`) verbatim — the user's script is compile-checked
-    // and executed at run time through the runner's ABI. Skip cleanly when the
-    // runner has not been built, so a plain `cargo test` is unaffected.
-    let runner =
-        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../build/tcl-vm-wasm/vm.wasm");
-    if !runner.is_file() {
-        eprintln!("vm.wasm runner not built (make tcl-vm-wasm); skipping vm-backend compwasm test");
-        return;
-    }
-
-    let dir = std::env::temp_dir().join("tcl_compwasm_vm");
-    std::fs::create_dir_all(&dir).expect("mkdir");
-    let wasm_path = dir.join("out.wasm");
-
-    // A coroutine script the tree-walker backend cannot run — the point of the VM
-    // backend. `compwasm` only compile-checks it here; the runner executes it.
-    let out = Command::new(env!("CARGO_BIN_EXE_tcl"))
-        .args([
-            "compwasm",
-            "--source",
-            "coroutine c apply {{} { yield 7 }}; puts [c]\n",
-            "-o",
-            wasm_path.to_str().unwrap(),
-        ])
-        .output()
-        .expect("spawn tcl");
-    assert!(
-        out.status.success(),
-        "vm compwasm failed: {}",
-        String::from_utf8_lossy(&out.stderr)
-    );
-
-    let bytes = std::fs::read(&wasm_path).expect("read wasm");
-    assert_eq!(&bytes[0..4], b"\0asm", "vm runner is not a wasm module");
-    // The default backend emits the shipped runner verbatim.
-    let runner_bytes = std::fs::read(&runner).expect("read runner");
-    assert_eq!(
-        bytes, runner_bytes,
-        "emitted wasm is not the shipped runner"
-    );
-
-    let _ = std::fs::remove_dir_all(&dir);
 }

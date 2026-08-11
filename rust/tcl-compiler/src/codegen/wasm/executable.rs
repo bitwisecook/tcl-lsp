@@ -146,6 +146,29 @@ pub enum WasmExecutableInvokeDecline {
     EmptyFunctionName,
 }
 
+impl WasmExecutableInvokeDecline {
+    /// Stable code-generation evidence spelling for Explorer and API clients.
+    #[must_use]
+    pub const fn as_str(&self) -> &'static str {
+        match self {
+            Self::InvalidExecutableIr => "invalid-executable-ir",
+            Self::UnsupportedControlFlow => "unsupported-control-flow",
+            Self::UnsupportedInstruction => "unsupported-instruction",
+            Self::NonLiteralWord { .. } => "non-literal-word",
+            Self::ArgumentExpansion => "argument-expansion",
+            Self::InconsistentArgv => "inconsistent-argv",
+            Self::InconsistentInvocation => "inconsistent-invocation",
+            Self::InconsistentCompletionReturn => "inconsistent-completion-return",
+            Self::LiteralTooLong => "literal-too-long",
+            Self::TooManyWords => "too-many-words",
+            Self::FrameTooLarge => "frame-too-large",
+            Self::InvalidDataBase => "invalid-data-base",
+            Self::ConstantPoolOutOfBounds => "constant-pool-out-of-bounds",
+            Self::EmptyFunctionName => "empty-function-name",
+        }
+    }
+}
+
 /// Build a generic invocation plan with a caller-controlled stable export name.
 pub fn plan_wasm_generic_invoke_named(
     function: &ExecutableFunction,

@@ -16,8 +16,11 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! The greenfield WASM codegen backend — the first consumer of the [`Emit`] seam
-//! and the structured [`structured`](crate::codegen::structured) driver.
+//! Private broad-coverage plan emitter behind the canonical WASM pipeline.
+//!
+//! This remains the first consumer of the [`Emit`] seam and the structured
+//! [`structured`](crate::codegen::structured) driver while equivalent common
+//! executable-IR plans are added.
 //!
 //! The analysis-aware tier emits binding-proven assignments, procedure calls,
 //! arithmetic, and registry-selected commands over owned `TclObj` pointers.
@@ -55,6 +58,8 @@ use crate::compilation_unit::{CompilationUnit, FunctionUnit};
 use crate::ir::{Module, Procedure, Statement};
 use crate::registry_invocation::{RegistryInvocationResolution, resolve_command_tokens};
 use tcl_runtime_api::codegen_abi::WASM32_CODEGEN_DATA_START;
+
+use super::pipeline::WasmCompileOptions;
 
 /// Block type byte for a structured op (`block`/`loop`/`if`) yielding no value.
 const BLOCK_VOID: u8 = 0x40;
@@ -444,7 +449,7 @@ impl WasmEmitter {
     }
 
     /// Honour the completion code a leaf command's [`tcl_eval_code`] left on the
-    /// stack — the AOT realisation of the tree-walker's "stop the script on the
+    /// stack — the AOT realisation of "stop the script on the
     /// first non-`OK` command" loop (`eval_script_mode`), so abrupt completion
     /// propagates through compiled `if`/`while`/`for` instead of being swallowed.
     ///
@@ -976,92 +981,30 @@ fn procedure_plan<'a>(
     }
 }
 
-/// Lower a module's top-level script to a WASM module (source fallback +
-/// structured control flow). `source` is the original Tcl text, sliced for
-/// command / expression text. The constant pool is placed at offset 0 — valid
-/// for a standalone module (own memory) or one whose host keeps low memory free.
-#[must_use]
-pub fn wasm_codegen_module(module: &Module, source: &str) -> WasmModule {
-    codegen(module, source, 0, false, false, None)
-}
-
-/// Emit from a complete compiler unit, enabling registry- and lattice-proven
-/// direct statements while retaining source-span fallback for the rest.
-#[must_use]
-pub fn wasm_codegen_compilation_unit(
+/// Internal emitter behind the canonical [`super::compile_wasm`] pipeline.
+///
+/// Packaging flags alter relocation and bootstrap only. Direct
+/// specialisations may be conservatively disabled for a restricted test host;
+/// unsupported statements always fall back inside this emitter.
+pub(super) fn emit_wasm(
     unit: &CompilationUnit,
     registry: &CommandRegistry,
+    options: WasmCompileOptions,
 ) -> WasmModule {
+    let analysis = options
+        .compatibility_specialisations()
+        .then_some((unit, registry));
     codegen(
         &unit.ir_module,
         &unit.source,
-        0,
-        false,
-        false,
-        Some((unit, registry)),
+        options.data_base,
+        options.is_standalone(),
+        options.initialise_library(),
+        analysis,
     )
 }
 
-/// As [`wasm_codegen_module`], but relocate the constant pool to `data_base` so
-/// it lands in the runtime's reserved region (see [`RESERVED_DATA_BASE`]) when
-/// the emitted module shares the runtime's linear memory in the whole-program
-/// link. Both the data segments and the `i32.const` offsets the module passes to
-/// `tcl_obj_new_string` are based at `data_base`.
-#[must_use]
-pub fn wasm_codegen_module_based(module: &Module, source: &str, data_base: i64) -> WasmModule {
-    codegen(module, source, data_base, false, false, None)
-}
-
-/// Relocated form of [`wasm_codegen_compilation_unit`].
-#[must_use]
-pub fn wasm_codegen_compilation_unit_based(
-    unit: &CompilationUnit,
-    registry: &CommandRegistry,
-    data_base: i64,
-) -> WasmModule {
-    codegen(
-        &unit.ir_module,
-        &unit.source,
-        data_base,
-        false,
-        false,
-        Some((unit, registry)),
-    )
-}
-
-/// As [`wasm_codegen_module_based`], but also emit a WASI-command entry point
-/// (`_start`) that bootstraps an interp and runs `::top`, for a **single
-/// self-contained binary**: merge the emitted module with the runtime (e.g.
-/// `wasm-merge runtime.wasm tcl out.wasm user`), then run the one module with
-/// `wasmtime merged.wasm` — no host orchestration. `_start` calls
-/// `tcl_runtime_create_interp` + `tcl_runtime_set_current_interp` (imported from
-/// `"tcl"`, resolved to the runtime's exports by the merge) then `::top`. The
-/// runtime's `.command_export` wrappers run its ctors on first entry, so no
-/// separate `_initialize` call is needed.
-#[must_use]
-pub fn wasm_codegen_module_standalone(module: &Module, source: &str, data_base: i64) -> WasmModule {
-    codegen(module, source, data_base, true, false, None)
-}
-
-/// As [`wasm_codegen_module_standalone`], but the emitted `_start` also calls
-/// `tcl_runtime_init_library` (between `set_current_interp` and `::top`) to
-/// bootstrap the standard library — `source $TCL_LIBRARY/init.tcl`, bringing up
-/// `unknown`/auto-load/`package`. With the runtime built with the embedded
-/// stdlib (`--features wasm_stdlib`), the merged module runs a compiled script
-/// against a fully initialised interpreter — so `package require tcltest` and
-/// the rest of the stdlib work from a single `wasmtime merged.wasm`.
-#[must_use]
-pub fn wasm_codegen_module_standalone_init(
-    module: &Module,
-    source: &str,
-    data_base: i64,
-) -> WasmModule {
-    codegen(module, source, data_base, true, true, None)
-}
-
-/// Shared codegen for the linkable ([`wasm_codegen_module_based`]) and
-/// self-contained ([`wasm_codegen_module_standalone`]) forms. `init` adds the
-/// `tcl_runtime_init_library` bootstrap call to a standalone `_start`.
+/// Shared implementation for hosted, linked, and standalone packaging.
 fn codegen(
     module: &Module,
     source: &str,

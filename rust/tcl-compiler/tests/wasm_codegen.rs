@@ -24,31 +24,43 @@
 //! present) validates the bytes for full structural validity.
 
 use tcl_compiler::codegen::wasm::{
-    RESERVED_DATA_BASE, WasmModule, wasm_codegen_compilation_unit, wasm_codegen_module,
-    wasm_codegen_module_based,
+    RESERVED_DATA_BASE, WasmCompileOptions, WasmModule, compile_wasm as compile_wasm_unit,
 };
 use tcl_compiler::compilation_unit::CompilationUnit;
-use tcl_compiler::lowering::lower_to_ir;
 use tcl_registry::CommandRegistry;
 
 /// Lower Tcl source and run the greenfield WASM backend over its top level.
 fn compile_wasm(source: &str) -> WasmModule {
     let registry = CommandRegistry::build_default();
-    let module = lower_to_ir(source, &registry);
-    wasm_codegen_module(&module, source)
+    let unit = CompilationUnit::build_for(source, &registry, false);
+    compile_wasm_unit(
+        &unit,
+        &registry,
+        WasmCompileOptions::hosted()
+            .for_eval_only_test_host()
+            .with_data_base(0),
+    )
+    .into_module()
 }
 
 /// As [`compile_wasm`], but relocate the constant pool to `data_base`.
 fn compile_wasm_based(source: &str, data_base: i64) -> WasmModule {
     let registry = CommandRegistry::build_default();
-    let module = lower_to_ir(source, &registry);
-    wasm_codegen_module_based(&module, source, data_base)
+    let unit = CompilationUnit::build_for(source, &registry, false);
+    compile_wasm_unit(
+        &unit,
+        &registry,
+        WasmCompileOptions::hosted()
+            .for_eval_only_test_host()
+            .with_data_base(data_base),
+    )
+    .into_module()
 }
 
 fn compile_wasm_analysed(source: &str) -> WasmModule {
     let registry = CommandRegistry::build_default();
     let unit = CompilationUnit::build_for(source, &registry, false);
-    wasm_codegen_compilation_unit(&unit, &registry)
+    compile_wasm_unit(&unit, &registry, WasmCompileOptions::hosted()).into_module()
 }
 
 #[test]

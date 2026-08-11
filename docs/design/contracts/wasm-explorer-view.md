@@ -2,7 +2,8 @@
 
 ## Purpose
 
-The compiler explorer renders the output of `wasm_codegen_module` as a
+The compiler explorer renders the output of the canonical `compile_wasm`
+pipeline as a
 per-instruction interactive disassembly.  The JSON shape that
 [`rust/tcl-explorer`](../../../rust/tcl-explorer) produces and
 that [`rust/tcl-cli/gui/explorer-core.js`](../../../rust/tcl-cli/gui/explorer-core.js)
@@ -21,8 +22,9 @@ read the same shape.
   structural open/close), a source range, an indent level, and an explorer
   label.
 - [`rust/tcl-explorer/src/serialise.rs`](../../../rust/tcl-explorer/src/serialise.rs)
-  — `serialise_wasm` calls it, attaches the full WAT `text` on the module
-  header for the TUI / legacy consumers, and returns the list as
+  — `serialise_wasm` calls the canonical compiler, attaches the typed
+  `codegenPlan` evidence and full WAT `text` on the module header, and returns
+  the list as
   `data.wasm` / `data.wasmOptimised`.
 - [`rust/tcl-explorer-wasm`](../../../rust/tcl-explorer-wasm) — the
   `wasm-bindgen` facade the browser worker calls (`compile`, plus `meta` for
@@ -62,9 +64,19 @@ Every `imports[].typeIdx` indexes into this list.
   ],
   "types": [{"index": 0, "params": ["i32"], "results": ["i64"]}],
   "dataSegments": [{"offset": 0, "size": 8}],
+  "codegenPlan": {
+    "kind": "generic-invoke", // or "compatibility"
+    "operation": "intrinsic", // invoke | intrinsic | structured-lowering
+    "compatibility": null      // typed reason object after a decline
+  },
   "text": "(module (type …) (import …) …)"
 }
 ```
+
+`codegenPlan` is durable compiler evidence, not display inference. A
+compatibility plan carries stable `kind` and `detailKind` fields explaining
+why executable semantic selection declined. It never contains Rust `Debug`
+output.
 
 ## Function entry
 
