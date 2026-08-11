@@ -414,7 +414,7 @@ above); speed is recovered only afterwards.**
    PC-3 dynamic construct is reachable; the AOT↔interp interop gate (a compiled
    proc and an interpreted proc in one chain produce identical `errorInfo` and
    `info frame`/`info level`).
-7. **(end of project) — the elision pass** (§7) + S2/S3 frame elision: drop
+7. **(end of project) — the elision pass** (§7): drop
    reified frames / diagnostic bookkeeping **only** where escape analysis proves
    no dynamic construct can observe them. Gated by proofs + the suite.
 
@@ -424,5 +424,5 @@ above); speed is recovered only afterwards.**
   (the `External` call path).
 - [`namespace-tree.md`](namespace-tree.md) — namespace resolution (T1.5), the
   `nsPtr` field.
-- [`../compiler/wasm-aot-staircase.md`](../compiler/wasm-aot-staircase.md) — the
-  staircase the elision pass extends.
+- [`../compiler/var-escape-analysis.md`](../compiler/var-escape-analysis.md) —
+  the proof contract that gates frame elision.

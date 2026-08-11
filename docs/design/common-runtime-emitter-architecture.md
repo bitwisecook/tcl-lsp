@@ -424,27 +424,25 @@ the per-consumer minimal-dependency goal.
 What compiled code is allowed to assume about the runtime store. This is the
 most important existing analog to the abstraction we're formalising:
 
-- **WASM:** an explicit **import table** (`compiler/codegen/wasm/_imports.py`,
-  `_scan.py`) — `tcl_global_set`, `tcl_local_get`, `tcl_info_exists`,
-  `tcl_catch_enter`, `tcl_eval`, the `call_compiled_proc` host bridge, etc. A
-  pre-scan computes the needed set; anything not provably inline falls back to
-  `tcl_eval`. This *is* the runtime interface, expressed as wasm imports.
+- **WASM:** an explicit **import table** declared by
+  `tcl-compiler/src/codegen/wasm/{executable,backend}.rs` from the canonical
+  runtime ABI. The semantic plan emits the narrow `tcl_invoke_argv` contract
+  when its proofs hold; a typed compatibility plan retains the general runtime
+  surface. This *is* the runtime interface, expressed as WASM imports.
 - **Bytecode/TCLVM:** the **opcode set + `INVOKE_STK` semantics**. `loadStk`/
   `storeStk`/`loadScalar`/`incrScalar`/`beginCatch`/`returnImm` are the
   contract; `INVOKE_STK` defers to the dispatcher exactly as `tcl_eval` does.
 
 Both are the same idea — *"compiled code names a runtime operation; the runtime
-store performs it"* — at different granularities. The **AOT staircase**
-([docs/design/compiler/wasm-aot-staircase.md], `wasm-aot-staircase-s0..s6`)
-decides per-construct which tier applies (inline → runtime helper with resolved
-context → eval fallback → full interpreter). The bytecode emitter has a coarser
-staircase: a registry `bytecoded` hook emits an inline opcode sequence for a
-known command/shape (≈ AOT Tier 0–1), else `INVOKE_STK` defers to the dispatcher
-(≈ Tier 3 `tcl_eval`). The *shape* is shared and the contract should be
-documented uniformly ([docs/design/contracts/], a future
+store performs it"* — at different granularities. The canonical WASM pipeline
+selects a semantic plan from registry and compiler proofs, then records a typed
+compatibility reason when it must retain the general runtime path. The bytecode
+emitter similarly uses a registry `bytecoded` hook for a known command shape,
+or `INVOKE_STK` to defer to the dispatcher. The *shape* is shared and the
+contract should be documented uniformly ([docs/design/contracts/], a future
 `emitter-runtime-contract.md`).
 
-**The VM is downstream of the staircase — it has no staircase of its own.** The
+**The VM is downstream of this selection — it has no separate codegen path.** The
 tiering is a *compile-time* (emitter) decision; by the time the VM runs, the
 inline-vs-`INVOKE_STK` choice is already baked into the bytecode. So "staircase
 parity" is an **emitter-to-emitter** concern (does the bytecode `bytecoded` hook
@@ -669,7 +667,7 @@ panicking stub and drop the compiler entirely.
 ## 9. Cross-links
 
 - [docs/design/compiler/codegen-module-map.md] — the two codegen backends.
-- [docs/design/compiler/wasm-codegen.md], [docs/design/compiler/wasm-aot-staircase.md] — WASM emitter + AOT tiers.
+- [docs/design/compiler/wasm-codegen.md] — canonical WASM codegen pipeline.
 - [docs/design/compiler/wasm-runtime-primitives.md] — the import boundary.
 - [docs/design/runtime/namespace-tree.md], [docs/design/runtime/proc-call-and-stack-traces.md], [docs/design/runtime/command-introspection.md], [docs/design/runtime/trace-implementation.md], [docs/design/runtime/rename-alias.md], [docs/design/runtime/child-interp.md] — the family-B subsystems.
 - [docs/design/runtime/c-extension-abi.md] — why the value model can't be one type.

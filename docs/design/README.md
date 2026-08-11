@@ -264,16 +264,6 @@ chunk-by-chunk dispatch story lives in
   passes/features): one missing command (``ledit``), four Rust-only
   optimiser miscompiles, an unwired inliner, and the deleted parity-check
   tooling.
-- [rust/coherence-and-coverage-2026-06-23.md](rust/coherence-and-coverage-2026-06-23.md)
-  — closing review pass: a coverage map proving every goal aspect is documented
-  across the six reviews, plus the remaining axes — **type-system coherence**
-  (bimodal: the value/registry half is the template, the editor half fractures
-  along the UTF-16 seam — raw offsets, 3 `Severity` enums, 2 `Diagnostic`
-  structs, stringly-typed IR), **naming coherence + glossary currency**, the
-  **explorer trio (CLI/TUI/GUI)** (the model of one-core reuse), and the
-  **"information" subsystem** (Info→Hint severity collapse; `info`-command
-  `VM ⊂ WASM` parity gap). Reconciled against the just-landed `origin/rust`
-  API-PYO3 / xtask / TEST-MIGRATE work.
 - [rust/srv-incremental-review-2026-06-23.md](rust/srv-incremental-review-2026-06-23.md)
   — deep review of the SRV-INCREMENTAL work (#692): per-edit incremental salsa
   pipeline (incremental `LineIndex`, per-function check memo, interprocedural
@@ -336,34 +326,6 @@ chunk-by-chunk dispatch story lives in
   implemented and NOT-PORTABLE ones stubbed with explicit error
   messages).
 
-## Compiler staircase (S0–S6)
-
-The phased plan to drive the Tcl-WASM AOT compiler from "frames
-everywhere" baseline through inlining and SSA-driven optimisations.
-Each stage doc lists tasks, file paths, test plans, and acceptance
-gates.
-
-- [compiler/wasm-aot-staircase.md](compiler/wasm-aot-staircase.md)
-  — overview tying S0 through S6 together: stage status,
-  acceptance gates, sequencing rules.
-- [compiler/wasm-aot-staircase-s0.md](compiler/wasm-aot-staircase-s0.md)
-  — S0 foundations: leak detector, refcount contract,
-  deterministic repro for the canonical bug.
-- [compiler/wasm-aot-staircase-s1.md](compiler/wasm-aot-staircase-s1.md)
-  — S1 frames-everywhere baseline + ``--no-frame-elision``
-  kill-switch.
-- [compiler/wasm-aot-staircase-s2.md](compiler/wasm-aot-staircase-s2.md)
-  — S2 per-proc frame elision with refcount discipline.
-- [compiler/wasm-aot-staircase-s3.md](compiler/wasm-aot-staircase-s3.md)
-  — S3 escape-analysis tightening + ``pure_leaf`` predicate.
-- [compiler/wasm-aot-staircase-s4.md](compiler/wasm-aot-staircase-s4.md)
-  — S4 IR-level inlining (catalogue + inliner).
-- [compiler/wasm-aot-staircase-s5.md](compiler/wasm-aot-staircase-s5.md)
-  — S5 SSA-driven codegen optimisations (LICM + GVN + DCE).
-- [compiler/wasm-aot-staircase-s6.md](compiler/wasm-aot-staircase-s6.md)
-  — S6 allocation + small-value representation (free-lists,
-  inline strings, dict hash side-cache, tagged immediates,
-  per-statement arena).
 - [compiler/byte-array-corruption.md](compiler/byte-array-corruption.md)
   — the `S110` byte-array corruption diagnostic: binary data forced
   through character-string semantics.
