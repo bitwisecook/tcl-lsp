@@ -151,10 +151,24 @@ impl DeprecationFixHook {
             ),
             Self::Custom { resolver } => return resolver(context),
         };
-        context.words.get(match target {
-            DeprecationFixTarget::Word(index) => index,
-            DeprecationFixTarget::Invocation => context.matched_word_index,
-        })?;
+        match target {
+            // Declarative word replacements cannot interpret a substituted
+            // value. A command needing that behaviour must use `Custom` and
+            // prove it from the complete context.
+            DeprecationFixTarget::Word(index) => {
+                if !context.words.get(index)?.literal {
+                    return None;
+                }
+            }
+            // A fixed whole-invocation replacement would otherwise discard
+            // computed words. Context-sensitive shape rewrites belong in a
+            // custom resolver, which can retain or deliberately reject them.
+            DeprecationFixTarget::Invocation => {
+                if context.words.iter().any(|word| !word.literal) {
+                    return None;
+                }
+            }
+        }
         Some(DeprecationFixPlan {
             target,
             new_text: replacement.to_owned(),
@@ -238,5 +252,49 @@ mod tests {
         .resolve(context)
         .unwrap();
         assert_eq!(custom.new_text, "modern");
+    }
+
+    #[test]
+    fn declarative_hooks_abstain_before_replacing_dynamic_words() {
+        let words = [
+            DeprecationFixWord {
+                spelling: "cmd",
+                literal: true,
+            },
+            DeprecationFixWord {
+                spelling: "old",
+                literal: true,
+            },
+            DeprecationFixWord {
+                spelling: "$computed",
+                literal: false,
+            },
+        ];
+        let context = DeprecationFixContext {
+            words: &words,
+            matched_word_index: 1,
+            dialect: Some("tcl9.0"),
+            effective_version: Some("9.0"),
+        };
+
+        assert!(
+            DeprecationFixHook::ReplaceArgument {
+                index: 0,
+                replacement: "fixed",
+                description: "Replace the argument",
+                safety: DeprecationFixSafety::RequiresReview,
+            }
+            .resolve(context)
+            .is_none()
+        );
+        assert!(
+            DeprecationFixHook::ReplaceInvocation {
+                replacement: "cmd modern fixed",
+                description: "Replace the invocation",
+                safety: DeprecationFixSafety::RequiresReview,
+            }
+            .resolve(context)
+            .is_none()
+        );
     }
 }
