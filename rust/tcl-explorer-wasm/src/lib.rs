@@ -69,15 +69,16 @@ mod tests {
     #[test]
     fn wasm_contract_exposes_the_descriptor_and_world_ssa_payload() {
         let meta: serde_json::Value = serde_json::from_str(&meta()).expect("meta JSON");
-        assert!(meta["views"]
-            .as_array()
-            .unwrap()
-            .iter()
-            .any(|view| view["id"] == "worldSsa"));
+        assert!(
+            meta["views"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .any(|view| view["id"] == "worldSsa")
+        );
 
         let compiled: serde_json::Value =
-            serde_json::from_str(&compile("interp create child", "tcl9.0"))
-                .expect("compile JSON");
+            serde_json::from_str(&compile("interp create child", "tcl9.0")).expect("compile JSON");
         assert!(compiled["worldSsa"].is_array());
         assert!(compiled["worldSsa"][0]["availability"]["kind"].is_string());
     }
