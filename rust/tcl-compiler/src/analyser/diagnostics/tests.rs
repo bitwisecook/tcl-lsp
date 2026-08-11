@@ -1910,6 +1910,25 @@ fn w147_is_generic_and_covers_glob_without_source_logic() {
 }
 
 #[test]
+fn w147_requires_two_distinct_canonical_options() {
+    for snippet in [
+        "glob -directory root -directory other *.tcl\n",
+        "glob -path root -path other *.tcl\n",
+    ] {
+        let mut a = Analyser::new();
+        let result = a.analyse(snippet, "tcl8.6");
+        assert!(
+            !result
+                .diagnostics
+                .iter()
+                .any(|diagnostic| diagnostic.code == DiagCode::W147),
+            "repeating one constrained option is not a relationship conflict: {:?}",
+            result.diagnostics
+        );
+    }
+}
+
+#[test]
 fn subcommand_arity_skips_unknown_and_dynamic_subcommands() {
     // An unknown subcommand is W001's job, not E003; a dynamic
     // subcommand word (`$sub`) can't be resolved, so neither path

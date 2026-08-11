@@ -118,6 +118,25 @@ fn count_positionals(args: &[String], arg_expand: &[bool], start: usize) -> (usi
     (nargs_min, any_expand)
 }
 
+fn first_distinct_option_conflict(
+    seen_options: &[(&'static str, tcl_lexer::Span)],
+    constraints: &[&'static tcl_registry::OptionConstraint],
+) -> Option<(
+    &'static tcl_registry::OptionConstraint,
+    tcl_lexer::Span,
+    tcl_lexer::Span,
+)> {
+    constraints.iter().find_map(|constraint| {
+        let first = seen_options
+            .iter()
+            .find(|(name, _)| constraint.options.contains(name))?;
+        let second = seen_options
+            .iter()
+            .find(|(name, _)| constraint.options.contains(name) && name != &first.0)?;
+        Some((*constraint, first.1, second.1))
+    })
+}
+
 /// Compatibility adapter for existing end-offset consumers. The delimiter
 /// policy itself lives once in [`super::super::utils::full_word_span`], which
 /// delegates to the lexer's authoritative `word_span` helper.
@@ -1564,13 +1583,9 @@ impl Analyser {
         // proven conflict; dynamic option names and `{*}` expansions remain
         // conservative abstentions. No repair is offered because choosing
         // which option expresses the caller's intent is inherently ambiguous.
-        if let Some((constraint, first, second)) = sig.option_constraints.iter().find_map(|c| {
-            let found: Vec<_> = seen_options
-                .iter()
-                .filter(|(name, _)| c.options.contains(name))
-                .collect();
-            (found.len() >= 2).then(|| (*c, found[0].1, found[1].1))
-        }) {
+        if let Some((constraint, first, second)) =
+            first_distinct_option_conflict(&seen_options, &sig.option_constraints)
+        {
             let names = constraint
                 .options
                 .iter()

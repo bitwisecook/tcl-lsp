@@ -498,6 +498,20 @@ fn source_tcl9_rejects_combined_encoding_and_nopkg_end_to_end() {
 }
 
 #[test]
+fn repeated_option_is_not_a_mutual_exclusion_conflict() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let diags = lsp.open_ready(
+        &uri,
+        "# tcl-dialect: tcl8.6\nglob -directory root -directory other *.tcl\n",
+    );
+    assert!(
+        !has_code(&diags, "W147"),
+        "one canonical option repeated is not two mutually exclusive options: {diags:?}"
+    );
+}
+
+#[test]
 fn user_proc_shadowing_lsearch_suppresses_w004() {
     // `lsearch` really dispatches to the user's own proc here, so the
     // builtin's dialect-restricted `-stride` no longer applies.
