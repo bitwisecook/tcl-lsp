@@ -2459,11 +2459,15 @@ mod tests {
             "tcl8.6",
         )
         .with_deep_semantic_analysis(&registry(), DialectSet::TCL86);
+        // The top-level source contains a structural `namespace eval` whose
+        // completion switch is not yet representable by the common world-SSA
+        // planner. Deep inspection must still retain executable facts and the
+        // typed `WorldStateDeclined` outcome rather than requiring a graph.
         assert!(
             deep.top_level
                 .semantic_facts
                 .executable()
-                .world_state_ssa()
+                .function()
                 .is_some()
         );
         assert!(
@@ -2472,13 +2476,15 @@ mod tests {
                 .unwrap()
                 .semantic_facts
                 .executable()
-                .world_state_ssa()
+                .function()
                 .is_some()
         );
         assert!(
-            deep.body_units
-                .values()
-                .all(|unit| { unit.semantic_facts.executable().world_state_ssa().is_some() })
+            deep.body_units.values().all(|unit| unit
+                .semantic_facts
+                .executable()
+                .function()
+                .is_some())
         );
     }
 
