@@ -310,7 +310,7 @@ export const DIAGNOSTICS: DiagnosticDef[] = [
     code: "W144",
     section: "warning",
     description:
-      "Command/subcommand/option/argument value is deprecated at the resolved package version — still available, but the registry records a deprecating release.",
+      "Command/subcommand/option/argument value is deprecated at the resolved package or Tcl-core version — still available, but the registry records a deprecating release.",
     defaultEnabled: true,
   },
   {
@@ -325,6 +325,12 @@ export const DIAGNOSTICS: DiagnosticDef[] = [
     section: "warning",
     description:
       "Literal argument violates a registry-declared relationship or member set (for example, a trace operation list contains an operation invalid for its trace type).",
+    defaultEnabled: true,
+  },
+  {
+    code: "W147",
+    section: "warning",
+    description: "Mutually exclusive command options were supplied together.",
     defaultEnabled: true,
   },
   {

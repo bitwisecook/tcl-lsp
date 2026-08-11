@@ -1577,7 +1577,10 @@ impl Analyser {
             }
             if let Some(opt) = sig.leading_option_specs.iter().find(|o| o.matches(arg)) {
                 if let Some(token) = arg_tokens.get(i) {
-                    seen_options.push((opt.name, widened_word_span(*token, &self.source)));
+                    seen_options.push((
+                        opt.name,
+                        super::super::utils::full_word_span(*token, &self.source),
+                    ));
                 }
                 // Skip the flag itself plus however many value words it
                 // consumes at this position (0 for a bare flag).
