@@ -1387,6 +1387,26 @@ fn method_items(
             });
         }
     }
+    // Methods the class system *generates* from declared `property` members
+    // (`oo::configurable`'s `configure`) — written by no `method` body, so
+    // the MRO walk above cannot see them.  The same registry-driven set the
+    // W308 existence check and the semantic-token classifier consult
+    // (issue #1362): completion offering a method those two accept is the
+    // whole point of sharing the predicate.  Instance-only — the accessor
+    // is an instance method on the configurable class, not a class-side one.
+    if bucket == MethodBucket::Instance {
+        for name in hierarchy.property_accessor_methods(registry, class_q) {
+            if seen.insert(name.to_string()) {
+                items.push(CompletionItem {
+                    label: name.to_string(),
+                    insert_text: name.to_string(),
+                    kind: CompletionKind::Function,
+                    detail: Some("method — generated property accessor".to_string()),
+                    ..CompletionItem::default()
+                });
+            }
+        }
+    }
     // The universal object method (present on every instance, never on a
     // class command).
     if bucket == MethodBucket::Instance && seen.insert("destroy".to_string()) {
@@ -2295,6 +2315,14 @@ mod tests {
         a.analyse(source, "tcl8.6").clone()
     }
 
+    /// [`analyse`] under Tcl 9.0 — for sources using 9.0-only class
+    /// machinery (`oo::configurable`, `property`), which the 8.6 analysis
+    /// the rest of this module uses does not model.
+    fn analyse9(source: &str) -> AnalysisResult {
+        let mut a = Analyser::new();
+        a.analyse(source, "tcl9.0").clone()
+    }
+
     #[test]
     fn array_element_completion_does_not_eat_trailing_text_when_unclosed() {
         // `$arr(k more stuff` with no `)` — accepting `$arr(key)` must replace
@@ -2355,6 +2383,74 @@ mod tests {
                 .contains("inherited from ::Animal"),
             "{:?}",
             eat.detail
+        );
+    }
+
+    #[test]
+    fn obj_method_completion_includes_generated_property_accessors() {
+        // Issue #1362's third consumer: W308 and the semantic-token
+        // classifier already accept the `configure` an `oo::configurable`
+        // class generates for its `property` members — completion must
+        // offer the same surface, or the editor colours a method it will
+        // not complete.  `cget` is not generated (`configurable.n`) and
+        // must not be offered.
+        let src = "oo::configurable create Point {\n    property x\n    method shift {} {}\n}\nset p [Point new]\n$p \n";
+        let analysis = analyse9(src);
+        let registry = CommandRegistry::build_default();
+        // Cursor after `$p ` on line 5.
+        let items = completions(src, 5, 3, &analysis, Some(&registry), None, "tcl9.0");
+        let labels: Vec<&str> = items.iter().map(|i| i.label.as_str()).collect();
+        assert!(labels.contains(&"shift"), "declared method: {labels:?}");
+        assert!(
+            labels.contains(&"configure"),
+            "generated accessor missing: {labels:?}"
+        );
+        assert!(
+            !labels.contains(&"cget"),
+            "cget is not generated and must not be offered: {labels:?}"
+        );
+        let configure = items.iter().find(|i| i.label == "configure").unwrap();
+        assert!(
+            configure
+                .detail
+                .as_deref()
+                .unwrap_or("")
+                .contains("generated"),
+            "{:?}",
+            configure.detail
+        );
+    }
+
+    #[test]
+    fn obj_method_completion_inherits_generated_accessors_through_plain_subclass() {
+        // A plain `oo::class` subclass of a configurable class inherits the
+        // generated `configure` as a real method — same MRO fold as W308.
+        let src = "oo::configurable create Point {\n    property x\n}\noo::class create Point3 {\n    superclass Point\n    property z\n}\nset p [Point3 new]\n$p \n";
+        let analysis = analyse9(src);
+        let registry = CommandRegistry::build_default();
+        // Cursor after `$p ` on line 8.
+        let items = completions(src, 8, 3, &analysis, Some(&registry), None, "tcl9.0");
+        let labels: Vec<&str> = items.iter().map(|i| i.label.as_str()).collect();
+        assert!(
+            labels.contains(&"configure"),
+            "inherited generated accessor missing: {labels:?}"
+        );
+    }
+
+    #[test]
+    fn obj_method_completion_offers_no_accessor_on_a_plain_class() {
+        // The other direction: a plain `oo::class` with no configurable
+        // ancestor has no `configure` — offering one would complete a
+        // method that fails at dispatch (the W308 true positive's twin).
+        let src = "oo::class create Plain {\n    method only {} {}\n}\nset p [Plain new]\n$p \n";
+        let analysis = analyse9(src);
+        let registry = CommandRegistry::build_default();
+        // Cursor after `$p ` on line 4.
+        let items = completions(src, 4, 3, &analysis, Some(&registry), None, "tcl9.0");
+        let labels: Vec<&str> = items.iter().map(|i| i.label.as_str()).collect();
+        assert!(
+            !labels.contains(&"configure"),
+            "plain class must not offer configure: {labels:?}"
         );
     }
 
