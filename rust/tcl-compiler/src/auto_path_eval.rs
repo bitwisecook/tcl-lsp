@@ -30,7 +30,8 @@
 //! ```
 //!
 //! The supported subset is `[info script]`, `[file dirname …]`,
-//! `[file join …]`, literal words, and `~`-prefixed paths.  Variable
+//! `[file join …]`, `[file normalize …]` (anchored arguments only — see
+//! [`eval_file_normalize`]), literal words, and `~`-prefixed paths.  Variable
 //! substitutions (`$auto_path`, `$env(…)`) and list-manipulation
 //! commands are *not* evaluated — anything outside the subset returns
 //! `None` and the caller skips the entry.  We never guess.
@@ -384,6 +385,9 @@ fn eval(node: &Node, info_script: Option<&str>) -> Option<String> {
                 if sub == "dirname" && args.len() == 2 {
                     return Some(path_dirname(&eval(&args[1], info_script)?));
                 }
+                if sub == "normalize" && args.len() == 2 {
+                    return eval_file_normalize(&eval(&args[1], info_script)?);
+                }
                 if sub == "join" && args.len() >= 2 {
                     let mut parts: Vec<String> = Vec::new();
                     for a in &args[1..] {
@@ -398,6 +402,36 @@ fn eval(node: &Node, info_script: Option<&str>) -> Option<String> {
             None
         }
     }
+}
+
+/// `file normalize` in slash form, or `None` when the argument is not already
+/// anchored.
+///
+/// `file normalize` always *returns* an absolute path: given a relative one it
+/// resolves against the interpreter's run-time working directory, which is
+/// exactly the fact this module refuses to guess at (module docs, "A relative
+/// result stays relative").  So only an anchored argument folds — by a literal
+/// root, or by `~`, which [`expanduser`] resolves here for the same reason
+/// [`fold_path_value`] does at the top level.
+///
+/// For an anchored path the command's remaining work is collapsing `.` and
+/// `..`, which [`normpath`] already does.  Symbolic links are *not* resolved:
+/// tclsh follows them, and this cannot without touching the filesystem — the
+/// gap is deliberate, and it only ever leaves a path a reader would recognise
+/// rather than one pointing somewhere else.
+///
+/// This is what makes the corpus idiom fold — `set dir [file normalize [file
+/// dirname [info script]]]`, and the equivalent `[file dirname [file normalize
+/// [info script]]]`, both of which are anchored by `[info script]`.  Without
+/// it every `source [file join $dir …]` in a file written that way abstained
+/// (issue #775).
+/// A drive-relative `C:foo` is rejected by the same test, since [`root_len`]
+/// only counts `X:/` as a root — it names a per-drive working directory, which
+/// is no more knowable than the process-wide one.
+fn eval_file_normalize(path: &str) -> Option<String> {
+    let expanded = expanduser(&to_tcl_slash_form(path));
+    root_len(&expanded)?;
+    Some(normpath(&expanded))
 }
 
 /// `file dirname` in slash form — everything up to (not including) the last
@@ -663,6 +697,69 @@ mod tests {
             evaluate_auto_path_expr("[file dirname [info script]]", None),
             None
         );
+    }
+
+    // `file normalize` — the wrapper the corpus writes around the
+    // `[info script]` idiom, and the reason every `source [file join $dir …]`
+    // in a file spelled that way used to abstain (issue #775).
+
+    /// Both nestings of the corpus idiom fold, and to the same directory.
+    ///
+    /// Oracle (tclsh 8.6.16 / 9.0.4): with `[info script]` reporting
+    /// `/proj/test/arbitaryTest.tcl`, both spellings answer `/proj/test`.
+    #[test]
+    fn file_normalize_folds_the_info_script_idiom() {
+        for expr in [
+            "[file normalize [file dirname [info script]]]",
+            "[file dirname [file normalize [info script]]]",
+        ] {
+            assert_eq!(
+                evaluate_auto_path_expr(expr, Some("/proj/test/arbitaryTest.tcl")).as_deref(),
+                Some("/proj/test"),
+                "{expr} must fold",
+            );
+        }
+    }
+
+    /// `file normalize` collapses `.` and `..` like the rest of the module.
+    #[test]
+    fn file_normalize_collapses_dot_segments() {
+        assert_eq!(
+            evaluate_auto_path_expr("[file normalize /proj/test/../lib/.]", None).as_deref(),
+            Some("/proj/lib"),
+        );
+    }
+
+    /// A relative argument does not fold: `file normalize` would resolve it
+    /// against the interpreter's working directory, which is not knowable
+    /// statically — and inventing the analysing process's own cwd is the one
+    /// answer that is always wrong.
+    #[test]
+    fn file_normalize_of_a_relative_path_is_none() {
+        for expr in [
+            "[file normalize lib]",
+            "[file normalize ../lib]",
+            "[file normalize [file dirname helper.tcl]]",
+            "[file normalize C:lib]",
+        ] {
+            assert_eq!(
+                evaluate_auto_path_expr(expr, Some("/proj/test/caller.tcl")),
+                None,
+                "{expr} must abstain",
+            );
+        }
+    }
+
+    /// Anchored by `~` rather than a literal root, expanded the same way the
+    /// top-level fold expands it.
+    #[test]
+    fn file_normalize_expands_tilde() {
+        temp_env::with_var("HOME", Some("/home/tester"), || {
+            assert_eq!(
+                evaluate_auto_path_expr("[file normalize ~/lib/..]", None).as_deref(),
+                Some("/home/tester"),
+            );
+        });
     }
 
     #[test]

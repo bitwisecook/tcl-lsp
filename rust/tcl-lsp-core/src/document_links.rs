@@ -742,15 +742,21 @@ mod tests {
         );
     }
 
-    /// TN — the same shape wrapped in `file normalize`, which is outside the
-    /// evaluator's supported subset, so `dir` cannot be constant-propagated.
-    /// The whole expression must abstain rather than fall through to
-    /// percent-encoding its own raw text into a `file://` URI (the original
-    /// bug: `file:///proj/%5Bfile%20join%20$dir%20helper.tcl%5D`).
+    /// TN — a shape the evaluator cannot fold, so `dir` cannot be
+    /// constant-propagated.  The whole expression must abstain rather than
+    /// fall through to percent-encoding its own raw text into a `file://` URI
+    /// (the original bug:
+    /// `file:///proj/%5Bfile%20join%20$dir%20helper.tcl%5D`).
+    ///
+    /// The `file normalize` wrapper used to be this test's first fixture; it
+    /// folds now (#775 — see `auto_path_eval::eval_file_normalize`), and
+    /// `a_normalized_computed_source_path_resolves_775` below pins its target.
+    /// `file readlink` stands in for it here: a command the subset does not
+    /// model, and cannot without touching the filesystem.
     #[test]
     fn an_unfoldable_computed_source_path_produces_no_link_923_idx41() {
         for src in [
-            "set dir [file normalize [file dirname [info script]]]\n\
+            "set dir [file readlink [file dirname [info script]]]\n\
              source [file join $dir helper.tcl]\n",
             "source [file join $undeclared .. pkgfile.tcl]\n",
             "source $other\n",
@@ -844,6 +850,36 @@ mod tests {
         );
         // Navigation is kept, not traded away for the highlighting.
         assert_eq!(links[0].target, "file:///proj/test/esd_pulse_circuit.tcl");
+    }
+
+    /// The reporter's file, verbatim in shape: georgtree/SpiceGenTcl's
+    /// `test/arbitaryTest.tcl` wraps its directory in `file normalize`, which
+    /// the evaluator now folds, so the link both appears and stays off the
+    /// code.  Every `source` in that project is spelled this way.
+    ///
+    /// Oracle (tclsh 8.6.16 / 9.0.4): running `/proj/test/arbitaryTest.tcl`
+    /// loads `/proj/test/testUtilities.tcl`.
+    #[test]
+    fn a_normalized_computed_source_path_resolves_775() {
+        let src = "set currentDir [file normalize [file dirname [info script]]]\n\
+                   source [file join $currentDir testUtilities.tcl]\n";
+        let links = document_links_in_context(
+            src,
+            "tcl",
+            &LinkContext {
+                workspace_root: Some("/proj"),
+                home: None,
+                script_path: Some("/proj/test/arbitaryTest.tcl"),
+            },
+        );
+        assert_eq!(links.len(), 1, "{links:?}");
+        assert_eq!(links[0].target, "file:///proj/test/testUtilities.tcl");
+        let line = src.lines().nth(1).expect("the source line");
+        assert_eq!(
+            &line[links[0].start_character as usize..links[0].end_character as usize],
+            "testUtilities.tcl",
+            "{links:?}",
+        );
     }
 
     /// The same narrowing for a fully literal `[file join …]`: the joined

@@ -23,11 +23,12 @@ all-editors, analyser
 
 A relative path resolves against the document's own directory, and `~`
 expands against `$HOME`. A computed path resolves when it is built from
-`[info script]`, `[file dirname …]`, `[file join …]`, literal words, and
-variables the document assigns exactly once, so the common idiom links:
+`[info script]`, `[file dirname …]`, `[file join …]`, `[file normalize
+…]`, literal words, and variables the document assigns exactly once, so
+the common idiom links either way it is spelled:
 
 ```tcl
-set currentDir [file dirname [info script]]
+set currentDir [file normalize [file dirname [info script]]]
 source [file join $currentDir testUtilities.tcl]
 ```
 
@@ -46,10 +47,14 @@ underlining all of it would hide the colouring of `file`, `join`, and
 
 - **No link on a computed path.** The path is outside the evaluator's
   supported subset, so the provider abstains rather than guess a target.
-  `file normalize` is a common cause: `set dir [file normalize [file
-  dirname [info script]]]` does not fold, so a later `source [file join
-  $dir x.tcl]` has no resolvable directory. Assign the directory with
-  `[file dirname [info script]]` alone to get the link.
+  A directory built with a command the subset does not model — `file
+  readlink`, `pwd`, `exec` — is the usual cause, as is one assigned by
+  more than one `set`, since which value a given `source` sees is a
+  question the provider does not ask.
+- **No link on a relative `file normalize`.** `[file normalize lib]`
+  resolves against the interpreter's working directory at run time,
+  which is not knowable statically, so it does not fold. Anchor it —
+  `[file normalize [file join [file dirname [info script]] lib]]`.
 - **No link when the substitution ends in a variable.** `source [file
   join $dir $name]` has no literal word to anchor the link on, so none
   is offered even when the path itself resolves.
