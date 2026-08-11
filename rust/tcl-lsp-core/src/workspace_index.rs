@@ -2298,6 +2298,7 @@ impl WorkspaceIndex {
     /// import-unlocked cycles — ships **no** imports rather than a map its
     /// own edges disagree with.
     fn imported_constants(&self) -> Arc<HashMap<String, HashMap<String, String>>> {
+        const ROUND_CAP: usize = 5;
         self.imported_constants.get_or_build(|| {
             let (Some(resolve), Some(fold)) = (self.source_resolver, self.constant_folder) else {
                 return HashMap::new();
@@ -2305,7 +2306,6 @@ impl WorkspaceIndex {
             let empty: HashMap<String, String> = HashMap::new();
             let rows: Vec<&WorkspaceSource> = self.sources().collect();
             let mut imports: HashMap<String, HashMap<String, String>> = HashMap::new();
-            const ROUND_CAP: usize = 5;
             for _round in 0..ROUND_CAP {
                 // Step 1: the round's edge set, from scratch.
                 let edges: Vec<(&WorkspaceSource, String)> = rows

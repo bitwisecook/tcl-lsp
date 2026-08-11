@@ -677,10 +677,10 @@ pub fn fold_constant_assignments(
 ///   so `variable home [file normalize ${OsvvmScriptDirectory}/..]` chains
 ///   off the import inside `namespace eval ::osvvm`.
 #[must_use]
-pub fn fold_constant_assignments_with_imports(
+pub fn fold_constant_assignments_with_imports<S: std::hash::BuildHasher>(
     assignments: &[PathConstantWrite],
     info_script: Option<&str>,
-    imported: &HashMap<String, String>,
+    imported: &HashMap<String, String, S>,
 ) -> HashMap<String, String> {
     let mut writes: HashMap<&str, usize> = HashMap::new();
     let mut known_names: std::collections::HashSet<&str> = std::collections::HashSet::new();
