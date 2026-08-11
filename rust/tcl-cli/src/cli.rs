@@ -42,6 +42,10 @@ pub enum WasmBackend {
     /// runtime C-ABI (`tcl_*`) over a shared `runtime.wasm`. Kept for its WAT
     /// disassembly view.
     TreeWalker,
+    /// The narrow executable-IR argv transport. It accepts exactly one flat,
+    /// literal-safe invocation and imports `tcl_invoke_argv`; dynamic or
+    /// multi-command input is rejected rather than evaluated as source.
+    GenericInvoke,
 }
 
 /// Unified Tcl toolchain CLI.
@@ -130,11 +134,12 @@ pub enum Command {
         input: InputArgs,
         /// Which wasm backend to emit. `vm` (default) is the self-contained
         /// bytecode-VM runner (`vm.wasm` — runs any script incl. coroutines, no
-        /// imports/WASI); `tree-walker` is the legacy eval-fallback module that
-        /// imports the runtime ABI.
+        /// imports/WASI); `tree-walker` is the legacy eval-fallback module;
+        /// `generic-invoke` is the literal-safe executable-IR argv transport.
         #[arg(long, value_enum, default_value_t = WasmBackend::Vm)]
         backend: WasmBackend,
-        /// Also write the textual WAT form to this path (`tree-walker` only).
+        /// Also write the textual WAT form to this path (`tree-walker` or
+        /// `generic-invoke` only).
         #[arg(long = "wat-output", value_name = "FILE")]
         wat_output: Option<PathBuf>,
     },

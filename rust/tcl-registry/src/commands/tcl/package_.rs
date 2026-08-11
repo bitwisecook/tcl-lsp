@@ -295,10 +295,7 @@ pub fn spec() -> CommandSpec {
         // the EDA vendor shells) carries a Tcl-version bit that `ALL_TCL`
         // intersects, so `package` is available there too.
         dialects: Some(DialectSet::ALL_TCL),
-        traits: Traits::NOT_PROC_FACTORY
-            | Traits::BYTE_COMPILED
-            | Traits::LANGUAGE_KEYWORD
-            | Traits::WASM_EMITS_NOTHING,
+        traits: Traits::NOT_PROC_FACTORY | Traits::BYTE_COMPILED | Traits::LANGUAGE_KEYWORD,
         arity: Arity::at_least(1),
         subcommands: SUBCOMMANDS,
         // Fallback for the genuinely impure subcommands whose own

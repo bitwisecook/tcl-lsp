@@ -953,6 +953,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
     },
     SubCommand {
         name: "compare",
+        semantic_operation: Some(SemanticOperationId::Intrinsic(IntrinsicId::StringCompare)),
         arity: Arity::at_least(2),
         detail: "Compare two strings lexicographically.",
         synopsis: "string compare ?-nocase? ?-length length? string1 string2",
@@ -989,6 +990,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
     },
     SubCommand {
         name: "equal",
+        semantic_operation: Some(SemanticOperationId::Intrinsic(IntrinsicId::StringEqual)),
         arity: Arity::at_least(2),
         detail: "Test string equality.",
         synopsis: "string equal ?-nocase? ?-length length? string1 string2",
@@ -1076,6 +1078,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
     },
     SubCommand {
         name: "index",
+        semantic_operation: Some(SemanticOperationId::Intrinsic(IntrinsicId::StringIndex)),
         // S110: keeps a pure byte-array rep in both 8.6 and 9.0
         // (`StringIndexCmd` returns a one-byte `Tcl_NewByteArrayObj` on the
         // `TclIsPureByteArray` path; tclsh 8.6.14-verified).
@@ -1136,6 +1139,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
     },
     SubCommand {
         name: "is",
+        semantic_operation: Some(SemanticOperationId::Intrinsic(IntrinsicId::StringIs)),
         arity: Arity::at_least(2),
         detail: "Test if string is a member of a character class.",
         synopsis: "string is class ?-strict? ?-failindex varname? string",
@@ -1240,6 +1244,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
     },
     SubCommand {
         name: "length",
+        semantic_operation: Some(SemanticOperationId::Intrinsic(IntrinsicId::StringLength)),
         arity: Arity::exact(1),
         detail: "Return number of characters.",
         synopsis: "string length string",
@@ -1347,6 +1352,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
     },
     SubCommand {
         name: "range",
+        semantic_operation: Some(SemanticOperationId::Intrinsic(IntrinsicId::StringRange)),
         // S110: keeps a pure byte-array rep in both 8.6 and 9.0
         // (`Tcl_GetRange`'s `TclIsPureByteArray` path returns
         // `Tcl_NewByteArrayObj`; tclsh 8.6.14-verified in the interpreted
@@ -1415,6 +1421,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
     },
     SubCommand {
         name: "replace",
+        semantic_operation: Some(SemanticOperationId::Intrinsic(IntrinsicId::StringReplace)),
         // S110: 8.6 always builds the result from the Unicode rep
         // (`StringRplcCmd` → `Tcl_GetUnicodeFromObj`; tclsh 8.6.14-verified —
         // a bytearray operand yields a string). 9.0 differs: `TclStringReplace`

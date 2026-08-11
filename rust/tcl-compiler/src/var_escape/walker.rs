@@ -33,12 +33,12 @@
 use crate::expr_ast::ExprNode;
 use crate::ir::{Script, Statement};
 use crate::var_escape::handlers::{
-    handle_dynamic_name_first, handle_global, handle_info, handle_namespace_call, handle_upvar,
-    handle_variable, has_expand_word,
+    handle_dynamic_name_first, handle_introspection, handle_variable_aliases, has_expand_word,
 };
 use crate::var_escape::helpers::{
-    is_dynamic_name, is_dynamic_token, is_frameless_runtime_command, is_name_first_command,
-    normalise_cmd_subst_head, scan_value_for_info_hazards,
+    default_registry, invocation_facts, invocation_facts_from_tokens, is_dynamic_name,
+    is_dynamic_token, is_frameless_runtime_command, normalise_cmd_subst_head,
+    scan_value_for_info_hazards,
 };
 use crate::var_escape::known_names::collect_known_names;
 use crate::var_escape::state::EscapeState;
@@ -124,7 +124,11 @@ fn extract_cmd_subst_heads(value: &str) -> Vec<String> {
 
 /// Handle a generic [`Statement::Call`] — dispatch to the per-
 /// command handlers and record callee / fallback flags.
-pub(crate) fn handle_call(stmt: &Statement, state: &mut EscapeState) {
+pub(crate) fn handle_call(
+    stmt: &Statement,
+    state: &mut EscapeState,
+    registry: &tcl_registry::CommandRegistry,
+) {
     let Statement::Call {
         command,
         args,
@@ -135,10 +139,15 @@ pub(crate) fn handle_call(stmt: &Statement, state: &mut EscapeState) {
         return;
     };
     let cmd = command.as_str();
+    let facts = invocation_facts(stmt, registry);
 
     // Commands outside the frameless-runtime allow-list could
     // reach the eval fallback via the codegen. Mark accordingly.
-    if !is_frameless_runtime_command(cmd) {
+    if !facts.as_ref().is_some_and(|facts| {
+        facts
+            .traits
+            .contains(tcl_registry::prelude::Traits::FRAMELESS_RUNTIME)
+    }) {
         if cmd.is_empty() || is_dynamic_token(cmd) {
             state.record_fallback();
         } else {
@@ -148,7 +157,13 @@ pub(crate) fn handle_call(stmt: &Statement, state: &mut EscapeState) {
 
     // ``{*}``-expansion in an unknown call defeats argument-index-
     // based analysis (we can't tell where the name arg landed).
-    if has_expand_word(tokens.as_ref()) && cmd != "list" && cmd != "concat" {
+    if has_expand_word(tokens.as_ref())
+        && !facts.as_ref().is_some_and(|facts| {
+            facts
+                .traits
+                .contains(tcl_registry::prelude::Traits::EXPANSION_ESCAPE_SAFE)
+        })
+    {
         use crate::var_escape::types::{Barrier, BarrierKind};
         state.record_barrier(Barrier::with_detail(
             BarrierKind::Expand,
@@ -157,16 +172,16 @@ pub(crate) fn handle_call(stmt: &Statement, state: &mut EscapeState) {
         return;
     }
 
-    match cmd {
-        "upvar" => handle_upvar(args, state),
-        "global" => handle_global(args, state),
-        "variable" => handle_variable(args, state),
-        "namespace" => handle_namespace_call(args, state),
-        "info" => handle_info(args, state),
-        c if is_name_first_command(c) => handle_dynamic_name_first(c, args, state),
-        _ => {} // defs/reads already cover the static case.
+    if let Some(facts) = facts.as_deref() {
+        handle_variable_aliases(facts, state);
+        handle_introspection(facts, args, state);
+        if facts
+            .traits
+            .contains(tcl_registry::prelude::Traits::FIRST_ARG_VARNAME)
+        {
+            handle_dynamic_name_first(&facts.canonical_command, args, state);
+        }
     }
-
     // Record statically resolvable callees for interprocedural
     // propagation. Bare or ``::``-qualified command words are
     // candidates; substitutions are ignored.
@@ -178,7 +193,7 @@ pub(crate) fn handle_call(stmt: &Statement, state: &mut EscapeState) {
 /// Handle an ``eval`` barrier: literal body is recursively walked
 /// with `escape_every_name_touched`; non-literal body is
 /// pessimistic.
-fn handle_eval(args: &[String], state: &mut EscapeState) {
+fn handle_eval(args: &[String], state: &mut EscapeState, registry: &tcl_registry::CommandRegistry) {
     use crate::var_escape::types::{Barrier, BarrierKind, EscapeReason, EscapeReasonKind};
     if args.is_empty() {
         state.record_barrier(Barrier::with_detail(BarrierKind::Eval, "eval (no body)"));
@@ -212,10 +227,9 @@ fn handle_eval(args: &[String], state: &mut EscapeState) {
     // scan could find a reference in — so today the mode is unobservable and
     // the guard is what carries the soundness. It is written as ``scan_word``
     // so that narrowing that guard cannot silently reintroduce the hole.
-    let registry = tcl_registry::CommandRegistry::build_default();
     let mut scanner =
         crate::var_refs::VarReferenceScanner::new(crate::var_refs::VarScanOptions::default());
-    for ref_ in scanner.scan_word(&body, &registry) {
+    for ref_ in scanner.scan_word(&body, registry) {
         state.escape_with_reason(
             &ref_,
             EscapeReason::with_detail(
@@ -226,14 +240,18 @@ fn handle_eval(args: &[String], state: &mut EscapeState) {
     }
     // Recurse into the literal body and escape every name it
     // touches.
-    let sub_module = crate::lowering::lower_to_ir(&body, &registry);
-    escape_every_name_touched(&sub_module.top_level.statements, state);
+    let sub_module = crate::lowering::lower_to_ir(&body, registry);
+    escape_every_name_touched(&sub_module.top_level.statements, state, registry);
 }
 
 /// Handle an ``uplevel`` barrier: only ``#0`` / ``0`` with a
 /// literal body is safe (body runs at global scope, our locals
 /// aren't visible). Everything else is pessimistic.
-fn handle_uplevel(args: &[String], state: &mut EscapeState) {
+fn handle_uplevel(
+    args: &[String],
+    state: &mut EscapeState,
+    registry: &tcl_registry::CommandRegistry,
+) {
     use crate::var_escape::types::{Barrier, BarrierKind};
     if args.is_empty() {
         state.record_barrier(Barrier::with_detail(
@@ -260,7 +278,7 @@ fn handle_uplevel(args: &[String], state: &mut EscapeState) {
     // way and escape every name it touches. Treating `0` as global-safe like
     // `#0` wrongly whitelists our own frame.
     if level.is_current_frame() {
-        handle_eval(&args[1..], state);
+        handle_eval(&args[1..], state, registry);
         return;
     }
     // Only `uplevel #0` (global scope) is safe: our locals aren't visible
@@ -295,21 +313,31 @@ fn handle_uplevel(args: &[String], state: &mut EscapeState) {
 }
 
 /// Dispatch on the barrier command name.
-fn handle_barrier(command: &str, args: &[String], state: &mut EscapeState) {
+fn handle_barrier(
+    stmt: &Statement,
+    args: &[String],
+    state: &mut EscapeState,
+    registry: &tcl_registry::CommandRegistry,
+) {
     use crate::var_escape::types::{Barrier, BarrierKind};
     // Any IRBarrier means the codegen can dispatch to the
     // interpreter; the proc prologue must push a frame so the
     // fallback sees locals.
     state.record_fallback();
-    match command {
-        "eval" => handle_eval(args, state),
-        "uplevel" => handle_uplevel(args, state),
+    let operation = invocation_facts(stmt, registry).map(|facts| facts.operation);
+    match operation {
+        Some(tcl_registry::SemanticOperationId::StructuredLowering(
+            tcl_registry::hooks::LoweringHookId::Eval,
+        )) => handle_eval(args, state, registry),
+        Some(tcl_registry::SemanticOperationId::StructuredLowering(
+            tcl_registry::hooks::LoweringHookId::Uplevel,
+        )) => handle_uplevel(args, state, registry),
         _ => {
             // Any other barrier (subst, trace, catch reraise, …)
             // — be safe.
             state.record_barrier(Barrier::with_detail(
                 BarrierKind::Unknown,
-                format!("{command} (uncategorised barrier)"),
+                "uncategorised registry barrier",
             ));
         }
     }
@@ -331,17 +359,29 @@ fn synthesise_uplevel_args(tokens: Option<&crate::ir::CommandTokens>) -> Vec<Str
 
 /// True when an [`Statement::Block`] was produced by relaxing
 /// `eval` (vs `namespace eval`).
-fn is_eval_block(tokens: Option<&crate::ir::CommandTokens>) -> bool {
+fn is_eval_block(
+    tokens: Option<&crate::ir::CommandTokens>,
+    registry: &tcl_registry::CommandRegistry,
+) -> bool {
     tokens
-        .and_then(|t| t.argv_texts.first())
-        .is_some_and(|s| s == "eval")
+        .and_then(|tokens| invocation_facts_from_tokens(tokens, registry))
+        .is_some_and(|facts| {
+            facts.operation
+                == tcl_registry::SemanticOperationId::StructuredLowering(
+                    tcl_registry::hooks::LoweringHookId::Eval,
+                )
+        })
 }
 
 /// Escape every literal Tcl name the body writes, reads, or
 /// declares. Used for literal `eval` / `uplevel #0` bodies — the
 /// body runs through the interpreter which resolves names against
 /// the frame, so any name it touches must be visible there.
-pub(crate) fn escape_every_name_touched(stmts: &[Statement], state: &mut EscapeState) {
+pub(crate) fn escape_every_name_touched(
+    stmts: &[Statement],
+    state: &mut EscapeState,
+    registry: &tcl_registry::CommandRegistry,
+) {
     for stmt in stmts {
         if state.dynamic_barrier() {
             return;
@@ -349,10 +389,10 @@ pub(crate) fn escape_every_name_touched(stmts: &[Statement], state: &mut EscapeS
         if escape_assign_or_incr(stmt, state) {
             continue;
         }
-        if escape_call_or_barrier(stmt, state) {
+        if escape_call_or_barrier(stmt, state, registry) {
             continue;
         }
-        escape_structural(stmt, state);
+        escape_structural(stmt, state, registry);
     }
 }
 
@@ -395,7 +435,11 @@ fn escape_assign_or_incr(stmt: &Statement, state: &mut EscapeState) -> bool {
 
 /// `escape_every_name_touched` arm: Call / Barrier / Return /
 /// `ExprEval` shapes.  Returns `true` when *stmt* matched.
-fn escape_call_or_barrier(stmt: &Statement, state: &mut EscapeState) -> bool {
+fn escape_call_or_barrier(
+    stmt: &Statement,
+    state: &mut EscapeState,
+    registry: &tcl_registry::CommandRegistry,
+) -> bool {
     match stmt {
         Statement::Call { defs, reads, .. } => {
             for n in defs.iter().chain(reads.iter()) {
@@ -403,11 +447,11 @@ fn escape_call_or_barrier(stmt: &Statement, state: &mut EscapeState) -> bool {
                     state.escape(n);
                 }
             }
-            handle_call(stmt, state);
+            handle_call(stmt, state, registry);
             true
         }
-        Statement::Barrier { command, args, .. } => {
-            handle_barrier(command, args, state);
+        Statement::Barrier { args, .. } => {
+            handle_barrier(stmt, args, state, registry);
             true
         }
         Statement::Return { value, expr, .. } => {
@@ -428,17 +472,21 @@ fn escape_call_or_barrier(stmt: &Statement, state: &mut EscapeState) -> bool {
 /// `escape_every_name_touched` arm: structural recursion (`If` /
 /// `For` / `While` / `Foreach` / `Catch` / `Try` / `Switch` /
 /// `Block` / `UpFrame`).
-fn escape_structural(stmt: &Statement, state: &mut EscapeState) {
+fn escape_structural(
+    stmt: &Statement,
+    state: &mut EscapeState,
+    registry: &tcl_registry::CommandRegistry,
+) {
     match stmt {
         Statement::If {
             clauses, else_body, ..
         } => {
             for c in clauses {
                 apply_expr_scan(Some(&c.condition), state);
-                escape_every_name_touched(&c.body.statements, state);
+                escape_every_name_touched(&c.body.statements, state, registry);
             }
             if let Some(b) = else_body {
-                escape_every_name_touched(&b.statements, state);
+                escape_every_name_touched(&b.statements, state, registry);
             }
         }
         Statement::For {
@@ -448,16 +496,16 @@ fn escape_structural(stmt: &Statement, state: &mut EscapeState) {
             body,
             ..
         } => {
-            escape_every_name_touched(&init.statements, state);
+            escape_every_name_touched(&init.statements, state, registry);
             apply_expr_scan(Some(condition), state);
-            escape_every_name_touched(&next.statements, state);
-            escape_every_name_touched(&body.statements, state);
+            escape_every_name_touched(&next.statements, state, registry);
+            escape_every_name_touched(&body.statements, state, registry);
         }
         Statement::While {
             condition, body, ..
         } => {
             apply_expr_scan(Some(condition), state);
-            escape_every_name_touched(&body.statements, state);
+            escape_every_name_touched(&body.statements, state, registry);
         }
         Statement::Foreach {
             iterators, body, ..
@@ -465,21 +513,23 @@ fn escape_structural(stmt: &Statement, state: &mut EscapeState) {
             for it in iterators {
                 apply_value_scan(&it.list_arg, state);
             }
-            escape_every_name_touched(&body.statements, state);
+            escape_every_name_touched(&body.statements, state, registry);
         }
-        Statement::Catch { body, .. } => escape_every_name_touched(&body.statements, state),
+        Statement::Catch { body, .. } => {
+            escape_every_name_touched(&body.statements, state, registry);
+        }
         Statement::Try {
             body,
             handlers,
             finally_body,
             ..
         } => {
-            escape_every_name_touched(&body.statements, state);
+            escape_every_name_touched(&body.statements, state, registry);
             for h in handlers {
-                escape_every_name_touched(&h.body.statements, state);
+                escape_every_name_touched(&h.body.statements, state, registry);
             }
             if let Some(f) = finally_body {
-                escape_every_name_touched(&f.statements, state);
+                escape_every_name_touched(&f.statements, state, registry);
             }
         }
         Statement::Switch {
@@ -487,24 +537,26 @@ fn escape_structural(stmt: &Statement, state: &mut EscapeState) {
         } => {
             for a in arms {
                 if let Some(b) = &a.body {
-                    escape_every_name_touched(&b.statements, state);
+                    escape_every_name_touched(&b.statements, state, registry);
                 }
             }
             if let Some(d) = default_body {
-                escape_every_name_touched(&d.statements, state);
+                escape_every_name_touched(&d.statements, state, registry);
             }
         }
         Statement::Block { body, tokens, .. } => {
-            if is_eval_block(tokens.as_ref()) {
+            if is_eval_block(tokens.as_ref(), registry) {
                 let args = synthesise_eval_args(tokens.as_ref());
-                handle_barrier("eval", &args, state);
+                state.record_fallback();
+                handle_eval(&args, state, registry);
             } else {
-                escape_every_name_touched(&body.statements, state);
+                escape_every_name_touched(&body.statements, state, registry);
             }
         }
         Statement::UpFrame { tokens, .. } => {
             let args = synthesise_uplevel_args(tokens.as_ref());
-            handle_barrier("uplevel", &args, state);
+            state.record_fallback();
+            handle_uplevel(&args, state, registry);
         }
         _ => {}
     }
@@ -577,7 +629,12 @@ const MAX_ESCAPE_WALK_DEPTH: tcl_core_types::RecursionLimit = tcl_core_types::Re
 
 /// Walk *stmts* with the standard escape-rule transfer functions. `depth`
 /// is the nesting level of `stmts` — see [`MAX_ESCAPE_WALK_DEPTH`].
-fn walk(stmts: &[Statement], state: &mut EscapeState, depth: u32) {
+fn walk(
+    stmts: &[Statement],
+    state: &mut EscapeState,
+    depth: u32,
+    registry: &tcl_registry::CommandRegistry,
+) {
     if MAX_ESCAPE_WALK_DEPTH.exceeded(depth) {
         return;
     }
@@ -585,99 +642,122 @@ fn walk(stmts: &[Statement], state: &mut EscapeState, depth: u32) {
         if state.dynamic_barrier() {
             return;
         }
-        if walk_assign_or_incr(stmt, state) {
-            continue;
+        walk_statement(stmt, state, depth, registry);
+    }
+}
+
+fn walk_statement(
+    stmt: &Statement,
+    state: &mut EscapeState,
+    depth: u32,
+    registry: &tcl_registry::CommandRegistry,
+) {
+    if walk_assign_or_incr(stmt, state) {
+        return;
+    }
+    match stmt {
+        Statement::Call { .. } => handle_call(stmt, state, registry),
+        Statement::Barrier { args, .. } => handle_barrier(stmt, args, state, registry),
+        Statement::UpFrame { tokens, .. } => {
+            let args = synthesise_uplevel_args(tokens.as_ref());
+            state.record_fallback();
+            handle_uplevel(&args, state, registry);
         }
-        match stmt {
-            Statement::Call { .. } => handle_call(stmt, state),
-            Statement::Barrier { command, args, .. } => handle_barrier(command, args, state),
-            Statement::UpFrame { tokens, .. } => {
-                let args = synthesise_uplevel_args(tokens.as_ref());
-                handle_barrier("uplevel", &args, state);
+        Statement::Return { value, expr, .. } => {
+            if let Some(v) = value {
+                apply_value_scan(v, state);
             }
-            Statement::Return { value, expr, .. } => {
-                if let Some(v) = value {
-                    apply_value_scan(v, state);
-                }
-                apply_expr_scan(expr.as_ref(), state);
-            }
-            Statement::ExprEval { expr, .. } => apply_expr_scan(Some(expr), state),
-            Statement::If {
-                clauses, else_body, ..
-            } => {
-                for c in clauses {
-                    apply_expr_scan(Some(&c.condition), state);
-                    walk(&c.body.statements, state, depth + 1);
-                }
-                if let Some(b) = else_body {
-                    walk(&b.statements, state, depth + 1);
-                }
-            }
-            Statement::For {
-                init,
-                condition,
-                next,
-                body,
-                ..
-            } => {
-                walk(&init.statements, state, depth + 1);
-                apply_expr_scan(Some(condition), state);
-                walk(&next.statements, state, depth + 1);
-                walk(&body.statements, state, depth + 1);
-            }
-            Statement::While {
-                condition, body, ..
-            } => {
-                apply_expr_scan(Some(condition), state);
-                walk(&body.statements, state, depth + 1);
-            }
-            Statement::Foreach {
-                iterators, body, ..
-            } => {
-                for it in iterators {
-                    apply_value_scan(&it.list_arg, state);
-                }
-                walk(&body.statements, state, depth + 1);
-            }
-            Statement::Catch { body, .. } => walk(&body.statements, state, depth + 1),
-            Statement::Try {
-                body,
-                handlers,
-                finally_body,
-                ..
-            } => {
-                walk(&body.statements, state, depth + 1);
-                for h in handlers {
-                    walk(&h.body.statements, state, depth + 1);
-                }
-                if let Some(f) = finally_body {
-                    walk(&f.statements, state, depth + 1);
-                }
-            }
-            Statement::Switch {
-                arms, default_body, ..
-            } => {
-                for a in arms {
-                    if let Some(b) = &a.body {
-                        walk(&b.statements, state, depth + 1);
-                    }
-                }
-                if let Some(d) = default_body {
-                    walk(&d.statements, state, depth + 1);
-                }
-            }
-            Statement::Block { body, tokens, .. } => {
-                if is_eval_block(tokens.as_ref()) {
-                    let args = synthesise_eval_args(tokens.as_ref());
-                    handle_barrier("eval", &args, state);
-                } else {
-                    walk(&body.statements, state, depth + 1);
-                }
-            }
-            // Assignment / incr arms handled by `walk_assign_or_incr`
-            // above (continue path).
-            _ => {}
+            apply_expr_scan(expr.as_ref(), state);
         }
+        Statement::ExprEval { expr, .. } => apply_expr_scan(Some(expr), state),
+        _ => walk_structured_statement(stmt, state, depth, registry),
+    }
+}
+
+fn walk_structured_statement(
+    stmt: &Statement,
+    state: &mut EscapeState,
+    depth: u32,
+    registry: &tcl_registry::CommandRegistry,
+) {
+    let nested_depth = depth + 1;
+    match stmt {
+        Statement::If {
+            clauses, else_body, ..
+        } => {
+            for clause in clauses {
+                apply_expr_scan(Some(&clause.condition), state);
+                walk(&clause.body.statements, state, nested_depth, registry);
+            }
+            if let Some(body) = else_body {
+                walk(&body.statements, state, nested_depth, registry);
+            }
+        }
+        Statement::For {
+            init,
+            condition,
+            next,
+            body,
+            ..
+        } => {
+            walk(&init.statements, state, nested_depth, registry);
+            apply_expr_scan(Some(condition), state);
+            walk(&next.statements, state, nested_depth, registry);
+            walk(&body.statements, state, nested_depth, registry);
+        }
+        Statement::While {
+            condition, body, ..
+        } => {
+            apply_expr_scan(Some(condition), state);
+            walk(&body.statements, state, nested_depth, registry);
+        }
+        Statement::Foreach {
+            iterators, body, ..
+        } => {
+            for iterator in iterators {
+                apply_value_scan(&iterator.list_arg, state);
+            }
+            walk(&body.statements, state, nested_depth, registry);
+        }
+        Statement::Catch { body, .. } => {
+            walk(&body.statements, state, nested_depth, registry);
+        }
+        Statement::Try {
+            body,
+            handlers,
+            finally_body,
+            ..
+        } => {
+            walk(&body.statements, state, nested_depth, registry);
+            for handler in handlers {
+                walk(&handler.body.statements, state, nested_depth, registry);
+            }
+            if let Some(finally_body) = finally_body {
+                walk(&finally_body.statements, state, nested_depth, registry);
+            }
+        }
+        Statement::Switch {
+            arms, default_body, ..
+        } => {
+            for arm in arms {
+                if let Some(body) = &arm.body {
+                    walk(&body.statements, state, nested_depth, registry);
+                }
+            }
+            if let Some(default_body) = default_body {
+                walk(&default_body.statements, state, nested_depth, registry);
+            }
+        }
+        Statement::Block { body, tokens, .. } => {
+            if is_eval_block(tokens.as_ref(), registry) {
+                let args = synthesise_eval_args(tokens.as_ref());
+                state.record_fallback();
+                handle_eval(&args, state, registry);
+            } else {
+                walk(&body.statements, state, nested_depth, registry);
+            }
+        }
+        _ => {}
     }
 }
 
@@ -693,9 +773,21 @@ pub fn analyse_script<I: IntoIterator<Item = String>>(
     body: &Script,
     params: I,
 ) -> ProcEscapeSummary {
+    analyse_script_with_registry(body, params, default_registry())
+}
+
+/// Registry-aware form of [`analyse_script`]. Production callers that already
+/// selected a dialect/profile registry should use this entry point so command
+/// availability and invocation facts match lowering exactly.
+#[must_use]
+pub fn analyse_script_with_registry<I: IntoIterator<Item = String>>(
+    body: &Script,
+    params: I,
+    registry: &tcl_registry::CommandRegistry,
+) -> ProcEscapeSummary {
     let known = collect_known_names(params, body);
     let mut state = EscapeState::new(known);
-    walk(&body.statements, &mut state, 0);
+    walk(&body.statements, &mut state, 0, registry);
     let frame_needed =
         state.dynamic_barrier() || state.tags.values().any(|t| *t == EscapeTag::Frame);
     // Tentative pure_leaf — the interprocedural fixpoint can only

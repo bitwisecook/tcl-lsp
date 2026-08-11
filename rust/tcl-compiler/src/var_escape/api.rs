@@ -44,7 +44,7 @@ use super::cfg_propagation::{CfgEscapeResult, analyse_cfg_function};
 use super::interprocedural::solve_interprocedural_escape;
 use super::slot_resolution::populate_local_slots;
 use super::types::{EscapeTag, ProcEscapeSummary};
-use super::walker::analyse_script;
+use super::walker::{analyse_script, analyse_script_with_registry};
 
 /// Qualified name the top-level script is keyed under. Callers that only
 /// care about proc bodies filter it out.
@@ -95,6 +95,31 @@ pub fn analyse_var_escape(
         result.insert(
             qname.clone(),
             analyse_script(&proc.body, proc.params.iter().cloned()),
+        );
+    }
+    if interprocedural {
+        result = solve_interprocedural_escape(&result);
+    }
+    populate_local_slots(&result, Some(module))
+}
+
+/// Registry-aware form of [`analyse_var_escape`]. This is the production
+/// entry point when lowering has already selected a dialect/profile registry.
+#[must_use]
+pub fn analyse_var_escape_with_registry(
+    module: &Module,
+    interprocedural: bool,
+    registry: &tcl_registry::CommandRegistry,
+) -> HashMap<String, ProcEscapeSummary> {
+    let mut result: HashMap<String, ProcEscapeSummary> = HashMap::new();
+    result.insert(
+        TOP_LEVEL_QNAME.to_owned(),
+        analyse_script_with_registry(&module.top_level, std::iter::empty::<String>(), registry),
+    );
+    for (qname, proc) in &module.procedures {
+        result.insert(
+            qname.clone(),
+            analyse_script_with_registry(&proc.body, proc.params.iter().cloned(), registry),
         );
     }
     if interprocedural {

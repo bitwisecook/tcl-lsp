@@ -24,7 +24,7 @@
 //! reached on this path through exactly one door: a `catch {body}`.
 //!
 //! The CFG builder *inlines* a literal `eval {body}` (it becomes plain inline
-//! statements — see `inline_eval_spans` in `cfg_builder`), so an eval body never
+//! statements — see `inline_body_error_sites` in `cfg_builder`), so an eval body never
 //! reaches `handle_eval`'s tree walk on the CFG path. A `catch {body}`, by
 //! contrast, lowers to `Statement::Catch`, which the CFG builder turns into an
 //! **opaque `Call`** carrying the brace-stripped body script (`emit_opaque_catch`);

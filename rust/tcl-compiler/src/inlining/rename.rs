@@ -248,11 +248,13 @@ fn rewrite_block_like(stmt: &Statement, rename: &HashMap<String, String>) -> Sta
             body,
             namespace,
             tokens,
+            error_context,
         } => Statement::Block {
             span: *span,
             body: rewrite_script(body, rename),
             namespace: namespace.clone(),
             tokens: tokens.clone(),
+            error_context: *error_context,
         },
         Statement::UpFrame {
             span,

@@ -34,7 +34,7 @@
 //!   [`super::extract_signatures`] for the top-level source and
 //!   recursively by [`maybe_recurse_body`] for braced bodies.
 //! - [`maybe_recurse_body`] — gates body recursion on `Str`
-//!   (braced) tokens; called from `handle_namespace` (eval arm),
+//!   (braced) tokens; called from the registry-dispatched namespace-eval arm,
 //!   `handle_if` / `handle_catch` / `handle_try` here.
 //! - [`scan_factory_candidates`] — secondary walker called from
 //!   `handle_proc`; only collects four-token factory candidates and
@@ -46,6 +46,8 @@ use std::collections::HashSet;
 use tcl_lexer::{Token, TokenType};
 use tcl_registry::Traits;
 use tcl_registry::definer::DefinerFamily;
+use tcl_registry::hooks::{AnalyserHookId, LoweringHookId};
+use tcl_registry::{CommandSpec, SubCommand};
 
 use super::command_prefix::command_prefix_invocations;
 use super::ctx::ScanCtx;
@@ -131,43 +133,117 @@ pub(super) fn scan(
         record_command_prefix_invocations(&cmd, head, ctx);
         let texts = &cmd.texts;
         let argv = &cmd.argv;
-        match head {
-            "namespace" => {
-                handlers::handle_namespace(
-                    texts,
-                    argv,
-                    ns_prefix,
-                    conditional,
-                    known_commands,
-                    ctx,
-                );
-            }
-            "package" => {
-                handlers::handle_package(texts, argv, conditional, ctx.registry, &mut ctx.result);
-            }
-            "source" => handlers::handle_source(texts, argv, ns_prefix, &mut ctx.result),
-            "interp" => handlers::handle_interp(texts, ctx.registry, &mut ctx.result),
-            "rename" => handlers::handle_rename(texts, ns_prefix, &mut ctx.result),
-            "if" => handle_if(texts, argv, ns_prefix, known_commands, ctx),
-            "catch" => handle_catch(texts, argv, ns_prefix, known_commands, ctx),
-            "try" => handle_try(texts, argv, ns_prefix, known_commands, ctx),
-            "lappend" | "set" => handlers::handle_auto_path(texts, argv, &mut ctx.result),
-            _ => {
-                // Definer commands (the class systems, `proc`) dispatch on
-                // registry data, never a hardcoded name list.
-                if !dispatch_definer(head, texts, argv, &cmd.single_token_word, ns_prefix, ctx) {
-                    handlers::maybe_handle_import_wrapper(
-                        head,
-                        texts,
-                        argv,
-                        ns_prefix,
-                        &mut ctx.result,
-                    );
-                    handlers::maybe_record_factory_candidate(head, texts, argv, ns_prefix, ctx);
-                }
-            }
+        let handled = resolve_scan_dispatch(ctx.registry, head, texts).is_some_and(|dispatch| {
+            dispatch_signature_handler(
+                dispatch,
+                texts,
+                argv,
+                ns_prefix,
+                conditional,
+                known_commands,
+                ctx,
+            )
+        });
+        if !handled && !dispatch_definer(head, texts, argv, &cmd.single_token_word, ns_prefix, ctx)
+        {
+            handlers::maybe_handle_import_wrapper(head, texts, argv, ns_prefix, &mut ctx.result);
+            handlers::maybe_record_factory_candidate(head, texts, argv, ns_prefix, ctx);
         }
     }
+}
+
+#[derive(Clone, Copy)]
+struct ResolvedScanDispatch<'r> {
+    spec: &'r CommandSpec,
+    subcommand: Option<&'r SubCommand>,
+    analyser: Option<AnalyserHookId>,
+    lowering: Option<LoweringHookId>,
+}
+
+fn resolve_scan_dispatch<'r>(
+    registry: Option<&'r tcl_registry::CommandRegistry>,
+    head: &str,
+    texts: &[String],
+) -> Option<ResolvedScanDispatch<'r>> {
+    let spec = registry?.get(head)?;
+    let subcommand = texts.get(1).and_then(|word| spec.resolve_subcommand(word));
+    Some(ResolvedScanDispatch {
+        spec,
+        subcommand,
+        analyser: subcommand
+            .and_then(|sub| sub.analyser_hook)
+            .or(spec.analyser_hook),
+        lowering: subcommand
+            .and_then(|sub| sub.lowering_hook)
+            .or(spec.lowering_hook),
+    })
+}
+
+fn dispatch_signature_handler(
+    dispatch: ResolvedScanDispatch<'_>,
+    texts: &[String],
+    argv: &[Token],
+    ns_prefix: &str,
+    conditional: bool,
+    known_commands: &HashSet<&str>,
+    ctx: &mut ScanCtx<'_>,
+) -> bool {
+    match dispatch.analyser {
+        Some(AnalyserHookId::NamespaceEval) => {
+            handlers::handle_namespace_eval(
+                texts,
+                argv,
+                ns_prefix,
+                conditional,
+                known_commands,
+                ctx,
+            );
+        }
+        Some(AnalyserHookId::NamespaceImport) => handlers::handle_namespace_import(
+            texts,
+            argv,
+            ns_prefix,
+            dispatch.subcommand,
+            &mut ctx.result,
+        ),
+        Some(AnalyserHookId::NamespaceForget) => handlers::handle_namespace_forget(
+            texts,
+            argv,
+            ns_prefix,
+            dispatch.subcommand,
+            &mut ctx.result,
+        ),
+        Some(AnalyserHookId::PackageRequire) => handlers::handle_package_require(
+            texts,
+            argv,
+            conditional,
+            dispatch.subcommand,
+            &mut ctx.result,
+        ),
+        Some(AnalyserHookId::Source) => {
+            handlers::handle_source(texts, argv, ns_prefix, dispatch.spec, &mut ctx.result);
+        }
+        Some(AnalyserHookId::InterpAlias) => {
+            handlers::handle_interp_alias(texts, &mut ctx.result);
+        }
+        Some(AnalyserHookId::Rename) => {
+            handlers::handle_rename(texts, ns_prefix, &mut ctx.result);
+        }
+        Some(AnalyserHookId::Catch) => {
+            handle_catch(texts, argv, ns_prefix, known_commands, ctx);
+        }
+        Some(AnalyserHookId::Try) => {
+            handle_try(texts, argv, ns_prefix, known_commands, ctx);
+        }
+        Some(AnalyserHookId::Set | AnalyserHookId::Lappend) => {
+            handlers::handle_auto_path(texts, argv, &mut ctx.result);
+        }
+        _ if dispatch.lowering == Some(LoweringHookId::If) => {
+            handle_if(texts, argv, ns_prefix, known_commands, ctx);
+        }
+        _ => return false,
+    }
+    true
 }
 
 /// Dispatch `head` to a definer handler when its registry spec marks it as a
@@ -428,7 +504,7 @@ fn handle_try(
 /// Unlike [`scan`], this walker
 /// only collects four-token `HEAD NAME ARGS BODY` shaped calls and
 /// recurses into structural-control bodies (`if` / `catch` / `try`
-/// / `namespace eval`) that commonly wrap factory calls. It
+/// / namespace-evaluation) that commonly wrap factory calls. It
 /// deliberately does **not** emit nested proc / namespace-import
 /// records — those would be incorrect because nested `proc`
 /// statements inside a proc body only take effect when that proc
@@ -451,13 +527,10 @@ pub(super) fn scan_factory_candidates(
         }
         let texts = &cmd.texts;
         let argv = &cmd.argv;
-        match head {
-            "if" | "catch" | "try" | "namespace" => {
-                scan_factory_structural(head, texts, argv, ns_prefix, ctx);
-            }
-            _ => {
-                handlers::maybe_record_factory_candidate(head, texts, argv, ns_prefix, ctx);
-            }
+        let structural = resolve_scan_dispatch(ctx.registry, head, texts)
+            .is_some_and(|dispatch| scan_factory_structural(dispatch, texts, argv, ns_prefix, ctx));
+        if !structural {
+            handlers::maybe_record_factory_candidate(head, texts, argv, ns_prefix, ctx);
         }
     }
 }
@@ -466,18 +539,17 @@ pub(super) fn scan_factory_candidates(
 /// candidates only.
 ///
 /// Same set of structural
-/// commands and same body offsets as the main `handle_if` /
-/// `handle_catch` / `handle_try` / `handle_namespace` (eval arm)
+/// commands and same body offsets as the main typed structural handlers
 /// walkers, but the recursive call is `scan_factory_candidates`
 /// (not `scan`) so only factory-shaped calls are collected.
 fn scan_factory_structural(
-    head: &str,
+    dispatch: ResolvedScanDispatch<'_>,
     texts: &[String],
     argv: &[Token],
     ns_prefix: &str,
     ctx: &mut ScanCtx,
-) {
-    if head == "namespace" && texts.len() >= 4 && texts[1] == "eval" {
+) -> bool {
+    if dispatch.analyser == Some(AnalyserHookId::NamespaceEval) && texts.len() >= 4 {
         let raw_ns = &texts[2];
         let inner = if let Some(rest) = raw_ns.strip_prefix("::") {
             rest.trim_start_matches(':').to_string()
@@ -489,9 +561,9 @@ fn scan_factory_structural(
         if argv[3].kind == TokenType::Str {
             scan_factory_candidates(&texts[3], argv[3], &inner, ctx);
         }
-        return;
+        return true;
     }
-    if head == "if" {
+    if dispatch.lowering == Some(LoweringHookId::If) {
         let mut i = 1;
         let mut expect_body = false;
         while i < texts.len() {
@@ -519,13 +591,15 @@ fn scan_factory_structural(
             }
             i += 1;
         }
-        return;
+        return true;
     }
-    if head == "catch" && texts.len() >= 2 && argv[1].kind == TokenType::Str {
-        scan_factory_candidates(&texts[1], argv[1], ns_prefix, ctx);
-        return;
+    if dispatch.analyser == Some(AnalyserHookId::Catch) {
+        if texts.len() >= 2 && argv[1].kind == TokenType::Str {
+            scan_factory_candidates(&texts[1], argv[1], ns_prefix, ctx);
+        }
+        return true;
     }
-    if head == "try" && texts.len() >= 2 {
+    if dispatch.analyser == Some(AnalyserHookId::Try) && texts.len() >= 2 {
         if argv[1].kind == TokenType::Str {
             scan_factory_candidates(&texts[1], argv[1], ns_prefix, ctx);
         }
@@ -534,7 +608,7 @@ fn scan_factory_structural(
             let clause = texts[i].as_str();
             if clause == "finally" && i + 1 < texts.len() && argv[i + 1].kind == TokenType::Str {
                 scan_factory_candidates(&texts[i + 1], argv[i + 1], ns_prefix, ctx);
-                return;
+                return true;
             }
             if (clause == "on" || clause == "trap")
                 && i + 3 < texts.len()
@@ -546,7 +620,9 @@ fn scan_factory_structural(
                 i += 1;
             }
         }
+        return true;
     }
+    false
 }
 
 #[cfg(test)]
@@ -604,6 +680,48 @@ mod tests {
         assert_eq!(ctx.result.source_targets[0].raw_path, "/abs/path.tcl");
         assert!(ctx.result.procs.contains_key("::bar"));
         assert_eq!(ctx.result.command_invocations.len(), 3);
+    }
+
+    #[test]
+    fn custom_registry_hook_dispatches_without_a_command_spelling_branch() {
+        let mut registry = tcl_registry::CommandRegistry::build_default();
+        registry.insert(tcl_registry::CommandSpec {
+            name: "background-load-script",
+            arity: tcl_registry::Arity::exact(1),
+            analyser_hook: Some(AnalyserHookId::Source),
+            ..tcl_registry::CommandSpec::DEFAULT
+        });
+        let mut ctx = ScanCtx {
+            registry: Some(&registry),
+            ..ScanCtx::default()
+        };
+        scan(
+            "background-load-script /opt/app/init.tcl",
+            None,
+            "",
+            false,
+            &HashSet::new(),
+            &mut ctx,
+        );
+
+        assert_eq!(ctx.result.source_targets.len(), 1);
+        assert_eq!(ctx.result.source_targets[0].raw_path, "/opt/app/init.tcl");
+    }
+
+    #[test]
+    fn qualified_heads_and_registry_subcommand_prefixes_keep_signature_facts() {
+        let mut ctx = registry_ctx();
+        scan(
+            "::package req Tcl 8.6\n::namespace ev tools {::proc helper {} {}}",
+            None,
+            "",
+            false,
+            &HashSet::new(),
+            &mut ctx,
+        );
+
+        assert_eq!(ctx.result.package_requires.len(), 1);
+        assert!(ctx.result.procs.contains_key("::tools::helper"));
     }
 
     #[test]
@@ -764,7 +882,7 @@ mod tests {
         // candidate to register.
         let src = "proc factwrapper {a b c} { DEFC bar args {body} }";
         let (body, body_tok) = extract_proc_body(src);
-        let mut ctx = ScanCtx::default();
+        let mut ctx = registry_ctx();
         scan_factory_candidates(&body, body_tok, "", &mut ctx);
         assert_eq!(ctx.candidates.len(), 1);
     }
@@ -773,7 +891,7 @@ mod tests {
     fn factory_walker_recurses_into_if() {
         let src = "proc init {} { if {1} { DEFC bar args {body} } }";
         let (body, body_tok) = extract_proc_body(src);
-        let mut ctx = ScanCtx::default();
+        let mut ctx = registry_ctx();
         scan_factory_candidates(&body, body_tok, "", &mut ctx);
         assert_eq!(ctx.candidates.len(), 1);
     }
@@ -782,7 +900,7 @@ mod tests {
     fn factory_walker_recurses_into_try_finally() {
         let src = "proc init {} { try { DEFC a {x} {b} } finally { DEFC c {y} {d} } }";
         let (body, body_tok) = extract_proc_body(src);
-        let mut ctx = ScanCtx::default();
+        let mut ctx = registry_ctx();
         scan_factory_candidates(&body, body_tok, "", &mut ctx);
         assert_eq!(ctx.candidates.len(), 2);
     }

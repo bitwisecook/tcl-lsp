@@ -317,6 +317,29 @@ pub struct FrameEffectSpec {
 }
 
 impl FrameEffectSpec {
+    /// Determine the level-word width from a structured argument count when
+    /// no source spelling is needed.
+    ///
+    /// [`FrameLevelWord::ArityParity`] is entirely positional, so registry
+    /// descriptors that receive [`crate::InvocationArguments`] can share the
+    /// exact `upvar` rule without reconstructing literal arguments. A
+    /// leading-probe layout needs a literal first word and therefore returns
+    /// `None` for the caller to widen conservatively.
+    #[must_use]
+    pub const fn level_word_len_for_argument_count(self, argument_count: usize) -> Option<usize> {
+        match self.level_word {
+            FrameLevelWord::None => Some(0),
+            FrameLevelWord::ArityParity => {
+                if argument_count % 2 == 1 {
+                    Some(1)
+                } else {
+                    Some(0)
+                }
+            }
+            FrameLevelWord::LeadingProbe => None,
+        }
+    }
+
     /// How many leading words of `args` (the argument list *after* the
     /// command name) the level word occupies — `1` or `0`.
     ///
@@ -341,8 +364,9 @@ impl FrameEffectSpec {
     #[must_use]
     pub fn level_word_len_for_version(&self, args: &[&str], version: Option<TclVersion>) -> usize {
         match self.level_word {
-            FrameLevelWord::None => 0,
-            FrameLevelWord::ArityParity => usize::from(args.len() % 2 == 1),
+            FrameLevelWord::None | FrameLevelWord::ArityParity => self
+                .level_word_len_for_argument_count(args.len())
+                .expect("only leading probes need a literal argument"),
             FrameLevelWord::LeadingProbe => match args.first() {
                 // A word the release consumes as a level is one, whatever
                 // follows: `uplevel 1 2 3` runs the script `2 3` at level 1

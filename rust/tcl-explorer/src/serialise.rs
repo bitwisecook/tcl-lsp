@@ -2178,20 +2178,18 @@ mod tests {
     }
 
     #[test]
-    fn gvn_reports_redundant_computation() {
+    fn gvn_abstains_without_exact_common_invocation_provenance() {
         let result = run_pipeline(
             "set x [list 1 2 3]\nset a [llength $x]\nset b [llength $x]\nputs $a$b",
             "tcl8.6",
         );
         let gvn = serialise_result(&result)["gvn"].clone();
         let arr = gvn.as_array().unwrap();
-        let o105 = arr
-            .iter()
-            .find(|w| w["code"] == "O105")
-            .expect("O105 finding");
-        assert_eq!(o105["expression"], "llength $x");
-        assert_eq!(o105["severity"], "info");
-        assert!(o105["firstRange"]["startOffset"].is_number());
+        // The executable sidecar does not yet retain exact invocation nodes
+        // for commands nested inside bracket substitutions. Production GVN
+        // therefore fails closed instead of re-enabling its legacy textual
+        // scanner and claiming an optimisation without common world facts.
+        assert!(arr.is_empty());
     }
 
     #[test]

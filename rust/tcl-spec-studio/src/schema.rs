@@ -447,6 +447,24 @@ pub const COMMAND_FIELDS: &[FieldSchema] = &[
         "Per-form arity, roles, options, and hooks, for form-specific routing.",
     ),
     f(
+        "semantic_operation",
+        "Semantic operation",
+        HOOKS,
+        FieldKind::RustExpr {
+            hint: "Some(SemanticOperationId::Intrinsic(IntrinsicId::ListLength))",
+        },
+        "Target-neutral operation identity selected before backend dispatch.",
+    ),
+    f(
+        "completion",
+        "Completion contract",
+        EFFECTS,
+        FieldKind::RustExpr {
+            hint: "Some(CompletionDescriptor::exact(COMPLETION_CODES))",
+        },
+        "Possible Tcl completion codes and result/options payload obligations.",
+    ),
+    f(
         "assigns_variable_at",
         "Assigns variable at",
         ARGS,
@@ -512,16 +530,6 @@ pub const COMMAND_FIELDS: &[FieldSchema] = &[
         "Emitter for the value-position and catch-body paths.",
     ),
     f(
-        "wasm_codegen_hook",
-        "WASM codegen hook",
-        HOOKS,
-        FieldKind::Enum {
-            catalogue: "wasmCodegenHook",
-            optional: true,
-        },
-        "Per-command WASM emitter. No specialisations exist yet.",
-    ),
-    f(
         "bpf_op",
         "BPF-Tcl lowering descriptor",
         HOOKS,
@@ -556,6 +564,33 @@ pub const COMMAND_FIELDS: &[FieldSchema] = &[
         EFFECTS,
         FieldKind::SideEffects,
         "Structured declarations of the state the command reads and writes.",
+    ),
+    f(
+        "world_effects",
+        "World effects",
+        EFFECTS,
+        FieldKind::RustExpr {
+            hint: "Some(WorldEffectDescriptor::EMPTY)",
+        },
+        "Target-neutral mutable-world footprint for common compiler analysis.",
+    ),
+    f(
+        "state_transitions",
+        "State transitions",
+        EFFECTS,
+        FieldKind::RustExpr {
+            hint: "Some(StateTransitionDescriptor::EMPTY)",
+        },
+        "Target-neutral command, namespace, interpreter, trace, and alias transitions.",
+    ),
+    f(
+        "dispatch_dependencies",
+        "Dispatch dependencies",
+        EFFECTS,
+        FieldKind::RustExpr {
+            hint: "Some(DispatchDependencyDescriptor::replace(DispatchDependencies::BASE))",
+        },
+        "Mutable Tcl domains that must remain stable before specialisation.",
     ),
     f(
         "inferred_storage_type",
@@ -1210,16 +1245,6 @@ pub const SUBCOMMAND_FIELDS: &[FieldSchema] = &[
         "Value-position emitter, overriding the command's when this subcommand matches.",
     ),
     f(
-        "wasm_codegen_hook",
-        "WASM codegen hook",
-        HOOKS,
-        FieldKind::Enum {
-            catalogue: "wasmCodegenHook",
-            optional: true,
-        },
-        "WASM emitter for this subcommand.",
-    ),
-    f(
         "analyser_hook",
         "Analyser hook",
         HOOKS,
@@ -1287,6 +1312,24 @@ pub const SUBCOMMAND_FIELDS: &[FieldSchema] = &[
         ADVANCED,
         FieldKind::RustExpr { hint: "SUB_FORMS" },
         "Per-form arity, roles, options, and hooks matched after the subcommand word.",
+    ),
+    f(
+        "semantic_operation",
+        "Semantic operation",
+        HOOKS,
+        FieldKind::RustExpr {
+            hint: "Some(SemanticOperationId::Intrinsic(IntrinsicId::DictGet))",
+        },
+        "Target-neutral operation identity overriding the parent command.",
+    ),
+    f(
+        "completion",
+        "Completion contract",
+        EFFECTS,
+        FieldKind::RustExpr {
+            hint: "Some(CompletionDescriptor::exact(COMPLETION_CODES))",
+        },
+        "Subcommand-specific Tcl completion and payload obligations.",
     ),
     f(
         "dialects",
@@ -1470,6 +1513,33 @@ pub const SUBCOMMAND_FIELDS: &[FieldSchema] = &[
         "Structured side-effect declarations for this subcommand.",
     ),
     f(
+        "world_effects",
+        "World effects",
+        EFFECTS,
+        FieldKind::RustExpr {
+            hint: "Some(WorldEffectDescriptor::EMPTY)",
+        },
+        "Subcommand-specific mutable-world footprint.",
+    ),
+    f(
+        "state_transitions",
+        "State transitions",
+        EFFECTS,
+        FieldKind::RustExpr {
+            hint: "Some(StateTransitionDescriptor::EMPTY)",
+        },
+        "Subcommand-specific Tcl state transitions.",
+    ),
+    f(
+        "dispatch_dependencies",
+        "Dispatch dependencies",
+        EFFECTS,
+        FieldKind::RustExpr {
+            hint: "Some(DispatchDependencyDescriptor::replace(DispatchDependencies::BASE))",
+        },
+        "Subcommand-specific live-dispatch stability requirements.",
+    ),
+    f(
         "destructive",
         "Destructive",
         BEHAVIOUR,
@@ -1548,7 +1618,6 @@ pub fn catalogues() -> Value {
         "loweringHook": entries(catalogue::LOWERING_HOOKS),
         "codegenHook": entries(catalogue::CODEGEN_HOOKS),
         "inlineCodegenHook": entries(catalogue::INLINE_CODEGEN_HOOKS),
-        "wasmCodegenHook": entries(catalogue::WASM_CODEGEN_HOOKS),
         "analyserHook": entries(catalogue::ANALYSER_HOOKS),
         "traits": entries(catalogue::TRAITS),
         "taintColour": entries(catalogue::TAINT_COLOURS),

@@ -29,12 +29,13 @@ use crate::body_kind::BodyKind;
 use crate::clause_shape::ClauseShapeChecker;
 use crate::command_table::CommandTableEffect;
 use crate::dialects::DialectSet;
+use crate::dispatch_stability::DispatchDependencyDescriptor;
 use crate::events::{EventRequirementForm, ResolvedEventRequirements};
 use crate::forms::{CommandForm, SubCommandForm};
 use crate::frame_effect::FrameEffectSpec;
 use crate::hooks::{
     AnalyserHookId, ArgTypeHint, CodegenHookId, ConstFoldFn, InlineCodegenHookId, LoweringHookId,
-    TclVersion, VersionedConstFoldFn, WasmCodegenHookId,
+    TclVersion, VersionedConstFoldFn,
 };
 use crate::hover::{ArgValue, FormSpec, HoverSnippet, OptionSpec};
 use crate::lifecycle::{Lifecycle, LifecycleState};
@@ -42,10 +43,12 @@ use crate::patterns::{FormatType, PatternType};
 use crate::presentation::ArgPresentation;
 use crate::repeated::RepeatedArgLayout;
 use crate::side_effects::{SideEffect, StorageType};
+use crate::state_transition::StateTransitionDescriptor;
 use crate::symbol_def::SymbolDef;
 use crate::taint::{SetterConstraint, TaintColour};
 use crate::traits::Traits;
 use crate::types::{ReturnElements, TclType, VarElementsEffect, VarWriteTyping};
+use crate::world_effect::WorldEffectDescriptor;
 
 /// Dynamic argument role resolver.
 ///
@@ -657,6 +660,19 @@ pub struct CommandSpec {
     /// arity / hooks".
     pub command_forms: &'static [CommandForm],
 
+    /// Target-neutral semantic operation for this command.
+    ///
+    /// A resolved subcommand or form may override it. `None` preserves the
+    /// generic [`crate::SemanticOperationId::Invoke`] fallback, unless the
+    /// existing common lowering descriptor supplies a structured operation.
+    pub semantic_operation: Option<crate::semantic_operation::SemanticOperationId>,
+
+    /// Target-neutral completion semantics for this command.
+    ///
+    /// A resolved subcommand or invocation form can supply a more-specific
+    /// descriptor. `None` deliberately leaves the invocation conservative.
+    pub completion: Option<crate::completion::CompletionDescriptor>,
+
     /// Which argument index is a variable name assigned by the command.
     /// `None` = command does not assign a variable.
     pub assigns_variable_at: Option<u8>,
@@ -699,12 +715,6 @@ pub struct CommandSpec {
     /// paths use their generic invoke emission for this command.
     pub inline_codegen_hook: Option<InlineCodegenHookId>,
 
-    /// WASM-runtime codegen hook ID — picks the per-command
-    /// emitter on the WASM target. Currently always `None`
-    /// (no WASM-specific emitters yet); the field exists so
-    /// the per-command coverage audit can track WASM hook stamping.
-    pub wasm_codegen_hook: Option<WasmCodegenHookId>,
-
     /// Analyser handler-family hook ID — picks the per-command
     /// handler in the analyser's central dispatch
     /// (`tcl_compiler::analyser`). `None` means the analyser has no
@@ -722,6 +732,33 @@ pub struct CommandSpec {
 
     /// Structured side-effect declarations.
     pub side_effects: &'static [SideEffect],
+
+    /// Mutable Tcl-world effects for common command analysis.
+    ///
+    /// A resolved invocation applies this descriptor before any matching
+    /// subcommand or form descriptor.  Descriptors extend each other by
+    /// default; a narrower descriptor may explicitly replace inherited facts.
+    /// The result is target-neutral and is resolved, together with the
+    /// established command-table, frame, and side-effect metadata, before a
+    /// compiler pass consumes it.
+    pub world_effects: Option<WorldEffectDescriptor>,
+
+    /// Target-neutral transitions of command bindings and variable cells.
+    ///
+    /// A resolved subcommand or form may add to or replace this descriptor.
+    /// The resolver receives structured invocation words, keeping dynamic
+    /// operands conservatively typed rather than treating source spelling as
+    /// a Tcl value.
+    pub state_transitions: Option<StateTransitionDescriptor>,
+
+    /// Mutable Tcl domains whose stability is required before a compiler may
+    /// treat registry resolution as the live dispatch behaviour.
+    ///
+    /// An absent descriptor keeps the conservative default. Resolved
+    /// subcommands and forms may extend or explicitly replace the refinable
+    /// operation-specific portion without teaching a compiler the command's
+    /// name. Irreducible live-interpreter dependencies always remain.
+    pub dispatch_dependencies: Option<DispatchDependencyDescriptor>,
 
     /// Inferred storage type for the target variable (`Dict`, `List`, `Array`).
     pub inferred_storage_type: Option<StorageType>,
@@ -1279,6 +1316,8 @@ impl CommandSpec {
         hover: None,
         forms: &[],
         command_forms: &[],
+        semantic_operation: None,
+        completion: None,
         assigns_variable_at: None,
         safe_on_uninit: None,
         const_fold: None,
@@ -1287,10 +1326,12 @@ impl CommandSpec {
         bpf_op: None,
         codegen_hook: None,
         inline_codegen_hook: None,
-        wasm_codegen_hook: None,
         analyser_hook: None,
         command_table_effect: None,
         side_effects: &[],
+        world_effects: None,
+        state_transitions: None,
+        dispatch_dependencies: None,
         inferred_storage_type: None,
         required_package: None,
         excluded_events: &[],
@@ -1922,10 +1963,6 @@ pub struct SubCommand {
     /// (`dict get` / `info exists`).
     pub inline_codegen_hook: Option<InlineCodegenHookId>,
 
-    /// WASM-runtime codegen hook ID. See
-    /// [`CommandSpec::wasm_codegen_hook`].
-    pub wasm_codegen_hook: Option<WasmCodegenHookId>,
-
     /// Analyser handler-family hook ID.
     /// See [`CommandSpec::analyser_hook`]. Overrides the parent's when
     /// the call resolves to this subcommand (`namespace eval` /
@@ -1968,6 +2005,18 @@ pub struct SubCommand {
     /// matched against the argument list *after* the subcommand
     /// word.
     pub subcommand_forms: &'static [SubCommandForm],
+
+    /// Target-neutral semantic-operation override for this subcommand.
+    ///
+    /// A matching form may override it. `None` inherits the parent command's
+    /// semantic operation or its common structural-lowering descriptor.
+    pub semantic_operation: Option<crate::semantic_operation::SemanticOperationId>,
+
+    /// Target-neutral completion semantics for this subcommand.
+    ///
+    /// A matching subcommand form takes precedence. `None` inherits the
+    /// parent command's descriptor.
+    pub completion: Option<crate::completion::CompletionDescriptor>,
 
     /// Dialect membership. `None` = inherit from parent `CommandSpec`.
     pub dialects: Option<DialectSet>,
@@ -2062,6 +2111,20 @@ pub struct SubCommand {
 
     /// Structured side-effect declarations for this subcommand.
     pub side_effects: &'static [SideEffect],
+
+    /// Mutable Tcl-world effects for this subcommand.
+    ///
+    /// A matching form is applied after this descriptor.  When absent,
+    /// resolution simply retains the parent command's descriptor; otherwise
+    /// it extends by default or explicitly replaces inherited facts.
+    pub world_effects: Option<WorldEffectDescriptor>,
+
+    /// Target-neutral transitions specific to this subcommand.
+    pub state_transitions: Option<StateTransitionDescriptor>,
+
+    /// Dispatch-stability dependency refinement for this subcommand.
+    /// Irreducible live-interpreter dependencies cannot be removed.
+    pub dispatch_dependencies: Option<DispatchDependencyDescriptor>,
 
     /// Irreversible operation (`file delete`, …).
     pub destructive: bool,
@@ -2160,7 +2223,6 @@ impl SubCommand {
         lowering_hook: None,
         codegen_hook: None,
         inline_codegen_hook: None,
-        wasm_codegen_hook: None,
         analyser_hook: None,
         command_table_effect: None,
         options: &[],
@@ -2169,6 +2231,8 @@ impl SubCommand {
         arg_values: &[],
         versioned_arg_values: &[],
         subcommand_forms: &[],
+        semantic_operation: None,
+        completion: None,
         dialects: None,
         lifecycle: Lifecycle::UNSPECIFIED,
         safe_on_uninit: None,
@@ -2189,6 +2253,9 @@ impl SubCommand {
         format_string_type: None,
         xc_operation: None,
         side_effects: &[],
+        world_effects: None,
+        state_transitions: None,
+        dispatch_dependencies: None,
         destructive: false,
         returns_path: false,
         is_unescape: false,

@@ -27,6 +27,8 @@ const FORMS: &[FormSpec] = &[FormSpec {
     dialects: None,
 }];
 
+const COMPLETION_CODES: &[CompletionCode] = &[CompletionCode::Break];
+
 /// Command spec for `break`.
 pub fn spec() -> CommandSpec {
     CommandSpec {
@@ -39,6 +41,7 @@ pub fn spec() -> CommandSpec {
             | Traits::TRANSFERS_CONTROL
             | Traits::NEEDS_START_CMD,
         arity: Arity::exact(0),
+        completion: Some(CompletionDescriptor::exact(COMPLETION_CODES)),
         return_type: Some(TclType::String),
         side_effects: &[SideEffect {
             target: SideEffectTarget::InterpState,

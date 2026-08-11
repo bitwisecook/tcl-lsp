@@ -1545,13 +1545,13 @@ fn special_arg_kinds(
     // as `EnumMember` instead (mirroring the existing `ArgRole::Keyword`
     // carve-out in `insert_enum_value_overrides`, issue #760, which this
     // dynamic `definition_body`-driven case isn't modelled by).
-    insert_oo_define_keyword_overrides(seg, registry, &mut overrides);
+    insert_oo_define_keyword_overrides(seg, registry, dialect, &mut overrides);
     insert_enum_value_overrides(seg, registry, head, dialect, &mut overrides);
     insert_definer_class_name_override(seg, registry, &mut overrides);
     insert_lambda_literal_overrides(seg, registry, head, deferred_role, &mut overrides);
     insert_case_list_override(seg, registry, &mut overrides);
     insert_role_overrides(seg, registry, head, arg_texts, &mut overrides);
-    insert_oo_body_overrides(seg, oo_grammar, arg_texts, &mut overrides);
+    insert_oo_body_overrides(seg, oo_grammar, arg_texts, dialect, &mut overrides);
     insert_scoped_subcommand_overrides(seg, scoped_env, head, &mut overrides);
     insert_multiname_var_overrides(seg, registry, head, arg_texts, oo_grammar, &mut overrides);
     insert_ref_var_overrides(seg, registry, head, &mut overrides);
@@ -1780,6 +1780,7 @@ fn insert_oo_body_overrides(
     seg: &tcl_compiler::segmenter::SegmentedCommand,
     oo_grammar: Option<&'static DefinitionBodyGrammar>,
     arg_texts: &[&str],
+    dialect: DialectSet,
     overrides: &mut FxHashMap<u32, ArgOverride>,
 ) {
     let Some(grammar) = oo_grammar else {
@@ -1787,7 +1788,15 @@ fn insert_oo_body_overrides(
     };
     // A member call inside a definition *body*: the member keyword is the
     // command head (argv 0), so its arguments start at argv 1.
-    insert_oo_member_overrides(seg, grammar, &seg.texts[0].clone(), arg_texts, 0, overrides);
+    insert_oo_member_overrides(
+        seg,
+        grammar,
+        &seg.texts[0].clone(),
+        arg_texts,
+        0,
+        dialect,
+        overrides,
+    );
 }
 
 /// Tag the member-call words of a definition-body member — its declared name,
@@ -1807,6 +1816,7 @@ fn insert_oo_member_overrides(
     head: &str,
     arg_texts: &[&str],
     base: usize,
+    dialect: DialectSet,
     overrides: &mut FxHashMap<u32, ArgOverride>,
 ) {
     if !crate::oo_body::is_member(grammar, head) {
@@ -1828,7 +1838,7 @@ fn insert_oo_member_overrides(
             .or_insert(ArgOverride::Kind(TokenKind::Keyword));
     }
     // Script bodies — recurse (only a braced `Str` word carries a script).
-    for idx in crate::oo_body::member_body_indices(grammar, head, arg_texts) {
+    for idx in crate::oo_body::member_body_indices_in(grammar, head, arg_texts, dialect) {
         if let Some(tok) = seg.argv.get(base + idx + 1)
             && matches!(tok.kind, TokenType::Str)
         {
@@ -1840,7 +1850,7 @@ fn insert_oo_member_overrides(
     // The member's declared name (`method foo …`, `property p …`).  The grammar
     // has always carried this role; consuming it is what stops a method name
     // painting as a plain string (#898 §2).
-    for idx in crate::oo_body::member_name_indices(grammar, head, arg_texts) {
+    for idx in crate::oo_body::member_name_indices_in(grammar, head, arg_texts, dialect) {
         if let Some(tok) = seg.argv.get(base + idx + 1)
             && matches!(tok.kind, TokenType::Esc | TokenType::Str)
         {
@@ -1850,7 +1860,7 @@ fn insert_oo_member_overrides(
         }
     }
     // Parameter lists — their names are declarations, like a `proc`'s.
-    for idx in crate::oo_body::member_param_indices(grammar, head, arg_texts) {
+    for idx in crate::oo_body::member_param_indices_in(grammar, head, arg_texts, dialect) {
         if let Some(tok) = seg.argv.get(base + idx + 1)
             && matches!(tok.kind, TokenType::Str)
         {
@@ -1879,7 +1889,7 @@ fn insert_oo_member_overrides(
     }
     // Declared variable / component names (`variable a b c`, `typevariable v`,
     // `component c`, `onconfigure -opt valueVar …`).
-    for idx in crate::oo_body::member_var_indices(grammar, head, arg_texts) {
+    for idx in crate::oo_body::member_var_indices_in(grammar, head, arg_texts, dialect) {
         if let Some(tok) = seg.argv.get(base + idx + 1)
             && matches!(tok.kind, TokenType::Esc)
             && !tok.in_quote
@@ -1888,6 +1898,24 @@ fn insert_oo_member_overrides(
             overrides
                 .entry(tok.span.start())
                 .or_insert(ArgOverride::VarDecl);
+        }
+    }
+    // Closed grammar options and namespace references retain their ordinary
+    // token kinds even though definition members have no standalone command
+    // specs. The positions come from the same generic member-role walker as
+    // names, parameters, bodies, and variables above.
+    for idx in crate::oo_body::member_option_indices_in(grammar, head, arg_texts, dialect) {
+        if let Some(tok) = seg.argv.get(base + idx + 1) {
+            overrides
+                .entry(tok.span.start())
+                .or_insert(ArgOverride::Decorator);
+        }
+    }
+    for idx in crate::oo_body::member_namespace_indices_in(grammar, head, arg_texts, dialect) {
+        if let Some(tok) = seg.argv.get(base + idx + 1) {
+            overrides
+                .entry(tok.span.start())
+                .or_insert(ArgOverride::Kind(TokenKind::Namespace));
         }
     }
 }
@@ -3041,6 +3069,7 @@ fn insert_enum_value_overrides(
 fn insert_oo_define_keyword_overrides(
     seg: &tcl_compiler::segmenter::SegmentedCommand,
     registry: &CommandRegistry,
+    dialect: DialectSet,
     overrides: &mut FxHashMap<u32, ArgOverride>,
 ) {
     let Some(spec) = registry.get(seg.texts[0].as_str()) else {
@@ -3098,7 +3127,7 @@ fn insert_oo_define_keyword_overrides(
     // body was never recursed.
     let member_args: Vec<&str> = seg.texts[3..].iter().map(String::as_str).collect();
     let first = first.clone();
-    insert_oo_member_overrides(seg, grammar, &first, &member_args, 2, overrides);
+    insert_oo_member_overrides(seg, grammar, &first, &member_args, 2, dialect, overrides);
 }
 
 /// `apply {params body ?ns?} …` — mark the braced lambda-literal argument

@@ -2148,6 +2148,17 @@ impl Interp {
         )
     }
 
+    /// Materialise an unset variable cell for `trace add variable` without
+    /// firing write traces or making `info exists` true.
+    pub(crate) fn ensure_trace_variable(&self, name: &[u8]) -> Result<(), VarError> {
+        crate::vars::ensure_undefined(
+            &mut self.frames.borrow_mut(),
+            &mut self.namespaces.borrow_mut(),
+            self.current_ns.get(),
+            name,
+        )
+    }
+
     /// The array's TIP 508 default value (borrowed), or `None`.
     pub(crate) fn array_default(&self, name: &[u8]) -> Option<*mut TclObj> {
         crate::vars::array_default(
@@ -2358,8 +2369,9 @@ impl Interp {
     }
 
     /// Invoke every variable trace matching `(base, elem, op)`, as
-    /// `command base element op`. Re-entrant firing is suppressed (the `firing`
-    /// guard); the interp result is preserved across the callbacks (the
+    /// `command base element op`. A running callback suppresses nested traces
+    /// on the same resolved variable cell, while traces on unrelated cells
+    /// remain active. The interp result is preserved across the callbacks (the
     /// triggering operation owns the result). For `read`/`write` ops a callback
     /// error is **propagated**: the message is stashed in `pending_err` and the
     /// function returns `true` (the access then fails; C's `TclCallVarTraces`).
@@ -2385,17 +2397,17 @@ impl Interp {
         elem: Option<&[u8]>,
         op: &[u8],
     ) -> bool {
-        if self.traces.borrow().firing > 0 {
-            return false;
-        }
-        let cmds: Vec<Vec<u8>> = self
-            .traces
-            .borrow()
+        let traces = self.traces.borrow();
+        let cmds: Vec<(crate::cmd_trace::VarTraceScope, Vec<u8>)> = traces
             .traces
             .iter()
-            .filter(|t| crate::cmd_trace::matches(t, base, elem, op, access_ns, access_frame_level))
-            .map(|t| t.command.clone())
+            .filter(|t| {
+                crate::cmd_trace::matches(t, base, elem, op, access_ns, access_frame_level)
+                    && !traces.active_var_scopes.contains(&t.scope())
+            })
+            .map(|t| (t.scope(), t.command.clone()))
             .collect();
+        drop(traces);
         if cmds.is_empty() {
             return false;
         }
@@ -2404,9 +2416,8 @@ impl Interp {
         let saved = self.result.get();
         unsafe { obj::incr_ref_count(saved) };
 
-        self.traces.borrow_mut().firing += 1;
         let mut errored = false;
-        for cmd in cmds {
+        for (scope, cmd) in cmds {
             // Append `base element op` as properly-quoted trailing words.
             let args = crate::list::new_list_obj(&[
                 new_string(base),
@@ -2417,7 +2428,13 @@ impl Interp {
             line.push(b' ');
             line.extend_from_slice(&obj_bytes(args));
             drop_fresh(args);
+            self.traces
+                .borrow_mut()
+                .active_var_scopes
+                .push(scope.clone());
             let code = self.eval_str(&line);
+            let popped = self.traces.borrow_mut().active_var_scopes.pop();
+            debug_assert_eq!(popped, Some(scope));
             if propagate && code == Code::Error {
                 // Capture the callback's error message; stop firing (C aborts
                 // the trace chain on the first error).
@@ -2427,8 +2444,6 @@ impl Interp {
                 break;
             }
         }
-        self.traces.borrow_mut().firing -= 1;
-
         // Restore the saved result (release the trace's, adopt our held +1).
         unsafe {
             obj::decr_ref_count(self.result.get());
@@ -2883,12 +2898,11 @@ impl Interp {
     /// Fire collected unset-trace callbacks as `command name {} unset`. Errors
     /// are ignored (an unset trace's result is discarded, as in C).
     fn fire_unset_callbacks(&mut self, victims: Vec<(Vec<u8>, Vec<u8>)>) {
-        if victims.is_empty() || self.traces.borrow().firing > 0 {
+        if victims.is_empty() {
             return;
         }
         let saved = self.result.get();
         unsafe { obj::incr_ref_count(saved) };
-        self.traces.borrow_mut().firing += 1;
         for (name, cmd) in victims {
             let args = crate::list::new_list_obj(&[
                 new_string(&name),
@@ -2901,7 +2915,6 @@ impl Interp {
             drop_fresh(args);
             let _ = self.eval_str(&line);
         }
-        self.traces.borrow_mut().firing -= 1;
         unsafe {
             obj::decr_ref_count(self.result.get());
             self.result.set(saved);

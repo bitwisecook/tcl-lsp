@@ -79,6 +79,9 @@ fn drop_word(tokens: &CommandTokens, idx: usize) -> CommandTokens {
     if idx < out.argv_texts.len() {
         out.argv_texts.remove(idx);
     }
+    if idx < out.word_exprs.len() {
+        out.word_exprs.remove(idx);
+    }
     if idx < out.argv_kinds.len() {
         out.argv_kinds.remove(idx);
     }
@@ -90,6 +93,7 @@ fn drop_word(tokens: &CommandTokens, idx: usize) -> CommandTokens {
     {
         expand.remove(idx);
     }
+    debug_assert!(out.words_align_with_argv_text());
     out
 }
 
@@ -101,14 +105,14 @@ fn all_str_tokens(cmd: &str, args: &[String]) -> CommandTokens {
     let mut argv_texts = Vec::with_capacity(word_count);
     argv_texts.push(cmd.to_owned());
     argv_texts.extend(args.iter().cloned());
-    CommandTokens {
-        argv: vec![Span::new(0, 0); word_count],
+    CommandTokens::from_lossy_parts(
+        vec![Span::new(0, 0); word_count],
         argv_texts,
-        argv_kinds: vec![TokenType::Str; word_count],
-        single_token_word: vec![true; word_count],
-        all_tokens: Vec::new(),
-        expand_word: None,
-    }
+        vec![TokenType::Str; word_count],
+        vec![true; word_count],
+        Vec::new(),
+        None,
+    )
 }
 
 mod cfg_lower;
@@ -169,10 +173,11 @@ pub(crate) struct CfgBuilder {
     /// edge from a body that terminated without an explicit `error`/`throw`
     /// (a bare `return`).
     last_terminal_block: Option<String>,
-    /// Source spans of inlined command bodies (`eval {…}`) flattened into the
-    /// function currently being built — drained into [`crate::cfg::Function`] so
-    /// codegen can re-derive each body's `errorInfo` frame (see that field).
-    inline_eval_spans: Vec<tcl_lexer::Span>,
+    /// Registry-described error contexts for inlined command bodies flattened
+    /// into the function currently being built. Drained into
+    /// [`crate::cfg::Function`] for source-text-independent error-frame
+    /// emission.
+    inline_body_error_sites: Vec<crate::cfg::InlineBodyErrorSite>,
     /// Caller-frame injection the function currently being built is subject
     /// to: the union of every called procedure's
     /// [`UpvarInfo::caller_frame_barrier`].  Drained into
@@ -233,7 +238,7 @@ impl CfgBuilder {
             faithful_exceptions: false,
             throw_blocks: None,
             last_terminal_block: None,
-            inline_eval_spans: Vec::new(),
+            inline_body_error_sites: Vec::new(),
             caller_frame_barrier: crate::dynamic_names::DynamicNameBarrier::default(),
             alias_observed_vars: std::collections::BTreeSet::new(),
             depth: 0,
@@ -1025,7 +1030,7 @@ impl CfgBuilder {
             .into_iter()
             .map(|(from, to)| (self.bid(&from), self.bid(&to)))
             .collect();
-        func.inline_eval_spans = std::mem::take(&mut self.inline_eval_spans);
+        func.inline_body_error_sites = std::mem::take(&mut self.inline_body_error_sites);
         func.caller_frame_barrier = self.caller_frame_barrier;
         func.alias_observed_vars = std::mem::take(&mut self.alias_observed_vars);
         func
@@ -1165,6 +1170,104 @@ impl CfgBuilder {
         });
     }
 
+    fn lower_return_statement(&mut self, stmt: &Statement, current: &str) {
+        let Statement::Return {
+            span,
+            value,
+            expr,
+            braced,
+        } = stmt
+        else {
+            unreachable!();
+        };
+
+        // `return [upvar_proc …]` invokes the callee before the frame unwinds,
+        // so its caller-frame aliases must be widened exactly as for a plain
+        // call. Otherwise the feeding store in this frame looks dead and
+        // O109/O126 can delete it (issue #1193's upvar differential).
+        self.record_alias_observed(stmt);
+        if let Some(v) = value.as_deref()
+            && v.contains('[')
+        {
+            let extras = self.upvar_defs_from_text(v);
+            if !extras.is_empty() {
+                let synthetic = Statement::Call {
+                    span: *span,
+                    command: "<upvar-invalidate>".to_string(),
+                    canonical_command: None,
+                    args: Vec::new(),
+                    defs: extras,
+                    reads: Vec::new(),
+                    reads_own_defs: false,
+                    safe_on_uninit: false,
+                    tokens: None,
+                    foreach_groups: None,
+                };
+                self.block_mut(current).statements.push(synthetic);
+            }
+        }
+        self.block_mut(current).terminator = Some(Terminator::Return {
+            value: value.clone(),
+            span: Some(*span),
+            expr: expr.clone(),
+            braced: *braced,
+        });
+    }
+
+    fn lower_script_statement(&mut self, stmt: &Statement, current: &str) -> Option<String> {
+        match stmt {
+            Statement::If { .. } => Some(self.lower_if(stmt, current)),
+            Statement::For { .. } => self.lower_for_or_frozen(stmt, current),
+            Statement::While { .. } => Some(self.lower_while_or_frozen(stmt, current)),
+            Statement::Foreach { .. } => Some(self.lower_foreach_dispatch(stmt, current)),
+            Statement::Catch { .. } => {
+                self.emit_opaque_catch(stmt, current);
+                Some(current.to_owned())
+            }
+            Statement::Try { .. } => Some(self.lower_try_dispatch(stmt, current)),
+            Statement::Switch { .. } => Some(self.lower_switch(stmt, current)),
+            Statement::Return { .. } => {
+                self.lower_return_statement(stmt, current);
+                Some(current.to_owned())
+            }
+            // Inline block: flatten the body's statements into the current
+            // control-flow stream so SSA / codegen see them as plain inline
+            // statements. Preserve any registry-described Tcl error context
+            // with the original command span.
+            Statement::Block {
+                body,
+                span,
+                error_context,
+                ..
+            } => {
+                if let Some(context) = error_context {
+                    self.inline_body_error_sites
+                        .push(crate::cfg::InlineBodyErrorSite {
+                            span: *span,
+                            context: *context,
+                        });
+                }
+                self.lower_script(body, current)
+            }
+            // `return -options …` / `return {*}…args` lower to an IRBarrier,
+            // but still unconditionally exit the proc in analysis builds.
+            Statement::Barrier { reason, span, .. }
+                if self.faithful_exceptions
+                    && matches!(
+                        reason.as_str(),
+                        "return with options" | "return with expansion"
+                    ) =>
+            {
+                self.lower_return_options_barrier(stmt, *span, current);
+                Some(current.to_owned())
+            }
+            other => {
+                self.push_plain_statement(current, other);
+                Some(current.to_owned())
+            }
+        }
+    }
+
     fn lower_script_inner(&mut self, script: &Script, block_name: &str) -> Option<String> {
         let mut current = block_name.to_owned();
         // True once the *main* (reachable) path has hit an unconditional
@@ -1188,126 +1291,7 @@ impl CfgBuilder {
             if self.lower_loop_jump(&current, stmt) {
                 continue;
             }
-
-            match stmt {
-                Statement::If { .. } => {
-                    current = self.lower_if(stmt, &current);
-                }
-
-                Statement::For { .. } => {
-                    current = self.lower_for_or_frozen(stmt, &current)?;
-                }
-
-                Statement::While { .. } => {
-                    current = self.lower_while_or_frozen(stmt, &current);
-                }
-
-                Statement::Foreach { .. } => {
-                    current = self.lower_foreach_dispatch(stmt, &current);
-                }
-
-                Statement::Catch { .. } => {
-                    self.emit_opaque_catch(stmt, &current);
-                }
-
-                Statement::Try { .. } => {
-                    current = self.lower_try_dispatch(stmt, &current);
-                }
-
-                Statement::Switch { .. } => {
-                    current = self.lower_switch(stmt, &current);
-                }
-
-                Statement::Return {
-                    span,
-                    value,
-                    expr,
-                    braced,
-                } => {
-                    // `return [upvar_proc …]` invokes the callee before the
-                    // frame unwinds, so its caller-frame aliases must be
-                    // widened here exactly as for a plain call — otherwise
-                    // the feeding store in THIS frame looks dead and
-                    // O109/O126 deletes it (`set callervar 5; return [get]`
-                    // where `get` upvar-reads `callervar` — issue #1193's
-                    // upvar differential).  Same synthetic-call shape as
-                    // `upvar_invalidated`'s non-Call host path; the "may be
-                    // read by the callee" half lands on
-                    // `alias_observed_vars` via `record_alias_observed`.
-                    self.record_alias_observed(stmt);
-                    if let Some(v) = value.as_deref()
-                        && v.contains('[')
-                    {
-                        let extras = self.upvar_defs_from_text(v);
-                        if !extras.is_empty() {
-                            let synthetic = Statement::Call {
-                                span: *span,
-                                command: "<upvar-invalidate>".to_string(),
-                                canonical_command: None,
-                                args: Vec::new(),
-                                defs: extras,
-                                reads: Vec::new(),
-                                reads_own_defs: false,
-                                safe_on_uninit: false,
-                                tokens: None,
-                                foreach_groups: None,
-                            };
-                            self.block_mut(&current).statements.push(synthetic);
-                        }
-                    }
-                    self.block_mut(&current).terminator = Some(Terminator::Return {
-                        value: value.clone(),
-                        span: Some(*span),
-                        expr: expr.clone(),
-                        braced: *braced,
-                    });
-                    // Don't return early: a following statement is dead code
-                    // and is routed to an orphan block by the loop-top check.
-                }
-
-                // Inline block: flatten the body's statements
-                // into the current control-flow stream so SSA / codegen
-                // see them as plain inline statements. Record the original
-                // command's span so codegen can rebuild its `errorInfo` body
-                // frame (`("eval" body line N)`); the body itself stays inline.
-                Statement::Block { body, span, .. } => {
-                    self.inline_eval_spans.push(*span);
-                    {
-                        let next_current = self.lower_script(body, &current)?;
-                        current = next_current;
-                    }
-                }
-
-                // `return -options …` / `return {*}…args` lower to an IRBarrier
-                // (codegen keeps the options/expansion as raw_args), but they
-                // still unconditionally exit the proc. In analysis builds
-                // (`faithful_exceptions`) treat them as a `Return`-style
-                // terminator so the fall-through edge to the rest of the block /
-                // the `try` handler→`try_end` join is cut — otherwise a
-                // `return -options` handler false-flows to `try_end` and adds a
-                // spurious phi (e.g. `auto_mkindex`). Codegen builds leave it as
-                // a plain barrier (bytecode unchanged).
-                Statement::Barrier { reason, span, .. }
-                    if self.faithful_exceptions
-                        && matches!(
-                            reason.as_str(),
-                            "return with options" | "return with expansion"
-                        ) =>
-                {
-                    self.lower_return_options_barrier(stmt, *span, &current);
-                }
-
-                // All other statements (assignments, calls, barriers,
-                // expr-evals) go straight into the current block —
-                // after the upvar-invalidation pass augments
-                // `Statement::Call`'s `defs` for calls to procs that
-                // use `upvar`.  The pass may also prepend a synthetic
-                // `<upvar-invalidate>` `Statement::Call` when an
-                // `AssignValue` contains `[upvar_proc arg]`.
-                other => {
-                    self.push_plain_statement(&current, other);
-                }
-            }
+            current = self.lower_script_statement(stmt, &current)?;
         }
 
         // Always return the block control finally rests in, even when it is
@@ -2600,6 +2584,22 @@ mod tests {
         let cfg = build_cfg(&module, false);
         assert_eq!(cfg.top_level.name, "::top");
         assert!(cfg.procedures.is_empty());
+    }
+
+    #[test]
+    fn drop_word_keeps_structured_words_aligned() {
+        let tokens = CommandTokens::from_lossy_parts(
+            vec![Span::new(0, 4), Span::new(5, 8), Span::new(9, 13)],
+            vec!["dict".into(), "for".into(), "body".into()],
+            vec![TokenType::Esc, TokenType::Esc, TokenType::Str],
+            vec![true, true, true],
+            Vec::new(),
+            None,
+        );
+        let dropped = drop_word(&tokens, 1);
+        assert_eq!(dropped.argv_texts, vec!["dict", "body"]);
+        assert!(dropped.words_align_with_argv_text());
+        assert_eq!(dropped.words()[1].legacy_text(), "body");
     }
 
     #[test]

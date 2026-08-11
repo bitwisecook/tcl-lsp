@@ -27,7 +27,7 @@ use std::rc::Rc;
 
 use tcl_bytecode::FunctionAsm;
 use tcl_runtime_api::{Code, Completion};
-use tcl_syntax::list::split_list;
+use tcl_syntax::formal_params::{has_trailing_args, parse_formal_parameters};
 
 use crate::error::TclError;
 use crate::interp::{Vm, err, ok};
@@ -1141,43 +1141,17 @@ pub(crate) fn resolve_index(spec: &str, len: usize) -> Option<isize> {
     tcl_cmd_core::index::resolve_opt(spec, len).and_then(|i| isize::try_from(i).ok())
 }
 
-/// A formal parameter name must be a scalar: not an array element (`a(1)`) and
-/// not namespace-qualified (`a::b`). Scans left-to-right like C's `TclCreateProc`
-/// — the first `(` with a trailing `)` is an array element, the first `::` is a
-/// non-simple name.
-fn validate_param_name(name: &str) -> Result<(), String> {
-    let bytes = name.as_bytes();
-    let last_is_close = bytes.last() == Some(&b')');
-    let mut i = 0;
-    while i + 1 < bytes.len() {
-        if bytes[i] == b'(' {
-            if last_is_close {
-                return Err(format!("formal parameter \"{name}\" is an array element"));
-            }
-        } else if bytes[i] == b':' && bytes[i + 1] == b':' {
-            return Err(format!("formal parameter \"{name}\" is not a simple name"));
-        }
-        i += 1;
-    }
-    Ok(())
-}
-
 /// Parse a proc parameter spec (`"a b {c 1} args"`) into params + `has_args`.
 pub(crate) fn parse_params(spec: &str) -> Result<(Vec<Param>, bool), String> {
-    let elems = split_list(spec).map_err(|e| e.message().to_string())?;
-    let mut params = Vec::with_capacity(elems.len());
-    for e in &elems {
-        let parts = split_list(e.as_ref()).map_err(|err| err.message().to_string())?;
-        let (name, default) = match parts.as_slice() {
-            [] => return Err("argument with no name".to_string()),
-            [n] => (n.to_string(), None),
-            [n, d] => (n.to_string(), Some(Value::string(d.as_ref()))),
-            _ => return Err(format!("too many fields in argument specifier \"{e}\"")),
-        };
-        validate_param_name(&name)?;
-        params.push(Param { name, default });
-    }
-    let has_args = params.last().is_some_and(|p| p.name == "args");
+    let parsed = parse_formal_parameters(spec).map_err(|error| error.message())?;
+    let has_args = has_trailing_args(&parsed);
+    let params = parsed
+        .into_iter()
+        .map(|parameter| Param {
+            name: parameter.name,
+            default: parameter.default.map(Value::string),
+        })
+        .collect();
     Ok((params, has_args))
 }
 
@@ -1974,4 +1948,26 @@ pub(crate) fn cmd_variable(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
         }
     }
     ok(Value::empty())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::parse_params;
+
+    #[test]
+    fn shared_proc_parameter_parser_adapts_to_vm_values() {
+        let (params, has_args) = parse_params("a {b {hello world}} args").unwrap();
+        assert!(has_args);
+        assert_eq!(params[1].name, "b");
+        let default = params[1].default.as_ref().unwrap().to_str();
+        assert_eq!(&*default, "hello world");
+        assert_eq!(
+            parse_params("{{} default}").err().unwrap(),
+            "argument with no name"
+        );
+        assert_eq!(
+            parse_params("{ns::name}").err().unwrap(),
+            "formal parameter \"ns::name\" is not a simple name"
+        );
+    }
 }

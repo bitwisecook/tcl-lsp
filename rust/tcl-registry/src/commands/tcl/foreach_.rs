@@ -66,8 +66,7 @@ pub fn spec() -> CommandSpec {
             | Traits::LANGUAGE_KEYWORD
             | Traits::HAS_LOOP_BODY
             | Traits::NEVER_INLINE_BODY
-            | Traits::LOOP_LIST_HEADER
-            | Traits::WASM_EMITS_NOTHING,
+            | Traits::LOOP_LIST_HEADER,
         // `varList list ?varList list ...? body` — an odd count from 3
         // (n varList/list pairs, n >= 1, + 1 body — confirmed against
         // tclsh 8.6.14: `foreach a $l1 b $l2 body extra` (6 args) fails

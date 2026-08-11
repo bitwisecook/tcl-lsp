@@ -25,8 +25,10 @@
 //! - `dis` lowers to the bytecode IR, builds the codegen CFG (the
 //!   `faithful_exceptions`-off shape — see `tcl-explorer`'s `asm` view for why),
 //!   emits the `ModuleAsm`, and renders it with `format_module_asm`.
-//! - `compwasm` builds the complete analysis unit and runs the WASM emitter,
-//!   writing the binary module and, optionally, its WAT text form.
+//! - `compwasm` selects one of three explicit backends: the self-contained VM
+//!   runner, the analysis-aware Tcl-object emitter with runtime fallback, or
+//!   the bounded executable-IR generic-argv transport. The two per-script
+//!   emitters can also write their WAT form.
 //!
 //! `--optimise` runs the source-to-source optimiser first, exactly as the
 //! `compile_script(optimise=...)` path does (`apply_optimisations` over
@@ -39,9 +41,12 @@ use tcl_cli_support::{
 use tcl_compiler::cfg_builder::build_cfg_codegen;
 use tcl_compiler::codegen::codegen_module;
 use tcl_compiler::codegen::format::format_module_asm;
-use tcl_compiler::codegen::wasm::wasm_codegen_compilation_unit;
+use tcl_compiler::codegen::wasm::{
+    LiteralSafeWasmOptions, compile_literal_safe_wasm, wasm_codegen_compilation_unit,
+};
 use tcl_compiler::compilation_unit::CompilationUnit;
-use tcl_compiler::lowering::lower_to_ir_for_bytecode_with_dialect;
+use tcl_compiler::executable_ir::ExecutableFunctionId;
+use tcl_compiler::lowering::{lower_to_ir_for_bytecode_with_dialect, lower_to_ir_with_dialect};
 use tcl_compiler::optimiser::{apply_optimisations, optimise_with_dialect};
 use tcl_registry::CommandRegistry;
 
@@ -97,6 +102,8 @@ pub fn run_dis(input: &InputArgs, optimise_on: bool) -> anyhow::Result<u8> {
 /// `tcl compwasm` — compile source to a WebAssembly binary. The default `vm`
 /// backend emits the self-contained bytecode-VM runner; `tree-walker` emits the
 /// analysis-aware Tcl-object module with runtime fallback.
+/// analysis-aware Tcl-object module with runtime fallback; and
+/// `generic-invoke` emits the bounded executable-IR argv transport.
 pub fn run_compwasm(
     input: &InputArgs,
     backend: crate::cli::WasmBackend,
@@ -105,6 +112,7 @@ pub fn run_compwasm(
     match backend {
         crate::cli::WasmBackend::TreeWalker => run_compwasm_tree_walker(input, wat_output),
         crate::cli::WasmBackend::Vm => run_compwasm_vm(input, wat_output),
+        crate::cli::WasmBackend::GenericInvoke => run_compwasm_generic_invoke(input, wat_output),
     }
 }
 
@@ -116,7 +124,7 @@ pub fn run_compwasm(
 fn run_compwasm_vm(input: &InputArgs, wat_output: Option<&std::path::Path>) -> anyhow::Result<u8> {
     if wat_output.is_some() {
         anyhow::bail!(
-            "--wat-output is only supported with --backend tree-walker (the vm runner is a \
+            "--wat-output is only supported with --backend tree-walker or generic-invoke (the vm runner is a \
              cargo-built cdylib, not a WAT-introspectable module)"
         );
     }
@@ -151,6 +159,47 @@ fn run_compwasm_vm(input: &InputArgs, wat_output: Option<&std::path::Path>) -> a
         "  feed a Tcl script (coroutines included) through it via the tcl_alloc/tcl_eval/tcl_dealloc \
          ABI — see rust/tcl-vm-wasm/verify.mjs for a host example"
     );
+    Ok(0)
+}
+
+/// The executable-IR generic argv transport.  This is intentionally an opt-in
+/// diagnostic backend while its domain is one literal-safe flat command: it
+/// must decline dynamic words and multi-command scripts, not reinterpret them
+/// through the legacy eval fallback.
+fn run_compwasm_generic_invoke(
+    input: &InputArgs,
+    wat_output: Option<&std::path::Path>,
+) -> anyhow::Result<u8> {
+    let documents = read_input_documents(&input.inputs, &input.source, !input.no_recursive)?;
+    let dialect = combined_effective_dialect(&documents, input.dialect.as_deref());
+    let dialect_set = tcl_registry::dialects::DialectSet::parse(&dialect).ok_or_else(|| {
+        anyhow::anyhow!("generic-invoke requires a concrete registered dialect, got {dialect:?}")
+    })?;
+    let registry = registry_for_dialect(&dialect);
+    let source = combine_sources(&documents);
+    let ir = lower_to_ir_with_dialect(
+        &source,
+        registry,
+        tcl_lexer::LexerConfig::for_dialect(&dialect),
+        &dialect,
+    );
+    let mut output = compile_literal_safe_wasm(
+        registry,
+        dialect_set,
+        &ir.top_level,
+        LiteralSafeWasmOptions::new(ExecutableFunctionId::new(0), "::top"),
+    )
+    .map_err(|decline| anyhow::anyhow!("generic-invoke backend declined: {decline}"))?;
+    let bytes = output.module.to_bytes();
+    let target = match input.output.as_deref() {
+        None => OutputTarget::File(std::path::PathBuf::from("out.wasm")),
+        Some(path) => OutputTarget::from_arg(Some(path)),
+    };
+    write_binary_output(&target, &bytes)?;
+    if let Some(wat_path) = wat_output {
+        let wat_target = OutputTarget::from_arg(Some(wat_path));
+        write_text_output(&wat_target, &output.module.to_wat())?;
+    }
     Ok(0)
 }
 

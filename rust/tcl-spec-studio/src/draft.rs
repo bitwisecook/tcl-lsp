@@ -30,8 +30,9 @@
 //! `const_fold`, `taint_sink_gate`, …) or a reference to a **named** `&'static`
 //! descriptor the registry shares between commands (`definition_body`,
 //! `case_list`, `object_class`, `body_scope`, `frame_effect`, `bpf_op`,
-//! `event_requires`, `command_forms`). Rust can tell that such a field is set,
-//! but not recover the *expression* — the constant's path — that set it.
+//! `event_requires`, `command_forms`, and the semantic/effect descriptors).
+//! Rust can tell that such a field is set, but not recover the *expression* —
+//! the constant's path — that set it.
 //! Seeding records those keys under [`UNRENDERABLE_KEY`] so the form can flag
 //! them and the renderer can emit a `TODO` rather than silently dropping
 //! behaviour the source command had.
@@ -679,6 +680,14 @@ fn subcommand_hooks(d: &mut Draft, sub: &SubCommand, lost: &mut Unrecovered) {
         lost.expr("const_fold_versioned", sub.const_fold_versioned.is_some()),
     );
     d.insert(
+        "semantic_operation".into(),
+        lost.expr("semantic_operation", sub.semantic_operation.is_some()),
+    );
+    d.insert(
+        "completion".into(),
+        lost.expr("completion", sub.completion.is_some()),
+    );
+    d.insert(
         "lowering_hook".into(),
         sub.lowering_hook
             .map_or(Value::Null, |h| json!(catalogue::variant_name(&h))),
@@ -694,11 +703,6 @@ fn subcommand_hooks(d: &mut Draft, sub: &SubCommand, lost: &mut Unrecovered) {
             .map_or(Value::Null, |h| json!(catalogue::variant_name(&h))),
     );
     d.insert(
-        "wasm_codegen_hook".into(),
-        sub.wasm_codegen_hook
-            .map_or(Value::Null, |h| json!(catalogue::variant_name(&h))),
-    );
-    d.insert(
         "analyser_hook".into(),
         sub.analyser_hook
             .map_or(Value::Null, |h| json!(catalogue::variant_name(&h))),
@@ -707,6 +711,18 @@ fn subcommand_hooks(d: &mut Draft, sub: &SubCommand, lost: &mut Unrecovered) {
         "command_table_effect".into(),
         sub.command_table_effect
             .map_or(Value::Null, |e| json!(catalogue::variant_name(&e))),
+    );
+    d.insert(
+        "world_effects".into(),
+        lost.expr("world_effects", sub.world_effects.is_some()),
+    );
+    d.insert(
+        "state_transitions".into(),
+        lost.expr("state_transitions", sub.state_transitions.is_some()),
+    );
+    d.insert(
+        "dispatch_dependencies".into(),
+        lost.expr("dispatch_dependencies", sub.dispatch_dependencies.is_some()),
     );
 }
 
@@ -948,6 +964,14 @@ fn command_hooks(d: &mut Draft, spec: &CommandSpec, lost: &mut Unrecovered) {
         lost.expr("const_fold_versioned", spec.const_fold_versioned.is_some()),
     );
     d.insert(
+        "semantic_operation".into(),
+        lost.expr("semantic_operation", spec.semantic_operation.is_some()),
+    );
+    d.insert(
+        "completion".into(),
+        lost.expr("completion", spec.completion.is_some()),
+    );
+    d.insert(
         "lowering_hook".into(),
         spec.lowering_hook
             .map_or(Value::Null, |h| json!(catalogue::variant_name(&h))),
@@ -963,11 +987,6 @@ fn command_hooks(d: &mut Draft, spec: &CommandSpec, lost: &mut Unrecovered) {
             .map_or(Value::Null, |h| json!(catalogue::variant_name(&h))),
     );
     d.insert(
-        "wasm_codegen_hook".into(),
-        spec.wasm_codegen_hook
-            .map_or(Value::Null, |h| json!(catalogue::variant_name(&h))),
-    );
-    d.insert(
         "analyser_hook".into(),
         spec.analyser_hook
             .map_or(Value::Null, |h| json!(catalogue::variant_name(&h))),
@@ -980,6 +999,21 @@ fn command_hooks(d: &mut Draft, spec: &CommandSpec, lost: &mut Unrecovered) {
     d.insert(
         "side_effects".into(),
         Value::Array(spec.side_effects.iter().map(side_effect).collect()),
+    );
+    d.insert(
+        "world_effects".into(),
+        lost.expr("world_effects", spec.world_effects.is_some()),
+    );
+    d.insert(
+        "state_transitions".into(),
+        lost.expr("state_transitions", spec.state_transitions.is_some()),
+    );
+    d.insert(
+        "dispatch_dependencies".into(),
+        lost.expr(
+            "dispatch_dependencies",
+            spec.dispatch_dependencies.is_some(),
+        ),
     );
     d.insert(
         "inferred_storage_type".into(),

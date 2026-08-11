@@ -32,6 +32,10 @@ use crate::value::Value;
 /// A variable cell in a frame: a scalar, an array, or a link to another frame's
 /// variable.
 pub(crate) enum Local {
+    /// A materialised, but unset, variable cell. `trace add variable` creates
+    /// this state: it is not visible to `info exists`, yet a later scalar or
+    /// array write defines it with the appropriate shape.
+    Undefined,
     /// A scalar value owned by this frame.
     Scalar(Value),
     /// An associative array (element key → value). `BTreeMap` gives a

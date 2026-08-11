@@ -17,7 +17,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 //! `oo::configurable` — metaclass for configurable classes and objects.
-use super::oo_class::oo_class_arg_roles;
+use super::oo_class::{CLASS_FACTORY_SUBCOMMANDS, oo_class_arg_roles};
 use crate::prelude::*;
 const SIDE_EFFECTS: &[SideEffect] = &[SideEffect {
     target: SideEffectTarget::InterpState,
@@ -55,6 +55,8 @@ pub fn spec() -> CommandSpec {
         arity: Arity::at_least(1),
         arg_role_resolver: Some(oo_class_arg_roles),
         return_type: Some(TclType::String),
+        subcommands: CLASS_FACTORY_SUBCOMMANDS,
+        allow_unknown_subcommands: true,
         // Bodies of `oo::configurable create / new / createWithNamespace`
         // run in a TclOO definition context (not the caller's frame),
         // exactly like `oo::class`.

@@ -322,6 +322,347 @@ fn fold_tail(args: &[&str]) -> Option<String> {
     Some(s[start..].to_owned())
 }
 
+const NAMESPACE_UPVAR_TRANSITION_DOMAINS: &[StateTransitionDomain] = &[
+    StateTransitionDomain::VariableCells,
+    StateTransitionDomain::Namespaces,
+    StateTransitionDomain::VariableTraces,
+];
+
+const NAMESPACE_LOOKUP_TRANSITION_DOMAINS: &[StateTransitionDomain] =
+    &[StateTransitionDomain::Namespaces];
+
+const NAMESPACE_IMPORT_TRANSITION_DOMAINS: &[StateTransitionDomain] = &[
+    StateTransitionDomain::CommandBindings,
+    StateTransitionDomain::Namespaces,
+];
+
+const NAMESPACE_DELETE_TRANSITION_DOMAINS: &[StateTransitionDomain] = &[
+    StateTransitionDomain::CommandBindings,
+    StateTransitionDomain::VariableCells,
+    StateTransitionDomain::Namespaces,
+    StateTransitionDomain::CommandTraces,
+    StateTransitionDomain::ExecutionTraces,
+    StateTransitionDomain::VariableTraces,
+    StateTransitionDomain::ObjectDispatch,
+];
+
+/// The parent `namespace` spec retains its long-standing namespace-state
+/// side effect.  A selected namespace transition is the completion-qualified,
+/// target-specific account of that write, so only that legacy write is handed
+/// to the transition projection.
+const NAMESPACE_LOOKUP_EFFECT_COVERAGE: &[TransitionEffectCoverage] = &[TransitionEffectCoverage {
+    source: WorldEffectWriteSource::LegacySideEffect(SideEffectTarget::NamespaceState),
+    domains: &[WorldStateDomain::NamespaceLookup],
+}];
+
+const NAMESPACE_DELETE_EFFECTS: WorldEffectDescriptor = WorldEffectDescriptor {
+    composition: WorldEffectComposition::Extend,
+    static_footprint: StaticEffectFootprint {
+        accesses: &[],
+        // Deleting a namespace recursively deletes its commands.  Command
+        // delete traces can synchronously re-enter the interpreter while the
+        // tree is only partly destroyed.
+        callback: CallbackEffect {
+            kinds: CallbackKinds::TRACE,
+            reentrancy: Reentrancy::CurrentInterpreter,
+        },
+    },
+    resolver: None,
+    dynamic_fallback: WorldEffectDynamicFallback::ConservativeUnknownInvocation,
+};
+
+const NAMESPACE_EVAL_EFFECTS: WorldEffectDescriptor = WorldEffectDescriptor {
+    composition: WorldEffectComposition::Extend,
+    static_footprint: StaticEffectFootprint {
+        accesses: &[],
+        // The body runs after namespace creation and may return any Tcl
+        // completion, so the generic callback barrier is required even when
+        // the namespace operand itself is known.
+        callback: CallbackEffect {
+            kinds: CallbackKinds::SCRIPT,
+            reentrancy: Reentrancy::CurrentInterpreter,
+        },
+    },
+    resolver: None,
+    dynamic_fallback: WorldEffectDynamicFallback::ConservativeUnknownInvocation,
+};
+
+const NAMESPACE_DELETE_TRANSITIONS: StateTransitionDescriptor = StateTransitionDescriptor {
+    composition: StateTransitionComposition::Extend,
+    resolver: Some(namespace_delete_state_transitions),
+    argument_shape: StateTransitionArgumentShape::Independent,
+    dynamic_widening: &[StateTransitionWideningRule {
+        operands: StateTransitionOperandLayout::EveryArgument,
+        domains: NAMESPACE_DELETE_TRANSITION_DOMAINS,
+    }],
+    effect_coverage: NAMESPACE_LOOKUP_EFFECT_COVERAGE,
+    // Tcl destroys each requested tree in turn.  A later unknown namespace or
+    // an observer callback can therefore report an abrupt completion after a
+    // preceding tree has disappeared.
+    commit: StateTransitionCommit::MayCommitBeforeAbruptCompletion,
+};
+
+const NAMESPACE_ENSEMBLE_TRANSITIONS: StateTransitionDescriptor = StateTransitionDescriptor {
+    composition: StateTransitionComposition::Extend,
+    resolver: Some(namespace_ensemble_state_transitions),
+    argument_shape: StateTransitionArgumentShape::Positional,
+    dynamic_widening: &[StateTransitionWideningRule {
+        operands: StateTransitionOperandLayout::EveryArgument,
+        domains: NAMESPACE_IMPORT_TRANSITION_DOMAINS,
+    }],
+    effect_coverage: NAMESPACE_LOOKUP_EFFECT_COVERAGE,
+    // Ensemble construction/configuration validates several options after it
+    // has selected mutable ensemble state; preserve the intermediate state on
+    // an abrupt completion conservatively.
+    commit: StateTransitionCommit::MayCommitBeforeAbruptCompletion,
+};
+
+const NAMESPACE_EVAL_TRANSITIONS: StateTransitionDescriptor = StateTransitionDescriptor {
+    composition: StateTransitionComposition::Extend,
+    resolver: Some(namespace_eval_state_transitions),
+    argument_shape: StateTransitionArgumentShape::Positional,
+    dynamic_widening: &[StateTransitionWideningRule {
+        operands: StateTransitionOperandLayout::Indices(&[1]),
+        domains: NAMESPACE_LOOKUP_TRANSITION_DOMAINS,
+    }],
+    effect_coverage: NAMESPACE_LOOKUP_EFFECT_COVERAGE,
+    // Namespace creation happens before the body executes.  The body can
+    // fail, return, or re-enter Tcl after the namespace is visible.
+    commit: StateTransitionCommit::MayCommitBeforeAbruptCompletion,
+};
+
+const NAMESPACE_EXPORT_TRANSITIONS: StateTransitionDescriptor = StateTransitionDescriptor {
+    composition: StateTransitionComposition::Extend,
+    resolver: Some(namespace_export_state_transitions),
+    argument_shape: StateTransitionArgumentShape::Independent,
+    dynamic_widening: &[StateTransitionWideningRule {
+        operands: StateTransitionOperandLayout::EveryArgument,
+        domains: NAMESPACE_LOOKUP_TRANSITION_DOMAINS,
+    }],
+    effect_coverage: NAMESPACE_LOOKUP_EFFECT_COVERAGE,
+    commit: StateTransitionCommit::OnOkOnly,
+};
+
+const NAMESPACE_FORGET_TRANSITIONS: StateTransitionDescriptor = StateTransitionDescriptor {
+    composition: StateTransitionComposition::Extend,
+    resolver: Some(namespace_forget_state_transitions),
+    argument_shape: StateTransitionArgumentShape::Independent,
+    dynamic_widening: &[StateTransitionWideningRule {
+        operands: StateTransitionOperandLayout::EveryArgument,
+        domains: NAMESPACE_IMPORT_TRANSITION_DOMAINS,
+    }],
+    effect_coverage: NAMESPACE_LOOKUP_EFFECT_COVERAGE,
+    commit: StateTransitionCommit::MayCommitBeforeAbruptCompletion,
+};
+
+const NAMESPACE_IMPORT_TRANSITIONS: StateTransitionDescriptor = StateTransitionDescriptor {
+    composition: StateTransitionComposition::Extend,
+    resolver: Some(namespace_import_state_transitions),
+    argument_shape: StateTransitionArgumentShape::Independent,
+    dynamic_widening: &[StateTransitionWideningRule {
+        operands: StateTransitionOperandLayout::EveryArgument,
+        domains: NAMESPACE_IMPORT_TRANSITION_DOMAINS,
+    }],
+    effect_coverage: NAMESPACE_LOOKUP_EFFECT_COVERAGE,
+    // Imports are installed pattern by pattern, and `-force` can replace a
+    // binding before a later pattern errors.
+    commit: StateTransitionCommit::MayCommitBeforeAbruptCompletion,
+};
+
+const NAMESPACE_PATH_TRANSITIONS: StateTransitionDescriptor = StateTransitionDescriptor {
+    composition: StateTransitionComposition::Extend,
+    resolver: Some(namespace_path_state_transitions),
+    argument_shape: StateTransitionArgumentShape::Independent,
+    dynamic_widening: &[StateTransitionWideningRule {
+        operands: StateTransitionOperandLayout::Indices(&[1]),
+        domains: NAMESPACE_LOOKUP_TRANSITION_DOMAINS,
+    }],
+    effect_coverage: NAMESPACE_LOOKUP_EFFECT_COVERAGE,
+    commit: StateTransitionCommit::OnOkOnly,
+};
+
+const NAMESPACE_UNKNOWN_TRANSITIONS: StateTransitionDescriptor = StateTransitionDescriptor {
+    composition: StateTransitionComposition::Extend,
+    resolver: Some(namespace_unknown_state_transitions),
+    argument_shape: StateTransitionArgumentShape::Independent,
+    dynamic_widening: &[StateTransitionWideningRule {
+        operands: StateTransitionOperandLayout::Indices(&[1]),
+        domains: NAMESPACE_LOOKUP_TRANSITION_DOMAINS,
+    }],
+    // The legacy namespace-state bridge is a namespace-lookup write, while
+    // this transition names the distinct fallback-handler partition.  Keep
+    // the legacy write visible rather than claiming it is covered.
+    effect_coverage: TransitionEffectCoverage::NONE,
+    commit: StateTransitionCommit::OnOkOnly,
+};
+
+const NAMESPACE_UPVAR_TRANSITIONS: StateTransitionDescriptor = StateTransitionDescriptor {
+    composition: StateTransitionComposition::Extend,
+    resolver: Some(namespace_upvar_state_transitions),
+    argument_shape: StateTransitionArgumentShape::Positional,
+    dynamic_widening: &[StateTransitionWideningRule {
+        // The resolved `upvar` word itself is index 0. Every remaining word
+        // participates in the namespace/otherVar/myVar identity grammar.
+        operands: StateTransitionOperandLayout::EveryArgument,
+        domains: NAMESPACE_UPVAR_TRANSITION_DOMAINS,
+    }],
+    // `namespace upvar` has no duplicate legacy world write: its transition
+    // is the sole identity fact, so it deliberately covers nothing.
+    effect_coverage: TransitionEffectCoverage::NONE,
+    // Namespace aliases are established pair by pair and can be visible to
+    // variable traces before a later pair reports an error.
+    commit: StateTransitionCommit::MayCommitBeforeAbruptCompletion,
+};
+
+fn namespace_upvar_state_transitions(arguments: InvocationArguments<'_>) -> StateTransitions {
+    let mut transitions = StateTransitions::default();
+    let Some(namespace) = TransitionSubject::from_argument(arguments, 1) else {
+        return transitions;
+    };
+    for other_index in (2..arguments.len()).step_by(2) {
+        let (Some(variable), Some(local)) = (
+            TransitionSubject::from_argument(arguments, other_index),
+            TransitionSubject::from_argument(arguments, other_index + 1),
+        ) else {
+            continue;
+        };
+        transitions.push(StateTransition::VariableCellAlias(
+            VariableCellAliasTransition {
+                local,
+                target: VariableAliasTarget::Namespace {
+                    namespace: namespace.clone(),
+                    variable,
+                },
+            },
+        ));
+    }
+    transitions
+}
+
+fn current_namespace() -> NamespaceTransitionTarget {
+    NamespaceTransitionTarget::Current
+}
+
+fn named_namespace(arguments: InvocationArguments<'_>) -> Option<NamespaceTransitionTarget> {
+    TransitionSubject::from_argument(arguments, 1).map(NamespaceTransitionTarget::Named)
+}
+
+fn subjects_from(arguments: InvocationArguments<'_>, first: usize) -> Vec<TransitionSubject> {
+    (first..arguments.len())
+        .filter_map(|index| TransitionSubject::from_argument(arguments, index))
+        .collect()
+}
+
+fn is_leading_option(arguments: InvocationArguments<'_>, option: &str) -> bool {
+    arguments
+        .literal_at(1)
+        .is_some_and(|value| !value.is_empty() && option.starts_with(value))
+}
+
+fn namespace_delete_state_transitions(arguments: InvocationArguments<'_>) -> StateTransitions {
+    let mut transitions = StateTransitions::default();
+    for namespace in subjects_from(arguments, 1) {
+        transitions.push(StateTransition::Namespace(NamespaceTransition::Delete {
+            namespace: NamespaceTransitionTarget::Named(namespace),
+        }));
+    }
+    transitions
+}
+
+fn namespace_ensemble_state_transitions(arguments: InvocationArguments<'_>) -> StateTransitions {
+    let mut transitions = StateTransitions::default();
+    // `exists` is the sole documented read-only ensemble operation.  Other
+    // literal spellings include accepted abbreviations, and an invalid
+    // spelling may still have selected mutable ensemble state before it
+    // errors, so retain the conservative mutation fact for all of them.
+    if arguments.len() > 1 && arguments.literal_at(1) != Some("exists") {
+        transitions.push(StateTransition::Namespace(NamespaceTransition::Ensemble {
+            namespace: current_namespace(),
+        }));
+    }
+    transitions
+}
+
+fn namespace_eval_state_transitions(arguments: InvocationArguments<'_>) -> StateTransitions {
+    let mut transitions = StateTransitions::default();
+    let Some(namespace) = named_namespace(arguments) else {
+        return transitions;
+    };
+    transitions.push(StateTransition::Namespace(NamespaceTransition::Ensure {
+        namespace,
+    }));
+    transitions
+}
+
+fn namespace_export_state_transitions(arguments: InvocationArguments<'_>) -> StateTransitions {
+    let mut transitions = StateTransitions::default();
+    // `-clear` is itself a mutation even when it is the only argument, so it
+    // stays in the same whole-Tcl-value operand list as ordinary patterns.
+    let patterns = subjects_from(arguments, 1);
+    if !patterns.is_empty() {
+        transitions.push(StateTransition::Namespace(NamespaceTransition::Export {
+            namespace: current_namespace(),
+            patterns,
+        }));
+    }
+    transitions
+}
+
+fn namespace_forget_state_transitions(arguments: InvocationArguments<'_>) -> StateTransitions {
+    let mut transitions = StateTransitions::default();
+    let patterns = subjects_from(arguments, 1);
+    if !patterns.is_empty() {
+        transitions.push(StateTransition::Namespace(NamespaceTransition::Forget {
+            namespace: current_namespace(),
+            patterns,
+        }));
+    }
+    transitions
+}
+
+fn namespace_import_state_transitions(arguments: InvocationArguments<'_>) -> StateTransitions {
+    let mut transitions = StateTransitions::default();
+    let first_pattern = if is_leading_option(arguments, "-force") {
+        2
+    } else {
+        1
+    };
+    let patterns = subjects_from(arguments, first_pattern);
+    if !patterns.is_empty() {
+        transitions.push(StateTransition::Namespace(NamespaceTransition::Import {
+            namespace: current_namespace(),
+            patterns,
+        }));
+    }
+    transitions
+}
+
+fn namespace_path_state_transitions(arguments: InvocationArguments<'_>) -> StateTransitions {
+    let mut transitions = StateTransitions::default();
+    let Some(path) = TransitionSubject::from_argument(arguments, 1) else {
+        return transitions;
+    };
+    transitions.push(StateTransition::Namespace(NamespaceTransition::SetPath {
+        namespace: current_namespace(),
+        path,
+    }));
+    transitions
+}
+
+fn namespace_unknown_state_transitions(arguments: InvocationArguments<'_>) -> StateTransitions {
+    let mut transitions = StateTransitions::default();
+    let Some(handler) = TransitionSubject::from_argument(arguments, 1) else {
+        return transitions;
+    };
+    transitions.push(StateTransition::Namespace(
+        NamespaceTransition::SetUnknown {
+            namespace: current_namespace(),
+            handler,
+        },
+    ));
+    transitions
+}
+
 static SUBCOMMANDS: &[SubCommand] = &[
     SubCommand {
         name: "children",
@@ -381,6 +722,8 @@ static SUBCOMMANDS: &[SubCommand] = &[
         // Every positional word names a namespace — see
         // `namespace_delete_arg_roles`.
         arg_role_resolver: Some(namespace_delete_arg_roles),
+        world_effects: Some(NAMESPACE_DELETE_EFFECTS),
+        state_transitions: Some(NAMESPACE_DELETE_TRANSITIONS),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -415,6 +758,8 @@ static SUBCOMMANDS: &[SubCommand] = &[
         // machinery also holds command names as data, so a program using
         // ensembles observes command names (REFLECTS_COMMAND_NAMES).
         traits: Traits::EXPORTS_COMMAND.union(Traits::REFLECTS_COMMAND_NAMES),
+        world_effects: Some(WorldEffectDescriptor::EMPTY),
+        state_transitions: Some(NAMESPACE_ENSEMBLE_TRANSITIONS),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -454,6 +799,8 @@ static SUBCOMMANDS: &[SubCommand] = &[
         traits: Traits::EVALUATES_CODE
             .union(Traits::SCRIPT_CONCATENATES_ARGS)
             .union(Traits::DECLARES_NAMESPACE),
+        world_effects: Some(NAMESPACE_EVAL_EFFECTS),
+        state_transitions: Some(NAMESPACE_EVAL_TRANSITIONS),
         analyser_hook: Some(crate::hooks::AnalyserHookId::NamespaceEval),
         ..SubCommand::DEFAULT
     },
@@ -491,6 +838,8 @@ static SUBCOMMANDS: &[SubCommand] = &[
         // spelled names, so those names are observable data
         // (REFLECTS_COMMAND_NAMES).
         traits: Traits::EXPORTS_COMMAND.union(Traits::REFLECTS_COMMAND_NAMES),
+        world_effects: Some(WorldEffectDescriptor::EMPTY),
+        state_transitions: Some(NAMESPACE_EXPORT_TRANSITIONS),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -512,6 +861,8 @@ static SUBCOMMANDS: &[SubCommand] = &[
         // after the forget stops resolving through the alias it removed
         // (issue #1103; `namespace import`'s own hook is the install half).
         analyser_hook: Some(crate::hooks::AnalyserHookId::NamespaceForget),
+        world_effects: Some(WorldEffectDescriptor::EMPTY),
+        state_transitions: Some(NAMESPACE_FORGET_TRANSITIONS),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -547,6 +898,8 @@ static SUBCOMMANDS: &[SubCommand] = &[
         // resolves calls through the import, and records an opaque caller
         // when it cannot), so nothing is lost by leaving the coarse
         // boundary flag off.
+        world_effects: Some(WorldEffectDescriptor::EMPTY),
+        state_transitions: Some(NAMESPACE_IMPORT_TRANSITIONS),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -607,6 +960,8 @@ static SUBCOMMANDS: &[SubCommand] = &[
         return_type: Some(TclType::List),
         dialects: Some(DialectSet::TCL85_PLUS),
         analyser_hook: Some(crate::hooks::AnalyserHookId::NamespacePath),
+        world_effects: Some(WorldEffectDescriptor::EMPTY),
+        state_transitions: Some(NAMESPACE_PATH_TRANSITIONS),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -648,6 +1003,8 @@ static SUBCOMMANDS: &[SubCommand] = &[
         // (variadic ⇒ AtLeast(1)). The zero-arg query form has no prefix.
         command_prefixes: &[(0, AppendedArity::AtLeast(1))],
         analyser_hook: Some(crate::hooks::AnalyserHookId::NamespaceUnknown),
+        world_effects: Some(WorldEffectDescriptor::EMPTY),
+        state_transitions: Some(NAMESPACE_UNKNOWN_TRANSITIONS),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -691,6 +1048,8 @@ static SUBCOMMANDS: &[SubCommand] = &[
         creates_scope_alias: true,
         dialects: Some(DialectSet::TCL85_PLUS),
         analyser_hook: Some(crate::hooks::AnalyserHookId::NamespaceUpvar),
+        world_effects: Some(WorldEffectDescriptor::EMPTY),
+        state_transitions: Some(NAMESPACE_UPVAR_TRANSITIONS),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -722,8 +1081,7 @@ pub fn spec() -> CommandSpec {
             | Traits::LANGUAGE_KEYWORD
             | Traits::NEVER_INLINE_BODY
             | Traits::HAS_DESTRUCTIVE_OPS
-            | Traits::DYNAMIC_EVAL_BODY
-            | Traits::WASM_EMITS_NOTHING,
+            | Traits::DYNAMIC_EVAL_BODY,
         arity: Arity::at_least(1),
         subcommands: SUBCOMMANDS,
         side_effects: &[
@@ -759,8 +1117,56 @@ pub fn spec() -> CommandSpec {
 
 #[cfg(test)]
 mod tests {
-    use super::{fold_qualifiers, fold_tail};
+    use super::{
+        NamespaceTransition, NamespaceTransitionTarget, StateTransition, TransitionSubject,
+        fold_qualifiers, fold_tail, namespace_delete_state_transitions,
+        namespace_path_state_transitions,
+    };
+    use crate::InvocationArguments;
     use crate::dialects::DialectSet;
+
+    #[test]
+    fn namespace_path_keeps_its_tcl_list_operand_whole() {
+        let transitions = namespace_path_state_transitions(InvocationArguments::literals(&[
+            "path",
+            "::pkg {::other child}",
+        ]));
+
+        assert!(matches!(
+            transitions.facts(),
+            [fact]
+                if matches!(
+                    &fact.transition,
+                    StateTransition::Namespace(NamespaceTransition::SetPath {
+                        namespace: NamespaceTransitionTarget::Current,
+                        path: TransitionSubject::Literal(path),
+                    }) if path == "::pkg {::other child}"
+                )
+        ));
+    }
+
+    #[test]
+    fn namespace_delete_retains_each_recursive_root() {
+        let transitions = namespace_delete_state_transitions(InvocationArguments::literals(&[
+            "delete", "::pkg", "::other",
+        ]));
+
+        assert!(matches!(
+            transitions.facts(),
+            [first, second]
+                if matches!(
+                    &first.transition,
+                    StateTransition::Namespace(NamespaceTransition::Delete {
+                        namespace: NamespaceTransitionTarget::Named(TransitionSubject::Literal(name)),
+                    }) if name == "::pkg"
+                ) && matches!(
+                    &second.transition,
+                    StateTransition::Namespace(NamespaceTransition::Delete {
+                        namespace: NamespaceTransitionTarget::Named(TransitionSubject::Literal(name)),
+                    }) if name == "::other"
+                )
+        ));
+    }
 
     /// The oracle table, transcribed from tclsh 9.0.4 and 8.6.14 (issue
     /// #1096; the four edge rows the issue tabulates are the last four

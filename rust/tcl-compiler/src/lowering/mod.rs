@@ -1042,14 +1042,7 @@ impl<'r> Lowerer<'r> {
 
     /// Build a `CommandTokens` snapshot from a segmented command.
     fn cmd_tokens(seg: &SegmentedCommand) -> CommandTokens {
-        CommandTokens {
-            argv: seg.argv.iter().map(|t| t.span).collect(),
-            argv_texts: seg.texts.clone(),
-            argv_kinds: seg.argv.iter().map(|t| t.kind).collect(),
-            single_token_word: seg.single_token_word.clone(),
-            all_tokens: seg.all_tokens.iter().map(|t| t.span).collect(),
-            expand_word: seg.expand_word.clone(),
-        }
+        CommandTokens::from_segmented(seg)
     }
 
     /// Extract arg token kinds for the lowering hooks.
@@ -1178,10 +1171,12 @@ impl<'r> Lowerer<'r> {
     ) -> Option<Statement> {
         let args = seg.args();
         let arg_refs: Vec<&str> = args.iter().map(String::as_str).collect();
-        let resolved = self
-            .registry
-            .resolve_call(cmd_name, &arg_refs, DialectSet::empty())?;
-        match resolved.lowering_hook? {
+        let resolved =
+            self.registry
+                .resolve_invocation(cmd_name, &arg_refs, DialectSet::empty())?;
+        let hook = resolved.semantics.lowering_hook?;
+        let inline_body_error_context = resolved.semantics.operation.inline_body_error_context();
+        match hook {
             // Static-body uplevel.  Match `uplevel 1 {body}`,
             // `uplevel #0 {body}`, and the canonical no-level form
             // `uplevel {body}` (level defaults to 1) when the body
@@ -1201,7 +1196,7 @@ impl<'r> Lowerer<'r> {
             // `eval [cmd]`) fall through to the default barrier
             // dispatch.
             LoweringHookId::Eval => Some(
-                self.try_lower_eval_static(seg, namespace)
+                self.try_lower_eval_static(seg, namespace, inline_body_error_context)
                     .unwrap_or_else(|| self.lower_default(seg, namespace)),
             ),
 
@@ -1908,6 +1903,7 @@ impl<'r> Lowerer<'r> {
         &mut self,
         seg: &SegmentedCommand,
         namespace: &str,
+        error_context: Option<tcl_registry::InlineBodyErrorContext>,
     ) -> Option<Statement> {
         use tcl_lexer::TokenType;
         let args = seg.args();
@@ -1965,6 +1961,7 @@ impl<'r> Lowerer<'r> {
             body,
             namespace: namespace.to_string(),
             tokens: Some(Self::cmd_tokens(seg)),
+            error_context,
         })
     }
 
@@ -2755,12 +2752,13 @@ impl<'r> Lowerer<'r> {
             base,
             wrapper,
         } = ex;
+        let args = &seg.texts[base..];
         let Some(kind) = member_method_kind(kw, wrapper == Some("self")) else {
             return;
         };
         // Argument layout comes from the grammar: which relative index (0-
         // based after the keyword) is the body / name / parameter list.
-        let Some(body_rel) = member.indices_for(ArgRole::Body).next() else {
+        let Some(body_rel) = member.indices_for_call(args, ArgRole::Body).next() else {
             return;
         };
         // A member that also declares a variable (itcl `variable NAME ?init?
@@ -2768,12 +2766,16 @@ impl<'r> Lowerer<'r> {
         // trailing script is not an ordinary method frame — skipped
         // (documented limit; `member_method_kind` already excludes them by
         // keyword, this keeps the exclusion structural too).
-        if member.indices_for(ArgRole::VarWrite).next().is_some() {
+        if member
+            .indices_for_call(args, ArgRole::VarWrite)
+            .next()
+            .is_some()
+        {
             return;
         }
         let b_idx = base + body_rel;
         let name_owned: String;
-        let name: &str = if let Some(rel) = member.indices_for(ArgRole::Name).next() {
+        let name: &str = if let Some(rel) = member.indices_for_call(args, ArgRole::Name).next() {
             let Some(n) = seg.texts.get(base + rel) else {
                 return;
             };
@@ -2795,7 +2797,7 @@ impl<'r> Lowerer<'r> {
                 .insert(class_qname.to_string());
             return;
         }
-        let params = match member.indices_for(ArgRole::ParamList).next() {
+        let params = match member.indices_for_call(args, ArgRole::ParamList).next() {
             Some(rel) => seg
                 .texts
                 .get(base + rel)
@@ -2980,7 +2982,7 @@ fn declared_member_vars(
                 }
             }
         } else {
-            for rel in member.indices_for(ArgRole::VarWrite) {
+            for rel in member.indices_for_call(args, ArgRole::VarWrite) {
                 if let Some(nm) = args.get(rel)
                     && is_instance_var_name(nm)
                 {
@@ -5402,9 +5404,12 @@ mod tests {
         // No nested barrier — relaxes to Block.
         let m = lower_to_ir("eval { set x 1 }", &reg());
         let stmt = m.top_level.statements.first().expect("at least one stmt");
-        assert!(
-            matches!(stmt, Statement::Block { .. }),
-            "expected Block (relaxed), got {stmt:?}",
+        let Statement::Block { error_context, .. } = stmt else {
+            panic!("expected Block (relaxed), got {stmt:?}");
+        };
+        assert_eq!(
+            *error_context,
+            Some(tcl_registry::InlineBodyErrorContext::SameFrameScriptEvaluation),
         );
     }
 

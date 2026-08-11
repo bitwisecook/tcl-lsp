@@ -478,6 +478,9 @@ mod tests {
             complexity_guarded: false,
             base_offset: 0,
             method_facts: None,
+            semantic_facts: crate::semantic_analysis::SemanticAnalysisBundle::unavailable(
+                tcl_registry::dialects::DialectSet::empty(),
+            ),
         }
     }
 

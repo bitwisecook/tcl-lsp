@@ -314,14 +314,14 @@ impl CodegenCtx<'_> {
                     let n = raw_args.len();
                     let mut kinds = vec![tcl_lexer::TokenType::Esc; n + 1];
                     kinds[n] = tcl_lexer::TokenType::Str;
-                    let toks = crate::ir::CommandTokens {
-                        argv: Vec::new(),
-                        argv_texts: Vec::new(),
-                        argv_kinds: kinds,
-                        single_token_word: vec![true; n + 1],
-                        all_tokens: Vec::new(),
-                        expand_word: None,
-                    };
+                    let toks = crate::ir::CommandTokens::from_lossy_parts(
+                        Vec::new(),
+                        Vec::new(),
+                        kinds,
+                        vec![true; n + 1],
+                        Vec::new(),
+                        None,
+                    );
                     self.emit_call_stmt("switch", raw_args, Some(&toks), used_generic_invoke);
                 } else {
                     self.emit_call_stmt("switch", raw_args, None, used_generic_invoke);

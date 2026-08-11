@@ -18,6 +18,11 @@
 
 //! `interp` — create and manipulate Tcl interpreters.
 use crate::prelude::*;
+use crate::world_effect::{
+    EffectAccess, EffectAccessMode, EffectFootprint, InterpreterScope, NamespaceScope,
+    StaticEffectAccess, StaticEffectFootprint, StaticInterpreterScope, StaticNamespaceScope,
+    StaticSubjectScope, SubjectScope,
+};
 
 const SIDE_EFFECTS: &[SideEffect] = &[SideEffect {
     target: SideEffectTarget::InterpState,
@@ -40,6 +45,417 @@ const FORMS: &[FormSpec] = &[FormSpec {
     synopsis: "interp subcommand ?arg arg ...?",
     dialects: None,
 }];
+
+const INTERP_ALIAS_TRANSITION_DOMAINS: &[StateTransitionDomain] = &[
+    StateTransitionDomain::CommandBindings,
+    StateTransitionDomain::Namespaces,
+    StateTransitionDomain::Interpreters,
+    StateTransitionDomain::CommandTraces,
+];
+
+const INTERP_ALIAS_EFFECT_COVERAGE: &[TransitionEffectCoverage] = &[TransitionEffectCoverage {
+    source: WorldEffectWriteSource::LegacyCommandTable,
+    domains: &[WorldStateDomain::CommandBindings],
+}];
+
+const INTERP_POLICY_EFFECT_COVERAGE: &[TransitionEffectCoverage] = &[
+    TransitionEffectCoverage {
+        source: WorldEffectWriteSource::LegacySideEffect(SideEffectTarget::InterpState),
+        domains: &[WorldStateDomain::InterpreterPolicy],
+    },
+    TransitionEffectCoverage {
+        source: WorldEffectWriteSource::DeclaredWorldEffect,
+        domains: &[WorldStateDomain::InterpreterPolicy],
+    },
+];
+
+const INTERP_CREATE_TRANSITION_DOMAINS: &[StateTransitionDomain] = &[
+    StateTransitionDomain::CommandBindings,
+    StateTransitionDomain::InterpreterTopology,
+    StateTransitionDomain::InterpreterPolicy,
+];
+
+const INTERP_DELETE_TRANSITION_DOMAINS: &[StateTransitionDomain] = &[
+    StateTransitionDomain::CommandBindings,
+    StateTransitionDomain::Interpreters,
+];
+
+const INTERP_POLICY_TRANSITION_DOMAINS: &[StateTransitionDomain] =
+    &[StateTransitionDomain::InterpreterPolicy];
+
+const INTERP_VISIBILITY_TRANSITION_DOMAINS: &[StateTransitionDomain] = &[
+    StateTransitionDomain::CommandBindings,
+    StateTransitionDomain::InterpreterPolicy,
+];
+
+const INTERP_POLICY_DYNAMIC_EFFECTS: StaticEffectFootprint = StaticEffectFootprint {
+    accesses: &[StaticEffectAccess::new(
+        WorldStateDomain::InterpreterPolicy,
+        EffectAccessMode::ReadWrite,
+        StaticInterpreterScope::Any,
+        StaticNamespaceScope::Any,
+        StaticSubjectScope::Wildcard,
+    )],
+    callback: CallbackEffect::NONE,
+};
+
+const INTERP_CREATE_TRANSITIONS: StateTransitionDescriptor = StateTransitionDescriptor {
+    composition: StateTransitionComposition::Extend,
+    resolver: Some(interp_create_state_transitions),
+    argument_shape: StateTransitionArgumentShape::Positional,
+    dynamic_widening: &[StateTransitionWideningRule {
+        operands: StateTransitionOperandLayout::EveryArgument,
+        domains: INTERP_CREATE_TRANSITION_DOMAINS,
+    }],
+    effect_coverage: INTERP_POLICY_EFFECT_COVERAGE,
+    commit: StateTransitionCommit::OnOkOnly,
+};
+
+const INTERP_DELETE_TRANSITIONS: StateTransitionDescriptor = StateTransitionDescriptor {
+    composition: StateTransitionComposition::Extend,
+    resolver: Some(interp_delete_state_transitions),
+    argument_shape: StateTransitionArgumentShape::Independent,
+    dynamic_widening: &[StateTransitionWideningRule {
+        operands: StateTransitionOperandLayout::Strided {
+            first: 1,
+            stride: 1,
+        },
+        domains: INTERP_DELETE_TRANSITION_DOMAINS,
+    }],
+    effect_coverage: INTERP_POLICY_EFFECT_COVERAGE,
+    // Tcl deletes the arguments left to right. A later missing path reports
+    // an error after every earlier child has already disappeared.
+    commit: StateTransitionCommit::MayCommitBeforeAbruptCompletion,
+};
+
+const INTERP_MARK_TRUSTED_TRANSITIONS: StateTransitionDescriptor = StateTransitionDescriptor {
+    composition: StateTransitionComposition::Extend,
+    resolver: Some(interp_mark_trusted_state_transitions),
+    argument_shape: StateTransitionArgumentShape::Positional,
+    dynamic_widening: &[StateTransitionWideningRule {
+        operands: StateTransitionOperandLayout::Indices(&[1]),
+        domains: INTERP_POLICY_TRANSITION_DOMAINS,
+    }],
+    effect_coverage: INTERP_POLICY_EFFECT_COVERAGE,
+    commit: StateTransitionCommit::OnOkOnly,
+};
+
+const INTERP_RECURSION_LIMIT_TRANSITIONS: StateTransitionDescriptor = StateTransitionDescriptor {
+    composition: StateTransitionComposition::Extend,
+    resolver: Some(interp_recursion_limit_state_transitions),
+    argument_shape: StateTransitionArgumentShape::Positional,
+    dynamic_widening: &[StateTransitionWideningRule {
+        operands: StateTransitionOperandLayout::Indices(&[1, 2]),
+        domains: INTERP_POLICY_TRANSITION_DOMAINS,
+    }],
+    effect_coverage: INTERP_POLICY_EFFECT_COVERAGE,
+    commit: StateTransitionCommit::OnOkOnly,
+};
+
+const INTERP_BGERROR_TRANSITIONS: StateTransitionDescriptor = StateTransitionDescriptor {
+    composition: StateTransitionComposition::Extend,
+    resolver: Some(interp_bgerror_state_transitions),
+    argument_shape: StateTransitionArgumentShape::Positional,
+    dynamic_widening: &[StateTransitionWideningRule {
+        operands: StateTransitionOperandLayout::Indices(&[1, 2]),
+        domains: INTERP_POLICY_TRANSITION_DOMAINS,
+    }],
+    effect_coverage: INTERP_POLICY_EFFECT_COVERAGE,
+    commit: StateTransitionCommit::OnOkOnly,
+};
+
+const INTERP_HIDE_TRANSITIONS: StateTransitionDescriptor = StateTransitionDescriptor {
+    composition: StateTransitionComposition::Extend,
+    resolver: Some(interp_hide_state_transitions),
+    argument_shape: StateTransitionArgumentShape::Positional,
+    dynamic_widening: &[StateTransitionWideningRule {
+        operands: StateTransitionOperandLayout::Indices(&[1, 2, 3]),
+        domains: INTERP_VISIBILITY_TRANSITION_DOMAINS,
+    }],
+    effect_coverage: INTERP_POLICY_EFFECT_COVERAGE,
+    commit: StateTransitionCommit::OnOkOnly,
+};
+
+const INTERP_EXPOSE_TRANSITIONS: StateTransitionDescriptor = StateTransitionDescriptor {
+    composition: StateTransitionComposition::Extend,
+    resolver: Some(interp_expose_state_transitions),
+    argument_shape: StateTransitionArgumentShape::Positional,
+    dynamic_widening: &[StateTransitionWideningRule {
+        operands: StateTransitionOperandLayout::Indices(&[1, 2, 3]),
+        domains: INTERP_VISIBILITY_TRANSITION_DOMAINS,
+    }],
+    effect_coverage: INTERP_POLICY_EFFECT_COVERAGE,
+    commit: StateTransitionCommit::OnOkOnly,
+};
+
+const INTERP_RECURSION_LIMIT_EFFECTS: WorldEffectDescriptor = WorldEffectDescriptor {
+    composition: WorldEffectComposition::Extend,
+    static_footprint: StaticEffectFootprint::EMPTY,
+    resolver: Some(interp_recursion_limit_world_effects),
+    dynamic_fallback: WorldEffectDynamicFallback::Declared(INTERP_POLICY_DYNAMIC_EFFECTS),
+};
+
+const INTERP_BGERROR_EFFECTS: WorldEffectDescriptor = WorldEffectDescriptor {
+    composition: WorldEffectComposition::Extend,
+    static_footprint: StaticEffectFootprint::EMPTY,
+    resolver: Some(interp_bgerror_world_effects),
+    dynamic_fallback: WorldEffectDynamicFallback::Declared(INTERP_POLICY_DYNAMIC_EFFECTS),
+};
+
+const INTERP_ALIAS_TRANSITIONS: StateTransitionDescriptor = StateTransitionDescriptor {
+    composition: StateTransitionComposition::Extend,
+    resolver: Some(interp_alias_state_transitions),
+    argument_shape: StateTransitionArgumentShape::Positional,
+    dynamic_widening: &[StateTransitionWideningRule {
+        // The subcommand at index 0 is already known to have selected this
+        // descriptor. The source/target interpreter and command positions
+        // carry the transition's identity; baked alias arguments do not.
+        operands: StateTransitionOperandLayout::Indices(&[1, 2, 3, 4]),
+        domains: INTERP_ALIAS_TRANSITION_DOMAINS,
+    }],
+    effect_coverage: INTERP_ALIAS_EFFECT_COVERAGE,
+    // Alias setup can cross interpreter boundaries and invoke observable
+    // lifecycle hooks before reporting an error.
+    commit: StateTransitionCommit::MayCommitBeforeAbruptCompletion,
+};
+
+fn interp_alias_state_transitions(arguments: InvocationArguments<'_>) -> StateTransitions {
+    let mut transitions = StateTransitions::default();
+    let (Some(source_interpreter), Some(alias)) = (
+        TransitionSubject::from_argument(arguments, 1),
+        TransitionSubject::from_argument(arguments, 2),
+    ) else {
+        return transitions;
+    };
+
+    match arguments.len() {
+        // `interp alias sourcePath sourceCmd` queries an existing alias.
+        0..=3 => {}
+        // `interp alias sourcePath sourceCmd {}` deletes it. A computed
+        // target-path position could be empty at runtime, so retain a typed
+        // wildcard transition rather than pretending this is alias creation.
+        4 => match arguments.literal_at(3) {
+            Some("") => transitions.push(StateTransition::CommandBinding(
+                CommandBindingTransition::Delete {
+                    interpreter: Some(source_interpreter),
+                    name: alias,
+                },
+            )),
+            Some(_) => {}
+            None => {
+                let Some(target_path) = TransitionSubject::from_argument(arguments, 3) else {
+                    return transitions;
+                };
+                transitions.push(StateTransition::CommandBinding(
+                    CommandBindingTransition::Unknown {
+                        operands: vec![source_interpreter, alias, target_path],
+                    },
+                ));
+            }
+        },
+        // The create form requires both target interpreter path and command.
+        _ => {
+            let (Some(target_interpreter), Some(target)) = (
+                TransitionSubject::from_argument(arguments, 3),
+                TransitionSubject::from_argument(arguments, 4),
+            ) else {
+                return transitions;
+            };
+            transitions.push(StateTransition::CommandBinding(
+                CommandBindingTransition::Alias {
+                    source_interpreter,
+                    alias,
+                    target_interpreter,
+                    target,
+                },
+            ));
+        }
+    }
+    transitions
+}
+
+fn interp_create_state_transitions(arguments: InvocationArguments<'_>) -> StateTransitions {
+    let mut transitions = StateTransitions::default();
+    let mut interpreter = None;
+    let mut options_ended = false;
+    let mut safety = ChildInterpreterSafety::Inherited;
+
+    for index in 1..arguments.len() {
+        let Some(word) = arguments.get(index) else {
+            return transitions;
+        };
+        let Some(value) = word.literal() else {
+            // A computed word can be an option, an option terminator, or the
+            // child path. Widening retains that typed operand; avoid treating
+            // its source spelling as any one of those Tcl values.
+            safety = ChildInterpreterSafety::Unknown;
+            continue;
+        };
+        if !options_ended {
+            match value {
+                "-safe" => {
+                    safety = ChildInterpreterSafety::Safe;
+                    continue;
+                }
+                "--" => {
+                    options_ended = true;
+                    continue;
+                }
+                _ => {}
+            }
+        }
+        if interpreter.is_none() {
+            interpreter = TransitionSubject::from_argument(arguments, index);
+        }
+    }
+    transitions.push(StateTransition::Interpreter(
+        InterpreterTransition::Create {
+            interpreter,
+            safety,
+        },
+    ));
+    transitions
+}
+
+fn interp_delete_state_transitions(arguments: InvocationArguments<'_>) -> StateTransitions {
+    let mut transitions = StateTransitions::default();
+    // The first word is the resolved `delete` subcommand. Every later word is
+    // one path, and Tcl processes those paths in source order.
+    for index in 1..arguments.len() {
+        if let Some(interpreter) = TransitionSubject::from_argument(arguments, index) {
+            transitions.push(StateTransition::Interpreter(
+                InterpreterTransition::Delete { interpreter },
+            ));
+        }
+    }
+    transitions
+}
+
+fn interp_mark_trusted_state_transitions(arguments: InvocationArguments<'_>) -> StateTransitions {
+    let mut transitions = StateTransitions::default();
+    if let Some(interpreter) = TransitionSubject::from_argument(arguments, 1) {
+        transitions.push(StateTransition::Interpreter(
+            InterpreterTransition::MarkTrusted { interpreter },
+        ));
+    }
+    transitions
+}
+
+fn interp_recursion_limit_state_transitions(
+    arguments: InvocationArguments<'_>,
+) -> StateTransitions {
+    let mut transitions = StateTransitions::default();
+    // The two-word form only queries the current limit. Tcl changes policy
+    // only when it receives the third word, the new limit.
+    let (Some(interpreter), Some(limit)) = (
+        TransitionSubject::from_argument(arguments, 1),
+        TransitionSubject::from_argument(arguments, 2),
+    ) else {
+        return transitions;
+    };
+    transitions.push(StateTransition::Interpreter(
+        InterpreterTransition::SetRecursionLimit { interpreter, limit },
+    ));
+    transitions
+}
+
+fn interp_bgerror_state_transitions(arguments: InvocationArguments<'_>) -> StateTransitions {
+    let mut transitions = StateTransitions::default();
+    // `interp bgerror path` returns the stored prefix. Supplying one changes
+    // the future callback owner but does not invoke that prefix immediately.
+    let (Some(interpreter), Some(handler)) = (
+        TransitionSubject::from_argument(arguments, 1),
+        TransitionSubject::from_argument(arguments, 2),
+    ) else {
+        return transitions;
+    };
+    transitions.push(StateTransition::Interpreter(
+        InterpreterTransition::SetBackgroundError {
+            interpreter,
+            handler,
+        },
+    ));
+    transitions
+}
+
+fn interp_hide_state_transitions(arguments: InvocationArguments<'_>) -> StateTransitions {
+    interp_visibility_state_transitions(arguments, true)
+}
+
+fn interp_expose_state_transitions(arguments: InvocationArguments<'_>) -> StateTransitions {
+    interp_visibility_state_transitions(arguments, false)
+}
+
+fn interp_visibility_state_transitions(
+    arguments: InvocationArguments<'_>,
+    hide: bool,
+) -> StateTransitions {
+    let mut transitions = StateTransitions::default();
+    let (Some(interpreter), Some(first_name)) = (
+        TransitionSubject::from_argument(arguments, 1),
+        TransitionSubject::from_argument(arguments, 2),
+    ) else {
+        return transitions;
+    };
+    let second_name =
+        TransitionSubject::from_argument(arguments, 3).unwrap_or_else(|| first_name.clone());
+    let transition = if hide {
+        InterpreterTransition::Hide {
+            interpreter,
+            visible: first_name,
+            hidden: second_name,
+        }
+    } else {
+        InterpreterTransition::Expose {
+            interpreter,
+            hidden: first_name,
+            visible: second_name,
+        }
+    };
+    transitions.push(StateTransition::Interpreter(transition));
+    transitions
+}
+
+fn interp_policy_scope(arguments: InvocationArguments<'_>) -> InterpreterScope {
+    match arguments.literal_at(1) {
+        Some("") => InterpreterScope::Current,
+        Some(path) => InterpreterScope::named(path),
+        None => InterpreterScope::Any,
+    }
+}
+
+fn interp_policy_effect(
+    arguments: InvocationArguments<'_>,
+    mode: EffectAccessMode,
+) -> EffectFootprint {
+    let mut footprint = EffectFootprint::default();
+    footprint.add_access(EffectAccess::new(
+        WorldStateDomain::InterpreterPolicy,
+        mode,
+        interp_policy_scope(arguments),
+        NamespaceScope::Any,
+        SubjectScope::Wildcard,
+    ));
+    footprint
+}
+
+fn interp_recursion_limit_world_effects(arguments: InvocationArguments<'_>) -> EffectFootprint {
+    let mode = if arguments.len() >= 3 {
+        EffectAccessMode::ReadWrite
+    } else {
+        EffectAccessMode::Read
+    };
+    interp_policy_effect(arguments, mode)
+}
+
+fn interp_bgerror_world_effects(arguments: InvocationArguments<'_>) -> EffectFootprint {
+    let mode = if arguments.len() >= 3 {
+        EffectAccessMode::ReadWrite
+    } else {
+        EffectAccessMode::Read
+    };
+    interp_policy_effect(arguments, mode)
+}
 
 /// `interp alias srcPath srcCmd targetPath targetCmd ?arg ...?` (create form) —
 /// `targetCmd` (index 3, after the `alias` subcommand word) is a command prefix
@@ -109,6 +525,8 @@ static SUBCOMMANDS: &[SubCommand] = &[
         command_prefix_resolver: Some(interp_alias_command_prefixes),
         analyser_hook: Some(crate::hooks::AnalyserHookId::InterpAlias),
         command_table_effect: Some(crate::command_table::CommandTableEffect::CreatesAliases),
+        world_effects: Some(WorldEffectDescriptor::EMPTY),
+        state_transitions: Some(INTERP_ALIAS_TRANSITIONS),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -129,6 +547,8 @@ static SUBCOMMANDS: &[SubCommand] = &[
         synopsis: "interp bgerror path ?cmdPrefix?",
         return_type: Some(TclType::String),
         command_prefix_resolver: Some(interp_bgerror_command_prefixes),
+        world_effects: Some(INTERP_BGERROR_EFFECTS),
+        state_transitions: Some(INTERP_BGERROR_TRANSITIONS),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -209,6 +629,8 @@ static SUBCOMMANDS: &[SubCommand] = &[
             ]
         },
         analyser_hook: Some(crate::hooks::AnalyserHookId::InterpCreate),
+        world_effects: Some(WorldEffectDescriptor::EMPTY),
+        state_transitions: Some(INTERP_CREATE_TRANSITIONS),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -254,6 +676,8 @@ static SUBCOMMANDS: &[SubCommand] = &[
         destructive: true,
         return_type: Some(TclType::String),
         analyser_hook: Some(crate::hooks::AnalyserHookId::InterpDelete),
+        world_effects: Some(WorldEffectDescriptor::EMPTY),
+        state_transitions: Some(INTERP_DELETE_TRANSITIONS),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -293,6 +717,8 @@ static SUBCOMMANDS: &[SubCommand] = &[
         synopsis: "interp expose path hiddenCmdName ?exposedCmdName?",
         return_type: Some(TclType::String),
         analyser_hook: Some(crate::hooks::AnalyserHookId::InterpExpose),
+        world_effects: Some(WorldEffectDescriptor::EMPTY),
+        state_transitions: Some(INTERP_EXPOSE_TRANSITIONS),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -313,6 +739,8 @@ static SUBCOMMANDS: &[SubCommand] = &[
         synopsis: "interp hide path exposedCmdName ?hiddenCmdName?",
         return_type: Some(TclType::String),
         analyser_hook: Some(crate::hooks::AnalyserHookId::InterpHide),
+        world_effects: Some(WorldEffectDescriptor::EMPTY),
+        state_transitions: Some(INTERP_HIDE_TRANSITIONS),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -454,6 +882,8 @@ static SUBCOMMANDS: &[SubCommand] = &[
         detail: "Mark interpreter as trusted.",
         synopsis: "interp marktrusted path",
         return_type: Some(TclType::String),
+        world_effects: Some(WorldEffectDescriptor::EMPTY),
+        state_transitions: Some(INTERP_MARK_TRUSTED_TRANSITIONS),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -462,6 +892,8 @@ static SUBCOMMANDS: &[SubCommand] = &[
         detail: "Get or set recursion limit.",
         synopsis: "interp recursionlimit path ?newlimit?",
         return_type: Some(TclType::Int),
+        world_effects: Some(INTERP_RECURSION_LIMIT_EFFECTS),
+        state_transitions: Some(INTERP_RECURSION_LIMIT_TRANSITIONS),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -571,5 +1003,190 @@ pub fn spec() -> CommandSpec {
         forms: FORMS,
         side_effects: SIDE_EFFECTS,
         ..CommandSpec::DEFAULT
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::{CommandRegistry, InvocationWord, InvocationWordKind, InvocationWords};
+
+    #[test]
+    fn create_keeps_inherited_and_safe_policy_distinct() {
+        let inherited =
+            INTERP_CREATE_TRANSITIONS.resolve(InvocationArguments::literals(&["create", "child"]));
+        let safe = INTERP_CREATE_TRANSITIONS
+            .resolve(InvocationArguments::literals(&["create", "-safe", "child"]));
+
+        assert!(matches!(
+            &inherited.facts()[0].transition,
+            StateTransition::Interpreter(InterpreterTransition::Create {
+                interpreter: Some(TransitionSubject::Literal(path)),
+                safety: ChildInterpreterSafety::Inherited,
+            }) if path == "child"
+        ));
+        assert!(matches!(
+            &safe.facts()[0].transition,
+            StateTransition::Interpreter(InterpreterTransition::Create {
+                interpreter: Some(TransitionSubject::Literal(path)),
+                safety: ChildInterpreterSafety::Safe,
+            }) if path == "child"
+        ));
+    }
+
+    #[test]
+    fn delete_preserves_left_to_right_may_commit_transitions() {
+        let transitions = INTERP_DELETE_TRANSITIONS.resolve(InvocationArguments::literals(&[
+            "delete", "first", "missing",
+        ]));
+
+        assert_eq!(transitions.facts().len(), 2);
+        assert!(
+            transitions.facts().iter().all(|fact| {
+                fact.commit == StateTransitionCommit::MayCommitBeforeAbruptCompletion
+            })
+        );
+        assert!(matches!(
+            &transitions.facts()[0].transition,
+            StateTransition::Interpreter(InterpreterTransition::Delete {
+                interpreter: TransitionSubject::Literal(path),
+            }) if path == "first"
+        ));
+        assert!(matches!(
+            &transitions.facts()[1].transition,
+            StateTransition::Interpreter(InterpreterTransition::Delete {
+                interpreter: TransitionSubject::Literal(path),
+            }) if path == "missing"
+        ));
+    }
+
+    #[test]
+    fn dynamic_delete_path_keeps_its_typed_subject_and_widens_topology() {
+        let words = [InvocationWord::Literal("delete"), InvocationWord::Dynamic];
+        let transitions =
+            INTERP_DELETE_TRANSITIONS.resolve(InvocationArguments::structured(&words));
+
+        assert!(matches!(
+            &transitions.facts()[0].transition,
+            StateTransition::Interpreter(InterpreterTransition::Delete {
+                interpreter: TransitionSubject::Unknown {
+                    argument_index: 1,
+                    word_kind: InvocationWordKind::Dynamic,
+                },
+            })
+        ));
+        assert!(transitions.facts().iter().any(|fact| matches!(
+            &fact.transition,
+            StateTransition::Widen(widening)
+                if widening.domains.contains(&StateTransitionDomain::Interpreters)
+        )));
+    }
+
+    #[test]
+    fn dynamic_policy_operand_widens_only_the_policy_partition() {
+        let words = [
+            InvocationWord::Literal("recursionlimit"),
+            InvocationWord::Dynamic,
+            InvocationWord::Literal("42"),
+        ];
+        let transitions =
+            INTERP_RECURSION_LIMIT_TRANSITIONS.resolve(InvocationArguments::structured(&words));
+        let widening = transitions
+            .facts()
+            .iter()
+            .find_map(|fact| match &fact.transition {
+                StateTransition::Widen(widening) => Some(widening),
+                _ => None,
+            })
+            .expect("dynamic interpreter path widens one declared partition");
+
+        assert_eq!(
+            widening.domains,
+            vec![StateTransitionDomain::InterpreterPolicy]
+        );
+    }
+
+    #[test]
+    fn policy_queries_are_read_only_and_prefix_setters_do_not_reenter() {
+        let recursion_query = INTERP_RECURSION_LIMIT_TRANSITIONS
+            .resolve(InvocationArguments::literals(&["recursionlimit", "child"]));
+        let recursion_set =
+            INTERP_RECURSION_LIMIT_TRANSITIONS.resolve(InvocationArguments::literals(&[
+                "recursionlimit",
+                "child",
+                "42",
+            ]));
+        let bgerror_query = INTERP_BGERROR_TRANSITIONS
+            .resolve(InvocationArguments::literals(&["bgerror", "child"]));
+        let bgerror_set = INTERP_BGERROR_TRANSITIONS.resolve(InvocationArguments::literals(&[
+            "bgerror", "child", "handler",
+        ]));
+
+        assert!(recursion_query.facts().is_empty());
+        assert!(bgerror_query.facts().is_empty());
+        assert_eq!(recursion_set.facts().len(), 1);
+        assert_eq!(bgerror_set.facts().len(), 1);
+
+        let recursion_effect = INTERP_RECURSION_LIMIT_EFFECTS
+            .resolve(InvocationArguments::literals(&["recursionlimit", "child"]));
+        let bgerror_effect = INTERP_BGERROR_EFFECTS.resolve(InvocationArguments::literals(&[
+            "bgerror", "child", "handler",
+        ]));
+        assert!(recursion_effect.accesses().iter().any(|access| {
+            access.domain == WorldStateDomain::InterpreterPolicy
+                && access.mode == EffectAccessMode::Read
+        }));
+        assert!(bgerror_effect.accesses().iter().any(|access| {
+            access.domain == WorldStateDomain::InterpreterPolicy
+                && access.mode == EffectAccessMode::ReadWrite
+        }));
+        assert_eq!(bgerror_effect.callback(), CallbackEffect::NONE);
+    }
+
+    #[test]
+    fn policy_setter_uses_the_transition_write_only_on_completion() {
+        let registry = CommandRegistry::build_default();
+        let invocation = registry.resolve_structured_invocation(
+            InvocationWords::literals("interp", &["recursionlimit", "child", "42"]),
+            DialectSet::TCL90,
+        );
+        let facts = invocation
+            .resolved()
+            .expect("interp recursionlimit resolves in Tcl 9")
+            .facts();
+
+        assert!(facts.world_state_effects().accesses().iter().any(|access| {
+            access.domain == WorldStateDomain::InterpreterPolicy
+                && access.mode == EffectAccessMode::Read
+        }));
+        assert!(facts.world_state_effects().accesses().iter().all(|access| {
+            access.domain != WorldStateDomain::InterpreterPolicy
+                || access.mode != EffectAccessMode::ReadWrite
+        }));
+    }
+
+    #[test]
+    fn hide_and_expose_default_the_destination_name() {
+        let hidden = INTERP_HIDE_TRANSITIONS
+            .resolve(InvocationArguments::literals(&["hide", "child", "puts"]));
+        let exposed = INTERP_EXPOSE_TRANSITIONS
+            .resolve(InvocationArguments::literals(&["expose", "child", "puts"]));
+
+        assert!(matches!(
+            &hidden.facts()[0].transition,
+            StateTransition::Interpreter(InterpreterTransition::Hide {
+                visible: TransitionSubject::Literal(visible),
+                hidden: TransitionSubject::Literal(hidden),
+                ..
+            }) if visible == "puts" && hidden == "puts"
+        ));
+        assert!(matches!(
+            &exposed.facts()[0].transition,
+            StateTransition::Interpreter(InterpreterTransition::Expose {
+                hidden: TransitionSubject::Literal(hidden),
+                visible: TransitionSubject::Literal(visible),
+                ..
+            }) if hidden == "puts" && visible == "puts"
+        ));
     }
 }

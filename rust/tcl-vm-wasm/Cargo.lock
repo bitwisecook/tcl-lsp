@@ -235,6 +235,7 @@ dependencies = [
  "tcl-dialect",
  "tcl-lexer",
  "tcl-registry",
+ "tcl-runtime-api",
  "tcl-syntax",
  "thiserror",
  "unicode-general-category",

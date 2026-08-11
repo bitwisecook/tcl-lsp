@@ -38,6 +38,7 @@ use tcl_compiler::taint::{
     is_irules_dialect,
 };
 use tcl_compiler::uri_split::find_uri_split_suggestions;
+use tcl_dialect::DialectProfile;
 use tcl_lexer::{LineIndex, Span};
 use tcl_registry::CommandRegistry;
 
@@ -1006,7 +1007,7 @@ fn memory_function_json(
 pub fn memory_alias_graph(source: &str, registry: &CommandRegistry, dialect: &str) -> Value {
     let cu = CompilationUnit::build_for_dialect(source, registry, false, dialect)
         .with_interprocedural(registry, Some(dialect))
-        .with_memory_ssa(registry);
+        .with_memory_ssa(registry, DialectProfile::by_name(dialect).availability_mask);
 
     let mut functions: Vec<Value> = vec![memory_function_json(
         "::top",

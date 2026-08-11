@@ -145,7 +145,7 @@ differently at almost every layer boundary that touches the editor.
   — but they unify behind the single `ValueOps` trait (`tcl-syntax/src/value.rs:87`) with
   thin impls on `Vm` and `Interp`. No duplication of intent.
 - **Typed registry vocabulary.** `Traits: u64` bitflags (`traits.rs:9`), `DialectSet: u16`
-  (`dialects.rs:11`), the `LoweringHookId`/`CodegenHookId`/`WasmCodegenHookId` enums with
+  (`dialects.rs:11`), the `LoweringHookId`/`CodegenHookId` enums with
   **compile-time-exhaustive** dispatch (`hooks.rs:19,104,149`), `ArgRole`/`Arity`/`BodyKind`,
   one `CommandSpec` (`spec.rs:83`), the `Code`/`Completion<V>` core types
   (`tcl-core-types/src/lib.rs:24,82`), and arena-handle newtypes `NsId/CommandId/VarId(u32)`.

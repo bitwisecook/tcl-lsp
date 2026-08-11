@@ -72,6 +72,7 @@ use tcl_compiler::expr_parser::parse_expr;
 use tcl_compiler::ir::{Script, Statement};
 use tcl_compiler::ir_helpers::{defs_from_expr, defs_from_ir_script, expr_has_command};
 use tcl_lexer::Span;
+use tcl_registry::dialects::DialectSet;
 use tcl_registry::{CommandRegistry, registry_for_dialect};
 
 /// Default dialect — 8.6 and 9.0 agree on every Tcl fact exercised here.
@@ -752,7 +753,7 @@ mod compilation_unit_build {
     #[test]
     fn with_memory_ssa_populates_top_and_procs() {
         let cu = build("proc f {} { set x 1; return $x }")
-            .with_memory_ssa(&CommandRegistry::build_default());
+            .with_memory_ssa(&CommandRegistry::build_default(), DialectSet::TCL86);
         assert!(cu.top_level.memory_ssa.is_some());
         assert!(cu.function("::f").unwrap().memory_ssa.is_some());
     }

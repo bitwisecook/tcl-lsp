@@ -205,6 +205,9 @@ fn string_compare_equal_options() {
     res_eq("string equal -length 2 abX abY", "1");
     // tclsh: -nocase -length together
     res_eq("string compare -nocase -length 2 ABxx abYY", "0");
+    // Tcl folds before applying -length: U+0130 lowercases to `i` plus a
+    // combining dot, so the one-character prefix compares equal to `i`.
+    res_eq("string equal -nocase -length 1 \u{0130} i", "1");
     // tclsh: equal basics
     res_eq("string equal abc abc", "1");
     res_eq("string equal abc abd", "0");

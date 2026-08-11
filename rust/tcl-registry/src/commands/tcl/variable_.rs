@@ -20,6 +20,48 @@
 
 use crate::hooks::LoweringHookId;
 use crate::prelude::*;
+use crate::state_transition::local_alias_name;
+
+const VARIABLE_TRANSITION_DOMAINS: &[StateTransitionDomain] = &[
+    StateTransitionDomain::VariableCells,
+    StateTransitionDomain::Namespaces,
+    StateTransitionDomain::VariableTraces,
+];
+
+const VARIABLE_TRANSITIONS: StateTransitionDescriptor = StateTransitionDescriptor {
+    composition: StateTransitionComposition::Extend,
+    resolver: Some(variable_state_transitions),
+    argument_shape: StateTransitionArgumentShape::Positional,
+    dynamic_widening: &[StateTransitionWideningRule {
+        operands: StateTransitionOperandLayout::Strided {
+            first: 0,
+            stride: 2,
+        },
+        domains: VARIABLE_TRANSITION_DOMAINS,
+    }],
+    // The transition records cell identity only. `variable name value` also
+    // writes the cell's value, so its legacy variable-store effect remains.
+    effect_coverage: TransitionEffectCoverage::NONE,
+    // Values and later name/value pairs can fail after earlier namespace
+    // aliases have been installed.
+    commit: StateTransitionCommit::MayCommitBeforeAbruptCompletion,
+};
+
+fn variable_state_transitions(arguments: InvocationArguments<'_>) -> StateTransitions {
+    let mut transitions = StateTransitions::default();
+    for argument_index in (0..arguments.len()).step_by(2) {
+        let Some(variable) = TransitionSubject::from_argument(arguments, argument_index) else {
+            continue;
+        };
+        transitions.push(StateTransition::VariableCellAlias(
+            VariableCellAliasTransition {
+                local: local_alias_name(&variable),
+                target: VariableAliasTarget::CurrentNamespace { variable },
+            },
+        ));
+    }
+    transitions
+}
 
 const FORMS: &[FormSpec] = &[
     // Tcl 8.6 dropped the `if (objc < 2) Tcl_WrongNumArgs(...)` guard that
@@ -140,6 +182,10 @@ pub fn spec() -> CommandSpec {
         lowering_hook: Some(LoweringHookId::Variable),
         forms: FORMS,
         analyser_hook: Some(crate::hooks::AnalyserHookId::Variable),
+        // A value-bearing `variable name value` can run variable traces;
+        // until value writes are transition-modelled, leave its world
+        // declaration open rather than falsely claiming `EMPTY`.
+        state_transitions: Some(VARIABLE_TRANSITIONS),
         ..CommandSpec::DEFAULT
     }
 }

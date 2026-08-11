@@ -29,23 +29,141 @@
 
 use std::collections::HashMap;
 
+use tcl_registry::{
+    ArgRole, CallerFrameSelection, InvocationFacts, OwnedSubcommandResolution, StateTransition,
+    VariableAliasTarget,
+};
+
 use crate::ssa::Version;
 use crate::var_escape::cfg_propagation::state::CfgState;
-use crate::var_escape::helpers::{
-    default_registry, is_dynamic_name, is_dynamic_token, is_dynamic_upvar_level,
-    is_name_first_command,
-};
+#[cfg(test)]
+use crate::var_escape::helpers::{default_registry, is_dynamic_upvar_level};
+use crate::var_escape::helpers::{is_dynamic_name, is_dynamic_token, is_name_first_command};
+#[cfg(test)]
 use crate::var_escape::info_subcommands::{
     is_frame_inspecting_info_subcommand, is_safe_info_subcommand,
 };
 use crate::var_escape::types::{Barrier, BarrierKind, EscapeReason, EscapeReasonKind};
+#[cfg(test)]
 use crate::var_scoping::{
     global_declaration_indices, looks_like_level, upvar_local_declaration_indices,
     variable_declaration_indices,
 };
 
+/// Apply every variable-cell alias declared by the registry invocation.
+/// Returns whether at least one alias transition was present.
+pub(crate) fn handle_variable_aliases(
+    facts: &InvocationFacts,
+    state: &mut CfgState,
+    defs: &HashMap<String, Version>,
+) -> bool {
+    let Some(transitions) = facts.state_transitions.declared() else {
+        return false;
+    };
+    let mut handled = false;
+    for fact in transitions.facts() {
+        let StateTransition::VariableCellAlias(alias) = &fact.transition else {
+            continue;
+        };
+        handled = true;
+        let Some(local) = alias.local.literal() else {
+            state.escape_all_known(defs);
+            continue;
+        };
+        state.escape_with_reason(
+            local,
+            defs,
+            EscapeReason::with_detail(
+                EscapeReasonKind::UpvarSource,
+                format!("{} aliases {local}", facts.canonical_command),
+            ),
+        );
+        let VariableAliasTarget::CallerSelectedFrame { frame, variable } = &alias.target else {
+            continue;
+        };
+        let targets_caller = match frame {
+            CallerFrameSelection::DefaultCaller => true,
+            CallerFrameSelection::Explicit(level) => {
+                let Some(level) = level.literal() else {
+                    state.record_barrier(Barrier::with_detail(
+                        BarrierKind::Upvar,
+                        format!("{} has dynamic frame selection", facts.canonical_command),
+                    ));
+                    state.record_unbounded_upvar();
+                    continue;
+                };
+                tcl_registry::frame_effect::FrameLevel::parse(level)
+                    .is_none_or(|level| !level.is_current_frame() && !level.is_global_frame())
+            }
+        };
+        if targets_caller {
+            if let Some(variable) = variable.literal() {
+                state.record_upvar_source(variable);
+            } else {
+                state.record_unbounded_upvar();
+            }
+        }
+    }
+    handled
+}
+
+/// Apply registry-declared variable-name and current-frame introspection.
+pub(crate) fn handle_introspection(
+    facts: &InvocationFacts,
+    args: &[String],
+    state: &mut CfgState,
+    defs: &HashMap<String, Version>,
+) {
+    if facts
+        .traits
+        .contains(tcl_registry::prelude::Traits::CURRENT_FRAME_INTROSPECTION)
+        || matches!(
+            &facts.subcommand,
+            OwnedSubcommandResolution::Indeterminate { .. }
+        )
+    {
+        state.mark_pessimistic();
+        return;
+    }
+    if !facts
+        .traits
+        .contains(tcl_registry::prelude::Traits::INTROSPECTS_BY_NAME)
+    {
+        return;
+    }
+    for (index, role) in &facts.arg_roles {
+        if !matches!(role, ArgRole::VarRead | ArgRole::VarWrite) {
+            continue;
+        }
+        let Some(target) = args.get(facts.argument_offset + usize::from(*index)) else {
+            continue;
+        };
+        if is_dynamic_token(target) {
+            state.escape_all_known(defs);
+        } else if facts.operation
+            == tcl_registry::SemanticOperationId::Intrinsic(tcl_registry::IntrinsicId::InfoExists)
+        {
+            state.escape_with_reason(
+                target,
+                defs,
+                EscapeReason::with_detail(
+                    EscapeReasonKind::InfoExists,
+                    format!(
+                        "{} {} {target}",
+                        facts.canonical_command,
+                        facts.subcommand.canonical_name().unwrap_or("<subcommand>")
+                    ),
+                ),
+            );
+        } else {
+            state.escape(target, defs);
+        }
+    }
+}
+
 /// Detect the `upvar ?level? src dst ...` shape and apply escape
 /// rules. Mirrors the intra-procedural variant.
+#[cfg(test)]
 pub(crate) fn handle_upvar(args: &[String], state: &mut CfgState, defs: &HashMap<String, Version>) {
     if args.is_empty() {
         return;
@@ -97,6 +215,7 @@ pub(crate) fn handle_upvar(args: &[String], state: &mut CfgState, defs: &HashMap
 }
 
 /// Escape every var named in `global a b c`.
+#[cfg(test)]
 pub(crate) fn handle_global(
     args: &[String],
     state: &mut CfgState,
@@ -111,6 +230,7 @@ pub(crate) fn handle_global(
 }
 
 /// Escape every var declared by `variable name ?value? ...`.
+#[cfg(test)]
 pub(crate) fn handle_variable(
     args: &[String],
     state: &mut CfgState,
@@ -126,6 +246,7 @@ pub(crate) fn handle_variable(
 
 /// Handle `namespace upvar ns src dst ...` — only the upvar
 /// subcommand matters here.
+#[cfg(test)]
 pub(crate) fn handle_namespace_call(
     args: &[String],
     state: &mut CfgState,
@@ -146,6 +267,7 @@ pub(crate) fn handle_namespace_call(
 }
 
 /// Classify `info <subcmd> ...` against the allow-list.
+#[cfg(test)]
 pub(crate) fn handle_info(args: &[String], state: &mut CfgState, defs: &HashMap<String, Version>) {
     let Some(sub) = args.first() else {
         state.record_barrier(Barrier::with_detail(

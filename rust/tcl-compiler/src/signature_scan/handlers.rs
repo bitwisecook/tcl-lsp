@@ -24,7 +24,7 @@
 //! Handlers do not recurse into bodies themselves — body recursion
 //! lives in [`super::walker`] (`handle_if` / `handle_catch` /
 //! `handle_try` / `maybe_recurse_body`) and the namespace-eval body
-//! recursion lives inside `handle_namespace` here, which calls back
+//! recursion lives inside `handle_namespace_eval` here, which calls back
 //! into `walker::maybe_recurse_body`.
 //!
 //! [`ScanCtx`]: super::ctx::ScanCtx
@@ -52,28 +52,7 @@ pub(super) fn qualify(ns_prefix: &str, name: &str) -> String {
     crate::naming::qualify(ns_prefix, name)
 }
 
-/// Resolve `word` against `parent`'s registry subcommand table, returning
-/// the canonical subcommand name.
-///
-/// Resolution follows the registry's ensemble rule — exact match or unique
-/// non-empty prefix, C Tcl's `Tcl_GetIndexFromObj` dispatch — so the
-/// abbreviated spellings C Tcl accepts (`namespace ev`, `package req`)
-/// resolve to their full names, and an ambiguous prefix (`interp al` —
-/// `alias`/`aliases`) resolves to nothing, exactly as tclsh errors on it.
-/// Falls back to the word as written when no registry is threaded (focused
-/// unit tests) or the word doesn't resolve, preserving exact-name matching.
-fn canonical_subcommand<'w>(
-    registry: Option<&tcl_registry::CommandRegistry>,
-    parent: &str,
-    word: &'w str,
-) -> &'w str {
-    registry
-        .and_then(|r| r.get(parent))
-        .and_then(|spec| spec.resolve_subcommand(word))
-        .map_or(word, |sub| sub.name)
-}
-
-/// How many of `args`' leading words `PARENT SUB` consumes as option flags,
+/// How many of `args`' leading words a resolved subcommand consumes as option flags,
 /// entirely from registry data: a word matching a declared flag option of
 /// that subcommand, capped by its declared
 /// [`tcl_registry::SubCommand::max_leading_option_words`].
@@ -94,16 +73,8 @@ fn canonical_subcommand<'w>(
 /// subcommands involved (`namespace import` / `namespace forget`) declare no
 /// dialect-gated options, so profile filtering could only ever return the same
 /// set.
-fn leading_flag_words(
-    registry: Option<&tcl_registry::CommandRegistry>,
-    parent: &str,
-    sub: &str,
-    args: &[String],
-) -> usize {
-    let Some(sub_spec) = registry
-        .and_then(|r| r.get(parent))
-        .and_then(|spec| spec.subcommand(sub))
-    else {
+fn leading_flag_words(sub_spec: Option<&tcl_registry::SubCommand>, args: &[String]) -> usize {
+    let Some(sub_spec) = sub_spec else {
         return 0;
     };
     let cap = sub_spec
@@ -118,6 +89,26 @@ fn leading_flag_words(
                 .any(|o| o.matches(w.as_str()) && !o.takes_value())
         })
         .count()
+}
+
+fn leading_option_words(options: &[tcl_registry::hover::OptionSpec], args: &[String]) -> usize {
+    let mut consumed = 0;
+    while consumed < args.len() {
+        let Some(option) = options
+            .iter()
+            .find(|option| option.matches(&args[consumed]))
+        else {
+            break;
+        };
+        consumed += 1;
+        if option.takes_value() {
+            if consumed == args.len() {
+                break;
+            }
+            consumed += 1;
+        }
+    }
+    consumed
 }
 
 /// Insert a class record under `result.classes`, computing the
@@ -278,14 +269,12 @@ pub(super) fn handle_opt_proc(
     }
 }
 
-/// Handler for the `namespace` command — dispatches on the
-/// subcommand (`eval` vs `import`).
+/// Handler for a registry-resolved namespace-evaluation operation.
 ///
-/// The `eval` arm computes the
+/// Computes the
 /// inner namespace prefix (absolute names rebase via leading `::`,
-/// otherwise nest under the current prefix); body recursion into
-/// the eval body is a stub here.
-pub(super) fn handle_namespace(
+/// otherwise nest under the current prefix), then scans its literal body.
+pub(super) fn handle_namespace_eval(
     texts: &[String],
     argv: &[Token],
     ns_prefix: &str,
@@ -293,38 +282,25 @@ pub(super) fn handle_namespace(
     known_commands: &std::collections::HashSet<&str>,
     ctx: &mut ScanCtx,
 ) {
-    if texts.len() < 2 {
+    if texts.len() < 4 {
         return;
     }
-    // Resolve the subcommand word through the registry's ensemble rule so
-    // the abbreviated spellings C Tcl accepts (`namespace ev` /
-    // `namespace imp`) dispatch like their full names.
-    let sub = canonical_subcommand(ctx.registry, "namespace", &texts[1]);
-    if sub == "eval" && texts.len() >= 4 {
-        let raw_ns = &texts[2];
-        let inner_prefix = if let Some(rest) = raw_ns.strip_prefix("::") {
-            rest.trim_start_matches(':').to_string()
-        } else if !ns_prefix.is_empty() {
-            format!("{ns_prefix}::{raw_ns}")
-        } else {
-            raw_ns.clone()
-        };
-        super::walker::maybe_recurse_body(
-            &texts[3],
-            argv[3],
-            &inner_prefix,
-            conditional,
-            known_commands,
-            ctx,
-        );
-        return;
-    }
-    if sub == "import" && texts.len() >= 3 {
-        handle_namespace_import(texts, argv, ns_prefix, ctx.registry, &mut ctx.result);
-    }
-    if sub == "forget" && texts.len() >= 3 {
-        handle_namespace_forget(texts, argv, ns_prefix, ctx.registry, &mut ctx.result);
-    }
+    let raw_ns = &texts[2];
+    let inner_prefix = if let Some(rest) = raw_ns.strip_prefix("::") {
+        rest.trim_start_matches(':').to_string()
+    } else if !ns_prefix.is_empty() {
+        format!("{ns_prefix}::{raw_ns}")
+    } else {
+        raw_ns.clone()
+    };
+    super::walker::maybe_recurse_body(
+        &texts[3],
+        argv[3],
+        &inner_prefix,
+        conditional,
+        known_commands,
+        ctx,
+    );
 }
 
 /// Handler for `namespace forget ?PATTERN…?` — the removal half of the
@@ -339,7 +315,7 @@ pub(super) fn handle_namespace_forget(
     texts: &[String],
     argv: &[Token],
     ns_prefix: &str,
-    registry: Option<&tcl_registry::CommandRegistry>,
+    sub_spec: Option<&tcl_registry::SubCommand>,
     result: &mut SignatureScanResult,
 ) {
     let forgetting_ns = if ns_prefix.is_empty() {
@@ -347,7 +323,7 @@ pub(super) fn handle_namespace_forget(
     } else {
         format!("::{ns_prefix}")
     };
-    let mut i = 2 + leading_flag_words(registry, "namespace", "forget", &texts[2..]);
+    let mut i = 2 + leading_flag_words(sub_spec, &texts[2..]);
     while i < texts.len() && i < argv.len() {
         let raw = &texts[i];
         if raw.contains('$') || raw.contains('[') {
@@ -391,7 +367,7 @@ pub(super) fn handle_namespace_import(
     texts: &[String],
     argv: &[Token],
     ns_prefix: &str,
-    registry: Option<&tcl_registry::CommandRegistry>,
+    sub_spec: Option<&tcl_registry::SubCommand>,
     result: &mut SignatureScanResult,
 ) {
     let importing_ns = if ns_prefix.is_empty() {
@@ -404,7 +380,7 @@ pub(super) fn handle_namespace_import(
     // option word *was* consumed is exactly "`-force` was given", since
     // `IMPORT_OPTIONS` declares one option and `max_leading_option_words`
     // caps it at one.
-    let flag_words = leading_flag_words(registry, "namespace", "import", &texts[2..]);
+    let flag_words = leading_flag_words(sub_spec, &texts[2..]);
     let forced = flag_words > 0;
     let mut i = 2 + flag_words;
     while i < texts.len() {
@@ -440,20 +416,21 @@ pub(super) fn handle_namespace_import(
 /// The subcommand word resolves through the registry's ensemble rule,
 /// so C Tcl's accepted abbreviation (`package req Tcl`) records the
 /// requirement too.
-pub(super) fn handle_package(
+pub(super) fn handle_package_require(
     texts: &[String],
     argv: &[Token],
     conditional: bool,
-    registry: Option<&tcl_registry::CommandRegistry>,
+    sub_spec: Option<&tcl_registry::SubCommand>,
     result: &mut SignatureScanResult,
 ) {
-    if texts.len() < 3 || canonical_subcommand(registry, "package", &texts[1]) != "require" {
+    if texts.len() < 3 {
         return;
     }
-    let mut idx = 2;
-    let exact = texts[idx] == "-exact" && texts.len() > idx + 1;
-    if exact {
-        idx += 1;
+    let option_words = sub_spec.map_or(0, |sub| leading_option_words(sub.options, &texts[2..]));
+    let idx = 2 + option_words;
+    let exact = option_words > 0;
+    if idx >= texts.len() {
+        return;
     }
     let pkg_name = texts[idx].clone();
     let version = if texts.len() > idx + 1 {
@@ -472,24 +449,18 @@ pub(super) fn handle_package(
 
 /// Handler for `source ?-encoding ENC? PATH`.
 ///
-/// Walks past every leading `-FLAG` (consuming a follow-up word for
-/// `-encoding`); the remaining word is recorded as the path. The
+/// Consumes options using the resolved command's registry option grammar;
+/// the remaining word is recorded as the path. The
 /// `is_literal` flag is set when the segmenter-reconstructed word
 /// contains no `$` or `[` substitution markers.
 pub(super) fn handle_source(
     texts: &[String],
     argv: &[Token],
     ns_prefix: &str,
+    spec: &tcl_registry::CommandSpec,
     result: &mut SignatureScanResult,
 ) {
-    let mut idx = 1;
-    while idx < texts.len() && texts[idx].starts_with('-') {
-        if texts[idx] == "-encoding" && idx + 1 < texts.len() {
-            idx += 2;
-        } else {
-            idx += 1;
-        }
-    }
+    let idx = 1 + leading_option_words(spec.options, &texts[1..]);
     if idx >= texts.len() {
         return;
     }
@@ -514,16 +485,12 @@ pub(super) fn handle_source(
 /// Records only **local-interpreter** aliases (slave path and
 /// target path both empty `{}`); cross-interpreter aliases install
 /// commands inside child interpreters and are not visible to
-/// workspace command resolution, so they are skipped.  The subcommand
-/// word resolves through the registry's ensemble rule — which, matching
+/// workspace command resolution, so they are skipped.  The caller has already
+/// resolved the subcommand through the registry's ensemble rule — which, matching
 /// tclsh, rejects `interp al` / `interp alia` as ambiguous with
 /// `aliases`, so in practice only the full spelling dispatches here.
-pub(super) fn handle_interp(
-    texts: &[String],
-    registry: Option<&tcl_registry::CommandRegistry>,
-    result: &mut SignatureScanResult,
-) {
-    if texts.len() < 6 || canonical_subcommand(registry, "interp", &texts[1]) != "alias" {
+pub(super) fn handle_interp_alias(texts: &[String], result: &mut SignatureScanResult) {
+    if texts.len() < 6 {
         return;
     }
     if !texts[2].is_empty() || !texts[4].is_empty() {
@@ -773,6 +740,18 @@ mod tests {
         Token::with_content_offset(TokenType::Str, Span::new(start, end), 1)
     }
 
+    fn command_spec(name: &str) -> &'static tcl_registry::CommandSpec {
+        tcl_registry::registry_for_dialect("tcl9.0")
+            .get(name)
+            .expect("test command spec")
+    }
+
+    fn subcommand_spec(parent: &str, subcommand: &str) -> &'static tcl_registry::SubCommand {
+        command_spec(parent)
+            .subcommand(subcommand)
+            .expect("test subcommand spec")
+    }
+
     #[test]
     fn handle_proc_with_braced_body_scans_factory_candidates() {
         // Direct call into handle_proc with a synthetic INIT-proc
@@ -946,7 +925,6 @@ mod tests {
     /// than matched by name (issue #1103).
     #[test]
     fn handle_namespace_import_records_the_force_flag() {
-        let registry = tcl_registry::registry_for_dialect("tcl9.0");
         let texts = vec![
             "namespace".to_string(),
             "import".to_string(),
@@ -955,7 +933,13 @@ mod tests {
         ];
         let argv = vec![token(0, 9), token(10, 16), token(17, 23), token(24, 32)];
         let mut result = SignatureScanResult::default();
-        handle_namespace_import(&texts, &argv, "", Some(registry), &mut result);
+        handle_namespace_import(
+            &texts,
+            &argv,
+            "",
+            Some(subcommand_spec("namespace", "import")),
+            &mut result,
+        );
         assert_eq!(result.namespace_imports.len(), 1);
         assert!(result.namespace_imports[0].forced);
 
@@ -966,7 +950,13 @@ mod tests {
         ];
         let argv = vec![token(0, 9), token(10, 16), token(17, 25)];
         let mut result = SignatureScanResult::default();
-        handle_namespace_import(&texts, &argv, "", Some(registry), &mut result);
+        handle_namespace_import(
+            &texts,
+            &argv,
+            "",
+            Some(subcommand_spec("namespace", "import")),
+            &mut result,
+        );
         assert_eq!(result.namespace_imports.len(), 1);
         assert!(!result.namespace_imports[0].forced);
     }
@@ -974,7 +964,6 @@ mod tests {
     /// `namespace forget` in both pattern shapes `Tcl_ForgetImport` accepts.
     #[test]
     fn handle_namespace_forget_records_both_pattern_shapes() {
-        let registry = tcl_registry::registry_for_dialect("tcl9.0");
         // Qualified: names the source namespace.
         let texts = vec![
             "namespace".to_string(),
@@ -983,7 +972,13 @@ mod tests {
         ];
         let argv = vec![token(0, 9), token(10, 16), token(17, 25)];
         let mut result = SignatureScanResult::default();
-        handle_namespace_forget(&texts, &argv, "dst", Some(registry), &mut result);
+        handle_namespace_forget(
+            &texts,
+            &argv,
+            "dst",
+            Some(subcommand_spec("namespace", "forget")),
+            &mut result,
+        );
         assert_eq!(result.namespace_forgets.len(), 1);
         let fgt = &result.namespace_forgets[0];
         assert_eq!(fgt.ns, "::dst");
@@ -998,7 +993,13 @@ mod tests {
         ];
         let argv = vec![token(0, 9), token(10, 16), token(17, 19)];
         let mut result = SignatureScanResult::default();
-        handle_namespace_forget(&texts, &argv, "dst", Some(registry), &mut result);
+        handle_namespace_forget(
+            &texts,
+            &argv,
+            "dst",
+            Some(subcommand_spec("namespace", "forget")),
+            &mut result,
+        );
         assert_eq!(result.namespace_forgets.len(), 1);
         assert!(result.namespace_forgets[0].source_ns.is_none());
         assert_eq!(result.namespace_forgets[0].pattern, "p*");
@@ -1008,7 +1009,6 @@ mod tests {
     /// an alias on a guess would silently drop real references.
     #[test]
     fn handle_namespace_forget_skips_dynamic_patterns() {
-        let registry = tcl_registry::registry_for_dialect("tcl9.0");
         let texts = vec![
             "namespace".to_string(),
             "forget".to_string(),
@@ -1016,7 +1016,13 @@ mod tests {
         ];
         let argv = vec![token(0, 9), token(10, 16), token(17, 25)];
         let mut result = SignatureScanResult::default();
-        handle_namespace_forget(&texts, &argv, "", Some(registry), &mut result);
+        handle_namespace_forget(
+            &texts,
+            &argv,
+            "",
+            Some(subcommand_spec("namespace", "forget")),
+            &mut result,
+        );
         assert!(result.namespace_forgets.is_empty());
     }
 
@@ -1059,7 +1065,13 @@ mod tests {
         ];
         let argv = vec![token(0, 7), token(8, 15), token(16, 19), token(20, 23)];
         let mut result = SignatureScanResult::default();
-        handle_package(&texts, &argv, false, None, &mut result);
+        handle_package_require(
+            &texts,
+            &argv,
+            false,
+            Some(subcommand_spec("package", "require")),
+            &mut result,
+        );
         assert_eq!(result.package_requires.len(), 1);
         let req = &result.package_requires[0];
         assert_eq!(req.name, "Tcl");
@@ -1080,7 +1092,13 @@ mod tests {
         ];
         let argv = vec![token(0, 7), token(8, 15), token(16, 19)];
         let mut result = SignatureScanResult::default();
-        handle_package(&texts, &argv, true, None, &mut result);
+        handle_package_require(
+            &texts,
+            &argv,
+            true,
+            Some(subcommand_spec("package", "require")),
+            &mut result,
+        );
         assert_eq!(result.package_requires.len(), 1);
         let req = &result.package_requires[0];
         assert_eq!(req.name, "Tcl");
@@ -1094,7 +1112,7 @@ mod tests {
         let texts = vec!["source".to_string(), "/abs/path.tcl".to_string()];
         let argv = vec![token(0, 6), token(7, 20)];
         let mut result = SignatureScanResult::default();
-        handle_source(&texts, &argv, "", &mut result);
+        handle_source(&texts, &argv, "", command_spec("source"), &mut result);
         assert_eq!(result.source_targets.len(), 1);
         let st = &result.source_targets[0];
         assert_eq!(st.raw_path, "/abs/path.tcl");
@@ -1107,7 +1125,7 @@ mod tests {
         let texts = vec!["source".to_string(), "${dir}/x.tcl".to_string()];
         let argv = vec![token(0, 6), token(7, 19)];
         let mut result = SignatureScanResult::default();
-        handle_source(&texts, &argv, "", &mut result);
+        handle_source(&texts, &argv, "", command_spec("source"), &mut result);
         assert_eq!(result.source_targets.len(), 1);
         assert!(!result.source_targets[0].is_literal);
     }
@@ -1122,7 +1140,7 @@ mod tests {
         ];
         let argv = vec![token(0, 6), token(7, 16), token(17, 22), token(23, 36)];
         let mut result = SignatureScanResult::default();
-        handle_source(&texts, &argv, "", &mut result);
+        handle_source(&texts, &argv, "", command_spec("source"), &mut result);
         assert_eq!(result.source_targets.len(), 1);
         let st = &result.source_targets[0];
         assert_eq!(st.raw_path, "/abs/path.tcl");
@@ -1147,7 +1165,13 @@ mod tests {
             token(27, 30),
         ];
         let mut result = SignatureScanResult::default();
-        handle_package(&texts, &argv, false, None, &mut result);
+        handle_package_require(
+            &texts,
+            &argv,
+            false,
+            Some(subcommand_spec("package", "require")),
+            &mut result,
+        );
         assert_eq!(result.package_requires.len(), 1);
         let req = &result.package_requires[0];
         assert_eq!(req.name, "Tcl");
@@ -1170,7 +1194,7 @@ mod tests {
             "hello".to_string(),
         ];
         let mut result = SignatureScanResult::default();
-        handle_interp(&texts, None, &mut result);
+        handle_interp_alias(&texts, &mut result);
         assert_eq!(result.command_aliases.len(), 1);
         let alias = result.command_aliases.get("::myalias").expect("inserted");
         assert_eq!(alias.target, "puts");
@@ -1188,7 +1212,7 @@ mod tests {
             "puts".to_string(),
         ];
         let mut result = SignatureScanResult::default();
-        handle_interp(&texts, None, &mut result);
+        handle_interp_alias(&texts, &mut result);
         assert!(result.command_aliases.is_empty());
     }
 

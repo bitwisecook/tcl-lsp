@@ -18,6 +18,10 @@
 
 //! `trace` — monitor variable accesses, command usages and executions.
 use crate::prelude::*;
+use crate::world_effect::{
+    EffectAccess, EffectAccessMode, EffectFootprint, InterpreterScope, NamespaceScope, SubjectScope,
+};
+use tcl_cmd_core::trace::{TraceKind, parse_ops, resolve_type};
 
 // Command-level fallback for call sites where the actual subcommand can't
 // be resolved statically (`dialect_side_effect_hints` in
@@ -40,22 +44,392 @@ const FORMS: &[FormSpec] = &[FormSpec {
     dialects: None,
 }];
 
+const TRACE_ADD_TRANSITION_DOMAINS: &[StateTransitionDomain] = &[
+    StateTransitionDomain::VariableCells,
+    StateTransitionDomain::CommandTraces,
+    StateTransitionDomain::ExecutionTraces,
+    StateTransitionDomain::VariableTraces,
+];
+
+const TRACE_REMOVE_TRANSITION_DOMAINS: &[StateTransitionDomain] = &[
+    StateTransitionDomain::CommandTraces,
+    StateTransitionDomain::ExecutionTraces,
+    StateTransitionDomain::VariableTraces,
+];
+
+const TRACE_EFFECT_COVERAGE: &[TransitionEffectCoverage] = &[
+    TransitionEffectCoverage {
+        // `trace` still has its long-standing `InterpState` side effect while
+        // consumers migrate to trace-specific domains. The resolved
+        // transition owns the write portion for successful add/remove calls;
+        // its residual legacy read remains conservative migration debt.
+        source: WorldEffectWriteSource::LegacySideEffect(SideEffectTarget::InterpState),
+        domains: &[WorldStateDomain::InterpreterPolicy],
+    },
+    TransitionEffectCoverage {
+        // Trace registration tables are cumulative, so the explicit
+        // descriptor retains its read dependency. The completion-qualified
+        // transition is authoritative only for the write component.
+        source: WorldEffectWriteSource::DeclaredWorldEffect,
+        domains: &[
+            WorldStateDomain::VariableStore,
+            WorldStateDomain::VariableTraces,
+            WorldStateDomain::CommandTraces,
+            WorldStateDomain::ExecutionTraces,
+        ],
+    },
+];
+
+const TRACE_ADD_TRANSITIONS: StateTransitionDescriptor = StateTransitionDescriptor {
+    composition: StateTransitionComposition::Extend,
+    resolver: Some(trace_add_state_transitions),
+    argument_shape: StateTransitionArgumentShape::Positional,
+    dynamic_widening: &[StateTransitionWideningRule {
+        operands: StateTransitionOperandLayout::Indices(&[1]),
+        domains: TRACE_ADD_TRANSITION_DOMAINS,
+    }],
+    effect_coverage: TRACE_EFFECT_COVERAGE,
+    // `trace add` and `trace remove` make no synchronous callback.  Their
+    // registration changes only become observable after Tcl returns `OK`.
+    commit: StateTransitionCommit::OnOkOnly,
+};
+
+const TRACE_REMOVE_TRANSITIONS: StateTransitionDescriptor = StateTransitionDescriptor {
+    composition: StateTransitionComposition::Extend,
+    resolver: Some(trace_remove_state_transitions),
+    argument_shape: StateTransitionArgumentShape::Positional,
+    dynamic_widening: &[StateTransitionWideningRule {
+        operands: StateTransitionOperandLayout::Indices(&[1]),
+        domains: TRACE_REMOVE_TRANSITION_DOMAINS,
+    }],
+    effect_coverage: TRACE_EFFECT_COVERAGE,
+    commit: StateTransitionCommit::OnOkOnly,
+};
+
+const TRACE_ADD_DYNAMIC_EFFECT_ACCESSES: &[StaticEffectAccess] = &[
+    StaticEffectAccess::new(
+        WorldStateDomain::VariableStore,
+        EffectAccessMode::ReadWrite,
+        StaticInterpreterScope::Current,
+        StaticNamespaceScope::Current,
+        StaticSubjectScope::Wildcard,
+    ),
+    StaticEffectAccess::new(
+        WorldStateDomain::VariableTraces,
+        EffectAccessMode::ReadWrite,
+        StaticInterpreterScope::Current,
+        StaticNamespaceScope::Current,
+        StaticSubjectScope::Wildcard,
+    ),
+    StaticEffectAccess::new(
+        WorldStateDomain::CommandTraces,
+        EffectAccessMode::ReadWrite,
+        StaticInterpreterScope::Current,
+        StaticNamespaceScope::Current,
+        StaticSubjectScope::Wildcard,
+    ),
+    StaticEffectAccess::new(
+        WorldStateDomain::ExecutionTraces,
+        EffectAccessMode::ReadWrite,
+        StaticInterpreterScope::Current,
+        StaticNamespaceScope::Current,
+        StaticSubjectScope::Wildcard,
+    ),
+    StaticEffectAccess::new(
+        WorldStateDomain::CommandBindings,
+        EffectAccessMode::Read,
+        StaticInterpreterScope::Current,
+        StaticNamespaceScope::Current,
+        StaticSubjectScope::Wildcard,
+    ),
+    StaticEffectAccess::new(
+        WorldStateDomain::NamespaceLookup,
+        EffectAccessMode::Read,
+        StaticInterpreterScope::Current,
+        StaticNamespaceScope::Current,
+        StaticSubjectScope::Wildcard,
+    ),
+];
+
+const TRACE_REMOVE_DYNAMIC_EFFECT_ACCESSES: &[StaticEffectAccess] = &[
+    StaticEffectAccess::new(
+        WorldStateDomain::VariableTraces,
+        EffectAccessMode::ReadWrite,
+        StaticInterpreterScope::Current,
+        StaticNamespaceScope::Current,
+        StaticSubjectScope::Wildcard,
+    ),
+    StaticEffectAccess::new(
+        WorldStateDomain::CommandTraces,
+        EffectAccessMode::ReadWrite,
+        StaticInterpreterScope::Current,
+        StaticNamespaceScope::Current,
+        StaticSubjectScope::Wildcard,
+    ),
+    StaticEffectAccess::new(
+        WorldStateDomain::ExecutionTraces,
+        EffectAccessMode::ReadWrite,
+        StaticInterpreterScope::Current,
+        StaticNamespaceScope::Current,
+        StaticSubjectScope::Wildcard,
+    ),
+    StaticEffectAccess::new(
+        WorldStateDomain::CommandBindings,
+        EffectAccessMode::Read,
+        StaticInterpreterScope::Current,
+        StaticNamespaceScope::Current,
+        StaticSubjectScope::Wildcard,
+    ),
+    StaticEffectAccess::new(
+        WorldStateDomain::NamespaceLookup,
+        EffectAccessMode::Read,
+        StaticInterpreterScope::Current,
+        StaticNamespaceScope::Current,
+        StaticSubjectScope::Wildcard,
+    ),
+];
+
+const TRACE_INFO_DYNAMIC_EFFECT_ACCESSES: &[StaticEffectAccess] = &[
+    StaticEffectAccess::new(
+        WorldStateDomain::VariableTraces,
+        EffectAccessMode::Read,
+        StaticInterpreterScope::Current,
+        StaticNamespaceScope::Current,
+        StaticSubjectScope::Wildcard,
+    ),
+    StaticEffectAccess::new(
+        WorldStateDomain::CommandTraces,
+        EffectAccessMode::Read,
+        StaticInterpreterScope::Current,
+        StaticNamespaceScope::Current,
+        StaticSubjectScope::Wildcard,
+    ),
+    StaticEffectAccess::new(
+        WorldStateDomain::ExecutionTraces,
+        EffectAccessMode::Read,
+        StaticInterpreterScope::Current,
+        StaticNamespaceScope::Current,
+        StaticSubjectScope::Wildcard,
+    ),
+    StaticEffectAccess::new(
+        WorldStateDomain::CommandBindings,
+        EffectAccessMode::Read,
+        StaticInterpreterScope::Current,
+        StaticNamespaceScope::Current,
+        StaticSubjectScope::Wildcard,
+    ),
+    StaticEffectAccess::new(
+        WorldStateDomain::NamespaceLookup,
+        EffectAccessMode::Read,
+        StaticInterpreterScope::Current,
+        StaticNamespaceScope::Current,
+        StaticSubjectScope::Wildcard,
+    ),
+];
+
+const TRACE_ADD_EFFECTS: WorldEffectDescriptor = WorldEffectDescriptor {
+    composition: WorldEffectComposition::Extend,
+    static_footprint: StaticEffectFootprint::EMPTY,
+    resolver: Some(trace_add_world_effects),
+    dynamic_fallback: WorldEffectDynamicFallback::Declared(StaticEffectFootprint {
+        accesses: TRACE_ADD_DYNAMIC_EFFECT_ACCESSES,
+        callback: CallbackEffect::NONE,
+    }),
+};
+
+const TRACE_REMOVE_EFFECTS: WorldEffectDescriptor = WorldEffectDescriptor {
+    composition: WorldEffectComposition::Extend,
+    static_footprint: StaticEffectFootprint::EMPTY,
+    resolver: Some(trace_remove_world_effects),
+    dynamic_fallback: WorldEffectDynamicFallback::Declared(StaticEffectFootprint {
+        accesses: TRACE_REMOVE_DYNAMIC_EFFECT_ACCESSES,
+        callback: CallbackEffect::NONE,
+    }),
+};
+
+const TRACE_INFO_EFFECTS: WorldEffectDescriptor = WorldEffectDescriptor {
+    composition: WorldEffectComposition::Extend,
+    static_footprint: StaticEffectFootprint::EMPTY,
+    resolver: Some(trace_info_world_effects),
+    dynamic_fallback: WorldEffectDynamicFallback::Declared(StaticEffectFootprint {
+        accesses: TRACE_INFO_DYNAMIC_EFFECT_ACCESSES,
+        callback: CallbackEffect::NONE,
+    }),
+};
+
+fn trace_target(kind: TraceKind, target: TransitionSubject) -> TraceTarget {
+    match kind {
+        TraceKind::Variable => TraceTarget::Variable(target),
+        TraceKind::Command => TraceTarget::Command(target),
+        TraceKind::Execution => TraceTarget::Execution(target),
+    }
+}
+
+fn trace_operation(operation: &str) -> Option<TraceOperation> {
+    match operation {
+        "array" => Some(TraceOperation::Array),
+        "read" => Some(TraceOperation::Read),
+        "write" => Some(TraceOperation::Write),
+        "unset" => Some(TraceOperation::Unset),
+        "rename" => Some(TraceOperation::Rename),
+        "delete" => Some(TraceOperation::Delete),
+        "enter" => Some(TraceOperation::Enter),
+        "leave" => Some(TraceOperation::Leave),
+        "enterstep" => Some(TraceOperation::EnterStep),
+        "leavestep" => Some(TraceOperation::LeaveStep),
+        _ => None,
+    }
+}
+
+fn trace_operations(kind: TraceKind, op_list: TransitionSubject) -> Option<TraceOperationSet> {
+    match op_list {
+        TransitionSubject::Literal(op_list) => parse_ops(op_list.as_bytes(), kind)
+            .ok()?
+            .into_iter()
+            .map(trace_operation)
+            .collect::<Option<Vec<_>>>()
+            .map(TraceOperationSet::Known),
+        unknown @ TransitionSubject::Unknown { .. } => Some(TraceOperationSet::Unknown(unknown)),
+    }
+}
+
+fn trace_state_transition(
+    arguments: InvocationArguments<'_>,
+    action: fn(TraceTarget, TraceOperationSet, TransitionSubject) -> TraceTransition,
+) -> StateTransitions {
+    let mut transitions = StateTransitions::default();
+    if arguments.exact_argv_len() != Some(5) {
+        return transitions;
+    }
+    let Some(kind) = arguments.literal_at(1).and_then(resolve_trace_type) else {
+        return transitions;
+    };
+    let (Some(target), Some(op_list), Some(prefix)) = (
+        TransitionSubject::from_argument(arguments, 2),
+        TransitionSubject::from_argument(arguments, 3),
+        TransitionSubject::from_argument(arguments, 4),
+    ) else {
+        return transitions;
+    };
+    let Some(operations) = trace_operations(kind, op_list) else {
+        return transitions;
+    };
+    transitions.push(StateTransition::Trace(action(
+        trace_target(kind, target),
+        operations,
+        prefix,
+    )));
+    transitions
+}
+
+fn trace_add_state_transitions(arguments: InvocationArguments<'_>) -> StateTransitions {
+    trace_state_transition(arguments, |target, operations, prefix| {
+        TraceTransition::Add {
+            target,
+            operations,
+            prefix,
+        }
+    })
+}
+
+fn trace_remove_state_transitions(arguments: InvocationArguments<'_>) -> StateTransitions {
+    trace_state_transition(arguments, |target, operations, prefix| {
+        TraceTransition::Remove {
+            target,
+            operations,
+            prefix,
+        }
+    })
+}
+
+fn trace_effect_access(
+    footprint: &mut EffectFootprint,
+    domain: WorldStateDomain,
+    mode: EffectAccessMode,
+    target: &str,
+) {
+    footprint.add_access(EffectAccess::new(
+        domain,
+        mode,
+        InterpreterScope::Current,
+        NamespaceScope::Current,
+        SubjectScope::named(target),
+    ));
+}
+
+fn trace_world_effects(
+    arguments: InvocationArguments<'_>,
+    trace_mode: EffectAccessMode,
+    vivifies_variable: bool,
+) -> EffectFootprint {
+    let mut footprint = EffectFootprint::default();
+    let Some(kind) = arguments.literal_at(1).and_then(resolve_trace_type) else {
+        return footprint;
+    };
+    let Some(target) = arguments.literal_at(2) else {
+        return footprint;
+    };
+    match kind {
+        TraceKind::Variable => {
+            if vivifies_variable {
+                trace_effect_access(
+                    &mut footprint,
+                    WorldStateDomain::VariableStore,
+                    EffectAccessMode::ReadWrite,
+                    target,
+                );
+            }
+            trace_effect_access(
+                &mut footprint,
+                WorldStateDomain::VariableTraces,
+                trace_mode,
+                target,
+            );
+        }
+        TraceKind::Command | TraceKind::Execution => {
+            trace_effect_access(
+                &mut footprint,
+                WorldStateDomain::CommandBindings,
+                EffectAccessMode::Read,
+                target,
+            );
+            trace_effect_access(
+                &mut footprint,
+                WorldStateDomain::NamespaceLookup,
+                EffectAccessMode::Read,
+                target,
+            );
+            if let Some(domain) = match kind {
+                TraceKind::Command => Some(WorldStateDomain::CommandTraces),
+                TraceKind::Execution => Some(WorldStateDomain::ExecutionTraces),
+                TraceKind::Variable => None,
+            } {
+                trace_effect_access(&mut footprint, domain, trace_mode, target);
+            }
+        }
+    }
+    footprint
+}
+
+fn trace_add_world_effects(arguments: InvocationArguments<'_>) -> EffectFootprint {
+    trace_world_effects(arguments, EffectAccessMode::ReadWrite, true)
+}
+
+fn trace_remove_world_effects(arguments: InvocationArguments<'_>) -> EffectFootprint {
+    trace_world_effects(arguments, EffectAccessMode::ReadWrite, false)
+}
+
+fn trace_info_world_effects(arguments: InvocationArguments<'_>) -> EffectFootprint {
+    trace_world_effects(arguments, EffectAccessMode::Read, false)
+}
+
 /// Resolve a `trace add|remove` type word (`variable`/`command`/
 /// `execution`) the way C Tcl 9.0's `Tcl_GetIndexFromObj` does: a
 /// unique, non-empty prefix is accepted, so `trace add v x read h` /
 /// `trace add var x read h` install the same variable trace as the
 /// full spelling (checked against tclsh 8.6.14).
-fn resolve_trace_type(word: &str) -> Option<&'static str> {
-    const TYPES: &[&str] = &["variable", "command", "execution"];
-    if word.is_empty() {
-        return None;
-    }
-    let mut hits = TYPES.iter().copied().filter(|t| t.starts_with(word));
-    let first = hits.next()?;
-    if hits.next().is_some() {
-        return None; // ambiguous prefix
-    }
-    Some(first)
+fn resolve_trace_type(word: &str) -> Option<TraceKind> {
+    resolve_type(word).ok()
 }
 
 /// Arg-role resolver for `trace add`.
@@ -75,11 +449,11 @@ fn trace_add_arg_roles(args: &[&str]) -> Vec<(u8, ArgRole)> {
     match args.first().and_then(|w| resolve_trace_type(w)) {
         // The traced variable can be rewritten by the handler, so SSA must see
         // `name` as a definition site.
-        Some("variable") => vec![(1, ArgRole::VarWrite)],
+        Some(TraceKind::Variable) => vec![(1, ArgRole::VarWrite)],
         // `command` / `execution` trace a command by name — a reference
         // navigation follows to the named command (not invoked here; the
         // handler prefix that follows is a separate `CommandPrefix`).
-        Some("command" | "execution") => vec![(1, ArgRole::CommandName)],
+        Some(TraceKind::Command | TraceKind::Execution) => vec![(1, ArgRole::CommandName)],
         _ => Vec::new(),
     }
 }
@@ -92,8 +466,8 @@ fn trace_remove_arg_roles(args: &[&str]) -> Vec<(u8, ArgRole)> {
         return Vec::new();
     }
     match args.first().and_then(|w| resolve_trace_type(w)) {
-        Some("variable") => vec![(1, ArgRole::VarWrite)],
-        Some("command" | "execution") => vec![(1, ArgRole::CommandName)],
+        Some(TraceKind::Variable) => vec![(1, ArgRole::VarWrite)],
+        Some(TraceKind::Command | TraceKind::Execution) => vec![(1, ArgRole::CommandName)],
         _ => Vec::new(),
     }
 }
@@ -112,8 +486,8 @@ fn trace_type_command_prefix(args: &[&str], installing: bool) -> Vec<(u8, Append
     }
     let arity = if installing {
         match args.first().and_then(|w| resolve_trace_type(w)) {
-            Some("variable" | "command") => AppendedArity::Exactly(3),
-            Some("execution") => AppendedArity::AtLeast(2),
+            Some(TraceKind::Variable | TraceKind::Command) => AppendedArity::Exactly(3),
+            Some(TraceKind::Execution) => AppendedArity::AtLeast(2),
             _ => AppendedArity::Unknown,
         }
     } else {
@@ -319,6 +693,8 @@ static SUBCOMMANDS: &[SubCommand] = &[
             connection_side: ConnectionSide::None,
             dialects: None,
         }],
+        world_effects: Some(TRACE_ADD_EFFECTS),
+        state_transitions: Some(TRACE_ADD_TRANSITIONS),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -341,6 +717,8 @@ static SUBCOMMANDS: &[SubCommand] = &[
             connection_side: ConnectionSide::None,
             dialects: None,
         }],
+        world_effects: Some(TRACE_INFO_EFFECTS),
+        state_transitions: Some(StateTransitionDescriptor::EMPTY),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -367,6 +745,8 @@ static SUBCOMMANDS: &[SubCommand] = &[
             connection_side: ConnectionSide::None,
             dialects: None,
         }],
+        world_effects: Some(TRACE_REMOVE_EFFECTS),
+        state_transitions: Some(TRACE_REMOVE_TRANSITIONS),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -504,5 +884,211 @@ pub fn spec() -> CommandSpec {
         forms: FORMS,
         side_effects: SIDE_EFFECTS,
         ..CommandSpec::DEFAULT
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::{
+        CommandRegistry, InvocationWord, InvocationWordKind, StateTransitionFact,
+        StateTransitionWidening,
+    };
+
+    #[test]
+    fn modern_variable_add_canonicalises_duplicate_operations() {
+        let transitions = TRACE_ADD_TRANSITIONS.resolve(InvocationArguments::literals(&[
+            "add",
+            "var",
+            "item",
+            "write read write unset",
+            "{callback one}",
+        ]));
+
+        assert_eq!(
+            transitions.facts(),
+            &[StateTransitionFact {
+                transition: StateTransition::Trace(TraceTransition::Add {
+                    target: TraceTarget::Variable(TransitionSubject::Literal("item".to_owned())),
+                    operations: TraceOperationSet::Known(vec![
+                        TraceOperation::Read,
+                        TraceOperation::Unset,
+                        TraceOperation::Write,
+                    ]),
+                    prefix: TransitionSubject::Literal("{callback one}".to_owned()),
+                }),
+                commit: StateTransitionCommit::OnOkOnly,
+            }]
+        );
+    }
+
+    #[test]
+    fn dynamic_one_word_op_list_preserves_a_typed_trace_transition() {
+        let arguments = [
+            InvocationWord::Literal("add"),
+            InvocationWord::Literal("command"),
+            InvocationWord::Literal("worker"),
+            InvocationWord::Dynamic,
+            InvocationWord::Literal("prefix"),
+        ];
+        let transitions =
+            TRACE_ADD_TRANSITIONS.resolve(InvocationArguments::structured(&arguments));
+        assert!(matches!(
+            transitions.facts(),
+            [StateTransitionFact {
+                transition: StateTransition::Trace(TraceTransition::Add {
+                    target: TraceTarget::Command(TransitionSubject::Literal(target)),
+                    operations: TraceOperationSet::Unknown(TransitionSubject::Unknown {
+                        argument_index: 3,
+                        word_kind: InvocationWordKind::Dynamic,
+                    }),
+                    ..
+                }),
+                commit: StateTransitionCommit::OnOkOnly,
+            }] if target == "worker"
+        ));
+    }
+
+    #[test]
+    fn add_and_remove_widen_only_their_distinct_trace_unions() {
+        let dynamic_type = [
+            InvocationWord::Literal("add"),
+            InvocationWord::Dynamic,
+            InvocationWord::Literal("target"),
+            InvocationWord::Literal("read"),
+            InvocationWord::Literal("prefix"),
+        ];
+        let dynamic_remove_type = [
+            InvocationWord::Literal("remove"),
+            InvocationWord::Dynamic,
+            InvocationWord::Literal("target"),
+            InvocationWord::Literal("read"),
+            InvocationWord::Literal("prefix"),
+        ];
+        let expanded_prefix = [
+            InvocationWord::Literal("add"),
+            InvocationWord::Literal("variable"),
+            InvocationWord::Literal("target"),
+            InvocationWord::Literal("read"),
+            InvocationWord::Expanded,
+        ];
+        for (descriptor, arguments, expected_domains, expected_subject) in [
+            (
+                TRACE_ADD_TRANSITIONS,
+                InvocationArguments::structured(&dynamic_type),
+                TRACE_ADD_TRANSITION_DOMAINS,
+                TransitionSubject::Unknown {
+                    argument_index: 1,
+                    word_kind: InvocationWordKind::Dynamic,
+                },
+            ),
+            (
+                TRACE_REMOVE_TRANSITIONS,
+                InvocationArguments::structured(&dynamic_remove_type),
+                TRACE_REMOVE_TRANSITION_DOMAINS,
+                TransitionSubject::Unknown {
+                    argument_index: 1,
+                    word_kind: InvocationWordKind::Dynamic,
+                },
+            ),
+            (
+                TRACE_ADD_TRANSITIONS,
+                InvocationArguments::structured(&expanded_prefix),
+                TRACE_ADD_TRANSITION_DOMAINS,
+                TransitionSubject::Unknown {
+                    argument_index: 4,
+                    word_kind: InvocationWordKind::Expanded,
+                },
+            ),
+        ] {
+            let transitions = descriptor.resolve(arguments);
+            assert_eq!(
+                transitions.facts(),
+                &[StateTransitionFact {
+                    transition: StateTransition::Widen(StateTransitionWidening {
+                        domains: expected_domains.to_vec(),
+                        subject: expected_subject,
+                    }),
+                    commit: StateTransitionCommit::OnOkOnly,
+                }]
+            );
+        }
+    }
+
+    #[test]
+    fn dynamic_prefix_has_no_immediate_callback_and_info_fallback_is_read_only() {
+        let literal = TRACE_ADD_EFFECTS.resolve(InvocationArguments::literals(&[
+            "add",
+            "execution",
+            "worker",
+            "enter",
+            "prefix",
+        ]));
+        assert_eq!(literal.callback(), CallbackEffect::NONE);
+        assert!(literal.accesses().iter().any(|access| {
+            access.domain == WorldStateDomain::ExecutionTraces
+                && access.mode == EffectAccessMode::ReadWrite
+        }));
+
+        let dynamic_prefix = [
+            InvocationWord::Literal("add"),
+            InvocationWord::Literal("variable"),
+            InvocationWord::Literal("item"),
+            InvocationWord::Literal("write"),
+            InvocationWord::Dynamic,
+        ];
+        let dynamic = TRACE_ADD_EFFECTS.resolve(InvocationArguments::structured(&dynamic_prefix));
+        assert_eq!(dynamic.callback(), CallbackEffect::NONE);
+        assert!(dynamic.accesses().iter().any(|access| {
+            access.domain == WorldStateDomain::CommandTraces
+                && access.mode == EffectAccessMode::ReadWrite
+        }));
+
+        let dynamic_info_type = [
+            InvocationWord::Literal("info"),
+            InvocationWord::Dynamic,
+            InvocationWord::Literal("target"),
+        ];
+        let info = TRACE_INFO_EFFECTS.resolve(InvocationArguments::structured(&dynamic_info_type));
+        assert_eq!(info.callback(), CallbackEffect::NONE);
+        assert!(
+            info.accesses()
+                .iter()
+                .all(|access| access.mode == EffectAccessMode::Read)
+        );
+    }
+
+    #[test]
+    fn resolved_trace_add_keeps_reads_but_commits_writes_on_the_ok_edge() {
+        let registry = CommandRegistry::build_default();
+        let facts = registry
+            .resolve_invocation(
+                "trace",
+                &["add", "variable", "item", "write", "prefix"],
+                DialectSet::TCL86,
+            )
+            .expect("literal trace add resolves")
+            .facts();
+
+        assert!(facts.effects.accesses().iter().any(|access| {
+            access.domain == WorldStateDomain::VariableTraces
+                && access.mode == EffectAccessMode::Read
+        }));
+        assert!(facts.effects.accesses().iter().all(|access| {
+            !matches!(
+                access.domain,
+                WorldStateDomain::VariableStore | WorldStateDomain::VariableTraces
+            ) || access.mode == EffectAccessMode::Read
+        }));
+        assert!(matches!(
+            facts
+                .state_transitions
+                .declared()
+                .map(StateTransitions::facts),
+            Some([StateTransitionFact {
+                transition: StateTransition::Trace(TraceTransition::Add { .. }),
+                commit: StateTransitionCommit::OnOkOnly,
+            }])
+        ));
     }
 }

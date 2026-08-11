@@ -78,6 +78,7 @@ use tcl_compiler::dataflow_graph::{
 use tcl_compiler::dead_stores::liveness_dead_stores;
 use tcl_compiler::def_use::{DefKind, DefUseChain, UseKind};
 use tcl_compiler::ssa::Version;
+use tcl_registry::dialects::DialectSet;
 use tcl_registry::{CommandRegistry, registry_for_dialect};
 
 // ---------------------------------------------------------------------------
@@ -136,7 +137,7 @@ fn build_graph(cu: &CompilationUnit) -> DataFlowGraph {
 
 /// Build the data-flow graph for `source`, with memory-SSA populated.
 fn graph_for(source: &str) -> DataFlowGraph {
-    let cu = build_cu(source).with_memory_ssa(&CommandRegistry::build_default());
+    let cu = build_cu(source).with_memory_ssa(&CommandRegistry::build_default(), DialectSet::TCL86);
     build_graph(&cu)
 }
 
@@ -496,7 +497,8 @@ fn dataflow_prebuilt_cu() {
     // the same ≥2 defs. The API *only* consumes pre-built per-function inputs,
     // so this is the same path as `build_graph` but spelled out: reuse one
     // `CompilationUnit`.
-    let cu = build_cu("set x 1\nset y $x").with_memory_ssa(&CommandRegistry::build_default());
+    let cu = build_cu("set x 1\nset y $x")
+        .with_memory_ssa(&CommandRegistry::build_default(), DialectSet::TCL86);
     let g = build_graph(&cu);
     assert!(g.total_defs() >= 2);
 }

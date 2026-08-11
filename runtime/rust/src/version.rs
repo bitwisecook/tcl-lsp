@@ -19,6 +19,5 @@
 //! Runtime Tcl version facts shared by interpreter startup, `package`, and
 //! `tcl::build-info`.
 
-pub(crate) const TCL_VERSION: &[u8] = b"9.0";
 pub(crate) const TCL_PATCH_LEVEL: &[u8] = b"9.0.4";
 pub(crate) const BUILD_INFO: &[u8] = b"9.0.4+0000000000000000000000000000000000000000.rust";

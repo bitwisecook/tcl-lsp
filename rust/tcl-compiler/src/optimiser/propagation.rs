@@ -469,8 +469,18 @@ fn report_load_forward(
 fn run_store_to_load_forwarding(ctx: &mut PassContext<'_>, fu: &FunctionUnit) {
     use crate::memory_ssa::compute_aliases;
     use std::collections::BTreeSet;
+    use tcl_dialect::DialectProfile;
 
     let Some(registry) = ctx.registry else {
+        return;
+    };
+    // Aliasing facts depend on the selected registry profile. Without an
+    // explicit profile this optimisation cannot prove its alias safety gate,
+    // so it abstains rather than interpreting every dialect at once.
+    let Some(dialect) = ctx
+        .dialect
+        .map(|name| DialectProfile::by_name(name).availability_mask)
+    else {
         return;
     };
 
@@ -479,7 +489,7 @@ fn run_store_to_load_forwarding(ctx: &mut PassContext<'_>, fu: &FunctionUnit) {
     // fall back to a direct alias computation.
     let aliased: BTreeSet<String> = match &fu.memory_ssa {
         Some(m) => m.aliased_names(),
-        None => compute_aliases(&fu.ssa)
+        None => compute_aliases(&fu.ssa, registry, dialect)
             .iter()
             .flat_map(crate::memory_ssa::AliasSet::names)
             .collect(),
@@ -506,6 +516,7 @@ fn run_store_to_load_forwarding(ctx: &mut PassContext<'_>, fu: &FunctionUnit) {
         ctx,
         fu,
         registry,
+        dialect,
         aliased: &aliased,
         traced: &traced,
         has_dynamic_trace,
@@ -549,6 +560,7 @@ struct ForwardEnv<'a> {
     ctx: &'a PassContext<'a>,
     fu: &'a FunctionUnit,
     registry: &'a tcl_registry::CommandRegistry,
+    dialect: tcl_registry::dialects::DialectSet,
     aliased: &'a std::collections::BTreeSet<String>,
     traced: &'a std::collections::BTreeSet<String>,
     has_dynamic_trace: bool,
@@ -606,6 +618,31 @@ fn forward_candidate(
         block.statements.get(use_idx)?,
     );
 
+    // The use must be a `Call` with tokens so we can pinpoint the `$x`
+    // word and check intra-statement evaluation order. Tcl evaluates words
+    // left-to-right before invoking the outer command. A command substitution
+    // before `$x` would therefore run before the moved assignment; reject it
+    // even when the RHS has no scalar reads, because it can still establish an
+    // alias or reorder observable effects.
+    let Statement::Call {
+        tokens: Some(tokens),
+        ..
+    } = use_stmt
+    else {
+        return None;
+    };
+    let (var_span, has_earlier_effect) = locate_use_var(tokens, chain.key.0.as_str())?;
+    if has_earlier_effect {
+        return None;
+    }
+
+    // An opaque outer invocation at the endpoint runs only after `$x` has
+    // been substituted, so it cannot retroactively alias that read. Wildcard
+    // transitions at every other statement remain a conservative blocker.
+    if has_non_endpoint_wildcard_aliasing(env, def_block, use_idx) {
+        return None;
+    }
+
     // The def must be a *computed* assignment — a command substitution
     // or a command-bearing expr. Literal / constant assignments are the
     // O102 / O100 path.
@@ -659,22 +696,6 @@ fn forward_candidate(
         return None;
     }
 
-    // The use must be a `Call` with tokens so we can pinpoint the `$x`
-    // word and check intra-statement evaluation order.
-    let Statement::Call {
-        tokens: Some(tokens),
-        ..
-    } = use_stmt
-    else {
-        return None;
-    };
-    let (var_span, has_earlier_effect) = locate_use_var(tokens, def_name)?;
-    // A command substitution before `$x` runs first; inlining a
-    // state-reading expression after it would reorder effects.
-    if has_earlier_effect && !def_read_names.is_empty() {
-        return None;
-    }
-
     build_forward_edits(
         ctx.source,
         def_stmt,
@@ -683,6 +704,29 @@ fn forward_candidate(
         env.rewritten,
         fu.base_offset,
     )
+}
+
+/// Whether any statement other than the endpoint use has a wildcard
+/// variable-cell transition obligation.
+///
+/// This remains deliberately flow-insensitive: a wildcard elsewhere in the
+/// function suppresses O127. The sole exception is the outer endpoint
+/// invocation, which Tcl runs after substituting the forwarded variable.
+fn has_non_endpoint_wildcard_aliasing(
+    env: &ForwardEnv<'_>,
+    use_block: crate::cfg::BlockId,
+    use_idx: usize,
+) -> bool {
+    env.fu.ssa.blocks.iter().any(|(&block_id, block)| {
+        block.statements.iter().enumerate().any(|(idx, statement)| {
+            (block_id != use_block || idx != use_idx)
+                && crate::memory_ssa::statement_has_wildcard_aliasing(
+                    &statement.statement,
+                    env.registry,
+                    env.dialect,
+                )
+        })
+    })
 }
 
 /// Construct the grouped O127 `(inline, delete)` edits for a resolved
@@ -3087,7 +3131,7 @@ mod tests {
     /// threaded — needed for the O127 store-to-load-forwarding pass,
     /// which bails without a registry.
     fn o127(source: &str) -> Vec<Optimisation> {
-        crate::optimiser::optimise_raw(source, &registry(), None)
+        crate::optimiser::optimise_raw(source, &registry(), Some("tcl8.6"))
             .into_iter()
             .filter(|o| o.code == DiagCode::O127)
             .collect()
@@ -3128,6 +3172,14 @@ mod tests {
         // re-evaluated inline could compute a different value.
         let src =
             "proc p {y} {\n    set x [llength $y]\n    uplevel 1 {incr ::n}\n    puts $x\n}\n";
+        assert!(o127(src).is_empty(), "{:?}", o127(src));
+    }
+
+    #[test]
+    fn o127_skips_command_substitution_before_endpoint_use() {
+        // Tcl substitutes words left-to-right. Moving the `llength` past the
+        // preceding substitution would make it observe the emptied `y`.
+        let src = "proc p {y} {\n    set x [llength $y]\n    puts [set y {}] $x\n}\n";
         assert!(o127(src).is_empty(), "{:?}", o127(src));
     }
 

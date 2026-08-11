@@ -29,10 +29,11 @@ use tcl_core_types::DiagCode;
 
 use rustc_hash::{FxHashMap, FxHashSet};
 use tcl_lexer::Span;
-use tcl_registry::{CommandRegistry, Traits};
+use tcl_registry::{CommandRegistry, StateTransitionKnowledge, Traits};
 
 use crate::cfg::{BlockId, CfgModule, Function as CfgFunction, Terminator};
-use crate::ir::Statement;
+use crate::ir::{NodeId, Provenance, SourceSite, Statement};
+use crate::semantic_analysis::ExecutableAnalysisAvailability;
 use crate::side_effects::{EffectRegion, classify_side_effects};
 use crate::ssa::{SsaFunction, SsaStatement};
 
@@ -670,6 +671,188 @@ pub fn is_worth_reporting(registry: &CommandRegistry, command: &str) -> bool {
     false
 }
 
+/// Exact source-span key used only while the legacy CFG/SSA surface does not
+/// retain semantic [`NodeId`]s.
+///
+/// The semantic executable IR itself is keyed by a stable node identity.  This
+/// compatibility bridge records that identity, then permits an exact source
+/// span lookup only when it selects one unambiguous source-provenance node.
+/// A transformed, opaque, or ambiguous site fails closed instead of guessing
+/// which registry invocation supplied its facts.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+struct SemanticSourceKey {
+    start: u32,
+    end: u32,
+}
+
+impl From<tcl_lexer::Span> for SemanticSourceKey {
+    fn from(span: tcl_lexer::Span) -> Self {
+        Self {
+            start: span.start(),
+            end: span.end(),
+        }
+    }
+}
+
+/// One semantic invocation projected into GVN's narrow legality question.
+///
+/// `node` remains the authoritative identity for the executable semantic
+/// graph.  The current legacy SSA has no node field, so [`GvnSemanticFacts`]
+/// uses `source` solely as an exact, ambiguity-checked compatibility lookup.
+#[derive(Debug, Clone)]
+struct GvnSemanticSite {
+    node: NodeId,
+    source: SourceSite,
+    eligibility: GvnSiteEligibility,
+}
+
+/// Whether the semantic registry facts permit GVN to reuse a direct call.
+#[derive(Debug, Clone, PartialEq, Eq)]
+enum GvnSiteEligibility {
+    /// A closed registry proof allows a pure CSE candidate at this site.
+    Eligible { canonical_command: String },
+    /// The site is known but any missing proof makes GVN abstain.
+    Declined,
+}
+
+/// Result of matching one legacy statement to executable semantic facts.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum GvnSemanticLookup<'a> {
+    /// The source-bearing semantic sidecar has no matching invocation.
+    Unmapped,
+    /// A uniquely matched invocation is eligible and supplies its canonical
+    /// registry command identity.
+    Eligible(&'a str),
+    /// The source span was mapped, but was ambiguous or lacks a complete
+    /// semantic/world proof. GVN must not use the legacy classifier here.
+    Declined,
+}
+
+/// Authority used to classify GVN occurrences.
+///
+/// The public CFG/SSA API remains explicitly legacy. Production `FunctionUnit`
+/// analysis uses only exact common-semantic facts and fails closed when the
+/// sidecar or an individual source-site mapping is unavailable.
+#[derive(Debug, Clone, Copy)]
+enum GvnLegalitySource<'a> {
+    Legacy,
+    Common(Option<&'a GvnSemanticFacts>),
+}
+
+/// Target-neutral GVN legality facts derived from one function's semantic
+/// sidecar.
+///
+/// This is intentionally a consumer of [`crate::semantic_analysis::SemanticAnalysisBundle`],
+/// not a second command resolver.  Its only source fallback is exact span
+/// matching to a retained [`NodeId`] and direct source provenance; the bridge
+/// can disappear once the scalar CFG owns the same node IDs.
+#[derive(Debug, Clone, Default)]
+struct GvnSemanticFacts {
+    sites: FxHashMap<SemanticSourceKey, Vec<GvnSemanticSite>>,
+}
+
+impl GvnSemanticFacts {
+    /// Build legality facts when a source-bearing executable sidecar exists.
+    ///
+    /// `None` means the function could not expose executable source sites (no
+    /// source retained, incompatible source shape, or no selected dialect).
+    /// Production callers must treat that as unavailable proof, never as
+    /// permission to invoke the legacy command-string classifier.
+    #[must_use]
+    fn from_function(function: &crate::compilation_unit::FunctionUnit) -> Option<Self> {
+        let availability = function.semantic_facts.executable();
+        let executable = availability.function()?;
+        let world_state_available =
+            matches!(availability, ExecutableAnalysisAvailability::Available(_));
+        let mut facts = Self {
+            sites: FxHashMap::default(),
+        };
+        for block in &executable.blocks {
+            for instruction in &block.instructions {
+                let crate::executable_ir::ExecutableInstruction::Invoke(invoke) = instruction
+                else {
+                    continue;
+                };
+                let key = SemanticSourceKey::from(invoke.source.span);
+                let eligibility = match &invoke.resolution {
+                    crate::executable_ir::InvocationResolution::Resolved(resolved)
+                        if world_state_available
+                            && resolved_invocation_is_gvn_eligible(resolved) =>
+                    {
+                        GvnSiteEligibility::Eligible {
+                            canonical_command: resolved.canonical_command.clone(),
+                        }
+                    }
+                    crate::executable_ir::InvocationResolution::Resolved(_)
+                    | crate::executable_ir::InvocationResolution::Unresolved(_) => {
+                        GvnSiteEligibility::Declined
+                    }
+                };
+                facts.sites.entry(key).or_default().push(GvnSemanticSite {
+                    node: invoke.node.clone(),
+                    source: invoke.source.clone(),
+                    eligibility,
+                });
+            }
+        }
+        Some(facts)
+    }
+
+    /// Look up a direct legacy statement through the explicit compatibility
+    /// boundary. Duplicate span matches are declined even if their text looks
+    /// alike: node identity, not source spelling, is authoritative.
+    #[must_use]
+    fn lookup(&self, span: tcl_lexer::Span) -> GvnSemanticLookup<'_> {
+        let Some(sites) = self.sites.get(&SemanticSourceKey::from(span)) else {
+            return GvnSemanticLookup::Unmapped;
+        };
+        let [site] = sites.as_slice() else {
+            return GvnSemanticLookup::Declined;
+        };
+        if !matches!(&site.source.provenance, Provenance::Source) || site.node.path().is_empty() {
+            return GvnSemanticLookup::Declined;
+        }
+        match &site.eligibility {
+            GvnSiteEligibility::Eligible { canonical_command } => {
+                GvnSemanticLookup::Eligible(canonical_command)
+            }
+            GvnSiteEligibility::Declined => GvnSemanticLookup::Declined,
+        }
+    }
+}
+
+/// Return whether one resolved registry invocation provides the complete
+/// world-state proof required for GVN reuse.
+///
+/// An empty effect vector on its own is not enough: transition coverage can
+/// remove a write from the ordinary footprint.  Reuse requires both the
+/// explicit pure/CSE registry traits and a closed, empty transition set, no
+/// direct state accesses, and no callback barrier.  The world-state SSA must
+/// also have built successfully before this helper is consulted.
+pub(crate) fn resolved_invocation_is_gvn_eligible(
+    resolved: &tcl_registry::InvocationFacts,
+) -> bool {
+    if !resolved
+        .traits
+        .contains(Traits::PURE.union(Traits::CSE_CANDIDATE))
+    {
+        return false;
+    }
+    if !resolved.effects.accesses().is_empty() || resolved.effects.requires_world_barrier() {
+        return false;
+    }
+    if !resolved.effects.legacy().command_table_effects.is_empty()
+        || !resolved.effects.legacy().frame_effects.is_empty()
+        || !resolved.effects.legacy().side_effects.is_empty()
+    {
+        return false;
+    }
+    matches!(
+        &resolved.state_transitions,
+        StateTransitionKnowledge::Declared(transitions) if transitions.facts().is_empty()
+    )
+}
+
 /// Return `true` when the statement's effects must invalidate
 /// value numbering.
 ///
@@ -691,6 +874,33 @@ pub fn statement_writes_state(
             writes != EffectRegion::NONE
         }
         _ => false,
+    }
+}
+
+/// GVN's state-kill gate under an explicit legality source.
+///
+/// Common-semantic mode never reclassifies from command text. A denied,
+/// unavailable, or unmapped call kills all available expressions; an eligible
+/// site has already proved that neither its effect footprint nor its
+/// transition/world-state facts mutate state.
+fn statement_writes_state_for_gvn(
+    registry: &CommandRegistry,
+    stmt: &Statement,
+    dialect: Option<&str>,
+    legality: GvnLegalitySource<'_>,
+) -> bool {
+    match legality {
+        GvnLegalitySource::Legacy => statement_writes_state(registry, stmt, dialect),
+        GvnLegalitySource::Common(semantic) => match stmt {
+            Statement::Barrier { .. } => true,
+            Statement::Call { span, .. } => {
+                match semantic.map_or(GvnSemanticLookup::Unmapped, |facts| facts.lookup(*span)) {
+                    GvnSemanticLookup::Eligible(_) => false,
+                    GvnSemanticLookup::Declined | GvnSemanticLookup::Unmapped => true,
+                }
+            }
+            _ => false,
+        },
     }
 }
 
@@ -716,6 +926,28 @@ pub fn statement_occurrences(
     dialect: Option<&str>,
     ssa: &SsaFunction,
 ) -> Vec<ExprOccurrence> {
+    statement_occurrences_for_gvn(
+        registry,
+        stmt_ssa,
+        block_name,
+        statement_index,
+        dialect,
+        ssa,
+        GvnLegalitySource::Legacy,
+    )
+}
+
+/// Semantic-sidecar-aware occurrence collector used by the production
+/// function-level GVN entry point.
+fn statement_occurrences_for_gvn(
+    registry: &CommandRegistry,
+    stmt_ssa: &SsaStatement,
+    block_name: &str,
+    statement_index: usize,
+    dialect: Option<&str>,
+    ssa: &SsaFunction,
+    legality: GvnLegalitySource<'_>,
+) -> Vec<ExprOccurrence> {
     let mut out: Vec<ExprOccurrence> = Vec::new();
     let variable_uses = || -> Vec<String> {
         stmt_ssa
@@ -732,23 +964,37 @@ pub fn statement_occurrences(
         span,
         ..
     } = &stmt_ssa.statement
-        && is_pure_command(registry, command, args, dialect)
-        && is_worth_reporting(registry, command)
     {
-        out.push(ExprOccurrence {
-            key: build_call_key(command, args, &stmt_ssa.uses, ssa),
-            span: *span,
-            expression_text: format_expression_text(command, args),
-            block: block_name.to_owned(),
-            statement_index,
-            variable_uses: variable_uses(),
-        });
+        let canonical_command = match legality {
+            GvnLegalitySource::Legacy => (is_pure_command(registry, command, args, dialect)
+                && is_worth_reporting(registry, command))
+            .then_some(command.as_str()),
+            GvnLegalitySource::Common(Some(semantic)) => match semantic.lookup(*span) {
+                GvnSemanticLookup::Eligible(command) => Some(command),
+                GvnSemanticLookup::Declined | GvnSemanticLookup::Unmapped => None,
+            },
+            GvnLegalitySource::Common(None) => None,
+        };
+        if let Some(canonical_command) = canonical_command {
+            out.push(ExprOccurrence {
+                key: build_call_key(canonical_command, args, &stmt_ssa.uses, ssa),
+                span: *span,
+                expression_text: format_expression_text(command, args),
+                block: block_name.to_owned(),
+                statement_index,
+                variable_uses: variable_uses(),
+            });
+        }
     }
 
     // Embedded command substitutions inside argument/value text.
-    let texts_to_scan: Vec<&str> = match &stmt_ssa.statement {
-        Statement::Call { args, .. } => args.iter().map(String::as_str).collect(),
-        Statement::AssignValue { value, .. } => vec![value.as_str()],
+    let texts_to_scan: Vec<&str> = match (legality, &stmt_ssa.statement) {
+        (GvnLegalitySource::Legacy, Statement::Call { args, .. }) => {
+            args.iter().map(String::as_str).collect()
+        }
+        (GvnLegalitySource::Legacy, Statement::AssignValue { value, .. }) => {
+            vec![value.as_str()]
+        }
         _ => Vec::new(),
     };
     let span = stmt_ssa.statement.span();
@@ -1004,6 +1250,18 @@ pub fn find_redundancies(
     ssa: &SsaFunction,
     dialect: Option<&str>,
 ) -> Vec<RedundantComputation> {
+    find_redundancies_with_semantic_facts(registry, cfg, ssa, dialect, GvnLegalitySource::Legacy)
+}
+
+/// GVN implementation shared by the legacy CFG-only entry point and the
+/// production function-level entry point that has semantic sidecar facts.
+fn find_redundancies_with_semantic_facts(
+    registry: &CommandRegistry,
+    cfg: &CfgFunction,
+    ssa: &SsaFunction,
+    dialect: Option<&str>,
+    legality: GvnLegalitySource<'_>,
+) -> Vec<RedundantComputation> {
     let mut table = ScopedValueTable::new();
     let mut results: Vec<RedundantComputation> = Vec::new();
     if !cfg.blocks.contains_key(&ssa.entry) {
@@ -1034,13 +1292,14 @@ pub fn find_redundancies(
                     let ir_stmt = &cfg_block.statements[idx];
                     let ssa_stmt = &ssa_block.statements[idx];
 
-                    if statement_writes_state(registry, ir_stmt, dialect) {
+                    if statement_writes_state_for_gvn(registry, ir_stmt, dialect, legality) {
                         table.kill_all();
                         continue;
                     }
 
-                    let occurrences =
-                        statement_occurrences(registry, ssa_stmt, block_name, idx, dialect, ssa);
+                    let occurrences = statement_occurrences_for_gvn(
+                        registry, ssa_stmt, block_name, idx, dialect, ssa, legality,
+                    );
                     for occ in occurrences {
                         if let Some(existing) = table.lookup(&occ.key) {
                             let text = existing.expression_text.clone();
@@ -1075,6 +1334,28 @@ pub fn find_redundancies(
     }
 
     results
+}
+
+/// Run full-redundancy GVN using one function's target-neutral semantic
+/// analysis sidecar when it has source-faithful executable facts.
+///
+/// The production path never invokes the legacy command-string classifier. An
+/// unavailable sidecar and every unresolved, ambiguous, declined, or unmapped
+/// source site fail closed and cannot become a CSE occurrence.
+#[must_use]
+pub fn find_redundancies_for_function(
+    registry: &CommandRegistry,
+    function: &crate::compilation_unit::FunctionUnit,
+    dialect: Option<&str>,
+) -> Vec<RedundantComputation> {
+    let semantic = GvnSemanticFacts::from_function(function);
+    find_redundancies_with_semantic_facts(
+        registry,
+        &function.cfg,
+        &function.ssa,
+        dialect,
+        GvnLegalitySource::Common(semantic.as_ref()),
+    )
 }
 
 // Loop-invariant detection
@@ -1563,7 +1844,7 @@ pub fn find_redundancies_for_cu(
 ) -> Vec<RedundantComputation> {
     let mut out = Vec::new();
     for fu in cu.analysable_functions() {
-        out.extend(find_redundancies(registry, &fu.cfg, &fu.ssa, dialect));
+        out.extend(find_redundancies_for_function(registry, fu, dialect));
     }
     out
 }
@@ -1605,6 +1886,90 @@ pub fn find_loop_invariants_for_cu(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn function_level_gvn_declines_mapped_pure_calls_without_closed_world_facts() {
+        let registry = CommandRegistry::build_default();
+        let cu = crate::compilation_unit::CompilationUnit::build_for_dialect(
+            "llength {a b}\nllength {a b}",
+            &registry,
+            false,
+            "tcl8.6",
+        );
+        let function = &cu.top_level;
+
+        assert!(
+            !find_redundancies(&registry, &function.cfg, &function.ssa, Some("tcl8.6")).is_empty(),
+            "the legacy classifier recognises the registry pure trait"
+        );
+        assert!(
+            find_redundancies_for_function(&registry, function, Some("tcl8.6")).is_empty(),
+            "a mapped invocation without explicit closed world effects must fail closed"
+        );
+    }
+
+    #[test]
+    fn function_level_gvn_declines_without_a_selected_semantic_dialect() {
+        let registry = CommandRegistry::build_default();
+        let cu = crate::compilation_unit::CompilationUnit::build_for(
+            "llength {a b}\nllength {a b}",
+            &registry,
+            false,
+        );
+        let function = &cu.top_level;
+        let legacy = find_redundancies(&registry, &function.cfg, &function.ssa, None);
+        let sidecar = find_redundancies_for_function(&registry, function, None);
+        assert!(!legacy.is_empty());
+        assert!(
+            sidecar.is_empty(),
+            "production GVN must not fall back to command strings when semantic facts are unavailable"
+        );
+    }
+
+    #[test]
+    fn function_level_gvn_declines_unmapped_calls_inside_structured_source() {
+        let registry = CommandRegistry::build_default();
+        let cu = crate::compilation_unit::CompilationUnit::build_for_dialect(
+            "if {$flag} {\nllength {a b}\nllength {a b}\n}",
+            &registry,
+            false,
+            "tcl8.6",
+        );
+        let function = &cu.top_level;
+        assert!(
+            !find_redundancies(&registry, &function.cfg, &function.ssa, Some("tcl8.6")).is_empty(),
+            "the explicit legacy API still sees the nested string-classified calls"
+        );
+        assert!(
+            find_redundancies_for_function(&registry, function, Some("tcl8.6")).is_empty(),
+            "opaque structured source sites have no exact invocation mapping and must abstain"
+        );
+    }
+
+    #[test]
+    fn function_level_gvn_accepts_exact_mapped_registry_pure_call() {
+        let mut registry = CommandRegistry::build_default();
+        registry.insert(tcl_registry::CommandSpec {
+            name: "test::pure_cse",
+            traits: Traits::PURE | Traits::CSE_CANDIDATE,
+            world_effects: Some(tcl_registry::WorldEffectDescriptor::EMPTY),
+            state_transitions: Some(tcl_registry::StateTransitionDescriptor::EMPTY),
+            ..tcl_registry::CommandSpec::DEFAULT
+        });
+        let cu = crate::compilation_unit::CompilationUnit::build_for_dialect(
+            "test::pure_cse value\ntest::pure_cse value",
+            &registry,
+            false,
+            "tcl8.6",
+        );
+        assert!(matches!(
+            cu.top_level.semantic_facts.executable(),
+            ExecutableAnalysisAvailability::Available(_)
+        ));
+        let redundancies = find_redundancies_for_function(&registry, &cu.top_level, Some("tcl8.6"));
+        assert_eq!(redundancies.len(), 1);
+        assert_eq!(redundancies[0].expression_text, "test::pure_cse value");
+    }
 
     fn entry(key: &[&str], block: &str, idx: usize) -> ValueEntry {
         let key_owned: ExprKey = key.iter().map(|s| (*s).into()).collect();
@@ -3001,17 +3366,22 @@ mod tests {
         assert_eq!(occ.variable_uses, vec!["x".to_string()]);
     }
 
-    /// The expression texts of every redundancy `find_redundancies_for_cu`
-    /// reports for `src` (top-level + procs).
-    fn redundancies(src: &str) -> Vec<String> {
+    /// Exercise the explicitly legacy CFG-only classifier. Production
+    /// [`FunctionUnit`](crate::compilation_unit::FunctionUnit) GVN deliberately
+    /// does not scan embedded source strings when no exact semantic node exists.
+    fn legacy_redundancies(src: &str) -> Vec<String> {
         use crate::compilation_unit::CompilationUnit;
         let registry = CommandRegistry::build_default();
         let cu =
             CompilationUnit::build_for(src, &registry, false).with_interprocedural(&registry, None);
-        let mut out: Vec<String> = find_redundancies_for_cu(&cu, &registry, None)
-            .into_iter()
-            .map(|r| r.expression_text)
-            .collect();
+        let mut out = Vec::new();
+        for function in cu.analysable_functions() {
+            out.extend(
+                find_redundancies(&registry, &function.cfg, &function.ssa, None)
+                    .into_iter()
+                    .map(|redundancy| redundancy.expression_text),
+            );
+        }
         out.sort();
         out
     }
@@ -3023,14 +3393,14 @@ mod tests {
         // side-effect classification this was missed (the ensemble call
         // looked like an unknown-write).
         assert_eq!(
-            redundancies(
+            legacy_redundancies(
                 "proc f {a} { set x [string length $a]\n set y [string length $a]\n return [expr {$x + $y}] }"
             ),
             vec!["string length $a".to_string()],
         );
         // Likewise `dict get`.
         assert_eq!(
-            redundancies(
+            legacy_redundancies(
                 "proc f {d} { set a [dict get $d k]\n set b [dict get $d k]\n return [list $a $b] }"
             ),
             vec!["dict get $d k".to_string()],
@@ -3041,7 +3411,8 @@ mod tests {
     fn mutating_ensemble_subcommand_is_not_cse() {
         // `dict set` mutates — never a redundant-computation candidate.
         assert!(
-            redundancies("proc f {d} { dict set d k 1\n dict set d k 1\n return $d }").is_empty()
+            legacy_redundancies("proc f {d} { dict set d k 1\n dict set d k 1\n return $d }")
+                .is_empty()
         );
     }
 
@@ -3054,7 +3425,7 @@ mod tests {
         // falsely reported redundant. The two arms are mutually exclusive
         // paths — nothing is redundant.
         assert!(
-            redundancies(
+            legacy_redundancies(
                 "proc f {c lst} { if {$c} { set ::g 1\n set a [llength $lst] } else { set b [llength $lst] }\n return 1 }"
             )
             .is_empty(),
@@ -3068,7 +3439,7 @@ mod tests {
         // ordinary same-path redundancy detection — two identical pure
         // computations with nothing between them are still redundant.
         assert_eq!(
-            redundancies(
+            legacy_redundancies(
                 "proc f {lst} { set a [llength $lst]\n set b [llength $lst]\n return [list $a $b] }"
             ),
             vec!["llength $lst".to_string()],

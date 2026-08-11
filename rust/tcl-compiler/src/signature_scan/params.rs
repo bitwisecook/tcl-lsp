@@ -28,6 +28,7 @@
 use std::borrow::Cow;
 
 use tcl_lexer::backslash_subst;
+use tcl_syntax::formal_params::{FormalParameter, FormalParameterError, parse_formal_parameters};
 use tcl_syntax::list::{find_element, join_list, split_list};
 
 use super::types::ParamDef;
@@ -176,6 +177,20 @@ pub fn bind_proc_formals(
         bound.push(("args".to_owned(), packed));
     }
     Some(bound)
+}
+
+/// Parse a complete parameter list with Tcl's strict execution semantics.
+///
+/// Unlike [`parse_param_list`], this rejects malformed lists, invalid formal
+/// names, and parameter specifiers with other than one or two fields.  The
+/// lenient API deliberately remains separate so incomplete editor buffers can
+/// still contribute signature and name information.  Defaults returned here
+/// are decoded Tcl list values rather than source-preserving display text.
+pub fn parse_param_list_strict(
+    param_str: &str,
+) -> Result<Vec<FormalParameter>, FormalParameterError> {
+    let collapsed = collapse_line_continuations(param_str);
+    parse_formal_parameters(&collapsed)
 }
 
 /// Turn one parameter *spec* (a list element value, delimiters already
@@ -688,6 +703,24 @@ mod tests {
         let params = parse_param_list("a {b");
         let names: Vec<&str> = params.iter().map(|p| p.name.as_str()).collect();
         assert_eq!(names, vec!["a", "b"]);
+    }
+
+    #[test]
+    fn strict_parser_rejects_runtime_invalid_names_but_lenient_parser_recovers() {
+        let strict = parse_param_list_strict("a {b::c default}");
+        assert!(matches!(
+            strict,
+            Err(FormalParameterError::NotSimpleName { ref name }) if name == "b::c"
+        ));
+
+        let lenient = parse_param_list("a {b::c default}");
+        assert_eq!(
+            lenient
+                .iter()
+                .map(|param| param.name.as_str())
+                .collect::<Vec<_>>(),
+            vec!["a", "b::c"]
+        );
     }
 
     #[test]

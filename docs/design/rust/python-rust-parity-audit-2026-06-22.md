@@ -103,9 +103,11 @@ tk's one extra command. Nothing else is dropped.
 Python models many capabilities as individual `CommandSpec` booleans
 (`creates_dynamic_barrier`, `evaluates_code`, `opens_channel`, `byte_compiled`,
 `not_proc_factory`, `frameless_runtime`, `diagram_action`,
-`warn_without_terminator`, `wasm_emits_nothing`, …); Rust consolidates them into
-a `Traits` bitfield plus typed fields. **Every Python flag has a Rust home** — the
-obvious ones map 1:1 to `Traits` bits (`CREATES_BARRIER`, `EVALUATES_CODE`,
+`warn_without_terminator`, …); Rust consolidates target-neutral properties into
+a `Traits` bitfield plus typed fields. Backend-specific emission flags are
+intentionally excluded: emission is a property of a selected backend region,
+not a Tcl command. The remaining Python flags have a Rust home — the obvious
+ones map 1:1 to `Traits` bits (`CREATES_BARRIER`, `EVALUATES_CODE`,
 `OPENS_CHANNEL`, …), and the rest resolve to `command_snapshot.rs` / `registry.rs`
 fields and query methods (`is_byte_compiled`, `is_not_proc_factory`,
 `is_diagram_action`, …). Rust is additionally **richer**: it adds `Traits` bits

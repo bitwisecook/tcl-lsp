@@ -20,6 +20,48 @@
 
 use crate::hooks::{CodegenHookId, LoweringHookId};
 use crate::prelude::*;
+use crate::state_transition::local_alias_name;
+
+const GLOBAL_TRANSITION_DOMAINS: &[StateTransitionDomain] = &[
+    StateTransitionDomain::VariableCells,
+    StateTransitionDomain::Namespaces,
+    StateTransitionDomain::VariableTraces,
+];
+
+const GLOBAL_EFFECT_COVERAGE: &[TransitionEffectCoverage] = &[TransitionEffectCoverage {
+    source: WorldEffectWriteSource::LegacySideEffect(SideEffectTarget::Variable),
+    domains: &[WorldStateDomain::VariableStore],
+}];
+
+const GLOBAL_TRANSITIONS: StateTransitionDescriptor = StateTransitionDescriptor {
+    composition: StateTransitionComposition::Extend,
+    resolver: Some(global_state_transitions),
+    argument_shape: StateTransitionArgumentShape::Independent,
+    dynamic_widening: &[StateTransitionWideningRule {
+        operands: StateTransitionOperandLayout::EveryArgument,
+        domains: GLOBAL_TRANSITION_DOMAINS,
+    }],
+    effect_coverage: GLOBAL_EFFECT_COVERAGE,
+    // Each alias is installed in turn, so a later argument may fail after a
+    // preceding link has become observable.
+    commit: StateTransitionCommit::MayCommitBeforeAbruptCompletion,
+};
+
+fn global_state_transitions(arguments: InvocationArguments<'_>) -> StateTransitions {
+    let mut transitions = StateTransitions::default();
+    for argument_index in 0..arguments.len() {
+        let Some(variable) = TransitionSubject::from_argument(arguments, argument_index) else {
+            continue;
+        };
+        transitions.push(StateTransition::VariableCellAlias(
+            VariableCellAliasTransition {
+                local: local_alias_name(&variable),
+                target: VariableAliasTarget::Global { variable },
+            },
+        ));
+    }
+    transitions
+}
 
 const FORMS: &[FormSpec] = &[
     // Tcl 8.6 dropped the `Tcl_WrongNumArgs` check that `Tcl_GlobalObjCmd`
@@ -110,6 +152,8 @@ pub fn spec() -> CommandSpec {
         codegen_hook: Some(CodegenHookId::Global),
         forms: FORMS,
         analyser_hook: Some(crate::hooks::AnalyserHookId::Global),
+        world_effects: Some(WorldEffectDescriptor::EMPTY),
+        state_transitions: Some(GLOBAL_TRANSITIONS),
         ..CommandSpec::DEFAULT
     }
 }

@@ -35,6 +35,7 @@ pub fn spec() -> CommandSpec {
         traits: Traits::FRAMELESS_RUNTIME
             | Traits::PURE
             | Traits::PRODUCES_CANONICAL_LIST
+            | Traits::EXPANSION_ESCAPE_SAFE
             | Traits::BYTE_COMPILED,
         arity: Arity::any(),
         return_type: Some(TclType::List),

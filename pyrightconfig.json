@@ -11,7 +11,13 @@
     "**/__pycache__",
     "**/node_modules",
     "**/.venv*",
-    "**/target"
+    "**/target",
+    "scripts/perf/corpus",
+    "scripts/perf/servers",
+    "scripts/perf/.stage",
+    "scripts/perf/.build",
+    "scripts/perf/ci-results",
+    "scripts/perf/ci-graphs"
   ],
   "stubPath": "typings",
   "venvPath": ".",

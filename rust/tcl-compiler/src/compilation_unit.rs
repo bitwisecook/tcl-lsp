@@ -32,6 +32,7 @@ use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
 use std::sync::Arc;
 
 use tcl_registry::CommandRegistry;
+use tcl_registry::dialects::DialectSet;
 
 use crate::cfg::{CfgModule, Function as CfgFunction};
 use crate::cfg_builder::build_cfg;
@@ -41,6 +42,7 @@ use crate::ir::Module as IrModule;
 use crate::memory_ssa::{MemorySsaFunction, build_memory_ssa};
 use crate::rendered_properties::{RenderedValueProps, propagate_rendered_props};
 use crate::sccp::{SccpResult, sccp_with_extra_escaping};
+use crate::semantic_analysis::SemanticAnalysisBundle;
 use crate::ssa::{SsaFunction, ValueKey, build_ssa};
 use crate::taint::{TaintGraph, TaintLattice, propagate_taints};
 use crate::type_infer::propagate_types;
@@ -326,6 +328,13 @@ pub struct FunctionUnit {
     /// an `Arc` like the other shared lattices — the analyser and optimiser
     /// consumers read it many times per unit.
     pub method_facts: Option<Arc<MethodBodyFacts>>,
+    /// Target-neutral executable/world semantic facts for this function.
+    ///
+    /// The sidecar records an explicit availability or decline when the
+    /// current linear executable-IR compatibility layer cannot faithfully
+    /// represent this source shape. Scalar SSA remains [`Self::ssa`] and the
+    /// optional alias-aware cell SSA remains [`Self::memory_ssa`].
+    pub semantic_facts: SemanticAnalysisBundle,
 }
 
 /// Whole-module variable-trace fact that [`crate::sccp::sccp`] needs —
@@ -671,6 +680,7 @@ impl FunctionUnit {
             complexity_guarded: false,
             base_offset: 0,
             method_facts: None,
+            semantic_facts: SemanticAnalysisBundle::unavailable(DialectSet::empty()),
         }
     }
 
@@ -698,6 +708,7 @@ impl FunctionUnit {
             complexity_guarded: true,
             base_offset: 0,
             method_facts: None,
+            semantic_facts: SemanticAnalysisBundle::unavailable(DialectSet::empty()),
         }
     }
 
@@ -730,10 +741,37 @@ impl FunctionUnit {
         u32::try_from((i64::from(pos) + self.base_offset).max(0)).unwrap_or(u32::MAX)
     }
 
-    /// Populate memory-SSA on demand. Returns `self` for chaining.
+    /// Populate memory-SSA on demand under `dialect`. Returns `self` for
+    /// chaining.
     #[must_use]
-    pub fn with_memory_ssa(mut self, registry: &tcl_registry::CommandRegistry) -> Self {
-        self.memory_ssa = Some(build_memory_ssa(&self.ssa, registry));
+    pub fn with_memory_ssa(
+        mut self,
+        registry: &tcl_registry::CommandRegistry,
+        dialect: DialectSet,
+    ) -> Self {
+        self.memory_ssa = Some(build_memory_ssa(&self.ssa, registry, dialect));
+        self
+    }
+
+    /// Attach source-faithful, target-neutral semantic facts under an
+    /// explicitly selected dialect.
+    ///
+    /// A missing source script remains an explicit unavailable state. A
+    /// structured source shape outside the executable compatibility subset is
+    /// retained as a typed decline, never converted into guessed facts.
+    #[must_use]
+    pub fn with_semantic_analysis(
+        mut self,
+        registry: &CommandRegistry,
+        dialect: DialectSet,
+        script: Option<&crate::ir::Script>,
+    ) -> Self {
+        self.semantic_facts = script.map_or_else(
+            || SemanticAnalysisBundle::unavailable(dialect),
+            |script| {
+                SemanticAnalysisBundle::build_for_interactive_analysis(registry, dialect, script)
+            },
+        );
         self
     }
 
@@ -1086,7 +1124,7 @@ fn build_procedure_units(
             }
             _ => None,
         };
-        let fu = memoised.unwrap_or_else(|| {
+        let mut fu = memoised.unwrap_or_else(|| {
             FunctionUnit::build_with_param_constants_and_classes(
                 qname,
                 cfg.clone(),
@@ -1097,6 +1135,16 @@ fn build_procedure_units(
                 ctx.trace_facts,
             )
         });
+        // A memoised unit carries an offset-0 executable sidecar. Rebuild the
+        // source-bearing portion after the normal CFG/SSA rebase so retained
+        // word and provenance spans match this procedure's real source
+        // position. Structural node identities and registry facts remain
+        // position-independent; only source coordinates are refreshed.
+        fu = fu.with_semantic_analysis(
+            ctx.registry,
+            DialectSet::parse(ctx.dialect).unwrap_or_else(DialectSet::empty),
+            proc.map(|procedure| &procedure.body),
+        );
         procedures.insert(qname.clone(), fu);
     }
     BuiltProcedureUnits {
@@ -1293,13 +1341,15 @@ impl CompilationUnit {
             traced_variables: &ir_module.traced_variables,
             has_dynamic_variable_trace: ir_module.has_dynamic_variable_trace,
         };
+        let semantic_dialect = DialectSet::parse(dialect).unwrap_or_else(DialectSet::empty);
         let top_level = FunctionUnit::build_top_level(
             cfg_module.top_level.clone(),
             registry,
             &known_class_set,
             &top_level_extra_escaping,
             trace_facts,
-        );
+        )
+        .with_semantic_analysis(registry, semantic_dialect, Some(&ir_module.top_level));
         let built = build_procedure_units(
             &ProcedureBuildContext {
                 ir_module: &ir_module,
@@ -1323,6 +1373,7 @@ impl CompilationUnit {
             &known_class_set,
             registry,
             trace_facts,
+            semantic_dialect,
         );
         let body_units = Self::build_body_units(
             &ir_module,
@@ -1330,6 +1381,7 @@ impl CompilationUnit {
             &known_class_set,
             registry,
             trace_facts,
+            semantic_dialect,
         );
         // Build the cross-event scope from the
         // ``::when::*`` subset of procedures.  ``None`` when no
@@ -1379,6 +1431,7 @@ impl CompilationUnit {
         known_class_set: &HashSet<String>,
         registry: &CommandRegistry,
         trace_facts: ModuleTraceFacts<'_>,
+        semantic_dialect: DialectSet,
     ) -> HashMap<String, FunctionUnit> {
         if ir_module.methods.is_empty() {
             return HashMap::new();
@@ -1444,7 +1497,12 @@ impl CompilationUnit {
                         known_class_set,
                         trace_facts,
                     )
-                };
+                }
+                .with_semantic_analysis(
+                    registry,
+                    semantic_dialect,
+                    Some(&method.body),
+                );
                 (mqname.clone(), fu)
             })
             .collect()
@@ -1468,6 +1526,7 @@ impl CompilationUnit {
         known_class_set: &HashSet<String>,
         registry: &CommandRegistry,
         trace_facts: ModuleTraceFacts<'_>,
+        semantic_dialect: DialectSet,
     ) -> HashMap<String, FunctionUnit> {
         if ir_module.body_units.is_empty() {
             return HashMap::new();
@@ -1502,7 +1561,12 @@ impl CompilationUnit {
                         known_class_set,
                         trace_facts,
                     )
-                };
+                }
+                .with_semantic_analysis(
+                    registry,
+                    semantic_dialect,
+                    Some(&proc.body),
+                );
                 (qname.clone(), fu)
             })
             .collect()
@@ -1674,13 +1738,18 @@ impl CompilationUnit {
         self
     }
 
-    /// Populate memory-SSA on the top-level and every procedure.
+    /// Populate memory-SSA on the top-level and every procedure under
+    /// `dialect`.
     #[must_use]
-    pub fn with_memory_ssa(mut self, registry: &tcl_registry::CommandRegistry) -> Self {
-        self.top_level = self.top_level.with_memory_ssa(registry);
+    pub fn with_memory_ssa(
+        mut self,
+        registry: &tcl_registry::CommandRegistry,
+        dialect: DialectSet,
+    ) -> Self {
+        self.top_level = self.top_level.with_memory_ssa(registry, dialect);
         let mut out: HashMap<String, FunctionUnit> = HashMap::with_capacity(self.procedures.len());
         for (k, fu) in self.procedures.drain() {
-            out.insert(k, fu.with_memory_ssa(registry));
+            out.insert(k, fu.with_memory_ssa(registry, dialect));
         }
         self.procedures = out;
         self
@@ -2293,9 +2362,52 @@ mod tests {
 
     #[test]
     fn with_memory_ssa_populates_optional() {
-        let cu =
-            CompilationUnit::build_for("set x 1", &registry(), false).with_memory_ssa(&registry());
+        let cu = CompilationUnit::build_for("set x 1", &registry(), false)
+            .with_memory_ssa(&registry(), DialectSet::TCL86);
         assert!(cu.top_level.memory_ssa.is_some());
+    }
+
+    #[test]
+    fn semantic_bundle_keeps_dialect_and_defers_unneeded_world_state() {
+        let linear = CompilationUnit::build_for_dialect("puts hello", &registry(), false, "tcl8.6");
+        let facts = &linear.top_level.semantic_facts;
+        assert_eq!(facts.dialect(), DialectSet::TCL86);
+        let executable = facts.executable();
+        assert_eq!(executable.invocations().count(), 1);
+        assert!(executable.world_state_ssa().is_none());
+        assert!(matches!(
+            executable,
+            crate::semantic_analysis::ExecutableAnalysisAvailability::WorldStateNotRequired { .. }
+        ));
+        assert_eq!(executable.completion_inputs().count(), 1);
+        assert_eq!(executable.effect_inputs().count(), 1);
+
+        let structured = CompilationUnit::build_for_dialect(
+            "if {1} { puts hello }",
+            &registry(),
+            false,
+            "tcl8.6",
+        );
+        let structured = structured.top_level.semantic_facts.executable();
+        assert!(structured.function().is_some());
+        assert_eq!(structured.opaque_regions().count(), 1);
+        assert!(structured.world_state_ssa().is_none());
+
+        let ir = crate::lowering::lower_to_ir("puts hello", &registry());
+        let explicit = crate::semantic_analysis::SemanticAnalysisBundle::build(
+            &registry(),
+            DialectSet::TCL86,
+            &ir.top_level,
+        );
+        assert!(explicit.executable().world_state_ssa().is_some());
+
+        let legacy = CompilationUnit::build_for("puts hello", &registry(), false);
+        assert!(matches!(
+            legacy.top_level.semantic_facts.executable(),
+            crate::semantic_analysis::ExecutableAnalysisAvailability::DialectUnavailable {
+                dialect
+            } if *dialect == DialectSet::empty()
+        ));
     }
 
     #[test]

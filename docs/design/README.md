@@ -167,6 +167,11 @@ See [compiler/README.md](compiler/README.md) for the compiler design-doc
 index — pipeline stages, analyses, codegen, optimisation passes, and
 ownership matrices.
 
+The target-independent implementation contract is
+[common-semantic-compiler.md](compiler/common-semantic-compiler.md). It defines
+the common semantic IR and analyses consumed by the LSP, TclVM, WASM, eBPF, and
+future native or accelerator target families.
+
 ## Runtime internals
 
 - [runtime/namespace-tree.md](runtime/namespace-tree.md) — design for

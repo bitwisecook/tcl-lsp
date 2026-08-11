@@ -730,7 +730,6 @@ fn enum_type_name(catalogue: &str) -> &'static str {
         "loweringHook" => "LoweringHookId",
         "codegenHook" => "CodegenHookId",
         "inlineCodegenHook" => "InlineCodegenHookId",
-        "wasmCodegenHook" => "WasmCodegenHookId",
         "analyserHook" => "AnalyserHookId",
         "traits" => "Traits",
         "taintColour" => "TaintColour",

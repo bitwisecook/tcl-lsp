@@ -32,7 +32,7 @@
 #![allow(clippy::not_unsafe_ptr_arg_deref)]
 
 use crate::dict;
-use crate::interp::{drop_fresh, new_string, obj_bytes, Code, Interp};
+use crate::interp::{Code, Interp, drop_fresh, new_string, obj_bytes};
 use crate::obj::{self, TclObj};
 
 /// Register `catch`, `error`, `try`, and `throw`.
@@ -75,7 +75,7 @@ fn catch_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         }
     }
     if let Some(&ov) = argv.get(3) {
-        let opts = build_options(interp, code); // rc 0
+        let opts = completion_options(interp, code); // rc 0
         let name = obj_bytes(ov);
         if interp.var_set(&name, opts).is_err() {
             drop_fresh(opts);
@@ -99,10 +99,14 @@ fn cant_set(interp: &mut Interp, name: &[u8]) -> Code {
     interp.set_error(&m)
 }
 
-/// Build `catch`'s `-options` dict: `-code N -level 0` (+ `-errorcode`/
-/// `-errorinfo` from the live error accumulator on an error). Returns a fresh
-/// (`rc 0`) dict.
-fn build_options(interp: &mut Interp, code: Code) -> *mut TclObj {
+/// Build a completion's return-options dict from the live interpreter state.
+///
+/// This is the one implementation used by `catch`, `try`, and the shared
+/// [`tcl_runtime_api::Completion`] adapter. It returns a fresh (`rc 0`) dict
+/// containing `-code` and `-level`, plus the live error state when applicable.
+/// A caller that exports the dict across an ABI must take an owning reference
+/// before returning it.
+pub(crate) fn completion_options(interp: &mut Interp, code: Code) -> *mut TclObj {
     // A body that completed via `return` propagates the return's *own* requested
     // options (`-code C -level L`), not the settled `RETURN`(2)/level-0 — what
     // `catch`'s options dict and TIP 329 `-during` chaining record
@@ -346,7 +350,7 @@ fn try_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         // (before it is published+reset). It is bound to the handler's optionsVar
         // and reused as the `-during` chain link if the handler itself throws
         // (TIP 329 exception chaining). Retained for the duration of the handler.
-        let body_opts = build_options(interp, body_code);
+        let body_opts = completion_options(interp, body_code);
         // SAFETY: keep `body_opts` alive across the handler eval / var binding.
         unsafe { obj::incr_ref_count(body_opts) };
         // Bind the running clause's variables: [resultVar ?optionsVar?]. A failed
@@ -382,7 +386,7 @@ fn try_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         // Capture the options that would propagate from the body/handler stage
         // (carrying any `-during` already chained) in case `finally` throws and
         // must chain them in turn.
-        let prior_opts = build_options(interp, outcome_code);
+        let prior_opts = completion_options(interp, outcome_code);
         // SAFETY: keep `prior_opts` alive across the finally eval.
         unsafe { obj::incr_ref_count(prior_opts) };
         let fc = interp.eval_control_body(fin);

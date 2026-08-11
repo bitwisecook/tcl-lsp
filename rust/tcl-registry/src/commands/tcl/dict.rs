@@ -104,6 +104,7 @@ const FILTER_TYPE_VALUES: &[ArgValue] = &[
 static SUBCOMMANDS: &[SubCommand] = &[
     SubCommand {
         name: "append",
+        semantic_operation: Some(SemanticOperationId::Intrinsic(IntrinsicId::DictAppend)),
         arity: Arity::at_least(2),
         detail: "Append to a value in a dictionary.",
         synopsis: "dict append dictionaryVariable key ?string ...?",
@@ -207,6 +208,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
     },
     SubCommand {
         name: "get",
+        semantic_operation: Some(SemanticOperationId::Intrinsic(IntrinsicId::DictGet)),
         const_fold: Some(crate::const_fold::fold_dict_get),
         inline_codegen_hook: Some(InlineCodegenHookId::DictGet),
         arity: Arity::at_least(1),
@@ -229,6 +231,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
     },
     SubCommand {
         name: "incr",
+        semantic_operation: Some(SemanticOperationId::Intrinsic(IntrinsicId::DictIncr)),
         arity: Arity::new(2, 3),
         detail: "Increment a value in a dictionary.",
         synopsis: "dict incr dictionaryVariable key ?increment?",
@@ -266,6 +269,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
     },
     SubCommand {
         name: "lappend",
+        semantic_operation: Some(SemanticOperationId::Intrinsic(IntrinsicId::DictListAppend)),
         arity: Arity::at_least(2),
         detail: "Append list elements to a dictionary value.",
         synopsis: "dict lappend dictionaryVariable key ?value ...?",
@@ -355,6 +359,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
     },
     SubCommand {
         name: "set",
+        semantic_operation: Some(SemanticOperationId::Intrinsic(IntrinsicId::DictSet)),
         arity: Arity::at_least(3),
         detail: "Set a value in a dictionary.",
         synopsis: "dict set dictionaryVariable key ?key ...? value",
@@ -393,6 +398,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
     },
     SubCommand {
         name: "unset",
+        semantic_operation: Some(SemanticOperationId::Intrinsic(IntrinsicId::DictUnset)),
         traits: Traits::FIRE_AND_FORGET_TEARDOWN,
         arity: Arity::at_least(2),
         detail: "Remove keys from a dictionary variable.",

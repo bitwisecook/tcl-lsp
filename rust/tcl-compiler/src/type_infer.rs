@@ -931,14 +931,14 @@ fn value_word_type<S: std::hash::BuildHasher>(
         // `[dict get $d k]` retrieves the container's tracked element shape
         // (subsuming the old object-only collection retrieval — an
         // `Object(class)` element shape IS the `OBJECT(class)` result).
-        if let Some(resolved) = ctx
-            .registry
-            .resolve_call(&cmd, &arg_refs, DialectSet::empty())
-            && let Some(fact) = resolved.return_elements()
+        if let Some(resolved) =
+            ctx.registry
+                .resolve_invocation(&cmd, &arg_refs, DialectSet::empty())
+            && let Some(fact) = resolved.semantics.return_elements
         {
             // The fact's indices are relative to after the subcommand word
             // when one matched (`dict get $d k` counts from `$d`).
-            let elem_args = if resolved.sub.is_some() {
+            let elem_args = if resolved.subcommand.is_resolved() {
                 arg_refs.get(1..).unwrap_or(&[])
             } else {
                 &arg_refs[..]
@@ -1037,7 +1037,7 @@ fn evaluate_type_def<S: std::hash::BuildHasher>(
 
             let resolved = ctx
                 .registry
-                .resolve_call(canon, &arg_refs, DialectSet::empty());
+                .resolve_invocation(canon, &arg_refs, DialectSet::empty());
 
             // An in-place element write (`lappend VAR v…`, `dict set VAR … v`)
             // evolves the target's container elements — the registry's
@@ -1045,9 +1045,13 @@ fn evaluate_type_def<S: std::hash::BuildHasher>(
             // element-class harvesting to every element shape.
             if let Some(effect) = resolved
                 .as_ref()
-                .and_then(tcl_registry::ResolvedCall::var_elements_effect)
+                .and_then(|resolved| resolved.semantics.var_elements_effect)
             {
-                let base = usize::from(resolved.as_ref().is_some_and(|r| r.sub.is_some()));
+                let base = usize::from(
+                    resolved
+                        .as_ref()
+                        .is_some_and(|resolved| resolved.subcommand.is_resolved()),
+                );
                 if let Some(target) = arg_refs.get(base) {
                     return DefTyping::Uniform(var_elements_effect_lattice(
                         ctx, effect, target, &arg_refs, base,
@@ -1066,10 +1070,11 @@ fn evaluate_type_def<S: std::hash::BuildHasher>(
             // the source spelling, so an aliased / renamed destructuring
             // writer (`rename lassign mylassign`) still resolves to the real
             // command's `VarWriteTyping` (FP-SH-15).
-            let typing = resolved.as_ref().map_or(
-                VarWriteTyping::ReturnValue,
-                tcl_registry::ResolvedCall::var_write_typing,
-            );
+            let typing = resolved
+                .as_ref()
+                .map_or(VarWriteTyping::ReturnValue, |resolved| {
+                    resolved.semantics.var_write_typing
+                });
             match typing {
                 // The default typing stores the command's *return value* in the
                 // target — meaningful only for a single-target writer (`append`,

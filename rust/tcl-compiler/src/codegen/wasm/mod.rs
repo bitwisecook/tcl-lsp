@@ -33,13 +33,23 @@
 
 pub mod backend;
 mod encoding;
+mod executable;
 mod ir;
+mod pipeline;
 
 pub use backend::{
     RESERVED_DATA_BASE, wasm_codegen_compilation_unit, wasm_codegen_compilation_unit_based,
     wasm_codegen_module, wasm_codegen_module_based, wasm_codegen_module_standalone,
     wasm_codegen_module_standalone_init,
 };
+pub use executable::{
+    WasmExecutableInvokeDecline, WasmGenericInvokePlan, WasmStageProof,
+    emit_wasm_generic_invoke_at, plan_wasm_generic_invoke_named,
+};
 pub use ir::{
     SectionId, ValType, WasmData, WasmFunction, WasmImport, WasmInstruction, WasmModule, WasmOp,
+};
+pub use pipeline::{
+    LiteralSafeWasmDecline, LiteralSafeWasmOptions, LiteralSafeWasmOutput,
+    compile_literal_safe_wasm,
 };

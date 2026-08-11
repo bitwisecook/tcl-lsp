@@ -40,8 +40,8 @@
 
 use tcl_cmd_core::trace as core_trace;
 
-use crate::frame::split_array_ref;
-use crate::interp::{new_string, obj_bytes, Code, Interp};
+use crate::frame::{VarError, split_array_ref};
+use crate::interp::{Code, Interp, new_string, obj_bytes};
 use crate::namespace::NsId;
 use crate::obj::TclObj;
 
@@ -114,7 +114,26 @@ pub struct StepActive {
     pub command: Vec<u8>,
 }
 
-/// The interp's trace registries plus a re-entrancy guard.
+/// The resolved variable-cell identity used for the callback re-entrancy rule.
+/// An array's element traces share their base cell, as Tcl does.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct VarTraceScope {
+    base: Vec<u8>,
+    frame_level: Option<usize>,
+    ns: Option<NsId>,
+}
+
+impl VarTrace {
+    pub(crate) fn scope(&self) -> VarTraceScope {
+        VarTraceScope {
+            base: self.base.clone(),
+            frame_level: self.frame_level,
+            ns: self.ns,
+        }
+    }
+}
+
+/// The interp's trace registries plus per-variable re-entrancy state.
 #[derive(Default)]
 pub struct TraceTable {
     pub traces: Vec<VarTrace>,
@@ -122,10 +141,9 @@ pub struct TraceTable {
     pub cmd_traces: Vec<CmdTrace>,
     /// Live interp-wide step traces (see [`StepActive`]).
     pub step_active: Vec<StepActive>,
-    /// Non-zero while traces are firing — suppresses re-entrant firing so a
-    /// trace that touches its own variable doesn't recurse (Tcl marks the
-    /// active trace; a global guard is a safe coarsening).
-    pub firing: usize,
+    /// Variable cells whose trace callbacks are currently running. Other
+    /// variables remain traceable from within a callback.
+    pub active_var_scopes: Vec<VarTraceScope>,
     /// Non-zero while a command/execution trace callback is running — C's
     /// `INTERP_TRACE_IN_PROGRESS`. Suppresses re-entrant command/execution/step
     /// firing so a callback that renames/invokes the traced command doesn't
@@ -183,39 +201,21 @@ fn bad_option(interp: &mut Interp, bad: &[u8], must_be: &[u8]) -> Code {
     interp.set_error(&m)
 }
 
-/// The three trace kinds, after resolving a (possibly abbreviated) type word.
-#[derive(Clone, Copy)]
-enum TraceType {
-    Variable,
-    Command,
-    Execution,
-}
-
-/// Resolve a `trace add|remove|info` type word by unambiguous prefix, matching
-/// C's `Tcl_GetIndexFromObj` (`var` → `variable`, `comm` → `command`, `exec` →
-/// `execution`). An exact match wins; an empty or ambiguous prefix is `None`.
-fn resolve_trace_type(arg: &[u8]) -> Option<TraceType> {
-    let table = [
-        (&b"execution"[..], TraceType::Execution),
-        (&b"command"[..], TraceType::Command),
-        (&b"variable"[..], TraceType::Variable),
-    ];
-    if let Some((_, ty)) = table.iter().find(|(name, _)| *name == arg) {
-        return Some(*ty);
-    }
-    if arg.is_empty() {
-        return None;
-    }
-    let mut hit = None;
-    for (name, ty) in &table {
-        if name.starts_with(arg) {
-            if hit.is_some() {
-                return None; // ambiguous prefix
-            }
-            hit = Some(*ty);
-        }
-    }
-    hit
+/// The variable resolver supplies the reason, while `trace` owns the command
+/// verb in its diagnostic (`can't trace`, not the usual `can't set`).
+fn trace_var_error(interp: &mut Interp, name: &[u8], error: VarError) -> Code {
+    let reason = match error {
+        VarError::IsScalar => b"variable isn't array".as_slice(),
+        VarError::IsArray => b"variable is array".as_slice(),
+        VarError::NoSuchNamespace => b"parent namespace doesn't exist".as_slice(),
+        VarError::IsConstant => b"variable is a constant".as_slice(),
+        VarError::TraceError => b"trace callback failed".as_slice(),
+    };
+    let mut message = b"can't trace \"".to_vec();
+    message.extend_from_slice(name);
+    message.extend_from_slice(b"\": ");
+    message.extend_from_slice(reason);
+    interp.set_error(&message)
 }
 
 fn trace_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
@@ -234,19 +234,15 @@ fn trace_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
                 });
             }
             let ty = obj_bytes(argv[2]);
-            match resolve_trace_type(&ty) {
-                Some(TraceType::Variable) => trace_var_add_remove(interp, argv, is_add),
-                Some(TraceType::Command) => {
+            match core_trace::resolve_type(&String::from_utf8_lossy(&ty)) {
+                Ok(core_trace::TraceKind::Variable) => trace_var_add_remove(interp, argv, is_add),
+                Ok(core_trace::TraceKind::Command) => {
                     cmd_trace_add_remove(interp, argv, is_add, ops::CMD_ANY)
                 }
-                Some(TraceType::Execution) => {
+                Ok(core_trace::TraceKind::Execution) => {
                     cmd_trace_add_remove(interp, argv, is_add, ops::EXEC_ANY)
                 }
-                None => interp.set_error(
-                    core_trace::bad_type_error(&String::from_utf8_lossy(&ty))
-                        .message()
-                        .as_bytes(),
-                ),
+                Err(e) => interp.set_error(e.message().as_bytes()),
             }
         }
         b"info" => {
@@ -254,15 +250,11 @@ fn trace_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
                 return interp.wrong_args(b"trace info type name");
             }
             let ty = obj_bytes(argv[2]);
-            match resolve_trace_type(&ty) {
-                Some(TraceType::Variable) => trace_var_info(interp, argv),
-                Some(TraceType::Command) => cmd_trace_info(interp, argv, ops::CMD_ANY),
-                Some(TraceType::Execution) => cmd_trace_info(interp, argv, ops::EXEC_ANY),
-                None => interp.set_error(
-                    core_trace::bad_type_error(&String::from_utf8_lossy(&ty))
-                        .message()
-                        .as_bytes(),
-                ),
+            match core_trace::resolve_type(&String::from_utf8_lossy(&ty)) {
+                Ok(core_trace::TraceKind::Variable) => trace_var_info(interp, argv),
+                Ok(core_trace::TraceKind::Command) => cmd_trace_info(interp, argv, ops::CMD_ANY),
+                Ok(core_trace::TraceKind::Execution) => cmd_trace_info(interp, argv, ops::EXEC_ANY),
+                Err(e) => interp.set_error(e.message().as_bytes()),
             }
         }
         other => bad_option(interp, other, b"add, info, or remove"),
@@ -441,11 +433,13 @@ fn trace_var_add_remove(interp: &mut Interp, argv: &[*mut TclObj], is_add: bool)
         // a later read of a missing element reports "no such element in array"
         // rather than "no such variable", and whole-array semantics apply
         // (trace-1.4/1.8/5.x). Tracing an element of an existing *scalar* errors.
-        if elem.is_some() && interp.ensure_array(&base).is_err() {
-            let mut m = b"can't trace \"".to_vec();
-            m.extend_from_slice(&name);
-            m.extend_from_slice(b"\": variable isn't array");
-            return interp.set_error(&m);
+        let vivify = if elem.is_some() {
+            interp.ensure_array(&base)
+        } else {
+            interp.ensure_trace_variable(&base)
+        };
+        if let Err(e) = vivify {
+            return trace_var_error(interp, &name, e);
         }
         let frame_level = interp.local_trace_level(&base);
         // Key the trace by the variable it *resolves to*, not by the spelling
@@ -584,6 +578,71 @@ mod tests {
     }
 
     #[test]
+    fn trace_registration_vivifies_only_on_add_and_uses_canonical_sets() {
+        leak_free(|i| {
+            ok(i, b"proc cb args {}");
+            // A scalar registration creates Tcl's unset Var, not an empty
+            // value. Its callback is not invoked during registration.
+            ok(i, b"trace add variable fresh {write read write} cb");
+            assert_eq!(ok(i, b"info exists fresh"), b"0");
+            assert_eq!(ok(i, b"trace info variable fresh"), b"{{read write} cb}");
+
+            // Identical registrations are distinct; removal consumes exactly
+            // one first match and does not materialise a missing variable.
+            ok(i, b"trace add variable fresh {read write} cb");
+            ok(i, b"trace remove variable fresh {write read} cb");
+            assert_eq!(ok(i, b"trace info variable fresh"), b"{{read write} cb}");
+            ok(i, b"trace remove variable absent read cb");
+            assert_eq!(ok(i, b"info exists absent"), b"0");
+
+            assert_eq!(
+                err(i, b"trace add {} fresh read cb"),
+                b"ambiguous option \"\": must be execution, command, or variable"
+            );
+            assert_eq!(
+                err(i, b"trace add variable ::missing::x read cb"),
+                b"can't trace \"::missing::x\": parent namespace doesn't exist"
+            );
+        });
+    }
+
+    #[test]
+    fn active_trace_does_not_suppress_an_unrelated_variable_trace() {
+        leak_free(|i| {
+            ok(i, b"set x 0");
+            ok(i, b"set y 0");
+            ok(i, b"set hits 0");
+            ok(i, b"proc x_cb args {global y; incr y}");
+            ok(i, b"proc y_cb args {global hits; incr hits}");
+            ok(i, b"trace add variable x write x_cb");
+            ok(i, b"trace add variable y write y_cb");
+            ok(i, b"set x 1");
+            assert_eq!(ok(i, b"set hits"), b"1");
+        });
+    }
+
+    #[test]
+    fn active_trace_suppresses_every_trace_on_its_variable_cell() {
+        leak_free(|i| {
+            ok(i, b"set x 0");
+            ok(i, b"set hits_one 0");
+            ok(i, b"set hits_two 0");
+            ok(
+                i,
+                b"proc one args {global hits_one x; incr hits_one; incr x}",
+            );
+            ok(i, b"proc two args {global hits_two; incr hits_two}");
+            ok(i, b"trace add variable x write one");
+            ok(i, b"trace add variable x write two");
+            ok(i, b"set x 1");
+            // The outer write invokes both registrations. The nested `incr x`
+            // sees the same active cell, so it invokes neither.
+            assert_eq!(ok(i, b"set hits_one"), b"1");
+            assert_eq!(ok(i, b"set hits_two"), b"1");
+        });
+    }
+
+    #[test]
     fn read_trace_fires() {
         leak_free(|i| {
             ok(i, b"set hits 0");
@@ -661,6 +720,10 @@ mod tests {
             );
             assert_eq!(
                 err(i, b"trace info command nosuch"),
+                b"unknown command \"nosuch\""
+            );
+            assert_eq!(
+                err(i, b"trace remove command nosuch delete cb"),
                 b"unknown command \"nosuch\""
             );
         });

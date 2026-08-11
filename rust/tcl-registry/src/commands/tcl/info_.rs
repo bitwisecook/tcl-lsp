@@ -337,6 +337,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
     },
     SubCommand {
         name: "coroutine",
+        traits: Traits::CURRENT_FRAME_INTROSPECTION,
         arity: Arity::exact(0),
         detail: "Returns the name of the current coroutine, or the empty string if there is no current coroutine.",
         synopsis: "info coroutine",
@@ -361,6 +362,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
     },
     SubCommand {
         name: "errorstack",
+        traits: Traits::CURRENT_FRAME_INTROSPECTION,
         arity: Arity::new(0, 1),
         detail: "Returns an even-sized list of CALL/UP/INNER tokens and parameters describing the active command at each level from the call stack of the last error. Also available as the -errorstack entry of a 3-argument catch's options dictionary.",
         synopsis: "info errorstack ?interp?",
@@ -371,6 +373,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
     },
     SubCommand {
         name: "exists",
+        semantic_operation: Some(SemanticOperationId::Intrinsic(IntrinsicId::InfoExists)),
         traits: Traits::INTROSPECTS_BY_NAME,
         arity: Arity::exact(1),
         detail: "Returns 1 if a variable named varName is visible and has been defined, and 0 otherwise.",
@@ -385,7 +388,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         name: "frame",
         // Reflects the active command words (including proc names) of any
         // stack frame.
-        traits: Traits::REFLECTS_COMMAND_NAMES,
+        traits: Traits::REFLECTS_COMMAND_NAMES.union(Traits::CURRENT_FRAME_INTROSPECTION),
         arity: Arity::new(0, 1),
         detail: "Returns the depth of the call to info frame itself when depth is omitted; otherwise returns a dictionary describing the active command at that depth (keys: type — one of source/proc/eval/precompiled — plus line, file, cmd, proc, lambda, level as applicable). Reports every stack frame, including eval/uplevel/source frames that info level does not see.",
         synopsis: "info frame ?depth?",
@@ -429,7 +432,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         name: "level",
         // `info level N` reflects the full command (name + arguments) at
         // that level, so proc names are observable data.
-        traits: Traits::REFLECTS_COMMAND_NAMES,
+        traits: Traits::REFLECTS_COMMAND_NAMES.union(Traits::CURRENT_FRAME_INTROSPECTION),
         arity: Arity::new(0, 1),
         detail: "Returns the current stack level (0 at top level) when level is omitted; otherwise returns the complete command (name and arguments, as a list) active at that level. A positive level is absolute (1 = outermost active procedure); zero or a negative level is relative to the current one.",
         synopsis: "info level ?level?",
@@ -458,7 +461,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
     },
     SubCommand {
         name: "locals",
-        traits: Traits::INTROSPECTS_BY_NAME,
+        traits: Traits::INTROSPECTS_BY_NAME.union(Traits::CURRENT_FRAME_INTROSPECTION),
         arity: Arity::new(0, 1),
         detail: "Returns the name of each local variable matching pattern.",
         synopsis: "info locals ?pattern?",
@@ -562,7 +565,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
     },
     SubCommand {
         name: "vars",
-        traits: Traits::INTROSPECTS_BY_NAME,
+        traits: Traits::INTROSPECTS_BY_NAME.union(Traits::CURRENT_FRAME_INTROSPECTION),
         arity: Arity::new(0, 1),
         detail: "Returns the names of all visible variables.",
         synopsis: "info vars ?pattern?",

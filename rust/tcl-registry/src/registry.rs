@@ -36,14 +36,17 @@ use crate::events::{
     DataCollectionAction, DataCollectionOperation, DataCollectionProtocol, EventHandlerPriority,
 };
 use crate::forms::CommandForm;
-use crate::hooks::{
-    AnalyserHookId, CodegenHookId, InlineCodegenHookId, LoweringHookId, WasmCodegenHookId,
-};
+use crate::hooks::{AnalyserHookId, CodegenHookId, InlineCodegenHookId, LoweringHookId};
 use crate::lifecycle::{Lifecycle, LifecycleState};
+use crate::resolved_invocation::{
+    InvocationResolutionUnresolved, ResolvedInvocation, ResolvedSubcommand,
+    StructuredInvocationResolution, SubcommandResolution,
+};
 use crate::side_effects::SideSwitchTarget;
 use crate::spec::{BytePayloadSpec, CommandSpec, SubCommand};
 use crate::traits::Traits;
 use crate::types::VarWriteTyping;
+use crate::{InvocationArguments, InvocationWords};
 
 /// The trait union defining a **frame-sensitive** command — see
 /// [`CommandRegistry::is_frame_sensitive`].
@@ -987,15 +990,26 @@ impl CommandRegistry {
         self.by_name.keys().map(String::as_str)
     }
 
-    /// Return command names whose command-level spec selects `hook` for WASM.
-    pub fn command_names_for_wasm_codegen_hook(
+    /// Return command names whose command-level descriptor selects `operation`.
+    ///
+    /// This uses the same target-neutral descriptor precedence as structured
+    /// invocation resolution. It is intended for whole-module trust proofs that
+    /// need to quantify over every registry spelling of one semantic operation.
+    pub fn command_names_for_semantic_operation(
         &self,
-        hook: WasmCodegenHookId,
+        operation: crate::SemanticOperationId,
     ) -> impl Iterator<Item = &str> {
         self.by_name.iter().filter_map(move |(name, specs)| {
             specs
                 .iter()
-                .any(|spec| spec.wasm_codegen_hook == Some(hook))
+                .any(|spec| {
+                    crate::resolved_invocation::descriptor_operation(
+                        spec.semantic_operation,
+                        spec.lowering_hook,
+                        spec.codegen_hook,
+                        spec.inline_codegen_hook,
+                    ) == Some(operation)
+                })
                 .then_some(name.as_str())
         })
     }
@@ -2350,6 +2364,83 @@ impl CommandRegistry {
         out
     }
 
+    /// Resolve a concrete invocation to its target-neutral registry semantics.
+    ///
+    /// This is the common compiler entry point.  It retains the original head
+    /// and argument spellings while selecting the registry command,
+    /// subcommand, and form descriptors.  The returned projection contains no
+    /// backend code-generation hook; target registries decide how to emit the
+    /// already-resolved semantic operation later.
+    ///
+    /// Returns `None` when the command head is unknown or unavailable in
+    /// `dialect`.
+    #[must_use]
+    pub fn resolve_invocation<'r, 'w>(
+        &'r self,
+        name: &'w str,
+        args: &'w [&'w str],
+        dialect: DialectSet,
+    ) -> Option<ResolvedInvocation<'r, 'w>> {
+        self.resolve_structured_invocation(InvocationWords::literals(name, args), dialect)
+            .resolved()
+    }
+
+    /// Resolve source-aware invocation words to target-neutral registry
+    /// semantics.
+    ///
+    /// Only a literal command head can select a registry command. Likewise,
+    /// only a literal first argument can select a subcommand. Expanded and
+    /// opaque arguments make form arity indeterminate, so no form is matched.
+    /// A substituted non-expanded argument still contributes exactly one argv
+    /// entry and may therefore participate in an arity-only form selection;
+    /// its spelling is never inspected as a value.
+    ///
+    /// The compatibility [`Self::resolve_invocation`] adapter constructs an
+    /// all-literal view without allocation.
+    #[must_use]
+    pub fn resolve_structured_invocation<'r, 'w>(
+        &'r self,
+        words: InvocationWords<'w>,
+        dialect: DialectSet,
+    ) -> StructuredInvocationResolution<'r, 'w> {
+        let Some(name) = words.head_literal() else {
+            return StructuredInvocationResolution::from_unresolved(
+                InvocationResolutionUnresolved::ComputedHead {
+                    word_kind: words.head().kind(),
+                },
+            );
+        };
+        let spec = if dialect.is_empty() {
+            self.get(name)
+        } else {
+            self.get_for_dialect(name, dialect)
+        };
+        let Some(spec) = spec else {
+            return StructuredInvocationResolution::from_unresolved(
+                InvocationResolutionUnresolved::UnknownLiteralHead { spelling: name },
+            );
+        };
+        let arguments = words.arguments();
+        let (subcommand, sub) = resolve_semantic_subcommand(spec, arguments, dialect);
+        let form = match (sub, spec.subcommands.is_empty(), arguments.is_empty()) {
+            (Some(sub), _, _) => arguments.exact_argv_len().and_then(|argument_count| {
+                argument_count
+                    .checked_sub(1)
+                    .and_then(|sub_argument_count| {
+                        pick_form(sub.subcommand_forms, sub_argument_count, dialect)
+                    })
+            }),
+            (None, true, _) | (None, false, true) => arguments
+                .exact_argv_len()
+                .and_then(|argument_count| pick_form(spec.command_forms, argument_count, dialect)),
+            (None, false, false) => None,
+        };
+        StructuredInvocationResolution {
+            invocation: Some(ResolvedInvocation::new(words, spec, sub, form, subcommand)),
+            unresolved: None,
+        }
+    }
+
     /// Resolve a concrete call to its registry-described form.
     ///
     /// Given the command head `name` and the literal argument words
@@ -2367,33 +2458,22 @@ impl CommandRegistry {
         args: &[&str],
         dialect: DialectSet,
     ) -> Option<ResolvedCall<'r>> {
-        let spec = if dialect.is_empty() {
-            self.get(name)?
-        } else {
-            self.get_for_dialect(name, dialect)?
-        };
+        let selection = self.resolve_legacy_call_selection(name, args, dialect)?;
+        let spec = selection.spec;
+        let sub = selection.sub;
+        let form = selection.form;
 
         let mut resolved = ResolvedCall {
             spec,
-            sub: None,
-            form: None,
+            sub,
+            form,
             lowering_hook: spec.lowering_hook,
             codegen_hook: spec.codegen_hook,
             inline_codegen_hook: spec.inline_codegen_hook,
-            wasm_codegen_hook: spec.wasm_codegen_hook,
             analyser_hook: spec.analyser_hook,
         };
 
-        if !spec.subcommands.is_empty()
-            && let Some(first) = args.first()
-            && let Some(sub) = spec.subcommand(first)
-        {
-            // Re-slice rather than allocating a fresh `Vec<&str>`
-            // — `resolve_call` is on the lowering / codegen /
-            // analysis hot path.
-            let sub_args: &[&str] = args.get(1..).unwrap_or(&[]);
-            let form = pick_form(sub.subcommand_forms, sub_args, dialect);
-            resolved.sub = Some(sub);
+        if let Some(sub) = sub {
             resolved.lowering_hook = form
                 .and_then(|f| f.lowering_hook)
                 .or(sub.lowering_hook)
@@ -2402,10 +2482,6 @@ impl CommandRegistry {
                 .and_then(|f| f.codegen_hook)
                 .or(sub.codegen_hook)
                 .or(spec.codegen_hook);
-            resolved.wasm_codegen_hook = form
-                .and_then(|f| f.wasm_codegen_hook)
-                .or(sub.wasm_codegen_hook)
-                .or(spec.wasm_codegen_hook);
             // Forms carry no inline hook — the inline emitters guard
             // their own applicability (arity / shape) at the dispatch
             // site, so subcommand-level wins over command-level.
@@ -2414,18 +2490,54 @@ impl CommandRegistry {
             // handlers keep their own shape guards, so the
             // subcommand-level stamp wins over the command-level one.
             resolved.analyser_hook = sub.analyser_hook.or(spec.analyser_hook);
-            resolved.form = form;
             return Some(resolved);
         }
 
-        let form = pick_form(spec.command_forms, args, dialect);
         if let Some(f) = form {
             resolved.lowering_hook = f.lowering_hook.or(spec.lowering_hook);
             resolved.codegen_hook = f.codegen_hook.or(spec.codegen_hook);
-            resolved.wasm_codegen_hook = f.wasm_codegen_hook.or(spec.wasm_codegen_hook);
             resolved.form = Some(f);
         }
         Some(resolved)
+    }
+
+    /// Select raw registry descriptors for the legacy call resolver.
+    ///
+    /// The exact subcommand lookup intentionally preserves the long-standing
+    /// `resolve_call` compatibility behaviour.  The common
+    /// [`ResolvedInvocation`] resolver instead uses
+    /// [`CommandSpec::resolve_subcommand_word`] and records a typed outcome.
+    fn resolve_legacy_call_selection<'r>(
+        &'r self,
+        name: &str,
+        args: &[&str],
+        dialect: DialectSet,
+    ) -> Option<InvocationSelection<'r>> {
+        let spec = if dialect.is_empty() {
+            self.get(name)?
+        } else {
+            self.get_for_dialect(name, dialect)?
+        };
+
+        if !spec.subcommands.is_empty()
+            && let Some(first) = args.first()
+            && let Some(sub) = spec.subcommand(first)
+        {
+            // Re-slice rather than allocating a fresh `Vec<&str>` — this is
+            // on the lowering, analysis, and codegen hot path.
+            let sub_args: &[&str] = args.get(1..).unwrap_or(&[]);
+            return Some(InvocationSelection {
+                spec,
+                sub: Some(sub),
+                form: pick_form(sub.subcommand_forms, sub_args.len(), dialect),
+            });
+        }
+
+        Some(InvocationSelection {
+            spec,
+            sub: None,
+            form: pick_form(spec.command_forms, args.len(), dialect),
+        })
     }
 
     /// Resolve the option-terminator profile for a command invocation.
@@ -2693,11 +2805,18 @@ pub struct ResolvedCall<'r> {
     /// Effective inline (value-position / catch-body) codegen hook
     /// identifier (subcommand-level wins over command-level).
     pub inline_codegen_hook: Option<InlineCodegenHookId>,
-    /// Effective WASM-target codegen hook identifier.
-    pub wasm_codegen_hook: Option<WasmCodegenHookId>,
     /// Effective analyser handler-family hook identifier
     /// (subcommand-level wins over command-level).
     pub analyser_hook: Option<AnalyserHookId>,
+}
+
+/// Raw descriptor selection shared by the legacy and target-neutral
+/// invocation-resolution facades.
+#[derive(Debug, Clone, Copy)]
+struct InvocationSelection<'r> {
+    spec: &'r CommandSpec,
+    sub: Option<&'r SubCommand>,
+    form: Option<&'r CommandForm>,
 }
 
 impl ResolvedCall<'_> {
@@ -2747,12 +2866,12 @@ impl ResolvedCall<'_> {
     }
 }
 
-fn pick_form<'r>(
-    forms: &'r [CommandForm],
-    args: &[&str],
+fn pick_form(
+    forms: &[CommandForm],
+    argument_count: usize,
     dialect: DialectSet,
-) -> Option<&'r CommandForm> {
-    let n = u16::try_from(args.len()).unwrap_or(u16::MAX);
+) -> Option<&CommandForm> {
+    let n = u16::try_from(argument_count).unwrap_or(u16::MAX);
     forms.iter().find(|f| {
         if !f.arity.accepts(n) {
             return false;
@@ -2762,6 +2881,58 @@ fn pick_form<'r>(
             _ => true,
         }
     })
+}
+
+/// Resolve a subcommand for the common semantic path.
+///
+/// The registry's keyword table determines prefix legality.  The legacy
+/// [`ResolvedCall`] path intentionally remains exact-only because its callers
+/// preserve historical hook-routing behaviour.
+fn resolve_semantic_subcommand<'r, 'w>(
+    spec: &'r CommandSpec,
+    arguments: InvocationArguments<'w>,
+    dialect: DialectSet,
+) -> (SubcommandResolution<'w>, Option<&'r SubCommand>) {
+    if spec.subcommands.is_empty() || arguments.is_empty() {
+        return (SubcommandResolution::NotApplicable, None);
+    }
+
+    let Some(spelling) = arguments.literal_at(0) else {
+        let word_kind = arguments.get(0).map_or(
+            crate::InvocationWordKind::Opaque,
+            crate::InvocationWord::kind,
+        );
+        return (SubcommandResolution::Indeterminate { word_kind }, None);
+    };
+    let matched = spec.resolve_subcommand_word(
+        spelling,
+        (!dialect.is_empty()).then_some(dialect),
+        None,
+        None,
+    );
+    match matched {
+        crate::abbrev::KeywordMatch::Unique(canonical_name) => {
+            // `resolve_subcommand_word` builds its table from `spec` itself,
+            // so its canonical result is necessarily one of these entries.
+            let sub = spec
+                .subcommand(canonical_name)
+                .expect("registry subcommand table and descriptor slice agree");
+            let resolved = ResolvedSubcommand {
+                spelling,
+                canonical_name: sub.name,
+            };
+            let outcome = if spelling == sub.name {
+                SubcommandResolution::Exact(resolved)
+            } else {
+                SubcommandResolution::UniquePrefix(resolved)
+            };
+            (outcome, Some(sub))
+        }
+        crate::abbrev::KeywordMatch::Ambiguous(_) => {
+            (SubcommandResolution::Ambiguous { spelling }, None)
+        }
+        crate::abbrev::KeywordMatch::Unknown => (SubcommandResolution::Unknown { spelling }, None),
+    }
 }
 
 impl std::fmt::Debug for CommandRegistry {
@@ -2776,6 +2947,8 @@ impl std::fmt::Debug for CommandRegistry {
 
 #[cfg(test)]
 mod tests {
+    use super::CommandRegistry;
+
     // -- unfilled_trailing_roles (issue #1190) ----------------------------
     //
     // The complement of `arg_indices_for_role`: what the *next* words would
@@ -5074,6 +5247,429 @@ mod tests {
             reg.resolve_call("no_such_cmd", &[], DialectSet::empty())
                 .is_none()
         );
+    }
+
+    #[test]
+    fn resolve_invocation_retains_words_and_canonicalises_the_registry_name() {
+        let reg = CommandRegistry::build_default();
+        let args = ["create", "key", "value"];
+        let resolved = reg
+            .resolve_invocation("::dict", &args, DialectSet::TCL86)
+            .expect("global dict spelling resolves through the registry");
+
+        assert_eq!(resolved.words.head_literal(), Some("::dict"));
+        assert_eq!(
+            resolved.words.arguments(),
+            InvocationArguments::literals(&args)
+        );
+        assert_eq!(resolved.canonical_command, "dict");
+        let sub = resolved
+            .subcommand
+            .resolved()
+            .expect("dict create subcommand");
+        assert_eq!(sub.spelling, "create");
+        assert_eq!(sub.canonical_name, "create");
+        assert_eq!(
+            resolved.subcommand.kind(),
+            Some(crate::SubcommandResolutionKind::Exact)
+        );
+        assert_eq!(resolved.semantics.argument_offset, 1);
+    }
+
+    #[test]
+    fn structured_resolution_keeps_dynamic_subcommands_indeterminate() {
+        let reg = CommandRegistry::build_default();
+        let arguments = [
+            crate::InvocationWord::Dynamic,
+            crate::InvocationWord::Literal("text"),
+        ];
+        let resolved = reg
+            .resolve_structured_invocation(
+                InvocationWords::structured(crate::InvocationWord::Literal("string"), &arguments),
+                DialectSet::TCL86,
+            )
+            .resolved()
+            .expect("a literal command head is registry-known");
+
+        assert!(matches!(
+            resolved.subcommand,
+            SubcommandResolution::Indeterminate {
+                word_kind: crate::InvocationWordKind::Dynamic
+            }
+        ));
+        assert!(resolved.form.is_none());
+        assert_eq!(
+            resolved.semantics.operation,
+            crate::SemanticOperationId::Invoke,
+            "a dynamic subcommand cannot select specialised subcommand metadata"
+        );
+    }
+
+    #[test]
+    fn expanded_argument_does_not_match_an_arity_form() {
+        let reg = CommandRegistry::build_default();
+        let arguments = [crate::InvocationWord::Expanded];
+        let resolved = reg
+            .resolve_structured_invocation(
+                InvocationWords::structured(crate::InvocationWord::Literal("incr"), &arguments),
+                DialectSet::empty(),
+            )
+            .resolved()
+            .expect("a literal command head is registry-known");
+
+        assert!(resolved.form.is_none());
+        assert_eq!(
+            resolved.semantics.operation,
+            crate::SemanticOperationId::StructuredLowering(LoweringHookId::Incr),
+            "the command-level common operation remains visible without claiming a form"
+        );
+    }
+
+    #[test]
+    fn literal_adapter_matches_the_structured_literal_view() {
+        let reg = CommandRegistry::build_default();
+        let arguments = ["counter"];
+        let adapter = reg
+            .resolve_invocation("incr", &arguments, DialectSet::empty())
+            .expect("literal adapter resolves");
+        let structured = reg
+            .resolve_structured_invocation(
+                InvocationWords::literals("incr", &arguments),
+                DialectSet::empty(),
+            )
+            .resolved()
+            .expect("structured literal input resolves");
+
+        assert_eq!(adapter.canonical_command, structured.canonical_command);
+        assert_eq!(adapter.subcommand, structured.subcommand);
+        assert_eq!(
+            adapter.form.map(|form| form.name),
+            structured.form.map(|form| form.name)
+        );
+        assert_eq!(adapter.semantics.operation, structured.semantics.operation);
+    }
+
+    #[test]
+    fn structured_resolution_reports_computed_and_unknown_command_heads() {
+        let reg = CommandRegistry::build_default();
+        let no_arguments: [crate::InvocationWord<'_>; 0] = [];
+
+        let computed = reg.resolve_structured_invocation(
+            InvocationWords::structured(crate::InvocationWord::Dynamic, &no_arguments),
+            DialectSet::empty(),
+        );
+        assert_eq!(
+            computed.unresolved(),
+            Some(crate::InvocationResolutionUnresolved::ComputedHead {
+                word_kind: crate::InvocationWordKind::Dynamic,
+            })
+        );
+
+        let no_literal_arguments: [&str; 0] = [];
+        let unknown = reg.resolve_structured_invocation(
+            InvocationWords::literals("not-a-registry-command", &no_literal_arguments),
+            DialectSet::empty(),
+        );
+        assert_eq!(
+            unknown.unresolved(),
+            Some(crate::InvocationResolutionUnresolved::UnknownLiteralHead {
+                spelling: "not-a-registry-command",
+            })
+        );
+    }
+
+    #[test]
+    fn unresolved_subcommands_never_fall_back_to_a_top_level_form() {
+        const TOP_LEVEL_FORM: CommandForm = CommandForm {
+            name: "top-level-form",
+            arity: Arity::exact(1),
+            ..CommandForm::DEFAULT
+        };
+        const SUBCOMMANDS: &[SubCommand] = &[
+            SubCommand {
+                name: "alpha",
+                ..SubCommand::DEFAULT
+            },
+            SubCommand {
+                name: "alpine",
+                ..SubCommand::DEFAULT
+            },
+        ];
+        const SPEC: CommandSpec = CommandSpec {
+            name: "subcommand-form-fixture",
+            arity: Arity::any(),
+            subcommands: SUBCOMMANDS,
+            command_forms: &[TOP_LEVEL_FORM],
+            ..CommandSpec::DEFAULT
+        };
+
+        let mut reg = CommandRegistry::build_default();
+        reg.insert(SPEC);
+        let dynamic_arguments = [crate::InvocationWord::Dynamic];
+        let dynamic = reg
+            .resolve_structured_invocation(
+                InvocationWords::structured(
+                    crate::InvocationWord::Literal("subcommand-form-fixture"),
+                    &dynamic_arguments,
+                ),
+                DialectSet::empty(),
+            )
+            .resolved()
+            .expect("fixture command resolves");
+        assert!(matches!(
+            dynamic.subcommand,
+            SubcommandResolution::Indeterminate { .. }
+        ));
+        assert!(dynamic.form.is_none());
+        assert!(matches!(
+            dynamic.facts().subcommand,
+            crate::OwnedSubcommandResolution::Indeterminate {
+                word_kind: crate::InvocationWordKind::Dynamic
+            }
+        ));
+
+        let ambiguous = reg
+            .resolve_invocation("subcommand-form-fixture", &["al"], DialectSet::empty())
+            .expect("fixture command resolves");
+        assert!(matches!(
+            ambiguous.subcommand,
+            SubcommandResolution::Ambiguous { .. }
+        ));
+        assert!(ambiguous.form.is_none());
+        assert!(matches!(
+            ambiguous.facts().subcommand,
+            crate::OwnedSubcommandResolution::Ambiguous { ref spelling } if spelling == "al"
+        ));
+
+        let unknown = reg
+            .resolve_invocation("subcommand-form-fixture", &["missing"], DialectSet::empty())
+            .expect("fixture command resolves");
+        assert!(matches!(
+            unknown.subcommand,
+            SubcommandResolution::Unknown { .. }
+        ));
+        assert!(unknown.form.is_none());
+        assert!(matches!(
+            unknown.facts().subcommand,
+            crate::OwnedSubcommandResolution::Unknown { ref spelling } if spelling == "missing"
+        ));
+    }
+
+    #[test]
+    fn resolve_invocation_applies_registry_unique_prefix_subcommand_resolution() {
+        let reg = CommandRegistry::build_default();
+        let args = ["le", "hello"];
+        let resolved = reg
+            .resolve_invocation("string", &args, DialectSet::TCL86)
+            .expect("string is registry-known");
+
+        let sub = resolved
+            .subcommand
+            .resolved()
+            .expect("string le is a valid unique prefix");
+        assert_eq!(sub.spelling, "le");
+        assert_eq!(sub.canonical_name, "length");
+        assert_eq!(
+            resolved.subcommand.kind(),
+            Some(crate::SubcommandResolutionKind::UniquePrefix)
+        );
+        assert_eq!(
+            resolved.semantics.return_type,
+            Some(crate::types::TclType::Int)
+        );
+    }
+
+    #[test]
+    fn resolve_invocation_preserves_an_ambiguous_subcommand_outcome() {
+        let reg = CommandRegistry::build_default();
+        let args = ["t", "hello"];
+        let resolved = reg
+            .resolve_invocation("string", &args, DialectSet::TCL86)
+            .expect("the command head remains known");
+
+        assert!(matches!(
+            resolved.subcommand,
+            SubcommandResolution::Ambiguous { spelling: "t" }
+        ));
+        assert_eq!(
+            resolved.subcommand.kind(),
+            Some(crate::SubcommandResolutionKind::Ambiguous)
+        );
+        assert!(resolved.form.is_none());
+    }
+
+    #[test]
+    fn resolve_invocation_preserves_an_unknown_subcommand_outcome() {
+        let reg = CommandRegistry::build_default();
+        let args = ["does-not-exist"];
+        let resolved = reg
+            .resolve_invocation("string", &args, DialectSet::TCL86)
+            .expect("the command head remains known");
+
+        assert!(matches!(
+            resolved.subcommand,
+            SubcommandResolution::Unknown {
+                spelling: "does-not-exist"
+            }
+        ));
+        assert_eq!(
+            resolved.subcommand.kind(),
+            Some(crate::SubcommandResolutionKind::Unknown)
+        );
+    }
+
+    #[test]
+    fn resolve_invocation_projects_forms_without_backend_hooks() {
+        let reg = CommandRegistry::build_default();
+        let args = ["counter"];
+        let resolved = reg
+            .resolve_invocation("incr", &args, DialectSet::empty())
+            .expect("incr is registry-known");
+
+        let form = resolved.form.expect("implicit incr form");
+        assert_eq!(form.name, "implicit");
+        assert_eq!(form.arity, Arity::exact(1));
+        assert_eq!(form.arg_roles, &[(0, ArgRole::VarWrite)]);
+        assert_eq!(resolved.semantics.arg_roles, form.arg_roles);
+        assert_eq!(
+            resolved.semantics.return_type,
+            Some(crate::types::TclType::Int)
+        );
+        assert_eq!(
+            resolved.semantics.lowering_hook,
+            Some(LoweringHookId::Incr),
+            "the common lowering descriptor survives the target-neutral projection"
+        );
+        assert_eq!(
+            resolved.semantics.operation,
+            crate::SemanticOperationId::StructuredLowering(LoweringHookId::Incr)
+        );
+    }
+
+    #[test]
+    fn resolve_invocation_identifies_channel_write_without_selecting_a_backend() {
+        let reg = CommandRegistry::build_default();
+        let args = ["hello"];
+        let resolved = reg
+            .resolve_invocation("puts", &args, DialectSet::TCL86)
+            .expect("puts resolves");
+
+        assert_eq!(
+            resolved.semantics.operation,
+            crate::SemanticOperationId::Intrinsic(crate::IntrinsicId::ChannelWrite)
+        );
+        assert_eq!(
+            reg.command_names_for_semantic_operation(crate::SemanticOperationId::Intrinsic(
+                crate::IntrinsicId::ChannelWrite,
+            ))
+            .collect::<Vec<_>>(),
+            vec!["puts"]
+        );
+    }
+
+    #[test]
+    fn semantic_operation_resolution_prefers_form_then_subcommand_then_command() {
+        const FORM: CommandForm = CommandForm {
+            name: "form",
+            arity: Arity::exact(1),
+            semantic_operation: Some(crate::SemanticOperationId::StructuredLowering(
+                LoweringHookId::Set,
+            )),
+            ..CommandForm::DEFAULT
+        };
+        const SUB: SubCommand = SubCommand {
+            name: "sub",
+            arity: Arity::at_least(0),
+            subcommand_forms: &[FORM],
+            semantic_operation: Some(crate::SemanticOperationId::StructuredLowering(
+                LoweringHookId::Incr,
+            )),
+            ..SubCommand::DEFAULT
+        };
+        const SPEC: CommandSpec = CommandSpec {
+            name: "semantic-operation-precedence",
+            arity: Arity::at_least(0),
+            subcommands: &[SUB],
+            semantic_operation: Some(crate::SemanticOperationId::StructuredLowering(
+                LoweringHookId::Return,
+            )),
+            ..CommandSpec::DEFAULT
+        };
+
+        let mut reg = CommandRegistry::build_default();
+        reg.insert(SPEC);
+
+        let command = reg
+            .resolve_invocation("semantic-operation-precedence", &[], DialectSet::empty())
+            .expect("command form resolves");
+        assert_eq!(
+            command.semantics.operation,
+            crate::SemanticOperationId::StructuredLowering(LoweringHookId::Return)
+        );
+
+        let sub = reg
+            .resolve_invocation(
+                "semantic-operation-precedence",
+                &["sub"],
+                DialectSet::empty(),
+            )
+            .expect("subcommand form resolves");
+        assert_eq!(
+            sub.semantics.operation,
+            crate::SemanticOperationId::StructuredLowering(LoweringHookId::Incr)
+        );
+
+        let form = reg
+            .resolve_invocation(
+                "semantic-operation-precedence",
+                &["sub", "argument"],
+                DialectSet::empty(),
+            )
+            .expect("subcommand form resolves");
+        assert_eq!(
+            form.semantics.operation,
+            crate::SemanticOperationId::StructuredLowering(LoweringHookId::Set)
+        );
+    }
+
+    #[test]
+    fn resolve_invocation_exposes_subcommand_effects_through_one_semantic_view() {
+        let mut reg = CommandRegistry::build_default();
+        reg.load_irules();
+        let args = ["insert", "x-demo", "value"];
+        let resolved = reg
+            .resolve_invocation("HTTP::header", &args, DialectSet::IRULES)
+            .expect("HTTP::header insert resolves in the iRules dialect");
+
+        assert!(resolved.semantics.traits.contains(Traits::PURE));
+        assert_eq!(resolved.semantics.side_effects.len(), 1);
+        let effect = resolved.semantics.side_effects[0];
+        assert_eq!(
+            effect.target,
+            crate::side_effects::SideEffectTarget::HttpHeader
+        );
+        assert!(effect.reads);
+        assert!(effect.writes);
+    }
+
+    #[test]
+    fn resolved_call_and_resolved_invocation_share_selection() {
+        let reg = CommandRegistry::build_default();
+        let args = ["counter", "5"];
+        let common = reg
+            .resolve_invocation("incr", &args, DialectSet::empty())
+            .expect("incr resolves");
+        let legacy = reg
+            .resolve_call("incr", &args, DialectSet::empty())
+            .expect("legacy compatibility resolver remains available");
+
+        assert_eq!(common.canonical_command, legacy.spec.name);
+        assert_eq!(
+            common.form.map(|form| form.name),
+            legacy.form.map(|form| form.name)
+        );
+        assert_eq!(common.semantics.lowering_hook, legacy.lowering_hook);
+        assert_eq!(common.semantics.arity, legacy.arity());
     }
 
     #[test]

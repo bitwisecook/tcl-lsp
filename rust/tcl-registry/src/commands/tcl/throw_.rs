@@ -35,6 +35,8 @@ const FORMS: &[FormSpec] = &[FormSpec {
     dialects: None,
 }];
 
+const COMPLETION_CODES: &[CompletionCode] = &[CompletionCode::Error];
+
 /// Command spec for `throw`.
 ///
 /// Synopsis, arity, and semantics are identical across Tcl 8.6, 9.0, and
@@ -82,6 +84,7 @@ pub fn spec() -> CommandSpec {
             | Traits::TERMINATES_BLOCK
             | Traits::CATCHABLE_THROW,
         arity: Arity::exact(2),
+        completion: Some(CompletionDescriptor::exact(COMPLETION_CODES)),
         return_type: Some(TclType::String),
         side_effects: &[SideEffect {
             target: SideEffectTarget::InterpState,

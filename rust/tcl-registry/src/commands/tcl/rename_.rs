@@ -26,6 +26,60 @@ const SIDE_EFFECTS: &[SideEffect] = &[SideEffect {
     dialects: None,
 }];
 
+const RENAME_TRANSITION_DOMAINS: &[StateTransitionDomain] = &[
+    StateTransitionDomain::CommandBindings,
+    StateTransitionDomain::Namespaces,
+    StateTransitionDomain::CommandTraces,
+];
+
+const RENAME_EFFECT_COVERAGE: &[TransitionEffectCoverage] = &[
+    TransitionEffectCoverage {
+        source: WorldEffectWriteSource::LegacyCommandTable,
+        domains: &[WorldStateDomain::CommandBindings],
+    },
+    TransitionEffectCoverage {
+        source: WorldEffectWriteSource::LegacySideEffect(SideEffectTarget::ProcDefinition),
+        domains: &[WorldStateDomain::CommandBindings],
+    },
+];
+
+const RENAME_TRANSITIONS: StateTransitionDescriptor = StateTransitionDescriptor {
+    composition: StateTransitionComposition::Extend,
+    resolver: Some(rename_state_transitions),
+    argument_shape: StateTransitionArgumentShape::Positional,
+    dynamic_widening: &[StateTransitionWideningRule {
+        operands: StateTransitionOperandLayout::Indices(&[0, 1]),
+        domains: RENAME_TRANSITION_DOMAINS,
+    }],
+    effect_coverage: RENAME_EFFECT_COVERAGE,
+    // Command traces can observe the rename or deletion and fail after the
+    // command table has changed, so an abrupt edge conservatively joins the
+    // pre- and post-transition states.
+    commit: StateTransitionCommit::MayCommitBeforeAbruptCompletion,
+};
+
+fn rename_state_transitions(arguments: InvocationArguments<'_>) -> StateTransitions {
+    let mut transitions = StateTransitions::default();
+    let (Some(from), Some(to)) = (
+        TransitionSubject::from_argument(arguments, 0),
+        TransitionSubject::from_argument(arguments, 1),
+    ) else {
+        return transitions;
+    };
+    let transition = match to.literal() {
+        Some("") => CommandBindingTransition::Delete {
+            interpreter: None,
+            name: from,
+        },
+        Some(_) => CommandBindingTransition::Move { from, to },
+        None => CommandBindingTransition::Unknown {
+            operands: vec![from, to],
+        },
+    };
+    transitions.push(StateTransition::CommandBinding(transition));
+    transitions
+}
+
 const FORMS: &[FormSpec] = &[FormSpec {
     kind: FormKind::Default,
     synopsis: "rename oldName newName",
@@ -109,6 +163,8 @@ pub fn spec() -> CommandSpec {
         side_effects: SIDE_EFFECTS,
         analyser_hook: Some(crate::hooks::AnalyserHookId::Rename),
         command_table_effect: Some(crate::command_table::CommandTableEffect::RenamesCommands),
+        world_effects: Some(WorldEffectDescriptor::EMPTY),
+        state_transitions: Some(RENAME_TRANSITIONS),
         ..CommandSpec::DEFAULT
     }
 }

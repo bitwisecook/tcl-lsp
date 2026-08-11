@@ -27,6 +27,8 @@ const FORMS: &[FormSpec] = &[FormSpec {
     dialects: None,
 }];
 
+const COMPLETION_CODES: &[CompletionCode] = &[CompletionCode::Error];
+
 /// Command spec for `error`.
 ///
 /// Synopsis, arity, and semantics are identical across Tcl 8.4, 8.5, 8.6,
@@ -68,6 +70,7 @@ pub fn spec() -> CommandSpec {
             | Traits::CATCHABLE_THROW
             | Traits::NEEDS_START_CMD,
         arity: Arity::new(1, 3),
+        completion: Some(CompletionDescriptor::exact(COMPLETION_CODES)),
         return_type: Some(TclType::String),
         side_effects: &[SideEffect {
             target: SideEffectTarget::InterpState,

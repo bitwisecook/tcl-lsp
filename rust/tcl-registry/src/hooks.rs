@@ -33,7 +33,7 @@
 /// `match` on this type is exhaustively checked at every dispatcher
 /// — adding a new hook here gives the compiler a deliberate
 /// compile-time error until the new arm is implemented.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub enum LoweringHookId {
     /// `expr <single-arg>` → typed expression IR.
     Expr,
@@ -130,8 +130,8 @@ pub enum LoweringHookId {
 /// until the new arm is wired up.
 ///
 /// **Note:** despite the historical name `CodegenHookId`, this
-/// covers only the `TclVM` bytecode emitter. The WASM emitter
-/// family has its own [`WasmCodegenHookId`].
+/// covers only the `TclVM` bytecode emitter. Other compiler backends
+/// keep their specialisation registries with their emitters.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum CodegenHookId {
     /// `lassign list var1 ?var2 ...?`.
@@ -426,34 +426,6 @@ pub enum AnalyserHookId {
     /// `load libFile ?prefix? ?interp?` — brings a shared library's
     /// commands in at runtime: flips the dynamic-providers flag.
     Load,
-}
-
-/// Typed identifier for a WASM-runtime codegen specialisation.
-///
-/// Used by the WASM-target codegen path. The registry stamp selects the
-/// semantic emitter; applicability still depends on the compiler's binding
-/// lattice proving that the call reaches the stamped command.
-///
-/// The field exists on
-/// [`crate::CommandSpec`] / [`crate::SubCommand`] /
-/// [`crate::forms::CommandForm`] so the per-command coverage
-/// audit can track WASM hook stamping alongside the `TclVM` hook.
-///
-/// Add a variant here when a WASM-side specialisation is added;
-/// keep it in sync with whatever dispatcher the WASM emitter
-/// uses on the compiler side.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum WasmCodegenHookId {
-    /// Store a literal value through Tcl's variable machinery.
-    Set,
-    /// Evaluate a supported expression through the direct object ABI.
-    Expr,
-    /// Return a direct expression result from a generated procedure.
-    Return,
-    /// Register a lowered procedure definition without evaluating its source.
-    Proc,
-    /// Write the single-argument stdout form through the runtime channel API.
-    Puts,
 }
 
 /// Compile-time constant folder.

@@ -330,15 +330,6 @@ pub const INLINE_CODEGEN_HOOKS: &[Variant] = &[
     v("Try", "try"),
 ];
 
-/// [`WasmCodegenHookId`] — the WASM-target emitter family.
-pub const WASM_CODEGEN_HOOKS: &[Variant] = &[
-    v("Set", "literal variable assignment"),
-    v("Expr", "direct expression evaluation"),
-    v("Return", "direct procedure return"),
-    v("Proc", "procedure definition"),
-    v("Puts", "single-argument stdout write"),
-];
-
 /// [`AnalyserHookId`] — the per-command analyser handler family.
 pub const ANALYSER_HOOKS: &[Variant] = &[
     v("Set", "set"),
@@ -471,6 +462,14 @@ pub const TRAITS: &[Variant] = &[
     v("WHOLE_ARRAY_ARG", "takes a whole array as an argument"),
     v("DYNAMIC_EVAL_BODY", "its body is evaluated dynamically"),
     v("INTROSPECTS_BY_NAME", "introspects state by name"),
+    v(
+        "CURRENT_FRAME_INTROSPECTION",
+        "observes the current Tcl call frame",
+    ),
+    v(
+        "EXPANSION_ESCAPE_SAFE",
+        "expanded arguments cannot introduce a frame-sensitive name",
+    ),
     v("TARGETS_VARIABLE_BY_NAME", "targets a variable by name"),
     v("FRAME_HASH_BUILTIN", "a frame-hash builtin"),
     v(
@@ -485,7 +484,6 @@ pub const TRAITS: &[Variant] = &[
         "OVERRIDABLE_LIBRARY_PROC",
         "a library proc a script may override",
     ),
-    v("WASM_EMITS_NOTHING", "emits no code on the WASM target"),
     v(
         "STRUCTURALLY_CHECKED_ARITY",
         "arity is checked structurally, not by range",
@@ -730,9 +728,7 @@ mod tests {
     use tcl_registry::body_kind::BodyKind;
     use tcl_registry::byte_array_effect::ByteArrayEffect;
     use tcl_registry::command_table::CommandTableEffect;
-    use tcl_registry::hooks::{
-        AnalyserHookId, CodegenHookId, InlineCodegenHookId, LoweringHookId, WasmCodegenHookId,
-    };
+    use tcl_registry::hooks::{AnalyserHookId, CodegenHookId, InlineCodegenHookId, LoweringHookId};
     use tcl_registry::hover::FormKind;
     use tcl_registry::patterns::{FormatType, PatternType};
     use tcl_registry::side_effects::{ConnectionSide, SideEffectTarget, StorageType};
@@ -994,17 +990,6 @@ mod tests {
         }
     }
 
-    /// Every [`WasmCodegenHookId`] variant is catalogued in `WASM_CODEGEN_HOOKS`.
-    fn covered_wasm(h: WasmCodegenHookId) -> bool {
-        match h {
-            WasmCodegenHookId::Set
-            | WasmCodegenHookId::Expr
-            | WasmCodegenHookId::Return
-            | WasmCodegenHookId::Proc
-            | WasmCodegenHookId::Puts => true,
-        }
-    }
-
     /// Every [`AnalyserHookId`] variant is catalogued in `ANALYSER_HOOKS`.
     fn covered_analyser(h: AnalyserHookId) -> bool {
         match h {
@@ -1060,7 +1045,6 @@ mod tests {
         assert!(covered_tcl_type(TclType::String));
         assert!(covered_side_effect_target(SideEffectTarget::Unknown));
         assert!(covered_small_enums());
-        assert!(covered_wasm(WasmCodegenHookId::Proc));
         assert!(covered_lowering(LoweringHookId::Expr));
         assert!(covered_codegen(CodegenHookId::Dict));
         assert!(covered_inline(InlineCodegenHookId::Expr));
