@@ -62,8 +62,8 @@ barriers listed in §4.
 
 Owns `tcl-compiler::codegen::wasm`, `runtime/rust`, and a new `tcl-wasm` bin.
 The canonical semantic compiler and `tcl compwasm` wiring have landed
-(binary/WAT output plus typed compatibility-plan evidence,
-`wasmtime`-validated); compatibility leaf commands propagate their **completion
+(binary/WAT output plus typed semantic-decline evidence,
+`wasmtime`-validated); general leaf commands propagate their **completion
 code** (`tcl_eval_code` + the emitter's completion dispatch),
 so `error`/`return` unwind and a `break`/`continue` re-enters the compiled loop. **Scale of the gap:** the Rust emitter is ~1.5 K
 LOC across 4 files (`codegen/wasm/{backend,encoding,ir,mod}.rs`); the Python
@@ -76,8 +76,8 @@ package it must reach parity with is **~20.6 K LOC across 49 modules**
 
 **Remaining:**
 
-- **(large)** Expand executable-IR plan coverage behind `compile_wasm` until
-  the private broad compatibility plan can be removed.
+- **(large)** Expand executable-IR plan coverage behind `compile_wasm` so the
+  sole emitter needs fewer general runtime-evaluation regions.
 - The `IRInterpBoundary` IR node + its insert pass.
 - The IR-rewriting `passes/dce.py` and `passes/gvn.py`.
 - `source_inliner` / `stdlib_prelude` (WASM-bundle self-containment).

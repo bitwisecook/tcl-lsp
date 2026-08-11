@@ -28,15 +28,15 @@ an execution artefact; it is not a selectable Tcl-to-WebAssembly backend.
 - `mod.rs` exports `compile_wasm`, `WasmCompilation`, typed plan evidence,
   packaging options, and WASM IR types;
 - `pipeline.rs` owns the sole public semantic-plan ladder;
-- `executable.rs` plans and emits generic prebuilt-argv invocation from common
-  executable IR;
-- `backend.rs` is the private broad-coverage compatibility emitter selected
-  only after a typed decline;
+- `semantic_plan.rs` validates generic prebuilt-argv input from common
+  executable IR without emitting a module;
+- `backend.rs` is the sole module emitter for both selected semantic invocation
+  and general structured lowering;
 - `ir.rs` owns the target module, function, instruction, import, and data
   vocabulary; and
 - `encoding.rs` serialises the target IR.
 
-`backend`, `executable`, and `pipeline` are internal implementation modules.
+`backend`, `semantic_plan`, and `pipeline` are internal implementation modules.
 Consumers do not select or invoke them directly.
 
 ## Public consumer contract
@@ -49,7 +49,7 @@ let output = compile_wasm(&unit, registry, WasmCompileOptions::hosted());
 
 `WasmCompilation` contains the module plus `WasmCodegenPlan`. The plan records
 either the semantic operation selected from executable IR or the typed reason
-that the private compatibility plan was required. The CLI, Explorer, fuzzer,
+that the same emitter used general structured lowering. The CLI, Explorer, fuzzer,
 MCP tool, runtime linker, and standalone packager all consume this API.
 
 There is no public backend enum, command-line backend selector, or IR-only WASM

@@ -94,8 +94,8 @@ interpreter-global metadata does not, by itself, reveal procedure locals.
 
 The CFG path keys variable versions by `(name, ssa_version)`. At a physical
 storage boundary it collapses all versions by joining them, so one escaping
-definition makes the name `Frame`. The fine-grained `ssa_tags` remain
-available to future consumers.
+definition makes the name `Frame`. The fine-grained `ssa_tags` remain available
+to consumers that require version-level evidence.
 
 The interprocedural solver propagates literal caller-frame names reached by a
 callee's `upvar`. An unbounded callee source widens the caller. It also computes
@@ -113,8 +113,8 @@ Consumers use the summary predicates instead of recomposing partial rules:
 The current inliner consumes the registry-aware IR result. The CFG/SSA result
 is a common analysis surface for code-generation and diagnostic work. The
 canonical WASM pipeline must retain any decline as typed plan evidence and use
-its private compatibility plan when a proof is unavailable. It must not expose
-a second emitter or a user-selectable “legacy” path.
+general structured lowering in the same emitter when a proof is unavailable.
+It must not expose a second emitter or a user-selectable alternate path.
 
 ## Tricky Tcl surfaces
 

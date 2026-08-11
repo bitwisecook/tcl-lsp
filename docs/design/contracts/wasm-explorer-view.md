@@ -65,18 +65,18 @@ Every `imports[].typeIdx` indexes into this list.
   "types": [{"index": 0, "params": ["i32"], "results": ["i64"]}],
   "dataSegments": [{"offset": 0, "size": 8}],
   "codegenPlan": {
-    "kind": "generic-invoke", // or "compatibility"
+    "kind": "generic-invoke", // or "general"
     "operation": "intrinsic", // invoke | intrinsic | structured-lowering
-    "compatibility": null      // typed reason object after a decline
+    "semanticDecline": null    // typed reason object after a decline
   },
   "text": "(module (type …) (import …) …)"
 }
 ```
 
-`codegenPlan` is durable compiler evidence, not display inference. A
-compatibility plan carries stable `kind` and `detailKind` fields explaining
-why executable semantic selection declined. It never contains Rust `Debug`
-output.
+`codegenPlan` is durable compiler evidence, not display inference. A general
+plan's `semanticDecline` carries stable `kind` and `detailKind` fields
+explaining why narrower executable semantic selection declined. It never
+contains Rust `Debug` output.
 
 ## Function entry
 
@@ -161,9 +161,9 @@ source).  Imports have no disassembly to jump to.
 ## Emitter contract
 
 The canonical `compile_wasm` pipeline produces a `WasmModule` whose
-instructions retain source ranges and optional structural labels. Both the
-semantic executable-IR emitter and the private typed compatibility plan write
-the same target IR; Explorer never invokes an emitter of its own.
+instructions retain source ranges and optional structural labels. Selected
+semantic invocation and general structured lowering enter the same module
+emitter and target IR; Explorer never invokes an emitter of its own.
 
 `wasm_to_explorer_json` derives block nesting and branch targets from that
 shared instruction stream. Structural operations (`block`, `loop`, and `if`)

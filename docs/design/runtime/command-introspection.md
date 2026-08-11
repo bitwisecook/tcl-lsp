@@ -381,8 +381,8 @@ expose` in the WASM emitter.
 
 Common command-binding analysis tracks literal changes precisely and widens to
 an unknown wildcard after an unbounded mutation. The canonical semantic WASM
-plan uses world-state and dispatch-dependency evidence. Its private
-broad-coverage compatibility plan uses `scan_module_command_mutations`, with
+plan uses world-state and dispatch-dependency evidence. General structured
+lowering in the same emitter uses `scan_module_command_mutations`, with
 `ModuleCommandMutations::trusts` and `trusts_proc_binding` as the generic
 guards. Affected calls use live runtime dispatch; an unrelated, proved-stable
 procedure can retain direct-call specialisation.

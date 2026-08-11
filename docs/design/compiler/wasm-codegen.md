@@ -25,7 +25,8 @@ Tcl source
   -> scalar, cell, and world-state proofs
   -> BackendRegistry plan selection
        -> generic prebuilt-argv plan
-       -> typed compatibility plan after a sound decline
+       -> general structured plan with a typed semantic decline
+  -> one WasmEmitter implementation
   -> one WasmCompilation { module, plan evidence }
   -> WAT/binary, Explorer, linker, or standalone bundler
   -> shared Rust Tcl runtime ABI
@@ -58,8 +59,8 @@ The returned `WasmCompilation` retains `WasmCodegenPlan`:
 
 - `GenericInvoke` records the registry-owned semantic operation selected from
   executable IR.
-- `Compatibility` records why the semantic rung declined: executable IR
-  availability, backend selection, plan emission, packaging, or a deliberately
+- `General` records why the narrower semantic input mode declined: executable
+  IR availability, backend selection, plan layout, packaging, or a deliberately
   restricted test host.
 
 Explorer serialises this evidence as `codegenPlan` on the synthetic WASM module
@@ -85,7 +86,7 @@ World-state SSA may be unavailable while executable invocation facts remain
 sound. The canonical pipeline may still select generic runtime dispatch in
 that case; proof-requiring direct plans must abstain. If executable IR itself is
 unavailable, the exact `SourceCompatibilityDecline` category is retained in
-the compatibility plan.
+the general plan's `WasmSemanticDecline` evidence.
 
 ### 3. Resolve through `CommandRegistry`
 
@@ -96,35 +97,35 @@ descriptor and a target-neutral operation, not a branch in a WASM emitter.
 
 ### 4. Select through `BackendRegistry`
 
-The current semantic emitter supports one literal-safe, prebuilt-argv
-invocation. Its selector is registered as `BackendPlanKind::GenericInvoke` for
-the generic semantic operation. The registry applies common legality checks
-before it asks the immutable selector to construct a `WasmGenericInvokePlan`.
+The current semantic selector supports one literal-safe, prebuilt-argv
+invocation. It is registered as `BackendPlanKind::GenericInvoke` for the
+generic semantic operation. The registry applies common legality checks before
+it constructs an immutable `WasmGenericInvokePlan`.
 
 Dynamic words, `{*}` expansion, multiple invocations, lowered operations,
 opaque regions, and unsupported executable CFG shapes produce typed declines.
 They do not make the selector mutate an emitter and do not erase common facts.
 
-### 5. Emit or retain a typed compatibility plan
+### 5. Feed one emitter
 
 An eligible plan emits a module importing `tcl_invoke_argv`; it does not import
 the source-evaluation ABI. Literal data is placed in the runtime-reserved
 wasm32 code-generation window beginning at `RESERVED_DATA_BASE`. Hosted and
 Explorer compilation use that same safe default, so an eligible hosted script
-really exercises the semantic emitter.
+really exercises semantic invocation mode in the sole emitter.
 
 Until executable IR covers the complete Tcl surface, a typed decline invokes
-the private broad-coverage compatibility emitter. That emitter preserves
-structured control flow, direct Tcl-object operations where its established
-proofs permit them, and exact source-span runtime evaluation otherwise. It is
-an internal plan inside `compile_wasm`, not an independently callable or
-selectable backend. This keeps broad package/link functionality working while
-making remaining migration debt observable.
+general structured mode in the same `WasmEmitter`. It preserves structured
+control flow, direct Tcl-object operations where its established proofs permit
+them, and exact source-span runtime evaluation otherwise. The decline changes
+typed input to one emitter; it does not select another implementation. This
+keeps broad package/link functionality working while making remaining semantic
+coverage observable.
 
 Standalone `_start`, interpreter creation, and optional standard-library
-initialisation currently select the compatibility plan with the explicit
-`standalone-bootstrap` packaging constraint. Moving that bootstrap into a
-semantic packaging plan does not require a new public API.
+initialisation currently select `General` with the explicit
+`standalone-bootstrap` semantic decline. Moving that bootstrap into a narrower
+semantic packaging plan does not require a new API or emitter.
 
 ## Runtime ABI and ownership
 
@@ -142,7 +143,7 @@ the completion output. It retains outbound result and options before releasing
 its private completion, argv values, and frame. ABI constants and layout live
 in `tcl-runtime-api`; compiler and runtime do not maintain copies.
 
-The compatibility emitter's generated values are `i32` pointers to owned
+General lowering's generated values are `i32` pointers to owned
 `TclObj` values in shared linear memory. Compiled variables keep an indexed
 slot and their Tcl-visible named cell as two ports onto the same object, so
 traces, `upvar`, and interpreted regions observe shimmering and writes through
@@ -152,8 +153,10 @@ port only after common alias, trace, and escape proofs allow it.
 Relevant modules:
 
 - `tcl-compiler/src/codegen/wasm/pipeline.rs` — sole entry and plan evidence;
-- `tcl-compiler/src/codegen/wasm/executable.rs` — generic argv plan/emission;
-- `tcl-compiler/src/codegen/wasm/backend.rs` — private broad compatibility;
+- `tcl-compiler/src/codegen/wasm/semantic_plan.rs` — non-emitting executable-IR
+  plan validation;
+- `tcl-compiler/src/codegen/wasm/backend.rs` — the sole module emitter for
+  semantic invocation and general structured modes;
 - `tcl-compiler/src/codegen/wasm/ir.rs` — shared target IR and encoders;
 - `tcl-runtime-api/src/codegen_abi.rs` — shared ABI declarations; and
 - `runtime/rust/src/codegen_abi.rs` — runtime implementation.
@@ -168,7 +171,7 @@ Tcl-source-to-WASM code-generation backend and is not selectable by
 
 ## Module and package layout
 
-Runtime functions are imported before defined functions. Compatibility modules
+Runtime functions are imported before defined functions. General-plan modules
 export `::top` first, followed by procedures in qualified-name order. Current
 generic modules export the selected semantic function as `::top` with the full
 completion-triple signature. Runtime-linked constant data occupies the reserved
@@ -187,9 +190,9 @@ WASM header includes:
 ```jsonc
 {
   "codegenPlan": {
-    "kind": "generic-invoke", // or "compatibility"
-    "operation": "intrinsic", // null for compatibility
-    "compatibility": null      // typed reason object when compatible
+    "kind": "generic-invoke", // or "general"
+    "operation": "intrinsic", // null for general
+    "semanticDecline": null    // typed reason object for general
   },
   "text": "(module …)"
 }
@@ -210,7 +213,7 @@ When a Tcl surface is missing:
 4. add runtime backing when the operation crosses the shared runtime boundary;
 5. test Tcl completion, state, trace, ownership, re-entrancy, safe/child
    interpreter behaviour, and representation transitions; and
-6. shrink compatibility coverage without adding another public compiler path.
+6. shrink general runtime-evaluation regions without adding another emitter.
 
 Command spellings, Tcl list parsing, option parsing, and runtime semantics do
 not belong in the emitter. Pure list, string, numeric, boolean, option,

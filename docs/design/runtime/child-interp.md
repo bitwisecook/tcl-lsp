@@ -197,7 +197,7 @@ aliasing, hiding, deletion, or a dynamic transition can therefore make the
 selector abstain without any command-specific WASM branch. Generic argv
 dispatch remains sound because it uses the live runtime command table.
 
-The private broad-coverage compatibility plan also uses the generic
+General structured lowering in the sole emitter also uses the generic
 `scan_module_command_mutations` summary. `ModuleCommandMutations::trusts`
 guards builtin assumptions, and `trusts_proc_binding` guards direct procedure
 calls. A literal transition can distrust only the affected name; an unbounded
