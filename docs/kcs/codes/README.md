@@ -85,6 +85,7 @@ for historical reference.
 - [W143 — private Tcl implementation namespace](kcs-diagnostic-w143-private-tcl-namespace.md)
 - [W144 — deprecated at the resolved version](kcs-diagnostic-w144-deprecated-at-resolved-version.md)
 - [W145 — ambiguous keyword abbreviation](kcs-diagnostic-w145-ambiguous-abbreviation.md)
+- [W147 — mutually exclusive options](kcs-diagnostic-w147-mutually-exclusive-options.md)
 - [W200 — exec result not captured](kcs-diagnostic-w200-exec-result-not-captured.md)
 - [W201 — manual path concatenation](kcs-diagnostic-w201-manual-path-concatenation.md)
 - [W230 — list index out of range](kcs-diagnostic-w230-list-index-out-of-range.md)

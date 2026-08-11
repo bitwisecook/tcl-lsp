@@ -485,6 +485,19 @@ fn tcl9_lowercase_core_package_alias_selects_source_nopkg_grammar() {
 }
 
 #[test]
+fn source_tcl9_rejects_combined_encoding_and_nopkg_end_to_end() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let diags = lsp.open_ready(
+        &uri,
+        "# tcl-dialect: tcl9.0\nsource -encoding utf-8 -nopkg library.tcl\n",
+    );
+    let conflicts = with_code(&diags, "W147");
+    assert_eq!(conflicts.len(), 1, "expected one W147: {diags:?}");
+    assert!(message(&conflicts[0]).contains("cannot be used together"));
+}
+
+#[test]
 fn user_proc_shadowing_lsearch_suppresses_w004() {
     // `lsearch` really dispatches to the user's own proc here, so the
     // builtin's dialect-restricted `-stride` no longer applies.

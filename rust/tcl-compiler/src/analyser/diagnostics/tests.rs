@@ -1866,6 +1866,50 @@ fn e003_silent_for_subcommand_leading_options() {
 }
 
 #[test]
+fn w147_reports_registry_declared_mutually_exclusive_options() {
+    let mut a = Analyser::new();
+    let result = a.analyse("source -encoding utf-8 -nopkg file.tcl\n", "tcl9.0");
+    let conflicts: Vec<&Diagnostic> = result
+        .diagnostics
+        .iter()
+        .filter(|d| d.code == DiagCode::W147)
+        .collect();
+    assert_eq!(
+        conflicts.len(),
+        1,
+        "expected one W147: {:?}",
+        result.diagnostics
+    );
+    assert!(conflicts[0].message.contains("-encoding, -nopkg"));
+    assert!(conflicts[0].fixes.is_empty(), "intent is ambiguous");
+    let mut legacy = Analyser::new();
+    let legacy_result = legacy.analyse("source -encoding utf-8 -nopkg file.tcl\n", "tcl8.6");
+    assert!(
+        !legacy_result
+            .diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.code == DiagCode::W147),
+        "Tcl 9-only relationship must not leak into Tcl 8.6"
+    );
+}
+
+#[test]
+fn w147_is_generic_and_covers_glob_without_source_logic() {
+    let mut a = Analyser::new();
+    let result = a.analyse("glob -directory root -path prefix *.tcl\n", "tcl8.6");
+    assert_eq!(
+        result
+            .diagnostics
+            .iter()
+            .filter(|d| d.code == DiagCode::W147)
+            .count(),
+        1,
+        "expected generic option conflict: {:?}",
+        result.diagnostics
+    );
+}
+
+#[test]
 fn subcommand_arity_skips_unknown_and_dynamic_subcommands() {
     // An unknown subcommand is W001's job, not E003; a dynamic
     // subcommand word (`$sub`) can't be resolved, so neither path

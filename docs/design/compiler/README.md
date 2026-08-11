@@ -123,6 +123,8 @@ User-facing compiler troubleshooting and how-tos live in
 
 - [command-registry.md](command-registry.md) — command metadata, specs,
   arity, and taint hints.
+- [command-oracle-audits.md](command-oracle-audits.md) — release-gated Tcl
+  command oracle findings and registry-first corrections.
 - [data-structure-reference.md](data-structure-reference.md) — pipeline
   types at each stage.
 - [connection-scope.md](connection-scope.md) — cross-event variable

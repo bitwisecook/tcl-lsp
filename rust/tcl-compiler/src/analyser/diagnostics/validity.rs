@@ -1340,7 +1340,7 @@ impl Analyser {
         true
     }
 
-    /// **E002 / E003.** Argument-count check for simple (non-
+    /// **E002 / E003 / W147.** Argument-count and leading-option checks for simple (non-
     /// subcommand) commands: skip leading declared
     /// option flags, then compare the positional-argument count
     /// against the registry signature's arity bounds.
@@ -1565,6 +1565,7 @@ impl Analyser {
         // — the same `value_word_count` skip the W004 dialect-option loop
         // uses.
         let mut i = 0usize;
+        let mut seen_options: Vec<(&'static str, tcl_lexer::Span)> = Vec::new();
         while i < args.len() {
             if expanded(i) {
                 break;
@@ -1575,6 +1576,9 @@ impl Analyser {
                 break;
             }
             if let Some(opt) = sig.leading_option_specs.iter().find(|o| o.matches(arg)) {
+                if let Some(token) = arg_tokens.get(i) {
+                    seen_options.push((opt.name, widened_word_span(*token, &self.source)));
+                }
                 // Skip the flag itself plus however many value words it
                 // consumes at this position (0 for a bare flag).
                 i += 1 + opt.value_word_count(args, i);
@@ -1590,6 +1594,44 @@ impl Analyser {
         let positional_start = i.min(args.len());
         let (nargs_min, positional_any_expand) =
             count_positionals(args, arg_expand, positional_start);
+
+        // Option relationships are registry data. The generic analyser only
+        // projects the literal leading option words and reports the first
+        // proven conflict; dynamic option names and `{*}` expansions remain
+        // conservative abstentions. No repair is offered because choosing
+        // which option expresses the caller's intent is inherently ambiguous.
+        if let Some((constraint, first, second)) = sig.option_constraints.iter().find_map(|c| {
+            let found: Vec<_> = seen_options
+                .iter()
+                .filter(|(name, _)| c.options.contains(name))
+                .collect();
+            (found.len() >= 2).then(|| (*c, found[0].1, found[1].1))
+        }) {
+            let names = constraint
+                .options
+                .iter()
+                .filter(|name| seen_options.iter().any(|(seen, _)| seen == *name))
+                .copied()
+                .collect::<Vec<_>>()
+                .join(", ");
+            let span = tcl_lexer::Span::new(first.start(), second.end());
+            let ns = self.command_resolution_namespace(scope_path);
+            let enforce_order = !self.scope_path_in_proc_body(scope_path);
+            self.pending_arity.push((
+                resolution_name.to_string(),
+                ns,
+                enforce_order,
+                super::types::Diagnostic {
+                    code: DiagCode::W147,
+                    span,
+                    message: format!(
+                        "Options {names} cannot be used together for '{display_name}'"
+                    ),
+                    severity: Severity::Warning,
+                    fixes: Vec::new(),
+                },
+            ));
+        }
 
         let full_span = match arg_tokens.last() {
             Some(last) => tcl_lexer::Span::new(cmd_tok.span.start(), last.span.end()),

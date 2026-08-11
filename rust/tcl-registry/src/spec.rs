@@ -507,6 +507,44 @@ impl CaseListSpec {
 pub const DEFAULT_CREDENTIAL_OPTION_NAMES: &[&str] =
     &["-password", "-pass", "-secret", "-token", "-apikey"];
 
+/// A registry-declared relationship between leading options.
+///
+/// The analyser and LSP consume this descriptor generically: a command such
+/// as `source` or `glob` supplies the rejected option set, while the shared
+/// invocation validator reports a conflict. `dialects` is an additional
+/// availability gate; `None` inherits the owning command or subcommand's
+/// dialect set.
+#[derive(Debug, Clone, Copy)]
+pub struct OptionConstraint {
+    /// Canonical option names that may not occur together.
+    pub options: &'static [&'static str],
+    /// Tcl dialects in which this relationship applies.
+    pub dialects: Option<DialectSet>,
+}
+
+impl OptionConstraint {
+    /// Whether this constraint is active for `dialect`, inheriting the
+    /// command/subcommand dialect set when it has no own gate.
+    #[must_use]
+    pub const fn supports_dialect(
+        &self,
+        dialect: Option<DialectSet>,
+        parent_dialects: Option<DialectSet>,
+    ) -> bool {
+        let Some(want) = dialect else {
+            return true;
+        };
+        let gate = match self.dialects {
+            Some(gate) => Some(gate),
+            None => parent_dialects,
+        };
+        match gate {
+            Some(have) => have.intersects(want),
+            None => true,
+        }
+    }
+}
+
 /// Unified command metadata — the single source of truth.
 ///
 /// Every consumer (compiler, analyser, codegen, LSP, formatter, diagram
@@ -828,6 +866,11 @@ pub struct CommandSpec {
 
     /// Options declared on the command (for completion and arity adjustment).
     pub options: &'static [OptionSpec],
+
+    /// Relationships between leading options that the command rejects when
+    /// they occur together.  This is data for generic invocation validation,
+    /// not a command-specific analyser rule.
+    pub option_constraints: &'static [OptionConstraint],
 
     /// Number of trailing words (after the command name) that C Tcl's own
     /// option-scanning loop never treats as option candidates, regardless
@@ -1360,6 +1403,7 @@ impl CommandSpec {
         side_switch_target: None,
         event_handler_priority: None,
         options: &[],
+        option_constraints: &[],
         reserved_trailing_words: 0,
         arg_values: &[],
         body_kind: BodyKind::Plain,
@@ -2013,6 +2057,10 @@ pub struct SubCommand {
     /// Per-subcommand options.
     pub options: &'static [OptionSpec],
 
+    /// Relationships between this subcommand's leading options that the
+    /// command rejects when they occur together.
+    pub option_constraints: &'static [OptionConstraint],
+
     /// Documented minimum abbreviation length for this subcommand's own
     /// name, when the command promises a longer minimum than uniqueness
     /// alone requires.  `None` = uniqueness is the only constraint.
@@ -2270,6 +2318,7 @@ impl SubCommand {
         analyser_hook: None,
         command_table_effect: None,
         options: &[],
+        option_constraints: &[],
         min_abbrev: None,
         prefix_matching: PrefixMatching::Enabled,
         arg_values: &[],

@@ -122,6 +122,11 @@ const TYPES_VALUES: &[ArgValue] = &[
     },
 ];
 
+const OPTION_CONSTRAINTS: &[OptionConstraint] = &[OptionConstraint {
+    options: &["-directory", "-path"],
+    dialects: None,
+}];
+
 /// Command spec for `glob`.
 pub fn spec() -> CommandSpec {
     CommandSpec {
@@ -230,6 +235,7 @@ pub fn spec() -> CommandSpec {
                 },
             ]
         },
+        option_constraints: OPTION_CONSTRAINTS,
         hover: Some(HoverSnippet {
             summary: "Return names of files that match patterns.",
             synopsis: &[
@@ -243,5 +249,17 @@ pub fn spec() -> CommandSpec {
         }),
         forms: FORMS,
         ..CommandSpec::DEFAULT
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn glob_declares_directory_path_conflict() {
+        let glob = spec();
+        assert_eq!(glob.option_constraints.len(), 1);
+        assert_eq!(glob.option_constraints[0].options, &["-directory", "-path"]);
     }
 }

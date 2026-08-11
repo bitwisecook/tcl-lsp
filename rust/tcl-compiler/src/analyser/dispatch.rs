@@ -70,6 +70,10 @@ pub struct CommandSig {
     /// `leading_options`.
     pub leading_option_specs: Vec<&'static OptionSpec>,
 
+    /// Registry-declared relationships between leading options. The generic
+    /// validity pass reports conflicts without naming a command.
+    pub option_constraints: Vec<&'static tcl_registry::OptionConstraint>,
+
     /// The resolved command / subcommand's primary invocation synopsis
     /// ([`tcl_registry::CommandSpec::primary_synopsis`] /
     /// [`tcl_registry::SubCommand::primary_synopsis`]), appended by the
@@ -239,6 +243,21 @@ pub fn signature_for_command(
                     traits: sub.traits,
                     leading_options,
                     leading_option_specs,
+                    option_constraints: sub
+                        .option_constraints
+                        .iter()
+                        .chain(
+                            sub.subcommand_forms
+                                .iter()
+                                .flat_map(|form| form.option_constraints.iter()),
+                        )
+                        .filter(|constraint| {
+                            constraint.supports_dialect(
+                                Some(profile.availability_mask),
+                                sub.dialects.or(spec.dialects),
+                            )
+                        })
+                        .collect(),
                     synopsis: sub.primary_synopsis(),
                     min_abbrev: sub.min_abbrev,
                 },
@@ -270,6 +289,18 @@ pub fn signature_for_command(
         traits: spec.traits,
         leading_options,
         leading_option_specs,
+        option_constraints: spec
+            .option_constraints
+            .iter()
+            .chain(
+                spec.command_forms
+                    .iter()
+                    .flat_map(|form| form.option_constraints.iter()),
+            )
+            .filter(|constraint| {
+                constraint.supports_dialect(Some(profile.availability_mask), spec.dialects)
+            })
+            .collect(),
         synopsis: spec.primary_synopsis(),
         // A command name is never prefix-matched, so a simple command's
         // signature carries no abbreviation floor.
@@ -310,6 +341,15 @@ pub fn signature_for_command_any_dialect(
                     traits: sub.traits,
                     leading_options,
                     leading_option_specs,
+                    option_constraints: sub
+                        .option_constraints
+                        .iter()
+                        .chain(
+                            sub.subcommand_forms
+                                .iter()
+                                .flat_map(|form| form.option_constraints.iter()),
+                        )
+                        .collect(),
                     synopsis: sub.primary_synopsis(),
                     min_abbrev: sub.min_abbrev,
                 },
@@ -340,6 +380,15 @@ pub fn signature_for_command_any_dialect(
         traits: spec.traits,
         leading_options,
         leading_option_specs,
+        option_constraints: spec
+            .option_constraints
+            .iter()
+            .chain(
+                spec.command_forms
+                    .iter()
+                    .flat_map(|form| form.option_constraints.iter()),
+            )
+            .collect(),
         synopsis: spec.primary_synopsis(),
         // A command name is never prefix-matched, so a simple command's
         // signature carries no abbreviation floor.
@@ -374,6 +423,7 @@ pub fn signature_for_scoped_command(scoped: &ScopedCommand) -> CommandSignature 
                     // Scoped ensemble operations declare no option flags.
                     leading_options: BTreeSet::new(),
                     leading_option_specs: Vec::new(),
+                    option_constraints: Vec::new(),
                     synopsis: sub.primary_synopsis(),
                     min_abbrev: sub.min_abbrev,
                 },
@@ -397,6 +447,7 @@ pub fn signature_for_scoped_command(scoped: &ScopedCommand) -> CommandSignature 
         traits: Traits::empty(),
         leading_options: BTreeSet::new(),
         leading_option_specs: Vec::new(),
+        option_constraints: Vec::new(),
         synopsis: scoped
             .hover
             .as_ref()

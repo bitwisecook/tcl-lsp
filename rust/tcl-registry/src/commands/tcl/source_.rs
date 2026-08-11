@@ -125,6 +125,11 @@ const SIDE_EFFECTS: &[SideEffect] = &[
     },
 ];
 
+const OPTION_CONSTRAINTS: &[OptionConstraint] = &[OptionConstraint {
+    options: &["-encoding", "-nopkg"],
+    dialects: Some(DialectSet::TCL90_PLUS),
+}];
+
 /// Command spec for `source`.
 pub fn spec() -> CommandSpec {
     CommandSpec {
@@ -233,6 +238,7 @@ pub fn spec() -> CommandSpec {
                 },
             ]
         },
+        option_constraints: OPTION_CONSTRAINTS,
         hover: Some(HoverSnippet {
             summary: "Evaluate a file or resource as a Tcl script.",
             synopsis: &[
@@ -282,5 +288,16 @@ mod tests {
         assert!(synopsis.contains(&"source -encoding encodingName fileName"));
         assert!(synopsis.contains(&"source -nopkg fileName"));
         assert!(!synopsis.contains(&"source ?-encoding encodingName? ?-nopkg? fileName"));
+    }
+
+    #[test]
+    fn tcl9_source_declares_encoding_nopkg_conflict() {
+        let source = spec();
+        let constraint = source
+            .option_constraints
+            .first()
+            .expect("source option constraint");
+        assert_eq!(constraint.options, &["-encoding", "-nopkg"]);
+        assert_eq!(constraint.dialects, Some(DialectSet::TCL90_PLUS));
     }
 }

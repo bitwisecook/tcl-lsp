@@ -207,6 +207,11 @@ The existing registry correctly carries `SOURCES_FILE`, external-unit loading,
 dynamic-evaluation barrier, safe-interpreter hiding, file-read effects, the
 caller-frame hook, and the Tcl 8.5/9 option gates. This tranche corrects only
 the high-confidence Tcl 9 form/option facts and tests them in the registry.
+The registry also declares a generic mutually-exclusive-option relationship
+for Tcl 9 `-encoding`/`-nopkg`; the shared analyser reports `W147` for a
+literal leading conflict and offers no fix because either removal changes the
+caller's intent. The same descriptor/consumer path covers `glob
+-directory`/`-path`, with no `source` branch in the compiler or LSP.
 The `Source` analyser hook remains the generic hand-off for recording a
 source target and caller namespace; no compiler or LSP path rewrite was added.
 Any future source-specific quick fix must be returned by a registry-owned hook

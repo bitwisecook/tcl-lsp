@@ -41,6 +41,7 @@ use crate::literal_validation::LiteralArgumentValidator;
 use crate::representation::RepresentationEffect;
 use crate::result_stability::ResultStability;
 use crate::semantic_operation::SemanticOperationId;
+use crate::spec::OptionConstraint;
 use crate::state_transition::StateTransitionDescriptor;
 use crate::world_effect::WorldEffectDescriptor;
 
@@ -66,6 +67,10 @@ pub struct CommandForm {
 
     /// Options recognised on this form.
     pub options: &'static [OptionSpec],
+
+    /// Relationships between options that are invalid when supplied
+    /// together on this form.
+    pub option_constraints: &'static [OptionConstraint],
 
     /// Dialects in which this form applies. `None` = inherit from
     /// the parent [`crate::CommandSpec`] / [`crate::SubCommand`].
@@ -128,6 +133,7 @@ impl CommandForm {
         arity: Arity::any(),
         arg_roles: &[],
         options: &[],
+        option_constraints: &[],
         dialects: None,
         semantic_operation: None,
         completion: None,
