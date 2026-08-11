@@ -2070,9 +2070,6 @@ fn subcommand_version_gates_fire_w002() {
         "trace variable v w {}",
         "trace vdelete v w {}",
         "trace vinfo v",
-        // Tcl 8.6 introduced preferred `interp children`; Tcl 9 still
-        // accepts legacy `interp slaves` as a deprecated compatibility form.
-        "interp slaves",
     ] {
         assert!(
             !Analyser::new()
@@ -2092,6 +2089,22 @@ fn subcommand_version_gates_fire_w002() {
             "unexpected W001 (should be W002) for {snippet:?} on tcl9.0"
         );
     }
+    // Tcl 8.6 introduced preferred `interp children`, but Tcl 9 still accepts
+    // legacy `interp slaves`.  It is therefore a W144 deprecation with a safe
+    // registry-provided fix, not a W002 unavailable-subcommand diagnostic.
+    let slaves = Analyser::new()
+        .analyse("interp slaves", "tcl9.0")
+        .diagnostics;
+    assert!(
+        slaves.iter().any(|d| d.code == DiagCode::W144),
+        "expected W144 for deprecated-but-working `interp slaves` on tcl9.0"
+    );
+    assert!(
+        !slaves
+            .iter()
+            .any(|d| d.code == DiagCode::W001 || d.code == DiagCode::W002),
+        "`interp slaves` remains available in tcl9.0: {slaves:?}"
+    );
     // A subcommand that exists in *no* dialect is still a genuine W001.
     let typo = Analyser::new()
         .analyse("string bogusxyz abc", "tcl8.6")
