@@ -1296,26 +1296,47 @@ fn test_imported_tcltest_test_structure_recognised() {
 fn test_source_command_substitution_argument_is_tokenised() {
     // Issue #775: a command substitution in `source`'s argument is highlighted
     // as a command sequence (locks the rust-branch behaviour).
+    //
+    // The whole sequence, in order, not spot checks on two words: the point of
+    // the issue is that the argument reads as *code*, and that claim is only
+    // as strong as the weakest word in it.  `join` in particular has to be the
+    // subcommand keyword rather than the `join` list command that shares its
+    // spelling — a lookup that goes through `file`'s ensemble, so getting it
+    // right is evidence the substitution was resolved and not merely lexed.
     let mut lsp = Lsp::tcl();
     let lg = legend(&lsp);
+    let mods = modifiers(&lsp);
     let src = "source [file join $currentDir testUtilities.tcl]\n";
     let uri = open_doc(&mut lsp, src);
     let tokens = typed(&mut lsp, &lg, &uri);
+    let actual: Vec<(&str, &str)> = tokens
+        .iter()
+        .map(|t| (covered(src, t), t.ttype.as_str()))
+        .collect();
     assert_eq!(
-        tokens
-            .iter()
-            .find(|t| covered(src, t) == "file")
-            .map(|t| t.ttype.clone())
-            .as_deref(),
-        Some("function"),
-        "the [file join …] substitution must be tokenised: {tokens:?}",
+        actual,
+        vec![
+            ("source", "keyword"),
+            ("file", "function"),
+            ("join", "keyword"),
+            ("$currentDir", "variable"),
+            ("testUtilities.tcl", "string"),
+        ],
+        "the [file join …] substitution must tokenise as a command sequence",
     );
-    assert!(
-        tokens
+    // `file` and `join` resolve to the built-in ensemble, not to user code —
+    // the modifier an editor colours differently from a local proc call.
+    let library = modifier_bit(&mods, "defaultLibrary");
+    for word in ["file", "join"] {
+        let tok = tokens
             .iter()
-            .any(|t| covered(src, t) == "$currentDir" && t.ttype == "variable"),
-        "the variable inside source's argument must be a variable: {tokens:?}",
-    );
+            .find(|t| covered(src, t) == word)
+            .unwrap_or_else(|| panic!("no token covers {word:?}"));
+        assert!(
+            tok.modifiers & library != 0,
+            "`{word}` must carry defaultLibrary: {tok:?}",
+        );
+    }
 }
 
 #[test]
