@@ -66,6 +66,6 @@ pub fn spec() -> CommandSpec {
                 },
             ),
         ],
-        ..CommandSpec::DEFAULT
+        ..CommandSpec::CLOSED_REFERENTIALLY_TRANSPARENT
     }
 }

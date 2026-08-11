@@ -673,6 +673,10 @@ pub struct CommandSpec {
     /// descriptor. `None` deliberately leaves the invocation conservative.
     pub completion: Option<crate::completion::CompletionDescriptor>,
 
+    /// Whether equal evaluated arguments are sufficient to reproduce this
+    /// command's result. `None` is conservative, not an assertion of purity.
+    pub result_stability: Option<crate::result_stability::ResultStability>,
+
     /// Which argument index is a variable name assigned by the command.
     /// `None` = command does not assign a variable.
     pub assigns_variable_at: Option<u8>,
@@ -1318,6 +1322,7 @@ impl CommandSpec {
         command_forms: &[],
         semantic_operation: None,
         completion: None,
+        result_stability: None,
         assigns_variable_at: None,
         safe_on_uninit: None,
         const_fold: None,
@@ -1386,6 +1391,20 @@ impl CommandSpec {
         implementation_namespace: None,
         oo_context_facts: &[],
         self_receiver_words: &[],
+    };
+
+    /// Reusable base for a command whose successful result depends only on
+    /// its evaluated arguments and which has no mutable-world effects or
+    /// tracked state transitions.
+    ///
+    /// Command specs still declare their behavioural traits explicitly. This
+    /// base only closes the three independent semantic proof obligations, so
+    /// `PURE` and `CSE_CANDIDATE` cannot be acquired accidentally.
+    pub const CLOSED_REFERENTIALLY_TRANSPARENT: Self = Self {
+        result_stability: Some(crate::result_stability::ResultStability::ReferentiallyTransparent),
+        world_effects: Some(WorldEffectDescriptor::EMPTY),
+        state_transitions: Some(StateTransitionDescriptor::EMPTY),
+        ..Self::DEFAULT
     };
 
     /// Run this command's constant folder for `args` under the optimiser's
@@ -2018,6 +2037,10 @@ pub struct SubCommand {
     /// parent command's descriptor.
     pub completion: Option<crate::completion::CompletionDescriptor>,
 
+    /// Result-dependency refinement for this subcommand. `None` inherits the
+    /// parent command declaration.
+    pub result_stability: Option<crate::result_stability::ResultStability>,
+
     /// Dialect membership. `None` = inherit from parent `CommandSpec`.
     pub dialects: Option<DialectSet>,
 
@@ -2233,6 +2256,7 @@ impl SubCommand {
         subcommand_forms: &[],
         semantic_operation: None,
         completion: None,
+        result_stability: None,
         dialects: None,
         lifecycle: Lifecycle::UNSPECIFIED,
         safe_on_uninit: None,
@@ -2263,6 +2287,27 @@ impl SubCommand {
         sub_subcommands: &[],
         defines_command_at: None,
         max_leading_option_words: None,
+    };
+
+    /// Reusable base for a subcommand whose successful result depends only on
+    /// its evaluated arguments and which has no mutable-world effects or
+    /// tracked state transitions.
+    pub const CLOSED_REFERENTIALLY_TRANSPARENT: Self = Self {
+        result_stability: Some(crate::result_stability::ResultStability::ReferentiallyTransparent),
+        world_effects: Some(WorldEffectDescriptor::EMPTY),
+        state_transitions: Some(StateTransitionDescriptor::EMPTY),
+        ..Self::DEFAULT
+    };
+
+    /// Reusable base for a subcommand whose result changes outside the tracked
+    /// Tcl world, such as wall-clock or entropy observations.
+    ///
+    /// This closes only the result-dependency question. Effects and state
+    /// transitions remain conservative unless the command spec independently
+    /// declares them.
+    pub const VOLATILE_RESULT: Self = Self {
+        result_stability: Some(crate::result_stability::ResultStability::Volatile),
+        ..Self::DEFAULT
     };
 
     /// The subcommand's primary invocation synopsis — its own

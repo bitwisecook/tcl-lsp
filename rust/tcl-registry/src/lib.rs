@@ -90,6 +90,7 @@ pub mod profiles;
 pub mod registry;
 pub mod repeated;
 pub mod resolved_invocation;
+pub mod result_stability;
 pub mod scoped;
 pub mod semantic_operation;
 pub mod side_effects;
@@ -163,6 +164,7 @@ pub mod prelude {
     pub use crate::patterns::{FormatType, PatternType};
     pub use crate::presentation::ArgPresentation;
     pub use crate::repeated::RepeatedArgLayout;
+    pub use crate::result_stability::ResultStability;
     pub use crate::scoped::{ScopedCommand, ScopedCommandEnv};
     pub use crate::semantic_operation::{InlineBodyErrorContext, SemanticOperationId};
     pub use crate::side_effects::{
@@ -242,6 +244,7 @@ pub use resolved_invocation::{
     OwnedSubcommandResolution, ResolvedForm, ResolvedInvocation, ResolvedSubcommand,
     StructuredInvocationResolution, SubcommandResolution, SubcommandResolutionKind,
 };
+pub use result_stability::ResultStability;
 pub use semantic_operation::{InlineBodyErrorContext, SemanticOperationId};
 pub use side_effects::SideSwitchTarget;
 pub use spec::{

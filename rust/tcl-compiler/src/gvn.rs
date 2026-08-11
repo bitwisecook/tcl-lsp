@@ -29,7 +29,7 @@ use tcl_core_types::DiagCode;
 
 use rustc_hash::{FxHashMap, FxHashSet};
 use tcl_lexer::Span;
-use tcl_registry::{CommandRegistry, StateTransitionKnowledge, Traits};
+use tcl_registry::{CommandRegistry, ResultStability, StateTransitionKnowledge, Traits};
 
 use crate::cfg::{BlockId, CfgModule, Function as CfgFunction, Terminator};
 use crate::ir::{NodeId, Provenance, SourceSite, Statement};
@@ -826,9 +826,12 @@ impl GvnSemanticFacts {
 ///
 /// An empty effect vector on its own is not enough: transition coverage can
 /// remove a write from the ordinary footprint.  Reuse requires both the
-/// explicit pure/CSE registry traits and a closed, empty transition set, no
-/// direct state accesses, and no callback barrier.  The world-state SSA must
-/// also have built successfully before this helper is consulted.
+/// explicit pure/CSE registry traits, a referentially-transparent result, and
+/// a closed, empty transition set, no direct state accesses, and no callback
+/// barrier. The world-state SSA must also have built successfully before this
+/// helper is consulted. Versioned-world results fail closed until GVN includes
+/// those world versions in its expression key; volatile and undeclared results
+/// are never eligible.
 pub(crate) fn resolved_invocation_is_gvn_eligible(
     resolved: &tcl_registry::InvocationFacts,
 ) -> bool {
@@ -836,6 +839,9 @@ pub(crate) fn resolved_invocation_is_gvn_eligible(
         .traits
         .contains(Traits::PURE.union(Traits::CSE_CANDIDATE))
     {
+        return false;
+    }
+    if resolved.result_stability != ResultStability::ReferentiallyTransparent {
         return false;
     }
     if !resolved.effects.accesses().is_empty() || resolved.effects.requires_world_barrier() {
@@ -1888,7 +1894,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn function_level_gvn_declines_mapped_pure_calls_without_closed_world_facts() {
+    fn function_level_gvn_accepts_llength_closed_registry_proof() {
         let registry = CommandRegistry::build_default();
         let cu = crate::compilation_unit::CompilationUnit::build_for_dialect(
             "llength {a b}\nllength {a b}",
@@ -1902,10 +1908,9 @@ mod tests {
             !find_redundancies(&registry, &function.cfg, &function.ssa, Some("tcl8.6")).is_empty(),
             "the legacy classifier recognises the registry pure trait"
         );
-        assert!(
-            find_redundancies_for_function(&registry, function, Some("tcl8.6")).is_empty(),
-            "a mapped invocation without explicit closed world effects must fail closed"
-        );
+        let common = find_redundancies_for_function(&registry, function, Some("tcl8.6"));
+        assert_eq!(common.len(), 1);
+        assert_eq!(common[0].expression_text, "llength a b");
     }
 
     #[test]
@@ -1952,9 +1957,7 @@ mod tests {
         registry.insert(tcl_registry::CommandSpec {
             name: "test::pure_cse",
             traits: Traits::PURE | Traits::CSE_CANDIDATE,
-            world_effects: Some(tcl_registry::WorldEffectDescriptor::EMPTY),
-            state_transitions: Some(tcl_registry::StateTransitionDescriptor::EMPTY),
-            ..tcl_registry::CommandSpec::DEFAULT
+            ..tcl_registry::CommandSpec::CLOSED_REFERENTIALLY_TRANSPARENT
         });
         let cu = crate::compilation_unit::CompilationUnit::build_for_dialect(
             "test::pure_cse value\ntest::pure_cse value",
@@ -1969,6 +1972,66 @@ mod tests {
         let redundancies = find_redundancies_for_function(&registry, &cu.top_level, Some("tcl8.6"));
         assert_eq!(redundancies.len(), 1);
         assert_eq!(redundancies[0].expression_text, "test::pure_cse value");
+    }
+
+    #[test]
+    fn function_level_gvn_accepts_other_closed_stable_registry_commands() {
+        let registry = CommandRegistry::build_default();
+        for source in [
+            "format %s x\nformat %s x",
+            "lindex {a b} 0\nlindex {a b} 0",
+            "lreverse {a b}\nlreverse {a b}",
+        ] {
+            let cu = crate::compilation_unit::CompilationUnit::build_for_dialect(
+                source, &registry, false, "tcl9.0",
+            );
+            assert_eq!(
+                find_redundancies_for_function(&registry, &cu.top_level, Some("tcl9.0")).len(),
+                1,
+                "closed stable registry category should enable production GVN: {source}"
+            );
+        }
+    }
+
+    #[test]
+    fn function_level_gvn_declines_volatile_result_despite_closed_effects() {
+        let mut registry = CommandRegistry::build_default();
+        registry.insert(tcl_registry::CommandSpec {
+            name: "test::volatile_cse",
+            traits: Traits::PURE | Traits::CSE_CANDIDATE,
+            result_stability: Some(ResultStability::Volatile),
+            world_effects: Some(tcl_registry::WorldEffectDescriptor::EMPTY),
+            state_transitions: Some(tcl_registry::StateTransitionDescriptor::EMPTY),
+            ..tcl_registry::CommandSpec::DEFAULT
+        });
+        let cu = crate::compilation_unit::CompilationUnit::build_for_dialect(
+            "test::volatile_cse\ntest::volatile_cse",
+            &registry,
+            false,
+            "tcl9.0",
+        );
+
+        assert!(
+            find_redundancies_for_function(&registry, &cu.top_level, Some("tcl9.0")).is_empty(),
+            "read-only volatile results must not become common subexpressions"
+        );
+    }
+
+    #[test]
+    fn function_level_gvn_declines_clock_seconds_and_versioned_clock_context() {
+        let registry = CommandRegistry::build_default();
+        for source in [
+            "clock seconds\nclock seconds",
+            "clock add 0 1 day\nclock add 0 1 day",
+        ] {
+            let cu = crate::compilation_unit::CompilationUnit::build_for_dialect(
+                source, &registry, false, "tcl9.0",
+            );
+            assert!(
+                find_redundancies_for_function(&registry, &cu.top_level, Some("tcl9.0")).is_empty(),
+                "clock result dependencies must make production GVN abstain: {source}"
+            );
+        }
     }
 
     fn entry(key: &[&str], block: &str, idx: usize) -> ValueEntry {

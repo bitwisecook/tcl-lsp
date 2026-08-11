@@ -71,6 +71,6 @@ pub fn spec() -> CommandSpec {
         }),
         codegen_hook: Some(CodegenHookId::Llength),
         forms: FORMS,
-        ..CommandSpec::DEFAULT
+        ..CommandSpec::CLOSED_REFERENTIALLY_TRANSPARENT
     }
 }

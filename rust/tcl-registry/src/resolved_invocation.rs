@@ -36,6 +36,7 @@ use crate::hooks::{CodegenHookId, InlineCodegenHookId, LoweringHookId};
 use crate::hover::OptionSpec;
 use crate::intrinsic::IntrinsicId;
 use crate::invocation_words::{InvocationWordKind, InvocationWords};
+use crate::result_stability::ResultStability;
 use crate::semantic_operation::SemanticOperationId;
 use crate::side_effects::SideEffect;
 use crate::spec::{ArgRoleResolver, CommandSpec, SubCommand};
@@ -116,7 +117,20 @@ fn resolve_invocation_semantics<'r>(
             .or(sub.and_then(|sub| sub.completion))
             .or(spec.completion)
             .unwrap_or(CompletionDescriptor::CONSERVATIVE),
-        traits: spec.traits | sub.map_or_else(Traits::empty, |sub| sub.traits),
+        result_stability: form
+            .and_then(|form| form.result_stability)
+            .or(sub.and_then(|sub| sub.result_stability))
+            .or(spec.result_stability)
+            .unwrap_or_default(),
+        traits: spec.traits
+            | sub.map_or_else(Traits::empty, |sub| {
+                sub.traits
+                    | if sub.pure {
+                        Traits::PURE
+                    } else {
+                        Traits::empty()
+                    }
+            }),
         arity: form.map_or_else(
             || sub.map_or(spec.arity, |sub| sub.arity),
             |form| form.arity,
@@ -441,6 +455,8 @@ pub struct InvocationSemantics<'r> {
     /// then the command descriptor, falling back to the conservative generic
     /// invoke contract only when the registry supplied none of them.
     pub completion: CompletionDescriptor,
+    /// Registry-declared dependency contract for the invocation's result.
+    pub result_stability: ResultStability,
     /// Additive command and subcommand behaviour traits.
     pub traits: Traits,
     /// Effective arity after command/subcommand/form resolution.
@@ -541,6 +557,8 @@ pub struct InvocationFacts {
     pub operation: SemanticOperationId,
     /// Effective Tcl completion descriptor.
     pub completion: CompletionDescriptor,
+    /// Registry-declared dependency contract for the invocation's result.
+    pub result_stability: ResultStability,
     /// Fully resolved mutable-world footprint.
     ///
     /// Writes covered by [`Self::transition_effect_coverage`] have already
@@ -693,6 +711,7 @@ impl<'r, 'w> ResolvedInvocation<'r, 'w> {
             form: self.form.map(|form| form.name.to_owned()),
             operation: self.semantics.operation,
             completion: self.semantics.completion,
+            result_stability: self.semantics.result_stability,
             effects: self.effect_footprint_with_transition_coverage(&transition_effect_coverage),
             state_transitions: if self.semantics.state_transitions.is_declared() {
                 StateTransitionKnowledge::Declared(transitions)
@@ -1209,6 +1228,7 @@ mod tests {
         assert_eq!(facts.form.as_deref(), Some("argument-targeted"));
         assert_eq!(facts.operation, SemanticOperationId::Invoke);
         assert_eq!(facts.completion, CompletionDescriptor::CONSERVATIVE);
+        assert_eq!(facts.result_stability, ResultStability::Unknown);
         assert_eq!(facts.arity, Arity::exact(1));
         assert_eq!(facts.argument_offset, 1);
         assert!(facts.arg_roles.is_empty());
@@ -1223,6 +1243,84 @@ mod tests {
             access.domain == WorldStateDomain::VariableTraces
                 && access.subject == SubjectScope::named("targetCell")
         }));
+    }
+
+    #[test]
+    fn invocation_facts_expose_closed_referential_result_proofs() {
+        let registry = CommandRegistry::build_default();
+        let cases: &[(&str, &[&str])] = &[
+            ("format", &["%s", "x"]),
+            ("join", &["a b"]),
+            ("lindex", &["a b", "0"]),
+            ("linsert", &["a b", "0", "x"]),
+            ("llength", &["a b"]),
+            ("lrange", &["a b", "0", "end"]),
+            ("lremove", &["a b", "0"]),
+            ("lreplace", &["a b", "0", "0", "x"]),
+            ("lreverse", &["a b"]),
+            ("split", &["ab"]),
+        ];
+
+        for (command, arguments) in cases {
+            let facts = registry
+                .resolve_invocation(command, arguments, DialectSet::TCL91)
+                .unwrap_or_else(|| panic!("{command} resolves"))
+                .facts();
+
+            assert_eq!(
+                facts.result_stability,
+                ResultStability::ReferentiallyTransparent,
+                "{command}"
+            );
+            assert!(
+                facts.traits.contains(Traits::PURE | Traits::CSE_CANDIDATE),
+                "{command}"
+            );
+            assert!(facts.effects.accesses().is_empty(), "{command}");
+            assert!(!facts.effects.requires_world_barrier(), "{command}");
+            assert!(
+                matches!(
+                    facts.state_transitions,
+                    StateTransitionKnowledge::Declared(ref transitions)
+                        if transitions.facts().is_empty()
+                ),
+                "{command}"
+            );
+        }
+    }
+
+    #[test]
+    fn clock_result_dependencies_are_selected_by_subcommand() {
+        let registry = CommandRegistry::build_default();
+        let seconds = registry
+            .resolve_invocation("clock", &["seconds"], DialectSet::TCL90)
+            .expect("clock seconds resolves")
+            .facts();
+        assert_eq!(seconds.result_stability, ResultStability::Volatile);
+        assert!(
+            seconds.traits.contains(Traits::PURE),
+            "the established subcommand pure fact must reach common semantics"
+        );
+        assert!(seconds.effects.requires_world_barrier());
+        assert_eq!(
+            seconds.state_transitions,
+            StateTransitionKnowledge::UnknownInvocation,
+            "a result declaration must not fabricate effect or transition closure"
+        );
+
+        let add = registry
+            .resolve_invocation("clock", &["add", "0", "1", "day"], DialectSet::TCL90)
+            .expect("clock add resolves")
+            .facts();
+        assert!(matches!(
+            add.result_stability,
+            ResultStability::ReadsVersionedWorld(_)
+        ));
+        let dependencies = add.result_stability.versioned_world_dependencies();
+        assert!(dependencies.contains(&WorldStateDomain::HostCapabilities));
+        assert!(dependencies.contains(&WorldStateDomain::PackageState));
+        assert!(dependencies.contains(&WorldStateDomain::VariableStore));
+        assert!(add.effects.requires_world_barrier());
     }
 
     #[test]

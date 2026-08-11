@@ -37,6 +37,7 @@ use crate::dialects::DialectSet;
 use crate::dispatch_stability::DispatchDependencyDescriptor;
 use crate::hooks::{CodegenHookId, LoweringHookId};
 use crate::hover::OptionSpec;
+use crate::result_stability::ResultStability;
 use crate::semantic_operation::SemanticOperationId;
 use crate::state_transition::StateTransitionDescriptor;
 use crate::world_effect::WorldEffectDescriptor;
@@ -81,6 +82,10 @@ pub struct CommandForm {
     /// general descriptor.
     pub completion: Option<CompletionDescriptor>,
 
+    /// Result-dependency refinement for this concrete invocation shape.
+    /// `None` inherits the resolved subcommand or command declaration.
+    pub result_stability: Option<ResultStability>,
+
     /// Mutable Tcl-world effects specific to this concrete form.
     ///
     /// A matching form is applied after its subcommand and parent-command
@@ -116,6 +121,7 @@ impl CommandForm {
         dialects: None,
         semantic_operation: None,
         completion: None,
+        result_stability: None,
         world_effects: None,
         state_transitions: None,
         dispatch_dependencies: None,
