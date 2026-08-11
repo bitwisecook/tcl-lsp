@@ -70,6 +70,34 @@ fn e006_rejects_invalid_literal_formal_parameter_lists_from_registry_roles() {
 }
 
 #[test]
+fn e006_offers_only_the_structurally_unambiguous_parameter_repair() {
+    let mut analyser = crate::analyser::Analyser::new();
+    let result = analyser.analyse("proc invalid {{a b c}} {}\n", "tcl9.0");
+    let diagnostic = result
+        .diagnostics
+        .iter()
+        .find(|diagnostic| diagnostic.code == DiagCode::E006)
+        .expect("E006 is emitted");
+
+    assert_eq!(diagnostic.fixes.len(), 1);
+    assert_eq!(diagnostic.fixes[0].new_text, "{a b c}");
+    assert_eq!(
+        diagnostic.fixes[0].safety,
+        crate::analyser::types::FixSafety::RequiresReview
+    );
+
+    for source in ["proc invalid {a::b} {}\n", "proc invalid {a(x)} {}\n"] {
+        let result = analyser.analyse(source, "tcl9.0");
+        let diagnostic = result
+            .diagnostics
+            .iter()
+            .find(|diagnostic| diagnostic.code == DiagCode::E006)
+            .expect("E006 is emitted");
+        assert!(diagnostic.fixes.is_empty(), "must abstain for {source:?}");
+    }
+}
+
+#[test]
 fn e006_discovers_definition_body_and_lambda_parameter_shapes() {
     // These are not ordinary top-level command arguments.  The TclOO method
     // shape comes from DefinitionBodyGrammar::member / MemberSpec::arg_roles;

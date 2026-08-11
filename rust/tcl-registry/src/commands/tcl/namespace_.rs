@@ -239,8 +239,7 @@ const ENSEMBLE_SUB_SUBCOMMANDS: &[SubSubCommand] = &[
 static EXPORT_OPTIONS: &[OptionSpec] = &[OptionSpec {
     name: "-clear",
     value: OptionValue::flag(),
-    detail:
-        "Reset the namespace's export pattern list to empty before appending the given patterns.",
+    detail: "Reset the namespace's export pattern list to empty before appending the given patterns.",
     dialects: None,
     aliases: &[],
     lifecycle: Lifecycle::UNSPECIFIED,
@@ -1129,12 +1128,12 @@ pub fn spec() -> CommandSpec {
 #[cfg(test)]
 mod tests {
     use super::{
+        NamespaceTransition, NamespaceTransitionTarget, StateTransition, TransitionSubject,
         fold_qualifiers, fold_tail, namespace_delete_state_transitions,
-        namespace_path_state_transitions, NamespaceTransition, NamespaceTransitionTarget,
-        StateTransition, TransitionSubject,
+        namespace_path_state_transitions,
     };
-    use crate::dialects::DialectSet;
     use crate::InvocationArguments;
+    use crate::dialects::DialectSet;
 
     #[test]
     fn namespace_path_keeps_its_tcl_list_operand_whole() {
@@ -1350,9 +1349,11 @@ mod tests {
                 .map(|sub| sub.name),
             Some("configure")
         );
-        assert!(ensemble
-            .resolve_sub_subcommand_for_dialect("e", DialectSet::TCL84)
-            .is_none());
+        assert!(
+            ensemble
+                .resolve_sub_subcommand_for_dialect("e", DialectSet::TCL84)
+                .is_none()
+        );
         assert!(ensemble.resolve_sub_subcommand("c").is_none());
     }
 }

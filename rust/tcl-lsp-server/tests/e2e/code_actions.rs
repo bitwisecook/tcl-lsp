@@ -1324,6 +1324,45 @@ fn quickfixes_for_code(lsp: &mut Lsp, uri: &str, diags: &[Value], code: &str) ->
     code_actions_only(lsp, uri, rng, json!(matching), &["quickfix"])
 }
 
+/// E006: an overlong grouped formal is the one malformed parameter shape
+/// whose structural repair is unambiguous.  The analyser carries a
+/// review-required edit which the LSP publishes as an ordinary quick fix.
+#[test]
+fn test_e006_offers_split_grouped_formals_fix() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let src = "proc invalid {{a b c}} {}\n";
+    let diags = lsp.open_ready(&uri, src);
+    let actions = quickfixes_for_code(&mut lsp, &uri, &diags, "E006");
+    assert_fix_applies(
+        &actions,
+        src,
+        "Split the grouped fields into separate parameters",
+        "proc invalid {a b c} {}\n",
+    );
+}
+
+/// E006: qualified and array-element names have several plausible intended
+/// spellings, so the LSP must not manufacture a rewrite for either form.
+#[test]
+fn test_e006_abstains_from_ambiguous_name_repairs() {
+    for (suffix, src) in [
+        ("qualified", "proc invalid {a::b} {}\n"),
+        ("array", "proc invalid {a(x)} {}\n"),
+    ] {
+        let mut lsp = Lsp::tcl();
+        let uri = unique_uri(suffix);
+        let diags = lsp.open_ready(&uri, src);
+        let actions = quickfixes_for_code(&mut lsp, &uri, &diags, "E006");
+        assert!(
+            !titles(&actions)
+                .iter()
+                .any(|title| title == "Split the grouped fields into separate parameters"),
+            "ambiguous name repair must be withheld: {actions:?}"
+        );
+    }
+}
+
 /// W120: the missing-`package require` diagnostic carries an insertion fix
 /// that adds the require line at the top of the file (no requires exist yet).
 #[test]

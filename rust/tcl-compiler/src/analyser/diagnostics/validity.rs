@@ -185,12 +185,22 @@ pub(in crate::analyser) fn emit_invalid_formal_parameter_list_diagnostics(
         let Err(error) = crate::signature_scan::params::parse_param_list_strict(params) else {
             continue;
         };
+        let span = widened_word_span(*token, &analyser.source);
+        let fixes = tcl_syntax::formal_params::split_overlong_parameter_specifier(params, &error)
+            .map(|repaired| {
+                vec![crate::analyser::types::CodeFix::review(
+                    span,
+                    tcl_syntax::list::list_element(&repaired),
+                    "Split the grouped fields into separate parameters",
+                )]
+            })
+            .unwrap_or_default();
         analyser.result.diagnostics.push(super::types::Diagnostic {
             code: DiagCode::E006,
-            span: widened_word_span(*token, &analyser.source),
+            span,
             message: format!("Invalid formal parameter list: {error}"),
             severity: Severity::Error,
-            fixes: Vec::new(),
+            fixes,
         });
     }
 }
@@ -221,12 +231,25 @@ pub(in crate::analyser) fn emit_invalid_lambda_parameter_list_diagnostics(
         let Err(error) = crate::signature_scan::params::parse_param_list_strict(params) else {
             continue;
         };
+        let span = widened_word_span(*token, &analyser.source);
+        let fixes = tcl_syntax::formal_params::split_overlong_parameter_specifier(params, &error)
+            .map(|repaired| {
+                let mut repaired_fields = fields.clone();
+                repaired_fields[0] = repaired.into();
+                let repaired_lambda = tcl_syntax::list::join_list(repaired_fields);
+                vec![crate::analyser::types::CodeFix::review(
+                    span,
+                    tcl_syntax::list::list_element(&repaired_lambda),
+                    "Split the grouped fields into separate parameters",
+                )]
+            })
+            .unwrap_or_default();
         analyser.result.diagnostics.push(super::types::Diagnostic {
             code: DiagCode::E006,
-            span: widened_word_span(*token, &analyser.source),
+            span,
             message: format!("Invalid formal parameter list: {error}"),
             severity: Severity::Error,
-            fixes: Vec::new(),
+            fixes,
         });
     }
 }

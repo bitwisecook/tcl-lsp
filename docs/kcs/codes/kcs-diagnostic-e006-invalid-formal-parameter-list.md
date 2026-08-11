@@ -41,11 +41,20 @@ fields.
 
 ## Fix
 
+For an accidentally grouped specifier with more than two fields, choose
+**Split the grouped fields into separate parameters** from the code actions:
+
 ```tcl
-proc greet {{name default}} {
+proc greet {name default extra} {
     puts "Hello, $name"
 }
 ```
+
+This review-required action preserves every field by turning it into a separate
+parameter. Check whether you instead intended a two-field `name default` pair,
+and edit it by hand if so. Qualified names and array elements have several
+plausible repairs, so the analyser deliberately offers no mechanical rewrite
+for them.
 
 Use a single name or a `name default` pair. Duplicate names remain valid Tcl,
 although the later parameter shadows the earlier one.
