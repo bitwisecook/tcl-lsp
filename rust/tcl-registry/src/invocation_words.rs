@@ -192,6 +192,84 @@ impl<'w> InvocationArguments<'w> {
             Self::Structured(words) => words.iter().map(|word| word.literal()).collect(),
         }
     }
+
+    /// Borrow the arguments from `start` onwards while preserving their
+    /// source-knowledge representation.
+    #[must_use]
+    pub fn slice_from(self, start: usize) -> Self {
+        match self {
+            Self::Literals(words) => Self::Literals(words.get(start..).unwrap_or(&[])),
+            Self::Structured(words) => Self::Structured(words.get(start..).unwrap_or(&[])),
+        }
+    }
+}
+
+/// Inputs supplied to a registry command-prefix resolver.
+///
+/// `spellings` preserves the compatibility view used by position-only
+/// resolvers. `words` is the source-aware truth used by any resolver whose
+/// appended arity depends on a literal argument value. Such a resolver must
+/// use [`Self::literal_at`] and abstain when it returns `None`, never interpret
+/// a dynamic word's source spelling as its runtime value.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct CommandPrefixArguments<'w> {
+    spellings: &'w [&'w str],
+    words: InvocationArguments<'w>,
+}
+
+impl<'w> CommandPrefixArguments<'w> {
+    /// Construct a compatibility view in which every argument is literal.
+    #[must_use]
+    pub const fn literals(spellings: &'w [&'w str]) -> Self {
+        Self {
+            spellings,
+            words: InvocationArguments::literals(spellings),
+        }
+    }
+
+    /// Construct a source-aware view alongside reconstructed source
+    /// spellings. Both slices must describe the same post-head words.
+    #[must_use]
+    pub fn structured(spellings: &'w [&'w str], words: &'w [InvocationWord<'w>]) -> Option<Self> {
+        (spellings.len() == words.len()).then_some(Self {
+            spellings,
+            words: InvocationArguments::structured(words),
+        })
+    }
+
+    /// Number of post-head source words.
+    #[must_use]
+    pub const fn len(self) -> usize {
+        self.words.len()
+    }
+
+    /// Whether there are no post-head source words.
+    #[must_use]
+    pub const fn is_empty(self) -> bool {
+        self.words.is_empty()
+    }
+
+    /// Reconstructed source spellings for position-only compatibility
+    /// resolvers. Do not use these to make a value-dependent decision.
+    #[must_use]
+    pub const fn spellings(self) -> &'w [&'w str] {
+        self.spellings
+    }
+
+    /// Return an argument value only when source analysis proves it literal.
+    #[must_use]
+    pub fn literal_at(self, index: usize) -> Option<&'w str> {
+        self.words.literal_at(index)
+    }
+
+    /// Borrow the arguments from `start` onwards, preserving both views.
+    #[must_use]
+    pub fn slice_from(self, start: usize) -> Self {
+        Self {
+            spellings: self.spellings.get(start..).unwrap_or(&[]),
+            words: self.words.slice_from(start),
+        }
+    }
 }
 
 /// A structured source-word view for one invocation.

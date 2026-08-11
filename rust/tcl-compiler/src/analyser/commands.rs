@@ -35,6 +35,7 @@ use crate::depth_guard::MAX_BRACKET_TEXT_DEPTH;
 use crate::parsing::syntax::descend::{descend_command, descend_token};
 use crate::parsing::syntax::segment::segments_from_tree;
 use crate::segmenter::SegmentedCommand;
+use crate::signature_scan::command_prefix::CommandPrefixWords;
 
 use super::state::Analyser;
 use super::types::{CodeFix, Diagnostic, Severity};
@@ -901,9 +902,9 @@ impl Analyser {
             // myCompare`, `trace add … cb`) as command invocations too, so
             // find-references / rename / call-hierarchy / code-lens / W123 /
             // callback-arity see the callback exactly like a direct call.
-            self.record_command_prefix_invocations(
-                cmd_name, args, arg_tokens, arg_single, scope_path,
-            );
+            let expanded = arg_expand_in.get(1..).unwrap_or(&[]);
+            let words = CommandPrefixWords::source_less(args, arg_tokens, arg_single, expanded);
+            self.record_command_prefix_invocations(cmd_name, words, scope_path);
 
             // Record `ArgRole::CommandName` arguments (`info body PROC`,
             // `namespace which -command NAME`) — a bare command name held as
@@ -2188,16 +2189,22 @@ impl Analyser {
     fn record_command_prefix_invocations(
         &mut self,
         cmd_name: &str,
-        args: &[String],
-        arg_tokens: &[Token],
-        arg_single: &[bool],
+        words: CommandPrefixWords<'_, '_>,
         scope_path: &[usize],
     ) {
         let Some(registry) = self.registry else {
             return;
         };
+        let source_map = SourceMap::new(&self.source);
+        let words = CommandPrefixWords {
+            texts: words.texts,
+            tokens: words.tokens,
+            single_token: words.single_token,
+            expanded: words.expanded,
+            source_map: Some(&source_map),
+        };
         let mut invs = crate::signature_scan::command_prefix::command_prefix_invocations(
-            registry, cmd_name, args, arg_tokens, arg_single,
+            registry, cmd_name, words,
         );
         // Instance-method dispatch: `$obj method …` / `objName method …` where
         // the receiver's class is a registry-modelled object class and the
@@ -2205,7 +2212,7 @@ impl Analyser {
         // `$t walkproc … cb`).  The receiver's class comes from the progressive
         // `instance_classes` map (bound by a prior `struct::graph name` /
         // `set g [Class new]`), keyed by the bare handle (leading `$` stripped).
-        if let Some(method) = args.first() {
+        if let Some(method) = words.texts.first() {
             // The handle is a bare object command (`objName method …`) or a
             // variable dispatch, whose head reconstructs as `$g` or `${g}` — map
             // all three to the `instance_classes` key (the bare name).
@@ -2220,9 +2227,13 @@ impl Analyser {
                         registry,
                         class,
                         method,
-                        args.get(1..).unwrap_or(&[]),
-                        arg_tokens.get(1..).unwrap_or(&[]),
-                        arg_single.get(1..).unwrap_or(&[]),
+                        CommandPrefixWords {
+                            texts: words.texts.get(1..).unwrap_or(&[]),
+                            tokens: words.tokens.get(1..).unwrap_or(&[]),
+                            single_token: words.single_token.get(1..).unwrap_or(&[]),
+                            expanded: words.expanded.get(1..).unwrap_or(&[]),
+                            source_map: Some(&source_map),
+                        },
                     ),
                 );
             }
@@ -4602,13 +4613,24 @@ fn record_command_invocations(
         let arg_texts: Vec<String> = seg.texts.iter().skip(1).cloned().collect();
         let arg_tokens: Vec<Token> = seg.argv.iter().skip(1).copied().collect();
         let arg_single: Vec<bool> = seg.single_token_word.iter().skip(1).copied().collect();
-        for inv in crate::signature_scan::command_prefix::command_prefix_invocations(
-            registry,
-            name,
-            &arg_texts,
-            &arg_tokens,
-            &arg_single,
-        ) {
+        let arg_expanded: Vec<bool> = seg
+            .expand_word
+            .as_deref()
+            .unwrap_or(&[])
+            .iter()
+            .skip(1)
+            .copied()
+            .collect();
+        let words = CommandPrefixWords {
+            texts: &arg_texts,
+            tokens: &arg_tokens,
+            single_token: &arg_single,
+            expanded: &arg_expanded,
+            source_map: Some(sm),
+        };
+        for inv in
+            crate::signature_scan::command_prefix::command_prefix_invocations(registry, name, words)
+        {
             out.push((inv.head, inv.span, None, Some(inv.appended), None));
         }
     }

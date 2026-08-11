@@ -38,6 +38,7 @@ use crate::hooks::{
     TclVersion, VersionedConstFoldFn,
 };
 use crate::hover::{ArgValue, FormSpec, HoverSnippet, OptionSpec};
+use crate::invocation_words::CommandPrefixArguments;
 use crate::lifecycle::{Lifecycle, LifecycleState};
 use crate::literal_validation::LiteralArgumentValidator;
 use crate::patterns::{FormatType, PatternType};
@@ -65,7 +66,8 @@ pub type ArgRoleResolver = fn(args: &[&str]) -> Vec<(u8, ArgRole)>;
 /// the prefix index depends on the actual arguments. Returns
 /// `(arg_index, appended_arity)` pairs.  Paired with the static
 /// [`CommandSpec::command_prefixes`] table — either may be set.
-pub type CommandPrefixResolver = fn(args: &[&str]) -> Vec<(u8, crate::arg_role::AppendedArity)>;
+pub type CommandPrefixResolver =
+    for<'a> fn(CommandPrefixArguments<'a>) -> Vec<(u8, crate::arg_role::AppendedArity)>;
 
 /// A call-site restriction that depends on *where* the call sits — a
 /// lexical/dispatch context arity and dialect gating can't see — rather

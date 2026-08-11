@@ -678,46 +678,6 @@ pub(super) fn is_tcloo_metaclass(
     })
 }
 
-/// Convert the analyser's segmented source word into the registry's
-/// value-conservative vocabulary. Only a single literal token exposes its Tcl
-/// value. First-stage backslash substitution in a bare/quoted word is not
-/// reconstructed by `SegmentedCommand::texts`, so those spellings abstain.
-fn literal_validation_word<'a>(
-    source: &str,
-    text: &'a str,
-    token: Option<tcl_lexer::Token>,
-    single_token: bool,
-    expanded: bool,
-) -> tcl_registry::InvocationWord<'a> {
-    if expanded {
-        return tcl_registry::InvocationWord::Expanded;
-    }
-    let Some(token) = token else {
-        return tcl_registry::InvocationWord::Opaque;
-    };
-    if !single_token {
-        return tcl_registry::InvocationWord::Dynamic;
-    }
-    let source_map = tcl_lexer::SourceMap::new(source);
-    let delimited = matches!(
-        source.as_bytes().get(token.span.start() as usize),
-        Some(b'{' | b'"')
-    );
-    if delimited && tcl_lexer::word_closer_offset(&source_map, token).is_none() {
-        return tcl_registry::InvocationWord::Opaque;
-    }
-    match token.kind {
-        tcl_lexer::TokenType::Str => tcl_registry::InvocationWord::Literal(text),
-        tcl_lexer::TokenType::Esc if !text.contains('\\') => {
-            tcl_registry::InvocationWord::Literal(text)
-        }
-        tcl_lexer::TokenType::Var | tcl_lexer::TokenType::Cmd => {
-            tcl_registry::InvocationWord::Dynamic
-        }
-        _ => tcl_registry::InvocationWord::Opaque,
-    }
-}
-
 impl Analyser {
     /// **W146.** Run the resolved invocation's registry-owned relationship or
     /// literal-content validator. The analyser knows only how to project
@@ -736,12 +696,13 @@ impl Analyser {
         let Some(registry) = self.registry else {
             return;
         };
+        let source_map = tcl_lexer::SourceMap::new(&self.source);
         let words: Vec<_> = args
             .iter()
             .enumerate()
             .map(|(index, text)| {
-                literal_validation_word(
-                    &self.source,
+                crate::signature_scan::command_prefix::invocation_word(
+                    Some(&source_map),
                     text,
                     arg_tokens.get(index).copied(),
                     arg_single.get(index).copied().unwrap_or(false),

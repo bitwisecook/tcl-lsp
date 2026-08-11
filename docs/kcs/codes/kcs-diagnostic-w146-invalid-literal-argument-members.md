@@ -57,9 +57,9 @@ The analyser abstains on substituted, expanded, malformed, or incomplete
 lists, and when the trace type is invalid or ambiguous.
 
 Execution callbacks have two appended arguments for `enter` and `enterstep`,
-but four for `leave` and `leavestep`. The current callback-arity check retains
-the common lower bound, so review a mixed execution-operation callback
-manually.
+but four for `leave` and `leavestep`. For a complete literal operation list,
+the callback-arity check verifies that the callback accepts every applicable
+argument count. A substituted or malformed operation list is left unchecked.
 
 ## How to suppress
 

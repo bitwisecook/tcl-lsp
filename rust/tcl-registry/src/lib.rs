@@ -116,7 +116,7 @@ pub mod world_effect;
 /// types needed to construct a `CommandSpec`.
 pub mod prelude {
     pub use crate::abbrev::{KeywordMatch, KeywordTable, PrefixMatching};
-    pub use crate::arg_role::{AppendedArity, ArgRole};
+    pub use crate::arg_role::{AppendedArity, AppendedAritySet, ArgRole};
     pub use crate::arity::Arity;
     pub use crate::body_kind::BodyKind;
     pub use crate::bpf_op::{
@@ -163,7 +163,7 @@ pub mod prelude {
         OptionSpec, OptionValue, OptionValueHook, OptionValueOutcome,
     };
     pub use crate::intrinsic::IntrinsicId;
-    pub use crate::invocation_words::InvocationArguments;
+    pub use crate::invocation_words::{CommandPrefixArguments, InvocationArguments};
     pub use crate::lifecycle::{Lifecycle, LifecycleState};
     pub use crate::literal_validation::{
         LiteralArgumentIssue, LiteralArgumentIssueReason, LiteralArgumentValidation,
@@ -208,7 +208,7 @@ pub mod prelude {
 }
 
 // Re-export key types at crate root.
-pub use arg_role::{AppendedArity, ArgRole};
+pub use arg_role::{AppendedArity, AppendedAritySet, ArgRole};
 pub use arity::Arity;
 pub use bigip::{BigipObjectSpec, BigipPropertySpec, BigipRegistry, ValueKind};
 pub use body_kind::BodyKind;
@@ -240,7 +240,8 @@ pub use handle_binding::{
 pub use hover::ArgValue;
 pub use intrinsic::IntrinsicId;
 pub use invocation_words::{
-    InvocationArguments, InvocationWord, InvocationWordKind, InvocationWords,
+    CommandPrefixArguments, InvocationArguments, InvocationWord, InvocationWordKind,
+    InvocationWords,
 };
 pub use literal_validation::{
     LiteralArgumentIssue, LiteralArgumentIssueReason, LiteralArgumentValidation,

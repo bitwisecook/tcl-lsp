@@ -463,7 +463,7 @@ fn interp_bgerror_world_effects(arguments: InvocationArguments<'_>) -> EffectFoo
 /// `?arg...?`, so the count is variadic (`Unknown`, referenced but not
 /// arity-checked). The 2-arg query form (`interp alias srcPath srcCmd`) has no
 /// target.
-fn interp_alias_command_prefixes(args: &[&str]) -> Vec<(u8, AppendedArity)> {
+fn interp_alias_command_prefixes(args: CommandPrefixArguments<'_>) -> Vec<(u8, AppendedArity)> {
     if args.len() >= 4 {
         vec![(3, AppendedArity::Unknown)]
     } else {
@@ -474,7 +474,7 @@ fn interp_alias_command_prefixes(args: &[&str]) -> Vec<(u8, AppendedArity)> {
 /// `interp bgerror path ?cmdPrefix?` — the optional background-error handler
 /// (index 1, after `bgerror`) is a command prefix invoked with the error
 /// message + return options (variadic ⇒ `Unknown`).
-fn interp_bgerror_command_prefixes(args: &[&str]) -> Vec<(u8, AppendedArity)> {
+fn interp_bgerror_command_prefixes(args: CommandPrefixArguments<'_>) -> Vec<(u8, AppendedArity)> {
     if args.len() >= 2 {
         vec![(1, AppendedArity::Unknown)]
     } else {

@@ -1707,6 +1707,68 @@ fn callback_dispatch_body_silent() {
 }
 
 #[test]
+fn execution_trace_callback_exact_arities_reach_lsp_diagnostics() {
+    let mut lsp = Lsp::with_config(serde_json::json!({
+        "features": { "linkedEditingRange": true, "crossFileResolution": true }
+    }));
+    let uri = unique_uri("tcl");
+    let source = "proc target {} {}\n\
+                  proc enterOk {command op} {}\n\
+                  proc leaveOk {command code result op} {}\n\
+                  proc enterWrong {command code result op} {}\n\
+                  proc leaveWrong {command op} {}\n\
+                  trace add execution target enter enterOk\n\
+                  trace add execution target leave leaveOk\n\
+                  trace add execution target enter enterWrong\n\
+                  trace add execution target leave leaveWrong\n";
+    lsp.open_ready(&uri, source);
+    let diagnostics = lsp.pull_diagnostics(&uri);
+    assert_eq!(on_line(&diagnostics, "E002"), BTreeSet::from([7]));
+    assert_eq!(on_line(&diagnostics, "E003"), BTreeSet::from([8]));
+}
+
+#[test]
+fn mixed_execution_trace_accepts_defaulted_and_variadic_callbacks() {
+    let mut lsp = Lsp::with_config(serde_json::json!({
+        "features": { "linkedEditingRange": true, "crossFileResolution": true }
+    }));
+    let uri = unique_uri("tcl");
+    let source = "proc target {} {}\n\
+                  proc fixedThree {a b c} {}\n\
+                  proc defaulted {a b {c default} {d default}} {}\n\
+                  proc variadic {a b args} {}\n\
+                  trace add execution target {enter leave} fixedThree\n\
+                  trace add execution target {enter leave} defaulted\n\
+                  trace add execution target {enter leave} variadic\n";
+    lsp.open_ready(&uri, source);
+    let diagnostics = lsp.pull_diagnostics(&uri);
+    assert_eq!(on_line(&diagnostics, "E002"), BTreeSet::from([4]));
+    assert!(on_line(&diagnostics, "E003").is_empty(), "{diagnostics:?}");
+    assert!(on_line(&diagnostics, "E005").is_empty(), "{diagnostics:?}");
+}
+
+#[test]
+fn execution_trace_dynamic_and_malformed_operation_lists_abstain_end_to_end() {
+    let mut lsp = Lsp::with_config(serde_json::json!({
+        "features": { "linkedEditingRange": true, "crossFileResolution": true }
+    }));
+    let uri = unique_uri("tcl");
+    let source = "proc target {} {}\n\
+                  proc fixedThree {a b c} {}\n\
+                  set operations {enter leave}\n\
+                  trace add execution target $operations fixedThree\n\
+                  trace add execution target \"{enter\" fixedThree\n";
+    lsp.open_ready(&uri, source);
+    let diagnostics = lsp.pull_diagnostics(&uri);
+    for code in ["E002", "E003", "E005"] {
+        assert!(
+            on_line(&diagnostics, code).is_empty(),
+            "{code} must abstain for unproved operation lists: {diagnostics:?}"
+        );
+    }
+}
+
+#[test]
 fn after_and_dynamic_proc_silent() {
     for src in ["after 0 $coroName\n", "proc $fakeName $arglist $body\n"] {
         let mut lsp = Lsp::tcl();

@@ -338,9 +338,17 @@ fn record_command_prefix_invocations(cmd: &SegmentedCommand, head: &str, ctx: &m
     let invs = command_prefix_invocations(
         registry,
         head,
-        &cmd.texts[1..],
-        &cmd.argv[1..],
-        &cmd.single_token_word[1..],
+        super::command_prefix::CommandPrefixWords {
+            texts: &cmd.texts[1..],
+            tokens: &cmd.argv[1..],
+            single_token: &cmd.single_token_word[1..],
+            expanded: cmd
+                .expand_word
+                .as_deref()
+                .and_then(|expanded| expanded.get(1..))
+                .unwrap_or(&[]),
+            source_map: None,
+        },
     );
     for inv in invs {
         ctx.result

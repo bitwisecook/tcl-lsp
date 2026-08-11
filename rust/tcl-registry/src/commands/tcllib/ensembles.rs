@@ -501,7 +501,7 @@ fn debug_spec() -> CommandSpec {
 /// `hook call subject hook ?arg…?` passes ⇒ `Unknown`.  The 1/2/3-arg forms
 /// are query variants (and an empty 4th arg is a delete), so only the full
 /// four-word set form names a callback.
-fn hook_bind_command_prefixes(args: &[&str]) -> Vec<(u8, AppendedArity)> {
+fn hook_bind_command_prefixes(args: CommandPrefixArguments<'_>) -> Vec<(u8, AppendedArity)> {
     if args.len() == 4 {
         vec![(3, AppendedArity::Unknown)]
     } else {

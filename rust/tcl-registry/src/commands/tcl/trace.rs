@@ -27,6 +27,8 @@ const VARIABLE_TRACE_OPERATIONS: &[&str] = &["array", "read", "unset", "write"];
 const COMMAND_TRACE_OPERATIONS: &[&str] = &["delete", "rename"];
 const EXECUTION_TRACE_OPERATIONS: &[&str] = &["enter", "leave", "enterstep", "leavestep"];
 const LEGACY_VARIABLE_TRACE_OPERATIONS: &[&str] = &["r", "w", "u", "a"];
+const EXECUTION_TRACE_CALLBACK_ARITIES: AppendedAritySet =
+    AppendedAritySet::from_sorted_unique(&[2, 4]);
 
 fn operations_for(kind: TraceKind) -> &'static [&'static str] {
     match kind {
@@ -795,20 +797,58 @@ fn trace_remove_arg_roles(args: &[&str]) -> Vec<(u8, ArgRole)> {
 /// The invoked arity of a `trace add/remove <type> name ops cmdPrefix`
 /// callback (C Tcl 9.0): a `variable` trace fires `cmdPrefix name1 name2 op`
 /// (3), a `command` trace fires `cmdPrefix oldName newName op` (3), an
-/// `execution` trace fires 2–4 args (`enter`/`leave`/`enterstep`/`leavestep`),
-/// so `AtLeast(2)`.  A `remove` only references the handler (it is matched, not
-/// invoked), so it carries `Unknown` — recorded as a reference, not
-/// arity-checked.
-fn trace_type_command_prefix(args: &[&str], installing: bool) -> Vec<(u8, AppendedArity)> {
+/// `execution` trace fires exactly 2 args for `enter`/`enterstep` and exactly
+/// 4 for `leave`/`leavestep`; a mixed literal list therefore requires the
+/// callback to accept the finite union `{2, 4}`. A `remove` only references
+/// the handler (it is matched, not invoked), so it carries `Unknown` —
+/// recorded as a reference, not arity-checked.
+///
+/// The operation word is a Tcl list. Dynamic, malformed, empty, or invalid
+/// lists carry `Unknown`: the registration cannot be proved to install any
+/// particular callback contract, and the literal validator/parser owns its
+/// own diagnostics.
+fn trace_type_command_prefix(
+    args: CommandPrefixArguments<'_>,
+    installing: bool,
+) -> Vec<(u8, AppendedArity)> {
     // args after the subcommand word: `type name ops cmdPrefix` (index 3).
     if args.len() <= 3 {
         return Vec::new();
     }
     let arity = if installing {
-        match args.first().and_then(|w| resolve_trace_type(w)) {
-            Some(TraceKind::Variable | TraceKind::Command) => AppendedArity::Exactly(3),
-            Some(TraceKind::Execution) => AppendedArity::AtLeast(2),
-            _ => AppendedArity::Unknown,
+        let Some(kind) = args.literal_at(0).and_then(resolve_trace_type) else {
+            return vec![(3, AppendedArity::Unknown)];
+        };
+        let Some(operation_list) = args.literal_at(2) else {
+            return vec![(3, AppendedArity::Unknown)];
+        };
+        let Ok(operations) = tcl_syntax::list::split_list(operation_list) else {
+            return vec![(3, AppendedArity::Unknown)];
+        };
+        let allowed = operations_for(kind);
+        if operations.is_empty()
+            || operations
+                .iter()
+                .any(|operation| !allowed.contains(&operation.as_ref()))
+        {
+            return vec![(3, AppendedArity::Unknown)];
+        }
+        match kind {
+            TraceKind::Variable | TraceKind::Command => AppendedArity::Exactly(3),
+            TraceKind::Execution => {
+                let has_two = operations
+                    .iter()
+                    .any(|operation| matches!(operation.as_ref(), "enter" | "enterstep"));
+                let has_four = operations
+                    .iter()
+                    .any(|operation| matches!(operation.as_ref(), "leave" | "leavestep"));
+                match (has_two, has_four) {
+                    (true, false) => AppendedArity::Exactly(2),
+                    (false, true) => AppendedArity::Exactly(4),
+                    (true, true) => AppendedArity::OneOf(EXECUTION_TRACE_CALLBACK_ARITIES),
+                    (false, false) => AppendedArity::Unknown,
+                }
+            }
         }
     } else {
         AppendedArity::Unknown
@@ -816,11 +856,11 @@ fn trace_type_command_prefix(args: &[&str], installing: bool) -> Vec<(u8, Append
     vec![(3, arity)]
 }
 
-fn trace_add_command_prefixes(args: &[&str]) -> Vec<(u8, AppendedArity)> {
+fn trace_add_command_prefixes(args: CommandPrefixArguments<'_>) -> Vec<(u8, AppendedArity)> {
     trace_type_command_prefix(args, true)
 }
 
-fn trace_remove_command_prefixes(args: &[&str]) -> Vec<(u8, AppendedArity)> {
+fn trace_remove_command_prefixes(args: CommandPrefixArguments<'_>) -> Vec<(u8, AppendedArity)> {
     trace_type_command_prefix(args, false)
 }
 
@@ -828,7 +868,10 @@ fn trace_remove_command_prefixes(args: &[&str]) -> Vec<(u8, AppendedArity)> {
 /// command prefix is the 3rd word (index 2).  `variable` installs a
 /// variable trace (`command name1 name2 op` → 3 args); `vdelete` only
 /// references the handler (`Unknown`).
-fn trace_legacy_command_prefix(args: &[&str], installing: bool) -> Vec<(u8, AppendedArity)> {
+fn trace_legacy_command_prefix(
+    args: CommandPrefixArguments<'_>,
+    installing: bool,
+) -> Vec<(u8, AppendedArity)> {
     if args.len() <= 2 {
         return Vec::new();
     }
@@ -840,11 +883,11 @@ fn trace_legacy_command_prefix(args: &[&str], installing: bool) -> Vec<(u8, Appe
     vec![(2, arity)]
 }
 
-fn trace_variable_command_prefixes(args: &[&str]) -> Vec<(u8, AppendedArity)> {
+fn trace_variable_command_prefixes(args: CommandPrefixArguments<'_>) -> Vec<(u8, AppendedArity)> {
     trace_legacy_command_prefix(args, true)
 }
 
-fn trace_vdelete_command_prefixes(args: &[&str]) -> Vec<(u8, AppendedArity)> {
+fn trace_vdelete_command_prefixes(args: CommandPrefixArguments<'_>) -> Vec<(u8, AppendedArity)> {
     trace_legacy_command_prefix(args, false)
 }
 
@@ -1375,15 +1418,53 @@ mod tests {
     }
 
     #[test]
-    fn execution_callback_arity_remains_explicitly_conservative() {
+    fn execution_callback_arity_tracks_each_literal_operation_domain() {
         let registry = CommandRegistry::build_default();
-        assert_eq!(
-            registry.command_prefixes(
-                "trace",
-                &["add", "execution", "target", "enter leave", "callback"]
+        for (operations, expected) in [
+            ("enter enterstep", AppendedArity::Exactly(2)),
+            ("leave leavestep", AppendedArity::Exactly(4)),
+            (
+                "enter leavestep",
+                AppendedArity::OneOf(EXECUTION_TRACE_CALLBACK_ARITIES),
             ),
-            vec![(4, AppendedArity::AtLeast(2))],
-            "enter/enterstep append two args while leave/leavestep append four; the current callback contract can only retain their common lower bound"
+        ] {
+            assert_eq!(
+                registry.command_prefixes(
+                    "trace",
+                    &["add", "execution", "target", operations, "callback"]
+                ),
+                vec![(4, expected)],
+                "unexpected execution callback contract for {operations:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn execution_callback_arity_abstains_on_unproved_operation_lists() {
+        let registry = CommandRegistry::build_default();
+        for operations in ["{enter", "", "enter invalid"] {
+            assert_eq!(
+                registry.command_prefixes(
+                    "trace",
+                    &["add", "execution", "target", operations, "callback"]
+                ),
+                vec![(4, AppendedArity::Unknown)],
+                "malformed/empty/invalid operation lists must abstain"
+            );
+        }
+
+        let spellings = ["add", "execution", "target", "$operations", "callback"];
+        let words = [
+            InvocationWord::Literal("add"),
+            InvocationWord::Literal("execution"),
+            InvocationWord::Literal("target"),
+            InvocationWord::Dynamic,
+            InvocationWord::Literal("callback"),
+        ];
+        assert_eq!(
+            registry.command_prefixes_structured("trace", &spellings, &words),
+            vec![(4, AppendedArity::Unknown)],
+            "a substituted operation list is not its source spelling"
         );
     }
 
