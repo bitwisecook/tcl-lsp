@@ -438,6 +438,10 @@ pub const TRAITS: &[Variant] = &[
     ),
     v("IS_OO_METACLASS", "a TclOO metaclass factory"),
     v(
+        "OBJECT_COMMAND_SURFACE",
+        "a TclOO object-command method surface",
+    ),
+    v(
         "CONFIGURES_BY_PROPERTY",
         "answers `configure`/`cget` from declared properties",
     ),

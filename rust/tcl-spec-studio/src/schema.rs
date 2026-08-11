@@ -382,6 +382,15 @@ pub const COMMAND_FIELDS: &[FieldSchema] = &[
         "How the command evolves the container elements of the variable it writes in place.",
     ),
     f(
+        "representation_effect",
+        "Representation effect",
+        TYPES,
+        FieldKind::RustExpr {
+            hint: "Some(RepresentationEffect::copy_on_write_container(0, 2))",
+        },
+        "Effect on Tcl's dual string/internal representation or shared-object storage.",
+    ),
+    f(
         "arg_types",
         "Argument type hints",
         TYPES,
@@ -701,6 +710,15 @@ pub const COMMAND_FIELDS: &[FieldSchema] = &[
         "Declared option flags, their values, roles, and dialect gates.",
     ),
     f(
+        "option_constraints",
+        "Option constraints",
+        OPTS,
+        FieldKind::RustExpr {
+            hint: "&[OptionConstraint { options: &[\"-a\", \"-b\"], dialects: None }]",
+        },
+        "Registry-declared sets of leading options that may not occur together.",
+    ),
+    f(
         "reserved_trailing_words",
         "Reserved trailing words",
         OPTS,
@@ -890,6 +908,15 @@ pub const COMMAND_FIELDS: &[FieldSchema] = &[
         AVAILABILITY,
         FieldKind::OptText,
         "First package version without the command (exclusive upper bound).",
+    ),
+    f(
+        "deprecation_fix",
+        "Deprecation quick-fix hook",
+        AVAILABILITY,
+        FieldKind::RustExpr {
+            hint: "Some(DeprecationFixHook::ReplaceMatchedWord { replacement: \"new\", description: \"Use new\", safety: DeprecationFixSafety::SemanticsEquivalent })",
+        },
+        "Registry-owned edit plan or contextual callback for replacing deprecated syntax.",
     ),
     f(
         "warn_missing_import",
@@ -1194,6 +1221,15 @@ pub const SUBCOMMAND_FIELDS: &[FieldSchema] = &[
         "In-place element evolution of the written variable for this subcommand.",
     ),
     f(
+        "representation_effect",
+        "Representation effect",
+        TYPES,
+        FieldKind::RustExpr {
+            hint: "Some(RepresentationEffect::copy_on_write_container(0, 2))",
+        },
+        "Subcommand-specific Tcl representation or shared-object storage effect.",
+    ),
+    f(
         "arg_types",
         "Argument type hints",
         TYPES,
@@ -1290,6 +1326,15 @@ pub const SUBCOMMAND_FIELDS: &[FieldSchema] = &[
         "Option flags declared on this subcommand.",
     ),
     f(
+        "option_constraints",
+        "Option constraints",
+        OPTS,
+        FieldKind::RustExpr {
+            hint: "&[OptionConstraint { options: &[\"-a\", \"-b\"], dialects: None }]",
+        },
+        "Subcommand-specific sets of leading options that may not occur together.",
+    ),
+    f(
         "min_abbrev",
         "Minimum abbreviation",
         OPTS,
@@ -1379,6 +1424,15 @@ pub const SUBCOMMAND_FIELDS: &[FieldSchema] = &[
         AVAILABILITY,
         FieldKind::OptText,
         "First package version without the subcommand (exclusive upper bound).",
+    ),
+    f(
+        "deprecation_fix",
+        "Deprecation quick-fix hook",
+        AVAILABILITY,
+        FieldKind::RustExpr {
+            hint: "Some(DeprecationFixHook::ReplaceMatchedWord { replacement: \"new\", description: \"Use new\", safety: DeprecationFixSafety::SemanticsEquivalent })",
+        },
+        "Registry-owned edit plan or contextual callback for replacing deprecated syntax.",
     ),
     f(
         "safe_on_uninit",

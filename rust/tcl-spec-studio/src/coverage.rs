@@ -84,15 +84,16 @@ use tcl_registry::spec::{
 use tcl_registry::symbol_def::SymbolDef;
 use tcl_registry::taint::SetterConstraint;
 
-/// The three draft keys a [`Lifecycle`] is edited under.
+/// The four draft keys a [`Lifecycle`] is edited under.
 ///
-/// One `Lifecycle` value, three independent releases in the form — the
+/// One `Lifecycle` value, three independent releases and one quick-fix hook in the form — the
 /// studio has always split it, and every surface (command, subcommand,
-/// option) uses the same three keys.
+/// option) uses the same four keys.
 pub const LIFECYCLE_KEYS: &[&str] = &[
     "introduced_version",
     "deprecated_version",
     "retired_version",
+    "deprecation_fix",
 ];
 
 /// Where the studio surfaces one registry field.
@@ -173,6 +174,7 @@ pub fn witness_command_spec(spec: &CommandSpec) {
         var_write_typing: _,
         return_elements: _,
         var_elements_effect: _,
+        representation_effect: _,
         arg_types: _,
         subcommands: _,
         prefix_matching: _,
@@ -210,6 +212,7 @@ pub fn witness_command_spec(spec: &CommandSpec) {
         side_switch_target: _,
         event_handler_priority: _,
         options: _,
+        option_constraints: _,
         reserved_trailing_words: _,
         arg_values: _,
         body_kind: _,
@@ -278,6 +281,10 @@ pub const COMMAND_SPEC: &[Field] = &[
     f("var_write_typing", Surface::Key("var_write_typing")),
     f("return_elements", Surface::Key("return_elements")),
     f("var_elements_effect", Surface::Key("var_elements_effect")),
+    f(
+        "representation_effect",
+        Surface::Key("representation_effect"),
+    ),
     f("arg_types", Surface::Key("arg_types")),
     f("subcommands", Surface::Key("subcommands")),
     f("prefix_matching", Surface::Key("prefix_matching")),
@@ -336,6 +343,7 @@ pub const COMMAND_SPEC: &[Field] = &[
         Surface::Key("event_handler_priority"),
     ),
     f("options", Surface::Key("options")),
+    f("option_constraints", Surface::Key("option_constraints")),
     f(
         "reserved_trailing_words",
         Surface::Key("reserved_trailing_words"),
@@ -440,6 +448,7 @@ pub fn witness_sub_command(sub: &SubCommand) {
         var_write_typing: _,
         return_elements: _,
         var_elements_effect: _,
+        representation_effect: _,
         arg_types: _,
         pure: _,
         mutator: _,
@@ -451,6 +460,7 @@ pub fn witness_sub_command(sub: &SubCommand) {
         analyser_hook: _,
         command_table_effect: _,
         options: _,
+        option_constraints: _,
         min_abbrev: _,
         prefix_matching: _,
         arg_values: _,
@@ -515,6 +525,10 @@ pub const SUB_COMMAND: &[Field] = &[
     f("var_write_typing", Surface::Key("var_write_typing")),
     f("return_elements", Surface::Key("return_elements")),
     f("var_elements_effect", Surface::Key("var_elements_effect")),
+    f(
+        "representation_effect",
+        Surface::Key("representation_effect"),
+    ),
     f("arg_types", Surface::Key("arg_types")),
     f("pure", Surface::Key("pure")),
     f("mutator", Surface::Key("mutator")),
@@ -526,6 +540,7 @@ pub const SUB_COMMAND: &[Field] = &[
     f("analyser_hook", Surface::Key("analyser_hook")),
     f("command_table_effect", Surface::Key("command_table_effect")),
     f("options", Surface::Key("options")),
+    f("option_constraints", Surface::Key("option_constraints")),
     f("min_abbrev", Surface::Key("min_abbrev")),
     f("prefix_matching", Surface::Key("prefix_matching")),
     f("arg_values", Surface::Key("arg_values")),
@@ -803,6 +818,7 @@ pub fn witness_lifecycle(lifecycle: &Lifecycle) {
         introduced: _,
         deprecated: _,
         retired: _,
+        deprecation_fix: _,
     } = lifecycle;
 }
 
@@ -811,6 +827,7 @@ pub const LIFECYCLE: &[Field] = &[
     f("introduced", Surface::Key("introduced_version")),
     f("deprecated", Surface::Key("deprecated_version")),
     f("retired", Surface::Key("retired_version")),
+    f("deprecation_fix", Surface::Key("deprecation_fix")),
 ];
 
 // ---------------------------------------------------------------------------
@@ -1311,7 +1328,7 @@ mod tests {
 
         witness_lifecycle(&Lifecycle::UNSPECIFIED);
         let mut life = Map::new();
-        draft::insert_lifecycle(&mut life, Lifecycle::UNSPECIFIED);
+        let _ = draft::insert_lifecycle(&mut life, Lifecycle::UNSPECIFIED);
         let life_keys: Vec<&str> = life.keys().map(String::as_str).collect();
         assert_carried("Lifecycle", LIFECYCLE, &life_keys);
     }
@@ -1486,7 +1503,7 @@ mod tests {
             d["subcommands"][0]["versioned_arg_values"],
             json!(
                 "&[VersionedArgValue { index: 0, value: \"utf-8\", lifecycle: Lifecycle { \
-                 introduced: None, deprecated: None, retired: None } }]"
+                 introduced: None, deprecated: None, retired: None, deprecation_fix: None } }]"
             )
         );
     }

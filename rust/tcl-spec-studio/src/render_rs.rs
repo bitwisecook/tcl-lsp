@@ -124,7 +124,7 @@ fn flag_union(ty: &str, values: &[Value]) -> String {
 /// Emits the readable aggregate constants (`DialectSet::ALL_TCL`,
 /// `DialectSet::TCL85_PLUS`) when the set matches one exactly, so the output
 /// reads like the hand-written specs rather than a five-way union.
-fn dialect_set(values: &[Value]) -> String {
+pub(crate) fn dialect_set(values: &[Value]) -> String {
     const AGGREGATES: &[(&str, &[&str])] = &[
         (
             "ALL_TCL",
@@ -374,16 +374,55 @@ fn unfilled_option_hooks(draft: &Value) -> Vec<&str> {
         .collect()
 }
 
-/// Render a `Lifecycle` constructor from a draft's three lifecycle keys, or
-/// `None` when the draft declares no lifecycle release at all (the
+/// Every option row whose lifecycle used a custom callback that seeding could
+/// not recover and whose author has not yet supplied an expression.
+fn unfilled_option_deprecation_hooks(draft: &Value) -> Vec<&str> {
+    as_array(draft.get("options").unwrap_or(&Value::Null))
+        .iter()
+        .filter(|opt| {
+            opt[crate::draft::OPTION_DEPRECATION_FIX_UNRECOVERABLE_KEY]
+                .as_bool()
+                .unwrap_or(false)
+                && opt["deprecation_fix"]
+                    .as_str()
+                    .is_none_or(|expr| expr.trim().is_empty())
+        })
+        .map(|opt| as_str(&opt["name"]))
+        .collect()
+}
+
+/// Render a `Lifecycle` constructor from a draft's four lifecycle keys, or
+/// `None` when the draft declares no lifecycle release or fix at all (the
 /// `..DEFAULT` field is then simply omitted).
 fn lifecycle_expr(entry: &Value) -> Option<String> {
     let release = |key: &str| entry[key].as_str().filter(|v| !v.is_empty());
     let introduced = release("introduced_version");
     let deprecated = release("deprecated_version");
     let retired = release("retired_version");
-    if introduced.is_none() && deprecated.is_none() && retired.is_none() {
+    let deprecation_fix = entry["deprecation_fix"]
+        .as_str()
+        .map(str::trim)
+        .filter(|expr| !expr.is_empty());
+    if introduced.is_none()
+        && deprecated.is_none()
+        && retired.is_none()
+        && deprecation_fix.is_none()
+    {
         return None;
+    }
+    if let Some(deprecation_fix) = deprecation_fix {
+        let release_expr = |value: Option<&str>| {
+            value.map_or_else(
+                || "None".to_owned(),
+                |value| format!("Some({})", rust_string(value)),
+            )
+        };
+        return Some(format!(
+            "Lifecycle {{ introduced: {}, deprecated: {}, retired: {}, deprecation_fix: {deprecation_fix} }}",
+            release_expr(introduced),
+            release_expr(deprecated),
+            release_expr(retired),
+        ));
     }
     let mut expr = match introduced {
         Some(v) => format!("Lifecycle::introduced_in({})", rust_string(v)),
@@ -403,7 +442,7 @@ fn lifecycle_expr(entry: &Value) -> Option<String> {
     Some(expr)
 }
 
-/// What a schema field whose key is one of the three `Lifecycle` releases
+/// What a schema field whose key is one of the four `Lifecycle` editors
 /// contributes to the emitted struct literal.
 enum LifecycleLine {
     /// Not a release key — render the field the ordinary way.
@@ -415,11 +454,11 @@ enum LifecycleLine {
     Skip,
 }
 
-/// Collapse the schema's three release keys back into the registry's one
+/// Collapse the schema's lifecycle keys back into the registry's one
 /// `lifecycle` field.
 ///
 /// `CommandSpec` / `SubCommand` declare **one** `lifecycle` field; the form
-/// edits it as three independent releases (#1210). Walking the schema and
+/// edits it as independent releases and a quick-fix hook (#1210). Walking the schema and
 /// emitting each key verbatim produced `introduced_version: Some("21.1.0"),` —
 /// a spec file that does not compile (`struct SubCommand has no field named
 /// introduced_version`), caught by rendering the registry back into itself.
@@ -810,6 +849,22 @@ fn unrenderable_notes(draft: &Value, indent: &str) -> Vec<String> {
                         .join(", "),
                 ));
             }
+            if key == crate::draft::OPTION_DEPRECATION_FIX_HOOK_KEY {
+                let pending = unfilled_option_deprecation_hooks(draft);
+                if pending.is_empty() {
+                    return None;
+                }
+                return Some(format!(
+                    "{indent}// TODO: {} uses a contextual deprecation quick-fix callback; \
+                     supply the `Some(DeprecationFixHook::Custom {{ resolver: ... }})` expression \
+                     under that option.",
+                    pending
+                        .iter()
+                        .map(|name| format!("`{name}`"))
+                        .collect::<Vec<_>>()
+                        .join(", "),
+                ));
+            }
             // Only note a field the author has not since filled in.
             let filled = draft
                 .get(key)
@@ -1075,7 +1130,12 @@ mod tests {
     use serde_json::json;
     use tcl_registry::arg_role::ArgRole;
     use tcl_registry::arity::Arity;
-    use tcl_registry::spec::{CommandSpec, SubCommand};
+    use tcl_registry::deprecation::{
+        DeprecationFixContext, DeprecationFixHook, DeprecationFixPlan, DeprecationFixSafety,
+    };
+    use tcl_registry::lifecycle::Lifecycle;
+    use tcl_registry::representation::RepresentationEffect;
+    use tcl_registry::spec::{CommandSpec, OptionConstraint, SubCommand};
     use tcl_registry::traits::Traits;
     use tcl_registry::types::TclType;
 
@@ -1278,6 +1338,71 @@ mod tests {
         let mut d = draft::default_command_draft();
         d.insert("name".into(), json!("mycmd"));
         assert!(!render(&d).contains("lifecycle"));
+    }
+
+    #[test]
+    fn registry_owned_diagnostic_and_representation_metadata_round_trips() {
+        const CONSTRAINTS: &[OptionConstraint] = &[OptionConstraint {
+            options: &["-encoding", "-nopkg"],
+            dialects: None,
+        }];
+        let spec = CommandSpec {
+            name: "source",
+            representation_effect: Some(RepresentationEffect::copy_on_write_container(0, 2)),
+            option_constraints: CONSTRAINTS,
+            lifecycle: Lifecycle {
+                introduced: None,
+                deprecated: Some("8.6"),
+                retired: None,
+                deprecation_fix: Some(DeprecationFixHook::ReplaceMatchedWord {
+                    replacement: "children",
+                    description: "Use interp children",
+                    safety: DeprecationFixSafety::SemanticsEquivalent,
+                }),
+            },
+            ..CommandSpec::DEFAULT
+        };
+        let out = render(&draft::from_command_spec(&spec));
+        assert!(out.contains(
+            "representation_effect: Some(RepresentationEffect::CopyOnWriteContainerMutation { variable_arg: 0, minimum_arguments: 2 }),"
+        ));
+        assert!(out.contains(
+            "option_constraints: &[OptionConstraint { options: &[\"-encoding\", \"-nopkg\"], dialects: None }],"
+        ));
+        assert!(out.contains(
+            "deprecation_fix: Some(DeprecationFixHook::ReplaceMatchedWord { replacement: \"children\", description: \"Use interp children\", safety: DeprecationFixSafety::SemanticsEquivalent })"
+        ));
+    }
+
+    fn contextual_fix(_context: DeprecationFixContext<'_>) -> Option<DeprecationFixPlan> {
+        None
+    }
+
+    #[test]
+    fn contextual_deprecation_hook_is_never_silently_dropped() {
+        let spec = CommandSpec {
+            name: "legacy",
+            lifecycle: Lifecycle {
+                introduced: None,
+                deprecated: Some("9.0"),
+                retired: None,
+                deprecation_fix: Some(DeprecationFixHook::Custom {
+                    resolver: contextual_fix,
+                }),
+            },
+            ..CommandSpec::DEFAULT
+        };
+        let draft = draft::from_command_spec(&spec);
+        assert!(
+            draft[crate::draft::UNRENDERABLE_KEY]
+                .as_array()
+                .is_some_and(|keys| keys.iter().any(|key| key == "deprecation_fix"))
+        );
+        let out = render(&draft);
+        assert!(
+            out.contains("TODO: `deprecation_fix` is set on the source command"),
+            "{out}"
+        );
     }
 
     #[test]
