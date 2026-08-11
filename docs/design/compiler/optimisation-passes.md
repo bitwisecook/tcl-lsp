@@ -44,8 +44,8 @@ Python-era-only behaviour.
 | O102 | Forward single reaching literal load | `propagation.rs` (`run_load_forwarding`) | Variable has exactly one reaching literal definition, not trace-tainted or frame-aliased |
 | O103 | ICIP (interprocedural constant fold) | `_propagation.py` | Pure proc called with all-constant args |
 | O104 | String build chain | `_propagation.py` | `set` + `append` sequence detected |
-| O105 | GVN/CSE redundancy | `gvn.py` | Same pure computation appears twice |
-| O106 | Loop-invariant computation (LICM) | `gvn.py` | Pure computation inside loop invariant to loop |
+| O105 | GVN/CSE redundancy | `gvn.rs` | Same computation appears twice with equal value, effect, result-stability, and live-dispatch proofs |
+| O106 | Loop-invariant computation (LICM) | `gvn.rs` | Proven invariant computation inside a loop |
 | O107 | Dead code elimination (DCE) | `_elimination.py` | Unreachable code after `return`/`break` |
 | O108 | Aggressive DCE (ADCE) | `_elimination.py` | Statement result never used, no side effects |
 | O109 | Dead store elimination (DSE) | `_elimination.py` | Variable set but never read |
@@ -91,7 +91,14 @@ group, producing one primary diagnostic with the dead store as related info.
 **Code sinking (O125)**: `set msg "error"` before an `if` where `msg` is only
 used in the else branch → move `set msg` into the else branch.
 
-**GVN/CSE (O105)**: `[HTTP::uri]` called twice → extract to a variable.
+**GVN/CSE (O105)**: a repeated scalar expression with the same SSA operands
+and no intervening state change can reuse its dominating result. A repeated Tcl
+command call is only a static candidate when the resolved registry form is
+pure, CSE-enabled, referentially transparent, transition-closed, and free of
+direct effects. It is not eligible until world analysis also proves every
+registry-declared live-dispatch dependency, including the absence of relevant
+command and execution traces. The current world SSA does not yet provide that
+content proof, so production call CSE abstains.
 
 **Load forwarding (O127)**: `set x [HTTP::uri]; log local0. $x`
 → `log local0. [set x [HTTP::uri]]` — eliminates the redundant variable load
@@ -106,8 +113,10 @@ by inlining the assignment at the single use site.
 - To add a new optimisation: create the detection logic in the appropriate
   pass file, assign a new O-code, add its priority to `_OPT_PRIORITY`, and
   emit `Optimisation` objects through `PassContext`.
-- Pure computations (no side effects, no escape) are safe targets for DCE,
-  CSE, and code motion.  Impure computations cannot be removed or reordered.
+- Purity is necessary but not sufficient for CSE or code motion. Result
+  stability, completion, transitions, mutable-world reads, callbacks, command
+  identity, interpreter policy, and live traces must also be covered by the
+  relevant proof. Missing facts cause the pass to abstain.
 - Always group related edits with `PassContext.alloc_group()` to ensure
   atomic code action application.
 

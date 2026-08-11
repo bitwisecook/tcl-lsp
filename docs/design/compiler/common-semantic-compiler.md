@@ -56,6 +56,15 @@ limits:
 - the sidecar complements the existing scalar SSA and optional memory SSA. It
   does not yet replace every legacy CFG, SSA, SCCP, GVN, lattice, optimiser, or
   LSP consumer; and
+- resolved invocations now carry registry-declared result stability,
+  representation effects, literal-argument validation, state transitions, and
+  live-dispatch dependencies. These facts improve diagnostics immediately,
+  but they are not interchangeable optimisation proofs. In particular, common
+  GVN treats a pure, referentially transparent call as only a static candidate.
+  It still declines O105 unless the call site has a proof covering mutable
+  command lookup, trace, and interpreter-policy dependencies. World SSA
+  currently versions those domains but cannot prove their contents or the
+  absence of a trace, so production Tcl-call CSE remains disabled; and
 - backend contracts, representation types, and proof tokens are legality
   scaffolding. They do not by themselves enable specialisation.
 
@@ -85,11 +94,40 @@ and its resolved subcommand or form provide:
 - completion and suspension behaviour;
 - state reads, writes, callbacks, and re-entrancy;
 - constant, type, taint, and effect transfer descriptors;
-- variable-cell, frame, command-table, namespace, trace, and TclOO effects.
+- variable-cell, frame, command-table, namespace, trace, and TclOO effects;
+- result stability independently of side-effect purity;
+- Tcl dual-representation and copy-on-write effects;
+- versioned lifecycle data, literal relationship validators, and
+  registry-owned diagnostic or edit hooks; and
+- typed dispatch dependencies and state transitions used by proof-producing
+  analyses.
 
 Compiler and LSP consumers must not select behaviour by comparing a command
 name. When an existing descriptor cannot express a command's semantics, extend
 the registry descriptor rather than adding a consumer-local command branch.
+
+### Registry-owned diagnostics and edits
+
+A generic diagnostic consumer may decide *when* to ask the registry and how to
+map a returned fact to an LSP diagnostic. Command-specific interpretation stays
+in the registry. This includes relationships between arguments, lifecycle
+replacements, clause grammar, and any edit whose quality depends on surrounding
+words.
+
+Registry callbacks receive structured invocation context: source word values
+and literalness, the matched command/subcommand/form, the active dialect and
+version, and the relevant argument positions. They return a typed outcome or
+abstain. An edit plan owns its replacement text, target word or invocation,
+description, and safety classification. The analyser supplies spans and turns
+that plan into a diagnostic and code action; it does not recognise the command
+name or reconstruct the command's grammar.
+
+Declarative descriptors remain preferable for common shapes. A custom hook is
+appropriate where a replacement must inspect several surrounding arguments or
+change the invocation shape. Dynamic, expanded, malformed, shadowed, or
+incompletely resolved calls must abstain unless the hook can prove a safe
+interpretation. This boundary lets package and dialect registries provide the
+same quality of fix as core Tcl without adding branches to the compiler.
 
 ### Common semantic registry
 
@@ -321,6 +359,12 @@ Trace add and remove require a flow-sensitive exact-or-unknown lattice. A
 module-wide additive set is a conservative compatibility fact, not an AOT
 absence proof. The runtime remains authoritative for callback order,
 re-entrancy, result replacement, active-trace suppression, and errors.
+
+Consequently, a world-state version is not by itself evidence that a trace is
+absent. Common GVN keys may eventually include versioned-world result
+dependencies, but reusing a call also requires a content or closed-world proof
+for every registry-declared live-dispatch dependency. Until that proof producer
+exists, declining O105 is the sound result.
 
 ## Shared analyses and target refinements
 
