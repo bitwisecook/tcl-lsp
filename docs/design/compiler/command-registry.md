@@ -116,6 +116,18 @@ class StringCommand(CommandDef):
 |-------|------|---------|---------|
 | `pure` | `bool` | `False` | No side effects -- safe for SCCP to propagate through |
 | `cse_candidate` | `bool` | `False` | Result can be cached by GVN (common subexpression elimination) |
+| `result_stability` | `Option<ResultStability>` | `None` | Separates argument-only, versioned-world, volatile, and unknown results. Purity alone never proves replay returns the same value. |
+| `world_effects` | `Option<WorldEffectDescriptor>` | `None` | Typed reads, writes, callbacks, and clobbers of mutable Tcl-world domains. |
+| `state_transitions` | `Option<StateTransitionDescriptor>` | `None` | Known binding, namespace, interpreter, trace, and variable-cell identity changes; dynamic operands widen their typed domain. |
+| `dispatch_dependencies` | `Option<DispatchDependencyDescriptor>` | `None` | Mutable domains whose contents must be proved stable before resolved registry semantics are treated as live dispatch. |
+| `representation_effect` | `Option<RepresentationEffect>` | `None` | Tcl dual-representation and copy-on-write behaviour, independent of the inferred value type. |
+
+These fields resolve at command, subcommand, and invocation-form specificity.
+`None` is conservative. A pure, CSE-candidate command with a referentially
+transparent result is still only a static GVN candidate: call reuse also needs
+closed transitions, no relevant effects, and a site proof covering every
+dispatch dependency. A world-state version does not prove that a command or
+execution trace is absent.
 
 #### Argument semantics
 
@@ -126,6 +138,8 @@ class StringCommand(CommandDef):
 | `arg_presentation` | `&[(u8, ArgPresentation)]` | `&[]` | Formatter layout override per argument index -- see [ArgPresentation](#argpresentation----how-a-formatter-lays-an-argument-out) |
 | `repeated_args` | `&[RepeatedArgLayout]` | `&[]` | Roles that recur at a fixed stride over the argument tail (`global a b c`, `foreach v l ... body`) |
 | `clause_shape_check` | `ClauseShapeChecker \| None` | `None` | Validates a clause-chain shape a plain `min..=max` arity can't express (if's `elseif`/`else` chain -- see `tcl_registry::clause_shape`); the compiler dispatches on the hook's presence, not the command name |
+| `option_constraints` | `&[OptionConstraint]` | `&[]` | Relationships between otherwise valid leading options, including dialect gates. Drives generic W147 without naming the command. |
+| `literal_argument_validator` | `Option<LiteralArgumentValidator>` | `None` | Registry callback for literal argument relationships or collection members whose legal domain depends on surrounding words. It returns Valid, Invalid with an optional replacement Tcl value, or a typed Abstain. |
 | `arg_types` | `dict[int, ArgTypeHint]` | `{}` | Per-argument type expectations (e.g. `INT`, `LIST`).  Drives shimmer detection |
 | `return_type` | `TclType \| None` | `None` | Return type of the command |
 | `keyword_completions` | `KeywordCompletionProvider \| None` | `None` | Keyword+scaffold completions for structural commands |
@@ -965,6 +979,7 @@ events), and `ProfileSpec` (BIG-IP profile types) under the same field name,
 | `introduced` | First release where the entity exists. `None` = present in every release of its axis. |
 | `deprecated` | First release where it still exists but should warn. `None` = not deprecated. |
 | `retired` | First release where it no longer exists — **exclusive**. `None` = not retired. |
+| `deprecation_fix` | Registry-owned typed edit hook used while the lifecycle state is deprecated. `None` = diagnostic only. |
 
 There is deliberately **no** generic maximum version. A known range is
 described by `introduced` alone; an upper bound exists only as retirement
@@ -997,6 +1012,15 @@ Consumers:
   `introducedVersion` / `deprecatedVersion` / `retiredVersion` (snake_case
   in the Spec Studio draft schema) with `null` meaning "never reached that
   state".
+
+A deprecation edit hook receives the matched word, all surrounding invocation
+words with literal/dynamic facts, the active dialect, and the effective
+version. It returns an owned word or invocation edit plan, including its
+description and safety, or abstains. Declarative fixed replacements decline on
+dynamic words; a contextual shape rewrite uses a custom registry callback and
+must prove which original words it can preserve. The generic analyser supplies
+source spans and materialises the code action. It never matches a command name
+or invents a replacement.
 
 `Lifecycle::validate()` rejects impossible orderings (`deprecated <
 introduced`, `retired < deprecated`, `retired < introduced`); the registry
@@ -1102,12 +1126,13 @@ accessing `specs_by_name`.
 |-------|---------------------|
 | IR lowering | `arg_roles` (BODY, EXPR, VAR_NAME), `safe_on_uninit`, lowering hooks |
 | CFG | `creates_dynamic_barrier` -> `IRBarrier` |
-| SSA/SCCP | `pure` -- infer through without invalidating lattice |
-| GVN | `cse_candidate`, `pure` -- result caching |
+| SSA/SCCP | resolved value, effect, transition, alias, and completion facts |
+| GVN | `pure`, `cse_candidate`, `result_stability`, effects, closed transitions, and a site proof covering `dispatch_dependencies` |
 | Codegen | `codegen` hooks -> specialised bytecode |
 | Taint | `taint_hints()` -> sources, sinks, transforms |
 | Side effects | `side_effect_hints`, `pure`, `mutator` on forms/subcommands |
-| Diagnostics | arity -> W101, `safe_on_uninit` -> W210, option terminators -> W304, events -> IRULE1001, deprecation -> W300+ |
+| Diagnostics | arity and clause shape; literal validators; option constraints; lifecycle/version gates; representation effects; event and safety contracts |
+| Code actions | registry-owned lifecycle and literal-validation edit plans; the generic analyser contributes only source spans and LSP conversion |
 | Completions | `arg_values`, `keyword_completions`, `options` |
 
 ### Purity resolution order
