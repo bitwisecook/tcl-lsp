@@ -3893,7 +3893,9 @@ mod tests {
                 "tcl9.0",
             )
             .clone();
-        let known = r.class_hierarchy().known_methods("::C");
+        let known = r
+            .class_hierarchy()
+            .known_methods(Some(tcl_registry::registry_for_dialect("tcl9.0")), "::C");
         assert!(known.contains(&"configure".to_owned()), "{known:?}");
         assert!(known.contains(&"cget".to_owned()), "{known:?}");
     }

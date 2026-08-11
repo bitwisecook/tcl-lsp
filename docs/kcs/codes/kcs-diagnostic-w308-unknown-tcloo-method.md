@@ -75,6 +75,28 @@ oo::class create Widget {
 The analyser reports **`W308`** on `[self] paint` — `Widget` has no
 `paint` method — exactly as it would for `my paint`.
 
+## Methods the class system generates for you
+
+A method does not have to be written as a `method` to exist. A class
+created by Tcl 9.0's `oo::configurable` metaclass answers `configure` and
+`cget` for the `property` members it declares, even though no `method` body
+defines either one, so neither draws `W308`:
+
+```tcl
+oo::configurable create Point {
+    property x y
+}
+set p [Point new]
+$p configure -x 27
+$p cget -y
+```
+
+The same holds for a class that merely *inherits* from a configurable one —
+the accessors are real methods on the configurable ancestor — and inside a
+method body via `my configure`. A plain `oo::class` receiver is a different
+matter: it has no `configure`, so `$obj configure` there really does fail at
+run time and `W308` still reports it.
+
 ## What a deleted class changes
 
 The check asks whether the class is still live **at the dispatch**, not
