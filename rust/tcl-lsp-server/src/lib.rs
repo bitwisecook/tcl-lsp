@@ -19362,7 +19362,7 @@ fn resolve_source_edge(
     parent_uri: &str,
     raw_path: &str,
     is_literal: bool,
-    raw_constants: &[(String, String)],
+    raw_constants: &[tcl_compiler::auto_path_eval::PathConstantWrite],
 ) -> Option<String> {
     if is_literal {
         return resolve_source_uri(parent_uri, raw_path);

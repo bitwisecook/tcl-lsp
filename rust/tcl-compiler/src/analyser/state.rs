@@ -2186,9 +2186,10 @@ impl Analyser {
     /// poisoning applied at fold time, where the whole document's write
     /// counts are in view.
     fn record_path_constant_candidates(&mut self, commands: &[crate::segmenter::SegmentedCommand]) {
-        self.result
-            .path_constant_assignments
-            .extend(crate::auto_path_eval::constant_path_assignments_from_commands(commands));
+        let dialect = self.result.dialect.clone();
+        self.result.path_constant_assignments.extend(
+            crate::auto_path_eval::constant_path_assignments_from_commands(commands, &dialect),
+        );
     }
 
     /// Inner dispatch loop shared by [`Self::analyse_chunked`]

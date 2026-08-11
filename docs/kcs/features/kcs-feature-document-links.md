@@ -24,8 +24,10 @@ all-editors, analyser
 A relative path resolves against the document's own directory, and `~`
 expands against `$HOME`. A computed path resolves when it is built from
 `[info script]`, `[file dirname …]`, `[file join …]`, `[file normalize
-…]`, literal words, and variables the document assigns exactly once, so
-the common idiom links either way it is spelled:
+…]`, literal words, and variables the document assigns exactly once —
+at the top level, or inside a `namespace eval` body (`variable dir
+[file dirname [info script]]` referenced as `$::pkg::dir`) — so the
+common idiom links either way it is spelled:
 
 ```tcl
 set currentDir [file normalize [file dirname [info script]]]
@@ -70,14 +72,16 @@ underlining all of it would hide the colouring of `file`, `join`, and
   more than one top-level `set`, since which value a given `source` sees
   is a question the provider does not ask. A re-assigned directory also
   stops anything computed from it resolving.
-- **No link when the directory is set inside a body.** Only top-level
-  `set` commands are read, so a directory assigned inside a `proc` or an
-  `if` is not known.
-- **No link through a namespace variable.** A directory published as
-  `$::pkg::dir` (a `variable` inside `namespace eval`) is not modelled,
-  so `source [file join $::pkg::dir x.tcl]` abstains. This is the
-  largest remaining abstention in real projects (Tk's own `$::ttk::library`
-  loads are this shape).
+- **No link when the directory is set inside a `proc` or an `if`.**
+  Only load-time assignments are read — the top level and `namespace
+  eval` bodies, which run unconditionally when the file is sourced. A
+  guarded assignment is not known: Tk's own `$::ttk::library` abstains
+  because its `set` hides behind `if {![info exists library]}`, so its
+  value genuinely is not static.
+- **No link through another file's variable.** A namespace variable
+  assigned in one file and read in a `source` in another (OSVVM's
+  `$::osvvm::OsvvmScriptDirectory` shape) is not resolved — constants
+  are a per-document fact.
 - **No link on a relative `file normalize`.** `[file normalize lib]`
   resolves against the interpreter's working directory at run time,
   which is not knowable statically, so it does not fold. Anchor it —

@@ -1104,13 +1104,13 @@ struct DocumentRecords {
     namespace_refs: Vec<WorkspaceNamespaceRef>,
     invocations: Vec<WorkspaceInvocation>,
     sources: Vec<WorkspaceSource>,
-    /// Raw single-assignment path-constant candidates, straight from
-    /// [`AnalysisResult::path_constant_assignments`] — unfolded `set` facts
+    /// Raw path-constant facts, straight from
+    /// [`AnalysisResult::path_constant_assignments`] — unfolded write facts
     /// the source-edge resolver chain-folds per parent (with the parent's
     /// own path standing in for `[info script]`) before resolving a computed
     /// `source` argument.  Raw here for the same reason as there: the fold
     /// depends on where the document lives, the index must not.
-    path_constant_assignments: Vec<(String, String)>,
+    path_constant_assignments: Vec<tcl_compiler::auto_path_eval::PathConstantWrite>,
     package_requires: Vec<WorkspacePackageRequire>,
     package_provides: Vec<WorkspacePackageProvide>,
     package_ifneededs: Vec<WorkspacePackageIfneeded>,
@@ -1151,7 +1151,7 @@ struct SettlementDependencies {
     /// A changed constant can change which child a computed source row
     /// resolves to, so the raw assignments are resolution-relevant exactly
     /// as the source rows themselves are.
-    path_constant_assignments: Vec<(String, String)>,
+    path_constant_assignments: Vec<tcl_compiler::auto_path_eval::PathConstantWrite>,
     package_requires: Vec<WorkspacePackageRequire>,
     package_provides: Vec<WorkspacePackageProvide>,
     package_ifneededs: Vec<WorkspacePackageIfneeded>,
@@ -1826,7 +1826,8 @@ pub struct WorkspaceIndex {
 /// supplied by the index, which carries them, and folded by the host, which
 /// knows the parent's filesystem path; that split is why the argument is the
 /// raw pairs rather than a folded map.
-pub type SourceResolver = fn(&str, &str, bool, &[(String, String)]) -> Option<String>;
+pub type SourceResolver =
+    fn(&str, &str, bool, &[tcl_compiler::auto_path_eval::PathConstantWrite]) -> Option<String>;
 
 /// A whole-index **derived view**: a value that is a pure function of the
 /// index's contents, built at most once per [`WorkspaceIndex::generation`] and
@@ -2567,7 +2568,10 @@ impl WorkspaceIndex {
     /// these with the parent's own path before resolving a computed `source`
     /// argument.
     #[must_use]
-    pub fn path_constant_assignments(&self, uri: &str) -> &[(String, String)] {
+    pub fn path_constant_assignments(
+        &self,
+        uri: &str,
+    ) -> &[tcl_compiler::auto_path_eval::PathConstantWrite] {
         self.slots
             .get(uri)
             .map_or(&[][..], |&slot| &self.docs[slot].path_constant_assignments)
@@ -2704,7 +2708,12 @@ impl WorkspaceIndex {
     #[must_use]
     pub fn source_seed_map(
         &self,
-        resolve: impl Fn(&str, &str, bool, &[(String, String)]) -> Option<String>,
+        resolve: impl Fn(
+            &str,
+            &str,
+            bool,
+            &[tcl_compiler::auto_path_eval::PathConstantWrite],
+        ) -> Option<String>,
     ) -> std::collections::HashMap<String, std::collections::BTreeSet<String>> {
         let mut out: std::collections::HashMap<String, std::collections::BTreeSet<String>> =
             std::collections::HashMap::new();
@@ -6697,7 +6706,7 @@ mod tests {
         parent_uri: &str,
         raw_path: &str,
         is_literal: bool,
-        raw_constants: &[(String, String)],
+        raw_constants: &[tcl_compiler::auto_path_eval::PathConstantWrite],
     ) -> Option<String> {
         let parent = parent_uri.strip_prefix("file://")?;
         let dir = std::path::Path::new(parent).parent()?;

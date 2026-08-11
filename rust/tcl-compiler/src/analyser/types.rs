@@ -1759,9 +1759,10 @@ pub struct AnalysisResult {
     pub has_dynamic_providers: bool,
     /// Source-target records.
     pub source_targets: Vec<SignatureSource>,
-    /// Every top-level `set name value` with a plain scalar name, in document
-    /// order, values **unfolded** — the raw side of the single-assignment
-    /// path-constant map ([`crate::auto_path_eval::constant_path_assignments`]).
+    /// Every path-constant fact the document's load-time surface records —
+    /// top-level `set`s, and `variable`/`set` writes inside literal
+    /// `namespace eval` bodies — in document order, values **unfolded**
+    /// ([`crate::auto_path_eval::constant_path_assignments`]).
     ///
     /// Recorded raw rather than folded because folding the
     /// `[file dirname [info script]]` idiom needs the document's own
@@ -1771,7 +1772,7 @@ pub struct AnalysisResult {
     /// folding) chain-fold these with
     /// [`crate::auto_path_eval::fold_constant_assignments`], which also owns
     /// the multi-write poisoning rule.
-    pub path_constant_assignments: Vec<(String, String)>,
+    pub path_constant_assignments: Vec<crate::auto_path_eval::PathConstantWrite>,
     /// Command-alias records keyed by qualified alias name.
     pub command_aliases: HashMap<String, SignatureCommandAlias>,
     /// Byte offset of the `interp alias` command token that established each
