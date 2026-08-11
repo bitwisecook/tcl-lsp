@@ -316,6 +316,33 @@ impl ClassHierarchy {
             .unwrap_or_else(|| vec![class_name.to_string()])
     }
 
+    /// Whether any known **strict descendant** of `class_name` resolves
+    /// `method` — the template-method abstention for `my` dispatch
+    /// (issue #1367).
+    ///
+    /// An abstract base whose method bodies call `my M`, with `M` written
+    /// only by concrete subclasses, runs fine: `my` late-binds on the
+    /// actual receiver, which is always a subclass instance (the base is
+    /// never instantiated), and bypasses export filtering, so even an
+    /// unexported (capitalised) subclass method is reachable.  A known
+    /// subclass that defines `M` is direct evidence the call is that
+    /// pattern and not a typo — with **no** defining subclass anywhere in
+    /// the index, W308 still fires, which is what keeps this from
+    /// swallowing the check on self-dispatch entirely.
+    ///
+    /// Descendants are found through [`Self::mro_map`] (any class whose
+    /// MRO contains `class_name`), and `method` resolves through
+    /// [`Self::method_target`] on the descendant, so a template method the
+    /// subclass itself inherits from a mixin still counts.
+    #[must_use]
+    pub fn subclass_provides_method(&self, class_name: &str, method: &str) -> bool {
+        self.mro_map.iter().any(|(cls, mro)| {
+            cls != class_name
+                && mro.iter().any(|ancestor| ancestor == class_name)
+                && self.method_target(cls, method).is_some()
+        })
+    }
+
     /// Every instance method some class on `class_name`'s MRO **generates**
     /// from its declared `property` members — `oo::configurable`'s
     /// `configure` (Tcl 9.0+).

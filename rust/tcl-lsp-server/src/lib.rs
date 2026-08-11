@@ -2108,6 +2108,23 @@ async fn refresh_cross_file_evidence(
     {
         slot.dirty = true;
     }
+    // The subclass-provided-method view (issue #1367) rides the same
+    // refresh: computed off the workspace index the publish just updated,
+    // single-round (nothing it writes feeds its own computation).  A moved
+    // view marks this document's own slot dirty directly — the
+    // `refresh_can_change_result` gate above is a call-site-evidence
+    // criterion and says nothing about W308 abstentions.
+    let subclass_moved = sync_workspace_subclass_methods(handles).await;
+    if subclass_moved.iter().any(|u| u == uri)
+        && let Some(slot) = slots.lock().await.get_mut(uri)
+    {
+        slot.dirty = true;
+    }
+    for moved in subclass_moved {
+        if !changed.contains(&moved) {
+            changed.push(moved);
+        }
+    }
     // Republish every peer the refresh invalidated. Only documents
     // that already have resolved inputs are eligible: a file nobody
     // has analysed has no published diagnostics to go stale, and its
@@ -2639,6 +2656,117 @@ async fn sync_workspace_class_factories_round(handles: &EvidenceHandles) -> Clas
     } else {
         ClassFactoryRound::Moved(changed)
     }
+}
+
+/// Refresh every file's
+/// [`tcl_lsp_db::SourceFile::workspace_subclass_methods`] — the
+/// subclass-provided-method view behind the cross-file half of the
+/// template-method W308 abstention (issue #1367) — and report the URIs whose
+/// stored view actually moved.
+///
+/// One round always suffices, unlike the factory fixpoint: the view is
+/// computed from the **workspace index**, which is maintained from published
+/// analyses independently of this input, so publishing it cannot change what
+/// the next computation would say.  (It deliberately does *not* read the
+/// salsa analyses of other files — a per-file analysis reading a
+/// project-wide fold of per-file analyses is the cycle the input channel
+/// exists to break.)
+///
+/// Compare-then-set with an `Arc::ptr_eq` fast path, so an index that has
+/// stopped moving writes nothing and invalidates nothing — every file stores
+/// a clone of the *same* `Arc`, and the steady state is one pointer
+/// comparison per file.  An empty view is stored as `None`, so a workspace
+/// with no class hierarchies at all never leaves the input's default.
+///
+/// Lock discipline: the index read completes and drops before the `db` lock
+/// is taken (the global order puts `db` before `workspace_index`; holding
+/// neither across the other sidesteps the ordering entirely).
+async fn sync_workspace_subclass_methods(handles: &EvidenceHandles) -> Vec<Uri> {
+    use salsa::Setter as _;
+    let want: Option<Arc<tcl_compiler::analyser::SubclassProvidedMethods>> = {
+        let index = handles.workspace_index.read().await;
+        let map = workspace_subclass_provided_methods(&index);
+        (!map.is_empty()).then(|| Arc::new(map))
+    };
+    let mut db = handles.db.lock().await;
+    let db_files = handles.db_files.lock().await;
+    let mut changed = Vec::new();
+    for (uri, &file) in db_files.iter() {
+        let have = file.workspace_subclass_methods(&*db);
+        let matches = match (have.as_ref(), want.as_ref()) {
+            (Some(have), Some(want)) => Arc::ptr_eq(have, want) || **have == **want,
+            (None, None) => true,
+            _ => false,
+        };
+        if matches {
+            continue;
+        }
+        file.set_workspace_subclass_methods(&mut *db)
+            .to(want.clone());
+        changed.push(uri.clone());
+    }
+    changed
+}
+
+/// The project-wide subclass-provided-method view, computed from the
+/// workspace index: for every class, the instance-side member names
+/// dispatchable on some **other** class whose linearisation contains it.
+///
+/// Built descendant-first: each class `D` contributes its dispatchable
+/// surface — the union of instance members over its whole linearisation, so
+/// a name `D` inherits from a mixin counts (`my Render` in a base is as
+/// callable when the subclass mixes `Render` in as when it writes it) — to
+/// every *other* class on that linearisation.  `private` members are
+/// excluded: `TclOO` hides them even from an ancestor's own `my` dispatch.
+/// Class-object-side members (`classmethod` / `self method`) are excluded
+/// too — `my` inside an instance method dispatches instance-side.
+///
+/// A class whose linearisation the index cannot compute (cyclic, or over
+/// the shared complexity budget) contributes nothing — the abstention needs
+/// evidence, and none is available for it.
+fn workspace_subclass_provided_methods(
+    index: &core_workspace_index::WorkspaceIndex,
+) -> tcl_compiler::analyser::SubclassProvidedMethods {
+    use std::collections::BTreeSet;
+    let qnames: BTreeSet<&str> = index
+        .live_classes()
+        .map(|c| c.qualified_name.as_str())
+        .collect();
+    // Per-class direct instance-member names, memoised — several
+    // linearisations share ancestors.
+    let mut own: HashMap<String, BTreeSet<String>> = HashMap::new();
+    let mut member_names = |index: &core_workspace_index::WorkspaceIndex, q: &str| {
+        own.entry(q.to_owned())
+            .or_insert_with(|| {
+                index
+                    .effective_members(q)
+                    .into_iter()
+                    .filter(|m| m.method.kind != "classmethod" && !m.method.private)
+                    .map(|m| m.name.to_owned())
+                    .collect()
+            })
+            .clone()
+    };
+    let mut map = tcl_compiler::analyser::SubclassProvidedMethods::new();
+    for d in &qnames {
+        let lin = index.class_linearisation(d);
+        if lin.iter().all(|c| c == d) {
+            continue;
+        }
+        let mut dispatchable: BTreeSet<String> = BTreeSet::new();
+        for x in &lin {
+            dispatchable.extend(member_names(index, x));
+        }
+        if dispatchable.is_empty() {
+            continue;
+        }
+        for ancestor in lin.iter().filter(|c| c.as_str() != *d) {
+            map.entry(ancestor.clone())
+                .or_default()
+                .extend(dispatchable.iter().cloned());
+        }
+    }
+    map
 }
 
 /// The evidence `uri` should be carrying, or `None` when the host cannot claim
@@ -12898,6 +13026,11 @@ impl Backend {
         // metaclass manufactures only exist in an analysis that carried the
         // oracle, and the scan's own pass could not have.
         reindex_unopened_factory_consumers(&scan_handles, &factory_sync.affected_names).await;
+        // The subclass-provided-method view (issue #1367), published once the
+        // scan's index is complete so the first document opened is analysed
+        // with the workspace's subclass evidence already in place.  No peers
+        // to wake: nothing has published diagnostics yet.
+        sync_workspace_subclass_methods(&scan_handles).await;
         // In-process readiness signal, released before the log line so a
         // handler waiting on it is not held up by a client round-trip.
         self.workspace_scan_ready.mark_complete();

@@ -92,6 +92,6 @@ pub use types::{
     DefinitionAbortKind, Diagnostic, FactoryMember, FactoryWord, FixSafety, ManufacturerSpec,
     MemberRetractionRecord, MemberSide, MethodDef, ObjectMemberState, ObjectMethodDef,
     ProcArgTrait, ProcDef, PropertyDef, QualifiedVarRef, RenamedMember, Scope, ScopeKind, Severity,
-    StubFlags, UnknownProcInfo, VarDef, class_constructor_key, class_destructor_key,
-    class_member_key, class_property_key,
+    StubFlags, SubclassProvidedMethods, UnknownProcInfo, VarDef, class_constructor_key,
+    class_destructor_key, class_member_key, class_property_key,
 };

@@ -103,6 +103,41 @@ run time and `W308` is right to report them:
   with a single `-property` argument is how you read one. `$p cget -y`
   above would fail with `unknown method "cget"`.
 
+## Template methods a subclass supplies
+
+An abstract base class may `my`-dispatch a method it never defines, leaving
+each concrete subclass to write it — the template-method pattern:
+
+```tcl
+oo::class create Formatter {
+    method run {} { my Render }     ;# no Render on Formatter's MRO
+}
+oo::class create HtmlFormatter {
+    superclass Formatter
+    method Render {} { ... }
+}
+```
+
+This runs fine: `my` late-binds on the actual receiver, which is always a
+subclass instance when the base is never instantiated, and it bypasses
+export filtering, so even a capitalised (unexported) subclass method is
+reachable. `W308` abstains when any known class whose linearisation
+contains the receiver class resolves the method — whether that subclass is
+in the same file or, in an editor workspace, in a sibling document. A
+subclass that gets the method from its own `mixin` counts too.
+
+The boundary is evidence, not charity:
+
+- A `my` dispatch **no** subclass anywhere defines is still a warning —
+  that is the typo case the check exists for.
+- The abstention is `my`-only. `[self] Render` in the base keeps its
+  `W308`: it dispatches through the object's own command, where an
+  unexported subclass method really is unreachable (the same reach split
+  as `my varname` versus `[self] varname`).
+- Single-file tools (`tcl diag` on one file, the fp-sweep harness) see no
+  sibling documents, so a base analysed alone still warns — the workspace
+  view is what supplies the refuting subclass.
+
 ## What a deleted class changes
 
 The check asks whether the class is still live **at the dispatch**, not

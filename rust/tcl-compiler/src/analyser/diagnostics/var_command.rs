@@ -1772,6 +1772,15 @@ impl Analyser {
     ///   never draws this warning.
     /// * **An `unknown` handler** anywhere in the MRO — every unresolved
     ///   name is then legal by construction.
+    /// * **A template method, on `my` dispatch only** — the method resolves
+    ///   nowhere on the enclosing class's MRO but a known subclass defines
+    ///   it ([`ClassHierarchy::subclass_provides_method`](super::class_hierarchy::ClassHierarchy::subclass_provides_method),
+    ///   issue #1367).  `my` late-binds on the actual receiver — always a
+    ///   subclass instance when the base is abstract — and reaches
+    ///   unexported members, so the call is the deliberate pattern, not a
+    ///   typo.  `[self] M` keeps the warning: it dispatches through the
+    ///   object's command, where an unexported subclass method really is
+    ///   unreachable.
     ///
     /// A `forward`ed method needs no carve-out: `forward NAME …` records a
     /// real member under `NAME`, so `my NAME` resolves through the ordinary
@@ -1799,6 +1808,24 @@ impl Analyser {
         let class_def = self.enclosing_class_at_offset(cmd_span.start())?;
         let cls_qn = class_def.qualified_name.as_str();
         if self.validate_method_on_class(cls_qn, method, Some(class_def), hierarchy, reach) {
+            return None;
+        }
+        // Template-method pattern (issue #1367): a base-class body calling
+        // `my M` where `M` is written only by subclasses runs fine — `my`
+        // late-binds on the actual receiver, always a subclass instance,
+        // and bypasses export filtering.  A known defining subclass is the
+        // evidence; with none anywhere in the index the warning stands.
+        // `SelfDispatch` only: `[self] M` goes through the object's own
+        // command, where an unexported subclass method really is
+        // unreachable (tclsh 9.0.4: `[self] varname v` fails where
+        // `my varname v` succeeds — same reach split as the doc above).
+        if reach == tcl_registry::definer::MethodReach::SelfDispatch
+            && (hierarchy.is_some_and(|h| h.subclass_provides_method(cls_qn, method))
+                || self.workspace_subclass_methods.as_ref().is_some_and(|m| {
+                    m.get(cls_qn)
+                        .is_some_and(|provided| provided.contains(method))
+                }))
+        {
             return None;
         }
         Some(self.w308_diagnostic(

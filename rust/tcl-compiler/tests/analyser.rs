@@ -8030,3 +8030,143 @@ mod issue_1362_configurable_property_accessors {
         }
     }
 }
+
+mod issue_1367_template_method_self_dispatch {
+    use super::*;
+
+    /// The ruff `Formatter` shape: an abstract base whose method bodies
+    /// `my`-dispatch a method written only by concrete subclasses.  `my`
+    /// late-binds on the actual receiver — always a subclass instance —
+    /// and reaches unexported members, so the capitalised (unexported)
+    /// subclass method is genuinely callable and W308 must abstain.
+    #[test]
+    fn my_dispatch_to_a_subclass_provided_method_draws_no_w308() {
+        let src = "oo::class create Base {\n\
+                   \x20   method run {} { my Render }\n\
+                   }\n\
+                   oo::class create Concrete {\n\
+                   \x20   superclass Base\n\
+                   \x20   method Render {} { return ok }\n\
+                   }\n";
+        assert!(
+            !fires(src, "tcl8.6", "W308"),
+            "a subclass defines the template method: {:?}",
+            codes(src, "tcl8.6")
+        );
+    }
+
+    /// The subclass may itself get the template method from a mixin — the
+    /// descendant check resolves through the subclass's whole MRO, not
+    /// just its own member table.
+    #[test]
+    fn my_dispatch_to_a_mixin_provided_template_method_draws_no_w308() {
+        let src = "oo::class create Renderer {\n\
+                   \x20   method Render {} { return ok }\n\
+                   }\n\
+                   oo::class create Base {\n\
+                   \x20   method run {} { my Render }\n\
+                   }\n\
+                   oo::class create Concrete {\n\
+                   \x20   superclass Base\n\
+                   \x20   mixin Renderer\n\
+                   }\n";
+        assert!(
+            !fires(src, "tcl8.6", "W308"),
+            "the subclass inherits the template method from its mixin: {:?}",
+            codes(src, "tcl8.6")
+        );
+    }
+
+    /// TP guard — a `my` typo stays a warning even when subclasses exist:
+    /// the abstention needs a subclass that *defines* the method, not
+    /// merely a subclass.
+    #[test]
+    fn my_dispatch_to_a_method_no_subclass_defines_still_draws_w308() {
+        let src = "oo::class create Base {\n\
+                   \x20   method run {} { my Rendr }\n\
+                   }\n\
+                   oo::class create Concrete {\n\
+                   \x20   superclass Base\n\
+                   \x20   method Render {} { return ok }\n\
+                   }\n";
+        assert!(
+            fires(src, "tcl8.6", "W308"),
+            "no subclass defines 'Rendr': {:?}",
+            codes(src, "tcl8.6")
+        );
+    }
+
+    /// TP guard — the abstention is `my`-only.  `[self] M` dispatches
+    /// through the object's own command, where the capitalised subclass
+    /// method is unexported and genuinely unreachable (the same reach
+    /// split as `my varname` vs `[self] varname`, tclsh 9.0.4), so the
+    /// identical template shape keeps its W308 on the `[self]` spelling.
+    #[test]
+    fn self_command_dispatch_to_a_subclass_method_still_draws_w308() {
+        let src = "oo::class create Base {\n\
+                   \x20   method run {} { [self] Render }\n\
+                   }\n\
+                   oo::class create Concrete {\n\
+                   \x20   superclass Base\n\
+                   \x20   method Render {} { return ok }\n\
+                   }\n";
+        assert!(
+            fires(src, "tcl8.6", "W308"),
+            "[self] cannot reach an unexported subclass method: {:?}",
+            codes(src, "tcl8.6")
+        );
+    }
+
+    /// Baseline stays intact: with no subclass in the index at all, an
+    /// unresolved `my` dispatch is still a warning — the pattern needs
+    /// evidence, and a single-file view of only the base class has none.
+    #[test]
+    fn my_dispatch_with_no_subclass_in_view_still_draws_w308() {
+        let src = "oo::class create Base {\n\
+                   \x20   method run {} { my Render }\n\
+                   }\n";
+        assert!(
+            fires(src, "tcl8.6", "W308"),
+            "no defining subclass in view: {:?}",
+            codes(src, "tcl8.6")
+        );
+    }
+
+    /// The cross-file half (the ruff corpus's actual shape): the defining
+    /// subclass lives in another document, delivered as the host-injected
+    /// [`SubclassProvidedMethods`] view.  Same source as the test above —
+    /// the view is the only difference, so together they pin that the
+    /// abstention keys on the evidence, not the source shape.
+    #[test]
+    fn an_injected_workspace_subclass_view_clears_the_w308() {
+        use tcl_compiler::analyser::{Analyser, SubclassProvidedMethods};
+        let src = "oo::class create Base {\n\
+                   \x20   method run {} { my Render }\n\
+                   \x20   method oops {} { my Rendr }\n\
+                   }\n";
+        let mut view = SubclassProvidedMethods::new();
+        view.entry("::Base".to_owned())
+            .or_default()
+            .insert("Render".to_owned());
+        let mut analyser =
+            Analyser::new().with_workspace_subclass_methods(Some(std::sync::Arc::new(view)));
+        let result = analyser.analyse(src, "tcl8.6");
+        let w308_methods: Vec<&str> = result
+            .diagnostics
+            .iter()
+            .filter(|d| d.code.to_string() == "W308")
+            .filter_map(|d| {
+                d.message
+                    .split_once('\'')
+                    .and_then(|(_, rest)| rest.split_once('\''))
+                    .map(|(name, _)| name)
+            })
+            .collect();
+        assert_eq!(
+            w308_methods,
+            vec!["Rendr"],
+            "the injected view clears 'Render' and leaves the typo: {:?}",
+            result.diagnostics
+        );
+    }
+}
