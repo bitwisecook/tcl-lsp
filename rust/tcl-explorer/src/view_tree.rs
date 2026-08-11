@@ -1664,6 +1664,21 @@ mod tests {
     }
 
     #[test]
+    fn every_tree_descriptor_has_a_shared_builder() {
+        let d = data("set x 1");
+        for descriptor in crate::views::VIEW_META
+            .iter()
+            .filter(|descriptor| descriptor.render_kind == crate::views::ViewRenderKind::Tree)
+        {
+            assert!(
+                !build_view(descriptor.id, &d).is_empty(),
+                "tree descriptor {} has no shared renderer",
+                descriptor.id
+            );
+        }
+    }
+
+    #[test]
     fn ir_view_has_top_level_and_proc_nodes() {
         let d = data("proc f {x} { return $x }\nf 1");
         let nodes = build_view("ir", &d);
