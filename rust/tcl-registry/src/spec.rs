@@ -39,6 +39,7 @@ use crate::hooks::{
 };
 use crate::hover::{ArgValue, FormSpec, HoverSnippet, OptionSpec};
 use crate::lifecycle::{Lifecycle, LifecycleState};
+use crate::literal_validation::LiteralArgumentValidator;
 use crate::patterns::{FormatType, PatternType};
 use crate::presentation::ArgPresentation;
 use crate::repeated::RepeatedArgLayout;
@@ -769,6 +770,10 @@ pub struct CommandSpec {
     /// name. Irreducible live-interpreter dependencies always remain.
     pub dispatch_dependencies: Option<DispatchDependencyDescriptor>,
 
+    /// Relationship/content validator for statically-known literal arguments.
+    /// A resolved subcommand or form may override this callback.
+    pub literal_argument_validator: Option<LiteralArgumentValidator>,
+
     /// Inferred storage type for the target variable (`Dict`, `List`, `Array`).
     pub inferred_storage_type: Option<StorageType>,
 
@@ -1343,6 +1348,7 @@ impl CommandSpec {
         world_effects: None,
         state_transitions: None,
         dispatch_dependencies: None,
+        literal_argument_validator: None,
         inferred_storage_type: None,
         required_package: None,
         excluded_events: &[],
@@ -2159,6 +2165,10 @@ pub struct SubCommand {
     /// Irreducible live-interpreter dependencies cannot be removed.
     pub dispatch_dependencies: Option<DispatchDependencyDescriptor>,
 
+    /// Relationship/content validator for statically-known literal arguments.
+    /// A matching form may override this callback.
+    pub literal_argument_validator: Option<LiteralArgumentValidator>,
+
     /// Irreversible operation (`file delete`, …).
     pub destructive: bool,
 
@@ -2291,6 +2301,7 @@ impl SubCommand {
         world_effects: None,
         state_transitions: None,
         dispatch_dependencies: None,
+        literal_argument_validator: None,
         destructive: false,
         returns_path: false,
         is_unescape: false,

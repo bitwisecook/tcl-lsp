@@ -80,6 +80,7 @@ pub mod hover;
 pub mod intrinsic;
 pub mod invocation_words;
 pub mod lifecycle;
+pub mod literal_validation;
 pub mod mathfunc;
 pub mod patterns;
 pub mod presentation;
@@ -162,6 +163,10 @@ pub mod prelude {
     pub use crate::intrinsic::IntrinsicId;
     pub use crate::invocation_words::InvocationArguments;
     pub use crate::lifecycle::{Lifecycle, LifecycleState};
+    pub use crate::literal_validation::{
+        LiteralArgumentIssue, LiteralArgumentIssueReason, LiteralArgumentValidation,
+        LiteralValidationDecline,
+    };
     pub use crate::patterns::{FormatType, PatternType};
     pub use crate::presentation::ArgPresentation;
     pub use crate::repeated::RepeatedArgLayout;
@@ -233,6 +238,10 @@ pub use hover::ArgValue;
 pub use intrinsic::IntrinsicId;
 pub use invocation_words::{
     InvocationArguments, InvocationWord, InvocationWordKind, InvocationWords,
+};
+pub use literal_validation::{
+    LiteralArgumentIssue, LiteralArgumentIssueReason, LiteralArgumentValidation,
+    LiteralArgumentValidator, LiteralValidationDecline,
 };
 pub use patterns::{FormatType, PatternType};
 pub use presentation::ArgPresentation;

@@ -724,6 +724,17 @@ fn subcommand_hooks(d: &mut Draft, sub: &SubCommand, lost: &mut Unrecovered) {
         "dispatch_dependencies".into(),
         lost.expr("dispatch_dependencies", sub.dispatch_dependencies.is_some()),
     );
+    d.insert(
+        "result_stability".into(),
+        lost.expr("result_stability", sub.result_stability.is_some()),
+    );
+    d.insert(
+        "literal_argument_validator".into(),
+        lost.expr(
+            "literal_argument_validator",
+            sub.literal_argument_validator.is_some(),
+        ),
+    );
 }
 
 /// Options, values, availability, behaviour flags, taint, and effects.
@@ -1013,6 +1024,17 @@ fn command_hooks(d: &mut Draft, spec: &CommandSpec, lost: &mut Unrecovered) {
         lost.expr(
             "dispatch_dependencies",
             spec.dispatch_dependencies.is_some(),
+        ),
+    );
+    d.insert(
+        "result_stability".into(),
+        lost.expr("result_stability", spec.result_stability.is_some()),
+    );
+    d.insert(
+        "literal_argument_validator".into(),
+        lost.expr(
+            "literal_argument_validator",
+            spec.literal_argument_validator.is_some(),
         ),
     );
     d.insert(

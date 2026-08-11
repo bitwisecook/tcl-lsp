@@ -197,6 +197,8 @@ pub fn witness_command_spec(spec: &CommandSpec) {
         world_effects: _,
         state_transitions: _,
         dispatch_dependencies: _,
+        result_stability: _,
+        literal_argument_validator: _,
         inferred_storage_type: _,
         required_package: _,
         excluded_events: _,
@@ -308,6 +310,11 @@ pub const COMMAND_SPEC: &[Field] = &[
     f(
         "dispatch_dependencies",
         Surface::Key("dispatch_dependencies"),
+    ),
+    f("result_stability", Surface::Key("result_stability")),
+    f(
+        "literal_argument_validator",
+        Surface::Key("literal_argument_validator"),
     ),
     f(
         "inferred_storage_type",
@@ -474,6 +481,8 @@ pub fn witness_sub_command(sub: &SubCommand) {
         world_effects: _,
         state_transitions: _,
         dispatch_dependencies: _,
+        result_stability: _,
+        literal_argument_validator: _,
         destructive: _,
         returns_path: _,
         is_unescape: _,
@@ -561,6 +570,11 @@ pub const SUB_COMMAND: &[Field] = &[
     f(
         "dispatch_dependencies",
         Surface::Key("dispatch_dependencies"),
+    ),
+    f("result_stability", Surface::Key("result_stability")),
+    f(
+        "literal_argument_validator",
+        Surface::Key("literal_argument_validator"),
     ),
     f("destructive", Surface::Key("destructive")),
     f("returns_path", Surface::Key("returns_path")),

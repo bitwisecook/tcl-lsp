@@ -1363,6 +1363,46 @@ fn test_e006_abstains_from_ambiguous_name_repairs() {
     }
 }
 
+/// W146: a complete literal trace operation list keeps every valid member and
+/// removes only the member the selected trace type rejects. The analyser marks
+/// this action `RequiresReview`, so it is offered individually and never through
+/// Fix All Safe Issues.
+#[test]
+fn test_w146_removes_only_invalid_trace_operation_members() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let source = "trace add variable item {read rename write} callback\n";
+    let diagnostics = lsp.open_ready(&uri, source);
+    let actions = quickfixes_for_code(&mut lsp, &uri, &diagnostics, "W146");
+    assert_fix_applies(
+        &actions,
+        source,
+        "Remove invalid member(s) 'rename'",
+        "trace add variable item {read write} callback\n",
+    );
+    let fixed = lsp.execute_command("tcl-lsp.fixAllSafeIssues", serde_json::json!([uri]));
+    assert_eq!(
+        fixed.get("source").and_then(Value::as_str),
+        Some(source),
+        "the RequiresReview W146 action must not enter Fix All Safe Issues"
+    );
+}
+
+/// Removing every member would leave Tcl's invalid empty operation list, so
+/// W146 diagnoses the all-invalid literal but offers no rewrite.
+#[test]
+fn test_w146_all_invalid_trace_operations_offer_no_fix() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let source = "trace add command worker {read write} callback\n";
+    let diagnostics = lsp.open_ready(&uri, source);
+    let actions = quickfixes_for_code(&mut lsp, &uri, &diagnostics, "W146");
+    assert!(
+        new_texts(&actions).is_empty(),
+        "unexpected W146 fix: {actions:?}"
+    );
+}
+
 /// W120: the missing-`package require` diagnostic carries an insertion fix
 /// that adds the require line at the top of the file (no requires exist yet).
 #[test]

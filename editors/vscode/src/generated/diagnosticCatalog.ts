@@ -321,6 +321,13 @@ export const DIAGNOSTICS: DiagnosticDef[] = [
     defaultEnabled: true,
   },
   {
+    code: "W146",
+    section: "warning",
+    description:
+      "Literal argument violates a registry-declared relationship or member set (for example, a trace operation list contains an operation invalid for its trace type).",
+    defaultEnabled: true,
+  },
+  {
     code: "W200",
     section: "warning",
     description: "`exec` result not captured or binary format modifier requires newer Tcl.",

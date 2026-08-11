@@ -502,6 +502,126 @@ fn codes_for_dialect(src: &str, dialect: &str) -> Vec<String> {
         .collect()
 }
 
+#[test]
+fn w146_validates_modern_trace_operation_lists_by_registry_declared_type() {
+    for (invalid, valid) in [
+        (
+            "trace add variable item {read rename write} callback\n",
+            "trace add variable item {array read unset write} callback\n",
+        ),
+        (
+            "trace remove command worker {delete enter rename} callback\n",
+            "trace remove command worker {delete rename} callback\n",
+        ),
+        (
+            "trace add execution worker {enter write leavestep} callback\n",
+            "trace add execution worker {enter leave enterstep leavestep} callback\n",
+        ),
+    ] {
+        assert!(
+            codes_for_dialect(invalid, "tcl9.0").contains(&"W146".to_owned()),
+            "invalid type-specific operation must fire: {invalid}"
+        );
+        assert!(
+            !codes_for_dialect(valid, "tcl9.0").contains(&"W146".to_owned()),
+            "the complete Tcl 9 operation set must stay silent: {valid}"
+        );
+    }
+}
+
+#[test]
+fn w146_mixed_operation_list_fix_preserves_valid_members_and_requires_review() {
+    let source = "trace add variable item {read bogus write} callback\n";
+    let result = crate::analyser::Analyser::new().analyse(source, "tcl9.0");
+    let diagnostic = result
+        .diagnostics
+        .iter()
+        .find(|diagnostic| diagnostic.code == tcl_core_types::DiagCode::W146)
+        .expect("mixed valid/invalid list fires W146");
+    assert!(diagnostic.message.contains("'bogus'"));
+    assert!(diagnostic.message.contains("array, read, unset, write"));
+    assert_eq!(diagnostic.fixes.len(), 1);
+    assert_eq!(diagnostic.fixes[0].new_text, "{read write}");
+    assert_eq!(
+        diagnostic.fixes[0].safety,
+        crate::irules_checks::FixSafety::RequiresReview
+    );
+    assert_eq!(
+        &source[diagnostic.fixes[0].span.as_range()],
+        "{read bogus write}",
+        "the edit replaces the whole written Tcl word, including delimiters"
+    );
+}
+
+#[test]
+fn w146_abstains_when_a_modern_operation_list_is_not_safely_fixable() {
+    for source in [
+        "trace add variable item $operations callback\n",
+        "trace add variable item [operations] callback\n",
+        "trace add variable item {*}$operations callback\n",
+        "trace add variable item {read {unterminated} callback\n",
+        "trace add not-a-type item {read bogus} callback\n",
+        "trace add variable item\n",
+    ] {
+        assert!(
+            !codes_for_dialect(source, "tcl9.0").contains(&"W146".to_owned()),
+            "dynamic, malformed, incomplete, or invalid-discriminator input must abstain: {source:?}"
+        );
+    }
+
+    for source in [
+        "trace add command worker {} callback\n",
+        "trace add command worker {enter write} callback\n",
+    ] {
+        let result = crate::analyser::Analyser::new().analyse(source, "tcl9.0");
+        let diagnostic = result
+            .diagnostics
+            .iter()
+            .find(|diagnostic| diagnostic.code == tcl_core_types::DiagCode::W146)
+            .expect("a complete empty/all-invalid list is still diagnosed");
+        assert!(
+            diagnostic.fixes.is_empty(),
+            "removing every member would leave Tcl's invalid empty operation list"
+        );
+    }
+}
+
+#[test]
+fn w146_honours_trace_prefix_and_legacy_version_rules() {
+    assert!(
+        !codes_for_dialect("trace add var item {read write} callback\n", "tcl9.0")
+            .contains(&"W146".to_owned()),
+        "the type discriminator accepts Tcl's unique-prefix rule"
+    );
+    assert!(
+        codes_for_dialect("trace add variable item w callback\n", "tcl9.0")
+            .contains(&"W146".to_owned()),
+        "operation members use exact matching and may not be abbreviated"
+    );
+    for dialect in ["tcl8.4", "tcl8.5", "tcl8.6"] {
+        assert!(
+            codes_for_dialect("trace variable item rwx callback\n", dialect)
+                .contains(&"W146".to_owned()),
+            "the deprecated rwua form is validated on {dialect}"
+        );
+    }
+    assert!(
+        !codes_for_dialect("trace variable item rwx callback\n", "tcl9.0")
+            .contains(&"W146".to_owned()),
+        "Tcl 9 removed the legacy form, so subcommand availability owns it"
+    );
+}
+
+#[test]
+fn w146_drops_registry_finding_when_a_user_command_shadows_trace() {
+    let source =
+        "proc trace args { return user-command }\ntrace add variable item {read bogus} callback\n";
+    assert!(
+        !codes_for_dialect(source, "tcl9.0").contains(&"W146".to_owned()),
+        "post-walk command resolution must suppress registry argument facts for a shadowed builtin"
+    );
+}
+
 /// FP guard (issue #923 audit, `ticklecharts` idx 51): a document that
 /// installs the documented "`TclOO` Tricks" wiki helper
 /// `proc ::oo::Helpers::callback` and calls it bare from a method body must

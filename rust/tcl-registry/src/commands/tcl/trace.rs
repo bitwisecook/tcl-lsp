@@ -23,6 +23,122 @@ use crate::world_effect::{
 };
 use tcl_cmd_core::trace::{TraceKind, parse_legacy_variable_ops, parse_ops, resolve_type};
 
+const VARIABLE_TRACE_OPERATIONS: &[&str] = &["array", "read", "unset", "write"];
+const COMMAND_TRACE_OPERATIONS: &[&str] = &["delete", "rename"];
+const EXECUTION_TRACE_OPERATIONS: &[&str] = &["enter", "leave", "enterstep", "leavestep"];
+const LEGACY_VARIABLE_TRACE_OPERATIONS: &[&str] = &["r", "w", "u", "a"];
+
+fn operations_for(kind: TraceKind) -> &'static [&'static str] {
+    match kind {
+        TraceKind::Variable => VARIABLE_TRACE_OPERATIONS,
+        TraceKind::Command => COMMAND_TRACE_OPERATIONS,
+        TraceKind::Execution => EXECUTION_TRACE_OPERATIONS,
+    }
+}
+
+fn operation_subject(kind: TraceKind) -> &'static str {
+    match kind {
+        TraceKind::Variable => "variable trace operation list",
+        TraceKind::Command => "command trace operation list",
+        TraceKind::Execution => "execution trace operation list",
+    }
+}
+
+/// Validate the modern `trace add|remove type name opList prefix` relationship.
+///
+/// The type word accepts a unique prefix, but operation-list members are exact.
+/// This callback deliberately abstains when arity, type, or literalness is not
+/// proven; the generic arity/closed-value/parser diagnostics own those cases.
+fn validate_modern_trace_operations(
+    arguments: InvocationArguments<'_>,
+) -> LiteralArgumentValidation {
+    if arguments.exact_argv_len() != Some(5) {
+        return LiteralArgumentValidation::Abstain(LiteralValidationDecline::IncompleteInvocation);
+    }
+    let Some(type_word) = arguments.literal_at(1) else {
+        return LiteralArgumentValidation::Abstain(LiteralValidationDecline::NonLiteralArgument);
+    };
+    let Ok(kind) = resolve_type(type_word) else {
+        return LiteralArgumentValidation::Abstain(LiteralValidationDecline::InvalidDiscriminator);
+    };
+    let Some(op_list) = arguments.literal_at(3) else {
+        return LiteralArgumentValidation::Abstain(LiteralValidationDecline::NonLiteralArgument);
+    };
+    let Ok(elements) = tcl_syntax::list::split_list(op_list) else {
+        return LiteralArgumentValidation::Abstain(LiteralValidationDecline::MalformedLiteral);
+    };
+    let allowed = operations_for(kind);
+    if elements.is_empty() {
+        return LiteralArgumentValidation::Invalid(LiteralArgumentIssue {
+            argument_index: 3,
+            subject: operation_subject(kind),
+            reason: LiteralArgumentIssueReason::Empty,
+            allowed_values: allowed,
+            replacement_value: None,
+        });
+    }
+    let invalid: Vec<String> = elements
+        .iter()
+        .filter(|element| !allowed.contains(&element.as_ref()))
+        .map(ToString::to_string)
+        .collect();
+    if invalid.is_empty() {
+        return LiteralArgumentValidation::Valid;
+    }
+    let valid: Vec<&str> = elements
+        .iter()
+        .map(AsRef::as_ref)
+        .filter(|element| allowed.contains(element))
+        .collect();
+    let replacement_value = (!valid.is_empty()).then(|| tcl_syntax::list::join_list(valid));
+    LiteralArgumentValidation::Invalid(LiteralArgumentIssue {
+        argument_index: 3,
+        subject: operation_subject(kind),
+        reason: LiteralArgumentIssueReason::InvalidMembers(invalid),
+        allowed_values: allowed,
+        replacement_value,
+    })
+}
+
+/// Validate Tcl 8.x's deprecated concatenated `rwua` operation string.
+fn validate_legacy_trace_operations(
+    arguments: InvocationArguments<'_>,
+) -> LiteralArgumentValidation {
+    if arguments.exact_argv_len() != Some(4) {
+        return LiteralArgumentValidation::Abstain(LiteralValidationDecline::IncompleteInvocation);
+    }
+    let Some(operations) = arguments.literal_at(2) else {
+        return LiteralArgumentValidation::Abstain(LiteralValidationDecline::NonLiteralArgument);
+    };
+    if operations.is_empty() {
+        return LiteralArgumentValidation::Invalid(LiteralArgumentIssue {
+            argument_index: 2,
+            subject: "legacy variable trace operation string",
+            reason: LiteralArgumentIssueReason::Empty,
+            allowed_values: LEGACY_VARIABLE_TRACE_OPERATIONS,
+            replacement_value: None,
+        });
+    }
+    let invalid: Vec<String> = operations
+        .chars()
+        .filter(|operation| !matches!(operation, 'r' | 'w' | 'u' | 'a'))
+        .map(|operation| operation.to_string())
+        .collect();
+    if invalid.is_empty() {
+        LiteralArgumentValidation::Valid
+    } else {
+        LiteralArgumentValidation::Invalid(LiteralArgumentIssue {
+            argument_index: 2,
+            subject: "legacy variable trace operation string",
+            reason: LiteralArgumentIssueReason::InvalidMembers(invalid),
+            allowed_values: LEGACY_VARIABLE_TRACE_OPERATIONS,
+            // This is not a Tcl list. Avoid presenting the modern
+            // list-member removal action for the deprecated encoding.
+            replacement_value: None,
+        })
+    }
+}
+
 // Command-level fallback for call sites where the actual subcommand can't
 // be resolved statically (`dialect_side_effect_hints` in
 // `tcl-compiler/src/side_effects.rs` prefers a resolved subcommand's own
@@ -899,6 +1015,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         }],
         world_effects: Some(TRACE_ADD_EFFECTS),
         state_transitions: Some(TRACE_ADD_TRANSITIONS),
+        literal_argument_validator: Some(validate_modern_trace_operations),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -954,6 +1071,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         }],
         world_effects: Some(TRACE_REMOVE_EFFECTS),
         state_transitions: Some(TRACE_REMOVE_TRANSITIONS),
+        literal_argument_validator: Some(validate_modern_trace_operations),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -976,6 +1094,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         }],
         world_effects: Some(LEGACY_TRACE_ADD_EFFECTS),
         state_transitions: Some(LEGACY_TRACE_ADD_TRANSITIONS),
+        literal_argument_validator: Some(validate_legacy_trace_operations),
         // Deprecated legacy form; removed in Tcl 9.0 (8.4-8.6 only) — the
         // 9.0/9.1 trace.n manpages drop both the SYNOPSIS line and the
         // entire "For backwards compatibility..." paragraph describing it.
@@ -1002,6 +1121,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         }],
         world_effects: Some(LEGACY_TRACE_REMOVE_EFFECTS),
         state_transitions: Some(LEGACY_TRACE_REMOVE_TRANSITIONS),
+        literal_argument_validator: Some(validate_legacy_trace_operations),
         // Deprecated legacy form; removed in Tcl 9.0 (8.4-8.6 only).
         dialects: Some(DialectSet::TCL8X),
         ..SubCommand::DEFAULT
@@ -1113,6 +1233,159 @@ mod tests {
         CommandRegistry, InvocationWord, InvocationWordKind, StateTransitionFact,
         StateTransitionWidening,
     };
+
+    #[test]
+    fn registry_validates_each_modern_operation_domain_and_builds_a_list_value_fix() {
+        let registry = CommandRegistry::build_default();
+        for (kind, operations, invalid, allowed, replacement) in [
+            (
+                "variable",
+                "read bogus write",
+                "bogus",
+                VARIABLE_TRACE_OPERATIONS,
+                "read write",
+            ),
+            (
+                "command",
+                "delete read rename",
+                "read",
+                COMMAND_TRACE_OPERATIONS,
+                "delete rename",
+            ),
+            (
+                "execution",
+                "enter rename leavestep",
+                "rename",
+                EXECUTION_TRACE_OPERATIONS,
+                "enter leavestep",
+            ),
+        ] {
+            let arguments = ["add", kind, "target", operations, "callback"];
+            let invocation = registry
+                .resolve_invocation("trace", &arguments, DialectSet::TCL90)
+                .expect("modern trace form resolves");
+            assert_eq!(
+                invocation.validate_literal_arguments(),
+                Some(LiteralArgumentValidation::Invalid(LiteralArgumentIssue {
+                    argument_index: 3,
+                    subject: operation_subject(resolve_type(kind).unwrap()),
+                    reason: LiteralArgumentIssueReason::InvalidMembers(vec![invalid.to_owned()]),
+                    allowed_values: allowed,
+                    replacement_value: Some(replacement.to_owned()),
+                }))
+            );
+        }
+    }
+
+    #[test]
+    fn registry_abstains_on_dynamic_malformed_incomplete_and_invalid_type_operations() {
+        let registry = CommandRegistry::build_default();
+        let dynamic = [
+            InvocationWord::Literal("add"),
+            InvocationWord::Literal("variable"),
+            InvocationWord::Literal("target"),
+            InvocationWord::Dynamic,
+            InvocationWord::Literal("callback"),
+        ];
+        let invocation = registry
+            .resolve_structured_invocation(
+                crate::InvocationWords::structured(InvocationWord::Literal("trace"), &dynamic),
+                DialectSet::TCL90,
+            )
+            .resolved()
+            .expect("dynamic one-word argument keeps the invocation resolvable");
+        assert_eq!(
+            invocation.validate_literal_arguments(),
+            Some(LiteralArgumentValidation::Abstain(
+                LiteralValidationDecline::NonLiteralArgument
+            ))
+        );
+
+        for (arguments, decline) in [
+            (
+                &["add", "variable", "target", "{unterminated", "callback"][..],
+                LiteralValidationDecline::MalformedLiteral,
+            ),
+            (
+                &["add", "variable", "target", "read"][..],
+                LiteralValidationDecline::IncompleteInvocation,
+            ),
+            (
+                &["add", "not-a-type", "target", "read", "callback"][..],
+                LiteralValidationDecline::InvalidDiscriminator,
+            ),
+        ] {
+            let invocation = registry
+                .resolve_invocation("trace", arguments, DialectSet::TCL90)
+                .expect("literal trace head resolves even when an argument is invalid");
+            assert_eq!(
+                invocation.validate_literal_arguments(),
+                Some(LiteralArgumentValidation::Abstain(decline))
+            );
+        }
+    }
+
+    #[test]
+    fn empty_and_all_invalid_modern_lists_never_offer_an_invalid_empty_replacement() {
+        let registry = CommandRegistry::build_default();
+        for operations in ["", "bogus nope"] {
+            let arguments = ["remove", "command", "target", operations, "callback"];
+            let invocation = registry
+                .resolve_invocation("trace", &arguments, DialectSet::TCL90)
+                .expect("modern trace remove resolves");
+            let Some(LiteralArgumentValidation::Invalid(issue)) =
+                invocation.validate_literal_arguments()
+            else {
+                panic!("empty/all-invalid operation list must be invalid");
+            };
+            assert_eq!(issue.replacement_value, None);
+        }
+    }
+
+    #[test]
+    fn legacy_validator_exists_only_on_tcl8_forms() {
+        let registry = CommandRegistry::build_default();
+        for dialect in [DialectSet::TCL84, DialectSet::TCL85, DialectSet::TCL86] {
+            let invocation = registry
+                .resolve_invocation("trace", &["variable", "target", "rwx", "callback"], dialect)
+                .expect("legacy trace variable resolves in Tcl 8.x");
+            let Some(LiteralArgumentValidation::Invalid(issue)) =
+                invocation.validate_literal_arguments()
+            else {
+                panic!("invalid legacy operation character must be reported");
+            };
+            assert_eq!(
+                issue.reason,
+                LiteralArgumentIssueReason::InvalidMembers(vec!["x".to_owned()])
+            );
+            assert_eq!(issue.allowed_values, LEGACY_VARIABLE_TRACE_OPERATIONS);
+            assert_eq!(issue.replacement_value, None);
+        }
+        assert!(
+            registry
+                .resolve_invocation(
+                    "trace",
+                    &["variable", "target", "rwx", "callback"],
+                    DialectSet::TCL90,
+                )
+                .and_then(|invocation| invocation.validate_literal_arguments())
+                .is_none(),
+            "the removed legacy subcommand must not acquire a Tcl 9 validator"
+        );
+    }
+
+    #[test]
+    fn execution_callback_arity_remains_explicitly_conservative() {
+        let registry = CommandRegistry::build_default();
+        assert_eq!(
+            registry.command_prefixes(
+                "trace",
+                &["add", "execution", "target", "enter leave", "callback"]
+            ),
+            vec![(4, AppendedArity::AtLeast(2))],
+            "enter/enterstep append two args while leave/leavestep append four; the current callback contract can only retain their common lower bound"
+        );
+    }
 
     #[test]
     fn modern_variable_add_canonicalises_duplicate_operations() {

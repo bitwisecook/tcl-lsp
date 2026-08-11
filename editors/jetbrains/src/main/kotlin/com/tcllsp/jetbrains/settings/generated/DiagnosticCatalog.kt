@@ -80,6 +80,7 @@ object DiagnosticCatalog {
         DiagnosticDef("W143", "warning", "W143: Direct call into a private ::tcl:: implementation na...", true),
         DiagnosticDef("W144", "warning", "W144: Command/subcommand/option/argument value is deprecat...", true),
         DiagnosticDef("W145", "warning", "W145: Ambiguous keyword abbreviation", true),
+        DiagnosticDef("W146", "warning", "W146: Literal argument violates a registry-declared relati...", true),
         DiagnosticDef("W200", "warning", "W200: exec result not captured or binary format modifier r...", true),
         DiagnosticDef("W201", "warning", "W201: Manual path concatenation", true),
         DiagnosticDef("W230", "warning", "W230: Constant list index out of range", true),

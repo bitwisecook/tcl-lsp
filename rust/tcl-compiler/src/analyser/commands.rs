@@ -1505,6 +1505,27 @@ impl Analyser {
         self.emit_w303_redos(cmd_name, args, arg_tokens);
     }
 
+    /// Registry-owned literal/value diagnostics. Kept as one dispatch-site
+    /// group so adding a registry validator does not grow the main diagnostic
+    /// dispatcher; none of these consumers knows a command name.
+    fn emit_registry_argument_diagnostics(&mut self, site: &DispatchSite<'_>) {
+        self.emit_w127_closed_value_args(site.cmd_name, site.args, site.arg_tokens, site.cmd_tok);
+        self.emit_w127_closed_option_values(
+            site.cmd_name,
+            site.args,
+            site.arg_tokens,
+            site.cmd_tok,
+        );
+        self.emit_w146_literal_argument_validation(
+            site.cmd_name,
+            site.args,
+            site.arg_tokens,
+            site.arg_single,
+            site.arg_expand_in.get(1..).unwrap_or(&[]),
+            site.scope_path,
+        );
+    }
+
     /// Dispatch-site diagnostic emitters, run from
     /// [`Self::process_command`] before the early-returning handlers so
     /// option-bearing / body-owning commands still get checked.
@@ -1638,8 +1659,7 @@ impl Analyser {
         self.result.diagnostics.extend(lset_diags);
         let str_diags = super::bounds_checks::string_index_diagnostics(cmd_name, args, arg_tokens);
         self.result.diagnostics.extend(str_diags);
-        self.emit_w127_closed_value_args(cmd_name, args, arg_tokens, cmd_tok);
-        self.emit_w127_closed_option_values(cmd_name, args, arg_tokens, cmd_tok);
+        self.emit_registry_argument_diagnostics(site);
         self.emit_w304_missing_option_terminator(cmd_name, args, cmd_tok, arg_tokens);
         self.emit_w217_unset_option_only(cmd_name, args, arg_tokens);
         self.emit_w004_dialect_invalid_option(

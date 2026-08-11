@@ -712,7 +712,144 @@ pub(super) fn is_tcloo_metaclass(
     })
 }
 
+/// Convert the analyser's segmented source word into the registry's
+/// value-conservative vocabulary. Only a single literal token exposes its Tcl
+/// value. First-stage backslash substitution in a bare/quoted word is not
+/// reconstructed by `SegmentedCommand::texts`, so those spellings abstain.
+fn literal_validation_word<'a>(
+    source: &str,
+    text: &'a str,
+    token: Option<tcl_lexer::Token>,
+    single_token: bool,
+    expanded: bool,
+) -> tcl_registry::InvocationWord<'a> {
+    if expanded {
+        return tcl_registry::InvocationWord::Expanded;
+    }
+    let Some(token) = token else {
+        return tcl_registry::InvocationWord::Opaque;
+    };
+    if !single_token {
+        return tcl_registry::InvocationWord::Dynamic;
+    }
+    let source_map = tcl_lexer::SourceMap::new(source);
+    let delimited = matches!(
+        source.as_bytes().get(token.span.start() as usize),
+        Some(b'{' | b'"')
+    );
+    if delimited && tcl_lexer::word_closer_offset(&source_map, token).is_none() {
+        return tcl_registry::InvocationWord::Opaque;
+    }
+    match token.kind {
+        tcl_lexer::TokenType::Str => tcl_registry::InvocationWord::Literal(text),
+        tcl_lexer::TokenType::Esc if !text.contains('\\') => {
+            tcl_registry::InvocationWord::Literal(text)
+        }
+        tcl_lexer::TokenType::Var | tcl_lexer::TokenType::Cmd => {
+            tcl_registry::InvocationWord::Dynamic
+        }
+        _ => tcl_registry::InvocationWord::Opaque,
+    }
+}
+
 impl Analyser {
+    /// **W146.** Run the resolved invocation's registry-owned relationship or
+    /// literal-content validator. The analyser knows only how to project
+    /// source words, anchor the returned argument index, and render the typed
+    /// issue; every legal set and cross-argument relationship stays in the
+    /// command registry.
+    pub(in crate::analyser) fn emit_w146_literal_argument_validation(
+        &mut self,
+        cmd_name: &str,
+        args: &[String],
+        arg_tokens: &[tcl_lexer::Token],
+        arg_single: &[bool],
+        arg_expand: &[bool],
+        scope_path: &[usize],
+    ) {
+        let Some(registry) = self.registry else {
+            return;
+        };
+        let words: Vec<_> = args
+            .iter()
+            .enumerate()
+            .map(|(index, text)| {
+                literal_validation_word(
+                    &self.source,
+                    text,
+                    arg_tokens.get(index).copied(),
+                    arg_single.get(index).copied().unwrap_or(false),
+                    arg_expand.get(index).copied().unwrap_or(false),
+                )
+            })
+            .collect();
+        let Some(validation) = registry
+            .resolve_structured_invocation(
+                tcl_registry::InvocationWords::structured(
+                    tcl_registry::InvocationWord::Literal(cmd_name),
+                    &words,
+                ),
+                self.profile.availability_mask,
+            )
+            .resolved()
+            .and_then(|invocation| invocation.validate_literal_arguments())
+        else {
+            return;
+        };
+        let tcl_registry::LiteralArgumentValidation::Invalid(issue) = validation else {
+            return;
+        };
+        let Some(token) = arg_tokens.get(issue.argument_index).copied() else {
+            return;
+        };
+        let source_map = tcl_lexer::SourceMap::new(&self.source);
+        let span = tcl_lexer::word_span(&source_map, token);
+        let allowed = issue.allowed_values.join(", ");
+        let (message, invalid_description) = match &issue.reason {
+            tcl_registry::LiteralArgumentIssueReason::Empty => (
+                format!(
+                    "Empty {}; expected one or more of: {allowed}",
+                    issue.subject
+                ),
+                String::new(),
+            ),
+            tcl_registry::LiteralArgumentIssueReason::InvalidMembers(invalid) => {
+                let quoted = invalid
+                    .iter()
+                    .map(|member| format!("'{member}'"))
+                    .collect::<Vec<_>>()
+                    .join(", ");
+                (
+                    format!(
+                        "Invalid member(s) {quoted} in {}; expected one or more of: {allowed}",
+                        issue.subject
+                    ),
+                    quoted,
+                )
+            }
+        };
+        let fixes = issue
+            .replacement_value
+            .map_or_else(Vec::new, |replacement| {
+                vec![crate::analyser::types::CodeFix::review(
+                    span,
+                    tcl_syntax::list::list_element(&replacement),
+                    format!("Remove invalid member(s) {invalid_description}"),
+                )]
+            });
+        let diagnostic = crate::analyser::types::Diagnostic {
+            code: DiagCode::W146,
+            span,
+            message,
+            severity: Severity::Warning,
+            fixes,
+        };
+        let namespace = self.command_resolution_namespace(scope_path);
+        let enforce_order = !self.scope_path_in_proc_body(scope_path);
+        self.pending_arity
+            .push((cmd_name.to_owned(), namespace, enforce_order, diagnostic));
+    }
+
     /// **W002** — the command is disabled in the active dialect profile: it
     /// exists in the registry but not for the active dialect (e.g. `dict` under
     /// `tcl8.4`, added in 8.5).  Only a *literal* command head is checked — a

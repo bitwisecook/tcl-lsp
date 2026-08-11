@@ -37,6 +37,7 @@ use crate::dialects::DialectSet;
 use crate::dispatch_stability::DispatchDependencyDescriptor;
 use crate::hooks::{CodegenHookId, LoweringHookId};
 use crate::hover::OptionSpec;
+use crate::literal_validation::LiteralArgumentValidator;
 use crate::representation::RepresentationEffect;
 use crate::result_stability::ResultStability;
 use crate::semantic_operation::SemanticOperationId;
@@ -108,6 +109,10 @@ pub struct CommandForm {
     /// Irreducible live-interpreter dependencies cannot be removed.
     pub dispatch_dependencies: Option<DispatchDependencyDescriptor>,
 
+    /// Relationship/content validator for statically-known literal arguments.
+    /// `None` inherits the resolved subcommand or command declaration.
+    pub literal_argument_validator: Option<LiteralArgumentValidator>,
+
     /// Lowering hook identifier for this form.
     pub lowering_hook: Option<LoweringHookId>,
 
@@ -131,6 +136,7 @@ impl CommandForm {
         world_effects: None,
         state_transitions: None,
         dispatch_dependencies: None,
+        literal_argument_validator: None,
         lowering_hook: None,
         codegen_hook: None,
     };

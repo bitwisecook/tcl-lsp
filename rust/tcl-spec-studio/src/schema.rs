@@ -593,6 +593,24 @@ pub const COMMAND_FIELDS: &[FieldSchema] = &[
         "Mutable Tcl domains that must remain stable before specialisation.",
     ),
     f(
+        "result_stability",
+        "Result stability",
+        EFFECTS,
+        FieldKind::RustExpr {
+            hint: "Some(ResultStability::ReferentiallyTransparent)",
+        },
+        "Whether repeated calls return the same value, or depend on mutable or volatile state.",
+    ),
+    f(
+        "literal_argument_validator",
+        "Literal argument validator",
+        HOOKS,
+        FieldKind::RustExpr {
+            hint: "Some(validate_literal_arguments)",
+        },
+        "Registry callback for relationships and member sets within statically-known arguments.",
+    ),
+    f(
         "inferred_storage_type",
         "Inferred storage type",
         TYPES,
@@ -1538,6 +1556,24 @@ pub const SUBCOMMAND_FIELDS: &[FieldSchema] = &[
             hint: "Some(DispatchDependencyDescriptor::replace(DispatchDependencies::BASE))",
         },
         "Subcommand-specific live-dispatch stability requirements.",
+    ),
+    f(
+        "result_stability",
+        "Result stability",
+        EFFECTS,
+        FieldKind::RustExpr {
+            hint: "Some(ResultStability::ReferentiallyTransparent)",
+        },
+        "Subcommand-specific result stability declaration.",
+    ),
+    f(
+        "literal_argument_validator",
+        "Literal argument validator",
+        HOOKS,
+        FieldKind::RustExpr {
+            hint: "Some(validate_literal_arguments)",
+        },
+        "Subcommand-specific registry callback for related literal arguments.",
     ),
     f(
         "destructive",

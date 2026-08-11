@@ -148,6 +148,12 @@ const MATRIX: &[Case] = &[
         note: "`string is` carries a closed class set; a non-member (and no unique prefix) is a runtime `bad class` error",
     },
     Case {
+        code: "W146",
+        fire: "trace add variable item {read rename write} callback\n",
+        silent: "trace add variable item {read write} callback\n",
+        note: "trace operation-list members are exact and depend on the registry-declared trace type",
+    },
+    Case {
         code: "TK1003",
         fire: "package require Tk\nbutton .b -comand {puts hi}\n",
         silent: "package require Tk\nbutton .b -command {puts hi}\n",
@@ -300,6 +306,10 @@ fn w127_fires_on_defect() {
     assert_fires(case_for("W127"));
 }
 #[test]
+fn w146_fires_on_invalid_trace_operation() {
+    assert_fires(case_for("W146"));
+}
+#[test]
 fn tk1003_fires_on_defect() {
     assert_fires(case_for("TK1003"));
 }
@@ -373,6 +383,10 @@ fn w124_silent_on_valid_address() {
 #[test]
 fn w127_silent_on_class_member() {
     assert_silent(case_for("W127"));
+}
+#[test]
+fn w146_silent_on_type_appropriate_trace_operations() {
+    assert_silent(case_for("W146"));
 }
 #[test]
 fn tk1003_silent_on_real_option() {

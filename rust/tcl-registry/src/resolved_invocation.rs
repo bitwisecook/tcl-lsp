@@ -36,6 +36,7 @@ use crate::hooks::{CodegenHookId, InlineCodegenHookId, LoweringHookId};
 use crate::hover::OptionSpec;
 use crate::intrinsic::IntrinsicId;
 use crate::invocation_words::{InvocationWordKind, InvocationWords};
+use crate::literal_validation::{LiteralArgumentValidation, LiteralArgumentValidator};
 use crate::representation::RepresentationEffect;
 use crate::result_stability::ResultStability;
 use crate::semantic_operation::SemanticOperationId;
@@ -179,6 +180,10 @@ fn resolve_invocation_semantics<'r>(
             subcommand: sub.and_then(|sub| sub.dispatch_dependencies),
             form: form.and_then(|form| form.dispatch_dependencies),
         },
+        literal_argument_validator: form
+            .and_then(|form| form.literal_argument_validator)
+            .or(sub.and_then(|sub| sub.literal_argument_validator))
+            .or(spec.literal_argument_validator),
     }
 }
 
@@ -522,6 +527,8 @@ pub struct InvocationSemantics<'r> {
     /// This descriptor chain is independent of backend guard encodings. An
     /// unstamped command resolves to the conservative Tcl dependency set.
     pub dispatch_dependencies: ResolvedDispatchDependencies,
+    /// Registry-selected relationship/content validator for literal arguments.
+    pub literal_argument_validator: Option<LiteralArgumentValidator>,
 }
 
 /// A command invocation resolved to target-neutral registry semantics.
@@ -705,6 +712,17 @@ impl<'r, 'w> ResolvedInvocation<'r, 'w> {
             .state_transitions
             .resolve_with_effect_coverage(self.words.arguments())
             .0
+    }
+
+    /// Validate registry-declared relationships between literal arguments.
+    ///
+    /// An absent descriptor is a conservative abstention: it is never treated
+    /// as proof that arbitrary command arguments are valid.
+    #[must_use]
+    pub fn validate_literal_arguments(&self) -> Option<LiteralArgumentValidation> {
+        self.semantics
+            .literal_argument_validator
+            .map(|validator| validator(self.words.arguments()))
     }
 
     /// Materialise the target-neutral facts for an owned consumer such as an
