@@ -177,6 +177,21 @@ impl<'w> InvocationArguments<'w> {
     pub fn has_non_literal(self) -> bool {
         !self.are_all_literals()
     }
+
+    /// Return every post-head Tcl value when all source words are literal.
+    ///
+    /// This is the explicit compatibility bridge for established registry
+    /// resolvers whose input is `&[&str]`.  A dynamic, expanded, or opaque
+    /// word makes the whole projection unavailable; callers must retain their
+    /// typed unknown obligation instead of passing source spelling to the
+    /// resolver.
+    #[must_use]
+    pub fn literal_values(self) -> Option<Vec<&'w str>> {
+        match self {
+            Self::Literals(words) => Some(words.to_vec()),
+            Self::Structured(words) => words.iter().map(|word| word.literal()).collect(),
+        }
+    }
 }
 
 /// A structured source-word view for one invocation.
@@ -249,5 +264,18 @@ mod tests {
         assert!(!arguments.are_all_literals());
         assert!(!arguments.has_exact_argv_len());
         assert_eq!(arguments.exact_argv_len(), None);
+        assert_eq!(arguments.literal_values(), None);
+    }
+
+    #[test]
+    fn literal_values_preserve_complete_known_argv() {
+        let structured = [
+            InvocationWord::Literal("first"),
+            InvocationWord::Literal("second"),
+        ];
+        assert_eq!(
+            InvocationArguments::structured(&structured).literal_values(),
+            Some(vec!["first", "second"])
+        );
     }
 }

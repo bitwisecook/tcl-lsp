@@ -580,7 +580,11 @@ pub struct InvocationFacts {
     pub arity: Arity,
     /// Number of leading post-head words before static argument roles start.
     pub argument_offset: usize,
-    /// Effective static argument-role declarations.
+    /// Effective argument-role declarations for this invocation.
+    ///
+    /// A registry resolver is evaluated here when every argument is literal.
+    /// Otherwise this retains the descriptor's conservative static roles and
+    /// [`Self::arg_roles_complete`] is `false`.
     pub arg_roles: Vec<(u8, ArgRole)>,
     /// Whether [`Self::arg_roles`] is the complete role assignment.
     ///
@@ -705,6 +709,22 @@ impl<'r, 'w> ResolvedInvocation<'r, 'w> {
             .semantics
             .state_transitions
             .resolve_with_effect_coverage(self.words.arguments());
+        let (arg_roles, arg_roles_complete) = match self.semantics.arg_role_resolver {
+            Some(resolver) => self
+                .words
+                .arguments()
+                .literal_values()
+                .and_then(|arguments| {
+                    arguments
+                        .get(self.semantics.argument_offset..)
+                        .map(resolver)
+                })
+                .map_or_else(
+                    || (self.semantics.arg_roles.to_vec(), false),
+                    |roles| (roles, true),
+                ),
+            None => (self.semantics.arg_roles.to_vec(), true),
+        };
         InvocationFacts {
             canonical_command: self.canonical_command.to_owned(),
             subcommand: self.subcommand.into_owned(),
@@ -723,8 +743,8 @@ impl<'r, 'w> ResolvedInvocation<'r, 'w> {
             traits: self.semantics.traits,
             arity: self.semantics.arity,
             argument_offset: self.semantics.argument_offset,
-            arg_roles: self.semantics.arg_roles.to_vec(),
-            arg_roles_complete: self.semantics.arg_role_resolver.is_none(),
+            arg_roles,
+            arg_roles_complete,
             return_type: self.semantics.return_type,
             var_write_typing: self.semantics.var_write_typing,
             return_elements: self.semantics.return_elements,
@@ -1574,7 +1594,7 @@ mod tests {
     }
 
     #[test]
-    fn invocation_facts_mark_resolver_backed_roles_as_incomplete() {
+    fn invocation_facts_resolve_roles_for_literal_argv() {
         let mut registry = CommandRegistry::build_default();
         registry.insert(CommandSpec {
             name: "resolver-backed-roles-fixture",
@@ -1592,11 +1612,38 @@ mod tests {
             .expect("fixture command resolves")
             .facts();
 
+        assert_eq!(facts.arg_roles, vec![(1, ArgRole::VarRead)]);
+        assert!(facts.arg_roles_complete);
+    }
+
+    #[test]
+    fn invocation_facts_keep_dynamic_resolver_roles_incomplete() {
+        let mut registry = CommandRegistry::build_default();
+        registry.insert(CommandSpec {
+            name: "resolver-backed-dynamic-roles-fixture",
+            arity: Arity::any(),
+            arg_roles: &[(0, ArgRole::VarWrite)],
+            arg_role_resolver: Some(resolver_backed_arg_roles),
+            ..CommandSpec::DEFAULT
+        });
+        let arguments = [
+            crate::InvocationWord::Literal("first"),
+            crate::InvocationWord::Dynamic,
+        ];
+        let facts = registry
+            .resolve_structured_invocation(
+                crate::InvocationWords::structured(
+                    crate::InvocationWord::Literal("resolver-backed-dynamic-roles-fixture"),
+                    &arguments,
+                ),
+                DialectSet::empty(),
+            )
+            .resolved()
+            .expect("fixture command resolves")
+            .facts();
+
         assert_eq!(facts.arg_roles, vec![(0, ArgRole::VarWrite)]);
-        assert!(
-            !facts.arg_roles_complete,
-            "the static slice is only a prefix when registry metadata requires a resolver"
-        );
+        assert!(!facts.arg_roles_complete);
     }
 
     #[test]
