@@ -2202,14 +2202,15 @@ impl Analyser {
     ///   the analyser cannot always tell apart from one of its instances.
     ///   Accepting both is the abstention; narrowing it needs receiver-kind
     ///   facts this pass does not have.
-    /// * **`oo::configurable`'s `configure` / `cget` are not listed at all**
-    ///   in the `TclOO` grammar, because they are contributed by a specific
-    ///   metaclass rather than by `oo::object` — every `TclOO` metaclass
-    ///   shares the one grammar, so listing them here would hand them to
-    ///   plain `oo::class` instances too, which really do fail with `unknown
-    ///   method "configure"`. They are settled one level up in
-    ///   [`Self::validate_method_on_class`] against
-    ///   [`class_configures_by_property`](super::class_hierarchy::class_configures_by_property),
+    /// * **`oo::configurable`'s `configure` is not in the shared `TclOO`
+    ///   grammar**, because it is contributed by a specific metaclass rather
+    ///   than by `oo::object` — every `TclOO` metaclass shares the one
+    ///   grammar, so listing it here would hand it to plain `oo::class`
+    ///   instances too, which really do fail with `unknown method
+    ///   "configure"`. It rides on `oo::configurable`'s own
+    ///   `TCLOO_CONFIGURABLE_GRAMMAR` instead, and is settled one level up in
+    ///   [`Self::validate_method_on_class`] via
+    ///   [`ClassHierarchy::is_property_accessor`](super::class_hierarchy::ClassHierarchy::is_property_accessor),
     ///   which asks the *metaclass command's* registry traits; a class that
     ///   inherits from an *unindexed* configurable base is covered by
     ///   [`Self::method_set_unknowable`].
