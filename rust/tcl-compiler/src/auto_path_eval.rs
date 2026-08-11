@@ -31,10 +31,15 @@
 //!
 //! The supported subset is `[info script]`, `[file dirname …]`,
 //! `[file join …]`, `[file normalize …]` (anchored arguments only — see
-//! [`eval_file_normalize`]), literal words, and `~`-prefixed paths.  Variable
-//! substitutions (`$auto_path`, `$env(…)`) and list-manipulation
-//! commands are *not* evaluated — anything outside the subset returns
-//! `None` and the caller skips the entry.  We never guess.
+//! [`eval_file_normalize`]), literal words, and `~`-prefixed paths.
+//! Variable references (`$dir`, `${dir}`, `pre_$dir`) are resolved through
+//! whatever resolver the **caller** supplies — this module owns what a path
+//! expression *means*, the caller owns what a variable *is worth*, and the
+//! two compose through [`evaluate_auto_path_expr_with_resolver`].  A
+//! variable the resolver cannot answer (including every variable, for the
+//! resolver-less [`evaluate_auto_path_expr`]), an array element, or a
+//! list-manipulation command returns `None` and the caller skips the
+//! entry.  We never guess.
 //!
 //! The `signature_scan` handler records only the raw literal of
 //! each entry; this evaluator resolves those idioms.  It is consulted
@@ -85,11 +90,29 @@ use crate::analyser::types::{AutoPathEntry, AutoPathForm};
 use crate::segmenter::segment_commands_with_offset_and_config;
 use std::collections::HashMap;
 
-/// A parsed word: a literal, or a command substitution
-/// `[name arg …]`.
+/// A parsed word: a literal, a substitutable word, or a command
+/// substitution `[name arg …]`.
 enum Node {
+    /// A word taken verbatim — a braced group (Tcl performs no substitution
+    /// inside braces), or any word with no `$` in it.
     Lit(String),
+    /// A bare or double-quoted word containing `$` — Tcl *would* substitute
+    /// here, so [`eval`] folds it through the caller's variable resolver
+    /// ([`crate::text::fold_interpolation_single`]), never textually: a
+    /// resolved value containing spaces or brackets is still exactly one
+    /// word, where splicing it into the raw text and re-parsing would split
+    /// it (`$d` = `my dir` inside `[file join $d x]` is `my dir/x`, not
+    /// `my/dir/x`).
+    Subst(String),
     Cmd(String, Vec<Node>),
+}
+
+/// One lexical token: a structural bracket, or a word that remembers whether
+/// its spelling suppresses substitution (braced) or permits it (bare/quoted).
+enum Tok {
+    Open,
+    Close,
+    Word { text: String, verbatim: bool },
 }
 
 /// Every directory one recorded [`AutoPathEntry`] adds to `auto_path`.
@@ -116,10 +139,25 @@ enum Node {
 /// Entries outside the supported subset contribute nothing — we never guess.
 #[must_use]
 pub fn evaluate_auto_path_entry(entry: &AutoPathEntry, info_script: Option<&str>) -> Vec<String> {
+    evaluate_auto_path_entry_with_constants(entry, info_script, &HashMap::new())
+}
+
+/// [`evaluate_auto_path_entry`], with the document's single-assignment
+/// constants ([`constant_path_assignments`], folded) answering variable
+/// references — which is what carries the corpus idiom
+/// `set libDir [file join $dir lib]; lappend auto_path $libDir` (issue #775;
+/// georgtree/SpiceGenTcl's own `SpiceGenTcl.tcl` registers its `lib`
+/// directory exactly this way, and contributed nothing without it).
+#[must_use]
+pub fn evaluate_auto_path_entry_with_constants<S: std::hash::BuildHasher>(
+    entry: &AutoPathEntry,
+    info_script: Option<&str>,
+    constants: &HashMap<String, String, S>,
+) -> Vec<String> {
     let raw = entry.raw_path.as_str();
     if raw.contains('$') || raw.contains('[') {
         // Computed: fold it as an expression, as one directory.
-        return evaluate_auto_path_expr(raw, info_script)
+        return evaluate_auto_path_expr_with_constants(raw, info_script, constants)
             .into_iter()
             .collect();
     }
@@ -184,10 +222,11 @@ pub fn carries_substitution(text: &str) -> bool {
     text.contains('$') || text.contains('[')
 }
 
-/// [`evaluate_auto_path_expr`], with `constants` substituted for any `$name` /
-/// `${name}` the expression names before it is folded.
+/// [`evaluate_auto_path_expr_with_resolver`] over a plain constant map — the
+/// convenience form for callers whose variable facts are already a
+/// `name → value` table, such as [`constant_path_vars`]'s.
 ///
-/// Names absent from `constants` are left in place, so the fold abstains on
+/// Names absent from `constants` stay unresolved, so the fold abstains on
 /// them exactly as it does on any other unevaluated substitution — passing an
 /// empty map is precisely [`evaluate_auto_path_expr`].
 #[must_use]
@@ -196,8 +235,60 @@ pub fn evaluate_auto_path_expr_with_constants<S: std::hash::BuildHasher>(
     info_script: Option<&str>,
     constants: &HashMap<String, String, S>,
 ) -> Option<String> {
-    let substituted = substitute_constants(raw.trim(), constants);
-    evaluate_folded(&substituted, info_script)
+    evaluate_auto_path_expr_with_resolver(raw, info_script, &|name| constants.get(name).cloned())
+}
+
+/// The full evaluator: fold `raw` with variable references answered by
+/// `resolve_var` — the provenance/semantics split that makes this a shared
+/// lower layer rather than one consumer's helper.
+///
+/// This module owns what a path expression **means** (`[file join …]`,
+/// `[file dirname …]`, `[file normalize …]`, `[info script]`, `~`); the
+/// caller owns what a variable **is worth** at the point being analysed, and
+/// says so through `resolve_var`.  A simple consumer passes a single-
+/// assignment constant map ([`evaluate_auto_path_expr_with_constants`]); a
+/// consumer with real flow information (the analyser's constant-string
+/// lattice, an SCCP-backed value table) passes its own resolver and gets the
+/// same path semantics with better provenance — the evaluator does not care
+/// where the values came from, only that the caller vouches for them.
+///
+/// Resolution happens on the parsed expression, **never** by splicing values
+/// into the raw text and re-lexing: a value containing spaces is still one
+/// word (`$d` = `my dir` in `[file join $d x]` folds to `my dir/x`, where
+/// textual substitution would re-parse it as two words and answer
+/// `my/dir/x`), and a value containing `[` or `$` is data, not syntax to be
+/// re-interpreted.
+///
+/// An unresolved variable — `resolve_var` answering `None` — abstains the
+/// whole fold, the module-wide rule: we never guess.
+#[must_use]
+pub fn evaluate_auto_path_expr_with_resolver(
+    raw: &str,
+    info_script: Option<&str>,
+    resolve_var: &dyn Fn(&str) -> Option<String>,
+) -> Option<String> {
+    let raw = raw.trim();
+    if raw.is_empty() {
+        return None;
+    }
+    let tokens = tokenise(raw)?;
+    let (node, rest) = parse(&tokens, 0);
+    let node = node?;
+    if rest != tokens.len() {
+        return None;
+    }
+    // `info script` reports the path as Tcl sees it, which is slash form on
+    // every host, so the native path is converted before it enters the fold.
+    // A drive-relative script path would make every `file dirname` of it
+    // meaningless, so it is dropped rather than folded.
+    let info_script = info_script
+        .map(to_tcl_slash_form)
+        .filter(|p| !is_drive_relative(p));
+    let result = eval(&node, info_script.as_deref(), resolve_var)?;
+    // Expand `~` and normalise (collapsing `..`) so the parent-dir idiom
+    // resolves to a real directory.  A rootless result is left for the
+    // caller to anchor.
+    fold_path_value(&result)
 }
 
 /// Path-valued variables `source` assigns **exactly once** at its top level,
@@ -238,31 +329,81 @@ pub fn constant_path_vars(
     dialect: &str,
     info_script: Option<&str>,
 ) -> HashMap<String, String> {
-    let assignments: Vec<(String, String)> = segment_commands_with_offset_and_config(
+    fold_constant_assignments(&constant_path_assignments(source, dialect), info_script)
+}
+
+/// The **raw** assignment facts of [`constant_path_vars`]: every top-level
+/// `set name value` with a plain scalar name, in document order, values
+/// unfolded.  Multi-write poisoning happens at fold time
+/// ([`fold_constant_assignments`]), not here, so the raw list can be
+/// accumulated chunk by chunk without any chunk needing the whole document's
+/// write counts.
+///
+/// Split out from the fold so the fact can be *recorded* where only the text
+/// is known and *folded* where the document's own filesystem path is (the
+/// analyser stores this on `AnalysisResult`, the workspace index carries it,
+/// and the source-graph edge resolver folds it lazily per parent).  The raw
+/// form is deliberately path-independent: the same text yields the same
+/// assignments wherever the file lives, which is what makes it safe to cache
+/// alongside the rest of the analysis.
+#[must_use]
+pub fn constant_path_assignments(source: &str, dialect: &str) -> Vec<(String, String)> {
+    constant_path_assignments_from_commands(&segment_commands_with_offset_and_config(
         source,
         0,
         tcl_lexer::LexerConfig::for_dialect(dialect),
-    )
-    .into_iter()
-    .filter(|seg| seg.texts.len() == 3 && seg.texts[0] == "set")
-    .map(|seg| (seg.texts[1].clone(), seg.texts[2].clone()))
-    .collect();
+    ))
+}
+
+/// [`constant_path_assignments`] over already-segmented commands — the form
+/// the analyser's walk uses, which has the segmentation in hand and must not
+/// pay for a second one.
+#[must_use]
+pub fn constant_path_assignments_from_commands(
+    commands: &[crate::segmenter::SegmentedCommand],
+) -> Vec<(String, String)> {
+    commands
+        .iter()
+        .filter(|seg| {
+            seg.texts.len() == 3
+                && seg.texts[0] == "set"
+                && !seg.texts[1].contains('$')
+                && !seg.texts[1].contains('[')
+                && !seg.texts[1].contains("::")
+        })
+        .map(|seg| (seg.texts[1].clone(), seg.texts[2].clone()))
+        .collect()
+}
+
+/// Fold [`constant_path_assignments`]' raw facts into the `name → value` map
+/// [`evaluate_auto_path_expr_with_constants`] consumes.
+///
+/// Chaining: each assignment folds with the constants established before it,
+/// in document order, so a value naming a *later* constant does not fold.
+///
+/// Poisoning: a name written by more than one recorded assignment is dropped
+/// **outright**, counted in a pre-pass here rather than as the walk goes.
+/// Last-write-wins would be wrong for a `source` sitting between the two
+/// writes, and first-write-wins wrong for one after both — so a re-assigned
+/// name contributes nothing, and contributes nothing to anything computed
+/// from it either.
+#[must_use]
+pub fn fold_constant_assignments(
+    assignments: &[(String, String)],
+    info_script: Option<&str>,
+) -> HashMap<String, String> {
     let mut writes: HashMap<&str, usize> = HashMap::new();
-    for (name, _) in &assignments {
+    for (name, _) in assignments {
         *writes.entry(name.as_str()).or_default() += 1;
     }
     let mut constants: HashMap<String, String> = HashMap::new();
-    for (name, raw) in &assignments {
-        if writes.get(name.as_str()) != Some(&1)
-            || name.contains('$')
-            || name.contains('[')
-            || name.contains("::")
-        {
+    for (name, raw) in assignments {
+        if writes.get(name.as_str()) != Some(&1) {
             continue;
         }
         // A literal keeps its own text: a path with spaces (`set d "my dir"`)
-        // is several words to the expression parser, which would reject it,
-        // but it is a perfectly good path.
+        // is one path value, not the several words the expression parser
+        // would split it into.
         let value = if carries_substitution(raw) {
             evaluate_auto_path_expr_with_constants(raw, info_script, &constants)
         } else {
@@ -273,76 +414,6 @@ pub fn constant_path_vars(
         }
     }
     constants
-}
-
-/// Replace every `$name` / `${name}` in `text` whose name is in `constants`,
-/// leaving unknown ones in place so the fold abstains on them, as it must.
-fn substitute_constants<S: std::hash::BuildHasher>(
-    text: &str,
-    constants: &HashMap<String, String, S>,
-) -> String {
-    if constants.is_empty() || !text.contains('$') {
-        return text.to_owned();
-    }
-    let bytes = text.as_bytes();
-    let mut out = String::with_capacity(text.len());
-    let mut i = 0usize;
-    while i < bytes.len() {
-        if bytes[i] != b'$' {
-            let ch_len = text[i..].chars().next().map_or(1, char::len_utf8);
-            out.push_str(&text[i..i + ch_len]);
-            i += ch_len;
-            continue;
-        }
-        let (name, next) = if bytes.get(i + 1) == Some(&b'{') {
-            match text[i + 2..].find('}') {
-                Some(rel) => (&text[i + 2..i + 2 + rel], i + 2 + rel + 1),
-                None => ("", i + 1),
-            }
-        } else {
-            let mut j = i + 1;
-            while j < bytes.len() && (bytes[j].is_ascii_alphanumeric() || bytes[j] == b'_') {
-                j += 1;
-            }
-            (&text[i + 1..j], j)
-        };
-        match constants.get(name) {
-            Some(value) if !name.is_empty() => {
-                out.push_str(value);
-                i = next;
-            }
-            _ => {
-                out.push('$');
-                i += 1;
-            }
-        }
-    }
-    out
-}
-
-fn evaluate_folded(raw: &str, info_script: Option<&str>) -> Option<String> {
-    let raw = raw.trim();
-    if raw.is_empty() {
-        return None;
-    }
-    let tokens = tokenise(raw)?;
-    let (node, rest) = parse(&tokens, 0);
-    let node = node?;
-    if rest != tokens.len() {
-        return None;
-    }
-    // `info script` reports the path as Tcl sees it, which is slash form on
-    // every host, so the native path is converted before it enters the fold.
-    // A drive-relative script path would make every `file dirname` of it
-    // meaningless, so it is dropped rather than folded.
-    let info_script = info_script
-        .map(to_tcl_slash_form)
-        .filter(|p| !is_drive_relative(p));
-    let result = eval(&node, info_script.as_deref())?;
-    // Expand `~` and normalise (collapsing `..`) so the parent-dir idiom
-    // resolves to a real directory.  A rootless result is left for the
-    // caller to anchor.
-    fold_path_value(&result)
 }
 
 /// A native filesystem path as Tcl's slash form.
@@ -415,15 +486,14 @@ fn root_len(p: &str) -> Option<usize> {
     p.starts_with('/').then_some(1)
 }
 
-/// Split `text` into `[` / `]` / word tokens.  Brace groups are kept
-/// as a single word (brackets inside braces are literal); an
-/// unterminated brace / quote aborts with `None`.  One quirk: a brace
-/// word whose content is exactly `[` reads as an open bracket in
-/// `parse` (the `{[}`-as-open-bracket case).
-fn tokenise(text: &str) -> Option<Vec<String>> {
+/// Split `text` into bracket / word tokens.  Brace groups are kept as a
+/// single **verbatim** word (Tcl performs no substitution inside braces, and
+/// brackets inside braces are literal); bare and double-quoted words are
+/// substitutable.  An unterminated brace / quote aborts with `None`.
+fn tokenise(text: &str) -> Option<Vec<Tok>> {
     let b: Vec<char> = text.chars().collect();
     let n = b.len();
-    let mut tokens: Vec<String> = Vec::new();
+    let mut tokens: Vec<Tok> = Vec::new();
     let mut i = 0;
     while i < n {
         let ch = b[i];
@@ -432,7 +502,7 @@ fn tokenise(text: &str) -> Option<Vec<String>> {
             continue;
         }
         if ch == '[' || ch == ']' {
-            tokens.push(ch.to_string());
+            tokens.push(if ch == '[' { Tok::Open } else { Tok::Close });
             i += 1;
             continue;
         }
@@ -450,7 +520,10 @@ fn tokenise(text: &str) -> Option<Vec<String>> {
             if depth != 0 {
                 return None;
             }
-            tokens.push(b[i + 1..j - 1].iter().collect());
+            tokens.push(Tok::Word {
+                text: b[i + 1..j - 1].iter().collect(),
+                verbatim: true,
+            });
             i = j;
             continue;
         }
@@ -466,7 +539,10 @@ fn tokenise(text: &str) -> Option<Vec<String>> {
             if j >= n {
                 return None;
             }
-            tokens.push(b[i + 1..j].iter().collect());
+            tokens.push(Tok::Word {
+                text: b[i + 1..j].iter().collect(),
+                verbatim: false,
+            });
             i = j + 1;
             continue;
         }
@@ -474,51 +550,73 @@ fn tokenise(text: &str) -> Option<Vec<String>> {
         while j < n && !b[j].is_whitespace() && b[j] != '[' && b[j] != ']' {
             j += 1;
         }
-        tokens.push(b[i..j].iter().collect());
+        tokens.push(Tok::Word {
+            text: b[i..j].iter().collect(),
+            verbatim: false,
+        });
         i = j;
     }
     Some(tokens)
 }
 
 /// Parse a single word starting at `pos`; returns `(node, next_pos)`.
-fn parse(tokens: &[String], mut pos: usize) -> (Option<Node>, usize) {
+///
+/// A substitutable word containing `$` parses as [`Node::Subst`]; everything
+/// else word-shaped is [`Node::Lit`].  A braced word is always `Lit`, even
+/// when it spells `$` or `[` — braces suppress substitution in Tcl, so
+/// `{$d}` names a file literally called `$d` and `{[}` is a literal `[`
+/// (this used to mis-read as an open bracket when tokens were bare strings).
+fn parse(tokens: &[Tok], mut pos: usize) -> (Option<Node>, usize) {
     let Some(tok) = tokens.get(pos) else {
         return (None, pos);
     };
-    if tok == "[" {
-        pos += 1;
-        let Some(name) = tokens.get(pos) else {
-            return (None, pos);
-        };
-        let name = name.clone();
-        pos += 1;
-        let mut args: Vec<Node> = Vec::new();
-        while pos < tokens.len() && tokens[pos] != "]" {
-            let (node, next) = parse(tokens, pos);
-            pos = next;
-            match node {
-                Some(n) => args.push(n),
-                None => return (None, pos),
+    match tok {
+        Tok::Open => {
+            pos += 1;
+            let Some(Tok::Word { text: name, .. }) = tokens.get(pos) else {
+                return (None, pos);
+            };
+            let name = name.clone();
+            pos += 1;
+            let mut args: Vec<Node> = Vec::new();
+            while pos < tokens.len() && !matches!(tokens[pos], Tok::Close) {
+                let (node, next) = parse(tokens, pos);
+                pos = next;
+                match node {
+                    Some(n) => args.push(n),
+                    None => return (None, pos),
+                }
             }
+            if pos >= tokens.len() {
+                return (None, pos);
+            }
+            pos += 1; // consume `]`
+            (Some(Node::Cmd(name, args)), pos)
         }
-        if pos >= tokens.len() {
-            return (None, pos);
+        Tok::Close => (None, pos),
+        Tok::Word { text, verbatim } => {
+            let node = if !verbatim && text.contains('$') {
+                Node::Subst(text.clone())
+            } else {
+                Node::Lit(text.clone())
+            };
+            (Some(node), pos + 1)
         }
-        pos += 1; // consume `]`
-        return (Some(Node::Cmd(name, args)), pos);
     }
-    if tok == "]" {
-        return (None, pos);
-    }
-    (Some(Node::Lit(tok.clone())), pos + 1)
 }
 
-/// Evaluate a parsed node to a path string (pre-normalisation).
-fn eval(node: &Node, info_script: Option<&str>) -> Option<String> {
+/// Evaluate a parsed node to a path string (pre-normalisation), answering
+/// variable references through `resolve_var`.
+fn eval(
+    node: &Node,
+    info_script: Option<&str>,
+    resolve_var: &dyn Fn(&str) -> Option<String>,
+) -> Option<String> {
     match node {
         Node::Lit(value) => {
-            // Reject any word still carrying a variable substitution —
-            // we refuse to guess.
+            // A verbatim word carrying `$` would name a file with a literal
+            // dollar in it — legal, vanishingly rare, and impossible to
+            // distinguish from an authoring mistake, so abstain.
             if value.contains('$') {
                 None
             } else {
@@ -527,25 +625,30 @@ fn eval(node: &Node, info_script: Option<&str>) -> Option<String> {
                 Some(to_tcl_slash_form(value))
             }
         }
+        // Resolution happens on the parsed word, via the interpolation
+        // folder's own segment grammar (which also rejects array-indexed
+        // names and stray `[`) — never by splicing text and re-lexing.
+        Node::Subst(word) => crate::text::fold_interpolation_single(word, |name| resolve_var(name))
+            .map(|v| to_tcl_slash_form(&v)),
         Node::Cmd(name, args) => {
             if name == "info" && args.len() == 1 {
-                return match eval(&args[0], info_script).as_deref() {
+                return match eval(&args[0], info_script, resolve_var).as_deref() {
                     Some("script") => info_script.map(str::to_owned),
                     _ => None,
                 };
             }
             if name == "file" && args.len() >= 2 {
-                let sub = eval(&args[0], info_script)?;
+                let sub = eval(&args[0], info_script, resolve_var)?;
                 if sub == "dirname" && args.len() == 2 {
-                    return Some(path_dirname(&eval(&args[1], info_script)?));
+                    return Some(path_dirname(&eval(&args[1], info_script, resolve_var)?));
                 }
                 if sub == "normalize" && args.len() == 2 {
-                    return eval_file_normalize(&eval(&args[1], info_script)?);
+                    return eval_file_normalize(&eval(&args[1], info_script, resolve_var)?);
                 }
                 if sub == "join" && args.len() >= 2 {
                     let mut parts: Vec<String> = Vec::new();
                     for a in &args[1..] {
-                        parts.push(eval(a, info_script)?);
+                        parts.push(eval(a, info_script, resolve_var)?);
                     }
                     if parts.is_empty() {
                         return None;
@@ -977,13 +1080,72 @@ mod tests {
         );
     }
 
-    /// A literal keeps its own text, so a path with spaces survives — the
-    /// expression parser would reject it as several words.
+    /// A resolved value containing spaces is **one** path element, exactly as
+    /// `file join {my dir} x` treats its arguments (filename(n): join takes
+    /// arguments, not words — a space is just a character).  Oracle, tclsh
+    /// 8.6.14: `set d "my dir"; file join $d x` → `my dir/x`, and a `source`
+    /// through such a join really loads from the spaced directory.  This is
+    /// the case that makes node-based resolution obligatory: splicing
+    /// `my dir` into the raw text and re-lexing splits it into two words and
+    /// answers `my/dir/x`.
     #[test]
-    fn a_literal_with_spaces_stays_a_constant() {
+    fn a_constant_with_spaces_folds_as_one_join_element() {
         let src = "set d {my dir}\nset sub [file join $d x]\n";
         let constants = constant_path_vars(src, "tcl", None);
         assert_eq!(constants.get("d").map(String::as_str), Some("my dir"));
+        assert_eq!(constants.get("sub").map(String::as_str), Some("my dir/x"));
+        assert_eq!(
+            evaluate_auto_path_expr_with_constants("[file join $d y.tcl]", None, &constants)
+                .as_deref(),
+            Some("my dir/y.tcl"),
+        );
+    }
+
+    /// A mixed word — literal text around the reference — folds through the
+    /// same interpolation grammar, so `source $base/lib/x.tcl` resolves.
+    #[test]
+    fn a_mixed_word_resolves_through_the_resolver() {
+        let constants: HashMap<String, String> = [("base".to_owned(), "/opt".to_owned())]
+            .into_iter()
+            .collect();
+        assert_eq!(
+            evaluate_auto_path_expr_with_constants("$base/lib/x.tcl", None, &constants).as_deref(),
+            Some("/opt/lib/x.tcl"),
+        );
+        assert_eq!(
+            evaluate_auto_path_expr_with_constants("${base}2/x.tcl", None, &constants).as_deref(),
+            Some("/opt2/x.tcl"),
+        );
+    }
+
+    /// Braces suppress substitution: `{$d}` names a file with a literal `$`
+    /// in it, and the fold abstains on it even when the resolver knows `d` —
+    /// resolving there would be inventing a substitution Tcl never performs.
+    #[test]
+    fn a_braced_dollar_word_is_never_resolved() {
+        let constants: HashMap<String, String> =
+            [("d".to_owned(), "/opt".to_owned())].into_iter().collect();
+        assert_eq!(
+            evaluate_auto_path_expr_with_constants("[file join {$d} x]", None, &constants),
+            None,
+        );
+    }
+
+    /// The resolver entry point is the lower-layer contract: any caller with
+    /// its own variable facts — the analyser's constant-string lattice, an
+    /// SCCP value table — plugs in here without this module knowing it.
+    #[test]
+    fn a_custom_resolver_supplies_variable_provenance() {
+        let folded =
+            evaluate_auto_path_expr_with_resolver("[file join $root pkg]", None, &|name| {
+                (name == "root").then(|| "/from/lattice".to_owned())
+            });
+        assert_eq!(folded.as_deref(), Some("/from/lattice/pkg"));
+        // An unresolved name abstains the whole fold — never a guess.
+        assert_eq!(
+            evaluate_auto_path_expr_with_resolver("[file join $other pkg]", None, &|_| None),
+            None,
+        );
     }
 
     /// Assignments inside a body are not top-level and never enter the map:
@@ -1023,6 +1185,39 @@ mod tests {
     /// TP (issue #923 idx 73) — the raw text the analyser records for a
     /// `lappend auto_path …` argument is exactly what this evaluator folds, so
     /// the package database can consume `AnalysisResult::auto_path_entries`
+    /// An `auto_path` entry naming a chained constant contributes its
+    /// directory — georgtree/SpiceGenTcl's exact registration shape (issue
+    /// #775):
+    ///
+    /// ```tcl
+    /// set dir [file dirname [file normalize [info script]]]
+    /// set libDir [file join $dir lib]
+    /// lappend auto_path $libDir
+    /// ```
+    #[test]
+    fn an_auto_path_entry_through_a_chained_constant_contributes_its_directory() {
+        let src = "set dir [file dirname [file normalize [info script]]]\n\
+                   set libDir [file join $dir lib]\n\
+                   lappend auto_path $libDir\n";
+        let constants = constant_path_vars(src, "tcl", Some("/proj/SpiceGenTcl.tcl"));
+        let entry = AutoPathEntry {
+            raw_path: "$libDir".to_owned(),
+            range: tcl_lexer::Span::new(0, 0),
+            form: AutoPathForm::Append,
+        };
+        assert_eq!(
+            evaluate_auto_path_entry_with_constants(
+                &entry,
+                Some("/proj/SpiceGenTcl.tcl"),
+                &constants,
+            ),
+            vec!["/proj/lib".to_owned()],
+        );
+        // The constant-less form still contributes nothing — the wiring is
+        // opt-in per consumer, never a change to the bare entry point.
+        assert!(evaluate_auto_path_entry(&entry, Some("/proj/SpiceGenTcl.tcl")).is_empty());
+    }
+
     /// directly.  Pins the *contract between the two*, which is what the
     /// workspace scan's `extend_resolver_with_document_auto_paths` relies on.
     #[test]

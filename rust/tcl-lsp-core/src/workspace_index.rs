@@ -1104,6 +1104,13 @@ struct DocumentRecords {
     namespace_refs: Vec<WorkspaceNamespaceRef>,
     invocations: Vec<WorkspaceInvocation>,
     sources: Vec<WorkspaceSource>,
+    /// Raw single-assignment path-constant candidates, straight from
+    /// [`AnalysisResult::path_constant_assignments`] — unfolded `set` facts
+    /// the source-edge resolver chain-folds per parent (with the parent's
+    /// own path standing in for `[info script]`) before resolving a computed
+    /// `source` argument.  Raw here for the same reason as there: the fold
+    /// depends on where the document lives, the index must not.
+    path_constant_assignments: Vec<(String, String)>,
     package_requires: Vec<WorkspacePackageRequire>,
     package_provides: Vec<WorkspacePackageProvide>,
     package_ifneededs: Vec<WorkspacePackageIfneeded>,
@@ -1141,6 +1148,10 @@ struct SettlementDependencies {
     /// to a namespace and their spans do not affect an import gate.
     declared_namespaces: Vec<String>,
     sources: Vec<WorkspaceSource>,
+    /// A changed constant can change which child a computed source row
+    /// resolves to, so the raw assignments are resolution-relevant exactly
+    /// as the source rows themselves are.
+    path_constant_assignments: Vec<(String, String)>,
     package_requires: Vec<WorkspacePackageRequire>,
     package_provides: Vec<WorkspacePackageProvide>,
     package_ifneededs: Vec<WorkspacePackageIfneeded>,
@@ -1174,6 +1185,7 @@ impl DocumentRecords {
                 .map(|namespace| namespace.qualified_name.clone())
                 .collect(),
             sources: self.sources.clone(),
+            path_constant_assignments: self.path_constant_assignments.clone(),
             package_requires: self.package_requires.clone(),
             package_provides: self.package_provides.clone(),
             package_ifneededs: self.package_ifneededs.clone(),
@@ -1207,6 +1219,7 @@ impl DocumentRecords {
             namespace_refs,
             invocations,
             sources,
+            path_constant_assignments,
             package_requires,
             package_provides,
             package_ifneededs,
@@ -1220,6 +1233,7 @@ impl DocumentRecords {
             defined_symbols,
         } = self;
         dialect.clear();
+        path_constant_assignments.clear();
         procs.clear();
         classes.clear();
         variables.clear();
@@ -1406,16 +1420,7 @@ impl DocumentRecords {
                 enclosing_body,
             });
         }
-        for target in &analysis.source_targets {
-            self.sources.push(WorkspaceSource {
-                uri: uri.to_owned(),
-                raw_path: target.raw_path.clone(),
-                site_namespace: target.site_namespace.clone(),
-                range: target.range,
-                is_literal: target.is_literal,
-                enclosing_body: analysis.innermost_definition_body_span(target.range.start()),
-            });
-        }
+        self.index_sources(uri, analysis);
         for pr in &analysis.package_requires {
             self.package_requires.push(WorkspacePackageRequire {
                 uri: uri.to_owned(),
@@ -1473,6 +1478,25 @@ impl DocumentRecords {
     ///
     /// Split out of [`Self::index_document`] only for size; the source-order
     /// rule that walk documents applies here unchanged.
+    /// The document's `source` rows, plus the raw path-constant candidates
+    /// the edge resolver folds them with — recorded together because they
+    /// are consumed together (a computed row without its constants is
+    /// unresolvable, constants without rows are inert).
+    fn index_sources(&mut self, uri: &str, analysis: &AnalysisResult) {
+        for target in &analysis.source_targets {
+            self.sources.push(WorkspaceSource {
+                uri: uri.to_owned(),
+                raw_path: target.raw_path.clone(),
+                site_namespace: target.site_namespace.clone(),
+                range: target.range,
+                is_literal: target.is_literal,
+                enclosing_body: analysis.innermost_definition_body_span(target.range.start()),
+            });
+        }
+        self.path_constant_assignments
+            .clone_from(&analysis.path_constant_assignments);
+    }
+
     fn index_classes(&mut self, uri: &str, analysis: &AnalysisResult) {
         for class_def in sorted_by_span(analysis.all_classes.values(), |c| c.name_span) {
             let methods: Vec<WorkspaceMethod> =
@@ -1796,7 +1820,13 @@ pub struct WorkspaceIndex {
 /// is how the `source`-graph load order gets its edges — see
 /// [`WorkspaceIndex::set_source_resolver`].  The signature is
 /// [`WorkspaceIndex::source_seed_map`]'s, so one host resolver serves both.
-pub type SourceResolver = fn(&str, &str, bool) -> Option<String>;
+///
+/// The fourth argument is the parent document's raw single-assignment
+/// path-constant candidates ([`WorkspaceIndex::path_constant_assignments`]) —
+/// supplied by the index, which carries them, and folded by the host, which
+/// knows the parent's filesystem path; that split is why the argument is the
+/// raw pairs rather than a folded map.
+pub type SourceResolver = fn(&str, &str, bool, &[(String, String)]) -> Option<String>;
 
 /// A whole-index **derived view**: a value that is a pure function of the
 /// index's contents, built at most once per [`WorkspaceIndex::generation`] and
@@ -2174,14 +2204,18 @@ impl WorkspaceIndex {
         self.run_order.get_or_build(|| {
             let source_edges = self.source_resolver.into_iter().flat_map(|resolve| {
                 self.sources().filter_map(move |s| {
-                    resolve(&s.uri, &s.raw_path, s.is_literal).map(|child| {
-                        crate::source_graph::RunEdge {
-                            parent: s.uri.clone(),
-                            child,
-                            at: s.range.start(),
-                            enclosing_body: s.enclosing_body,
-                            kind: crate::source_graph::RunEdgeKind::Source,
-                        }
+                    resolve(
+                        &s.uri,
+                        &s.raw_path,
+                        s.is_literal,
+                        self.path_constant_assignments(&s.uri),
+                    )
+                    .map(|child| crate::source_graph::RunEdge {
+                        parent: s.uri.clone(),
+                        child,
+                        at: s.range.start(),
+                        enclosing_body: s.enclosing_body,
+                        kind: crate::source_graph::RunEdgeKind::Source,
                     })
                 })
             });
@@ -2527,6 +2561,18 @@ impl WorkspaceIndex {
         self.docs.iter().flat_map(|doc| doc.sources.iter())
     }
 
+    /// `uri`'s raw single-assignment path-constant candidates
+    /// ([`AnalysisResult::path_constant_assignments`], carried per document);
+    /// empty for an unindexed URI.  The source-edge resolver chain-folds
+    /// these with the parent's own path before resolving a computed `source`
+    /// argument.
+    #[must_use]
+    pub fn path_constant_assignments(&self, uri: &str) -> &[(String, String)] {
+        self.slots
+            .get(uri)
+            .map_or(&[][..], |&slot| &self.docs[slot].path_constant_assignments)
+    }
+
     /// Every indexed `package require NAME` declaration.
     pub fn package_requires(&self) -> impl Iterator<Item = &WorkspacePackageRequire> {
         self.docs.iter().flat_map(|doc| doc.package_requires.iter())
@@ -2658,12 +2704,17 @@ impl WorkspaceIndex {
     #[must_use]
     pub fn source_seed_map(
         &self,
-        resolve: impl Fn(&str, &str, bool) -> Option<String>,
+        resolve: impl Fn(&str, &str, bool, &[(String, String)]) -> Option<String>,
     ) -> std::collections::HashMap<String, std::collections::BTreeSet<String>> {
         let mut out: std::collections::HashMap<String, std::collections::BTreeSet<String>> =
             std::collections::HashMap::new();
         for src in self.sources() {
-            let Some(child) = resolve(&src.uri, &src.raw_path, src.is_literal) else {
+            let Some(child) = resolve(
+                &src.uri,
+                &src.raw_path,
+                src.is_literal,
+                self.path_constant_assignments(&src.uri),
+            ) else {
                 continue;
             };
             // Self-sourcing carries no new namespace view.
@@ -6642,16 +6693,30 @@ mod tests {
 
     /// The server's URI resolver, in miniature: a literal path resolved
     /// against the sourcing document's directory.
-    fn test_resolve(parent_uri: &str, raw_path: &str, is_literal: bool) -> Option<String> {
+    fn test_resolve(
+        parent_uri: &str,
+        raw_path: &str,
+        is_literal: bool,
+        raw_constants: &[(String, String)],
+    ) -> Option<String> {
         let parent = parent_uri.strip_prefix("file://")?;
         let dir = std::path::Path::new(parent).parent()?;
         // The server's two tiers, in miniature: a literal resolves directly, a
-        // computed path only when it folds statically — anything else names no
-        // document and sequences nothing.
+        // computed path only when it folds statically — with the parent's own
+        // constants chained in, exactly as the real resolver folds them —
+        // anything else names no document and sequences nothing.
         let raw = if is_literal {
             raw_path.to_owned()
         } else {
-            tcl_compiler::auto_path_eval::evaluate_auto_path_expr(raw_path, Some(parent))?
+            let constants = tcl_compiler::auto_path_eval::fold_constant_assignments(
+                raw_constants,
+                Some(parent),
+            );
+            tcl_compiler::auto_path_eval::evaluate_auto_path_expr_with_constants(
+                raw_path,
+                Some(parent),
+                &constants,
+            )?
         };
         let child = crate::source_graph::resolve_under(dir, &raw);
         Some(format!("file://{}", child.display()))
@@ -7031,10 +7096,49 @@ mod tests {
     }
 
     #[test]
-    fn a_computed_source_path_orders_nothing() {
-        // TN: `source $dir/exp.tcl` names no document statically, so the edge
-        // is dropped and the export goes back to being unrankable — the
-        // deliberate abstention, not an accident of path resolution.
+    fn an_unfoldable_computed_source_path_orders_nothing() {
+        // TN: `source $dir/exp.tcl` where `dir` comes from `[lindex $argv 0]`
+        // names no document statically — `lindex` is outside the evaluator's
+        // subset, so the constant never folds — the edge is dropped and the
+        // export goes back to being unrankable: the deliberate abstention,
+        // not an accident of path resolution.
+        //
+        // The fixture used to spell `dir` as `[file dirname [info script]]`,
+        // which the chained single-assignment fold (issue #775) now resolves;
+        // the foldable spelling has its own TP pin directly below.
+        let (mod_doc, exp, imp) = import_order_modules();
+        let app = analyse(
+            "set dir [lindex $argv 0]\nsource mod.tcl\nsource imp.tcl\nsource $dir/exp.tcl\n",
+        );
+        let index = sourced_index([
+            ("file:///p/mod.tcl", &mod_doc),
+            ("file:///p/exp.tcl", &exp),
+            ("file:///p/imp.tcl", &imp),
+            ("file:///p/app.tcl", &app),
+        ]);
+        assert_eq!(
+            index
+                .resolve_wildcard_import(
+                    "helper",
+                    &["::app::helper".to_string(), "::helper".to_string()],
+                    call_from("file:///p/caller.tcl"),
+                )
+                .as_deref(),
+            Some("::mymod::helper"),
+        );
+    }
+
+    #[test]
+    fn a_foldable_computed_source_path_orders_its_export() {
+        // TP (issue #775): the same shape with `dir` from `[file dirname
+        // [info script]]` *does* fold through the chained constant, so
+        // `$dir/exp.tcl` names its document and the load order ranks it.
+        // With the order known the answer sharpens: app.tcl runs the
+        // wildcard import *before* sourcing exp.tcl's `namespace export`,
+        // and `namespace import` copies only currently-exported commands
+        // (a later export does not retro-import), so `helper` is genuinely
+        // not imported and resolution answers nothing — more precise than
+        // the abstention the unfoldable spelling above falls back to.
         let (mod_doc, exp, imp) = import_order_modules();
         let app = analyse(
             "set dir [file dirname [info script]]\nsource mod.tcl\nsource imp.tcl\nsource $dir/exp.tcl\n",
@@ -7053,7 +7157,7 @@ mod tests {
                     call_from("file:///p/caller.tcl"),
                 )
                 .as_deref(),
-            Some("::mymod::helper"),
+            None,
         );
     }
 

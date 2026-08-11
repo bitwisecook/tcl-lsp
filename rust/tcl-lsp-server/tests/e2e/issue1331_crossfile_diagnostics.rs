@@ -458,6 +458,41 @@ fn a_computed_source_path_behaves_like_the_literal_and_keeps_w300() {
     );
 }
 
+/// **The chained form** (issue #775) — the directory reaches the `source`
+/// through an intermediate constant, georgtree/SpiceGenTcl's own shape:
+///
+/// ```tcl
+/// set dir [file dirname [file normalize [info script]]]
+/// set sourceDir [file join $dir src]
+/// source [file join $sourceDir generalClasses.tcl]
+/// ```
+///
+/// The edge must resolve exactly as the direct spelling above does — the
+/// document link on such a line already resolved, and one expression must
+/// not get two answers depending on which consumer asks.
+#[test]
+fn a_chained_computed_source_path_behaves_like_the_direct_one() {
+    let mut lsp = Lsp::tcl();
+    let tk_file = unique_uri("tcl");
+    lsp.open_ready(&tk_file, "package require Tk\n");
+    let main = unique_uri("tcl");
+    let text = format!(
+        "set dir [file dirname [file normalize [info script]]]\n\
+         set sourceDir [file join $dir .]\n\
+         source [file join $sourceDir {}]\n\
+         winfo exists .l\n",
+        basename(&tk_file),
+    );
+    lsp.open_ready(&main, &text);
+
+    let diags = final_diagnostics(&mut lsp, &main);
+    assert!(
+        !has(&diags, "W120"),
+        "the chained computed path resolves statically, so Tk is known loaded: {:?}",
+        codes(&diags),
+    );
+}
+
 /// **TN — the control that proves option (2) was not applied globally.** A
 /// file that neither requires Tk nor sources anything still gets its W120.
 #[test]

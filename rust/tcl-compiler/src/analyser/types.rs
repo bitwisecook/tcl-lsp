@@ -1759,6 +1759,19 @@ pub struct AnalysisResult {
     pub has_dynamic_providers: bool,
     /// Source-target records.
     pub source_targets: Vec<SignatureSource>,
+    /// Every top-level `set name value` with a plain scalar name, in document
+    /// order, values **unfolded** — the raw side of the single-assignment
+    /// path-constant map ([`crate::auto_path_eval::constant_path_assignments`]).
+    ///
+    /// Recorded raw rather than folded because folding the
+    /// `[file dirname [info script]]` idiom needs the document's own
+    /// filesystem path, which the analyser deliberately does not know — the
+    /// same text must analyse identically wherever the file lives.  Consumers
+    /// that know the path (the source-graph edge resolver, `auto_path`
+    /// folding) chain-fold these with
+    /// [`crate::auto_path_eval::fold_constant_assignments`], which also owns
+    /// the multi-write poisoning rule.
+    pub path_constant_assignments: Vec<(String, String)>,
     /// Command-alias records keyed by qualified alias name.
     pub command_aliases: HashMap<String, SignatureCommandAlias>,
     /// Byte offset of the `interp alias` command token that established each

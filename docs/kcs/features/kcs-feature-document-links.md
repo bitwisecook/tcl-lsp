@@ -41,6 +41,15 @@ set sourceDir [file join $dir src]
 source [file join $sourceDir generalClasses.tcl]
 ```
 
+The same evaluator resolves the same expression everywhere it is asked:
+the clickable link, go-to-definition and references across the sourced
+file, cross-file diagnostics that follow `source`, and the `auto_path`
+directories a `lappend auto_path $libDir` registers for `package
+require` resolution. A value containing spaces stays one path element
+(`set d {my dir}` joins to `my dir/x.tcl`, as `tclsh` does), because
+variables resolve as values in the parsed expression, never by splicing
+text.
+
 Only the file name — `testUtilities.tcl` — is underlined, not the whole
 `[file join …]` substitution. The substitution is code, with its own
 highlighting; an editor paints a link range in one flat link colour, so
@@ -64,6 +73,11 @@ underlining all of it would hide the colouring of `file`, `join`, and
 - **No link when the directory is set inside a body.** Only top-level
   `set` commands are read, so a directory assigned inside a `proc` or an
   `if` is not known.
+- **No link through a namespace variable.** A directory published as
+  `$::pkg::dir` (a `variable` inside `namespace eval`) is not modelled,
+  so `source [file join $::pkg::dir x.tcl]` abstains. This is the
+  largest remaining abstention in real projects (Tk's own `$::ttk::library`
+  loads are this shape).
 - **No link on a relative `file normalize`.** `[file normalize lib]`
   resolves against the interpreter's working directory at run time,
   which is not knowable statically, so it does not fold. Anchor it —

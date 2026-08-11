@@ -1699,6 +1699,7 @@ impl Analyser {
         commands: &[crate::segmenter::SegmentedCommand],
         ghost_recovery_applied: bool,
     ) {
+        self.record_path_constant_candidates(commands);
         let total = commands.len();
         let mut cmd_idx: usize = 0;
         while cmd_idx < total {
@@ -2175,11 +2176,27 @@ impl Analyser {
         fresh.analyse(new_text, dialect)
     }
 
+    /// Record the batch's raw path-constant candidates (see
+    /// [`AnalysisResult::path_constant_assignments`]).  Called from the head
+    /// of both top-level walks — `analyse`'s [`Self::walk_commands_top_level`]
+    /// and the chunked/batched [`Self::analyse_commands_inner`] — which are
+    /// sibling implementations, so no path records a batch twice.  Accumulated
+    /// per batch (the chunked path walks one chunk at a time, and document
+    /// order across chunks is exactly append order), with multi-write
+    /// poisoning applied at fold time, where the whole document's write
+    /// counts are in view.
+    fn record_path_constant_candidates(&mut self, commands: &[crate::segmenter::SegmentedCommand]) {
+        self.result
+            .path_constant_assignments
+            .extend(crate::auto_path_eval::constant_path_assignments_from_commands(commands));
+    }
+
     /// Inner dispatch loop shared by [`Self::analyse_chunked`]
     /// and [`Self::analyse_commands`].  Walks pre-segmented
     /// commands at the current scope path.  Covers the dispatch
     /// portion that's load-bearing for incremental analysis.
     fn analyse_commands_inner(&mut self, commands: &[crate::segmenter::SegmentedCommand]) {
+        self.record_path_constant_candidates(commands);
         let scope_path = self.current_scope_path.clone();
         let total = commands.len();
         let mut cmd_idx: usize = 0;

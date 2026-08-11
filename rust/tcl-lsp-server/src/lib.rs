@@ -3533,14 +3533,18 @@ fn source_diagnostic_consumers_with_sources(
     if let Some(sources) = replacement {
         edges.retain(|edge| edge.parent != changed_uri);
         edges.extend(sources.iter().filter_map(|source| {
-            resolve_source_edge(&source.uri, &source.raw_path, source.is_literal).map(|child| {
-                tcl_lsp_core::source_graph::RunEdge {
-                    parent: source.uri.clone(),
-                    child,
-                    at: source.range.start(),
-                    enclosing_body: source.enclosing_body,
-                    kind: tcl_lsp_core::source_graph::RunEdgeKind::Source,
-                }
+            resolve_source_edge(
+                &source.uri,
+                &source.raw_path,
+                source.is_literal,
+                index.path_constant_assignments(&source.uri),
+            )
+            .map(|child| tcl_lsp_core::source_graph::RunEdge {
+                parent: source.uri.clone(),
+                child,
+                at: source.range.start(),
+                enclosing_body: source.enclosing_body,
+                kind: tcl_lsp_core::source_graph::RunEdgeKind::Source,
             })
         }));
     }
@@ -19169,9 +19173,10 @@ fn compute_inherited_requires(
 ///
 /// **One** construction of the edge list, shared by everything that walks the
 /// graph, so the *same* `source` statements are followed everywhere.  In
-/// particular it uses [`resolve_source_edge`] — the three-argument resolver
-/// with the statically-foldable computed-path tier (`[file join [file dirname
-/// [info script]] x.tcl]`) — not the literals-only [`resolve_source_uri`]:
+/// particular it uses [`resolve_source_edge`] — the resolver with the
+/// statically-foldable computed-path tier (`[file join [file dirname
+/// [info script]] x.tcl]`, chained through the parent's single-assignment
+/// constants) — not the literals-only [`resolve_source_uri`]:
 /// issue #1332 is precisely a report that the common computed idiom was
 /// invisible, and having two resolvers behind two callers is how that
 /// divergence happened.
@@ -19181,14 +19186,18 @@ fn workspace_source_edges(
     index
         .sources()
         .filter_map(|s| {
-            resolve_source_edge(&s.uri, &s.raw_path, s.is_literal).map(|child| {
-                tcl_lsp_core::source_graph::RunEdge {
-                    parent: s.uri.clone(),
-                    child,
-                    at: s.range.start(),
-                    enclosing_body: s.enclosing_body,
-                    kind: tcl_lsp_core::source_graph::RunEdgeKind::Source,
-                }
+            resolve_source_edge(
+                &s.uri,
+                &s.raw_path,
+                s.is_literal,
+                index.path_constant_assignments(&s.uri),
+            )
+            .map(|child| tcl_lsp_core::source_graph::RunEdge {
+                parent: s.uri.clone(),
+                child,
+                at: s.range.start(),
+                enclosing_body: s.enclosing_body,
+                kind: tcl_lsp_core::source_graph::RunEdgeKind::Source,
             })
         })
         .collect()
@@ -19240,7 +19249,12 @@ fn compute_source_inheritance(
     let mut unresolvable_source = false;
     let mut own_edges: Vec<tcl_lsp_core::source_graph::RunEdge> = Vec::new();
     for src in &analysis.source_targets {
-        match resolve_source_edge(uri_str, &src.raw_path, src.is_literal) {
+        match resolve_source_edge(
+            uri_str,
+            &src.raw_path,
+            src.is_literal,
+            &analysis.path_constant_assignments,
+        ) {
             Some(child) if index.contains_document(&child) => {
                 own_edges.push(tcl_lsp_core::source_graph::RunEdge {
                     parent: uri_str.to_owned(),
@@ -19332,18 +19346,38 @@ fn new_workspace_index() -> core_workspace_index::WorkspaceIndex {
 
 /// [`resolve_source_uri`] extended with the M9 stage-9.2 computed-path tier:
 /// a literal resolves as before; a computed path is statically folded through
-/// [`tcl_compiler::auto_path_eval::evaluate_auto_path_expr`] (`[file join …]`
-/// / `[file dirname [info script]]` forms, with the parent file standing in
-/// for `[info script]`) and resolved when the fold succeeds.  Anything the
-/// folder cannot prove returns `None` — never a guess.
-fn resolve_source_edge(parent_uri: &str, raw_path: &str, is_literal: bool) -> Option<String> {
+/// [`tcl_compiler::auto_path_eval::evaluate_auto_path_expr_with_constants`]
+/// (`[file join …]` / `[file dirname [info script]]` forms, with the parent
+/// file standing in for `[info script]`) and resolved when the fold succeeds.
+/// Anything the folder cannot prove returns `None` — never a guess.
+///
+/// `raw_constants` is the parent document's raw single-assignment `set`
+/// facts ([`AnalysisResult::path_constant_assignments`], carried by the
+/// index), chain-folded here — where the parent's own path is known — so a
+/// `source [file join $sourceDir x.tcl]` behind `set sourceDir [file join
+/// $dir src]` resolves as an edge exactly as it resolves as a document link
+/// (issue #775: the link resolved, go-to-definition through the same line
+/// did not — one expression, two answers).
+fn resolve_source_edge(
+    parent_uri: &str,
+    raw_path: &str,
+    is_literal: bool,
+    raw_constants: &[(String, String)],
+) -> Option<String> {
     if is_literal {
         return resolve_source_uri(parent_uri, raw_path);
     }
     let parent = Uri::from_str(parent_uri).ok()?;
     let parent_path = parent.to_file_path()?;
-    let folded =
-        tcl_compiler::auto_path_eval::evaluate_auto_path_expr(raw_path, parent_path.to_str())?;
+    let constants = tcl_compiler::auto_path_eval::fold_constant_assignments(
+        raw_constants,
+        parent_path.to_str(),
+    );
+    let folded = tcl_compiler::auto_path_eval::evaluate_auto_path_expr_with_constants(
+        raw_path,
+        parent_path.to_str(),
+        &constants,
+    )?;
     let child = tcl_lsp_core::source_graph::resolve_source_target(parent_path.as_ref(), &folded);
     canonical_file_uri(&child).map(|u| u.as_str().to_owned())
 }
@@ -20001,14 +20035,23 @@ fn document_auto_path_dirs(uri: &Uri, analysis: &AnalysisResult) -> Vec<PathBuf>
     let Some(file_path) = uri.to_file_path() else {
         return Vec::new();
     };
+    // The document's own single-assignment constants, chain-folded, so the
+    // corpus idiom `set libDir [file join $dir lib]; lappend auto_path
+    // $libDir` contributes its directory (issue #775) instead of nothing.
+    let constants = tcl_compiler::auto_path_eval::fold_constant_assignments(
+        &analysis.path_constant_assignments,
+        file_path.to_str(),
+    );
     let mut dirs: Vec<PathBuf> = Vec::new();
     for entry in &analysis.auto_path_entries {
         if dirs.len() >= DOCUMENT_AUTO_PATH_DIR_CAP {
             break;
         }
-        for folded in
-            tcl_compiler::auto_path_eval::evaluate_auto_path_entry(entry, file_path.to_str())
-        {
+        for folded in tcl_compiler::auto_path_eval::evaluate_auto_path_entry_with_constants(
+            entry,
+            file_path.to_str(),
+            &constants,
+        ) {
             if dirs.len() >= DOCUMENT_AUTO_PATH_DIR_CAP {
                 break;
             }
