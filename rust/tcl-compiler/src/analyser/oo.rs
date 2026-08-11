@@ -3881,11 +3881,12 @@ mod tests {
         );
     }
 
-    /// A configurable class answers `configure`/`cget` for its properties, so
-    /// those accessor method words are folded into its known methods even
-    /// though no `method` body defines them.
+    /// A configurable class answers `configure` for its properties, so that
+    /// generated accessor is folded into its known methods even though no
+    /// `method` body defines it.  `cget` is **not** generated
+    /// (`configurable.n` documents none in 9.0 or 9.1), so it must not be.
     #[test]
-    fn configurable_class_knows_configure_and_cget() {
+    fn configurable_class_knows_configure_but_not_cget() {
         let mut a = Analyser::new();
         let r = a
             .analyse(
@@ -3897,7 +3898,7 @@ mod tests {
             .class_hierarchy()
             .known_methods(Some(tcl_registry::registry_for_dialect("tcl9.0")), "::C");
         assert!(known.contains(&"configure".to_owned()), "{known:?}");
-        assert!(known.contains(&"cget".to_owned()), "{known:?}");
+        assert!(!known.contains(&"cget".to_owned()), "{known:?}");
     }
 
     /// A command reference the analyser records for a class-body member

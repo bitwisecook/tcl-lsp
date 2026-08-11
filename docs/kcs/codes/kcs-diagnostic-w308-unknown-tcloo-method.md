@@ -78,9 +78,9 @@ The analyser reports **`W308`** on `[self] paint` — `Widget` has no
 ## Methods the class system generates for you
 
 A method does not have to be written as a `method` to exist. A class
-created by Tcl 9.0's `oo::configurable` metaclass answers `configure` and
-`cget` for the `property` members it declares, even though no `method` body
-defines either one, so neither draws `W308`:
+created by Tcl 9.0's `oo::configurable` metaclass answers `configure` for
+the `property` members it declares, even though no `method` body defines it,
+so it draws no `W308`:
 
 ```tcl
 oo::configurable create Point {
@@ -88,14 +88,20 @@ oo::configurable create Point {
 }
 set p [Point new]
 $p configure -x 27
-$p cget -y
 ```
 
 The same holds for a class that merely *inherits* from a configurable one —
-the accessors are real methods on the configurable ancestor — and inside a
-method body via `my configure`. A plain `oo::class` receiver is a different
-matter: it has no `configure`, so `$obj configure` there really does fail at
-run time and `W308` still reports it.
+`configure` is a real method on the configurable ancestor — and inside a
+method body via `my configure`.
+
+Two receivers are deliberately *not* covered, because both really do fail at
+run time and `W308` is right to report them:
+
+- A plain `oo::class` receiver has no `configure` at all.
+- `cget` is **not** generated. Tk widgets, snit and \[incr Tcl] all pair
+  `configure` with `cget`, but `oo::configurable` does not — `configure`
+  with a single `-property` argument is how you read one. `$p cget -y`
+  above would fail with `unknown method "cget"`.
 
 ## What a deleted class changes
 

@@ -7940,12 +7940,21 @@ mod issue_1362_configurable_property_accessors {
         }
     }
 
-    /// `cget` is the other half of the generated pair.
+    /// TP guard — `cget` is **not** generated. `configurable.n` documents
+    /// only `configure` (plus the internal `<ReadProp-name>` /
+    /// `<WriteProp-name>` accessors) in both 9.0 and 9.1, and this
+    /// workspace's own VM implements the same single method
+    /// (`tcl-vm/src/cmd_oo.rs`), so `$obj cget -name` is a real
+    /// unknown-method error and must keep drawing W308.
     #[test]
-    fn cget_on_a_configurable_class_draws_no_w308() {
+    fn cget_on_a_configurable_class_still_draws_w308() {
         let src = "oo::configurable create UnifiedTest {\n    property name\n}\n\
                    set t [UnifiedTest new]\n$t cget -name\n";
-        assert!(!fires(src, "tcl9.0", "W308"), "{:?}", codes(src, "tcl9.0"));
+        assert!(
+            fires(src, "tcl9.0", "W308"),
+            "oo::configurable generates no cget: {:?}",
+            codes(src, "tcl9.0")
+        );
     }
 
     /// A configurable class with no `property` of its own still answers the
@@ -8001,6 +8010,7 @@ mod issue_1362_configurable_property_accessors {
         for src in [
             "oo::configurable create C {\n    property name\n}\nset c [C new]\n$c configure\n",
             "oo::configurable create C {\n    property name\n}\nset c [C new]\n$c cget -name\n",
+            "oo::configurable create C {\n    property name\n}\nset c [C new]\n$c configur\n",
             "oo::class create C {\n    method mrun {} { return 1 }\n}\nset c [C new]\n$c mrunn\n",
         ] {
             for (code, msg, _) in analyser_diags(src, "tcl9.0") {

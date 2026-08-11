@@ -1401,6 +1401,39 @@ impl CommandRegistry {
             .collect()
     }
 
+    /// Every instance method some registered metaclass **generates** from a
+    /// class's declared `property` members — the union of
+    /// [`DefinitionBodyGrammar::property_accessor_methods`] over the
+    /// metaclasses that configure by property
+    /// ([`Traits::CONFIGURES_BY_PROPERTY`]).
+    ///
+    /// The dialect-wide answer, for a consumer holding a class whose own
+    /// metaclass it could not resolve to a grammar — a user metaclass derived
+    /// from `oo::configurable` — but which demonstrably declares `property`
+    /// members. Prefer the class's own grammar
+    /// (`CommandSpec::definition_body`) whenever it resolves; this is the
+    /// fallback that keeps such a class from being told its generated
+    /// accessor does not exist (issue #1362), without any consumer spelling
+    /// `configure` itself.
+    ///
+    /// Sorted and deduplicated. Empty for a dialect with no such metaclass
+    /// (every pre-9.0 Tcl, where `oo::configurable` does not exist).
+    ///
+    /// [`DefinitionBodyGrammar::property_accessor_methods`]: crate::definer::DefinitionBodyGrammar::property_accessor_methods
+    #[must_use]
+    pub fn property_accessor_methods(&self) -> Vec<&'static str> {
+        let mut out: Vec<&'static str> = self
+            .commands_with_trait(Traits::CONFIGURES_BY_PROPERTY)
+            .into_iter()
+            .filter_map(|name| self.get(name))
+            .filter_map(|spec| spec.definition_body)
+            .flat_map(|grammar| grammar.property_accessor_methods.iter().copied())
+            .collect();
+        out.sort_unstable();
+        out.dedup();
+        out
+    }
+
     /// How a call to `name` binds a variable to an **object handle**, when it
     /// does — [`CommandSpec::binds_handle`], resolved through [`Self::get`] so
     /// the explicitly global spelling (`::set`) answers identically to the

@@ -316,35 +316,81 @@ impl ClassHierarchy {
             .unwrap_or_else(|| vec![class_name.to_string()])
     }
 
-    /// Whether `class_name`, or any class on its MRO, answers the
-    /// [`PROPERTY_ACCESSOR_METHODS`] — see
-    /// [`class_configures_by_property`] for the per-class test and why a
-    /// superclass counts.
+    /// Every instance method some class on `class_name`'s MRO **generates**
+    /// from its declared `property` members — `oo::configurable`'s
+    /// `configure` (Tcl 9.0+).
+    ///
+    /// Registry data throughout: the names come from the manufacturing
+    /// metaclass's
+    /// [`property_accessor_methods`](tcl_registry::definer::DefinitionBodyGrammar::property_accessor_methods),
+    /// so no consumer spells `configure` and none can invent a generated
+    /// method the class system does not have — the `cget` this used to
+    /// hardcode is not one of them (issue #1362; `configurable.n` documents
+    /// no `cget` in either 9.0 or 9.1, and dispatching one really does fail).
+    ///
+    /// The whole MRO is asked, not just the receiver's own class, because the
+    /// generated method is a real method on the configurable ancestor and a
+    /// subclass inherits it.  A class that declares `property` members but
+    /// whose metaclass resolves to no grammar — a user metaclass derived from
+    /// `oo::configurable` — falls back to the dialect-wide
+    /// [`CommandRegistry::property_accessor_methods`](tcl_registry::CommandRegistry::property_accessor_methods),
+    /// so such a class is not told its accessor is missing.
+    ///
+    /// Empty when nothing on the MRO is configurable, and for a registry the
+    /// caller does not have.
     #[must_use]
-    pub fn configures_by_property(
+    pub fn property_accessor_methods(
         &self,
         registry: Option<&tcl_registry::CommandRegistry>,
         class_name: &str,
+    ) -> Vec<&'static str> {
+        let Some(registry) = registry else {
+            return Vec::new();
+        };
+        let mut out: Vec<&'static str> = Vec::new();
+        let mut declares_properties = false;
+        for ancestor in self.mro_or_self(class_name) {
+            let Some(cd) = self.classes.get(&ancestor) else {
+                continue;
+            };
+            declares_properties |= !cd.properties.is_empty();
+            if let Some(grammar) = registry.get(&cd.metaclass).and_then(|s| s.definition_body) {
+                out.extend(grammar.property_accessor_methods.iter().copied());
+            }
+        }
+        if out.is_empty() && declares_properties {
+            out = registry.property_accessor_methods();
+        }
+        out.sort_unstable();
+        out.dedup();
+        out
+    }
+
+    /// Whether `method` is one the class system generates for `class_name`'s
+    /// properties — see [`Self::property_accessor_methods`].
+    #[must_use]
+    pub fn is_property_accessor(
+        &self,
+        registry: Option<&tcl_registry::CommandRegistry>,
+        class_name: &str,
+        method: &str,
     ) -> bool {
-        self.mro_or_self(class_name).iter().any(|ancestor| {
-            self.classes
-                .get(ancestor)
-                .is_some_and(|cd| class_configures_by_property(registry, cd))
-        })
+        self.property_accessor_methods(registry, class_name)
+            .contains(&method)
     }
 
     /// Every method name callable on `class_name` — instance and class
-    /// methods declared anywhere on its linearised MRO, plus the
-    /// [`PROPERTY_ACCESSOR_METHODS`] when any of them is configurable —
-    /// sorted and deduplicated.  Feeds the W308 "did you mean…?" suggestion
-    /// list; empty for an unknown class.
+    /// methods declared anywhere on its linearised MRO, plus whatever its
+    /// class system generates from declared properties — sorted and
+    /// deduplicated.  Feeds the W308 "did you mean…?" suggestion list; empty
+    /// for an unknown class.
     ///
-    /// The accessor fold and the W308 *existence* check
+    /// The generated-method fold and the W308 *existence* check
     /// (`Analyser::validate_method_on_class`) both go through
-    /// [`Self::configures_by_property`] precisely so they cannot disagree:
-    /// when only this side folded them in, `$obj configure` on a
-    /// configurable class drew "Unknown method 'configure' … did you mean
-    /// 'configure'?" (issue #1362).
+    /// [`Self::property_accessor_methods`] precisely so they cannot disagree:
+    /// when only this side folded them in, `$obj configure` on a configurable
+    /// class drew "Unknown method 'configure' … did you mean 'configure'?"
+    /// (issue #1362).
     #[must_use]
     pub fn known_methods(
         &self,
@@ -360,51 +406,13 @@ impl ClassHierarchy {
                 }
             }
         }
-        if self.configures_by_property(registry, class_name) {
-            out.extend(PROPERTY_ACCESSOR_METHODS.iter().map(|m| (*m).to_string()));
-        }
+        out.extend(
+            self.property_accessor_methods(registry, class_name)
+                .into_iter()
+                .map(str::to_owned),
+        );
         out.into_iter().collect()
     }
-}
-
-/// The instance methods a **configurable** class answers for its declared
-/// properties — Tcl 9.0's `oo::configurable` (`configurable.n`).
-///
-/// No `method` body declares them, so they appear in no member table and get
-/// no `method_providers` entry: every consumer deciding whether a method word
-/// exists on a class has to fold them in itself, which is why the names live
-/// here rather than being respelled at each site (issue #1362).
-pub const PROPERTY_ACCESSOR_METHODS: &[&str] = &["configure", "cget"];
-
-/// Whether `cd` itself contributes the [`PROPERTY_ACCESSOR_METHODS`] — it was
-/// manufactured by a metaclass whose instances configure by property, or it
-/// declares `property` members of its own.
-///
-/// The metaclass test is registry data
-/// ([`Traits::CONFIGURES_BY_PROPERTY`](tcl_registry::Traits::CONFIGURES_BY_PROPERTY)),
-/// not a `metaclass == "oo::configurable"` spelling comparison (issue
-/// #1275); a metaclass the registry does not model answers `false`, so an
-/// unknown factory is never *assumed* configurable.  VERIFIED on tclsh
-/// 9.0.4: an `oo::configurable create Point { property x y }` instance
-/// answers `[$pt configure]` with its property dict, while an `oo::class`
-/// instance answers `unknown method "configure"`.
-///
-/// A class that merely *inherits* from such a class answers too — the
-/// accessors are real methods on the configurable ancestor — which is why
-/// [`ClassHierarchy::configures_by_property`] asks this of every class on the
-/// MRO rather than only of the receiver's own.
-#[must_use]
-pub fn class_configures_by_property(
-    registry: Option<&tcl_registry::CommandRegistry>,
-    cd: &ClassDef,
-) -> bool {
-    !cd.properties.is_empty()
-        || registry
-            .and_then(|r| r.get(&cd.metaclass))
-            .is_some_and(|spec| {
-                spec.traits
-                    .contains(tcl_registry::Traits::CONFIGURES_BY_PROPERTY)
-            })
 }
 
 /// Build a [`ClassHierarchy`] from a dict of class definitions.

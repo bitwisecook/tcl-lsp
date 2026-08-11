@@ -452,14 +452,13 @@ impl Analyser {
                     .is_some_and(|cd| self.method_set_unknowable(cd))
             });
         }
-        // A configurable class answers `configure` / `cget` for its declared
-        // properties; no member table or MRO provider entry carries them
-        // (issue #1362).
+        // A method the class system generates from the class's declared
+        // properties (`oo::configurable`'s `configure`); no member table or
+        // MRO provider entry carries one (issue #1362).
         if !found
-            && super::class_hierarchy::PROPERTY_ACCESSOR_METHODS.contains(&method_name.as_str())
             && class_names
                 .iter()
-                .any(|cls| hierarchy.configures_by_property(self.registry, cls))
+                .any(|cls| hierarchy.is_property_accessor(self.registry, cls, method_name))
         {
             found = true;
         }
@@ -2154,13 +2153,10 @@ impl Analyser {
         if self.builtin_object_method_reachable(cd, method, reach) {
             return true;
         }
-        // The property accessors a configurable class generates — declared by
-        // no `method` body, so neither the member tables nor the MRO above
-        // can see them (issue #1362).
-        if super::class_hierarchy::PROPERTY_ACCESSOR_METHODS.contains(&method)
-            && (super::class_hierarchy::class_configures_by_property(self.registry, cd)
-                || hierarchy.is_some_and(|h| h.configures_by_property(self.registry, class_name)))
-        {
+        // A method the class system generates from declared properties —
+        // written by no `method` body, so neither the member tables nor the
+        // MRO above can see it (issue #1362).
+        if hierarchy.is_some_and(|h| h.is_property_accessor(self.registry, class_name, method)) {
             return true;
         }
         if let Some(fallback) = self

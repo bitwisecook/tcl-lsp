@@ -85,7 +85,6 @@
 //! standalone `.irul`.
 
 use rustc_hash::{FxHashMap, FxHashSet};
-use tcl_compiler::analyser::class_hierarchy::PROPERTY_ACCESSOR_METHODS;
 use tcl_compiler::analyser::types::{ProcArgTrait, ProcDef};
 use tcl_compiler::analyser::{AnalysisResult, ClassHierarchy};
 use tcl_compiler::compilation_unit::CompilationUnit;
@@ -2523,15 +2522,15 @@ fn insert_object_method_overrides(
     }
     // 2. User-defined class — resolve the method through the class hierarchy
     //    (workspace-wide when a project index is supplied, so a class defined in
-    //    another file resolves too); for an `oo::configurable` receiver, colour
-    //    `configure` / `cget` property options.
+    //    another file resolves too); for a configurable receiver, colour the
+    //    generated accessor's property options.
     if let Some(hierarchy) = classes
         && let Some(cls) = candidates
             .iter()
             .find(|c| user_class_provides_method(hierarchy, registry, c, method))
     {
         mark_method_word(seg, overrides);
-        insert_user_configure_options(seg, hierarchy, cls, method, overrides);
+        insert_user_configure_options(seg, hierarchy, registry, cls, method, overrides);
     }
 }
 
@@ -2651,12 +2650,12 @@ fn collection_head_element_classes<'a>(
 
 /// Whether a *user-defined* class provides `method` for an instance dispatch:
 /// the class hierarchy's MRO resolves it (a declared method on the class or an
-/// ancestor), or it is an `TclOO` builtin every instance answers — `destroy`,
-/// or one of the
-/// [`PROPERTY_ACCESSOR_METHODS`](tcl_compiler::analyser::class_hierarchy::PROPERTY_ACCESSOR_METHODS)
-/// on a configurable receiver, decided by the same shared
-/// [`ClassHierarchy::configures_by_property`] the analyser's W308 existence
-/// check uses.  `hierarchy` is the local file's hierarchy or a
+/// ancestor), it is an `TclOO` builtin every instance answers (`destroy`), or
+/// it is one the class system generates from the class's declared properties
+/// — decided by the same registry-driven
+/// [`ClassHierarchy::property_accessor_methods`] the analyser's W308
+/// existence check uses, so colouring and diagnostics cannot disagree about
+/// whether a method exists.  `hierarchy` is the local file's hierarchy or a
 /// workspace-merged project index.
 fn user_class_provides_method(
     hierarchy: &ClassHierarchy,
@@ -2670,24 +2669,25 @@ fn user_class_provides_method(
     if method == "destroy" {
         return true;
     }
-    PROPERTY_ACCESSOR_METHODS.contains(&method)
-        && hierarchy.configures_by_property(Some(registry), class)
+    hierarchy.is_property_accessor(Some(registry), class, method)
 }
 
-/// Colour the `-property` options of a `configure` / `cget` dispatch on an
-/// `oo::configurable` user class: a word `-<name>` whose `name` is a property
-/// declared on the class or an ancestor becomes a [`ArgOverride::Decorator`],
-/// and a following literal value an [`TokenKind::OptionValue`].  A non-property
-/// `-word` is left to the generic option fallback.  No-op for any method other
-/// than `configure` / `cget`.
+/// Colour the `-property` options of a generated property-accessor dispatch
+/// (`oo::configurable`'s `configure`) on a user class: a word `-<name>` whose
+/// `name` is a property declared on the class or an ancestor becomes a
+/// [`ArgOverride::Decorator`], and a following literal value an
+/// [`TokenKind::OptionValue`].  A non-property `-word` is left to the generic
+/// option fallback.  No-op for any method the class system does not generate
+/// from properties.
 fn insert_user_configure_options(
     seg: &tcl_compiler::segmenter::SegmentedCommand,
     hierarchy: &ClassHierarchy,
+    registry: &CommandRegistry,
     class: &str,
     method: &str,
     overrides: &mut FxHashMap<u32, ArgOverride>,
 ) {
-    if !PROPERTY_ACCESSOR_METHODS.contains(&method) {
+    if !hierarchy.is_property_accessor(Some(registry), class, method) {
         return;
     }
     // Property names across the whole MRO (`-node`, `-name`, inherited …).
@@ -2895,7 +2895,7 @@ fn insert_self_method_overrides(
         return;
     }
     mark_method_word(seg, overrides);
-    insert_user_configure_options(seg, hierarchy, &class, method, overrides);
+    insert_user_configure_options(seg, hierarchy, registry, &class, method, overrides);
 }
 
 /// The *user-defined* class named by a direct exported manufacturer head,

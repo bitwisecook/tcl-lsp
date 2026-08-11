@@ -940,6 +940,7 @@ pub fn witness_definition_body_grammar(grammar: &DefinitionBodyGrammar) {
         dynamic_method_dispatch: _,
         manufacturers: _,
         unknown_dispatch_method: _,
+        property_accessor_methods: _,
     } = grammar;
 }
 
@@ -967,6 +968,10 @@ pub const DEFINITION_BODY_GRAMMAR: &[Field] = &[
     f("dynamic_method_dispatch", Surface::Excluded(NAMED_CONSTANT)),
     f("manufacturers", Surface::Excluded(NAMED_CONSTANT)),
     f("unknown_dispatch_method", Surface::Excluded(NAMED_CONSTANT)),
+    f(
+        "property_accessor_methods",
+        Surface::Excluded(NAMED_CONSTANT),
+    ),
 ];
 
 /// Compile-time witness for [`BUILTIN_OBJECT_METHOD`].
