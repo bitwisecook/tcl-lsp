@@ -122,6 +122,7 @@ fn copy_state_transitions(arguments: InvocationArguments<'_>) -> StateTransition
         transitions.push(StateTransition::CommandBinding(
             CommandBindingTransition::Define {
                 name: target.clone(),
+                kind: CommandBindingDefinitionKind::Object,
             },
         ));
     }
@@ -232,7 +233,7 @@ mod tests {
         );
         assert!(transitions.facts().iter().any(|fact| matches!(
             &fact.transition,
-            StateTransition::CommandBinding(CommandBindingTransition::Define { name })
+            StateTransition::CommandBinding(CommandBindingTransition::Define { name, .. })
                 if name.literal() == Some("::target")
         )));
         assert!(transitions.facts().iter().any(|fact| matches!(

@@ -7,6 +7,7 @@
 | E003 | error | Too many arguments for command. | ✓ |
 | E004 | error | Malformed `if` command — missing clauses or extra words after `else`. | ✓ |
 | E005 | error | Wrong argument-count shape for command — an in-range count that doesn't fit the command's key/value-pair or paired-argument pattern (e.g. an odd `dict create` tail, an unpaired `foreach` list, or a `switch` count matching neither its shorthand nor its pattern/body-pair form). | ✓ |
+| E006 | error | Invalid literal formal-parameter list — Tcl cannot create the procedure or method. | ✓ |
 | E100 | error | Unmatched `]` — missing opening `[`? | ✓ |
 | E101 | error | Missing `{` after `switch` — case bodies follow without braces. | ✓ |
 | E102 | error | Unmatched `}` — missing opening `{`? | ✓ |
@@ -56,8 +57,10 @@
 | W141 | warning | Option value fails a declared shape/content check (e.g. `-errorstack` must be an even-sized list) — the option-value sibling of W127 for a value that is structurally malformed rather than outside a closed set. | ✓ |
 | W142 | warning | Command invalid in its current lexical/dispatch context (e.g. `return` with arguments directly inside an iRules event body). | ✓ |
 | W143 | warning | Direct call into a private `::tcl::` implementation namespace (e.g. `::tcl::dict::create`) — use the public ensemble command instead (`dict create`). | ✓ |
-| W144 | warning | Command/subcommand/option/argument value is deprecated at the resolved package version — still available, but the registry records a deprecating release. | ✓ |
+| W144 | warning | Command/subcommand/option/argument value is deprecated at the resolved package or Tcl-core version — still available, but the registry records a deprecating release. | ✓ |
 | W145 | warning | Ambiguous keyword abbreviation — the prefix matches more than one subcommand or option, which is a runtime error in Tcl. | ✓ |
+| W146 | warning | Literal argument violates a registry-declared relationship or member set (for example, a trace operation list contains an operation invalid for its trace type). | ✓ |
+| W147 | warning | Mutually exclusive command options were supplied together. | ✓ |
 | W200 | warning | `exec` result not captured or binary format modifier requires newer Tcl. | ✓ |
 | W201 | warning | Manual path concatenation — use `file join` instead. | ✓ |
 | W230 | warning | Constant list index out of range — lindex/lrange/lreplace silently return empty or clamp. | ✓ |

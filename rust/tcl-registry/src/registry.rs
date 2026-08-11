@@ -37,6 +37,7 @@ use crate::events::{
 };
 use crate::forms::CommandForm;
 use crate::hooks::{AnalyserHookId, CodegenHookId, InlineCodegenHookId, LoweringHookId};
+use crate::invocation_words::{CommandPrefixArguments, InvocationWord};
 use crate::lifecycle::{Lifecycle, LifecycleState};
 use crate::resolved_invocation::{
     InvocationResolutionUnresolved, ResolvedInvocation, ResolvedSubcommand,
@@ -785,6 +786,35 @@ impl CommandRegistry {
             .is_some_and(|spec| spec.traits.contains(Traits::TCLOO_REQUIRES_METHOD_FRAME))
     }
 
+    /// Resolve `word` against the registry-declared universal object-command
+    /// surface.
+    ///
+    /// `TclOO` receiver commands are runtime values, so their source head is not
+    /// itself a static registry command.  This query gives common consumers
+    /// the inherited method metadata without encoding the registry entry that
+    /// owns that surface.  A dialect may supply at most one such surface; an
+    /// accidental duplicate is treated conservatively as no unique answer.
+    #[must_use]
+    pub fn object_command_method(&self, word: &str) -> Option<&SubCommand> {
+        let mut matches = self.by_name.values().filter_map(|specs| {
+            let spec = specs.last()?;
+            spec.traits
+                .contains(Traits::OBJECT_COMMAND_SURFACE)
+                .then_some(spec)?
+                .resolve_subcommand(word)
+        });
+        let method = matches.next()?;
+        matches.next().is_none().then_some(method)
+    }
+
+    /// Whether `word` is a destructive operation on the universal object
+    /// command surface.
+    #[must_use]
+    pub fn is_destructive_object_method(&self, word: &str) -> bool {
+        self.object_command_method(word)
+            .is_some_and(|method| method.destructive)
+    }
+
     /// Whether `word` is a **manufacturer method** of any definer family the
     /// registry models — `create` / `new` / `createWithNamespace` for
     /// `TclOO`, `create` for snit.
@@ -1077,6 +1107,36 @@ impl CommandRegistry {
         method: &str,
         method_args: &[&str],
     ) -> Vec<(usize, AppendedArity)> {
+        self.instance_method_command_prefixes_with_arguments(
+            class_name,
+            method,
+            CommandPrefixArguments::literals(method_args),
+        )
+    }
+
+    /// Source-aware companion to [`Self::instance_method_command_prefixes`].
+    /// Literal-sensitive resolvers can distinguish runtime substitutions from
+    /// values proved at the call site.
+    #[must_use]
+    pub fn instance_method_command_prefixes_structured<'w>(
+        &self,
+        class_name: &str,
+        method: &str,
+        spellings: &'w [&'w str],
+        words: &'w [InvocationWord<'w>],
+    ) -> Vec<(usize, AppendedArity)> {
+        let Some(arguments) = CommandPrefixArguments::structured(spellings, words) else {
+            return Vec::new();
+        };
+        self.instance_method_command_prefixes_with_arguments(class_name, method, arguments)
+    }
+
+    fn instance_method_command_prefixes_with_arguments(
+        &self,
+        class_name: &str,
+        method: &str,
+        method_args: CommandPrefixArguments<'_>,
+    ) -> Vec<(usize, AppendedArity)> {
         let Some(m) = self.instance_method(class_name, method) else {
             return Vec::new();
         };
@@ -1091,7 +1151,7 @@ impl CommandRegistry {
         } else {
             out.extend(m.command_prefixes.iter().map(|(i, a)| (*i as usize, *a)));
         }
-        push_command_prefix_options(&mut out, m.options, method_args, 0);
+        push_command_prefix_options(&mut out, m.options, method_args.spellings(), 0);
         out.retain(|&(idx, _)| idx < n);
         out
     }
@@ -2326,6 +2386,32 @@ impl CommandRegistry {
     /// For subcommand-based commands pass the subcommand as `args[0]`.
     #[must_use]
     pub fn command_prefixes(&self, name: &str, args: &[&str]) -> Vec<(usize, AppendedArity)> {
+        self.command_prefixes_with_arguments(name, CommandPrefixArguments::literals(args))
+    }
+
+    /// Source-aware command-prefix resolution.
+    ///
+    /// `spellings` supports existing position-only declarations; `words`
+    /// carries the proof boundary for literal-sensitive arity resolvers. The
+    /// slices must describe the same post-head source words.
+    #[must_use]
+    pub fn command_prefixes_structured<'w>(
+        &self,
+        name: &str,
+        spellings: &'w [&'w str],
+        words: &'w [InvocationWord<'w>],
+    ) -> Vec<(usize, AppendedArity)> {
+        let Some(arguments) = CommandPrefixArguments::structured(spellings, words) else {
+            return Vec::new();
+        };
+        self.command_prefixes_with_arguments(name, arguments)
+    }
+
+    fn command_prefixes_with_arguments(
+        &self,
+        name: &str,
+        args: CommandPrefixArguments<'_>,
+    ) -> Vec<(usize, AppendedArity)> {
         let Some(spec) = self.get(name) else {
             return Vec::new();
         };
@@ -2334,11 +2420,12 @@ impl CommandRegistry {
 
         if !spec.subcommands.is_empty()
             && !args.is_empty()
-            && let Some(sub) = spec.resolve_subcommand(args[0])
+            && let Some(subcommand) = args.literal_at(0)
+            && let Some(sub) = spec.resolve_subcommand(subcommand)
         {
             if let Some(resolver) = sub.command_prefix_resolver {
                 out.extend(
-                    resolver(&args[1..])
+                    resolver(args.slice_from(1))
                         .into_iter()
                         .map(|(i, a)| (i as usize + 1, a)),
                 );
@@ -2349,7 +2436,7 @@ impl CommandRegistry {
                         .map(|(i, a)| (*i as usize + 1, *a)),
                 );
             }
-            push_command_prefix_options(&mut out, sub.options, args, 1);
+            push_command_prefix_options(&mut out, sub.options, args.spellings(), 1);
             out.retain(|&(idx, _)| idx < n);
             return out;
         }
@@ -2359,7 +2446,7 @@ impl CommandRegistry {
         } else {
             out.extend(spec.command_prefixes.iter().map(|(i, a)| (*i as usize, *a)));
         }
-        push_command_prefix_options(&mut out, spec.options, args, 0);
+        push_command_prefix_options(&mut out, spec.options, args.spellings(), 0);
         out.retain(|&(idx, _)| idx < n);
         out
     }
@@ -3904,10 +3991,21 @@ mod tests {
             reg.command_prefixes("trace", &["add", "command", "c", "rename", "cb"]),
             vec![(4, AppendedArity::Exactly(3))],
         );
-        // `trace add execution c ops cb` → 2..4 args ⇒ AtLeast(2).
+        // Execution operations select exact callback contracts.
         assert_eq!(
             reg.command_prefixes("trace", &["add", "execution", "c", "enter", "cb"]),
-            vec![(4, AppendedArity::AtLeast(2))],
+            vec![(4, AppendedArity::Exactly(2))],
+        );
+        assert_eq!(
+            reg.command_prefixes("trace", &["add", "execution", "c", "leave", "cb"]),
+            vec![(4, AppendedArity::Exactly(4))],
+        );
+        assert_eq!(
+            reg.command_prefixes("trace", &["add", "execution", "c", "enter leave", "cb"]),
+            vec![(
+                4,
+                AppendedArity::OneOf(crate::AppendedAritySet::from_sorted_unique(&[2, 4]))
+            )],
         );
         // Deprecated `trace variable v ops cb` → cb at index 3, 3 appended args.
         assert_eq!(

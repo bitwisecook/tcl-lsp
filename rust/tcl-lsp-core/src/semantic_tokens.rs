@@ -5517,7 +5517,7 @@ fn scan_loop_vars(
         base_offset,
         tcl_lexer::LexerConfig::for_file_dialect(dialect).at_depth(depth),
     ) {
-        bind_loop_vars_for_call(&seg.texts, registry, collections, handles);
+        bind_loop_vars_for_call(full_source, &seg, registry, collections, handles);
         // Recurse into braced-script words (loop bodies, proc / method / class
         // bodies, `namespace eval` blocks, `if`/`switch` arms, …) and into
         // `[…]` command substitutions (a loop can be `return [dict map …]`).
@@ -5754,33 +5754,89 @@ fn class_declares_typemethod(
 /// variable holds the element, and anything else binds every variable in the
 /// group.
 fn bind_loop_vars_for_call(
-    texts: &[String],
+    source: &str,
+    seg: &tcl_compiler::segmenter::SegmentedCommand,
     registry: &CommandRegistry,
     collections: &ObjectClassMap,
     handles: &mut ObjectClassMap,
 ) {
-    let Some(name) = texts.first() else { return };
-    let refs: Vec<&str> = texts[1..].iter().map(String::as_str).collect();
+    // A recovery segment can expose a plausible-looking `texts` prefix even
+    // when the command's final word is incomplete. Binding from that prefix
+    // would make a malformed or dynamic loop look proven.
+    if seg.is_partial {
+        return;
+    }
+    let Some(name) = seg.texts.first() else {
+        return;
+    };
+    let refs: Vec<&str> = seg.texts[1..].iter().map(String::as_str).collect();
     for idx in registry.arg_indices_for_role(name, &refs, tcl_registry::ArgRole::LoopVarList) {
-        let (Some(var_list), Some(collection)) = (refs.get(idx), refs.get(idx + 1)) else {
+        let (Some(_var_list), Some(collection)) = (refs.get(idx), refs.get(idx + 1)) else {
             continue;
         };
         let Some(classes) = object_handle_name(collection).and_then(|c| collections.get(c)) else {
+            continue;
+        };
+        // Segment text is not a Tcl list parser. Prove the word is static,
+        // then use the shared Tcl list grammar; malformed values abstain.
+        let Some(var_names) = static_loop_var_names(source, seg, idx + 1) else {
             continue;
         };
         let keyed = registry
             .arg_type_hint(name, &refs, idx + 1)
             .is_some_and(|hint| hint.expected == Some(tcl_registry::types::TclType::Dict));
         if keyed {
-            if let Some(value_var) = var_list.split_whitespace().nth(1) {
+            if let Some(value_var) = var_names.get(1) {
                 bind_loop_var(handles, value_var, classes);
             }
         } else {
-            for var in var_list.split_whitespace() {
+            for var in &var_names {
                 bind_loop_var(handles, var, classes);
             }
         }
     }
+}
+
+/// Decode a literal loop-variable-list word using Tcl's canonical list
+/// grammar. Substitutions, expansions, compound words, incomplete commands,
+/// and malformed list values all abstain.
+fn static_loop_var_names(
+    source: &str,
+    seg: &tcl_compiler::segmenter::SegmentedCommand,
+    word_index: usize,
+) -> Option<Vec<String>> {
+    if seg.is_partial || seg.single_token_word.get(word_index) != Some(&true) {
+        return None;
+    }
+    let token = *seg.argv.get(word_index)?;
+    if matches!(
+        token.kind,
+        TokenType::Var | TokenType::Cmd | TokenType::Expand
+    ) {
+        return None;
+    }
+    // The segmenter strips a braced/quoted word's delimiters. Validate the
+    // original token too, so incomplete recovery text cannot masquerade as a
+    // valid list value.
+    let raw_start = token.span.start() as usize;
+    let raw_end = token.span.end() as usize;
+    let raw = source.get(raw_start..raw_end)?;
+    if raw.starts_with(['{', '"']) {
+        let closing = if raw.starts_with('{') { b'}' } else { b'"' };
+        let raw = if source.as_bytes().get(raw_end) == Some(&closing) {
+            source.get(raw_start..raw_end + 1)?
+        } else {
+            raw
+        };
+        tcl_syntax::list::find_element(raw, 0).ok()??;
+    }
+    let text = seg.texts.get(word_index)?;
+    tcl_syntax::list::split_list(text).ok().map(|elements| {
+        elements
+            .into_iter()
+            .map(std::borrow::Cow::into_owned)
+            .collect()
+    })
 }
 
 /// Everything an object-handle scan needs that does **not** change as the walk
@@ -10208,6 +10264,36 @@ mod tests {
         assert_eq!(roles("::dict", &["for", "{k v}", "$d", "{}"]), vec![1]);
         // A command with no loop-variable list reports none.
         assert!(roles("puts", &["hi"]).is_empty());
+    }
+
+    #[test]
+    fn loop_var_binding_uses_tcl_list_grammar_and_abstains_when_dynamic() {
+        use tcl_compiler::segmenter::segment_commands;
+
+        let names = |src: &str| {
+            let command = segment_commands(src)
+                .into_iter()
+                .next()
+                .expect("one command");
+            static_loop_var_names(src, &command, 1)
+        };
+
+        assert_eq!(
+            names("foreach {a b} $coll {}\n"),
+            Some(vec![String::from("a"), String::from("b")])
+        );
+        assert_eq!(
+            names("foreach \"a b\" $coll {}\n"),
+            Some(vec![String::from("a"), String::from("b")])
+        );
+        assert_eq!(
+            names("foreach a\\ b $coll {}\n"),
+            Some(vec![String::from("a b")])
+        );
+        assert_eq!(names("foreach {} $coll {}\n"), Some(Vec::new()));
+        assert_eq!(names("foreach $vars $coll {}\n"), None);
+        assert_eq!(names("foreach [makeVars] $coll {}\n"), None);
+        assert_eq!(names("foreach {a b $coll {}\n"), None);
     }
 
     #[test]

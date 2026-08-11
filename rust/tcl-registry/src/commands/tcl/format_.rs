@@ -625,7 +625,7 @@ pub fn spec() -> CommandSpec {
             return_value: "The formatted string.",
         }),
         forms: FORMS,
-        ..CommandSpec::DEFAULT
+        ..CommandSpec::CLOSED_REFERENTIALLY_TRANSPARENT
     }
 }
 

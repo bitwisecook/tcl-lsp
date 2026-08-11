@@ -382,6 +382,15 @@ pub const COMMAND_FIELDS: &[FieldSchema] = &[
         "How the command evolves the container elements of the variable it writes in place.",
     ),
     f(
+        "representation_effect",
+        "Representation effect",
+        TYPES,
+        FieldKind::RustExpr {
+            hint: "Some(RepresentationEffect::copy_on_write_container(0, 2))",
+        },
+        "Effect on Tcl's dual string/internal representation or shared-object storage.",
+    ),
+    f(
         "arg_types",
         "Argument type hints",
         TYPES,
@@ -593,6 +602,24 @@ pub const COMMAND_FIELDS: &[FieldSchema] = &[
         "Mutable Tcl domains that must remain stable before specialisation.",
     ),
     f(
+        "result_stability",
+        "Result stability",
+        EFFECTS,
+        FieldKind::RustExpr {
+            hint: "Some(ResultStability::ReferentiallyTransparent)",
+        },
+        "Whether repeated calls return the same value, or depend on mutable or volatile state.",
+    ),
+    f(
+        "literal_argument_validator",
+        "Literal argument validator",
+        HOOKS,
+        FieldKind::RustExpr {
+            hint: "Some(validate_literal_arguments)",
+        },
+        "Registry callback for relationships and member sets within statically-known arguments.",
+    ),
+    f(
         "inferred_storage_type",
         "Inferred storage type",
         TYPES,
@@ -681,6 +708,15 @@ pub const COMMAND_FIELDS: &[FieldSchema] = &[
         OPTS,
         FieldKind::Options,
         "Declared option flags, their values, roles, and dialect gates.",
+    ),
+    f(
+        "option_constraints",
+        "Option constraints",
+        OPTS,
+        FieldKind::RustExpr {
+            hint: "&[OptionConstraint { options: &[\"-a\", \"-b\"], dialects: None }]",
+        },
+        "Registry-declared sets of leading options that may not occur together.",
     ),
     f(
         "reserved_trailing_words",
@@ -872,6 +908,15 @@ pub const COMMAND_FIELDS: &[FieldSchema] = &[
         AVAILABILITY,
         FieldKind::OptText,
         "First package version without the command (exclusive upper bound).",
+    ),
+    f(
+        "deprecation_fix",
+        "Deprecation quick-fix hook",
+        AVAILABILITY,
+        FieldKind::RustExpr {
+            hint: "Some(DeprecationFixHook::ReplaceMatchedWord { replacement: \"new\", description: \"Use new\", safety: DeprecationFixSafety::SemanticsEquivalent })",
+        },
+        "Registry-owned edit plan or contextual callback for replacing deprecated syntax.",
     ),
     f(
         "warn_missing_import",
@@ -1176,6 +1221,15 @@ pub const SUBCOMMAND_FIELDS: &[FieldSchema] = &[
         "In-place element evolution of the written variable for this subcommand.",
     ),
     f(
+        "representation_effect",
+        "Representation effect",
+        TYPES,
+        FieldKind::RustExpr {
+            hint: "Some(RepresentationEffect::copy_on_write_container(0, 2))",
+        },
+        "Subcommand-specific Tcl representation or shared-object storage effect.",
+    ),
+    f(
         "arg_types",
         "Argument type hints",
         TYPES,
@@ -1272,6 +1326,15 @@ pub const SUBCOMMAND_FIELDS: &[FieldSchema] = &[
         "Option flags declared on this subcommand.",
     ),
     f(
+        "option_constraints",
+        "Option constraints",
+        OPTS,
+        FieldKind::RustExpr {
+            hint: "&[OptionConstraint { options: &[\"-a\", \"-b\"], dialects: None }]",
+        },
+        "Subcommand-specific sets of leading options that may not occur together.",
+    ),
+    f(
         "min_abbrev",
         "Minimum abbreviation",
         OPTS,
@@ -1361,6 +1424,15 @@ pub const SUBCOMMAND_FIELDS: &[FieldSchema] = &[
         AVAILABILITY,
         FieldKind::OptText,
         "First package version without the subcommand (exclusive upper bound).",
+    ),
+    f(
+        "deprecation_fix",
+        "Deprecation quick-fix hook",
+        AVAILABILITY,
+        FieldKind::RustExpr {
+            hint: "Some(DeprecationFixHook::ReplaceMatchedWord { replacement: \"new\", description: \"Use new\", safety: DeprecationFixSafety::SemanticsEquivalent })",
+        },
+        "Registry-owned edit plan or contextual callback for replacing deprecated syntax.",
     ),
     f(
         "safe_on_uninit",
@@ -1538,6 +1610,24 @@ pub const SUBCOMMAND_FIELDS: &[FieldSchema] = &[
             hint: "Some(DispatchDependencyDescriptor::replace(DispatchDependencies::BASE))",
         },
         "Subcommand-specific live-dispatch stability requirements.",
+    ),
+    f(
+        "result_stability",
+        "Result stability",
+        EFFECTS,
+        FieldKind::RustExpr {
+            hint: "Some(ResultStability::ReferentiallyTransparent)",
+        },
+        "Subcommand-specific result stability declaration.",
+    ),
+    f(
+        "literal_argument_validator",
+        "Literal argument validator",
+        HOOKS,
+        FieldKind::RustExpr {
+            hint: "Some(validate_literal_arguments)",
+        },
+        "Subcommand-specific registry callback for related literal arguments.",
     ),
     f(
         "destructive",

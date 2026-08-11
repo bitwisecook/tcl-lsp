@@ -42,6 +42,7 @@
 //! permissive: the item is treated as available and not deprecated, matching
 //! the registry's long-standing "no version known ⇒ do not gate" behaviour.
 
+use crate::deprecation::DeprecationFixHook;
 use crate::version::compare;
 
 /// Where a versioned registry entity sits relative to a target release.
@@ -123,6 +124,11 @@ pub struct Lifecycle {
     /// First release where the entity no longer exists — **exclusive**.
     /// `None` = not retired.
     pub retired: Option<&'static str>,
+    /// Registry-owned typed quick-fix hook for this deprecation. Consumers
+    /// invoke it only while [`Self::deprecated`] applies, so commands,
+    /// subcommands, options, argument values, and shape replacements share
+    /// one contract.
+    pub deprecation_fix: Option<DeprecationFixHook>,
 }
 
 impl Lifecycle {
@@ -131,6 +137,7 @@ impl Lifecycle {
         introduced: None,
         deprecated: None,
         retired: None,
+        deprecation_fix: None,
     };
 
     /// Introduced in `release`, with no deprecation or retirement.
@@ -140,6 +147,7 @@ impl Lifecycle {
             introduced: Some(release),
             deprecated: None,
             retired: None,
+            deprecation_fix: None,
         }
     }
 
@@ -150,6 +158,7 @@ impl Lifecycle {
             introduced: None,
             deprecated: Some(release),
             retired: None,
+            deprecation_fix: None,
         }
     }
 
@@ -295,6 +304,10 @@ impl Lifecycle {
             introduced: later(self.introduced, other.introduced),
             deprecated: earlier(self.deprecated, other.deprecated),
             retired: earlier(self.retired, other.retired),
+            // The left lifecycle belongs to the more-specific entity at the
+            // call sites that inherit a parent gate. Keep its replacement
+            // hook when present; a parent hook remains a useful fallback.
+            deprecation_fix: self.deprecation_fix.or(other.deprecation_fix),
         }
     }
 }

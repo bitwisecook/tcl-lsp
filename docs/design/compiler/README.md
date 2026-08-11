@@ -12,8 +12,8 @@ User-facing compiler troubleshooting and how-tos live in
 
 - [common-semantic-compiler.md](common-semantic-compiler.md) — implementation
   contract for the shared semantic IR, value/cell/world SSA, registry
-  boundaries, exact completion and trace flow, target-family lowering, and the
-  staged TclVM/WASM/eBPF/native/accelerator migration.
+  boundaries, exact completion and trace flow, target-family lowering, and
+  current backend contracts.
 - [compiler-pipeline-overview.md](compiler-pipeline-overview.md) — stage
   map and fact hand-off boundaries.
 - [compiler-systems-overview.md](compiler-systems-overview.md) —
@@ -43,6 +43,8 @@ User-facing compiler troubleshooting and how-tos live in
   diagnostic / optimisation / shimmer code inventory: which codes have been
   swept against the corpus for false positives and which remain, plus the
   resolved fixes and confirmed-true-positive outcomes.
+- [command-oracle-audits.md](command-oracle-audits.md) — per-command Tcl
+  oracle queue, evidence availability, and registry verdicts.
 
 ## Pipeline stages
 
@@ -121,6 +123,8 @@ User-facing compiler troubleshooting and how-tos live in
 
 - [command-registry.md](command-registry.md) — command metadata, specs,
   arity, and taint hints.
+- [command-oracle-audits.md](command-oracle-audits.md) — release-gated Tcl
+  command oracle findings and registry-first corrections.
 - [data-structure-reference.md](data-structure-reference.md) — pipeline
   types at each stage.
 - [connection-scope.md](connection-scope.md) — cross-event variable
@@ -136,8 +140,8 @@ User-facing compiler troubleshooting and how-tos live in
 - [codegen-internals.md](codegen-internals.md) — LVT, linearisation,
   labels, and peephole optimisation.
 - [wasm-codegen.md](wasm-codegen.md) — shared semantic-to-WASM boundary,
-  executable-IR generic argv transport, typed backend declines, shared runtime
-  ABI, and the explicitly retained legacy migration baseline.
+  executable-IR generic argv transport, typed semantic declines, the single
+  Rust emitter, and the shared runtime ABI.
 - [ebpf-backend.md](ebpf-backend.md) — BPF-Tcl layering, typed core and BPF-IR,
   current `rbpf` codegen ABI, event/framework capabilities, verified design
   issues, real-world use cases, and the production-kernel roadmap.
@@ -202,9 +206,7 @@ User-facing compiler troubleshooting and how-tos live in
 - [codegen-module-map.md](codegen-module-map.md) — package module map
   and ownership boundaries.
 - [wasm-runtime-primitives.md](wasm-runtime-primitives.md) — Rust
-  runtime primitives at the compiler-to-interpreter boundary
-  (frame sync, namespace context, list element encoding, catch
-  result separation, alias descriptors).
+  runtime ABI at the compiler-to-interpreter boundary.
 
 ## Related KCS how-tos
 

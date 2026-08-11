@@ -68,6 +68,6 @@ pub fn spec() -> CommandSpec {
             return_value: "A proper Tcl list: one element for each run of characters in string that lies between (or before the first / after the last) occurrence of a splitChars character. Adjacent or edge-of-string delimiters contribute empty-string elements; splitting the empty string always yields a list of zero elements.",
         }),
         forms: FORMS,
-        ..CommandSpec::DEFAULT
+        ..CommandSpec::CLOSED_REFERENTIALLY_TRANSPARENT
     }
 }

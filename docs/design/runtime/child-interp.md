@@ -37,8 +37,8 @@ In:
   `parent`, `name_*`, `children`, `flags`.
 - Path-aware promotion of `interp alias` / `hide` / `expose` /
   `invokehidden`.
-- Conservative compiler-side `proc_index` flush when any of
-  `interp create` / `eval` / `delete` appear in the IR.
+- Conservative compiler-side command-binding distrust when registry-declared
+  interpreter or command-table transitions cannot be bounded.
 - Full tclsh-style error wording: `bad option "X": must be
   alias, aliases, bgerror, cancel, children, create, debug,
   delete, eval, exists, expose, hide, hidden, issafe,
@@ -183,50 +183,31 @@ importer-list tracking in `link_import_ref` would clobber the
 stashed `Interp*`.  Moving the handle onto `AliasRec` keeps
 the Command's import-machinery slots independent.
 
-## 7. Compiler: conservative proc-index flush
+## 7. Compiler: registry-driven command-binding proof
 
-`_collect_dynamically_modified_procs` in
-`compiler/codegen/wasm/proc_scan.py`
-now returns `(affected, full_flush)`.  When it sees any of
-`interp create` / `interp eval` / `interp delete` anywhere in the
-IR, `full_flush` is set.  The caller responds by clearing
-`callable_proc_index` entirely — every call in the module routes
-through `tcl_eval` / `proc_lookup` and sees the live registry.
+The compiler does not recognise `interp` by name. `tcl-registry` describes
+interpreter-state and command-table transitions for each form. Common semantic
+analysis projects those descriptors into world-state and dispatch-dependency
+facts at each invocation.
 
-The shortcut is conservative — most modules with one tiny child-
-interp use will pay the full eval-fallback cost on every call —
-but the complexity of per-path tracking (which procs a given
-child might register, which names `interp eval script` might
-touch) dwarfs the specialisation opportunity this wave would
-otherwise keep.
+The canonical WASM pipeline consumes those facts first. A direct or intrinsic
+plan is eligible only when the relevant command binding and world dependency
+are proved at that program point. Child creation, cross-interpreter eval,
+aliasing, hiding, deletion, or a dynamic transition can therefore make the
+selector abstain without any command-specific WASM branch. Generic argv
+dispatch remains sound because it uses the live runtime command table.
 
-The surgical path (removing specific names on `rename` /
-`interp hide` / `interp expose`) is unchanged — those commands
-continue to invalidate only the named target(s).
+General structured lowering in the sole emitter also uses the generic
+`scan_module_command_mutations` summary. `ModuleCommandMutations::trusts`
+guards builtin assumptions, and `trusts_proc_binding` guards direct procedure
+calls. A literal transition can distrust only the affected name; an unbounded
+transition sets the wildcard state and distrusts every binding.
 
-### 7.1 Why the callable-map is separate from `proc_index`
-
-`proc_index` is consumed *twice* in `wasm_codegen_module`:
-
-1. As input to the emitter's `_resolve_proc` so call-sites can
-   specialise to direct `call $<func_idx>` when the target is
-   known statically.
-2. As input to the diagnostic sidecar (`DiagMap.procs`) which
-   records `(func_idx, qname)` pairs so WASM-level backtraces
-   can be annotated with proc names.
-
-The flush / invalidation logic only applies to (1).  Dropping
-an entry from (2) would leave the backtrace sidecar with gaps
-— `wasm function N` → `<unknown>` — which is worse than useless.
-
-We keep the original `proc_index` untouched for (2) and give
-the emitter a filtered copy (`callable_proc_index`).  The
-upstream `interp.test` bundle depended on this: tcltest.tcl
-uses `interp create` internally, which fired `full_flush`, but
-it also contains procs like `::tcltest::normalizePath` that the
-sidecar pass still needed to look up.  Pre-split the code
-emitted `proc_index.clear()` and tripped a `KeyError` at the
-sidecar pass.
+Procedure function indices remain deterministic module-layout and diagnostic
+metadata. They are not a second callable map or a public code-generation API.
+Whether a call may use an index is a semantic binding proof, not a mutation of
+the metadata table. All module emission still enters through
+`tcl_compiler::codegen::wasm::compile_wasm`.
 
 ## 8. Dispatch interplay
 
@@ -344,9 +325,9 @@ Three layers:
 - `dispatch_alias` reads the parent-interp slot on the alias
   Command, gates on `is_deleted`, and `enter` / `leave`s around
   the lookup.
-- Compiler's `_collect_dynamically_modified_procs` returns a
-  `full_flush` flag; callers clear `proc_index` entirely when
-  any of `interp create` / `eval` / `delete` appear.
+- Registry-declared interpreter and command-table transitions feed the common
+  command-binding proof; literal mutations distrust affected names, and
+  unbounded mutations distrust every binding.
 - New test scaffolding exports:
   `tcl_test_interp_root` / `_current` / `_create` / `_lookup` /
   `_delete` / `_eval_script` / `_root_ns` / `_hidden_find_in`.

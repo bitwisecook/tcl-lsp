@@ -18,8 +18,9 @@ note](../../kcs/codes/kcs-optimisation-o102-load-forwarding.md) for the
 current, corrected description; it is not itself an `[expr {...}]}`-result
 fold, though it frequently feeds one), and O112 (constant condition).
 
-Source (Python-era; superseded by `rust/tcl-compiler/src/`): `compiler/core_analyses.py`,
-`compiler/types.py`
+Source: `rust/tcl-compiler/src/sccp.rs` and
+`rust/tcl-compiler/src/type_infer.rs`. Optimiser consumers live under
+`rust/tcl-compiler/src/optimiser/`.
 
 ## Content
 

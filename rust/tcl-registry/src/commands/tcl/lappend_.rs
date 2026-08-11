@@ -43,6 +43,7 @@ pub fn spec() -> CommandSpec {
         safe_on_uninit: Some(DialectSet::ALL_TCL),
         return_type: Some(TclType::List),
         var_elements_effect: Some(VarElementsEffect::AppendsListElements { values_from: 1 }),
+        representation_effect: Some(RepresentationEffect::copy_on_write_container(0, 2)),
         inferred_storage_type: Some(StorageType::List),
         arg_types: &[(
             0,

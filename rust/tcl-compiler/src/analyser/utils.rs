@@ -25,7 +25,7 @@
 
 use std::collections::{HashMap, HashSet};
 
-use tcl_lexer::Token;
+use tcl_lexer::{SourceMap, Span, Token};
 use tcl_registry::{CommandRegistry, Traits};
 
 use crate::ir::Statement;
@@ -930,6 +930,16 @@ pub fn possible_paste_fingerprint(stmt: &Statement) -> Option<(String, String)> 
 #[must_use]
 pub fn argv_with_word_spans(argv: Vec<Token>, _all_tokens: &[Token]) -> Vec<Token> {
     argv
+}
+
+/// Full source span of one Tcl word, as defined by the lexer.
+///
+/// [`tcl_lexer::word_span`] is the authoritative delimiter policy: it handles
+/// braces, brackets, quotes, empty words, escaped closers, and recovery
+/// tokens without each analyser diagnostic reimplementing byte arithmetic.
+#[must_use]
+pub fn full_word_span(token: Token, source: &str) -> Span {
+    tcl_lexer::word_span(&SourceMap::new(source), token)
 }
 
 /// The set of iRules commands that may only appear at the top

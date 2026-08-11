@@ -3955,12 +3955,40 @@
             "markdownDescription": "Display severity for **E005:** Wrong argument-count shape for command — an in-range count that doesn't fit the command's key/value-pair or paired-argument pattern (e.g. an odd `dict create` tail, an unpaired `foreach` list, or a `switch` count matching neither its shorthand nor its pattern/body-pair form).",
             "order": 3
           },
+          "tclLsp.diagnostics.E006": {
+            "scope": "resource",
+            "type": "boolean",
+            "default": true,
+            "markdownDescription": "**E006:** Invalid literal formal-parameter list — Tcl cannot create the procedure or method.",
+            "order": 4
+          },
+          "tclLsp.diagnosticSeverity.E006": {
+            "scope": "resource",
+            "type": "string",
+            "default": "default",
+            "enum": [
+              "default",
+              "error",
+              "warning",
+              "information",
+              "hint"
+            ],
+            "enumDescriptions": [
+              "Use the analyser's built-in severity",
+              "Report as an error",
+              "Report as a warning",
+              "Report as information",
+              "Report as a hint (faded)"
+            ],
+            "markdownDescription": "Display severity for **E006:** Invalid literal formal-parameter list — Tcl cannot create the procedure or method.",
+            "order": 4
+          },
           "tclLsp.diagnostics.E200": {
             "scope": "resource",
             "type": "boolean",
             "default": true,
             "markdownDescription": "**E200:** Unterminated command — the parser could not tell where it ends (missing `]` / `\"` / `}`).",
-            "order": 4
+            "order": 5
           },
           "tclLsp.diagnosticSeverity.E200": {
             "scope": "resource",
@@ -3981,7 +4009,7 @@
               "Report as a hint (faded)"
             ],
             "markdownDescription": "Display severity for **E200:** Unterminated command — the parser could not tell where it ends (missing `]` / `\"` / `}`).",
-            "order": 4
+            "order": 5
           }
         }
       },
@@ -5056,7 +5084,7 @@
             "scope": "resource",
             "type": "boolean",
             "default": true,
-            "markdownDescription": "**W144:** Command/subcommand/option/argument value is deprecated at the resolved package version — still available, but the registry records a deprecating release.",
+            "markdownDescription": "**W144:** Command/subcommand/option/argument value is deprecated at the resolved package or Tcl-core version — still available, but the registry records a deprecating release.",
             "order": 37
           },
           "tclLsp.diagnosticSeverity.W144": {
@@ -5077,7 +5105,7 @@
               "Report as information",
               "Report as a hint (faded)"
             ],
-            "markdownDescription": "Display severity for **W144:** Command/subcommand/option/argument value is deprecated at the resolved package version — still available, but the registry records a deprecating release.",
+            "markdownDescription": "Display severity for **W144:** Command/subcommand/option/argument value is deprecated at the resolved package or Tcl-core version — still available, but the registry records a deprecating release.",
             "order": 37
           },
           "tclLsp.diagnostics.W145": {
@@ -5108,12 +5136,68 @@
             "markdownDescription": "Display severity for **W145:** Ambiguous keyword abbreviation — the prefix matches more than one subcommand or option, which is a runtime error in Tcl.",
             "order": 38
           },
+          "tclLsp.diagnostics.W146": {
+            "scope": "resource",
+            "type": "boolean",
+            "default": true,
+            "markdownDescription": "**W146:** Literal argument violates a registry-declared relationship or member set (for example, a trace operation list contains an operation invalid for its trace type).",
+            "order": 39
+          },
+          "tclLsp.diagnosticSeverity.W146": {
+            "scope": "resource",
+            "type": "string",
+            "default": "default",
+            "enum": [
+              "default",
+              "error",
+              "warning",
+              "information",
+              "hint"
+            ],
+            "enumDescriptions": [
+              "Use the analyser's built-in severity",
+              "Report as an error",
+              "Report as a warning",
+              "Report as information",
+              "Report as a hint (faded)"
+            ],
+            "markdownDescription": "Display severity for **W146:** Literal argument violates a registry-declared relationship or member set (for example, a trace operation list contains an operation invalid for its trace type).",
+            "order": 39
+          },
+          "tclLsp.diagnostics.W147": {
+            "scope": "resource",
+            "type": "boolean",
+            "default": true,
+            "markdownDescription": "**W147:** Mutually exclusive command options were supplied together.",
+            "order": 40
+          },
+          "tclLsp.diagnosticSeverity.W147": {
+            "scope": "resource",
+            "type": "string",
+            "default": "default",
+            "enum": [
+              "default",
+              "error",
+              "warning",
+              "information",
+              "hint"
+            ],
+            "enumDescriptions": [
+              "Use the analyser's built-in severity",
+              "Report as an error",
+              "Report as a warning",
+              "Report as information",
+              "Report as a hint (faded)"
+            ],
+            "markdownDescription": "Display severity for **W147:** Mutually exclusive command options were supplied together.",
+            "order": 40
+          },
           "tclLsp.diagnostics.W200": {
             "scope": "resource",
             "type": "boolean",
             "default": true,
             "markdownDescription": "**W200:** `exec` result not captured or binary format modifier requires newer Tcl.",
-            "order": 39
+            "order": 41
           },
           "tclLsp.diagnosticSeverity.W200": {
             "scope": "resource",
@@ -5134,14 +5218,14 @@
               "Report as a hint (faded)"
             ],
             "markdownDescription": "Display severity for **W200:** `exec` result not captured or binary format modifier requires newer Tcl.",
-            "order": 39
+            "order": 41
           },
           "tclLsp.diagnostics.W201": {
             "scope": "resource",
             "type": "boolean",
             "default": true,
             "markdownDescription": "**W201:** Manual path concatenation — use `file join` instead.",
-            "order": 40
+            "order": 42
           },
           "tclLsp.diagnosticSeverity.W201": {
             "scope": "resource",
@@ -5162,14 +5246,14 @@
               "Report as a hint (faded)"
             ],
             "markdownDescription": "Display severity for **W201:** Manual path concatenation — use `file join` instead.",
-            "order": 40
+            "order": 42
           },
           "tclLsp.diagnostics.W230": {
             "scope": "resource",
             "type": "boolean",
             "default": true,
             "markdownDescription": "**W230:** Constant list index out of range — lindex/lrange/lreplace silently return empty or clamp.",
-            "order": 41
+            "order": 43
           },
           "tclLsp.diagnosticSeverity.W230": {
             "scope": "resource",
@@ -5190,14 +5274,14 @@
               "Report as a hint (faded)"
             ],
             "markdownDescription": "Display severity for **W230:** Constant list index out of range — lindex/lrange/lreplace silently return empty or clamp.",
-            "order": 41
+            "order": 43
           },
           "tclLsp.diagnostics.W231": {
             "scope": "resource",
             "type": "boolean",
             "default": true,
             "markdownDescription": "**W231:** Constant list index out of range — lset raises a runtime error.",
-            "order": 42
+            "order": 44
           },
           "tclLsp.diagnosticSeverity.W231": {
             "scope": "resource",
@@ -5218,14 +5302,14 @@
               "Report as a hint (faded)"
             ],
             "markdownDescription": "Display severity for **W231:** Constant list index out of range — lset raises a runtime error.",
-            "order": 42
+            "order": 44
           },
           "tclLsp.diagnostics.W232": {
             "scope": "resource",
             "type": "boolean",
             "default": true,
             "markdownDescription": "**W232:** Constant string index out of range — string index/range/replace/insert silently return empty or no-op.",
-            "order": 43
+            "order": 45
           },
           "tclLsp.diagnosticSeverity.W232": {
             "scope": "resource",
@@ -5246,14 +5330,14 @@
               "Report as a hint (faded)"
             ],
             "markdownDescription": "Display severity for **W232:** Constant string index out of range — string index/range/replace/insert silently return empty or no-op.",
-            "order": 43
+            "order": 45
           },
           "tclLsp.diagnostics.W233": {
             "scope": "resource",
             "type": "boolean",
             "default": true,
             "markdownDescription": "**W233:** Division or modulo by a provably-zero divisor — raises 'divide by zero' at runtime.",
-            "order": 44
+            "order": 46
           },
           "tclLsp.diagnosticSeverity.W233": {
             "scope": "resource",
@@ -5274,14 +5358,14 @@
               "Report as a hint (faded)"
             ],
             "markdownDescription": "Display severity for **W233:** Division or modulo by a provably-zero divisor — raises 'divide by zero' at runtime.",
-            "order": 44
+            "order": 46
           },
           "tclLsp.diagnostics.W240": {
             "scope": "resource",
             "type": "boolean",
             "default": true,
             "markdownDescription": "**W240:** Loop condition is a constant false — body never executes.",
-            "order": 45
+            "order": 47
           },
           "tclLsp.diagnosticSeverity.W240": {
             "scope": "resource",
@@ -5302,14 +5386,14 @@
               "Report as a hint (faded)"
             ],
             "markdownDescription": "Display severity for **W240:** Loop condition is a constant false — body never executes.",
-            "order": 45
+            "order": 47
           },
           "tclLsp.diagnostics.W241": {
             "scope": "resource",
             "type": "boolean",
             "default": true,
             "markdownDescription": "**W241:** Loop is provably infinite — constant-true condition with no break/return, zero/wrong-direction counter step.",
-            "order": 46
+            "order": 48
           },
           "tclLsp.diagnosticSeverity.W241": {
             "scope": "resource",
@@ -5330,14 +5414,14 @@
               "Report as a hint (faded)"
             ],
             "markdownDescription": "Display severity for **W241:** Loop is provably infinite — constant-true condition with no break/return, zero/wrong-direction counter step.",
-            "order": 46
+            "order": 48
           },
           "tclLsp.diagnostics.W250": {
             "scope": "resource",
             "type": "boolean",
             "default": true,
             "markdownDescription": "**W250:** Instantiating an `oo::abstract` class — abstract classes cannot be created directly; use a concrete subclass.",
-            "order": 47
+            "order": 49
           },
           "tclLsp.diagnosticSeverity.W250": {
             "scope": "resource",
@@ -5358,14 +5442,14 @@
               "Report as a hint (faded)"
             ],
             "markdownDescription": "Display severity for **W250:** Instantiating an `oo::abstract` class — abstract classes cannot be created directly; use a concrete subclass.",
-            "order": 47
+            "order": 49
           },
           "tclLsp.diagnostics.W308": {
             "scope": "resource",
             "type": "boolean",
             "default": true,
             "markdownDescription": "**W308:** Unknown TclOO method — the method is not defined on the receiver's statically-known class or any of its superclasses.",
-            "order": 48
+            "order": 50
           },
           "tclLsp.diagnosticSeverity.W308": {
             "scope": "resource",
@@ -5386,14 +5470,14 @@
               "Report as a hint (faded)"
             ],
             "markdownDescription": "Display severity for **W308:** Unknown TclOO method — the method is not defined on the receiver's statically-known class or any of its superclasses.",
-            "order": 48
+            "order": 50
           },
           "tclLsp.diagnostics.W314": {
             "scope": "resource",
             "type": "boolean",
             "default": true,
             "markdownDescription": "**W314:** Definition has no absolute (fully-qualified) name — an all-colon name or namespace segment (e.g. a proc or namespace named `:`) is reachable only by relative lookup.",
-            "order": 49
+            "order": 51
           },
           "tclLsp.diagnosticSeverity.W314": {
             "scope": "resource",
@@ -5414,14 +5498,14 @@
               "Report as a hint (faded)"
             ],
             "markdownDescription": "Display severity for **W314:** Definition has no absolute (fully-qualified) name — an all-colon name or namespace segment (e.g. a proc or namespace named `:`) is reachable only by relative lookup.",
-            "order": 49
+            "order": 51
           },
           "tclLsp.diagnostics.W315": {
             "scope": "resource",
             "type": "boolean",
             "default": true,
             "markdownDescription": "**W315:** Class or object definition cannot run — a `deletemethod`/`renamemethod` names a member that does not exist on the side it is scoped to (for `oo::objdefine`, on the object's own table), or renames onto a name already taken, which aborts the whole definition.",
-            "order": 50
+            "order": 52
           },
           "tclLsp.diagnosticSeverity.W315": {
             "scope": "resource",
@@ -5442,7 +5526,7 @@
               "Report as a hint (faded)"
             ],
             "markdownDescription": "Display severity for **W315:** Class or object definition cannot run — a `deletemethod`/`renamemethod` names a member that does not exist on the side it is scoped to (for `oo::objdefine`, on the object's own table), or renames onto a name already taken, which aborts the whole definition.",
-            "order": 50
+            "order": 52
           }
         }
       },

@@ -91,6 +91,80 @@ function runRenderSteps(steps) {
   return failures;
 }
 
+// Descriptor-driven view reconciliation.  The Rust explorer is authoritative
+// for the view catalogue; a GUI may retain specialised renderers for a few
+// mature panes, but it must not hide newly exported compiler artefacts while
+// waiting for hand-written DOM wiring.  Existing panes predate camel-case
+// descriptor IDs, hence this small presentation-only compatibility map.
+var explorerLegacyPaneIds = {
+  cfg: 'cfg-pre', ssa: 'cfg-post', optimiserPasses: 'optimiser-passes',
+  irules: 'irules-flow', structuralIndex: 'structural-index',
+  sourceMap: 'source-map', eventOrder: 'event-order'
+};
+
+function explorerPaneId(viewId) { return explorerLegacyPaneIds[viewId] || viewId; }
+
+function reconcileExplorerViews() {
+  var views = data && data.meta && Array.isArray(data.meta.views) ? data.meta.views : [];
+  var generic = [];
+  for (var i = 0; i < views.length; i++) {
+    var view = views[i];
+    if (!view || !view.id) continue;
+    var paneId = explorerPaneId(view.id);
+    var tab = $('.tab[data-view-id="' + view.id + '"]') || $('.tab[data-tab="' + paneId + '"]');
+    if (!tab) {
+      tab = document.createElement('div');
+      tab.className = 'tab';
+      tab.dataset.tab = paneId;
+      tab.dataset.viewId = view.id;
+      tab.textContent = view.label || view.id;
+      $('#tabBar').appendChild(tab);
+      var pane = document.createElement('div');
+      pane.className = 'tab-pane';
+      pane.id = 'pane-' + paneId;
+      pane.dataset.genericExplorerView = 'true';
+      $('#outputContent').appendChild(pane);
+    }
+    if (tab.dataset.genericExplorerView === 'true'
+        || $('#pane-' + paneId).dataset.genericExplorerView === 'true') {
+      generic.push(view);
+    }
+  }
+  return generic;
+}
+
+function genericViewCount(value) {
+  if (Array.isArray(value)) return value.length;
+  if (value && typeof value === 'object') return Object.keys(value).length;
+  return value == null ? 0 : 1;
+}
+
+function renderGenericExplorerView(view) {
+  var pane = $('#pane-' + explorerPaneId(view.id));
+  if (!pane) return;
+  var value = data[view.payload || view.id];
+  var count = genericViewCount(value);
+  pane.innerHTML = '<div class="section-header">' + esc(view.label || view.id)
+    + ' <span class="badge">' + count + '</span></div>'
+    + '<pre class="generic-explorer-view">' + esc(JSON.stringify(value, null, 2)) + '</pre>';
+}
+
+function updateGenericExplorerBadges(views) {
+  for (var i = 0; i < views.length; i++) {
+    var view = views[i];
+    var tab = $('.tab[data-view-id="' + view.id + '"]');
+    if (!tab) continue;
+    var existing = tab.querySelector('.badge');
+    if (existing) existing.remove();
+    var count = genericViewCount(data[view.payload || view.id]);
+    if (!count) continue;
+    var badge = document.createElement('span');
+    badge.className = 'badge';
+    badge.textContent = count;
+    tab.appendChild(badge);
+  }
+}
+
 // Hover highlighting helpers
 function sourceRangeAttrs(range) {
   if (!range) return '';

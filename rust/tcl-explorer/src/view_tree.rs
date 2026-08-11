@@ -421,6 +421,192 @@ fn build_cfg(funcs: &[Value], post: bool) -> Vec<ViewNode> {
     }
 }
 
+fn build_dominators(d: &Value) -> Vec<ViewNode> {
+    let mut out = Vec::new();
+    for f in arr(d, "dominators") {
+        let blocks = arr(f, "blocks")
+            .iter()
+            .map(|b| {
+                ViewNode::leaf(
+                    format!(
+                        "{} idom={}",
+                        s(b, "block"),
+                        if b["idom"].is_null() {
+                            "—".to_owned()
+                        } else {
+                            s(b, "idom")
+                        }
+                    ),
+                    vec![
+                        det("frontier", join_str_array(&b["frontier"])),
+                        det("children", join_str_array(&b["children"])),
+                    ],
+                    Some("blue"),
+                )
+            })
+            .collect();
+        out.push(ViewNode::branch(
+            format!("function {} (entry {})", s(f, "name"), s(f, "entry")),
+            Vec::new(),
+            blocks,
+            Some("cyan"),
+        ));
+    }
+    if out.is_empty() {
+        vec![ViewNode::note("(no dominator data)", "dim")]
+    } else {
+        out
+    }
+}
+
+fn build_sccp(d: &Value) -> Vec<ViewNode> {
+    let mut out = Vec::new();
+    for f in arr(d, "sccp") {
+        let mut children = Vec::new();
+        for value in arr(f, "values") {
+            children.push(ViewNode::leaf(
+                format!(
+                    "{}#{} = {}",
+                    s(value, "variable"),
+                    s(value, "version"),
+                    s(value, "lattice")
+                ),
+                Vec::new(),
+                Some("green"),
+            ));
+        }
+        children.push(ViewNode::leaf(
+            format!(
+                "executable blocks: {}",
+                join_str_array(&f["executableBlocks"])
+            ),
+            vec![det(
+                "edges",
+                f["executableEdges"]
+                    .as_array()
+                    .map_or(0, Vec::len)
+                    .to_string(),
+            )],
+            Some("cyan"),
+        ));
+        for branch in arr(f, "constantBranches") {
+            children.push(ViewNode::leaf(
+                format!("branch {}: {}", s(branch, "block"), pystr(&branch["value"])),
+                vec![
+                    det("condition", s(branch, "condition")),
+                    det("take", s(branch, "takenTarget")),
+                ],
+                Some("blue"),
+            ));
+        }
+        out.push(ViewNode::branch(
+            format!("function {}", s(f, "name")),
+            Vec::new(),
+            children,
+            Some("cyan"),
+        ));
+    }
+    if out.is_empty() {
+        vec![ViewNode::note("(no SCCP data)", "dim")]
+    } else {
+        out
+    }
+}
+
+fn build_liveness(d: &Value) -> Vec<ViewNode> {
+    let mut out = Vec::new();
+    for f in arr(d, "liveness") {
+        let mut children = Vec::new();
+        for chain in arr(f, "chains") {
+            let uses = arr(chain, "uses");
+            children.push(ViewNode::leaf(
+                format!(
+                    "{}#{} ({} uses)",
+                    s(chain, "variable"),
+                    s(chain, "version"),
+                    uses.len()
+                ),
+                vec![
+                    det("definition", s(&chain["definition"], "block")),
+                    det("kind", s(&chain["definition"], "kind")),
+                    det(
+                        "use sites",
+                        uses.iter()
+                            .map(|u| format!("{}:{}", s(u, "block"), s(u, "kind")))
+                            .collect::<Vec<_>>()
+                            .join(", "),
+                    ),
+                ],
+                Some(if uses.is_empty() { "yellow" } else { "green" }),
+            ));
+        }
+        for dead in arr(f, "deadStores") {
+            children.push(ViewNode::leaf(
+                format!(
+                    "dead store {} {}#{}",
+                    s(dead, "block"),
+                    s(dead, "variable"),
+                    s(dead, "version")
+                ),
+                vec![det("statement", s(dead, "statementIndex"))],
+                Some("yellow"),
+            ));
+        }
+        out.push(ViewNode::branch(
+            format!("function {}", s(f, "name")),
+            Vec::new(),
+            children,
+            Some("cyan"),
+        ));
+    }
+    if out.is_empty() {
+        vec![ViewNode::note("(no liveness data)", "dim")]
+    } else {
+        out
+    }
+}
+
+fn build_semantic(d: &Value) -> Vec<ViewNode> {
+    let mut out = Vec::new();
+    for f in arr(d, "semantic") {
+        let mut children = Vec::new();
+        for block in arr(f, "blocks") {
+            let instructions = arr(block, "instructions")
+                .iter()
+                .map(|i| ViewNode::leaf(s(i, "kind"), Vec::new(), None))
+                .collect();
+            children.push(ViewNode::branch(
+                format!("block {} ({})", s(block, "index"), s(block, "terminator")),
+                Vec::new(),
+                instructions,
+                Some("blue"),
+            ));
+        }
+        for decline in arr(f, "opaque") {
+            children.push(ViewNode::leaf(
+                format!("opaque region {}", s(decline, "range")),
+                Vec::new(),
+                Some("yellow"),
+            ));
+        }
+        out.push(ViewNode::branch(
+            format!("{} [{}]", s(f, "name"), s(f, "status")),
+            vec![det("decline/proof", s(f, "decline"))],
+            children,
+            Some(if s(f, "status") == "available" {
+                "green"
+            } else {
+                "yellow"
+            }),
+        ));
+    }
+    if out.is_empty() {
+        vec![ViewNode::note("(no executable semantic data)", "dim")]
+    } else {
+        out
+    }
+}
+
 // --- Per-function tables ---
 
 /// Build per-function nodes from a list, skipping functions with no
@@ -1046,38 +1232,77 @@ fn build_taint(d: &Value) -> Vec<ViewNode> {
             Some("red"),
         ));
     }
-    for f in arr(d, "taintTracking") {
-        let ents: Vec<ViewNode> = arr(f, "entries")
-            .iter()
-            .map(|e| {
-                ViewNode::leaf(
-                    format!(
-                        "{}#{}: {}",
-                        s(e, "variable"),
-                        s(e, "version"),
-                        s(e, "taint")
-                    ),
-                    vec![
-                        det("variable", s(e, "variable")),
-                        det("version", s(e, "version")),
-                        det("taint", s(e, "taint")),
-                    ],
-                    None,
-                )
-            })
-            .collect();
-        out.push(ViewNode::branch(
-            format!("tracking {}", s(f, "name")),
-            Vec::new(),
-            ents,
-            Some("cyan"),
-        ));
-    }
     if out.is_empty() {
         vec![ViewNode::note("(no tainted data flows)", "dim")]
     } else {
         out
     }
+}
+
+fn build_taint_facts(d: &Value) -> Vec<ViewNode> {
+    let mut out = Vec::new();
+    for f in arr(d, "taintFacts") {
+        let entries = arr(f, "entries")
+            .iter()
+            .map(|entry| {
+                ViewNode::leaf(
+                    format!(
+                        "{}#{}: {}",
+                        s(entry, "variable"),
+                        s(entry, "version"),
+                        s(entry, "taint")
+                    ),
+                    Vec::new(),
+                    None,
+                )
+            })
+            .collect();
+        out.push(ViewNode::branch(
+            format!("function {}", s(f, "name")),
+            Vec::new(),
+            entries,
+            Some("cyan"),
+        ));
+    }
+    if out.is_empty() {
+        vec![ViewNode::note("(no taint lattice data)", "dim")]
+    } else {
+        out
+    }
+}
+
+fn build_connection_scope(d: &Value) -> Vec<ViewNode> {
+    let scope = &d["connectionScope"];
+    if !scope["available"].as_bool().unwrap_or(false) {
+        return vec![ViewNode::note("(no connection scope)", "dim")];
+    }
+    let mut out = vec![ViewNode::leaf(
+        "cross-event definitions/imports".to_owned(),
+        vec![
+            det("definitions", join_str_array(&scope["crossEventDefs"])),
+            det("imports", join_str_array(&scope["crossEventImports"])),
+            det(
+                "racy static definitions",
+                join_str_array(&scope["racyStaticDefs"]),
+            ),
+        ],
+        Some("yellow"),
+    )];
+    for summary in arr(scope, "summaries") {
+        out.push(ViewNode::leaf(
+            format!("event {}", s(summary, "event")),
+            vec![
+                det("definitions", join_str_array(&summary["defs"])),
+                det(
+                    "uses before definition",
+                    join_str_array(&summary["usesBeforeDef"]),
+                ),
+                det("unsets", join_str_array(&summary["unsets"])),
+            ],
+            Some("blue"),
+        ));
+    }
+    out
 }
 
 fn build_irules(d: &Value) -> Vec<ViewNode> {
@@ -1186,32 +1411,197 @@ fn build_callouts(d: &Value) -> Vec<ViewNode> {
     }
 }
 
-/// The view ids the TUI renders as interactive trees (everything with a
-/// builder). `asm` / `wasm` stay on the text renderer. `cst` is the parse
-/// tree (Rust has a single red-green CST, no separate "green tree").
-pub const TREE_VIEWS: &[&str] = &[
-    "structuralIndex",
-    "sourceMap",
-    "ir",
-    "cfg",
-    "ssa",
-    "loops",
-    "types",
-    "intervals",
-    "bounds",
-    "dataflow",
-    "interproc",
-    "unitScope",
-    "rendered",
-    "opt",
-    "optimiserPasses",
-    "gvn",
-    "shimmer",
-    "taint",
-    "irules",
-    "eventOrder",
-    "callouts",
-];
+// --- World SSA ---
+
+fn world_location_label(location: &Value) -> String {
+    let domain = s(location, "domain");
+    match s(location, "kind").as_str() {
+        "scoped" => format!("{domain}: {}", jstr(&location["subject"])),
+        "any" => "all mutable world state".to_owned(),
+        other => format!("{domain} ({other})"),
+    }
+}
+
+fn world_site_label(site: &Value) -> String {
+    match s(site, "kind").as_str() {
+        "cfg" => format!("block {} {}", s(site, "block"), jstr(&site["position"])),
+        "edge" => format!(
+            "edge {} → {} ({})",
+            s(site, "predecessor"),
+            s(site, "successor"),
+            jstr(&site["origin"])
+        ),
+        "node" => format!("node {}", jstr(&site["path"])),
+        other => other.to_owned(),
+    }
+}
+
+#[allow(clippy::too_many_lines)] // One tree is intentionally assembled in view order.
+fn build_world_ssa(d: &Value) -> Vec<ViewNode> {
+    arr(d, "worldSsa")
+        .iter()
+        .map(|function| {
+            let availability = &function["availability"];
+            let mut children = Vec::new();
+            let locations: Vec<ViewNode> = arr(function, "locations")
+                .iter()
+                .map(|location| {
+                    ViewNode::leaf(
+                        world_location_label(location),
+                        vec![
+                            det("kind", s(location, "kind")),
+                            det("domain", s(location, "domain")),
+                            det("interpreter", jstr(&location["interpreter"])),
+                            det("namespace", jstr(&location["namespace"])),
+                            det("subject", jstr(&location["subject"])),
+                        ],
+                        None,
+                    )
+                })
+                .collect();
+            children.push(ViewNode::branch(
+                format!("locations ({})", locations.len()),
+                Vec::new(),
+                locations,
+                Some("cyan"),
+            ));
+
+            let operations: Vec<ViewNode> = arr(function, "operations")
+                .iter()
+                .map(|operation| {
+                    let mut detail = vec![
+                        det("kind", s(operation, "kind")),
+                        det("version", s(operation, "version")),
+                        det("site", world_site_label(&operation["site"])),
+                        det("location", jstr(&operation["location"])),
+                    ];
+                    if operation["kind"] == "use" {
+                        detail.push(det("reaching version", s(operation, "reachingVersion")));
+                    }
+                    if operation["kind"] == "phi" {
+                        detail.push(det("includes initial", yn(&operation["includesInitial"])));
+                    }
+                    let incoming = arr(operation, "incoming")
+                        .iter()
+                        .map(|incoming| {
+                            ViewNode::leaf(
+                                format!(
+                                    "block {}: v{}",
+                                    s(incoming, "block"),
+                                    s(incoming, "version")
+                                ),
+                                Vec::new(),
+                                Some("dim"),
+                            )
+                        })
+                        .collect();
+                    ViewNode::branch(
+                        format!(
+                            "{} {} v{} @ {}",
+                            s(operation, "kind"),
+                            world_location_label(&operation["location"]),
+                            s(operation, "version"),
+                            world_site_label(&operation["site"])
+                        ),
+                        detail,
+                        incoming,
+                        match s(operation, "kind").as_str() {
+                            "clobber" => Some("yellow"),
+                            "phi" => Some("magenta"),
+                            _ => None,
+                        },
+                    )
+                })
+                .collect();
+            children.push(ViewNode::branch(
+                format!("operations ({})", operations.len()),
+                Vec::new(),
+                operations,
+                None,
+            ));
+
+            let invocations: Vec<ViewNode> = arr(function, "invocations")
+                .iter()
+                .map(|invoke| {
+                    let transitions: Vec<ViewNode> = arr(invoke, "transitions")
+                        .iter()
+                        .map(|transition| {
+                            let intents = arr(transition, "intents")
+                                .iter()
+                                .map(|intent| {
+                                    ViewNode::leaf(
+                                        format!(
+                                            "{} {}",
+                                            s(intent, "kind"),
+                                            world_location_label(&intent["location"])
+                                        ),
+                                        vec![
+                                            det("commit", s(intent, "commit")),
+                                            det("location", jstr(&intent["location"])),
+                                        ],
+                                        None,
+                                    )
+                                })
+                                .collect();
+                            ViewNode::branch(
+                                format!("{} ({})", s(transition, "kind"), s(transition, "commit")),
+                                vec![det("abrupt transfer", s(transition, "abruptTransfer"))],
+                                intents,
+                                Some("green"),
+                            )
+                        })
+                        .collect();
+                    let proof = &invoke["proof"];
+                    ViewNode::branch(
+                        format!("{} invocation", s(invoke, "resolution")),
+                        vec![
+                            det("command", s(invoke, "command")),
+                            det("completion", s(invoke, "completion")),
+                            det("transition knowledge", s(invoke, "transitionKnowledge")),
+                            det("result stability", jstr(&proof["resultStability"])),
+                            det(
+                                "dispatch dependencies",
+                                jstr(&proof["dispatchDependencies"]),
+                            ),
+                            det("abstention", s(proof, "abstention")),
+                        ],
+                        transitions,
+                        if s(invoke, "resolution") == "unresolved" {
+                            Some("yellow")
+                        } else {
+                            None
+                        },
+                    )
+                })
+                .collect();
+            children.push(ViewNode::branch(
+                format!("invocation proof ({})", invocations.len()),
+                Vec::new(),
+                invocations,
+                Some("blue"),
+            ));
+
+            ViewNode::branch(
+                format!(
+                    "function {} ({})",
+                    s(function, "name"),
+                    s(availability, "kind")
+                ),
+                vec![
+                    det("availability", s(availability, "kind")),
+                    det("executable IR", yn(&availability["hasExecutableIr"])),
+                    det("reason", s(availability, "reasonKind")),
+                ],
+                children,
+                if s(availability, "kind") == "available" {
+                    None
+                } else {
+                    Some("yellow")
+                },
+            )
+        })
+        .collect()
+}
 
 /// Build the [`ViewNode`] forest for `view` from serialised `data`.
 /// An unknown view id yields an empty forest.
@@ -1221,6 +1611,11 @@ pub fn build_view(view: &str, data: &Value) -> Vec<ViewNode> {
         "ir" => build_ir(data),
         "cfg" => build_cfg(arr(data, "cfgPreSsa"), false),
         "ssa" => build_cfg(arr(data, "cfgPostSsa"), true),
+        "worldSsa" => build_world_ssa(data),
+        "dominators" => build_dominators(data),
+        "sccp" => build_sccp(data),
+        "liveness" => build_liveness(data),
+        "semantic" => build_semantic(data),
         "loops" => build_loops(data),
         "types" => build_types(data),
         "intervals" => build_intervals(data),
@@ -1236,7 +1631,9 @@ pub fn build_view(view: &str, data: &Value) -> Vec<ViewNode> {
         "gvn" => build_gvn(data),
         "shimmer" => build_shimmer(data),
         "taint" => build_taint(data),
+        "taintFacts" => build_taint_facts(data),
         "irules" => build_irules(data),
+        "connectionScope" => build_connection_scope(data),
         "eventOrder" => build_event_order(data),
         "callouts" => build_callouts(data),
         _ => Vec::new(),
@@ -1254,18 +1651,29 @@ mod tests {
 
     #[test]
     fn tree_views_are_a_subset_of_view_meta() {
-        // The TUI's `TREE_VIEWS` ids and the canonical `VIEW_META` registry
-        // are two hand-synced vocabularies; an id present in one but spelled
-        // differently in the other (e.g. `event-order` vs `eventOrder`) would
-        // silently break the TUI's label/data lookup. Pin the contract.
-        let meta_ids: std::collections::HashSet<&str> = crate::views::VIEW_META
-            .iter()
-            .map(|(id, _, _)| *id)
-            .collect();
-        for id in TREE_VIEWS {
+        // Tree views are declared in the canonical descriptor table. A tree
+        // id without a builder would otherwise silently render as no data.
+        let meta_ids: std::collections::HashSet<&str> =
+            crate::views::VIEW_META.iter().map(|view| view.id).collect();
+        for id in crate::views::tree_view_ids() {
             assert!(
                 meta_ids.contains(id),
-                "TREE_VIEWS id {id:?} is not a known VIEW_META id",
+                "tree-view id {id:?} is not a known view descriptor id",
+            );
+        }
+    }
+
+    #[test]
+    fn every_tree_descriptor_has_a_shared_builder() {
+        let d = data("set x 1");
+        for descriptor in crate::views::VIEW_META
+            .iter()
+            .filter(|descriptor| descriptor.render_kind == crate::views::ViewRenderKind::Tree)
+        {
+            assert!(
+                !build_view(descriptor.id, &d).is_empty(),
+                "tree descriptor {} has no shared renderer",
+                descriptor.id
             );
         }
     }
@@ -1285,6 +1693,25 @@ mod tests {
         let func = &nodes[0];
         assert!(func.label.starts_with("function ::top"));
         assert!(func.children.iter().any(|b| b.label.contains("[entry]")));
+    }
+
+    #[test]
+    fn world_ssa_view_explains_availability_and_transition_policy() {
+        let d = data("interp create child\ninterp hide child puts\n");
+        let nodes = build_view("worldSsa", &d);
+        assert!(nodes[0].label.contains("function ::top"));
+        assert!(
+            nodes[0]
+                .children
+                .iter()
+                .any(|node| node.label.starts_with("operations"))
+        );
+        assert!(
+            nodes[0]
+                .children
+                .iter()
+                .any(|node| node.label.starts_with("invocation proof"))
+        );
     }
 
     #[test]

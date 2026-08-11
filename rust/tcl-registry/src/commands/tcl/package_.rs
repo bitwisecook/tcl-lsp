@@ -62,6 +62,26 @@ const PREFER_VALUES: &[ArgValue] = &[
     },
 ];
 
+/// `package vsatisfies` changed from a two-argument comparison in Tcl 8.4 to
+/// an OR-list of requirements in Tcl 8.5 (TIP 268).  Keep the common
+/// subcommand arity at the legacy exact shape: the generic resolver falls
+/// back to it when no dialect-specific form accepts the call, while Tcl
+/// 8.5+ selects the variadic form for a longer requirement list.
+const VSATISFIES_FORMS: &[SubCommandForm] = &[
+    SubCommandForm {
+        name: "tcl8.4",
+        arity: Arity::exact(2),
+        dialects: Some(DialectSet::TCL84),
+        ..SubCommandForm::DEFAULT
+    },
+    SubCommandForm {
+        name: "tcl8.5+",
+        arity: Arity::at_least(2),
+        dialects: Some(DialectSet::TCL85_PLUS),
+        ..SubCommandForm::DEFAULT
+    },
+];
+
 static SUBCOMMANDS: &[SubCommand] = &[
     SubCommand {
         name: "files",
@@ -270,11 +290,12 @@ static SUBCOMMANDS: &[SubCommand] = &[
         // tclsh 8.6.14 that fewer than 2 is a wrong-#-args error there
         // too); it just doesn't cap the 8.5+ upper bound, which is
         // unbounded.
-        arity: Arity::at_least(2),
+        arity: Arity::exact(2),
         detail: "Returns 1 if version satisfies at least one of the given requirements, 0 otherwise. From Tcl 8.5 (TIP 268) each requirement may be a bare min (min, or a later release with the same major version), min- (min or later, unbounded), or min-max (min inclusive, max exclusive); before 8.5 vsatisfies took exactly one plain version to compare against, under the same \"later, same major version\" rule.",
         synopsis: "package vsatisfies version requirement...",
         pure: true,
         return_type: Some(TclType::Boolean),
+        subcommand_forms: VSATISFIES_FORMS,
         ..SubCommand::DEFAULT
     },
 ];
@@ -341,5 +362,34 @@ pub fn spec() -> CommandSpec {
         }),
         forms: FORMS,
         ..CommandSpec::DEFAULT
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::{CommandRegistry, dialects::DialectSet};
+
+    #[test]
+    fn vsatisfies_arity_is_dialect_aware() {
+        let registry = CommandRegistry::build_default();
+        let legacy = registry
+            .resolve_call(
+                "package",
+                &["vsatisfies", "8.4", "8.4", "9.0"],
+                DialectSet::TCL84,
+            )
+            .expect("package is in the Tcl 8.4 registry");
+        assert!(legacy.form.is_none());
+        assert!(!legacy.arity().accepts(3));
+
+        let modern = registry
+            .resolve_call(
+                "package",
+                &["vsatisfies", "8.4", "8.4", "9.0"],
+                DialectSet::TCL85,
+            )
+            .expect("package is in the Tcl 8.5 registry");
+        assert_eq!(modern.form.map(|form| form.name), Some("tcl8.5+"));
+        assert!(modern.arity().accepts(3));
     }
 }

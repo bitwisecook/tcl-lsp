@@ -21,7 +21,125 @@ use crate::prelude::*;
 use crate::world_effect::{
     EffectAccess, EffectAccessMode, EffectFootprint, InterpreterScope, NamespaceScope, SubjectScope,
 };
-use tcl_cmd_core::trace::{TraceKind, parse_ops, resolve_type};
+use tcl_cmd_core::trace::{TraceKind, parse_legacy_variable_ops, parse_ops, resolve_type};
+
+const VARIABLE_TRACE_OPERATIONS: &[&str] = &["array", "read", "unset", "write"];
+const COMMAND_TRACE_OPERATIONS: &[&str] = &["delete", "rename"];
+const EXECUTION_TRACE_OPERATIONS: &[&str] = &["enter", "leave", "enterstep", "leavestep"];
+const LEGACY_VARIABLE_TRACE_OPERATIONS: &[&str] = &["r", "w", "u", "a"];
+const EXECUTION_TRACE_CALLBACK_ARITIES: AppendedAritySet =
+    AppendedAritySet::from_sorted_unique(&[2, 4]);
+
+fn operations_for(kind: TraceKind) -> &'static [&'static str] {
+    match kind {
+        TraceKind::Variable => VARIABLE_TRACE_OPERATIONS,
+        TraceKind::Command => COMMAND_TRACE_OPERATIONS,
+        TraceKind::Execution => EXECUTION_TRACE_OPERATIONS,
+    }
+}
+
+fn operation_subject(kind: TraceKind) -> &'static str {
+    match kind {
+        TraceKind::Variable => "variable trace operation list",
+        TraceKind::Command => "command trace operation list",
+        TraceKind::Execution => "execution trace operation list",
+    }
+}
+
+/// Validate the modern `trace add|remove type name opList prefix` relationship.
+///
+/// The type word accepts a unique prefix, but operation-list members are exact.
+/// This callback deliberately abstains when arity, type, or literalness is not
+/// proven; the generic arity/closed-value/parser diagnostics own those cases.
+fn validate_modern_trace_operations(
+    arguments: InvocationArguments<'_>,
+) -> LiteralArgumentValidation {
+    if arguments.exact_argv_len() != Some(5) {
+        return LiteralArgumentValidation::Abstain(LiteralValidationDecline::IncompleteInvocation);
+    }
+    let Some(type_word) = arguments.literal_at(1) else {
+        return LiteralArgumentValidation::Abstain(LiteralValidationDecline::NonLiteralArgument);
+    };
+    let Ok(kind) = resolve_type(type_word) else {
+        return LiteralArgumentValidation::Abstain(LiteralValidationDecline::InvalidDiscriminator);
+    };
+    let Some(op_list) = arguments.literal_at(3) else {
+        return LiteralArgumentValidation::Abstain(LiteralValidationDecline::NonLiteralArgument);
+    };
+    let Ok(elements) = tcl_syntax::list::split_list(op_list) else {
+        return LiteralArgumentValidation::Abstain(LiteralValidationDecline::MalformedLiteral);
+    };
+    let allowed = operations_for(kind);
+    if elements.is_empty() {
+        return LiteralArgumentValidation::Invalid(LiteralArgumentIssue {
+            argument_index: 3,
+            subject: operation_subject(kind),
+            reason: LiteralArgumentIssueReason::Empty,
+            allowed_values: allowed,
+            replacement_value: None,
+        });
+    }
+    let invalid: Vec<String> = elements
+        .iter()
+        .filter(|element| !allowed.contains(&element.as_ref()))
+        .map(ToString::to_string)
+        .collect();
+    if invalid.is_empty() {
+        return LiteralArgumentValidation::Valid;
+    }
+    let valid: Vec<&str> = elements
+        .iter()
+        .map(AsRef::as_ref)
+        .filter(|element| allowed.contains(element))
+        .collect();
+    let replacement_value = (!valid.is_empty()).then(|| tcl_syntax::list::join_list(valid));
+    LiteralArgumentValidation::Invalid(LiteralArgumentIssue {
+        argument_index: 3,
+        subject: operation_subject(kind),
+        reason: LiteralArgumentIssueReason::InvalidMembers(invalid),
+        allowed_values: allowed,
+        replacement_value,
+    })
+}
+
+/// Validate Tcl 8.x's deprecated concatenated `rwua` operation string.
+fn validate_legacy_trace_operations(
+    arguments: InvocationArguments<'_>,
+) -> LiteralArgumentValidation {
+    if arguments.exact_argv_len() != Some(4) {
+        return LiteralArgumentValidation::Abstain(LiteralValidationDecline::IncompleteInvocation);
+    }
+    let Some(operations) = arguments.literal_at(2) else {
+        return LiteralArgumentValidation::Abstain(LiteralValidationDecline::NonLiteralArgument);
+    };
+    if operations.is_empty() {
+        return LiteralArgumentValidation::Invalid(LiteralArgumentIssue {
+            argument_index: 2,
+            subject: "legacy variable trace operation string",
+            reason: LiteralArgumentIssueReason::Empty,
+            allowed_values: LEGACY_VARIABLE_TRACE_OPERATIONS,
+            replacement_value: None,
+        });
+    }
+    let invalid: Vec<String> = operations
+        .chars()
+        .filter(|operation| !matches!(operation, 'r' | 'w' | 'u' | 'a'))
+        .map(|operation| operation.to_string())
+        .collect();
+    if invalid.is_empty() {
+        LiteralArgumentValidation::Valid
+    } else {
+        LiteralArgumentValidation::Invalid(LiteralArgumentIssue {
+            argument_index: 2,
+            subject: "legacy variable trace operation string",
+            reason: LiteralArgumentIssueReason::InvalidMembers(invalid),
+            allowed_values: LEGACY_VARIABLE_TRACE_OPERATIONS,
+            // This is not a Tcl list. Avoid presenting the modern
+            // list-member removal action for the deprecated encoding.
+            replacement_value: None,
+        })
+    }
+}
 
 // Command-level fallback for call sites where the actual subcommand can't
 // be resolved statically (`dialect_side_effect_hints` in
@@ -52,9 +170,16 @@ const TRACE_ADD_TRANSITION_DOMAINS: &[StateTransitionDomain] = &[
 ];
 
 const TRACE_REMOVE_TRANSITION_DOMAINS: &[StateTransitionDomain] = &[
+    StateTransitionDomain::VariableCells,
     StateTransitionDomain::CommandTraces,
     StateTransitionDomain::ExecutionTraces,
     StateTransitionDomain::VariableTraces,
+];
+
+const TRACE_INFO_RESULT_DOMAINS: &[WorldStateDomain] = &[
+    WorldStateDomain::VariableTraces,
+    WorldStateDomain::CommandTraces,
+    WorldStateDomain::ExecutionTraces,
 ];
 
 const TRACE_EFFECT_COVERAGE: &[TransitionEffectCoverage] = &[
@@ -76,6 +201,20 @@ const TRACE_EFFECT_COVERAGE: &[TransitionEffectCoverage] = &[
             WorldStateDomain::VariableTraces,
             WorldStateDomain::CommandTraces,
             WorldStateDomain::ExecutionTraces,
+        ],
+    },
+];
+
+const LEGACY_TRACE_EFFECT_COVERAGE: &[TransitionEffectCoverage] = &[
+    TransitionEffectCoverage {
+        source: WorldEffectWriteSource::LegacySideEffect(SideEffectTarget::InterpState),
+        domains: &[WorldStateDomain::InterpreterPolicy],
+    },
+    TransitionEffectCoverage {
+        source: WorldEffectWriteSource::DeclaredWorldEffect,
+        domains: &[
+            WorldStateDomain::VariableStore,
+            WorldStateDomain::VariableTraces,
         ],
     },
 ];
@@ -103,6 +242,24 @@ const TRACE_REMOVE_TRANSITIONS: StateTransitionDescriptor = StateTransitionDescr
         domains: TRACE_REMOVE_TRANSITION_DOMAINS,
     }],
     effect_coverage: TRACE_EFFECT_COVERAGE,
+    commit: StateTransitionCommit::OnOkOnly,
+};
+
+const LEGACY_TRACE_ADD_TRANSITIONS: StateTransitionDescriptor = StateTransitionDescriptor {
+    composition: StateTransitionComposition::Extend,
+    resolver: Some(legacy_trace_add_state_transitions),
+    argument_shape: StateTransitionArgumentShape::Positional,
+    dynamic_widening: &[],
+    effect_coverage: LEGACY_TRACE_EFFECT_COVERAGE,
+    commit: StateTransitionCommit::OnOkOnly,
+};
+
+const LEGACY_TRACE_REMOVE_TRANSITIONS: StateTransitionDescriptor = StateTransitionDescriptor {
+    composition: StateTransitionComposition::Extend,
+    resolver: Some(legacy_trace_remove_state_transitions),
+    argument_shape: StateTransitionArgumentShape::Positional,
+    dynamic_widening: &[],
+    effect_coverage: LEGACY_TRACE_EFFECT_COVERAGE,
     commit: StateTransitionCommit::OnOkOnly,
 };
 
@@ -227,6 +384,32 @@ const TRACE_INFO_DYNAMIC_EFFECT_ACCESSES: &[StaticEffectAccess] = &[
     ),
 ];
 
+const LEGACY_TRACE_DYNAMIC_EFFECT_ACCESSES: &[StaticEffectAccess] = &[
+    StaticEffectAccess::new(
+        WorldStateDomain::VariableStore,
+        EffectAccessMode::ReadWrite,
+        StaticInterpreterScope::Current,
+        StaticNamespaceScope::Current,
+        StaticSubjectScope::Wildcard,
+    ),
+    StaticEffectAccess::new(
+        WorldStateDomain::VariableTraces,
+        EffectAccessMode::ReadWrite,
+        StaticInterpreterScope::Current,
+        StaticNamespaceScope::Current,
+        StaticSubjectScope::Wildcard,
+    ),
+];
+
+const LEGACY_TRACE_INFO_DYNAMIC_EFFECT_ACCESSES: &[StaticEffectAccess] =
+    &[StaticEffectAccess::new(
+        WorldStateDomain::VariableTraces,
+        EffectAccessMode::Read,
+        StaticInterpreterScope::Current,
+        StaticNamespaceScope::Current,
+        StaticSubjectScope::Wildcard,
+    )];
+
 const TRACE_ADD_EFFECTS: WorldEffectDescriptor = WorldEffectDescriptor {
     composition: WorldEffectComposition::Extend,
     static_footprint: StaticEffectFootprint::EMPTY,
@@ -253,6 +436,36 @@ const TRACE_INFO_EFFECTS: WorldEffectDescriptor = WorldEffectDescriptor {
     resolver: Some(trace_info_world_effects),
     dynamic_fallback: WorldEffectDynamicFallback::Declared(StaticEffectFootprint {
         accesses: TRACE_INFO_DYNAMIC_EFFECT_ACCESSES,
+        callback: CallbackEffect::NONE,
+    }),
+};
+
+const LEGACY_TRACE_ADD_EFFECTS: WorldEffectDescriptor = WorldEffectDescriptor {
+    composition: WorldEffectComposition::Extend,
+    static_footprint: StaticEffectFootprint::EMPTY,
+    resolver: Some(legacy_trace_add_world_effects),
+    dynamic_fallback: WorldEffectDynamicFallback::Declared(StaticEffectFootprint {
+        accesses: LEGACY_TRACE_DYNAMIC_EFFECT_ACCESSES,
+        callback: CallbackEffect::NONE,
+    }),
+};
+
+const LEGACY_TRACE_REMOVE_EFFECTS: WorldEffectDescriptor = WorldEffectDescriptor {
+    composition: WorldEffectComposition::Extend,
+    static_footprint: StaticEffectFootprint::EMPTY,
+    resolver: Some(legacy_trace_remove_world_effects),
+    dynamic_fallback: WorldEffectDynamicFallback::Declared(StaticEffectFootprint {
+        accesses: LEGACY_TRACE_DYNAMIC_EFFECT_ACCESSES,
+        callback: CallbackEffect::NONE,
+    }),
+};
+
+const LEGACY_TRACE_INFO_EFFECTS: WorldEffectDescriptor = WorldEffectDescriptor {
+    composition: WorldEffectComposition::Extend,
+    static_footprint: StaticEffectFootprint::EMPTY,
+    resolver: Some(legacy_trace_info_world_effects),
+    dynamic_fallback: WorldEffectDynamicFallback::Declared(StaticEffectFootprint {
+        accesses: LEGACY_TRACE_INFO_DYNAMIC_EFFECT_ACCESSES,
         callback: CallbackEffect::NONE,
     }),
 };
@@ -342,6 +555,67 @@ fn trace_remove_state_transitions(arguments: InvocationArguments<'_>) -> StateTr
     })
 }
 
+fn legacy_trace_operations(op_string: TransitionSubject) -> Option<TraceOperationSet> {
+    match op_string {
+        TransitionSubject::Literal(op_string) => {
+            let parsed = parse_legacy_variable_ops(op_string.as_bytes()).ok()?;
+            ["array", "read", "unset", "write"]
+                .into_iter()
+                .filter(|operation| parsed.contains(operation))
+                .map(trace_operation)
+                .collect::<Option<Vec<_>>>()
+                .map(TraceOperationSet::Known)
+        }
+        unknown @ TransitionSubject::Unknown { .. } => Some(TraceOperationSet::Unknown(unknown)),
+    }
+}
+
+fn legacy_trace_state_transition(
+    arguments: InvocationArguments<'_>,
+    action: fn(TraceTarget, TraceOperationSet, TransitionSubject) -> TraceTransition,
+) -> StateTransitions {
+    let mut transitions = StateTransitions::default();
+    if arguments.exact_argv_len() != Some(4) {
+        return transitions;
+    }
+    let (Some(target), Some(op_string), Some(prefix)) = (
+        TransitionSubject::from_argument(arguments, 1),
+        TransitionSubject::from_argument(arguments, 2),
+        TransitionSubject::from_argument(arguments, 3),
+    ) else {
+        return transitions;
+    };
+    let Some(operations) = legacy_trace_operations(op_string) else {
+        return transitions;
+    };
+    transitions.push(StateTransition::Trace(action(
+        TraceTarget::Variable(target),
+        operations,
+        prefix,
+    )));
+    transitions
+}
+
+fn legacy_trace_add_state_transitions(arguments: InvocationArguments<'_>) -> StateTransitions {
+    legacy_trace_state_transition(arguments, |target, operations, prefix| {
+        TraceTransition::Add {
+            target,
+            operations,
+            prefix,
+        }
+    })
+}
+
+fn legacy_trace_remove_state_transitions(arguments: InvocationArguments<'_>) -> StateTransitions {
+    legacy_trace_state_transition(arguments, |target, operations, prefix| {
+        TraceTransition::Remove {
+            target,
+            operations,
+            prefix,
+        }
+    })
+}
+
 fn trace_effect_access(
     footprint: &mut EffectFootprint,
     domain: WorldStateDomain,
@@ -416,11 +690,59 @@ fn trace_add_world_effects(arguments: InvocationArguments<'_>) -> EffectFootprin
 }
 
 fn trace_remove_world_effects(arguments: InvocationArguments<'_>) -> EffectFootprint {
-    trace_world_effects(arguments, EffectAccessMode::ReadWrite, false)
+    // Removing the last trace from an otherwise undefined variable destroys
+    // the placeholder cell that `trace add variable` created. This is visible
+    // through `namespace which -variable`, so removal touches both domains.
+    trace_world_effects(arguments, EffectAccessMode::ReadWrite, true)
 }
 
 fn trace_info_world_effects(arguments: InvocationArguments<'_>) -> EffectFootprint {
     trace_world_effects(arguments, EffectAccessMode::Read, false)
+}
+
+fn legacy_trace_world_effects(
+    arguments: InvocationArguments<'_>,
+    trace_mode: EffectAccessMode,
+) -> EffectFootprint {
+    let mut footprint = EffectFootprint::default();
+    let Some(target) = arguments.literal_at(1) else {
+        return footprint;
+    };
+    trace_effect_access(
+        &mut footprint,
+        WorldStateDomain::VariableStore,
+        EffectAccessMode::ReadWrite,
+        target,
+    );
+    trace_effect_access(
+        &mut footprint,
+        WorldStateDomain::VariableTraces,
+        trace_mode,
+        target,
+    );
+    footprint
+}
+
+fn legacy_trace_add_world_effects(arguments: InvocationArguments<'_>) -> EffectFootprint {
+    legacy_trace_world_effects(arguments, EffectAccessMode::ReadWrite)
+}
+
+fn legacy_trace_remove_world_effects(arguments: InvocationArguments<'_>) -> EffectFootprint {
+    legacy_trace_world_effects(arguments, EffectAccessMode::ReadWrite)
+}
+
+fn legacy_trace_info_world_effects(arguments: InvocationArguments<'_>) -> EffectFootprint {
+    let mut footprint = EffectFootprint::default();
+    let Some(target) = arguments.literal_at(1) else {
+        return footprint;
+    };
+    trace_effect_access(
+        &mut footprint,
+        WorldStateDomain::VariableTraces,
+        EffectAccessMode::Read,
+        target,
+    );
+    footprint
 }
 
 /// Resolve a `trace add|remove` type word (`variable`/`command`/
@@ -475,20 +797,58 @@ fn trace_remove_arg_roles(args: &[&str]) -> Vec<(u8, ArgRole)> {
 /// The invoked arity of a `trace add/remove <type> name ops cmdPrefix`
 /// callback (C Tcl 9.0): a `variable` trace fires `cmdPrefix name1 name2 op`
 /// (3), a `command` trace fires `cmdPrefix oldName newName op` (3), an
-/// `execution` trace fires 2–4 args (`enter`/`leave`/`enterstep`/`leavestep`),
-/// so `AtLeast(2)`.  A `remove` only references the handler (it is matched, not
-/// invoked), so it carries `Unknown` — recorded as a reference, not
-/// arity-checked.
-fn trace_type_command_prefix(args: &[&str], installing: bool) -> Vec<(u8, AppendedArity)> {
+/// `execution` trace fires exactly 2 args for `enter`/`enterstep` and exactly
+/// 4 for `leave`/`leavestep`; a mixed literal list therefore requires the
+/// callback to accept the finite union `{2, 4}`. A `remove` only references
+/// the handler (it is matched, not invoked), so it carries `Unknown` —
+/// recorded as a reference, not arity-checked.
+///
+/// The operation word is a Tcl list. Dynamic, malformed, empty, or invalid
+/// lists carry `Unknown`: the registration cannot be proved to install any
+/// particular callback contract, and the literal validator/parser owns its
+/// own diagnostics.
+fn trace_type_command_prefix(
+    args: CommandPrefixArguments<'_>,
+    installing: bool,
+) -> Vec<(u8, AppendedArity)> {
     // args after the subcommand word: `type name ops cmdPrefix` (index 3).
     if args.len() <= 3 {
         return Vec::new();
     }
     let arity = if installing {
-        match args.first().and_then(|w| resolve_trace_type(w)) {
-            Some(TraceKind::Variable | TraceKind::Command) => AppendedArity::Exactly(3),
-            Some(TraceKind::Execution) => AppendedArity::AtLeast(2),
-            _ => AppendedArity::Unknown,
+        let Some(kind) = args.literal_at(0).and_then(resolve_trace_type) else {
+            return vec![(3, AppendedArity::Unknown)];
+        };
+        let Some(operation_list) = args.literal_at(2) else {
+            return vec![(3, AppendedArity::Unknown)];
+        };
+        let Ok(operations) = tcl_syntax::list::split_list(operation_list) else {
+            return vec![(3, AppendedArity::Unknown)];
+        };
+        let allowed = operations_for(kind);
+        if operations.is_empty()
+            || operations
+                .iter()
+                .any(|operation| !allowed.contains(&operation.as_ref()))
+        {
+            return vec![(3, AppendedArity::Unknown)];
+        }
+        match kind {
+            TraceKind::Variable | TraceKind::Command => AppendedArity::Exactly(3),
+            TraceKind::Execution => {
+                let has_two = operations
+                    .iter()
+                    .any(|operation| matches!(operation.as_ref(), "enter" | "enterstep"));
+                let has_four = operations
+                    .iter()
+                    .any(|operation| matches!(operation.as_ref(), "leave" | "leavestep"));
+                match (has_two, has_four) {
+                    (true, false) => AppendedArity::Exactly(2),
+                    (false, true) => AppendedArity::Exactly(4),
+                    (true, true) => AppendedArity::OneOf(EXECUTION_TRACE_CALLBACK_ARITIES),
+                    (false, false) => AppendedArity::Unknown,
+                }
+            }
         }
     } else {
         AppendedArity::Unknown
@@ -496,11 +856,11 @@ fn trace_type_command_prefix(args: &[&str], installing: bool) -> Vec<(u8, Append
     vec![(3, arity)]
 }
 
-fn trace_add_command_prefixes(args: &[&str]) -> Vec<(u8, AppendedArity)> {
+fn trace_add_command_prefixes(args: CommandPrefixArguments<'_>) -> Vec<(u8, AppendedArity)> {
     trace_type_command_prefix(args, true)
 }
 
-fn trace_remove_command_prefixes(args: &[&str]) -> Vec<(u8, AppendedArity)> {
+fn trace_remove_command_prefixes(args: CommandPrefixArguments<'_>) -> Vec<(u8, AppendedArity)> {
     trace_type_command_prefix(args, false)
 }
 
@@ -508,7 +868,10 @@ fn trace_remove_command_prefixes(args: &[&str]) -> Vec<(u8, AppendedArity)> {
 /// command prefix is the 3rd word (index 2).  `variable` installs a
 /// variable trace (`command name1 name2 op` → 3 args); `vdelete` only
 /// references the handler (`Unknown`).
-fn trace_legacy_command_prefix(args: &[&str], installing: bool) -> Vec<(u8, AppendedArity)> {
+fn trace_legacy_command_prefix(
+    args: CommandPrefixArguments<'_>,
+    installing: bool,
+) -> Vec<(u8, AppendedArity)> {
     if args.len() <= 2 {
         return Vec::new();
     }
@@ -520,11 +883,11 @@ fn trace_legacy_command_prefix(args: &[&str], installing: bool) -> Vec<(u8, Appe
     vec![(2, arity)]
 }
 
-fn trace_variable_command_prefixes(args: &[&str]) -> Vec<(u8, AppendedArity)> {
+fn trace_variable_command_prefixes(args: CommandPrefixArguments<'_>) -> Vec<(u8, AppendedArity)> {
     trace_legacy_command_prefix(args, true)
 }
 
-fn trace_vdelete_command_prefixes(args: &[&str]) -> Vec<(u8, AppendedArity)> {
+fn trace_vdelete_command_prefixes(args: CommandPrefixArguments<'_>) -> Vec<(u8, AppendedArity)> {
     trace_legacy_command_prefix(args, false)
 }
 
@@ -695,6 +1058,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         }],
         world_effects: Some(TRACE_ADD_EFFECTS),
         state_transitions: Some(TRACE_ADD_TRANSITIONS),
+        literal_argument_validator: Some(validate_modern_trace_operations),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -707,6 +1071,9 @@ static SUBCOMMANDS: &[SubCommand] = &[
         synopsis: "trace info type name",
         pure: true,
         return_type: Some(TclType::List),
+        result_stability: Some(ResultStability::ReadsVersionedWorld(
+            TRACE_INFO_RESULT_DOMAINS,
+        )),
         arg_values: &[(0, TRACE_TYPE_VALUES)],
         closed_value_args: &[0],
         arg_values_accept_prefix: true,
@@ -747,6 +1114,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         }],
         world_effects: Some(TRACE_REMOVE_EFFECTS),
         state_transitions: Some(TRACE_REMOVE_TRANSITIONS),
+        literal_argument_validator: Some(validate_modern_trace_operations),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -767,6 +1135,9 @@ static SUBCOMMANDS: &[SubCommand] = &[
             connection_side: ConnectionSide::None,
             dialects: None,
         }],
+        world_effects: Some(LEGACY_TRACE_ADD_EFFECTS),
+        state_transitions: Some(LEGACY_TRACE_ADD_TRANSITIONS),
+        literal_argument_validator: Some(validate_legacy_trace_operations),
         // Deprecated legacy form; removed in Tcl 9.0 (8.4-8.6 only) — the
         // 9.0/9.1 trace.n manpages drop both the SYNOPSIS line and the
         // entire "For backwards compatibility..." paragraph describing it.
@@ -791,6 +1162,9 @@ static SUBCOMMANDS: &[SubCommand] = &[
             connection_side: ConnectionSide::None,
             dialects: None,
         }],
+        world_effects: Some(LEGACY_TRACE_REMOVE_EFFECTS),
+        state_transitions: Some(LEGACY_TRACE_REMOVE_TRANSITIONS),
+        literal_argument_validator: Some(validate_legacy_trace_operations),
         // Deprecated legacy form; removed in Tcl 9.0 (8.4-8.6 only).
         dialects: Some(DialectSet::TCL8X),
         ..SubCommand::DEFAULT
@@ -803,6 +1177,9 @@ static SUBCOMMANDS: &[SubCommand] = &[
         synopsis: "trace vinfo name",
         pure: true,
         return_type: Some(TclType::List),
+        result_stability: Some(ResultStability::ReadsVersionedWorld(&[
+            WorldStateDomain::VariableTraces,
+        ])),
         side_effects: &[SideEffect {
             target: SideEffectTarget::InterpState,
             reads: true,
@@ -810,6 +1187,8 @@ static SUBCOMMANDS: &[SubCommand] = &[
             connection_side: ConnectionSide::None,
             dialects: None,
         }],
+        world_effects: Some(LEGACY_TRACE_INFO_EFFECTS),
+        state_transitions: Some(StateTransitionDescriptor::EMPTY),
         // Deprecated legacy form; removed in Tcl 9.0 (8.4-8.6 only).
         dialects: Some(DialectSet::TCL8X),
         ..SubCommand::DEFAULT
@@ -883,6 +1262,9 @@ pub fn spec() -> CommandSpec {
         }),
         forms: FORMS,
         side_effects: SIDE_EFFECTS,
+        dispatch_dependencies: Some(DispatchDependencyDescriptor::replace(
+            DispatchDependencies::NONE,
+        )),
         ..CommandSpec::DEFAULT
     }
 }
@@ -894,6 +1276,197 @@ mod tests {
         CommandRegistry, InvocationWord, InvocationWordKind, StateTransitionFact,
         StateTransitionWidening,
     };
+
+    #[test]
+    fn registry_validates_each_modern_operation_domain_and_builds_a_list_value_fix() {
+        let registry = CommandRegistry::build_default();
+        for (kind, operations, invalid, allowed, replacement) in [
+            (
+                "variable",
+                "read bogus write",
+                "bogus",
+                VARIABLE_TRACE_OPERATIONS,
+                "read write",
+            ),
+            (
+                "command",
+                "delete read rename",
+                "read",
+                COMMAND_TRACE_OPERATIONS,
+                "delete rename",
+            ),
+            (
+                "execution",
+                "enter rename leavestep",
+                "rename",
+                EXECUTION_TRACE_OPERATIONS,
+                "enter leavestep",
+            ),
+        ] {
+            let arguments = ["add", kind, "target", operations, "callback"];
+            let invocation = registry
+                .resolve_invocation("trace", &arguments, DialectSet::TCL90)
+                .expect("modern trace form resolves");
+            assert_eq!(
+                invocation.validate_literal_arguments(),
+                Some(LiteralArgumentValidation::Invalid(LiteralArgumentIssue {
+                    argument_index: 3,
+                    subject: operation_subject(resolve_type(kind).unwrap()),
+                    reason: LiteralArgumentIssueReason::InvalidMembers(vec![invalid.to_owned()]),
+                    allowed_values: allowed,
+                    replacement_value: Some(replacement.to_owned()),
+                }))
+            );
+        }
+    }
+
+    #[test]
+    fn registry_abstains_on_dynamic_malformed_incomplete_and_invalid_type_operations() {
+        let registry = CommandRegistry::build_default();
+        let dynamic = [
+            InvocationWord::Literal("add"),
+            InvocationWord::Literal("variable"),
+            InvocationWord::Literal("target"),
+            InvocationWord::Dynamic,
+            InvocationWord::Literal("callback"),
+        ];
+        let invocation = registry
+            .resolve_structured_invocation(
+                crate::InvocationWords::structured(InvocationWord::Literal("trace"), &dynamic),
+                DialectSet::TCL90,
+            )
+            .resolved()
+            .expect("dynamic one-word argument keeps the invocation resolvable");
+        assert_eq!(
+            invocation.validate_literal_arguments(),
+            Some(LiteralArgumentValidation::Abstain(
+                LiteralValidationDecline::NonLiteralArgument
+            ))
+        );
+
+        for (arguments, decline) in [
+            (
+                &["add", "variable", "target", "{unterminated", "callback"][..],
+                LiteralValidationDecline::MalformedLiteral,
+            ),
+            (
+                &["add", "variable", "target", "read"][..],
+                LiteralValidationDecline::IncompleteInvocation,
+            ),
+            (
+                &["add", "not-a-type", "target", "read", "callback"][..],
+                LiteralValidationDecline::InvalidDiscriminator,
+            ),
+        ] {
+            let invocation = registry
+                .resolve_invocation("trace", arguments, DialectSet::TCL90)
+                .expect("literal trace head resolves even when an argument is invalid");
+            assert_eq!(
+                invocation.validate_literal_arguments(),
+                Some(LiteralArgumentValidation::Abstain(decline))
+            );
+        }
+    }
+
+    #[test]
+    fn empty_and_all_invalid_modern_lists_never_offer_an_invalid_empty_replacement() {
+        let registry = CommandRegistry::build_default();
+        for operations in ["", "bogus nope"] {
+            let arguments = ["remove", "command", "target", operations, "callback"];
+            let invocation = registry
+                .resolve_invocation("trace", &arguments, DialectSet::TCL90)
+                .expect("modern trace remove resolves");
+            let Some(LiteralArgumentValidation::Invalid(issue)) =
+                invocation.validate_literal_arguments()
+            else {
+                panic!("empty/all-invalid operation list must be invalid");
+            };
+            assert_eq!(issue.replacement_value, None);
+        }
+    }
+
+    #[test]
+    fn legacy_validator_exists_only_on_tcl8_forms() {
+        let registry = CommandRegistry::build_default();
+        for dialect in [DialectSet::TCL84, DialectSet::TCL85, DialectSet::TCL86] {
+            let invocation = registry
+                .resolve_invocation("trace", &["variable", "target", "rwx", "callback"], dialect)
+                .expect("legacy trace variable resolves in Tcl 8.x");
+            let Some(LiteralArgumentValidation::Invalid(issue)) =
+                invocation.validate_literal_arguments()
+            else {
+                panic!("invalid legacy operation character must be reported");
+            };
+            assert_eq!(
+                issue.reason,
+                LiteralArgumentIssueReason::InvalidMembers(vec!["x".to_owned()])
+            );
+            assert_eq!(issue.allowed_values, LEGACY_VARIABLE_TRACE_OPERATIONS);
+            assert_eq!(issue.replacement_value, None);
+        }
+        assert!(
+            registry
+                .resolve_invocation(
+                    "trace",
+                    &["variable", "target", "rwx", "callback"],
+                    DialectSet::TCL90,
+                )
+                .and_then(|invocation| invocation.validate_literal_arguments())
+                .is_none(),
+            "the removed legacy subcommand must not acquire a Tcl 9 validator"
+        );
+    }
+
+    #[test]
+    fn execution_callback_arity_tracks_each_literal_operation_domain() {
+        let registry = CommandRegistry::build_default();
+        for (operations, expected) in [
+            ("enter enterstep", AppendedArity::Exactly(2)),
+            ("leave leavestep", AppendedArity::Exactly(4)),
+            (
+                "enter leavestep",
+                AppendedArity::OneOf(EXECUTION_TRACE_CALLBACK_ARITIES),
+            ),
+        ] {
+            assert_eq!(
+                registry.command_prefixes(
+                    "trace",
+                    &["add", "execution", "target", operations, "callback"]
+                ),
+                vec![(4, expected)],
+                "unexpected execution callback contract for {operations:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn execution_callback_arity_abstains_on_unproved_operation_lists() {
+        let registry = CommandRegistry::build_default();
+        for operations in ["{enter", "", "enter invalid"] {
+            assert_eq!(
+                registry.command_prefixes(
+                    "trace",
+                    &["add", "execution", "target", operations, "callback"]
+                ),
+                vec![(4, AppendedArity::Unknown)],
+                "malformed/empty/invalid operation lists must abstain"
+            );
+        }
+
+        let spellings = ["add", "execution", "target", "$operations", "callback"];
+        let words = [
+            InvocationWord::Literal("add"),
+            InvocationWord::Literal("execution"),
+            InvocationWord::Literal("target"),
+            InvocationWord::Dynamic,
+            InvocationWord::Literal("callback"),
+        ];
+        assert_eq!(
+            registry.command_prefixes_structured("trace", &spellings, &words),
+            vec![(4, AppendedArity::Unknown)],
+            "a substituted operation list is not its source spelling"
+        );
+    }
 
     #[test]
     fn modern_variable_add_canonicalises_duplicate_operations() {
@@ -1087,6 +1660,164 @@ mod tests {
                 .map(StateTransitions::facts),
             Some([StateTransitionFact {
                 transition: StateTransition::Trace(TraceTransition::Add { .. }),
+                commit: StateTransitionCommit::OnOkOnly,
+            }])
+        ));
+    }
+
+    #[test]
+    fn oracle_profiles_keep_legacy_forms_in_tcl8_only() {
+        let registry = CommandRegistry::build_default();
+        for dialect in [DialectSet::TCL84, DialectSet::TCL85, DialectSet::TCL86] {
+            for (arguments, expected) in [
+                (&["variable", "item", "rw", "prefix"][..], "variable"),
+                (&["vdelete", "item", "rw", "prefix"][..], "vdelete"),
+                (&["vinfo", "item"][..], "vinfo"),
+            ] {
+                let canonical = registry
+                    .resolve_invocation("trace", arguments, dialect)
+                    .and_then(|invocation| {
+                        invocation
+                            .facts()
+                            .subcommand
+                            .canonical_name()
+                            .map(str::to_owned)
+                    });
+                assert_eq!(canonical.as_deref(), Some(expected));
+            }
+        }
+        for dialect in [DialectSet::TCL90, DialectSet::TCL91] {
+            for arguments in [
+                &["variable", "item", "rw", "prefix"][..],
+                &["vdelete", "item", "rw", "prefix"][..],
+                &["vinfo", "item"][..],
+            ] {
+                let canonical = registry
+                    .resolve_invocation("trace", arguments, dialect)
+                    .and_then(|invocation| {
+                        invocation
+                            .facts()
+                            .subcommand
+                            .canonical_name()
+                            .map(str::to_owned)
+                    });
+                assert_eq!(canonical, None);
+            }
+        }
+    }
+
+    #[test]
+    fn legacy_forms_resolve_to_the_same_typed_variable_trace_domains() {
+        let registry = CommandRegistry::build_default();
+        let add = registry
+            .resolve_invocation(
+                "trace",
+                &["variable", "item", "awrw", "prefix"],
+                DialectSet::TCL86,
+            )
+            .expect("legacy add resolves")
+            .facts();
+        let remove = registry
+            .resolve_invocation(
+                "trace",
+                &["vdelete", "item", "awrw", "prefix"],
+                DialectSet::TCL86,
+            )
+            .expect("legacy remove resolves")
+            .facts();
+
+        for (facts, expected) in [(&add, true), (&remove, false)] {
+            assert!(facts.effects.accesses().iter().any(|access| {
+                access.domain == WorldStateDomain::VariableStore
+                    && access.mode == EffectAccessMode::Read
+            }));
+            assert!(facts.effects.accesses().iter().any(|access| {
+                access.domain == WorldStateDomain::VariableTraces
+                    && access.mode == EffectAccessMode::Read
+            }));
+            let declared = facts
+                .state_transitions
+                .declared()
+                .expect("legacy transition is declared");
+            assert!(
+                matches!(
+                    declared.facts(),
+                    [StateTransitionFact {
+                        transition: StateTransition::Trace(TraceTransition::Add {
+                            target: TraceTarget::Variable(TransitionSubject::Literal(target)),
+                            operations: TraceOperationSet::Known(operations),
+                            ..
+                        }),
+                        ..
+                    }] if expected && target == "item" && operations.as_slice() == [
+                        TraceOperation::Array,
+                        TraceOperation::Read,
+                        TraceOperation::Write,
+                    ]
+                ) || matches!(
+                    declared.facts(),
+                    [StateTransitionFact {
+                        transition: StateTransition::Trace(TraceTransition::Remove {
+                            target: TraceTarget::Variable(TransitionSubject::Literal(target)),
+                            operations: TraceOperationSet::Known(operations),
+                            ..
+                        }),
+                        ..
+                    }] if !expected && target == "item" && operations.as_slice() == [
+                        TraceOperation::Array,
+                        TraceOperation::Read,
+                        TraceOperation::Write,
+                    ]
+                )
+            );
+        }
+    }
+
+    #[test]
+    fn trace_info_results_and_dispatch_are_registry_versioned() {
+        let registry = CommandRegistry::build_default();
+        let facts = registry
+            .resolve_invocation(
+                "trace",
+                &["info", "execution", "llength"],
+                DialectSet::TCL90,
+            )
+            .expect("trace info resolves")
+            .facts();
+
+        assert_eq!(
+            facts.result_stability,
+            ResultStability::ReadsVersionedWorld(TRACE_INFO_RESULT_DOMAINS)
+        );
+        assert_eq!(facts.dispatch_dependencies, DispatchDependencies::BASE);
+    }
+
+    #[test]
+    fn removing_a_variable_trace_touches_the_placeholder_cell() {
+        let registry = CommandRegistry::build_default();
+        let facts = registry
+            .resolve_invocation(
+                "trace",
+                &["remove", "variable", "item", "write", "prefix"],
+                DialectSet::TCL90,
+            )
+            .expect("trace remove resolves")
+            .facts();
+
+        assert!(facts.effects.accesses().iter().any(|access| {
+            access.domain == WorldStateDomain::VariableStore
+                && access.mode == EffectAccessMode::Read
+        }));
+        assert!(matches!(
+            facts
+                .state_transitions
+                .declared()
+                .map(StateTransitions::facts),
+            Some([StateTransitionFact {
+                transition: StateTransition::Trace(TraceTransition::Remove {
+                    target: TraceTarget::Variable(_),
+                    ..
+                }),
                 commit: StateTransitionCommit::OnOkOnly,
             }])
         ));

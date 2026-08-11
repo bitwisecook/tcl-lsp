@@ -1,124 +1,42 @@
-# KCS: Codegen internals — LVT, linearisation, labels, peephole
+# Bytecode code-generation internals
 
-## Symptom
+This note describes the current Rust bytecode emitter. The public compiler
+front end produces a `CompilationUnit`; bytecode consumers use the emitter in
+`rust/tcl-compiler/src/codegen/` and the artefact types in `rust/tcl-bytecode/`.
 
-A contributor needs to understand how the bytecode emitter transforms CFG/SSA
-into instruction sequences, or is debugging a mismatch between our output and
-tclsh's disassembly.
+## Pipeline
 
-## Context
+1. `rust/tcl-compiler/src/codegen/emitter/generate.rs` drives module and
+   function emission from the retained CFG/SSA facts.
+2. `emitter/ordering.rs` linearises reachable CFG blocks and handles the
+   loop-specific ordering required by the bytecode layout.
+3. `statements.rs`, `expressions.rs`, `values.rs`, and `control_flow.rs` lower
+   statements, expressions, values, and terminators through `CodegenCtx`.
+4. `emitter/terminator.rs`, `loop_blocks.rs`, and `try_blocks.rs` emit branch,
+   loop, and exception-region structure.
+5. `tcl-bytecode::layout::resolve_layout` resolves symbolic labels and jump
+   offsets. The resulting `FunctionAsm` retains instructions, literals, local
+   variables, source spans, and error regions.
+6. `rust/tcl-compiler/src/codegen/peephole.rs` applies bytecode-local rewrites
+   after emission. Formatting and disassembly are provided by
+   `rust/tcl-bytecode/src/format.rs`.
 
-The codegen phase takes a `CompilationUnit` with CFG/SSA and produces
-`FunctionAsm` objects containing instruction lists, literal tables, and local
-variable tables (LVT).  The emitter performs block linearisation (RPO),
-bottom-tested loop reordering, label-based jump emission, iterative jump
-size optimisation, and peephole passes — all designed to match tclsh's
-bytecode output.
+`CodegenCtx` owns the `LocalVarTable`, literal table, source-span context, and
+the instruction buffer. It records labels symbolically until the shared
+layout pass can compute final offsets. Synthetic instructions may have no
+source span; this is represented explicitly rather than guessed from nearby
+source.
 
-Source: `compiler/codegen/bytecode/_emitter.py`,
-`compiler/codegen/bytecode/layout.py`,
-`compiler/codegen/bytecode/_peephole.py`,
-`compiler/codegen/bytecode/_types.py`
+## Boundaries
 
-## Content
+The bytecode VM executes the resulting `ModuleAsm`; it does not select a
+compiler backend. Tcl command semantics remain registry-owned, and generic
+invocation is emitted when a command shape has no safe bytecode hook. WASM is a
+separate target under `rust/tcl-compiler/src/codegen/wasm/` and has its sole
+public entry point in `compile_wasm`.
 
-### Step 1 — LVT allocation
+## Related
 
-The `_Emitter` constructor creates a `LocalVarTable` from the parameter list.
-Inside a `proc`, all variable accesses use LVT-indexed instructions
-(`loadScalar1 %v0`) instead of name-based stack operations (`loadStk`).
-
-```python
-LocalVarTable(params=("n",))
-# LVT slots: %v0 = "n"
-```
-
-### Step 2 — Block linearisation
-
-`_linearise()` performs a DFS from the entry block to produce a reverse
-post-order (RPO).  This determines instruction layout such that the common
-(fall-through) path appears immediately after each branch.
-
-For loops, `_reorder_bottom_tested()` detects back-edges and moves the loop
-body before the header, producing tclsh's condition-at-bottom layout:
-
-```
-Before (top-tested):   header → body → jump header
-After  (bottom-tested): jump header → body → header (jumpTrue body)
-```
-
-### Step 3 — Instruction emission with labels
-
-The emitter walks linearised blocks, placing labels and emitting instructions:
-
-```
-_place_label("entry_1")        → label at instruction 0
-  emit(LOAD_SCALAR1, %v0)     # load n
-  emit(PUSH1, lit("0"))       # push "0"
-  emit(LT)                    # n < 0
-  emit(JUMP_FALSE4, "L_else") # → else branch
-
-_place_label("if_then_3")
-  emit(LOAD_SCALAR1, %v0)
-  emit(UMINUS)
-  emit(JUMP4, "L_end")
-
-_place_label("L_else")
-  emit(LOAD_SCALAR1, %v0)
-
-_place_label("L_end")
-  emit(DONE)
-```
-
-### Step 4 — Jump size optimisation
-
-`optimise_jumps()` in `layout.py` iterates up to 10 times, replacing 4-byte
-jumps with 1-byte jumps when the relative offset fits in [-128, 127].
-Shortening jumps changes sizes which changes offsets — hence the iterative
-approach.
-
-### Step 5 — Label resolution
-
-`resolve_layout()` assigns concrete byte offsets and patches jump operands
-from label names to relative byte offsets.
-
-### Step 6 — Peephole passes
-
-1. **`_remove_trailing_pop()`**: Strip `pop; done` → `done` (last value
-   stays on stack for return).
-2. **`_fold_const_push_pop_nops()`**: Dead `push; pop` pairs become
-   `nop; nop; nop` — matching tclsh's 3-nop pattern for folded constants.
-3. **`_dedup_push_literals()`**: Deduplicate literal slots after nop-folding.
-
-### Worked example — `proc abs {n}`
-
-```
-  LVT:  %v0="n"
-  Literals:  0="0"
-
-  (0)  loadScalar1 %v0  # load n
-  (2)  push1 0          # "0"
-  (4)  lt               # n < 0 ?
-  (5)  jumpFalse1 +5    # jump to pc 10
-  (7)  loadScalar1 %v0  # load n (then-body)
-  (9)  uminus           # negate
-  (10) jump1 +3         # jump to pc 13
-  (12) loadScalar1 %v0  # load n (else-body)
-  (14) done
-```
-
-## Decision rule
-
-- If bytecode does not match tclsh, check linearisation order first (RPO may
-  differ if block ordering changed), then peephole passes.
-- LVT slots are allocated in parameter order, then in first-use order for
-  local variables.
-- The 4-byte → 1-byte jump optimisation is the most common source of size
-  differences vs a naïve emitter.
-
-## Related docs
-
-- [Example 27 in walkthroughs](../../../docs/design/example-script-walkthroughs.md#example-27-codegen-internals--labels-lvt-linearisation-peephole)
-- [GLOSSARY.md — LVT](../../GLOSSARY.md#lvt)
-- [kcs-codegen-module-map.md](../../../docs/design/compiler/codegen-module-map.md)
-- [kcs-bytecode-boundary.md](../../../docs/design/compiler/bytecode-boundary.md)
+- [Code-generation module map](codegen-module-map.md)
+- [Bytecode boundary](bytecode-boundary.md)
+- [Compiler pipeline overview](compiler-pipeline-overview.md)

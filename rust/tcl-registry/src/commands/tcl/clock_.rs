@@ -25,6 +25,21 @@ const FORMS: &[FormSpec] = &[FormSpec {
     dialects: None,
 }];
 
+// Calendar conversions can observe the host time-zone/locale database, Tcl's
+// loaded clock packages, and environment-backed variables such as `env(TZ)`.
+// The exact footprint varies by Tcl release and options, so the result key
+// keeps the conservative union while the ordinary effect footprint remains
+// undeclared.
+const CLOCK_CONTEXT_DOMAINS: &[WorldStateDomain] = &[
+    WorldStateDomain::HostCapabilities,
+    WorldStateDomain::PackageState,
+    WorldStateDomain::VariableStore,
+];
+const VERSIONED_CLOCK_CONTEXT_RESULT: SubCommand = SubCommand {
+    result_stability: Some(ResultStability::ReadsVersionedWorld(CLOCK_CONTEXT_DOMAINS)),
+    ..SubCommand::DEFAULT
+};
+
 /// Options accepted by `clock format`.
 ///
 /// Tcl 8.4's `clock format` only ever took `-format`/`-gmt`
@@ -285,7 +300,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
             (8, ADD_UNIT_VALUES),
         ],
         pure: true,
-        ..SubCommand::DEFAULT
+        ..VERSIONED_CLOCK_CONTEXT_RESULT
     },
     SubCommand {
         name: "clicks",
@@ -295,7 +310,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         options: CLICKS_OPTIONS,
         pure: true,
         return_type: Some(TclType::Int),
-        ..SubCommand::DEFAULT
+        ..SubCommand::VOLATILE_RESULT
     },
     SubCommand {
         name: "format",
@@ -310,7 +325,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         format_string_type: Some(FormatType::Clock),
         pure: true,
         return_type: Some(TclType::String),
-        ..SubCommand::DEFAULT
+        ..VERSIONED_CLOCK_CONTEXT_RESULT
     },
     SubCommand {
         name: "microseconds",
@@ -321,7 +336,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         synopsis: "clock microseconds",
         pure: true,
         return_type: Some(TclType::Int),
-        ..SubCommand::DEFAULT
+        ..SubCommand::VOLATILE_RESULT
     },
     SubCommand {
         name: "milliseconds",
@@ -332,7 +347,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         synopsis: "clock milliseconds",
         pure: true,
         return_type: Some(TclType::Int),
-        ..SubCommand::DEFAULT
+        ..SubCommand::VOLATILE_RESULT
     },
     SubCommand {
         name: "monotonic",
@@ -346,7 +361,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         synopsis: "clock monotonic",
         pure: true,
         return_type: Some(TclType::Int),
-        ..SubCommand::DEFAULT
+        ..SubCommand::VOLATILE_RESULT
     },
     SubCommand {
         name: "scan",
@@ -360,7 +375,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         // `FormatString` / `ScanFormat` argument role that locates the
         // word, it is the whole registry answer the LSP needs (#1185).
         format_string_type: Some(FormatType::Clock),
-        ..SubCommand::DEFAULT
+        ..SubCommand::VOLATILE_RESULT
     },
     SubCommand {
         name: "seconds",
@@ -369,7 +384,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         synopsis: "clock seconds",
         pure: true,
         return_type: Some(TclType::Int),
-        ..SubCommand::DEFAULT
+        ..SubCommand::VOLATILE_RESULT
     },
 ];
 

@@ -18,15 +18,11 @@
 
 //! The agnostic code-generation [`Backend`] trait.
 //!
-//! Family A of the cross-backend architecture
-//! ([`docs/design/common-runtime-emitter-architecture.md`] §3): the shared
-//! frontend (lexer → CST → IR → CFG → SSA → optimise) is backend-independent; a
-//! backend only owns *lowering* the CFG/IR to its artifact. The bytecode
-//! ("TCLVM") backend implements the trait by delegating to the existing
-//! `emitter` entry points, so the working emitter does not churn. A future WASM
-//! backend (or any other) sets its own associated artifact types and walks the
-//! same `CfgFunction.blocks`/`Terminator`; the associated types absorb the
-//! value-model / instruction-encoding difference.
+//! The shared frontend (lexer → CST → IR → CFG → SSA → optimise) is
+//! target-independent; a backend only owns lowering CFG/IR to its artifact.
+//! The bytecode ("TCLVM") backend implements this trait by delegating to the
+//! bytecode emitter entry points. WASM uses the separate structured [`Emit`]
+//! seam documented in `docs/design/compiler/wasm-codegen.md`.
 
 use tcl_registry::CommandRegistry;
 

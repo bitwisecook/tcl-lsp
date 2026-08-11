@@ -84,15 +84,16 @@ use tcl_registry::spec::{
 use tcl_registry::symbol_def::SymbolDef;
 use tcl_registry::taint::SetterConstraint;
 
-/// The three draft keys a [`Lifecycle`] is edited under.
+/// The four draft keys a [`Lifecycle`] is edited under.
 ///
-/// One `Lifecycle` value, three independent releases in the form — the
+/// One `Lifecycle` value, three independent releases and one quick-fix hook in the form — the
 /// studio has always split it, and every surface (command, subcommand,
-/// option) uses the same three keys.
+/// option) uses the same four keys.
 pub const LIFECYCLE_KEYS: &[&str] = &[
     "introduced_version",
     "deprecated_version",
     "retired_version",
+    "deprecation_fix",
 ];
 
 /// Where the studio surfaces one registry field.
@@ -173,6 +174,7 @@ pub fn witness_command_spec(spec: &CommandSpec) {
         var_write_typing: _,
         return_elements: _,
         var_elements_effect: _,
+        representation_effect: _,
         arg_types: _,
         subcommands: _,
         prefix_matching: _,
@@ -197,6 +199,8 @@ pub fn witness_command_spec(spec: &CommandSpec) {
         world_effects: _,
         state_transitions: _,
         dispatch_dependencies: _,
+        result_stability: _,
+        literal_argument_validator: _,
         inferred_storage_type: _,
         required_package: _,
         excluded_events: _,
@@ -208,6 +212,7 @@ pub fn witness_command_spec(spec: &CommandSpec) {
         side_switch_target: _,
         event_handler_priority: _,
         options: _,
+        option_constraints: _,
         reserved_trailing_words: _,
         arg_values: _,
         body_kind: _,
@@ -276,6 +281,10 @@ pub const COMMAND_SPEC: &[Field] = &[
     f("var_write_typing", Surface::Key("var_write_typing")),
     f("return_elements", Surface::Key("return_elements")),
     f("var_elements_effect", Surface::Key("var_elements_effect")),
+    f(
+        "representation_effect",
+        Surface::Key("representation_effect"),
+    ),
     f("arg_types", Surface::Key("arg_types")),
     f("subcommands", Surface::Key("subcommands")),
     f("prefix_matching", Surface::Key("prefix_matching")),
@@ -309,6 +318,11 @@ pub const COMMAND_SPEC: &[Field] = &[
         "dispatch_dependencies",
         Surface::Key("dispatch_dependencies"),
     ),
+    f("result_stability", Surface::Key("result_stability")),
+    f(
+        "literal_argument_validator",
+        Surface::Key("literal_argument_validator"),
+    ),
     f(
         "inferred_storage_type",
         Surface::Key("inferred_storage_type"),
@@ -329,6 +343,7 @@ pub const COMMAND_SPEC: &[Field] = &[
         Surface::Key("event_handler_priority"),
     ),
     f("options", Surface::Key("options")),
+    f("option_constraints", Surface::Key("option_constraints")),
     f(
         "reserved_trailing_words",
         Surface::Key("reserved_trailing_words"),
@@ -433,6 +448,7 @@ pub fn witness_sub_command(sub: &SubCommand) {
         var_write_typing: _,
         return_elements: _,
         var_elements_effect: _,
+        representation_effect: _,
         arg_types: _,
         pure: _,
         mutator: _,
@@ -444,6 +460,7 @@ pub fn witness_sub_command(sub: &SubCommand) {
         analyser_hook: _,
         command_table_effect: _,
         options: _,
+        option_constraints: _,
         min_abbrev: _,
         prefix_matching: _,
         arg_values: _,
@@ -474,6 +491,8 @@ pub fn witness_sub_command(sub: &SubCommand) {
         world_effects: _,
         state_transitions: _,
         dispatch_dependencies: _,
+        result_stability: _,
+        literal_argument_validator: _,
         destructive: _,
         returns_path: _,
         is_unescape: _,
@@ -506,6 +525,10 @@ pub const SUB_COMMAND: &[Field] = &[
     f("var_write_typing", Surface::Key("var_write_typing")),
     f("return_elements", Surface::Key("return_elements")),
     f("var_elements_effect", Surface::Key("var_elements_effect")),
+    f(
+        "representation_effect",
+        Surface::Key("representation_effect"),
+    ),
     f("arg_types", Surface::Key("arg_types")),
     f("pure", Surface::Key("pure")),
     f("mutator", Surface::Key("mutator")),
@@ -517,6 +540,7 @@ pub const SUB_COMMAND: &[Field] = &[
     f("analyser_hook", Surface::Key("analyser_hook")),
     f("command_table_effect", Surface::Key("command_table_effect")),
     f("options", Surface::Key("options")),
+    f("option_constraints", Surface::Key("option_constraints")),
     f("min_abbrev", Surface::Key("min_abbrev")),
     f("prefix_matching", Surface::Key("prefix_matching")),
     f("arg_values", Surface::Key("arg_values")),
@@ -561,6 +585,11 @@ pub const SUB_COMMAND: &[Field] = &[
     f(
         "dispatch_dependencies",
         Surface::Key("dispatch_dependencies"),
+    ),
+    f("result_stability", Surface::Key("result_stability")),
+    f(
+        "literal_argument_validator",
+        Surface::Key("literal_argument_validator"),
     ),
     f("destructive", Surface::Key("destructive")),
     f("returns_path", Surface::Key("returns_path")),
@@ -789,6 +818,7 @@ pub fn witness_lifecycle(lifecycle: &Lifecycle) {
         introduced: _,
         deprecated: _,
         retired: _,
+        deprecation_fix: _,
     } = lifecycle;
 }
 
@@ -797,6 +827,7 @@ pub const LIFECYCLE: &[Field] = &[
     f("introduced", Surface::Key("introduced_version")),
     f("deprecated", Surface::Key("deprecated_version")),
     f("retired", Surface::Key("retired_version")),
+    f("deprecation_fix", Surface::Key("deprecation_fix")),
 ];
 
 // ---------------------------------------------------------------------------
@@ -1297,7 +1328,7 @@ mod tests {
 
         witness_lifecycle(&Lifecycle::UNSPECIFIED);
         let mut life = Map::new();
-        draft::insert_lifecycle(&mut life, Lifecycle::UNSPECIFIED);
+        let _ = draft::insert_lifecycle(&mut life, Lifecycle::UNSPECIFIED);
         let life_keys: Vec<&str> = life.keys().map(String::as_str).collect();
         assert_carried("Lifecycle", LIFECYCLE, &life_keys);
     }
@@ -1472,7 +1503,7 @@ mod tests {
             d["subcommands"][0]["versioned_arg_values"],
             json!(
                 "&[VersionedArgValue { index: 0, value: \"utf-8\", lifecycle: Lifecycle { \
-                 introduced: None, deprecated: None, retired: None } }]"
+                 introduced: None, deprecated: None, retired: None, deprecation_fix: None } }]"
             )
         );
     }

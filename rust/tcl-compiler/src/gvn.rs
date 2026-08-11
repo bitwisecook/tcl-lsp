@@ -29,11 +29,12 @@ use tcl_core_types::DiagCode;
 
 use rustc_hash::{FxHashMap, FxHashSet};
 use tcl_lexer::Span;
-use tcl_registry::{CommandRegistry, StateTransitionKnowledge, Traits};
+use tcl_registry::{
+    CommandRegistry, DispatchDependencies, ResultStability, StateTransitionKnowledge, Traits,
+};
 
 use crate::cfg::{BlockId, CfgModule, Function as CfgFunction, Terminator};
 use crate::ir::{NodeId, Provenance, SourceSite, Statement};
-use crate::semantic_analysis::ExecutableAnalysisAvailability;
 use crate::side_effects::{EffectRegion, classify_side_effects};
 use crate::ssa::{SsaFunction, SsaStatement};
 
@@ -762,8 +763,6 @@ impl GvnSemanticFacts {
     fn from_function(function: &crate::compilation_unit::FunctionUnit) -> Option<Self> {
         let availability = function.semantic_facts.executable();
         let executable = availability.function()?;
-        let world_state_available =
-            matches!(availability, ExecutableAnalysisAvailability::Available(_));
         let mut facts = Self {
             sites: FxHashMap::default(),
         };
@@ -776,8 +775,13 @@ impl GvnSemanticFacts {
                 let key = SemanticSourceKey::from(invoke.source.span);
                 let eligibility = match &invoke.resolution {
                     crate::executable_ir::InvocationResolution::Resolved(resolved)
-                        if world_state_available
-                            && resolved_invocation_is_gvn_eligible(resolved) =>
+                        if resolved_invocation_is_gvn_eligible(
+                            resolved,
+                            GvnDispatchProof::from_world_state_versions(
+                                resolved,
+                                availability.world_state_ssa().is_some(),
+                            ),
+                        ) =>
                     {
                         GvnSiteEligibility::Eligible {
                             canonical_command: resolved.canonical_command.clone(),
@@ -821,21 +825,81 @@ impl GvnSemanticFacts {
     }
 }
 
-/// Return whether one resolved registry invocation provides the complete
-/// world-state proof required for GVN reuse.
+/// Live-dispatch evidence available to common GVN at one invocation site.
+///
+/// A registry resolution identifies the intended command semantics, while Tcl
+/// permits the binding, namespace lookup, traces, and interpreter policy to
+/// change underneath that resolution. World-state SSA currently versions
+/// those domains but does not track their contents, so a version cannot prove
+/// that a command/execution trace is absent. Keeping that limitation typed
+/// prevents a later optimisation from silently treating "SSA built" as the
+/// stronger closed-world proof.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum GvnDispatchProof {
+    /// Common analysis proved every required dependency stable at this point.
+    Proven { dependencies: DispatchDependencies },
+    /// Common analysis deliberately declined a dispatch proof.
+    Declined(GvnDispatchProofDecline),
+}
+
+/// Why common GVN could not prove live dispatch stable.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum GvnDispatchProofDecline {
+    /// The executable world-state graph was unavailable.
+    WorldStateUnavailable,
+    /// The graph versions the required domains but cannot prove their
+    /// contents (in particular, that command/execution traces are absent).
+    WorldStateContentsUnavailable { dependencies: DispatchDependencies },
+}
+
+impl GvnDispatchProof {
+    fn from_world_state_versions(
+        resolved: &tcl_registry::InvocationFacts,
+        world_state_available: bool,
+    ) -> Self {
+        if !world_state_available {
+            return Self::Declined(GvnDispatchProofDecline::WorldStateUnavailable);
+        }
+        if resolved.dispatch_dependencies.is_empty() {
+            return Self::Proven {
+                dependencies: DispatchDependencies::NONE,
+            };
+        }
+        Self::Declined(GvnDispatchProofDecline::WorldStateContentsUnavailable {
+            dependencies: resolved.dispatch_dependencies,
+        })
+    }
+
+    fn covers(self, required: DispatchDependencies) -> bool {
+        match self {
+            Self::Proven { dependencies } => required
+                .iter()
+                .all(|dependency| dependencies.contains(dependency)),
+            Self::Declined(_) => false,
+        }
+    }
+}
+
+/// Return whether one resolved registry invocation is a static GVN candidate.
 ///
 /// An empty effect vector on its own is not enough: transition coverage can
 /// remove a write from the ordinary footprint.  Reuse requires both the
-/// explicit pure/CSE registry traits and a closed, empty transition set, no
-/// direct state accesses, and no callback barrier.  The world-state SSA must
-/// also have built successfully before this helper is consulted.
-pub(crate) fn resolved_invocation_is_gvn_eligible(
+/// explicit pure/CSE registry traits, a referentially-transparent result, and
+/// a closed, empty transition set, no direct state accesses, and no callback
+/// barrier. Live dispatch stability is a separate proof applied by
+/// [`resolved_invocation_is_gvn_eligible`]. Versioned-world results fail closed
+/// until GVN includes those world versions in its expression key; volatile and
+/// undeclared results are never candidates.
+pub(crate) fn resolved_invocation_is_gvn_candidate(
     resolved: &tcl_registry::InvocationFacts,
 ) -> bool {
     if !resolved
         .traits
         .contains(Traits::PURE.union(Traits::CSE_CANDIDATE))
     {
+        return false;
+    }
+    if resolved.result_stability != ResultStability::ReferentiallyTransparent {
         return false;
     }
     if !resolved.effects.accesses().is_empty() || resolved.effects.requires_world_barrier() {
@@ -851,6 +915,15 @@ pub(crate) fn resolved_invocation_is_gvn_eligible(
         &resolved.state_transitions,
         StateTransitionKnowledge::Declared(transitions) if transitions.facts().is_empty()
     )
+}
+
+/// Return whether a static GVN candidate also has a live dispatch proof.
+fn resolved_invocation_is_gvn_eligible(
+    resolved: &tcl_registry::InvocationFacts,
+    dispatch: GvnDispatchProof,
+) -> bool {
+    resolved_invocation_is_gvn_candidate(resolved)
+        && dispatch.covers(resolved.dispatch_dependencies)
 }
 
 /// Return `true` when the statement's effects must invalidate
@@ -1886,9 +1959,10 @@ pub fn find_loop_invariants_for_cu(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::semantic_analysis::ExecutableAnalysisAvailability;
 
     #[test]
-    fn function_level_gvn_declines_mapped_pure_calls_without_closed_world_facts() {
+    fn function_level_gvn_declines_llength_without_live_dispatch_proof() {
         let registry = CommandRegistry::build_default();
         let cu = crate::compilation_unit::CompilationUnit::build_for_dialect(
             "llength {a b}\nllength {a b}",
@@ -1904,7 +1978,7 @@ mod tests {
         );
         assert!(
             find_redundancies_for_function(&registry, function, Some("tcl8.6")).is_empty(),
-            "a mapped invocation without explicit closed world effects must fail closed"
+            "registry purity is only a candidate: world-state versions do not prove command/execution traces absent"
         );
     }
 
@@ -1947,14 +2021,12 @@ mod tests {
     }
 
     #[test]
-    fn function_level_gvn_accepts_exact_mapped_registry_pure_call() {
+    fn function_level_gvn_declines_exact_mapped_pure_call_without_dispatch_proof() {
         let mut registry = CommandRegistry::build_default();
         registry.insert(tcl_registry::CommandSpec {
             name: "test::pure_cse",
             traits: Traits::PURE | Traits::CSE_CANDIDATE,
-            world_effects: Some(tcl_registry::WorldEffectDescriptor::EMPTY),
-            state_transitions: Some(tcl_registry::StateTransitionDescriptor::EMPTY),
-            ..tcl_registry::CommandSpec::DEFAULT
+            ..tcl_registry::CommandSpec::CLOSED_REFERENTIALLY_TRANSPARENT
         });
         let cu = crate::compilation_unit::CompilationUnit::build_for_dialect(
             "test::pure_cse value\ntest::pure_cse value",
@@ -1966,9 +2038,120 @@ mod tests {
             cu.top_level.semantic_facts.executable(),
             ExecutableAnalysisAvailability::Available(_)
         ));
-        let redundancies = find_redundancies_for_function(&registry, &cu.top_level, Some("tcl8.6"));
-        assert_eq!(redundancies.len(), 1);
-        assert_eq!(redundancies[0].expression_text, "test::pure_cse value");
+        assert!(
+            find_redundancies_for_function(&registry, &cu.top_level, Some("tcl8.6")).is_empty()
+        );
+    }
+
+    #[test]
+    fn function_level_gvn_declines_other_stable_commands_without_dispatch_proof() {
+        let registry = CommandRegistry::build_default();
+        for source in [
+            "format %s x\nformat %s x",
+            "lindex {a b} 0\nlindex {a b} 0",
+            "lreverse {a b}\nlreverse {a b}",
+        ] {
+            let cu = crate::compilation_unit::CompilationUnit::build_for_dialect(
+                source, &registry, false, "tcl9.0",
+            );
+            assert!(
+                find_redundancies_for_function(&registry, &cu.top_level, Some("tcl9.0")).is_empty(),
+                "closed stable registry category still needs a live dispatch proof: {source}"
+            );
+        }
+    }
+
+    #[test]
+    fn static_llength_candidate_requires_coverage_of_registry_dispatch_dependencies() {
+        let registry = CommandRegistry::build_default();
+        let resolved = registry
+            .resolve_invocation(
+                "llength",
+                &["a b"],
+                tcl_registry::prelude::DialectSet::TCL90,
+            )
+            .expect("llength resolves")
+            .facts();
+
+        assert!(resolved_invocation_is_gvn_candidate(&resolved));
+        assert!(matches!(
+            GvnDispatchProof::from_world_state_versions(&resolved, true),
+            GvnDispatchProof::Declined(
+                GvnDispatchProofDecline::WorldStateContentsUnavailable { dependencies }
+            ) if dependencies == resolved.dispatch_dependencies
+        ));
+        assert!(!resolved_invocation_is_gvn_eligible(
+            &resolved,
+            GvnDispatchProof::from_world_state_versions(&resolved, true),
+        ));
+        assert!(resolved_invocation_is_gvn_eligible(
+            &resolved,
+            GvnDispatchProof::Proven {
+                dependencies: resolved.dispatch_dependencies,
+            },
+        ));
+    }
+
+    #[test]
+    fn live_execution_trace_keeps_o105_suppressed() {
+        let registry = CommandRegistry::build_default();
+        let source = "proc observe {command op} {}\n\
+                      trace add execution llength enter observe\n\
+                      llength {a b}\n\
+                      llength {a b}";
+        let cu = crate::compilation_unit::CompilationUnit::build_for_dialect(
+            source, &registry, false, "tcl9.0",
+        );
+
+        assert!(matches!(
+            cu.top_level.semantic_facts.executable(),
+            ExecutableAnalysisAvailability::Available(_)
+        ));
+        assert!(
+            find_redundancies_for_function(&registry, &cu.top_level, Some("tcl9.0")).is_empty(),
+            "an execution-traced command is observably invoked twice"
+        );
+    }
+
+    #[test]
+    fn function_level_gvn_declines_volatile_result_despite_closed_effects() {
+        let mut registry = CommandRegistry::build_default();
+        registry.insert(tcl_registry::CommandSpec {
+            name: "test::volatile_cse",
+            traits: Traits::PURE | Traits::CSE_CANDIDATE,
+            result_stability: Some(ResultStability::Volatile),
+            world_effects: Some(tcl_registry::WorldEffectDescriptor::EMPTY),
+            state_transitions: Some(tcl_registry::StateTransitionDescriptor::EMPTY),
+            ..tcl_registry::CommandSpec::DEFAULT
+        });
+        let cu = crate::compilation_unit::CompilationUnit::build_for_dialect(
+            "test::volatile_cse\ntest::volatile_cse",
+            &registry,
+            false,
+            "tcl9.0",
+        );
+
+        assert!(
+            find_redundancies_for_function(&registry, &cu.top_level, Some("tcl9.0")).is_empty(),
+            "read-only volatile results must not become common subexpressions"
+        );
+    }
+
+    #[test]
+    fn function_level_gvn_declines_clock_seconds_and_versioned_clock_context() {
+        let registry = CommandRegistry::build_default();
+        for source in [
+            "clock seconds\nclock seconds",
+            "clock add 0 1 day\nclock add 0 1 day",
+        ] {
+            let cu = crate::compilation_unit::CompilationUnit::build_for_dialect(
+                source, &registry, false, "tcl9.0",
+            );
+            assert!(
+                find_redundancies_for_function(&registry, &cu.top_level, Some("tcl9.0")).is_empty(),
+                "clock result dependencies must make production GVN abstain: {source}"
+            );
+        }
     }
 
     fn entry(key: &[&str], block: &str, idx: usize) -> ValueEntry {

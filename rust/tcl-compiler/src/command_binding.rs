@@ -39,13 +39,16 @@
 
 use std::collections::{HashMap, HashSet};
 
-use crate::alias::detect_interp_alias;
 use crate::cfg::BlockId;
 use crate::cfg::Function as CfgFunction;
 use crate::ir::Statement;
 use crate::naming::is_dynamic_word;
 use crate::naming::normalise_qualified_name as nqn;
-use tcl_registry::{CommandRegistry, CommandTableEffect};
+use crate::var_escape::helpers::invocation_facts;
+use tcl_registry::{
+    CommandBindingDefinitionKind, CommandBindingTransition, CommandRegistry, CommandTableEffect,
+    StateTransition, StateTransitionDomain, TransitionSubject,
+};
 
 /// The lattice element a command name resolves to.
 ///
@@ -60,6 +63,9 @@ pub enum BindingKind {
     Builtin,
     /// A user procedure (`target` = its canonical qname).
     Proc,
+    /// A concrete registry-described command whose narrower identity is not
+    /// relevant to this lattice.
+    Command,
     /// A `TclOO`/snit/itcl class or instance command created by a
     /// registry-described definer (`target` = its canonical qname).
     /// Distinct from [`Self::Proc`] so `NAME destroy` — the universal
@@ -153,23 +159,149 @@ fn join_binding(a: &Binding, b: &Binding) -> Binding {
     Binding::of(BindingKind::Unknown)
 }
 
-/// Canonical qname defined by a `proc NAME params body` call, or `None`
-/// (empty / dynamic name).
-fn proc_qname_of(args: &[String]) -> Option<String> {
-    let name = args.first()?;
-    if name.is_empty() || is_dynamic_word(name) {
-        return None;
+fn literal_subject(subject: &TransitionSubject) -> Option<&str> {
+    match subject {
+        TransitionSubject::Literal(value) => Some(value),
+        TransitionSubject::Unknown { .. } => None,
     }
-    Some(nqn(name))
+}
+
+fn definition_binding(kind: CommandBindingDefinitionKind, qname: String) -> Binding {
+    let kind = match kind {
+        CommandBindingDefinitionKind::Command => BindingKind::Command,
+        CommandBindingDefinitionKind::Procedure => BindingKind::Proc,
+        CommandBindingDefinitionKind::Object => BindingKind::Class,
+    };
+    Binding {
+        kind,
+        target: Some(qname),
+    }
+}
+
+fn apply_binding_transition(
+    transition: &CommandBindingTransition,
+    state: &mut State,
+    registry: &CommandRegistry,
+) {
+    match transition {
+        CommandBindingTransition::Define { name, kind } => {
+            let Some(name) = literal_subject(name) else {
+                state.wildcard = true;
+                return;
+            };
+            if name.is_empty() {
+                return;
+            }
+            let qname = nqn(name);
+            state
+                .map
+                .insert(qname.clone(), definition_binding(*kind, qname));
+        }
+        CommandBindingTransition::Move { from, to } => {
+            let (Some(from), Some(to)) = (literal_subject(from), literal_subject(to)) else {
+                state.wildcard = true;
+                return;
+            };
+            let from = nqn(from);
+            let moved = binding_in(state, &from, registry);
+            state.map.insert(from, Binding::of(BindingKind::Opaque));
+            if !to.is_empty() {
+                state.map.insert(nqn(to), moved);
+            }
+        }
+        CommandBindingTransition::Delete { interpreter, name } => {
+            let affects_current = match interpreter {
+                None => true,
+                Some(subject) => match literal_subject(subject) {
+                    Some("") => true,
+                    Some(_) => false,
+                    None => {
+                        state.wildcard = true;
+                        return;
+                    }
+                },
+            };
+            if !affects_current {
+                return;
+            }
+            let Some(name) = literal_subject(name) else {
+                state.wildcard = true;
+                return;
+            };
+            state
+                .map
+                .insert(nqn(name), Binding::of(BindingKind::Opaque));
+        }
+        CommandBindingTransition::Alias {
+            source_interpreter,
+            alias,
+            target_interpreter: _,
+            target,
+        } => {
+            let Some(source_interpreter) = literal_subject(source_interpreter) else {
+                state.wildcard = true;
+                return;
+            };
+            if !source_interpreter.is_empty() {
+                return;
+            }
+            let (Some(alias), Some(target)) = (literal_subject(alias), literal_subject(target))
+            else {
+                state.wildcard = true;
+                return;
+            };
+            state.map.insert(
+                nqn(alias),
+                Binding {
+                    kind: BindingKind::Alias,
+                    target: Some(nqn(target)),
+                },
+            );
+        }
+        CommandBindingTransition::Unknown { .. } => state.wildcard = true,
+    }
+}
+
+/// Apply the registry's closed transition description.  `None` means the
+/// invocation was unresolved or deliberately unstamped, so the compatibility
+/// path below must remain conservative.
+fn apply_registry_transitions(
+    stmt: &Statement,
+    state: &mut State,
+    registry: &CommandRegistry,
+) -> Option<()> {
+    let facts = invocation_facts(stmt, registry)?;
+    let transitions = facts.state_transitions.declared()?;
+    for fact in transitions.facts() {
+        match &fact.transition {
+            StateTransition::CommandBinding(transition) => {
+                apply_binding_transition(transition, state, registry);
+            }
+            StateTransition::Widen(widening)
+                if widening
+                    .domains
+                    .contains(&StateTransitionDomain::CommandBindings) =>
+            {
+                state.wildcard = true;
+            }
+            StateTransition::Interpreter(_)
+            | StateTransition::VariableCellAlias(_)
+            | StateTransition::Namespace(_)
+            | StateTransition::Trace(_)
+            | StateTransition::ObjectDispatch(_)
+            | StateTransition::Widen(_) => {}
+        }
+    }
+    Some(())
 }
 
 /// Apply `stmt`'s command-table mutation to `state` in place.
 ///
-/// Recognises `proc` (definition / redefinition), `rename` (redirect or
-/// deletion), and `interp alias` — plus their dynamic variants, which
-/// collapse the state to a wildcard ⊤.  Which calls mutate the command
-/// table is registry data ([`CommandTableEffect`], resolved through the
-/// spec / `alias` subcommand stamps), not a name match here.
+/// Registry-declared [`StateTransition`] facts are authoritative for ordinary
+/// definitions, renames, deletions, and aliases.  Unstamped legacy mutators
+/// widen conservatively instead of being re-decoded here.  Runtime object
+/// receiver calls remain a small separate path because their source head is a
+/// value, not a statically registered command.
 fn stmt_gen(stmt: &Statement, state: &mut State, registry: &CommandRegistry) {
     let (Statement::Call { args, .. } | Statement::Barrier { args, .. }) = stmt else {
         return;
@@ -177,105 +309,62 @@ fn stmt_gen(stmt: &Statement, state: &mut State, registry: &CommandRegistry) {
     if state.wildcard {
         return; // already maximally conservative
     }
-    // The canonical command falls back to the source spelling; strip a
-    // leading `::` so both `proc` and `::proc` match.
+    if apply_registry_transitions(stmt, state, registry).is_some() {
+        return;
+    }
+
+    // The canonical command falls back to the source spelling.
     let cmd = stmt.canonical_command_or_source();
     let cmd_bare = cmd.strip_prefix("::").unwrap_or(cmd);
 
-    match registry.command_table_effect(cmd_bare, args.first().map(String::as_str)) {
-        Some(CommandTableEffect::DefinesProcedure) => match proc_qname_of(args) {
-            // `proc $x …` defines an unknown name — be conservative.
-            None => state.wildcard = true,
-            Some(qname) => {
-                state.map.insert(
-                    qname.clone(),
-                    Binding {
-                        kind: BindingKind::Proc,
-                        target: Some(qname),
-                    },
-                );
-            }
-        },
-        Some(CommandTableEffect::RenamesCommands) => {
-            if args.len() != 2 || is_dynamic_word(&args[0]) || is_dynamic_word(&args[1]) {
-                // `rename $old …` / `rename … [x]` can touch any command.
-                state.wildcard = true;
-                return;
-            }
-            let old = nqn(&args[0]);
-            let moved = binding_in(state, &old, registry);
-            // The old name is now unbound → falls through to `unknown`.
-            state.map.insert(old, Binding::of(BindingKind::Opaque));
-            if !args[1].is_empty() {
-                // The new name inherits whatever the old name denoted.
-                state.map.insert(nqn(&args[1]), moved);
-            }
-        }
-        Some(CommandTableEffect::CreatesAliases) => {
-            if let Some((alias_name, target_cmd, _prepended)) = detect_interp_alias(args) {
-                if is_dynamic_word(&alias_name) || is_dynamic_word(&target_cmd) {
-                    state.wildcard = true;
-                    return;
-                }
-                state.map.insert(
-                    nqn(&alias_name),
-                    Binding {
-                        kind: BindingKind::Alias,
-                        target: Some(nqn(&target_cmd)),
-                    },
-                );
-            } else {
-                // A non-current target path or a dynamic form we could
-                // not destructure — only the alias subcommand mutates.
-                state.wildcard = true;
-            }
-        }
-        _ => {
-            // Class lifecycle.  A registry-described definer creates a
-            // command (`oo::class create Animal {…}` → `Animal`;
-            // `snit::type Dog {…}` → `Dog`), and `NAME destroy` — the
-            // registry-declared destructive method on `oo::object`'s
-            // universal surface — deletes it again, so a later
-            // `Animal new` falls through to `unknown` (W128).
-            if let Some(created) = definer_created_command(registry, cmd, args) {
-                state.map.insert(
-                    nqn(&created),
-                    Binding {
-                        kind: BindingKind::Class,
-                        target: Some(nqn(&created)),
-                    },
-                );
-                return;
-            }
-            let head = nqn(cmd);
-            let head_binding = binding_in(state, &head, registry);
-            if head_binding.kind == BindingKind::Class {
-                if args
-                    .first()
-                    .is_some_and(|w| oo_destructive_method(registry, w))
-                {
-                    state.map.insert(head, Binding::of(BindingKind::Opaque));
-                } else if let Some(name_idx) = args.first().and_then(|method| {
-                    registry
-                        .is_manufacturer_method(method)
-                        .then(|| registry.uniform_manufacturer_names_instance_at(method))
-                        .flatten()
-                }) && let Some(name) = args.get(name_idx)
-                    && !is_dynamic_word(name)
-                {
-                    // A registry-exported, named manufacturer binds the
-                    // instance command, which carries the same object surface
-                    // (destroyable too).  The method spelling and name layout
-                    // both belong to the registry.
-                    state.map.insert(
-                        nqn(name),
-                        Binding {
-                            kind: BindingKind::Class,
-                            target: head_binding.target,
-                        },
-                    );
-                }
-            }
+    if matches!(
+        registry.command_table_effect(cmd_bare, args.first().map(String::as_str)),
+        Some(
+            CommandTableEffect::DefinesProcedure
+                | CommandTableEffect::RenamesCommands
+                | CommandTableEffect::CreatesAliases
+        )
+    ) {
+        state.wildcard = true;
+        return;
+    }
+
+    // Class lifecycle.  A registry-described definer creates a command;
+    // registry-declared object-surface methods can delete it or manufacture
+    // another named object command.
+    if let Some(created) = definer_created_command(registry, cmd, args) {
+        state.map.insert(
+            nqn(&created),
+            Binding {
+                kind: BindingKind::Class,
+                target: Some(nqn(&created)),
+            },
+        );
+        return;
+    }
+    let head = nqn(cmd);
+    let head_binding = binding_in(state, &head, registry);
+    if head_binding.kind == BindingKind::Class {
+        if args
+            .first()
+            .is_some_and(|w| registry.is_destructive_object_method(w))
+        {
+            state.map.insert(head, Binding::of(BindingKind::Opaque));
+        } else if let Some(name_idx) = args.first().and_then(|method| {
+            registry
+                .is_manufacturer_method(method)
+                .then(|| registry.uniform_manufacturer_names_instance_at(method))
+                .flatten()
+        }) && let Some(name) = args.get(name_idx)
+            && !is_dynamic_word(name)
+        {
+            state.map.insert(
+                nqn(name),
+                Binding {
+                    kind: BindingKind::Class,
+                    target: head_binding.target,
+                },
+            );
         }
     }
 }
@@ -303,16 +392,6 @@ fn definer_created_command(
         _ => args.first()?,
     };
     (!name.is_empty() && !is_dynamic_word(name)).then(|| name.clone())
-}
-
-/// Whether `word` is a destructive method on the universal `TclOO` object
-/// surface — the registry's `destructive` flag on `oo::object`'s
-/// subcommands (`destroy`).
-fn oo_destructive_method(registry: &CommandRegistry, word: &str) -> bool {
-    registry
-        .get("oo::object")
-        .and_then(|spec| spec.resolve_subcommand(word))
-        .is_some_and(|sub| sub.destructive)
 }
 
 /// Join predecessor exit states into a block-entry state.
@@ -692,29 +771,94 @@ fn collect_proc_rebindings(
     let (Statement::Call { args, .. } | Statement::Barrier { args, .. }) = stmt else {
         return;
     };
-    let cmd = stmt.canonical_command_or_source();
-    let cmd_bare = cmd.strip_prefix("::").unwrap_or(cmd);
-    match registry.command_table_effect(cmd_bare, args.first().map(String::as_str)) {
-        Some(CommandTableEffect::RenamesCommands) => {
-            if args.len() != 2 || is_dynamic_word(&args[0]) || is_dynamic_word(&args[1]) {
-                *dynamic = true;
-                return;
-            }
-            insert_rebound_candidates(&args[0], namespace, rebound);
-            if !args[1].is_empty() {
-                insert_rebound_candidates(&args[1], namespace, rebound);
-            }
-        }
-        Some(CommandTableEffect::CreatesAliases) => {
-            if let Some((alias_name, target_cmd, _prepended)) = detect_interp_alias(args) {
-                if is_dynamic_word(&alias_name) || is_dynamic_word(&target_cmd) {
+    if let Some(facts) = invocation_facts(stmt, registry)
+        && let Some(transitions) = facts.state_transitions.declared()
+    {
+        for fact in transitions.facts() {
+            match &fact.transition {
+                StateTransition::CommandBinding(CommandBindingTransition::Move { from, to }) => {
+                    let (Some(from), Some(to)) = (literal_subject(from), literal_subject(to))
+                    else {
+                        *dynamic = true;
+                        return;
+                    };
+                    insert_rebound_candidates(from, namespace, rebound);
+                    if !to.is_empty() {
+                        insert_rebound_candidates(to, namespace, rebound);
+                    }
+                }
+                StateTransition::CommandBinding(CommandBindingTransition::Delete {
+                    interpreter,
+                    name,
+                }) => {
+                    let affects_current = match interpreter {
+                        None => true,
+                        Some(subject) => match literal_subject(subject) {
+                            Some("") => true,
+                            Some(_) => false,
+                            None => {
+                                *dynamic = true;
+                                return;
+                            }
+                        },
+                    };
+                    if affects_current {
+                        let Some(name) = literal_subject(name) else {
+                            *dynamic = true;
+                            return;
+                        };
+                        insert_rebound_candidates(name, namespace, rebound);
+                    }
+                }
+                StateTransition::CommandBinding(CommandBindingTransition::Alias {
+                    source_interpreter,
+                    alias,
+                    ..
+                }) => {
+                    let Some(source_interpreter) = literal_subject(source_interpreter) else {
+                        *dynamic = true;
+                        return;
+                    };
+                    if source_interpreter.is_empty() {
+                        let Some(alias) = literal_subject(alias) else {
+                            *dynamic = true;
+                            return;
+                        };
+                        insert_rebound_candidates(alias, namespace, rebound);
+                    }
+                }
+                StateTransition::CommandBinding(CommandBindingTransition::Unknown { .. }) => {
                     *dynamic = true;
                     return;
                 }
-                insert_rebound_candidates(&alias_name, namespace, rebound);
-            } else {
-                *dynamic = true;
+                StateTransition::Widen(widening)
+                    if widening
+                        .domains
+                        .contains(&StateTransitionDomain::CommandBindings) =>
+                {
+                    *dynamic = true;
+                    return;
+                }
+                StateTransition::CommandBinding(CommandBindingTransition::Define { .. })
+                | StateTransition::Interpreter(_)
+                | StateTransition::VariableCellAlias(_)
+                | StateTransition::Namespace(_)
+                | StateTransition::Trace(_)
+                | StateTransition::ObjectDispatch(_)
+                | StateTransition::Widen(_) => {}
             }
+        }
+        return;
+    }
+
+    let cmd = stmt.canonical_command_or_source();
+    let cmd_bare = cmd.strip_prefix("::").unwrap_or(cmd);
+    match registry.command_table_effect(cmd_bare, args.first().map(String::as_str)) {
+        Some(CommandTableEffect::RenamesCommands | CommandTableEffect::CreatesAliases) => {
+            // An unstamped command-table mutation is not safe to decode in a
+            // consumer. The registry transition descriptor must be enriched;
+            // until then, distrust every binding.
+            *dynamic = true;
         }
         // A `proc` declaration is deliberately NOT recorded here — see
         // the doc comment above.

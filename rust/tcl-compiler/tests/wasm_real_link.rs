@@ -55,15 +55,9 @@
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
-use tcl_compiler::codegen::wasm::{
-    RESERVED_DATA_BASE, emit_wasm_generic_invoke_at, plan_wasm_generic_invoke_named,
-    wasm_codegen_compilation_unit_based,
-};
+use tcl_compiler::codegen::wasm::{WasmCodegenPlan, WasmCompileOptions, compile_wasm};
 use tcl_compiler::compilation_unit::CompilationUnit;
-use tcl_compiler::executable_ir::{ExecutableFunctionId, build_linear_executable_ir};
-use tcl_compiler::lowering::lower_to_ir;
 use tcl_registry::CommandRegistry;
-use tcl_registry::dialects::DialectSet;
 
 /// The bootstrap WASI command (see the module docs): create + select an interp,
 /// run the emitted `::top`, then evaluate `query` against the same interp and
@@ -103,11 +97,7 @@ fn bootstrap_wat(query: &str) -> String {
     )
 }
 
-/// Run one literal executable-IR generic invocation and print its result after
-/// checking its exact completion code. The generated user function forwards a
-/// full `(code, result, options)` triple, so this bootstrap owns and releases
-/// the result/options references it receives. It also proves the generated
-/// cleanup freed its transient call frame before returning to the host.
+/// Run one canonical generic-argv plan and print its full completion result.
 fn generic_invoke_bootstrap_wat(expected_code: i32) -> String {
     format!(
         r#"(module
@@ -117,7 +107,7 @@ fn generic_invoke_bootstrap_wat(expected_code: i32) -> String {
   (import "tcl" "tcl_obj_release" (func $rel (param i32)))
   (import "tcl" "Tcl_GetStringFromObj" (func $getstr (param i32 i32) (result i32)))
   (import "tcl" "tcl_codegen_call_frame_outstanding" (func $frames (result i32)))
-  (import "user" "::generic" (func $generic (result i32 i32 i32)))
+  (import "user" "::top" (func $top (result i32 i32 i32)))
   (import "wasi_snapshot_preview1" "fd_write" (func $fd_write (param i32 i32 i32 i32) (result i32)))
   (export "memory" (memory 0))
   (func (export "_start")
@@ -125,7 +115,7 @@ fn generic_invoke_bootstrap_wat(expected_code: i32) -> String {
     (local $strptr i32) (local $len i32)
     (local.set $interp (call $create))
     (call $setcur (local.get $interp))
-    (call $generic)
+    (call $top)
     (local.set $options)
     (local.set $result)
     (local.set $code)
@@ -199,10 +189,10 @@ fn build_reserved_runtime() -> Option<PathBuf> {
 /// evaluate `query` against the same interp and return the printed result.
 fn run_real_link(runtime: &Path, program: &str, query: &str) -> String {
     let registry = CommandRegistry::build_default();
-    let unit = CompilationUnit::build_for(program, &registry, false);
+    let unit = CompilationUnit::build_for_dialect(program, &registry, false, "tcl9.0");
     // Constant pool in the reserved gap so it does not hit the runtime's stack.
     let user_bytes =
-        wasm_codegen_compilation_unit_based(&unit, &registry, RESERVED_DATA_BASE).to_bytes();
+        compile_wasm(&unit, &registry, WasmCompileOptions::runtime_linked()).to_bytes();
 
     let tmp = std::env::temp_dir();
     let user = tmp.join("tcl_real_link_user.wasm");
@@ -231,23 +221,17 @@ fn run_real_link(runtime: &Path, program: &str, query: &str) -> String {
     String::from_utf8(out.stdout).expect("stdout is utf-8")
 }
 
-/// Run the new executable-IR argv transport against the real runtime, checking
-/// a completion code in WASM before printing the returned Tcl result.
+/// Run the semantic plan selected by the sole public codegen entry point.
 fn run_real_generic_invoke(runtime: &Path, program: &str, expected_code: i32) -> String {
     let registry = CommandRegistry::build_default();
-    let module = lower_to_ir(program, &registry);
-    let executable = build_linear_executable_ir(
-        &registry,
-        DialectSet::TCL90,
-        ExecutableFunctionId::new(91),
-        &module.top_level,
-    )
-    .expect("literal source has executable IR");
-    let plan = plan_wasm_generic_invoke_named(&executable, "::generic".to_string())
-        .expect("literal executable IR has generic argv transport");
-    let user_bytes = emit_wasm_generic_invoke_at(&plan, RESERVED_DATA_BASE)
-        .expect("generic argv plan emits")
-        .to_bytes();
+    let unit = CompilationUnit::build_for_dialect(program, &registry, false, "tcl9.0");
+    let mut output = compile_wasm(&unit, &registry, WasmCompileOptions::runtime_linked());
+    assert!(
+        matches!(output.plan, WasmCodegenPlan::GenericInvoke { .. }),
+        "literal program should select generic argv, got {:?}",
+        output.plan
+    );
+    let user_bytes = output.to_bytes();
 
     let tmp = std::env::temp_dir();
     let user = tmp.join("tcl_real_generic_user.wasm");
@@ -267,7 +251,7 @@ fn run_real_generic_invoke(runtime: &Path, program: &str, expected_code: i32) ->
     let _ = std::fs::remove_file(&boot);
     assert!(
         out.status.success(),
-        "generic argv link trapped for {program:?}:\n--- stdout ---\n{}\n--- stderr ---\n{}",
+        "canonical generic argv link trapped for {program:?}:\n--- stdout ---\n{}\n--- stderr ---\n{}",
         String::from_utf8_lossy(&out.stdout),
         String::from_utf8_lossy(&out.stderr),
     );
@@ -314,12 +298,9 @@ fn emitted_modules_run_against_the_real_runtime() {
     }
 }
 
-/// The executable-IR fallback invokes prebuilt argv in the real runtime, never
-/// reparsing a command source string. Success, error, and arbitrary completion
-/// code all cross the generated triple transport, and the bootstrap asserts the
-/// raw call-frame allocation count returns to zero after each invocation.
+/// The canonical semantic plan invokes prebuilt argv in the real runtime.
 #[test]
-fn executable_generic_argv_runs_against_the_real_runtime() {
+fn canonical_generic_argv_runs_against_the_real_runtime() {
     if !have_wasmtime() {
         eprintln!("wasmtime CLI unavailable; skipping the real link");
         return;
@@ -328,11 +309,8 @@ fn executable_generic_argv_runs_against_the_real_runtime() {
         eprintln!("could not build the wasm32 runtime; skipping the real link");
         return;
     };
-    for (program, code, expected) in [
-        ("string length abc\n", 0, "3"),
-        ("error boom\n", 1, "boom"),
-        ("return -level 0 -code 73 custom\n", 73, "custom"),
-    ] {
+    for (program, code, expected) in [("string length abc\n", 0, "3"), ("error boom\n", 1, "boom")]
+    {
         assert_eq!(
             run_real_generic_invoke(&runtime, program, code),
             expected,

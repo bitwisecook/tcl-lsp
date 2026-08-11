@@ -385,6 +385,17 @@ export function makeEditors(ctx: EditorContext): Record<string, Editor> {
       textInput(asString(opt.detail), (t) => patch({ detail: t }, false), {
         placeholder: "what the option does",
       }),
+      labelled(
+        "deprecation fix hook",
+        textInput(
+          asString(opt.deprecation_fix),
+          (text) => patch({ deprecation_fix: text === "" ? null : text }, false),
+          {
+            placeholder: "Some(DeprecationFixHook::…)",
+            size: 44,
+          },
+        ),
+      ),
     ];
 
     if (takesValue) {
@@ -751,6 +762,7 @@ export function makeEditors(ctx: EditorContext): Record<string, Editor> {
           introduced_version: null,
           deprecated_version: null,
           retired_version: null,
+          deprecation_fix: null,
           min_abbrev: null,
           value: null,
         }),

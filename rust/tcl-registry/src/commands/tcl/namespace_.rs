@@ -202,6 +202,38 @@ const ENSEMBLE_OP_VALUES: &[ArgValue] = &[
     },
 ];
 
+/// The second-level dispatcher under `namespace ensemble`.  This is distinct
+/// from the ensemble command it creates: these are the three management
+/// operations implemented by Tcl's own `namespace` ensemble.  Keeping them
+/// in [`SubCommand::sub_subcommands`] lets generic completion, hover, and
+/// semantic-token consumers recognise the word after `ensemble`, including
+/// Tcl's unique-prefix rule, without any consumer knowing the `namespace`
+/// command by name.
+///
+/// Tcl 9.0.4's `namespace(n)` and the Tcl 8.5 executable agree on this exact
+/// set.  The enclosing `ensemble` subcommand is `TCL85_PLUS`, so these inherit
+/// that gate rather than repeating it on every entry.
+const ENSEMBLE_SUB_SUBCOMMANDS: &[SubSubCommand] = &[
+    SubSubCommand {
+        name: "create",
+        detail: "Create an ensemble command for the current namespace.",
+        synopsis: "namespace ensemble create ?-option value ...?",
+        dialects: None,
+    },
+    SubSubCommand {
+        name: "configure",
+        detail: "Query or update an existing ensemble command.",
+        synopsis: "namespace ensemble configure command ?-option? ?value ...?",
+        dialects: None,
+    },
+    SubSubCommand {
+        name: "exists",
+        detail: "Return whether command is an ensemble command.",
+        synopsis: "namespace ensemble exists command",
+        dialects: None,
+    },
+];
+
 /// `namespace export`'s only flag — present unchanged in the synopsis of
 /// every fetched version (8.4 through 9.1).
 static EXPORT_OPTIONS: &[OptionSpec] = &[OptionSpec {
@@ -271,30 +303,7 @@ fn fold_qualifiers(args: &[&str]) -> Option<String> {
     let [s] = args else {
         return None;
     };
-    let b = s.as_bytes();
-    // `NamespaceQualifiersCmd`: walk back from the terminator; on the first
-    // `::` step back over it plus any further run of `:`, and take everything
-    // to its left.  Falling off the front (no `::`, or nothing but colons
-    // before it) yields the empty string.
-    let mut p = b.len();
-    let mut end: Option<usize> = None;
-    while p > 0 {
-        p -= 1;
-        if b[p] == b':' && p > 0 && b[p - 1] == b':' {
-            // Step left to the start of the maximal `:` run this pair ends;
-            // the qualifier is everything before it, and nothing at all when
-            // the run reaches the front of the string.
-            let mut q = p - 1;
-            while q > 0 && b[q - 1] == b':' {
-                q -= 1;
-            }
-            if q > 0 {
-                end = Some(q);
-            }
-            break;
-        }
-    }
-    Some(end.map_or_else(String::new, |e| s[..e].to_owned()))
+    Some(crate::state_transition::namespace_qualifiers(s).to_owned())
 }
 
 fn fold_tail(args: &[&str]) -> Option<String> {
@@ -750,6 +759,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         arg_values: &[(0, ENSEMBLE_OP_VALUES)],
         closed_value_args: &[0],
         arg_values_accept_prefix: true,
+        sub_subcommands: ENSEMBLE_SUB_SUBCOMMANDS,
         analyser_hook: Some(crate::hooks::AnalyserHookId::NamespaceEnsemble),
         // An ensemble publishes its namespace's commands under a single
         // dispatching command name (and `-map` can redirect a subcommand
@@ -1307,5 +1317,43 @@ mod tests {
             assert!(accepts(dialect, 3));
             assert!(!accepts(dialect, 2));
         }
+    }
+
+    #[test]
+    fn ensemble_management_operations_are_registry_nested_subcommands() {
+        // The word after `namespace ensemble` is its own Tcl dispatcher.
+        // Keep its exact closed surface and unique-prefix behaviour in the
+        // registry so hover/completion/tokens never need a `namespace` branch.
+        let spec = super::spec();
+        let ensemble = spec
+            .subcommands
+            .iter()
+            .find(|sub| sub.name == "ensemble")
+            .expect("ensemble subcommand");
+        let names: Vec<_> = ensemble
+            .sub_subcommands
+            .iter()
+            .map(|sub| sub.name)
+            .collect();
+        assert_eq!(names, ["create", "configure", "exists"]);
+
+        assert_eq!(
+            ensemble
+                .resolve_sub_subcommand_for_dialect("cre", DialectSet::TCL90)
+                .map(|sub| sub.name),
+            Some("create")
+        );
+        assert_eq!(
+            ensemble
+                .resolve_sub_subcommand_for_dialect("conf", DialectSet::TCL85)
+                .map(|sub| sub.name),
+            Some("configure")
+        );
+        assert!(
+            ensemble
+                .resolve_sub_subcommand_for_dialect("e", DialectSet::TCL84)
+                .is_none()
+        );
+        assert!(ensemble.resolve_sub_subcommand("c").is_none());
     }
 }

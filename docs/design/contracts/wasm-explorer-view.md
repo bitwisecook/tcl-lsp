@@ -2,7 +2,8 @@
 
 ## Purpose
 
-The compiler explorer renders the output of `wasm_codegen_module` as a
+The compiler explorer renders the output of the canonical `compile_wasm`
+pipeline as a
 per-instruction interactive disassembly.  The JSON shape that
 [`rust/tcl-explorer`](../../../rust/tcl-explorer) produces and
 that [`rust/tcl-cli/gui/explorer-core.js`](../../../rust/tcl-cli/gui/explorer-core.js)
@@ -21,8 +22,9 @@ read the same shape.
   structural open/close), a source range, an indent level, and an explorer
   label.
 - [`rust/tcl-explorer/src/serialise.rs`](../../../rust/tcl-explorer/src/serialise.rs)
-  — `serialise_wasm` calls it, attaches the full WAT `text` on the module
-  header for the TUI / legacy consumers, and returns the list as
+  — `serialise_wasm` calls the canonical compiler, attaches the typed
+  `codegenPlan` evidence and full WAT `text` on the module header, and returns
+  the list as
   `data.wasm` / `data.wasmOptimised`.
 - [`rust/tcl-explorer-wasm`](../../../rust/tcl-explorer-wasm) — the
   `wasm-bindgen` facade the browser worker calls (`compile`, plus `meta` for
@@ -62,9 +64,19 @@ Every `imports[].typeIdx` indexes into this list.
   ],
   "types": [{"index": 0, "params": ["i32"], "results": ["i64"]}],
   "dataSegments": [{"offset": 0, "size": 8}],
+  "codegenPlan": {
+    "kind": "generic-invoke", // or "general"
+    "operation": "intrinsic", // invoke | intrinsic | structured-lowering
+    "semanticDecline": null    // typed reason object after a decline
+  },
   "text": "(module (type …) (import …) …)"
 }
 ```
+
+`codegenPlan` is durable compiler evidence, not display inference. A general
+plan's `semanticDecline` carries stable `kind` and `detailKind` fields
+explaining why narrower executable semantic selection declined. It never
+contains Rust `Debug` output.
 
 ## Function entry
 
@@ -148,20 +160,41 @@ source).  Imports have no disassembly to jump to.
 
 ## Emitter contract
 
-`_WasmEmitter._emit` stamps `self._current_range` onto every emitted
-instruction.  `_record_stmt_context` (called at the top of
-`_emit_stmt` and at every CFG block entry via the terminator-range
-stamp) keeps that range up to date.  Callers that open a structural
-op (`block` / `loop` / `if`) may pass `label=` to `_emit` to attach a
-human-readable tag (e.g. `foreach`, `if`, `catch body`) that the
-explorer surfaces in both the open's inline label and in the target
-hint on every `br` / `br_if` that lands on its matching close.
+The canonical `compile_wasm` pipeline produces a `WasmModule` whose
+instructions retain source ranges and optional structural labels. Selected
+semantic invocation and general structured lowering enter the same module
+emitter and target IR; Explorer never invokes an emitter of its own.
+
+`wasm_to_explorer_json` derives block nesting and branch targets from that
+shared instruction stream. Structural operations (`block`, `loop`, and `if`)
+may carry a human-readable label such as `foreach`, `if`, or `catch body`.
+Explorer surfaces the label on the opening operation and on every `br` or
+`br_if` whose decoded target reaches the matching close.
 
 ## Versioning
 
 The shape above is additive.  Consumers that don't understand a new
 field must ignore it; producers must never repurpose an existing field
 name with a different type.  When fields change meaning, rename them.
+
+## View descriptors and World SSA
+
+`meta.views` is the ordered Explorer view catalogue. Every entry carries an
+`id`, `label`, `payload`, `group`, and `renderKind`. Consumers use it to reconcile their
+tabs: a view without a bespoke renderer remains visible through the shared
+structured fallback rather than being silently omitted.
+
+`worldSsa` is an array of per-function compiler semantic sidecars. Each entry
+always has an `availability` object with a stable `kind`, `hasExecutableIr`,
+and optional typed `reasonKind`. When the graph is available, `locations` keep
+the precise domain, interpreter, namespace, subject, and external-resource
+identity; `operations` carry state versions plus node, CFG, or edge sites.
+`phi` operations include explicit predecessor versions and `includesInitial`.
+Resolved invocation entries retain registry-projected transitions, their
+completion commit policy, abrupt-edge transfer, and the typed proof inputs
+(result stability and dispatch dependencies) needed to explain a GVN reuse or
+abstention. A decline is data, not an empty proof: consumers must show it and
+must not infer that no mutable world state exists.
 
 ## Consumer resilience
 

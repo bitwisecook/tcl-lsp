@@ -1324,6 +1324,85 @@ fn quickfixes_for_code(lsp: &mut Lsp, uri: &str, diags: &[Value], code: &str) ->
     code_actions_only(lsp, uri, rng, json!(matching), &["quickfix"])
 }
 
+/// E006: an overlong grouped formal is the one malformed parameter shape
+/// whose structural repair is unambiguous.  The analyser carries a
+/// review-required edit which the LSP publishes as an ordinary quick fix.
+#[test]
+fn test_e006_offers_split_grouped_formals_fix() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let src = "proc invalid {{a b c}} {}\n";
+    let diags = lsp.open_ready(&uri, src);
+    let actions = quickfixes_for_code(&mut lsp, &uri, &diags, "E006");
+    assert_fix_applies(
+        &actions,
+        src,
+        "Split the grouped fields into separate parameters",
+        "proc invalid {a b c} {}\n",
+    );
+}
+
+/// E006: qualified and array-element names have several plausible intended
+/// spellings, so the LSP must not manufacture a rewrite for either form.
+#[test]
+fn test_e006_abstains_from_ambiguous_name_repairs() {
+    for (suffix, src) in [
+        ("qualified", "proc invalid {a::b} {}\n"),
+        ("array", "proc invalid {a(x)} {}\n"),
+    ] {
+        let mut lsp = Lsp::tcl();
+        let uri = unique_uri(suffix);
+        let diags = lsp.open_ready(&uri, src);
+        let actions = quickfixes_for_code(&mut lsp, &uri, &diags, "E006");
+        assert!(
+            !titles(&actions)
+                .iter()
+                .any(|title| title == "Split the grouped fields into separate parameters"),
+            "ambiguous name repair must be withheld: {actions:?}"
+        );
+    }
+}
+
+/// W146: a complete literal trace operation list keeps every valid member and
+/// removes only the member the selected trace type rejects. The analyser marks
+/// this action `RequiresReview`, so it is offered individually and never through
+/// Fix All Safe Issues.
+#[test]
+fn test_w146_removes_only_invalid_trace_operation_members() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let source = "trace add variable item {read rename write} callback\n";
+    let diagnostics = lsp.open_ready(&uri, source);
+    let actions = quickfixes_for_code(&mut lsp, &uri, &diagnostics, "W146");
+    assert_fix_applies(
+        &actions,
+        source,
+        "Remove invalid member(s) 'rename'",
+        "trace add variable item {read write} callback\n",
+    );
+    let fixed = lsp.execute_command("tcl-lsp.fixAllSafeIssues", serde_json::json!([uri]));
+    assert_eq!(
+        fixed.get("source").and_then(Value::as_str),
+        Some(source),
+        "the RequiresReview W146 action must not enter Fix All Safe Issues"
+    );
+}
+
+/// Removing every member would leave Tcl's invalid empty operation list, so
+/// W146 diagnoses the all-invalid literal but offers no rewrite.
+#[test]
+fn test_w146_all_invalid_trace_operations_offer_no_fix() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let source = "trace add command worker {read write} callback\n";
+    let diagnostics = lsp.open_ready(&uri, source);
+    let actions = quickfixes_for_code(&mut lsp, &uri, &diagnostics, "W146");
+    assert!(
+        new_texts(&actions).is_empty(),
+        "unexpected W146 fix: {actions:?}"
+    );
+}
+
 /// W120: the missing-`package require` diagnostic carries an insertion fix
 /// that adds the require line at the top of the file (no requires exist yet).
 #[test]
@@ -1338,6 +1417,25 @@ fn test_w120_offers_insert_package_require_fix() {
         src,
         "Add 'package require Tk'",
         "package require Tk\ncanvas .c -width 10\n",
+    );
+}
+
+/// W144 lifecycle replacements are registry hooks, so the LSP receives the
+/// analyser edit without knowing which deprecated command/subcommand emitted
+/// it. `interp slaves` remains executable in Tcl 9, but `children` is the
+/// documented, semantics-equivalent spelling.
+#[test]
+fn test_w144_offers_registry_lifecycle_subcommand_fix() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let src = "# tcl-dialect: tcl9.0\ninterp slaves\n";
+    let diags = lsp.open_ready(&uri, src);
+    let actions = quickfixes_for_code(&mut lsp, &uri, &diags, "W144");
+    assert_fix_applies(
+        &actions,
+        src,
+        "Replace deprecated 'slaves' with 'children'",
+        "# tcl-dialect: tcl9.0\ninterp children\n",
     );
 }
 

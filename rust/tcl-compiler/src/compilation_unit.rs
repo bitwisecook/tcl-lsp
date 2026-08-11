@@ -1755,6 +1755,46 @@ impl CompilationUnit {
         self
     }
 
+    /// Rebuild source-faithful executable facts, including world-state SSA,
+    /// for Explorer and other explicit deep-inspection consumers.
+    ///
+    /// Ordinary interactive analysis intentionally avoids materialising a
+    /// world graph when no reusable-value proof can consume it.  A caller
+    /// requesting this method instead receives either the full graph or the
+    /// existing typed availability/decline for every retained top-level and
+    /// procedure script.
+    #[must_use]
+    pub fn with_deep_semantic_analysis(
+        mut self,
+        registry: &tcl_registry::CommandRegistry,
+        dialect: DialectSet,
+    ) -> Self {
+        self.top_level.semantic_facts =
+            SemanticAnalysisBundle::build(registry, dialect, &self.ir_module.top_level);
+        for (name, unit) in &mut self.procedures {
+            let Some(procedure) = self.ir_module.procedures.get(name) else {
+                unit.semantic_facts = SemanticAnalysisBundle::unavailable(dialect);
+                continue;
+            };
+            unit.semantic_facts = SemanticAnalysisBundle::build(registry, dialect, &procedure.body);
+        }
+        for (name, unit) in &mut self.methods {
+            let Some(method) = self.ir_module.methods.get(name) else {
+                unit.semantic_facts = SemanticAnalysisBundle::unavailable(dialect);
+                continue;
+            };
+            unit.semantic_facts = SemanticAnalysisBundle::build(registry, dialect, &method.body);
+        }
+        for (name, unit) in &mut self.body_units {
+            let Some(body) = self.ir_module.body_units.get(name) else {
+                unit.semantic_facts = SemanticAnalysisBundle::unavailable(dialect);
+                continue;
+            };
+            unit.semantic_facts = SemanticAnalysisBundle::build(registry, dialect, &body.body);
+        }
+        self
+    }
+
     /// Return the function unit for a qualified name, searching
     /// top-level + procedures.
     #[must_use]
@@ -2408,6 +2448,44 @@ mod tests {
                 dialect
             } if *dialect == DialectSet::empty()
         ));
+    }
+
+    #[test]
+    fn deep_semantic_analysis_materialises_every_retained_body_sidecar() {
+        let deep = CompilationUnit::build_for_dialect(
+            "proc p {} { puts hello }\nnamespace eval ::n { puts body }\n",
+            &registry(),
+            false,
+            "tcl8.6",
+        )
+        .with_deep_semantic_analysis(&registry(), DialectSet::TCL86);
+        // The top-level source contains a structural `namespace eval` whose
+        // completion switch is not yet representable by the common world-SSA
+        // planner. Deep inspection must still retain executable facts and the
+        // typed `WorldStateDeclined` outcome rather than requiring a graph.
+        assert!(
+            deep.top_level
+                .semantic_facts
+                .executable()
+                .function()
+                .is_some()
+        );
+        assert!(
+            deep.procedures
+                .get("::p")
+                .unwrap()
+                .semantic_facts
+                .executable()
+                .function()
+                .is_some()
+        );
+        assert!(
+            deep.body_units.values().all(|unit| unit
+                .semantic_facts
+                .executable()
+                .function()
+                .is_some())
+        );
     }
 
     #[test]

@@ -60,6 +60,13 @@ export const DIAGNOSTICS: DiagnosticDef[] = [
     defaultEnabled: true,
   },
   {
+    code: "E006",
+    section: "error",
+    description:
+      "Invalid literal formal-parameter list — Tcl cannot create the procedure or method.",
+    defaultEnabled: true,
+  },
+  {
     code: "E200",
     section: "error",
     description:
@@ -303,7 +310,7 @@ export const DIAGNOSTICS: DiagnosticDef[] = [
     code: "W144",
     section: "warning",
     description:
-      "Command/subcommand/option/argument value is deprecated at the resolved package version — still available, but the registry records a deprecating release.",
+      "Command/subcommand/option/argument value is deprecated at the resolved package or Tcl-core version — still available, but the registry records a deprecating release.",
     defaultEnabled: true,
   },
   {
@@ -311,6 +318,19 @@ export const DIAGNOSTICS: DiagnosticDef[] = [
     section: "warning",
     description:
       "Ambiguous keyword abbreviation — the prefix matches more than one subcommand or option, which is a runtime error in Tcl.",
+    defaultEnabled: true,
+  },
+  {
+    code: "W146",
+    section: "warning",
+    description:
+      "Literal argument violates a registry-declared relationship or member set (for example, a trace operation list contains an operation invalid for its trace type).",
+    defaultEnabled: true,
+  },
+  {
+    code: "W147",
+    section: "warning",
+    description: "Mutually exclusive command options were supplied together.",
     defaultEnabled: true,
   },
   {

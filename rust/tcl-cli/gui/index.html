@@ -749,6 +749,7 @@ textarea#source::selection { background: rgba(137, 180, 250, 0.3); }
 .optlens-add { background: rgba(166, 227, 161, 0.12); color: var(--green); }
 .optlens-del { background: rgba(243, 139, 168, 0.12); color: var(--red); }
 .optlens-elide { color: var(--text-dim); font-style: italic; padding: 2px 4px 2px 20px; }
+.generic-explorer-view { margin: 8px; padding: 8px; overflow: auto; white-space: pre-wrap; color: var(--text-dim); }
 /* WASM disassembly view */
 .wasm-module { margin-bottom: 16px; }
 .wasm-module-details { margin-left: 16px; font-size: 11px; color: var(--text-dim); }
@@ -1291,6 +1292,7 @@ function updateStatusLight() {
 // the tabs still render.  renderAll never throws, so the caller's spinner
 // and status light always settle.
 function renderAll() {
+  const genericViews = reconcileExplorerViews();
   const steps = [
     { name: 'tab visibility', run: updateIrulesTabVisibility },
     { name: 'Stats', pane: null, run: renderStats },
@@ -1318,7 +1320,12 @@ function renderAll() {
     { name: 'Callouts', pane: '#pane-callouts', run: renderCallouts },
     { name: 'Tcl ASM', pane: '#pane-asm', run: renderAsm },
     { name: 'WASM', pane: '#pane-wasm', run: renderWasm },
-    { name: 'badges', run: updateBadges },
+    ...genericViews.map(view => ({
+      name: view.label || view.id,
+      pane: '#pane-' + explorerPaneId(view.id),
+      run: () => renderGenericExplorerView(view),
+    })),
+    { name: 'badges', run: () => { updateBadges(); updateGenericExplorerBadges(genericViews); } },
   ];
   return runRenderSteps(steps);
 }

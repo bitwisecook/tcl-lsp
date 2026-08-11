@@ -138,7 +138,9 @@ static STRUCT_GRAPH_CLASS: ObjectClassSpec = ObjectClassSpec {
 /// `lappend cmd $tree $node $action; uplevel 2 $cmd` — three appended words
 /// (tree, node, action) ⇒ `Exactly(3)`.  (`walk … loopvar script` is a
 /// loop-variable *script*, not a prefix, so it is not modelled here.)
-fn struct_tree_walkproc_command_prefixes(args: &[&str]) -> Vec<(u8, AppendedArity)> {
+fn struct_tree_walkproc_command_prefixes(
+    args: CommandPrefixArguments<'_>,
+) -> Vec<(u8, AppendedArity)> {
     // args are the words after `walkproc`: `node ?-order o? ?-type t? ?--?
     // cmdprefix`.  The prefix is always the final word (node is required, so
     // len ≥ 2 for a real prefix).

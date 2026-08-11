@@ -118,45 +118,125 @@ fn count_positionals(args: &[String], arg_expand: &[bool], start: usize) -> (usi
     (nargs_min, any_expand)
 }
 
-/// Widen a single braced (`Str`) / bracketed (`Cmd`) word token's `end`
-/// to cover its own closing delimiter — the per-token equivalent of the
-/// segmenter's `widen_word_end` (`crate::segmenter`, private to its own
-/// recovery logic, so duplicated here rather than exposed cross-module).
-/// Per the lexer's inner-end convention (see `AGENTS.md`, "Word-token
-/// closing delimiters"), a non-empty braced/bracketed word's `end()`
-/// already sits on the closer byte, one short of covering it; an empty
-/// `{}` / `[]` already has `end()` past the closer, so it is left alone
-/// (widening it could swallow an unrelated adjacent `}` / `]` from
-/// whatever encloses this word). Any other token kind
-/// (a bareword, `then`/`elseif`/`else`, a `Var`, …) has no closer to
-/// widen for.
+fn first_distinct_option_conflict(
+    seen_options: &[(&'static str, tcl_lexer::Span)],
+    constraints: &[&'static tcl_registry::OptionConstraint],
+) -> Option<(
+    &'static tcl_registry::OptionConstraint,
+    tcl_lexer::Span,
+    tcl_lexer::Span,
+)> {
+    constraints.iter().find_map(|constraint| {
+        let first = seen_options
+            .iter()
+            .find(|(name, _)| constraint.options.contains(name))?;
+        let second = seen_options
+            .iter()
+            .find(|(name, _)| constraint.options.contains(name) && name != &first.0)?;
+        Some((*constraint, first.1, second.1))
+    })
+}
+
+/// Compatibility adapter for existing end-offset consumers. The delimiter
+/// policy itself lives once in [`super::super::utils::full_word_span`], which
+/// delegates to the lexer's authoritative `word_span` helper.
 fn widen_token_end(tok: tcl_lexer::Token, source: &str) -> u32 {
-    let closer = match tok.kind {
-        tcl_lexer::TokenType::Str => b'}',
-        tcl_lexer::TokenType::Cmd => b']',
-        _ => return tok.span.end(),
-    };
-    let end = tok.span.end();
-    // Empty content (`{}` / `[]` / `""`) — the span's end already sits past
-    // the closer.  Detected arithmetically (content start reaching the end)
-    // rather than by slicing the source, so a token whose span outruns the
-    // supplied text (unit tests drive the walk with detached tokens) never
-    // panics.
-    if tok.span.start() + u32::from(tok.content_offset) >= end {
-        return end;
-    }
-    if source.as_bytes().get(end as usize) == Some(&closer) {
-        end + 1
-    } else {
-        end
+    super::super::utils::full_word_span(tok, source).end()
+}
+
+/// Emit E006 for every registry-identified, statically-known formal-parameter
+/// list that Tcl would reject while creating its callable.  Callers supply the
+/// role-derived indices so this routine deliberately has no knowledge of the
+/// command or definition-body member that owns the list.
+pub(in crate::analyser) fn emit_invalid_formal_parameter_list_diagnostics(
+    analyser: &mut Analyser,
+    args: &[String],
+    arg_tokens: &[tcl_lexer::Token],
+    parameter_indices: &[usize],
+) {
+    for &index in parameter_indices {
+        let (Some(params), Some(token)) = (args.get(index), arg_tokens.get(index)) else {
+            continue;
+        };
+        // A braced word is literal even when its eventual formal names contain
+        // `$` / `[`.  Every other accepted shape must be free of outer Tcl
+        // substitutions; a computed value can be valid or invalid at runtime,
+        // so reporting it would be an unsound claim.
+        let literal = token.kind == tcl_lexer::TokenType::Str
+            || (token.kind != tcl_lexer::TokenType::Expand && !has_substitution(params, token));
+        if !literal {
+            continue;
+        }
+        let Err(error) = crate::signature_scan::params::parse_param_list_strict(params) else {
+            continue;
+        };
+        let span = super::super::utils::full_word_span(*token, &analyser.source);
+        let fixes = tcl_syntax::formal_params::split_overlong_parameter_specifier(params, &error)
+            .map(|repaired| {
+                vec![crate::analyser::types::CodeFix::review(
+                    span,
+                    tcl_syntax::list::list_element(&repaired),
+                    "Split the grouped fields into separate parameters",
+                )]
+            })
+            .unwrap_or_default();
+        analyser.result.diagnostics.push(super::types::Diagnostic {
+            code: DiagCode::E006,
+            span,
+            message: format!("Invalid formal parameter list: {error}"),
+            severity: Severity::Error,
+            fixes,
+        });
     }
 }
 
-/// A single word token's full source span, closing delimiter included
-/// (see [`widen_token_end`]) — for anchoring a diagnostic tightly on one
-/// whole word rather than dropping its last byte.
-fn widened_word_span(tok: tcl_lexer::Token, source: &str) -> tcl_lexer::Span {
-    tcl_lexer::Span::new(tok.span.start(), widen_token_end(tok, source))
+/// E006's lambda-literal companion.  `ArgRole::LambdaLiteral` declares the
+/// standard `{parameters body ?namespace?}` value shape, so a consumer can
+/// discover the nested parameter list without knowing the command that owns
+/// the literal.
+pub(in crate::analyser) fn emit_invalid_lambda_parameter_list_diagnostics(
+    analyser: &mut Analyser,
+    args: &[String],
+    arg_tokens: &[tcl_lexer::Token],
+    lambda_indices: &[usize],
+) {
+    for &index in lambda_indices {
+        let (Some(lambda), Some(token)) = (args.get(index), arg_tokens.get(index)) else {
+            continue;
+        };
+        if token.kind != tcl_lexer::TokenType::Str {
+            continue;
+        }
+        let Ok(fields) = tcl_syntax::list::split_list(lambda) else {
+            continue;
+        };
+        let Some(params) = fields.first() else {
+            continue;
+        };
+        let Err(error) = crate::signature_scan::params::parse_param_list_strict(params) else {
+            continue;
+        };
+        let span = super::super::utils::full_word_span(*token, &analyser.source);
+        let fixes = tcl_syntax::formal_params::split_overlong_parameter_specifier(params, &error)
+            .map(|repaired| {
+                let mut repaired_fields = fields.clone();
+                repaired_fields[0] = repaired.into();
+                let repaired_lambda = tcl_syntax::list::join_list(repaired_fields);
+                vec![crate::analyser::types::CodeFix::review(
+                    span,
+                    tcl_syntax::list::list_element(&repaired_lambda),
+                    "Split the grouped fields into separate parameters",
+                )]
+            })
+            .unwrap_or_default();
+        analyser.result.diagnostics.push(super::types::Diagnostic {
+            code: DiagCode::E006,
+            span,
+            message: format!("Invalid formal parameter list: {error}"),
+            severity: Severity::Error,
+            fixes,
+        });
+    }
 }
 
 /// Two shape-based reasons `first_arg` is never W001 regardless of whether
@@ -618,6 +698,104 @@ pub(super) fn is_tcloo_metaclass(
 }
 
 impl Analyser {
+    /// **W146.** Run the resolved invocation's registry-owned relationship or
+    /// literal-content validator. The analyser knows only how to project
+    /// source words, anchor the returned argument index, and render the typed
+    /// issue; every legal set and cross-argument relationship stays in the
+    /// command registry.
+    pub(in crate::analyser) fn emit_w146_literal_argument_validation(
+        &mut self,
+        cmd_name: &str,
+        args: &[String],
+        arg_tokens: &[tcl_lexer::Token],
+        arg_single: &[bool],
+        arg_expand: &[bool],
+        scope_path: &[usize],
+    ) {
+        let Some(registry) = self.registry else {
+            return;
+        };
+        let source_map = tcl_lexer::SourceMap::new(&self.source);
+        let words: Vec<_> = args
+            .iter()
+            .enumerate()
+            .map(|(index, text)| {
+                crate::signature_scan::command_prefix::invocation_word(
+                    Some(&source_map),
+                    text,
+                    arg_tokens.get(index).copied(),
+                    arg_single.get(index).copied().unwrap_or(false),
+                    arg_expand.get(index).copied().unwrap_or(false),
+                )
+            })
+            .collect();
+        let Some(validation) = registry
+            .resolve_structured_invocation(
+                tcl_registry::InvocationWords::structured(
+                    tcl_registry::InvocationWord::Literal(cmd_name),
+                    &words,
+                ),
+                self.profile.availability_mask,
+            )
+            .resolved()
+            .and_then(|invocation| invocation.validate_literal_arguments())
+        else {
+            return;
+        };
+        let tcl_registry::LiteralArgumentValidation::Invalid(issue) = validation else {
+            return;
+        };
+        let Some(token) = arg_tokens.get(issue.argument_index).copied() else {
+            return;
+        };
+        let source_map = tcl_lexer::SourceMap::new(&self.source);
+        let span = tcl_lexer::word_span(&source_map, token);
+        let allowed = issue.allowed_values.join(", ");
+        let (message, invalid_description) = match &issue.reason {
+            tcl_registry::LiteralArgumentIssueReason::Empty => (
+                format!(
+                    "Empty {}; expected one or more of: {allowed}",
+                    issue.subject
+                ),
+                String::new(),
+            ),
+            tcl_registry::LiteralArgumentIssueReason::InvalidMembers(invalid) => {
+                let quoted = invalid
+                    .iter()
+                    .map(|member| format!("'{member}'"))
+                    .collect::<Vec<_>>()
+                    .join(", ");
+                (
+                    format!(
+                        "Invalid member(s) {quoted} in {}; expected one or more of: {allowed}",
+                        issue.subject
+                    ),
+                    quoted,
+                )
+            }
+        };
+        let fixes = issue
+            .replacement_value
+            .map_or_else(Vec::new, |replacement| {
+                vec![crate::analyser::types::CodeFix::review(
+                    span,
+                    tcl_syntax::list::list_element(&replacement),
+                    format!("Remove invalid member(s) {invalid_description}"),
+                )]
+            });
+        let diagnostic = crate::analyser::types::Diagnostic {
+            code: DiagCode::W146,
+            span,
+            message,
+            severity: Severity::Warning,
+            fixes,
+        };
+        let namespace = self.command_resolution_namespace(scope_path);
+        let enforce_order = !self.scope_path_in_proc_body(scope_path);
+        self.pending_arity
+            .push((cmd_name.to_owned(), namespace, enforce_order, diagnostic));
+    }
+
     /// **W002** — the command is disabled in the active dialect profile: it
     /// exists in the registry but not for the active dialect (e.g. `dict` under
     /// `tcl8.4`, added in 8.5).  Only a *literal* command head is checked — a
@@ -1142,7 +1320,7 @@ impl Analyser {
         true
     }
 
-    /// **E002 / E003.** Argument-count check for simple (non-
+    /// **E002 / E003 / W147.** Argument-count and leading-option checks for simple (non-
     /// subcommand) commands: skip leading declared
     /// option flags, then compare the positional-argument count
     /// against the registry signature's arity bounds.
@@ -1367,6 +1545,7 @@ impl Analyser {
         // — the same `value_word_count` skip the W004 dialect-option loop
         // uses.
         let mut i = 0usize;
+        let mut seen_options: Vec<(&'static str, tcl_lexer::Span)> = Vec::new();
         while i < args.len() {
             if expanded(i) {
                 break;
@@ -1377,6 +1556,12 @@ impl Analyser {
                 break;
             }
             if let Some(opt) = sig.leading_option_specs.iter().find(|o| o.matches(arg)) {
+                if let Some(token) = arg_tokens.get(i) {
+                    seen_options.push((
+                        opt.name,
+                        super::super::utils::full_word_span(*token, &self.source),
+                    ));
+                }
                 // Skip the flag itself plus however many value words it
                 // consumes at this position (0 for a bare flag).
                 i += 1 + opt.value_word_count(args, i);
@@ -1392,6 +1577,40 @@ impl Analyser {
         let positional_start = i.min(args.len());
         let (nargs_min, positional_any_expand) =
             count_positionals(args, arg_expand, positional_start);
+
+        // Option relationships are registry data. The generic analyser only
+        // projects the literal leading option words and reports the first
+        // proven conflict; dynamic option names and `{*}` expansions remain
+        // conservative abstentions. No repair is offered because choosing
+        // which option expresses the caller's intent is inherently ambiguous.
+        if let Some((constraint, first, second)) =
+            first_distinct_option_conflict(&seen_options, &sig.option_constraints)
+        {
+            let names = constraint
+                .options
+                .iter()
+                .filter(|name| seen_options.iter().any(|(seen, _)| seen == *name))
+                .copied()
+                .collect::<Vec<_>>()
+                .join(", ");
+            let span = tcl_lexer::Span::new(first.start(), second.end());
+            let ns = self.command_resolution_namespace(scope_path);
+            let enforce_order = !self.scope_path_in_proc_body(scope_path);
+            self.pending_arity.push((
+                resolution_name.to_string(),
+                ns,
+                enforce_order,
+                super::types::Diagnostic {
+                    code: DiagCode::W147,
+                    span,
+                    message: format!(
+                        "Options {names} cannot be used together for '{display_name}'"
+                    ),
+                    severity: Severity::Warning,
+                    fixes: Vec::new(),
+                },
+            ));
+        }
 
         let full_span = match arg_tokens.last() {
             Some(last) => tcl_lexer::Span::new(cmd_tok.span.start(), last.span.end()),
@@ -2015,7 +2234,7 @@ impl Analyser {
         } else {
             arg_tokens
                 .iter()
-                .map(|t| widened_word_span(*t, &self.source))
+                .map(|t| super::super::utils::full_word_span(*t, &self.source))
                 .collect()
         };
         self.pending_user_call_arity.push(PendingUserCallArity {
@@ -2413,9 +2632,9 @@ impl Analyser {
         };
 
         let word_span = |i: usize| {
-            arg_tokens
-                .get(i)
-                .map_or(cmd_tok.span, |t| widened_word_span(*t, &self.source))
+            arg_tokens.get(i).map_or(cmd_tok.span, |t| {
+                super::super::utils::full_word_span(*t, &self.source)
+            })
         };
 
         let (span, message) = match error {

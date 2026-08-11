@@ -103,6 +103,7 @@ class TclLspSettingsPanel {
     private val diagE002 = JBCheckBox("E002: Too few arguments for command")
     private val diagE003 = JBCheckBox("E003: Too many arguments for command")
     private val diagE005 = JBCheckBox("E005: Wrong argument-count shape for command")
+    private val diagE006 = JBCheckBox("E006: Invalid literal formal-parameter list")
     private val diagE200 = JBCheckBox("E200: Unterminated command")
 
     // Diagnostics — Style & Best Practice
@@ -145,6 +146,8 @@ class TclLspSettingsPanel {
     private val diagW143 = JBCheckBox("W143: Direct call into a private ::tcl:: implementation na...")
     private val diagW144 = JBCheckBox("W144: Command/subcommand/option/argument value is deprecat...")
     private val diagW145 = JBCheckBox("W145: Ambiguous keyword abbreviation")
+    private val diagW146 = JBCheckBox("W146: Literal argument violates a registry-declared relati...")
+    private val diagW147 = JBCheckBox("W147: Mutually exclusive command options were supplied tog...")
     private val diagW200 = JBCheckBox("W200: exec result not captured or binary format modifier r...")
     private val diagW201 = JBCheckBox("W201: Manual path concatenation")
     private val diagW230 = JBCheckBox("W230: Constant list index out of range")
@@ -369,7 +372,7 @@ class TclLspSettingsPanel {
         builder.addComponent(TitledSeparator("Diagnostics — Errors"))
         val diagErrorPanel = JPanel(java.awt.GridLayout(0, 2, 8, 2))
         listOf(
-            diagE001, diagE002, diagE003, diagE005, diagE200,
+            diagE001, diagE002, diagE003, diagE005, diagE006, diagE200,
         ).forEach { diagErrorPanel.add(it) }
         builder.addComponent(diagErrorPanel)
 
@@ -382,9 +385,9 @@ class TclLspSettingsPanel {
             diagW117, diagW118, diagW120, diagW121, diagW124, diagW125,
             diagW126, diagW127, diagW128, diagW129, diagW135, diagW136,
             diagW137, diagW138, diagW139, diagW140, diagW141, diagW142,
-            diagW143, diagW144, diagW145, diagW200, diagW201, diagW230,
-            diagW231, diagW232, diagW233, diagW240, diagW241, diagW250,
-            diagW308, diagW314, diagW315,
+            diagW143, diagW144, diagW145, diagW146, diagW147, diagW200,
+            diagW201, diagW230, diagW231, diagW232, diagW233, diagW240,
+            diagW241, diagW250, diagW308, diagW314, diagW315,
         ).forEach { diagWarnPanel.add(it) }
         builder.addComponent(diagWarnPanel)
 
@@ -558,6 +561,7 @@ class TclLspSettingsPanel {
             diagE002.isSelected != s.diagnosticE002 ||
             diagE003.isSelected != s.diagnosticE003 ||
             diagE005.isSelected != s.diagnosticE005 ||
+            diagE006.isSelected != s.diagnosticE006 ||
             diagE200.isSelected != s.diagnosticE200 ||
             diagW001.isSelected != s.diagnosticW001 ||
             diagW002.isSelected != s.diagnosticW002 ||
@@ -598,6 +602,8 @@ class TclLspSettingsPanel {
             diagW143.isSelected != s.diagnosticW143 ||
             diagW144.isSelected != s.diagnosticW144 ||
             diagW145.isSelected != s.diagnosticW145 ||
+            diagW146.isSelected != s.diagnosticW146 ||
+            diagW147.isSelected != s.diagnosticW147 ||
             diagW200.isSelected != s.diagnosticW200 ||
             diagW201.isSelected != s.diagnosticW201 ||
             diagW230.isSelected != s.diagnosticW230 ||
@@ -801,6 +807,7 @@ class TclLspSettingsPanel {
         s.diagnosticE002 = diagE002.isSelected
         s.diagnosticE003 = diagE003.isSelected
         s.diagnosticE005 = diagE005.isSelected
+        s.diagnosticE006 = diagE006.isSelected
         s.diagnosticE200 = diagE200.isSelected
         s.diagnosticW001 = diagW001.isSelected
         s.diagnosticW002 = diagW002.isSelected
@@ -841,6 +848,8 @@ class TclLspSettingsPanel {
         s.diagnosticW143 = diagW143.isSelected
         s.diagnosticW144 = diagW144.isSelected
         s.diagnosticW145 = diagW145.isSelected
+        s.diagnosticW146 = diagW146.isSelected
+        s.diagnosticW147 = diagW147.isSelected
         s.diagnosticW200 = diagW200.isSelected
         s.diagnosticW201 = diagW201.isSelected
         s.diagnosticW230 = diagW230.isSelected
@@ -1061,6 +1070,7 @@ class TclLspSettingsPanel {
         diagE002.isSelected = s.diagnosticE002
         diagE003.isSelected = s.diagnosticE003
         diagE005.isSelected = s.diagnosticE005
+        diagE006.isSelected = s.diagnosticE006
         diagE200.isSelected = s.diagnosticE200
         diagW001.isSelected = s.diagnosticW001
         diagW002.isSelected = s.diagnosticW002
@@ -1101,6 +1111,8 @@ class TclLspSettingsPanel {
         diagW143.isSelected = s.diagnosticW143
         diagW144.isSelected = s.diagnosticW144
         diagW145.isSelected = s.diagnosticW145
+        diagW146.isSelected = s.diagnosticW146
+        diagW147.isSelected = s.diagnosticW147
         diagW200.isSelected = s.diagnosticW200
         diagW201.isSelected = s.diagnosticW201
         diagW230.isSelected = s.diagnosticW230

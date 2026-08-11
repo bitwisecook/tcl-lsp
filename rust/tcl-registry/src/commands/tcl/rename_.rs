@@ -52,9 +52,9 @@ const RENAME_TRANSITIONS: StateTransitionDescriptor = StateTransitionDescriptor 
         domains: RENAME_TRANSITION_DOMAINS,
     }],
     effect_coverage: RENAME_EFFECT_COVERAGE,
-    // Command traces can observe the rename or deletion and fail after the
-    // command table has changed, so an abrupt edge conservatively joins the
-    // pre- and post-transition states.
+    // Keep the transition visible on an abrupt edge.  It is deliberately
+    // conservative for command traces and re-entrant callbacks, which can
+    // observe the command-table change while Tcl is completing the operation.
     commit: StateTransitionCommit::MayCommitBeforeAbruptCompletion,
 };
 
@@ -66,17 +66,35 @@ fn rename_state_transitions(arguments: InvocationArguments<'_>) -> StateTransiti
     ) else {
         return transitions;
     };
-    let transition = match to.literal() {
-        Some("") => CommandBindingTransition::Delete {
-            interpreter: None,
-            name: from,
-        },
-        Some(_) => CommandBindingTransition::Move { from, to },
-        None => CommandBindingTransition::Unknown {
-            operands: vec![from, to],
-        },
-    };
-    transitions.push(StateTransition::CommandBinding(transition));
+    match to.literal() {
+        Some("") => transitions.push(StateTransition::CommandBinding(
+            CommandBindingTransition::Delete {
+                interpreter: None,
+                name: from,
+            },
+        )),
+        Some(target) => {
+            // Tcl creates the target's namespace lineage when it is absent;
+            // record that separately from the command binding so generic
+            // world-state consumers retain both facts.
+            let namespace = crate::state_transition::namespace_qualifiers(target);
+            if !namespace.is_empty() {
+                transitions.push(StateTransition::Namespace(NamespaceTransition::Ensure {
+                    namespace: NamespaceTransitionTarget::Named(TransitionSubject::Literal(
+                        namespace.to_owned(),
+                    )),
+                }));
+            }
+            transitions.push(StateTransition::CommandBinding(
+                CommandBindingTransition::Move { from, to },
+            ));
+        }
+        None => transitions.push(StateTransition::CommandBinding(
+            CommandBindingTransition::Unknown {
+                operands: vec![from, to],
+            },
+        )),
+    }
     transitions
 }
 
@@ -88,36 +106,14 @@ const FORMS: &[FormSpec] = &[FormSpec {
 
 /// Command spec for `rename`.
 ///
-/// Manpage comparison across Tcl 8.4, 8.5, 8.6, 9.0, and 9.1
-/// (tcl-lang.org's TclCmd/rename.html, `.htm` for the 8.6 tree): the NAME,
-/// SYNOPSIS, DESCRIPTION, EXAMPLE, SEE ALSO, and KEYWORDS sections are
-/// byte-for-byte identical across all five — `rename oldName newName` has
-/// never gained an option, a third argument, or a changed default in any
-/// release; the only cross-version differences in the raw HTML are cosmetic
-/// (navigation chrome, doctype, copyright-block ordering).
-///
-/// `generic/tclCmdMZ.c`'s `Tcl_RenameObjCmd` (dispatching to
-/// `TclRenameCommand` in `generic/tclBasic.c`) is likewise unchanged in
-/// substance across the five fetched source trees (`core-8-4-20`,
-/// `core-8-5-19`, `core-8-6-16`, `core-9-0-4`, `core-9-1-b0`): `objc != 3`
-/// is a hard "wrong # args" in every release (arity is exactly 2), and the
-/// three error strings are word-for-word identical in all five — `can't
-/// {rename|delete} "oldName": command doesn't exist` when `oldName` isn't a
-/// real command, `can't rename to "newName": bad command name` when
-/// `newName`'s namespace can't be resolved, and `can't rename to "newName":
-/// command already exists` when `newName` already denotes one (8.6, 9.0,
-/// and 9.1 additionally attach a structured `-errorcode` to each of the
-/// three — `TCL LOOKUP COMMAND oldName`, `TCL VALUE COMMAND`, and `TCL
-/// OPERATION RENAME TARGET_EXISTS` respectively. `TclRenameCommand`'s
-/// three `Tcl_SetErrorCode` calls first appear in the 8.6 source and are
-/// unchanged in 9.0/9.1; 8.4's and 8.5's `TclRenameCommand` call
-/// `Tcl_SetErrorCode` on none of the three paths, so `errorCode` stays
-/// `NONE` there. The message text a user sees is the same in all five
-/// regardless). A rename also
-/// fires any `trace add command … rename` handler on `oldName`, and a
-/// deleting `rename oldName {}` fires its `… delete` handler instead —
-/// command traces (TIP 110) have been present since 8.4, so this is not
-/// version-gated either.
+/// Tcl `rename(n)` specifies exactly `rename oldName newName`: an empty
+/// `newName` deletes the command, while a non-empty target moves it.  The Tcl
+/// 9.0 manpage and Tcl 8.5/9.0 oracle runs agree that a qualified target
+/// creates its missing namespace lineage, rather than rejecting the target.
+/// Missing sources and existing targets error; Tcl 9.0 reports the structured
+/// `TCL LOOKUP COMMAND` and `TCL OPERATION RENAME TARGET_EXISTS` codes, while
+/// Tcl 8.5 leaves `errorCode` as `NONE`.  The detailed evidence and the
+/// unavailable source-tree record live in the command-oracle audit.
 ///
 /// `dialects: ALL_TCL` (no `IRULES` bit) here is deliberate, not an
 /// oversight: F5 iRules is the one modelled dialect that drops `rename` —
@@ -154,7 +150,7 @@ pub fn spec() -> CommandSpec {
         hover: Some(HoverSnippet {
             summary: "Rename or delete a command",
             synopsis: &["rename oldName newName"],
-            snippet: "If newName is an empty string, oldName is deleted instead of renamed. Both oldName and newName may include namespace qualifiers; renaming a command into a different namespace relocates it there, and future invocations run in that namespace's context. Raises an error if oldName does not name an existing command, or if newName is non-empty and already names one — rename never silently overwrites an existing command. Any `trace add command` handler registered on the command fires as part of the operation: a rename trace when moved, a delete trace when removed. A common idiom wraps a built-in with custom logic: move the original out of the way, then define a same-named replacement that delegates to the saved name.",
+            snippet: "If newName is an empty string, oldName is deleted instead of renamed. Both oldName and newName may include namespace qualifiers; renaming a command into a different namespace relocates it there, creating any missing target namespaces, and future invocations run in that namespace's context. Raises an error if oldName does not name an existing command, or if newName is non-empty and already names one — rename never silently overwrites an existing command. Any `trace add command` handler registered on the command fires as part of the operation: a rename trace when moved, a delete trace when removed. A common idiom wraps a built-in with custom logic: move the original out of the way, then define a same-named replacement that delegates to the saved name.",
             source: "Tcl rename(n)",
             examples: "rename ::source ::theRealSource\nset sourceCount 0\nproc ::source args {\n    global sourceCount\n    puts \"called source for the [incr sourceCount]'th time\"\n    uplevel 1 ::theRealSource $args\n}",
             return_value: "An empty string.",
@@ -166,5 +162,67 @@ pub fn spec() -> CommandSpec {
         world_effects: Some(WorldEffectDescriptor::EMPTY),
         state_transitions: Some(RENAME_TRANSITIONS),
         ..CommandSpec::DEFAULT
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn qualified_literal_target_ensures_its_namespace_lineage_before_moving() {
+        let transitions = rename_state_transitions(InvocationArguments::literals(&[
+            "::old",
+            "::fresh::nested::new",
+        ]));
+
+        assert!(matches!(
+            transitions.facts(),
+            [ensure, moved]
+                if matches!(
+                    &ensure.transition,
+                    StateTransition::Namespace(NamespaceTransition::Ensure {
+                        namespace: NamespaceTransitionTarget::Named(
+                            TransitionSubject::Literal(namespace),
+                        ),
+                    }) if namespace == "::fresh::nested"
+                ) && matches!(
+                    &moved.transition,
+                    StateTransition::CommandBinding(CommandBindingTransition::Move {
+                        from: TransitionSubject::Literal(from),
+                        to: TransitionSubject::Literal(to),
+                    }) if from == "::old" && to == "::fresh::nested::new"
+                )
+        ));
+    }
+
+    #[test]
+    fn deletion_and_dynamic_target_do_not_claim_a_specific_namespace() {
+        let delete = rename_state_transitions(InvocationArguments::literals(&["old", ""]));
+        assert!(matches!(
+            delete.facts(),
+            [fact]
+                if matches!(
+                    &fact.transition,
+                    StateTransition::CommandBinding(CommandBindingTransition::Delete {
+                        interpreter: None,
+                        name: TransitionSubject::Literal(name),
+                    }) if name == "old"
+                )
+        ));
+
+        let dynamic = rename_state_transitions(InvocationArguments::structured(&[
+            crate::InvocationWord::Literal("old"),
+            crate::InvocationWord::Dynamic,
+        ]));
+        assert!(matches!(
+            dynamic.facts(),
+            [fact]
+                if matches!(
+                    &fact.transition,
+                    StateTransition::CommandBinding(CommandBindingTransition::Unknown { operands })
+                        if operands.len() == 2
+                )
+        ));
     }
 }

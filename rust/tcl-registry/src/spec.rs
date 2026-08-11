@@ -38,10 +38,13 @@ use crate::hooks::{
     TclVersion, VersionedConstFoldFn,
 };
 use crate::hover::{ArgValue, FormSpec, HoverSnippet, OptionSpec};
+use crate::invocation_words::CommandPrefixArguments;
 use crate::lifecycle::{Lifecycle, LifecycleState};
+use crate::literal_validation::LiteralArgumentValidator;
 use crate::patterns::{FormatType, PatternType};
 use crate::presentation::ArgPresentation;
 use crate::repeated::RepeatedArgLayout;
+use crate::representation::RepresentationEffect;
 use crate::side_effects::{SideEffect, StorageType};
 use crate::state_transition::StateTransitionDescriptor;
 use crate::symbol_def::SymbolDef;
@@ -63,7 +66,8 @@ pub type ArgRoleResolver = fn(args: &[&str]) -> Vec<(u8, ArgRole)>;
 /// the prefix index depends on the actual arguments. Returns
 /// `(arg_index, appended_arity)` pairs.  Paired with the static
 /// [`CommandSpec::command_prefixes`] table — either may be set.
-pub type CommandPrefixResolver = fn(args: &[&str]) -> Vec<(u8, crate::arg_role::AppendedArity)>;
+pub type CommandPrefixResolver =
+    for<'a> fn(CommandPrefixArguments<'a>) -> Vec<(u8, crate::arg_role::AppendedArity)>;
 
 /// A call-site restriction that depends on *where* the call sits — a
 /// lexical/dispatch context arity and dialect gating can't see — rather
@@ -505,6 +509,44 @@ impl CaseListSpec {
 pub const DEFAULT_CREDENTIAL_OPTION_NAMES: &[&str] =
     &["-password", "-pass", "-secret", "-token", "-apikey"];
 
+/// A registry-declared relationship between leading options.
+///
+/// The analyser and LSP consume this descriptor generically: a command such
+/// as `source` or `glob` supplies the rejected option set, while the shared
+/// invocation validator reports a conflict. `dialects` is an additional
+/// availability gate; `None` inherits the owning command or subcommand's
+/// dialect set.
+#[derive(Debug, Clone, Copy)]
+pub struct OptionConstraint {
+    /// Canonical option names that may not occur together.
+    pub options: &'static [&'static str],
+    /// Tcl dialects in which this relationship applies.
+    pub dialects: Option<DialectSet>,
+}
+
+impl OptionConstraint {
+    /// Whether this constraint is active for `dialect`, inheriting the
+    /// command/subcommand dialect set when it has no own gate.
+    #[must_use]
+    pub const fn supports_dialect(
+        &self,
+        dialect: Option<DialectSet>,
+        parent_dialects: Option<DialectSet>,
+    ) -> bool {
+        let Some(want) = dialect else {
+            return true;
+        };
+        let gate = match self.dialects {
+            Some(gate) => Some(gate),
+            None => parent_dialects,
+        };
+        match gate {
+            Some(have) => have.intersects(want),
+            None => true,
+        }
+    }
+}
+
 /// Unified command metadata — the single source of truth.
 ///
 /// Every consumer (compiler, analyser, codegen, LSP, formatter, diagram
@@ -619,6 +661,10 @@ pub struct CommandSpec {
     /// [`VarElementsEffect`].
     pub var_elements_effect: Option<VarElementsEffect>,
 
+    /// Effect on Tcl's dual string/internal representation or shared-object
+    /// storage. A resolved subcommand or form may override this declaration.
+    pub representation_effect: Option<RepresentationEffect>,
+
     /// Per-argument type hints. Each tuple is `(arg_index, hint)`.
     pub arg_types: &'static [(u8, ArgTypeHint)],
 
@@ -672,6 +718,10 @@ pub struct CommandSpec {
     /// A resolved subcommand or invocation form can supply a more-specific
     /// descriptor. `None` deliberately leaves the invocation conservative.
     pub completion: Option<crate::completion::CompletionDescriptor>,
+
+    /// Whether equal evaluated arguments are sufficient to reproduce this
+    /// command's result. `None` is conservative, not an assertion of purity.
+    pub result_stability: Option<crate::result_stability::ResultStability>,
 
     /// Which argument index is a variable name assigned by the command.
     /// `None` = command does not assign a variable.
@@ -760,6 +810,10 @@ pub struct CommandSpec {
     /// name. Irreducible live-interpreter dependencies always remain.
     pub dispatch_dependencies: Option<DispatchDependencyDescriptor>,
 
+    /// Relationship/content validator for statically-known literal arguments.
+    /// A resolved subcommand or form may override this callback.
+    pub literal_argument_validator: Option<LiteralArgumentValidator>,
+
     /// Inferred storage type for the target variable (`Dict`, `List`, `Array`).
     pub inferred_storage_type: Option<StorageType>,
 
@@ -814,6 +868,11 @@ pub struct CommandSpec {
 
     /// Options declared on the command (for completion and arity adjustment).
     pub options: &'static [OptionSpec],
+
+    /// Relationships between leading options that the command rejects when
+    /// they occur together.  This is data for generic invocation validation,
+    /// not a command-specific analyser rule.
+    pub option_constraints: &'static [OptionConstraint],
 
     /// Number of trailing words (after the command name) that C Tcl's own
     /// option-scanning loop never treats as option candidates, regardless
@@ -1308,6 +1367,7 @@ impl CommandSpec {
         var_write_typing: VarWriteTyping::ReturnValue,
         return_elements: None,
         var_elements_effect: None,
+        representation_effect: None,
         arg_types: &[],
         subcommands: &[],
         prefix_matching: PrefixMatching::Enabled,
@@ -1318,6 +1378,7 @@ impl CommandSpec {
         command_forms: &[],
         semantic_operation: None,
         completion: None,
+        result_stability: None,
         assigns_variable_at: None,
         safe_on_uninit: None,
         const_fold: None,
@@ -1332,6 +1393,7 @@ impl CommandSpec {
         world_effects: None,
         state_transitions: None,
         dispatch_dependencies: None,
+        literal_argument_validator: None,
         inferred_storage_type: None,
         required_package: None,
         excluded_events: &[],
@@ -1343,6 +1405,7 @@ impl CommandSpec {
         side_switch_target: None,
         event_handler_priority: None,
         options: &[],
+        option_constraints: &[],
         reserved_trailing_words: 0,
         arg_values: &[],
         body_kind: BodyKind::Plain,
@@ -1386,6 +1449,20 @@ impl CommandSpec {
         implementation_namespace: None,
         oo_context_facts: &[],
         self_receiver_words: &[],
+    };
+
+    /// Reusable base for a command whose successful result depends only on
+    /// its evaluated arguments and which has no mutable-world effects or
+    /// tracked state transitions.
+    ///
+    /// Command specs still declare their behavioural traits explicitly. This
+    /// base only closes the three independent semantic proof obligations, so
+    /// `PURE` and `CSE_CANDIDATE` cannot be acquired accidentally.
+    pub const CLOSED_REFERENTIALLY_TRANSPARENT: Self = Self {
+        result_stability: Some(crate::result_stability::ResultStability::ReferentiallyTransparent),
+        world_effects: Some(WorldEffectDescriptor::EMPTY),
+        state_transitions: Some(StateTransitionDescriptor::EMPTY),
+        ..Self::DEFAULT
     };
 
     /// Run this command's constant folder for `args` under the optimiser's
@@ -1934,6 +2011,10 @@ pub struct SubCommand {
     /// subcommand (`dict set var … value`). See [`VarElementsEffect`].
     pub var_elements_effect: Option<VarElementsEffect>,
 
+    /// Effect on Tcl's dual string/internal representation or shared-object
+    /// storage. `None` inherits the parent command declaration.
+    pub representation_effect: Option<RepresentationEffect>,
+
     /// Per-argument type hints.
     pub arg_types: &'static [(u8, ArgTypeHint)],
 
@@ -1978,6 +2059,10 @@ pub struct SubCommand {
     /// Per-subcommand options.
     pub options: &'static [OptionSpec],
 
+    /// Relationships between this subcommand's leading options that the
+    /// command rejects when they occur together.
+    pub option_constraints: &'static [OptionConstraint],
+
     /// Documented minimum abbreviation length for this subcommand's own
     /// name, when the command promises a longer minimum than uniqueness
     /// alone requires.  `None` = uniqueness is the only constraint.
@@ -2017,6 +2102,10 @@ pub struct SubCommand {
     /// A matching subcommand form takes precedence. `None` inherits the
     /// parent command's descriptor.
     pub completion: Option<crate::completion::CompletionDescriptor>,
+
+    /// Result-dependency refinement for this subcommand. `None` inherits the
+    /// parent command declaration.
+    pub result_stability: Option<crate::result_stability::ResultStability>,
 
     /// Dialect membership. `None` = inherit from parent `CommandSpec`.
     pub dialects: Option<DialectSet>,
@@ -2126,6 +2215,10 @@ pub struct SubCommand {
     /// Irreducible live-interpreter dependencies cannot be removed.
     pub dispatch_dependencies: Option<DispatchDependencyDescriptor>,
 
+    /// Relationship/content validator for statically-known literal arguments.
+    /// A matching form may override this callback.
+    pub literal_argument_validator: Option<LiteralArgumentValidator>,
+
     /// Irreversible operation (`file delete`, …).
     pub destructive: bool,
 
@@ -2215,6 +2308,7 @@ impl SubCommand {
         var_write_typing: VarWriteTyping::ReturnValue,
         return_elements: None,
         var_elements_effect: None,
+        representation_effect: None,
         arg_types: &[],
         pure: false,
         mutator: false,
@@ -2226,6 +2320,7 @@ impl SubCommand {
         analyser_hook: None,
         command_table_effect: None,
         options: &[],
+        option_constraints: &[],
         min_abbrev: None,
         prefix_matching: PrefixMatching::Enabled,
         arg_values: &[],
@@ -2233,6 +2328,7 @@ impl SubCommand {
         subcommand_forms: &[],
         semantic_operation: None,
         completion: None,
+        result_stability: None,
         dialects: None,
         lifecycle: Lifecycle::UNSPECIFIED,
         safe_on_uninit: None,
@@ -2256,6 +2352,7 @@ impl SubCommand {
         world_effects: None,
         state_transitions: None,
         dispatch_dependencies: None,
+        literal_argument_validator: None,
         destructive: false,
         returns_path: false,
         is_unescape: false,
@@ -2263,6 +2360,27 @@ impl SubCommand {
         sub_subcommands: &[],
         defines_command_at: None,
         max_leading_option_words: None,
+    };
+
+    /// Reusable base for a subcommand whose successful result depends only on
+    /// its evaluated arguments and which has no mutable-world effects or
+    /// tracked state transitions.
+    pub const CLOSED_REFERENTIALLY_TRANSPARENT: Self = Self {
+        result_stability: Some(crate::result_stability::ResultStability::ReferentiallyTransparent),
+        world_effects: Some(WorldEffectDescriptor::EMPTY),
+        state_transitions: Some(StateTransitionDescriptor::EMPTY),
+        ..Self::DEFAULT
+    };
+
+    /// Reusable base for a subcommand whose result changes outside the tracked
+    /// Tcl world, such as wall-clock or entropy observations.
+    ///
+    /// This closes only the result-dependency question. Effects and state
+    /// transitions remain conservative unless the command spec independently
+    /// declares them.
+    pub const VOLATILE_RESULT: Self = Self {
+        result_stability: Some(crate::result_stability::ResultStability::Volatile),
+        ..Self::DEFAULT
     };
 
     /// The subcommand's primary invocation synopsis — its own

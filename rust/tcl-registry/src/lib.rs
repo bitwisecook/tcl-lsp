@@ -66,6 +66,7 @@ pub mod commands;
 pub mod completion;
 pub mod const_fold;
 pub mod definer;
+pub mod deprecation;
 pub mod dialects;
 pub mod dispatch_stability;
 mod event_descriptions;
@@ -80,6 +81,7 @@ pub mod hover;
 pub mod intrinsic;
 pub mod invocation_words;
 pub mod lifecycle;
+pub mod literal_validation;
 pub mod mathfunc;
 pub mod patterns;
 pub mod presentation;
@@ -89,7 +91,9 @@ pub mod profile_queries;
 pub mod profiles;
 pub mod registry;
 pub mod repeated;
+pub mod representation;
 pub mod resolved_invocation;
+pub mod result_stability;
 pub mod scoped;
 pub mod semantic_operation;
 pub mod side_effects;
@@ -112,7 +116,7 @@ pub mod world_effect;
 /// types needed to construct a `CommandSpec`.
 pub mod prelude {
     pub use crate::abbrev::{KeywordMatch, KeywordTable, PrefixMatching};
-    pub use crate::arg_role::{AppendedArity, ArgRole};
+    pub use crate::arg_role::{AppendedArity, AppendedAritySet, ArgRole};
     pub use crate::arity::Arity;
     pub use crate::body_kind::BodyKind;
     pub use crate::bpf_op::{
@@ -130,6 +134,7 @@ pub mod prelude {
         DefinerFamily, DefinitionBodyGrammar, MemberKind, MemberRefKind, MemberRetraction,
         MemberSpec, MemberVisibility, RetractionWords,
     };
+    pub use crate::deprecation::{DeprecationFixHook, DeprecationFixSafety};
     pub use crate::dialects::DialectSet;
     pub use crate::dispatch_stability::{
         DispatchDependencies, DispatchDependencyComposition, DispatchDependencyDescriptor,
@@ -158,11 +163,17 @@ pub mod prelude {
         OptionSpec, OptionValue, OptionValueHook, OptionValueOutcome,
     };
     pub use crate::intrinsic::IntrinsicId;
-    pub use crate::invocation_words::InvocationArguments;
+    pub use crate::invocation_words::{CommandPrefixArguments, InvocationArguments};
     pub use crate::lifecycle::{Lifecycle, LifecycleState};
+    pub use crate::literal_validation::{
+        LiteralArgumentIssue, LiteralArgumentIssueReason, LiteralArgumentValidation,
+        LiteralValidationDecline,
+    };
     pub use crate::patterns::{FormatType, PatternType};
     pub use crate::presentation::ArgPresentation;
     pub use crate::repeated::RepeatedArgLayout;
+    pub use crate::representation::RepresentationEffect;
+    pub use crate::result_stability::ResultStability;
     pub use crate::scoped::{ScopedCommand, ScopedCommandEnv};
     pub use crate::semantic_operation::{InlineBodyErrorContext, SemanticOperationId};
     pub use crate::side_effects::{
@@ -170,17 +181,18 @@ pub mod prelude {
     };
     pub use crate::spec::{
         BytePayloadSpec, CaseListSpec, CommandSpec, ContextGate, DefaultFormFirstWord,
-        ObjectClassSpec, OoContextFact, SubCommand, SubSubCommand, VersionedArgValue,
+        ObjectClassSpec, OoContextFact, OptionConstraint, SubCommand, SubSubCommand,
+        VersionedArgValue,
     };
     pub use crate::state_transition::{
-        CallerFrameSelection, ChildInterpreterSafety, CommandBindingTransition,
-        InterpreterTransition, NamespaceTransition, NamespaceTransitionTarget, ObjectDispatchKind,
-        ObjectDispatchLayer, ObjectDispatchTarget, ObjectDispatchTransition,
-        ObjectPrivateNamespace, StateTransition, StateTransitionArgumentShape,
-        StateTransitionCommit, StateTransitionComposition, StateTransitionDescriptor,
-        StateTransitionDomain, StateTransitionOperandLayout, StateTransitionResolver,
-        StateTransitionWideningRule, StateTransitions, TraceOperation, TraceOperationSet,
-        TraceTarget, TraceTransition, TransitionSubject, VariableAliasTarget,
+        CallerFrameSelection, ChildInterpreterSafety, CommandBindingDefinitionKind,
+        CommandBindingTransition, InterpreterTransition, NamespaceTransition,
+        NamespaceTransitionTarget, ObjectDispatchKind, ObjectDispatchLayer, ObjectDispatchTarget,
+        ObjectDispatchTransition, ObjectPrivateNamespace, StateTransition,
+        StateTransitionArgumentShape, StateTransitionCommit, StateTransitionComposition,
+        StateTransitionDescriptor, StateTransitionDomain, StateTransitionOperandLayout,
+        StateTransitionResolver, StateTransitionWideningRule, StateTransitions, TraceOperation,
+        TraceOperationSet, TraceTarget, TraceTransition, TransitionSubject, VariableAliasTarget,
         VariableCellAliasTransition,
     };
     pub use crate::symbol_def::{DefinedSymbolKind, SymbolDef};
@@ -196,7 +208,7 @@ pub mod prelude {
 }
 
 // Re-export key types at crate root.
-pub use arg_role::{AppendedArity, ArgRole};
+pub use arg_role::{AppendedArity, AppendedAritySet, ArgRole};
 pub use arity::Arity;
 pub use bigip::{BigipObjectSpec, BigipPropertySpec, BigipRegistry, ValueKind};
 pub use body_kind::BodyKind;
@@ -228,7 +240,12 @@ pub use handle_binding::{
 pub use hover::ArgValue;
 pub use intrinsic::IntrinsicId;
 pub use invocation_words::{
-    InvocationArguments, InvocationWord, InvocationWordKind, InvocationWords,
+    CommandPrefixArguments, InvocationArguments, InvocationWord, InvocationWordKind,
+    InvocationWords,
+};
+pub use literal_validation::{
+    LiteralArgumentIssue, LiteralArgumentIssueReason, LiteralArgumentValidation,
+    LiteralArgumentValidator, LiteralValidationDecline,
 };
 pub use patterns::{FormatType, PatternType};
 pub use presentation::ArgPresentation;
@@ -237,16 +254,18 @@ pub use registry::{
     CommandRegistry, FormatStringArg, MethodDispatchKind, ResolvedCall, ResolvedTerminator,
 };
 pub use repeated::RepeatedArgLayout;
+pub use representation::RepresentationEffect;
 pub use resolved_invocation::{
     InvocationFacts, InvocationOptions, InvocationResolutionUnresolved, InvocationSemantics,
     OwnedSubcommandResolution, ResolvedForm, ResolvedInvocation, ResolvedSubcommand,
     StructuredInvocationResolution, SubcommandResolution, SubcommandResolutionKind,
 };
+pub use result_stability::ResultStability;
 pub use semantic_operation::{InlineBodyErrorContext, SemanticOperationId};
 pub use side_effects::SideSwitchTarget;
 pub use spec::{
     BytePayloadSpec, CaseListSpec, CommandSpec, ContextGate, DefaultFormFirstWord, ObjectClassSpec,
-    OoContextFact, SubCommand, SubSubCommand, VersionedArgValue,
+    OoContextFact, OptionConstraint, SubCommand, SubSubCommand, VersionedArgValue,
 };
 pub use special_vars::{
     SPECIAL_VARS, SpecialVarKey, SpecialVarKind, SpecialVarSpec, VarAccess, VarOrigin,
@@ -255,15 +274,15 @@ pub use special_vars::{
 };
 pub use state_transition::{
     AbruptTransitionTransfer, CallerFrameSelection, ChildInterpreterSafety,
-    CommandBindingTransition, InterpreterTransition, NamespaceTransition,
-    NamespaceTransitionTarget, ObjectDispatchKind, ObjectDispatchLayer, ObjectDispatchTarget,
-    ObjectDispatchTransition, ObjectPrivateNamespace, ResolvedStateTransitions, StateTransition,
-    StateTransitionArgumentShape, StateTransitionCommit, StateTransitionComposition,
-    StateTransitionDescriptor, StateTransitionDomain, StateTransitionFact,
-    StateTransitionKnowledge, StateTransitionOperandLayout, StateTransitionResolver,
-    StateTransitionWidening, StateTransitionWideningRule, StateTransitions, TraceOperation,
-    TraceOperationSet, TraceTarget, TraceTransition, TransitionSubject, VariableAliasTarget,
-    VariableCellAliasTransition,
+    CommandBindingDefinitionKind, CommandBindingTransition, InterpreterTransition,
+    NamespaceTransition, NamespaceTransitionTarget, ObjectDispatchKind, ObjectDispatchLayer,
+    ObjectDispatchTarget, ObjectDispatchTransition, ObjectPrivateNamespace,
+    ResolvedStateTransitions, StateTransition, StateTransitionArgumentShape, StateTransitionCommit,
+    StateTransitionComposition, StateTransitionDescriptor, StateTransitionDomain,
+    StateTransitionFact, StateTransitionKnowledge, StateTransitionOperandLayout,
+    StateTransitionResolver, StateTransitionWidening, StateTransitionWideningRule,
+    StateTransitions, TraceOperation, TraceOperationSet, TraceTarget, TraceTransition,
+    TransitionSubject, VariableAliasTarget, VariableCellAliasTransition,
 };
 pub use symbol_def::{DefinedSymbolKind, SymbolDef};
 pub use taint::{SetterConstraint, TaintColour};

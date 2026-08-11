@@ -37,7 +37,11 @@ use crate::dialects::DialectSet;
 use crate::dispatch_stability::DispatchDependencyDescriptor;
 use crate::hooks::{CodegenHookId, LoweringHookId};
 use crate::hover::OptionSpec;
+use crate::literal_validation::LiteralArgumentValidator;
+use crate::representation::RepresentationEffect;
+use crate::result_stability::ResultStability;
 use crate::semantic_operation::SemanticOperationId;
+use crate::spec::OptionConstraint;
 use crate::state_transition::StateTransitionDescriptor;
 use crate::world_effect::WorldEffectDescriptor;
 
@@ -64,6 +68,10 @@ pub struct CommandForm {
     /// Options recognised on this form.
     pub options: &'static [OptionSpec],
 
+    /// Relationships between options that are invalid when supplied
+    /// together on this form.
+    pub option_constraints: &'static [OptionConstraint],
+
     /// Dialects in which this form applies. `None` = inherit from
     /// the parent [`crate::CommandSpec`] / [`crate::SubCommand`].
     pub dialects: Option<DialectSet>,
@@ -80,6 +88,14 @@ pub struct CommandForm {
     /// parent command's completion descriptors. `None` inherits the more
     /// general descriptor.
     pub completion: Option<CompletionDescriptor>,
+
+    /// Result-dependency refinement for this concrete invocation shape.
+    /// `None` inherits the resolved subcommand or command declaration.
+    pub result_stability: Option<ResultStability>,
+
+    /// Tcl value-representation effect specific to this form. `None` inherits
+    /// the subcommand or command declaration.
+    pub representation_effect: Option<RepresentationEffect>,
 
     /// Mutable Tcl-world effects specific to this concrete form.
     ///
@@ -98,6 +114,10 @@ pub struct CommandForm {
     /// Irreducible live-interpreter dependencies cannot be removed.
     pub dispatch_dependencies: Option<DispatchDependencyDescriptor>,
 
+    /// Relationship/content validator for statically-known literal arguments.
+    /// `None` inherits the resolved subcommand or command declaration.
+    pub literal_argument_validator: Option<LiteralArgumentValidator>,
+
     /// Lowering hook identifier for this form.
     pub lowering_hook: Option<LoweringHookId>,
 
@@ -113,12 +133,16 @@ impl CommandForm {
         arity: Arity::any(),
         arg_roles: &[],
         options: &[],
+        option_constraints: &[],
         dialects: None,
         semantic_operation: None,
         completion: None,
+        result_stability: None,
+        representation_effect: None,
         world_effects: None,
         state_transitions: None,
         dispatch_dependencies: None,
+        literal_argument_validator: None,
         lowering_hook: None,
         codegen_hook: None,
     };

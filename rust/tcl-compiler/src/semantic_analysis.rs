@@ -345,7 +345,7 @@ fn interactive_gvn_needs_world_state(function: &ExecutableFunction) -> bool {
             matches!(
                 &invoke.resolution,
                 InvocationResolution::Resolved(facts)
-                    if crate::gvn::resolved_invocation_is_gvn_eligible(facts)
+                    if crate::gvn::resolved_invocation_is_gvn_candidate(facts)
             )
         })
     })
