@@ -39,8 +39,10 @@
 //!
 //! ## Why the packs are loaded one file at a time
 //!
-//! A pack is a logical unit, not a file, and eight of the eleven ports under
-//! `docs/design/spec-dsl-examples/` declare `speclib tcl` — merging them would
+//! A pack is a logical unit, not a file, and nine of the eleven ports under
+//! `docs/design/spec-dsl-examples/` declare `speclib tcl` (the other two are
+//! `speclib tcllib` and `speclib f5-irules`, and `snit-type.tclspec` shares
+//! `tcllib` with the external draft) — merging them would
 //! produce one synthetic "tcl" pack that exists on nobody's disk, with
 //! duplicate-definition notices that say nothing about any real pack. Each
 //! file is therefore its own pack set here, which is also the unit the report
