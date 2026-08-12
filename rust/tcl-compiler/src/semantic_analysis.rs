@@ -14,6 +14,7 @@
 //! executable world-state SSA.  Source shapes outside that compatibility layer
 //! retain a typed decline instead of receiving guessed facts.
 
+use tcl_dialect::DialectProfile;
 use tcl_registry::dialects::DialectSet;
 use tcl_registry::{CommandRegistry, EffectFootprint};
 
@@ -23,6 +24,8 @@ use crate::executable_ir::{
     LoweredOperation, OpaqueRegion, SourceCompatibilityDecline, build_linear_executable_ir,
 };
 use crate::ir::Script;
+use crate::mixed_region_plan::{MixedPlanBuildError, MixedRegionPlan};
+use crate::semantic_optimisation::{SemanticOptimisationConfig, SemanticOptimisationPassId};
 use crate::world_state_ssa::{
     ExecutableWorldStateSsa, WorldStateSsaDecline, build_executable_world_state_ssa,
 };
@@ -55,6 +58,7 @@ pub(crate) const fn test_common_analysis_provenance() -> CommonAnalysisProvenanc
 pub struct SemanticAnalysisBundle {
     dialect: DialectSet,
     executable: ExecutableAnalysisAvailability,
+    mixed_plan: MixedRegionPlanAvailability,
 }
 
 impl SemanticAnalysisBundle {
@@ -63,10 +67,10 @@ impl SemanticAnalysisBundle {
     #[must_use]
     pub fn build(registry: &CommandRegistry, dialect: DialectSet, script: &Script) -> Self {
         if dialect.canonical_name().is_none() {
-            return Self {
+            return Self::from_executable(
                 dialect,
-                executable: ExecutableAnalysisAvailability::DialectUnavailable { dialect },
-            };
+                ExecutableAnalysisAvailability::DialectUnavailable { dialect },
+            );
         }
         let executable = match build_linear_executable_ir(
             registry,
@@ -87,10 +91,7 @@ impl SemanticAnalysisBundle {
             },
             Err(decline) => ExecutableAnalysisAvailability::SourceDeclined(decline),
         };
-        Self {
-            dialect,
-            executable,
-        }
+        Self::from_executable(dialect, executable)
     }
 
     /// Build the executable invocation facts used by interactive GVN, and
@@ -108,10 +109,10 @@ impl SemanticAnalysisBundle {
         script: &Script,
     ) -> Self {
         if dialect.canonical_name().is_none() {
-            return Self {
+            return Self::from_executable(
                 dialect,
-                executable: ExecutableAnalysisAvailability::DialectUnavailable { dialect },
-            };
+                ExecutableAnalysisAvailability::DialectUnavailable { dialect },
+            );
         }
         let executable = match build_linear_executable_ir(
             registry,
@@ -135,24 +136,21 @@ impl SemanticAnalysisBundle {
             Ok(function) => ExecutableAnalysisAvailability::WorldStateNotRequired { function },
             Err(decline) => ExecutableAnalysisAvailability::SourceDeclined(decline),
         };
-        Self {
-            dialect,
-            executable,
-        }
+        Self::from_executable(dialect, executable)
     }
 
     /// Build an explicit unavailable bundle for a function build that did not
     /// retain a source script.
     #[must_use]
     pub fn unavailable(dialect: DialectSet) -> Self {
-        Self {
+        Self::from_executable(
             dialect,
-            executable: if dialect.canonical_name().is_some() {
+            if dialect.canonical_name().is_some() {
                 ExecutableAnalysisAvailability::SourceUnavailable
             } else {
                 ExecutableAnalysisAvailability::DialectUnavailable { dialect }
             },
-        }
+        )
     }
 
     /// The registry dialect used for every invocation resolution in this
@@ -166,6 +164,83 @@ impl SemanticAnalysisBundle {
     #[must_use]
     pub const fn executable(&self) -> &ExecutableAnalysisAvailability {
         &self.executable
+    }
+
+    /// Retained mixed per-region plan, or why no faithful plan was available.
+    #[must_use]
+    pub const fn mixed_plan(&self) -> &MixedRegionPlanAvailability {
+        &self.mixed_plan
+    }
+
+    /// Return mixed-region evidence after explicitly enabled common semantic
+    /// optimisation passes have run.
+    ///
+    /// The retained bundle remains the conservative, pass-disabled baseline.
+    /// Provenance for guard and representation proofs is created only inside
+    /// this semantic-analysis boundary.
+    #[must_use]
+    pub fn mixed_plan_with_optimisations(
+        &self,
+        config: SemanticOptimisationConfig,
+    ) -> MixedRegionPlanAvailability {
+        if !config.is_enabled(SemanticOptimisationPassId::GuardedIntrinsic) {
+            return self.mixed_plan.clone();
+        }
+        let (MixedRegionPlanAvailability::Available(plan), Some(function)) =
+            (&self.mixed_plan, self.executable.function())
+        else {
+            return self.mixed_plan.clone();
+        };
+        let provenance = CommonAnalysisProvenance { _private: () };
+        let runtime_version = self
+            .dialect
+            .canonical_name()
+            .and_then(DialectProfile::find)
+            .and_then(|profile| profile.runtime_base);
+        match plan.select_guarded_boxed_intrinsics(function, runtime_version, &provenance) {
+            Ok(plan) => MixedRegionPlanAvailability::Available(plan),
+            Err(error) => {
+                MixedRegionPlanAvailability::Declined(MixedPlanBuildError::InvalidPlan(error))
+            }
+        }
+    }
+
+    fn from_executable(dialect: DialectSet, executable: ExecutableAnalysisAvailability) -> Self {
+        let mixed_plan = match executable.function() {
+            Some(function) => match MixedRegionPlan::build(function) {
+                Ok(plan) => MixedRegionPlanAvailability::Available(plan),
+                Err(decline) => MixedRegionPlanAvailability::Declined(decline),
+            },
+            None => MixedRegionPlanAvailability::ExecutableUnavailable,
+        };
+        Self {
+            dialect,
+            executable,
+            mixed_plan,
+        }
+    }
+}
+
+/// Availability of the target-neutral mixed per-region execution plan.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum MixedRegionPlanAvailability {
+    /// Every executable region has retained selection and decline evidence.
+    Available(MixedRegionPlan),
+    /// No executable function was available; its precise reason remains in
+    /// [`ExecutableAnalysisAvailability`].
+    ExecutableUnavailable,
+    /// Executable IR existed, but mixed planning declined without guessing.
+    Declined(MixedPlanBuildError),
+}
+
+impl MixedRegionPlanAvailability {
+    /// Return the retained plan when construction succeeded.
+    #[must_use]
+    pub const fn plan(&self) -> Option<&MixedRegionPlan> {
+        match self {
+            Self::Available(plan) => Some(plan),
+            Self::ExecutableUnavailable | Self::Declined(_) => None,
+        }
     }
 }
 
@@ -368,4 +443,60 @@ pub enum InvocationEffectInput<'a> {
     /// A computed or registry-unknown command head retains the generic Tcl
     /// all-world obligation; no precise footprint was manufactured.
     ConservativeUnknown,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::ir::NodeId;
+    use crate::lowering::lower_to_ir;
+    use crate::mixed_region_plan::{InvocationSelection, RegionPlan};
+
+    #[test]
+    fn guarded_intrinsic_selection_requires_explicit_enablement() {
+        let registry = CommandRegistry::build_default();
+        let module = lower_to_ir("string length value", &registry);
+        let bundle = SemanticAnalysisBundle::build(&registry, DialectSet::TCL90, &module.top_level);
+        let node = NodeId::from_path(vec![0]);
+
+        let off = bundle.mixed_plan_with_optimisations(SemanticOptimisationConfig::default());
+        let RegionPlan::Invocation(off) = off.plan().unwrap().region(&node).unwrap() else {
+            panic!("expected invocation");
+        };
+        assert_eq!(off.selection(), &InvocationSelection::GenericPrebuiltArgv);
+
+        let on = bundle.mixed_plan_with_optimisations(
+            SemanticOptimisationConfig::new()
+                .with_enabled(SemanticOptimisationPassId::GuardedIntrinsic),
+        );
+        let RegionPlan::Invocation(on) = on.plan().unwrap().region(&node).unwrap() else {
+            panic!("expected invocation");
+        };
+        assert!(matches!(
+            on.selection(),
+            InvocationSelection::GuardedIntrinsic(_)
+        ));
+        let InvocationSelection::GuardedIntrinsic(tcl9) = on.selection() else {
+            unreachable!();
+        };
+        assert_eq!(tcl9.runtime_version(), tcl_dialect::TclVersion::V9_0);
+
+        let tcl8_bundle =
+            SemanticAnalysisBundle::build(&registry, DialectSet::TCL86, &module.top_level);
+        let tcl8 = tcl8_bundle.mixed_plan_with_optimisations(
+            SemanticOptimisationConfig::new()
+                .with_enabled(SemanticOptimisationPassId::GuardedIntrinsic),
+        );
+        let RegionPlan::Invocation(tcl8) = tcl8.plan().unwrap().region(&node).unwrap() else {
+            panic!("expected invocation");
+        };
+        let InvocationSelection::GuardedIntrinsic(tcl8) = tcl8.selection() else {
+            panic!("expected guarded intrinsic");
+        };
+        assert_eq!(tcl8.runtime_version(), tcl_dialect::TclVersion::V8_6);
+        assert_ne!(
+            tcl8.guarded_plan().guard().expected_identity(),
+            tcl9.guarded_plan().guard().expected_identity(),
+        );
+    }
 }

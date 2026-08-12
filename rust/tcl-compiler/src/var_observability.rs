@@ -40,8 +40,10 @@
 //! current O104 is hint-only, so this lattice has no optimiser
 //! consumer yet; it is the foundation those consumers need.
 //!
-//! As with [`crate::command_binding`], predecessors come from terminator
-//! successors only (the Rust CFG has no explicit exception edges).
+//! As with [`crate::command_binding`], predecessors come from
+//! [`CfgFunction::block_successors`].  That canonical successor view includes
+//! analysis-only `try` exception edges, so handler entry conservatively joins
+//! alias and trace state that may have been established before the exception.
 
 use std::collections::HashMap;
 
@@ -391,12 +393,10 @@ pub fn analyse_var_observability<'a>(
 ) -> VarObservability<'a> {
     let mut preds: HashMap<BlockId, Vec<BlockId>> =
         cfg.blocks.keys().map(|id| (*id, Vec::new())).collect();
-    for (&id, blk) in &cfg.blocks {
-        if let Some(term) = &blk.terminator {
-            for succ in term.successors() {
-                if let Some(v) = preds.get_mut(&succ) {
-                    v.push(id);
-                }
+    for &id in cfg.blocks.keys() {
+        for succ in cfg.block_successors(id) {
+            if let Some(v) = preds.get_mut(&succ) {
+                v.push(id);
             }
         }
     }
@@ -512,6 +512,42 @@ mod tests {
         assert!(obs.is_traced_at(fu.cfg.entry, 2, "t"));
         assert!(obs.escaping_var_names().contains("t"));
         assert!(obs.traced_var_names().contains("t"));
+    }
+
+    #[test]
+    fn try_handler_joins_trace_and_alias_state_from_exception_edge() {
+        // The body may fail before or after either registry-described state
+        // transition.  A handler access must therefore retain both hazards;
+        // treating it as a private, untraced local could authorise an invalid
+        // load/store elimination.
+        let c = cu(
+            "proc ::p {} {\n try {\n  trace add variable t write cb\n  global g\n } on error {} {\n  set t 1\n  set g 2\n }\n}",
+        );
+        let fu = c.function("::p").unwrap();
+        let handler = fu
+            .cfg
+            .blocks
+            .iter()
+            .find_map(|(&id, block)| block.name.starts_with("try_handler").then_some(id))
+            .expect("try handler block");
+        assert!(
+            fu.cfg
+                .exception_edges
+                .iter()
+                .any(|&(_, target)| target == handler),
+            "the test must exercise an analysis-only exception edge"
+        );
+
+        let reg = registry();
+        let obs = analyse_var_observability(&fu.cfg, &reg);
+        assert!(
+            obs.flag_at(handler, 0, "t").contains(EscapeFlag::TRACED),
+            "handler access must remain trace-observable"
+        );
+        assert!(
+            obs.flag_at(handler, 0, "g").contains(EscapeFlag::GLOBAL),
+            "handler access must retain the global alias"
+        );
     }
 
     /// [`VarObservability::traced_var_names`] narrows `escaping_var_names`

@@ -32,10 +32,10 @@
 //! whole-module summary [`scan_module_command_mutations`] — the
 //! optimiser's builtin-fold trust gate.
 //!
-//! The Rust CFG has no explicit exception edges (catch is lowered
-//! opaquely), so predecessors come from terminator successors only.
-//! That can only *miss* a rebinding reaching a handler, never invent
-//! one — sound for a warning.
+//! Predecessors come from [`CfgFunction::block_successors`], the canonical
+//! successor view shared by CFG analyses.  This includes analysis-only `try`
+//! exception edges, so a handler conservatively joins command mutations that
+//! may have occurred before control transfers to it.
 
 use std::collections::{HashMap, HashSet};
 
@@ -543,12 +543,10 @@ pub fn analyse_command_binding<'a>(
 ) -> CommandBinding<'a> {
     let mut preds: HashMap<BlockId, Vec<BlockId>> =
         cfg.blocks.keys().map(|id| (*id, Vec::new())).collect();
-    for (id, blk) in &cfg.blocks {
-        if let Some(term) = &blk.terminator {
-            for succ in term.successors() {
-                if let Some(v) = preds.get_mut(&succ) {
-                    v.push(*id);
-                }
+    for &id in cfg.blocks.keys() {
+        for succ in cfg.block_successors(id) {
+            if let Some(v) = preds.get_mut(&succ) {
+                v.push(id);
             }
         }
     }
@@ -637,6 +635,15 @@ pub struct ModuleCommandMutations {
 }
 
 impl ModuleCommandMutations {
+    /// Whether any command-table mutation has a dynamic source or target.
+    ///
+    /// Consumers retaining typed proof declines need to distinguish this
+    /// lattice top from a statically known rebinding of one command name.
+    #[must_use]
+    pub const fn has_dynamic_mutation(&self) -> bool {
+        self.dynamic
+    }
+
     /// True when `command_name` is not clobbered by any body mutation —
     /// i.e. the optimiser may still fold it with its original builtin
     /// semantics.
@@ -1178,6 +1185,41 @@ Dog create d",
         // concrete binding — so no spurious W128 can fire.
         let entry = fu.cfg.entry;
         assert_eq!(cb.binding_at(entry, 2, "string").kind, BindingKind::Unknown);
+    }
+
+    #[test]
+    fn try_handler_joins_command_mutation_from_exception_edge() {
+        // A fall-through-capable try body may fail before or after the rename.
+        // The analysis-only exception edges therefore contribute both the
+        // pre-try Builtin state and the body-exit Opaque state to the handler.
+        let (cu, reg) = analyse(
+            "proc ::p {} {\n try {\n  rename string {}\n } on error {} {\n  string length abc\n }\n}",
+        );
+        let fu = cu.function("::p").unwrap();
+        let handler = fu
+            .cfg
+            .blocks
+            .iter()
+            .find_map(|(&id, block)| block.name.starts_with("try_handler").then_some(id))
+            .expect("try handler block");
+        assert!(
+            fu.cfg
+                .exception_edges
+                .iter()
+                .any(|&(_, target)| target == handler),
+            "the test must exercise an analysis-only exception edge"
+        );
+
+        let cb = analyse_command_binding(&fu.cfg, &reg, &[]);
+        assert_eq!(
+            cb.binding_at(handler, 0, "string").kind,
+            BindingKind::Unknown,
+            "the handler must not infer either the original or renamed binding"
+        );
+        assert!(
+            !cb.is_original_builtin_at(handler, 0, "string"),
+            "an optimisation must not trust the builtin at handler entry"
+        );
     }
 
     #[test]

@@ -168,7 +168,6 @@ pub(crate) fn register_builtins(vm: &mut Vm) {
     crate::cmd_clock::register(vm);
     crate::cmd_control::register(vm);
     crate::cmd_list::register(vm);
-    crate::cmd_string::register(vm);
     crate::cmd_dict::register(vm);
     crate::cmd_file::register(vm);
     crate::cmd_format::register(vm);
@@ -188,6 +187,9 @@ pub(crate) fn register_builtins(vm: &mut Vm) {
     crate::cmd_coro::register(vm);
     crate::cmd_event::register(vm);
     crate::cmd_thread::register(vm);
+    // Last so the spec-derived intrinsic identities remain live after the
+    // startup registration sweep's conservative command-epoch invalidations.
+    crate::cmd_string::register(vm);
 }
 
 /// `exit ?returnCode?` — request process termination with `returnCode`

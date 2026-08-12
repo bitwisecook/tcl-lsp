@@ -1487,6 +1487,55 @@ impl CommandSpec {
         self.subcommands.iter().find(|s| s.name == name)
     }
 
+    /// All target-neutral intrinsic identities declared anywhere in this
+    /// command's command, subcommand, or invocation-form descriptors.
+    ///
+    /// The result is deduplicated and ordered by [`crate::IntrinsicId`], so a
+    /// runtime can attach every semantic identity to one live implementation
+    /// without knowing the command's subcommand layout.
+    #[must_use]
+    pub fn intrinsic_ids(&self) -> Vec<crate::IntrinsicId> {
+        let mut ids = std::collections::BTreeSet::new();
+        let mut add = |semantic, lowering, codegen, inline_codegen| {
+            if let Some(id) =
+                crate::IntrinsicId::from_descriptors(semantic, lowering, codegen, inline_codegen)
+            {
+                ids.insert(id);
+            }
+        };
+        add(
+            self.semantic_operation,
+            self.lowering_hook,
+            self.codegen_hook,
+            self.inline_codegen_hook,
+        );
+        for form in self.command_forms {
+            add(
+                form.semantic_operation,
+                form.lowering_hook,
+                form.codegen_hook,
+                None,
+            );
+        }
+        for subcommand in self.subcommands {
+            add(
+                subcommand.semantic_operation,
+                subcommand.lowering_hook,
+                subcommand.codegen_hook,
+                subcommand.inline_codegen_hook,
+            );
+            for form in subcommand.subcommand_forms {
+                add(
+                    form.semantic_operation,
+                    form.lowering_hook,
+                    form.codegen_hook,
+                    None,
+                );
+            }
+        }
+        ids.into_iter().collect()
+    }
+
     /// The command's primary invocation synopsis — the first non-empty
     /// [`Self::forms`] entry, falling back to the first non-empty hover
     /// synopsis line. `None` when the spec declares neither. Used for the

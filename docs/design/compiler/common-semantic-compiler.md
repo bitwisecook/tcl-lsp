@@ -68,12 +68,22 @@ limits:
 - backend contracts, representation types, and proof tokens are legality
   scaffolding. They do not by themselves enable specialisation.
 
-No framing removal, single-representation variable lowering, or other AOT
-optimisation is enabled by this work. The current WASM consumer declines the
-lowered and opaque operations above, and accepts only its bounded generic
-invocation shape. The current eBPF semantic bridge is a conservative auditor;
-the established BPF-Tcl frontend and emitter do not consume its eligibility
-record.
+Two explicitly enabled WASM pilots now consume common evidence. A guarded
+boxed `string length` region uses a live runtime identity/domain guard and the
+same prebuilt argv for generic fallback. The exact sealed four-statement
+constant `add` demonstration proves two native i64 operands, elides that
+procedure's Tcl frame and top-level d/e cells, emits native `i64.add`, and
+boxes only at the registry-proved output boundary. Neither pilot generalises to
+arbitrary lowered/opaque regions, frames, variables, procedures, or numeric
+expressions, and every semantic AOT control is off by default. The current
+eBPF semantic bridge remains a conservative auditor; the established BPF-Tcl
+frontend and emitter do not consume its eligibility record.
+
+Code-changing semantic AOT passes are governed by
+[`semantic-aot-optimisation.md`](semantic-aot-optimisation.md): each pass is
+independently disableable and off by default, mixed native/runtime regions have
+explicit materialisation edges, and no backend may turn static registry
+resolution into a live dispatch proof.
 
 Safe and child interpreters, including the Safe Base, remain runtime concerns.
 The common state model reserves interpreter-policy and visibility domains, and
@@ -239,6 +249,13 @@ This separation also keeps runtime compilation portable. The same runtime
 source can be compiled for the host, WASM, or another supported target without
 moving Tcl semantics into an emitter. Backend intrinsics are optional fast
 paths into that runtime, not alternate implementations of Tcl commands.
+
+The first consumer of the guard transport is WASM code generation linked to
+the Rust Tcl runtime. TclVM remains a differential semantic target and does not
+yet consume `MixedRegionPlan`, `CommonAotProofPlan`, runtime guard tokens, or
+the native i64-add plan. Those proof objects are target-neutral so later VM
+integration can consume them; their existence is not evidence that it already
+does.
 
 ## Shared Tcl primitives
 
@@ -413,9 +430,12 @@ register, eBPF stack location, GPU buffer, or FPGA wire/memory.
 
 The current representation module models dual representations, sharing,
 copy-on-write, boundary materialisation, and proof obligations, but those types
-are not an optimisation authorisation. Generated WASM continues to use runtime
-objects and runtime call frames. It does not remove Tcl framing or assume that
-a variable has only a native representation.
+alone are not an optimisation authorisation. Generic and guarded-intrinsic WASM
+continues to use runtime objects and runtime call frames. The sealed native-add
+pilot omits only the exact proved procedure frame and d/e cells, keeps its two
+operands as i64, and boxes its result at the output boundary. No general
+single-representation variable, materialisation, reload, or deoptimisation
+path is implemented.
 
 Guard failure or an unknown call must have an explicit materialisation and
 reload plan. Future deoptimisation uses a `NodeId`-keyed continuation map rather
@@ -450,15 +470,17 @@ consumer is connected and differential tests cover its Tcl surfaces.
 7. Replace boolean-heavy interprocedural summaries with structured effects.
 8. Move SCCP, GVN, motion, DCE, taint, and escape consumers onto the common
    operation and state facts.
-9. Add guarded semantic specialisation and explicit materialisation, while
-   keeping optimisation disabled until differential tests prove it sound.
+9. Widen the first guarded boxed intrinsic into general guarded semantic
+   specialisation and explicit materialisation, while keeping every transform
+   disabled until its differential tests prove it sound.
 10. Migrate TclVM and WASM selection to backend registries, preserving emitted
     bytecode and runtime behaviour during the transition.
 11. Feed resolved operations and common facts directly into BPF-Tcl's existing
     typed BPF IR; retain its verifier-specific lattice and emitter.
-12. Add native CPU lowering only after the runtime ABI, completion, ownership,
-    and deoptimisation contracts are stable. GPU and FPGA work begins with
-    host/device region extraction, not a full Tcl interpreter on the device.
+12. Widen native CPU lowering beyond the exact sealed i64-add demonstration
+    only after the runtime ABI, completion, ownership, and deoptimisation
+    contracts are stable. GPU and FPGA work begins with host/device region
+    extraction, not a full Tcl interpreter on the device.
 
 Every stage adds registry drift tests, focused compiler tests, differential
 runtime tests, and LSP consumer tests. No stage adds a command-name special

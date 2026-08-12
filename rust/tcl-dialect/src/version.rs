@@ -36,6 +36,19 @@ pub enum ByteStringEncoding {
     CheckedLatin1,
 }
 
+/// Character-counting model used by Tcl string operations.
+///
+/// Tcl 8 stores `Tcl_UniChar` as a 16-bit unit, so a supplementary-plane
+/// character occupies a surrogate pair and contributes two to `string
+/// length`. Tcl 9 widened `Tcl_UniChar` and counts Unicode scalar values.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum StringCharacterModel {
+    /// Tcl 8.x: count UTF-16 code units.
+    Utf16CodeUnits,
+    /// Tcl 9.x: count Unicode scalar values.
+    UnicodeScalars,
+}
+
 /// A specific Tcl release whose **compile-time** semantics a constant fold may
 /// depend on — e.g. `string is integer` is unbounded on 9.0 but caps at
 /// `2³²-1` on 8.x, and `string is wideinteger` / `entier` / `dict` and
@@ -175,6 +188,15 @@ impl TclVersion {
         match self {
             Self::V8_4 | Self::V8_5 | Self::V8_6 => ByteStringEncoding::LegacyTruncate,
             Self::V9_0 | Self::V9_1 => ByteStringEncoding::CheckedLatin1,
+        }
+    }
+
+    /// The release-defined unit used by `string length` and character indices.
+    #[must_use]
+    pub const fn string_character_model(self) -> StringCharacterModel {
+        match self {
+            Self::V8_4 | Self::V8_5 | Self::V8_6 => StringCharacterModel::Utf16CodeUnits,
+            Self::V9_0 | Self::V9_1 => StringCharacterModel::UnicodeScalars,
         }
     }
 
@@ -765,7 +787,7 @@ impl Ternary {
 
 #[cfg(test)]
 mod tests {
-    use super::{TclVersion, Ternary, exact_requirement};
+    use super::{StringCharacterModel, TclVersion, Ternary, exact_requirement};
 
     #[test]
     fn from_dialect_maps_every_versioned_tcl() {
@@ -1076,5 +1098,17 @@ mod tests {
         ] {
             assert_eq!(version.dialect_profile_name(), profile);
         }
+    }
+
+    #[test]
+    fn string_character_model_changes_at_tcl_nine() {
+        assert_eq!(
+            TclVersion::V8_6.string_character_model(),
+            StringCharacterModel::Utf16CodeUnits
+        );
+        assert_eq!(
+            TclVersion::V9_0.string_character_model(),
+            StringCharacterModel::UnicodeScalars
+        );
     }
 }

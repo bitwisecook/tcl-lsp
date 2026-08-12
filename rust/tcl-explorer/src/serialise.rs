@@ -48,9 +48,14 @@ use tcl_compiler::irules_checks::{
 };
 use tcl_compiler::loops::{build_loop_forest, dominates};
 use tcl_compiler::memory_ssa::{MemoryLocationKind, MemoryOpKind, MemorySsaFunction};
+use tcl_compiler::mixed_region_plan::{
+    GuardedCandidateDecision, GuardedCandidateDecline, RegionPlan,
+};
 use tcl_compiler::optimiser::{apply_optimisations, find_dead_stores, optimise, optimise_by_pass};
 use tcl_compiler::segmenter::{segment_commands, segment_commands_with_offset_and_config};
-use tcl_compiler::semantic_analysis::ExecutableAnalysisAvailability;
+use tcl_compiler::semantic_analysis::{
+    ExecutableAnalysisAvailability, MixedRegionPlanAvailability,
+};
 use tcl_compiler::shimmer::{
     find_byte_array_warnings_for_cu, find_sharing_warnings_for_cu, find_shimmer_warnings_for_cu,
     find_thunking_warnings_for_cu, type_name,
@@ -227,12 +232,20 @@ fn serialise_children(stmt: &Statement, li: &LineIndex, source: &str) -> Option<
 /// module-wide counts (`functionCount` / `totalInstrCount`) and the type
 /// section come from `wasm_to_explorer_json` itself.
 fn serialise_wasm(result: &ExplorerResult) -> Value {
-    use tcl_compiler::codegen::wasm::{
-        WasmCodegenPlan, WasmCompileOptions, WasmSemanticDecline, compile_wasm,
-    };
+    serialise_wasm_with_options(
+        result,
+        tcl_compiler::codegen::wasm::WasmCompileOptions::hosted(),
+    )
+}
+
+fn serialise_wasm_with_options(
+    result: &ExplorerResult,
+    options: tcl_compiler::codegen::wasm::WasmCompileOptions,
+) -> Value {
+    use tcl_compiler::codegen::wasm::{WasmCodegenPlan, WasmSemanticDecline, compile_wasm};
 
     let registry = registry_for_dialect(&result.dialect);
-    let mut wasm = compile_wasm(&result.unit, registry, WasmCompileOptions::hosted());
+    let mut wasm = compile_wasm(&result.unit, registry, options);
     let wat = wasm.to_wat();
 
     // Rich per-instruction entries (module header first, then functions).
@@ -244,13 +257,38 @@ fn serialise_wasm(result: &ExplorerResult) -> Value {
     // `name`/`instrCount` on each function entry, both already present).
     if let Some(Value::Object(header)) = entries.first_mut() {
         header.insert("text".to_owned(), Value::String(wat));
+        let (region_status, regions, region_decline) =
+            serialise_wasm_region_plan(wasm.plan.region_plan());
         let plan = match &wasm.plan {
+            WasmCodegenPlan::NativeI64Add { native, .. } => json!({
+                "kind": wasm.plan.as_str(),
+                "operation": wasm.plan.operation_kind(),
+                "semanticDecline": Value::Null,
+                "nativeI64Add": {
+                    "callee": native.callee.qualified_name,
+                    "operands": [native.left, native.right],
+                    "boundaryOperation": {
+                        "kind": native.boundary_operation.kind_str(),
+                        "id": native.boundary_operation.detail_str(),
+                    },
+                    "frameElided": native.frame_elided,
+                    "closedProgramStatements": native.closed_program_statements,
+                },
+                "regionPlanStatus": region_status,
+                "regionPlanDecline": region_decline,
+                "regions": regions,
+            }),
             WasmCodegenPlan::GenericInvoke { .. } => json!({
                 "kind": wasm.plan.as_str(),
                 "operation": wasm.plan.operation_kind(),
                 "semanticDecline": Value::Null,
+                "regionPlanStatus": region_status,
+                "regionPlanDecline": region_decline,
+                "regions": regions,
             }),
-            WasmCodegenPlan::General { semantic_decline } => {
+            WasmCodegenPlan::General {
+                semantic_decline, ..
+            } => {
                 let evidence = match semantic_decline {
                     WasmSemanticDecline::Packaging(constraint) => json!({
                         "kind": semantic_decline.as_str(),
@@ -273,12 +311,150 @@ fn serialise_wasm(result: &ExplorerResult) -> Value {
                     "kind": wasm.plan.as_str(),
                     "operation": Value::Null,
                     "semanticDecline": evidence,
+                    "regionPlanStatus": region_status,
+                    "regionPlanDecline": region_decline,
+                    "regions": regions,
                 })
             }
         };
         header.insert("codegenPlan".to_owned(), plan);
     }
     Value::Array(entries)
+}
+
+fn serialise_wasm_region_plan(availability: &MixedRegionPlanAvailability) -> (Value, Value, Value) {
+    match availability {
+        MixedRegionPlanAvailability::Available(plan) => (
+            json!("available"),
+            Value::Array(
+                plan.regions()
+                    .map(|(node, region)| {
+                        let (slow_path, candidates) = match region {
+                            RegionPlan::Invocation(invocation) => (
+                                json!({
+                                    "kind": "prebuilt-argv",
+                                    "argv": argv_identity(invocation.slow_path().argv()),
+                                    "completion": completion_identity(
+                                        invocation.slow_path().completion()
+                                    ),
+                                    "wordReplay": false,
+                                }),
+                                Value::Array(
+                                    invocation
+                                        .candidates()
+                                        .iter()
+                                        .map(serialise_guarded_candidate)
+                                        .collect(),
+                                ),
+                            ),
+                            RegionPlan::Lowered(_) | RegionPlan::Opaque(_) => {
+                                (Value::Null, Value::Array(Vec::new()))
+                            }
+                        };
+                        json!({
+                            "node": node.path(),
+                            "selectedKind": region.selected_kind().as_str(),
+                            "operation": serialise_semantic_operation(region.operation()),
+                            "completion": completion_identity(region.completion()),
+                            "slowPath": slow_path,
+                            "candidates": candidates,
+                        })
+                    })
+                    .collect(),
+            ),
+            Value::Null,
+        ),
+        MixedRegionPlanAvailability::ExecutableUnavailable => (
+            json!("executable-unavailable"),
+            Value::Array(Vec::new()),
+            Value::Null,
+        ),
+        MixedRegionPlanAvailability::Declined(decline) => (
+            json!("declined"),
+            Value::Array(Vec::new()),
+            json!({ "kind": decline.as_str() }),
+        ),
+    }
+}
+
+fn serialise_guarded_candidate(
+    candidate: &tcl_compiler::mixed_region_plan::GuardedCandidateEvidence,
+) -> Value {
+    match candidate.decision() {
+        GuardedCandidateDecision::Selected(evidence) => json!({
+            "kind": candidate.kind().as_str(),
+            "decision": "selected",
+            "operation": serialise_semantic_operation(Some(evidence.operation())),
+            "runtimeVersion": evidence.runtime_version().version_string(),
+            "dispatchDependencies": evidence
+                .dispatch_dependencies()
+                .iter()
+                .map(tcl_registry::DispatchDependencyDomain::as_str)
+                .collect::<Vec<_>>(),
+        }),
+        GuardedCandidateDecision::Declined(decline) => {
+            let detail = match decline {
+                GuardedCandidateDecline::OperationIsNotIntrinsic { operation } => json!({
+                    "operation": serialise_semantic_operation(Some(*operation)),
+                }),
+                GuardedCandidateDecline::DispatchStabilityUnavailable { dependencies } => json!({
+                    "dispatchDependencies": dependencies
+                        .iter()
+                        .map(tcl_registry::DispatchDependencyDomain::as_str)
+                        .collect::<Vec<_>>(),
+                }),
+                GuardedCandidateDecline::UnsupportedIntrinsic { intrinsic } => json!({
+                    "operation": serialise_semantic_operation(Some(
+                        tcl_registry::SemanticOperationId::Intrinsic(*intrinsic),
+                    )),
+                }),
+                GuardedCandidateDecline::ProofObligations(failures) => json!({
+                    "proofObligations": failures
+                        .iter()
+                        .copied()
+                        .map(tcl_compiler::backend_registry::SelectionProofFailure::as_str)
+                        .collect::<Vec<_>>(),
+                }),
+                GuardedCandidateDecline::InvocationUnresolved
+                | GuardedCandidateDecline::DirectCalleeIdentityUnavailable
+                | GuardedCandidateDecline::PassDisabled
+                | GuardedCandidateDecline::CompletionContractUnsupported
+                | GuardedCandidateDecline::RuntimeSemanticsUnavailable
+                | GuardedCandidateDecline::GuardPlanInvalid(_) => json!({}),
+            };
+            json!({
+                "kind": candidate.kind().as_str(),
+                "decision": "declined",
+                "reason": decline.as_str(),
+                "detail": detail,
+            })
+        }
+    }
+}
+
+fn serialise_semantic_operation(operation: Option<tcl_registry::SemanticOperationId>) -> Value {
+    operation.map_or(Value::Null, |operation| {
+        json!({
+            "kind": operation.kind_str(),
+            "id": operation.detail_str(),
+        })
+    })
+}
+
+fn completion_identity(completion: tcl_compiler::executable_ir::CompletionId) -> Value {
+    json!({
+        "kind": "tcl-completion",
+        "function": completion.function().index(),
+        "index": completion.index(),
+    })
+}
+
+fn argv_identity(argv: tcl_compiler::executable_ir::ExecutableArgvId) -> Value {
+    json!({
+        "kind": "prebuilt-argv",
+        "function": argv.function().index(),
+        "index": argv.index(),
+    })
 }
 
 /// Serialise the `ir` view.:
@@ -1460,35 +1636,7 @@ fn semantic_status(availability: &ExecutableAnalysisAvailability) -> &'static st
 }
 
 fn lowering_hook_label(hook: tcl_registry::hooks::LoweringHookId) -> &'static str {
-    use tcl_registry::hooks::LoweringHookId as H;
-    match hook {
-        H::Expr => "expr",
-        H::Return => "return",
-        H::Set => "set",
-        H::Incr => "incr",
-        H::AppendOrLappend => "append-or-lappend",
-        H::Unset => "unset",
-        H::Global => "global",
-        H::Variable => "variable",
-        H::Upvar => "upvar",
-        H::Proc => "proc",
-        H::When => "when",
-        H::NamespaceEval => "namespace-eval",
-        H::If => "if",
-        H::Switch => "switch",
-        H::For => "for",
-        H::While => "while",
-        H::Foreach => "foreach",
-        H::Lmap => "lmap",
-        H::ForeachLine => "foreach-line",
-        H::Catch => "catch",
-        H::Try => "try",
-        H::Dict => "dict",
-        H::Eval => "eval",
-        H::Uplevel => "uplevel",
-        H::Apply => "apply",
-        H::ArrayFor => "array-for",
-    }
+    hook.as_str()
 }
 
 fn invocation_resolution_label(
@@ -2980,12 +3128,63 @@ mod tests {
 
         assert_eq!(header["codegenPlan"]["kind"], "generic-invoke");
         assert!(header["codegenPlan"]["semanticDecline"].is_null());
+        assert_eq!(header["codegenPlan"]["regionPlanStatus"], "available");
+        let regions = header["codegenPlan"]["regions"]
+            .as_array()
+            .expect("per-region plan evidence");
+        assert_eq!(regions.len(), 1);
+        assert_eq!(regions[0]["node"], json!([0]));
+        assert_eq!(regions[0]["selectedKind"], "generic-prebuilt-argv");
+        assert_eq!(regions[0]["operation"]["kind"], "intrinsic");
+        assert_eq!(regions[0]["operation"]["id"], "string-length");
+        assert_eq!(regions[0]["slowPath"]["kind"], "prebuilt-argv");
+        assert_eq!(regions[0]["slowPath"]["wordReplay"], false);
+        assert_eq!(regions[0]["candidates"][0]["kind"], "guarded-direct");
+        assert_eq!(
+            regions[0]["candidates"][0]["reason"],
+            "direct-callee-identity-unavailable"
+        );
+        assert_eq!(regions[0]["candidates"][1]["kind"], "guarded-intrinsic");
+        assert_eq!(regions[0]["candidates"][1]["reason"], "pass-disabled");
         assert!(
             header["text"]
                 .as_str()
                 .expect("serialised WAT")
                 .contains("tcl_invoke_argv")
         );
+    }
+
+    #[test]
+    fn wasm_view_exposes_common_native_i64_selection_evidence() {
+        use tcl_compiler::codegen::wasm::{SemanticOptimisationPassId, WasmCompileOptions};
+
+        let result = run_pipeline(
+            "proc add {b c} {return [expr {$b + $c}]}\nset d 2\nset e 4\nputs [add $d $e]\n",
+            "tcl9.0",
+        );
+        let options = [
+            SemanticOptimisationPassId::DirectProc,
+            SemanticOptimisationPassId::MaterialisableSlot,
+            SemanticOptimisationPassId::FrameElision,
+            SemanticOptimisationPassId::NativeInteger,
+            SemanticOptimisationPassId::SemanticOperationSpecialisation,
+        ]
+        .into_iter()
+        .fold(
+            WasmCompileOptions::hosted().for_sealed_program(),
+            WasmCompileOptions::with_semantic_optimisation,
+        );
+        let wasm = serialise_wasm_with_options(&result, options);
+        let plan = &wasm.as_array().expect("WASM entries")[0]["codegenPlan"];
+        assert_eq!(plan["kind"], "native-i64-add");
+        assert_eq!(plan["nativeI64Add"]["callee"], "::add");
+        assert_eq!(plan["nativeI64Add"]["operands"], json!([2, 4]));
+        assert_eq!(
+            plan["nativeI64Add"]["boundaryOperation"],
+            json!({ "kind": "intrinsic", "id": "channel-write" })
+        );
+        assert_eq!(plan["nativeI64Add"]["frameElided"], true);
+        assert_eq!(plan["nativeI64Add"]["closedProgramStatements"], 4);
     }
 
     #[test]
@@ -3003,6 +3202,34 @@ mod tests {
             plan["semanticDecline"]["detailKind"],
             "no-viable-semantic-plan"
         );
+        assert_eq!(plan["regionPlanStatus"], "available");
+        assert_eq!(plan["regions"][0]["node"], json!([0]));
+        assert_eq!(plan["regions"][0]["slowPath"]["kind"], "prebuilt-argv");
+    }
+
+    #[test]
+    fn wasm_view_serialises_multiple_mixed_regions_in_node_order() {
+        let result = run_pipeline(
+            "puts one\nset value 2\nif {$enabled} {puts enabled}\nputs two",
+            "tcl9.0",
+        );
+        let wasm = serialise_result(&result)["wasm"].clone();
+        let plan = &wasm.as_array().expect("WASM entries")[0]["codegenPlan"];
+        let regions = plan["regions"].as_array().expect("mixed regions");
+
+        assert_eq!(
+            regions
+                .iter()
+                .map(|region| region["node"].clone())
+                .collect::<Vec<_>>(),
+            vec![json!([0]), json!([1]), json!([2]), json!([3])]
+        );
+        assert_eq!(regions[0]["selectedKind"], "generic-prebuilt-argv");
+        assert_eq!(regions[1]["selectedKind"], "lowered");
+        assert_eq!(regions[2]["selectedKind"], "opaque");
+        assert_eq!(regions[3]["selectedKind"], "generic-prebuilt-argv");
+        assert!(regions[1]["slowPath"].is_null());
+        assert!(regions[2]["slowPath"].is_null());
     }
 
     /// The interprocedural view surfaces the caller-uniform-literal SCCP

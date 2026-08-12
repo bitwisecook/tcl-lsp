@@ -271,6 +271,26 @@ pub fn eval_tcl_expr_with_policy(
     eval_with_config(node, env, policy.octal, None, policy.is_irules)
 }
 
+/// Parse one Tcl expression arithmetic operand as an integer under `policy`.
+///
+/// Unlike evaluating a standalone literal expression and converting its final
+/// string result, this applies the dialect's operand coercion directly. That
+/// distinction is observable for a bare leading-zero spelling (`010` is octal
+/// 8 in Tcl 8.x and decimal 10 in Tcl 9.x). Floating-point values and invalid
+/// integer spellings return `None`; beyond-wide values remain
+/// [`TclValue::Big`] so native-width proofs can decline without truncation.
+#[must_use]
+pub fn parse_integer_operand_with_policy(text: &str, policy: FoldPolicy) -> Option<TclValue> {
+    let text = text.trim();
+    if let Some(value) = tcl_syntax::boolean::parse_boolean_word(text) {
+        return Some(TclValue::Int(i64::from(value)));
+    }
+    match strict_number_for_dialect(&FoldValue::Str(text.to_owned()), policy.octal)? {
+        value @ (TclValue::Int(_) | TclValue::Big(_)) => Some(value),
+        TclValue::Float(_) => None,
+    }
+}
+
 /// Whether the dialect's *runtime* reads a bare leading-zero integer as
 /// octal, from the dialect profile's runtime base: `Some(true)` for the 8.x
 /// runtimes (the F5 and EDA shells included), `Some(false)` for 9.x

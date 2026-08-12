@@ -31,10 +31,12 @@
 //!
 //! - the **source of truth** is [`tcl_registry`]'s core Tcl command specs
 //!   (`required_package == None`, available at Tcl 9.0 or later);
-//! - the **backed** set is scanned from the runtime source
-//!   (`register_builtin(b"…")`), canonicalised on a leading `::`, plus the
-//!   [`HANDLER_EXTRA`] list for commands backed natively outside that literal
-//!   scan (the `TclOO` metaclasses, the per-object `my`);
+//! - the **backed** set is scanned from the runtime source: literal
+//!   `register_builtin(b"…")` calls and `register_spec_builtin` calls whose
+//!   [`tcl_registry::CommandSpec`] comes from a literal registry lookup,
+//!   canonicalised on a leading `::`, plus the [`HANDLER_EXTRA`] list for
+//!   commands backed natively outside those scans (the `TclOO` metaclasses,
+//!   the per-object `my`);
 //! - the residue is accounted for by the committed classification below: the
 //!   [`is_expr_operator`] predicate for the `expr` operator family, the
 //!   [`is_mathop_command`] predicate for the qualified `tcl::mathop::*`
@@ -52,6 +54,7 @@ use std::fs;
 use std::process::ExitCode;
 
 use anyhow::{Context, Result};
+use regex::Regex;
 
 use crate::util::repo_root;
 
@@ -483,7 +486,40 @@ fn core_commands() -> BTreeSet<String> {
         .collect()
 }
 
-/// Scan the runtime source for `register_builtin(b"NAME", …)` registrations.
+/// Scan one runtime source file for registry-backed command registrations.
+///
+/// Ordinary handlers expose their name directly through
+/// `register_builtin(b"NAME", …)`. Semantically attested handlers instead pass
+/// a registry-owned `CommandSpec` to `register_spec_builtin`; for those, the
+/// scanner requires the exact literal `registry.get("NAME")` expression to be
+/// nested in that call. This recognises the mechanism without correlating
+/// binding names across scopes or enumerating commands that use it.
+fn scan_handler_source(text: &str) -> BTreeSet<String> {
+    let mut names = BTreeSet::new();
+
+    let mut rest = text;
+    while let Some(i) = rest.find("register_builtin(b\"") {
+        rest = &rest[i + "register_builtin(b\"".len()..];
+        if let Some(end) = rest.find('"') {
+            names.insert(canon(&rest[..end]).to_string());
+            rest = &rest[end..];
+        }
+    }
+
+    let spec_registrations = Regex::new(
+        r#"(?s)register_spec_builtin\(\s*[A-Za-z_][A-Za-z0-9_]*\.get\(\s*"([^"]+)"\s*\)"#,
+    )
+    .expect("static direct register_spec_builtin regex");
+    for captures in spec_registrations.captures_iter(text) {
+        if let Some(name) = captures.get(1).map(|capture| capture.as_str()) {
+            names.insert(canon(name).to_string());
+        }
+    }
+
+    names
+}
+
+/// Scan the runtime source for literal and registry-spec registrations.
 fn scan_handlers(root: &std::path::Path) -> Result<BTreeSet<String>> {
     let src = root.join("runtime/rust/src");
     let mut names = BTreeSet::new();
@@ -493,17 +529,7 @@ fn scan_handlers(root: &std::path::Path) -> Result<BTreeSet<String>> {
             continue;
         }
         let text = fs::read_to_string(&path)?;
-        // `register_builtin(b"name", handler)` — capture the byte-string literal.
-        let mut rest = text.as_str();
-        while let Some(i) = rest.find("register_builtin(b\"") {
-            rest = &rest[i + "register_builtin(b\"".len()..];
-            if let Some(end) = rest.find('"') {
-                // Canonicalise: `::tcl::build-info` (registered) → `tcl::build-info`
-                // (the registry spelling).
-                names.insert(canon(&rest[..end]).to_string());
-                rest = &rest[end..];
-            }
-        }
+        names.extend(scan_handler_source(&text));
     }
     Ok(names)
 }
@@ -567,9 +593,9 @@ fn render_report(core: &BTreeSet<String>, backed: &BTreeSet<String>) -> String {
          > The gate (`make xtask-check`) fails on drift, on any `UNCLASSIFIED`\n\
          > command, or on a stale classification entry.\n\n\
          Source of truth: `tcl-registry` core command specs (`required_package == None`),\n\
-         restricted to those available at Tcl 9.0 or later. Backing: a `register_builtin`\n\
-         handler in `runtime/rust/`, a native non-`register_builtin` registration\n\
-         (TclOO metaclass, per-object `my`), an embedded-init.tcl (stdlib) fallback,\n\
+         restricted to those available at Tcl 9.0 or later. Backing: a literal `register_builtin`\n\
+         handler or registry-derived `register_spec_builtin` handler in `runtime/rust/`,\n\
+         a native registration outside those scans (TclOO metaclass, per-object `my`),\n\
          or an explicit *not required* classification.\n\n\
          | status | count |\n| --- | --- |\n\
          | handler | {} |\n| handler (native) | {} |\n| stdlib | {} |\n\
@@ -598,7 +624,7 @@ pub fn run(check: bool) -> Result<ExitCode> {
         .filter(|n| matches!(classify(n, &backed), Status::Unclassified))
         .collect();
     // Stale classification: a listed (canonical) name that no core command maps
-    // to, or one that now has a `register_builtin` handler (so the classification
+    // to, or one that now has a scanned runtime handler (so the classification
     // is redundant). `HANDLER_EXTRA` is checked for the "no longer core" case
     // only — it is *expected* to name backed commands.
     let core_canon: BTreeSet<&str> = core.iter().map(|n| canon(n)).collect();
@@ -643,7 +669,7 @@ pub fn run(check: bool) -> Result<ExitCode> {
     if !gaps.is_empty() {
         eprintln!(
             "{} core registry command(s) have no runtime backing and no classification\n\
-             (add a `register_builtin` handler, or classify in `command_backing.rs`):",
+             (add a runtime handler registration, or classify in `command_backing.rs`):",
             gaps.len()
         );
         for n in &gaps {
@@ -671,9 +697,33 @@ pub fn run(check: bool) -> Result<ExitCode> {
 #[cfg(test)]
 mod tests {
     use super::{HANDLER_EXTRA, KNOWN_UNBACKED, NOT_REQUIRED, STDLIB, Status, canon, classify};
-    use super::{core_commands, render_report, scan_handlers};
+    use super::{core_commands, render_report, scan_handler_source, scan_handlers};
     use crate::util::repo_root;
     use std::collections::BTreeSet;
+
+    #[test]
+    fn scanner_requires_an_exact_runtime_registration() {
+        let source = r#"
+            interp.register_builtin(b"::literal", literal_handler);
+
+            interp.register_spec_builtin(
+                registry.get("string").expect("core string spec"),
+                string_handler,
+            );
+
+            {
+                let spec = registry.get("dict").expect("core dict spec");
+                inspect(spec);
+            }
+            let spec = registry.get("list").expect("core list spec");
+            interp.register_spec_builtin(spec, list_handler);
+        "#;
+
+        assert_eq!(
+            scan_handler_source(source),
+            BTreeSet::from(["literal".to_owned(), "string".to_owned()]),
+        );
+    }
 
     /// The drift guard this module's own `--check` flag enforces, run
     /// directly as a unit test (mirroring the `committed_X_matches_generated`

@@ -55,9 +55,12 @@
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
-use tcl_compiler::codegen::wasm::{WasmCodegenPlan, WasmCompileOptions, compile_wasm};
+use tcl_compiler::codegen::wasm::{
+    SemanticOptimisationPassId, WasmCodegenPlan, WasmCompileOptions, compile_wasm,
+};
 use tcl_compiler::compilation_unit::CompilationUnit;
 use tcl_registry::CommandRegistry;
+use tcl_runtime_api::codegen_abi::CodegenAbiImportId;
 
 /// The bootstrap WASI command (see the module docs): create + select an interp,
 /// run the emitted `::top`, then evaluate `query` against the same interp and
@@ -67,14 +70,20 @@ use tcl_registry::CommandRegistry;
 /// module's data at `0x100000` and below the runtime's data at `0x200000`.
 /// `query` must be WAT-literal-safe (no `"` or `\`).
 fn bootstrap_wat(query: &str) -> String {
+    let create = CodegenAbiImportId::RuntimeCreateInterp.descriptor().name;
+    let set_current = CodegenAbiImportId::RuntimeSetCurrentInterp
+        .descriptor()
+        .name;
+    let object_new_string = CodegenAbiImportId::ObjectNewString.descriptor().name;
+    let object_release = CodegenAbiImportId::ObjectRelease.descriptor().name;
     format!(
         r#"(module
   (import "tcl" "memory" (memory 1))
-  (import "tcl" "tcl_runtime_create_interp" (func $create (result i32)))
-  (import "tcl" "tcl_runtime_set_current_interp" (func $setcur (param i32)))
-  (import "tcl" "tcl_obj_new_string" (func $box (param i32 i32) (result i32)))
+  (import "tcl" "{create}" (func $create (result i32)))
+  (import "tcl" "{set_current}" (func $setcur (param i32)))
+  (import "tcl" "{object_new_string}" (func $box (param i32 i32) (result i32)))
   (import "tcl" "tcl_eval" (func $eval (param i32) (result i32)))
-  (import "tcl" "tcl_obj_release" (func $rel (param i32)))
+  (import "tcl" "{object_release}" (func $rel (param i32)))
   (import "tcl" "Tcl_GetStringFromObj" (func $getstr (param i32 i32) (result i32)))
   (import "user" "::top" (func $top))
   (import "wasi_snapshot_preview1" "fd_write" (func $fd_write (param i32 i32 i32 i32) (result i32)))
@@ -99,12 +108,74 @@ fn bootstrap_wat(query: &str) -> String {
 
 /// Run one canonical generic-argv plan and print its full completion result.
 fn generic_invoke_bootstrap_wat(expected_code: i32) -> String {
+    semantic_invoke_bootstrap_wat(expected_code, None)
+}
+
+/// A minimal WASI link probe for the i64-to-owned-Tcl-value ABI. It exercises
+/// the shared descriptor's exact WASM signature without depending on an
+/// emitter that has not yet selected native arithmetic.
+fn native_wide_int_bootstrap_wat(value: i64) -> String {
+    let value_new_wide_int = CodegenAbiImportId::ValueNewWideInt.descriptor().name;
+    let object_release = CodegenAbiImportId::ObjectRelease.descriptor().name;
     format!(
         r#"(module
   (import "tcl" "memory" (memory 1))
-  (import "tcl" "tcl_runtime_create_interp" (func $create (result i32)))
-  (import "tcl" "tcl_runtime_set_current_interp" (func $setcur (param i32)))
-  (import "tcl" "tcl_obj_release" (func $rel (param i32)))
+  (import "tcl" "{value_new_wide_int}" (func $new_wide_int (param i64) (result i32)))
+  (import "tcl" "{object_release}" (func $release (param i32)))
+  (import "tcl" "Tcl_GetStringFromObj" (func $getstr (param i32 i32) (result i32)))
+  (import "wasi_snapshot_preview1" "fd_write" (func $fd_write (param i32 i32 i32 i32) (result i32)))
+  (export "memory" (memory 0))
+  (func (export "_start")
+    (local $value i32) (local $strptr i32) (local $len i32)
+    (local.set $value (call $new_wide_int (i64.const {value})))
+    (local.set $strptr (call $getstr (local.get $value) (i32.const 0x190000)))
+    (local.set $len (i32.load (i32.const 0x190000)))
+    (i32.store (i32.const 0x190008) (local.get $strptr))
+    (i32.store (i32.const 0x19000C) (local.get $len))
+    (drop (call $fd_write (i32.const 1) (i32.const 0x190008) (i32.const 1) (i32.const 0x190010)))
+    (call $release (local.get $value))))
+"#,
+    )
+}
+
+#[test]
+fn native_wide_int_link_probe_uses_the_shared_i64_descriptor_signature() {
+    let wat = native_wide_int_bootstrap_wat(-42);
+    assert!(wat.contains(r#""tcl_value_new_wide_int""#), "{wat}");
+    assert!(wat.contains("(param i64) (result i32)"), "{wat}");
+    assert!(wat.contains("i64.const -42"), "{wat}");
+}
+
+/// As [`generic_invoke_bootstrap_wat`], with an optional interpreter mutation
+/// performed after the live interpreter exists and before generated code runs.
+/// This lets the whole-program tests prove a guarded emission declines into its
+/// retained generic argv fallback under a renamed or traced command.
+fn semantic_invoke_bootstrap_wat(expected_code: i32, setup: Option<&str>) -> String {
+    let create = CodegenAbiImportId::RuntimeCreateInterp.descriptor().name;
+    let set_current = CodegenAbiImportId::RuntimeSetCurrentInterp
+        .descriptor()
+        .name;
+    let object_new_string = CodegenAbiImportId::ObjectNewString.descriptor().name;
+    let object_release = CodegenAbiImportId::ObjectRelease.descriptor().name;
+    let (setup_run, setup_data) = setup.map_or_else(
+        || (String::new(), String::new()),
+        |source| {
+            (
+                format!(
+                    "    (local.set $setup_result (call $eval (call $box (i32.const 0x170000) (i32.const {}))))\n    (call $rel (local.get $setup_result))\n",
+                    source.len()
+                ),
+                format!("  (data (i32.const 0x170000) \"{source}\")\n"),
+            )
+        },
+    );
+    format!(
+        r#"(module
+  (import "tcl" "memory" (memory 1))
+  (import "tcl" "{create}" (func $create (result i32)))
+  (import "tcl" "{set_current}" (func $setcur (param i32)))
+  (import "tcl" "{object_new_string}" (func $box (param i32 i32) (result i32)))
+  (import "tcl" "{object_release}" (func $rel (param i32)))
   (import "tcl" "Tcl_GetStringFromObj" (func $getstr (param i32 i32) (result i32)))
   (import "tcl" "tcl_codegen_call_frame_outstanding" (func $frames (result i32)))
   (import "user" "::top" (func $top (result i32 i32 i32)))
@@ -112,9 +183,10 @@ fn generic_invoke_bootstrap_wat(expected_code: i32) -> String {
   (export "memory" (memory 0))
   (func (export "_start")
     (local $interp i32) (local $code i32) (local $result i32) (local $options i32)
-    (local $strptr i32) (local $len i32)
+    (local $strptr i32) (local $len i32) (local $setup_result i32)
     (local.set $interp (call $create))
     (call $setcur (local.get $interp))
+{setup_run}
     (call $top)
     (local.set $options)
     (local.set $result)
@@ -128,7 +200,7 @@ fn generic_invoke_bootstrap_wat(expected_code: i32) -> String {
     (call $rel (local.get $result))
     (call $rel (local.get $options))
     (if (i32.ne (call $frames) (i32.const 0)) (then unreachable)))
-)"#,
+{setup_data})"#,
     )
 }
 
@@ -188,11 +260,24 @@ fn build_reserved_runtime() -> Option<PathBuf> {
 /// Emit `program`, link it against the real `runtime`, run its `::top`, then
 /// evaluate `query` against the same interp and return the printed result.
 fn run_real_link(runtime: &Path, program: &str, query: &str) -> String {
+    run_real_link_with_options(
+        runtime,
+        program,
+        query,
+        WasmCompileOptions::runtime_linked(),
+    )
+}
+
+fn run_real_link_with_options(
+    runtime: &Path,
+    program: &str,
+    query: &str,
+    options: WasmCompileOptions,
+) -> String {
     let registry = CommandRegistry::build_default();
     let unit = CompilationUnit::build_for_dialect(program, &registry, false, "tcl9.0");
     // Constant pool in the reserved gap so it does not hit the runtime's stack.
-    let user_bytes =
-        compile_wasm(&unit, &registry, WasmCompileOptions::runtime_linked()).to_bytes();
+    let user_bytes = compile_wasm(&unit, &registry, options).to_bytes();
 
     let tmp = std::env::temp_dir();
     let user = tmp.join("tcl_real_link_user.wasm");
@@ -215,6 +300,75 @@ fn run_real_link(runtime: &Path, program: &str, query: &str) -> String {
     assert!(
         out.status.success(),
         "real link trapped for {program:?}:\n--- stdout ---\n{}\n--- stderr ---\n{}",
+        String::from_utf8_lossy(&out.stdout),
+        String::from_utf8_lossy(&out.stderr),
+    );
+    String::from_utf8(out.stdout).expect("stdout is utf-8")
+}
+
+fn native_i64_add_options() -> WasmCompileOptions {
+    [
+        SemanticOptimisationPassId::DirectProc,
+        SemanticOptimisationPassId::MaterialisableSlot,
+        SemanticOptimisationPassId::FrameElision,
+        SemanticOptimisationPassId::NativeInteger,
+        SemanticOptimisationPassId::SemanticOperationSpecialisation,
+    ]
+    .into_iter()
+    .fold(
+        WasmCompileOptions::runtime_linked().for_sealed_program(),
+        WasmCompileOptions::with_semantic_optimisation,
+    )
+}
+
+fn native_i64_add_bootstrap_wat() -> String {
+    let create = CodegenAbiImportId::RuntimeCreateInterp.descriptor().name;
+    let set_current = CodegenAbiImportId::RuntimeSetCurrentInterp
+        .descriptor()
+        .name;
+    format!(
+        r#"(module
+  (import "tcl" "memory" (memory 1))
+  (import "tcl" "{create}" (func $create (result i32)))
+  (import "tcl" "{set_current}" (func $setcur (param i32)))
+  (import "user" "::top" (func $top))
+  (export "memory" (memory 0))
+  (func (export "_start")
+    (local $interp i32)
+    (local.set $interp (call $create))
+    (call $setcur (local.get $interp))
+    (call $top)))"#,
+    )
+}
+
+fn run_real_native_i64_add(runtime: &Path, program: &str) -> String {
+    let registry = CommandRegistry::build_default();
+    let unit = CompilationUnit::build_for_dialect(program, &registry, false, "tcl9.0");
+    let mut output = compile_wasm(&unit, &registry, native_i64_add_options());
+    assert!(
+        matches!(output.plan, WasmCodegenPlan::NativeI64Add { .. }),
+        "native proof did not select: {:?}",
+        output.plan
+    );
+    let tmp = std::env::temp_dir();
+    let user = tmp.join("tcl_real_native_i64_user.wasm");
+    let boot = tmp.join("tcl_real_native_i64_boot.wat");
+    std::fs::write(&user, output.to_bytes()).expect("write native i64 user module");
+    std::fs::write(&boot, native_i64_add_bootstrap_wat()).expect("write native i64 bootstrap");
+    let out = Command::new("wasmtime")
+        .arg("run")
+        .arg("--preload")
+        .arg(format!("tcl={}", runtime.display()))
+        .arg("--preload")
+        .arg(format!("user={}", user.display()))
+        .arg(&boot)
+        .output()
+        .expect("run wasmtime");
+    let _ = std::fs::remove_file(&user);
+    let _ = std::fs::remove_file(&boot);
+    assert!(
+        out.status.success(),
+        "native i64 link trapped for {program:?}:\n--- stdout ---\n{}\n--- stderr ---\n{}",
         String::from_utf8_lossy(&out.stdout),
         String::from_utf8_lossy(&out.stderr),
     );
@@ -252,6 +406,77 @@ fn run_real_generic_invoke(runtime: &Path, program: &str, expected_code: i32) ->
     assert!(
         out.status.success(),
         "canonical generic argv link trapped for {program:?}:\n--- stdout ---\n{}\n--- stderr ---\n{}",
+        String::from_utf8_lossy(&out.stdout),
+        String::from_utf8_lossy(&out.stderr),
+    );
+    String::from_utf8(out.stdout).expect("stdout is utf-8")
+}
+
+/// Run the guarded semantic-invocation emission through the real runtime.
+/// `setup` mutates the interpreter before `::top`, forcing its runtime guard
+/// to take the exact generic argv fallback where appropriate.
+fn run_real_guarded_intrinsic_invoke(
+    runtime: &Path,
+    program: &str,
+    expected_code: i32,
+    setup: Option<&str>,
+) -> String {
+    let registry = CommandRegistry::build_default();
+    let unit = CompilationUnit::build_for_dialect(program, &registry, false, "tcl9.0");
+    let options = WasmCompileOptions::runtime_linked()
+        .with_semantic_optimisation(SemanticOptimisationPassId::GuardedIntrinsic);
+    let mut output = compile_wasm(&unit, &registry, options);
+    assert!(
+        matches!(output.plan, WasmCodegenPlan::GenericInvoke { .. }),
+        "literal program should retain semantic invocation evidence, got {:?}",
+        output.plan
+    );
+    let wat = output.to_wat();
+    assert!(wat.contains("tcl_intrinsic_invoke_argv"), "{wat}");
+    let user_bytes = output.to_bytes();
+
+    let tmp = std::env::temp_dir();
+    let user = tmp.join("tcl_real_guarded_user.wasm");
+    let boot = tmp.join("tcl_real_guarded_boot.wat");
+    std::fs::write(&user, user_bytes).expect("write guarded user module");
+    std::fs::write(&boot, semantic_invoke_bootstrap_wat(expected_code, setup))
+        .expect("write guarded bootstrap");
+    let out = Command::new("wasmtime")
+        .arg("run")
+        .arg("--preload")
+        .arg(format!("tcl={}", runtime.display()))
+        .arg("--preload")
+        .arg(format!("user={}", user.display()))
+        .arg(&boot)
+        .output()
+        .expect("run wasmtime");
+    let _ = std::fs::remove_file(&user);
+    let _ = std::fs::remove_file(&boot);
+    assert!(
+        out.status.success(),
+        "guarded intrinsic link trapped for {program:?}, setup {setup:?}:\n--- stdout ---\n{}\n--- stderr ---\n{}",
+        String::from_utf8_lossy(&out.stdout),
+        String::from_utf8_lossy(&out.stderr),
+    );
+    String::from_utf8(out.stdout).expect("stdout is utf-8")
+}
+
+fn run_real_native_wide_int_abi(runtime: &Path, value: i64) -> String {
+    let tmp = std::env::temp_dir();
+    let boot = tmp.join("tcl_real_native_wide_int_boot.wat");
+    std::fs::write(&boot, native_wide_int_bootstrap_wat(value))
+        .expect("write native wide-int bootstrap");
+    let out = Command::new("wasmtime")
+        .arg("run")
+        .arg("--preload")
+        .arg(format!("tcl={}", runtime.display()))
+        .arg(&boot)
+        .output()
+        .expect("run wasmtime");
+    let _ = std::fs::remove_file(&boot);
+    assert!(
+        out.status.success(),
+        "native wide-int ABI link trapped:\n--- stdout ---\n{}\n--- stderr ---\n{}",
         String::from_utf8_lossy(&out.stdout),
         String::from_utf8_lossy(&out.stderr),
     );
@@ -317,4 +542,89 @@ fn canonical_generic_argv_runs_against_the_real_runtime() {
             "program {program:?}"
         );
     }
+}
+
+/// The selected boxed intrinsic both executes directly in the live runtime and
+/// safely falls through the exact same argv path after command-environment or
+/// execution-trace mutations invalidate its guard admission.
+#[test]
+fn guarded_boxed_intrinsic_runs_and_falls_back_against_the_real_runtime() {
+    if !have_wasmtime() {
+        eprintln!("wasmtime CLI unavailable; skipping the real link");
+        return;
+    }
+    let Some(runtime) = build_reserved_runtime() else {
+        eprintln!("could not build the wasm32 runtime; skipping the real link");
+        return;
+    };
+    let cases = [
+        ("fast hit", "string length 😀\n", None, "1"),
+        (
+            "renamed fallback",
+            "string length abc\n",
+            Some("rename string string_original\nproc string {subcommand value} {return 99}\n"),
+            "99",
+        ),
+        (
+            "traced fallback",
+            "string length abc\n",
+            Some("trace add execution string enter list\n"),
+            "3",
+        ),
+    ];
+    for (name, program, setup, expected) in cases {
+        assert_eq!(
+            run_real_guarded_intrinsic_invoke(&runtime, program, 0, setup),
+            expected,
+            "{name}"
+        );
+    }
+}
+
+/// The shared descriptor links an i64 WASM value to an owned Tcl wide integer,
+/// whose normal Tcl string result remains exact at the signed range boundary.
+#[test]
+fn native_wide_int_codegen_abi_links_against_the_real_runtime() {
+    if !have_wasmtime() {
+        eprintln!("wasmtime CLI unavailable; skipping the real link");
+        return;
+    }
+    let Some(runtime) = build_reserved_runtime() else {
+        eprintln!("could not build the wasm32 runtime; skipping the real link");
+        return;
+    };
+    assert_eq!(
+        run_real_native_wide_int_abi(&runtime, i64::MIN),
+        i64::MIN.to_string()
+    );
+}
+
+/// The sealed common proof path runs native i64 addition, materialises only
+/// its output at the registry-proved channel-write boundary, and prints via
+/// the live runtime. A registered execution trace makes the proof decline;
+/// the unchanged general interpreter path produces the same Tcl output.
+#[test]
+fn sealed_native_i64_add_runs_and_trace_registration_falls_back() {
+    if !have_wasmtime() {
+        eprintln!("wasmtime CLI unavailable; skipping the real link");
+        return;
+    }
+    let Some(runtime) = build_reserved_runtime() else {
+        eprintln!("could not build the wasm32 runtime; skipping the real link");
+        return;
+    };
+    let program = "proc add {b c} {return [expr {$b + $c}]}\nset d 2\nset e 4\nputs [add $d $e]\n";
+    assert_eq!(run_real_native_i64_add(&runtime, program), "6\n");
+
+    let traced = format!("trace add execution puts enter list\n{program}");
+    let registry = CommandRegistry::build_default();
+    let unit = CompilationUnit::build_for_dialect(&traced, &registry, false, "tcl9.0");
+    assert!(matches!(
+        compile_wasm(&unit, &registry, native_i64_add_options()).plan,
+        WasmCodegenPlan::General { .. }
+    ));
+    assert_eq!(
+        run_real_link_with_options(&runtime, &traced, "set d", native_i64_add_options()),
+        "6\n2"
+    );
 }

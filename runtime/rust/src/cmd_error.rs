@@ -32,7 +32,7 @@
 #![allow(clippy::not_unsafe_ptr_arg_deref)]
 
 use crate::dict;
-use crate::interp::{Code, Interp, drop_fresh, new_string, obj_bytes};
+use crate::interp::{drop_fresh, new_string, obj_bytes, Code, Interp};
 use crate::obj::{self, TclObj};
 
 /// Register `catch`, `error`, `try`, and `throw`.
