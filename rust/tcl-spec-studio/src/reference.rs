@@ -27,7 +27,7 @@
 
 use std::fmt::Write as _;
 
-use crate::{catalogue, help, schema};
+use crate::{help, schema};
 
 /// The generated `fields.md` — group-by-group field reference plus the
 /// catalogue vocabularies, in the studio's own order.
@@ -133,7 +133,7 @@ mod tests {
                 field.key
             );
         }
-        for entry in catalogue::TRAITS {
+        for entry in crate::catalogue::TRAITS {
             assert!(doc.contains(entry.key), "missing trait {}", entry.key);
         }
     }

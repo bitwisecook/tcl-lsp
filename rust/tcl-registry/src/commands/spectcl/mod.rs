@@ -16,9 +16,9 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! SpecTcl — the command pack for the `.tclspec` spec-pack DSL itself.
+//! `SpecTcl` — the command pack for the `.tclspec` spec-pack DSL itself.
 //!
-//! `spec-packs.md` calls for "a compiled-in command pack for SpecTcl itself —
+//! `spec-packs.md` calls for "a compiled-in command pack for `SpecTcl` itself —
 //! `speclib`, `command`, `option`, `arg`, `subcommand`, the hook statements —
 //! with its `definition_body` grammar, so authoring a pack gets highlighting,
 //! completion, and misspelled-trait diagnostics from the same machinery it
@@ -65,10 +65,10 @@ mod properties;
 mod rows;
 mod speclib;
 
-/// The `source` line every SpecTcl statement's hover carries.
+/// The `source` line every `SpecTcl` statement's hover carries.
 pub(crate) const SOURCE: &str = "SpecTcl (docs/design/spec-packs.md)";
 
-/// Build the spec for a SpecTcl statement word that is plain data — no block,
+/// Build the spec for a `SpecTcl` statement word that is plain data — no block,
 /// no options, nothing but a keyword and its operands.
 ///
 /// The overwhelming majority of the DSL's vocabulary is this shape (one word
@@ -99,7 +99,7 @@ pub(crate) fn statement(
     }
 }
 
-/// Every SpecTcl statement word, as command specs.
+/// Every `SpecTcl` statement word, as command specs.
 #[must_use]
 pub fn spectcl_command_specs() -> Vec<CommandSpec> {
     let mut specs = vec![

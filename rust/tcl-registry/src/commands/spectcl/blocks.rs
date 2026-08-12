@@ -16,7 +16,7 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! The SpecTcl statements that take a **block**.
+//! The `SpecTcl` statements that take a **block**.
 //!
 //! Each carries a `definition_body` grammar naming the words legal inside it,
 //! which is what makes the DSL's vocabulary context-sensitive and gives every
@@ -48,9 +48,7 @@ fn block(
 ) -> CommandSpec {
     CommandSpec {
         name,
-        traits: Traits::CREATES_BARRIER
-            | Traits::NEVER_INLINE_BODY
-            | Traits::LANGUAGE_KEYWORD,
+        traits: Traits::CREATES_BARRIER | Traits::NEVER_INLINE_BODY | Traits::LANGUAGE_KEYWORD,
         dialects: Some(DialectSet::SPECTCL),
         arity: Arity::exact(1),
         hover: Some(HoverSnippet {
@@ -140,9 +138,7 @@ fn object_class() -> CommandSpec {
 fn descriptor() -> CommandSpec {
     CommandSpec {
         name: "descriptor",
-        traits: Traits::CREATES_BARRIER
-            | Traits::NEVER_INLINE_BODY
-            | Traits::LANGUAGE_KEYWORD,
+        traits: Traits::CREATES_BARRIER | Traits::NEVER_INLINE_BODY | Traits::LANGUAGE_KEYWORD,
         dialects: Some(DialectSet::SPECTCL),
         arity: Arity::exact(3),
         hover: Some(HoverSnippet {
@@ -201,7 +197,7 @@ fn default_statement() -> CommandSpec {
     )
 }
 
-/// Every block-shaped SpecTcl statement.
+/// Every block-shaped `SpecTcl` statement.
 pub(super) fn specs() -> Vec<CommandSpec> {
     vec![
         // --- pack level ---

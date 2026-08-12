@@ -16,7 +16,7 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! `command` / `subcommand` — the two SpecTcl statements that open a
+//! `command` / `subcommand` — the two `SpecTcl` statements that open a
 //! per-command declaration block.
 use crate::prelude::*;
 
@@ -52,22 +52,22 @@ fn command_arg_roles(args: &[&str]) -> Vec<(u8, ArgRole)> {
         .take_while(|word| OPTIONS.iter().any(|opt| opt.matches(word)))
         .count();
     let body = 1 + leading;
-    (body < args.len())
-        .then(|| {
-            vec![
-                (0u8, ArgRole::Name),
-                (u8::try_from(body).unwrap_or(u8::MAX), ArgRole::Body),
-            ]
-        })
-        .unwrap_or_default()
+    if body < args.len() {
+        vec![
+            (0u8, ArgRole::Name),
+            (u8::try_from(body).unwrap_or(u8::MAX), ArgRole::Body),
+        ]
+    } else {
+        // A bare `command NAME` with no block: name the command and claim no
+        // body rather than point one word past the end.
+        Vec::new()
+    }
 }
 
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "command",
-        traits: Traits::CREATES_BARRIER
-            | Traits::NEVER_INLINE_BODY
-            | Traits::LANGUAGE_KEYWORD,
+        traits: Traits::CREATES_BARRIER | Traits::NEVER_INLINE_BODY | Traits::LANGUAGE_KEYWORD,
         dialects: Some(DialectSet::SPECTCL),
         arity: Arity::new(2, 3),
         hover: Some(HoverSnippet {
@@ -95,9 +95,7 @@ pub fn spec() -> CommandSpec {
 pub fn subcommand_spec() -> CommandSpec {
     CommandSpec {
         name: "subcommand",
-        traits: Traits::CREATES_BARRIER
-            | Traits::NEVER_INLINE_BODY
-            | Traits::LANGUAGE_KEYWORD,
+        traits: Traits::CREATES_BARRIER | Traits::NEVER_INLINE_BODY | Traits::LANGUAGE_KEYWORD,
         dialects: Some(DialectSet::SPECTCL),
         arity: Arity::exact(2),
         hover: Some(HoverSnippet {

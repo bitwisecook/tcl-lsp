@@ -267,6 +267,14 @@ fn all_dialect_command_names() -> &'static FxHashSet<&'static str> {
         add(crate::commands::eda_xilinx::eda_xilinx_command_specs());
         add(crate::commands::eda_quartus::eda_quartus_command_specs());
         add(crate::commands::eda_mentor::eda_mentor_command_specs());
+        // SpecTcl is deliberately NOT added. This set answers "is this name a
+        // command in *some* dialect", and W002 turns a `true` into "exists,
+        // but not here". SpecTcl's statement words are ordinary English nouns
+        // (`arity`, `traits`, `value`, `detail`) that mean nothing outside a
+        // pack body, so claiming them here would rewrite an honest
+        // unknown-command report on a user's `proc arity` call into a
+        // misleading dialect-availability one — the exact opposite of the
+        // context-sensitivity the SpecTcl grammars exist to provide.
         set
     })
 }
@@ -408,6 +416,11 @@ impl CommandRegistry {
             d if d == DialectSet::TMSH => crate::commands::iapps::tmsh_command_specs(),
             d if d == DialectSet::TK => crate::commands::tk::tk_command_specs(),
             d if d == DialectSet::EXPECT => crate::commands::expect::expect_command_specs(),
+            // SpecTcl: the `.tclspec` DSL's own statement words. A pack file
+            // is an ordinary Tcl script, so the base Tcl surface stays loaded
+            // underneath (hook bodies are real Tcl); this layer adds the
+            // declaration vocabulary on top of it.
+            d if d == DialectSet::SPECTCL => crate::commands::spectcl::spectcl_command_specs(),
             // The EDA shells load by profile identity via `load_eda_packs`
             // (below), not a DialectSet bit — they are modelled as base-Tcl-
             // version dialects plus `required_package`-gated command libraries

@@ -89,6 +89,7 @@ const LOADABLE_DIALECTS: &[&str] = &[
     "intel-quartus-eda-tcl",
     "mentor-eda-tcl",
     "bpf",
+    "spectcl",
 ];
 
 /// Every trait bit, so the sweep queries `commands_with_trait` across the whole

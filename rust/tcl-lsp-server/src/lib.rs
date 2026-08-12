@@ -5841,6 +5841,11 @@ impl Backend {
             "tcl-xilinx" | "xilinx-eda-tcl" => "xilinx-eda-tcl",
             "tcl-quartus" | "intel-quartus-eda-tcl" => "intel-quartus-eda-tcl",
             "tcl-mentor" | "mentor-eda-tcl" => "mentor-eda-tcl",
+            // SpecTcl command packs (`.tclspec`). The editor extensions
+            // contribute `tclspec` as the language id; `tcl-spec` matches the
+            // `tcl-…` shape every other integration id uses, and `spectcl` is
+            // the canonical dialect name direct / MCP callers pass.
+            "tclspec" | "tcl-spec" | "spectcl" => "spectcl",
             "tk" => "tk",
             _ => return None,
         };

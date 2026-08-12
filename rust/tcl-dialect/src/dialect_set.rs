@@ -27,9 +27,9 @@ bitflags! {
     /// A specific `DialectSet` restricts availability.
     ///
     /// Backed by `u64`: 13 bits are used today (5 Tcl versions + iRules, iApps,
-    /// Tk, Expect, BPF, tmsh, the BIG-IP config surface, SpecTcl); bits 8–12
+    /// Tk, Expect, BPF, tmsh, the BIG-IP config surface, `SpecTcl`); bits 8–12
     /// were freed by the EDA-as-packages migration — bit 8 has since been
-    /// taken by SpecTcl — leaving ample headroom for future dialect bits and
+    /// taken by `SpecTcl` — leaving ample headroom for future dialect bits and
     /// the versioned-library work without a width migration.
     #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
     pub struct DialectSet: u64 {
@@ -54,7 +54,7 @@ bitflags! {
         // version plus `required_package`-gated command libraries, not vendor
         // dialects (design doc `eda-library-packages.md`). Bit 8 was taken by
         // SpecTcl below; 9–12 are left free for future dialects.
-        /// SpecTcl — the `.tclspec` spec-pack authoring DSL (design doc
+        /// `SpecTcl` — the `.tclspec` spec-pack authoring DSL (design doc
         /// `spec-packs.md`). A declarative Tcl script whose statement words
         /// (`speclib`, `command`, `option`, `arg`, …) are a command surface
         /// of their own, so the DSL gets the editor experience from the same

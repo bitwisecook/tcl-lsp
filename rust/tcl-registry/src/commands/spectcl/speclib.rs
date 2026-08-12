@@ -16,7 +16,7 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! `speclib` — the one loader directive of a SpecTcl pack.
+//! `speclib` — the one loader directive of a `SpecTcl` pack.
 use crate::prelude::*;
 
 const FORMS: &[FormSpec] = &[FormSpec {
@@ -30,9 +30,7 @@ pub fn spec() -> CommandSpec {
         name: "speclib",
         // A pack body is a *declaration* scope, not enclosing-scope data flow
         // — the same classification `oo::class` / `snit::type` carry.
-        traits: Traits::CREATES_BARRIER
-            | Traits::NEVER_INLINE_BODY
-            | Traits::LANGUAGE_KEYWORD,
+        traits: Traits::CREATES_BARRIER | Traits::NEVER_INLINE_BODY | Traits::LANGUAGE_KEYWORD,
         dialects: Some(DialectSet::SPECTCL),
         arity: Arity::exact(3),
         hover: Some(HoverSnippet {

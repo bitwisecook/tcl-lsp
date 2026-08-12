@@ -16,7 +16,7 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! The eight SpecTcl **hook property** statements.
+//! The eight `SpecTcl` **hook property** statements.
 //!
 //! Each is written one of three ways:
 //!
@@ -50,9 +50,7 @@ fn hook_statement(
 ) -> CommandSpec {
     CommandSpec {
         name,
-        traits: Traits::CREATES_BARRIER
-            | Traits::NEVER_INLINE_BODY
-            | Traits::LANGUAGE_KEYWORD,
+        traits: Traits::CREATES_BARRIER | Traits::NEVER_INLINE_BODY | Traits::LANGUAGE_KEYWORD,
         dialects: Some(DialectSet::SPECTCL),
         arity: Arity::new(1, 2),
         hover: Some(HoverSnippet {

@@ -812,7 +812,7 @@ pub enum DefinerFamily {
     Snit,
     /// [incr Tcl] `itcl::class` (and the bare `class` alias).
     Itcl,
-    /// SpecTcl — the `.tclspec` spec-pack DSL's own declaration bodies
+    /// `SpecTcl` — the `.tclspec` spec-pack DSL's own declaration bodies
     /// (`speclib … { … }`, `command … { … }`, `hover { … }`, …).
     ///
     /// Not a class system: no instances are manufactured and nothing is
@@ -1862,7 +1862,7 @@ pub const ITCL_GRAMMAR: DefinitionBodyGrammar = DefinitionBodyGrammar {
 // consumer that must not treat this as a class system to say so.
 // ---------------------------------------------------------------------------
 
-/// A SpecTcl block statement that names something and then takes a block:
+/// A `SpecTcl` block statement that names something and then takes a block:
 /// `command NAME { … }`, `values NAME { … }`, `subcommand NAME { … }`.
 const SPECTCL_NAMED_BLOCK_ROLES: &[(u8, ArgRole)] = &[(0, ArgRole::Name), (1, ArgRole::Body)];
 /// `hook NAME {params} { … }` — a shared hook body declared pack-wide, and
@@ -2154,7 +2154,7 @@ const SPECTCL_BODY_SCOPE_MEMBERS: &[MemberSpec] = &[
 const SPECTCL_OBJECT_CLASS_MEMBERS: &[MemberSpec] =
     &[MemberSpec::flat("method", SPECTCL_NAMED_BLOCK_ROLES)];
 
-/// Build one SpecTcl grammar from its member table.  Every field a class
+/// Build one `SpecTcl` grammar from its member table.  Every field a class
 /// system uses is empty: a spec pack manufactures nothing, dispatches
 /// nothing, and injects no commands or variables into its blocks.
 const fn spectcl_grammar(members: &'static [MemberSpec]) -> DefinitionBodyGrammar {
@@ -2179,8 +2179,7 @@ const fn spectcl_grammar(members: &'static [MemberSpec]) -> DefinitionBodyGramma
 /// The body of `speclib NAME VERSION { … }` — the pack itself.
 pub const SPECTCL_PACK_GRAMMAR: DefinitionBodyGrammar = spectcl_grammar(SPECTCL_PACK_MEMBERS);
 /// The body of `command NAME { … }` and of `subcommand NAME { … }`.
-pub const SPECTCL_COMMAND_GRAMMAR: DefinitionBodyGrammar =
-    spectcl_grammar(SPECTCL_COMMAND_MEMBERS);
+pub const SPECTCL_COMMAND_GRAMMAR: DefinitionBodyGrammar = spectcl_grammar(SPECTCL_COMMAND_MEMBERS);
 /// The body of `hover { … }`.
 pub const SPECTCL_HOVER_GRAMMAR: DefinitionBodyGrammar = spectcl_grammar(SPECTCL_HOVER_MEMBERS);
 /// The body of `values NAME { … }`.
@@ -2210,7 +2209,7 @@ pub const SPECTCL_BODY_SCOPE_GRAMMAR: DefinitionBodyGrammar =
 pub const SPECTCL_OBJECT_CLASS_GRAMMAR: DefinitionBodyGrammar =
     spectcl_grammar(SPECTCL_OBJECT_CLASS_MEMBERS);
 
-/// Every SpecTcl grammar, so a sweep can assert the family's invariants
+/// Every `SpecTcl` grammar, so a sweep can assert the family's invariants
 /// without enumerating the constants by hand.
 pub const SPECTCL_GRAMMARS: &[&DefinitionBodyGrammar] = &[
     &SPECTCL_PACK_GRAMMAR,
