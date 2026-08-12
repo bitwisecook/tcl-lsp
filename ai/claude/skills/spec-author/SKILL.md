@@ -55,4 +55,36 @@ the compiler's own inference — never guesswork from names.
    open questions only the author can answer (side effects, taint,
    version history).
 
+## C extensions (commands created through the C ABI)
+
+Proc inference sees nothing when commands come from a compiled
+extension. Detect that case (`.c`/`.cpp` with `#include <tcl.h>`,
+`critcl::cproc`/`ccommand` blocks, SWIG `.i`, cffi declarations, a
+`pkgIndex.tcl` that `load`s a shared library) and derive the spec from
+the C source instead, citing file:line for every claim:
+
+- `Tcl_CreateObjCommand(interp, "name", handler, …)` — the command name
+  and where its evidence lives. Registrations made *inside* another
+  handler are factories: `defines_command_at` / instance commands.
+- `Tcl_WrongNumArgs(interp, n, objv, "varName ?value?")` — the richest
+  single artefact: it is the synopsis verbatim, and with the `objc`
+  guards around it (`objc < 3`, `objc != 4`) it fixes the arity.
+- `Tcl_GetIndexFromObj` over a static string table — the subcommand or
+  option vocabulary; `TCL_EXACT` means strict prefix matching. Option
+  tables plus their `switch` arms show which flags consume a value.
+- `Tcl_ObjSetVar2`/`Tcl_GetVar2Ex` with an `objv[i]` name → VarWrite /
+  VarRead role at i; `Tcl_EvalObjEx(objv[i])` → Body role and
+  `EVALUATES_CODE`; `Tcl_GetChannel` → Channel role.
+- `Tcl_SetObjResult` with `Tcl_NewIntObj`/`Tcl_NewListObj`/… → the
+  return type; `Tcl_PkgProvide` in the `*_Init` function → the required
+  package and its version.
+- critcl/cffi/SWIG declarations already state the signature — parse the
+  declaration, not the generated C.
+- Shipped `.n`/man pages often carry the authoritative synopsis and
+  option docs; prefer them for hover text over inferring prose.
+
+Mark every C-derived field with its evidence the same way as inferred
+ones, and list what C cannot tell you (taint, side effects beyond the
+obvious, version history) as questions for the author.
+
 $ARGUMENTS
