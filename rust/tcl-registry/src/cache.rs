@@ -160,14 +160,29 @@ pub fn registry_for_profile_with_overlay(
     registry.set_profile(profile);
     let leaked: &'static CommandRegistry = Box::leak(Box::new(registry));
 
-    // Keep every un-overlaid entry (one per dialect profile, a closed set) and
-    // drop the oldest-indexed overlays past the cap.  Purely a table bound —
-    // see the memory note above.
-    if guard.len() >= OVERLAY_LIMIT {
-        guard.retain(|(_, overlay), _| *overlay == 0);
-    }
+    prune_overlays(&mut guard, overlay);
     guard.insert(key, leaked);
     leaked
+}
+
+/// Drop indexed overlays past [`OVERLAY_LIMIT`], keeping every un-overlaid
+/// entry (one per dialect profile, a closed set) and the overlay being built
+/// right now. Purely a table bound — see the memory note above.
+///
+/// Retaining `current` is load-bearing, not tidiness: a reload builds all ~17
+/// dialect profiles for one pack key in a loop, so a sweep that dropped every
+/// overlay could fire partway through and evict the profiles this very key had
+/// already built. Those lookups then miss, [`registry_for_profile_if_built`]
+/// returns `None`, and the analyser falls back to the plain registry — every
+/// pack and EDA command unknown until something happened to rebuild that
+/// profile.
+fn prune_overlays(
+    map: &mut FxHashMap<(&'static str, u64), &'static CommandRegistry>,
+    current: u64,
+) {
+    if map.len() >= OVERLAY_LIMIT {
+        map.retain(|(_, overlay), _| *overlay == 0 || *overlay == current);
+    }
 }
 
 /// How many `(profile, overlay)` entries the lookup table indexes before it
@@ -183,4 +198,65 @@ const OVERLAY_LIMIT: usize = 64;
 #[must_use]
 pub fn registry_for_dialect(dialect: &str) -> &'static CommandRegistry {
     registry_for_profile(DialectProfile::by_name(dialect))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Crossing [`OVERLAY_LIMIT`] mid-reload must not evict the overlay being
+    /// built.
+    ///
+    /// One reload installs a single pack key across every dialect profile in a
+    /// loop, so the sweep can fire partway through that loop. Before this, it
+    /// dropped *every* overlaid entry — including the profiles the in-flight
+    /// key had already built — and those commands went silently unknown.
+    ///
+    /// Driven through [`prune_overlays`] against a table of synthetic keys
+    /// rather than by building 65 real registries: the entries all point at
+    /// one leaked registry, so this exercises the real threshold and the real
+    /// predicate for the cost of a single build.
+    #[test]
+    fn pruning_keeps_the_overlay_being_built() {
+        const CURRENT: u64 = 0x00C0_FFEE;
+        const OLD: u64 = 0x00DE_CAF0;
+
+        let one: &'static CommandRegistry = Box::leak(Box::new(CommandRegistry::build_default()));
+        let mut map: FxHashMap<(&'static str, u64), &'static CommandRegistry> =
+            FxHashMap::default();
+
+        // A closed set of un-overlaid entries, the profiles this reload has
+        // already built for the current key, and a long tail of stale ones
+        // from earlier edits — together past the cap.
+        let profiles: Vec<&'static str> = DialectProfile::all()
+            .iter()
+            .map(|profile| profile.name)
+            .collect();
+        assert!(profiles.len() >= 2, "the catalogue must have real profiles");
+        for name in &profiles {
+            map.insert((name, 0), one);
+            map.insert((name, CURRENT), one);
+        }
+        for stale in 0..OVERLAY_LIMIT as u64 {
+            map.insert((profiles[0], OLD + stale), one);
+        }
+        assert!(map.len() >= OVERLAY_LIMIT, "the fill must cross the cap");
+
+        prune_overlays(&mut map, CURRENT);
+
+        for name in &profiles {
+            assert!(
+                map.contains_key(&(name, CURRENT)),
+                "profile {name} lost the overlay being built"
+            );
+            assert!(
+                map.contains_key(&(name, 0)),
+                "profile {name} lost its un-overlaid entry"
+            );
+        }
+        assert!(
+            !map.contains_key(&(profiles[0], OLD)),
+            "a stale overlay must not survive the sweep"
+        );
+    }
 }

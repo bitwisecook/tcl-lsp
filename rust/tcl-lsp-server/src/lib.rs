@@ -12807,7 +12807,13 @@ impl Backend {
         // here extends.
         let loaded = tokio::task::spawn_blocking(move || {
             let files = tcl_spectcl::discover(&options);
-            tcl_spectcl::pack::load(&files)
+            // `load_discovered`, not `pack::load`: a bare `tcl-lsp-server`
+            // release binary (Zed, the standalone-editor instructions) has no
+            // `specs/` directory beside it, so discovery finds no bundled tier
+            // and the shipped EDA loadables have to come from the embedded
+            // copy. A plain load would leave every EDA command unknown in
+            // exactly those clients.
+            tcl_spectcl::bundled::load_discovered(&files)
         })
         .await;
         let Ok(loaded) = loaded else {
@@ -12870,16 +12876,39 @@ impl Backend {
             // before anything re-analyses.
             self.sync_db_config().await;
         }
-        self.publish_spec_pack_notices(&packs).await;
+        // Shipped-command collisions are not load notices — the loader has no
+        // registry to compare against, so `PackSet::notices` cannot carry
+        // them. They are computed here, against the session dialect's plain
+        // registry, and published alongside. Without this the author of a pack
+        // declaring `lsort` gets silence: the declaration is dropped (or the
+        // shipped spec replaced, with `-override`) and nothing in the editor
+        // says which, though the loader promised to report both.
+        //
+        // Session dialect, not per-folder: a pack's commands are installed at
+        // workspace scope, and the notice is about the pack file, which has no
+        // dialect of its own.
+        let dialect = self.session_dialect().await;
+        let for_collisions = Arc::clone(&packs);
+        let collisions = tokio::task::spawn_blocking(move || {
+            tcl_spectcl::pack::collision_notices(
+                &for_collisions,
+                tcl_registry::registry_for_dialect(&dialect),
+            )
+        })
+        .await
+        .unwrap_or_default();
+        self.publish_spec_pack_notices(&packs, &collisions).await;
         if changed {
             let commands: usize = packs.packs.iter().map(|p| p.commands.len()).sum();
             self.client
                 .log_message(
                     MessageType::INFO,
                     format!(
-                        "SpecTcl: {} pack(s), {commands} command(s), {} notice(s)",
+                        "SpecTcl: {} pack(s), {commands} command(s), {} notice(s), \
+                         {} shipped-command collision(s)",
                         packs.packs.len(),
-                        packs.notices.len()
+                        packs.notices.len(),
+                        collisions.len()
                     ),
                 )
                 .await;
@@ -12887,9 +12916,10 @@ impl Backend {
         changed
     }
 
-    /// Publish every pack's load notices as diagnostics on the pack file they
-    /// came from, and clear the ones a previous load left on files that are now
-    /// clean.
+    /// Publish every pack's load notices — plus the `collisions` the caller
+    /// computed against the plain registry — as diagnostics on the pack file
+    /// they came from, and clear the ones a previous load left on files that
+    /// are now clean.
     ///
     /// A notice is not a compile error — the pack loaded, minus the thing the
     /// notice names — so this is the natural surface for it: the author sees
@@ -12907,11 +12937,15 @@ impl Backend {
     /// on both the push and the pull path (which has its own cache) rather than
     /// publishing them separately — worth doing, and deliberately not smuggled
     /// into this change.
-    async fn publish_spec_pack_notices(&self, packs: &tcl_spectcl::PackSet) {
+    async fn publish_spec_pack_notices(
+        &self,
+        packs: &tcl_spectcl::PackSet,
+        collisions: &[tcl_spectcl::PackNotice],
+    ) {
         use tower_lsp_server::ls_types::{Diagnostic, DiagnosticSeverity, NumberOrString};
 
         let mut by_uri: HashMap<Uri, Vec<Diagnostic>> = HashMap::new();
-        for notice in &packs.notices {
+        for notice in packs.notices.iter().chain(collisions) {
             let Some(uri) = canonical_file_uri(&notice.path) else {
                 continue;
             };

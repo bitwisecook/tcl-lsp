@@ -126,7 +126,15 @@ const EMBEDDED_PACKS: &[(&str, &str)] = &[
 /// but every notice still needs *a* path to report against.
 #[must_use]
 pub fn load_embedded() -> PackSet {
-    let sources = EMBEDDED_PACKS
+    crate::pack::load_sources(embedded_sources(), Vec::new())
+}
+
+/// [`EMBEDDED_PACKS`] as loader sources.
+///
+/// The synthetic `<embedded>/…` paths never resolve on disk; they exist
+/// because every notice needs *a* path to report against.
+fn embedded_sources() -> Vec<(PackFile, String)> {
+    EMBEDDED_PACKS
         .iter()
         .map(|(name, text)| {
             let file = PackFile {
@@ -136,8 +144,35 @@ pub fn load_embedded() -> PackSet {
             };
             (file, (*text).to_owned())
         })
-        .collect();
-    crate::pack::load_sources(sources, Vec::new())
+        .collect()
+}
+
+/// Load a discovered file set, standing the embedded packs in for the bundled
+/// tier when discovery found none on disk.
+///
+/// The entry point for any consumer that discovers packs itself — the LSP
+/// server's workspace reload — rather than taking the process-wide [`packs`].
+/// Such a consumer needs the workspace and user tiers that [`packs`] does not
+/// look at, but it needs the bundled tier just as much, and a bare release
+/// binary has no `specs/` directory beside it for
+/// [`bundled_dir`](crate::discovery::bundled_dir) to find. Without this the
+/// server would load an empty bundled tier and report every EDA command
+/// unknown, while a `tcl-mcp` built from the same tree resolved them fine
+/// through [`packs`] — the compiled-in EDA modules that used to cover the
+/// difference are gone.
+///
+/// Falling back on "discovery produced no bundled-tier file" rather than on
+/// `bundled_dir().is_none()` keeps the two in agreement when a directory
+/// exists but is empty, and leaves a real on-disk `specs/` — a dev checkout,
+/// a VSIX bundle, `TCL_LSP_SPEC_PACK_DIR` — authoritative when it has
+/// anything in it.
+#[must_use]
+pub fn load_discovered(files: &[PackFile]) -> PackSet {
+    let (mut sources, notices) = crate::pack::read_sources(files);
+    if !sources.iter().any(|(file, _)| file.tier == Tier::Bundled) {
+        sources.extend(embedded_sources());
+    }
+    crate::pack::load_sources(sources, notices)
 }
 
 /// [`packs`]'s resolution, factored out so a test can drive it with an
@@ -353,6 +388,77 @@ mod tests {
                 .iter()
                 .all(|p| p.files.iter().all(|f| f.starts_with("<embedded>"))),
             "with no bundled dir, every pack must resolve from the embedded paths: {:#?}",
+            set.packs
+        );
+    }
+
+    /// A private scratch directory for the two `load_discovered` tests, in
+    /// the crate's own temp-dir idiom (`discovery`'s `tmpdir`) rather than a
+    /// new dev-dependency.
+    fn scratch(name: &str) -> PathBuf {
+        let dir = std::env::temp_dir().join(format!(
+            "tcl-spectcl-bundled-{name}-{}-{:?}",
+            std::process::id(),
+            std::thread::current().id()
+        ));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).expect("temp dir");
+        dir
+    }
+
+    /// A workspace load — the LSP server's path, which discovers its own
+    /// files rather than taking [`packs`] — still gets the bundled tier when
+    /// there is no `specs/` directory to discover it from. This is the
+    /// standalone-binary case for the *server* specifically: it was loading
+    /// exactly what discovery returned, so a bare `tcl-lsp-server` release
+    /// (Zed, the standalone-editor instructions) had no EDA commands at all
+    /// once the compiled-in modules were deleted.
+    #[test]
+    fn a_discovered_load_with_no_bundled_tier_falls_back_to_the_embedded_packs() {
+        let _cache = cache_guard();
+        let workspace = scratch("discovered").join("pack.tclspec");
+        std::fs::write(&workspace, "speclib demo 1 {}\n").expect("write pack");
+
+        let files = vec![PackFile {
+            tier: Tier::Workspace,
+            path: workspace.clone(),
+            origin: Origin::Setting,
+        }];
+        let set = load_discovered(&files);
+
+        assert!(
+            set.packs
+                .iter()
+                .any(|p| p.files.iter().any(|f| f.starts_with("<embedded>"))),
+            "a discovered set with no bundled tier must gain the embedded packs: {:#?}",
+            set.packs
+        );
+        assert!(
+            set.packs.iter().any(|p| p.files.contains(&workspace)),
+            "the discovered workspace pack must survive the fallback: {:#?}",
+            set.packs
+        );
+    }
+
+    /// The converse: a real on-disk bundled tier stays authoritative, so a
+    /// dev checkout or a VSIX bundle never loads each shipped pack twice.
+    #[test]
+    fn a_discovered_bundled_tier_suppresses_the_embedded_fallback() {
+        let _cache = cache_guard();
+        let bundled = scratch("on-disk").join("eda_demo.tclspec");
+        std::fs::write(&bundled, "speclib demo 1 {}\n").expect("write pack");
+
+        let set = load_discovered(&[PackFile {
+            tier: Tier::Bundled,
+            path: bundled,
+            origin: Origin::Bundled,
+        }]);
+
+        assert!(
+            set.packs
+                .iter()
+                .all(|p| p.files.iter().all(|f| !f.starts_with("<embedded>"))),
+            "an on-disk bundled tier must suppress the embedded fallback: {:#?}",
             set.packs
         );
     }

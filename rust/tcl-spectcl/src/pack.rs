@@ -164,6 +164,17 @@ impl PackSet {
 /// an unchanged pack costs a hash check), then groups by `speclib` name.
 #[must_use]
 pub fn load(files: &[PackFile]) -> PackSet {
+    let (sources, notices) = read_sources(files);
+    load_sources(sources, notices)
+}
+
+/// Read every discovered file, turning an unreadable one into a notice rather
+/// than dropping it silently.
+///
+/// Split out of [`load`] so [`crate::bundled::load_discovered`] can add the
+/// embedded bundled sources to the same vec before the merge, instead of
+/// merging twice and reconciling two content keys.
+pub(crate) fn read_sources(files: &[PackFile]) -> (Vec<(PackFile, String)>, Vec<PackNotice>) {
     let mut sources: Vec<(PackFile, String)> = Vec::with_capacity(files.len());
     let mut notices: Vec<PackNotice> = Vec::new();
 
@@ -178,7 +189,7 @@ pub fn load(files: &[PackFile]) -> PackSet {
         }
     }
 
-    load_sources(sources, notices)
+    (sources, notices)
 }
 
 /// [`load`]'s merge, taken with the source text already in hand rather than
