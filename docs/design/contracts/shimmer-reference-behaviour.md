@@ -1,4 +1,4 @@
-# KCS: Shimmer reference behaviour and validation
+# Shimmer reference behaviour
 
 ## What we mean by shimmer
 
@@ -85,9 +85,10 @@ dataflow over the SCCP-executable blocks, shared by the use-site, expr, and
   `shimmer::first_use_commitments_for_cu` — hover renders
   "string (first used as: list)" at the creation site.
 
-## Reference validation status
+## Where the command-level knowledge lives
 
-C source analysis completed against Tcl 9.0.3. The `arg_types` shimmer hints
+The mapping above is validated against the Tcl 9.0.3 C sources. The `arg_types`
+shimmer hints
 carried on each `CommandRegistry` `CommandSpec`/`SubCommand` (see
 `rust/tcl-registry/src/commands/**`) correctly map Tcl commands to their
 underlying `Tcl_Get*FromObj` calls — command-level shimmer knowledge lives
@@ -125,10 +126,7 @@ argument that is a bare variable name rather than a `$`-prefixed read
 alias, since `incr`'s own canonical name bypasses this path via the
 dedicated `Statement::Incr` node.
 
-## Fixture scenarios
-
-The Python-era `tests/fixtures/shimmer/` corpus was retired along with the
-Python implementation. Coverage today lives in:
+## Coverage
 
 - Unit tests co-located with each shimmer module (`rust/tcl-compiler/src/shimmer/*.rs`) and in `rust/tcl-compiler/tests/checks.rs`.
 - TP/FP/TN/FN regression fixtures in `rust/tcl-compiler/src/analyser/diagnostics/fp/sh.rs` (the `FP-SH-NN` series).

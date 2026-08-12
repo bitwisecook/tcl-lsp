@@ -1,4 +1,4 @@
-# KCS: <reference topic>
+# <reference topic>
 
 ## Symptom
 
@@ -15,8 +15,8 @@
 
 ## File-path anchors
 
-- `<package>/...` (compiler/, analyser/, dialects/, server/, tooling/, shared/, ai/)
-- `server/...`
+- `rust/<crate>/src/...` — the crate that owns the contract
+- `rust/<crate>/src/...` — the consuming crate
 - `docs/...`
 
 ## Failure modes
@@ -26,9 +26,9 @@
 
 ## Test anchors
 
-- `tests/...`
+- `rust/<crate>/tests/...`
 
 ## Discoverability
 
-- [KCS index](../README.md)
-- [compiler KCS index](../compiler/README.md)
+- [design docs index](../README.md)
+- [compiler design index](../compiler/README.md)

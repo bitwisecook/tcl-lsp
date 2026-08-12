@@ -7,7 +7,7 @@ that measure them. Companions: [`current-architecture.md`](current-architecture.
 (the runtime model) and [`incremental-analysis.md`](incremental-analysis.md)
 (the per-item analysis the queries sit on).
 
-The contract, from [`docs/rust-rewrite.md`](../../rust-rewrite.md): time to
+The contract, from [`engineering-guide.md`](engineering-guide.md): time to
 first semantic tokens is the headline metric, interactive latency after an edit
 comes second, memory a distant third.
 

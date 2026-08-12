@@ -1,20 +1,22 @@
 # C-API ownership / error contract
 
-The runtime ships a C Tcl API (`tcl.h` + `tclOO.h` + `tclTomMath.h`,
-`c-extension-abi.md` §4.1) that unmodified extensions compile and link against.
-**Every** public C-API function we export carries an ownership category (what it
-does to each `Tcl_Obj` handle's refcount) and an error-path category (how it
-signals and records failure). This doc fixes those categories and records one
-row per shipped function. It is the C-API sibling of
-[`refcount-contract.md`](refcount-contract.md) (the *internal* `tcl_*`/`obj_*`
-runtime exports) and is the **T2.1** deliverable; see `c-extension-abi.md` §13.1.
+The ownership and error-path categories for the C Tcl API surface an
+unmodified extension compiles and links against (`tcl.h` + `tclOO.h` +
+`tclTomMath.h` — see [`c-extension-abi.md`](c-extension-abi.md) §4.1, which is
+where that surface's design and its current implementation state live).
 
-> Status: **scaffolding — surface enumerated, categories fixed.** Rows cover the
-> authored C-API header surface, which is the
-> shipped C-API surface contract until `runtime/rust/` lands its
-> `#[no_mangle] extern "C"` exports. The gate
-> `scripts/check_c_api_ownership.py` rejects a header-declared C-API function
-> with no row here (and a row referencing a non-declared function).
+**Every** public C-API function carries an ownership category (what it does to
+each `Tcl_Obj` handle's refcount) and an error-path category (how it signals
+and records failure). This document fixes those categories and records one row
+per function. It is the C-API sibling of
+[`refcount-contract.md`](refcount-contract.md), which covers the *internal*
+`tcl_*` / `obj_*` runtime exports.
+
+> **Scope.** The rows below describe the API contract, transcribed from the C
+> Tcl documentation and sources. `runtime/rust/src/capi.rs` implements a subset
+> of that surface today; a row exists whether or not its function is
+> implemented yet, because the contract is what an extension compiles against,
+> not what happens to be wired up.
 
 Sources transcribed: `tmp/tcl9.0.3/doc/*.3` (`Tcl_Obj.3`, `Tcl_NewObj.3`,
 `Tcl_SetObjResult.3`, `Tcl_ListObj.3`, `Tcl_GetInt.3`, `Tcl_Eval.3`,
@@ -25,14 +27,13 @@ tclIO.c,tclOO.c}`.
 
 ---
 
-## Why this is the single largest design gap
+## Why the categories have to be exhaustive
 
-The spikes leak every `Tcl_Obj` and only ever return `TCL_OK`
-(`c-extension-abi.md` §13.1), so the two contracts that make an extension
-*correct* — who owns each handle, and how errors propagate — were entirely
-unspecified in our artifacts. One wrong refcount category leaks or
-double-frees; one wrong error category swallows a stack trace. This doc plus its
-gate make exhaustiveness enforceable.
+Two contracts make an extension *correct*: who owns each handle, and how errors
+propagate. One wrong refcount category leaks or double-frees; one wrong error
+category swallows a stack trace. Neither is recoverable at the call site,
+because the extension author cannot see our implementation — the header plus
+this document is the whole of what they have.
 
 ### The `fresh_zero` convention — the subtlety that matters most
 
@@ -233,7 +234,7 @@ mutate `internalRep`/`bytes` but **not** the logical value, so a `borrowed`
 
 | Function | Obj args | Return | Errors | Notes |
 |---|---|---|---|---|
-| `Tcl_CreateThread` | n/a | `status` | `no-error` | `proc` is a shared-table index; `clientData` opaque. WASM mapping per `c-extension-abi.md` §11. |
+| `Tcl_CreateThread` | n/a | `status` | `no-error` | `proc` is a shared-table index; `clientData` opaque. WASM mapping per [`c-extension-abi.md`](c-extension-abi.md) §11. |
 | `Tcl_JoinThread` | n/a | `status` | `no-error` | |
 | `Tcl_MutexLock` / `Tcl_MutexUnlock` | n/a | `void` | `no-error` | |
 | `Tcl_ConditionWait` / `Tcl_ConditionNotify` | n/a | `void` | `no-error` | |
@@ -305,42 +306,33 @@ across the boundary.
 
 ---
 
-## The gate
+## Known gap: no enforcement
 
-`scripts/check_c_api_ownership.py` (the T2.1 enforcement, parity-style):
+Nothing mechanically checks that every function this surface declares has a row
+here, or that a row names a function the surface actually declares. Both
+directions matter: a declared function with no row ships an unspecified
+ownership contract, and a row naming nothing is a stale claim.
 
-1. Collects every C-API function **declared** in the shipped headers
-   (the authored `tcl.h` / `tclOO.h` / `tclTomMath.h` surface; the parser
-   reads `extern <ret> Name(` declarations, so `#define` macros — `Tcl_NewIntObj`,
-   `Tcl_PkgProvide`, `Tcl_GetHashValue`, `Tcl_SetHashValue` — and `extern`
-   **data** symbols — `tclStubsPtr`, `tclOOStubsPtr` — are correctly excluded).
-2. Collects every function with a **row** in this doc (leading code-span name).
-3. Fails (`--strict`) when a declared function has no row, or a row names a
-   function no header declares (stale/typo).
+Closing it means a check that collects the declared functions from the header
+surface and the row names from this document and fails on either mismatch —
+with macros and data symbols deliberately excluded, since a macro carries no
+refcount semantics of its own (it is field access or a thin wrapper, documented
+under the function it expands to) and the stub-table data pointers are nominal.
+The same check should cross-reference `runtime/rust/src/capi.rs`'s
+`#[no_mangle] extern "C"` exports, so an export cannot land without an
+ownership annotation. [`refcount-contract.md`](refcount-contract.md) has the
+identical gap and wants the same tool.
 
-It is the C-API analogue of `scripts/check_refcount_contract.py`. When
-`runtime/rust/` lands its `#[no_mangle] extern "C"` C-API exports, the gate is
-extended to also cross-check that every such export carries a row here — so a
-new C-API export with no ownership annotation cannot merge.
-
-Macros and data symbols are intentionally out of the function gate: macros
-carry no refcount semantics (they are field access / thin wrappers documented
-under the function they expand to), and the stub-table data pointers are nominal
-(§6) with no ownership of their own.
-
----
-
-## Acceptance
-
-- Every shipped C-API function carries an ownership category **and** an
-  error-path category (this doc) — enforced by the gate.
-- A round-trip extension (`Tcl_NewObj` → `Tcl_IncrRefCount` →
-  `Tcl_SetObjResult` → `Tcl_DecrRefCount`) shows **zero residual** under the
-  `-Dleak-check` counter (`scripts/leak_sweep.py`), proving the `fresh_zero` /
-  `borrowed→stored` / `consumed` categories are implemented as documented.
+The behavioural half is testable independently: a round-trip extension
+(`Tcl_NewObj` → `Tcl_IncrRefCount` → `Tcl_SetObjResult` → `Tcl_DecrRefCount`)
+must show zero residual under the leak counters
+(`runtime/rust/src/counters.rs`), which is what demonstrates that the
+`fresh_zero` / `borrowed→stored` / `consumed` categories are implemented as
+documented.
 
 ## Cross-references
 
 - Internal runtime contract: [`refcount-contract.md`](refcount-contract.md).
-- ABI + the §13.1 scoping this closes: [`c-extension-abi.md`](c-extension-abi.md).
-- Tracking + status: T2.1 (runtime port).
+- The ABI this surface sits on: [`c-extension-abi.md`](c-extension-abi.md).
+- The runtime's refcount discipline:
+  [`memory-management.md`](memory-management.md).

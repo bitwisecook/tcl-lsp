@@ -34,10 +34,10 @@
 //! enclosing string is *split* into fragments around it rather than being
 //! overlaid (see [`push_string`]).
 //!
-//! This is the one behaviour that must not be reintroduced from the retired
-//! Python implementation, which ran each of its regexes independently over the
-//! line and appended every match: `define choice x` matched both its
-//! `define` and its `field-type` rule, stacking two tokens on the same span.
+//! Scanning once is what rules out the failure mode: a lexer that runs each
+//! rule's regex independently over the line and appends every match stacks two
+//! tokens on the same span — `define choice x` matches both a `define` rule
+//! and a `field-type` rule.  That must not be reintroduced.
 
 use std::sync::LazyLock;
 
@@ -328,8 +328,8 @@ fn tokenise_line(source: &str, line: &str, base: usize, out: &mut Vec<AplToken>)
 
         // A pending name slot consumes the next *bare word* only.  Anything
         // else (a quoted string after `message`, a `{` after `text`) cancels
-        // it — which is why `message "Welcome…"` no longer mis-types the
-        // opening `"Welcome` as a field name, as the Python version did.
+        // it, which is why `message "Welcome…"` does not mis-type the opening
+        // `"Welcome` as a field name.
         if pending != Pending::None {
             if take_pending_name(&mut pending, lx, text, out) {
                 at_stmt_start = false;
@@ -578,10 +578,10 @@ mod tests {
             .collect()
     }
 
-    /// The invariant the retired Python tokeniser violated: it ran each regex
-    /// independently and appended every match, so `define choice x` stacked a
-    /// `FieldType` on top of the `define` rule's own tokens.  110 overlapping
-    /// pairs in `samples/apl/example.apl` alone.
+    /// Assert the non-overlap invariant: no two emitted tokens share a byte.
+    /// A tokeniser that ran each rule's regex independently and appended every
+    /// match would stack a `FieldType` on top of the `define` rule's own
+    /// tokens for `define choice x`.
     fn assert_no_overlap(src: &str) {
         let t = tokenise_apl(src);
         for w in t.windows(2) {
@@ -627,8 +627,8 @@ mod tests {
     }
 
     /// A quoted value after a field type is a string, not the field's name.
-    /// The Python version's `\S+` name group swallowed the opening quote and
-    /// emitted `"Welcome` as a `FIELD_NAME` overlapping the string.
+    /// A `\S+` name pattern would swallow the opening quote and emit
+    /// `"Welcome` as a field name overlapping the string.
     #[test]
     fn quoted_value_after_field_type_is_not_a_field_name() {
         assert_eq!(

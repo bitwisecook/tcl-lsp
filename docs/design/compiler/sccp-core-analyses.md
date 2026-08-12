@@ -1,12 +1,8 @@
-# KCS: SCCP and core analyses (Stage 6)
+# SCCP and core analyses (Stage 6)
 
-## Symptom
-
-A contributor needs to understand how SCCP propagates constants, how
-liveness analysis works, how the type lattice infers types, or why a
-value is marked `OVERDEFINED` when it seems constant.
-
-## Context
+How sparse conditional constant propagation, liveness, and the type lattice
+work together over the SSA graph, and why a value that looks constant can
+still settle at `OVERDEFINED`.
 
 `analyse_function()` in `analyses.rs` runs SCCP (Sparse Conditional
 Constant Propagation) over the SSA graph, producing a `FunctionAnalysis`

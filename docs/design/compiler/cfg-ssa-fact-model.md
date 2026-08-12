@@ -1,10 +1,8 @@
-# KCS: CFG/SSA fact model and consumers
+# CFG/SSA fact model and consumers
 
-## Symptom
-
-A pass re-implements flow reasoning that already exists in core analyses.
-
-## Context
+The flow facts core analysis already computes, and the rule that a new pass
+consumes them rather than re-deriving its own. Read this when designing a pass
+that needs reachability, def-use, type, or execution-intent information.
 
 CFG/SSA/core analyses already compute high-value facts (reachability, definitions/uses, type lattice states, dead stores, etc.). Duplicating this reasoning in each pass creates inconsistency risk.
 

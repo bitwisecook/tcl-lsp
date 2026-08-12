@@ -1,6 +1,6 @@
-# Tk widget instance-command typing — design
+# Tk widget instance-command typing
 
-Status: **active**. This note records how a Tk/ttk widget's *instance*
+How a Tk/ttk widget's *instance*
 command (`.t instate …`, `$w tag configure …`, `$listbox curselection`) gets
 resolved back to the widget class that created it, so the registry's real
 `SubCommand` table for that widget becomes reachable from highlighting,
@@ -128,7 +128,7 @@ resolves it with **no code changes**.
   instead. **This fix follows the same discipline**: widget constructors are
   not added to the SSA type lattice.
 
-## What's genuinely new (as shipped)
+## The model
 
 1. **Registry data** (~34 widget-constructor `CommandSpec`s under
    `rust/tcl-registry/src/commands/tk/`): each gets
@@ -310,7 +310,7 @@ is recorded here rather than fixed because the map's collision-dropping
 already fails closed, unlike the TK1001/TK1002 accumulators, which failed
 *open* in both directions.
 
-## Deliberately deferred / abstained (with reasons)
+## Deliberate abstentions
 
 Consistent with this codebase's stated philosophy — *"prefer silence over a
 wrong narrowing at every stage"* (`tcloo-object-typing.md`) and *"the
@@ -321,12 +321,10 @@ following are explicit non-goals, not accidental gaps:
   constructor called separately, possibly on `.t` directly rather than via
   `$w`)** needs a two-hop fact (constant-propagate `$w` to the literal `.t`,
   then look up `.t`'s creating class) that SCCP's existing `LatticeValue::Const`
-  could in principle supply. Left out of this change's first landing: the
-  dominant real-world shape is direct bareword reuse or
-  `set w [ctor .path]` capture (both covered), and bridging SCCP output into
-  the widget-path map is a self-contained follow-up that doesn't block
-  those two. No false positive results from leaving it out — the receiver
-  simply stays unresolved, exactly like today.
+  could in principle supply. It is not wired: the dominant real-world shape
+  is direct bareword reuse or `set w [ctor .path]` capture, both of which
+  are covered. Nothing false-positives as a result — the receiver simply
+  stays unresolved.
 - **`rename`** of a widget's instance command (`rename .t .oldT`) breaks the
   association — `instance_classes` is keyed on the name observed at
   creation time. Tcl itself allows this (the C-level widget survives; only
@@ -340,9 +338,9 @@ following are explicit non-goals, not accidental gaps:
   **receiver typing**: `instance_classes` is still whole-file and
   name-keyed, not interpreter-keyed — see
   [Interpreter domains](#interpreter-domains-issue-1141) for why that is
-  fail-closed here and therefore left as a follow-up.  The *window
+  fail-closed here.  The *window
   hierarchy* half (TK1001 / TK1002) is no longer deferred: it is keyed by
-  interpreter domain as of issue #1141.
+  interpreter domain.
 - **Interprocedural flow for diagnostics** (a widget path passed as a proc
   argument, `proc configureWidget {w} { $w instate … }`): the diagnostic's
   receiver resolution is whole-file (via `instance_classes`), not
@@ -370,13 +368,11 @@ following are explicit non-goals, not accidental gaps:
   widget creation is always a direct call to a real, statically-named
   registry command, never reached through the `unknown` fallback or
   auto-loading, and namespace-qualification of the *constructor* command
-  name (as opposed to the widget path it creates) is already handled by the
-  shared `tcl_syntax::naming` resolver this change does not touch.
-- **`class_lattice.rs`** (the unshipped TclOO class-*set* lattice
-  prototype) is not graduated or extended by this change. Widget-path
-  identity is string-keyed with no MRO, so it does not need the prototype's
-  machinery; wiring it up for TclOO generally is a separate, larger,
-  unrelated decision this issue does not require.
+  name (as opposed to the widget path it creates) is handled by the shared
+  `tcl_syntax::naming` resolver.
+- **`class_lattice.rs`**, the TclOO class-*set* lattice prototype, is not
+  part of this model. Widget-path identity is string-keyed with no MRO, so
+  it does not need the prototype's machinery.
 
 ## Consumer summary
 
@@ -388,7 +384,7 @@ following are explicit non-goals, not accidental gaps:
 | completion | new (item 6) | new (item 6) | new (item 6) |
 | diagnostics (W001/E002/E003) | new (item 7), whole-file + collision-safe (item 8) | new (item 7), same | new (item 7) |
 
-## Testing (as shipped)
+## Testing
 
 - **Registry** (`tcl-registry/tests/registry_commands.rs`):
   `tk_widget_constructors_declare_creates_instance_at` (all 34 widgets) and

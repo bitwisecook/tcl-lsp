@@ -3743,7 +3743,7 @@ fn w004_fix_removes_option_and_value_at_end_of_command() {
 fn w004_fix_handles_braced_option_token_without_stray_closer() {
     // A braced flag/value (`{-stride}`) is a legal, if unusual, way to write
     // the same word; the fix must delete the whole wrapped token — never
-    // leaving a stray `}` behind (kcs-issue-highlight-drops-closing-delimiter).
+    // leaving a stray `}` behind.
     let mut a = Analyser::new();
     let src = "lsearch {-stride} 2 {a b} x";
     let result = a.analyse(src, "tcl8.6");

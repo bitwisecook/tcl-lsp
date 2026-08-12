@@ -1,12 +1,8 @@
-# KCS: Taint analysis — sources, sinks, colours, and interprocedural propagation
+# Taint analysis — sources, sinks, colours, and interprocedural propagation
 
-## Symptom
-
-A contributor needs to understand how the taint engine tracks untrusted data
-from HTTP inputs to dangerous sinks, how taint colours model sanitisation, or
-needs to add taint rules for a new command.
-
-## Context
+How the taint engine tracks untrusted data from its sources to dangerous
+sinks, how taint colours model sanitisation, and where to add taint rules for
+a command.
 
 The taint engine tracks whether values originate from untrusted sources (user
 input) and whether they reach dangerous sinks (XSS, injection, SSRF).

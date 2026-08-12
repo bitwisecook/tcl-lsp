@@ -749,7 +749,7 @@ overshoots the empty case by one — issue #527).
   (`docs/design/compiler/syntax-tree.md`) — the lossless, position-independent
   tree the formatter, minifier, AOT lowering, and per-command tooling build on.
 
-See [`docs/kcs/kcs-issue-highlight-drops-closing-delimiter.md`](docs/kcs/kcs-issue-highlight-drops-closing-delimiter.md)
+See [`docs/design/compiler/syntax-tree.md`](docs/design/compiler/syntax-tree.md)
 for the contract.
 
 ## Command registry

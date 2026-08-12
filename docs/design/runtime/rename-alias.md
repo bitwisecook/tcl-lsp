@@ -1,12 +1,16 @@
 # Runtime rename + interp alias
 
-Status: **shipped** in the rename-alias wave.  Extends the namespace
-tree from
-[`namespace-tree.md`](namespace-tree.md) with the Tcl 9 semantics for
-``rename`` and ``interp alias`` (single-interp scope).  Source of
-truth for the C semantics is ``tmp/tcl9.0.3/generic/tclBasic.c``
-(``TclRenameCommand``) and ``tmp/tcl9.0.3/generic/tclInterp.c``
-(``AliasCreate`` / ``AliasDelete``).
+The Tcl 9 semantics for ``rename`` and ``interp alias`` in the WASM runtime
+(`runtime/rust`), built on the namespace tree from
+[`namespace-tree.md`](namespace-tree.md).  Source of truth for the C semantics
+is ``tmp/tcl9.0.3/generic/tclBasic.c`` (``TclRenameCommand``) and
+``tmp/tcl9.0.3/generic/tclInterp.c`` (``AliasCreate`` / ``AliasDelete``).
+
+The command-layer *contract* this implements — and its compiler-side
+consequences — is
+[`../contracts/command-binding-and-aliasing.md`](../contracts/command-binding-and-aliasing.md);
+the static, editor-facing slice is
+[`../contracts/command-alias-resolution.md`](../contracts/command-alias-resolution.md).
 
 ## 1. Scope
 
@@ -23,15 +27,14 @@ In:
   follow ``rename`` of the target (the stored name stops
   resolving).  Matches C Tcl's semantics.
 
-Out (deferred):
+Covered by sibling documents:
 
 - Child interpreters + cross-interp aliases (``interp alias child
-  newName parent oldName``).  Needs child-interp infrastructure.
-- ``interp hide`` / ``interp expose``.  Shipped in the
-  command-introspection wave — see
+  newName parent oldName``) — [`child-interp.md`](child-interp.md).
+- ``interp hide`` / ``interp expose`` —
   [`command-introspection.md`](command-introspection.md).
-- Command trace invalidation on rename — no trace infra yet.
-- Command deletion handlers — same.
+- Command traces firing on rename and delete —
+  [`trace-implementation.md`](trace-implementation.md).
 
 ## 2. Command struct reuse
 
@@ -186,10 +189,12 @@ it).  Current cost:
 - One ``memcpy`` of caller argv tail into ``new_words``.
 - One recursion into ``eval_proc_call_bucket``.
 
-If ``bench_wasm_runtime.py`` flags the by-name resolution as a
-hotspot, the ``AliasRec`` can grow a cached target-Command slot
-+ ``target_ns.cmd_ref_epoch`` snapshot for O(1) dispatch on the
-fast path.  Not shipped yet — waiting on a real bench regression.
+If benchmarking ever shows the by-name resolution to be a hotspot, the
+``AliasRec`` can grow a cached target-`Command` slot plus a
+``target_ns.cmd_ref_epoch`` snapshot for O(1) dispatch on the fast path. That
+optimisation is deliberately not taken on speculation — by-name resolution on
+every dispatch is what makes the alias observe target deletion lazily, which
+is the C semantics, so any cache has to be epoch-invalidated to stay correct.
 
 ## 5. Compiler surface
 
@@ -208,32 +213,23 @@ These are the only compiler-side changes in this wave.
 
 ## 6. Test strategy
 
-Three layers, each live:
+Two layers:
 
-1. **Direct runtime tests** exercise the primitives through dedicated
-   WASM exports ``tcl_test_rename`` / ``tcl_test_alias_create``:
-   - `tests/runtime/test_tcl_rename.py`
-   - `tests/runtime/test_tcl_alias.py`
+1. **Unit tests co-located with the implementation** —
+   `runtime/rust/src/cmd_alias.rs`'s own `mod tests` exercises alias create /
+   query / delete and the dispatch trampoline directly against a live
+   interpreter.
+2. **Upstream `.test` coverage** (``rename.test``, the single-interp subset of
+   ``interp.test``) runs through the tcltest harness; where it sits on the
+   capability ladder is [`tcl-test-tiers.md`](tcl-test-tiers.md), and the
+   per-stem numbers are [`rust-vm-tier-parity.md`](rust-vm-tier-parity.md).
 
-2. **End-to-end Tcl → WASM → runtime tests** in
-   `tests/test_wasm_execution.py::TestRenameAndAlias`
-   cover the compile-to-WASM + interpret-at-runtime integration.
+## 7. Implementation map
 
-3. **Upstream tests** (``rename.test``, ``interp.test`` single-
-   interp subset) are out of scope for this wave's initial drop —
-   the direct + E2E layers pin the semantics; upstream coverage
-   is the next natural expansion.
-
-## 7. Ship summary
-
-- Rename + alias logic in ``cmd_misc.rs`` (rename) and
-  ``cmd_alias.rs`` (alias).
-- One extension to ``namespace.rs``: ``ns_cmd_clear`` helper +
-  exposure of ``bump_cmd_ref_epoch`` / ``link_import_ref`` /
-  ``unlink_import_ref``.
-- New flag bit ``CMD_ALIAS = 0x100`` on ``Command``.
-- Wired dispatch trampoline in ``tcl_interp.eval_proc_call_bucket``.
-- Wired ``rename`` / ``interp alias`` built-ins in
-  ``interp.rs``.
-- Compiler fallback updates in
-  ``compiler/codegen/wasm/_imports.py``.
+| Piece | Where |
+|---|---|
+| `rename` | `runtime/rust/src/cmd_misc.rs` |
+| `interp alias` | `runtime/rust/src/cmd_alias.rs` |
+| Namespace-side support (`ns_cmd_clear`, `bump_cmd_ref_epoch`, `link_import_ref` / `unlink_import_ref`) | `runtime/rust/src/namespace.rs` |
+| The `CMD_ALIAS` flag bit on `Command` | `runtime/rust/src/namespace.rs` |
+| Dispatch trampoline | the proc-call path in `runtime/rust/src/interp.rs` |

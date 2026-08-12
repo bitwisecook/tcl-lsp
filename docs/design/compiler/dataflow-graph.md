@@ -1,4 +1,4 @@
-# KCS: Data-Flow Graph
+# Data-Flow Graph
 
 ## Overview
 

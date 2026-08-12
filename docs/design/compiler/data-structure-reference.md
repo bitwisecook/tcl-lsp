@@ -1,12 +1,8 @@
-# KCS: Data structure reference — pipeline types at each stage
+# Data structure reference — pipeline types at each stage
 
-## Symptom
-
-A contributor needs to understand what types are produced at each compiler
-stage, their field meanings, or how data flows from one representation to
-the next.
-
-## Context
+The types produced at each compiler stage, what their fields mean, and how one
+representation becomes the next. Read this when adding an analysis or when
+tracking a value across a stage boundary.
 
 Every Tcl source string passes through 7 stages, each producing typed
 dataclasses.  All types live under `compiler/`, `analyser/`, or `shared/` and are frozen dataclasses

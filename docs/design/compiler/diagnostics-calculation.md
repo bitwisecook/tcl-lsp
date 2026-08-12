@@ -1,12 +1,8 @@
-# KCS: Diagnostics calculation — two-phase architecture and scheduling
+# Diagnostics calculation — two-phase architecture and scheduling
 
-## Symptom
-
-A contributor needs to understand why some diagnostics appear instantly and
-others after a delay, how the DiagnosticScheduler manages cancellation, or
-needs to add a new diagnostic to the correct phase.
-
-## Context
+Why some diagnostics appear instantly and others after a delay, how the
+diagnostic scheduler handles cancellation and document versions, and which
+phase a new diagnostic belongs in.
 
 The LSP server produces diagnostics in two phases: a fast synchronous phase
 for immediate feedback (basic diagnostics) and an expensive asynchronous phase

@@ -192,11 +192,10 @@ pub fn tcllibpath_dirs() -> Vec<PathBuf> {
 }
 
 // ---------------------------------------------------------------------------
-// Config-file `libraryPaths` (mirrors shared/user_config.py).
+// Config-file `libraryPaths`.
 // ---------------------------------------------------------------------------
 
-/// The platform-native user config file (`config.ini`), mirroring
-/// `shared/user_config.py::_config_path`:
+/// The platform-native user config file (`config.ini`):
 ///
 /// * `$XDG_CONFIG_HOME/tcl-lsp/config.ini` when `XDG_CONFIG_HOME` is set,
 /// * Windows (native): `%APPDATA%\tcl-lsp\config.ini`,
@@ -252,7 +251,7 @@ fn config_path_for(
     Some(home.join(".config").join("tcl-lsp").join("config.ini"))
 }
 
-/// Filename of the per-project config (`shared/user_config.py`).
+/// Filename of the per-project config.
 pub const PROJECT_CONFIG_FILENAME: &str = ".tcl-lsp.ini";
 
 /// The per-project config file for `workspace_root` (`<root>/.tcl-lsp.ini`).
@@ -261,10 +260,9 @@ pub fn project_config_path(workspace_root: &Path) -> PathBuf {
     workspace_root.join(PROJECT_CONFIG_FILENAME)
 }
 
-/// Parse the `libraryPaths` list from `section` of an INI `content`, matching
-/// `shared/user_config.py::_read_top_level_section`: a newline-separated list
-/// (with `configparser` indented continuation), falling back to comma-split
-/// for a one-liner. Returns the paths in order; empty when absent.
+/// Parse the `libraryPaths` list from `section` of an INI `content`: a
+/// newline-separated list (with indented continuation lines), falling back to
+/// comma-split for a one-liner. Returns the paths in order; empty when absent.
 #[must_use]
 pub fn library_paths_from_ini(content: &str, section: &str) -> Vec<String> {
     let Some(raw) = ini_raw_value(content, section, "libraryPaths") else {

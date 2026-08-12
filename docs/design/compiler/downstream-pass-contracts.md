@@ -1,10 +1,8 @@
-# KCS: Downstream pass contracts (optimiser/taint/shimmer/gvn/irules-flow)
+# Downstream pass contracts (optimiser/taint/shimmer/gvn/irules-flow)
 
-## Symptom
-
-A pass update introduces duplicate or contradictory diagnostics, code-family drift, or non-deterministic output ordering across runs.
-
-## Operational context
+What a specialised pass may assume about the facts it consumes and what it must
+guarantee about the findings it emits — code families, ranges, ordering, and
+ownership where two passes can flag the same issue.
 
 After CU assembly, specialised passes consume shared facts and emit typed findings. `get_diagnostics()` then applies suppression and LSP conversion. This stage changes frequently as new warning families and optimisation heuristics are added.
 

@@ -1,12 +1,8 @@
-# KCS: Lexing and segmentation (Stages 1–2)
+# Lexing and segmentation (Stages 1–2)
 
-## Symptom
-
-A contributor needs to understand how raw Tcl source is split into tokens
-and grouped into commands, or is debugging why a command is being segmented
-incorrectly (wrong word boundaries, missing tokens, interpolation issues).
-
-## Context
+How raw Tcl source is split into tokens and grouped into commands. Read this
+when debugging word boundaries, missing tokens, or interpolation handling at
+the front of the pipeline.
 
 Stage 1 (lexing) produces a flat `list[Token]` via `TclLexer.tokenise_all()`.
 Stage 2 (segmentation) groups tokens into `SegmentedCommand` objects via

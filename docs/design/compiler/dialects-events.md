@@ -1,13 +1,9 @@
-# KCS: Dialects and events
+# Dialects and events
 
-## Symptom
-
-A contributor needs to understand how commands are partitioned across Tcl
-versions and tool contexts (dialects), how iRules event requirements work,
-or is debugging why a command is reported as unknown (IRULE1001 / W102) in
-a specific context.
-
-## Context
+How commands are partitioned across Tcl versions and tool contexts, and how
+iRules event requirements narrow availability further. Read this when adding a
+dialect-specific command, or when a command is reported as unknown
+(IRULE1001 / W102) in one context but not another.
 
 Dialects partition command availability.  Every `CommandSpec` has an optional
 `dialects` field; subcommands can override with their own set.  In iRules,

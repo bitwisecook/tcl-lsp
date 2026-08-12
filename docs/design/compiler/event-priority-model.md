@@ -1,4 +1,4 @@
-# KCS: compiler — event handler priority model
+# Event handler priority model
 
 ## Summary
 

@@ -31,10 +31,9 @@
 //!     (namespace-relative self-call linking; two mutually-recursive
 //!     procs staying unlinked).
 //!
-//! There is no single upstream pytest source; these tests are derived from
-//! each provider's public API (see the matching `src/*.rs`) and from Tcl
-//! semantics, with the Tcl-semantic facts pinned to real C-Tcl
-//! (tclsh8.6 + tclsh9.0 via `scripts/dev/tclsh_check.sh`).
+//! These tests are derived from each provider's public API (see the matching
+//! `src/*.rs`) and from Tcl semantics, with the Tcl-semantic facts pinned to
+//! real C-Tcl (tclsh8.6 + tclsh9.0 via `scripts/dev/tclsh_check.sh`).
 //!
 //! C-Tcl proof model
 //! -----------------

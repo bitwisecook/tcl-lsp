@@ -244,17 +244,16 @@ symptom with several possible causes worth telling apart. See rule 13 in
   — which spellings of a variable reference real Tcl 9 accepts, and what
   each one resolves to.
 
-
 ## Functionality (commands, features, and tools)
 
-86 per-feature KCS notes live under [`features/`](features/README.md).
+87 per-feature KCS notes live under [`features/`](features/README.md).
 The `help` subcommand, the MCP `help` tool, and the VS Code `/help`
 chat command all read these files at runtime to build their feature
 catalogues.
 
 ## Diagnostics and optimisations (per-code pages)
 
-158 per-code KCS notes live under [`codes/`](codes/README.md) — 127
+164 per-code KCS notes live under [`codes/`](codes/README.md) — 133
 diagnostic pages (E, W, S, T, and IRULE families) and 31 optimisation
 pages (O family). Each page follows the diagnostic or optimisation
 template, tags the compiler pass that produces it, explains in plain

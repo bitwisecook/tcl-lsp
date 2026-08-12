@@ -1,12 +1,8 @@
-# KCS: SSA construction (Stage 5)
+# SSA construction (Stage 5)
 
-## Symptom
-
-A contributor needs to understand how the SSA builder assigns version numbers,
-places phi nodes, or builds the dominator tree, or is debugging incorrect
-variable versioning or missing phi nodes.
-
-## Context
+How the SSA builder assigns version numbers, places phi nodes, and computes
+the dominator tree. Read this when debugging variable versioning or a missing
+phi node.
 
 `build_ssa()` in `ssa.rs` transforms a `CFGFunction` into an `SSAFunction`
 where every variable definition gets a unique version number.  Phi nodes are

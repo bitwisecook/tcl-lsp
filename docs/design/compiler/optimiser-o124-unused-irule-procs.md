@@ -1,4 +1,4 @@
-# KCS: O124 — Comment out unused procs in iRules
+# O124 — Comment out unused procs in iRules
 
 ## Summary
 

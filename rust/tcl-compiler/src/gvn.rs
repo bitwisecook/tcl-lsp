@@ -1904,11 +1904,9 @@ pub fn find_partial_redundancies(
 /// compilation unit, concatenating the per-function findings in
 /// iteration order.
 ///
-/// Convenience wrapper for callers (LSP, `PyO3` bindings, the future
-/// native server) that already hold a [`crate::compilation_unit::CompilationUnit`] and don't
-/// want to re-implement the per-function loop. The pure-crate
-/// version is the public API; `PyO3` binding code should call this
-/// rather than duplicating the iteration shape.
+/// Convenience wrapper for callers that already hold a
+/// [`crate::compilation_unit::CompilationUnit`] and don't want to
+/// re-implement the per-function loop.
 #[must_use]
 pub fn find_redundancies_for_cu(
     cu: &crate::compilation_unit::CompilationUnit,

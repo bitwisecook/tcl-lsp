@@ -177,8 +177,7 @@ mod tests {
     #[test]
     fn resolve_integer_and_end_forms() {
         // Mirrors Tcl's `TclGetIntForIndex` grammar (end / signed integer /
-        // base[+-]integer) — cmd-core `index.rs` had no unit coverage
-        // (TEST-MIGRATE).
+        // base[+-]integer).
         assert_eq!(resolve("5", 10).unwrap(), 5);
         assert_eq!(resolve("0", 10).unwrap(), 0);
         assert_eq!(resolve("-1", 10).unwrap(), -1);

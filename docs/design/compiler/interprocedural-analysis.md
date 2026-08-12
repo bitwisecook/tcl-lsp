@@ -1,12 +1,8 @@
-# KCS: Interprocedural analysis — ProcSummary construction
+# Interprocedural analysis — ProcSummary construction
 
-## Symptom
-
-A contributor needs to understand how the compiler reasons about cross-procedure
-behaviour (purity, constant folding eligibility, effect propagation), or needs
-to debug why ICIP (O103) does or does not fold a procedure call.
-
-## Context
+How the compiler reasons about cross-procedure behaviour — purity,
+constant-folding eligibility, and effect propagation — and how the resulting
+summaries decide whether ICIP (O103) folds a call.
 
 `InterproceduralAnalysis` builds `ProcSummary` objects for each procedure by
 first collecting local facts (`ProcLocalSummary`), then running a transitive

@@ -1271,8 +1271,8 @@ impl<'r> Lowerer<'r> {
             // handler.  The hook stamp lives on the `when` spec
             // in `tcl-registry/src/commands/irules/when.rs`,
             // which `load_dialect(DialectSet::IRULES)` brings
-            // into the registry.  Production callers (LSP
-            // server / Python bindings) load the active dialect
+            // into the registry.  Production callers (the LSP
+            // server) load the active dialect
             // before lowering; tests that lower iRule code call
             // `registry.load_irules()` explicitly (see
             // `irules_checks::tests::registry`).  Callers that
@@ -5654,8 +5654,8 @@ mod tests {
     fn registry_dispatch_when_lowers_via_lower_when_with_irules_loaded() {
         // The iRules `when` spec carries `LoweringHookId::When`
         // and only enters the registry after
-        // `load_dialect(IRULES)`.  Production callers (LSP
-        // server, Python bindings) always pair `build_default()`
+        // `load_dialect(IRULES)`.  Production callers (the LSP
+        // server) always pair `build_default()`
         // with the active dialect; this test mirrors that.
         let mut registry = CommandRegistry::build_default();
         registry.load_irules();

@@ -1,10 +1,9 @@
-# KCS: Tail-call and recursion optimisation (O121–O123)
+# Tail-call and recursion optimisation (O121–O123)
 
-## Symptom
-
-Tcl procs use direct self-recursion where an iterative form or `tailcall` would be more efficient. Stack depth grows linearly with input size, risking `too many nested evaluations` errors.
-
-## Operational context
+How the three self-recursion passes decide what is in tail position, which of
+them fires for a given proc, and how priority resolves an overlap. Between
+them they rewrite self-recursion to `tailcall` or to a loop, or hint that an
+accumulator parameter would make it tail-recursive.
 
 Three related passes detect and transform self-recursive patterns:
 

@@ -967,7 +967,7 @@ fn oo_frame_for(
 /// The method-local constants a method body may propagate, or an empty map
 /// when it may propagate none (issue #1097).
 ///
-/// This is the port of `elimination.rs`'s escaping model into the propagation
+/// This applies `elimination.rs`'s escaping model to the propagation
 /// lattice.  `elimination.rs` already knows that a `TclOO` instance variable
 /// escapes the method frame — it feeds
 /// [`crate::ir::MethodDef::instance_vars`] through the same channel iRules

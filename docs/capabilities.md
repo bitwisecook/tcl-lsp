@@ -50,7 +50,7 @@ powers iRule analysis, diagnostics, and the compiler explorer.
 | **MCP** | `tcl-mcp` exposes ~40 analysis tools (`analyze`, `validate`, `review`, `optimize`, `call_graph`, `dataflow_graph`, `goto_definition`, refactors, …). |
 
 Reference: `docs/design/compiler-architecture.md` (+ `docs/design/compiler/`), how-tos in
-`docs/kcs/` (`kcs-howto-ir-cfg-ssa-diagnostics.md`), generated tables in
+`docs/kcs/`, generated tables in
 `docs/generated/`. Crates: `rust/tcl-lexer`, `rust/tcl-syntax`, `rust/tcl-compiler`,
 `rust/tcl-lsp-core`, `rust/tcl-explorer`.
 

@@ -1,12 +1,9 @@
-# KCS: CFG construction (Stage 4)
+# CFG construction (Stage 4)
 
-## Symptom
-
-A contributor needs to understand how structured IR control flow (`IRIf`,
-`IRWhile`, `IRFor`) is decomposed into basic blocks, or is debugging
-incorrect block connectivity or missing edges.
-
-## Context
+How structured IR control flow — `IRIf`, `IRWhile`, and `IRFor` — is
+decomposed into basic blocks with explicit terminators. Read this when
+adding a lowering that introduces control flow, or when debugging block
+connectivity and missing edges.
 
 `build_cfg()` in `cfg.rs` transforms an `IRModule` into a `CFGModule` by
 decomposing structured IR into basic blocks with explicit terminators

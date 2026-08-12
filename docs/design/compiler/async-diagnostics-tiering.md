@@ -1,10 +1,8 @@
-# KCS: Async diagnostics tiering and cancellation
+# Async diagnostics tiering and cancellation
 
-## Symptom
-
-Editor diagnostics feel laggy or flicker because deep passes race with fresh edits and publish stale results.
-
-## Operational context
+How diagnostics are split into a fast tier and a deep background tier, and the
+cancellation and version rules that stop a slow pass from publishing results
+for an edit the user has already moved past.
 
 Diagnostics are published in two tiers:
 

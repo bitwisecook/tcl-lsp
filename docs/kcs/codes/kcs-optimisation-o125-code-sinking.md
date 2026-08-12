@@ -36,7 +36,7 @@ if {$ok} { return } else { set msg "error"; log $msg }
 
 - Skipped when the assignment has [side effects](../../GLOSSARY.md#side-effects) that must execute unconditionally.
 - Skipped when the variable is read in more than one branch.
-- Skipped when a [barrier](../../GLOSSARY.md#ircall-ircmd) between the original position and the sink target could observe the variable.
+- Skipped when a [barrier](../../GLOSSARY.md#barrier) between the original position and the sink target could observe the variable.
 
 ## How to disable
 
@@ -46,5 +46,5 @@ Toggle the optimiser profile in your editor settings. See the [optimiser feature
 
 - [KCS codes index](README.md)
 - [Optimiser feature](../features/kcs-feature-optimiser.md)
-- [Code sinking](../../GLOSSARY.md#code-sinking)
+- [Code sinking](../../GLOSSARY.md#lcp)
 - Related codes: `O126`, `O127`

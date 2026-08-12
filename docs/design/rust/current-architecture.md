@@ -4,7 +4,7 @@ How the Rust workspace is laid out today: which crate owns what, the
 dependency direction that must not be violated, and the runtime shape of the
 native LSP server. Read this before adding a crate, a command fact, or an LSP
 feature. The engineering rules that govern *how* code is written live in
-[`docs/rust-rewrite.md`](../../rust-rewrite.md); the architectural direction the
+[`engineering-guide.md`](engineering-guide.md); the architectural direction the
 workspace is converging on is in
 [`target-architecture.md`](target-architecture.md).
 
@@ -161,7 +161,7 @@ matching `tests/cli_parity.rs` suite.
 
 ## Related
 
-- [`docs/rust-rewrite.md`](../../rust-rewrite.md) — the engineering rules for
+- [`engineering-guide.md`](engineering-guide.md) — the engineering rules for
   the workspace: the non-negotiable principles, library choices, and what good
   Rust looks like here.
 - [`target-architecture.md`](target-architecture.md) — the zero-copy,

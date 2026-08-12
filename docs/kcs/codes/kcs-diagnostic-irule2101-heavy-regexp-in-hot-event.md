@@ -33,7 +33,7 @@ The analyser reports **`IRULE2101`** because `regexp` is used in a hot event pat
 
 ## Fix
 
-Use `string match` or a [data-group](../../GLOSSARY.md#data-group) lookup:
+Use `string match` or a [data-group](../features/kcs-feature-refactor-extract-datagroup.md) lookup:
 
 ```tcl
 when HTTP_REQUEST {

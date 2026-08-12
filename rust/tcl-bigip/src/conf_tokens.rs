@@ -33,11 +33,10 @@
 //! **disjoint sub-tokens** rather than a specific token overlaid on a generic
 //! one.
 //!
-//! That overlay is exactly what the retired Python implementation did — it
-//! appended its BIG-IP matches on top of the tokens the Tcl collector had
-//! already produced, yielding 65 overlapping pairs in `bigip_base.conf` alone
-//! (`'Common':string` *and* `'Common':partition` on the same span).  It must
-//! not come back.
+//! Overlaying is the failure mode this design rules out: appending BIG-IP
+//! matches on top of tokens a generic Tcl collector has already produced
+//! yields overlapping pairs — `'Common':string` *and* `'Common':partition`
+//! on the same span.  It must not come back.
 
 use std::sync::LazyLock;
 

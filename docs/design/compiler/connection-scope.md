@@ -1,13 +1,8 @@
-# KCS: Connection scope — cross-event variable flow (iRules)
+# Connection scope — cross-event variable flow (iRules)
 
-## Symptom
-
-A contributor sees false-positive "read before set" (W103) or "dead store"
-(O109) warnings on variables that are defined in one iRules `when` event
-handler and used in another, or needs to understand how cross-event variable
-flow is tracked.
-
-## Context
+How variable flow between iRules `when` event handlers is tracked, so that a
+variable set in one handler and read in another is not reported as a
+read-before-set (W103) or a dead store (O109).
 
 In iRules, `when` event handlers share a connection-scoped variable stack.
 Variables set in `CLIENT_ACCEPTED` persist until the connection closes, so

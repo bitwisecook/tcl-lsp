@@ -1,4 +1,4 @@
-# KCS: Def-Use Chains
+# Def-Use Chains
 
 ## Overview
 

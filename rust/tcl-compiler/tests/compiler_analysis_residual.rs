@@ -16,10 +16,10 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! Residual-coverage port for several under-covered `tcl-compiler` analysis
+//! Residual coverage for several under-covered `tcl-compiler` analysis
 //! files.  This suite deliberately targets the *remaining* uncovered branches
-//! that the existing ports (`analyser_port`, `checks_port`, `core_analyses_port`,
-//! `fp_depth_port`, `inlining_port`, `dataflow_port`, `optimiser_*`) and the
+//! that the existing suites (`analyser.rs`, `checks.rs`, `core_analyses.rs`,
+//! `fp_depth.rs`, `inlining.rs`, `dataflow.rs`, `optimiser_*`) and the
 //! in-crate unit tests already miss:
 //!
 //!   * `src/scan_predicate.rs` — every `scan`/format-string conversion
@@ -39,7 +39,7 @@
 //!     branch / loop-node statement variants the existing shift test misses.
 //!   * `src/inlining/mod.rs` — `classify_proc` / `inline_module` decline reasons
 //!     (size limits, recursion, side-effects, non-namespace-invariant calls,
-//!     globals, `{*}` expansion) the `inlining_port` misses.
+//!     globals, `{*}` expansion) `inlining.rs` misses.
 //!   * `src/analyser/diagnostics/fp/rch.rs` — the reachability (O107) FP
 //!     suppressor carve-outs: code after `return` / `break` / `continue` /
 //!     `error`, constant-false guards, and the various unreachable-region shapes,
@@ -1128,7 +1128,7 @@ fn inline_classify_small_pure_leaf_is_always_large_is_count_dependent() {
 #[test]
 fn inline_count_statements_try_and_switch() {
     // `count_statements` walks Try (body + handlers + finally) and Switch (arm +
-    // default bodies) — the variants the inlining_port's count tests skip.
+    // default bodies) — the variants `inlining.rs`'s count tests skip.
     let module = module_for(
         "proc ::f {} {\n try { set a 1 } on error {e} { set b 2 } finally { set c 3 }\n switch -- $a { 1 { set d 4 } default { set e 5 } }\n}\n",
     );

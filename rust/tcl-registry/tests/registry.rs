@@ -16,9 +16,9 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! Port of `tests/test_command_registry.py` (the C-Tcl-observable parts) — the
-//! command-metadata registry. Verifies the Rust registry registers the Tcl core
-//! commands and classifies the control-flow / needs-start-cmd traits.
+//! The C-Tcl-observable parts of the command-metadata registry. Verifies the
+//! registry registers the Tcl core commands and classifies the control-flow /
+//! needs-start-cmd traits.
 //!
 //! C-Tcl proof: the core command set is exactly what tclsh reports via
 //! `info commands` — the names below were taken from `info commands {[a-z]*}`

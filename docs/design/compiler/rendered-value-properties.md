@@ -1,13 +1,8 @@
-# KCS: Rendered Value Properties — string content analysis over SSA
+# Rendered value properties — string content analysis over SSA
 
-## Symptom
-
-A contributor needs to understand how the compiler determines string content
-properties (path separators, escape sequences, interpolation) of SSA values
-after Tcl backslash substitution, or needs to add a new property for a
-downstream consumer.
-
-## Context
+How the compiler determines the string content properties of an SSA value —
+path separators, escape sequences, and interpolation — after Tcl backslash
+substitution, and how to add a property for a downstream consumer.
 
 The Rendered Value Properties pass computes per-SSA-value properties of the
 rendered (post-backslash-subst) string content.  It runs **after SCCP** (so

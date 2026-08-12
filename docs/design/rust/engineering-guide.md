@@ -4,7 +4,7 @@ The rules every change under `rust/` is measured against: the two
 non-negotiable principles, the ratified library and data-structure choices, the
 crate layering, and what good code looks like here. Read it before touching the
 workspace. The crate-by-crate map of who owns what is in
-[`design/rust/current-architecture.md`](design/rust/current-architecture.md).
+[`current-architecture.md`](current-architecture.md).
 
 The product is the Rust workspace plus the native binaries it builds (`tcl`,
 `f5-query`, `tcl-lsp-server`, `tcl-mcp`) and the editor extensions that bundle
@@ -56,7 +56,7 @@ Consequences:
   gates the first tokens response.
 - **Measure before optimising, and measure after.** Cite the numbers; a
   regression beyond run noise is a blocker, no improvement is acceptable.
-  [`design/rust/lsp-performance.md`](design/rust/lsp-performance.md) lists the
+  [`lsp-performance.md`](lsp-performance.md) lists the
   harnesses.
 
 ### 2. Async through and through

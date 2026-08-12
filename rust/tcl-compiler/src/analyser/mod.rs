@@ -32,13 +32,10 @@
 //!
 //! Per-concern modules cover commands (`commands.rs`), procs
 //! (`proc.rs`), diagnostics (`diagnostics/`), `TclOO` and recovery
-//! (`oo.rs` + `recovery.rs`), and the public entry plus the `PyO3`
-//! binding.
+//! (`oo.rs` + `recovery.rs`), plus the public entry point.
 //!
 //! This pure analyser is consumed directly by the native
-//! `tcl-lsp-server` (it is the default and only path) and exposed to
-//! Python wheel consumers through the `tcl-lsp-py` `PyO3` surface
-//! (`tcl-lsp-rust` is a re-export alias).
+//! `tcl-lsp-server`.
 
 pub mod bounds_checks;
 pub mod class_hierarchy;

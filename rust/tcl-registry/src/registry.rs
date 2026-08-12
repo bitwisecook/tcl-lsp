@@ -3995,13 +3995,13 @@ mod tests {
             reg.command_prefixes("socket", &["-server", "accept", "9000"]),
             vec![(1, AppendedArity::Exactly(3))],
         );
-        // Positional (migrated from arg_roles): `tcltest::customMatch mode cmd`
+        // Positional: `tcltest::customMatch mode cmd`
         // → `cmd expected actual` (2).
         assert_eq!(
             reg.command_prefixes("tcltest::customMatch", &["exact", "cmp"]),
             vec![(1, AppendedArity::Exactly(2))],
         );
-        // Dynamic resolver (migrated): `selection handle window cmd` → the
+        // Dynamic resolver: `selection handle window cmd` → the
         // last arg, invoked as `cmd offset maxChars` (2).
         assert_eq!(
             reg.command_prefixes("selection", &["handle", ".w", "getData"]),

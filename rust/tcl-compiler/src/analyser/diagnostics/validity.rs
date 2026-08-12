@@ -3781,7 +3781,7 @@ in the active dialect ({}).",
     /// consumed token's true closing delimiter via
     /// [`tcl_lexer::word_closer_offset`] so a braced/quoted flag or value
     /// (`{-stride}`, `"-stride"`) doesn't leave a stray `}` / `"` behind —
-    /// see `kcs-issue-highlight-drops-closing-delimiter.md`.
+    /// see `docs/design/contracts/lexing.md`.
     fn w004_remove_option_fix(
         &self,
         arg: &str,

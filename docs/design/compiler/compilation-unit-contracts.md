@@ -1,10 +1,9 @@
-# KCS: Compilation unit contracts and incremental cache
+# Compilation unit contracts and incremental cache
 
-## Symptom
-
-A compiler change appears correct in an isolated pass, but diagnostics become stale, inconsistent between top-level and proc scopes, or noticeably slower after repeated edits.
-
-## Operational context
+What a pass may assume about the `CompilationUnit` it consumes, and the
+per-procedure cache that keeps repeated edits cheap. Read this before adding a
+pass input, so that diagnostics stay consistent between top-level and
+procedure scopes as a document is edited.
 
 `compile_source()` is the compiler pipeline integration boundary for editor features. It builds one `CompilationUnit` containing IR, CFG, SSA/core facts, and interprocedural summaries reused by diagnostics and downstream passes.
 

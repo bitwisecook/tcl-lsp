@@ -226,8 +226,8 @@ fn binding_value(stmts: &[Statement], suffix: &str) -> Option<String> {
 // ---------------------------------------------------------------------------
 // A1. count_statements — the per-statement-kind arms the sibling suites skip.
 //
-// The existing count tests cover empty / flat / nested-if (inlining_port) and
-// Try / Switch / Foreach / Catch (compiler_analysis_residual_port).  These pin
+// The existing count tests cover empty / flat / nested-if (`inlining.rs`) and
+// Try / Switch / Foreach / Catch (`compiler_analysis_residual.rs`).  These pin
 // the still-uncovered arms: Block, UpFrame, For (init+1+next+body), While
 // (1+body), and If with an else_body.  Counts are compiler-internal, asserted
 // structurally; the exact numbers come from the documented `count_one` formula.
@@ -459,7 +459,7 @@ fn rewrite_recurses_into_try_body_handler_and_finally() {
 #[test]
 fn rewrite_recurses_into_for_init_and_next() {
     // The For init and next sub-scripts recurse (distinct from the body, which
-    // inlining_port already covers).  An empty-body `noop` in init/next vanishes.
+    // `inlining.rs` already covers).  An empty-body `noop` in init/next vanishes.
     let out = inlined("proc noop {} {}\nfor {noop} {0} {noop} { set a 1 }\n");
     let f = out
         .top_level
@@ -476,7 +476,7 @@ fn rewrite_recurses_into_for_init_and_next() {
 
 // ---------------------------------------------------------------------------
 // A3. verbatim-splice allow-list (command_is_splice_safe) + the decline gates.
-// inlining_port covers `puts` / `string` wrappers; these pin the other
+// `inlining.rs` covers `puts` / `string` wrappers; these pin the other
 // allow-list entries and the two decline gates (command-subst arg, non-safe
 // command).
 // ---------------------------------------------------------------------------
@@ -679,7 +679,7 @@ fn variadic_extra_with_unbalanced_bracket_declines() {
 // ---------------------------------------------------------------------------
 // A7. substitute_irreturn over a Switch arm — a `return` nested inside a
 // switch arm body is rewritten to `set __RESULT …; break` when the inline is
-// wrapped (non-terminal early-return).  inlining_port covers the `if` case;
+// wrapped (non-terminal early-return).  `inlining.rs` covers the `if` case;
 // this pins the `Switch` arm of `substitute_irreturn_stmt`.
 // ---------------------------------------------------------------------------
 
@@ -1194,7 +1194,7 @@ fn edge_via_incr_amount_substitution() {
 
 // ---------------------------------------------------------------------------
 // B7. wire-form lowerings — ProcArgTrait::as_str and ConstantReturn::as_kind_text
-// (the stable serialisation surface consumed by the PyO3 bindings / native LSP).
+// (the stable serialisation surface consumed by the native LSP server).
 // ---------------------------------------------------------------------------
 
 #[test]

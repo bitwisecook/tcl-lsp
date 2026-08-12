@@ -1,12 +1,7 @@
-# KCS: IR types and lowering basics (Stage 3)
+# IR types and lowering basics (Stage 3)
 
-## Symptom
-
-A contributor needs to understand the IR node hierarchy, how commands are
-lowered from `SegmentedCommand` into typed IR nodes, or why a particular
-command produces a specific IR node type.
-
-## Context
+The IR node hierarchy, how a `SegmentedCommand` becomes a typed IR node, and
+why a given command produces the node it does.
 
 IR lowering transforms `SegmentedCommand` objects into an `IRModule`
 containing typed `IRStatement` nodes.  The lowerer selects the most specific

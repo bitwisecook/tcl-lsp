@@ -44,9 +44,7 @@ per-dialect spec packs, never as name-matching in a consumer (see
    *provides* a package needn't *require* it. `package ifneeded` is not a
    require.
 3. Each `SignaturePackageRequire` carries the name, the optional version, an
-   `exact` flag set when the call carried `-exact` (issue #1090 — the flag
-   used to be parsed and dropped by both recorders), its
-   source span, and a `conditional` flag set when the require sits inside a
+   `exact` flag set when the call carried `-exact`, its source span, and a `conditional` flag set when the require sits inside a
    guarded branch, so version inference does not promote a guarded
    `package require Tcl 8.6` to an unconditional minimum. "Guarded" is
    registry-driven, not a command-name list: the analyser raises

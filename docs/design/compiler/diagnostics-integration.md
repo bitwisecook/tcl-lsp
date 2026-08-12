@@ -1,10 +1,9 @@
-# KCS: Diagnostics integration across analyser + compiler passes
+# Diagnostics integration across analyser + compiler passes
 
-## Symptom
-
-Users report diagnostics that disagree by severity, source range, or suppression handling across warning families.
-
-## Operational context
+Where findings from the analyser, the style checks, and the compiler passes are
+aggregated, and the policy boundary that fixes severity, code family, ranges,
+and suppression. Read this when two producers disagree about the same
+finding.
 
 `get_diagnostics()` combines outputs from:
 

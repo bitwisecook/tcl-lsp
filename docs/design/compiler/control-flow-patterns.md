@@ -1,12 +1,8 @@
-# KCS: Control flow patterns — if, while, for, foreach, proc
+# Control flow patterns — if, while, for, foreach, proc
 
-## Symptom
-
-A contributor needs to understand how specific Tcl control-flow constructs
-are compiled end-to-end (IR → CFG → SSA → bytecode), or needs to verify
-that the compiler matches tclsh's bytecode layout for a given pattern.
-
-## Context
+How each Tcl control-flow construct is compiled end to end, from IR through
+CFG and SSA to bytecode. Read this when changing a construct's lowering, or
+when checking that the emitted layout matches tclsh for a given pattern.
 
 Each control-flow construct follows a specific decomposition pattern through
 the pipeline.  The bytecode layout is designed to match tclsh 9.0 exactly,

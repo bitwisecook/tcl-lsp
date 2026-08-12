@@ -907,7 +907,8 @@ Item whose *body* value is smallest under jq's cross-type ordering.
 evaluates *body* with ``.`` re-bound, and returns the item whose
 derived key is the smallest under jq's cross-type ordering.
 
-On ties, returns the first such item (Python's ``min`` is stable).
+On ties, returns the first such item — only a strictly smaller key
+replaces the running best, so ties favour the earlier occurrence.
 Empty input returns ``null``.
 
 Related: ``min``, ``max_by``, ``sort_by``, ``first``.
@@ -1121,7 +1122,8 @@ types in the same list raise — sort what comes back from a
 projection (always one type) rather than mixed object/scalar
 streams.
 
-Stable (Python's ``sorted`` is).  Use the list-literal collection
+Stable (backed by Rust's ``sort_by``, which is a stable sort).  Use
+the list-literal collection
 idiom ``[.X[].name] | sort`` to gather a stream from ``[]`` before
 sorting — bare ``... | sort`` after a stream would sort each item
 individually, not the stream as a whole.
@@ -1154,7 +1156,8 @@ The body is unevaluated AST and is re-run per item, so it may be a
 field projection (``sort_by(.name)``), a builtin call
 (``sort_by(partition(.))``), or an arithmetic expression.
 
-Stable: ties keep input order (Python's ``sorted`` is stable).
+Stable: ties keep input order (backed by Rust's ``sort_by``, which
+is a stable sort).
 
 Related: ``sort``, ``unique_by``, ``min_by``, ``max_by``,
 ``group_by``.
@@ -1207,8 +1210,8 @@ cross-type ordering (``null < bool < number < string < array <
 object``).
 
 Unhashable items (rare — usually nested lists) collate through the
-same :func:`_sort_key` the ``sort`` builtin uses, so the result is
-deterministic across runs and Python interpreter versions.
+same ``sort_cmp`` comparator the ``sort`` builtin uses, so the result
+is deterministic across runs.
 
 For grouping with a key function use ``unique_by(f)`` instead,
 which keeps one representative per equivalence class.
@@ -1238,7 +1241,7 @@ items of the input, where two items are considered equal when
 sorted by the same key.
 
 Equivalent to ``[sort_by(body)] | <dedupe-by-key>``.  One
-representative per equivalence class survives — Python's ``sorted``
+representative per equivalence class survives — the underlying sort
 is stable, so the representative is the **first** input occurrence
 of each key.
 
@@ -1410,10 +1413,10 @@ Named-group regex match — returns an object of capture names → captured text
 Matches jq's ``capture``: runs *pattern* against *value* and
 returns an object mapping each **named** capture group to its
 matched text.  Use ``(?P<name>...)`` syntax for named groups (jq
-uses ``(?<name>...)``; both forms are accepted by Python's ``re``
-when ``(?P<name>...)`` is used, and ``capture`` rewrites jq-style
-``(?<name>...)`` to the Python spelling so jq snippets paste
-through).
+uses ``(?<name>...)``; the Rust ``regex`` crate wants
+``(?P<name>...)``, and ``capture`` rewrites jq-style
+``(?<name>...)`` to the ``regex``-crate spelling so jq snippets
+paste through).
 
 Returns an empty object when the pattern has no named groups but
 matches; raises ``BuiltinError`` when the pattern doesn't match
@@ -1771,9 +1774,9 @@ Regex-match a string; returns true when the pattern matches anywhere.
 
 **Details**
 
-Tests whether *pattern* (a Python regex) matches anywhere in
-*value* (semantically ``re.search``, not ``re.match``).  Use
-``^`` / ``$`` to anchor.
+Tests whether *pattern* (a Rust ``regex``-crate pattern) matches
+anywhere in *value* (an unanchored search, not a match pinned to the
+start of the string).  Use ``^`` / ``$`` to anchor.
 
 **jq users note.**  This DSL's ``match`` is a *boolean
 predicate* — it corresponds to jq's ``test(pattern)`` builtin,
@@ -1784,8 +1787,8 @@ capture groups, use ``sub`` / ``gsub`` with a replacement
 template instead.
 
 An invalid regex raises ``BuiltinError`` with the underlying
-``re.error`` reason — the pattern comes from the query author,
-so a typo should fail loudly.
+``regex``-crate parse-error reason — the pattern comes from the
+query author, so a typo should fail loudly.
 
 **Trust boundary.** ``match`` / ``sub`` / ``gsub`` and the
 ``[~"pattern"]`` regex subscript route their patterns through a
@@ -1794,7 +1797,7 @@ catastrophic-backtracking shapes (``(a+)+`` etc.).  Local CLI
 use is trusted (the query author is the operator); the same
 guard makes it safe to expose the DSL through MCP / chat /
 editor command surfaces where the pattern can come from
-untrusted input.  See ``_safe_regex_compile`` for the exact
+untrusted input.  See ``safe_regex_compile`` for the exact
 shape filter.
 
 For pure prefix/suffix or substring tests, prefer ``startswith``
@@ -2292,8 +2295,8 @@ Inverse cosine in radians. Matches jq's namesake C-math function.
 
 **Details**
 
-Matches jq's ``acos``: thin wrapper over Python's
-``math.acos``.  Domain errors (``acos(2)`` etc.)
+Matches jq's ``acos``: a direct call to Rust's
+``f64::acos``.  Domain errors (``acos(2)`` etc.)
 raise ``BuiltinError`` rather than returning NaN so the
 failure shows in query output.
 
@@ -2314,8 +2317,8 @@ Inverse hyperbolic cosine. Matches jq's namesake C-math function.
 
 **Details**
 
-Matches jq's ``acosh``: thin wrapper over Python's
-``math.acosh``.  Domain errors (``acos(2)`` etc.)
+Matches jq's ``acosh``: a direct call to Rust's
+``f64::acosh``.  Domain errors (``acos(2)`` etc.)
 raise ``BuiltinError`` rather than returning NaN so the
 failure shows in query output.
 
@@ -2336,8 +2339,8 @@ Inverse sine in radians. Matches jq's namesake C-math function.
 
 **Details**
 
-Matches jq's ``asin``: thin wrapper over Python's
-``math.asin``.  Domain errors (``acos(2)`` etc.)
+Matches jq's ``asin``: a direct call to Rust's
+``f64::asin``.  Domain errors (``acos(2)`` etc.)
 raise ``BuiltinError`` rather than returning NaN so the
 failure shows in query output.
 
@@ -2358,8 +2361,8 @@ Inverse hyperbolic sine. Matches jq's namesake C-math function.
 
 **Details**
 
-Matches jq's ``asinh``: thin wrapper over Python's
-``math.asinh``.  Domain errors (``acos(2)`` etc.)
+Matches jq's ``asinh``: a direct call to Rust's
+``f64::asinh``.  Domain errors (``acos(2)`` etc.)
 raise ``BuiltinError`` rather than returning NaN so the
 failure shows in query output.
 
@@ -2380,8 +2383,8 @@ Inverse tangent in radians. Matches jq's namesake C-math function.
 
 **Details**
 
-Matches jq's ``atan``: thin wrapper over Python's
-``math.atan``.  Domain errors (``acos(2)`` etc.)
+Matches jq's ``atan``: a direct call to Rust's
+``f64::atan``.  Domain errors (``acos(2)`` etc.)
 raise ``BuiltinError`` rather than returning NaN so the
 failure shows in query output.
 
@@ -2423,8 +2426,8 @@ Inverse hyperbolic tangent. Matches jq's namesake C-math function.
 
 **Details**
 
-Matches jq's ``atanh``: thin wrapper over Python's
-``math.atanh``.  Domain errors (``acos(2)`` etc.)
+Matches jq's ``atanh``: a direct call to Rust's
+``f64::atanh``.  Domain errors (``acos(2)`` etc.)
 raise ``BuiltinError`` rather than returning NaN so the
 failure shows in query output.
 
@@ -2510,8 +2513,8 @@ Cosine of a radian angle. Matches jq's namesake C-math function.
 
 **Details**
 
-Matches jq's ``cos``: thin wrapper over Python's
-``math.cos``.  Domain errors (``acos(2)`` etc.)
+Matches jq's ``cos``: a direct call to Rust's
+``f64::cos``.  Domain errors (``acos(2)`` etc.)
 raise ``BuiltinError`` rather than returning NaN so the
 failure shows in query output.
 
@@ -2532,8 +2535,8 @@ Hyperbolic cosine. Matches jq's namesake C-math function.
 
 **Details**
 
-Matches jq's ``cosh``: thin wrapper over Python's
-``math.cosh``.  Domain errors (``acos(2)`` etc.)
+Matches jq's ``cosh``: a direct call to Rust's
+``f64::cosh``.  Domain errors (``acos(2)`` etc.)
 raise ``BuiltinError`` rather than returning NaN so the
 failure shows in query output.
 
@@ -2634,7 +2637,7 @@ exp2(10)                                 # -> 1024.0
 
 **Details**
 
-Matches jq's ``expm1``: thin wrapper over Python's ``math.expm1``.
+Matches jq's ``expm1``: a direct call to the ``libm`` crate's ``expm1``.
 Avoids the loss of precision that ``exp(x) - 1`` suffers when
 ``x`` is small.
 
@@ -3137,7 +3140,7 @@ log10(1000)                              # -> 3.0
 
 **Details**
 
-Matches jq's ``log1p``: thin wrapper over Python's ``math.log1p``.
+Matches jq's ``log1p``: a direct call to the ``libm`` crate's ``log1p``.
 Avoids the loss of precision that ``log(1 + x)`` suffers when
 ``x`` is small.
 
@@ -3405,8 +3408,8 @@ Sine of a radian angle. Matches jq's namesake C-math function.
 
 **Details**
 
-Matches jq's ``sin``: thin wrapper over Python's
-``math.sin``.  Domain errors (``acos(2)`` etc.)
+Matches jq's ``sin``: a direct call to Rust's
+``f64::sin``.  Domain errors (``acos(2)`` etc.)
 raise ``BuiltinError`` rather than returning NaN so the
 failure shows in query output.
 
@@ -3427,8 +3430,8 @@ Hyperbolic sine. Matches jq's namesake C-math function.
 
 **Details**
 
-Matches jq's ``sinh``: thin wrapper over Python's
-``math.sinh``.  Domain errors (``acos(2)`` etc.)
+Matches jq's ``sinh``: a direct call to Rust's
+``f64::sinh``.  Domain errors (``acos(2)`` etc.)
 raise ``BuiltinError`` rather than returning NaN so the
 failure shows in query output.
 
@@ -3471,8 +3474,8 @@ Tangent of a radian angle. Matches jq's namesake C-math function.
 
 **Details**
 
-Matches jq's ``tan``: thin wrapper over Python's
-``math.tan``.  Domain errors (``acos(2)`` etc.)
+Matches jq's ``tan``: a direct call to Rust's
+``f64::tan``.  Domain errors (``acos(2)`` etc.)
 raise ``BuiltinError`` rather than returning NaN so the
 failure shows in query output.
 
@@ -3493,8 +3496,8 @@ Hyperbolic tangent. Matches jq's namesake C-math function.
 
 **Details**
 
-Matches jq's ``tanh``: thin wrapper over Python's
-``math.tanh``.  Domain errors (``acos(2)`` etc.)
+Matches jq's ``tanh``: a direct call to Rust's
+``f64::tanh``.  Domain errors (``acos(2)`` etc.)
 raise ``BuiltinError`` rather than returning NaN so the
 failure shows in query output.
 

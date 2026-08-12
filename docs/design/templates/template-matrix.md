@@ -1,4 +1,4 @@
-# KCS: <ownership matrix topic>
+# <ownership matrix topic>
 
 ## Symptom
 
@@ -22,10 +22,8 @@
 
 ## File-path anchors
 
-- `<package>/...` (compiler/, analyser/, dialects/, server/, tooling/, shared/, ai/)
-- `server/...`
-- `<package>/...` (compiler/, analyser/, dialects/, server/, tooling/, shared/, ai/)
-- `server/...`
+- `rust/<crate>/src/...` — the crate that owns the contract
+- `rust/<crate>/src/...` — the consuming crate
 
 ## Failure modes
 
@@ -34,10 +32,10 @@
 
 ## Test anchors
 
-- `tests/...`
-- `tests/...`
+- `rust/<crate>/src/...` — unit tests guarding the contract
+- `rust/<crate>/tests/...` — integration tests
 
 ## Discoverability
 
-- [compiler KCS index](../compiler/README.md)
+- [compiler design index](../compiler/README.md)
 - related note: `../compiler/<note>.md`

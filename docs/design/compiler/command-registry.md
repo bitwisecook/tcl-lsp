@@ -1,12 +1,9 @@
-# KCS: Command registry infrastructure
+# Command registry infrastructure
 
-## Symptom
-
-A contributor needs to add a new command definition, understand how
-`CommandSpec` metadata feeds the compiler, or debug why arity/taint/purity
-information is not reaching a downstream pass.
-
-## Context
+How command metadata reaches the compiler: what a `CommandSpec` declares,
+how definitions are registered per dialect, and which passes consume the
+result. Read this when adding a command definition, or when arity, taint,
+or purity information is not reaching a downstream pass.
 
 Every Tcl command is defined as a `CommandDef` subclass whose `spec()`
 classmethod returns a `CommandSpec`.  The `@register` decorator adds

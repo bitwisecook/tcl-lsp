@@ -1,11 +1,7 @@
-# KCS: Lowering dispatch — `arg_roles` and command classification
+# Lowering dispatch — `arg_roles` and command classification
 
-## Symptom
-
-A contributor needs to understand how a Tcl command is classified and lowered
-into the correct IR node, or needs to add lowering support for a new command.
-
-## Context
+How a command is classified and routed to the IR node that fits it best, and
+where to hook in lowering for a new command.
 
 `_lower_command()` in `lowering/` dispatches each command through a hierarchy:
 registered lowering hooks → match/case on command name → fallthrough via

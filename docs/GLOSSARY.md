@@ -875,10 +875,13 @@ KCS tag: `licm`.
 ### Tail-call optimisation
 
 A family of transformations that turn a proc's recursive tail call into a
-`tailcall` bytecode (`O121`), or fully iterative code when every call
-is a tail call (`O122`). The pass uses CFG dominance to verify that
-the call is reached on every exit path and that no work happens after
-it. `O123` is an accumulator-introduction hint for procs that are
+`tailcall` command (`O121`), or fully iterative code when every call
+is a tail call (`O122`). The pass walks the IR structurally and visits
+only the [tail positions](#tail-position) of a proc body, so a call
+with any work left to do after it is never a candidate. `O121` is
+suppressed on dialects whose base Tcl version predates `tailcall`
+(Tcl 8.6, TIP 327) — `f5-irules` and `tcl8.4` / `tcl8.5` profiles
+among them. `O123` is an accumulator-introduction hint for procs that are
 almost but not quite tail-recursive. Implemented in
 `tcl_compiler::optimiser::tail_call`.
 

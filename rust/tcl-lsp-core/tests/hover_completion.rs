@@ -16,12 +16,12 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! Behaviour-driven port covering the `tcl-lsp-core` hover,
+//! Behaviour-driven coverage of the `tcl-lsp-core` hover,
 //! signature-help, and completion providers as a single integration
-//! surface. There is no one pytest source for these — the tests below
-//! are guided by each provider's public API (`hover::hover`,
-//! `signature_help::signature_help`, `completion::completions`) and by
-//! Tcl semantics, to raise `tcl-lsp-core` coverage.
+//! surface. The tests below are guided by each provider's public API
+//! (`hover::hover`, `signature_help::signature_help`,
+//! `completion::completions`) and by Tcl semantics, to raise
+//! `tcl-lsp-core` coverage.
 //!
 //! ## Proof split (which assertions are pinned to C-Tcl vs. editor presentation)
 //!
@@ -65,7 +65,7 @@ use tcl_registry::CommandRegistry;
 // ------------------------------------------------------------------
 
 /// Analyse `source` under the `tcl8.6` dialect (the shared harness shape
-/// across the port tests).
+/// across these integration tests).
 fn analyse(source: &str) -> AnalysisResult {
     let mut a = Analyser::new();
     a.analyse(source, "tcl8.6").clone()

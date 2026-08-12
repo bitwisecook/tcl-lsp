@@ -7,13 +7,12 @@ other runtime modules) can reason about lifetime without reading
 the implementation. The runtime is the Rust crate `tcl-runtime`
 (`runtime/rust/`).
 
-> Status: **scaffolding** — categories and conventions are fixed;
-> the per-subsystem rows fill in incrementally as the audit proceeds
-> against the Rust runtime (`runtime/rust/`). The `cargo xtask
-> refcount-contract` lint that once flagged exports missing a row
-> walked the runtime's exports and was **retired** (see
-> [Lint script](#lint-script) below); the rows
-> are maintained by hand for now.
+> **Coverage.** The categories and conventions below are complete and binding.
+> The per-subsystem rows are maintained **by hand**: there is no automated gate
+> that flags an export with no row, so a new export needs its row added in the
+> same change. Where a subsystem's rows are not yet written out, the section
+> says so — an absent row is a gap in this document, never permission to
+> invent a convention at the call site.
 
 ## Categories
 
@@ -187,22 +186,25 @@ remaining `-inline`/`-indices` storage paths.)
 
 (TBD — most are pure consumers; no obj storage.)
 
-## Lint script
+## Known gap: no automated enforcement
 
-**Retired.** The `cargo xtask refcount-contract` lint (S0.1 deliverable) and
-the even earlier Python `scripts/check/refcount_contract.py` it had been ported
-from have both been removed.
-No automated gate enforces this contract today: the rows above are
-maintained by hand against the Rust runtime (`runtime/rust/`). The
-refcount **discipline** they document still applies in full — only
-the tool that mechanically checked for missing rows is gone.
+No gate mechanically checks that every `#[no_mangle] extern "C"` export has a
+row here, or that a row's claimed category matches the code. A new export can
+therefore ship undocumented, and a changed ownership category can silently
+diverge from its row — which is exactly the ambiguity this document exists to
+remove.
+
+Closing it means a check that walks the runtime's exports (they are
+enumerable from `runtime/rust/src/capi.rs` and the `#[no_mangle]` sites
+beside it), diffs them against the rows below, and fails on either direction.
+The same shape would serve
+[`c-api-ownership-contract.md`](c-api-ownership-contract.md), which has the
+identical gap.
 
 ## Cross-references
 
-- Runtime memory-management plan and audit history:
-  [`memory-management.md`](memory-management.md).
+- Runtime refcount discipline: [`memory-management.md`](memory-management.md).
+- The C-API surface's ownership rows:
+  [`c-api-ownership-contract.md`](c-api-ownership-contract.md).
 - Compile-side proof and ownership contract:
   [`../compiler/var-escape-analysis.md`](../compiler/var-escape-analysis.md).
-- The `MM-B` audit commits (`fe68d410`, `1ddb903d`, `9c7e4add`,
-  `48a7138b`, `43a12cb2`) provide the historical basis for many
-  of the rows above.

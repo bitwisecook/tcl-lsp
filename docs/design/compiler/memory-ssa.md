@@ -1,4 +1,4 @@
-# KCS: Memory-SSA
+# Memory-SSA
 
 ## Overview
 

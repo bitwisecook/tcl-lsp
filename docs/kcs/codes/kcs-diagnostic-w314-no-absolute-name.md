@@ -77,5 +77,5 @@ Add `# noqa: W314` at the end of the offending line.
 
 - [KCS codes index](README.md)
 - [Diagnostics feature](../features/kcs-feature-diagnostics.md)
-- [namespace](../../GLOSSARY.md#namespace)
+- [Design: namespace resolution](../../design/compiler/namespace-resolution.md)
 - Related codes: `W113`, `W123`

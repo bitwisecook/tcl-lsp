@@ -1,12 +1,12 @@
 # Child interpreters
 
-Status: **shipped** in the child-interpreter wave.  Extends the
-namespace-tree / rename-alias / command-introspection waves with
-per-interpreter state (root namespace, hidden-commands table,
-children registry) and the minimum-viable primitives `interp
-create` / `eval` / `exists` / `slaves` / `delete`, plus a promotion
-of the previously-shipped single-interp `interp alias` / `hide` /
-`expose` / `invokehidden` to honour real child-interpreter paths.
+Per-interpreter state in the WASM runtime — root namespace, hidden-commands
+table, children registry — plus `interp create` / `eval` / `exists` /
+`slaves` / `delete`, and the child-path-aware forms of `interp alias` /
+`hide` / `expose` / `invokehidden`. Builds on
+[`namespace-tree.md`](namespace-tree.md),
+[`rename-alias.md`](rename-alias.md), and
+[`command-introspection.md`](command-introspection.md).
 
 Reference Tcl 9 sources: `tmp/tcl9.0.3/generic/tclInterp.c`
 (`ChildCreate`, `ChildEval`, `InterpObjCmd` dispatch,
@@ -283,18 +283,13 @@ through the `catch` fallback.
 
 Three layers:
 
-1. **Runtime direct tests** drive the registry primitives through
-   dedicated WASM exports (`tcl_test_interp_create`,
-   `tcl_test_interp_lookup`, `tcl_test_interp_delete`,
-   `tcl_test_interp_eval_script`, `tcl_test_hidden_find_in`):
-   - `tests/runtime/test_tcl_interp_children.py`
-2. **End-to-end Tcl → WASM → runtime tests**:
-   - `TestInterpChildren` in
-     `tests/test_wasm_execution.py`
-     covers create + eval + exists + slaves + delete, plus the
-     cross-interp promotions for `alias` / `hide` /
-     `invokehidden`.
-   - `TestInterpTestPort` in the same file hand-ports
+1. **Unit tests co-located with the implementation** drive the registry
+   primitives (create, lookup, delete, eval-script, hidden-find-in) directly
+   against a live interpreter.
+2. **End-to-end coverage**:
+   - create + eval + exists + slaves + delete, plus the cross-interp forms of
+     `alias` / `hide` / `invokehidden`.
+   - A hand-port of
      ``tmp/tcl9.0.3/tests/interp.test`` sections 1.* / 2.* /
      3.* / 4.* / 5.* / 6.* (options, create, exists, children,
      delete, consistency, eval).  Upstream bundle compilation

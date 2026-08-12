@@ -1,7 +1,8 @@
 # Command manipulation + introspection
 
-Status: **shipped** in the command-introspection wave.  Extends the
-namespace-tree and rename/alias waves with:
+The WASM runtime's command-table introspection and mutation surface, built on
+the namespace tree ([`namespace-tree.md`](namespace-tree.md)) and the
+rename/alias layer ([`rename-alias.md`](rename-alias.md)):
 
 - ``interp hide`` / ``interp expose`` / ``interp hidden`` — an
   interpreter-wide hidden-commands table sitting beside the
@@ -347,31 +348,20 @@ interpreted proc registered via ``proc_register``.
 
 Three layers:
 
-1. **Runtime direct tests** drive the primitives through
-   dedicated WASM exports (``tcl_test_hide``, ``tcl_test_expose``,
-   ``tcl_test_info_commands``, ``tcl_test_info_procs``,
-   ``tcl_test_namespace_which``, ``tcl_test_hidden_exists``,
-   ``tcl_test_export_name_ptr`` / ``_len``):
-   - `tests/runtime/test_tcl_hide.py`
-   - `tests/runtime/test_tcl_info.py`
-   - `tests/runtime/test_tcl_rename.py::test_rename_compiled_proc_preserves_export_name`
+1. **Unit tests co-located with the implementation** exercise hide / expose /
+   hidden, `namespace which`, and the `info commands` / `info procs` /
+   `info default` walkers directly against a live interpreter, including that
+   renaming a compiled proc preserves its export name.
 
-2. **End-to-end Tcl → WASM → runtime tests** in
-   `tests/test_wasm_execution.py`:
-   - ``TestInterpHideExpose`` — hide/expose/hidden round-trip.
-   - ``TestInfoIntrospection`` — ``info commands`` +
-     ``namespace which`` end-to-end.
-
-3. **Upstream tests** (``interp.test`` sections 5.* for
-   hide/expose, 18.* for aliases; ``info.test`` sections for
-   ``info commands`` / ``info procs`` / ``info default``) remain
-   scoped out of the ship criteria — the direct + E2E layers
-   pin the semantics; upstream coverage is the next natural
-   expansion along with child-interp support.
+2. **Upstream `.test` coverage** — ``interp.test`` (hide/expose and alias
+   sections) and ``info.test`` (the `info commands` / `info procs` /
+   `info default` sections) — runs through the tcltest harness; see
+   [`tcl-test-tiers.md`](tcl-test-tiers.md) and
+   [`rust-vm-tier-parity.md`](rust-vm-tier-parity.md).
 
 ## 8. Known limitations
 
-### 8.1 Compiler direct-call invalidation (resolved)
+### 8.1 Compiler direct-call invalidation
 
 Command introspection and mutation make a direct call unsound unless the
 binding is proved stable at that program point. The Rust compiler obtains the
@@ -392,16 +382,13 @@ They are not an independently filtered callable map. All WebAssembly emission
 enters through `tcl_compiler::codegen::wasm::compile_wasm`, and a missing
 binding proof produces a typed decline rather than a second backend.
 
-### 8.2 `TestCounterBundle` stays xfail
+### 8.2 tcltest reachability from a bundled counter test
 
-The tcllib counter-bundle end-to-end (``tests/external/run_tcllib_test.py``)
-hits an ``unknown command: test`` trap at counter.test line 4905
-— ``::tcltest::test`` isn't reachable from the bundle's
-invocation site despite tcltest's stage-1 sourcing completing.
-Root cause is the tcltest-init / namespace-path resolver
-interaction; unrelated to this wave's rename / alias / hide /
-info additions.  The xfail marker's reason string captures the
-concrete trap for follow-up.
+Running tcllib's `counter.test` as a bundle traps with
+``unknown command: test``: ``::tcltest::test`` is not reachable from the
+bundle's invocation site even though tcltest's first-stage sourcing completes.
+The cause is the interaction between tcltest's initialisation and the
+namespace-path resolver, not the introspection surface described here.
 
 ## 9. Ship summary
 

@@ -1,7 +1,9 @@
 # EDA tools as library packages (not dialects)
 
-Status: proposed (design). Supersedes the 5 EDA *vendor-bit* dialects with a
-base-Tcl-version dialect + `required_package`-gated command libraries.
+A vendor EDA tool identity is a set of loaded **library packages** over a
+base Tcl version, not a dialect of its own. This replaces the five EDA
+*vendor-bit* dialects with a base-Tcl-version dialect plus
+`required_package`-gated command libraries.
 
 ## Motivation
 

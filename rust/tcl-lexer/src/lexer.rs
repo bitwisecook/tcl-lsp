@@ -2095,7 +2095,7 @@ mod tests {
 
     // `${name}` brace-name parsing under the DEFAULT config follows C Tcl
     // 9.0.3's `Tcl_ParseVarName` (the project's reference standard — see
-    // `docs/rust-rewrite.md` principle #0): inner `{…}` nests with brace
+    // `docs/design/rust/engineering-guide.md` principle #0): inner `{…}` nests with brace
     // counting and `\X` is consumed as a literal pair, so the closer is
     // the first `}` at brace-depth zero. The expectations below were
     // confirmed against `tclsh9.0` (9.0.3) via the variable-name a failed

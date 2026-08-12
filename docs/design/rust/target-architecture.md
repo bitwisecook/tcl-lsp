@@ -251,4 +251,4 @@ on every keystroke and buys nothing.
   ownership rules this builds on.
 - [`incremental-analysis.md`](incremental-analysis.md) — Layer 4 as it exists
   today: the per-item firewall, the query graph, and the fallback contract.
-- [`docs/rust-rewrite.md`](../../rust-rewrite.md) — the engineering rules.
+- [`engineering-guide.md`](engineering-guide.md) — the engineering rules.

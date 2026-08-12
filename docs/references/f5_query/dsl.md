@@ -454,7 +454,7 @@ The CLI surface (positional `old new path`, `--write` / `--in-place` /
 unified-diff default, stderr "renamed X -> Y (N occurrence(s))"
 summary, exit 1 on zero-match warning) is preserved exactly.
 
-The `EditOp.strict` flag (default `True`) distinguishes
+The `EditOp.strict` flag (default `true`) distinguishes
 DSL-driven identity assignments (`.x["/Common/y"].name = "z"`,
 strict — raises on zero-match because the user named the object
 explicitly) from search-and-replace style renames driven by the
@@ -532,16 +532,17 @@ the iRule parser exports byte-level ranges for every token.
   otherwise.
 - `scf` — every value rendered as an SCF stanza (with header).  When
   no stanza slot is available, scalars route through the same
-  `_scalar_str` formatter the `raw` mode uses (one canonical scalar
-  formatter, not bare `str()` — bools render as `true` / `false`,
-  `None` as `null`, `PathRef` as its full-path); object / list /
-  stream values that aren't scalars are refused with a clear error
-  asking for `--paths-only` / `--json` instead.
+  `scalar_str` formatter (in
+  [`output.rs`](../../../rust/tcl-bigip-query/src/output.rs)) the
+  `raw` mode uses (one canonical scalar formatter — bools render as
+  `true` / `false`, `Null` as `null`, `PathRef` as its full-path);
+  object / list / stream values that aren't scalars are refused with
+  a clear error asking for `--paths-only` / `--json` instead.
 - `raw` — one scalar per line, no quoting.  Same scalar formatter as
   `scf`.
 - `paths` — print the full-path of each object or path-ref.
-- `json` — `json.dumps([...], indent=2)`, with objects serialised as
-  `{"kind", "full-path", "fields"}` maps.
+- `json` — 2-space-indented JSON (`jsonfmt::to_pretty`), with objects
+  serialised as `{"kind", "full-path", "fields"}` maps.
 
 ## CLI flags that affect output
 

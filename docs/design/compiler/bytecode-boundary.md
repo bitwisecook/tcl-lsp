@@ -1,10 +1,8 @@
-# KCS: Bytecode boundary (what to lift earlier)
+# Bytecode boundary (what to lift earlier)
 
-## Symptom
-
-A useful analysis fact exists only in the codegen package, limiting LSP features from using it.
-
-## Context
+Which knowledge belongs inside codegen and which is better modelled earlier as
+a shared fact, so that editor features can use it without depending on opcode
+layout.
 
 Bytecode generation must preserve Tcl-compatible output, but editor tooling benefits from semantic facts before formatting/opcode layout concerns.
 

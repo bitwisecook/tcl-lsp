@@ -1,10 +1,7 @@
-# KCS: Side-effects classification system
+# Side-effects classification system
 
-## Symptom
-
-A contributor needs to understand how the compiler determines what a command reads, writes, and touches — or needs to add side-effect metadata for a new or existing command.
-
-## Operational context
+How the compiler describes what a command reads, writes, and touches, and how
+to add side-effect metadata for a new or existing command.
 
 The side-effects system is the single source of truth for all effect classification in the compiler. It is consumed by:
 

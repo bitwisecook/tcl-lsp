@@ -14,55 +14,55 @@ produced at every stage, with field-level detail.
 
 | Term | Meaning |
 |------|---------|
-| **AST** | Abstract Syntax Tree — a tree representation of parsed source code structure. In this compiler, expression bodies (`expr {…}`) are parsed into `ExprNode` AST trees (`expr_ast.py:174`). |
-| **Basic block** | A straight-line sequence of IR statements with no branches except at the end.  Represented by `CFGBlock` (`cfg.py:473`). |
-| **CFG** | Control Flow Graph — a directed graph of basic blocks connected by jumps and branches.  Built by `build_cfg()` (`cfg.py:1447`). |
-| **Dominator / idom** | Block A *dominates* block B if every path from the entry to B passes through A.  The *immediate dominator* (`idom`) is the closest dominator.  Stored in `SSAFunction.idom` (`ssa.py:648`). |
-| **Dominance frontier** | The set of blocks where a variable's dominance "ends" — these are where phi nodes must be inserted.  Stored in `SSAFunction.dominance_frontier` (`ssa.py:648`). |
-| **GVN** | Global Value Numbering — an optimisation that detects redundant computations by assigning a canonical identity to each expression.  See `gvn.py:88`. |
-| **IR** | Intermediate Representation — a structured, typed representation of Tcl commands between parsing and code generation.  Defined in `ir.py`; the union type `IRStatement` (`ir.py:609`) covers all statement kinds. |
-| **Lattice** | A mathematical structure used in dataflow analysis where values flow from *bottom* (unknown) toward *top* (overdefined).  The SCCP value lattice is `LatticeValue` (`core_analyses.py:328`); the type lattice is `TypeLattice` (`types.py:55`). |
-| **Liveness** | A dataflow analysis that determines which SSA values are "live" (may still be read) at each program point.  Results are in `FunctionAnalysis.live_in / live_out` (`core_analyses.py:426`). |
-| **LVT** | Local Variable Table — maps variable names to integer slot indices for fast access inside procedures.  See `LocalVarTable` (`codegen/bytecode/_types.py:68`). |
-| **Phi node (φ)** | An SSA construct placed at control flow merge points.  `φ(x₁, x₃)` means "use `x₁` if control arrived from predecessor 1, or `x₃` if from predecessor 2."  Represented by `SSAPhi` (`ssa.py:606`). |
-| **SCCP** | Sparse Conditional Constant Propagation — a combined constant propagation and unreachable-code analysis that runs over the SSA graph.  Implemented in `analyse_function()` (`core_analyses.py:3964`). |
-| **Shimmer** | Tcl's internal type coercion: when a value's string representation is reinterpreted as a different type (e.g. `"42"` read as an integer).  Tracked by `TypeLattice.SHIMMERED` (`types.py:55`). |
-| **SSA** | Static Single Assignment — a form where every variable is defined exactly once.  Multiple definitions of the same source variable get unique *version numbers* (e.g. `x₁`, `x₂`).  Built by `build_ssa()` (`ssa.py:1012`). |
-| **SSA value key** | A `(variable_name, version)` tuple that uniquely identifies one definition of a variable.  Type alias `SSAValueKey` (`ssa.py:76`). |
-| **Taint analysis** | Tracks whether values originate from untrusted sources (user input).  Uses `TaintLattice` (`taint/_lattice.py:46`). |
-| **Taint colour** | A `Flag` enum describing safety properties of tainted data (e.g. `CRLF_FREE`, `URL_ENCODED`, `HTML_ESCAPED`).  Colours compose with `\|` and join by intersection (`&`) — only properties shared by all incoming paths survive.  Defined in `TaintColour` (`taint_hints.py:17`). |
-| **Taint source** | A command whose return value introduces tainted data (e.g. `HTTP::host`, `HTTP::uri`).  Declared via `TaintHint.source` on the command's registry spec (`taint_hints.py:63`). |
-| **Taint sink** | A dangerous argument position where tainted data can cause harm (XSS, header injection, SSRF).  Classified by `_classify_sink()` (`taint/_sinks.py:436`). |
-| **CSE** | Common Subexpression Elimination — detects when the same pure computation is evaluated more than once and suggests extracting it to a variable.  Part of the GVN pass, reported as `O105`.  See `gvn.py`. |
-| **ICIP** | Interprocedural Constant/Inline Propagation — evaluates procedure calls with known constant arguments at compile time and replaces the call with the result.  Reported as `O103`.  See `optimise_static_proc_calls()` (`_propagation.py:459`). |
-| **LCP** | Loop Constant Propagation / Code Sinking — moves invariant assignments out of the hot path into the specific branch that uses them.  Reported as `O125`.  See `_code_sinking.py`. |
-| **DCE** | Dead Code Elimination — removes code whose result is never used.  `O107` (basic DCE), `O108` (aggressive DCE tracking statement liveness), `O109` (dead store elimination).  See `_elimination.py`. |
-| **InstCombine** | Instruction Combine — canonicalises and simplifies expressions by applying algebraic identities (e.g. `$x * 1` → `$x`, DeMorgan's law).  Reported as `O110`.  See `_expr_simplify.py`. |
-| **CommandSpec** | The central metadata type for a Tcl command — describes its argument layout, purity, side effects, taint properties, event validity, and dialect membership.  See `models.py:616`. |
-| **SubCommand** | An ensemble operation selected by the first argument (e.g. `string length`, `HTTP::header value`).  Each has its own arity, purity, return type, and taint transform hooks.  See `models.py:424`. |
-| **FormSpec** | An invocation form of a command — getter (reads state) or setter (writes state), each with its own arity and side-effect classification.  See `models.py:370`. |
+| **AST** | Abstract Syntax Tree — a tree representation of parsed source code structure. In this compiler, expression bodies (`expr {…}`) are parsed into `ExprNode` AST trees (`rust/tcl-syntax/src/expr/ast.rs`). |
+| **Basic block** | A straight-line sequence of IR statements with no branches except at the end.  Represented by `CFGBlock` (`rust/tcl-compiler/src/cfg.rs`). |
+| **CFG** | Control Flow Graph — a directed graph of basic blocks connected by jumps and branches.  Built by `build_cfg()` (`rust/tcl-compiler/src/cfg.rs`). |
+| **Dominator / idom** | Block A *dominates* block B if every path from the entry to B passes through A.  The *immediate dominator* (`idom`) is the closest dominator.  Stored in `SSAFunction.idom` (`rust/tcl-compiler/src/ssa.rs`). |
+| **Dominance frontier** | The set of blocks where a variable's dominance "ends" — these are where phi nodes must be inserted.  Stored in `SSAFunction.dominance_frontier` (`rust/tcl-compiler/src/ssa.rs`). |
+| **GVN** | Global Value Numbering — an optimisation that detects redundant computations by assigning a canonical identity to each expression.  See `rust/tcl-compiler/src/gvn.rs`. |
+| **IR** | Intermediate Representation — a structured, typed representation of Tcl commands between parsing and code generation.  Defined in `rust/tcl-compiler/src/ir.rs`; the union type `IRStatement` (`rust/tcl-compiler/src/ir.rs`) covers all statement kinds. |
+| **Lattice** | A mathematical structure used in dataflow analysis where values flow from *bottom* (unknown) toward *top* (overdefined).  The SCCP value lattice is `LatticeValue` (`rust/tcl-compiler/src/analyses.rs`); the type lattice is `TypeLattice` (`rust/tcl-compiler/src/types.rs`). |
+| **Liveness** | A dataflow analysis that determines which SSA values are "live" (may still be read) at each program point.  Results are in `FunctionAnalysis.live_in / live_out` (`rust/tcl-compiler/src/analyses.rs`). |
+| **LVT** | Local Variable Table — maps variable names to integer slot indices for fast access inside procedures.  See `LocalVarTable` (`rust/tcl-bytecode/src/format.rs`). |
+| **Phi node (φ)** | An SSA construct placed at control flow merge points.  `φ(x₁, x₃)` means "use `x₁` if control arrived from predecessor 1, or `x₃` if from predecessor 2."  Represented by `SSAPhi` (`rust/tcl-compiler/src/ssa.rs`). |
+| **SCCP** | Sparse Conditional Constant Propagation — a combined constant propagation and unreachable-code analysis that runs over the SSA graph.  Implemented in `analyse_function()` (`rust/tcl-compiler/src/analyses.rs`). |
+| **Shimmer** | Tcl's internal type coercion: when a value's string representation is reinterpreted as a different type (e.g. `"42"` read as an integer).  Tracked by `TypeLattice.SHIMMERED` (`rust/tcl-compiler/src/types.rs`). |
+| **SSA** | Static Single Assignment — a form where every variable is defined exactly once.  Multiple definitions of the same source variable get unique *version numbers* (e.g. `x₁`, `x₂`).  Built by `build_ssa()` (`rust/tcl-compiler/src/ssa.rs`). |
+| **SSA value key** | A `(variable_name, version)` tuple that uniquely identifies one definition of a variable.  Type alias `SSAValueKey` (`rust/tcl-compiler/src/ssa.rs`). |
+| **Taint analysis** | Tracks whether values originate from untrusted sources (user input).  Uses `TaintLattice` (`rust/tcl-compiler/src/taint.rs`). |
+| **Taint colour** | A `Flag` enum describing safety properties of tainted data (e.g. `CRLF_FREE`, `URL_ENCODED`, `HTML_ESCAPED`).  Colours compose with `\|` and join by intersection (`&`) — only properties shared by all incoming paths survive.  Defined in `TaintColour` (`rust/tcl-registry/src/taint.rs`). |
+| **Taint source** | A command whose return value introduces tainted data (e.g. `HTTP::host`, `HTTP::uri`).  Declared via `TaintHint.source` on the command's registry spec (`rust/tcl-registry/src/taint.rs`). |
+| **Taint sink** | A dangerous argument position where tainted data can cause harm (XSS, header injection, SSRF).  Classified by `_classify_sink()` (`rust/tcl-compiler/src/taint.rs`). |
+| **CSE** | Common Subexpression Elimination — detects when the same pure computation is evaluated more than once and suggests extracting it to a variable.  Part of the GVN pass, reported as `O105`.  See `rust/tcl-compiler/src/gvn.rs`. |
+| **ICIP** | Interprocedural Constant/Inline Propagation — evaluates procedure calls with known constant arguments at compile time and replaces the call with the result.  Reported as `O103`.  See `optimise_static_proc_calls()` (`rust/tcl-compiler/src/optimiser/propagation.rs`). |
+| **LCP** | Loop Constant Propagation / Code Sinking — moves invariant assignments out of the hot path into the specific branch that uses them.  Reported as `O125`.  See `rust/tcl-compiler/src/optimiser/code_sinking.rs`. |
+| **DCE** | Dead Code Elimination — removes code whose result is never used.  `O107` (basic DCE), `O108` (aggressive DCE tracking statement liveness), `O109` (dead store elimination).  See `rust/tcl-compiler/src/optimiser/elimination.rs`. |
+| **InstCombine** | Instruction Combine — canonicalises and simplifies expressions by applying algebraic identities (e.g. `$x * 1` → `$x`, DeMorgan's law).  Reported as `O110`.  See `rust/tcl-compiler/src/optimiser/helpers/expr_simplify.rs`. |
+| **CommandSpec** | The central metadata type for a Tcl command — describes its argument layout, purity, side effects, taint properties, event validity, and dialect membership.  See `rust/tcl-registry/src/spec.rs`. |
+| **SubCommand** | An ensemble operation selected by the first argument (e.g. `string length`, `HTTP::header value`).  Each has its own arity, purity, return type, and taint transform hooks.  See `rust/tcl-registry/src/spec.rs`. |
+| **FormSpec** | An invocation form of a command — getter (reads state) or setter (writes state), each with its own arity and side-effect classification.  See `rust/tcl-registry/src/spec.rs`. |
 
 ---
 
 ## Pipeline stage summary
 
-Every Tcl source string passes through these stages (the orchestrating
-entry point is `compile_source()`
-at `compilation_unit.py:376`):
+Every Tcl source string passes through these stages. The orchestrating
+entry point is `CompilationUnit::build_for()` in
+`rust/tcl-compiler/src/compilation_unit.rs`:
 
 ```
 Source text
   │
   ▼
 ┌───────────────────────────────────────────────────────────────────────┐
-│ 1. Lexer         TclLexer.tokenise_all()  → list[Token]              │  lexer.py:1183
-│ 2. Segmenter     segment_commands()       → list[SegmentedCommand]   │  command_segmenter.py:344
-│      (derived byte-identically from the red-green CST — syntax/build.py)        │
-│ 3. IR Lowering   lower_to_ir()            → IRModule                 │  lowering.py:2767
-│ 4. CFG           build_cfg() / build_cfg_function()  → CFGModule     │  cfg.py:1447
-│ 5. SSA           build_ssa()              → SSAFunction              │  ssa.py:1012
-│ 6. Core analyses analyse_function()       → FunctionAnalysis         │  core_analyses.py:3964
-│ 7. Codegen       codegen_module()         → ModuleAsm                │  codegen/bytecode/_emitter.py:1194
+│ 1. Lexer         Lexer::tokenise_all()    → Vec<Token>               │  rust/tcl-lexer/src/lexer.rs
+│ 2. Segmenter     segment_commands()       → Vec<SegmentedCommand>    │  rust/tcl-compiler/src/segmenter.rs
+│      (derived byte-identically from the red-green CST)               │  rust/tcl-compiler/src/parsing/syntax/
+│ 3. IR Lowering   lower_to_ir()            → ir::Module               │  rust/tcl-compiler/src/lowering/mod.rs
+│ 4. CFG           build_cfg_function()     → cfg::Function            │  rust/tcl-compiler/src/cfg_builder/mod.rs
+│ 5. SSA           build_ssa()              → SsaFunction              │  rust/tcl-compiler/src/ssa.rs
+│ 6. Core analyses sccp / type_infer / …    → FunctionAnalysis         │  rust/tcl-compiler/src/analyses.rs
+│ 7. Codegen       codegen_module()         → ModuleAsm                │  rust/tcl-compiler/src/codegen/emitter/mod.rs
 └───────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -70,13 +70,18 @@ Source text
 
 ## Data structure reference
 
-Before diving into examples, here are the key types that appear at each stage.
-All types live under `compiler/`, `analyser/`, or `shared/` and are frozen dataclasses unless noted.
+Before diving into examples, here are the key types that appear at each
+stage. They live in `rust/tcl-lexer`, `rust/tcl-compiler`, `rust/tcl-syntax`,
+`rust/tcl-registry`, and `rust/tcl-bytecode`.
 
-### Stage 1 — Lexer types (`shared/tokens.py`)
+> The type sketches below are shape summaries, not verbatim source. They
+> name the fields a reader needs to follow the worked examples; consult the
+> cited module for the exact declaration.
 
-```python
-class TokenType(Enum):              # tokens.py:9
+### Stage 1 — Lexer types (`rust/tcl-lexer/src/tokens.rs`)
+
+```
+class TokenType(Enum):              # rust/tcl-lexer/src/tokens.rs
     ESC     # plain string / word fragment (possibly with escape sequences)
     STR     # braced string {…}
     CMD     # command substitution [… ]
@@ -88,13 +93,13 @@ class TokenType(Enum):              # tokens.py:9
     EXPAND  # {*} expansion prefix
 
 @dataclass(frozen=True, slots=True)
-class SourcePosition:               # tokens.py:24
+class SourcePosition:               # rust/tcl-lexer/src/tokens.rs
     line: int       # 0-based line number
     character: int  # 0-based column (UTF-16 code units per LSP spec)
     offset: int     # byte offset into the source string
 
 @dataclass(frozen=True, slots=True)
-class Token:                        # tokens.py:33
+class Token:                        # rust/tcl-lexer/src/tokens.rs
     type: TokenType
     text: str
     start: SourcePosition
@@ -108,7 +113,7 @@ class Token:                        # tokens.py:33
 - `SourcePosition` tracks the exact location in source text.  `offset` is
   the byte offset for fast slicing; `line`/`character` are 0-based for LSP.
 
-### Stage 2 — Segmenter types (`compiler/parsing/command_segmenter.py`)
+### Stage 2 — Segmenter types (`rust/tcl-compiler/src/segmenter.rs`)
 
 > `segment_commands()` builds the canonical lossless **red-green concrete syntax
 > tree** (`compiler/parsing/syntax/`, see
@@ -117,9 +122,9 @@ class Token:                        # tokens.py:33
 > token loop, so every example's Stage 2 data structure is unchanged — the tree
 > is the new *backing*, not a new shape.
 
-```python
+```
 @dataclass(slots=True)
-class SegmentedCommand:              # command_segmenter.py:62
+class SegmentedCommand:              # rust/tcl-compiler/src/segmenter.rs
     range: Range                         # source span of the entire command
     argv: list[Token]                    # first token of each word
     texts: list[str]                     # concatenated text per word
@@ -137,36 +142,36 @@ class SegmentedCommand:              # command_segmenter.py:62
 - `argv[i]` is the *first* token of word `i`; multi-token words (e.g.
   `$prefix.txt`) are concatenated into `texts[i]`.
 
-### Stage 3 — IR types (`compiler/ir.py`)
+### Stage 3 — IR types (`rust/tcl-compiler/src/ir.rs`)
 
-```python
+```
 @dataclass(frozen=True, slots=True)
-class IRAssignConst:                     # ir.py:65 — set a 1
+class IRAssignConst:                     # rust/tcl-compiler/src/ir.rs — set a 1
     range: Range
     name: str                            # variable name
     value: str                           # constant string value
 
 @dataclass(frozen=True, slots=True)
-class IRAssignExpr:                      # ir.py:72 — set x [expr {$a + 1}]
+class IRAssignExpr:                      # rust/tcl-compiler/src/ir.rs — set x [expr {$a + 1}]
     range: Range
     name: str
     expr: ExprNode                       # parsed expression AST
 
 @dataclass(frozen=True, slots=True)
-class IRAssignValue:                     # ir.py:79 — set x $y, set x "hello $name"
+class IRAssignValue:                     # rust/tcl-compiler/src/ir.rs — set x $y, set x "hello $name"
     range: Range
     name: str
     value: str                           # interpolated value text
     value_needs_backsubst: bool = False
 
 @dataclass(frozen=True, slots=True)
-class IRIncr:                            # ir.py:88 — incr i, incr i 5
+class IRIncr:                            # rust/tcl-compiler/src/ir.rs — incr i, incr i 5
     range: Range
     name: str
     amount: str | None = None            # None means +1
 
 @dataclass(frozen=True, slots=True)
-class IRCall:                            # ir.py:108 — generic command invocation (puts, append, etc.)
+class IRCall:                            # rust/tcl-compiler/src/ir.rs — generic command invocation (puts, append, etc.)
     range: Range
     command: str
     args: tuple[str, ...] = ()
@@ -176,12 +181,12 @@ class IRCall:                            # ir.py:108 — generic command invocat
     tokens: CommandTokens | None = None
 
 @dataclass(frozen=True, slots=True)
-class IRReturn:                          # ir.py:143
+class IRReturn:                          # rust/tcl-compiler/src/ir.rs
     range: Range
     value: str | None = None
 
 @dataclass(frozen=True, slots=True)
-class IRBarrier:                         # ir.py:151 — eval, uplevel, upvar — defeats static analysis
+class IRBarrier:                         # rust/tcl-compiler/src/ir.rs — eval, uplevel, upvar — defeats static analysis
     range: Range
     reason: str
     command: str = ""
@@ -189,20 +194,20 @@ class IRBarrier:                         # ir.py:151 — eval, uplevel, upvar �
     tokens: CommandTokens | None = None
 
 @dataclass(frozen=True, slots=True)
-class IRIf:                              # ir.py:292
+class IRIf:                              # rust/tcl-compiler/src/ir.rs
     range: Range
     clauses: tuple[IRIfClause, ...]      # one per if/elseif branch
     else_body: IRScript | None = None
 
 @dataclass(frozen=True, slots=True)
-class IRIfClause:                        # ir.py:284
+class IRIfClause:                        # rust/tcl-compiler/src/ir.rs
     condition: ExprNode                  # parsed condition expression
     condition_range: Range
     body: IRScript
     body_range: Range
 
 @dataclass(frozen=True, slots=True)
-class IRFor:                             # ir.py:300
+class IRFor:                             # rust/tcl-compiler/src/ir.rs
     range: Range
     init: IRScript                       # {set i 0}
     init_range: Range
@@ -214,7 +219,7 @@ class IRFor:                             # ir.py:300
     body_range: Range
 
 @dataclass(frozen=True, slots=True)
-class IRWhile:                           # ir.py:314
+class IRWhile:                           # rust/tcl-compiler/src/ir.rs
     range: Range
     condition: ExprNode
     condition_range: Range
@@ -222,7 +227,7 @@ class IRWhile:                           # ir.py:314
     body_range: Range
 
 @dataclass(frozen=True, slots=True)
-class IRForeach:                         # ir.py:326
+class IRForeach:                         # rust/tcl-compiler/src/ir.rs
     range: Range
     iterators: tuple[tuple[tuple[str, ...], str], ...]  # ((var_names, list_arg), ...)
     body: IRScript
@@ -230,16 +235,16 @@ class IRForeach:                         # ir.py:326
     is_lmap: bool = False
 
 @dataclass(frozen=True, slots=True)
-class IRScript:                          # ir.py:207
+class IRScript:                          # rust/tcl-compiler/src/ir.rs
     statements: tuple[IRStatement, ...] = ()
 
 @dataclass
-class IRModule:                          # ir.py:504
+class IRModule:                          # rust/tcl-compiler/src/ir.rs
     top_level: IRScript                  # statements outside any proc
     procedures: dict[str, IRProcedure]   # qualified_name → proc definition
     redefined_procedures: set[str]
 
-# IRStatement is a union type (ir.py:609):
+# IRStatement is a union type (rust/tcl-compiler/src/ir.rs):
 IRStatement = (
     IRAssignConst | IRAssignExpr | IRAssignValue | IRExprEval
     | IRIncr | IRCall | IRReturn | IRBarrier
@@ -254,100 +259,100 @@ IRStatement = (
   can cross them.
 - Expression conditions are parsed into `ExprNode` AST trees at lowering time.
 
-### Expression AST (`compiler/expr_ast.py`)
+### Expression AST (`rust/tcl-syntax/src/expr/ast.rs`)
 
-```python
+```
 @dataclass(frozen=True)
-class ExprLiteral:     # expr_ast.py:90 — 42, 3.14, true
+class ExprLiteral:     # rust/tcl-syntax/src/expr/ast.rs — 42, 3.14, true
     text: str; start: int; end: int
 
 @dataclass(frozen=True)
-class ExprVar:         # expr_ast.py:108 — $x, ${arr(idx)}
+class ExprVar:         # rust/tcl-syntax/src/expr/ast.rs — $x, ${arr(idx)}
     text: str; name: str; start: int; end: int
 
 @dataclass(frozen=True)
-class ExprBinary:      # expr_ast.py:127 — $a + $b, $x < 10
+class ExprBinary:      # rust/tcl-syntax/src/expr/ast.rs — $a + $b, $x < 10
     op: BinOp; left: ExprNode; right: ExprNode
 
 @dataclass(frozen=True)
-class ExprUnary:       # expr_ast.py:136 — -$x, !$flag
+class ExprUnary:       # rust/tcl-syntax/src/expr/ast.rs — -$x, !$flag
     op: UnaryOp; operand: ExprNode
 
 @dataclass(frozen=True)
-class ExprCall:        # expr_ast.py:153 — sin($x), int($y)
+class ExprCall:        # rust/tcl-syntax/src/expr/ast.rs — sin($x), int($y)
     function: str; args: tuple[ExprNode, ...]; start: int; end: int
 
 @dataclass(frozen=True)
-class ExprCommand:     # expr_ast.py:118 — [clock seconds]
+class ExprCommand:     # rust/tcl-syntax/src/expr/ast.rs — [clock seconds]
     text: str; start: int; end: int
 
 @dataclass(frozen=True)
-class ExprRaw:         # expr_ast.py:163 — fallback for unparseable expressions
+class ExprRaw:         # rust/tcl-syntax/src/expr/ast.rs — fallback for unparseable expressions
     text: str
 
-# BinOp (expr_ast.py:27): ADD, SUB, MUL, DIV, MOD, POW, LT, LE, GT, GE, EQ, NE,
+# BinOp (rust/tcl-syntax/src/expr/ast.rs): ADD, SUB, MUL, DIV, MOD, POW, LT, LE, GT, GE, EQ, NE,
 #                          STR_EQ, STR_NE, AND, OR, LSHIFT, RSHIFT, BIT_AND, ...
-# UnaryOp (expr_ast.py:76): NEG, POS, BIT_NOT, NOT
+# UnaryOp (rust/tcl-syntax/src/expr/ast.rs): NEG, POS, BIT_NOT, NOT
 ```
 
-### Stage 4 — CFG types (`compiler/cfg.py`)
+### Stage 4 — CFG types (`rust/tcl-compiler/src/cfg.rs`)
 
-```python
+```
 @dataclass(frozen=True, slots=True)
-class CFGGoto:         # cfg.py:438 — unconditional jump
+class CFGGoto:         # rust/tcl-compiler/src/cfg.rs — unconditional jump
     target: str                          # target block name
 
 @dataclass(frozen=True, slots=True)
-class CFGBranch:       # cfg.py:444 — conditional jump
+class CFGBranch:       # rust/tcl-compiler/src/cfg.rs — conditional jump
     condition: ExprNode                  # condition expression
     true_target: str
     false_target: str
 
 @dataclass(frozen=True, slots=True)
-class CFGReturn:       # cfg.py:452 — procedure exit
+class CFGReturn:       # rust/tcl-compiler/src/cfg.rs — procedure exit
     value: str | None = None
 
-CFGTerminator = CFGGoto | CFGBranch | CFGReturn  # cfg.py:459
+CFGTerminator = CFGGoto | CFGBranch | CFGReturn  # rust/tcl-compiler/src/cfg.rs
 
 @dataclass(frozen=True, slots=True)
-class CFGBlock:        # cfg.py:473
+class CFGBlock:        # rust/tcl-compiler/src/cfg.rs
     name: str
     statements: tuple[IRStatement, ...]  # straight-line IR statements
     terminator: CFGTerminator | None     # exactly one per block
 
 @dataclass(frozen=True, slots=True)
-class CFGFunction:     # cfg.py:480
+class CFGFunction:     # rust/tcl-compiler/src/cfg.rs
     name: str
     entry: str                           # entry block name
     blocks: dict[str, CFGBlock]          # name → block
     loop_nodes: dict[str, tuple[str, IRFor]]  # for-loop metadata
 
 @dataclass(frozen=True, slots=True)
-class CFGModule:       # cfg.py:543
+class CFGModule:       # rust/tcl-compiler/src/cfg.rs
     top_level: CFGFunction
     procedures: dict[str, CFGFunction]
 ```
 
-### Stage 5 — SSA types (`compiler/ssa.py`)
+### Stage 5 — SSA types (`rust/tcl-compiler/src/ssa.rs`)
 
-```python
-SSAVersion = int               # ssa.py:70 — each definition gets a unique version
-SSAValueKey = tuple[str, int]  # ssa.py:76 — (variable_name, version) — unique SSA value
+```
+SSAVersion = int               # rust/tcl-compiler/src/ssa.rs — each definition gets a unique version
+SSAValueKey = tuple[str, int]  # rust/tcl-compiler/src/ssa.rs — (variable_name, version) — unique SSA value
 
 @dataclass(frozen=True, slots=True)
-class SSAPhi:                  # ssa.py:606 — phi node (see Glossary)
+class SSAPhi:                  # rust/tcl-compiler/src/ssa.rs — phi node (see Glossary)
     name: str                            # variable name
     version: SSAVersion                  # version produced by this phi
     incoming: dict[str, SSAVersion]      # predecessor_block → version
 
 @dataclass(frozen=True, slots=True)
-class SSAStatement:            # ssa.py:619
+class SSAStatement:            # rust/tcl-compiler/src/ssa.rs
     statement: IRStatement               # the original IR statement
     uses: dict[str, SSAVersion]          # variables read → their versions
     defs: dict[str, SSAVersion]          # variables written → new versions
 
 @dataclass(frozen=True, slots=True)
-class SSABlock:                # ssa.py:633
+class SSABlock:                # rust/tcl-compiler/src/ssa.rs
     name: str
     phis: tuple[SSAPhi, ...]             # phi nodes at merge points
     statements: tuple[SSAStatement, ...]
@@ -355,7 +360,7 @@ class SSABlock:                # ssa.py:633
     exit_versions: dict[str, SSAVersion]
 
 @dataclass(frozen=True, slots=True)
-class SSAFunction:             # ssa.py:648
+class SSAFunction:             # rust/tcl-compiler/src/ssa.rs
     name: str
     entry: str
     blocks: dict[str, SSABlock]
@@ -364,21 +369,21 @@ class SSAFunction:             # ssa.py:648
     dominator_tree: dict[str, tuple[str, ...]]
 ```
 
-### Stage 6 — Analysis types (`compiler/core_analyses.py`)
+### Stage 6 — Analysis types (`rust/tcl-compiler/src/analyses.rs`)
 
-```python
-class LatticeKind(Enum):       # core_analyses.py:316 (see Glossary → Lattice)
+```
+class LatticeKind(Enum):       # rust/tcl-compiler/src/analyses.rs (see Glossary → Lattice)
     UNKNOWN      # not yet analysed (bottom)
     CONST        # provably constant
     OVERDEFINED  # multiple possible values (top)
 
 @dataclass(frozen=True, slots=True)
-class LatticeValue:            # core_analyses.py:328
+class LatticeValue:            # rust/tcl-compiler/src/analyses.rs
     kind: LatticeKind
     value: int | float | bool | str | None = None
 
 @dataclass(frozen=True, slots=True)
-class FunctionAnalysis:        # core_analyses.py:426 — produced by analyse_function() (line 3964)
+class FunctionAnalysis:        # rust/tcl-compiler/src/analyses.rs — produced by analyse_function() (line 3964)
     live_in: dict[str, set[SSAValueKey]]     # (see Glossary → Liveness)
     live_out: dict[str, set[SSAValueKey]]
     dead_stores: tuple[DeadStore, ...]       # DeadStore at line 404
@@ -390,10 +395,10 @@ class FunctionAnalysis:        # core_analyses.py:426 — produced by analyse_fu
     unused_variables: tuple[UnusedVariable, ...]  # UnusedVariable at line 419
 ```
 
-#### Type lattice (`compiler/types.py`)
+#### Type lattice (`rust/tcl-compiler/src/types.rs`)
 
-```python
-class TclType(Enum):           # types.py:30
+```
+class TclType(Enum):           # rust/tcl-compiler/src/types.rs
     STRING = auto()
     INT = auto()
     DOUBLE = auto()
@@ -403,14 +408,14 @@ class TclType(Enum):           # types.py:30
     BYTEARRAY = auto()
     NUMERIC = auto()   # abstract join of INT and DOUBLE
 
-class TypeKind(Enum):          # types.py:45
+class TypeKind(Enum):          # rust/tcl-compiler/src/types.rs
     UNKNOWN      # not yet analysed (bottom)
     KNOWN        # concrete type determined
     SHIMMERED    # forced type change detected (see Glossary → Shimmer)
     OVERDEFINED  # multiple incompatible types (top)
 
 @dataclass(frozen=True, slots=True)
-class TypeLattice:             # types.py:55
+class TypeLattice:             # rust/tcl-compiler/src/types.rs
     kind: TypeKind
     tcl_type: TclType | None = None
     from_type: TclType | None = None  # only for SHIMMERED
@@ -420,8 +425,8 @@ class TypeLattice:             # types.py:55
 
 ### Stage 7 — Codegen types (`compiler/codegen/`)
 
-```python
-class Op(Enum):        # codegen/bytecode/opcodes.py:61 — ~100 Tcl 9.0.2 bytecode opcodes
+```
+class Op(Enum):        # rust/tcl-bytecode/src/lib.rs — ~100 Tcl 9.0.2 bytecode opcodes
     PUSH1, PUSH4, POP, DUP,
     LOAD_SCALAR1, STORE_SCALAR1,
     INVOKE_STK1, INVOKE_STK4,
@@ -430,17 +435,17 @@ class Op(Enum):        # codegen/bytecode/opcodes.py:61 — ~100 Tcl 9.0.2 bytec
     ...
 
 @dataclass(slots=True)
-class Instruction:     # codegen/bytecode/_types.py:15
+class Instruction:     # rust/tcl-bytecode/src/format.rs
     op: Op
     operands: tuple[int | str, ...]  # int = literal/imm, str = label ref
     comment: str = ""
     offset: int = -1                 # filled by layout pass
 
-class LiteralTable:    # codegen/bytecode/_types.py:37 — intern pool: string → object-array index
-class LocalVarTable:   # codegen/bytecode/_types.py:68 — LVT: variable name → slot index (see Glossary)
+class LiteralTable:    # rust/tcl-bytecode/src/format.rs — intern pool: string → object-array index
+class LocalVarTable:   # rust/tcl-bytecode/src/format.rs — LVT: variable name → slot index (see Glossary)
 
 @dataclass(slots=True)
-class FunctionAsm:     # codegen/bytecode/_types.py:106
+class FunctionAsm:     # rust/tcl-bytecode/src/format.rs
     name: str
     literals: LiteralTable
     lvt: LocalVarTable
@@ -448,30 +453,30 @@ class FunctionAsm:     # codegen/bytecode/_types.py:106
     labels: dict[str, int]           # label → byte offset
 
 @dataclass(slots=True)
-class ModuleAsm:       # codegen/bytecode/_types.py:105
+class ModuleAsm:       # rust/tcl-bytecode/src/format.rs
     top_level: FunctionAsm
     procedures: dict[str, FunctionAsm]
 ```
 
-### Orchestration (`compiler/compilation_unit.py`)
+### Orchestration (`rust/tcl-compiler/src/compilation_unit.rs`)
 
-```python
+```
 @dataclass(frozen=True, slots=True)
-class FunctionUnit:                # compilation_unit.py:27
+class FunctionUnit:                # rust/tcl-compiler/src/compilation_unit.rs
     cfg: CFGFunction
     ssa: SSAFunction
     analysis: FunctionAnalysis
     execution_intent: FunctionExecutionIntent
 
 @dataclass(frozen=True, slots=True)
-class CompilationUnit:             # compilation_unit.py:37 — produced by compile_source() (line 89)
+class CompilationUnit:             # rust/tcl-compiler/src/compilation_unit.rs — produced by compile_source() (line 89)
     source: str
     ir_module: IRModule
     cfg_module: CFGModule
     top_level: FunctionUnit
     procedures: dict[str, FunctionUnit]
-    interproc: InterproceduralAnalysis            # interprocedural.py:121
-    connection_scope: ConnectionScope | None = None  # connection_scope.py:40
+    interproc: InterproceduralAnalysis            # rust/tcl-compiler/src/interprocedural.rs
+    connection_scope: ConnectionScope | None = None  # rust/tcl-compiler/src/connection_scope.rs
 ```
 
 ---
@@ -491,7 +496,7 @@ of that infrastructure and how the pieces connect.
 │                                                                 │
 │   ┌───────────┐  ┌───────────┐  ┌──────────┐  ┌─────────────┐  │
 │   │ Tcl defs  │  │ iRules    │  │ iApps    │  │ Tk / tcllib │  │
-│   │ (tcl/*.py)│  │ (irules/) │  │ (iapps/) │  │ (tk/ stdlib)│  │
+│   │ (tcl/)    │  │ (irules/) │  │ (iapps/) │  │ (tk/ stdlib)│  │
 │   └─────┬─────┘  └─────┬─────┘  └────┬─────┘  └──────┬──────┘  │
 │         │              │              │               │         │
 │         ▼              ▼              ▼               ▼         │
@@ -508,16 +513,16 @@ of that infrastructure and how the pieces connect.
 └─────────────────────────────────────────────────────────────────┘
 ```
 
-Every command is defined as a `CommandDef` subclass (`_base.py:48`) whose
-`spec()` classmethod returns a `CommandSpec` (`models.py:616`).  At import
+Every command is defined as a `CommandDef` subclass (`rust/tcl-registry/src/spec.rs`) whose
+`spec()` classmethod returns a `CommandSpec` (`rust/tcl-registry/src/spec.rs`).  At import
 time, the `@register` decorator adds each definition to its dialect's
-registry list, and the singleton `CommandRegistry` (`command_registry.py:149`)
+registry list, and the singleton `CommandRegistry` (`rust/tcl-registry/src/registry.rs`)
 merges all dialect lists into a unified lookup table.
 
 ### CommandDef — defining a command
 
-```python
-class CommandDef:                      # _base.py:48
+```
+class CommandDef:                      # rust/tcl-registry/src/spec.rs
     name: str                          # command name (e.g. "string", "HTTP::host")
 
     @classmethod
@@ -529,11 +534,11 @@ class CommandDef:                      # _base.py:48
 
 Each dialect sub-package (`tcl/`, `irules/`, `iapps/`, `tk/`) has its own
 `_REGISTRY` list and `@register` decorator, both created by `make_registry()`
-(`_base.py:75`).
+(`rust/tcl-registry/src/spec.rs`).
 
-**Concrete example** — `string` (`tcl/string.py`):
+**Concrete example** — `string` (`rust/tcl-registry/src/commands/tcl/string_.rs`):
 
-```python
+```
 @register
 class StringCommand(CommandDef):
     name = "string"
@@ -554,11 +559,11 @@ class StringCommand(CommandDef):
 
 A single command can have multiple invocation forms — e.g. a getter
 (no args, reads state) and a setter (one arg, writes state).  Each
-form is a `FormSpec` (`models.py:249`):
+form is a `FormSpec` (`rust/tcl-registry/src/spec.rs`):
 
-```python
+```
 @dataclass(frozen=True, slots=True)
-class FormSpec:                        # models.py:249
+class FormSpec:                        # rust/tcl-registry/src/spec.rs
     kind: FormKind                     # DEFAULT, GETTER, or SETTER
     synopsis: str                      # human-readable signature
     arity: Arity | None = None         # per-form arg count (None → inherit)
@@ -569,11 +574,11 @@ class FormSpec:                        # models.py:249
     arg_values: dict[int, tuple[ArgumentValueSpec, ...]] = {}  # completable values
 ```
 
-**Form resolution** — `CommandSpec.resolve_form(args)` (`models.py:600`)
+**Form resolution** — `CommandSpec.resolve_form(args)` (`rust/tcl-registry/src/spec.rs`)
 matches actual arguments against per-form arities.  Example for
 `HTTP::host`:
 
-```python
+```
 forms=(
     FormSpec(kind=FormKind.GETTER, synopsis="HTTP::host", arity=Arity(0, 0),
              pure=True,  # reading is side-effect-free
@@ -586,9 +591,9 @@ whether the invocation is pure (a read) or a mutator (a write).
 
 ### Arity — argument count constraints
 
-```python
+```
 @dataclass(frozen=True, slots=True)
-class Arity:                           # signatures.py:64
+class Arity:                           # rust/tcl-registry/src/spec.rs
     min: int = 0                       # minimum args (after command name)
     max: int = sys.maxsize             # max args (sys.maxsize = unlimited)
 
@@ -603,11 +608,11 @@ an invocation falls outside the bounds.
 
 Commands like `string`, `dict`, `info`, and `HTTP::header` use
 subcommands (the first argument selects the operation).  Each
-subcommand is a `SubCommand` (`models.py:319`):
+subcommand is a `SubCommand` (`rust/tcl-registry/src/spec.rs`):
 
-```python
+```
 @dataclass(slots=True)
-class SubCommand:                      # models.py:319
+class SubCommand:                      # rust/tcl-registry/src/spec.rs
     name: str                          # "length", "match", "replace", ...
     arity: Arity                       # arg count for this subcommand
     pure: bool = False                 # no side effects
@@ -638,23 +643,23 @@ dialects.
 ### OptionSpec and option terminators
 
 Commands that accept `-flag` switches declare them via `OptionSpec`
-(`models.py:230`):
+(`rust/tcl-registry/src/spec.rs`):
 
-```python
+```
 @dataclass(frozen=True, slots=True)
-class OptionSpec:                      # models.py:230
+class OptionSpec:                      # rust/tcl-registry/src/spec.rs
     name: str                          # e.g. "-nocase", "-length"
     takes_value: bool = False          # True if the option consumes the next arg
     detail: str = ""                   # completion description
 ```
 
 **Option terminators** (`--`) prevent a dynamic argument from being
-mistaken for a flag.  The `OptionTerminatorSpec` (`models.py:298`)
+mistaken for a flag.  The `OptionTerminatorSpec` (`rust/tcl-registry/src/spec.rs`)
 configures the `W304` diagnostic:
 
-```python
+```
 @dataclass(frozen=True, slots=True)
-class OptionTerminatorSpec:            # models.py:298
+class OptionTerminatorSpec:            # rust/tcl-registry/src/spec.rs
     scan_start: int = 0                # arg index where option scanning begins
     options_with_values: frozenset[str] = frozenset()  # options that eat next arg
     warn_without_terminator: bool = False  # warn even for static values
@@ -697,11 +702,11 @@ command expects, and what hover/completion information to present.
 
 #### ArgRole — what each argument means
 
-`ArgRole` (`signatures.py:16`) classifies how the compiler should
+`ArgRole` (`rust/tcl-registry/src/spec.rs`) classifies how the compiler should
 treat each argument position:
 
-```python
-class ArgRole(Enum):                   # signatures.py:16
+```
+class ArgRole(Enum):                   # rust/tcl-registry/src/spec.rs
     BODY            # Tcl script body — recursively lowered into IR
     EXPR            # Expression — parsed into ExprNode AST
     VAR_NAME        # Variable name written by the command (set, incr)
@@ -723,10 +728,10 @@ index (0-based after the command name) to its role.
 
 For variable-layout commands like `if`, `try`, and `switch` (where
 argument structure depends on the actual arguments), an
-`ArgRoleResolver` (`models.py:73`) callback dynamically maps argument
+`ArgRoleResolver` (`rust/tcl-registry/src/spec.rs`) callback dynamically maps argument
 values to roles:
 
-```python
+```
 ArgRoleResolver = Callable[[list[str]], dict[int, ArgRole]]
 ```
 
@@ -737,13 +742,13 @@ analysis.
 
 #### ArgumentValueSpec — completable values
 
-`ArgumentValueSpec` (`models.py:221`) describes a valid value for a
+`ArgumentValueSpec` (`rust/tcl-registry/src/spec.rs`) describes a valid value for a
 specific argument position, providing completion text and hover
 documentation:
 
-```python
+```
 @dataclass(frozen=True, slots=True)
-class ArgumentValueSpec:               # models.py:221
+class ArgumentValueSpec:               # rust/tcl-registry/src/spec.rs
     value: str                         # completion text (e.g. "length", "alnum")
     detail: str = ""                   # short description in completion list
     hover: HoverSnippet | None = None  # full hover documentation
@@ -755,7 +760,7 @@ Argument values are declared in three places:
    — maps arg index to valid values.  Index 0 typically holds
    subcommand names:
 
-   ```python
+   ```
    FormSpec(
        kind=FormKind.DEFAULT,
        synopsis="string option arg ?arg ...?",
@@ -770,7 +775,7 @@ Argument values are declared in three places:
 2. **SubCommand.arg_values** — per-subcommand completable values.
    For example, `string is` has character-class values at arg index 0:
 
-   ```python
+   ```
    SubCommand(name="is", ..., arg_values={
        0: (ArgumentValueSpec("alnum", "Any Unicode alphabet or digit character."),
            ArgumentValueSpec("integer", "Any valid integer of arbitrary size."),
@@ -789,12 +794,12 @@ Argument values are declared in three places:
 
 #### HoverSnippet — documentation content
 
-`HoverSnippet` (`models.py:170`) carries hover and signature-help
+`HoverSnippet` (`rust/tcl-registry/src/spec.rs`) carries hover and signature-help
 content derived from man pages or vendor documentation:
 
-```python
+```
 @dataclass(frozen=True, slots=True)
-class HoverSnippet:                    # models.py:170
+class HoverSnippet:                    # rust/tcl-registry/src/spec.rs
     summary: str                       # one-line description
     synopsis: tuple[str, ...] = ()     # invocation signatures
     snippet: str = ""                  # extended description (for signature help)
@@ -810,12 +815,12 @@ uses `render_hover_lean()` for compact hover tooltips and
 
 #### ArgTypeHint — expected types
 
-`ArgTypeHint` (`type_hints.py:17`) declares what Tcl internal
+`ArgTypeHint` (`rust/tcl-registry/src/types.rs`) declares what Tcl internal
 representation (intrep) a command expects for a given argument:
 
-```python
+```
 @dataclass(frozen=True, slots=True)
-class ArgTypeHint:                     # type_hints.py:17
+class ArgTypeHint:                     # rust/tcl-registry/src/types.rs
     expected: TclType | None = None    # expected type (None = any)
     shimmers: bool = False             # True if the command forces conversion
 ```
@@ -833,12 +838,12 @@ Return types are declared via `SubCommand.return_type` or
 
 Commands like `if`, `try`, and `switch` have keyword-delimited
 structure rather than fixed argument positions.
-`KeywordCompletion` (`models.py:90`) provides completion items
+`KeywordCompletion` (`rust/tcl-registry/src/spec.rs`) provides completion items
 for these structural keywords:
 
-```python
+```
 @dataclass(frozen=True, slots=True)
-class KeywordCompletion:               # models.py:90
+class KeywordCompletion:               # rust/tcl-registry/src/spec.rs
     keyword: str                       # e.g. "elseif", "else", "on", "finally"
     detail: str = ""                   # completion list description
     snippet: str | None = None         # LSP snippet with placeholders
@@ -860,34 +865,34 @@ Commands and subcommands can be marked as deprecated with a replacement:
 
 ### Side effects and purity
 
-The side-effect model lives in `compiler/side_effects.py` and
+The side-effect model lives in `rust/tcl-compiler/src/side_effects.rs` and
 classifies what each command invocation reads and writes.
 
 **Enums** describe the vocabulary:
 
-```python
-class SideEffectTarget(Enum):          # side_effects.py:154
+```
+class SideEffectTarget(Enum):          # rust/tcl-compiler/src/side_effects.rs
     VARIABLE, SESSION_TABLE, HTTP_HEADER, HTTP_BODY, HTTP_URI,
     RESPONSE_COMMIT, POOL_SELECTION, FILE_IO, LOG_IO, ...
 
-class StorageScope(Enum):              # side_effects.py:67
+class StorageScope(Enum):              # rust/tcl-compiler/src/side_effects.rs
     PROC_LOCAL, NAMESPACE, GLOBAL, UPVAR,       # Tcl-universal
     EVENT, CONNECTION, STATIC, SESSION_TABLE,    # F5 iRules-specific
     DATA_GROUP, FILE_SYSTEM, NETWORK_SOCKET, ...
 
-class ConnectionSide(Enum):            # side_effects.py:135
+class ConnectionSide(Enum):            # rust/tcl-compiler/src/side_effects.rs
     CLIENT, SERVER, BOTH, GLOBAL, NONE
 
-class StorageType(Enum):               # side_effects.py:48
+class StorageType(Enum):               # rust/tcl-compiler/src/side_effects.rs
     SCALAR, LIST, DICT, ARRAY, UNKNOWN
 ```
 
 **Per-invocation facts** compose into `SideEffect` and
 `CommandSideEffects`:
 
-```python
+```
 @dataclass(frozen=True, slots=True)
-class SideEffect:                      # side_effects.py:359
+class SideEffect:                      # rust/tcl-compiler/src/side_effects.rs
     target: SideEffectTarget           # what resource
     reads: bool = False                # does it read?
     writes: bool = False               # does it write?
@@ -897,7 +902,7 @@ class SideEffect:                      # side_effects.py:359
     key: str | None = None             # literal variable/header name
 
 @dataclass(frozen=True, slots=True)
-class CommandSideEffects:              # side_effects.py:413
+class CommandSideEffects:              # rust/tcl-compiler/src/side_effects.rs
     effects: tuple[SideEffect, ...]    # individual effects
     pure: bool = False                 # no observable side effects
     deterministic: bool = False        # same inputs → same outputs
@@ -905,7 +910,7 @@ class CommandSideEffects:              # side_effects.py:413
 ```
 
 **Classification** — `classify_side_effects(command, args, ...)`
-(`side_effects.py:561`) combines registry hints with runtime arguments:
+(`rust/tcl-compiler/src/side_effects.rs`) combines registry hints with runtime arguments:
 
 1. Check interprocedural summary (for user-defined procs).
 2. Check for dynamic barriers (`eval`, `uplevel`).
@@ -934,11 +939,11 @@ through pure calls without bailing out.
 Taint tracking determines whether values originate from untrusted input
 (user-controlled HTTP headers, URI, query parameters, etc.).
 
-**TaintColour** (`taint_hints.py:17`) is a `Flag` enum — colours compose
+**TaintColour** (`rust/tcl-registry/src/taint.rs`) is a `Flag` enum — colours compose
 with `|` and the lattice join is their intersection (`&`):
 
-```python
-class TaintColour(Flag):               # taint_hints.py:17
+```
+class TaintColour(Flag):               # rust/tcl-registry/src/taint.rs
     TAINTED         # base: value comes from untrusted input
     PATH_PREFIXED   # starts with "/" (HTTP::uri, HTTP::path)
     CRLF_FREE       # no CR/LF characters (header-injection safe)
@@ -955,12 +960,12 @@ Colours represent *safety properties* of tainted data.  A value with
 `TAINTED | IP_ADDRESS` is tainted but known to be a safe IP address
 format, which may satisfy certain sinks (e.g. connecting to a backend).
 
-**TaintHint** (`taint_hints.py:63`) declares a command's taint sources
+**TaintHint** (`rust/tcl-registry/src/taint.rs`) declares a command's taint sources
 and sinks:
 
-```python
+```
 @dataclass(frozen=True, slots=True)
-class TaintHint:                       # taint_hints.py:63
+class TaintHint:                       # rust/tcl-registry/src/taint.rs
     source: dict[Arity | None, TaintColour] | None  # return value is tainted
     source_subcommands: frozenset[str] | None        # restrict to specific subcmds
     sinks: tuple[TaintSinkSpec, ...]                  # dangerous arg positions
@@ -970,7 +975,7 @@ class TaintHint:                       # taint_hints.py:63
 **Example** — `HTTP::host` is a taint source (returns user-controlled
 data):
 
-```python
+```
 @classmethod
 def taint_hints(cls) -> TaintHint:
     return TaintHint(source={None: TaintColour.TAINTED})
@@ -978,9 +983,9 @@ def taint_hints(cls) -> TaintHint:
 
 **TaintSinkSpec** marks argument positions as dangerous:
 
-```python
+```
 @dataclass(frozen=True, slots=True)
-class TaintSinkSpec:                   # taint_hints.py:45
+class TaintSinkSpec:                   # rust/tcl-registry/src/taint.rs
     code: str                          # diagnostic code (e.g. "IRULE3001")
     subcommands: frozenset[str] | None # None = all invocations
 ```
@@ -993,9 +998,9 @@ without sufficient safety colours.
 ### Dialects
 
 Dialects partition command availability across Tcl versions and tool
-contexts.  Known dialects (`dialects.py:5`):
+contexts.  Known dialects (`rust/tcl-registry/src/dialects.rs`):
 
-```python
+```
 KNOWN_DIALECTS = frozenset({
     "tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1",  # Tcl version dialects
     "f5-irules",                                 # F5 iRules
@@ -1020,10 +1025,10 @@ Subcommands can have their own `dialects` set that overrides the parent
 command's.  `SubCommand.supports_dialect()` checks the subcommand's own
 set first, falling back to the parent.
 
-**DialectStatus** (`models.py:25`) is the result of a dialect lookup:
+**DialectStatus** (`rust/tcl-registry/src/spec.rs`) is the result of a dialect lookup:
 
-```python
-class DialectStatus(Enum):             # models.py:25
+```
+class DialectStatus(Enum):             # rust/tcl-registry/src/spec.rs
     EXISTS       # available in this dialect
     DEPRECATED   # available but has a replacement
     DISALLOWED   # exists in some dialect, but not this one
@@ -1034,11 +1039,11 @@ class DialectStatus(Enum):             # models.py:25
 
 In F5 iRules, commands are only valid in certain events (e.g. `HTTP::uri`
 requires an HTTP profile and only works in HTTP events).  This is
-modelled by `EventRequires` (`namespace_models.py:146`):
+modelled by `EventRequires` (`rust/tcl-registry/src/spec.rs`):
 
-```python
+```
 @dataclass(frozen=True, slots=True)
-class EventRequires:                   # namespace_models.py:146
+class EventRequires:                   # rust/tcl-registry/src/spec.rs
     client_side: bool = False          # needs client-side connection
     server_side: bool = False          # needs server-side connection
     transport: str | None = None       # "tcp" or "udp"
@@ -1052,12 +1057,12 @@ class EventRequires:                   # namespace_models.py:146
 **Example** — `HTTP::host` requires TCP transport and an HTTP or FASTHTTP
 profile:
 
-```python
+```
 event_requires=EventRequires(transport="tcp", profiles=frozenset({"HTTP", "FASTHTTP"}))
 ```
 
 The validator matches `event_requires` against the event's `EventProps`
-(`namespace_models.py:117`), which describes what each event provides
+(`rust/tcl-registry/src/spec.rs`), which describes what each event provides
 (client/server side, transport, implied profiles).  Mismatches produce
 diagnostic `IRULE1001`.
 
@@ -1131,7 +1136,7 @@ Key observations:
 The segmenter builds the red-green CST for the source and derives one
 `SegmentedCommand` per command (split at `EOL`/`EOF` boundaries):
 
-```python
+```
 SegmentedCommand(
     range=Range(Pos(0,0,0), Pos(0,8,8)),
     argv=[Token(ESC,"set",...), Token(ESC,"x",...), Token(ESC,"42",...)],
@@ -1152,7 +1157,7 @@ SegmentedCommand(
 The lowerer pattern-matches `set` with two arguments where the second argument
 is a single-token constant:
 
-```python
+```
 IRModule(
     top_level=IRScript(statements=(
         IRAssignConst(
@@ -1272,7 +1277,7 @@ the token text is the bare variable name.
 
 Two `SegmentedCommand` objects:
 
-```python
+```
 # Command 1: set x 42
 SegmentedCommand(
     texts=["set", "x", "42"],
@@ -1291,7 +1296,7 @@ In command 2, `texts[2]` is `"${x}"` — the segmenter wraps `VAR` tokens in
 
 ### Stage 3 — IR Lowering
 
-```python
+```
 IRScript(statements=(
     IRAssignConst(name="x", value="42"),
     IRAssignValue(name="y", value="${x}"),     # has variable reference
@@ -1350,7 +1355,7 @@ expr {2 + 3}
 
 The `expr` command with a braced body triggers expression parsing:
 
-```python
+```
 IRScript(statements=(
     IRExprEval(
         range=Range(...),
@@ -1400,7 +1405,7 @@ expr {$a + $b}
 
 ### Stage 3 — IR Lowering
 
-```python
+```
 IRScript(statements=(
     IRAssignConst(name="a", value="10"),
     IRAssignConst(name="b", value="20"),
@@ -1472,7 +1477,7 @@ if {$x} {
 
 ### Stage 3 — IR Lowering
 
-```python
+```
 IRScript(statements=(
     IRAssignConst(name="x", value="1"),
     IRIf(
@@ -1560,7 +1565,7 @@ SCCP determines:
 - The branch condition is constant `true` → `if_next_4` is unreachable.
 
 This produces a `ConstantBranch`:
-```python
+```
 ConstantBranch(
     block="entry_1",
     condition="$x",
@@ -1617,7 +1622,7 @@ if {1} {
 
 ### Stage 3 — IR Lowering
 
-```python
+```
 IRIf(
     clauses=(
         IRIfClause(
@@ -1673,7 +1678,7 @@ if {$x < 0} {
 
 ### Stage 3 — IR Lowering
 
-```python
+```
 IRIf(
     clauses=(
         IRIfClause(
@@ -1787,7 +1792,7 @@ while {$i < 5} {
 
 ### Stage 3 — IR Lowering
 
-```python
+```
 IRScript(statements=(
     IRAssignConst(name="i", value="0"),
     IRWhile(
@@ -1890,7 +1895,7 @@ for {set i 0} {$i < 10} {incr i} {
 
 ### Stage 3 — IR Lowering
 
-```python
+```
 IRFor(
     init=IRScript((IRAssignConst(name="i", value="0"),)),
     condition=ExprBinary(op=BinOp.LT,
@@ -1972,7 +1977,7 @@ foreach item {a b c} {
 
 ### Stage 3 — IR Lowering
 
-```python
+```
 IRForeach(
     iterators=((("item",), "{a b c}"),),
     body=IRScript((IRAssignValue(name="x", value="${item}"),)),
@@ -1985,7 +1990,7 @@ IRForeach(
 At top level, `foreach` is **not** inlined into a loop CFG.  Instead, it is
 emitted as an opaque `IRCall`:
 
-```python
+```
 CFGBlock(
     statements=[
         IRCall(command="foreach", args=("item", "{a b c}", "\n    set x $item\n"),
@@ -2030,7 +2035,7 @@ proc add {a b} {
 
 ### Stage 3 — IR Lowering
 
-```python
+```
 IRModule(
     top_level=IRScript(statements=()),   # proc def is extracted
     procedures={
@@ -2109,8 +2114,8 @@ the command registry.  Here is how each command contributes:
 
 **`HTTP::header`** — the `value` subcommand is a taint source:
 
-```python
-# From irules/http_header.py (simplified)
+```
+# From rust/tcl-registry/src/commands/irules/ (simplified)
 CommandSpec(
     name="HTTP::header",
     subcommands={
@@ -2140,7 +2145,7 @@ TaintHint(
 
 **`HTTP::respond`** — the `content` argument is a taint sink:
 
-```python
+```
 # TaintSinkSpec for HTTP::respond body content:
 TaintSinkSpec(
     code="IRULE3001",               # XSS diagnostic code
@@ -2150,7 +2155,7 @@ TaintSinkSpec(
 
 **`string tolower`** — a pure command, but *not* a sanitiser:
 
-```python
+```
 SubCommand(
     name="tolower",
     arity=Arity(1, 3),
@@ -2162,7 +2167,7 @@ SubCommand(
 
 ### Stage 3 — IR Lowering
 
-```python
+```
 IRModule(
     top_level=IRScript(statements=()),
     procedures={
@@ -2203,7 +2208,7 @@ A single straight-line block (no control flow):
 
 ### Taint propagation
 
-The taint engine (`_propagation.py`)
+The taint engine (`rust/tcl-compiler/src/optimiser/propagation.rs`)
 walks the SSA graph and computes a `TaintLattice` for each SSA value key:
 
 1. **`("host", 1)`** — the `[HTTP::header value Host]` command substitution
@@ -2234,7 +2239,7 @@ walks the SSA graph and computes a `TaintLattice` for each SSA value key:
 
 ### Taint warning emitted
 
-```python
+```
 TaintWarning(
     range=Range(Pos(3,4,...), Pos(3,55,...)),   # HTTP::respond line
     variable="lower",
@@ -2315,7 +2320,7 @@ puts $result
 
 ### Stage 3 — IR Lowering
 
-```python
+```
 IRModule(
     top_level=IRScript(statements=(
         IRAssignValue(name="result", value="[double 21]"),
@@ -2340,7 +2345,7 @@ IRModule(
 
 ### Interprocedural analysis
 
-The `InterproceduralAnalysis` pass (`interprocedural.py`) builds summaries
+The `InterproceduralAnalysis` pass (`rust/tcl-compiler/src/interprocedural.rs`) builds summaries
 for each procedure.  For `::double`:
 
 1. The body is a single `expr {$n * 2}` in tail position.
@@ -2353,7 +2358,7 @@ for each procedure.  For `::double`:
 ### Optimisation pass — O103
 
 `optimise_static_proc_calls()` in
-`_propagation.py:459`:
+`rust/tcl-compiler/src/optimiser/propagation.rs`:
 
 1. Encounters the `[double 21]` command substitution token.
 2. Resolves `double` → qualified name `::double`.
@@ -2363,7 +2368,7 @@ for each procedure.  For `::double`:
 6. Gets back `"42"`.
 7. Emits:
 
-```python
+```
 Optimisation(
     code="O103",
     message="Fold static procedure call",
@@ -2411,7 +2416,7 @@ immediately overwritten.
 ### Optimisation pass — O125
 
 `optimise_code_sinking()` in
-`_code_sinking.py:510`:
+`rust/tcl-compiler/src/optimiser/code_sinking.rs`:
 
 1. **Sinkability check** (`_is_sinkable()`): `IRAssignConst(name="msg", value="Request denied")`
    is sinkable — it is a simple constant assignment with no command
@@ -2427,7 +2432,7 @@ immediately overwritten.
 4. **Emission** (`_emit_sinking_opts()`): emits a grouped pair of O125
    optimisations:
 
-```python
+```
 # Part 1: Comment out the original statement
 Optimisation(
     code="O125",
@@ -2490,7 +2495,7 @@ single event), so the second call is redundant.
 ### GVN pass — O105
 
 `find_redundant_computations()` in
-`gvn.py`:
+`rust/tcl-compiler/src/gvn.rs`:
 
 1. **Purity check** (`_is_pure_command()`): looks up `HTTP::uri` in the
    command registry → `CommandSpec.pure = True`, `cse_candidate = True`.
@@ -2507,7 +2512,7 @@ single event), so the second call is redundant.
 
 5. **Emission**:
 
-```python
+```
 RedundantComputation(
     range=Range(Pos(4,28,...), Pos(4,40,...)),    # second [HTTP::uri]
     first_range=Range(Pos(1,8,...), Pos(1,20,...)),  # first [HTTP::uri]
@@ -2566,13 +2571,13 @@ proc compute {x} {
 ### Elimination passes
 
 `optimise_elimination_passes()` in
-`_elimination.py`:
+`rust/tcl-compiler/src/optimiser/elimination.rs`:
 
 **O109 — Dead Store Elimination:**
 `unused₁` is assigned but never read.  The assignment `set unused 99` is
 a dead store:
 
-```python
+```
 Optimisation(
     code="O109",
     message="Dead store: unused is set but never read",
@@ -2653,7 +2658,7 @@ SCCP determines `debug₁ = CONST("0")` → the `if` condition is always
 false → the body is unreachable.
 
 `optimise_structure_elimination()` in
-`_structure_elimination.py`
+`rust/tcl-compiler/src/optimiser/structure_elimination.rs`
 replaces the entire `if {$debug} { ... }` block with nothing (O112),
 and a grouped O109 removes the dead `set debug 0`:
 
@@ -2705,7 +2710,7 @@ end of the line without a matching `]`.
 
 ### Stage 0 — Error recovery
 
-`recovery.py` runs a first-pass parse via
+`rust/tcl-compiler/src/segmenter.rs` runs a first-pass parse via
 `segment_commands()`.  The segmenter detects that the `CMD` token starting
 at `[` is unterminated (the character after the CMD text is not `]`).
 
@@ -2715,7 +2720,7 @@ signals that `]` should be inserted at the end of line 1.
 
 A `VirtualToken` is created:
 
-```python
+```
 VirtualToken(
     offset=29,        # end of "hello" on line 1
     char="]",         # the missing delimiter
@@ -2736,7 +2741,7 @@ VirtualToken(
 produces a clean `CMD` token.  The second parse yields two well-formed
 `SegmentedCommand` objects:
 
-```python
+```
 # Command 1 (recovered):
 SegmentedCommand(texts=["set", "x", '[string length "hello"]'])
 
@@ -2782,7 +2787,7 @@ ExprToken(NUM, "2")
 ```
 
 **Pratt parsing** (`_PrattParser` in
-`expr_parser.py`):
+`rust/tcl-syntax/src/expr/parser.rs`):
 
 The parser uses binding powers to handle precedence:
 - `*` has binding power (22, 23) — higher than `+` at (20, 21).
@@ -2790,7 +2795,7 @@ The parser uses binding powers to handle precedence:
 
 Result:
 
-```python
+```
 ExprBinary(
     op=BinOp.ADD,
     left=ExprVar(text="$a", name="a"),
@@ -2816,7 +2821,7 @@ The expression parser receives a string with *already-substituted*
 variable references, but since it cannot know the runtime values, it
 falls back to:
 
-```python
+```
 ExprRaw(text="${a} + ${b} * 2")
 ```
 
@@ -2844,7 +2849,7 @@ precedence as their symbolic counterparts:
 ## Example 22: Lowering dispatch — `arg_roles` and command classification
 
 Shows how `_lower_command()` in
-`lowering.py` dispatches each command to
+`rust/tcl-compiler/src/lowering/mod.rs` dispatches each command to
 the appropriate IR node using registry metadata.
 
 ### Dispatch hierarchy
@@ -2876,7 +2881,7 @@ _lower_command(cmd)
 ### Example: `lower_set()` — the `set` lowering hook
 
 `set` has a registered lowering hook
-(`_var.py:53`).
+(`rust/tcl-compiler/src/var_refs.rs`).
 It pattern-matches on the second argument's token type:
 
 | Token type of `args[1]` | IR node produced | Example |
@@ -2898,14 +2903,14 @@ regexp {(\d+)} $input match submatch
 The registry declares `ArgRole.VAR_NAME` at arg indices 2 and 3 (the
 match variables).  The fallthrough path calls:
 
-```python
+```
 var_indices = arg_indices_for_role("regexp", args, ArgRole.VAR_NAME)
 # → {2, 3}  (match, submatch)
 ```
 
 This produces:
 
-```python
+```
 IRCall(
     command="regexp",
     args=(r"(\d+)", "${input}", "match", "submatch"),
@@ -2925,7 +2930,7 @@ always produce `IRBarrier`:
 eval $script
 ```
 
-```python
+```
 IRBarrier(
     range=Range(...),
     reason="dynamic command",
@@ -2959,12 +2964,12 @@ proc process {items} {
 ### Execution intent construction
 
 `build_execution_intent()` in
-`execution_intent.py` walks each
+`rust/tcl-compiler/src/execution_intent.rs` walks each
 `IRAssignValue` in the CFG and parses the command substitution:
 
 **`[llength $items]`:**
 
-```python
+```
 CommandSubstitutionIntent(
     command="llength",
     args=("$items",),
@@ -2977,7 +2982,7 @@ CommandSubstitutionIntent(
 
 **`[format "Total: %d" $count]`:**
 
-```python
+```
 CommandSubstitutionIntent(
     command="format",
     args=('"Total: %d"', "$count"),
@@ -2990,7 +2995,7 @@ CommandSubstitutionIntent(
 
 **`[http::geturl $url]`:**
 
-```python
+```
 CommandSubstitutionIntent(
     command="http::geturl",
     args=("$url",),
@@ -3038,7 +3043,7 @@ walking the IR:
 
 **`::helper`:**
 
-```python
+```
 ProcLocalSummary(
     qualified_name="::helper",
     params=("x",),
@@ -3058,7 +3063,7 @@ ProcLocalSummary(
 
 **`::main`:**
 
-```python
+```
 ProcLocalSummary(
     qualified_name="::main",
     params=("a", "b"),
@@ -3097,7 +3102,7 @@ When the optimiser encounters `[helper 21]` with a constant argument,
 
 ### Final `ProcSummary`
 
-```python
+```
 ProcSummary(
     qualified_name="::helper",
     params=("x",),
@@ -3152,12 +3157,12 @@ positives: `W103` (read before set) for `$request_count` and
 ### EventVarSummary construction
 
 `_extract_event_summary()` in
-`connection_scope.py` walks
+`rust/tcl-compiler/src/connection_scope.rs` walks
 each event's SSA blocks:
 
 **CLIENT_ACCEPTED:**
 
-```python
+```
 EventVarSummary(
     event="CLIENT_ACCEPTED",
     defs=frozenset({"conn_start", "request_count"}),
@@ -3168,7 +3173,7 @@ EventVarSummary(
 
 **HTTP_REQUEST:**
 
-```python
+```
 EventVarSummary(
     event="HTTP_REQUEST",
     defs=frozenset({"request_count"}),      # incr defines it
@@ -3185,7 +3190,7 @@ EventVarSummary(
 - `HTTP_REQUEST` uses-before-def `{request_count, conn_start}`.
 - Intersection: `{conn_start, request_count}` — these flow across events.
 
-```python
+```
 ConnectionScope(
     summaries={...},
     cross_event_defs=frozenset({"conn_start", "request_count"}),
@@ -3220,9 +3225,9 @@ mylib::compute 5
 
 ### `normalise_qualified_name()` — the core helper
 
-`naming.py` provides the canonical form:
+`rust/tcl-syntax/src/naming.rs` provides the canonical form:
 
-```python
+```
 normalise_qualified_name("helper")       → "::helper"
 normalise_qualified_name("::helper")     → "::helper"
 normalise_qualified_name("mylib::helper") → "::mylib::helper"
@@ -3259,7 +3264,7 @@ walking up the namespace hierarchy.
 
 ### Resulting IR module
 
-```python
+```
 IRModule(
     procedures={
         "::mylib::helper": IRProcedure(name="helper", ...),
@@ -3292,7 +3297,7 @@ proc abs {n} {
 The `_Emitter` constructor creates a `LocalVarTable` from the
 parameter list:
 
-```python
+```
 LocalVarTable(params=("n",))
 # LVT slots: %v0 = "n"
 ```
@@ -3348,7 +3353,7 @@ _place_label("L_end")         → if_end_2
 
 ### Step 4 — Jump size optimisation (`optimise_jumps()`)
 
-`layout.py` iterates up to 10
+`rust/tcl-bytecode/src/layout.rs` iterates up to 10
 times, replacing 4-byte jumps with 1-byte jumps when the relative
 offset fits in [-128, 127]:
 
@@ -3368,7 +3373,7 @@ which may enable more shortenings — hence the iterative approach.
 
 Final pass assigns concrete byte offsets:
 
-```python
+```
 label_offsets = resolve_layout(instrs, labels)
 # {"entry_1": 0, "if_then_3": 8, "L_else": 14, "L_end": 16}
 ```
@@ -3394,7 +3399,7 @@ Jump operands are patched from label names to relative byte offsets.
 
 The `LiteralTable` interns strings as they are referenced:
 
-```python
+```
 LiteralTable entries:
   0 = "n"     (parameter name, also used in loadScalar1)
   1 = "0"     (comparison constant)
@@ -3440,11 +3445,11 @@ when HTTP_REQUEST {
 
 ### `classify_side_effects()` for each command
 
-`side_effects.py:561`:
+`rust/tcl-compiler/src/side_effects.rs`:
 
 **`HTTP::uri` (getter form):**
 
-```python
+```
 CommandSideEffects(
     effects=(
         SideEffect(
@@ -3464,7 +3469,7 @@ CommandSideEffects(
 
 **`HTTP::header replace Host "example.com"` (setter form):**
 
-```python
+```
 CommandSideEffects(
     effects=(
         SideEffect(
@@ -3485,7 +3490,7 @@ CommandSideEffects(
 
 **`pool my_pool`:**
 
-```python
+```
 CommandSideEffects(
     effects=(
         SideEffect(
@@ -3504,7 +3509,7 @@ CommandSideEffects(
 
 **`log local0. "Routing $uri"`:**
 
-```python
+```
 CommandSideEffects(
     effects=(
         SideEffect(
@@ -3598,7 +3603,7 @@ appear instantly and others arrive after a brief delay.
 ### Phase 1 — Basic diagnostics (fast, synchronous)
 
 `get_basic_diagnostics()` in
-`diagnostics.py:703` runs on every
+`rust/tcl-compiler/src/analyser/diagnostics/` runs on every
 keystroke and returns immediately.  It produces:
 
 ```
@@ -3638,7 +3643,7 @@ the raw source text for formatting issues.
 ### Phase 2 — Deep diagnostics (expensive, background thread)
 
 `get_deep_diagnostics()` in
-`diagnostics.py:883` runs in a
+`rust/tcl-compiler/src/analyser/diagnostics/` runs in a
 background thread via `asyncio.to_thread` to avoid blocking the editor.
 It reuses the `CompilationUnit` from Phase 1 (shared IR, CFG, SSA,
 and analysis results).
@@ -3687,7 +3692,7 @@ CompilationUnit (shared)
 ### Async scheduling and cancellation
 
 The `DiagnosticScheduler` in
-`async_diagnostics.py` manages the
+`rust/tcl-lsp-server/src/lib.rs` manages the
 lifecycle of deep diagnostic tasks:
 
 ```
@@ -3812,10 +3817,10 @@ Source text  ──────────────────────�
 ```
 
 Each stage transforms the data into a richer representation:
-1. **Tokens** — flat character-level classification (`tokens.py:33`)
-2. **SegmentedCommand** — word-level grouping with command boundaries (`command_segmenter.py:62`)
-3. **IR nodes** — typed, structured command semantics (`ir.py:609`)
-4. **CFG blocks** — explicit control flow with terminators (`cfg.py:473`)
-5. **SSA** — variable versioning with phi nodes at merge points (`ssa.py:633`)
-6. **FunctionAnalysis** — constant values, types, liveness, dead stores (`core_analyses.py:426`)
-7. **Bytecode** — executable instruction stream with literal/variable tables (`codegen/bytecode/_types.py:106`)
+1. **Tokens** — flat character-level classification (`rust/tcl-lexer/src/tokens.rs`)
+2. **SegmentedCommand** — word-level grouping with command boundaries (`rust/tcl-compiler/src/segmenter.rs`)
+3. **IR nodes** — typed, structured command semantics (`rust/tcl-compiler/src/ir.rs`)
+4. **CFG blocks** — explicit control flow with terminators (`rust/tcl-compiler/src/cfg.rs`)
+5. **SSA** — variable versioning with phi nodes at merge points (`rust/tcl-compiler/src/ssa.rs`)
+6. **FunctionAnalysis** — constant values, types, liveness, dead stores (`rust/tcl-compiler/src/analyses.rs`)
+7. **Bytecode** — executable instruction stream with literal/variable tables (`rust/tcl-bytecode/src/format.rs`)

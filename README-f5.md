@@ -307,15 +307,19 @@ Worked how-tos, each a KCS note:
 
 ## Scripting the query engine from Python (`f5q`)
 
-The query engine is also importable. Drive it from a Python script via the
-`f5q` alias, get typed `ObjectRef` / `PathRef` results back, render with a
-built-in plugin, or ship your own renderer in one `@renderer` decorator — see
-[kcs-howto-script-against-f5-query-from-python.md](docs/kcs/kcs-howto-script-against-f5-query-from-python.md)
-and [kcs-feature-f5-query-renderers.md](docs/kcs/features/kcs-feature-f5-query-renderers.md).
+The query engine is also importable. The package is `f5report` under
+`rust/bigip-report-gen/python`, backed by the native `_engine` extension, so
+the Python surface and the `f5` binary share one implementation:
 
-The Python package is `f5report` under `rust/bigip-report-gen/python`, backed by
-the native `_engine` extension — so the Python surface and the `f5` binary share
-one implementation.
+```python
+import f5report
+sources = f5report.load_paths(["device-01.ucs"])
+pools = f5report.query('.ltm.pool[]', sources)
+html = f5report.build_report(sources)
+```
+
+The renderers are the same set the CLI exposes — see
+[kcs-feature-f5-query-renderers.md](docs/kcs/features/kcs-feature-f5-query-renderers.md).
 
 ## BIG-IP report generator
 

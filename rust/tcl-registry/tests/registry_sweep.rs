@@ -1209,10 +1209,10 @@ fn family_string_dict_list_ops() {
 /// "bad option \"-stride\"". So in *real* Tcl, `lsearch -stride` is **9.0-only**
 /// (distinct from `lsort -stride`, which is genuinely 8.6+ / TIP 351).
 ///
-/// FIXED: the registry previously modelled `lsearch -stride` as Tcl **8.6+**
-/// (`commands/tcl/lsearch_.rs` gated it to `TCL86_PLUS` with a comment wrongly
-/// copied from `lsort`'s TIP 351 `-stride`). It is now gated to `TCL90`, so
-/// `switch_names(TCL86)` no longer reports it — matching tclsh8.6.14.
+/// `commands/tcl/lsearch_.rs` therefore gates `-stride` to `TCL90`, not to
+/// `TCL86_PLUS`: the 8.6+ switch of that name is `lsort`'s TIP 351 `-stride`,
+/// a different command's option. So `switch_names(TCL86)` does not report it —
+/// matching tclsh8.6.14.
 #[test]
 fn lsearch_stride_version_gating() {
     let reg = CommandRegistry::build_default();

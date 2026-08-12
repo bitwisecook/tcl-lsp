@@ -1,10 +1,8 @@
-# KCS: IR lowering contracts
+# IR lowering contracts
 
-## Symptom
-
-Later passes disagree on command/argument interpretation, especially around substitutions and variable forms.
-
-## Context
+What lowering guarantees about the IR it produces — ranges, token snapshots,
+degradation for dynamic constructs, and name qualification — so that CFG
+construction, SSA, the passes, and codegen all read a command the same way.
 
 `lower_to_ir()` translates segmented Tcl commands to a typed IR. This is the first stable semantic layer many passes rely on.
 

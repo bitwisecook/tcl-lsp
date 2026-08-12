@@ -1,4 +1,4 @@
-# KCS: O125 — Code sinking into decision blocks
+# O125 — Code sinking into decision blocks
 
 ## Summary
 

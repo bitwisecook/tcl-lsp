@@ -1,12 +1,10 @@
-# KCS: execution-intent model
+# Execution intent model
 
-## Symptom
+The per-function intent facts recorded for command substitutions — invocation
+shape, substitution kind, side-effect and escape class, and shimmer pressure —
+and how a consumer reads them instead of re-parsing substitution text.
 
-Passes repeatedly parse command-substitution text to infer runtime intent (shape, substitution kind, and risk), leading to drift and duplicated heuristics.
-
-## Context
-
-`CompilationUnit` now carries `FunctionExecutionIntent` facts per function, built once from CFG statements during `compile_source()`.
+`CompilationUnit` carries `FunctionExecutionIntent` facts per function, built once from CFG statements during `compile_source()`.
 
 ## Current intent facets
 
