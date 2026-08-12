@@ -1,0 +1,8 @@
+# External corpus — reconstitute with fetch_corpus.sh. Shallow clones of the
+# projects listed in issue #1181, used to rank which Tcl commands the AOT WASM
+# backend should emit directly. Hundreds of megabytes; never committed.
+aplsimple/
+eda/
+georgtree/
+nico-robert/
+tcltk/
