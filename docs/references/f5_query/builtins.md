@@ -1581,9 +1581,9 @@ Parse a JSON-encoded string into a value (jq's ``fromjson``).
 **Details**
 
 Matches jq's ``fromjson``: parses *value* as JSON and returns
-the resulting Python value.  Numbers become int / float, strings
-quote, booleans pass through, ``null`` becomes Python ``None``,
-arrays become lists, objects become dicts.
+the resulting DSL value.  Numbers become int / float, strings
+stay strings, booleans pass through, ``null`` becomes the DSL's
+``Null``, arrays become lists, objects become dicts.
 
 Raises ``BuiltinError`` on malformed input.
 
@@ -2203,10 +2203,10 @@ Uppercase a string.
 
 **Details**
 
-Returns *value* with every ASCII letter converted to uppercase.
+Returns *value* with every letter converted to uppercase.
 Accepts :class:`PathRef`; the result is a plain string (the path
-is normalised).  Use locale-aware casing helpers in Python if
-you need them — this wrapper just calls ``str.upper``.
+is normalised).  This is not locale-aware casing (e.g. Turkish
+dotless i) — this wrapper just calls Rust's ``str::to_uppercase``.
 
 Related: ``downcase``.
 

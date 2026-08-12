@@ -23,10 +23,9 @@
 //! from the canonical diagnostic table by `cargo xtask gen-ai-diagnostics`,
 //! alongside `ai/shared/diagnostics.json`; the drift gate checks both files.
 //!
-//! The convertible-code set and conversion map used to be a second copy
-//! here too (byte-identical to `tcl-cli`'s `find-legacy` table) — that data
-//! now comes straight from `tcl_cli::{CONVERTIBLE_CODES, conversion_for}`
-//! instead ([`crate::tools::find_legacy`]).
+//! The convertible-code set and conversion map are deliberately not copied
+//! here: that data comes straight from
+//! `tcl_cli::{CONVERTIBLE_CODES, conversion_for}` ([`crate::tools::find_legacy`]).
 
 use std::collections::{HashMap, HashSet};
 use std::sync::OnceLock;

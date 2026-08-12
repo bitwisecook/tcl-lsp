@@ -1,7 +1,17 @@
 # Runtime namespace tree
 
-Status: **design / pre-implementation**. Implementers: see the per-
-phase migration table at the bottom before writing code.
+The namespace tree in the WASM runtime (`runtime/rust/src/namespace.rs`):
+parent/child links, per-namespace command and variable tables, explicit path
+and export lists — so that command and variable resolution matches Tcl 9
+semantics. Section numbers here are cited from the runtime source
+(`namespace.rs`, `cmd_namespace.rs`, `cmd_var.rs`, `vars.rs`, `frame.rs`), so
+keep them stable.
+
+The *contract* the tree implements is
+[`../contracts/command-resolution.md`](../contracts/command-resolution.md)
+(commands, conformance-vector gated) and
+[`../contracts/runtime-variable-frame-model.md`](../contracts/runtime-variable-frame-model.md)
+(variables).
 
 Source of truth for the C semantics we're mirroring is Tcl 9.0.3 in
 `tmp/tcl9.0.3/.git` — read with `git -C tmp/tcl9.0.3 show HEAD:generic/<file>`.
@@ -537,7 +547,7 @@ Deliberate C-parity gaps:
 - We don't rehash on `cmdEpoch` — compiled procs have stable bucket
   addresses and interpreted bodies re-resolve every call anyway.
 
-### 5.3 Variable resolution (P3)
+### 5.3 Variable resolution 
 
 Follows exactly the same shape — `ns_resolve_qualified` to find the
 containing ns, then walk into `var_table`.  The frame-local alias
@@ -547,39 +557,30 @@ address of a `Var` in some ns's `var_table` is a `VAR_LINK`
 equivalent.  P3.3 wires `variable` / `global` to populate that
 exact shape.
 
-## 6. Per-phase migration order
+## 6. Implementation map
 
-Phases P1→P5 of the runtime plan map directly onto this design.
-Each row is a separate PR, 100-300 LOC, with `make prep-pr` green at
-every commit.  Source: `/root/.claude/plans/plan-out-and-fix-floofy-gadget.md`.
+| Concern | Where |
+|---|---|
+| `Namespace` struct, root namespace, tree lookup/create | `runtime/rust/src/namespace.rs` |
+| Current-namespace stash (`tcl_ns_set` / `tcl_ns_restore`), per-frame `ns` | `runtime/rust/src/interp.rs`, `frame.rs` |
+| Qualified-name resolution (`ns_resolve_qualified`) | `runtime/rust/src/namespace.rs` |
+| Command lookup through the tree, the path, and the root (`ns_find_command`, `Namespaces::home_of`) | `runtime/rust/src/namespace.rs`, `cmd_namespace.rs` |
+| Per-namespace variable tables; `variable` / `global` / `upvar` links | `runtime/rust/src/vars.rs`, `frame.rs` |
+| Export patterns, import redirects, `namespace forget`, import back-links | `runtime/rust/src/namespace.rs` |
+| `namespace path` and the command-reference epoch that invalidates cached lookups | `runtime/rust/src/namespace.rs` |
 
-| Sub-PR | What changes (files) | Observable behaviour |
-|---|---|---|
-| P1.1 | `docs/design/runtime/namespace-tree.md` (this doc) | None |
-| P1.2 | new `runtime/rust/src/namespace.rs` — `Namespace` struct, `root_ns`, `ns_root()`, `ns_lookup(parent, name)`, `ns_create(parent, name)` | None — no existing caller uses it yet |
-| P1.3 | `interp.rs` — `tcl_ns_set` / `tcl_ns_restore` stash a `*Namespace` instead of an FQN string; `frame.rs` frame header gains `ns: u32` | `[namespace current]` still returns the same FQN string (materialised from the struct) |
-| P1.4 | `namespace.rs` — `ns_resolve_qualified` and tests against fixture FQNs | None — internal API |
-| P2.1 | `cmd_proc.rs` — `proc_register` dual-writes: still hits the flat `proc_table`, AND also inserts a `Command` into `current_ns.cmd_table` | None; reads still flat |
-| P2.2 | `cmd_proc.rs` — `proc_lookup` tries `ns_find_command(current_ns, name)` first, then the flat table's suffix-scan hack as fallback | Bundles with `namespace eval` blocks start resolving through the tree; nothing that worked before breaks |
-| P2.3 | `cmd_proc.rs` — delete the suffix-scan fallback in `proc_lookup` | Any caller that relied on suffix-matching now has to qualify — no tests currently do |
-| P2.4 | `cmd_proc.rs` — delete flat `proc_table` entirely; `proc_register` writes only to `cmd_table`; the 4-slot LRU cache in `proc_lookup` is rebuilt against the new walk | Bucket ABI unchanged; compiled procs unaffected |
-| P3.1 | `namespace.rs` — `Var` struct + `Namespace.var_table` lookup helpers; root ns's `var_table` becomes the new storage for globals | None; the globals API still owns the public API |
-| P3.2 | the globals API — `global_set` / `global_get` / `global_exists` forward to `root_ns.var_table` | None |
-| P3.3 | `interp.rs` — `variable` / `global` write `VAR_LINK` entries into the current frame pointing at `Var`s inside the target ns `var_table`; test-frames also exercise `upvar` through this path | `variable x` inside a `namespace eval` now resolves to the right ns's var, matching tclsh |
-| P3.4 | the globals API — removed; the few remaining direct callers migrate to `namespace.rs` helpers | Internal-only; no ABI change to the compiler |
-| P4.1 | `namespace.rs` — `ns_export(ns, pattern)` appends to `export_patterns` | `namespace export` works; `namespace import` still stubs |
-| P4.2 | `namespace.rs` — `ns_import(dest, src_pat)` walks source `cmd_table`, matches patterns, inserts redirect `Command`s with `ImportedCmdData` in dest `cmd_table` | `namespace import ::src::*` resolves calls into the source ns |
-| P4.3 | `namespace.rs` — every import inserts an `ImportRef` node into the source command's `import_ref_head` | Internal; sets up invalidation |
-| P4.4 | `namespace.rs` — `namespace forget pattern` walks redirects and removes matching entries (plus unlinks from `import_ref_head`) | `namespace forget` actually un-imports |
-| P5.1 | `namespace.rs` — `Namespace.path_array` + `Namespace.path_source_head`; `[namespace path]` builtin populates + splices entries | `[namespace path {a b}]` sets the path; lookups don't use it yet |
-| P5.2 | `cmd_proc.rs` / `namespace.rs` — `ns_find_command` consults `path_array` between context-ns and root | Resolution uses the path; matches tclsh on `namespace path` cases |
-| P5.3 | `namespace.rs` — `cmd_ref_epoch` bumped in `ns_add_command` / `ns_remove_command` + cascaded through `path_source_head`; LRU in `proc_lookup` keyed partly on the source ns's epoch | Invalidation correctness; no observable change unless a cached entry points at a stale cmd |
+Two invariants that fall out of the layout and are easy to break:
 
-The compiled `tcl-runtime` wasm artefact is no longer checked in —
-`shared.runtime_wasm.runtime_wasm_path()` locates it and builds it on
-first call when missing (the Rust runtime's Cargo build under
-`runtime/rust/`), so downstream bundle tests pick up the right binary
-on a fresh checkout without anyone manually committing it.
+- **The global frame's variable table *is* the root namespace's**, so a level-0
+  frame target is canonicalised to the root namespace at the link site rather
+  than kept as a frame reference.
+- **A command-reference epoch is bumped on every add/remove and cascaded
+  through the path back-links**, and any resolution cache is keyed partly on
+  it. Coarse-but-correct invalidation beats a clever partial one.
+
+The compiled `tcl-runtime` WASM artefact is not checked in; it is built from
+`runtime/rust/` on demand, so a fresh checkout picks up the right binary
+without anyone committing one.
 
 ## 7. Rust API surface
 
@@ -589,7 +590,7 @@ addresses, consistent with the rest of the runtime).  `[]const u8`
 means `(ptr, len)` pair — the slice ABI the other runtime
 modules already use.
 
-### Core tree (P1.2)
+### Core tree 
 
 ```
 /// Return the root (global) namespace.  Always non-zero after the
@@ -606,7 +607,7 @@ pub fn ns_lookup(parent: u32, name: []const u8) u32;
 pub fn ns_create(parent: u32, name: []const u8) u32;
 ```
 
-### Current-ns stash (P1.3)
+### Current-ns stash 
 
 ```
 /// Current namespace for the innermost active frame — equivalent to
@@ -622,7 +623,7 @@ pub fn ns_current() u32;
 #[no_mangle] pub extern "C" fn tcl_ns_restore(saved: u32);
 ```
 
-### FQN walker (P1.4)
+### FQN walker 
 
 ```
 pub const QualifiedResult = struct {
@@ -647,7 +648,7 @@ pub fn ns_resolve_qualified_creating(
 ) QualifiedResult;
 ```
 
-### Command table (P2)
+### Command table 
 
 ```
 /// Insert or update a command in ``ns.cmd_table``.  Bumps
@@ -660,7 +661,7 @@ pub fn ns_add_command(ns: u32, name: []const u8) u32;
 pub fn ns_find_command(cxt: u32, name: []const u8) u32;
 ```
 
-### Variable table (P3)
+### Variable table 
 
 ```
 pub fn ns_var_find(ns: u32, name: []const u8) u32;
@@ -670,7 +671,7 @@ pub fn ns_var_create(ns: u32, name: []const u8) u32;
 pub fn var_resolve_link(v: u32) u32;
 ```
 
-### Import / export (P4)
+### Import / export 
 
 ```
 pub fn ns_export(ns: u32, pattern: []const u8) void;
@@ -683,7 +684,7 @@ pub fn ns_forget(dest: u32, src_pat: []const u8) void;
 pub fn ns_export_matches(ns: u32, name: []const u8) bool;
 ```
 
-### Path (P5)
+### Path 
 
 ```
 pub fn ns_set_path(ns: u32, targets: []const u32) void;
@@ -706,15 +707,11 @@ pub fn ns_each_variable(ns: u32, ctx: anytype, comptime visit: fn (@TypeOf(ctx),
 pub fn ns_each_child(ns: u32, ctx: anytype, comptime visit: fn (@TypeOf(ctx), u32) void) void;
 ```
 
-### What `cmd_proc.rs` / the globals API keep exporting
+### The ABI compiled code depends on
 
-Unchanged ABI for existing callers:
-
-- `proc_register` / `proc_register_compiled` / `proc_lookup` / the
-  `proc_get_*` accessors — the compiler-emitted code still uses
-  them verbatim.  Implementation flips underneath per the P2 table.
-- `global_set` / `global_get` / `global_exists` — forwarded to
-  `root_ns.var_table` in P3.2, removed in P3.4.
+`proc_register` / `proc_register_compiled` / `proc_lookup` and the
+`proc_get_*` accessors are used verbatim by compiler-emitted code, so their
+signatures are fixed regardless of how the lookup is implemented underneath.
 
 ## 8. Open questions
 

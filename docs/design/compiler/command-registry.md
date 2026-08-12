@@ -5,18 +5,21 @@ how definitions are registered per dialect, and which passes consume the
 result. Read this when adding a command definition, or when arity, taint,
 or purity information is not reaching a downstream pass.
 
-Every Tcl command is defined as a `CommandDef` subclass whose `spec()`
-classmethod returns a `CommandSpec`.  The `@register` decorator adds
-definitions to a dialect's registry list, and the singleton
-`CommandRegistry` merges specs into a unified lookup table.  Core specs
-(Tcl, stdlib, tcllib) are always present; dialect-specific packs (Tk,
-iRules, iApps, EDA, Expect) are loaded lazily on first access for that
-dialect.  Registry metadata drives IR lowering, SCCP, GVN, taint,
-side-effects, diagnostics, and code completion.
+Every Tcl command is defined in its own module under
+`rust/tcl-registry/src/commands/<dialect>/<name>.rs`, which exposes a
+single `pub fn spec() -> CommandSpec` returning a struct literal.  Each
+dialect's `mod.rs` collects those into a `Vec<CommandSpec>` from one
+`<dialect>_command_specs()` function, and `CommandRegistry` merges the
+vectors into a unified lookup table.  Core specs (Tcl, stdlib, tcllib)
+are always present; dialect-specific packs (Tk, iRules, iApps, EDA,
+Expect) are loaded lazily on first access for that dialect.  Registry
+metadata drives IR lowering, SCCP, GVN, taint, side-effects,
+diagnostics, and code completion.
 
-Source: `rust/tcl-registry/src/spec.rs`,
-`rust/tcl-registry/src/command_table.rs`,
-`rust/tcl-registry/src/spec.rs`,
+Source: `rust/tcl-registry/src/spec.rs` (`CommandSpec`, `SubCommand`),
+`rust/tcl-registry/src/registry.rs` (`CommandRegistry`, `build_default`,
+`load_dialect`), `rust/tcl-registry/src/traits.rs` (`Trait`, `Traits`),
+`rust/tcl-registry/src/commands/` (per-command `spec()` modules),
 `rust/tcl-registry/src/taint.rs`
 
 ## Content
@@ -24,45 +27,70 @@ Source: `rust/tcl-registry/src/spec.rs`,
 ### Architecture
 
 ```
-CommandDef subclass (per command)
+commands/<dialect>/<name>.rs (per command)
     |
-    +-> spec() -> CommandSpec
+    +-> pub fn spec() -> CommandSpec
             |
-            +-> forms: tuple[FormSpec, ...]
-            |     +- kind, synopsis, arity, options, pure, mutator, side_effect_hints
+            +-> forms: &'static [FormSpec]
+            |     +- kind, synopsis, dialects
             |
-            +-> subcommands: dict[str, SubCommand]
-            |     +- arity, pure, mutator, return_type, options, taint_transform,
-            |        codegen, lowering, handler, validation_hook, ...
+            +-> subcommands: &'static [SubCommand]
+            |     +- name, arity, traits, return_type, options, taint_transform,
+            |        codegen_hook, lowering_hook, analyser_hook, ...
             |
-            +-> validation: ValidationSpec (overall arity)
+            +-> arity: Arity (overall arity)
             |
-            +-> arg_roles: dict[int, ArgRole]
+            +-> traits: Traits (bitset over Trait -- PURE, CSE_CANDIDATE, ...)
             |
-            +-> taint: TaintHint (source, sinks, setter_constraints)
+            +-> arg_roles: &'static [(u8, ArgRole)]
+            |
+            +-> taint_source / taint_*_sink_* / setter_constraints
             |
             +-> dialects, event_requires, deprecated_replacement, ...
 ```
 
-### CommandDef -- defining a command
+### Defining a command
 
-Each dialect (`tcl/`, `irules/`, `iapps/`, `tk/`) has its own `_REGISTRY`
-list and `@register` decorator (created by `make_registry()` in `command_table.rs`).
+Each dialect (`commands/tcl/`, `commands/irules/`, `commands/iapps/`,
+`commands/tk/`) is a module directory: one file per command, each
+exposing `pub fn spec() -> CommandSpec`, plus a `mod.rs` whose
+`<dialect>_command_specs() -> Vec<CommandSpec>` lists every `spec()` call
+in a `vec![]`.  There is no registration decorator and no per-command
+type — a command exists in a dialect because its `spec()` appears in that
+dialect's vector.
 
-```python
-@register
-class StringCommand(CommandDef):
-    name = "string"
+Most fields come from a base constant via struct-update syntax
+(`..CommandSpec::CLOSED_REFERENTIALLY_TRANSPARENT` below), so a spec
+literal names only what differs from the base.
 
-    @classmethod
-    def spec(cls) -> CommandSpec:
-        return CommandSpec(
-            name="string",
-            forms=(FormSpec(kind=FormKind.DEFAULT, synopsis="string option arg ...", ...),),
-            subcommands={"length": SubCommand(name="length", arity=Arity(1,1), pure=True, ...), ...},
-            validation=ValidationSpec(arity=Arity(1)),
-            cse_candidate=True,
-        )
+```rust
+use crate::hooks::InlineCodegenHookId;
+use crate::prelude::*;
+
+const FORMS: &[FormSpec] = &[FormSpec {
+    kind: FormKind::Default,
+    synopsis: "lindex list ?index ...?",
+    dialects: None,
+}];
+
+pub fn spec() -> CommandSpec {
+    CommandSpec {
+        name: "lindex",
+        dialects: Some(DialectSet::ALL_TCL.union(DialectSet::IRULES)),
+        const_fold: Some(crate::const_fold::fold_lindex),
+        traits: Traits::FRAMELESS_RUNTIME
+            | Traits::NOT_PROC_FACTORY
+            | Traits::BYTE_COMPILED
+            | Traits::PURE
+            | Traits::CSE_CANDIDATE,
+        arity: Arity::at_least(1),
+        return_type: Some(TclType::String),
+        return_elements: Some(ReturnElements::ElementOf { container_arg: 0 }),
+        inline_codegen_hook: Some(InlineCodegenHookId::Lindex),
+        forms: FORMS,
+        ..CommandSpec::CLOSED_REFERENTIALLY_TRANSPARENT
+    }
+}
 ```
 
 ### CommandSpec field reference
