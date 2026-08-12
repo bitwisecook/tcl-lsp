@@ -81,7 +81,7 @@ pub struct DataFlowNode {
     /// parameters).
     pub statement_index: i32,
     /// Rendered lattice value for display, e.g.
-    /// `"CONST(Int(42))"`, `"OVERDEFINED"`, `"UNKNOWN"`.
+    /// `"CONST(42)"`, `"OVERDEFINED"`, `"UNKNOWN"`.
     pub lattice: String,
     /// Rendered type-lattice entry for display, e.g. `"Int"`.
     pub type_info: String,
@@ -185,8 +185,9 @@ pub struct AliasInfo {
     /// Target memory-location kind, e.g. `"Global"`,
     /// `"NamespaceVar"`.
     pub target_kind: String,
-    /// Why the alias was detected: `"upvar"`, `"global"`,
-    /// `"variable"`, …
+    /// Why the alias was detected, comma-joined when a set merges:
+    /// `"global-cell"`, `"current-namespace-cell"`, `"namespace-cell"`,
+    /// `"global-frame-cell"`, `"caller-frame-cell"`.
     pub reason: String,
 }
 
