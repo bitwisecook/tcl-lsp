@@ -678,6 +678,21 @@ impl Lsp {
         lsp
     }
 
+    /// [`Lsp::with_config`] rooted at a **real on-disk directory**.
+    ///
+    /// The combination the two existing constructors do not cover, and the one
+    /// any workspace-scope feature needs: a config the server will actually
+    /// apply *and* a root it can walk. Settles the config first, for the same
+    /// reason [`Lsp::with_config`] does — a test that opens a document before
+    /// its settings have landed is testing the defaults.
+    pub fn with_config_at_root(config: Value, root: &std::path::Path) -> Self {
+        let mut lsp = Self::spawn(config);
+        lsp.initialize_at(&format!("file://{}", root.to_string_lossy()));
+        let requested = lsp.shared.tcllsp_config.lock().unwrap().clone();
+        lsp.settle_config(&requested);
+        lsp
+    }
+
     /// Spawn a **multi-root** server: `unscoped` is what the workspace-wide
     /// `workspace/configuration` pull returns, and each `(root, folder_config)`
     /// pair is what the *scoped* pull for that folder returns.

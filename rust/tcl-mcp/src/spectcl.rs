@@ -829,27 +829,6 @@ speclib mylib 1.0 {
         assert_eq!(hook["shape_cacheable"], json!(true), "{hook}");
     }
 
-    #[test]
-    #[ignore = "scratch"]
-    fn scratch_real_ports() {
-        let root = concat!(env!("CARGO_MANIFEST_DIR"), "/../../docs/design/spec-dsl-examples/");
-        for f in ["return.tclspec", "if.tclspec", "string.tclspec", "oo-class.tclspec"] {
-            let src = std::fs::read_to_string(format!("{root}{f}")).expect("port");
-            let d = if f == "oo-class.tclspec" { "tcl9.0" } else { "tcl9.0" };
-            let out = check(&src, d);
-            println!("===== {f} =====");
-            println!("{}", serde_json::to_string_pretty(&out["summary"]).unwrap());
-            for c in out["commands"].as_array().unwrap() {
-                println!("  {} fields={} hooks={}", c["name"], c["fields_set"], c["hooks"].as_array().unwrap().len());
-                for h in c["hooks"].as_array().unwrap() {
-                    println!("    {} {} src={} cache={} ctx={} unknown={}", h["family"], h["owner"], h["source"], h["shape_cacheable"], h["ctx_keys"], h["unknown_ctx_keys"]);
-                }
-            }
-            println!("  notices: {}", serde_json::to_string(&out["notices"]).unwrap());
-            println!("  collisions: {}", serde_json::to_string(&out["collisions"]).unwrap());
-        }
-    }
-
     /// A source with no `speclib` wrapper loads nothing and says why, rather
     /// than erroring.
     #[test]
