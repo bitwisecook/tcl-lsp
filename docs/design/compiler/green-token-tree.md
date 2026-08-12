@@ -4,7 +4,26 @@ The lossless, context-aware token tree that replaces "re-lex on demand" in the
 analysis pipeline, and the incremental reparse that lets a single edit
 re-tokenise only the affected region.
 
-Two design constraints shape the implementation and are easy to try to
+> **Status — this whole document is a proposal, not a description of what is
+> built.** Every identifier it names for the tree and its incremental reparse
+> is absent from the Rust workspace: `TokenRegion`, `NodeKind`,
+> `infer_edit_range`, `incremental_top_level_chunks`,
+> `segment_top_level_chunks`, `find_first_dirty_chunk`, `_update_incremental`,
+> `_segment_chunks`, and `_delimiter_terminated` appear in no Rust file. Read
+> sections A–E as a design sketch throughout; issue #1406 tracks the gap.
+>
+> Three things in this space do exist, and are named below where they bear on a
+> section: the red-green concrete syntax tree under
+> `rust/tcl-compiler/src/parsing/syntax/` (see
+> [syntax-tree.md](syntax-tree.md)) — whose `build.rs` exposes
+> `build_document` and `build_document_with_ghosts`, not an incremental
+> rebuild; the ghost-token error recovery in
+> `rust/tcl-compiler/src/segmenter.rs`; and `segment_commands_incremental`
+> (same file), a *prefix-only* incremental re-segmentation at top-level-command
+> granularity, wired in through `Analyser::analyse_incremental`
+> (`rust/tcl-compiler/src/analyser/state.rs`).
+
+Two design constraints shape the proposal and are easy to try to
 "fix" wrongly:
 
 - **Tokens keep absolute positions; nodes carry a `width`.** A
@@ -76,7 +95,7 @@ incremental reparse that fixes (2).
 
 > **Proposal, not a description of the current tree.** `TokenRegion` and
 > `NodeKind` do not exist in the Rust tree — neither name appears in any Rust
-> file, so sections A, B, and E below sketch a design rather than report one.
+> file (see the status note at the top: sections A–E are all design sketches).
 > Issue #1406 tracks the gap.
 >
 > What exists is the red-green concrete syntax tree under
@@ -190,10 +209,28 @@ The tree changes *how* segments are produced, not their contract.
 
 ## C. Edit-range inference
 
-pygls is configured for **FULL** text sync, so `did_change`
-(`rust/tcl-lsp-server/src/lib.rs`) receives the entire new source, not edit ranges.
-`infer_edit_range(old, new)` (`rust/tcl-compiler/src/parsing/syntax/build.rs`) recovers the
-changed span by a common-prefix / common-suffix diff:
+> **Proposal, not a description.** `infer_edit_range` appears in no Rust file;
+> `rust/tcl-compiler/src/parsing/syntax/build.rs` exposes `build_document` and
+> `build_document_with_ghosts` and nothing else. The edit-locating step that
+> does exist is only the prefix half: `common_prefix_len`, called by
+> `segment_commands_incremental` (`rust/tcl-compiler/src/segmenter.rs`), gives
+> the byte length of the common prefix and no common-suffix bound at all.
+> Issue #1406 tracks the gap.
+
+The server advertises **INCREMENTAL** text sync: `build_server_capabilities`
+(`rust/tcl-lsp-server/src/lib.rs`) sets
+`change: Some(TextDocumentSyncKind::INCREMENTAL)` in its
+`TextDocumentSyncOptions`. So `did_change` receives a sequence of content
+changes, each of which is either a ranged edit or — when its `range` is `None`
+— a whole-document replacement, and applies them in arrival order through
+`apply_content_change_indexed`, which splices the text and patches the
+persisted `LineIndex` alongside each splice. The re-analysis that follows is
+still whole-document.
+
+A ranged change therefore *carries* the span this section wants, and only the
+whole-document form needs one recovered. The proposed
+`infer_edit_range(old, new)` recovers it by a common-prefix / common-suffix
+diff:
 
 ```
 start   = first index where old[i] != new[i]
@@ -204,12 +241,32 @@ old_end, new_end = strip the common suffix, not crossing back past start
 This is O(len) byte scanning and yields one contiguous span; multi-region
 edits collapse to one enclosing span — correct, just less selective.
 `offset_delta = new_end - old_end` is the shift applied to everything at/after
-`old_end`. The inference runs in `DocumentState` (where both revisions are in
-hand), not in `did_change`.
+`old_end`. The inference belongs in `DocumentState`
+(`rust/tcl-lsp-server/src/lib.rs`), which owns a document's text and line
+index across revisions, rather than in `did_change`.
 
 ## D. Incremental tree update
 
-The update is realised at the **top-level-command (chunk) granularity** the
+> **Proposal, not a description.** `incremental_top_level_chunks`,
+> `segment_top_level_chunks`, `find_first_dirty_chunk`,
+> `_update_incremental`, and `DocumentState._segment_chunks` appear in no Rust
+> file. The incremental re-segmentation that exists,
+> `segment_commands_incremental` (`rust/tcl-compiler/src/segmenter.rs`), is
+> the prefix half of step 1 only: it takes the previous text plus its
+> `SegmentedCommand` list, recovers the edit start as the common-prefix
+> length, keeps every old command beginning strictly before the last command
+> boundary at or before that point, and re-segments the rest of the new text
+> from that boundary with its spans offset. There is no offset-shifted suffix
+> reuse (deliberately — a matching byte suffix is not a safe split point,
+> because command-boundary-ness depends on the differing bytes before it), no
+> chunk hashes, and no boundary-validation step. Its caller
+> `Analyser::analyse_incremental`
+> (`rust/tcl-compiler/src/analyser/state.rs`) carries the fallback: an
+> incomplete script, an inline `# tcl-lsp: stub` directive, or a
+> recovery-segmentation mismatch drops to a full `analyse`. Issue #1406 tracks
+> the gap.
+
+The update is proposed at the **top-level-command (chunk) granularity** the
 rest of the pipeline already caches at, rather than by mutating a persistent
 node tree in place. `incremental_top_level_chunks(old_source, old_chunks,
 new_source, edit)` rebuilds the chunk list for the new source:
@@ -236,12 +293,12 @@ new_source, edit)` rebuilds the chunk list for the new source:
    bled across the boundary), the whole result is rejected.
 
 The rebuilt list is **byte-identical** to `segment_top_level_chunks(new)`, so
-the existing `find_first_dirty_chunk` + `_update_incremental` machinery (per
-chunk IR / analyser-snapshot reuse, per-proc `(name, body-hash)` cache)
-consumes it unchanged: same dirty boundary, same analysis reuse, just without
-re-tokenising the unchanged prefix and suffix. Wired into both
-`DocumentState._segment_chunks` paths (the quick source-only update and the
-full analysis update).
+the companion `find_first_dirty_chunk` + `_update_incremental` machinery (per
+chunk IR / analyser-snapshot reuse, per-proc `(name, body-hash)` cache) would
+consume it unchanged: same dirty boundary, same analysis reuse, just without
+re-tokenising the unchanged prefix and suffix. The proposed wiring point is
+both `DocumentState._segment_chunks` paths (the quick source-only update and
+the full analysis update).
 
 ### Why chunk granularity, and the fallback
 
@@ -252,17 +309,25 @@ chunk, whose `SegmentedCommand`s can be shifted wholesale. Any case the fast
 path cannot *prove* equivalent — no clean multi-chunk suffix below the edit's
 last line, a partial/recovered command in a reused region, or a failed
 boundary validation — returns `None`, and the caller re-segments fully. The
-`incremental == full` property test (4000 randomised edits, including
-delimiter-unbalancing ones that exercise the fallback) is the guard against
-offset/column/comment drift.
+`incremental == full` property test described under
+[Validation](#validation) would be the guard against offset/column/comment
+drift.
 
 ## E. Error-recovery nodes
 
-`segment_with_recovery` (`rust/tcl-compiler/src/analyser/syntax_checks.rs`) parses twice on
-unterminated delimiters, injecting `VirtualToken`s (E201/E202/E203) on the
-second pass; that recovery mechanism is **preserved unchanged** — it remains
-the authority for top-level recovery and virtual-token insertions stay
-un-memoised (request-specific), exactly as the design specifies.
+`segment_with_recovery` (`rust/tcl-compiler/src/segmenter.rs`) parses twice on
+unterminated delimiters, re-lexing with **ghost bytes** on the second pass —
+there is no `VirtualToken` type; a ghost is an entry in a
+`ghosts: BTreeMap<u32, u8>` mapping a source offset to the byte inserted
+there — `b']'`, from the E201 unterminated-`[` heuristics — and fed back
+through `build_document_with_ghosts`. Those heuristics live in
+`unterminated_bracket_diagnostics`
+(`rust/tcl-compiler/src/analyser/syntax_checks.rs`), whose sibling
+`unterminated_delimiter_diagnostics` reports the unterminated `"` / `{` cases
+(E202 / E203) with an insertion *fix* but no ghost re-lex. That recovery
+mechanism
+is the authority for top-level recovery, and ghost insertions stay
+un-memoised (request-specific), exactly as this design assumes.
 
 What the tree adds is the lossless *representation*: descending an opaque
 token whose closing delimiter is absent in the parent region yields a
@@ -301,14 +366,22 @@ The bar is strict:
   (`descend_braced_body_is_terminated_and_lossless`,
   `descend_empty_brace_is_terminated`, `descend_unterminated_brace_is_recovered`)
   cover the terminated / recovered split via `Descended::is_terminated()`.
-- **Property test — incremental equals full.** *Shipped*
-  (`rust/tcl-compiler/src/parsing/syntax/build.rs`). For random source + random edit, the
-  incrementally-rebuilt chunk list must equal a from-scratch
-  `segment_top_level_chunks`: same chunk count, offsets, hashes, and every
-  command's tokens / ranges / texts / `preceding_comment` / partial flags.
-  Run over 4000 randomised edits including delimiter-unbalancing ones (which
-  exercise the fallback). This is the guard against offset/column/comment
-  drift.
+- **Property test — incremental equals full.** The proposed form (random
+  source + random edit; the rebuilt chunk list must equal a from-scratch
+  `segment_top_level_chunks` on chunk count, offsets, hashes, and every
+  command's tokens / ranges / texts / `preceding_comment` / partial flags) has
+  no counterpart in the Rust tree, because the chunk machinery it compares
+  does not exist. The differential gate that does exist covers the
+  prefix-reuse segmenter instead:
+  `segment_commands_incremental_matches_full_under_fuzz`
+  (`rust/tcl-compiler/src/segmenter.rs`) applies over 2000 randomised
+  splices — including delimiter-unbalancing inserts such as `{`, `}`, and
+  `\` — to five base documents and requires
+  `segment_commands_incremental` to match `segment_commands` on every
+  command's span start/end, `texts`, `is_partial`, and token spans;
+  `analyse_incremental_matches_full_under_fuzz`
+  (`rust/tcl-compiler/src/analyser/state.rs`) pins the same equality one
+  level up, at the analysis result.
 - **`SemanticTokensDelta` parity:** because the rebuilt chunk list is
   byte-identical to a full pass, the existing semantic-token chunk cache and
   delta path are unaffected (covered by `rust/tcl-lsp-core/src/semantic_tokens.rs`).
@@ -336,8 +409,9 @@ The bar is strict:
 - Lexer / modes: `rust/tcl-lexer/src/lexer.rs`,
   `rust/tcl-lexer/src/expr_lexer.rs`,
   `rust/tcl-lexer/src/tokens.rs`
-- Segmentation: `rust/tcl-compiler/src/segmenter.rs`
-- Recovery: `rust/tcl-compiler/src/analyser/syntax_checks.rs`
+- Segmentation: `rust/tcl-compiler/src/segmenter.rs` (`segment_commands`,
+  `segment_commands_incremental`, `segment_with_recovery`)
+- Recovery heuristics (E201–E203): `rust/tcl-compiler/src/analyser/syntax_checks.rs`
 - Re-lexing consumers: `rust/tcl-compiler/src/compiler_checks.rs`,
   `rust/tcl-compiler/src/var_refs.rs`
 - Pipeline: `rust/tcl-compiler/src/lowering/`

@@ -73,8 +73,13 @@ pub struct AliasInfo {
 ## How It Consumes Def-Use Chains and Memory-SSA
 
 1. **Nodes** are built from `DefUseResult.chains` — one node per
-   SSA definition, annotated with lattice value and type from
-   `FunctionAnalysis`.
+   SSA definition, annotated with lattice value and type from the
+   `FunctionUnit` (`rust/tcl-compiler/src/compilation_unit.rs`, built by
+   `CompilationUnit::build_for()`): the lattice value comes from
+   `SccpResult.values` (the return of `sccp()`, carried as
+   `FunctionUnit.sccp`) and the type from `FunctionUnit.types`.  Both are
+   `Option` arguments to `extract_function_dataflow()`, so a node renders
+   without them when those analyses have not run.
 2. **Edges** are built from `DefUseChain.uses` — phi incoming edges
    become "phi" edges, statement operands become "direct" edges.
 3. **Aliases** are built from `MemorySSAFunction.alias_sets` — each

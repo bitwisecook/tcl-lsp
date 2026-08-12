@@ -20,14 +20,21 @@ rules.
 | **Diagnostic** | A per-code page for an E/W/S/T/IRULE diagnostic. | [`kcs-template-diagnostic.md`](kcs-template-diagnostic.md) | `kcs-diagnostic-<code>-<plain-words>.md` |
 | **Optimisation** | A per-code page for an O-code optimiser rewrite. | [`kcs-template-optimisation.md`](kcs-template-optimisation.md) | `kcs-optimisation-<code>-<plain-words>.md` |
 
-Diagnostic and optimisation pages live under
-[`../codes/`](../codes/README.md). The first four categories live at the
-top level of [`../`](../README.md) or under
-[`../features/`](../features/README.md).
-
 If your content does not fit any of these six categories, you are writing
 a design doc. Put it under [`../../design/`](../../design/README.md)
 instead.
+
+## Where each category is filed
+
+| Category | Directory | Index it must be linked from |
+|---|---|---|
+| Issue, Q&A, How-To | [`../`](../README.md) — the top level of `docs/kcs/` | [`../README.md`](../README.md) |
+| Functionality | [`../features/`](../features/README.md) | [`../features/README.md`](../features/README.md) |
+| Diagnostic, Optimisation | [`../codes/`](../codes/README.md) | — (per-code pages are not index-checked) |
+
+`cargo xtask kcs-index-links` fails the build when a top-level note or a
+feature note is missing from its index, and when any relative link in
+`docs/` does not resolve.
 
 ## Naming notes
 
@@ -35,41 +42,75 @@ Name a KCS file after the question it answers in the reader's own
 words, not after the internal class, module, or mechanism behind the
 answer. `kcs-issue-lsp-features-are-missing.md` is better than
 `kcs-issue-vscode-lsp-startup-logs.md` — the user experiences "nothing
-works", not "I should read a log channel". Functionality notes are the
-exception and are named after the feature itself. See rule 10 in
-[`../STYLE.md`](../STYLE.md) for worked examples.
+works", not "I should read a log channel". Functionality, diagnostic,
+and optimisation notes are the exception and are named after their
+stable identifier (the feature name or the code), with a plain-English
+tail: `kcs-diagnostic-w210-variable-read-before-set.md`. The code prefix
+is always **lowercase** in the filename, and uppercase in prose and
+headings. See rule 10 in [`../STYLE.md`](../STYLE.md) for worked
+examples.
 
 ## Shared skeleton
 
-Every KCS note, regardless of category, has the same top:
+Every KCS note, regardless of category, starts the same way:
 
 ```markdown
 # KCS: <short title>
 
-> **Audience:** User | Contributor | Maintainer
-> **Type:** Issue | Q&A | How-To | Functionality | Diagnostic | Optimisation
+> **Audience:** <one of: User, Contributor, Maintainer>
+> **Type:** <one of: Issue, Q&A, How-To, Functionality, Diagnostic, Optimisation>
 
-## Question
+## Applies to
 
-<One sentence — the single core question this note answers.>
-
-## Answer
-
-<Plain-English answer. Link complex terms to ../GLOSSARY.md.>
-
-## Related
-
-- [KCS index](../README.md)
-- [Glossary](../../GLOSSARY.md)
+<Comma-separated plain-text list of tags — not bullet points.>
 ```
 
-The category-specific templates add sections around this skeleton — for
-example, Issue adds a `## Symptoms` section, and Functionality adds
-`## Summary` and `## Surface` sections (which the help tool parses at
-runtime).
+Pick exactly one audience and exactly one type; the six type names above
+are the only valid values (rule 2 and the category table in
+[`../STYLE.md`](../STYLE.md)). `## Applies to` comes immediately after
+the header, with one exception: a Functionality note puts its one-line
+`## Summary` first, because that line is the summary column of the help
+database.
+
+Issue, Q&A, and How-To notes then carry `## Question` and `## Answer`.
+The other three categories answer in sections of their own:
+Functionality uses `## How to use`, Diagnostic uses `## Why` and
+`## Fix`, and Optimisation uses `## Before` and `## After`. Every
+category ends with `## Related`.
+
+## What is machine-read
+
+`rust/tcl-cli/build.rs` builds the embedded help database at compile
+time from `../features/kcs-feature-*.md` only — top-level notes and
+per-code pages are not indexed. From each feature note it reads the
+title line (which must match `# KCS: feature — <Feature Name>` exactly,
+em dash included), then the `## Summary`, `## Applies to`,
+`## How to use`, and `## Example` / `## Examples` sections. Screenshots
+are skipped. `tcl help` queries the result.
+
+`parse_applies_to` in the same file lowercases each tag and replaces
+internal spaces with a hyphen, so `VS Code` and `vs-code` are one tag.
+It validates nothing: an unrecognised tag is indexed rather than
+rejected, so keeping the vocabulary honest is a review job. The tables
+in rule 11 of [`../STYLE.md`](../STYLE.md) are the canonical list.
+
+## Links in the finished note
+
+Spell the `## Related` links for the directory the note lands in, not
+for this one:
+
+| Note lives in | KCS index | Glossary |
+|---|---|---|
+| `docs/kcs/` | `README.md` | `../GLOSSARY.md` |
+| `docs/kcs/features/` | `README.md` | `../../GLOSSARY.md` |
+| `docs/kcs/codes/` | `README.md` | `../../GLOSSARY.md` |
+
+The Issue, Q&A, and How-To templates sit one level deeper than the notes
+written from them, so their own links are spelled `../README.md` and
+`../../GLOSSARY.md`. Re-spell both when you save the note.
 
 ## Design-doc templates
 
 Templates for contracts, data-structure references, and ownership matrices
-now live at [`../../design/templates/`](../../design/templates/). Those
+live at [`../../design/templates/`](../../design/templates/README.md). Those
 are for technical documentation, not KCS notes.

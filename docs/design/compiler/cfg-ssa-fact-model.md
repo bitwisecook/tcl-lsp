@@ -8,7 +8,9 @@ CFG/SSA/core analyses already compute high-value facts (reachability, definition
 
 ## Preferred model
 
-- Build facts once from `CFGFunction` + `SSAFunction` via `analyse_function()`.
+- Build facts once from `CfgFunction` + `SsaFunction`. The carrier is
+  `FunctionUnit` (`rust/tcl-compiler/src/compilation_unit.rs`), built by
+  `CompilationUnit::build_for()`.
 - Treat specialised passes as consumers of those facts plus pass-specific heuristics.
 - Preserve stable block/value naming in pass outputs so diagnostics can reference related sites.
 
@@ -16,14 +18,17 @@ CFG/SSA/core analyses already compute high-value facts (reachability, definition
 
 - control-flow: unreachable blocks, constant branch outcomes,
 - data-flow: defs/uses, read-before-set signals,
-- def-use chains: precise per-SSA-value definition-to-use mapping (`FunctionAnalysis.def_use_chains`),
-- memory-SSA: versioned memory operations and alias sets for upvar/global/variable (`FunctionAnalysis.memory_ssa`),
+- def-use chains: precise per-SSA-value definition-to-use mapping (`FunctionUnit.def_use`, an `Arc<DefUseResult>`),
+- memory-SSA: versioned memory operations and alias sets for upvar/global/variable (`FunctionUnit.memory_ssa`, populated on demand),
 - type-flow: known/unknown/overdefined and concrete Tcl type hints,
 - execution-intent: command-substitution shape, side-effect/escape classes, shimmer pressure.
 
 ## Practical checklist
 
-1. Can this new pass consume `FunctionAnalysis` instead of recomputing flow?
+1. Can this new pass consume the `FunctionUnit` instead of recomputing flow?
+   (The `FunctionAnalysis` aggregate in `rust/tcl-compiler/src/analyses.rs` is
+   declared but not on the live path — nothing builds, returns, or reads one;
+   issue #1406 tracks the gap.)
 2. Does output carry source ranges and related ranges?
 3. Are warnings stable enough for deterministic tests?
 

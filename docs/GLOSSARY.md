@@ -15,7 +15,7 @@ flowchart LR
     SEG --> IR["3. IR Lowering<br/>Module"]
     IR --> CFG["4. CFG<br/>CfgModule"]
     CFG --> SSA["5. SSA<br/>SsaFunction"]
-    SSA --> ANA["6. Core Analyses<br/>FunctionAnalysis"]
+    SSA --> ANA["6. Core Analyses<br/>FunctionUnit"]
     ANA --> SP["7. Specialised Passes"]
     SP --> CG["8. Codegen<br/>FunctionAsm"]
 
@@ -104,14 +104,18 @@ KCS tag: `lexing`.
 
 ## Phase 2 — Segmentation and error recovery
 
-No new terms — this phase produces `SegmentedCommand` objects and
-`VirtualToken` injections (see [Example 20](design/example-script-walkthroughs.md#example-20-error-recovery--unclosed-bracket)).
+No new terms — this phase produces `SegmentedCommand` objects and *ghost*
+byte injections (see [Example 20](design/example-script-walkthroughs.md#example-20-error-recovery--unclosed-bracket)).
+There is no distinct token type for an injected delimiter: `segment_with_recovery()`
+(`rust/tcl-compiler/src/segmenter.rs`) accumulates a `ghosts: BTreeMap<u32, u8>`
+mapping a source offset to the byte inserted there, and re-lexes through
+`build_document_with_ghosts`.
 
 ```mermaid
 flowchart LR
     SRC["Malformed source"] --> P1["First parse"]
     P1 -->|"unclosed delimiter"| HEUR["Heuristic match"]
-    HEUR --> VT["VirtualToken injection"]
+    HEUR --> VT["ghost byte injection"]
     VT --> P2["Second parse"]
     P2 --> CLEAN["Clean SegmentedCommand list"]
     P2 --> DIAG["E201–E206 diagnostics"]
@@ -543,8 +547,15 @@ KCS tag: `sccp`.
 ### Liveness
 
 A dataflow analysis that determines which SSA values are "live" (may
-still be read) at each program point.  Results are in
-`FunctionAnalysis.live_in / live_out` (`tcl_compiler::analyses`).
+still be read) at each program point.  Liveness is computed where a
+consumer needs it rather than stashed on a per-function aggregate:
+`live_out_by_name()` (`rust/tcl-compiler/src/slot_allocation.rs`) for slot
+interference, and `liveness_dead_stores()`
+(`rust/tcl-compiler/src/dead_stores.rs`) for the `DeadStore` list, both
+reading the `FunctionUnit` that `CompilationUnit::build_for()` builds.  The
+`FunctionAnalysis.live_in / live_out` fields (`tcl_compiler::analyses`) are
+declared but not on the live path — nothing populates them; issue #1406
+tracks the gap.
 
 ```mermaid
 flowchart LR
