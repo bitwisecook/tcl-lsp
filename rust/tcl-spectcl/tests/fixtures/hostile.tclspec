@@ -16,7 +16,15 @@
 #   hostile::spin   an unbounded `while {1}` — the loop the compiler inlines
 #                   into bytecode, so the command counter is never charged and
 #                   only the wall-clock cap can stop it.
-#   hostile::burn   a dispatch-heavy loop aimed at the command budget.
+#   hostile::burn   a 100-million-iteration loop aimed at the command budget.
+#                   It is caught by the wall-clock cap instead, and that is
+#                   the design's own point rather than a miss: "the command
+#                   limit counts *dispatched* commands ... so a loop the
+#                   compiler inlines into bytecode is not charged; the
+#                   wall-clock cap, polled inside the bytecode trampoline, is
+#                   what stops that case" (spec-packs.md). The harness asserts
+#                   a budget blowout, not which budget — either answer is
+#                   containment working.
 #   hostile::boom   a body the harness's engine wrapper panics on. No Tcl body
 #                   can be relied on to panic a *correct* VM, so the panic is
 #                   injected at the engine boundary by the marker below — the

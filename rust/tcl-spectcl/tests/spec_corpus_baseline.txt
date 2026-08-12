@@ -7,7 +7,8 @@
 #
 #     <pack file>\t<severity>\t<context>\t<message>
 #
-# tab-separated, sorted, one line per occurrence. `tests/spec_corpus.rs`
+# tab-separated, sorted, one line per occurrence — 49 of them today, in four
+# groups. `tests/spec_corpus.rs`
 # compares the notices of every pack against this file as a multiset and fails
 # on any difference in either direction, so a notice that gets fixed must also
 # be deleted from here — the baseline cannot silently rot into a wildcard.
@@ -19,7 +20,7 @@
 # `docs/design/spec-dsl-examples/`, and each is a known, named gap rather than
 # a defect:
 #
-#   `unknown property `object_class` dropped` (11 lines, all four external
+#   `unknown property `object_class` dropped` (13 lines, all four external
 #       drafts) — a REAL LOADER GAP, and the most useful thing this baseline
 #       records. `object_class NAME ?-superclass {…}? ?-allow-unknown?
 #       { method … }` is ratified vocabulary: it is in the frozen syntax
@@ -38,7 +39,7 @@
 #       A marked invention, dropped exactly as the compatibility policy
 #       promises.
 #
-#   `names a lowering hook` / `names a codegen hook` (5, the `foreach`, `if`,
+#   `names a lowering hook` / `names a codegen hook` (6, the `foreach`, `if`,
 #       `return`, `switch` and `upvar` ports) — deliberate. A pack naming a
 #       *native* lowering or codegen hook changes how the compiler translates a
 #       command, so the loader warns and installs it anyway. These five ports
@@ -46,7 +47,7 @@
 #       private pack getting the same warning is being told something true.
 #
 #   ``state_transitions` row … is not yet loadable` /
-#   ``world_effects` row … is not yet loadable` (24, the `oo-class` and `upvar`
+#   ``world_effects` row … is not yet loadable` (27, the `oo-class` and `upvar`
 #       ports) — the loader's own words. Those two descriptor families are the
 #       named, still-unimplemented tail of the schema; the ports transcribe
 #       them because the ports were written against the *design*, and the
