@@ -210,7 +210,20 @@ against intent.
 
 Once the DSL definition is frozen (post-review), the Spec Studio grows
 from single-spec editor to pack workbench. Agent-built (Sonnet/Opus per
-task weight), spec'd here so the work has a target:
+task weight), spec'd here so the work has a target.
+
+**Architecture: the DSL text is the single backing store.** The pack's
+DSL source is the studio's one authoritative document; every surface is
+a live projection of it. The GUI form edits it through targeted
+syntax-tree edits (the red/green CST makes comment- and
+formatting-preserving surgery possible — a form edit never clobbers the
+author's layout); the DSL tab edits it as text; the AI tab proposes
+patches to it; the Test tab loads it through the real pack loader; and
+the `.rs` renderer becomes a pure DSL→Rust translator. One change
+anywhere flows through everywhere immediately — same parse, same
+overlay registry, same outputs — and live-save persists exactly that
+one document, which is also the deliverable. The JSON draft model
+remains only as an internal intermediate; it is no longer a store.
 
 - **DSL as a first-class surface.** A DSL renderer beside the `.rs` and
   stub panes, and a DSL *reader*: open an existing `.tclspec.tcl` (hand
