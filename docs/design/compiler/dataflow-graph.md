@@ -15,35 +15,51 @@ serialisation (JSON) and diagram generation (Mermaid).
 
 ## Graph Model
 
-```
-DataFlowGraph
-  functions: list[FunctionDataFlowGraph]
+```rust
+pub struct DataFlowGraph {
+    pub functions: Vec<FunctionDataFlowGraph>,
+}
 
-FunctionDataFlowGraph
-  function_name: str
-  nodes: list[DataFlowNode]       # SSA value definitions
-  edges: list[DataFlowEdge]       # def→use relationships
-  aliases: list[AliasInfo]        # alias pairs from memory-SSA
+pub struct FunctionDataFlowGraph {
+    pub function_name: String,
+    pub nodes: Vec<DataFlowNode>,   // SSA value definitions
+    pub edges: Vec<DataFlowEdge>,   // def→use relationships
+    pub aliases: Vec<AliasInfo>,    // alias pairs from memory-SSA
+    pub total_defs: u32,
+    pub total_uses: u32,
+    pub dead_defs: u32,
+    pub aliased_vars: u32,
+}
 
-DataFlowNode
-  name: str                       # variable name
-  version: int                    # SSA version
-  block: str                      # defining block
-  def_kind: str                   # "statement", "phi", "parameter"
-  lattice: str                    # e.g. "CONST(42)", "OVERDEFINED"
-  type_info: str                  # e.g. "INT", "STRING"
-  is_dead: bool                   # no uses
-  use_count: int
+pub struct DataFlowNode {
+    pub name: String,           // variable name
+    pub version: u32,           // SSA version
+    pub block: String,          // defining block
+    pub def_kind: String,       // "statement", "phi", "parameter"
+    pub statement_index: i32,
+    pub lattice: String,        // e.g. "CONST(42)", "OVERDEFINED"
+    pub type_info: String,      // e.g. "INT", "STRING"
+    pub is_dead: bool,          // no uses
+    pub use_count: u32,
+}
 
-DataFlowEdge
-  from_name / from_version        # source SSA value
-  to_block / to_statement_index   # destination site
-  edge_kind: EdgeKind              # EdgeKind.DIRECT, .PHI, .ALIAS, .CLOBBER
+pub struct DataFlowEdge {
+    pub from_name: String,      // source SSA value
+    pub from_version: u32,
+    pub to_block: String,       // destination site
+    pub to_statement_index: i32,
+    pub edge_kind: EdgeKind,    // Direct | Phi | Alias | Clobber
+    pub to_name: String,
+    pub to_version: i32,
+}
 
-AliasInfo
-  local_name / local_kind         # e.g. "local_x" / "UPVAR"
-  target_name / target_kind       # e.g. "caller_x" / "UPVAR"
-  reason: str                     # "upvar", "global", "variable"
+pub struct AliasInfo {
+    pub local_name: String,     // e.g. "local_x"
+    pub local_kind: String,     // e.g. "UPVAR"
+    pub target_name: String,    // e.g. "caller_x"
+    pub target_kind: String,
+    pub reason: String,         // "upvar", "global", "variable"
+}
 ```
 
 ## Serialisation Formats

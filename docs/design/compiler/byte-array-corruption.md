@@ -170,7 +170,7 @@ Python reference implementation:
 - `rust/tcl-compiler/src/shimmer/` — `_find_byte_array_corruption`, `_payload_replace_data_index`, and helpers
 - `rust/tcl-registry/src/registry.rs` — `byte_array_payload_commands`, `byte_array_payload_layouts`
 - `rust/tcl-registry/src/spec.rs` — `BytePayloadSpec`, `CommandSpec.byte_array_payload`
-- `rust/tcl-registry/src/commands/irules/*__payload.rs` — `byte_array_payload=True` (default index-3 layout) or `=BytePayloadSpec(...)`
+- `rust/tcl-registry/src/commands/irules/*__payload.rs` — `byte_array_payload: Some(BytePayloadSpec::DEFAULT)` (default index-3 layout) or an explicit `Some(BytePayloadSpec { … })`
 
 
 - `rust/tcl-compiler/src/shimmer/byte_array.rs` — `find_byte_array_warnings`, the `ByteProv` lattice, `join_prov`, `payload_replace_data_index`, and the three transfer functions

@@ -74,19 +74,22 @@ incremental reparse that fixes (2).
 
 ## A. The green tree node model
 
-A `TokenRegion` owns the tokenisation of one region, tagged with its `Mode`.
-Concretely (`rust/tcl-lexer/src/lexer.rs`):
+A `TokenRegion` owns the tokenisation of one region, tagged with its `Mode`:
 
-```
-TokenRegion
-  kind:       NodeKind          # ROOT | BRACED | BRACKETED | QUOTED | EXPR | ERROR
-  mode:       Mode              # script | quoted | expr | raw
-  text:       str               # the region's source text
-  base_offset/base_line/base_col, insidequote
-  width:      int               # len(text) — used to locate/shift regions
-  tokens:     tuple[Token, ...] # the lexed stream for this region (positions ABSOLUTE)
-  warnings:   tuple[...]
-  _descended: dict[(offset, Mode), TokenRegion]  # memoised child descents
+```rust
+struct TokenRegion {
+    kind: NodeKind,        // Root | Braced | Bracketed | Quoted | Expr | Error
+    mode: Mode,            // Script | Quoted | Expr | Raw
+    text: String,          // the region's source text
+    base_offset: u32,
+    base_line: u32,
+    base_col: u32,
+    inside_quote: bool,
+    width: u32,            // text.len() — used to locate/shift regions
+    tokens: Vec<Token>,    // the lexed stream (positions ABSOLUTE)
+    warnings: Vec<LexWarning>,
+    descended: HashMap<(u32, Mode), TokenRegion>, // memoised child descents
+}
 ```
 
 Key properties:
@@ -117,7 +120,7 @@ corrupts analysis (the issue's stated top risk). Modes:
 
 The distinction between a braced **body** (`script`/descendable) and a braced
 **data** word (`raw`/opaque) is driven by the command registry's argument
-roles (`ArgRole.BODY` / `ArgRole.EXPR`), exactly as `var_refs` and
+roles (`ArgRole::Body` / `ArgRole::Expr`), exactly as `var_refs` and
 `compiler_checks` decide today. The tree records the *role-resolved* mode so a
 later consumer never has to re-derive it.
 

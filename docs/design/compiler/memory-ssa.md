@@ -24,28 +24,37 @@ Memory-SSA makes these relationships explicit.
 
 ## Data Structure
 
-```
-MemorySSAFunction
-  alias_sets: list[AliasSet]
-  memory_ops: list[MemoryOp]
-  memory_phis: dict[BlockName, list[MemoryOp]]
+```rust
+pub struct MemorySsaFunction {
+    pub alias_sets: Vec<AliasSet>,
+    pub memory_ops: Vec<MemoryOp>,
+    pub memory_phis: HashMap<String, Vec<MemoryOp>>,
+    pub count_defs: usize,
+    pub count_uses: usize,
+    pub count_clobbers: usize,
+    pub has_wildcard_aliasing: bool,
+}
 
-AliasSet
-  locations: frozenset[MemoryLocation]
-  reason: str               # "upvar", "global", "variable"
+pub struct AliasSet {
+    pub locations: BTreeSet<MemoryLocation>,
+    pub reason: String,          // "upvar", "global", "variable"
+}
 
-MemoryLocation
-  kind: MemoryLocationKind  # LOCAL | UPVAR | GLOBAL | NAMESPACE_VAR | ARRAY_ELEMENT | UNKNOWN
-  name: str
-  qualifier: str            # namespace, caller var, or array index
+pub struct MemoryLocation {
+    pub kind: MemoryLocationKind, // Local | Upvar | Global | NamespaceVar
+                                  // | ArrayElement | InstanceVar | Unknown
+    pub name: String,
+    pub qualifier: String,        // namespace, caller var, or array index
+}
 
-MemoryOp
-  kind: MemoryOpKind        # DEF | USE | PHI | CLOBBER
-  location: MemoryLocation
-  version: int              # memory version number
-  reaching_version: int     # for uses: which version reaches this point
-  block: BlockName
-  statement_index: int
+pub struct MemoryOp {
+    pub kind: MemoryOpKind,       // Def | Use | Phi | Clobber
+    pub location: MemoryLocation,
+    pub version: Version,
+    pub reaching_version: Version, // for uses: which version reaches here
+    pub block: String,
+    pub statement_index: i32,
+}
 ```
 
 ## Alias Detection
@@ -82,12 +91,13 @@ over-approximation.
 
 | Method / Property | Meaning |
 |-------------------|---------|
-| `may_alias(a, b)` | True if two variable names may refer to the same storage |
+| `may_alias(a, b)` | `true` if two variable names may refer to the same storage |
 | `aliases_for(name)` | All alias sets containing the given variable name |
-| `aliased_names` | Frozenset of all variable names involved in aliasing |
-| `total_memory_defs` | Count of `DEF` memory operations |
-| `total_memory_uses` | Count of `USE` memory operations |
-| `total_clobbers` | Count of `CLOBBER` memory operations |
+| `aliased_names()` | `BTreeSet<String>` of every variable name involved in aliasing |
+| `count_defs` | Count of `MemoryOpKind::Def` memory operations |
+| `count_uses` | Count of `MemoryOpKind::Use` memory operations |
+| `count_clobbers` | Count of `MemoryOpKind::Clobber` memory operations |
+| `has_wildcard_aliasing` | Whether a statement made every location potentially aliased |
 
 ## Consumer Contracts
 
@@ -126,5 +136,5 @@ memory_ops:
   DEF counter v2  (set counter ...)
 ```
 
-The `may_alias("counter", "counter")` query returns `True` — both the
+The `may_alias("counter", "counter")` query returns `true` — both the
 local binding and global storage refer to the same variable.

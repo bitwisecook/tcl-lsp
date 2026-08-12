@@ -4,31 +4,38 @@
 
 Def-use chains link each SSA variable definition to all statements that
 read (use) it.  They are built in two passes over the SSA function
-after SSA construction, and stored in `FunctionAnalysis.def_use_chains`.
+after SSA construction by `build_def_use_chains`
+(`rust/tcl-compiler/src/def_use.rs`), and stored as `FunctionUnit::def_use`.
 
 ## Data Structure
 
-```
-DefUseResult
-  chains: dict[SSAValueKey, DefUseChain]
+```rust
+pub type SsaValueKey = (String, Version);
 
-DefUseChain
-  key: SSAValueKey          # (variable_name, ssa_version)
-  definition: DefSite       # where the value is defined
-  uses: list[UseSite]       # all sites that read it
+pub struct DefUseResult {
+    pub chains: HashMap<SsaValueKey, DefUseChain>,
+}
 
-DefSite
-  block: BlockName
-  kind: DefKind             # STATEMENT | PHI | PARAMETER
-  statement_index: int      # -1 for phi/parameter
+pub struct DefUseChain {
+    pub key: SsaValueKey,       // (variable_name, ssa_version)
+    pub definition: DefSite,    // where the value is defined
+    pub uses: Vec<UseSite>,     // all sites that read it
+}
 
-UseSite
-  block: BlockName
-  kind: UseKind             # OPERAND | PHI_INCOMING | TERMINATOR
-  statement_index: int
-  variable: str             # for phi: the phi variable
-  phi_version: int          # for phi: the phi's version
-  class: UseClass           # SUBSTITUTED | QUOTED
+pub struct DefSite {
+    pub block: String,
+    pub kind: DefKind,          // Statement | Phi | Parameter
+    pub statement_index: i32,   // -1 for phi/parameter
+}
+
+pub struct UseSite {
+    pub block: String,
+    pub kind: UseKind,          // Operand | PhiIncoming | Terminator
+    pub statement_index: i32,
+    pub variable: String,       // for phi: the phi variable
+    pub phi_version: Version,   // for phi: the phi's version
+    pub class: UseClass,        // Substituted | Quoted
+}
 ```
 
 ## Use classification (`UseClass`)
@@ -122,12 +129,15 @@ than lowered.
 
 | Property / Method | Meaning |
 |-------------------|---------|
-| `chain.is_dead` | No uses at all — candidate for dead-store elimination |
-| `chain.use_count` | Number of use sites |
-| `chain.has_phi_use` | At least one use is a phi incoming edge |
-| `result.is_dead(name, ver)` | True if the SSA value has no uses |
-| `result.uses_of(name, ver)` | All use sites for a given SSA value (or empty list) |
+| `chain.is_dead()` | No uses at all — candidate for dead-store elimination |
+| `chain.use_count()` | Number of use sites |
+| `chain.has_phi_use()` | At least one use is a phi incoming edge |
+| `result.is_dead(name, ver)` | `true` if the SSA value has no uses |
+| `result.uses_of(name, ver)` | All use sites for a given SSA value (an empty slice when none) |
 | `result.reaching_defs(name)` | All SSA definitions of a variable across the function |
+| `result.chain_for(name, ver)` | The chain for one SSA value, if it exists |
+| `result.dead_chains()` | Every chain with no uses |
+| `result.total_defs()` / `result.total_uses()` | Whole-function counts |
 
 ## Consumer Contracts
 

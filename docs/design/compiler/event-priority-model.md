@@ -9,38 +9,42 @@ from file order).
 
 ## Problem
 
-iRules allow multiple `when EVENT` handlers for the same event. BigIP executes
+iRules allow multiple `when EVENT` handlers for the same event. BIG-IP executes
 them in priority order (lowest first). When two handlers share the same
-priority, file order breaks the tie. Previously the codebase stored a single
-`priority: int` which conflated the declared value with the implicit ordering.
-Splitting into base + offset makes disambiguation explicit.
+priority, file order breaks the tie. Base priority and offset are separate
+values so the declared priority is never conflated with the implicit
+file-order tie-break.
 
 ## Data model
 
-### `IrProcedure::base_priority` (`rust/tcl-compiler/src/ir.rs`)
+### `Procedure::base_priority` (`rust/tcl-compiler/src/ir.rs`)
 
-The declared priority from `when EVENT priority N { body }`. Defaults to 500.
-Set during lowering (`rust/tcl-compiler/src/lowering/`). Does **not** carry an
-offset — a single `IRProcedure` does not know about sibling handlers.
+`pub base_priority: u32` — the declared priority from
+`when EVENT priority N { body }`, defaulting to 500. Set during lowering
+(`rust/tcl-compiler/src/lowering/`). Does **not** carry an offset — a single
+`Procedure` does not know about sibling handlers.
 
-### `EventOrderEntry` (`rust/tcl-compiler/src/irules_checks.rs`)
+### Event-order entries (`rust/tcl-explorer/src/serialise.rs`)
 
-```python
-@dataclass(frozen=True, slots=True)
-class EventOrderEntry:
-    event: str
-    base_priority: int
-    priority_offset: int   # 0 for first handler at this priority, +1 per tie
-    multiplicity: str
-    range: Range
+`serialise_event_order` emits one JSON object per handler:
+
+```json
+{
+  "event": "HTTP_REQUEST",
+  "base_priority": 500,
+  "priority_offset": 0,
+  "multiplicity": "...",
+  "range": { "...": "..." }
+}
 ```
 
-Offset is computed in `extract_event_order()` after sorting handlers by
-`(base_priority, file_index)`.
+`priority_offset` is 0 for the first handler at a given base priority and
+increments by 1 for each subsequent tie. It is computed after sorting each
+event's handlers by `(priority, file_index)`.
 
 ### `RuleInitExport` / `RuleInitVarDef`
 
-Both carry `base_priority: int` for cross-file RULE_INIT variable tracking.
+Both carry a `base_priority` for cross-file RULE_INIT variable tracking.
 No offset — RULE_INIT ordering does not require tie-breaking.
 
 ## Extraction paths
@@ -51,9 +55,10 @@ There are two independent priority extraction paths:
    during IR lowering and stores `base_priority` on `IRProcedure`. Consumed by
    `rust/tcl-diagram/src/data.rs` for diagram data.
 
-2. **Lightweight lexer path** — `_find_when_bodies()` in `irules_checks.rs`
-   re-parses the same syntax directly from source. Consumed by
-   `extract_event_order()` and `extract_rule_init_vars()`.
+2. **Lightweight segmenter path** — `serialise_event_order`
+   (`rust/tcl-explorer/src/serialise.rs`) segments the source directly and
+   reads `when EVENT priority N` from the words, without building a
+   `CompilationUnit`.
 
 ## JSON serialisation
 
@@ -64,11 +69,10 @@ There are two independent priority extraction paths:
 
 ## File-path anchors
 
-- `rust/tcl-compiler/src/ir.rs` — `IrProcedure::base_priority`
+- `rust/tcl-compiler/src/ir.rs` — `Procedure::base_priority`
 - `rust/tcl-compiler/src/lowering/` — priority extraction during lowering
-- `rust/tcl-compiler/src/irules_checks.rs` — `EventOrderEntry`, `RuleInitExport`
 - `rust/tcl-diagram/src/data.rs` — diagram consumer
-- `rust/tcl-explorer/src/serialise.rs` — JSON serialisation
-- `rust/tcl-lsp-core/src/workspace_index.rs` — `RuleInitVarDef`
-- `rust/tcl-compiler/src/irules_checks.rs` unit tests — priority and offset assertions
-- `rust/tcl-lsp-core/src/workspace_index.rs` unit tests — RULE_INIT priority assertions
+- `rust/tcl-explorer/src/serialise.rs` — `serialise_event_order`, and its
+  unit tests covering priority and offset
+- `rust/tcl-explorer/src/view_tree.rs` — the explorer view that sorts on
+  `base_priority + priority_offset`

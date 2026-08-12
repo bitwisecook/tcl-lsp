@@ -516,9 +516,9 @@ install axis using ::verticalAxis $win.a   ;# snit component install
 set     axis      [::verticalAxis $win.a]  ;# snit bare-word construction
 ```
 
-Both used to be recognised by matching the command word in the LSP's
-handle scan. They are now registry data
-(`rust/tcl-registry/src/handle_binding.rs`):
+Both are recognised from registry data
+(`rust/tcl-registry/src/handle_binding.rs`), not by matching the command word
+in the LSP's handle scan:
 
 ```rust
 pub struct HandleBindingSpec {

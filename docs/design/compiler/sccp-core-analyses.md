@@ -153,7 +153,7 @@ miscompile (the optimiser proposed folding `$x` to `1` where real Tcl prints
    redefinition whose every body is caller-frame-clean no longer bars
    anything (the union of bodies over-approximates whichever is live at
    dispatch time). A replaced method in a *superclass* still bars a
-   subclass's methods — the two classes share a hierarchy component.
+   derived class's methods — the two classes share a hierarchy component.
 
 3. **A caller-frame reach under a dynamic name.** The gate asks
    `cfg_builder::upvar_info::reaches_caller_frame`, the strictly structural
@@ -180,16 +180,16 @@ invisible to both gates.
 
 ### Constant branch detection
 
-When a `CFGBranch` condition evaluates to a constant:
+When a `Terminator::Branch` condition evaluates to a constant:
 
-```python
-ConstantBranch(
-    block="entry_1",
-    condition="$x",
-    value=True,
-    taken_target="if_then_3",
-    not_taken_target="if_next_4",
-)
+```rust
+ConstantBranch {
+    block: "entry_1".into(),
+    condition: "$x".into(),
+    value: true,
+    taken_target: "if_then_3".into(),
+    not_taken_target: "if_next_4".into(),
+}
 ```
 
 - The not-taken target is marked unreachable.
@@ -197,7 +197,8 @@ ConstantBranch(
 
 ### Existence-check folding (`info exists` / `array exists`)
 
-`_ExistenceFolder` rewrites `[info exists X]` / `[array exists X]`
+`existence_constant_branches` (`rust/tcl-compiler/src/sccp.rs`) rewrites
+`[info exists X]` / `[array exists X]`
 sub-expressions in a branch condition to a `0`/`1` literal before the branch
 decision is taken, so an existence guard becomes an ordinary constant branch
 (feeding `I230` + DCE):
@@ -211,8 +212,9 @@ decision is taken, so an existence guard becomes an ordinary constant branch
 - **`unset`** version → fold to `0`.
 
 The fold is gated per function: it is disabled whenever any statement could
-create or destroy a local invisibly (any barrier/`IRBlock`/`IRUpFrame`, an
-`IRCall` with an UNKNOWN-target write, a dynamic barrier, or an inline `BODY`
+create or destroy a local invisibly (any `Statement::Barrier` /
+`Statement::Block` / `Statement::UpFrame`, a `Statement::Call` with an
+unknown-target write, a dynamic barrier, or an inline `ArgRole::Body`
 argument). Array elements (`A(k)`) and qualified names (`::ns::X`) are never
 folded. This keeps the rewrite sound for DCE/codegen.
 

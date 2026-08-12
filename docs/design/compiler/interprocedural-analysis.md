@@ -57,10 +57,10 @@ proc main {a b} {
 ```
 
 `::helper` local summary: no calls, no barrier, return depends on `x`,
-single-expression body → `can_fold_static_calls=True`.
+single-expression body → `can_fold_static_calls: true`.
 
 `::main` calls `::helper` (pure) and `puts` (LOG_IO write) →
-`pure=False`, `effect_writes=LOG_IO`.
+`pure: false`, `effect_writes` covering log I/O.
 
 When the optimiser encounters `[helper 21]`, it evaluates the body with
 `x₁ = 21` → `21 * 2 = 42` → O103 fires.
@@ -69,10 +69,11 @@ When the optimiser encounters `[helper 21]`, it evaluates the body with
 
 When `ir_module.methods` is populated (TclOO method bodies lifted by
 lowering — see [data-structure-reference](data-structure-reference.md)),
-`analyse_interprocedural_ir` also builds a `MethodSummary` (a `ProcSummary`
-subclass with `class_name` / `method_kind` / `writes_instance_vars`) for
-each method, keyed by `{class_qname}::{method_name}` on
-`InterproceduralAnalysis.methods`.
+`analyse_interprocedural_ir` also builds a `MethodSummary` (a struct wrapping
+a `ProcSummary` in its `base` field, plus `class_name`, `method_kind`,
+`reads_instance_vars` / `writes_instance_vars`, `calls_my`, and `calls_next`)
+for each method, keyed by `{class_qname}::{method_name}` on
+`InterproceduralAnalysis::methods`.
 
 Method purity is **conservative by design** — a method is `pure` iff:
 - its own body has no observable side effect (no barrier, no unknown call,

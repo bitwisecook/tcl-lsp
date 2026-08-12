@@ -2,7 +2,7 @@
 
 How variable flow between iRules `when` event handlers is tracked, so that a
 variable set in one handler and read in another is not reported as a
-read-before-set (W103) or a dead store (O109).
+read-before-set (W210) or a dead store (O109).
 
 In iRules, `when` event handlers share a connection-scoped variable stack.
 Variables set in `CLIENT_ACCEPTED` persist until the connection closes, so
@@ -43,11 +43,13 @@ and unsets are unioned — producing a single combined summary per event name.
 
 **Step 3 — Result:**
 
-```python
-ConnectionScope(
-    cross_event_defs=frozenset({"conn_start", "count"}),
-    cross_event_imports=frozenset({"conn_start", "count"}),
-)
+```rust
+ConnectionScope {
+    summaries: /* per-event EventVarSummary */,
+    cross_event_defs: HashSet::from(["conn_start".into(), "count".into()]),
+    cross_event_imports: HashSet::from(["conn_start".into(), "count".into()]),
+    racy_static_defs: HashSet::new(),
+}
 ```
 
 ### Effect on diagnostics
@@ -55,7 +57,7 @@ ConnectionScope(
 The optimiser's `PassContext` receives `cross_event_vars` when processing
 each event handler.  Before reporting:
 - **O109 (dead store)**: check if the variable is in `cross_event_vars`
-- **W103 (read before set)**: check if the variable is in `cross_event_vars`
+- **W210 (read before set)**: check if the variable is in `cross_event_vars`
 
 Both suppress the warning if the variable flows across events.
 

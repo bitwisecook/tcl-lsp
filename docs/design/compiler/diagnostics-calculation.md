@@ -16,15 +16,17 @@ Source: `rust/tcl-lsp-db/src/lib.rs`,
 
 ### Phase 1 — Basic diagnostics (fast, synchronous)
 
-`get_basic_diagnostics()` runs on every keystroke and returns immediately:
+The basic phase runs on every keystroke and returns immediately:
 
-- **Semantic analysis** (`analyse()`):
-  - W100: Unbraced expr body
-  - W101: Wrong number of arguments
+- **Semantic analysis**:
+  - W100: Unbraced expression argument
+  - E002 / E003: Too few / too many arguments for command
+  - W101: `eval` with string concatenation — code injection risk
   - W102: `subst` on variable input — code injection risk
-  - W123: Unknown command (default on; `tclLsp.diagnostics.W123 = false` to disable)
-  - W103: Variable read before set
-  - W104: Unused variable
+  - W103: `open` with pipeline `|` — command injection risk
+  - W104: String concatenation for list building
+  - W123: Unresolved command (default on; `tclLsp.diagnostics.W123 = false` to disable)
+  - W210: Variable read before it is set
   - W200+: iRules event/command warnings
   - W300+: Deprecation/style warnings
 - **Style checks**:
@@ -35,8 +37,8 @@ Source: `rust/tcl-lsp-db/src/lib.rs`,
 
 ### Phase 2 — Deep diagnostics (expensive, background thread)
 
-`get_deep_diagnostics()` runs via `asyncio.to_thread` to avoid blocking.
-It reuses the `CompilationUnit` from Phase 1:
+The deep phase runs on a background thread to avoid blocking. It reuses the
+`CompilationUnit` from Phase 1:
 
 - **Optimiser** (`find_optimisations`): O100–O130
 - **Shimmer detector** (`find_shimmer_warnings`): S100–S102
@@ -49,18 +51,16 @@ It reuses the `CompilationUnit` from Phase 1:
 ```
 Document edit (version N)
     │
-    ├─► Phase 1: get_basic_diagnostics() → publish immediately
+    ├─► Phase 1: basic diagnostics → publish immediately
     │
-    └─► DiagnosticScheduler.schedule(uri, version=N, ...)
+    └─► DiagnosticScheduler::schedule(uri, version = N, ...)
           │
           ├─► Cancel any in-flight deep task for this URI
           │
-          └─► asyncio.create_task(_run())
+          └─► Spawn the deep run on a background thread
                 │
-                └─► asyncio.to_thread(deep_fn) ← background thread
-                      │
-                      ▼
-                  publish_fn(uri, basic + deep, version=N)
+                ▼
+            publish(uri, basic + deep, version = N)
 ```
 
 Key properties:
@@ -75,8 +75,9 @@ set x 42    ;# noqa: O109  — suppress dead store warning
 eval $cmd   ;# noqa: *     — suppress ALL warnings on this line
 ```
 
-The suppression map (`suppressed_lines: dict[int, frozenset[str]]`) is built
-during semantic analysis and checked by both phases before emitting.
+The suppression map (`suppressed_lines: HashMap<i32, HashSet<String>>`,
+`rust/tcl-compiler/src/analyser/types.rs`) is built during semantic analysis
+and checked by both phases before emitting.
 
 ### Grouped optimisations
 
@@ -92,9 +93,8 @@ The LSP client applies all grouped edits atomically via a single code action.
 
 ## Decision rule
 
-- Fast diagnostics (W-codes, syntax errors) go in `get_basic_diagnostics()`.
-- Expensive diagnostics (optimisations, taint, shimmer) go in
-  `get_deep_diagnostics()`.
+- Fast diagnostics (W-codes, syntax errors) go in the basic phase.
+- Expensive diagnostics (optimisations, taint, shimmer) go in the deep phase.
 - If a new diagnostic requires `CompilationUnit` data (CFG, SSA, analysis),
   it belongs in Phase 2.
 - If it only needs AST/tokens, it can go in Phase 1.

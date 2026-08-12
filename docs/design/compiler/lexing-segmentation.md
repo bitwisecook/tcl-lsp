@@ -69,7 +69,7 @@ position-tracking path must keep the two mechanisms in lock-step.
 
 ### Stage 2 — Segmentation
 
-`segment_commands()` no longer runs its own hand-rolled token loop: it builds
+`segment_commands` does not run its own token loop: it builds
 the canonical lossless **red-green concrete syntax tree** for the region
 (`rust/tcl-compiler/src/parsing/syntax/`, see
 [syntax-tree.md](syntax-tree.md)) and *derives* the `SegmentedCommand` list from
@@ -179,11 +179,9 @@ paths: the segmenter (`segment_commands`), the lowerer (`lower_to_ir`),
 `compiler_checks`, and `var_refs` each tokenise overlapping regions, and
 nested braced bodies are re-lexed at every level of recursion.
 
-The original per-analysis memo (`rust/tcl-lexer/src/lexer.rs` /
-`tokenise_cached()` / `token_cache_scope()`) has since been **subsumed by the
-green token tree** in `rust/tcl-lexer/src/lexer.rs` — see
-[green-token-tree.md](green-token-tree.md). The memo is now `green_tree`'s
-analysis-scoped intern index, with the same correctness rules:
+The per-analysis memo is the **green token tree**'s analysis-scoped intern
+index — see [green-token-tree.md](green-token-tree.md). Its correctness
+rules:
 
 - Keyed by `(base_offset, base_line, base_col, mode, text)` → a `TokenRegion`
   carrying `(tokens, warnings)`. The `text` is part of the key so two distinct

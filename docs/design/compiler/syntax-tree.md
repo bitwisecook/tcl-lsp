@@ -35,23 +35,31 @@ two no longer collide.)
 
 ## Node model
 
-```
-GreenNode   kind: DOCUMENT | COMMAND | WORD
-            children: tuple[GreenNode | GreenToken, ...]
-            expand_markers: tuple[GreenToken, ...]   # {*} prefixes (WORD)
-            range_end_rel:  int | None               # COMMAND: see Ranges
-            preceding_comment: str | None            # COMMAND: see Comments
-            trailing: tuple[GreenTrivia, ...]         # DOCUMENT: dangling trivia
+```rust
+pub struct GreenNode {
+    pub kind: SyntaxKind,             // Document | Command | Word
+    pub children: Vec<GreenElement>,  // GreenElement::Node | ::Token
+    pub expand_markers: Vec<GreenToken>, // {*} prefixes (Word)
+    pub trailing: Vec<GreenTrivia>,   // Document: dangling trivia
+    pub range_end_rel: Option<u32>,   // Command: see Ranges
+    pub preceding_comment: Option<String>, // Command: see Comments
+}
 
-GreenToken  token_type: TokenType   # ESC | STR | CMD | VAR | EXPAND
-            text: str               # lexer inner text  ("abc" for {abc})
-            raw:  str               # full source slice  ("{abc}")  → width
-            end_rel: int            # Token.end.offset − Token.start.offset
-            in_quote: bool
-            leading/trailing: tuple[GreenTrivia, ...]
+pub struct GreenToken {
+    pub token_type: TokenType, // ESC | STR | CMD | VAR | EXPAND
+    pub text: String,          // lexer inner text  ("abc" for {abc})
+    pub raw: String,           // full source slice  ("{abc}")  → width
+    pub end_rel: u32,          // Token.end.offset − Token.start.offset
+    pub content_offset: u8,
+    pub in_quote: bool,
+    pub leading: Vec<GreenTrivia>,
+    pub trailing: Vec<GreenTrivia>,
+}
 
-GreenTrivia kind: WHITESPACE | EOL | COMMENT
-            text: str
+pub struct GreenTrivia {
+    pub kind: TriviaKind,      // Whitespace | Eol | Comment
+    pub text: String,
+}
 ```
 
 **Trivia is attached** (leading/trailing on the adjacent token), Roslyn-style,

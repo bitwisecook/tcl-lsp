@@ -21,45 +21,66 @@ Four enums describe the dimensions of a side effect:
 
 | Enum | Describes | Example values |
 |------|-----------|----------------|
-| `SideEffectTarget` | *What* resource is touched | `HTTP_HEADER`, `SESSION_TABLE`, `VARIABLE`, `POOL_SELECTION` |
-| `StorageScope` | *Where* the data lives / stability | `PROC_LOCAL`, `GLOBAL`, `EVENT`, `CONNECTION`, `SESSION_TABLE` |
-| `ConnectionSide` | *Which* F5 proxy side | `CLIENT`, `SERVER`, `BOTH`, `GLOBAL`, `NONE` |
-| `StorageType` | *Shape* of the data | `SCALAR`, `LIST`, `DICT`, `ARRAY` |
+| `SideEffectTarget` | *What* resource is touched | `HttpHeader`, `SessionTable`, `Variable`, `PoolSelection` |
+| `StorageScope` | *Where* the data lives / stability | `ProcLocal`, `Global`, `Event`, `Connection`, `SessionTable` |
+| `ConnectionSide` | *Which* F5 proxy side | `Client`, `Server`, `Both`, `Global`, `None` |
+| `StorageType` | *Shape* of the data | `Scalar`, `List`, `Dict`, `Array` |
 
-### Dataclasses
+### Structs
 
-**`SideEffect`** — one discrete read or write:
+There are **two** `SideEffect` structs. The registry's
+(`rust/tcl-registry/src/side_effects.rs`) is the `'static`, `Copy` shape a
+spec literal writes:
 
-```python
-SideEffect(
-    target=SideEffectTarget.HTTP_HEADER,  # what
-    reads=True,                            # reads from it?
-    writes=True,                           # writes to it?
-    scope=StorageScope.CONNECTION,         # where it lives
-    connection_side=ConnectionSide.CLIENT,  # F5 proxy context
-    storage_type=StorageType.SCALAR,       # data shape
-    namespace="HTTP",                      # protocol namespace
-    key="Host",                            # specific key (if literal)
-    dialect="irules",                      # dialect context
-    subtable=None,                         # F5 subtable name
-)
+```rust
+pub struct SideEffect {
+    pub target: SideEffectTarget,
+    pub reads: bool,
+    pub writes: bool,
+    pub connection_side: ConnectionSide,
+    pub dialects: Option<DialectSet>,
+}
 ```
 
-Only `target` is required. All other fields have sensible defaults (`reads=False`, `writes=False`, `scope=UNKNOWN`, `connection_side=NONE`, etc.).
+The compiler's (`rust/tcl-compiler/src/side_effects.rs`) is the richer,
+per-invocation form the classifier produces — `lift_registry_effect` widens a
+registry effect into it:
+
+```rust
+pub struct SideEffect {
+    pub target: SideEffectTarget,
+    pub reads: bool,
+    pub writes: bool,
+    pub storage_type: StorageType,     // data shape
+    pub scope: StorageScope,           // where it lives
+    pub connection_side: ConnectionSide, // F5 proxy context
+    pub namespace: Option<String>,     // protocol namespace
+    pub dialect: Option<String>,       // dialect context
+    pub key: Option<String>,           // specific key (if literal)
+    pub subtable: Option<String>,      // F5 subtable name
+}
+```
+
+`SideEffect::new(target, reads, writes)` builds one with every other field at
+its default (`StorageType::Unknown`, `StorageScope::Unknown`,
+`ConnectionSide::None`, `None`), for chaining with struct-update syntax.
 
 **`CommandSideEffects`** — the complete profile for one invocation:
 
-```python
-CommandSideEffects(
-    effects=(effect1, effect2, ...),  # tuple of SideEffect
-    pure=False,                        # no observable side effects?
-    deterministic=False,               # same inputs → same outputs?
-    dynamic_barrier=False,             # contains eval/uplevel?
-    dialect="irules",                  # dialect context
-)
+```rust
+pub struct CommandSideEffects {
+    pub effects: Vec<SideEffect>,
+    pub pure: bool,             // no observable side effects?
+    pub deterministic: bool,    // same inputs → same outputs?
+    pub dynamic_barrier: bool,  // contains eval/uplevel?
+    pub dialect: Option<String>,
+}
 ```
 
-Convenience properties: `reads_any`, `writes_any`, `targets`, `write_targets`, `read_targets`, `scopes`, `affects_target(t)`, `writes_target(t)`, `reads_target(t)`, `effects_in_scope(s)`, `effects_on_side(s)`.
+Convenience methods: `reads_any()`, `writes_any()`, `affects_target(t)`,
+`writes_target(t)`, `reads_target(t)`, `effects_in_scope(s)`,
+`effects_on_side(s)`, `to_effect_regions()`; plus the constructors
+`pure()`, `unknown_write()`, and `dynamic_barrier()`.
 
 ### Scope stability semantics
 
@@ -97,81 +118,86 @@ GVN and interprocedural analysis use coarse bitflag regions for fast kill checks
 
 ### Command-level hints
 
-Add `side_effect_hints` to a `CommandSpec` to declare the default effects for a command:
+Set `side_effects` on a `CommandSpec` to declare the default effects for a command:
 
-```python
-CommandSpec(
-    name="pool",
-    # ...
-    side_effect_hints=(
-        SideEffect(
-            target=SideEffectTarget.POOL_SELECTION,
-            writes=True,
-            scope=StorageScope.CONNECTION,
-            connection_side=ConnectionSide.SERVER,
-        ),
-    ),
-)
+```rust
+CommandSpec {
+    name: "pool",
+    // ...
+    side_effects: &[SideEffect {
+        target: SideEffectTarget::PoolSelection,
+        reads: false,
+        writes: true,
+        connection_side: ConnectionSide::Server,
+        dialects: None,
+    }],
+    ..CommandSpec::DEFAULT
+}
 ```
 
 ### Subcommand-level hints
 
-For commands with subcommands that have different effect profiles, declare hints on each `SubCommand`. Subcommand hints take precedence over command-level hints:
+For commands with subcommands that have different effect profiles, declare
+effects on each `SubCommand`. Subcommand effects take precedence over
+command-level ones:
 
-```python
-subcommands={
-    "add": SubCommand(
-        name="add",
-        arity=Arity(),
-        mutator=True,
-        side_effect_hints=(
-            SideEffect(
-                target=SideEffectTarget.SESSION_TABLE,
-                reads=False,
-                writes=True,
-                scope=StorageScope.SESSION_TABLE,
-                connection_side=ConnectionSide.BOTH,
-            ),
-        ),
-    ),
-    "lookup": SubCommand(
-        name="lookup",
-        arity=Arity(),
-        pure=True,
-        side_effect_hints=(
-            SideEffect(
-                target=SideEffectTarget.SESSION_TABLE,
-                reads=True,
-                writes=False,
-                scope=StorageScope.SESSION_TABLE,
-                connection_side=ConnectionSide.BOTH,
-            ),
-        ),
-    ),
-}
+```rust
+const SUBCOMMANDS: &[SubCommand] = &[
+    SubCommand {
+        name: "add",
+        arity: Arity::at_least(0),
+        mutator: true,
+        side_effects: &[SideEffect {
+            target: SideEffectTarget::SessionTable,
+            reads: true,
+            writes: true,
+            connection_side: ConnectionSide::Both,
+            dialects: None,
+        }],
+        ..SubCommand::DEFAULT
+    },
+    SubCommand {
+        name: "lookup",
+        arity: Arity::at_least(0),
+        pure: true,
+        side_effects: &[SideEffect {
+            target: SideEffectTarget::SessionTable,
+            reads: true,
+            writes: false,
+            connection_side: ConnectionSide::Both,
+            dialects: None,
+        }],
+        ..SubCommand::DEFAULT
+    },
+];
 ```
 
-Key interaction: when a subcommand is marked `pure=True` and has a hint, the classifier includes the hint effects as **read-only** (writes forced to `False`). This allows read-only subcommands like `table lookup` or `session count` to carry target/scope metadata without being classified as writers.
+Key interaction: when a subcommand is marked `pure: true` and declares
+effects, the classifier includes them as **read-only** (writes forced to
+`false`). This allows read-only subcommands like `table lookup` or
+`session count` to carry target metadata without being classified as writers.
 
 ### Hint resolution order
 
-`REGISTRY.side_effect_hints(command, subcommand, dialect)` resolves hints in this order:
+`dialect_side_effect_hints(registry, command, subcommand, dialect)`
+(`rust/tcl-compiler/src/side_effects.rs`) resolves effects in this order,
+skipping any spec that is not in the active dialect:
 
-1. Subcommand-level hints (if subcommand matches and has hints)
-2. Command-level hints (fallback)
+1. The matched `SubCommand`'s own non-empty `side_effects`
+2. The `CommandSpec`'s `side_effects` (fallback)
 
 ## Classification flow
 
 `classify_side_effects(command, args)` follows this priority chain:
 
 1. **Callee summary** — interprocedural summaries bypass registry lookup entirely.
-2. **Dynamic barrier** — commands like `eval`, `uplevel`, `subst` produce `UNKNOWN` read+write with `dynamic_barrier=True`.
-3. **Purity** — pure commands return `pure=True`. Protocol namespace pure commands include a read effect. Pure subcommands with hints include read-only effects.
-4. **Variable assignment** — commands with `assigns_variable_at` produce a `VARIABLE` effect with scope/key/storage_type inferred from the variable name and command.
-5. **Protocol namespace** — `HTTP::header`, `SSL::cert`, etc. are classified using hint target + subcommand mutator flags.
-6. **Procedure definition** — `proc`, `rename` produce `PROC_DEFINITION` write.
+2. **Dynamic barrier** — commands like `eval`, `uplevel`, `subst` produce `SideEffectTarget::Unknown` read+write with `dynamic_barrier: true`.
+3. **Purity** — pure commands return `pure: true`. Protocol namespace pure commands include a read effect. Pure subcommands with declared effects include read-only effects.
+4. **Variable assignment** — commands with `assigns_variable_at` produce a `SideEffectTarget::Variable` effect with scope/key/storage_type inferred from the variable name and command.
+5. **Protocol namespace** — `HTTP::header`, `SSL::cert`, etc. are classified using the declared target plus subcommand `mutator` flags.
+6. **Procedure definition** — `proc`, `rename` produce a `SideEffectTarget::ProcDefinition` write.
 7. **Hint fallback** — if a hint exists, use it directly.
-8. **Conservative fallback** — `UNKNOWN` read+write.
+8. **Conservative fallback** — `SideEffectTarget::Unknown` read+write.
 
 After the registry-based classification produces a base result, the
 **execution-trace composition rule** runs as a post-processing step
@@ -182,21 +208,17 @@ After the registry-based classification produces a base result, the
   effects compose into the traced command's effective per-call
   side-effects: a registry-pure `set` is no longer pure once `set` is
   traced, because the trace body runs around every invocation.
-- Captured at lowering time: `IRModule.command_traces` is a tuple of
-  `CommandTrace(target, ops, body, body_range, action, target_dynamic)`
-  records, one per syntactic `trace add execution` / `trace remove
-  execution` directive.
-- `IRModule.traced_commands()` returns the *net active* set: a target
-  is included when adds outnumber removes, modelling the global
-  command-table state at end-of-script. `IRModule.has_dynamic_trace()`
-  reports whether any `add` had a non-literal target — when true,
-  every command must be pessimised because we cannot prove a particular
-  call isn't traced.
+- Captured at lowering time: `Module::traced_commands`
+  (`BTreeSet<String>`) is the *net active* set — a target is included when
+  adds outnumber removes, modelling the global command-table state at
+  end-of-script. `Module::has_dynamic_trace` (`bool`) reports whether any
+  `add` had a non-literal target; when true, every command must be
+  pessimised because we cannot prove a particular call isn't traced.
 - Optimisation passes that consult purity (GVN, optimiser propagation)
   pass `traced_commands` and `has_dynamic_trace` into
   `classify_side_effects`. The composition is conservative today: a
-  matching command gets an extra `SideEffectTarget.UNKNOWN` read+write
-  effect appended, and `pure` / `deterministic` are forced to `False`.
+  matching command gets an extra `SideEffectTarget::Unknown` read+write
+  effect appended, and `pure` / `deterministic` are forced to `false`.
   A future refinement can replace the catch-all with the trace body's
   recursively-classified effects.
 - `trace remove execution` undoes the propagation by cancelling the
@@ -209,103 +231,114 @@ After the registry-based classification produces a base result, the
 
 ### Read-only data store access
 
-```python
-# class command: reads data groups, never writes
-SideEffect(
-    target=SideEffectTarget.DATA_GROUP,
-    reads=True,
-    writes=False,
-    scope=StorageScope.DATA_GROUP,
-    connection_side=ConnectionSide.GLOBAL,
-)
+```rust
+// class command: reads data groups, never writes
+SideEffect {
+    target: SideEffectTarget::DataGroup,
+    reads: true,
+    writes: false,
+    connection_side: ConnectionSide::Global,
+    dialects: None,
+}
 ```
 
 ### Write-only connection control
 
-```python
-# drop command: terminates the connection
-SideEffect(
-    target=SideEffectTarget.CONNECTION_CONTROL,
-    writes=True,
-    scope=StorageScope.CONNECTION,
-    connection_side=ConnectionSide.BOTH,
-)
+```rust
+// drop command: terminates the connection
+SideEffect {
+    target: SideEffectTarget::ConnectionControl,
+    reads: false,
+    writes: true,
+    connection_side: ConnectionSide::Both,
+    dialects: None,
+}
 ```
 
 ### Response commit
 
-```python
-# HTTP::respond: commits the HTTP response
-SideEffect(
-    target=SideEffectTarget.RESPONSE_COMMIT,
-    writes=True,
-    connection_side=ConnectionSide.CLIENT,
-)
+```rust
+// HTTP::respond: commits the HTTP response
+SideEffect {
+    target: SideEffectTarget::ResponseCommit,
+    reads: false,
+    writes: true,
+    connection_side: ConnectionSide::Client,
+    dialects: None,
+}
 ```
 
 ### Read+write with arity-dependent behaviour
 
-For HTTP namespace commands where getter vs setter depends on arguments, the command-level hint declares `reads=True, writes=True` (conservative), and the `mutator` flag on subcommands narrows the writes:
+For HTTP namespace commands where getter vs setter depends on arguments, the
+command-level effect declares `reads: true, writes: true` (conservative), and
+the `mutator` flag on subcommands narrows the writes:
 
-```python
-# HTTP::header — command-level hint (conservative)
-SideEffect(
-    target=SideEffectTarget.HTTP_HEADER,
-    reads=True,
-    writes=True,
-    connection_side=ConnectionSide.CLIENT,
-)
-# Subcommand "value" is pure → classifier narrows to read-only
-# Subcommand "replace" has mutator=True → classifier keeps writes=True
+```rust
+// HTTP::header — command-level effect (conservative)
+SideEffect {
+    target: SideEffectTarget::HttpHeader,
+    reads: true,
+    writes: true,
+    connection_side: ConnectionSide::Client,
+    dialects: None,
+}
+// Subcommand "value" is pure → classifier narrows to read-only
+// Subcommand "replace" has mutator: true → classifier keeps writes: true
 ```
 
 ### Logging / output
 
-```python
-# log command: writes to log output
-SideEffect(
-    target=SideEffectTarget.LOG_IO,
-    writes=True,
-    scope=StorageScope.LOG_OUTPUT,
-    connection_side=ConnectionSide.NONE,
-)
+```rust
+// log command: writes to log output
+SideEffect {
+    target: SideEffectTarget::LogIo,
+    reads: false,
+    writes: true,
+    connection_side: ConnectionSide::None,
+    dialects: None,
+}
 ```
 
 ### Load balancing
 
-```python
-# pool command: selects a pool member
-SideEffect(
-    target=SideEffectTarget.POOL_SELECTION,
-    writes=True,
-    scope=StorageScope.CONNECTION,
-    connection_side=ConnectionSide.SERVER,
-)
+```rust
+// pool command: selects a pool member
+SideEffect {
+    target: SideEffectTarget::PoolSelection,
+    reads: false,
+    writes: true,
+    connection_side: ConnectionSide::Server,
+    dialects: None,
+}
 ```
 
 ## How to add hints to a new command
 
 1. **Identify the target** — what external resource does the command touch? Pick from `SideEffectTarget`.
 2. **Determine reads/writes** — does it read, write, or both? For commands with subcommands, does it vary?
-3. **Choose scope** — where does the data live? Pick from `StorageScope`.
+3. **Choose the connection side** — which F5 proxy side does it act on? Pick
+   from `ConnectionSide`. (`StorageScope` and `StorageType` are inferred by
+   the classifier, not declared on the spec.)
 4. **Set connection side** — for F5 commands, which proxy side? `CLIENT`, `SERVER`, `BOTH`, or `GLOBAL`.
-5. **Add to CommandSpec** — set `side_effect_hints=(SideEffect(...),)` on the spec.
-6. **Add SubCommand entries if needed** — if subcommands have different read/write profiles, add per-subcommand hints with `SubCommand(side_effect_hints=(...))`.
-7. **Mark pure subcommands** — set `pure=True` on read-only subcommands. The classifier will automatically narrow their hints to read-only.
-8. **Mark mutator subcommands** — set `mutator=True` on write subcommands. The protocol namespace classifier uses this to upgrade writes.
+5. **Add to CommandSpec** — set `side_effects: &[SideEffect { … }]` on the spec.
+6. **Add SubCommand entries if needed** — if subcommands have different read/write profiles, set `side_effects` on each `SubCommand`.
+7. **Mark pure subcommands** — set `pure: true` on read-only subcommands. The classifier will automatically narrow their effects to read-only.
+8. **Mark mutator subcommands** — set `mutator: true` on write subcommands. The protocol namespace classifier uses this to upgrade writes.
 
 ### Checklist
 
-- [ ] `side_effect_hints` tuple on `CommandSpec`
+- [ ] `side_effects` slice on `CommandSpec`
 - [ ] Subcommand hints where read/write varies
-- [ ] `pure=True` on read-only subcommands
-- [ ] `mutator=True` on write subcommands
+- [ ] `pure: true` on read-only subcommands
+- [ ] `mutator: true` on write subcommands
 
 ## File-path anchors
 
 - `side_effects.rs` — the effect enums, `classify_side_effects`, trace composition, and the `EffectRegion` bridge
-- `rust/tcl-registry/src/spec.rs` — `CommandSpec.side_effect_hints`, `SubCommand.side_effect_hints`
-- `rust/tcl-registry/src/registry.rs` — `REGISTRY.side_effect_hints()` lookup
+- `rust/tcl-registry/src/spec.rs` — `CommandSpec::side_effects`, `SubCommand::side_effects`
+- `rust/tcl-registry/src/side_effects.rs` — the registry-side `SideEffect`
+- `rust/tcl-compiler/src/side_effects.rs` — `dialect_side_effect_hints` lookup, `lift_registry_effect`
 - `ir.rs` — `CommandTrace`, the module's traced-command set, and the dynamic-trace flag
 - `lowering/` — `trace add`/`trace remove execution` capture
 - `gvn.rs` — GVN consumer (threads the module's traced commands)
@@ -317,10 +350,10 @@ SideEffect(
 
 ## Failure modes
 
-- **Missing hint** — command falls through to conservative `UNKNOWN` read+write. GVN will not optimise around it. Fix: add `side_effect_hints` to the command's registry spec.
-- **Missing subcommand hint** — read-only subcommand inherits the command's conservative read+write hint. Fix: add per-subcommand hints with `pure=True` on read-only subcommands.
+- **Missing effects** — command falls through to conservative `SideEffectTarget::Unknown` read+write. GVN will not optimise around it. Fix: add `side_effects` to the command's registry spec.
+- **Missing subcommand effects** — read-only subcommand inherits the command's conservative read+write effect. Fix: add per-subcommand `side_effects` with `pure: true` on read-only subcommands.
 - **Wrong `connection_side`** — iRules flow checker may fail to track response commits or connection drops on the correct side. Fix: set `connection_side` to match the F5 documentation.
-- **Pure subcommand without hint** — classifier returns `pure=True` with no effects. Target/scope metadata is lost. Fix: add a hint to the subcommand so the classifier can include read-only effects.
+- **Pure subcommand without effects** — classifier returns `pure: true` with no effects. Target metadata is lost. Fix: add `side_effects` to the subcommand so the classifier can include read-only effects.
 - **Hint on dynamic barrier command** — hints are ignored; dynamic barriers always produce `UNKNOWN` read+write. This is correct — do not add hints to `eval`/`uplevel`.
 
 ## Test anchors

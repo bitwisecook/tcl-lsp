@@ -3,12 +3,11 @@
 The IR node hierarchy, how a `SegmentedCommand` becomes a typed IR node, and
 why a given command produces the node it does.
 
-IR lowering transforms `SegmentedCommand` objects into an `IRModule`
-containing typed `IRStatement` nodes.  The lowerer selects the most specific
-IR node possible — `IRAssignConst` for constants, `IRAssignExpr` for
-expressions, `IRIf`/`IRFor`/`IRWhile` for control flow — falling back to
-`IRCall` for generic commands.  Every IR node carries a `Range` for
-diagnostic mapping.
+IR lowering transforms `SegmentedCommand` values into a `Module`
+containing typed `Statement` variants.  The lowerer selects the most specific
+variant possible — `AssignConst` for constants, `AssignExpr` for expressions,
+`If` / `For` / `While` for control flow — falling back to `Call` for generic
+commands.  Every statement carries a `Span` for diagnostic mapping.
 
 Source: `rust/tcl-compiler/src/ir.rs`,
 `rust/tcl-compiler/src/lowering/`
@@ -19,84 +18,95 @@ Source: `rust/tcl-compiler/src/ir.rs`,
 
 | Tcl pattern | IR node | Why |
 |-------------|---------|-----|
-| `set x 42` (constant value) | `IRAssignConst` | Value known at compile time |
-| `set x [expr {…}]` | `IRAssignExpr` | Expression can be statically analysed |
-| `set x $y` / `set x "hi $n"` | `IRAssignValue` | Variable/interpolated — runtime resolution |
-| `incr i` / `incr i 5` | `IRIncr` | Specialised increment |
-| `expr {2 + 3}` | `IRExprEval` | Standalone expression evaluation |
-| `if {…} {…} else {…}` | `IRIf` + `IRIfClause` | Structured control flow |
-| `while {…} {…}` | `IRWhile` | Loop with structured condition |
-| `for {…} {…} {…} {…}` | `IRFor` | Loop with init/cond/step/body |
-| `foreach var list body` | `IRForeach` | Iteration |
-| `catch {…} result` | `IRCatch` | Exception handling |
-| `try {…} on … {…}` | `IRTry` + `IRTryHandler` | Structured exception |
-| `switch $x {…}` | `IRSwitch` + `IRSwitchArm` | Multi-way branch |
-| `return $val` | `IRReturn` | Procedure exit |
-| `eval $script` | `IRBarrier` | Defeats static analysis |
-| `puts $msg`, `regexp …` | `IRCall` | Generic command invocation |
+| `set x 42` (constant value) | `Statement::AssignConst` | Value known at compile time |
+| `set x [expr {…}]` | `Statement::AssignExpr` | Expression can be statically analysed |
+| `set x $y` / `set x "hi $n"` | `Statement::AssignValue` | Variable/interpolated — runtime resolution |
+| `incr i` / `incr i 5` | `Statement::Incr` | Specialised increment |
+| `expr {2 + 3}` | `Statement::ExprEval` | Standalone expression evaluation |
+| `if {…} {…} else {…}` | `Statement::If` + `IfClause` | Structured control flow |
+| `while {…} {…}` | `Statement::While` | Loop with structured condition |
+| `for {…} {…} {…} {…}` | `Statement::For` | Loop with init/cond/step/body |
+| `foreach var list body` | `Statement::Foreach` | Iteration |
+| `catch {…} result` | `Statement::Catch` | Exception handling |
+| `try {…} on … {…}` | `Statement::Try` + `TryHandler` | Structured exception |
+| `switch $x {…}` | `Statement::Switch` + `SwitchArm` | Multi-way branch |
+| `return $val` | `Statement::Return` | Procedure exit |
+| `eval $script` | `Statement::Barrier` | Defeats static analysis |
+| `puts $msg`, `regexp …` | `Statement::Call` | Generic command invocation |
 
-### `IRAssignConst` vs `IRAssignValue`
+### `Statement::AssignConst` vs `Statement::AssignValue`
 
 The key distinction: does the lowerer know the value at compile time?
 
-- `set x 42` → `argv[2].type == ESC` and the text is a simple literal →
-  `IRAssignConst(name="x", value="42")`
-- `set x $y` → `argv[2].type == VAR` → `IRAssignValue(name="x", value="${y}")`
-- `set x {hello}` → `argv[2].type == STR` → `IRAssignConst(name="x", value="hello")`
+- `set x 42` → `argv[2].kind == ESC` and the text is a simple literal →
+  `Statement::AssignConst { name: "x", value: "42", .. }`
+- `set x $y` → `argv[2].kind == VAR` →
+  `Statement::AssignValue { name: "x", value: "${y}", .. }`
+- `set x {hello}` → `argv[2].kind == STR` →
+  `Statement::AssignConst { name: "x", value: "hello", .. }`
 
-### `IRCall.defs` — variable definitions from commands
+### `Statement::Call`'s `defs` — variable definitions from commands
 
 Commands like `regexp` define variables via match capture groups.  The lowerer
-uses `ArgRole.VAR_NAME` to identify which arguments are variable names:
+uses `ArgRole::VarWrite` to identify which arguments are variable names:
 
-```python
-# regexp {(\d+)} $input match submatch
-IRCall(command="regexp", args=(...), defs=("match", "submatch"))
+```rust
+// regexp {(\d+)} $input match submatch
+Statement::Call {
+    command: "regexp".into(),
+    args: vec![/* … */],
+    defs: vec!["match".into(), "submatch".into()],
+    ..
+}
 ```
 
-The `defs` tuple tells the SSA builder that `regexp` creates new definitions
+The `defs` vector tells the SSA builder that `regexp` creates new definitions
 for `match` and `submatch`.
 
-### `IRBarrier` — analysis boundary
+### `Statement::Barrier` — analysis boundary
 
-Commands in `_DYNAMIC_BARRIER_COMMANDS` (`eval`, `uplevel`, `upvar`) always
-produce `IRBarrier`.  All downstream passes stop reasoning about variable
+Commands whose registry `arg_roles` mark an `ArgRole::Body` word that no
+lowering hook specialises (`eval`, `uplevel`, `upvar`) produce
+`Statement::Barrier`.  All downstream passes stop reasoning about variable
 state at barrier points — the command can read/write any variable.
 
-### `IRModule` structure
+### `Module` structure
 
-```python
-IRModule(
-    top_level=IRScript(statements=(...)),          # code outside procs
-    procedures={"::add": IRProcedure(...)},        # qualified name → proc
-    redefined_procedures=set(),                    # procs defined twice
-)
+```rust
+Module {
+    source: /* the analysed text */,
+    top_level: Script { statements: vec![/* … */] }, // code outside procs
+    procedures: HashMap::from([("::add".into(), Procedure { .. })]),
+    methods: HashMap::new(),                        // TclOO method bodies
+    redefined_procedures: HashSet::new(),           // procs defined twice
+    // …plus the namespace, trace, and TclOO evidence maps
+}
 ```
 
-Procedures are extracted from `top_level` into the `procedures` dict during
+Procedures are extracted from `top_level` into `procedures` during
 lowering.  Top-level code emits `proc` registration as `invokeStk` calls
 at codegen time.
 
 ### Expression bodies
 
 Braced `expr` bodies are parsed into `ExprNode` AST trees at lowering time.
-The AST lives inside `IRAssignExpr.expr`, `IRExprEval.expr`, `IRIf` clause
-conditions, and loop conditions.  Unbraced expressions fall back to
+The AST lives inside `Statement::AssignExpr`'s and `Statement::ExprEval`'s
+`expr` field, `Statement::If` clause conditions, and loop conditions.  Unbraced expressions fall back to
 `ExprRaw` (diagnostic W100).
 
 ## Decision rule
 
-- Use `IRAssignConst` only when the value is a compile-time constant
+- Use `Statement::AssignConst` only when the value is a compile-time constant
   (single-token `ESC` or `STR` with no interpolation).
-- If a new command needs special IR, register a lowering hook rather than
-  adding to the match/case in `_lower_command()`.
-- Commands with `ArgRole.BODY` arguments that are not explicitly handled
-  produce `IRBarrier` — conservative but correct.
-- Every IR node must carry a `Range` — diagnostics need source positions.
+- If a new command needs a special statement, set `lowering_hook` on its
+  `CommandSpec` rather than dispatching on the command name in the lowerer.
+- Commands with `ArgRole::Body` arguments that no hook handles produce
+  `Statement::Barrier` — conservative but correct.
+- Every statement must carry a `Span` — diagnostics need source positions.
 
 ## Related docs
 
 - [Examples 1–4 in walkthroughs](../../../docs/design/example-script-walkthroughs.md#example-1-set-x-42)
-- [Data structure reference — IR types](../../../docs/design/example-script-walkthroughs.md#stage-3--ir-types-corecompilerirpy)
+- [Data structure reference — IR types](data-structure-reference.md#stage-3--ir-types-irrs)
 - [kcs-lowering-dispatch.md](../../../docs/design/compiler/lowering-dispatch.md)
 - [kcs-lowering-contracts.md](../../../docs/design/compiler/lowering-contracts.md)

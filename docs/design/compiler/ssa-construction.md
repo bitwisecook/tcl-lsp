@@ -4,13 +4,13 @@ How the SSA builder assigns version numbers, places phi nodes, and computes
 the dominator tree. Read this when debugging variable versioning or a missing
 phi node.
 
-`build_ssa()` in `ssa.rs` transforms a `CFGFunction` into an `SSAFunction`
+`build_ssa` in `ssa.rs` transforms a `cfg::Function` into an `SsaFunction`
 where every variable definition gets a unique version number.  Phi nodes are
 placed at dominance frontiers to merge definitions from different paths.
 The dominator tree and dominance frontiers are computed as part of SSA
 construction.
 
-Source: `rust/tcl-compiler/src/ssa.rs` (`build_ssa` at line 1012, `SSAPhi` at line 606, `SSAFunction` at line 648)
+Source: `rust/tcl-compiler/src/ssa.rs` (`build_ssa`, `Phi`, `SsaBlock`, `SsaFunction`)
 
 ## Content
 
@@ -54,14 +54,14 @@ dominance "ends":
 Block A dominates block B if every path from entry to B passes through A.
 The immediate dominator (`idom`) is the closest dominator.
 
-```python
-SSAFunction.idom = {
-    "entry_1": None,
-    "if_then_3": "entry_1",
-    "if_next_4": "entry_1",
-    "if_end_2": "entry_1",
-    "exit_5": "if_end_2",
-}
+`SsaFunction::idom` is a `HashMap<BlockId, Option<BlockId>>`; by block name:
+
+```
+entry_1    -> None
+if_then_3  -> entry_1
+if_next_4  -> entry_1
+if_end_2   -> entry_1
+exit_5     -> if_end_2
 ```
 
 ### Loop phis
@@ -74,7 +74,7 @@ Loops create phi nodes at the loop header:
     branch uses: {i: 2}
 
   while_body_4:
-    IRIncr(i) → i₃ = i₂ + 1
+    Statement::Incr { name: "i", .. } → i₃ = i₂ + 1
 ```
 
 The phi merges the initial value (`i₁ = 0`) with the loop-carried update
@@ -96,15 +96,15 @@ Three definitions merge — the phi has three incoming edges.
 
 | Type | Fields |
 |------|--------|
-| `SSAStatement` | `statement` (original IR), `uses dict[name→version]`, `defs dict[name→version]` |
-| `SSAPhi` | `name`, `version` (produced), `incoming dict[block→version]` |
-| `SSABlock` | `phis tuple`, `statements tuple`, `entry_versions`, `exit_versions` |
-| `SSAFunction` | `blocks dict`, `idom dict`, `dominance_frontier dict`, `dominator_tree dict` |
+| `SsaStatement` | `statement: Statement` (the original IR), `uses: HashMap<Symbol, Version>`, `defs: HashMap<Symbol, Version>`, `may_defs`, `quoted_uses` |
+| `Phi` | `name: Symbol`, `version: Version` (produced), `incoming: HashMap<BlockId, Version>` |
+| `SsaBlock` | `name`, `phis: Vec<Phi>`, `statements: Vec<SsaStatement>`, `entry_versions`, `exit_versions` |
+| `SsaFunction` | `entry: BlockId`, `blocks: HashMap<BlockId, SsaBlock>`, `idom`, `dominance_frontier`, `dominator_tree` |
 
 ## Decision rule
 
 - If a new IR node defines variables, ensure it appears in `defs` of the
-  `SSAStatement` so the SSA builder tracks it.
+  `SsaStatement` so the SSA builder tracks it.
 - Version 0 reads indicate potential read-before-set — check that the
   variable is legitimately undefined (not a cross-event flow in iRules).
 - Phi nodes are only placed where needed (at dominance frontiers), not at
