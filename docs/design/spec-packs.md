@@ -1,4 +1,8 @@
-# Spec packs — a Tcl DSL for command databases
+# SpecTcl — spec packs as a Tcl DSL
+
+The DSL is named **SpecTcl**. (Two prior arts knowingly share the name —
+Sun's 1990s Tk GUI builder and the NSCL physics analysis tool; both are
+dormant-to-distant enough in this space that the pun wins.)
 
 > **Status:** proposal under active design, for
 > [issue #1363](https://github.com/bitwisecook/tcl-lsp/issues/1363).

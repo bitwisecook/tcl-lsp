@@ -1,4 +1,4 @@
-# The spec-pack DSL — syntax specification
+# SpecTcl — syntax specification
 
 > **Status:** design sketch for [spec-packs.md](../spec-packs.md) and
 > [issue #1363](https://github.com/bitwisecook/tcl-lsp/issues/1363).
