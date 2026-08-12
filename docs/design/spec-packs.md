@@ -226,6 +226,13 @@ task weight), spec'd here so the work has a target:
   the argument role and where it came from, type facts, taint colours,
   and which spec field produced each token. "My stuff is working" is
   observed, not asserted.
+- **Navigation built for many commands.** `/` anywhere opens
+  command search (registry and pack alike, keyboard-first); browser-style
+  forward/back moves through the commands visited, with unsaved edits
+  carried by the live-save layer rather than blocked by prompts. The
+  workflow is explicitly *many commands to one deliverable*: build out
+  the pack command by command, then emit the finished set as one DSL
+  file, one rendered `.rs` batch, or one pre-filled GitHub issue.
 - **Live save, always.** Every keystroke persists to browser storage
   (IndexedDB): pack sources, drafts, settings, the Test tab's sample
   code. Reload, crash, or restart resumes exactly; explicit export
