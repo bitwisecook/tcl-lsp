@@ -2129,8 +2129,12 @@ mod tests {
     #[test]
     fn live_execution_trace_keeps_o105_suppressed() {
         let registry = CommandRegistry::build_default();
-        let source = "proc observe {command op} {}\n\
-                      trace add execution llength enter observe\n\
+        // The handler is deliberately never defined here. `proc` declares a
+        // script-kind callback barrier that clobbers every domain on its own,
+        // so defining `observe` would suppress the report for a reason that
+        // has nothing to do with the trace, and this test would pass while
+        // proving nothing. A trace prefix need not name a defined command.
+        let source = "trace add execution llength enter observe\n\
                       llength {a b}\n\
                       llength {a b}";
         let cu = crate::compilation_unit::CompilationUnit::build_for_dialect(
@@ -2144,6 +2148,19 @@ mod tests {
         assert!(
             find_redundancies_for_function(&registry, &cu.top_level, Some("tcl9.0")).is_empty(),
             "an execution-traced command is observably invoked twice"
+        );
+
+        // Control: with the registration removed, the same two calls report.
+        let untraced = crate::compilation_unit::CompilationUnit::build_for_dialect(
+            "llength {a b}\nllength {a b}",
+            &registry,
+            false,
+            "tcl9.0",
+        );
+        assert_eq!(
+            find_redundancies_for_function(&registry, &untraced.top_level, Some("tcl9.0")).len(),
+            1,
+            "the trace registration must be the only reason the report is withheld"
         );
     }
 
