@@ -220,14 +220,28 @@ way C's engine does, so an emitter cannot rely on them to establish one.
 - [ ] `constStk`
 ## Notes
 
-- The `Op` enum also carries dialect-only opcodes (`irule*`) that are **not**
-  C Tcl instructions; they are intentionally outside this inventory.
-- `foreach_start` / `foreach_step` / `foreach_end` / `lmap_collect` need the
-  `ForeachInfo` aux (loop-variable groups) carried on the instruction, plus the
-  implicit start→step and step→body jumps (`tclExecute.c`'s `INST_FOREACH_*`).
+- The `Op` enum also carries opcodes that are **not** C Tcl instructions and are
+  intentionally outside this inventory: the nine dialect-only `IRULE_*`
+  opcodes, plus `LAND`, `LOR`, `STR_REPEAT`, and `STR_REVERSE` (C Tcl builds
+  those from jumps or command calls rather than dedicated instructions).
+- `not` maps onto the enum's `LNOT`. The enum also has a separate `NOT`
+  variant, which no row here claims.
 - Variable opcodes come in `Scalar1` / `Scalar4` / `ScalarStk` / `Array1` /
   `Array4` / `ArrayStk` / `Stk` families; every family member C Tcl emits needs
-  covering, not just one representative.
+  covering, not just one representative. The remaining absences are
+  concentrated in the `…Stk` members (`loadScalarStk`, `storeScalarStk`,
+  `incrScalarStk`, `existArrayStk`, `unsetArrayStk`, …) and in the
+  coroutine / TclOO / introspection instructions (`yield`, `coroName`,
+  `yieldToInvoke`, `tcloo*`, `currentNamespace`, `infoLevel*`, `resolveCmd`,
+  `originCmd`), which the VM implements at the command level rather than as
+  bytecode.
+- The seven enum-only opcodes are cases where the emitter has a name to target
+  but the VM has no arm: `pushReturnCode`, `strmap`, `appendStk`, `lappendStk`,
+  `lappendListStk`, `lappendListArray`, and `lappendListArrayStk`. Six of them
+  are emitted by nothing. `pushReturnCode` is the exception — the compiler's
+  control-flow codegen emits it — so a body that reaches it raises the VM's
+  catch-all, `opcode pushReturnCode not implemented in tcl-vm`, at run time
+  rather than at codegen time.
 
 ## Cross-references
 

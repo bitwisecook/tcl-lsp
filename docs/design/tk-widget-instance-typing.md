@@ -55,14 +55,14 @@ Two consequences:
   for a widget instance needs no class-hierarchy walk — the widget's own
   spec **is** the answer.
 
-That second point means the registry-side fix is a **self-referential**
-binding: the object class a widget's constructor creates is the constructor
+That second point means the registry-side binding is **self-referential**:
+the object class a widget's constructor creates is the constructor
 command's own spec, not a separate class. `ObjectClassSpec::instance_methods`
 and `CommandSpec::subcommands` are already the same type
 (`&'static [SubCommand]`), so a widget's `ObjectClassSpec` can point at the
 literal same `SUBCOMMANDS` static its own `CommandSpec::subcommands` uses —
 zero duplication, zero drift risk, and `CommandRegistry::instance_method`
-resolves it with **no code changes**.
+resolves it with no widget-specific code at all.
 
 ## Machinery this reuses
 
@@ -116,7 +116,7 @@ resolves it with **no code changes**.
   object-insensitive aggregation (this is the FP-OBJ-04 regression the
   comment names explicitly). Factory-return provenance is kept in the
   syntactic, highlight-only `object_types::object_handle_classes` map
-  instead. **This fix follows the same discipline**: widget constructors are
+  instead. **This model follows the same discipline**: widget constructors are
   not added to the SSA type lattice.
 
 ## The model
@@ -334,16 +334,15 @@ following are explicit non-goals, not accidental gaps:
   **receiver typing**: `instance_classes` is still whole-file and
   name-keyed, not interpreter-keyed — see
   [Interpreter domains](#interpreter-domains-issue-1141) for why that is
-  fail-closed here.  The *window
-  hierarchy* half (TK1001 / TK1002) is no longer deferred: it is keyed by
-  interpreter domain.
+  fail-closed here.  The *window hierarchy* half (TK1001 / TK1002) is not
+  an abstention: it is keyed by interpreter domain.
 - **Interprocedural flow for diagnostics** (a widget path passed as a proc
   argument, `proc configureWidget {w} { $w instate … }`): the diagnostic's
   receiver resolution is whole-file (via `instance_classes`), not
   proc-scoped like `var_command.rs`'s own TclOO tracking — but made *sound*
   for that wider scope by collision-dropping (item 8 above) rather than by
   narrowing the scope. A widget path threaded through a proc parameter
-  therefore *does* get diagnosed today (unlike TclOO's `$obj` parameters,
+  therefore *does* get diagnosed (unlike TclOO's `$obj` parameters,
   which `var_command.rs` never resolves at all), as long as its literal
   creation-time name is never reused for a different widget class
   elsewhere in the file. `object_types.rs`'s separate proc-parameter
@@ -430,7 +429,7 @@ following are explicit non-goals, not accidental gaps:
   `tcloo_dispatch_is_unaffected` — a plain `$obj method` dispatch fires
   `var_command.rs`'s W308, never this module's W001.
 - **Interpreter domains** (issue #1141), `tk_checks.rs`'s
-  `tests::interp_domains` module — 19 cases covering TP/FP/TN/FN in both
+  `tests::interp_domains` module — 20 cases covering TP/FP/TN/FN in both
   directions: the false TK1001 across isolated interpreters and the true
   same-interpreter one; the missed TK1002 in both directions (parent only in
   the child, parent only in the parent) and the same-domain true negative;
@@ -441,7 +440,7 @@ following are explicit non-goals, not accidental gaps:
   unresolved-target widening (both that it abstains, and that it does not
   fall silent when the parent exists nowhere at all).  End-to-end coverage of
   the published diagnostics is in
-  `rust/tcl-lsp-server/tests/e2e/tk_dialect.rs` (6 further cases, including
+  `rust/tcl-lsp-server/tests/e2e/tk_dialect.rs` (15 further cases, including
   the literal `dialog1.tcl` shape from the audit).
 
 ## Sources
