@@ -119,6 +119,16 @@ fn ok_str(c: &Completion<Value>) -> String {
     c.result.to_str().to_string()
 }
 
+/// The `-errorcode` an error completion publishes through its options dict
+/// (what `catch … opts; dict get $opts -errorcode` reads back).
+fn err_code(c: &Completion<Value>) -> String {
+    let words = c.options.as_list().expect("options are a dict");
+    words
+        .windows(2)
+        .find(|pair| &*pair[0].to_str() == "-errorcode")
+        .map_or_else(String::new, |pair| pair[1].to_str().to_string())
+}
+
 /// The message of a completion that must have failed.
 fn err_str(c: &Completion<Value>) -> String {
     assert_eq!(
@@ -1699,6 +1709,60 @@ fn str_index_and_range_still_clamp_valid_indices() {
         a.push("abcde").push(from).push(to).op(Op::STR_RANGE, &[]);
         let (_, c) = run_fresh(a);
         assert_eq!(ok_str(&c), want, "strrange abcde {from} {to}");
+    }
+}
+
+// -- exprStk ----------------------------------------------------------------
+
+/// C `INST_EXPR_STK` (`tclExecute.c`) calls `TclCompileExpr` on the popped
+/// string, so an unparsable expression is a `TCL_ERROR` from `ParseExpr` — never
+/// a value. The opcode used to hand the source text back instead, which made
+/// every unparsable expression a silent wrong answer.
+///
+/// Messages transcribed from C's `tests/parseExpr.test` (`parseExpr-21.*`).
+#[test]
+fn expr_stk_raises_c_syntax_errors() {
+    for (expr, message, code) in [
+        (
+            "1+",
+            "missing operand at _@_\nin expression \"1+_@_\"",
+            "TCL PARSE EXPR MISSING",
+        ),
+        (
+            "1 2",
+            "missing operator at _@_\nin expression \"1 _@_2\"",
+            "TCL PARSE EXPR MISSING",
+        ),
+        (
+            "",
+            "empty expression\nin expression \"\"",
+            "TCL PARSE EXPR EMPTY",
+        ),
+        (
+            "foo bar baz",
+            "invalid bareword \"foo\"\nin expression \"foo bar baz\";\n\
+             should be \"$foo\" or \"{foo}\" or \"foo(...)\" or ...",
+            "TCL PARSE EXPR BAREWORD",
+        ),
+    ] {
+        let mut a = Asm::new();
+        a.push(expr).op(Op::EXPR_STK, &[]);
+        let (_, c) = run_fresh(a);
+        assert_eq!(err_str(&c), message, "exprStk over {expr:?}");
+        // The opcode must publish C's structured `-errorcode`, not just the
+        // message (`tclCompExpr.c:1467`).
+        assert_eq!(err_code(&c), code, "exprStk -errorcode over {expr:?}");
+    }
+}
+
+/// TP control: a parsable expression still evaluates through the same opcode.
+#[test]
+fn expr_stk_still_evaluates_a_valid_expression() {
+    for (expr, want) in [("2+3", "5"), ("1 ? 2 : 3", "2"), ("\"a\" eq \"a\"", "1")] {
+        let mut a = Asm::new();
+        a.push(expr).op(Op::EXPR_STK, &[]);
+        let (_, c) = run_fresh(a);
+        assert_eq!(ok_str(&c), want, "exprStk over {expr:?}");
     }
 }
 

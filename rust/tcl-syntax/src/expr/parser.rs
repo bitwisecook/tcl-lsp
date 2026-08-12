@@ -133,6 +133,21 @@ fn unaryop_from_text(text: &str) -> Option<UnaryOp> {
     })
 }
 
+/// Whether `text` spells an operator this parser accepts in prefix position.
+///
+/// The [`syntax_error`](super::syntax_error) diagnosis pass needs the same
+/// unary/binary split the parser applies, so it reads it from here rather than
+/// keeping a second list that could drift.
+pub(super) fn is_unary_operator(text: &str) -> bool {
+    unaryop_from_text(text).is_some()
+}
+
+/// Whether `text` spells an operator this parser accepts in infix position.
+/// Companion to [`is_unary_operator`]: `-` is both, `~` and `!` are prefix only.
+pub(super) fn is_binary_operator(text: &str) -> bool {
+    binop_from_text(text).is_some()
+}
+
 /// Binding power for prefix unary operators (higher than any binary).
 const UNARY_BP: u8 = 24;
 

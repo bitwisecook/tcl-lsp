@@ -241,9 +241,19 @@ fn list_operand_error_wording() {
         assert_eq!(result, want, "expr {{{e}}}");
     }
     // A single-element non-number is still a non-numeric *string* — the list
-    // branch must not swallow it. Driven through `mathop` (as
-    // `nan_operand_error_wording` is) so the operand reaches `to_num_operand`
-    // rather than the expression parser.
+    // branch must not swallow it. Written through `expr` directly, with the
+    // operand *quoted*: a bare `abc` never reaches the operand check in C either
+    // (`ParseExpr` rejects it as `invalid bareword` first — `tclCompExpr.c:766`),
+    // whereas a quoted string is a legal operand whose coercion is what fails
+    // (expr-old-5.13/5.14). This used to be routed through `mathop` to dodge the
+    // VM's old `exprStk` fallback, which handed a bare `abc + 1` back as text.
+    let (ok, result, _) = run("catch {expr {\"abc\" + 1}} m\nset m");
+    assert!(ok, "script should complete: {result}");
+    assert_eq!(
+        result,
+        "cannot use non-numeric string \"abc\" as left operand of \"+\""
+    );
+    // `mathop` reaches the same helper from its own entry point.
     let (ok, result, _) = run("catch {tcl::mathop::+ abc 1} m\nset m");
     assert!(ok, "script should complete: {result}");
     assert_eq!(

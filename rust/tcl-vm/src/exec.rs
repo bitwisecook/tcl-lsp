@@ -3262,7 +3262,12 @@ impl Vm {
                 let s = pop(f).to_str();
                 match self.eval_expr(&s) {
                     Ok(v) => f.stack.push(v),
-                    Err(e) => return Tick::Return(err(e.message)),
+                    // Through `completion_from_tcl_error`, not `err`: a syntax
+                    // error in the expression carries a `TCL PARSE EXPR …`
+                    // `-errorcode` that a bare message would drop.
+                    Err(e) => {
+                        return Tick::Return(crate::command::completion_from_tcl_error(e));
+                    }
                 }
             }
 

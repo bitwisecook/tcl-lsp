@@ -36,7 +36,7 @@ C-semantics contracts.
 - [x] `invokeStk1`
 - [x] `invokeStk4`
 - [x] `evalStk`
-- [x] `exprStk` (note 6)
+- [x] `exprStk`
 - [x] `loadScalar1`
 - [x] `loadScalar4`
 - [x] `loadScalarStk`
@@ -271,10 +271,18 @@ deliberate divergences; everything else matches C per the parity suites.
    `next`/`self` commands' existing rule), slightly looser than C's
    `FRAME_IS_METHOD` — a plain proc *called from* a method still counts.
    Opcode and command surfaces agree with each other.
-6. **`exprStk` invalid-expression fallback**: an unparsable runtime expression
-   currently evaluates to its own source text instead of C's compile error
-   (`Vm::eval_expr`; interacts with the shimmer contract —
-   `docs/design/contracts/shimmer-reference-behaviour.md`). Follow-up.
+6. *(retired — an unparsable runtime expression now raises C's syntax error.
+   `Vm::eval_expr` diagnoses the failure through
+   `tcl_syntax::expr::ExprSyntaxError`, which reproduces `ParseExpr`'s messages,
+   its `_@_` insert mark, the 25-byte elision window, the
+   `TCL PARSE EXPR <detail>` code and the `(parsing expression "…")` `errorInfo`
+   frame — `tclCompExpr.c:1397-1471`, pinned against C's `parseExpr-21.*` suite.
+   The old fallback had no bearing on the shimmer contract: that document
+   describes intrep conversion churn and never relied on an expression
+   evaluating to its own text, so the cross-reference here was unfounded. Two
+   lowerings that did rely on it were corrected alongside — a `switch` subject
+   and a `[…]` expression operand are words, and no longer pass through
+   `exprStk`.)*
 7. **`startCommand`** is inert (its length/cmd-count operands are carried for
    disassembly parity; the VM needs no interp-epoch recheck).
 8. **`arrayExistsImm`/`arrayExistsStk` skip C's `TclCheckArrayTraces`** — the

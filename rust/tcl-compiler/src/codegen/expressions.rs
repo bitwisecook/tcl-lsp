@@ -377,10 +377,16 @@ impl CodegenCtx<'_> {
             }
 
             ExprNode::Command { text, .. } => {
-                // Command substitution requires the main emitter pipeline.
-                // Emit as exprStk fallback.
+                // A `[…]` operand is a *word*: C compiles it with
+                // `TclCompileTokens` and takes the command's result as the
+                // operand value (`tclCompExpr.c`'s `OT_TOKENS` leaf) — it never
+                // re-parses that result. The non-verbatim push below performs the
+                // substitution at runtime, so the value is already the operand;
+                // an `exprStk` after it used to evaluate the *result* a second
+                // time as an expression (`expr {[set x]}` with `x` = `1+2` gave
+                // `3`, and `expr {"set" in [info commands]}` only worked while
+                // `exprStk` handed an unparsable expression back unchanged).
                 self.push_lit(text);
-                self.emit(Op::EXPR_STK, vec![]);
                 // Place the deferred `<cond>` startCommand
                 // end label after the command-substitution instructions
                 // so the startCommand covers the ExprCommand body.
@@ -870,8 +876,12 @@ mod tests {
 
     // -- Command substitution --
 
+    /// A `[…]` operand is a word: the (non-verbatim) push *is* the substitution,
+    /// so the value it leaves is already the operand. No `exprStk` — that used to
+    /// follow, and re-evaluated the command's result a second time as an
+    /// expression.
     #[test]
-    fn emit_command_fallback() {
+    fn emit_command_pushes_the_word_without_re_evaluating_it() {
         let registry = CommandRegistry::build_default();
         let mut ctx = CodegenCtx::new(false, &[], &registry);
         let node = ExprNode::Command {
@@ -881,8 +891,7 @@ mod tests {
         };
         let numeric = ctx.emit_expr(&node);
         assert!(!numeric);
-        // Fallback: push + exprStk
-        assert_eq!(opcodes(&ctx), vec![Op::PUSH1, Op::EXPR_STK]);
+        assert_eq!(opcodes(&ctx), vec![Op::PUSH1]);
     }
 
     // -- iRules operators --

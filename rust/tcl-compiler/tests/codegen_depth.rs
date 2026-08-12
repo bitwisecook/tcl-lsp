@@ -661,51 +661,55 @@ fn cmd_subst_nested_bracket_in_arg() {
 }
 
 #[test]
-fn cmd_subst_in_if_condition_is_expr_stk() {
-    // A command substitution used in an `if` condition is evaluated as the whole
-    // `<cond>` expression: the condition lowers to an EXPR_STK over the pushed
-    // `<cond>` body, not an inlined STR_LEN. (control_flow + cmd_subst.)
+fn cmd_subst_in_if_condition_is_a_pushed_word() {
+    // A command substitution used in an `if` condition is not inlined to
+    // STR_LEN: it becomes a pushed `<cond>` word the VM substitutes at run time.
+    // No EXPR_STK follows the push — the substituted value *is* the operand, and
+    // re-parsing it as an expression is exactly the double evaluation C avoids by
+    // compiling the operand with `TclCompileTokens`. (control_flow + cmd_subst.)
     let fa = proc_via_backend(
         "proc p {x} { if {[string length $x] > 0} { return 1 }; return 0 }",
         "::p",
     );
     let ops = opcodes(&fa);
     assert!(
-        ops.contains(&Op::EXPR_STK),
-        "cmd-subst in cond → EXPR_STK: {ops:?}"
+        !ops.contains(&Op::STR_LEN),
+        "cmd-subst in cond is not inlined: {ops:?}"
+    );
+    assert!(
+        !ops.contains(&Op::EXPR_STK),
+        "the substituted word is not re-parsed as an expression: {ops:?}"
     );
     assert!(has_cond_jump(&ops), "the if still has a conditional jump");
 }
 
 #[test]
 fn cmd_subst_info_exists_in_condition() {
-    // `info exists` inside an `if` condition also routes through EXPR_STK (the
-    // condition is a runtime expression), not the inline existScalar form.
+    // `info exists` inside an `if` condition is likewise a substituted word, not
+    // the inline existScalar form and not a re-parsed expression.
     let fa = proc_via_backend(
         "proc p {x} { if {[info exists x]} { return 1 }; return 0 }",
         "::p",
     );
     let ops = opcodes(&fa);
     assert!(
-        ops.contains(&Op::EXPR_STK),
-        "info-exists cond → EXPR_STK: {ops:?}"
+        !ops.contains(&Op::EXPR_STK),
+        "info-exists cond is a pushed word, not a re-parsed expression: {ops:?}"
     );
+    assert!(has_cond_jump(&ops), "the if still has a conditional jump");
 }
 
 #[test]
-fn cmd_subst_in_expr_position_routes_through_expr_stk() {
+fn cmd_subst_in_expr_position_is_a_pushed_word() {
     // A command substitution embedded in an `expr` body (`[llength $l] + 1`) is
-    // not separately inlined — the whole expression is evaluated at runtime as a
-    // pushed `<expr>` string via EXPR_STK (the inner subst stays inside it). This
-    // is the expr-position command-substitution lowering. (cmd_subst + values.)
+    // not separately inlined — it becomes a pushed operand word the VM
+    // substitutes, while the outer `+ 1` is real compile-time arithmetic.
+    // (cmd_subst + values.)
     let fa = proc_via_backend("proc p {l} { return [expr {[llength $l] + 1}] }", "::p");
     let ops = opcodes(&fa);
-    // The embedded `[llength $l]` is not separately inlined to LIST_LENGTH —
-    // it becomes a pushed `<expr>` operand evaluated via EXPR_STK; the outer
-    // `+ 1` is real compile-time arithmetic.
     assert!(
-        ops.contains(&Op::EXPR_STK),
-        "embedded cmd-subst → EXPR_STK: {ops:?}"
+        !ops.contains(&Op::EXPR_STK),
+        "the substituted operand is not re-parsed as an expression: {ops:?}"
     );
     assert!(
         ops.contains(&Op::ADD),
