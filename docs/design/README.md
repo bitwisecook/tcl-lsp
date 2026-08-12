@@ -323,6 +323,10 @@ chunk-by-chunk dispatch story lives in
   WASI vs in-browser WASM: per-command-family capability matrix, the
   browser-target build/wiring gaps, the proposed host-import surface, and
   measured module sizes (raw, `wasm-opt`, gzip).
+- [compiler/aot-command-priority.md](compiler/aot-command-priority.md) —
+  real-corpus census (issue #1181) ranking which Tcl commands the AOT
+  WASM compiler should emit directly next, with a breadth-weighted
+  tiering and what is already covered versus what cannot be direct.
 
 - [compiler/byte-array-corruption.md](compiler/byte-array-corruption.md)
   — the `S110` byte-array corruption diagnostic: binary data forced
