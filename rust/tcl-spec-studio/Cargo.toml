@@ -32,6 +32,7 @@ tcl-dialect = { path = "../tcl-dialect" }
 tcl-registry = { path = "../tcl-registry" }
 tcl-compiler = { path = "../tcl-compiler" }
 tcl-lexer = { path = "../tcl-lexer" }
+tcl-syntax = { path = "../tcl-syntax" }
 serde_json = { version = "1", features = ["preserve_order"] }
 
 [dev-dependencies]

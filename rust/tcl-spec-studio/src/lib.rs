@@ -41,6 +41,8 @@
 //! - [`render_rs`] — draft → registry `.rs` source, copyright banner included.
 //! - [`render_stub`] — draft → `# tcl-lsp: stub` block or `.tcl.stubs` file.
 //! - [`infer`] — Tcl package sources → draft specs, via the real analyser.
+//! - [`spectcl`] — `.tclspec` spec packs → live `CommandSpec`s, read from the
+//!   CST and never executed.
 
 pub mod catalogue;
 pub mod coverage;
@@ -51,6 +53,7 @@ pub mod reference;
 pub mod render_rs;
 pub mod render_stub;
 pub mod schema;
+pub mod spectcl;
 
 use serde_json::{Value, json};
 use tcl_registry::cache::registry_for_dialect;
