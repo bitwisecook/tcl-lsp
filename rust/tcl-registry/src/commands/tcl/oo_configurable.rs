@@ -74,7 +74,10 @@ pub fn spec() -> CommandSpec {
         }),
         forms: FORMS,
         side_effects: SIDE_EFFECTS,
-        definition_body: Some(&crate::definer::TCLOO_GRAMMAR),
+        // The configurable-specific grammar: the same TclOO definition body,
+        // plus the `configure` method this metaclass generates for the
+        // class's `property` members (`property_accessor_methods`).
+        definition_body: Some(&crate::definer::TCLOO_CONFIGURABLE_GRAMMAR),
         manufacturer_methods: crate::definer::TCLOO_DERIVED_METACLASS_MANUFACTURERS,
         ..CommandSpec::DEFAULT
     }

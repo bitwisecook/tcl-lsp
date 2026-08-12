@@ -1,0 +1,643 @@
+{
+  "anchors": [
+    "georgtree/tcl_tools/mathutil.tcl"
+  ],
+  "checks": [
+    {
+      "cpu_s": 4.0,
+      "id": "scan.workspace",
+      "items": null,
+      "label": "Workspace scan (cold index)",
+      "note": null,
+      "ok": true,
+      "ops": null,
+      "ord": 1,
+      "rss_after_kib": 149804,
+      "rss_before_kib": 9384,
+      "wall_s": 2.5121
+    },
+    {
+      "cpu_s": 1.0,
+      "id": "open.docs",
+      "items": null,
+      "label": "Open 4 documents + analyse",
+      "note": null,
+      "ok": true,
+      "ops": null,
+      "ord": 2,
+      "rss_after_kib": 169884,
+      "rss_before_kib": 149804,
+      "wall_s": 0.239
+    },
+    {
+      "cpu_s": 3.0,
+      "id": "edit.storm",
+      "items": null,
+      "label": "Typing storm (400 edits, no requests)",
+      "note": null,
+      "ok": true,
+      "ops": null,
+      "ord": 3,
+      "rss_after_kib": 196124,
+      "rss_before_kib": 169884,
+      "wall_s": 1.6286
+    },
+    {
+      "cpu_s": 10.0,
+      "id": "edit.tokens",
+      "items": null,
+      "label": "Typing + semantic tokens (100 edits)",
+      "note": null,
+      "ok": true,
+      "ops": null,
+      "ord": 4,
+      "rss_after_kib": 220612,
+      "rss_before_kib": 196124,
+      "wall_s": 4.7376
+    },
+    {
+      "cpu_s": 0.0,
+      "id": "nav.hover",
+      "items": 6,
+      "label": "Hover at definition sites",
+      "note": null,
+      "ok": true,
+      "ops": 6,
+      "ord": 5,
+      "rss_after_kib": 220728,
+      "rss_before_kib": 220612,
+      "wall_s": 0.0059
+    },
+    {
+      "cpu_s": 0.0,
+      "id": "nav.definition",
+      "items": 6,
+      "label": "Go to definition",
+      "note": null,
+      "ok": true,
+      "ops": 6,
+      "ord": 6,
+      "rss_after_kib": 220728,
+      "rss_before_kib": 220728,
+      "wall_s": 0.0077
+    },
+    {
+      "cpu_s": 0.0,
+      "id": "nav.references",
+      "items": 25,
+      "label": "Find references",
+      "note": null,
+      "ok": true,
+      "ops": 6,
+      "ord": 7,
+      "rss_after_kib": 220908,
+      "rss_before_kib": 220728,
+      "wall_s": 0.7079
+    },
+    {
+      "cpu_s": 0.0,
+      "id": "nav.completion",
+      "items": 14064,
+      "label": "Completion at definition sites",
+      "note": null,
+      "ok": true,
+      "ops": 6,
+      "ord": 8,
+      "rss_after_kib": 224472,
+      "rss_before_kib": 220908,
+      "wall_s": 0.0678
+    },
+    {
+      "cpu_s": 1.0,
+      "id": "nav.symbols",
+      "items": null,
+      "label": "Document symbols + folding",
+      "note": null,
+      "ok": true,
+      "ops": null,
+      "ord": 9,
+      "rss_after_kib": 224536,
+      "rss_before_kib": 224472,
+      "wall_s": 0.1943
+    },
+    {
+      "cpu_s": 0.0,
+      "id": "lens.resolve",
+      "items": null,
+      "label": "Code lens + resolve",
+      "note": null,
+      "ok": true,
+      "ops": null,
+      "ord": 10,
+      "rss_after_kib": 224536,
+      "rss_before_kib": 224536,
+      "wall_s": 0.3421
+    },
+    {
+      "cpu_s": 0.0,
+      "id": "action.codeaction",
+      "items": null,
+      "label": "Code actions at definition sites",
+      "note": null,
+      "ok": true,
+      "ops": null,
+      "ord": 11,
+      "rss_after_kib": 225580,
+      "rss_before_kib": 224536,
+      "wall_s": 0.2567
+    },
+    {
+      "cpu_s": 4.0,
+      "id": "refactor.rename",
+      "items": null,
+      "label": "Rename symbol (one per document)",
+      "note": null,
+      "ok": true,
+      "ops": null,
+      "ord": 12,
+      "rss_after_kib": 258920,
+      "rss_before_kib": 225580,
+      "wall_s": 3.3873
+    },
+    {
+      "cpu_s": 0.0,
+      "id": "refactor.filerename",
+      "items": null,
+      "label": "External file rename (one per document)",
+      "note": null,
+      "ok": true,
+      "ops": null,
+      "ord": 13,
+      "rss_after_kib": 261416,
+      "rss_before_kib": 258920,
+      "wall_s": 0.3369
+    },
+    {
+      "cpu_s": 1.0,
+      "id": "nav.after_rename",
+      "items": 25,
+      "label": "Find references after rename",
+      "note": null,
+      "ok": true,
+      "ops": 6,
+      "ord": 14,
+      "rss_after_kib": 261416,
+      "rss_before_kib": 261416,
+      "wall_s": 0.2547
+    },
+    {
+      "cpu_s": 0.0,
+      "id": "close.docs",
+      "items": null,
+      "label": "Close all documents",
+      "note": null,
+      "ok": true,
+      "ops": null,
+      "ord": 15,
+      "rss_after_kib": 261424,
+      "rss_before_kib": 261416,
+      "wall_s": 0.3007
+    }
+  ],
+  "corpus_files": 113,
+  "corpus_revision": 1,
+  "documents": [
+    {
+      "bytes": 8198,
+      "path": "georgtree/tcl_tools/mathutil.tcl",
+      "positions": 6
+    },
+    {
+      "bytes": 59467,
+      "path": "georgtree/ruff/src/formatter.tcl",
+      "positions": 20
+    },
+    {
+      "bytes": 6030,
+      "path": "georgtree/SpiceGenTcl/src/ngspice/specAnalysesClassesNgspice.tcl",
+      "positions": 0
+    },
+    {
+      "bytes": 7109,
+      "path": "georgtree/SpiceGenTcl/examples/ngspice/advanced/verilog_a_magnetic.tcl",
+      "positions": 0
+    }
+  ],
+  "host": {
+    "cores": 4,
+    "cpu": "Intel(R) Xeon(R) Processor @ 2.10GHz",
+    "load_1m": 1.97,
+    "mem_gb": 16
+  },
+  "platform": "linux-x86_64",
+  "schema": 1,
+  "scope": "small",
+  "timeline": [
+    {
+      "cpu_s": 0.0,
+      "rss_kib": 9384,
+      "t_s": 0.004
+    },
+    {
+      "cpu_s": 0.0,
+      "rss_kib": 77808,
+      "t_s": 0.268
+    },
+    {
+      "cpu_s": 1.0,
+      "rss_kib": 94180,
+      "t_s": 0.527
+    },
+    {
+      "cpu_s": 2.0,
+      "rss_kib": 113864,
+      "t_s": 0.786
+    },
+    {
+      "cpu_s": 3.0,
+      "rss_kib": 140684,
+      "t_s": 1.04
+    },
+    {
+      "cpu_s": 3.0,
+      "rss_kib": 140684,
+      "t_s": 1.295
+    },
+    {
+      "cpu_s": 3.0,
+      "rss_kib": 140684,
+      "t_s": 1.55
+    },
+    {
+      "cpu_s": 4.0,
+      "rss_kib": 141288,
+      "t_s": 1.805
+    },
+    {
+      "cpu_s": 4.0,
+      "rss_kib": 148552,
+      "t_s": 2.059
+    },
+    {
+      "cpu_s": 4.0,
+      "rss_kib": 148556,
+      "t_s": 2.313
+    },
+    {
+      "cpu_s": 4.0,
+      "rss_kib": 149804,
+      "t_s": 2.568
+    },
+    {
+      "cpu_s": 4.0,
+      "rss_kib": 149804,
+      "t_s": 2.822
+    },
+    {
+      "cpu_s": 5.0,
+      "rss_kib": 169128,
+      "t_s": 3.081
+    },
+    {
+      "cpu_s": 5.0,
+      "rss_kib": 169884,
+      "t_s": 3.336
+    },
+    {
+      "cpu_s": 6.0,
+      "rss_kib": 171476,
+      "t_s": 3.59
+    },
+    {
+      "cpu_s": 6.0,
+      "rss_kib": 182000,
+      "t_s": 3.847
+    },
+    {
+      "cpu_s": 6.0,
+      "rss_kib": 186624,
+      "t_s": 4.103
+    },
+    {
+      "cpu_s": 7.0,
+      "rss_kib": 189336,
+      "t_s": 4.358
+    },
+    {
+      "cpu_s": 7.0,
+      "rss_kib": 190092,
+      "t_s": 4.612
+    },
+    {
+      "cpu_s": 7.0,
+      "rss_kib": 190108,
+      "t_s": 4.866
+    },
+    {
+      "cpu_s": 8.0,
+      "rss_kib": 196124,
+      "t_s": 5.121
+    },
+    {
+      "cpu_s": 8.0,
+      "rss_kib": 196124,
+      "t_s": 5.376
+    },
+    {
+      "cpu_s": 8.0,
+      "rss_kib": 196128,
+      "t_s": 5.63
+    },
+    {
+      "cpu_s": 8.0,
+      "rss_kib": 197852,
+      "t_s": 5.89
+    },
+    {
+      "cpu_s": 9.0,
+      "rss_kib": 206064,
+      "t_s": 6.144
+    },
+    {
+      "cpu_s": 9.0,
+      "rss_kib": 207488,
+      "t_s": 6.399
+    },
+    {
+      "cpu_s": 10.0,
+      "rss_kib": 207968,
+      "t_s": 6.662
+    },
+    {
+      "cpu_s": 10.0,
+      "rss_kib": 209424,
+      "t_s": 6.92
+    },
+    {
+      "cpu_s": 11.0,
+      "rss_kib": 209424,
+      "t_s": 7.18
+    },
+    {
+      "cpu_s": 11.0,
+      "rss_kib": 209424,
+      "t_s": 7.435
+    },
+    {
+      "cpu_s": 12.0,
+      "rss_kib": 209532,
+      "t_s": 7.689
+    },
+    {
+      "cpu_s": 13.0,
+      "rss_kib": 211988,
+      "t_s": 7.948
+    },
+    {
+      "cpu_s": 13.0,
+      "rss_kib": 218572,
+      "t_s": 8.207
+    },
+    {
+      "cpu_s": 14.0,
+      "rss_kib": 218572,
+      "t_s": 8.462
+    },
+    {
+      "cpu_s": 14.0,
+      "rss_kib": 219596,
+      "t_s": 8.716
+    },
+    {
+      "cpu_s": 15.0,
+      "rss_kib": 219668,
+      "t_s": 8.972
+    },
+    {
+      "cpu_s": 15.0,
+      "rss_kib": 220192,
+      "t_s": 9.229
+    },
+    {
+      "cpu_s": 16.0,
+      "rss_kib": 220192,
+      "t_s": 9.484
+    },
+    {
+      "cpu_s": 16.0,
+      "rss_kib": 220600,
+      "t_s": 9.738
+    },
+    {
+      "cpu_s": 17.0,
+      "rss_kib": 220600,
+      "t_s": 9.993
+    },
+    {
+      "cpu_s": 18.0,
+      "rss_kib": 220612,
+      "t_s": 10.25
+    },
+    {
+      "cpu_s": 18.0,
+      "rss_kib": 220612,
+      "t_s": 10.505
+    },
+    {
+      "cpu_s": 18.0,
+      "rss_kib": 220728,
+      "t_s": 10.759
+    },
+    {
+      "cpu_s": 18.0,
+      "rss_kib": 220728,
+      "t_s": 11.014
+    },
+    {
+      "cpu_s": 18.0,
+      "rss_kib": 220728,
+      "t_s": 11.269
+    },
+    {
+      "cpu_s": 18.0,
+      "rss_kib": 220872,
+      "t_s": 11.524
+    },
+    {
+      "cpu_s": 18.0,
+      "rss_kib": 220908,
+      "t_s": 11.779
+    },
+    {
+      "cpu_s": 18.0,
+      "rss_kib": 220908,
+      "t_s": 12.034
+    },
+    {
+      "cpu_s": 18.0,
+      "rss_kib": 220908,
+      "t_s": 12.288
+    },
+    {
+      "cpu_s": 18.0,
+      "rss_kib": 224472,
+      "t_s": 12.543
+    },
+    {
+      "cpu_s": 18.0,
+      "rss_kib": 224472,
+      "t_s": 12.797
+    },
+    {
+      "cpu_s": 18.0,
+      "rss_kib": 224536,
+      "t_s": 13.052
+    },
+    {
+      "cpu_s": 19.0,
+      "rss_kib": 224536,
+      "t_s": 13.306
+    },
+    {
+      "cpu_s": 19.0,
+      "rss_kib": 224536,
+      "t_s": 13.561
+    },
+    {
+      "cpu_s": 19.0,
+      "rss_kib": 224536,
+      "t_s": 13.815
+    },
+    {
+      "cpu_s": 19.0,
+      "rss_kib": 224536,
+      "t_s": 14.07
+    },
+    {
+      "cpu_s": 19.0,
+      "rss_kib": 225580,
+      "t_s": 14.324
+    },
+    {
+      "cpu_s": 19.0,
+      "rss_kib": 225580,
+      "t_s": 14.579
+    },
+    {
+      "cpu_s": 19.0,
+      "rss_kib": 225580,
+      "t_s": 14.833
+    },
+    {
+      "cpu_s": 19.0,
+      "rss_kib": 226056,
+      "t_s": 15.088
+    },
+    {
+      "cpu_s": 20.0,
+      "rss_kib": 226056,
+      "t_s": 15.342
+    },
+    {
+      "cpu_s": 20.0,
+      "rss_kib": 237332,
+      "t_s": 15.597
+    },
+    {
+      "cpu_s": 20.0,
+      "rss_kib": 240256,
+      "t_s": 15.851
+    },
+    {
+      "cpu_s": 20.0,
+      "rss_kib": 240256,
+      "t_s": 16.106
+    },
+    {
+      "cpu_s": 21.0,
+      "rss_kib": 240256,
+      "t_s": 16.361
+    },
+    {
+      "cpu_s": 21.0,
+      "rss_kib": 242444,
+      "t_s": 16.615
+    },
+    {
+      "cpu_s": 21.0,
+      "rss_kib": 242444,
+      "t_s": 16.87
+    },
+    {
+      "cpu_s": 21.0,
+      "rss_kib": 247732,
+      "t_s": 17.124
+    },
+    {
+      "cpu_s": 22.0,
+      "rss_kib": 247772,
+      "t_s": 17.379
+    },
+    {
+      "cpu_s": 22.0,
+      "rss_kib": 247772,
+      "t_s": 17.633
+    },
+    {
+      "cpu_s": 22.0,
+      "rss_kib": 247772,
+      "t_s": 17.888
+    },
+    {
+      "cpu_s": 22.0,
+      "rss_kib": 257708,
+      "t_s": 18.143
+    },
+    {
+      "cpu_s": 23.0,
+      "rss_kib": 258920,
+      "t_s": 18.397
+    },
+    {
+      "cpu_s": 23.0,
+      "rss_kib": 258920,
+      "t_s": 18.658
+    },
+    {
+      "cpu_s": 23.0,
+      "rss_kib": 261412,
+      "t_s": 18.912
+    },
+    {
+      "cpu_s": 23.0,
+      "rss_kib": 261416,
+      "t_s": 19.167
+    },
+    {
+      "cpu_s": 24.0,
+      "rss_kib": 261416,
+      "t_s": 19.422
+    },
+    {
+      "cpu_s": 24.0,
+      "rss_kib": 261416,
+      "t_s": 19.676
+    },
+    {
+      "cpu_s": 24.0,
+      "rss_kib": 261416,
+      "t_s": 19.931
+    },
+    {
+      "cpu_s": 24.0,
+      "rss_kib": 261424,
+      "t_s": 20.185
+    },
+    {
+      "cpu_s": 24.0,
+      "rss_kib": 261424,
+      "t_s": 20.44
+    }
+  ],
+  "version": "mergebase-r3"
+}

@@ -2522,15 +2522,15 @@ fn insert_object_method_overrides(
     }
     // 2. User-defined class — resolve the method through the class hierarchy
     //    (workspace-wide when a project index is supplied, so a class defined in
-    //    another file resolves too); for an `oo::configurable` receiver, colour
-    //    `configure` / `cget` property options.
+    //    another file resolves too); for a configurable receiver, colour the
+    //    generated accessor's property options.
     if let Some(hierarchy) = classes
         && let Some(cls) = candidates
             .iter()
             .find(|c| user_class_provides_method(hierarchy, registry, c, method))
     {
         mark_method_word(seg, overrides);
-        insert_user_configure_options(seg, hierarchy, cls, method, overrides);
+        insert_user_configure_options(seg, hierarchy, registry, cls, method, overrides);
     }
 }
 
@@ -2650,9 +2650,13 @@ fn collection_head_element_classes<'a>(
 
 /// Whether a *user-defined* class provides `method` for an instance dispatch:
 /// the class hierarchy's MRO resolves it (a declared method on the class or an
-/// ancestor), or it is an `TclOO` builtin every instance answers — `destroy`,
-/// or `configure` / `cget` on an `oo::configurable` receiver.  `hierarchy` is
-/// the local file's hierarchy or a workspace-merged project index.
+/// ancestor), it is an `TclOO` builtin every instance answers (`destroy`), or
+/// it is one the class system generates from the class's declared properties
+/// — decided by the same registry-driven
+/// [`ClassHierarchy::property_accessor_methods`] the analyser's W308
+/// existence check uses, so colouring and diagnostics cannot disagree about
+/// whether a method exists.  `hierarchy` is the local file's hierarchy or a
+/// workspace-merged project index.
 fn user_class_provides_method(
     hierarchy: &ClassHierarchy,
     registry: &CommandRegistry,
@@ -2662,68 +2666,33 @@ fn user_class_provides_method(
     if hierarchy.method_target(class, method).is_some() {
         return true;
     }
-    match method {
-        "destroy" => true,
-        "configure" | "cget" => class_is_configurable(hierarchy, registry, class),
-        _ => false,
+    if method == "destroy" {
+        return true;
     }
+    hierarchy.is_property_accessor(Some(registry), class, method)
 }
 
-/// Whether `class` (or any class in its MRO) is created by a metaclass whose
-/// instances answer `configure` / `cget` against declared properties, or itself
-/// declares such properties.
-///
-/// The metaclass test is registry data
-/// ([`Traits::CONFIGURES_BY_PROPERTY`](tcl_registry::Traits::CONFIGURES_BY_PROPERTY)),
-/// not the `metaclass == "oo::configurable"` spelling comparison this used to
-/// make (issue #1275).  A metaclass the registry does not model answers
-/// `false`: abstention, so an unknown factory is never treated as configurable.
-/// tclsh 9.0.4: an `oo::configurable` instance answers `[$pt configure]` with
-/// its property dict, an `oo::class` one answers `unknown method "configure"`.
-fn class_is_configurable(
-    hierarchy: &ClassHierarchy,
-    registry: &CommandRegistry,
-    class: &str,
-) -> bool {
-    class_mro(hierarchy, class).iter().any(|c| {
-        hierarchy.classes.get(c).is_some_and(|cd| {
-            !cd.properties.is_empty()
-                || registry.get(&cd.metaclass).is_some_and(|spec| {
-                    spec.traits
-                        .contains(tcl_registry::prelude::Traits::CONFIGURES_BY_PROPERTY)
-                })
-        })
-    })
-}
-
-/// The MRO (self first) of `class` from `hierarchy`, or just `[class]` when the
-/// hierarchy has no entry (an external / unindexed class).
-fn class_mro(hierarchy: &ClassHierarchy, class: &str) -> Vec<String> {
-    hierarchy
-        .mro_map
-        .get(class)
-        .cloned()
-        .unwrap_or_else(|| vec![class.to_string()])
-}
-
-/// Colour the `-property` options of a `configure` / `cget` dispatch on an
-/// `oo::configurable` user class: a word `-<name>` whose `name` is a property
-/// declared on the class or an ancestor becomes a [`ArgOverride::Decorator`],
-/// and a following literal value an [`TokenKind::OptionValue`].  A non-property
-/// `-word` is left to the generic option fallback.  No-op for any method other
-/// than `configure` / `cget`.
+/// Colour the `-property` options of a generated property-accessor dispatch
+/// (`oo::configurable`'s `configure`) on a user class: a word `-<name>` whose
+/// `name` is a property declared on the class or an ancestor becomes a
+/// [`ArgOverride::Decorator`], and a following literal value an
+/// [`TokenKind::OptionValue`].  A non-property `-word` is left to the generic
+/// option fallback.  No-op for any method the class system does not generate
+/// from properties.
 fn insert_user_configure_options(
     seg: &tcl_compiler::segmenter::SegmentedCommand,
     hierarchy: &ClassHierarchy,
+    registry: &CommandRegistry,
     class: &str,
     method: &str,
     overrides: &mut FxHashMap<u32, ArgOverride>,
 ) {
-    if method != "configure" && method != "cget" {
+    if !hierarchy.is_property_accessor(Some(registry), class, method) {
         return;
     }
     // Property names across the whole MRO (`-node`, `-name`, inherited …).
-    let props: std::collections::HashSet<String> = class_mro(hierarchy, class)
+    let props: std::collections::HashSet<String> = hierarchy
+        .mro_or_self(class)
         .iter()
         .filter_map(|c| hierarchy.classes.get(c))
         .flat_map(|cd| cd.properties.keys().cloned())
@@ -2926,7 +2895,7 @@ fn insert_self_method_overrides(
         return;
     }
     mark_method_word(seg, overrides);
-    insert_user_configure_options(seg, hierarchy, &class, method, overrides);
+    insert_user_configure_options(seg, hierarchy, registry, &class, method, overrides);
 }
 
 /// The *user-defined* class named by a direct exported manufacturer head,
@@ -5731,7 +5700,7 @@ fn class_declares_typemethod(
         .and_then(|spec| spec.definition_body)
         .is_some_and(|grammar| grammar.is_builtin_type_method(name));
     builtin
-        || class_mro(hierarchy, class).iter().any(|c| {
+        || hierarchy.mro_or_self(class).iter().any(|c| {
             hierarchy
                 .classes
                 .get(c)

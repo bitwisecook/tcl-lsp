@@ -282,7 +282,7 @@ fn make_inputs(db: &TclDatabase, durability: InputDurability) -> (SourceFile, An
             ),
         ),
         InputDurability::RaisedToHigh => (
-            SourceFile::builder(corpus(0), dialect, None, None, None, 0)
+            SourceFile::builder(corpus(0), dialect, None, None, None, None, 0)
                 .durability(salsa::Durability::HIGH)
                 .new(db),
             AnalyserConfig::builder(Vec::new(), NonAsciiMode::Default, Vec::new(), None, None)

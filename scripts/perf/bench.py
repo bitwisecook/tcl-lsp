@@ -126,26 +126,25 @@ def _proc_sample(pid: int) -> tuple[int, float] | None:
 
 
 class Sampler(threading.Thread):
-    """Background RSS/CPU sampler producing the timeline series.
-
-    The stop flag is deliberately not named `_stop`: `threading.Thread`
-    already defines a `_stop()` method, and `Thread.join()` calls it once the
-    thread's state lock is released. Shadowing it with an `Event` makes every
-    successful `join()` raise `TypeError: 'Event' object is not callable`,
-    which on this harness surfaced only at teardown — after all 15 checks had
-    run — and took the results JSON with it.
-    """
+    """Background RSS/CPU sampler producing the timeline series."""
 
     def __init__(self, pid: int, interval: float = SAMPLE_INTERVAL_S) -> None:
         super().__init__(daemon=True)
         self.pid = pid
         self.interval = interval
         self.samples: list[dict] = []
-        self._stop_event = threading.Event()
+        # NOT `_stop`: `threading.Thread` defines a private `_stop()`
+        # method that `join(timeout=...)` calls internally once the
+        # thread has finished, so an attribute of that name shadows it.
+        # Every run died with `TypeError: 'Event' object is not
+        # callable` in `Sampler.stop()` — raised from the `finally`
+        # block *before* the result file is written, so the benchmark
+        # completed all 15 checks and then produced nothing.
+        self._halt = threading.Event()
         self._t0 = time.perf_counter()
 
     def run(self) -> None:
-        while not self._stop_event.is_set():
+        while not self._halt.is_set():
             s = _proc_sample(self.pid)
             if s is None:
                 break
@@ -157,10 +156,10 @@ class Sampler(threading.Thread):
                     "cpu_s": round(cpu, 2),
                 }
             )
-            self._stop_event.wait(self.interval)
+            self._halt.wait(self.interval)
 
     def stop(self) -> None:
-        self._stop_event.set()
+        self._halt.set()
         self.join(timeout=2.0)
 
     def latest(self) -> dict | None:

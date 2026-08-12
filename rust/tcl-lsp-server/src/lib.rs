@@ -2108,6 +2108,23 @@ async fn refresh_cross_file_evidence(
     {
         slot.dirty = true;
     }
+    // The subclass-provided-method view (issue #1367) rides the same
+    // refresh: computed off the workspace index the publish just updated,
+    // single-round (nothing it writes feeds its own computation).  A moved
+    // view marks this document's own slot dirty directly — the
+    // `refresh_can_change_result` gate above is a call-site-evidence
+    // criterion and says nothing about W308 abstentions.
+    let subclass_moved = sync_workspace_subclass_methods(handles).await;
+    if subclass_moved.iter().any(|u| u == uri)
+        && let Some(slot) = slots.lock().await.get_mut(uri)
+    {
+        slot.dirty = true;
+    }
+    for moved in subclass_moved {
+        if !changed.contains(&moved) {
+            changed.push(moved);
+        }
+    }
     // Republish every peer the refresh invalidated. Only documents
     // that already have resolved inputs are eligible: a file nobody
     // has analysed has no published diagnostics to go stale, and its
@@ -2639,6 +2656,86 @@ async fn sync_workspace_class_factories_round(handles: &EvidenceHandles) -> Clas
     } else {
         ClassFactoryRound::Moved(changed)
     }
+}
+
+/// Refresh every file's
+/// [`tcl_lsp_db::SourceFile::workspace_subclass_methods`] — the
+/// subclass-provided-method view behind the cross-file half of the
+/// template-method W308 abstention (issue #1367) — and report the URIs whose
+/// stored view actually moved.
+///
+/// One round always suffices, unlike the factory fixpoint: the view is
+/// computed from the **workspace index**, which is maintained from published
+/// analyses independently of this input, so publishing it cannot change what
+/// the next computation would say.  (It deliberately does *not* read the
+/// salsa analyses of other files — a per-file analysis reading a
+/// project-wide fold of per-file analyses is the cycle the input channel
+/// exists to break.)
+///
+/// **Each file stores only its own slice** — the entries for classes *it*
+/// defines (creation site or `oo::define` stub), which are the only
+/// receivers its `my`-dispatch W308 sites can name
+/// (`enclosing_class_at_offset` resolves within the document).  The first
+/// draft stored the whole project map on every file, which turned every
+/// index movement into a whole-project invalidation: during a scan or a
+/// benchmark's document churn the map moves with nearly every publish, so
+/// N documents cost ~N² re-analyses and the Performance suite ran from its
+/// ~5-minute baseline into the 60-minute timeout.  Sliced, an edit
+/// invalidates exactly the files whose own classes gained or lost
+/// subclass-provided methods.
+///
+/// The project fold itself is one bounded pass
+/// ([`core_workspace_index::WorkspaceIndex::subclass_provided_methods`] —
+/// edge maps built once, not per class), so running it per publish costs the
+/// same order as the sibling evidence syncs.  An empty slice is stored as
+/// `None`, so a workspace with no class hierarchies never leaves the
+/// input's default.
+///
+/// Lock discipline: the index read completes and drops before the `db` lock
+/// is taken (the global order puts `db` before `workspace_index`; holding
+/// neither across the other sidesteps the ordering entirely).
+async fn sync_workspace_subclass_methods(handles: &EvidenceHandles) -> Vec<Uri> {
+    use salsa::Setter as _;
+    // The project fold and each document's class list, under one index read.
+    let (full, classes_by_uri) = {
+        let index = handles.workspace_index.read().await;
+        let full = index.subclass_provided_methods();
+        let mut classes_by_uri: HashMap<String, Vec<String>> = HashMap::new();
+        for c in index.live_classes() {
+            classes_by_uri
+                .entry(c.uri.clone())
+                .or_default()
+                .push(c.qualified_name.clone());
+        }
+        (full, classes_by_uri)
+    };
+    let mut db = handles.db.lock().await;
+    let db_files = handles.db_files.lock().await;
+    let mut changed = Vec::new();
+    for (uri, &file) in db_files.iter() {
+        let slice: tcl_compiler::analyser::SubclassProvidedMethods = classes_by_uri
+            .get(uri.as_str())
+            .into_iter()
+            .flatten()
+            .filter_map(|qname| {
+                full.get(qname)
+                    .map(|methods| (qname.clone(), methods.clone()))
+            })
+            .collect();
+        let want = (!slice.is_empty()).then(|| Arc::new(slice));
+        let have = file.workspace_subclass_methods(&*db);
+        let matches = match (have.as_ref(), want.as_ref()) {
+            (Some(have), Some(want)) => Arc::ptr_eq(have, want) || **have == **want,
+            (None, None) => true,
+            _ => false,
+        };
+        if matches {
+            continue;
+        }
+        file.set_workspace_subclass_methods(&mut *db).to(want);
+        changed.push(uri.clone());
+    }
+    changed
 }
 
 /// The evidence `uri` should be carrying, or `None` when the host cannot claim
@@ -12898,6 +12995,11 @@ impl Backend {
         // metaclass manufactures only exist in an analysis that carried the
         // oracle, and the scan's own pass could not have.
         reindex_unopened_factory_consumers(&scan_handles, &factory_sync.affected_names).await;
+        // The subclass-provided-method view (issue #1367), published once the
+        // scan's index is complete so the first document opened is analysed
+        // with the workspace's subclass evidence already in place.  No peers
+        // to wake: nothing has published diagnostics yet.
+        sync_workspace_subclass_methods(&scan_handles).await;
         // In-process readiness signal, released before the log line so a
         // handler waiting on it is not held up by a client round-trip.
         self.workspace_scan_ready.mark_complete();
