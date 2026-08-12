@@ -32,9 +32,37 @@ pack in the DSL, load it, and assert field-for-field equality with the
 compiled spec. That round-trip is both the migration test and the proof
 the DSL "entirely covers" the spec surface. The design itself is being
 driven the same way — by porting hard shipped specs (`lsort`, `switch`,
-TclOO definers, `upvar`) and by drafting specs for external libraries
-(ticklecharts, apave, SpiceGenTcl, uncovered tcllib modules) rather than
-by inventing syntax in the abstract.
+TclOO/snit definers, `upvar`, `return`) and by drafting specs for
+external libraries (ticklecharts, apave, SpiceGenTcl, uncovered tcllib
+modules) rather than by inventing syntax in the abstract.
+
+**Where the migration half of that ambition stops, exactly.** The DSL
+excludes `command_forms` and `subcommand_forms` — per-form bundles of
+arity, roles, options, and hooks — on the grounds that `forms` covers
+the getter/setter split every pack has needed and that a command needing
+the structured version is deep enough in the compiler to be a
+contribution. That exclusion is kept, but it has a consequence worth
+naming rather than discovering later: **six shipped modules use those
+fields today and therefore cannot round-trip through the DSL at all.**
+
+| module | field |
+|---|---|
+| `commands/tcl/lset.rs` | `command_forms` |
+| `commands/tcl/incr_.rs` | `command_forms` |
+| `commands/tcl/package_.rs` | `subcommand_forms` (`vsatisfies`) |
+| `commands/tcl/namespace_.rs` | `subcommand_forms` (`upvar`) |
+| `commands/irules/http__cookie.rs` | `subcommand_forms` |
+| `commands/irules/http2__stream.rs` | `subcommand_forms` |
+
+Six of ~2,210 modules is not a v1 problem, and none of the six is a
+command a private pack would want to redeclare. It is written down
+because "shipped sources migrate to DSL" is stated above as an ambition,
+and this is the precise, finite set for which it is false — and because
+the same construct is what the `tls::socket` class of real third-party
+library wants (one command whose positional count, option set, and
+callback shape all change together with a mode flag). If that pressure
+grows, un-excluding `command_forms` is the change to weigh, with these
+six as the migration test.
 
 ## Performance: the format does not decide it
 
@@ -158,14 +186,19 @@ extension-registration path itself becomes a first-class, dogfooded
 API — the same road a future C-extension-style plugin story would
 take — and the DSL gets the best performance floor the VM can offer.
 
-The host surface is **engine-neutral by contract**: one interface
-(compile a hook body → handle; invoke handle with words + context →
-emissions; the verb set and structured-value marshalling defined on the
-interface, not the engine) with two implementations — `tcl-vm` and the
-Tcl→WASM codegen runtime. Selecting the wasm-codegen engine must not
-require `tcl-vm` to be present at all; extension builders target the
-interface. A shim adapting existing C Tcl extensions to the same
-surface is tracked as its own issue.
+**Two layers, deliberately.** The bottom layer is the **engine
+interface**: compile a unit → handle, invoke a handle with structured
+values → structured results — nothing DSL-specific in it. `tcl-vm` and
+the Tcl→WASM codegen runtime are its two implementations (selecting one
+must not require the other to be present), and it is the same surface
+the C Tcl extension shim (#1372) adapts existing extensions to later —
+one plug point for every way executable behaviour can arrive. The
+**hook host** is the layer above: it owns everything DSL-specific — the
+emitter verbs, per-family calling conventions and preconditions,
+abstention and error policy, fuel budgets, memoisation — and speaks
+only the engine interface beneath it. Engine-agnosticism is therefore
+structural: the host cannot depend on an engine's identity, and a new
+engine (or a shimmed C extension) slots in under the unchanged host.
 
 Hot-path budget: role resolvers run per call site during semantic
 tokens. Built-in packs keep native pointers (bucket 2 of the
