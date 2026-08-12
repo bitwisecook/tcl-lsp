@@ -40,8 +40,8 @@
 
 use tcl_cmd_core::trace as core_trace;
 
-use crate::frame::{VarError, split_array_ref};
-use crate::interp::{Code, Interp, new_string, obj_bytes};
+use crate::frame::{split_array_ref, VarError};
+use crate::interp::{new_string, obj_bytes, Code, Interp};
 use crate::namespace::NsId;
 use crate::obj::TclObj;
 
@@ -337,6 +337,7 @@ fn cmd_trace_add_remove(
             ops: flags,
             command,
         });
+        interp.invalidate_guard_domain(tcl_runtime_api::guard::GuardDomain::CommandTrace);
     } else {
         // Remove the first trace matching exact ops + command string (C's
         // `FOREACH_COMMAND_TRACE` first-match).
@@ -348,6 +349,7 @@ fn cmd_trace_add_remove(
             .position(|t| t.name == fqn && t.ops == flags && t.command == command);
         if let Some(i) = pos {
             interp.traces.borrow_mut().cmd_traces.remove(i);
+            interp.invalidate_guard_domain(tcl_runtime_api::guard::GuardDomain::CommandTrace);
         }
     }
     interp.set_result_bytes(b"");
@@ -461,6 +463,7 @@ fn trace_var_add_remove(interp: &mut Interp, argv: &[*mut TclObj], is_add: bool)
             frame_level,
             ns,
         });
+        interp.invalidate_guard_domain(tcl_runtime_api::guard::GuardDomain::VariableTrace);
     } else {
         let pos = interp
             .traces
@@ -470,6 +473,7 @@ fn trace_var_add_remove(interp: &mut Interp, argv: &[*mut TclObj], is_add: bool)
             .position(|t| t.name == name && t.ops == ops && t.command == command);
         if let Some(i) = pos {
             interp.traces.borrow_mut().traces.remove(i);
+            interp.invalidate_guard_domain(tcl_runtime_api::guard::GuardDomain::VariableTrace);
         }
     }
     interp.set_result_bytes(b"");

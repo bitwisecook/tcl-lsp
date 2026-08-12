@@ -74,6 +74,9 @@ use core::sync::atomic::{AtomicUsize, Ordering};
 use std::alloc::{alloc, dealloc, handle_alloc_error, Layout};
 use std::collections::HashMap;
 use std::sync::{Mutex, OnceLock};
+use tcl_dialect::DialectSet;
+use tcl_registry::{CommandRegistry, IntrinsicId, SemanticOperationId};
+use tcl_runtime_api::guard::{GuardDomains, GuardIdentity, GuardToken};
 
 use crate::interp::{drop_fresh, obj_bytes, Interp};
 use crate::obj::{self, new_string_bytes, TclObj};
@@ -122,6 +125,11 @@ pub const TCL_INVOKE_ABI_INVALID_ARGC: i32 = -3;
 pub const TCL_INVOKE_ABI_NULL_ARGV: i32 = -4;
 /// At least one argv entry was null.
 pub const TCL_INVOKE_ABI_NULL_WORD: i32 = -5;
+/// The requested guarded intrinsic cannot run directly; use generic argv invoke.
+///
+/// No completion is written for this status, so the caller must not release
+/// its output storage before taking the exact generic slow path.
+pub const TCL_INTRINSIC_ABI_DECLINED: i32 = 1;
 
 #[cfg(target_arch = "wasm32")]
 const _: () = {
@@ -410,6 +418,24 @@ pub unsafe extern "C" fn tcl_value_new_string(ptr: *const u8, len: i32) -> *mut 
     // SAFETY: a generated operand-stack value owns one reference.
     unsafe { obj::incr_ref_count(value) };
     value
+}
+
+/// `tcl_value_new_wide_int(value) -> obj` — materialise a native i64 at a Tcl
+/// value boundary with one generated-code-owned (`+1`) reference.
+///
+/// This deliberately reuses [`crate::capi::Tcl_NewWideIntObj`] for the Tcl
+/// integer's lazy dual representation (wide internal form, string form on
+/// demand), then adds the generated operand stack's owning reference. It is
+/// not a command operation: callers may use the result wherever an owned Tcl
+/// object is required, and must balance it with [`tcl_value_release`] or
+/// [`tcl_obj_release`].
+#[no_mangle]
+pub extern "C" fn tcl_value_new_wide_int(value: i64) -> *mut TclObj {
+    let object = crate::capi::Tcl_NewWideIntObj(value);
+    // SAFETY: the C ABI constructor returned a fresh live object (or null on
+    // allocation failure, which `incr_ref_count` accepts defensively).
+    unsafe { obj::incr_ref_count(object) };
+    object
 }
 
 /// Release one generated operand-stack value.
@@ -816,6 +842,281 @@ pub unsafe extern "C" fn tcl_obj_retain(obj: *mut TclObj) -> *mut TclObj {
     obj
 }
 
+#[derive(Debug)]
+struct ResolvedIntrinsicArgv {
+    intrinsic: IntrinsicId,
+    argument_offset: usize,
+    head: Vec<u8>,
+}
+
+fn intrinsic_registry() -> &'static CommandRegistry {
+    static REGISTRY: OnceLock<CommandRegistry> = OnceLock::new();
+    REGISTRY.get_or_init(CommandRegistry::build_default)
+}
+
+/// Resolve the evaluated command head and form through the registry.
+///
+/// This examines only already-boxed argv values. It neither parses source nor
+/// replays substitutions, and a non-text Tcl word is conservatively declined.
+fn resolve_intrinsic_argv(
+    words: &[*mut TclObj],
+    dialect: DialectSet,
+) -> Option<ResolvedIntrinsicArgv> {
+    let spellings: Vec<String> = words
+        .iter()
+        .map(|word| String::from_utf8(obj_bytes(*word)).ok())
+        .collect::<Option<_>>()?;
+    let (head, arguments) = spellings.split_first()?;
+    let arguments: Vec<_> = arguments.iter().map(String::as_str).collect();
+    let resolved = intrinsic_registry().resolve_invocation(head, &arguments, dialect)?;
+    let SemanticOperationId::Intrinsic(intrinsic) = resolved.semantics.operation else {
+        return None;
+    };
+    Some(ResolvedIntrinsicArgv {
+        intrinsic,
+        argument_offset: resolved.semantics.argument_offset,
+        head: head.as_bytes().to_vec(),
+    })
+}
+
+fn guarded_intrinsic_request(
+    intrinsic_id: u32,
+    words: &[*mut TclObj],
+    expected: GuardIdentity,
+    runtime_version: tcl_dialect::TclVersion,
+    dialect: DialectSet,
+) -> Option<ResolvedIntrinsicArgv> {
+    let intrinsic = IntrinsicId::from_stable_id(intrinsic_id)?;
+    if expected
+        != GuardIdentity::registry_intrinsic_with_semantics(
+            intrinsic.stable_id(),
+            intrinsic.guard_semantics_key(runtime_version),
+        )
+    {
+        return None;
+    }
+    let resolved = resolve_intrinsic_argv(words, dialect)?;
+    (resolved.intrinsic == intrinsic).then_some(resolved)
+}
+
+fn guard_domains_from_abi(domains: i32) -> Option<GuardDomains> {
+    u16::try_from(domains)
+        .ok()
+        .and_then(GuardDomains::from_bits)
+}
+
+/// `tcl_codegen_guard_prepare(intrinsic, argv, argc, namespace, value, domains)`.
+///
+/// The full, already-evaluated argv is re-resolved through the registry before
+/// the current interpreter issues a token. Zero is a safe decline: the caller
+/// must take its generic argv path and must not call `check` or `release`.
+///
+/// # Safety
+/// `argv` must be null or point to `argc` readable object pointers. Non-null
+/// words must be live and caller-owned for the duration of this call.
+#[no_mangle]
+pub unsafe extern "C" fn tcl_codegen_guard_prepare(
+    intrinsic_id: u32,
+    argv: *const *mut TclObj,
+    argc: i32,
+    identity_namespace: u32,
+    identity_value: u64,
+    domains: i32,
+) -> u64 {
+    let Some(argc) = usize::try_from(argc).ok().filter(|argc| *argc > 0) else {
+        return 0;
+    };
+    if argv.is_null() {
+        return 0;
+    }
+    // SAFETY: the caller contract guarantees `argc` readable entries.
+    let words = unsafe { core::slice::from_raw_parts(argv, argc) };
+    if words.iter().any(|word| word.is_null()) {
+        return 0;
+    }
+    let Some(domains) = guard_domains_from_abi(domains) else {
+        return 0;
+    };
+    let expected = GuardIdentity::new(identity_namespace, identity_value);
+    let interp = current_interp();
+    if interp.is_null() {
+        return 0;
+    }
+    // Runtime version is interpreter policy, not a compile-time constant. The
+    // Interpreter guard domain makes a later policy change stale this token,
+    // while resolving against the live profile prevents a version-gated form
+    // from entering the fast path in the first place.
+    let runtime_version = unsafe { (*interp).runtime_version() };
+    let Some(dialect) = DialectSet::parse(runtime_version.dialect_profile_name()) else {
+        return 0;
+    };
+    let Some(resolved) =
+        guarded_intrinsic_request(intrinsic_id, words, expected, runtime_version, dialect)
+    else {
+        return 0;
+    };
+    // SAFETY: every word was validated non-null and is caller-owned.
+    let _borrowed = unsafe { BorrowedArgv::retain(words) };
+    // SAFETY: `interp` is the live current interpreter.
+    unsafe {
+        (*interp)
+            .prepare_command_guard(&resolved.head, expected, domains)
+            .map_or(0, GuardToken::raw)
+    }
+}
+
+/// `tcl_codegen_guard_check(token, intrinsic, argv, argc) -> i32`.
+///
+/// Re-resolves the same evaluated argv and verifies both its requested
+/// intrinsic identity and every live guard domain. One means fast-path entry
+/// is still safe; zero means use the generic argv path.
+///
+/// # Safety
+/// `argv` must be null or point to `argc` readable object pointers. Non-null
+/// words must be live and caller-owned for the duration of this call.
+#[no_mangle]
+pub unsafe extern "C" fn tcl_codegen_guard_check(
+    token: u64,
+    intrinsic_id: u32,
+    argv: *const *mut TclObj,
+    argc: i32,
+) -> i32 {
+    let Some(argc) = usize::try_from(argc).ok().filter(|argc| *argc > 0) else {
+        return 0;
+    };
+    if argv.is_null() {
+        return 0;
+    }
+    // SAFETY: the caller contract guarantees `argc` readable entries.
+    let words = unsafe { core::slice::from_raw_parts(argv, argc) };
+    if words.iter().any(|word| word.is_null()) {
+        return 0;
+    }
+    let Some(intrinsic) = IntrinsicId::from_stable_id(intrinsic_id) else {
+        return 0;
+    };
+    let interp = current_interp();
+    if interp.is_null() {
+        return 0;
+    }
+    let runtime_version = unsafe { (*interp).runtime_version() };
+    let expected = GuardIdentity::registry_intrinsic_with_semantics(
+        intrinsic.stable_id(),
+        intrinsic.guard_semantics_key(runtime_version),
+    );
+    let Some(dialect) = DialectSet::parse(runtime_version.dialect_profile_name()) else {
+        return 0;
+    };
+    let Some(resolved) =
+        guarded_intrinsic_request(intrinsic_id, words, expected, runtime_version, dialect)
+    else {
+        return 0;
+    };
+    // SAFETY: every word was validated non-null and is caller-owned.
+    let _borrowed = unsafe { BorrowedArgv::retain(words) };
+    // SAFETY: `interp` is the live current interpreter.
+    i32::from(unsafe {
+        (*interp).check_command_guard_identity(
+            GuardToken::from_raw(token),
+            &resolved.head,
+            expected,
+        )
+    })
+}
+
+/// `tcl_codegen_guard_release(token)` — release a token exactly once.
+#[no_mangle]
+pub extern "C" fn tcl_codegen_guard_release(token: u64) {
+    let interp = current_interp();
+    if !interp.is_null() {
+        // SAFETY: `interp` is the live current interpreter.
+        unsafe {
+            let _ = (*interp).release_command_guard(GuardToken::from_raw(token));
+        }
+    }
+}
+
+/// `tcl_intrinsic_invoke_argv(intrinsic, argv, argc, out) -> status`.
+///
+/// This is the guarded fast operation over an already-evaluated argv. It
+/// verifies the registry-selected form still maps to `intrinsic`, slices off
+/// the registry-declared subcommand prefix, and calls the runtime intrinsic.
+/// A [`TCL_INTRINSIC_ABI_DECLINED`] result writes no completion: generated code
+/// must invoke the exact generic argv slow path with the original argv.
+///
+/// # Safety
+/// `out` must be null or writable [`TclCompletionAbi`] storage. For positive
+/// `argc`, `argv` must point to readable, non-null live Tcl-object pointers
+/// held by the caller for this call.
+#[no_mangle]
+pub unsafe extern "C" fn tcl_intrinsic_invoke_argv(
+    intrinsic_id: u32,
+    argv: *const *mut TclObj,
+    argc: i32,
+    out: *mut TclCompletionAbi,
+) -> i32 {
+    if out.is_null() {
+        return TCL_INVOKE_ABI_NULL_OUT;
+    }
+    let interp = current_interp();
+    if interp.is_null() {
+        // SAFETY: `out` was checked above and meets this function's contract.
+        unsafe {
+            write_completion(
+                out,
+                detached_error_completion(b"no current interpreter for tcl_intrinsic_invoke_argv"),
+            )
+        };
+        return TCL_INVOKE_ABI_NO_CURRENT_INTERP;
+    }
+    let argc = match usize::try_from(argc) {
+        Ok(argc) if argc > 0 => argc,
+        _ => return TCL_INTRINSIC_ABI_DECLINED,
+    };
+    if argv.is_null() {
+        return TCL_INTRINSIC_ABI_DECLINED;
+    }
+    // SAFETY: the caller contract guarantees `argc` readable entries.
+    let words = unsafe { core::slice::from_raw_parts(argv, argc) };
+    if words.iter().any(|word| word.is_null()) {
+        return TCL_INTRINSIC_ABI_DECLINED;
+    }
+    let Some(intrinsic) = IntrinsicId::from_stable_id(intrinsic_id) else {
+        return TCL_INTRINSIC_ABI_DECLINED;
+    };
+    let Some(dialect) =
+        DialectSet::parse(unsafe { (*interp).runtime_version().dialect_profile_name() })
+    else {
+        return TCL_INTRINSIC_ABI_DECLINED;
+    };
+    let Some(resolved) = resolve_intrinsic_argv(words, dialect) else {
+        return TCL_INTRINSIC_ABI_DECLINED;
+    };
+    if resolved.intrinsic != intrinsic {
+        return TCL_INTRINSIC_ABI_DECLINED;
+    }
+    let Some(args_start) = resolved.argument_offset.checked_add(1) else {
+        return TCL_INTRINSIC_ABI_DECLINED;
+    };
+    let Some(args) = words.get(args_start..) else {
+        return TCL_INTRINSIC_ABI_DECLINED;
+    };
+    // SAFETY: every word was validated non-null and is caller-owned.
+    let _borrowed = unsafe { BorrowedArgv::retain(words) };
+    // SAFETY: `interp` is live; direct execution only borrows `args`.
+    let Some(code) = (unsafe { (*interp).execute_intrinsic(intrinsic, args) }) else {
+        return TCL_INTRINSIC_ABI_DECLINED;
+    };
+    // SAFETY: `interp` is live and `out` is caller-provided writable storage.
+    unsafe {
+        write_completion(
+            out,
+            completion_abi(crate::state_traits::capture_completion(&mut *interp, code)),
+        )
+    };
+    TCL_INVOKE_ABI_OK
+}
+
 /// `tcl_invoke_argv(argv, argc, out) -> status` — invoke an already-evaluated
 /// Tcl argv against the current interpreter.
 ///
@@ -1004,6 +1305,7 @@ mod tests {
     use super::*;
     use crate::capi::{tcl_runtime_create_interp, tcl_runtime_delete_interp};
     use crate::counters;
+    use tcl_runtime_api::guard::GuardDomain;
 
     /// Run `body` under the alloc/free counters and assert zero residual — the
     /// codegen ABI's references must balance exactly like the rest of the runtime.
@@ -1067,6 +1369,53 @@ mod tests {
         completion
     }
 
+    unsafe fn invoke_intrinsic(
+        intrinsic: IntrinsicId,
+        words: &[*mut TclObj],
+    ) -> (i32, TclCompletionAbi) {
+        let mut completion = empty_completion();
+        // SAFETY: `words` is a Rust slice of live caller-owned object handles;
+        // completion storage is local and correctly aligned.
+        let status = unsafe {
+            tcl_intrinsic_invoke_argv(
+                intrinsic.stable_id(),
+                words.as_ptr(),
+                i32::try_from(words.len()).expect("test argv fits i32"),
+                &mut completion,
+            )
+        };
+        (status, completion)
+    }
+
+    unsafe fn prepare_intrinsic_guard(
+        intrinsic: IntrinsicId,
+        words: &[*mut TclObj],
+        domains: i32,
+    ) -> u64 {
+        let interp = current_interp();
+        assert!(
+            !interp.is_null(),
+            "test helper requires a current interpreter"
+        );
+        // SAFETY: tests install a live current interpreter before using this helper.
+        let runtime_version = unsafe { (*interp).runtime_version() };
+        let identity = GuardIdentity::registry_intrinsic_with_semantics(
+            intrinsic.stable_id(),
+            intrinsic.guard_semantics_key(runtime_version),
+        );
+        // SAFETY: `words` is a Rust slice of live caller-owned object handles.
+        unsafe {
+            tcl_codegen_guard_prepare(
+                intrinsic.stable_id(),
+                words.as_ptr(),
+                i32::try_from(words.len()).expect("test argv fits i32"),
+                identity.namespace(),
+                identity.value(),
+                domains,
+            )
+        }
+    }
+
     unsafe fn release_words(words: &[*mut TclObj]) {
         for &word in words {
             // SAFETY: balances `owned_word`'s caller-owned reference.
@@ -1079,6 +1428,196 @@ mod tests {
             .expect("completion options are a dict")
             .expect("expected completion option");
         obj_bytes(value)
+    }
+
+    #[test]
+    fn native_wide_int_value_is_owned_and_keeps_its_internal_rep_after_shimmering() {
+        leak_free(|| unsafe {
+            let value = tcl_value_new_wide_int(i64::MIN);
+            assert!(!value.is_null());
+            assert_eq!((*value).ref_count, 1, "generated code owns the result");
+            assert!(std::ptr::eq((*value).type_ptr, &obj::TCL_INT_TYPE));
+            assert!((*value).bytes.is_null(), "wide integers begin without text");
+            assert_eq!(obj_bytes(value), i64::MIN.to_string().as_bytes());
+            assert!(
+                std::ptr::eq((*value).type_ptr, &obj::TCL_INT_TYPE),
+                "string materialisation must retain the wide internal representation"
+            );
+            assert_eq!((*value).internal_rep as i64, i64::MIN);
+            tcl_obj_release(value);
+        });
+    }
+
+    #[test]
+    fn guarded_intrinsic_string_length_hits_and_releases_exact_completion_and_token() {
+        leak_free(|| unsafe {
+            let interp = tcl_runtime_create_interp();
+            tcl_runtime_set_current_interp(interp);
+            let words = [
+                owned_word(b"string"),
+                owned_word(b"length"),
+                owned_word(b"abc"),
+            ];
+            let counts = words.map(|word| (*word).ref_count);
+            let domains = i32::from(GuardDomains::one(GuardDomain::CommandEnvironment).bits());
+            let token = prepare_intrinsic_guard(IntrinsicId::StringLength, &words, domains);
+            assert_ne!(token, 0);
+            assert_eq!(
+                tcl_codegen_guard_check(
+                    token,
+                    IntrinsicId::StringLength.stable_id(),
+                    words.as_ptr(),
+                    i32::try_from(words.len()).unwrap(),
+                ),
+                1
+            );
+
+            let (status, mut completion) = invoke_intrinsic(IntrinsicId::StringLength, &words);
+            assert_eq!(status, TCL_INVOKE_ABI_OK);
+            assert_eq!(completion.code, 0);
+            assert_eq!(obj_bytes(completion.result), b"3");
+            assert_eq!(option(&completion, b"-code"), b"0");
+            assert_eq!(words.map(|word| (*word).ref_count), counts);
+
+            tcl_completion_release(&mut completion);
+            assert!(completion.result.is_null());
+            assert!(completion.options.is_null());
+            tcl_codegen_guard_release(token);
+            assert_eq!(
+                tcl_codegen_guard_check(
+                    token,
+                    IntrinsicId::StringLength.stable_id(),
+                    words.as_ptr(),
+                    i32::try_from(words.len()).unwrap(),
+                ),
+                0
+            );
+            release_words(&words);
+            tcl_runtime_set_current_interp(ptr::null_mut());
+            tcl_runtime_delete_interp(interp);
+        });
+    }
+
+    #[test]
+    fn guarded_intrinsic_string_length_identity_and_count_follow_runtime_version() {
+        leak_free(|| unsafe {
+            let interp = tcl_runtime_create_interp();
+            tcl_runtime_set_current_interp(interp);
+            let words = [
+                owned_word(b"string"),
+                owned_word(b"length"),
+                owned_word("é🙂".as_bytes()),
+            ];
+
+            let (status, mut completion) = invoke_intrinsic(IntrinsicId::StringLength, &words);
+            assert_eq!(status, TCL_INVOKE_ABI_OK);
+            assert_eq!(completion.code, 0);
+            assert_eq!(obj_bytes(completion.result), b"2");
+            tcl_completion_release(&mut completion);
+
+            let tcl9_identity = GuardIdentity::registry_intrinsic_with_semantics(
+                IntrinsicId::StringLength.stable_id(),
+                IntrinsicId::StringLength.guard_semantics_key(tcl_dialect::TclVersion::V9_0),
+            );
+            (*interp).set_runtime_version(tcl_dialect::TclVersion::V8_6);
+            let domains = i32::from(
+                GuardDomains::one(GuardDomain::CommandEnvironment)
+                    .with(GuardDomain::Namespace)
+                    .with(GuardDomain::CommandTrace)
+                    .with(GuardDomain::Interpreter)
+                    .bits(),
+            );
+            assert_eq!(
+                tcl_codegen_guard_prepare(
+                    IntrinsicId::StringLength.stable_id(),
+                    words.as_ptr(),
+                    i32::try_from(words.len()).unwrap(),
+                    tcl9_identity.namespace(),
+                    tcl9_identity.value(),
+                    domains,
+                ),
+                0,
+                "a Tcl 9 scalar-count identity must not enter a Tcl 8 runtime",
+            );
+            let (status, mut completion) = invoke_intrinsic(IntrinsicId::StringLength, &words);
+            assert_eq!(status, TCL_INVOKE_ABI_OK);
+            assert_eq!(obj_bytes(completion.result), b"3");
+            tcl_completion_release(&mut completion);
+            release_words(&words);
+            tcl_runtime_set_current_interp(ptr::null_mut());
+            tcl_runtime_delete_interp(interp);
+        });
+    }
+
+    #[test]
+    fn guarded_intrinsic_unsupported_form_declines_without_completion_or_source_replay() {
+        leak_free(|| unsafe {
+            let interp = tcl_runtime_create_interp();
+            tcl_runtime_set_current_interp(interp);
+            let words = [owned_word(b"llength"), owned_word(b"a b c")];
+            let (status, completion) = invoke_intrinsic(IntrinsicId::ListLength, &words);
+
+            assert_eq!(status, TCL_INTRINSIC_ABI_DECLINED);
+            assert_eq!(completion.code, 0);
+            assert!(completion.result.is_null());
+            assert!(completion.options.is_null());
+            release_words(&words);
+            tcl_runtime_set_current_interp(ptr::null_mut());
+            tcl_runtime_delete_interp(interp);
+        });
+    }
+
+    #[test]
+    fn guarded_intrinsic_guards_fail_after_rename_or_trace_registration() {
+        leak_free(|| unsafe {
+            let interp = tcl_runtime_create_interp();
+            tcl_runtime_set_current_interp(interp);
+            let words = [
+                owned_word(b"string"),
+                owned_word(b"length"),
+                owned_word(b"abc"),
+            ];
+            let command_domains =
+                i32::from(GuardDomains::one(GuardDomain::CommandEnvironment).bits());
+            let token = prepare_intrinsic_guard(IntrinsicId::StringLength, &words, command_domains);
+            assert_ne!(token, 0);
+            assert_eq!(tcl_eval_code(box_str(b"rename string string2")), 0);
+            assert_eq!(
+                tcl_codegen_guard_check(
+                    token,
+                    IntrinsicId::StringLength.stable_id(),
+                    words.as_ptr(),
+                    i32::try_from(words.len()).unwrap(),
+                ),
+                0
+            );
+            tcl_codegen_guard_release(token);
+            release_words(&words);
+            tcl_runtime_set_current_interp(ptr::null_mut());
+            tcl_runtime_delete_interp(interp);
+        });
+
+        leak_free(|| unsafe {
+            let interp = tcl_runtime_create_interp();
+            tcl_runtime_set_current_interp(interp);
+            assert_eq!(
+                tcl_eval_code(box_str(b"trace add command string rename callback")),
+                0
+            );
+            let words = [
+                owned_word(b"string"),
+                owned_word(b"length"),
+                owned_word(b"abc"),
+            ];
+            let trace_domains = i32::from(GuardDomains::one(GuardDomain::CommandTrace).bits());
+            assert_eq!(
+                prepare_intrinsic_guard(IntrinsicId::StringLength, &words, trace_domains),
+                0
+            );
+            release_words(&words);
+            tcl_runtime_set_current_interp(ptr::null_mut());
+            tcl_runtime_delete_interp(interp);
+        });
     }
 
     #[test]

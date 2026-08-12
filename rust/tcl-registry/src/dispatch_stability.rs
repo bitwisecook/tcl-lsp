@@ -49,6 +49,19 @@ impl DispatchDependencyDomain {
     const fn bit(self) -> u8 {
         1 << self as u8
     }
+
+    /// Stable compiler and Explorer spelling for this dependency domain.
+    #[must_use]
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::CommandBinding => "command-binding",
+            Self::NamespaceLookup => "namespace-lookup",
+            Self::CommandTraces => "command-traces",
+            Self::InterpreterPolicy => "interpreter-policy",
+            Self::ObjectDispatch => "object-dispatch",
+            Self::UnknownHandling => "unknown-handling",
+        }
+    }
 }
 
 /// A compact set of target-neutral dispatch-stability dependencies.

@@ -32,7 +32,7 @@ use tcl_runtime_api::{
 };
 
 use crate::frame::Link;
-use crate::interp::{Interp, new_string};
+use crate::interp::{new_string, Interp};
 use crate::list::new_list_obj;
 use crate::obj::{self, TclObj};
 

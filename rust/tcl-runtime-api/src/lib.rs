@@ -45,6 +45,9 @@ pub use tcl_core_types::{
 /// transport layout constants.
 pub mod codegen_abi;
 
+/// Runtime-issued guards for speculative compiler fast paths.
+pub mod guard;
+
 // -- Compile service (the EVAL_STK / dynamic-code injection point) --
 
 /// A compilation failure surfaced by [`CompileService`].

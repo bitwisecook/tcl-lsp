@@ -10,10 +10,11 @@
 //! target instructions.
 
 use crate::executable_ir::{
-    ArgvEntry, CompletionId, ExecutableBlockId, ExecutableFunction, ExecutableInstruction,
-    ExecutableTerminator, ExecutableValueId, GenericInvoke, InvocationResolution,
+    ArgvEntry, CompletionId, ExecutableArgvId, ExecutableBlockId, ExecutableFunction,
+    ExecutableInstruction, ExecutableTerminator, ExecutableValueId, GenericInvoke,
+    InvocationResolution,
 };
-use crate::ir::WordExpr;
+use crate::ir::{NodeId, WordExpr};
 use tcl_registry::SemanticOperationId;
 use tcl_runtime_api::codegen_abi::{
     WASM32_CODEGEN_DATA_END, WASM32_CODEGEN_DATA_START, WASM32_COMPLETION_SIZE,
@@ -24,7 +25,11 @@ use tcl_runtime_api::codegen_abi::{
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(super) struct WasmGenericInvokePlan {
     pub(super) function_name: String,
+    /// Stable invocation site selected from the executable semantic IR.
+    pub(super) node: NodeId,
     pub(super) operation: SemanticOperationId,
+    /// The exact prebuilt argv consumed by the selected invocation.
+    pub(super) argv: ExecutableArgvId,
     pub(super) argv_literals: Vec<String>,
     pub(super) completion: CompletionId,
     pub(super) stage_proofs: Vec<WasmStageProof>,
@@ -177,7 +182,9 @@ pub(super) fn plan_wasm_generic_invoke_named(
     }
     Ok(WasmGenericInvokePlan {
         function_name,
+        node: invoke.node.clone(),
         operation: invoke_operation(invoke),
+        argv: invoke.argv,
         argv_literals: literals,
         completion: invoke.completion,
         stage_proofs,
