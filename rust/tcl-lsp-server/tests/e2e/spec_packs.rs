@@ -607,11 +607,10 @@ fn the_bundled_eda_loadables_make_their_vendor_commands_known() {
             .map(ToOwned::to_owned)
             .collect()
     };
-    let diagnostics = lsp.await_diagnostics_settled(
-        &uri,
-        std::time::Duration::from_secs(30),
-        |diags| !unknown_of(diags).iter().any(|m| m.contains("synth_design")),
-    );
+    let diagnostics =
+        lsp.await_diagnostics_settled(&uri, std::time::Duration::from_secs(30), |diags| {
+            !unknown_of(diags).iter().any(|m| m.contains("synth_design"))
+        });
     let unknown = unknown_of(&diagnostics);
 
     assert!(
