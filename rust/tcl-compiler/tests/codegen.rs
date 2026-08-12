@@ -1350,7 +1350,7 @@ fn lreplace_routes_through_generic_invoke() {
 
 #[test]
 fn linsert_bytecoded() {
-    // `linsert` IS specialised to lreplace4 in Rust.
+    // `linsert` IS specialised to lreplace4.
     assert!(ops_of("linsert \"a b c\" 1 X").contains(&Op::LREPLACE4));
 }
 
@@ -1501,7 +1501,7 @@ fn all_blocks_reachable() {
         }
     }
     // Every block reached from entry must be a real block in the CFG (no
-    // dangling successor ids). Rust leaves an `exit_*` sentinel that the
+    // dangling successor ids). The builder leaves an `exit_*` sentinel that the
     // returning merge block does not link to, so we do NOT require the
     // reachable set to equal *all* blocks. Instead,
     // assert the reachable set covers the real then/else/merge blocks.

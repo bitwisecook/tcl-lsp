@@ -44,9 +44,6 @@
 //! Each command lives in its own `.rs` file under `commands/<dialect>/`.
 //! Command files return a [`CommandSpec`] with all metadata declared
 //! inline. Use `..CommandSpec::DEFAULT` to fill unset fields.
-//!
-//! The crate has no `pyo3` dependency — Python bindings live in
-//! `tcl-lsp-rust`.
 
 #![deny(missing_docs)]
 

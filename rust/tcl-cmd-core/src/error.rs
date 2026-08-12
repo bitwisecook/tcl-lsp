@@ -102,8 +102,7 @@ mod tests {
 
     #[test]
     fn canonical_tcl_error_message_formats() {
-        // The canonical Tcl error texts (`Tcl_WrongNumArgs` /
-        // bad-option) — cmd-core error.rs had no unit coverage (TEST-MIGRATE).
+        // The canonical Tcl error texts (`Tcl_WrongNumArgs` / bad-option).
         assert_eq!(CmdError::new("boom").message(), "boom");
         assert_eq!(
             CmdError::wrong_args("string length string").message(),

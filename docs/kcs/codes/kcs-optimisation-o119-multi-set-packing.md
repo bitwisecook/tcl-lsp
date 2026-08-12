@@ -1,7 +1,7 @@
 # KCS: O119 — Pack consecutive set literals into lassign
 
 > **Audience:** User
-> **Type:** Functionality
+> **Type:** Optimisation
 
 ## Applies to
 

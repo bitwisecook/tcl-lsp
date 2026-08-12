@@ -16,14 +16,14 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! Residual-coverage port: the uncovered branches in four `tcl-compiler`
-//! files that the existing depth ports only partially reach —
+//! Residual coverage: the uncovered branches in four `tcl-compiler`
+//! files that the existing depth suites only partially reach —
 //!   * `src/codegen/cmd_subst.rs`            (the less-common substitution shapes)
 //!   * `src/codegen/mod.rs`                  (the `CodegenCtx` driver / errorInfo machinery)
 //!   * `src/var_escape/cfg_propagation/walker.rs` (CFG-propagation arms)
 //!   * `src/var_escape/walker.rs`            (intra-procedural escape arms)
 //!
-//! ## Disjoint from the existing ports
+//! ## Disjoint from the existing suites
 //!
 //! This file deliberately does NOT re-assert what
 //! `tests/codegen.rs`, `tests/codegen_depth.rs`,

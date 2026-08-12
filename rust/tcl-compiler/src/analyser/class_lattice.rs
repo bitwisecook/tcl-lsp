@@ -21,7 +21,7 @@
 //! This module is a *prototype*.  It is **not** wired into any shipping
 //! diagnostic; nothing under `analyser/diagnostics/` calls into it.  It
 //! exists to measure a hypothesis (see `experiments/mro_eval/RESULTS.md`
-//! and `docs/design/tcloo-mro-lattice.md`):
+//! and `docs/design/name-resolution.md` §5.6):
 //!
 //! > Splitting TclOO tracking into two composable parts —
 //! > (1) a precomputed **MRO graph** per class, and

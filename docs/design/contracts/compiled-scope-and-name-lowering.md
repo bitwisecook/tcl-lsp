@@ -1,14 +1,12 @@
 # Contract: scope class & qualified-name lowering in the AOT compiler
 
-> **Status:** First-principles design contract (v2 / "if starting over").
-> Describes how a from-scratch AOT/WASM compiler should decide *where a name
-> lives* and *when a construct must run through the interpreter*, before
-> writing any codegen. The semantic model it builds on is
+> How the AOT/WASM compiler decides *where a name lives* and *when a construct
+> must run through the interpreter*. The semantic model it mirrors is
 > [runtime-variable-frame-model.md](runtime-variable-frame-model.md) and
-> [namespace-model.md](namespace-model.md); the eval hand-off is
+> [command-resolution.md](command-resolution.md); the eval hand-off is
 > [parser-and-aot-interpret-boundary.md](parser-and-aot-interpret-boundary.md).
 
-## Why this is the first thing to get right
+## The decision the compiler has to make
 
 The runtime resolves a name to a cell through a *frame → name → cell*
 indirection (see the frame model). The **compiler** has to make the mirror
@@ -17,19 +15,11 @@ which scope class is it — a frame local that can become a WASM slot, a
 qualified namespace variable, or a global — and, crucially, *can this whole
 construct even be compiled, or must it be handed to the interpreter?*
 
-Every bug in this campaign that wasn't a runtime gap was a **lowering**
-mistake: a `foreach ::v list body` that ran **zero iterations** because the
-qualified loop variable forced a generic-invoke fallback that was then
-silently dropped; an `info exists x` that returned a stale `1` after `unset x`
-because compile-time local-liveness was never invalidated. The common root:
-*scope class and "must interpret" were emergent properties of incidental
-encodings (IR node type, a shared registry flag) instead of explicit,
-designed lowering outputs.*
-
-**Design rule:** scope class is an explicit attribute computed once per
-reference; "compile inline" vs "emit a real call to the interpreter/runtime"
-is an explicit lowering *outcome* attached to the node — never something a
-downstream pass can flip by accident.
+Both halves are explicit lowering **outputs**, never emergent properties of an
+incidental encoding (an IR node type, a shared registry flag). Scope class is
+an attribute computed once per reference; "compile inline" vs "emit a real
+call to the interpreter/runtime" is an outcome attached to the node that no
+downstream pass may flip.
 
 ## The three scope classes (compiler view)
 
@@ -66,42 +56,40 @@ never the base case.
 Some constructs are *defined* to fall back to a generic invoke. The canonical
 example: tclsh 9 compiles `foreach`/`lmap` inline, **but drops to a generic
 invoke when a loop variable is namespace-qualified** (`foreach ::v …`). The
-compiler must mirror that. Two failure modes this campaign hit, both to be
-designed out:
+compiler mirrors that, under two rules:
 
-1. **The "emits-nothing" trap.** The inlined `foreach` lowering plants a
-   *synthetic header def-marker* call that is intentionally a no-op (the loop
-   body is emitted structurally). An earlier design made that marker a no-op
-   through a target-specific shared-registry trait. The trait then also
-   swallowed a *genuine* opaque `foreach` invoke (the
-   qualified-var fallback) → the loop emitted nothing and ran zero times.
-   **Rule:** "emits nothing" is a property of a *specific synthetic node
-   instance*, never of a command spelling in a shared table. The same command
-   can be both a structural marker and a real call in the same unit.
+1. **"Emits nothing" is a property of a node instance, never of a command
+   spelling.** The inlined `foreach` lowering plants a *synthetic header
+   def-marker* call that is intentionally a no-op, because the loop body is
+   emitted structurally. That must not be expressed as a target-specific
+   shared-registry trait keyed on the command name, or the same table also
+   swallows the *genuine* opaque `foreach` invoke that the qualified-var
+   fallback emits — and the loop then runs zero times. The same command can be
+   both a structural marker and a real call in the same unit.
 
-2. **Lossy reconstruction.** When a construct falls back to the interpreter,
-   the compiler rebuilds a script string and `eval`s it. Rebuilding from
-   brace-stripped IR strings pre-substitutes `\n`, mis-parses a body that
-   starts with `[` as a command substitution, and corrupts braced varLists.
-   **Rule:** carry the **original command tokens** on any IR node that can
-   fall back to eval, and reconstruct from them so braces/quoting on
-   varLists, lists, and bodies round-trip byte-for-byte. (`catch`, `while`,
-   `for`, `switch`, `foreach`/`lmap` all need this — make `tokens` a uniform,
-   non-optional field on fallback-capable nodes rather than per-node retrofit.)
+2. **Reconstruction is token-faithful.** When a construct falls back to the
+   interpreter, the compiler rebuilds a script string and `eval`s it.
+   Rebuilding from brace-stripped IR strings pre-substitutes `\n`, mis-parses
+   a body that starts with `[` as a command substitution, and corrupts braced
+   varLists. Any IR node that can fall back to eval therefore carries the
+   **original command tokens** and reconstructs from them, so braces and
+   quoting on varLists, lists, and bodies round-trip byte-for-byte. `tokens`
+   is a uniform, non-optional field on fallback-capable nodes (`catch`,
+   `while`, `for`, `switch`, `foreach`/`lmap`), not a per-node retrofit.
 
-**Design rule:** model "this construct is handled by the interpreter" as a
-distinct IR node kind (a *barrier*), not as a normal call that happens to be
-named like a control structure. A barrier is immune to call-site
-optimisations (emits-nothing, inlining, constant folding) by construction.
+**Design rule:** "this construct is handled by the interpreter" is a distinct
+IR node kind (a *barrier*), not a normal call that happens to be named like a
+control structure. A barrier is immune to call-site optimisations
+(emits-nothing, inlining, constant folding) by construction.
 
 ## Introspection coherence is part of lowering
 
 `info exists` / `info vars` / `info locals` / `info level` / `trace info` /
 `array exists` are **runtime queries against the live cell table**, not pure
-functions the compiler may fold. The `set x 1; unset x; info exists x → 1`
-bug was a compile-time answer derived from "x was assigned in this unit" that
-`unset` never invalidated (the variable itself was correctly gone — a read
-errored — only the introspection lied).
+functions the compiler may fold. A compile-time answer derived from "x was
+assigned in this unit" that `unset` does not invalidate makes `set x 1;
+unset x; info exists x` report `1` — the variable is correctly gone (a read
+errors), only the introspection lies.
 
 **Rule:** any compile-time liveness/const map MUST be invalidated by `unset`,
 `upvar`, `global`, `variable`, `trace add variable`, and every
@@ -124,7 +112,7 @@ commands to real runtime queries; never constant-fold them.
 
 - [runtime-variable-frame-model.md](runtime-variable-frame-model.md) — the
   cell/frame indirection this lowering mirrors statically.
-- [namespace-model.md](namespace-model.md) — qualified-name resolution rules.
+- [command-resolution.md](command-resolution.md) — qualified-name resolution rules.
 - [parser-and-aot-interpret-boundary.md](parser-and-aot-interpret-boundary.md)
   — the eval hand-off a barrier node routes through.
 - [variable-trace-dispatch-and-introspection.md](variable-trace-dispatch-and-introspection.md)

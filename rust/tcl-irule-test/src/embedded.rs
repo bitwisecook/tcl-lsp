@@ -18,7 +18,7 @@
 
 //! Embedded orchestrator Tcl — the TMM-sim framework bundled into the binary.
 //!
-//! The simulation is the body of Tcl under `tooling/irule_test/tcl/`. So a
+//! The simulation is the body of Tcl under `rust/tcl-irule-test/tcl/`. So a
 //! consumer (e.g. `f5 explain-flow --simulate`) need not ship that tree
 //! alongside the binary, the required framework files are embedded with
 //! [`include_str!`] and materialised to a temporary directory on demand. The

@@ -16,8 +16,6 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! Native port of `tests/lsp_e2e/test_signature_help_e2e.py`.
-//!
 //! Signature help, end-to-end against the packaged server.
 
 use crate::common::{Lsp, unique_uri};
@@ -37,7 +35,7 @@ fn doc_text(sig: &Value) -> String {
     }
 }
 
-/// True for a null/absent signature-help result (mirrors pytest `assert not`).
+/// True for a null/absent signature-help result.
 fn is_empty(result: &Value) -> bool {
     match result {
         Value::Object(o) => o

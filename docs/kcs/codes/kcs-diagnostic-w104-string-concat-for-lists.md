@@ -1,7 +1,7 @@
 # KCS: W104 — Why not build lists with string concatenation?
 
 > **Audience:** User
-> **Type:** Issue
+> **Type:** Diagnostic
 
 ## Applies to
 
@@ -44,7 +44,7 @@ The quick fix rewrites the whole command, and is offered only for the mechanical
 
 ## How to suppress
 
-Add `# noqa: W104` at the end of the offending line.
+Add `# noqa: W104` on the line **above** the offending command.
 
 ## Related
 

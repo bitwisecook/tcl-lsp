@@ -2095,7 +2095,7 @@ mod tests {
 
     // `${name}` brace-name parsing under the DEFAULT config follows C Tcl
     // 9.0.3's `Tcl_ParseVarName` (the project's reference standard — see
-    // `docs/rust-rewrite.md` principle #0): inner `{…}` nests with brace
+    // `docs/design/rust/engineering-guide.md` principle #0): inner `{…}` nests with brace
     // counting and `\X` is consumed as a literal pair, so the closer is
     // the first `}` at brace-depth zero. The expectations below were
     // confirmed against `tclsh9.0` (9.0.3) via the variable-name a failed
@@ -2104,8 +2104,7 @@ mod tests {
     // `Tcl_ParseVarName` is `while (numBytes && (*src != '}'))`, no brace
     // counting, no backslash) — [`BracedVarStyle::FirstClose`], which every
     // 8.x-runtime dialect profile selects via `LexerConfig::for_dialect`
-    // (dialect-profile-model.md, Milestone 3; previously the parse was
-    // standardised on 9.0.3 for all dialects).
+    // (dialect-profile-model.md).
 
     #[test]
     fn var_braced_escaped_close_brace_is_part_of_name() {

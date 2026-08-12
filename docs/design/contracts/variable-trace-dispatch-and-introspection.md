@@ -1,25 +1,23 @@
 # Contract: variable-trace dispatch & introspection coherence
 
-> **Status:** First-principles design contract (v2 / "if starting over").
-> Describes the firing, ordering, error, and re-entrancy contract a
-> from-scratch runtime should commit to for variable traces, and the rule
-> that introspection (`info`, `trace info`) reads live state. Builds on
+> The firing, ordering, error, and re-entrancy contract both runtimes
+> implement for variable traces, and the rule that introspection (`info`,
+> `trace info`) reads live state. Builds on
 > [runtime-variable-frame-model.md](runtime-variable-frame-model.md); the
 > as-built dispatch is
 > [runtime/trace-implementation.md](../runtime/trace-implementation.md). The
 > reference is `tmp/tcl9.0.3/generic/tclTrace.c` (`TclCallVarTraces`, the
 > `done:` label) and `tclVar.c`.
 
-## Why this is the first thing to get right
+## Why the dispatcher is shared
 
 A variable trace is a **re-entrant interrupt that runs arbitrary Tcl in the
 middle of a read / write / unset**, and its result *reshapes the operation's
-own result*. Treat the callback as "fire and forget" — evaluate it and
-discard its return code — and you get the exact failures this campaign found:
-a read trace that errors but the operation reports the raw callback message
-instead of `can't read "x": …`; an unset trace error that wrongly aborts the
-unset. The trace's *return code and result are part of the operation's
-contract*, not a side channel.
+own result*. Treat the callback as "fire and forget" — evaluate it and discard
+its return code — and a read trace that errors makes the operation report the
+raw callback message instead of `can't read "x": …`, and an unset trace error
+wrongly aborts the unset. The trace's *return code and result are part of the
+operation's contract*, not a side channel.
 
 **Design rule:** one shared trace dispatcher mediates every read / write /
 unset / array access. It owns the firing order, the error-wrap/ignore/stop
@@ -80,10 +78,10 @@ Where C commits the operation around the trace, the runtime must too:
 * A trace fires **through `upvar`/`global`/`variable` links** in the frame
   where the access occurred — the dispatcher acts on the *target* cell.
 * A callback may read/write/unset the same variable (via another alias). The
-  `active` guard must make this terminate and match C's ordering. (Cascaded
-  read-trace re-entry on `lappend` was a real crash in the as-built runtime —
-  the canonical-list fast path and the trace re-entry must agree on when the
-  value is materialised.)
+  `active` guard makes this terminate and match C's ordering. Cascaded
+  read-trace re-entry through `lappend` is the sharp edge: the canonical-list
+  fast path and the trace re-entry must agree on when the value is
+  materialised.
 * Removing a variable's traces happens *after* the unset callbacks have fired,
   so a stale trace cannot re-fire on a later variable that reuses the name.
 
@@ -92,10 +90,8 @@ Where C commits the operation around the trace, the runtime must too:
 Trace and variable introspection are **live runtime queries**, never
 compile-time-foldable:
 
-* `info exists x` after `unset x` is **0**. (The campaign's compiled path
-  returned a stale `1` — the variable was correctly gone, only the
-  introspection lied, because compile-time local-liveness was not invalidated
-  by `unset`.)
+* `info exists x` after `unset x` is **0** — including on the compiled path,
+  whose local-liveness map is invalidated by `unset`.
 * `trace info variable x` returns the live trace list (LIFO order, as added).
 * `info vars` / `info locals` / `info level` read the current cell table and
   call stack.

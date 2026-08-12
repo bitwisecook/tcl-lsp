@@ -1,7 +1,7 @@
 # KCS: IRULE3003 — Why does the analyser warn about tainted data in a log command?
 
 > **Audience:** User
-> **Type:** Issue
+> **Type:** Diagnostic
 
 ## Applies to
 
@@ -44,7 +44,7 @@ log local0. "Host: $clean"
 
 ## How to suppress
 
-Add `# noqa: IRULE3003` at the end of the offending line.
+Add `# noqa: IRULE3003` on the line **above** the offending command.
 
 ## Related
 

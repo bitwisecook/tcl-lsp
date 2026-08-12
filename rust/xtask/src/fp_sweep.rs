@@ -18,19 +18,16 @@
 
 //! `cargo xtask fp-sweep` — the false-positive audit harness (issue #1316).
 //!
-//! `docs/design/compiler/fp-audit-todo.md`'s documented method (dump every
-//! firing of a code across the corpus, dialect-aware, grouped by site shape)
-//! depended on a Python harness (`bench/fp_snippets.py`-style) that no longer
-//! exists — `bench/` went away with the Python retirement. This subcommand
-//! reproduces the method natively:
+//! It implements the method documented in `docs/design/compiler/fp-sweep.md`:
+//! dump every firing of a code across the corpus, dialect-aware, grouped by
+//! site shape.
 //!
 //! - **Dialect-aware**: each corpus file's analysis dialect is resolved with
 //!   [`tcl_cli_support::InputDocument::effective_dialect`] — the same
 //!   detector (`# tcl-dialect:` / content signal / extension, falling back to
 //!   `tcl8.6`) the `tcl` CLI and the LSP server use — so a version-gated
 //!   command in a Tcl-9-only file does not produce a phantom W002/W004 the
-//!   way a fixed-dialect sweep would (the harness-correctness note this file
-//!   records for the old Python tool).
+//!   way a fixed-dialect sweep would.
 //! - **Every code, one pass**: both diagnostic sources the editor publishes —
 //!   [`Analyser::analyse`]'s W/E/H-series checks and
 //!   [`run_all_checks`]'s O/S/T-series compiler-checks pass — are run per
@@ -40,8 +37,8 @@
 //! - **Grouped by site shape**: firings for a code are bucketed by their
 //!   normalised message (digit runs and single-quoted identifiers replaced
 //!   with a placeholder) so repeated instances of the same pattern collapse
-//!   into one row with a count, highest-volume shape first — the workflow
-//!   the checklist's resolved entries describe ("corpus 3641 → ~700-900").
+//!   into one row with a count, highest-volume shape first — the triage
+//!   workflow `fp-sweep.md` describes.
 //!
 //! Corpus discovery accepts the normal Tcl-family extensions plus two
 //! corpus-only publication formats common in the #1181 iRules sources:

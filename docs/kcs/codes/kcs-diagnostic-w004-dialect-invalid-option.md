@@ -1,7 +1,7 @@
 # KCS: W004 — Command option is not available in the active dialect
 
 > **Audience:** User
-> **Type:** Issue
+> **Type:** Diagnostic
 
 ## Applies to
 
@@ -45,7 +45,7 @@ The check also resolves a unique-prefix subcommand abbreviation the same way rea
 
 ## How to suppress
 
-Add `# noqa: W004` at the end of the offending line.
+Add `# noqa: W004` on the line **above** the offending command.
 
 ## Related
 

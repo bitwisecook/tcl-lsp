@@ -85,8 +85,8 @@ fn main() {
 /// (`tcl_explorer_wasm.js` + `tcl_explorer_wasm_bg.wasm`) and `mermaid.min.js`,
 /// which `make explorer-wasm` builds into `gui/`. This walks `gui/` and writes
 /// a `&[(path, bytes)]` table to `$OUT_DIR/gui_assets.rs` so `tcl explore
-/// --serve` can serve the whole bundle from memory — no filesystem, no Python,
-/// no separate release asset. If the WASM core has not been built yet, the
+/// --serve` can serve the whole bundle from memory — no filesystem, no
+/// separate release asset. If the WASM core has not been built yet, the
 /// shell is still embedded and the command reports how to build it.
 fn embed_gui(manifest: &Path) {
     let gui_dir = manifest.join("gui");

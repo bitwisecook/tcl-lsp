@@ -269,7 +269,7 @@ const STREAM_OPTIONS: &[OptionSpec] = &[
 // `s110_registry_sets_match_legacy_hardcoded_behaviour` test asserts an
 // *exhaustive*, closed list of every `return_type == ByteArray` spec in
 // the whole registry (`binary decode`, `binary format`, `encoding
-// convertto` — the pre-migration S110 pass's hardcoded source list), and
+// convertto` — the S110 pass's hardcoded source list), and
 // this file is not the place to grow that list. `read`/`gets` (which can
 // equally return binary-configured-channel bytes) already set the same
 // precedent of staying `String` for the same reason.

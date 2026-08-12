@@ -646,11 +646,10 @@ pub fn trait_bit(key: &str) -> Option<Traits> {
 /// declaration order.
 ///
 /// Each flag is a distinct enum variant, so a name maps to exactly one bit and
-/// a bit to exactly one name. This previously had to deduplicate by bit value:
-/// `Traits` was a `u64` holding 65 flags, and `SAFE_INTERP_HIDDEN` shared bit
-/// 61 with `TRANSFERS_CONTROL`, so reporting both would have rendered a spec
-/// claiming a trait its author never set. The registry now derives each bit
-/// from an enum discriminant, which makes that collision unrepresentable.
+/// a bit to exactly one name, and no deduplication by bit value is needed. Two
+/// flags sharing a bit would render a spec claiming a trait its author never
+/// set; deriving each bit from an enum discriminant makes that collision
+/// unrepresentable.
 #[must_use]
 pub fn trait_keys(traits: Traits) -> Vec<&'static str> {
     traits.iter_names().collect()

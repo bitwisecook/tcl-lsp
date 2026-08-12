@@ -1,7 +1,7 @@
 # KCS: O128 — Use end-offset indices instead of length arithmetic
 
 > **Audience:** User
-> **Type:** Functionality
+> **Type:** Optimisation
 
 ## Applies to
 

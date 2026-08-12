@@ -159,14 +159,17 @@ collection — wrap it: `[.ltm.virtual[].name] | sort`.
 
 ## Builtin catalogue {#builtin-catalogue}
 
-The full alphabetical catalogue lives in the auto-generated
-[`docs/references/f5_query/builtins.md`](builtins.md)
-and is also emitted by `f5 query --help-builtins`.  Each builtin
-has its own anchor in that file — to look one up:
+The full alphabetical catalogue lives in the hand-maintained
+[`docs/references/f5_query/builtins.md`](builtins.md), kept in sync
+by hand against the registry in `rust/tcl-bigip-query/src/builtins/`.
+`f5 query --help-builtins` emits a metadata-only summary from the
+same registry (name / category / arity / flags, not the full prose).
+Each builtin has its own anchor in `builtins.md` — to look one up:
 
-- `f5 query --help-builtins NAME` — single function from the CLI.
-- `docs/references/f5_query/builtins.md#NAME` — anchor in the
-  Markdown file.
+- `f5 query --help-builtins NAME` — that builtin's metadata from the
+  CLI.
+- `docs/references/f5_query/builtins.md#NAME` — the full prose +
+  examples, in the Markdown file.
 
 Major families:
 
@@ -183,8 +186,10 @@ Major families:
 - **HTTP-response helpers** — `http_ok`, `http_client_error`,
   `http_header`, `http_body_json`
 - **network probes** (need `--enable-probes`) — `url_get`,
-  `url_head`, `url_options`, `tls_handshake`, `dns_resolve`,
-  `ping`, `port_ping`
+  `url_head`, `url_options`, `url_post` (not yet implemented —
+  see [Network probes](#network-probes)), `tls_handshake`, `ping`,
+  `portping`, `traceroute`.  `dns` / `rev_dns` are ungated (they
+  resolve without `--enable-probes`).
 - **cert / X.509** — `x509_parse`, `cert_load`,
   `x509_from_config`, `x509_eq`
 - **external inputs** — `json_load`, `jsonl_load`, `csv_load`,
@@ -192,20 +197,31 @@ Major families:
 
 ## Network probes {#network-probes}
 
-All probes need `f5 query --enable-probes` (the gate keeps
-read-only queries from accidentally reaching out).  Probes use
-shared caches keyed on the request shape so multiple references
-in one query are cheap.
+Most probes need `f5 query --enable-probes` (the gate keeps
+read-only queries from accidentally reaching out) — `dns` /
+`rev_dns` are the exception, ungated as benign name resolution.
+Probe results are **not** cached or memoised — each call is a fresh
+network round-trip, so referencing the same probe repeatedly in one
+query repeats the work.
+
+**`url_get` / `url_head` / `url_options` / `url_post` are not
+currently implemented.**  The live HTTP request path was deferred
+(non-deterministic / not golden-testable); every call returns the
+shape below with `status: null` and an explanatory `error`,
+regardless of the target URL.  `tls_handshake`, `dns`, `rev_dns`,
+`ping`, `portping`, and `traceroute` are fully implemented.
 
 | Builtin | Returns |
 |---|---|
-| `url_get(url, [headers])` | `{ status, headers, body, body_json, peer_cert, reason, error }` |
-| `url_head(url, [headers])` | same shape, no body |
-| `url_options(url, [headers])` | same shape |
-| `tls_handshake(host, port, [sni], [alpn])` | `{ protocol, cipher, peer_cert, alpn_selected, verify_status, reason, error }` |
-| `dns_resolve(name, [type])` | `{ records, ttl, error }` |
-| `ping(ip, [timeout_s])` | `{ ok, rtt_ms, error }` |
-| `port_ping(host, port, [timeout_s])` | `{ ok, rtt_ms, error }` |
+| `url_get(url, [headers])` — *not implemented* | `{ status, headers, body, body_json, peer_cert, error }` |
+| `url_head(url, [headers])` — *not implemented* | same shape, no body |
+| `url_options(url, [headers])` — *not implemented* | same shape |
+| `url_post(url, [body], [headers])` — *not implemented* | same shape — note the argument order differs from `url_get` / `url_head` / `url_options` |
+| `tls_handshake(host, port, [sni])` | `{ protocol, cipher, peer_cert, alpn_selected, verify_status, reason, error }` |
+| `dns(name)` | `list[string]` — sorted, unique A + AAAA addresses (not cached; see [`dns`](builtins.md#dns)) |
+| `rev_dns(ip)` | `list[string]` — reverse-DNS name(s), best-effort |
+| `ping(ip)` | `{ ok, rtt_ms, error }` |
+| `portping(ip, port, [protocol])` | `{ ok, rtt_ms, error }` — *protocol* is `tcp` (default) or `udp` |
 
 ### Reason taxonomy {#reason-taxonomy}
 
@@ -270,8 +286,10 @@ SHA-256 hash (BIG-IP's TMSH surface).
   its PEM with `cert_load` instead.
 - `tls_handshake(host, port).peer_cert` — capture during a live
   TLS handshake.
-- `url_get(url).peer_cert` — capture during an HTTPS request, no
-  extra round-trip.
+- `url_get(url).peer_cert` — always `null` today: the live HTTP
+  request path is not yet implemented (see
+  [Network probes](#network-probes)); use `tls_handshake` for a
+  live peer certificate.
 
 ## External inputs {#external-inputs}
 
@@ -371,7 +389,7 @@ the long-form recipes:
 - [`docs/references/f5_query/dsl.md`](dsl.md) — the
   full DSL grammar reference.
 - [`docs/references/f5_query/builtins.md`](builtins.md)
-  — auto-generated catalogue of every builtin (one section per
+  — hand-maintained catalogue of every builtin (one section per
   function, every one with its own anchor for direct linking).
 - [`docs/references/f5_query/f5-kb-monitor-articles.md`](f5-kb-monitor-articles.md)
   — F5 KB articles cross-referenced by the cert / monitor probe
@@ -386,7 +404,9 @@ CLI and from the native `tcl-mcp` MCP server:
 
 - `f5 query --help-dsl` — full grammar reference.
 - `f5 query --help-builtins [NAME]` — every builtin (or one named
-  function), with signature, examples, and category.
+  function), with category, arity, and dispatch flags — metadata
+  only; for full signatures, prose, and examples see
+  [`builtins.md`](builtins.md).
 - `f5 query --help-examples` — the worked-example cookbook.
 - `f5 query --help-manual` — the whole reference concatenated.
 
@@ -610,7 +630,8 @@ openssl x509 -in server.crt -noout -subject -issuer -dates -fingerprint -sha256
 
 ### Running a self-signed HTTPS server in Python {#python-https}
 
-For the cert-audit `tls_handshake` / `url_get` recipes:
+For the cert-audit `tls_handshake` recipes (`url_get` is not yet
+implemented — see [Network probes](#network-probes)):
 
 ```python
 # https_server.py
@@ -683,16 +704,15 @@ f5 query --enable-probes '
 kill %1
 ```
 
-### Probe gating, caching, and CA bundles {#probe-controls}
+### Probe gating and CA bundles {#probe-controls}
 
 | Behaviour | Knob |
 |---|---|
-| Gate (refuses by default) | `--enable-probes` |
+| Gate (refuses by default) | `--enable-probes` — `dns` / `rev_dns` are ungated exceptions |
 | Pin a CA bundle | `--ca-bundle /path/to/ca.crt` |
-| Cache TLS handshakes by `(host, port, sni, ca_bundle)` | automatic; same handshake within one query is one round-trip |
-| Cache URL responses by `(method, url, headers, ca_bundle)` | automatic |
-| Disable cert verification per-query | implicit — the probe retries after a `SSLCertVerificationError` |
-| Set per-call timeout | `tls_handshake(h, p, timeout_s=10)` / `url_get(url, headers={})` |
+| Result caching | **none** — every probe call is a fresh network round-trip; nothing is cached or memoised across calls in a query |
+| Cert-verification failures | reported, not retried insecurely — `tls_handshake` sets `verify_status` / `reason.kind` and still captures `peer_cert` when the handshake reached the certificate message |
+| Per-call timeout | not configurable — `tls_handshake` hardcodes 5s connect/read/write timeouts; `ping` / `portping` hardcode 2s |
 
 ### Per-builtin lookup {#per-builtin-lookup}
 
@@ -718,11 +738,8 @@ every example concatenated with section banners):
 f5 query --help-manual
 ```
 
-To see the F5 KB cross-reference doc:
-
-```sh
-f5 query --help-references
-```
+The F5 KB cross-reference doc has no dedicated CLI help flag — read it
+directly: [`f5-kb-monitor-articles.md`](f5-kb-monitor-articles.md).
 
 ## 100% coverage map {#coverage-map}
 
@@ -731,9 +748,9 @@ is the source-of-truth index for what lives where.
 
 | Behaviour | Canonical reference |
 |---|---|
-| Grammar (parser, precedence, EBNF) | [`f5-query-dsl.md`](dsl.md) + `f5 query --help-dsl` |
-| Every builtin with examples | [`f5-query-dsl-builtins.md`](builtins.md) + `f5 query --help-builtins NAME` |
-| jq divergences | [`f5-query-dsl.md`](dsl.md) §"Divergences from jq" |
+| Grammar (parser, precedence, EBNF) | [`dsl.md`](dsl.md) + `f5 query --help-dsl` |
+| Every builtin with examples | [`builtins.md`](builtins.md) + `f5 query --help-builtins NAME` |
+| jq divergences | [`dsl.md`](dsl.md) §"Divergences from jq" |
 | Probe gate + reason taxonomy | [Reason taxonomy](#reason-taxonomy) section above |
 | Cert dict shape | [X.509 cert dict shape](#x509-cert-dict-shape) section above |
 | Mutating-query apply order | [Edit planning](#edit-planning) section above |
@@ -743,7 +760,7 @@ is the source-of-truth index for what lives where.
 | If / elif / else | [Control flow](#control-flow) section above |
 | External inputs (JSON / CSV / f5log) | [External inputs](#external-inputs) section above |
 | Output rendering | [Output modes](#output-modes) section above |
-| End-to-end cookbook | [`f5-query-dsl-builtins.md`](builtins.md) + KCS HOW-TOs |
+| End-to-end cookbook | [`builtins.md`](builtins.md) + KCS HOW-TOs |
 | Operational recipes (setup, certs, servers) | [Operator handbook](#operator-handbook) section above |
 | F5 KB articles | [`f5-kb-monitor-articles.md`](f5-kb-monitor-articles.md) |
 | AI / MCP integration | the native `tcl-mcp` MCP server (`f5-query` skill) |

@@ -45,13 +45,13 @@ fn is_mathop_spelling(name: &str) -> bool {
         || !reg.specs(&format!("tcl::mathop::{name}")).is_empty()
 }
 
-/// The Milestone 5 retag is complete and stays complete: no spec gate at
-/// any level (command, subcommand, option, form option, subcommand option)
-/// in any profile's registry is the retired `NON_IRULES_OPERATORS` union —
-/// "every dialect except iRules/Tk/BPF", reconstructed here because the
-/// constant itself was deleted from `DialectSet`. Exclusion from iRules is
-/// modelled on the profile (disable list / operator trait), never by
-/// enumerating the complement of the excluded dialects.
+/// Pins the invariant that no spec gate at any level (command, subcommand,
+/// option, form option, subcommand option) in any profile's registry is the
+/// retired `NON_IRULES_OPERATORS` union — "every dialect except
+/// iRules/Tk/BPF", reconstructed here because the constant itself was
+/// deleted from `DialectSet`. Exclusion from iRules is modelled on the
+/// profile (spec `dialects` group / operator trait), never by enumerating
+/// the complement of the excluded dialects.
 #[test]
 fn retired_non_irules_operators_union_never_reappears_as_a_gate() {
     // Reconstructed from the non-iRules/Tk/BPF dialect bits that still exist;
@@ -260,11 +260,10 @@ fn irules_subcommands_named_like_banned_commands_stay_available() {
     }
 }
 
-/// The user-facing contract the disable list exists for: the banned
-/// commands never resolve under the iRules profile, while the F5 surface
-/// and the universal 8.4 core still do. This is the test that must KEEP
-/// passing across the Milestone 5 retag (when the per-spec tags flip to
-/// `None` and only the disable list bans them).
+/// The user-facing contract: the banned commands never resolve under the
+/// iRules profile, while the F5 surface and the universal 8.4 core still
+/// do. The ban is carried by each spec's explicit `dialects` group, which
+/// simply omits the `IRULES` bit.
 #[test]
 fn irules_banned_commands_never_resolve() {
     let reg = registry_for_dialect("f5-irules");
@@ -392,7 +391,7 @@ fn option_gating_honours_the_version_ceiling() {
         .iter()
         .find(|o| o.name == "-nocase")
         .expect("switch -nocase is a declared option");
-    // switch -nocase is TCL85_PLUS (verified data anchor, §13).
+    // switch -nocase is TCL85_PLUS (a verified data anchor).
     assert_eq!(nocase.dialects, Some(DialectSet::TCL85_PLUS));
 
     // TP: resolves at/above 8.5 — including the composed vendor profiles

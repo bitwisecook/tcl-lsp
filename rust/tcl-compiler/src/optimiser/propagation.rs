@@ -967,7 +967,7 @@ fn oo_frame_for(
 /// The method-local constants a method body may propagate, or an empty map
 /// when it may propagate none (issue #1097).
 ///
-/// This is the port of `elimination.rs`'s escaping model into the propagation
+/// This applies `elimination.rs`'s escaping model to the propagation
 /// lattice.  `elimination.rs` already knows that a `TclOO` instance variable
 /// escapes the method frame — it feeds
 /// [`crate::ir::MethodDef::instance_vars`] through the same channel iRules
@@ -1972,8 +1972,8 @@ fn try_fold_static_proc_call(
     // the literal replacement would turn `::answer` into a
     // command named `42`, which is invalid Tcl. Targeting
     // `[procName …]` command substitutions with their token span
-    // would avoid this. Until the Rust side tracks CMD-subst
-    // spans at the call argument level, emit as a hint so
+    // would avoid this. Until CMD-subst spans are tracked at
+    // the call argument level, emit as a hint so
     // editors surface the fold without proposing an applicable
     // quick-fix.
     let mut opt = Optimisation::new(

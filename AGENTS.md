@@ -555,9 +555,11 @@ type:
     `licm`, `instcombine`, `ipa`, `memssa`, `dataflow`, `taint`,
     `shimmer`, `tail-call`, `code-sinking`, `unused-procs`,
     `side-effects`, `exec-intent`, `rendered-props`, `const-fold`,
-    `strength-reduce`, `codegen`). The vocabulary lives in the `tcl-cli`
-    KCS/help data (`rust/tcl-cli`) and is documented
-    in [`docs/kcs/STYLE.md`](docs/kcs/STYLE.md) (rule 11). Per-code
+    `strength-reduce`, `pattern`, `codegen`). The tables in
+    [`docs/kcs/STYLE.md`](docs/kcs/STYLE.md) (rule 11) are the canonical
+    vocabulary: `rust/tcl-cli/build.rs` indexes whatever tokens the
+    `## Applies to` line carries rather than validating them, so an
+    unrecognised tag is silently indexed, not rejected. Per-code
     pages and compiler-internals feature pages must carry the
     compiler-pass tag of the pass that produces the code or the
     facts they consume.
@@ -749,7 +751,7 @@ overshoots the empty case by one — issue #527).
   (`docs/design/compiler/syntax-tree.md`) — the lossless, position-independent
   tree the formatter, minifier, AOT lowering, and per-command tooling build on.
 
-See [`docs/kcs/kcs-issue-highlight-drops-closing-delimiter.md`](docs/kcs/kcs-issue-highlight-drops-closing-delimiter.md)
+See [`docs/design/compiler/syntax-tree.md`](docs/design/compiler/syntax-tree.md)
 for the contract.
 
 ## Command registry
@@ -821,9 +823,7 @@ layers — not just the one closest to the symptom.
   command registry and the iRules event/profile/object graphs.  The
   registry **generates** real Tcl scripts and iRules (`when EVENT { … }`)
   and the tests assert the live analysis — arity (E002/E003), subcommands
-  (E001/W001), event scoping (IRULE1001/1002), and event ordering.  The old
-  Python-era presence baselines (the `tests/fixtures/registry/*.csv` golden
-  dumps and their comparison test) have been retired.  See
+  (E001/W001), event scoping (IRULE1001/1002), and event ordering.  See
   [`docs/design/contracts/registry-contract-tests.md`](docs/design/contracts/registry-contract-tests.md).
 - **iRule test framework** (`rust/tcl-irule-test`): simulates TMM for testing
   iRules without hardware.  See

@@ -1,7 +1,7 @@
 # KCS: W241 — Why does the analyser warn that my loop is provably infinite?
 
 > **Audience:** User
-> **Type:** Issue
+> **Type:** Diagnostic
 
 ## Applies to
 
@@ -69,7 +69,7 @@ for {set i 0} {$i < 10} {incr i} {
 
 ## How to suppress
 
-Add `# noqa: W241` at the end of the offending line. (Genuine
+Add `# noqa: W241` on the line **above** the offending command. (Genuine
 event-loop servers that really do loop forever are the intended
 suppression target.)
 

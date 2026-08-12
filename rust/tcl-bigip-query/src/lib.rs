@@ -16,7 +16,7 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! F5 BIG-IP query DSL (`dialects/f5/query`).
+//! F5 BIG-IP query DSL.
 //!
 //! The query DSL is a small jq-flavoured language for inspecting and
 //! rewriting `bigip.conf` / SCF files; it powers the `f5 query` verb and is

@@ -1,7 +1,7 @@
 # KCS: W128 — Command called after it was renamed or deleted earlier in this file
 
 > **Audience:** User
-> **Type:** Issue
+> **Type:** Diagnostic
 
 ## Applies to
 
@@ -47,7 +47,7 @@ Call the command under its new name after the `rename`, or remove the stale call
 
 ## How to suppress
 
-Add `# noqa: W128` at the end of the offending line.
+Add `# noqa: W128` on the line **above** the offending command.
 
 ## Related
 

@@ -16,17 +16,14 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! Native port of `tests/lsp_e2e/test_diagnostic_matrix_e2e.py`.
-//!
 //! Data-driven diagnostic matrix: a must-fire / must-stay-silent pair per code.
 //! Every pair is ground-truthed against the reference server; the `silent`
 //! snippet is the *minimal* edit that removes the defect, so each pair also
 //! proves the diagnostic is specific.
 //!
-//! The pytest suite parametrises a single positive test and a single negative
-//! test over a `_MATRIX` of `_Case` rows. Rust integration tests can't
-//! parametrise the same way, so each matrix row is unrolled into its own
-//! `#[test]` for the fire case and the silent case.
+//! Rust integration tests cannot be parametrised over the matrix, so every row
+//! is unrolled: each code is a separate case, one positive (`fire`) and one
+//! negative (`silent`), each its own `#[test]`.
 
 use crate::common::{Lsp, unique_uri};
 
@@ -42,7 +39,7 @@ struct Case {
     note: &'static str,
 }
 
-/// The matrix, one row per code (mirrors the pytest `_MATRIX`).
+/// The matrix, one row per code.
 const MATRIX: &[Case] = &[
     Case {
         code: "E002",
@@ -161,7 +158,7 @@ const MATRIX: &[Case] = &[
     },
 ];
 
-/// The set of `code` strings carried by `diags` (mirrors Python `_codes`).
+/// The set of `code` strings carried by `diags`.
 fn codes(diags: &[Value]) -> BTreeSet<String> {
     diags
         .iter()
@@ -799,7 +796,8 @@ fn s102_fires_for_rename_indirection() {
 // my_variable_marks_namespace_alias`) rather than here — the LSP
 // whole-document pipeline does not run shimmer analysis over TclOO method
 // bodies, so `tcl diag` (which does) is the authoritative oracle for that
-// surface, matching how FP.md's FP-SH-15 entry verified it.
+// surface — which is why the FP-SH-15 reproducers live with the compiler, in
+// `analyser/diagnostics/fp/sh.rs::fp_sh_15_*`.
 
 #[test]
 fn s100_silent_for_array_element_use_site() {

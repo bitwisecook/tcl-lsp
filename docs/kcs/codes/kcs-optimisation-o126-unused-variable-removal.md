@@ -1,7 +1,7 @@
 # KCS: O126 — Remove set statements for variables never read
 
 > **Audience:** User
-> **Type:** Functionality
+> **Type:** Optimisation
 
 ## Applies to
 

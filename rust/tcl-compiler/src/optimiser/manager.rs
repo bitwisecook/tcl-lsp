@@ -192,7 +192,7 @@ pub fn finalise_optimisations(
     // whose every use was propagated away by a *surviving* O100/O101/O102/O103
     // rewrite is now dead and can be removed. Done after overlap selection so
     // the removal is emitted only when the propagations actually survived —
-    // Rust's group mechanism is not application-gating, so a survival check is
+    // the group mechanism is not application-gating, so a survival check is
     // the safe coupling primitive.
     couple_propagated_const_dead_stores(cu, registry, dialect, &mut selected);
     // **Resurrected-reference guard (FP-OPT-08).** A def-elimination (an empty
@@ -749,7 +749,7 @@ pub fn find_dead_stores(
 /// Run the passes one at a time over a shared context and return, for each
 /// [`PassId`] in [`PassId::all`] order, the optimisations *that pass*
 /// produced (raw, before overlap arbitration). Powers the explorer's
-/// Rust-native "optimiser pass pipeline" view onto this pass sequence.
+/// "optimiser pass pipeline" view onto this pass sequence.
 ///
 /// Equivalent to [`optimise_unit`] in effect (each pass sees the prior
 /// passes' context), but it attributes every finding to its originating pass.

@@ -1,7 +1,7 @@
 # KCS: W103 — Does open with a pipeline prefix execute shell commands?
 
 > **Audience:** User
-> **Type:** Issue
+> **Type:** Diagnostic
 
 ## Applies to
 
@@ -43,7 +43,7 @@ Validate that the path does not begin with `|` before passing it to `open`.
 
 ## How to suppress
 
-Add `# noqa: W103` at the end of the offending line.
+Add `# noqa: W103` on the line **above** the offending command.
 
 ## Related
 

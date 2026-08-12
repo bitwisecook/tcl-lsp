@@ -174,8 +174,7 @@ pub struct OptionArg {
     /// can't express (`return -code ok|error|...|<int>`). `None` = the
     /// literal set (if any) is the whole story.
     pub integer: Option<IntegerDomain>,
-    /// Hint text for the value (e.g. `"channel"`), migrated from the old
-    /// `value_hint` field.
+    /// Hint text for the value (e.g. `"channel"`).
     pub hint: &'static str,
     /// When `role` is [`ArgRole::CommandPrefix`], how many arguments the
     /// command appends to the callback when it invokes it — drives the

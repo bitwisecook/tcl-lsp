@@ -26,10 +26,6 @@ VS Code
 
 These commands help work with Tcl-escaped strings and base64-encoded payloads commonly used in iRules data-groups and BIG-IP configurations.
 
-## File-path anchors
-
-- `editors/vscode/src/extension.ts`
-
 ## Failure modes
 
 - Transform produces invalid encoding for edge-case inputs.

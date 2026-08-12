@@ -76,4 +76,4 @@ $
 
 - [KCS feature index](README.md)
 - [tcl pkg](kcs-feature-tcl-pkg.md) — package management
-- [Design: tclpkg venv contracts](../../design/contracts/tclpkg-venv.md)
+- [Design: tclpkg contracts](../../design/contracts/tclpkg-contracts.md#virtual-environments-venvrs)

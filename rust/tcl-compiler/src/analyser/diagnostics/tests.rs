@@ -3743,7 +3743,7 @@ fn w004_fix_removes_option_and_value_at_end_of_command() {
 fn w004_fix_handles_braced_option_token_without_stray_closer() {
     // A braced flag/value (`{-stride}`) is a legal, if unusual, way to write
     // the same word; the fix must delete the whole wrapped token — never
-    // leaving a stray `}` behind (kcs-issue-highlight-drops-closing-delimiter).
+    // leaving a stray `}` behind.
     let mut a = Analyser::new();
     let src = "lsearch {-stride} 2 {a b} x";
     let result = a.analyse(src, "tcl8.6");
@@ -4706,8 +4706,8 @@ fn emit_cfg_ssa_diagnostics_w220_skips_global_qualified_var() {
 
 /// W220-IR-paths.  ``set x [foo]`` is a side-effecting
 /// store: dropping the assignment would also drop the call
-/// to ``foo``.  ``IRAssignValue`` values containing ``[``
-/// are filtered out.
+/// to ``foo``.  ``Statement::AssignValue`` values
+/// containing ``[`` are filtered out.
 #[test]
 fn emit_cfg_ssa_diagnostics_w220_skips_command_substitution_value() {
     let mut a = Analyser::new();
@@ -4725,10 +4725,10 @@ fn emit_cfg_ssa_diagnostics_w220_skips_command_substitution_value() {
 }
 
 /// W220-IR-paths.  ``set x [expr {[foo]}]`` lowers as
-/// ``IRAssignExpr`` with a command call inside — same
-/// side-effecting reasoning as command-substitution
-/// values.  ``IRAssignExpr`` whose tree contains an
-/// ``IRExprCommand`` is filtered out.
+/// ``Statement::AssignExpr`` with a command call inside —
+/// same side-effecting reasoning as command-substitution
+/// values.  ``Statement::AssignExpr`` whose tree contains
+/// an ``ExprNode::Command`` is filtered out.
 #[test]
 fn emit_cfg_ssa_diagnostics_w220_skips_expr_with_command_call() {
     let mut a = Analyser::new();
@@ -4741,15 +4741,16 @@ fn emit_cfg_ssa_diagnostics_w220_skips_expr_with_command_call() {
         .collect();
     assert!(
         w220s.is_empty(),
-        "W220 must skip ``IRAssignExpr`` containing a command call; got {w220s:?}",
+        "W220 must skip ``Statement::AssignExpr`` containing a command call; got {w220s:?}",
     );
 }
 
 /// W220-IR-paths.  ``incr x`` is a side-effecting write
 /// (it reads the current value first).  The dead-store
-/// check only matches ``IRAssignConst`` /
-/// ``IRAssignValue`` / ``IRAssignExpr`` — ``IRIncr`` and
-/// ``IRCall.defs`` are skipped by exclusion.
+/// check only matches ``Statement::AssignConst`` /
+/// ``Statement::AssignValue`` / ``Statement::AssignExpr`` —
+/// ``Statement::Incr`` and ``Statement::Call.defs`` are
+/// skipped by exclusion.
 #[test]
 fn emit_cfg_ssa_diagnostics_w220_skips_incr_writes() {
     let mut a = Analyser::new();
@@ -4774,10 +4775,10 @@ fn emit_cfg_ssa_diagnostics_w220_skips_incr_writes() {
 }
 
 /// W220-IR-paths.  ``lassign $list a b`` defines ``a`` and
-/// ``b`` via ``IRCall.defs`` — a side-effecting write that
-/// can't be dropped without also dropping the call.
-/// The dead-store check only matches the three
-/// pure-assign IR shapes; ``IRCall`` is skipped by
+/// ``b`` via ``Statement::Call.defs`` — a side-effecting
+/// write that can't be dropped without also dropping the
+/// call.  The dead-store check only matches the three
+/// pure-assign IR shapes; ``Statement::Call`` is skipped by
 /// exclusion.
 #[test]
 fn emit_cfg_ssa_diagnostics_w220_skips_call_defs() {
@@ -4791,7 +4792,7 @@ fn emit_cfg_ssa_diagnostics_w220_skips_call_defs() {
         .collect();
     assert!(
         w220s.iter().all(|d| !d.message.contains("'a'")),
-        "W220 must skip ``IRCall.defs`` side-effecting writes; got {w220s:?}",
+        "W220 must skip ``Statement::Call.defs`` side-effecting writes; got {w220s:?}",
     );
 }
 
@@ -4969,7 +4970,7 @@ fn emit_cfg_ssa_diagnostics_w211_unused_variable() {
 #[test]
 fn w211_not_emitted_for_command_output_vars() {
     // `scan` / `binary scan` / `regexp -> capture` write their targets
-    // via the command, not a pure `set`; IRCall defs are excluded
+    // via the command, not a pure `set`; Statement::Call defs are excluded
     // from W211, so unused command outputs do not fire it.
     for src in [
         "proc f {} { scan $in \"%d\" n }",
@@ -12258,7 +12259,7 @@ fn ns_scope_read_never_attaches_to_an_intermediate_namespace_m11() {
     }
 }
 
-// Dialect-profile availability (dialect-profile-model.md, Milestone 2): the
+// Dialect-profile availability (dialect-profile-model.md): the
 // composed (version|vendor) masks admit each vendor dialect's embedded Tcl
 // core, the version ladder still gates later-version core, iRules stays
 // subtractive, and unknown dialects stay permissive.
@@ -12420,7 +12421,7 @@ fn w001_subcommand_checks_use_the_profile_mask() {
 
 #[test]
 fn tmsh_first_class_resolves_its_surface_and_gates_later_core() {
-    // Milestone 6 (D8): f5-tmsh = TCL85|TMSH — a Tcl 8.5 host plus the
+    // D8: f5-tmsh = TCL85|TMSH — a Tcl 8.5 host plus the
     // tmsh:: surface.
     // TP (the fix): the tmsh:: surface stops drawing unknown-command.
     for ok in [
@@ -12471,7 +12472,7 @@ fn tmsh_first_class_resolves_its_surface_and_gates_later_core() {
 
 #[test]
 fn bpf_precise_mask_keeps_90_core_and_drops_8x_relics() {
-    // Milestone 6 (D7): bpf = TCL90|BPF — a genuine Tcl 9.0 base.
+    // D7: bpf = TCL90|BPF — a genuine Tcl 9.0 base.
     // TN: 9.0 core (including 8.5/8.6 additions carried into 9.0) resolves.
     for ok in [
         "dict get {a 1} a",
@@ -12499,7 +12500,7 @@ fn bpf_precise_mask_keeps_90_core_and_drops_8x_relics() {
 
 #[test]
 fn irules_subcommands_named_like_banned_commands_resolve_cleanly() {
-    // FP-fix (the Milestone 5 retag): `DNS::header cd` (the DNS
+    // `DNS::header cd` (the DNS
     // Checking-Disabled flag) and `IP::stats in` (inbound stats) are real
     // iRules subcommands that were bulk mis-tagged by name collision with
     // the banned `cd` command and the `in` operator spelling, and so drew
@@ -12523,7 +12524,7 @@ fn irules_subcommands_named_like_banned_commands_resolve_cleanly() {
     );
 }
 
-// Behaviour axis (dialect-profile-model.md, Milestone 3): the expr grammar,
+// Behaviour axis (dialect-profile-model.md): the expr grammar,
 // mathfunc tiers, and octal policy resolve through the profile — including
 // alias canonicalisation the string-keyed tables missed.
 
@@ -12614,7 +12615,7 @@ fn w003_fires_on_irules_word_operator_in_unbraced_multiword_expr() {
     assert!(w003_hits("expr $a contains $b", "f5-irules").is_empty());
 }
 
-// Option-gating semantics (dialect-profile-model.md §5.2, Milestone 4):
+// Option-gating semantics (dialect-profile-model.md §5.2):
 // intersects membership + version ceiling, replacing the old `contains`
 // rule that silently dropped inherited vendor options and never gated a
 // version-ceiling leak.

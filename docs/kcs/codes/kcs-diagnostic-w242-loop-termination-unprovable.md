@@ -1,7 +1,7 @@
 # KCS: W242 — Why does the analyser hint that my loop may not terminate?
 
 > **Audience:** User
-> **Type:** Issue
+> **Type:** Diagnostic
 
 ## Applies to
 
@@ -53,13 +53,11 @@ while {$running < 10} {
 
 ## How to enable
 
-Add `W242` to the list of enabled diagnostics in your editor's
-configuration, or set it for the session via
-`textDocument.didChangeConfiguration`.
+Set `tclLsp.diagnostics.W242: true` in your editor's configuration.
 
 ## How to suppress
 
-Add `# noqa: W242` at the end of the offending line.
+Add `# noqa: W242` on the line **above** the offending command.
 
 ## Related
 

@@ -20,8 +20,8 @@
 //!
 //! Every diagnostic the analyser, compiler-checks pipeline, CLI, and LSP emit is
 //! tagged with one of these codes (`W210`, `E001`, `O100`, `IRULE3102`, …).
-//! Historically each site carried a bare string literal; [`DiagCode`] makes the
-//! set a single typed vocabulary so a code can no longer be mistyped, an unknown
+//! Rather than a bare string literal at each site, [`DiagCode`] makes the
+//! set a single typed vocabulary so a code cannot be mistyped, an unknown
 //! code is a parse error at the one boundary that ingests user config, and the
 //! full catalogue is enumerable ([`DiagCode::ALL`]).
 //!
@@ -812,7 +812,7 @@ mod tests {
         assert_eq!(DiagCode::W107.diag_section(), Some(DiagSection::Warning));
         assert_eq!(DiagCode::W109.diag_section(), Some(DiagSection::Warning));
         // W305 is a review-integrity finding, so it groups with the security
-        // lints rather than with the W108 style check it used to hide behind.
+        // lints rather than with the W108 style check.
         assert_eq!(DiagCode::W305.diag_section(), Some(DiagSection::Security));
     }
 
@@ -1049,8 +1049,8 @@ mod tests {
                 assert!(!code.is_reserved(), "{} opt is not reserved", code.as_str());
             }
         }
-        // W122 was retired outright (not reserved) — it must no longer
-        // parse as a DiagCode at all.
+        // W122 is retired outright (not reserved) — it must not parse as a
+        // DiagCode at all.
         assert!(DiagCode::from_str("W122").is_err());
     }
 

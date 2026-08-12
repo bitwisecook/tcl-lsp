@@ -57,7 +57,7 @@ pub enum FoldKind {
 }
 
 impl FoldKind {
-    /// Lower-case wire form expected by `lsprotocol`
+    /// Lower-case wire form the LSP `FoldingRange.kind` field takes
     /// (`"region"`, `"comment"`).
     #[must_use]
     pub fn as_str(self) -> &'static str {

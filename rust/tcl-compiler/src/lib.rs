@@ -80,9 +80,6 @@
 //!   green layer ([`parsing::syntax::green`])
 //!   is the lossless representation the segmenter / lowering / formatter
 //!   / tooling are meant to share.
-//!
-//! The crate has no `pyo3` dependency and no Python-binding concerns —
-//! those belong in the `tcl-lsp-rust` binding crate.
 
 #![deny(missing_docs)]
 
@@ -190,7 +187,7 @@ pub use expr_parser::parse_expr;
 pub use ir::{Module, Procedure, Script, Statement};
 pub use tcl_expr_eval::{Env, EnvValue, TclValue, eval_tcl_expr, format_tcl_value};
 
-/// Crate version string, useful for migration diagnostics.
+/// Crate version string.
 ///
 /// ```
 /// assert!(!tcl_compiler::VERSION.is_empty());

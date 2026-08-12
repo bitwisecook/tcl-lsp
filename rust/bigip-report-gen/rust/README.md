@@ -1,6 +1,6 @@
 # tcl-bigip-report — the BIG-IP report generator (Rust)
 
-The Rust port of the [`f5report`](../py) generator: given one or more
+The Rust port of the [`f5report`](../python) generator: given one or more
 loaded `(uri, scf_text)` configs it produces a single, self-contained,
 interactive HTML report — object tables, a reference/orphan analysis, an
 **SSL-certificate expiry inventory**, an **APM access-profile walk** (a
@@ -11,16 +11,16 @@ support / security incident-response references plus a UCS forensic
 — with no server and no external assets.
 
 The heavy lifting (config parsing, object projection, the `referenced_by`
-reference-graph walk) is done by [`tcl-bigip-query`](../tcl-bigip-query); this
+reference-graph walk) is done by [`tcl-bigip-query`](../../tcl-bigip-query); this
 crate only *shapes* that output into a model and *renders* it. It is pure Rust
 and builds for wasm32, which is what lets the whole pipeline run in the browser
-via [`bigip-report-wasm`](../bigip-report-wasm).
+via [`bigip-report-wasm`](../wasm).
 
 | | |
 |---|---|
 | `collect_model(sources, title)` | run the engine queries → the report model (`serde_json::Value`). |
 | `build_report(sources, &RenderOptions)` | `collect_model` + render to one standalone HTML document. |
-| `decrypt_secrets(scf, master_key)` | decrypt the config's `f5mku` `$M$…` secrets (via [`tcl-f5mku`](../tcl-f5mku)). |
+| `decrypt_secrets(scf, master_key)` | decrypt the config's `f5mku` `$M$…` secrets (via [`tcl-f5mku`](../../tcl-f5mku)). |
 
 ## Layout
 

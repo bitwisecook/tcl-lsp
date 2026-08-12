@@ -1,7 +1,7 @@
 # KCS: E001 — Why does the analyser flag a bare command with no subcommand?
 
 > **Audience:** User
-> **Type:** Issue
+> **Type:** Diagnostic
 
 ## Applies to
 
@@ -55,7 +55,7 @@ The TclOO form fires only when every candidate class is defined in the same docu
 
 ## How to suppress
 
-Add `# noqa: E001` at the end of the offending line.
+Add `# noqa: E001` on the line **above** the offending command.
 
 ## Related
 

@@ -58,7 +58,7 @@ dialect and the command's registry-declared option set.
 
 ## How to suppress
 
-Add `# noqa: W147` at the end of the offending line.
+Add `# noqa: W147` on the line **above** the offending command.
 
 ## Related
 

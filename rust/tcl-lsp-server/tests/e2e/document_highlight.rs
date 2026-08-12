@@ -16,8 +16,6 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! Native port of `tests/lsp_e2e/test_document_highlight_e2e.py`.
-//!
 //! Document highlight, end-to-end against the packaged server. Highlight kinds
 //! come back as raw LSP integers: 1=Text, 2=Read, 3=Write.
 

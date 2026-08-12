@@ -52,9 +52,7 @@ impl BracedVarStyle {
 /// call-site knobs: strict quoting, sub-lexing base offsets).
 ///
 /// A `DialectProfile` carries one of these; `LexerConfig` is built from it.
-/// The values mirror what `LexerConfig::for_dialect` hardcodes today; the
-/// behaviour-axis milestone (dialect-profile-model.md §12, Milestone 3)
-/// makes the profile's copy the single source.
+/// The profile's copy is the single source of these values.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct LexerGrammar {
     /// When true, `{*}` at a word boundary followed by a non-separator is

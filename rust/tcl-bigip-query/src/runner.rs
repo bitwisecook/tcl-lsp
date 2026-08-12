@@ -50,8 +50,8 @@ use crate::value::Value;
 
 /// Explicit, ambient-free configuration for a query run.
 ///
-/// Port of the read-relevant subset of `runner.QueryOptions`. Mutation and
-/// merge are out of scope for the read-only runner; `partitions` and `names`
+/// Mutation and merge are out of scope for the read-only runner;
+/// `partitions` and `names`
 /// are kept because they affect parsing and `$name` resolution. Network
 /// probes (`--enable-probes` / `--ca-bundle` / the UCS reader) thread through
 /// to the [`EvalContext`].
@@ -222,7 +222,7 @@ fn build_named_roots(
     // Side-input `$NAME` bindings win over (and never participate in) the
     // BIG-IP auto-naming: they're bound by explicit name only. The CLI has
     // already rejected name collisions between side inputs, so a plain
-    // insert is faithful to `full_names = {**resolved_names, **json_names}`.
+    // insert is correct — the side-input name simply wins.
     for (name, root) in side_roots {
         bindings.insert(name.clone(), std::rc::Rc::clone(root));
     }
@@ -231,8 +231,8 @@ fn build_named_roots(
 
 /// Parse *query* and run it against each `(uri, source)` in *sources*.
 ///
-/// Port of the per-file (non-merge) path of `runner.run_query`: the
-/// expression is parsed once and shared across files; each source takes its
+/// The per-file (non-merge) path: the expression is parsed once and
+/// shared across files; each source takes its
 /// turn as the primary input (the `.` of a top-level statement) in source
 /// order. Variables (`$name`) bind to every loaded source so cross-file
 /// lookups resolve.

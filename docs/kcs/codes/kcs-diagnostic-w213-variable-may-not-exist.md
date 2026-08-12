@@ -1,7 +1,7 @@
 # KCS: W213 — Why does the analyser warn that a variable may not exist?
 
 > **Audience:** User
-> **Type:** Issue
+> **Type:** Diagnostic
 
 ## Applies to
 
@@ -39,7 +39,7 @@ unset -nocomplain maybe_defined
 
 ## How to suppress
 
-Add `# noqa: W213` at the end of the offending line.
+Add `# noqa: W213` on the line **above** the offending command.
 
 ## Related
 

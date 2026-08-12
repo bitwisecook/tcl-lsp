@@ -104,8 +104,8 @@ fn cps(s: &str) -> Vec<u32> {
 
 #[test]
 fn parser_deep_nesting_does_not_overflow() {
-    // `(`×4000 used to overflow the stack (SIGABRT). The depth guard must
-    // turn this into a normal compile error, fast.
+    // `(`×4000 would overflow the stack (SIGABRT) without a depth guard, which
+    // must turn this into a normal compile error, fast.
     within(5, "deep-nesting compile", || {
         let pattern = cps(&"(".repeat(4000));
         let result = Regex::compile(&pattern, REG_ADVANCED);

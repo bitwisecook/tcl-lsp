@@ -2771,7 +2771,7 @@ fn extract_dollar_var(value: &str) -> Option<String> {
 /// The variable returned by a proc's **last** `return $var`, or `None`.
 ///
 /// Walks every block's statements and terminator (returns can lower to either
-/// an `IRReturn` statement or a `Return` terminator) and keeps the last whose
+/// a `Statement::Return` or a `Terminator::Return`) and keeps the last whose
 /// value is a single `$var`.  Used by the object-returning-proc inference:
 /// a proc returning `$X` where `X` was assigned from a factory is itself an
 /// object factory.

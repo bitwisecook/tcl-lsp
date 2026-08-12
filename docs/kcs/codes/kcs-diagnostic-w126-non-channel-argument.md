@@ -1,7 +1,7 @@
 # KCS: W126 — Why does the analyser flag a non-channel value in a channel argument?
 
 > **Audience:** User
-> **Type:** Issue
+> **Type:** Diagnostic
 
 ## Applies to
 
@@ -43,7 +43,7 @@ Open the file first and pass the resulting channel handle.
 
 ## How to suppress
 
-Add `# noqa: W126` at the end of the offending line.
+Add `# noqa: W126` on the line **above** the offending command.
 
 ## Related
 

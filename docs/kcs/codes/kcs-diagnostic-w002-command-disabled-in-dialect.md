@@ -1,7 +1,7 @@
 # KCS: W002 — Why is a command disabled in the active dialect?
 
 > **Audience:** User
-> **Type:** Issue
+> **Type:** Diagnostic
 
 ## Applies to
 
@@ -57,7 +57,7 @@ definition, not to the disabled builtin, so there is nothing to warn about.
 
 ## How to suppress
 
-Add `# noqa: W002` at the end of the offending line.
+Add `# noqa: W002` on the line **above** the offending command.
 
 ## Related
 

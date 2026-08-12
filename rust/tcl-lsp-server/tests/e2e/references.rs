@@ -16,12 +16,10 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! Native port of `tests/lsp_e2e/test_references_e2e.py`.
-//!
-//! Find-references, end-to-end against the packaged server. Full-parity port of
-//! the request/response cases. The references result is a list of `Location`s;
-//! `starts(&result)` gives the `(line, character)` start set and
-//! `start_lines(&result)` the set of start lines.
+//! Find-references, end-to-end against the packaged server. The references
+//! result is a list of `Location`s; `starts(&result)` gives the
+//! `(line, character)` start set and `start_lines(&result)` the set of start
+//! lines.
 
 // Test column math indexes tiny in-memory sources; a `find`/`len` result
 // always fits u32, so the pedantic truncation the lint warns of can't occur.

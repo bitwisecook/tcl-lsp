@@ -1,7 +1,6 @@
 # Contract: command binding, aliasing & resolution
 
-> **Status:** First-principles design contract (v2 / "if starting over").
-> Describes the one resolution model all command-name indirection must share —
+> The one resolution model all command-name indirection shares —
 > `rename`, `interp alias`, `namespace import`/`export`/`forget`,
 > `namespace path`, ensembles, and the `::tcl::mathop` / `::tcl::mathfunc`
 > operator commands — and how an AOT compiler may snapshot it safely. The
@@ -13,7 +12,7 @@
 > command-layer parallel of
 > [runtime-variable-frame-model.md](runtime-variable-frame-model.md).
 
-## Why this is the first thing to get right
+## Why resolution is a runtime function
 
 A command name does not name a fixed implementation. `rename` moves a binding,
 `interp alias` adds a redirect with frozen prefix args, `namespace import`
@@ -21,9 +20,8 @@ installs a transparent redirect, an ensemble maps a subcommand to a target,
 `namespace path` adds search fallback, and a plain `proc` can shadow a builtin
 — all at runtime, often mid-eval. An AOT compiler that resolves `+` or `dict
 for` or an aliased `=` *once* and bakes in the answer is correct only until any
-of those mutate the binding. Almost every command-dispatch bug is a symptom of
-treating resolution as a compile-time fact instead of a runtime function with
-a guarded compile-time cache.
+of those mutate the binding. Resolution is a runtime function with a guarded
+compile-time cache, never a compile-time fact.
 
 **Design rule:** there is exactly one way to reach a command —
 `resolve(ns, name) → target`, evaluated against the command tables *as they
@@ -124,13 +122,32 @@ stability assumption is violated by `rename`, `interp alias` create/delete,
 `namespace import`/`forget`, a `namespace path` change, and `proc`
 redefinition.
 
-* **Binding lattice (the guard).** Track a binding state per command name:
-  *pristine-builtin → user-proc → aliased → renamed-away → shadowed*. **Only
-  `pristine-builtin` may take an inline fast path**; any rebinding op demotes
-  the name and forces dispatch through the live runtime command table. The
-  as-built `builtin_is_trusted` check is the seed of this — make it
-  first-class and monotonic.
-* **Keep both spellings (issue #246).** Match optimiser/registry patterns on
+* **Binding lattice (the guard).** Track a binding state per command name so
+  only an unperturbed binding may take an inline fast path; any rebinding op
+  demotes the name and forces dispatch through the live runtime command
+  table. `tcl_compiler::command_binding` implements this in two layers:
+  * **Flow-sensitive**, within one CFG — `CommandBinding` runs a forward
+    dataflow whose per-name lattice is `BindingKind`: `Bottom` (⊥) →
+    `Builtin` / `Proc` / `Command` / `Class` / `Alias` → `Opaque`
+    (renamed-away, deleted, or never defined, so it dispatches to `unknown`)
+    → `Unknown` (⊤: conflicting bindings at a merge, or a dynamic mutation).
+    A `Binding` carries the kind plus a target qname for `Proc`, `Class`, and
+    `Alias`.
+  * **Flow-insensitive and whole-module** — `ModuleCommandMutations` is the
+    optimiser's fold gate. A `rename` / redefinition / `interp alias` buried
+    in a proc body only fires when that proc is called, and cross-proc call
+    order is not statically known, so any builtin some body may rebind is
+    untrusted *everywhere*. `trusts(name)` gates folding a builtin with its
+    original semantics; `trusts_proc_binding(name)` gates the O103 proc-call
+    constant fold and is deliberately **not** restricted to builtins — a
+    plain `proc NAME { … }` declaration is excluded (declaring a name as
+    itself is trustworthy), only `rename` / `interp alias` touching the name
+    demotes it. A dynamic (statically unknown target) rebinding anywhere sets
+    `dynamic`, which makes both queries answer `false` for every name.
+    `distrust_all()` is the sound stand-in for a consumer with no
+    whole-module view at all, and `CommandTrustSnapshot` is the canonical
+    hashable form so the fact can ride inside a memoisation key.
+* **Keep both spellings.** Match optimiser/registry patterns on
   the *canonical* form, but retain the *source* spelling for the eval-fallback:
   the user's bare name resolves through the live scope walk (a namespace-local
   proc), whereas an eagerly-globalised `::name` would miss it.
@@ -176,7 +193,8 @@ redefinition.
   variable-layer parallel (cell/frame indirection, aliasing, re-entrancy).
 - [compiled-scope-and-name-lowering.md](compiled-scope-and-name-lowering.md) —
   the binding lattice's sibling for *variable* scope and barrier lowering.
-- [namespace-model.md](namespace-model.md) — namespace scope tracking.
+- [command-resolution.md](command-resolution.md) — the conformance-gated
+  resolution algorithm this contract's `resolve` is the runtime view of.
 - [runtime/rename-alias.md](../runtime/rename-alias.md),
   [runtime/namespace-tree.md](../runtime/namespace-tree.md),
   [runtime/command-introspection.md](../runtime/command-introspection.md) —

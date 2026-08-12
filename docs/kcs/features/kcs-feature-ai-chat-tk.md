@@ -34,10 +34,6 @@ Or ask a free-form Tk question without a slash command.
 
 Uses the Tcl analysis engine with Tk-specific system prompts. Created code is validated through the agentic loop and can be previewed immediately in the Tk Preview pane.
 
-## File-path anchors
-
-- `editors/vscode/src/chat/tkParticipant.ts`
-
 ## Failure modes
 
 - AI features disabled (`tclLsp.ai.enabled` is false).

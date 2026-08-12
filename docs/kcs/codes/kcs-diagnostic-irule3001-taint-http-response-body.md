@@ -1,7 +1,7 @@
 # KCS: IRULE3001 — Why does the analyser warn about tainted data in an HTTP response body?
 
 > **Audience:** User
-> **Type:** Issue
+> **Type:** Diagnostic
 
 ## Applies to
 
@@ -44,7 +44,7 @@ HTML-escape the value before embedding it in the response.
 
 ## How to suppress
 
-Add `# noqa: IRULE3001` at the end of the offending line.
+Add `# noqa: IRULE3001` on the line **above** the offending command.
 
 ## Related
 

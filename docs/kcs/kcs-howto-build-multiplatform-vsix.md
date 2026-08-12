@@ -21,9 +21,8 @@ how do I add a new platform?
 
 ## Answer
 
-The extension no longer ships a Python server. Instead, VS Code gets
-**seven** `.vsix` packages built from one native `tcl-lsp-server` binary
-per platform:
+VS Code gets **seven** `.vsix` packages, built from one native
+`tcl-lsp-server` binary per platform:
 
 - **Six platform-targeted packages** — `win32-x64`, `win32-arm64`,
   `linux-x64`, `linux-arm64`, `darwin-x64`, `darwin-arm64` — each bundles

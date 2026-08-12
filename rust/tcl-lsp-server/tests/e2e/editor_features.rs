@@ -16,8 +16,6 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! Native port of `tests/lsp_e2e/test_editor_features_e2e.py`.
-//!
 //! Code lens, document links, formatting, and inlay hints — end-to-end against
 //! the packaged server. A cross-implementation conformance surface (raw
 //! JSON-RPC): the Rust/Zed port must meet this spec.
@@ -738,7 +736,7 @@ fn test_no_documentation_placeholder_labels() {
 // The single `inlayHints` toggle was split into two independent options, both
 // off by default: `inlayTypeHints` and `inlayParameterHints`. Enabling one must
 // not turn on the other. Each test owns its server, so `apply_configuration_settle`
-// replaces pytest's `config_session` (no restore needed).
+// needs no matching restore.
 
 #[test]
 fn test_parameter_hints_only_produce_labels_no_type_hints() {

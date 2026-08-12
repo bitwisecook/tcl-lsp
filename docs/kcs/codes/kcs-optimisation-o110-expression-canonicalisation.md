@@ -1,7 +1,7 @@
 # KCS: O110 — Canonicalise expressions (InstCombine)
 
 > **Audience:** User
-> **Type:** Functionality
+> **Type:** Optimisation
 
 ## Applies to
 

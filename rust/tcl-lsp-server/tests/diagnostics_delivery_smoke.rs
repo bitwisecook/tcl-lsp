@@ -68,25 +68,35 @@ where
     String::from_utf8(body).expect("UTF-8 LSP body")
 }
 
-/// Drain frames until `id` appears in one (returning it) or `max` frames pass.
-async fn read_until_id<R>(reader: &mut BufReader<R>, id: &str, max: usize) -> Option<String>
+/// Hang guard for a request that must draw a response. Never synchronisation:
+/// the response itself ends the wait.
+const RESPONSE_BACKSTOP: Duration = Duration::from_mins(1);
+
+/// The response frame carrying `id`, skipping the notifications ahead of it.
+///
+/// Same principle as [`drain_until`]: JSON-RPC promises exactly one response
+/// per request, so that response is the terminal signal. How many frames
+/// precede it — a `publishDiagnostics` per open document, log messages,
+/// refresh requests — tracks how fast the server happens to be running, so a
+/// frame budget is a bet on its timing rather than a synchronisation, and a
+/// machine short of CPU loses that bet while the reply is still on its way.
+/// `RESPONSE_BACKSTOP` is only a hang guard.
+async fn read_until_id<R>(reader: &mut BufReader<R>, id: &str) -> Option<String>
 where
     R: tokio::io::AsyncRead + Unpin,
 {
-    let mut all = Vec::new();
-    for _ in 0..max {
-        match tokio::time::timeout(Duration::from_secs(2), read_frame(reader)).await {
-            Ok(body) => {
-                let hit = body.contains(id);
-                all.push(body);
-                if hit {
-                    return all.into_iter().next_back();
-                }
-            }
-            Err(_) => break,
+    let deadline = tokio::time::Instant::now() + RESPONSE_BACKSTOP;
+    loop {
+        let remaining = deadline.saturating_duration_since(tokio::time::Instant::now());
+        if remaining.is_zero() {
+            return None;
+        }
+        match tokio::time::timeout(remaining, read_frame(reader)).await {
+            Ok(body) if body.contains(id) => return Some(body),
+            Ok(_) => {}
+            Err(_) => return None,
         }
     }
-    None
 }
 
 /// Collect every frame the server emits within `window`.
@@ -169,7 +179,7 @@ async fn pull_capable_client_still_gets_push_by_default() {
         .write_all(frame(init).as_bytes())
         .await
         .unwrap();
-    let resp = read_until_id(&mut reader, "\"id\":1", 5)
+    let resp = read_until_id(&mut reader, "\"id\":1")
         .await
         .expect("initialize response");
     assert!(
@@ -241,7 +251,7 @@ async fn push_only_client_still_receives_one_push() {
         .write_all(frame(init).as_bytes())
         .await
         .unwrap();
-    let _ = read_until_id(&mut reader, "\"id\":1", 5).await;
+    let _ = read_until_id(&mut reader, "\"id\":1").await;
 
     let initialized = r#"{"jsonrpc":"2.0","method":"initialized","params":{}}"#;
     client_write
@@ -307,7 +317,7 @@ async fn code_lens_resolve_returns_show_references_command() {
         .write_all(frame(init).as_bytes())
         .await
         .unwrap();
-    let resp = read_until_id(&mut reader, "\"id\":1", 5)
+    let resp = read_until_id(&mut reader, "\"id\":1")
         .await
         .expect("initialize response");
     assert!(
@@ -334,7 +344,7 @@ async fn code_lens_resolve_returns_show_references_command() {
     // Request the lenses, then resolve the first one.
     let req = r#"{"jsonrpc":"2.0","id":2,"method":"textDocument/codeLens","params":{"textDocument":{"uri":"file:///lens.tcl"}}}"#;
     client_write.write_all(frame(req).as_bytes()).await.unwrap();
-    let lenses = read_until_id(&mut reader, "\"id\":2", 8)
+    let lenses = read_until_id(&mut reader, "\"id\":2")
         .await
         .expect("codeLens response");
     assert!(
@@ -352,7 +362,7 @@ async fn code_lens_resolve_returns_show_references_command() {
         .write_all(frame(resolve).as_bytes())
         .await
         .unwrap();
-    let resolved = read_until_id(&mut reader, "\"id\":3", 8)
+    let resolved = read_until_id(&mut reader, "\"id\":3")
         .await
         .expect("codeLens/resolve response");
     assert!(
@@ -396,7 +406,7 @@ async fn catch_body_diagnostics_are_delivered() {
         .write_all(frame(init).as_bytes())
         .await
         .unwrap();
-    let _ = read_until_id(&mut reader, "\"id\":1", 5)
+    let _ = read_until_id(&mut reader, "\"id\":1")
         .await
         .expect("initialize response");
     let initialized = r#"{"jsonrpc":"2.0","method":"initialized","params":{}}"#;
@@ -421,7 +431,7 @@ async fn catch_body_diagnostics_are_delivered() {
         .write_all(frame(pull).as_bytes())
         .await
         .unwrap();
-    let report = read_until_id(&mut reader, "\"id\":2", 8)
+    let report = read_until_id(&mut reader, "\"id\":2")
         .await
         .expect("diagnostic pull response");
     assert!(
@@ -618,7 +628,7 @@ async fn rapid_edits_deliver_diagnostics_in_version_order_without_loss() {
         .write_all(frame(init).as_bytes())
         .await
         .unwrap();
-    let _ = read_until_id(&mut reader, "\"id\":1", 5).await;
+    let _ = read_until_id(&mut reader, "\"id\":1").await;
     client_write
         .write_all(frame(r#"{"jsonrpc":"2.0","method":"initialized","params":{}}"#).as_bytes())
         .await

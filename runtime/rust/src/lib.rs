@@ -165,8 +165,7 @@ mod tests {
         assert!(!counters::oom(), "allocator hit OOM");
     }
 
-    /// **The T1.1 gate.** The canonical C-API round-trip from
-    /// `c-api-ownership-contract.md`'s acceptance:
+    /// The canonical C-API round-trip from `c-api-ownership-contract.md`:
     /// `Tcl_NewObj` → `Tcl_IncrRefCount` → `Tcl_SetObjResult` →
     /// `Tcl_DecrRefCount`, then interp teardown — zero residual.
     #[test]

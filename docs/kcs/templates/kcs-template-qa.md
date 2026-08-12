@@ -26,6 +26,10 @@ for each one in the same order as "Applies to".>
 
 ## Related
 
+<!-- A Q&A note is filed at `docs/kcs/`, one level above this template,
+     so re-spell these two links as `README.md` and `../GLOSSARY.md`
+     when you save the note. -->
+
 - [KCS index](../README.md)
 - [Glossary](../../GLOSSARY.md)
 - <other KCS notes on the same topic>

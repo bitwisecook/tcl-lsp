@@ -20,7 +20,7 @@
 //!
 //! Pure integer arithmetic — a modified FNV-1a masked to 31 bits — that maps a
 //! connection 4-tuple to a TMM id. Kept byte-for-byte in sync with the Tcl
-//! `_fakecmp_hash` in `tooling/irule_test/tcl/orchestrator.tcl`, so this hash
+//! `_fakecmp_hash` in `rust/tcl-irule-test/tcl/orchestrator.tcl`, so this hash
 //! and the runtime orchestrator distribute connections identically (agreement
 //! is tested).
 

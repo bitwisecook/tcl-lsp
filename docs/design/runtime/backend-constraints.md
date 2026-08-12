@@ -26,7 +26,7 @@ them from their startup-globals path.
 
 | key              | meaning                                                    | example          |
 |------------------|------------------------------------------------------------|------------------|
-| `runtime`        | interpreter implementation                                 | `bytecode`, `treewalk` |
+| `runtime`        | interpreter implementation                                 | `bytecode`, `treewalk`, `ebpf` |
 | `runtimeVersion` | that implementation's host (crate) version                 | `0.1.0`          |
 | `wasm`           | wasm spec version on a wasm build, else empty              | `2.0`            |
 | `wasi`           | WASI spec version on a WASI build, else empty              | `preview1`, `0.2`|
@@ -53,45 +53,51 @@ way to reason about the **eBPF** target, which is a DSL-subset compiler
 `TCL_EBPF_SPEC=1.4 run_test foo.test` runs `foo.test` natively but skips
 everything the eBPF backend could not.
 
-## Overlay — `tests/external/backend_constraints.tcl`
+## Overlay — the `TCL_BACKEND_CONSTRAINTS` hook
 
-A tcltest overlay, sourced **after** `package require tcltest` and **before**
-the `.test` file. It:
+The second half is a tcltest overlay: a Tcl script that reads the
+introspection facts, registers backend constraints, and feeds
+`tcltest::configure -skip` the test-id globs the current backend cannot run.
 
-1. reads the introspection facts (defaulting to `native` when absent, so it is
-   safe under C tclsh or an older build);
-2. registers backend constraints — `native`, `wasm`/`notWasm`,
-   `wasi`/`notWasi`, `ebpf`/`notEbpf`, the runtime-impl constraints
-   (`bytecodeRuntime`, `treewalkRuntime`), and spec-version gates (`wasm2`,
-   `wasiPreview1`, `wasiPreview2`);
-3. feeds `tcltest::configure -skip` the test-id globs the current backend
-   cannot run, from a data-driven exclusion table ordered by capability area.
+**The hook is wired in both harnesses; no overlay script is checked in.**
+Setting `TCL_BACKEND_CONSTRAINTS` to a path sources that file at the right
+moment, but the repository ships no such file, and no backend constraint names
+are registered anywhere in the tree. Until an overlay exists, every backend
+runs the full suite and reports capability gaps as failures rather than skips.
 
-### Running with the overlay
+Where each harness sources it:
 
-Both harnesses source the overlay when `TCL_BACKEND_CONSTRAINTS` points at it:
+- `rust/tcl-vm/examples/run_test.rs` builds the driver script
+  `source <tcltest>` → `namespace import -force ::tcltest::*` → *overlay* →
+  `source <testfile>`, so the overlay lands after tcltest is available and
+  before the test file's own body.
+- `runtime/rust/examples/run_script.rs` pre-loads tcltest itself
+  (`package require tcltest`, then the import) and sources the overlay before
+  the script, but **only when `--init` is passed**; an overlay error aborts the
+  run with a diagnostic rather than continuing unconstrained.
 
 ```sh
 # tcl-vm bytecode VM, evaluated as the WASI backend
-TCL_BACKEND_CONSTRAINTS=tests/external/backend_constraints.tcl \
+TCL_BACKEND_CONSTRAINTS=<overlay.tcl> \
 TCL_WASI_SPEC=preview1 \
   cargo run -p tcl-vm --release --example run_test -- tmp/tcl9.0.3/tests/socket.test
 
 # runtime/rust tree-walk runtime, evaluated as eBPF
-TCL_BACKEND_CONSTRAINTS=tests/external/backend_constraints.tcl \
+TCL_BACKEND_CONSTRAINTS=<overlay.tcl> \
 TCL_EBPF_SPEC=1.4 \
   cargo run --release --example run_script -- --init tmp/tcl9.0.3/tests/clock.test
 ```
 
-A native run (no `TCL_*_SPEC`) skips nothing and runs the full suite.
+A native run (no `TCL_*_SPEC`) has nothing to skip and runs the full suite.
 
-### Adding an exclusion
+### What an overlay has to do
 
-Edit the `Exclusions` table in the overlay. Each row is
-`{globs {backends...} reason}`: a test whose name matches any glob is skipped
-when the current backend is in `{backends...}`. Keep rows ordered by capability
-area and cite *why* — the table is meant to grow as backend gaps are
-characterised, and the reason is the audit trail for why a test is not run.
+1. Read the introspection facts, defaulting to `native` when absent, so it is
+   safe under C tclsh or an older build.
+2. Register the backend constraints the exclusion rows name.
+3. Feed `tcltest::configure -skip` from a data-driven exclusion table ordered
+   by capability area, each row carrying the *reason* — the audit trail for why
+   a test is not run.
 
 ## Relationship to the tier ladder
 

@@ -19,7 +19,7 @@
 //! iRule test framework — simulate BIG-IP TMM event processing.
 //!
 //! The TMM simulation itself is the Tcl orchestrator + shim + command mocks
-//! under `tooling/irule_test/tcl/`, which run an iRule inside a Tcl interpreter
+//! under `rust/tcl-irule-test/tcl/`, which run an iRule inside a Tcl interpreter
 //! on [`tcl-vm`](https://docs.rs). This crate provides the Rust-side glue:
 //!
 //! * [`topology`] — turn a parsed BIG-IP config ([`tcl_bigip`]) into the

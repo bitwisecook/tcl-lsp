@@ -1,193 +1,142 @@
-# KCS: Command alias resolution
+# Command alias resolution — the static, editor-facing slice
 
-> **Rust architecture note (issue #1305).** The sections below describe the
-> retired Python implementation (`shared/alias.py`) and predate the Rust
-> rewrite; they are kept for historical context on the *shape* of the
-> problem, not as a description of the current code paths. In the Rust
-> workspace, alias/rename tracking lives on `Analyser` as
-> `command_aliases` / `alias_offsets` (`interp alias`) and
-> `renamed_commands` / `rename_offsets` (`rename`), both keyed by qualified
-> name and both mirrored onto `AnalysisResult`. **`rename` *is* tracked** —
-> the "Limitations" bullet below claiming otherwise is the stale-doc
-> artefact this note exists to correct. The single shared hop-walk in
-> `rust/tcl-compiler/src/analyser/indirection.rs` (`indirection::walk`)
-> follows both `rename` and `interp alias` chains, order-gated by the
-> mutating statement's own offset, and is what the W307/W308 method check
-> (`diagnostics::var_command::class_reachable_by_indirection`) and the LSP
-> navigation providers already shared before issue #1305.
->
-> Issue #1305 extended a third consumer onto the same rail: the class-factory
-> lookup (`analyser::handlers::class_factory_for_command`) used to match a
-> creation call's head against `ClassFactory` records by literal text only,
-> so `rename ::R::M ::R::Mk` then `::R::Mk create ::R::W {…}` could not find
-> the factory recorded under `::R::M`. It now falls back to
-> `indirection::walk` when the direct (local-then-workspace) lookup misses,
-> resolving the call's head through the same rename chain before retrying —
-> so a renamed metaclass command manufactures its class exactly as it did
-> under its original name. See
-> `rust/tcl-compiler/tests/analyser.rs`'s `class_factories` module
-> (`a_renamed_metaclass_still_manufactures_its_class` and its FN-guard
-> siblings) and
-> `rust/tcl-lsp-server/tests/e2e/issue1305_renamed_metaclass.rs`.
+How the analyser and the LSP answer "what does this written command name
+actually denote?" when `rename` or `interp alias` has moved it. This is the
+static counterpart of the runtime contract in
+[command-binding-and-aliasing.md](command-binding-and-aliasing.md); the
+resolution algorithm itself is [command-resolution.md](command-resolution.md),
+and the `namespace import` half of the same question is covered there too.
 
-## Purpose
+## Why it exists
 
-When `interp alias {} name {} target ?args?` creates a command alias in the
-current interpreter, the LSP automatically inherits the target command's
-argument semantics.  Without this, aliased commands are treated as unknown
-and their arguments are not analysed for variable references, expression
-bodies, or script bodies, leading to false positives such as W214 (unused
-parameter).
+A Tcl command table is mutable at run time. `rename OLD NEW` moves a command;
+`interp alias {} ALIAS {} TARGET` installs a second name that re-resolves to
+`TARGET` on every invocation (silently replacing any existing command of that
+name). A call site written after either statement therefore reaches a
+*different* definition than its spelling suggests. Everything that answers
+"what does this word name?" — the W307/W308 method checks, go-to-definition,
+find-references, rename, call hierarchy — has to follow the same chain the same
+way, or the providers disagree with each other and with `tclsh`.
 
-## Supported forms
-
-Only aliases in the current interpreter (empty source and target paths)
-are tracked:
-
-```tcl
-interp alias {} = {} expr              ;# = is now an alias for expr
-interp alias {} myeval {} eval         ;# myeval is now an alias for eval
-interp alias {} myput {} puts stdout   ;# myput prepends "stdout" to args
-```
-
-Aliases targeting child interpreters (`interp alias child ...`) are not
-tracked since they do not affect the current interpreter's namespace.
-
-## How it works
-
-### Shared utilities
-
-Alias detection and resolution logic lives in `shared/alias.py`:
-
-- `detect_interp_alias(cmd_name, args)` — parse an `interp alias` call
-- `resolve_alias(cmd_name, aliases, namespace)` — namespace-aware lookup
-- `expr_alias_names(aliases)` — find aliases targeting `expr`
-- `lookup_alias_for_word(word, aliases)` — simple qualified-name lookup
-
-Both the analyser and the IR lowerer call these shared functions.
-
-### Analyser
-
-The analyser detects `interp alias` calls during command processing and
-records the mapping from alias name to (target command, prepended args).
-When processing a call to an aliased command, the analyser resolves the
-alias and uses the target command's argument roles for:
-
-- **EXPR** arguments: parsed as expressions, variable references tracked
-- **BODY** arguments: recursed into as Tcl scripts
-- **VAR_NAME** arguments: registered as variable definitions
-- **PATTERN** arguments: recorded as regex patterns
-
-When the alias has prepended arguments, the argument indices are shifted
-accordingly so that the correct arguments are matched to the correct roles.
-
-### IR lowering
-
-The compiler's IR lowering also detects `interp alias` calls and resolves
-aliases when lowering commands.  For `expr` aliases with a single braced
-argument, this produces `IRExprEval` / `IRAssignExpr` nodes with a proper
-expression AST, ensuring the SSA analysis correctly tracks variable reads.
-
-When building the virtual command for hook dispatch, synthetic tokens are
-constructed for prepended arguments so that `argv`, `texts`,
-`single_token_word`, and `expand_word` all have matching lengths.
-
-This is critical for diagnostics like W214 (unused parameter) which rely
-on SSA-based variable use analysis.
-
-### `set var [alias {expr}]` pattern
-
-The `set var [expr {$x + $y}]` pattern is special-cased in the lowering
-to produce `IRAssignExpr` instead of `IRAssignValue`.  This optimisation
-is extended to cover expr aliases, so `set var [= {$x + $y}]` produces
-the same IR when `=` is an alias for `expr`.
-
-## Example
+Without it, an aliased command is treated as unknown and its arguments are not
+analysed for variable references, expression bodies, or script bodies —
+producing false positives such as W214 (unused parameter):
 
 ```tcl
 interp alias {} = {} expr
 
 proc calculate {x y} {
-    set result [= {$x + $y}]   ;# $x and $y correctly tracked as reads
+    set result [= {$x + $y}]   ;# $x and $y are reads, via the alias
     return $result
 }
-# No W214 warnings: both x and y are used
 ```
 
-## Namespace awareness
+## One hop-walk
 
-Alias names are stored fully qualified (e.g. `::=`, `::math::=`)
-because `interp alias` creates interpreter-wide commands.  Resolution
-mirrors Tcl's command lookup:
+`tcl_compiler::analyser::indirection::walk` is the single implementation.
+A command *name* is not a definition; it is a slot whose contents change over
+the life of the script. Every statement that writes such a slot — `proc`,
+`rename`, `interp alias` — is an event on that name's timeline, and the
+question every consumer really asks is *"what does this name hold at this
+point, in this execution context?"*. `walk` answers it for the two mutation
+kinds; `AnalysisResult::proc_def_in_effect_at` answers the `proc` half under
+the same order rules.
 
-1. If the call uses a qualified name (`::math::=`), it is looked up
-   directly after normalisation.
-2. If the call uses an unqualified name (`=`), the current namespace is
-   tried first (`::math::=` inside `namespace eval math`), then the
-   global namespace (`::=`).
+The records themselves live on the analyser and are mirrored onto
+`AnalysisResult`, keyed by qualified name: `command_aliases` / `alias_offsets`
+for `interp alias`, `renamed_commands` / `rename_offsets` for `rename`.
+
+### The rules
+
+- **Order-gating.** A hop counts only once the statement establishing it has
+  run: textual order at top level, and — for a statement written *outside* the
+  body now executing — unconditionally inside a proc or class body, because
+  the whole file loads before any body runs. A mutation that is itself a
+  statement *of the running body* stays order-gated by offset. Oracle
+  (tclsh 8.6.14 / 9.0.4): with `proc greet {} {…}`, a `hello` written before
+  `rename greet hello` raises `invalid command name "hello"`; written after,
+  it returns `greet`'s body — while `greet` itself then raises
+  `invalid command name "greet"`.
+- **Latest binding wins.** A name may carry both a `rename` record and an
+  `interp alias` record; the later-written one is what the slot holds. Oracle:
+  `proc a …; proc b …; rename a x; interp alias {} x {} b; x` → `B`.
+- **A rename moves the command object; an alias re-resolves by name.**
+  `rename p oldp` hands `oldp` the *object* `p` held at the rename, so a later
+  `proc p` does not change what `oldp` runs — oracle: with
+  `proc p {} {return first}; rename p oldp; proc p {} {return second}`,
+  `oldp` → `first` (and `oldp`'s arity is the *first* signature), while `p` →
+  `second`. An `interp alias` looks its target up by name on every invocation,
+  so it sees the table as it stands *at the call*. `Indirection::resolve_at`
+  carries whichever as-of time applies, and consumers resolve the terminal name
+  at that time.
+- **Hop cap.** Eight hops (`MAX_COMMAND_NAME_HOPS`) — the same cap the
+  user-call arity resolver applies to the identical chains, so a
+  `rename a b; rename b c; …` cycle cannot spin.
+- **Prepended arguments decline.** `interp alias {} Cat {} Dog extra` binds a
+  leading argument, so `Cat …` is not the call `Dog …` would be (tclsh:
+  `withextra x` fails `wrong # args: should be "withextra"`). Such a chain is
+  declined outright rather than resolved to the target.
+- **Self-alias decline.** An alias whose canonical target is its own name is
+  not a hop.
+
+## Consumers
+
+Every consumer of the walk gets the same answer by construction:
+
+- the W307/W308 method checks
+  (`diagnostics::var_command::class_reachable_by_indirection`);
+- the LSP navigation providers — definition, references, rename, call
+  hierarchy;
+- the class-factory lookup (`analyser::handlers::class_factory_for_command`),
+  which falls back to the walk when the direct local-then-workspace lookup
+  misses, so `rename ::R::M ::R::Mk` followed by `::R::Mk create ::R::W {…}`
+  still manufactures the class recorded under `::R::M`;
+- IR lowering, which resolves an alias when lowering a command — an `expr`
+  alias with a single braced argument produces the same expression-AST IR node
+  the real `expr` would, so SSA tracks the variable reads and W214 does not
+  fire. When the alias prepends arguments, synthetic tokens keep the argv,
+  texts, and word-shape arrays the same length.
+
+## Supported forms
+
+Only aliases in the current interpreter (empty source and target paths) are
+tracked:
 
 ```tcl
-interp alias {} ::math::= {} expr
-
-namespace eval math {
-    proc calc {x y} {
-        set r [= {$x + $y}]   ;# resolves ::math::= → expr
-        return $r
-    }
-}
+interp alias {} = {} expr              ;# = is an alias for expr
+interp alias {} myeval {} eval
+interp alias {} myput {} puts stdout   ;# prepends "stdout"
 ```
 
-Global aliases also resolve from inside any namespace:
+An alias targeting a child interpreter (`interp alias child …`) is scoped to
+that child's synthetic domain, not the parent's table — see
+[command-resolution.md](command-resolution.md) under `interp eval` bodies.
 
-```tcl
-interp alias {} = {} expr
+Alias names are stored fully qualified (`::=`, `::math::=`) because
+`interp alias` creates interpreter-wide commands. Resolution then follows the
+ordinary command-lookup order, so a qualified call resolves directly and a bare
+one tries the current namespace before the global one.
 
-namespace eval utils {
-    proc calc {x y} {
-        set r [= {$x + $y}]   ;# resolves ::= → expr (global fallback)
-        return $r
-    }
-}
-```
+## Where it abstains
 
-## LSP integration
+These are deliberate silences, not gaps to be papered over:
 
-Alias information from `AnalysisResult.command_aliases` is used by
-several LSP features:
+- **Dynamic alias names.** `interp alias {} $var {} expr` has no static name.
+- **Dynamically loaded aliases** — created via `package require`, `source`,
+  `auto_load`, or the `unknown` proc — are invisible to static analysis, and a
+  document that does any of these widens (`has_dynamic_providers`, see
+  [cross-file-diagnostics.md](cross-file-diagnostics.md)).
+- **Cross-document ordering** beyond what the `source`/`package require`
+  forest proves. Byte offsets order events only within one document.
+- **A chain that cannot be ranked revokes nothing** — an unprovable removal
+  abstains toward keeping the link.
 
-- **Hover**: shows "Alias for `target`" plus the target command's
-  documentation when hovering over an aliased command name.
-- **Completion**: aliases are offered as completion candidates with
-  detail text showing the target command.
-- **Go-to-definition**: follows the alias to the target proc's
-  definition (if the target is a user-defined proc).
-- **Signature help**: resolves the alias and shows the target command's
-  parameter signature, adjusting the active parameter index for any
-  prepended arguments.
-- **Semantic tokens**: aliased commands are styled as "function" tokens
-  (same as user-defined procs), which is correct since they are
-  user-defined commands.
+## Key files
 
-## Limitations
-
-- Aliases must appear textually before their use in the same file
-  (the analyser and lowerer process commands sequentially).
-- (Python-era limitation, superseded — see the Rust architecture note above.)
-  Only `interp alias` was tracked; `rename` and runtime alias creation
-  via `proc` wrappers were not detected.
-- `namespace import` aliases are not tracked — this is a common Tcl
-  pattern but requires cross-namespace resolution infrastructure.
-- Alias chains (alias-of-alias) are not resolved transitively.
-  `interp alias {} a {} b` followed by `interp alias {} b {} expr`
-  means `a` targets `b`, not `expr`.
-- Aliases targeting child interpreters (`interp alias child ...`) or
-  from a child to the master (`interp alias $slave name {} target`)
-  are not tracked since they don't affect the current interpreter's
-  command table.
-- The 4-argument query form (`interp alias {} name {}`) is correctly
-  ignored (gated by `len(args) >= 5`).  The deletion form
-  (`interp alias {} name {}`) is also ignored for the same reason.
-- Dynamic alias names (e.g. `interp alias {} $var {} expr`) are stored
-  with the literal `$var` string, not the resolved value.
-- Dynamically loaded aliases (via `package require`, `source`,
-  `auto_index`, or the `unknown` proc) are invisible to static analysis.
+| File | Role |
+|---|---|
+| `rust/tcl-compiler/src/analyser/indirection.rs` | `walk`, `Indirection`, `LastHop`, `in_effect` / `in_effect_within`, `MAX_COMMAND_NAME_HOPS` |
+| `rust/tcl-compiler/src/analyser/types.rs` | `command_aliases`, `alias_offsets`, `renamed_commands`, `rename_offsets`, `destroyed_commands` |
+| `rust/tcl-compiler/src/analyser/handlers.rs` | alias/rename recording, `class_factory_for_command` |
+| `rust/tcl-lsp-core/src/namespace_import.rs` | the `namespace import` sibling, under the same order rule |
+| `runtime/rust/src/cmd_alias.rs` | the runtime's alias table |

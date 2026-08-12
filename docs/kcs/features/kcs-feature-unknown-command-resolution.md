@@ -93,17 +93,6 @@ The "did you mean?" engine uses Levenshtein edit distance (max distance 2)
 against the union of: registry commands, user-defined procs, stub commands,
 `unknown` dispatch targets, and command alias names.
 
-## File-path anchors
-
-- `rust/tcl-compiler/src/analyser/diagnostics/unresolved.rs` — the W123 pass and
-  its known-name sets
-- `rust/tcl-lsp-server/src/lib.rs` — `refine_w123_diagnostics`, the workspace
-  refinement that consults the package database
-- `rust/tcl-lsp-core/src/package_resolver.rs` — the `auto_path` / `pkgIndex` /
-  `tclIndex` package database
-- `rust/tcl-lsp-core/src/package_resolver/reachability.rs` — which
-  `package ifneeded` declarations a given Tcl release actually runs
-
 ## Failure modes
 
 - False positives in codebases using dynamic command creation (e.g. `apply`, `coroutine`) not detected by the gating logic.
@@ -112,13 +101,6 @@ against the union of: registry commands, user-defined procs, stub commands,
   available", so a command it would never really provide is not flagged. That
   is deliberate: a missed hint is a smaller problem than a warning on working
   code.
-
-## Test anchors
-
-- `rust/tcl-lsp-core/src/package_resolver/reachability/tests.rs` — guard
-  evaluation, per Tcl release
-- `rust/tcl-lsp-server/tests/e2e/diagnostics.rs` — end-to-end W123 cases,
-  including the guarded-package pair
 
 ## Example
 

@@ -1,9 +1,8 @@
 # `tcl pkg` security architecture: sandboxing, operator hooks, locked-down policy
 
 Companion to [`tclpkg-architecture.md`](tclpkg-architecture.md). This document
-describes the security model added to the **Rust** package manager
-(`rust/tcl-pkg`, `rust/tcl-cli`, `rust/tcl-sandbox`). The Python implementation
-(`tooling/tclpkg/`) is out of scope.
+describes the security model of the package manager — `rust/tcl-pkg`,
+`rust/tcl-cli`, and `rust/tcl-sandbox`.
 
 ## Goals
 
@@ -97,11 +96,11 @@ promised. The crate writes no `unsafe`: OS tiers are driven through wrapper
 crates (`landlock`, `seccompiler`, `rlimit`, `win32job`, …) so the workspace
 `unsafe_code = "forbid"` lint holds.
 
-> Implementation status: the baseline tier and the capability/policy-floor model
-> are implemented. The OS-native tiers are defined behind the `Confinement`
-> trait and are the next increment; until a host provides one, execution runs at
-> `baseline` isolation and says so (e.g. `tcl pkg build` prints a warning, and
-> `fail-closed` policies refuse rather than under-confine).
+> The baseline tier and the capability/policy-floor model are the enforced
+> floor everywhere. The OS-native tiers are declared behind the
+> `Confinement` trait but no host implementation is wired, so execution
+> runs at `baseline` isolation and says so: `tcl pkg build` prints a
+> warning, and a `fail-closed` policy refuses rather than under-confine.
 
 ### Layered, lockable policy (`rust/tcl-pkg/src/policy.rs`)
 
@@ -229,12 +228,22 @@ reported.
   `build` script cannot see a `GITHUB_TOKEN` planted in the parent environment
   and runs against a throwaway `HOME`.
 
-## Non-goals / future work
+## Boundaries of the model
 
-- OS-native confinement tiers (Landlock/seccomp, Seatbelt, pledge/unveil,
-  Capsicum, Job Objects) — designed-for behind `Confinement`, not yet wired.
-- Per-dependency build scripts (this increment runs only the *project's* build
-  script; the resolver does not yet parse each dependency's manifest for a
-  declared build phase).
-- Child resource limits (memory/CPU rlimits) via a re-exec helper.
-- Registry-side transparency log (Go sumdb-style).
+These are the edges of what the sandbox promises, and they matter when
+reasoning about a threat:
+
+- **Isolation is baseline-only in practice.** The OS-native tiers have a
+  home behind `Confinement` but no host implementation, so the enforced
+  confinement is environment scrubbing, cwd pinning, output capture, and
+  the wall-clock timeout. A policy that needs more must set
+  `fail-closed`.
+- **Only the project's own build script runs.** The resolver does not read
+  a dependency's manifest for a declared build phase, so a dependency's
+  `build` directive is inert.
+- **No child resource limits.** Memory and CPU rlimits are not applied; a
+  runaway is bounded by the timeout, not by consumption.
+- **No transparency log.** Verifying that a registry has not equivocated
+  is registry-side infrastructure, outside the client's reach; the client
+  offers integrity hashes, lockfile pinning, and provenance hooks
+  instead.

@@ -1,7 +1,7 @@
 # KCS: E002 — Why does the analyser say a command has too few arguments?
 
 > **Audience:** User
-> **Type:** Issue
+> **Type:** Diagnostic
 
 ## Applies to
 
@@ -124,7 +124,7 @@ Supply the required arguments so the command can execute successfully.
 
 ## How to suppress
 
-Add `# noqa: E002` at the end of the offending line.
+Add `# noqa: E002` on the line **above** the offending command.
 
 ## Related
 

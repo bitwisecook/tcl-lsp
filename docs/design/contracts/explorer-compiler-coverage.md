@@ -16,21 +16,21 @@ data-shaped views, so a new descriptor cannot silently have no web pane.
 
 ## Inventory
 
-| Durable artefact | Explorer surface | Status |
-| --- | --- | --- |
-| Lowered IR and module CFG | IR, CFG | Included |
-| Scalar SSA and phi/uses/defs | SSA | Included |
-| Dominators, frontiers, and dominator tree | Dominators | Included by this tranche |
-| SCCP lattice, executable blocks/edges, constant branches | SCCP | Included by this tranche |
-| Def-use chains and optimiser-authoritative dead stores | Liveness | Included by this tranche |
-| Type, interval/range, bounds, rendered-property, full taint lattice, and memory-SSA facts | Existing views, Taint Lattice, Data Flow | Included |
-| Interprocedural summaries and caller/unit scope | Interprocedural, Unit Scope | Included |
-| Cross-event connection scope summaries and race sets | Connection Scope | Included by this tranche |
-| TclOO methods and synthetic body units | Semantic view | Included by this tranche |
-| Target-neutral executable IR and registry resolution outcomes | Executable Semantics | Included by this tranche |
-| Typed executable/source/proof declines | Executable Semantics | Included by this tranche |
-| Optimiser pass records and source rewrites | Pass Pipeline, Optimisations | Included |
-| ASM | Tcl ASM | Included |
-| World-state SSA | World SSA | Included |
-| WASM | WASM | Included |
-| Backend selection plans/proofs | WASM `codegenPlan` | Included when the canonical WASM pipeline runs |
+| Durable artefact | Explorer surface |
+| --- | --- |
+| Lowered IR and module CFG | IR, CFG |
+| Scalar SSA and phi/uses/defs | SSA |
+| Dominators, frontiers, and dominator tree | Dominators |
+| SCCP lattice, executable blocks/edges, constant branches | SCCP |
+| Def-use chains and optimiser-authoritative dead stores | Liveness |
+| Type, interval/range, bounds, rendered-property, full taint lattice, and memory-SSA facts | Existing views, Taint Lattice, Data Flow |
+| Interprocedural summaries and caller/unit scope | Interprocedural, Unit Scope |
+| Cross-event connection scope summaries and race sets | Connection Scope |
+| TclOO methods and synthetic body units | Semantic view |
+| Target-neutral executable IR and registry resolution outcomes | Executable Semantics |
+| Typed executable/source/proof declines | Executable Semantics |
+| Optimiser pass records and source rewrites | Pass Pipeline, Optimisations |
+| ASM | Tcl ASM |
+| World-state SSA | World SSA |
+| WASM | WASM |
+| Backend selection plans/proofs | WASM `codegenPlan` (when the canonical WASM pipeline runs) |

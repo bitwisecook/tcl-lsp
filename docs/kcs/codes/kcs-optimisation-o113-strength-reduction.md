@@ -1,7 +1,7 @@
 # KCS: O113 — Strength-reduce expensive expressions
 
 > **Audience:** User
-> **Type:** Functionality
+> **Type:** Optimisation
 
 ## Applies to
 

@@ -18,9 +18,9 @@
 
 //! Depth coverage for the `tcl-compiler` optimiser passes — the *uncovered*
 //! branches the existing `optimiser.rs` / `optimiser_coverage.rs`
-//! ports do not reach.
+//! suites do not reach.
 //!
-//! Those two ports drive the common O100–O129 happy paths (constant folding,
+//! Those two suites drive the common O100–O129 happy paths (constant folding,
 //! the InstCombine/strength-reduction families, the headline DSE/structure-
 //! elimination cases). This file deliberately targets the *edge* branches in
 //! `src/optimiser/{elimination,code_sinking,chain_fold,branch_folding,
@@ -38,7 +38,7 @@
 //!    **loop body** (compound-statement recursion), and the conditional-redefine
 //!    decline.
 //!  * `chain_fold.rs` — the **O130** list-build chain (untouched by the existing
-//!    ports, which only exercise O104), and the precise-flow fold **past an
+//!    suites, which only exercise O104), and the precise-flow fold **past an
 //!    interleaved literal `set` to a different variable**.
 //!  * `branch_folding.rs` — the in-condition rewrite cascade (`strength_reduce`
 //!    O113, `strlen` O117, De-Morgan carried as O113).
@@ -76,7 +76,7 @@ const TCL: &str = "tcl8.6";
 const IR: &str = "f5-irules";
 
 // ---------------------------------------------------------------------------
-// Shared helpers (mirror the existing ports' harness exactly).
+// Shared helpers (mirror the existing suites' harness exactly).
 // ---------------------------------------------------------------------------
 
 /// Every `Oxxx` code emitted by a single optimiser pass over `src`.
@@ -112,7 +112,7 @@ fn optimised(src: &str, dialect: &str) -> String {
 // ===========================================================================
 // elimination.rs — O107 unreachable code via the after-`return` path
 //
-// The existing ports only ever reach O112 (structure elimination) for `if {0}`
+// The existing suites only ever reach O112 (structure elimination) for `if {0}`
 // / `while {0}`: the overlap selector prefers O112 (priority 9) over the
 // per-statement O107. Dead code *after a `return`* is not owned by any
 // structural collapse, so it is the clean way to drive the O107
@@ -167,7 +167,7 @@ fn elimination_o107_dead_code_after_return() {
 // ===========================================================================
 // elimination.rs — multi-step O108 ADCE fixpoint
 //
-// The existing ports assert a 1-link transitive chain; here a 4-deep
+// The existing suites assert a 1-link transitive chain; here a 4-deep
 // `a → b → c → d` chain where only the unused links collapse, exercising the
 // `run_adce_fixpoint` loop iterating more than once.
 // ===========================================================================
@@ -202,7 +202,7 @@ fn elimination_o108_deep_transitive_chain() {
 
 // ===========================================================================
 // elimination.rs — scope-alias suppression (`scan_scope_aliases` branches the
-// existing ports never reach: `trace`, `namespace upvar`, `variable`).
+// existing suites never reach: `trace`, `namespace upvar`, `variable`).
 //
 // Each is a firing/control pair: the control (without the alias) shows the
 // dead/unused store IS removed, so the suppression is the load-bearing delta.
@@ -358,7 +358,7 @@ fn elimination_cross_proc_global_write_survives() {
 // ===========================================================================
 // code_sinking.rs (O125) — sink into a `switch` arm.
 //
-// The existing port only sinks into `if` branches; the `Statement::Switch` arm
+// The existing suites only sink into `if` branches; the `Statement::Switch` arm
 // is the untested decision shape in `decision_branch_bodies` /
 // `any_decision_body_uses_var`.
 // ===========================================================================
@@ -441,7 +441,7 @@ fn code_sinking_o125_multi_use_anchors_at_first() {
 // ===========================================================================
 // code_sinking.rs (O125) — recursion into compound bodies. A sink target inside
 // a `for` / `while` body exercises `walk_script`'s loop-body recursion (the
-// existing port only tests top-level / proc-body sinks).
+// existing suites only test top-level / proc-body sinks).
 // ===========================================================================
 
 #[test]
@@ -492,7 +492,7 @@ fn code_sinking_o125_declines_on_conditional_redefine() {
 }
 
 // ===========================================================================
-// chain_fold.rs — O130 list-build chain folding (the existing ports cover only
+// chain_fold.rs — O130 list-build chain folding (the existing suites cover only
 // O104 string chains; O130 is entirely untested there).
 // ===========================================================================
 
@@ -529,9 +529,10 @@ fn chain_fold_o130_list_build_chain() {
 // ===========================================================================
 // chain_fold.rs — the precise-flow branch: a build chain folds *across* a
 // static-literal write to a DIFFERENT variable (which cannot read/write the
-// accumulator). The existing port asserts the opposite (Rust "does not fold a
-// chain that straddles an intervening statement") — but that is only true for a
-// *dynamic*/reading statement. An inert literal `set` to another var is the
+// accumulator). `optimiser.rs` asserts the opposite (the optimiser "does not
+// fold a write chain that straddles an intervening statement") — but that is
+// only true for a *dynamic*/reading statement. An inert literal `set` to
+// another var is the
 // uncovered case where the chain genuinely continues.
 // ===========================================================================
 
@@ -554,8 +555,8 @@ fn chain_fold_o104_continues_past_interleaved_literal_set() {
 // branch_folding.rs — the in-condition rewrite cascade
 // (`propagate_into_branches` → `branch_cascade`: `strength_reduce` O113 →
 // `strlen` O117 → `streq` O120 → `instcombine`). Drives O113 and O117 via
-// `if` conditions, plus the De-Morgan-in-condition case the existing ports note
-// is carried under O113 rather than O110.
+// `if` conditions, plus the De-Morgan-in-condition case the existing suites
+// note is carried under O113 rather than O110.
 // ===========================================================================
 
 #[test]
@@ -570,8 +571,8 @@ fn branch_folding_condition_cascade() {
         "modulo strength-reduction in a condition is O113"
     );
 
-    // De-Morgan inside a condition: `!($x && $y)` ⇒ `!$x || !$y`. The existing
-    // ports note Rust carries the if-condition rewrite under O113 (the
+    // De-Morgan inside a condition: `!($x && $y)` ⇒ `!$x || !$y`. The
+    // if-condition rewrite is carried under O113 (the
     // strength-reduce pass owns the condition path), not O110. tclsh sweep:
     //   `foreach x {0 1 5} { foreach y {0 1 5} { if {(!($x && $y)) != (!$x || !$y)} {…} } }` ⇒ never differs
     let demorgan = "if {!($x && $y)} { puts yes }";
@@ -594,7 +595,7 @@ fn branch_folding_condition_cascade() {
 }
 
 // ===========================================================================
-// structure_elimination.rs — loop edge cases the existing ports under-cover:
+// structure_elimination.rs — loop edge cases the existing suites under-cover:
 // the `for {} {0} {}` all-empty form (whole loop deleted, trailing survives),
 // and the `while {1}` infinite loop that must NOT be eliminated (only the
 // constant condition folds; the loop body stays).
@@ -632,7 +633,7 @@ fn structure_elimination_loop_edges() {
 
 // ===========================================================================
 // tail_call.rs — O122 loop conversion driven from a `switch`-arm self-call.
-// The existing port lists this body under the O121/O122 detection set; here we
+// The existing suite lists this body under the O121/O122 detection set; here we
 // pin the *applied* O122 loop rewrite (the switch-arm tail call becoming a
 // `set tree …` inside a `while {1}`).
 // ===========================================================================

@@ -1,80 +1,53 @@
-# KCS: Pass/fact ownership matrix
+# Pass and fact ownership matrix
 
-## Symptom
+Which compiler pass owns a fact, where it is produced, and which diagnostics or
+optimisations depend on it.
 
-Contributors are unsure which compiler pass owns a fact, where it is produced, and which diagnostics or optimisations depend on it.
+Multiple passes consume overlapping `CompilationUnit` and `FunctionUnit` facts.
+Without an explicit ownership map, a change can accidentally duplicate
+diagnostics or break a downstream assumption.
 
-## Operational context
+## Contracts
 
-Multiple passes consume overlapping `CompilationUnit` and `FunctionUnit` facts. Without an explicit ownership map, changes can accidentally duplicate diagnostics or break downstream assumptions.
+1. **One primary owner per fact family.** Each fact family has exactly one
+   producing module.
+2. **Consumers do not silently redefine producer semantics.** A consumer may
+   derive helper facts, but it must not change the shape of a producer's
+   contract without updating this doc and the tests.
+3. **Ownership changes require cross-pass validation.** When a producer changes,
+   revalidate every listed consumer and the diagnostics integration tests.
 
-## Decision rules / contracts
+## Producer → fact → consumer
 
-1. **Single primary owner per fact family**
-   - Each fact family has one primary producer pass/module.
-2. **Consumers do not silently redefine producer semantics**
-   - Consumer passes may derive helper facts, but must not redefine producer contract shape without updating KCS + tests.
-3. **Ownership changes require cross-pass validation**
-   - If a fact producer changes, revalidate all listed consumers and diagnostics integration tests.
+All paths are relative to `rust/tcl-compiler/src/` unless stated otherwise.
 
-## Pass -> fact -> consumer matrix
-
-| Producer pass/module | Primary facts produced | Typical consumers | Anchors |
+| Producer | Primary facts produced | Typical consumers | Entry points |
 |---|---|---|---|
-| `compiler/lowering.py` | `IRModule`, structured IR statements, `Range` mappings, `IRModule.methods` (`IRMethodDef`, TclOO method bodies) | CFG builder, interprocedural analysis, diagnostics range mapping, method-purity summaries | `lower_to_ir()`, `IR*` nodes, `extract_oo_methods_pass()` |
-| `compiler/cfg.py` | `CFGModule` / `CFGFunction` blocks, terminators, loop structure | SSA builder, codegen, flow-sensitive diagnostics | `build_cfg_function()` |
-| `compiler/ssa.py` | SSA versions, phi nodes, dominance metadata | Core analyses (SCCP/liveness/types), taint, optimiser/GVN | `build_ssa()` |
-| `compiler/core_analyses.py` | constant lattice, unreachable blocks, dead stores, type lattice, def-use chains, memory-SSA | optimiser, diagnostics-layer enrichment, shimmer/taint heuristics, dataflow graph | `analyse_function()` |
-| `compiler/def_use.py` | def-use chains (per-SSA-value definition→use mapping) | dead store detection, unused variable precision, copy propagation, dataflow graph | `build_def_use_chains()` |
-| `compiler/memory_ssa.py` | memory versions, alias sets (upvar/global/variable) | alias-aware DSE, GVN across aliases, taint through aliases | `build_memory_ssa()` |
-| `compiler/dataflow_graph.py` | data-flow graph (nodes, edges, aliases per function) | compiler explorer, MCP tools, AI skills | `extract_dataflow_graph()` |
-| `compiler/interprocedural.py` | proc summaries (purity, call graph, constant return, parameter sensitivity); TclOO method summaries (`MethodSummary`: purity, instance-var writes, class context) | optimiser (O103; O126 `my <method>` purity gate), interproc taint propagation | `analyse_interprocedural_ir()` |
-| `compiler/optimiser/` | optimisation findings (`O100`–`O130`) | diagnostics aggregation, code-action surfaces | `find_optimisations()` |
-| `compiler/gvn.py` | redundancy findings (`O105`, `O106`) | diagnostics aggregation, optimisation hint ranking | `find_redundant_computations()` |
-| `compiler/taint/` | taint findings (`T100`–`T106`, `IRULE3xxx`) | diagnostics aggregation, security workflows | `find_taint_warnings()` |
-| `compiler/shimmer.py` | shimmer findings (`S100`–`S102`) | diagnostics aggregation, performance guidance | `find_shimmer_warnings()` |
-| `compiler/irules_flow.py` | iRules flow findings (`IRULE1xxx`–`IRULE5xxx`) | diagnostics aggregation for iRules dialect | `find_irules_flow_warnings()` |
-| `server/features/diagnostics.py` | final LSP diagnostic projection, suppression policy application | LSP publish pipeline, async tiering scheduler | `get_diagnostics()` |
-
-## File-path anchors
-
-- `compiler/lowering.py`
-- `compiler/cfg.py`
-- `compiler/ssa.py`
-- `compiler/core_analyses.py`
-- `compiler/interprocedural.py`
-- `compiler/optimiser/`
-- `compiler/gvn.py`
-- `compiler/taint/`
-- `compiler/shimmer.py`
-- `compiler/irules_flow.py`
-- `compiler/def_use.py`
-- `compiler/memory_ssa.py`
-- `compiler/dataflow_graph.py`
-- `server/features/diagnostics.py`
+| `lowering/` | `Module`, structured IR statements, `Range` mappings, TclOO method bodies | CFG builder, interprocedural analysis, diagnostic range mapping, method-purity summaries | `lower_to_ir`, `lower_to_ir_with_body_cache`, the `Ir*` nodes |
+| `cfg_builder/` (types in `cfg.rs`) | `CfgModule` / `Function` blocks, terminators, loop structure | SSA builder, codegen, flow-sensitive diagnostics | `build_cfg`, `build_cfg_function` |
+| `ssa.rs` | SSA versions, phi nodes, dominance metadata | SCCP, liveness, type inference, taint, optimiser, GVN | `build_ssa` |
+| `sccp.rs`, `type_infer.rs`, `dead_stores.rs` (result types in `analyses.rs`) | constant lattice, unreachable blocks, dead stores, type lattice | optimiser, diagnostic enrichment, shimmer and taint heuristics, dataflow graph | `analyses::LatticeValue`, `TypeLattice` |
+| `def_use.rs` | def-use chains (per-SSA-value definition → use mapping) | dead-store detection, unused-variable precision, copy propagation, dataflow graph | `build_def_use_chains` |
+| `memory_ssa.rs` (storage places in `place.rs`, `place_bridge.rs`) | memory versions, alias sets (`upvar` / `global` / `variable`) | alias-aware DSE, GVN across aliases, taint through aliases | `compute_aliases`, `is_clobber` |
+| `dataflow_graph.rs` | data-flow graph (nodes, edges, aliases per function) | compiler explorer, MCP tools, AI skills | `extract_dataflow_graph`, `extract_function_dataflow` |
+| `interprocedural.rs`, `taint_interproc.rs` | proc summaries (purity, call graph, constant return, parameter sensitivity); TclOO method summaries | optimiser (O103; the O126 `my <method>` purity gate), interprocedural taint propagation | `build_interprocedural_analysis` |
+| `optimiser/` | optimisation findings (`O100`–`O130`) | diagnostics aggregation, code-action surfaces | `optimise_unit` (`optimiser/manager.rs`) |
+| `gvn.rs` | redundancy findings (`O105`, `O106`) | diagnostics aggregation, optimisation-hint ranking | `find_pure_procs`, the redundancy message builders |
+| `taint.rs` | taint findings (`T100`–`T106`, `IRULE3xxx`) | diagnostics aggregation, security workflows | `find_taint_warnings`, `find_taint_warnings_for_cu` |
+| `shimmer/` | shimmer findings (`S100`–`S102`, `S110`) | diagnostics aggregation, performance guidance | `find_shimmer_warnings_for_cu` |
+| `irules_checks.rs` | iRules flow findings (`IRULE1xxx`–`IRULE5xxx`) | diagnostics aggregation for the iRules dialect | the `find_*_warnings` entry points |
+| `rust/tcl-lsp-db/src/lib.rs` | final LSP diagnostic projection, suppression policy | LSP publish pipeline, async tiering scheduler | `project_diagnostics`, `compiler_check_diagnostics` |
 
 ## Failure modes
 
-- Two passes emit overlapping findings for the same semantic issue with different code families.
-- Consumer pass assumes a producer fact invariant that no longer holds after refactor.
-- Diagnostics aggregation treats derived facts as canonical and bypasses producer ownership.
+- Two passes emit overlapping findings for the same semantic issue under
+  different code families.
+- A consumer assumes a producer invariant that no longer holds after a refactor.
+- Diagnostics aggregation treats a derived fact as canonical and bypasses
+  producer ownership.
 
-## Test anchors
+## Related docs
 
-- `tests/test_compilation_cache.py`
-- `tests/test_optimiser.py`
-- `tests/test_gvn.py`
-- `tests/test_taint.py`
-- `tests/test_shimmer.py`
-- `tests/test_irules_checks.py`
-- `tests/test_diagnostics.py`
-- `tests/test_diagnostic_phases.py`
-- `tests/test_def_use.py`
-- `tests/test_memory_ssa.py`
-- `tests/test_dataflow_graph.py`
-
-## Discoverability
-
-- [compiler KCS index](README.md)
-- [downstream pass contracts](../../../docs/design/compiler/downstream-pass-contracts.md)
-- [diagnostics integration](../../../docs/design/compiler/diagnostics-integration.md)
+- [downstream-pass-contracts.md](downstream-pass-contracts.md)
+- [diagnostics-integration.md](diagnostics-integration.md)
+- [compiler-pipeline-overview.md](compiler-pipeline-overview.md)

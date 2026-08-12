@@ -1,7 +1,7 @@
 # KCS: W314 — Why can a definition have no fully-qualified name?
 
 > **Audience:** User
-> **Type:** Issue
+> **Type:** Diagnostic
 
 ## Applies to
 
@@ -71,11 +71,11 @@ called bare — the warning only flags that qualified access, ensembles, and
 
 ## How to suppress
 
-Add `# noqa: W314` at the end of the offending line.
+Add `# noqa: W314` on the line **above** the offending command.
 
 ## Related
 
 - [KCS codes index](README.md)
 - [Diagnostics feature](../features/kcs-feature-diagnostics.md)
-- [namespace](../../GLOSSARY.md#namespace)
+- [Design: namespace resolution](../../design/compiler/namespace-resolution.md)
 - Related codes: `W113`, `W123`

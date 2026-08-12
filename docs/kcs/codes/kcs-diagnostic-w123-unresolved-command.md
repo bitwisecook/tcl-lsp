@@ -1,7 +1,7 @@
 # KCS: W123 — Is this command unresolved?
 
 > **Audience:** User
-> **Type:** Issue
+> **Type:** Diagnostic
 
 ## Applies to
 
@@ -238,7 +238,7 @@ Define the command, or use `package require` to load the package that provides i
 
 ## How to suppress
 
-Add `# noqa: W123` at the end of the offending line.
+Add `# noqa: W123` on the line **above** the offending command.
 
 ## Related
 

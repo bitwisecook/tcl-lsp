@@ -1,7 +1,7 @@
 # KCS: W309 — Does eval with subst create a double-substitution vulnerability?
 
 > **Audience:** User
-> **Type:** Issue
+> **Type:** Diagnostic
 
 ## Applies to
 
@@ -41,7 +41,7 @@ Use `string map` or `format` to perform safe placeholder replacement instead.
 
 ## How to suppress
 
-Add `# noqa: W309` at the end of the offending line.
+Add `# noqa: W309` on the line **above** the offending command.
 
 ## Related
 

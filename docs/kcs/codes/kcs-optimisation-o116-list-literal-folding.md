@@ -1,7 +1,7 @@
 # KCS: O116 — Fold constant list to literal
 
 > **Audience:** User
-> **Type:** Functionality
+> **Type:** Optimisation
 
 ## Applies to
 

@@ -1,7 +1,7 @@
 # KCS: E207 — Why does the analyser stop collecting diagnostics partway through deeply nested code?
 
 > **Audience:** User
-> **Type:** Issue
+> **Type:** Diagnostic
 
 ## Applies to
 

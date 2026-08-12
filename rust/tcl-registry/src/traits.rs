@@ -676,7 +676,7 @@ declare_traits! {
     /// *never* a command head where operators live only inside `expr`
     /// (F5 iRules; `tk` when modelled). Replaces the retired
     /// `NON_IRULES_OPERATORS` membership tag as the operator-head
-    /// marker (dialect-profile-model.md §9, Milestone 5).
+    /// marker (dialect-profile-model.md §9).
     OperatorCommand => OPERATOR_COMMAND;
 
     /// `TclOO` `next` / `nextto` — invokes the next implementation of the

@@ -1,7 +1,7 @@
 # KCS: W112 — Why does the analyser flag trailing whitespace?
 
 > **Audience:** User
-> **Type:** Issue
+> **Type:** Diagnostic
 
 ## Applies to
 
@@ -41,7 +41,7 @@ Remove the trailing whitespace. Most editors can be configured to strip it autom
 
 ## How to suppress
 
-Add `# noqa: W112` at the end of the offending line.
+Add `# noqa: W112` on the line **above** the offending command.
 
 ## Related
 

@@ -1,10 +1,9 @@
-# KCS: Diagnostics integration across analyser + compiler passes
+# Diagnostics integration across analyser + compiler passes
 
-## Symptom
-
-Users report diagnostics that disagree by severity, source range, or suppression handling across warning families.
-
-## Operational context
+Where findings from the analyser, the style checks, and the compiler passes are
+aggregated, and the policy boundary that fixes severity, code family, ranges,
+and suppression. Read this when two producers disagree about the same
+finding.
 
 `get_diagnostics()` combines outputs from:
 
@@ -15,7 +14,7 @@ Users report diagnostics that disagree by severity, source range, or suppression
 
 The diagnostics layer is the contract boundary for code-family mapping and suppression semantics seen by LSP clients.
 
-## Decision rules / contracts
+## Aggregation and policy rules
 
 1. **Aggregation ownership lives in diagnostics layer**
    - Passes emit typed findings; conversion and final policy mapping happen centrally.
@@ -28,10 +27,10 @@ The diagnostics layer is the contract boundary for code-family mapping and suppr
 
 ## File-path anchors
 
-- `server/features/diagnostics.py` (`get_diagnostics`, suppression, family aggregation)
-- `analyser/_analyser/__init__.py` (semantic warning production)
-- `compiler/compilation_unit.py` (shared artefact generation)
-- `server/async_diagnostics.py` (tiered publish integration)
+- `rust/tcl-lsp-db/src/lib.rs` (`get_diagnostics`, suppression, family aggregation)
+- `rust/tcl-compiler/src/analyser/` (semantic warning production)
+- `rust/tcl-compiler/src/compilation_unit.rs` (shared artefact generation)
+- `rust/tcl-lsp-server/src/lib.rs` (tiered publish integration)
 
 ## Failure modes
 
@@ -40,11 +39,9 @@ The diagnostics layer is the contract boundary for code-family mapping and suppr
 - Source-only fallback path producing different outcomes from CU-backed path.
 - Broken suppression when code families are added without diagnostics-layer updates.
 
-## Test anchors
+## Tests
 
-- `tests/test_diagnostics.py`
-- `tests/test_diagnostic_phases.py`
-- `tests/test_async_diagnostics.py`
+- `rust/tcl-lsp-server/tests/e2e/` — the LSP diagnostic end-to-end suites.
 
 ## Related KCS notes
 
@@ -53,7 +50,7 @@ The diagnostics layer is the contract boundary for code-family mapping and suppr
 - [kcs-compilation-unit-contracts.md](../../../docs/design/compiler/compilation-unit-contracts.md)
 
 
-## Discoverability
+## See also
 
 - [compiler KCS index](README.md)
 - [compiler architecture overview](../../../docs/design/compiler-architecture.md)

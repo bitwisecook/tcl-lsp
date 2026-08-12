@@ -1,7 +1,7 @@
 # KCS: W220 — Why does the analyser warn about a dead store?
 
 > **Audience:** User
-> **Type:** Issue
+> **Type:** Diagnostic
 
 ## Applies to
 
@@ -120,7 +120,7 @@ it is written, so it protects that procedure's own locals instead.
 
 ## How to suppress
 
-Add `# noqa: W220` at the end of the offending line.
+Add `# noqa: W220` on the line **above** the offending command.
 
 ## Related
 

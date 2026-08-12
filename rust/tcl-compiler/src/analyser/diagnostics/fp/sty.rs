@@ -18,7 +18,6 @@
 
 //! STY family — style / usage warnings (W001/W104/W105/W113/W120/W124/W126/
 //! W201/W210/W212/W214/W216/W302/W306).
-//! Pairs to `tests/test_fp_sty.py` and the §STY entries in `docs/design/compiler/FP.md`.
 
 use super::{D, codes, fires};
 

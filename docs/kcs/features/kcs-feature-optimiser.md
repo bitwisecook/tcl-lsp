@@ -39,28 +39,17 @@ O105 propagates SCCP-resolved constant values into `$var` references in command 
 **Safety constraints:**
 - String interpolation propagation is restricted to constants defined in the **same basic block** with no intervening `IRCall` or `IRBarrier` (which could mutate the variable via `upvar` or exception side-effects).
 - Values containing unsafe characters (metacharacters that could change interpretation in the target context) are not propagated.
-- O105 also covers GVN/CSE (redundant computation elimination) via `gvn.py`.
+- O105 also covers global value numbering and common-subexpression
+  elimination (redundant computation elimination).
 
 ### O126 — Unused variable removal
 
 O126 removes `set` statements for variables that are never read anywhere in the function. Unlike O109 (dead stores — overwritten before read), O126 targets entirely unused variables. Skipped at top-level to avoid changing observable script results. See [Unused Variable Detection](kcs-feature-unused-variables.md).
 
-## File-path anchors
-
-- `compiler/optimiser/` — pass modules (`_tail_call.py`, `_manager.py`, `_helpers.py`, `_types.py`, etc.)
-- `compiler/optimiser/_propagation.py` — O105 constant var-ref propagation
-- `compiler/optimiser/_elimination.py` — O107/O108/O109/O126 elimination passes
-- `compiler/gvn.py` — O105/O106 GVN/CSE/LICM
-- `server/features/code_actions.py`
-
 ## Failure modes
 
 - Optimisation produces semantically different code.
 - O-code suppression not respected.
-
-## Test anchors
-
-- `tests/test_optimiser.py`
 
 ## Screenshots
 

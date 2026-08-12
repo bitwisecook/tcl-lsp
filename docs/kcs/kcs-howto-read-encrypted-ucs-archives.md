@@ -18,9 +18,7 @@ without decrypting it by hand first?
 
 - The encrypted `.ucs` file on disk.
 - The passphrase it was saved with.
-- Nothing else: `gpg` is used when present, and a bundled
-  pure-Python decryptor covers hosts (and the zipapp) that have no
-  GnuPG installed.
+- Nothing else. Decryption is built in, so no GnuPG install is needed.
 
 ## Answer
 
@@ -99,17 +97,15 @@ Per F5 KB **K5437** the encrypted archive is a GnuPG **symmetric**
 BIG-IP itself uses AES-128; the reader accepts AES-128, AES-192, and
 AES-256.
 
-### gpg first, pure-Python fallback
+### No GnuPG needed
 
-When `gpg` (or `gpg2`) is on the path the CLI shells out to it — the
-same tool BIG-IP uses — streaming the plaintext back over a pipe.
-Otherwise it falls back to a dependency-free pure-Python OpenPGP
-decryptor that ships with the tool, so the cross-platform zipapp can
-open a UCS on a host with no GnuPG. Force the pure-Python path with
-`F5_UCS_PYPGP=1` (useful for testing the fallback):
+The decryptor is built into the tool and has no external dependency, so
+a UCS opens on a host with no GnuPG installed. Supply the passphrase in
+the `F5_UCS_PASSPHRASE` environment variable to avoid putting it on the
+command line:
 
 ```
-$ F5_UCS_PYPGP=1 F5_UCS_PASSPHRASE='s3cret!' f5 extract prod.ucs -o prod.scf
+$ F5_UCS_PASSPHRASE='s3cret!' f5 extract prod.ucs -o prod.scf
 ```
 
 ### The keys never touch disk

@@ -1,7 +1,7 @@
 # KCS: W145 — Ambiguous keyword abbreviation
 
 > **Audience:** User
-> **Type:** Issue
+> **Type:** Diagnostic
 
 ## Applies to
 
@@ -85,7 +85,7 @@ The check abstains rather than risk a false positive on legal code:
 
 ## How to suppress
 
-Add `# noqa: W145` at the end of the offending line.
+Add `# noqa: W145` on the line **above** the offending command.
 
 ## Related
 

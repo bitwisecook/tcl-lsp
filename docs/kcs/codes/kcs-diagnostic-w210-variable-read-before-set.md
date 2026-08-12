@@ -1,7 +1,7 @@
 # KCS: W210 — Why does the analyser warn about a variable used before being set?
 
 > **Audience:** User
-> **Type:** Issue
+> **Type:** Diagnostic
 
 ## Applies to
 
@@ -205,7 +205,7 @@ procedure that writes it, so it can set that procedure's own locals;
 
 ## How to suppress
 
-Add `# noqa: W210` at the end of the offending line.
+Add `# noqa: W210` on the line **above** the offending command.
 
 ## Related
 

@@ -20,7 +20,7 @@
 //!
 //! Each function takes a [`LoweringCommand`] (the parsed command context)
 //! and returns `Some(Statement)` if the command is handled, or `None` to
-//! fall through to the default `IRCall` path.
+//! fall through to the default [`Statement::Call`] path.
 //!
 //! The per-command logic lives in [`crate::lowering::hooks`] (one
 //! file per command); this module retains the dispatcher, the
@@ -107,7 +107,7 @@ pub enum ArgTokenKind {
 /// identifier on the matched [`tcl_registry::CommandSpec`] /
 /// [`tcl_registry::SubCommand`], and dispatches to the per-hook
 /// algorithm. Returns `Some(statement)` if a hook handled the
-/// command; `None` to fall through to the default `IRCall` path.
+/// command; `None` to fall through to the default [`Statement::Call`] path.
 #[must_use]
 pub fn try_lower_hook(
     cmd: &LoweringCommand<'_>,
@@ -988,7 +988,7 @@ mod tests {
 
     /// A command with no `lowering_hook` must return `None` from
     /// `try_lower_hook` so the caller falls through to the generic
-    /// `IRCall` path.
+    /// `Statement::Call` path.
     #[test]
     fn try_lower_hook_returns_none_for_uncovered_command() {
         let registry = CommandRegistry::build_default();

@@ -19,11 +19,9 @@
 //! `diag-emission-check` — the "every non-reserved code has a producer"
 //! completeness gate (issue #1317).
 //!
-//! `docs/design/rust/cleanup-status.md` used to explain that this guard was
-//! deliberately *not* added, because it would false-positive on codes that
-//! are genuinely specified-but-not-yet-wired (`W130`-`W134`). Now that
-//! `DocRow::Diagnostic`'s `reserved` field lets a code declare that state
-//! honestly, the guard can exist without that false-positive: it skips
+//! A code that is genuinely specified-but-not-yet-wired (`W130`-`W134`)
+//! declares that state through `DocRow::Diagnostic`'s `reserved` field, so
+//! the guard carries no false positive: it skips
 //! every `internal` code (always active by construction) and every
 //! `reserved` code (declared as having no producer yet), and for
 //! everything else, greps [`SEARCH_ROOTS`] for at least one real

@@ -31,19 +31,10 @@ VS Code, Copilot Chat, MCP, Claude skill
 
 The translator maps iRule event handlers and commands to XC route and service policy equivalents. Some iRule patterns have no XC equivalent and are flagged as manual migration items.
 
-## File-path anchors
-
-- `dialects/f5/xc/translator.py`
-- `editors/vscode/src/extension.ts`
-
 ## Failure modes
 
 - Unsupported iRule patterns silently dropped.
 - XC output not valid YAML/JSON.
-
-## Test anchors
-
-- `tests/test_xc_translator.py`
 
 ## Example
 

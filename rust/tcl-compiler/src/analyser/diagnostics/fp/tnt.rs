@@ -18,7 +18,6 @@
 
 //! TNT family — taint (T100 expr-operand, T101 puts-content, T102 option,
 //! T104 network-sink, T105 interp-eval), position-aware sink filtering.
-//! Pairs to `tests/test_fp_tnt.py` and the §TNT entries in `docs/design/compiler/FP.md`.
 
 use super::{D, codes, fires};
 

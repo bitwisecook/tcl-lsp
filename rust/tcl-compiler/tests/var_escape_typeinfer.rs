@@ -21,9 +21,8 @@
 //! (the SSA `TclType` lattice), and `subst_nocommands` (the compile-time
 //! `subst -nocommands` evaluator).
 //!
-//! There is no single pytest source for these — the tests below are
-//! driven from each module's public API and Tcl semantics, mirroring
-//! the harness style of `tests/dataflow.rs`,
+//! The tests below are driven from each module's public API and Tcl
+//! semantics, mirroring the harness style of `tests/dataflow.rs`,
 //! `tests/core_analyses.rs`, `tests/type_propagation.rs`, and
 //! `tests/alias_scoping.rs`:
 //!

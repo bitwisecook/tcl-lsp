@@ -562,7 +562,7 @@ impl Analyser {
     /// **IRULE3102.** `HTTP::path` / `HTTP::uri` / `HTTP::query` getter
     /// used without `-normalized`.  Analyser-level per-command check that
     /// fires in `tcl diag` and the LSP (the flow-path getter scan in
-    /// `irules_checks.rs` is the separate PyO3-bridge surface).  Reuses
+    /// `irules_checks.rs` is a separate surface).  Reuses
     /// the shared getter-form predicate so the trigger stays
     /// single-sourced.
     fn emit_irule3102_unnormalised_getter(

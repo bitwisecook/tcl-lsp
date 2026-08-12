@@ -1,7 +1,7 @@
 # KCS: I230 — Why does the analyser say my `[info exists]` branch never runs?
 
 > **Audience:** User
-> **Type:** Issue
+> **Type:** Diagnostic
 
 ## Applies to
 
@@ -147,7 +147,7 @@ constant, and `I230` disappears. If a branch really is dead, delete it.
 
 ## How to suppress
 
-Add `# noqa: I230` at the end of the condition's line.
+Add `# noqa: I230` on the line **above** the condition.
 
 ## Related
 

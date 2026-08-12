@@ -28,7 +28,6 @@ from the toggle genuinely not working?
 
 ## Answer
 
-This is [issue #1295](https://github.com/bitwisecook/tcl-lsp/issues/1295):
 `waitForFeatureToggle` (and `waitForEffectiveConfig` underneath it) only
 proves the **server's effective config** changed — it says nothing about
 whether a provider request issued right *now* will be answered under the new
@@ -59,34 +58,26 @@ useful diagnostics-publish signal to key off (e.g. a raw config read).
 Two outcomes once converted:
 
 - **It passes reliably.** The toggle worked; the bug was the single sample.
-  This was true for every case fixed under #1295 in this codebase
-  (`selectionRange`, `documentSymbols` — see the note on that one below —
-  and a `folding` test tightened for consistency).
+  This is the common outcome.
 - **It fails deterministically at the bound.** Before concluding the feature
   toggle itself is broken, rule out the VS Code test-instrument problem
   below — it produces exactly this symptom and is not a product bug.
 
 ### A deterministic failure can still be a test bug, not a product bug
 
-Converting `disabling features.documentSymbols removes LSP document symbols`
-to a bounded wait initially failed *deterministically*, including in
-isolation under `MOCHA_GREP`, with the provider always answering the
-pre-toggle symbol set. That looked exactly like "the toggle is not applied to
-in-flight provider registrations" — but the server-side e2e contract test
-(`disabling_document_symbols_suppresses_provider`,
-`rust/tcl-lsp-server/tests/e2e/config.rs`) already passed, and a raw
-`textDocument/documentSymbol` request sent directly over the LSP connection
-(bypassing the VS Code command) returned the correct, empty answer
-immediately.
+Some `vscode.execute*Provider` commands do not return what the registered
+provider returns. `vscode.executeDocumentSymbolProvider` goes through VS
+Code's own outline/breadcrumbs model, which caches the last answer for a
+document and does not invalidate it on a bare configuration change with no
+document edit. `vscode.executeFoldingRangeProvider` behaves the same way (see
+`foldingRangeViaLsp` in `editors/vscode/src/test/configSettings.test.ts`). A
+test using either will keep reporting the pre-toggle answer *deterministically*,
+which looks exactly like "the toggle is not applied to in-flight provider
+registrations" and is not.
 
-The command `vscode.executeDocumentSymbolProvider` goes through VS Code's own
-outline/breadcrumbs model, which caches the last answer for a document and
-does not invalidate it on a bare configuration change with no document edit —
-the same class of problem already documented for
-`vscode.executeFoldingRangeProvider` (see `foldingRangeViaLsp` in
-`editors/vscode/src/test/configSettings.test.ts`). The fix was the same one:
-send the raw LSP request via `getClient().sendRequest(...)` instead of the VS
-Code command, which is what the registered provider actually receives.
+The remedy is to send the raw LSP request via `getClient().sendRequest(...)`
+instead of the VS Code command, which is what the registered provider actually
+receives.
 
 **Rule of thumb:** if a bounded provider-result wait fails deterministically,
 check whether an independent oracle agrees before concluding the toggle is

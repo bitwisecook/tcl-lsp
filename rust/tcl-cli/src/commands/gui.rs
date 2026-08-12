@@ -21,10 +21,9 @@
 //! The GUI is a static web app (a shell of `index.html` / `explorer-core.js` /
 //! `worker.js` plus the Rust → WASM compiler core) embedded into the binary at
 //! build time (see `build.rs`). This is a minimal, dependency-free HTTP/1.1
-//! server — the native replacement for the old Python `gui.py` zipapp: it
-//! serves the embedded bundle from memory over `127.0.0.1`, with no filesystem
-//! access and no external network requests at runtime. Everything the browser
-//! needs (WASM, JS, Mermaid) is local.
+//! server: it serves the embedded bundle from memory over `127.0.0.1`, with no
+//! filesystem access and no external network requests at runtime. Everything
+//! the browser needs (WASM, JS, Mermaid) is local.
 
 use std::io::{BufRead, BufReader, Write};
 use std::net::{TcpListener, TcpStream};
@@ -43,8 +42,8 @@ fn asset(name: &str) -> Option<&'static [u8]> {
         .map(|(_, b)| *b)
 }
 
-/// Guess a `Content-Type` from a filename extension. Mirrors `gui.py`'s
-/// `_guess_type` for the handful of types the bundle actually serves.
+/// Guess a `Content-Type` from a filename extension — the handful of types
+/// the bundle actually serves.
 fn content_type(path: &str) -> &'static str {
     match path.rsplit('.').next() {
         Some("html") => "text/html; charset=utf-8",

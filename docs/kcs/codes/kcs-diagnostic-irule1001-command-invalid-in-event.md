@@ -1,7 +1,7 @@
 # KCS: IRULE1001 — Why does the analyser flag a command as invalid in this event?
 
 > **Audience:** User
-> **Type:** Issue
+> **Type:** Diagnostic
 
 ## Applies to
 
@@ -45,7 +45,7 @@ when RULE_INIT {
 
 ## How to suppress
 
-Add `# noqa: IRULE1001` at the end of the offending line.
+Add `# noqa: IRULE1001` on the line **above** the offending command.
 
 ## Related
 

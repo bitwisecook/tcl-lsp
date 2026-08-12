@@ -38,7 +38,7 @@
 //! a CFG the compiler crate exposes but `f5-cli` does not currently depend
 //! on, to safely reorder `if`/`switch` arms without changing behaviour. That
 //! is a standalone compiler feature, out of scope for a CLI-wiring fix — see
-//! issue #1315 and `docs/design/rust/python-parity-scrub.md` (`P100 PGO`).
+//! issue #1315.
 
 use std::path::{Path, PathBuf};
 
@@ -582,9 +582,10 @@ fn run_event_info(
     json: bool,
     output: &str,
 ) -> Result<u8, u8> {
-    // The profile-stamped registry: the §9 subtractive rules (disable list,
-    // operator heads) apply inside the event/command cross-product — a raw
-    // `build_default` registry would re-admit the banned commands.
+    // The profile-stamped registry: the §9 operator-head exclusion applies
+    // inside the event/command cross-product, and availability otherwise
+    // comes from each spec's own `dialects` group — a raw `build_default`
+    // registry would re-admit commands that carry no `IRULES` bit.
     let cmds = tcl_registry::registry_for_profile(tcl_dialect::DialectProfile::irules());
     let events = tcl_registry::events::EventRegistry::build();
     let profiles = tcl_registry::profiles::ProfileRegistry::build();

@@ -1,12 +1,8 @@
-# KCS: Constant folding and type inference
+# Constant folding and type inference
 
-## Symptom
-
-A contributor needs to understand how the compiler evaluates expressions at
-compile time, how type inference propagates through the SSA graph, or why
-an expression is not being folded when it looks foldable.
-
-## Context
+How the compiler evaluates expressions at compile time and how type
+information propagates through the SSA graph. Read this when adding a folding
+rule, or when an expression that looks foldable is left alone.
 
 Constant folding is performed by SCCP during core analysis.  When all
 operands of an expression are `CONST`, SCCP evaluates the result at compile
@@ -21,8 +17,6 @@ fold, though it frequently feeds one), and O112 (constant condition).
 Source: `rust/tcl-compiler/src/sccp.rs` and
 `rust/tcl-compiler/src/type_infer.rs`. Optimiser consumers live under
 `rust/tcl-compiler/src/optimiser/`.
-
-## Content
 
 ### Constant folding via SCCP
 

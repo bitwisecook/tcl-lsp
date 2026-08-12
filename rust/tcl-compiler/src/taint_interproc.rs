@@ -925,7 +925,7 @@ pub fn converge_summaries_with(
 /// Solve interprocedural taints for a compilation unit.
 ///
 /// The unit's `interproc` summary (when present) is threaded through so the
-/// Rust-specific conservative global-write seeding and the dialect handling
+/// conservative global-write seeding and the dialect handling
 /// match the per-function [`crate::compilation_unit::FunctionUnit::taints`]
 /// baseline; on top of that the colour-aware return summaries and parameter
 /// entry taints are applied.

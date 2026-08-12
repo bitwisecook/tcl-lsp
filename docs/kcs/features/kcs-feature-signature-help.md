@@ -20,17 +20,9 @@ all-editors, analyser
 
 The provider looks up the command or proc under the cursor and shows the expected arguments, highlighting the current parameter position.
 
-## File-path anchors
-
-- `server/features/signature_help.py`
-
 ## Failure modes
 
 - Wrong parameter highlighted for commands with complex argument patterns.
-
-## Test anchors
-
-- `tests/test_signature_help.py`
 
 ## Screenshots
 

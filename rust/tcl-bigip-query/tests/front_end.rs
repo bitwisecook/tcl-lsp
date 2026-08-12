@@ -18,15 +18,14 @@
 
 //! Golden differential test for the query-DSL front-end.
 //!
-//! The fixtures in `tests/fixtures/front_end.json` were captured once from
-//! the captured query DSL fixtures: for a
+//! The fixtures in `tests/fixtures/front_end.json` are a captured corpus: for a
 //! curated matrix of query strings they record the exact token stream and
 //! AST `tokenise` / `parse_query` produce, plus the lexer /
 //! parser error for a set of malformed inputs.
 //!
-//! This test re-derives the same JSON from the Rust front-end and asserts
-//! equality, so the Rust lexer + parser stay byte-for-byte faithful to the
-//! reference. It is fully self-contained — no external reference at test time.
+//! This test re-derives the same JSON from the front-end and asserts equality,
+//! so the lexer + parser stay byte-for-byte faithful to that corpus. It is
+//! fully self-contained — no external reference at test time.
 
 use serde_json::{Value, json};
 use tcl_bigip_query::ast::{Expr, LitValue, PathStep, Program};

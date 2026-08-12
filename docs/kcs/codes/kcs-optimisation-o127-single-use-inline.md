@@ -1,7 +1,7 @@
 # KCS: O127 — Inline single-use variable assignment
 
 > **Audience:** User
-> **Type:** Functionality
+> **Type:** Optimisation
 
 ## Applies to
 
@@ -36,7 +36,7 @@ pool_select [HTTP::uri]
 
 - Skipped when the right-hand side has [side effects](../../GLOSSARY.md#side-effects) and the inline position would change evaluation order.
 - Skipped when the variable is read more than once.
-- Skipped when a [barrier](../../GLOSSARY.md#ircall-ircmd) between the assignment and the use could alter the value.
+- Skipped when a [barrier](../../GLOSSARY.md#barrier) between the assignment and the use could alter the value.
 
 ## How to disable
 

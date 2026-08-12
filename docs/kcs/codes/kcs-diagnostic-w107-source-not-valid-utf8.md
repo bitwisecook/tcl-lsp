@@ -1,7 +1,7 @@
 # KCS: W107 — Why does the analyser say my file is not valid UTF-8?
 
 > **Audience:** User
-> **Type:** Issue
+> **Type:** Diagnostic
 
 ## Applies to
 

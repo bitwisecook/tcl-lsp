@@ -166,9 +166,8 @@ build. `tcl-lsp-server` is the only crate in the workspace that depends on
 
 - **#1035** — the original KB-per-keystroke leak (leaked `&'static` command
   specs), the class this invariant protects against re-entering.
-- **#1181** — the corpus the edit path is measured against; the review that
-  found the incremental layer healthy (~0 bytes/edit steady state, ~66.5 MB
-  across 60–500 edits) and this invariant undocumented.
+- **#1181** — the corpus the edit path's memory behaviour is measured against
+  (~0 bytes/edit steady state, ~66.5 MB across 60–500 edits).
 - **#1144 / #1179** — the deep-memo eviction (`lru = N`) work, which is the
   *separate* mechanism the crate documentation describes under "Deep-memo
   eviction".
