@@ -122,12 +122,31 @@ stability assumption is violated by `rename`, `interp alias` create/delete,
 `namespace import`/`forget`, a `namespace path` change, and `proc`
 redefinition.
 
-* **Binding lattice (the guard).** Track a binding state per command name:
-  *pristine-builtin → user-proc → aliased → renamed-away → shadowed*. **Only
-  `pristine-builtin` may take an inline fast path**; any rebinding op demotes
-  the name and forces dispatch through the live runtime command table. The
-  as-built `builtin_is_trusted` check is the seed of this — make it
-  first-class and monotonic.
+* **Binding lattice (the guard).** Track a binding state per command name so
+  only an unperturbed binding may take an inline fast path; any rebinding op
+  demotes the name and forces dispatch through the live runtime command
+  table. `tcl_compiler::command_binding` implements this in two layers:
+  * **Flow-sensitive**, within one CFG — `CommandBinding` runs a forward
+    dataflow whose per-name lattice is `BindingKind`: `Bottom` (⊥) →
+    `Builtin` / `Proc` / `Command` / `Class` / `Alias` → `Opaque`
+    (renamed-away, deleted, or never defined, so it dispatches to `unknown`)
+    → `Unknown` (⊤: conflicting bindings at a merge, or a dynamic mutation).
+    A `Binding` carries the kind plus a target qname for `Proc`, `Class`, and
+    `Alias`.
+  * **Flow-insensitive and whole-module** — `ModuleCommandMutations` is the
+    optimiser's fold gate. A `rename` / redefinition / `interp alias` buried
+    in a proc body only fires when that proc is called, and cross-proc call
+    order is not statically known, so any builtin some body may rebind is
+    untrusted *everywhere*. `trusts(name)` gates folding a builtin with its
+    original semantics; `trusts_proc_binding(name)` gates the O103 proc-call
+    constant fold and is deliberately **not** restricted to builtins — a
+    plain `proc NAME { … }` declaration is excluded (declaring a name as
+    itself is trustworthy), only `rename` / `interp alias` touching the name
+    demotes it. A dynamic (statically unknown target) rebinding anywhere sets
+    `dynamic`, which makes both queries answer `false` for every name.
+    `distrust_all()` is the sound stand-in for a consumer with no
+    whole-module view at all, and `CommandTrustSnapshot` is the canonical
+    hashable form so the fact can ride inside a memoisation key.
 * **Keep both spellings.** Match optimiser/registry patterns on
   the *canonical* form, but retain the *source* spelling for the eval-fallback:
   the user's bare name resolves through the live scope walk (a namespace-local

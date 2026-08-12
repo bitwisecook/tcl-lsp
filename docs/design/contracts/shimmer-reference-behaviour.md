@@ -80,8 +80,11 @@ lattice plus the SCCP constant lattice:
 A use is suppressed only when the pure value is a **valid instance** of the
 required type — a well-formed list (`Tcl_SplitList` succeeds), an even-length
 list for a dict, or a parseable number — so a genuine runtime error (`incr` on
-`hello`) still fires. This is what fixed issue #940 (`foreach $bracedList`); see
-`docs/design/compiler/FP.md` §FP-SH-21.
+`hello`) still fires. `foreach $bracedList` (issue #940) is the anchor case,
+pinned as `FP-SH-21` in
+`rust/tcl-compiler/src/analyser/diagnostics/fp/sh.rs`. The
+`cargo xtask fp-sweep` harness ([fp-sweep.md](../compiler/fp-sweep.md)) is
+what a shimmer-emitter change is measured against before it lands.
 
 #### The committed-intrep dataflow (first-use commit)
 

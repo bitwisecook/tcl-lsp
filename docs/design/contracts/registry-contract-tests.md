@@ -48,7 +48,8 @@ stay self-consistent within a run.
 
 ## Front-end surfaces
 
-The native front-ends expose the CLI verbs (`command-info`, `event-info`,
-`irule event-order`, `diag`) and the LSP `executeCommand` registry handlers.
-The LSP-driven surface is exercised by the e2e suite under
-`rust/tcl-lsp-server/tests/`.
+The native front-ends expose the CLI verbs — `tcl command-info` and
+`tcl diag` (`rust/tcl-cli`), plus `f5 irule event-info` and
+`f5 irule event-order` (`rust/f5-cli/src/commands/irule.rs`) — and the LSP
+`executeCommand` registry handlers. The LSP-driven surface is exercised by
+the e2e suite under `rust/tcl-lsp-server/tests/`.

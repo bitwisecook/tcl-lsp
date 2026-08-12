@@ -104,7 +104,8 @@ The behavioural suites live in `rust/tcl-vm/tests/cmd_oo_e2e.rs` (tclsh-pinned
 end-to-end vectors) and the analyser's OO suites
 (`rust/tcl-compiler` `analyser`/`oo` tests, `mro_lattice_adversarial.rs`).
 Reference results captured from real tclsh 8.4–9.0 are queryable via the
-`test-results` skill (`tests/test_reference/`, populated on demand).
+`test-results` skill (`tests/test_reference/<version>/`, written by
+`scripts/capture/test_results.sh` on demand — not checked in).
 
 ## Key files
 

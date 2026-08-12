@@ -85,9 +85,15 @@ byte-identical:
 * the result string and the return code + options dict
   (`-errorcode`, `-errorinfo`, `-errorstack`, `-level`);
 * the `errorInfo` traceback text, including the "invoked from within …"
-  vs. "while executing …" distinction (which depends on whether the failing
-  command was itself a bytecode-compiled sub-command — see the
-  `transparent_error` mechanism in the as-built runtime);
+  vs. "while executing …" distinction. In the as-built runtime that is the
+  `Interp::error_info` accumulator plus the `error_logged` flag (C's
+  `ERR_ALREADY_LOGGED`): the *first* frame logged selects "while executing",
+  `error_logged` stops the same bytecode frame being re-logged, and it is
+  cleared at a real frame boundary — a nested `eval` / `subst`, a proc or
+  control body — so the enclosing command contributes its own "invoked from
+  within" frame. `error_line` (C's `iPtr->errorLine`) carries the innermost
+  logged command's 1-based source line, which is what the `(procedure … line
+  N)` and `("while" body line N)` frames report;
 * `info script` and `info level`/`info frame` *command* content;
 * the order and arguments of variable/command/execution trace callbacks.
 

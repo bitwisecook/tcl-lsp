@@ -194,7 +194,9 @@ helper without reading the rationale:
 ## Test anchors
 
 - `rust/tcl-syntax/src/naming.rs` — `qualifier_segments_cases`,
-  doctests; `tests/command_resolution_conformance.rs` (tclsh-pinned).
+  doctests; `rust/tcl-syntax/tests/command_resolution_conformance.rs`
+  (tclsh-pinned; `tcl-compiler` and `tcl-vm` each carry a same-named suite
+  for their own layer).
 - `rust/tcl-cmd-core/src/namespace.rs` — `qualifiers_and_tail_match_c`.
 - `rust/tcl-cmd-core/src/prefix.rs` — C-parity unit tests (empty-key,
   empty-entry, exact-mode wording).

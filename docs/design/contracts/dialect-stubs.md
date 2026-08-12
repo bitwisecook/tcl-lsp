@@ -53,16 +53,22 @@ stub <command-name> {arg1:role arg2 ?optArg:role?} ?flags...?
 
 ### Argument roles
 
-| Role | Meaning |
-|------|---------|
-| `body` | Tcl script body (recursively analysed) |
-| `expr` | Expression (expr sub-language) |
-| `var` | Variable name written by the command |
-| `var_read` | Variable name read without modification |
-| `name` | Symbolic name (proc, namespace, design name) |
-| `pattern` | Pattern or regex |
-| `channel` | Channel identifier |
-| `value` | Generic value (default when no role given) |
+Each role word maps to one registry `ArgRole` through
+`StubOverlay::parse_role`. An unrecognised word is **not** an error — it falls
+through to `Value`, so a typo silently degrades to the generic role rather
+than rejecting the stub.
+
+| Role | `ArgRole` | Meaning |
+|------|---|---------|
+| `body` | `Body` | Tcl script body (recursively analysed) |
+| `expr` | `Expr` | Expression (expr sub-language) |
+| `var` | `VarWrite` | Variable name written by the command |
+| `var_read` | `VarRead` | Variable name read without modification |
+| `name` | `Name` | Symbolic name (proc, namespace, design name) |
+| `pattern` | `Pattern` | Pattern or regex |
+| `channel` | `Channel` | Channel identifier |
+| `command_prefix` | `CommandPrefix` | A command prefix invoked as a callback |
+| `value` | `Value` | Generic value — the default, and the fallback for any unknown word |
 
 ### Optional arguments
 
@@ -70,8 +76,9 @@ Wrap in `?...?` to mark as optional: `?-filter?`, `?count:value?`.
 
 ### Flags
 
-The trailing flag set becomes `StubFlags`, whose bits line up one-for-one with
-the registry-side `Traits` they stand for:
+The trailing flag set is parsed into the analyser-side `StubFlags` bitflags
+(`analyser/types.rs`) and carried into the overlay as `StubSigFlags`
+(`stub_overlay.rs`), whose bits stand for the registry-side `Traits`:
 
 | Flag | Meaning |
 |---|---|
@@ -155,6 +162,6 @@ roles the draft declared.
 |---|---|
 | `rust/tcl-compiler/src/analyser/utils.rs` | `scan_source_for_stubs`, `scan_sidecar_stubs` |
 | `rust/tcl-compiler/src/analyser/types.rs` | `StubCommandDef`, `StubArgDef`, `StubExprDef`, `StubFlags` |
-| `rust/tcl-registry/src/stub_overlay.rs` | `StubOverlay`, `StubSig`, `StubArg`, `parse_role`, `fingerprint` |
+| `rust/tcl-registry/src/stub_overlay.rs` | `StubOverlay`, `StubSig`, `StubSigFlags`, `StubArg`, `parse_role`, `fingerprint` |
 | `rust/tcl-spec-studio/src/render_stub.rs` | stub rendering |
 | `samples/` | example sidecar and inline stub files |

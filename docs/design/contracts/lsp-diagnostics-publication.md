@@ -12,20 +12,33 @@ them from flickering or regressing between edits.
 
 ### Push vs pull diagnostics
 
-The default mode is **push** (`textDocument/publishDiagnostics`): the
-server sends diagnostics to the client after each analysis pass. This is
-the mode that the test suite and most client configurations rely on.
+**Push (`textDocument/publishDiagnostics`) is the sole delivery channel.**
+The server sends diagnostics to the client after each analysis pass.
 
-**Pull diagnostics** (`textDocument/diagnostic`, `workspace/diagnostic`)
-are an opt-in alternative enabled by `tclLsp.features.pullDiagnostics`.
-When enabled, the server advertises `diagnosticProvider` in
-`ServerCapabilities`, which causes `vscode-languageclient` (and other LSP
-clients) to switch to pull mode and stop processing push notifications.
+`build_server_capabilities` sets `diagnostic_provider: None`
+unconditionally, and `initialize` stores
+`client_supports_pull_diagnostics = false` regardless of what the client
+advertised. Both are deliberate, and they are two halves of one rule:
 
-Because handler registration and capability advertisement happen at server
-startup, `pull_diagnostics_enabled` is in `_RESTART_REQUIRED_TOGGLES`.
-Changing it via `didChangeConfiguration` logs a warning but takes effect
-only after the server process is restarted.
+- Advertising `diagnosticProvider` makes `vscode-languageclient` (and most
+  other clients) switch to pull mode and stop honouring push notifications,
+  which silently disables the richer push pipeline and renders each
+  diagnostic twice (issue #721).
+- The `client_supports_pull_diagnostics` suppression ("stop pushing when the
+  client pulls") must therefore stay **off**. A pull-capable client — VS Code
+  advertises the capability whether or not it will use it — would otherwise
+  get neither push (suppressed) nor pull (unadvertised): zero diagnostics.
+
+The `textDocument/diagnostic` and `workspace/diagnostic` handlers are
+implemented and answer correctly, backed by `pull_diag_cache`, and the
+`tclLsp.features.pullDiagnostics` setting exists in the VS Code contribution
+schema (default `false`). Nothing in the server currently reads that setting
+or flips the advertisement, so pull remains unreachable through configuration
+alone; the handlers serve a client that requests them directly.
+
+Whatever the delivery channel, a pull response and a push notification are
+built from the same `finalise_diagnostics` path, so the two cannot disagree
+about tags, severity overrides, or encoding abstention.
 
 ### Diagnostic tags (issue #1333)
 

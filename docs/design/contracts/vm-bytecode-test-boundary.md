@@ -47,8 +47,13 @@ depend on neither backend formatting nor C's codegen choices.
 - `rust/tcl-compiler/tests/fixtures/codegen/{matching,divergent}/` — the
   snippet corpus.
 - `tests/bytecode_reference/<version>/` — captured reference disassembly.
-- `scripts/capture/bytecode.sh` — capture for 8.5 / 8.6 / 9.0.
-- `scripts/capture/bytecode_84.sh` — the 8.4 capture path.
+  **Not checked in** (`.gitignore` excludes it): it is the output directory
+  the capture scripts write into, so it exists only on a machine that has run
+  them against a real `tclsh`.
+- `scripts/capture/bytecode.sh` — capture for 8.5 / 8.6 / 9.0, driving
+  `scripts/capture/disasm.tcl`.
+- `scripts/capture/bytecode_84.sh` — the 8.4 capture path, driving
+  `scripts/capture/disasm_84.tcl`.
 - `rust/tcl-vm/src/exec.rs` — the VM's instruction execution.
 
 ## Failure modes

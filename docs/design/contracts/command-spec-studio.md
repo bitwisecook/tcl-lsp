@@ -40,7 +40,7 @@ line in `draft`.** No UI, serialiser, or renderer change is needed.
 
 ### Invariant: the schema covers every spec field
 
-`tests/schema_coverage.rs` reads `tcl-registry/src/spec.rs` at compile time
+`rust/tcl-spec-studio/tests/schema_coverage.rs` reads `tcl-registry/src/spec.rs` at compile time
 (via `include_str!`), extracts the field list from the `CommandSpec::DEFAULT`
 and `SubCommand::DEFAULT` initialisers, and compares it against the schema in
 both directions. A field added to the registry without a schema entry fails
@@ -177,7 +177,7 @@ Four rules the output must satisfy, each of which a real bug violated:
 
 ### Verifying the output compiles
 
-`tests/render_sweep.rs` renders every command in every browsable dialect and
+`rust/tcl-spec-studio/tests/render_sweep.rs` renders every command in every browsable dialect and
 asserts the structural invariants. Those assertions cannot prove the result is
 valid Rust — all four bugs above passed them. The real check is to render the
 specs into the registry and build it; the procedure is documented at the top

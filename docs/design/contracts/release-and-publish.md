@@ -221,9 +221,9 @@ stored, is a design conversation: it requires updating this contract and
 - [`scripts/release/publish_jetbrains_upload.sh`](../../../scripts/release/publish_jetbrains_upload.sh) —
   uploads the released JetBrains `.zip` to the Marketplace REST API
   (invoked by the CI publish job; reuses `jetbrains_token.sh`).
-- `.github/actions/setup-build/action.yml`
-  and [`.github/actions/sign-and-upload/action.yml`](../../../.github/actions/sign-and-upload/action.yml) —
-  composite actions for the CI build/sign tail.
+- [`.github/actions/sign-and-upload/action.yml`](../../../.github/actions/sign-and-upload/action.yml) —
+  the composite action for the CI build/sign tail (the only composite action
+  in the tree).
 - [`scripts/release/`](../../../scripts/release/) — every script that
   takes a marketplace credential or pushes to a marketplace.
 - [`scripts/release/publish_verify.sh`](../../../scripts/release/publish_verify.sh) —

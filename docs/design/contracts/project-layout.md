@@ -115,9 +115,15 @@ dependency graph (a crate can only use what it declares in
 
 ## Test anchors
 
-- `rust/tcl-lsp-server/tests/*_e2e.rs` — native LSP end-to-end suite.
-- `rust/tcl-lsp-server/tests/registry_contract_e2e.rs` — registry
-  contract coverage over the live front-end.
+- `rust/tcl-lsp-server/tests/e2e.rs` and its `e2e/` module tree — the native
+  LSP end-to-end suite, one module per feature area plus an
+  `issue<N>_*` module per pinned regression.
+- `rust/tcl-lsp-server/tests/e2e/commands.rs` — the workspace
+  `executeCommand` handlers, including the registry-backed ones, driven
+  end-to-end against the packaged server.
+- `rust/tcl-lsp-server/tests/*_smoke.rs` — per-feature smoke suites
+  (completion, definition, hover, folding, inlay hints, signature help,
+  document symbols, diagnostics delivery).
 
 ## Discoverability
 

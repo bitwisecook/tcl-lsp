@@ -130,10 +130,17 @@ minimal and conservative; the extension point for tool-specific commands is
 ## Property naming convention
 
 All boolean and set properties in these tables are expressed in **positive
-form**: `has_flow`, `client_side`, `dialects` — never `no_flow`,
-`excluded_dialects`, `never_inline_body`. A positive property means "this thing
-is true or present", so a consumer reads `if prop.has_flow` rather than
-`if !prop.no_flow`, and a negative set never has to be stored.
+form**: `EventProps`'s `flow`, `hot`, `common`, `client_side`, `server_side`,
+and `implied_profiles`; `ProtocolNamespaceSpec`'s `profiles` and
+`side_selectable`; `ProfileSpec`'s `requires`, `conflicts`, and
+`capabilities`. Never `no_flow`, `excluded_dialects`, or `never_inline_body`.
+A positive property means "this thing is true or present", so a consumer
+reads `if props.flow` rather than `if !props.no_flow`, and a negative set
+never has to be stored.
+
+`conflicts` is the one name that reads negative and is not: it is a
+*positive* set of the profiles this profile conflicts with, not a negation of
+`requires`.
 
 ## Key files
 
