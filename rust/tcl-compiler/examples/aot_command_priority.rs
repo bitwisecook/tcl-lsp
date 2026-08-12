@@ -160,7 +160,9 @@ fn walk_script(
             let args: Vec<&str> = cmd.texts[1..].iter().map(String::as_str).collect();
             let arity = args.len();
 
-            let has_subcommands = registry.get(&name).is_some_and(|s| !s.subcommands.is_empty());
+            let has_subcommands = registry
+                .get(&name)
+                .is_some_and(|s| !s.subcommands.is_empty());
             let subcommand = if has_subcommands && !args.is_empty() {
                 let word1_literal = cmd
                     .word_fragments
@@ -360,11 +362,7 @@ fn main() {
             for f in &files {
                 let Ok(meta) = fs::metadata(f) else { continue };
                 if meta.len() > MAX_FILE_BYTES {
-                    eprintln!(
-                        "skip oversize file ({} bytes): {}",
-                        meta.len(),
-                        f.display()
-                    );
+                    eprintln!("skip oversize file ({} bytes): {}", meta.len(), f.display());
                     continue;
                 }
                 let Ok(src) = fs::read_to_string(f) else {
@@ -374,7 +372,13 @@ fn main() {
                 file_count += 1;
                 let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
                     walk_script(
-                        &src, &registry, &repo_name, false, 0, &mut forms, &mut dynamic,
+                        &src,
+                        &registry,
+                        &repo_name,
+                        false,
+                        0,
+                        &mut forms,
+                        &mut dynamic,
                     );
                 }));
                 if result.is_err() {
