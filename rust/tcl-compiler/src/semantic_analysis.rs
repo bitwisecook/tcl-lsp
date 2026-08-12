@@ -124,13 +124,20 @@ impl SemanticAnalysisBundle {
                 entry_assumption,
             };
         }
+        // A unit whose dispatch entry contract is `UnknownWorld` starts at the
+        // contents lattice's top element, and widening is absorbing, so no
+        // site proof it could produce would ever succeed. Building its world
+        // graph would materialise a structure whose only interactive consumer
+        // is that proof. The deep [`Self::build`] path is unaffected: code
+        // generation and auditing consume the graph directly.
+        let proof_can_succeed = entry_assumption != DispatchEntryAssumption::UnknownWorld;
         let executable = match build_linear_executable_ir(
             registry,
             dialect,
             ExecutableFunctionId::new(0),
             script,
         ) {
-            Ok(function) if interactive_gvn_needs_world_state(&function) => {
+            Ok(function) if proof_can_succeed && interactive_gvn_needs_world_state(&function) => {
                 match build_executable_world_state_ssa(&function) {
                     Ok(world_state_ssa) => {
                         ExecutableAnalysisAvailability::Available(ExecutableSemanticFacts {

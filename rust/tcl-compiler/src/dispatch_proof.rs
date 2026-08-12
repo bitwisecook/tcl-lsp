@@ -1083,6 +1083,15 @@ pub fn analyse_dispatch_stability(
     if block_count == 0 {
         return DispatchProofAnalysis::default();
     }
+    // Widening is absorbing: no transfer ever restores a widened ledger or a
+    // cleared stability flag. An unknown-world entry therefore starts at the
+    // lattice top and stays there, so every site proof it could produce would
+    // fail closed. Walking the CFG to discover that is measurable work on the
+    // procedure, method, and body units that carry this contract, and they
+    // are the majority of units in ordinary Tcl.
+    if entry == DispatchEntryAssumption::UnknownWorld {
+        return DispatchProofAnalysis::default();
+    }
     let shape = CfgShape::of(function);
     let entry_index = function.entry.index();
     let entry_state = Arc::new(WorldContents::entry(entry));
@@ -2500,9 +2509,24 @@ mod tests {
     fn unknown_world_entry_fails_every_site_closed() {
         let function = chain_function(&[&["llength", "a b"]], &[(1, 1)], 1);
         let analysis = analyse_dispatch_stability(&function, DispatchEntryAssumption::UnknownWorld);
-        let proof = analysis.site(0, 0).expect("site reached");
-        assert!(!proof.satisfies(llength_dependencies()));
-        assert!(proof.covers.is_empty());
+        // An unknown world starts at the lattice top and widening is
+        // absorbing, so the analysis records no proof at all rather than
+        // walking the CFG to produce one that could only fail. An absent
+        // proof and a failing proof are the same answer at the use site:
+        // `gvn_site_eligibility` declines both.
+        assert!(analysis.site(0, 0).is_none());
+
+        // The same function under a pristine entry world does prove its site,
+        // so the emptiness above is the entry contract talking, not an
+        // unreachable site or a malformed fixture.
+        let pristine =
+            analyse_dispatch_stability(&function, DispatchEntryAssumption::PristineRegistryWorld);
+        assert!(
+            pristine
+                .site(0, 0)
+                .expect("site reached")
+                .satisfies(llength_dependencies())
+        );
     }
 
     #[test]
