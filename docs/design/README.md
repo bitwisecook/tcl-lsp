@@ -166,6 +166,11 @@ The target-independent implementation contract is
 the common semantic IR and analyses consumed by the LSP, TclVM, WASM, eBPF, and
 future native or accelerator target families.
 
+The proof that completes its world/effect half is
+[compiler/dispatch-stability-proof.md](compiler/dispatch-stability-proof.md) —
+the world-state contents/absence lattice, the typed per-site dispatch-stability
+proof, and the entry contract that together gate stable-call CSE (`O105`).
+
 ## Runtime internals
 
 - [runtime/namespace-tree.md](runtime/namespace-tree.md) — design for

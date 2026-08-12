@@ -18,6 +18,7 @@ use tcl_registry::dialects::DialectSet;
 use tcl_registry::{CommandRegistry, EffectFootprint};
 
 use crate::completion::CompletionObligations;
+use crate::dispatch_proof::DispatchEntryAssumption;
 use crate::executable_ir::{
     ExecutableFunction, ExecutableFunctionId, GenericInvoke, InvocationResolution,
     LoweredOperation, OpaqueRegion, SourceCompatibilityDecline, build_linear_executable_ir,
@@ -55,17 +56,24 @@ pub(crate) const fn test_common_analysis_provenance() -> CommonAnalysisProvenanc
 pub struct SemanticAnalysisBundle {
     dialect: DialectSet,
     executable: ExecutableAnalysisAvailability,
+    entry_assumption: DispatchEntryAssumption,
 }
 
 impl SemanticAnalysisBundle {
     /// Build facts from source-faithful IR under the explicitly selected
-    /// registry dialect.
+    /// registry dialect and dispatch entry contract.
     #[must_use]
-    pub fn build(registry: &CommandRegistry, dialect: DialectSet, script: &Script) -> Self {
+    pub fn build(
+        registry: &CommandRegistry,
+        dialect: DialectSet,
+        script: &Script,
+        entry_assumption: DispatchEntryAssumption,
+    ) -> Self {
         if dialect.canonical_name().is_none() {
             return Self {
                 dialect,
                 executable: ExecutableAnalysisAvailability::DialectUnavailable { dialect },
+                entry_assumption,
             };
         }
         let executable = match build_linear_executable_ir(
@@ -90,6 +98,7 @@ impl SemanticAnalysisBundle {
         Self {
             dialect,
             executable,
+            entry_assumption,
         }
     }
 
@@ -106,20 +115,29 @@ impl SemanticAnalysisBundle {
         registry: &CommandRegistry,
         dialect: DialectSet,
         script: &Script,
+        entry_assumption: DispatchEntryAssumption,
     ) -> Self {
         if dialect.canonical_name().is_none() {
             return Self {
                 dialect,
                 executable: ExecutableAnalysisAvailability::DialectUnavailable { dialect },
+                entry_assumption,
             };
         }
+        // A unit whose dispatch entry contract is `UnknownWorld` starts at the
+        // contents lattice's top element, and widening is absorbing, so no
+        // site proof it could produce would ever succeed. Building its world
+        // graph would materialise a structure whose only interactive consumer
+        // is that proof. The deep [`Self::build`] path is unaffected: code
+        // generation and auditing consume the graph directly.
+        let proof_can_succeed = entry_assumption != DispatchEntryAssumption::UnknownWorld;
         let executable = match build_linear_executable_ir(
             registry,
             dialect,
             ExecutableFunctionId::new(0),
             script,
         ) {
-            Ok(function) if interactive_gvn_needs_world_state(&function) => {
+            Ok(function) if proof_can_succeed && interactive_gvn_needs_world_state(&function) => {
                 match build_executable_world_state_ssa(&function) {
                     Ok(world_state_ssa) => {
                         ExecutableAnalysisAvailability::Available(ExecutableSemanticFacts {
@@ -138,6 +156,7 @@ impl SemanticAnalysisBundle {
         Self {
             dialect,
             executable,
+            entry_assumption,
         }
     }
 
@@ -152,6 +171,7 @@ impl SemanticAnalysisBundle {
             } else {
                 ExecutableAnalysisAvailability::DialectUnavailable { dialect }
             },
+            entry_assumption: DispatchEntryAssumption::UnknownWorld,
         }
     }
 
@@ -166,6 +186,12 @@ impl SemanticAnalysisBundle {
     #[must_use]
     pub const fn executable(&self) -> &ExecutableAnalysisAvailability {
         &self.executable
+    }
+
+    /// The dispatch entry contract this unit's world proofs are made under.
+    #[must_use]
+    pub const fn dispatch_entry_assumption(&self) -> DispatchEntryAssumption {
+        self.entry_assumption
     }
 }
 
@@ -346,6 +372,7 @@ fn interactive_gvn_needs_world_state(function: &ExecutableFunction) -> bool {
                 &invoke.resolution,
                 InvocationResolution::Resolved(facts)
                     if crate::gvn::resolved_invocation_is_gvn_candidate(facts)
+                        || crate::gvn::resolved_invocation_is_versioned_world_gvn_candidate(facts)
             )
         })
     })

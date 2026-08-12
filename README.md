@@ -373,7 +373,7 @@ exists, a triggering example, and the fix:
 | **I** | Hints — constant conditions, unreachable arms |
 | **S** | [Shimmer detection](docs/kcs/codes/README.md) — values repeatedly converted between representations in hot paths, including [byte-array corruption](docs/kcs/features/kcs-feature-byte-array-corruption.md) (S110) |
 | **T** | [Taint analysis](docs/kcs/codes/README.md) — untrusted data reaching dangerous sinks, option positions, regex patterns, and network addresses |
-| **O** | [Optimiser](docs/kcs/features/kcs-feature-optimiser.md) suggestions — constant folding, propagation, dead code, LICM, strength reduction |
+| **O** | [Optimiser](docs/kcs/features/kcs-feature-optimiser.md) suggestions — constant folding, propagation, dead code, LICM, strength reduction, and repeated stable calls whose [dispatch is provably unobserved](docs/design/compiler/dispatch-stability-proof.md) |
 | **IRULE** | iRules-only checks — see [README-f5.md](README-f5.md#irules-diagnostic-codes) |
 
 Full tables: [diagnostic codes](docs/generated/diagnostic_codes.md) ·

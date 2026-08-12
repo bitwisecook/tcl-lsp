@@ -753,8 +753,29 @@ impl FunctionUnit {
         self
     }
 
+    /// Attach semantic facts for a compilation unit's top-level script.
+    ///
+    /// The top-level script is modelled as evaluated in a fresh interpreter
+    /// whose dispatch state is the registry baseline; every other unit kind
+    /// runs after arbitrary interposed history and must use
+    /// [`Self::with_semantic_analysis`] with an unknown-world entry contract.
+    #[must_use]
+    pub fn with_top_level_semantic_analysis(
+        self,
+        registry: &CommandRegistry,
+        dialect: DialectSet,
+        script: &crate::ir::Script,
+    ) -> Self {
+        self.with_semantic_analysis(
+            registry,
+            dialect,
+            Some(script),
+            crate::dispatch_proof::DispatchEntryAssumption::PristineRegistryWorld,
+        )
+    }
+
     /// Attach source-faithful, target-neutral semantic facts under an
-    /// explicitly selected dialect.
+    /// explicitly selected dialect and dispatch entry contract.
     ///
     /// A missing source script remains an explicit unavailable state. A
     /// structured source shape outside the executable compatibility subset is
@@ -765,11 +786,17 @@ impl FunctionUnit {
         registry: &CommandRegistry,
         dialect: DialectSet,
         script: Option<&crate::ir::Script>,
+        entry_assumption: crate::dispatch_proof::DispatchEntryAssumption,
     ) -> Self {
         self.semantic_facts = script.map_or_else(
             || SemanticAnalysisBundle::unavailable(dialect),
             |script| {
-                SemanticAnalysisBundle::build_for_interactive_analysis(registry, dialect, script)
+                SemanticAnalysisBundle::build_for_interactive_analysis(
+                    registry,
+                    dialect,
+                    script,
+                    entry_assumption,
+                )
             },
         );
         self
@@ -1140,10 +1167,14 @@ fn build_procedure_units(
         // word and provenance spans match this procedure's real source
         // position. Structural node identities and registry facts remain
         // position-independent; only source coordinates are refreshed.
+        // Procedure bodies run only after arbitrary interposed top-level and
+        // cross-file history, so their dispatch proofs start from an unknown
+        // world until a workspace-aware entry contract exists.
         fu = fu.with_semantic_analysis(
             ctx.registry,
             DialectSet::parse(ctx.dialect).unwrap_or_else(DialectSet::empty),
             proc.map(|procedure| &procedure.body),
+            crate::dispatch_proof::DispatchEntryAssumption::UnknownWorld,
         );
         procedures.insert(qname.clone(), fu);
     }
@@ -1349,7 +1380,7 @@ impl CompilationUnit {
             &top_level_extra_escaping,
             trace_facts,
         )
-        .with_semantic_analysis(registry, semantic_dialect, Some(&ir_module.top_level));
+        .with_top_level_semantic_analysis(registry, semantic_dialect, &ir_module.top_level);
         let built = build_procedure_units(
             &ProcedureBuildContext {
                 ir_module: &ir_module,
@@ -1502,6 +1533,7 @@ impl CompilationUnit {
                     registry,
                     semantic_dialect,
                     Some(&method.body),
+                    crate::dispatch_proof::DispatchEntryAssumption::UnknownWorld,
                 );
                 (mqname.clone(), fu)
             })
@@ -1566,6 +1598,7 @@ impl CompilationUnit {
                     registry,
                     semantic_dialect,
                     Some(&proc.body),
+                    crate::dispatch_proof::DispatchEntryAssumption::UnknownWorld,
                 );
                 (qname.clone(), fu)
             })
@@ -1769,28 +1802,48 @@ impl CompilationUnit {
         registry: &tcl_registry::CommandRegistry,
         dialect: DialectSet,
     ) -> Self {
-        self.top_level.semantic_facts =
-            SemanticAnalysisBundle::build(registry, dialect, &self.ir_module.top_level);
+        use crate::dispatch_proof::DispatchEntryAssumption;
+        self.top_level.semantic_facts = SemanticAnalysisBundle::build(
+            registry,
+            dialect,
+            &self.ir_module.top_level,
+            DispatchEntryAssumption::PristineRegistryWorld,
+        );
         for (name, unit) in &mut self.procedures {
             let Some(procedure) = self.ir_module.procedures.get(name) else {
                 unit.semantic_facts = SemanticAnalysisBundle::unavailable(dialect);
                 continue;
             };
-            unit.semantic_facts = SemanticAnalysisBundle::build(registry, dialect, &procedure.body);
+            unit.semantic_facts = SemanticAnalysisBundle::build(
+                registry,
+                dialect,
+                &procedure.body,
+                DispatchEntryAssumption::UnknownWorld,
+            );
         }
         for (name, unit) in &mut self.methods {
             let Some(method) = self.ir_module.methods.get(name) else {
                 unit.semantic_facts = SemanticAnalysisBundle::unavailable(dialect);
                 continue;
             };
-            unit.semantic_facts = SemanticAnalysisBundle::build(registry, dialect, &method.body);
+            unit.semantic_facts = SemanticAnalysisBundle::build(
+                registry,
+                dialect,
+                &method.body,
+                DispatchEntryAssumption::UnknownWorld,
+            );
         }
         for (name, unit) in &mut self.body_units {
             let Some(body) = self.ir_module.body_units.get(name) else {
                 unit.semantic_facts = SemanticAnalysisBundle::unavailable(dialect);
                 continue;
             };
-            unit.semantic_facts = SemanticAnalysisBundle::build(registry, dialect, &body.body);
+            unit.semantic_facts = SemanticAnalysisBundle::build(
+                registry,
+                dialect,
+                &body.body,
+                DispatchEntryAssumption::UnknownWorld,
+            );
         }
         self
     }
@@ -2438,6 +2491,7 @@ mod tests {
             &registry(),
             DialectSet::TCL86,
             &ir.top_level,
+            crate::dispatch_proof::DispatchEntryAssumption::PristineRegistryWorld,
         );
         assert!(explicit.executable().world_state_ssa().is_some());
 
