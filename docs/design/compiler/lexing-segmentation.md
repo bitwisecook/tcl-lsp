@@ -4,14 +4,16 @@ How raw Tcl source is split into tokens and grouped into commands. Read this
 when debugging word boundaries, missing tokens, or interpolation handling at
 the front of the pipeline.
 
-Stage 1 (lexing) produces a flat `list[Token]` via `TclLexer.tokenise_all()`.
-Stage 2 (segmentation) groups tokens into `SegmentedCommand` objects via
-`segment_commands()`.  These two stages run before any compiler logic and
+Stage 1 (lexing) produces a flat `Vec<Token>` via `Lexer::tokenise_all`
+(`Lexer` is an `Iterator`, so `tokenise_all` is a `collect`;
+`tokenise_all_with_warnings` returns the non-fatal `LexWarning`s alongside).
+Stage 2 (segmentation) groups tokens into `SegmentedCommand` values via
+`segment_commands`.  These two stages run before any compiler logic and
 feed all downstream phases.
 
-Source: `rust/tcl-lexer/src/lexer.rs` (`tokenise_all` at line 1183),
+Source: `rust/tcl-lexer/src/lexer.rs` (`Lexer`, `LexerConfig`, `tokenise_all`),
 `rust/tcl-lexer/src/tokens.rs`,
-`rust/tcl-compiler/src/segmenter.rs` (`segment_commands` at line 344)
+`rust/tcl-compiler/src/segmenter.rs` (`SegmentedCommand`, `segment_commands`)
 
 ## Content
 
@@ -70,32 +72,37 @@ position-tracking path must keep the two mechanisms in lock-step.
 the canonical lossless **red-green concrete syntax tree** for the region
 (`compiler/parsing/syntax/`, see
 [syntax-tree.md](syntax-tree.md)) and *derives* the `SegmentedCommand` list from
-it.  The derivation is byte-identical to the former loop — `range`, `argv`,
+it.  The derivation matches the token loop field-for-field — `span`, `argv`,
 `texts`, `single_token_word`, `all_tokens`, `preceding_comment`, and
-`expand_word` all match field-for-field (verified over the real-world corpus,
-120k randomised differential cases, and nested-body anchoring) — so everything
-below describes the unchanged output shape.
+`expand_word` (verified over the real-world corpus, 120k randomised
+differential cases, and nested-body anchoring) — so everything below
+describes the output shape.
 
 The segmenter groups tokens into commands at `EOL`/`EOF` boundaries:
 
-```python
-SegmentedCommand(
-    range=Range(start, end),
-    argv=[first_token_per_word, ...],
-    texts=["set", "x", "42"],           # concatenated text per word
-    single_token_word=[True, True, True], # True when word is one token
-    all_tokens=[...],                     # every token in the command
-)
+```rust
+pub struct SegmentedCommand {
+    pub span: Span,
+    pub argv: Vec<Token>,              // first token of each word
+    pub texts: Vec<String>,            // concatenated text per word
+    pub word_fragments: Vec<Vec<WordFragment>>,
+    pub single_token_word: Vec<bool>,  // true when the word is one token
+    pub all_tokens: Vec<Token>,        // every token in the command
+    pub is_partial: bool,
+    pub partial_delimiter: Option<UnclosedDelimiter>,
+    pub expand_word: Option<Vec<bool>>,
+    pub preceding_comment: Option<String>,
+}
 ```
 
 Key fields:
-- `texts[0]` = command name, `texts[1:]` = arguments
-- `single_token_word[i]` = `True` when word `i` is a single atomic token —
+- `texts[0]` = command name, `texts[1..]` = arguments
+- `single_token_word[i]` = `true` when word `i` is a single atomic token —
   tells the lowerer the value is a compile-time constant
 - `argv[i]` = first token of word `i` (for token-type pattern matching)
-- `expand_word[i]` = `True` when word `i` is preceded by the `{*}`
-  argument-expansion prefix (Tcl 8.5+).  `None` when no word in the
-  command uses expansion.
+- `expand_word` = `Some(flags)` where `flags[i]` is `true` when word `i` is
+  preceded by the `{*}` argument-expansion prefix (Tcl 8.5+).  `None` when
+  no word in the command uses expansion.
 - Multi-token words (e.g. `"hello $name"`) are concatenated into `texts[i]`
 
 **Variable references in texts:**

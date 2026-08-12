@@ -1410,7 +1410,7 @@ fn propagate_statement_taints(
 /// `classify_taint_sinks` is asked with an empty dialect (no
 /// `supports_dialect` filtering) so a sink the active profile *bans*
 /// (`exec` under f5-irules — excluded by the §9 disable list, not by any
-/// mask, since the Milestone 5 retag made it `dialects: None`) keeps its
+/// mask) keeps its
 /// T100 classification: a banned command that appears in source anyway is
 /// still a code-execution sink. The iRules-only sink codes (`IRULE…`, from
 /// `taint_output_sink` / `taint_log_sink` on iRules specs) are instead
@@ -4884,7 +4884,7 @@ mod tests {
     #[test]
     fn classify_sink_exec_stays_t100_under_irules_dialect() {
         // `exec` is universal spec data (`dialects: None` since the
-        // Milestone 5 retag); under f5-irules it is *banned* by the
+        // spec); under f5-irules it is *banned* by the
         // profile's §9 disable list, not by any dialect mask. T100
         // classification must not route through profile availability —
         // it's a plain trait fact, independent of the active document

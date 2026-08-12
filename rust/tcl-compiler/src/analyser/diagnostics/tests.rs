@@ -12258,7 +12258,7 @@ fn ns_scope_read_never_attaches_to_an_intermediate_namespace_m11() {
     }
 }
 
-// Dialect-profile availability (dialect-profile-model.md, Milestone 2): the
+// Dialect-profile availability (dialect-profile-model.md): the
 // composed (version|vendor) masks admit each vendor dialect's embedded Tcl
 // core, the version ladder still gates later-version core, iRules stays
 // subtractive, and unknown dialects stay permissive.
@@ -12420,7 +12420,7 @@ fn w001_subcommand_checks_use_the_profile_mask() {
 
 #[test]
 fn tmsh_first_class_resolves_its_surface_and_gates_later_core() {
-    // Milestone 6 (D8): f5-tmsh = TCL85|TMSH — a Tcl 8.5 host plus the
+    // D8: f5-tmsh = TCL85|TMSH — a Tcl 8.5 host plus the
     // tmsh:: surface.
     // TP (the fix): the tmsh:: surface stops drawing unknown-command.
     for ok in [
@@ -12471,7 +12471,7 @@ fn tmsh_first_class_resolves_its_surface_and_gates_later_core() {
 
 #[test]
 fn bpf_precise_mask_keeps_90_core_and_drops_8x_relics() {
-    // Milestone 6 (D7): bpf = TCL90|BPF — a genuine Tcl 9.0 base.
+    // D7: bpf = TCL90|BPF — a genuine Tcl 9.0 base.
     // TN: 9.0 core (including 8.5/8.6 additions carried into 9.0) resolves.
     for ok in [
         "dict get {a 1} a",
@@ -12499,7 +12499,7 @@ fn bpf_precise_mask_keeps_90_core_and_drops_8x_relics() {
 
 #[test]
 fn irules_subcommands_named_like_banned_commands_resolve_cleanly() {
-    // FP-fix (the Milestone 5 retag): `DNS::header cd` (the DNS
+    // `DNS::header cd` (the DNS
     // Checking-Disabled flag) and `IP::stats in` (inbound stats) are real
     // iRules subcommands that were bulk mis-tagged by name collision with
     // the banned `cd` command and the `in` operator spelling, and so drew
@@ -12523,7 +12523,7 @@ fn irules_subcommands_named_like_banned_commands_resolve_cleanly() {
     );
 }
 
-// Behaviour axis (dialect-profile-model.md, Milestone 3): the expr grammar,
+// Behaviour axis (dialect-profile-model.md): the expr grammar,
 // mathfunc tiers, and octal policy resolve through the profile — including
 // alias canonicalisation the string-keyed tables missed.
 
@@ -12614,7 +12614,7 @@ fn w003_fires_on_irules_word_operator_in_unbraced_multiword_expr() {
     assert!(w003_hits("expr $a contains $b", "f5-irules").is_empty());
 }
 
-// Option-gating semantics (dialect-profile-model.md §5.2, Milestone 4):
+// Option-gating semantics (dialect-profile-model.md §5.2):
 // intersects membership + version ceiling, replacing the old `contains`
 // rule that silently dropped inherited vendor options and never gated a
 // version-ceiling leak.
