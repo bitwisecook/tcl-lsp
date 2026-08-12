@@ -60,12 +60,56 @@ pub fn default_registry() -> &'static CommandRegistry {
 /// profile's canonical name — so aliases share their canonical entry and
 /// every unknown dialect string shares the one `PLAIN_TCL` entry.
 pub fn registry_for_profile(profile: &'static DialectProfile) -> &'static CommandRegistry {
-    static REGISTRIES: OnceLock<Mutex<FxHashMap<&'static str, &'static CommandRegistry>>> =
-        OnceLock::new();
+    registry_for_profile_with_overlay(profile, 0, |_| {})
+}
+
+/// Return the cached registry for `profile` **plus a caller-supplied overlay**,
+/// building it on first use and keyed by `(profile, overlay)`.
+///
+/// `overlay` is an opaque content identity for whatever `extend` adds:
+/// same number, same registry, and `0` means "no overlay" and is exactly
+/// [`registry_for_profile`]. `extend` runs once per distinct key, after the
+/// profile's own layers and before the profile stamp, so an overlaid spec
+/// lands last in its name's spec list and therefore wins
+/// [`CommandRegistry::get`] — which is what lets an overlay *replace* a
+/// shipped command when it means to.
+///
+/// # Why this lives here, and takes a closure
+///
+/// The one caller today is `tcl-spectcl`, inserting a workspace's SpecTcl
+/// packs (`docs/design/spec-packs.md`: packs layer into the per-profile cached
+/// registry at **workspace scope**, never the per-document overlay path stubs
+/// use). This crate must not depend on that one — the registry is the bottom
+/// of the stack — so the extension arrives as a closure and the identity as a
+/// number the caller computes. Any future workspace-scope source of specs uses
+/// the same door.
+///
+/// # Memory
+///
+/// Like every entry here, an overlaid registry is **leaked for the process
+/// lifetime**: consumers hold `&'static CommandRegistry` across threads and
+/// requests, so there is nothing to free it against. That is the design's
+/// stated model ("interned and leaked once, keyed by content hash"), and it is
+/// fine for the profile axis, which is bounded by the dialect catalogue. It is
+/// worth naming for the overlay axis, which is bounded by *user edits*: each
+/// distinct pack-set content the server sees costs one more resident registry
+/// until restart. Saving the same pack twice is free; editing it a hundred
+/// times is a hundred registries. [`OVERLAY_LIMIT`] caps how many the lookup
+/// table indexes, so lookup stays fast and the growth is visible in one place,
+/// but eviction from the table does not reclaim the registry.
+pub fn registry_for_profile_with_overlay(
+    profile: &'static DialectProfile,
+    overlay: u64,
+    extend: impl FnOnce(&mut CommandRegistry),
+) -> &'static CommandRegistry {
+    static REGISTRIES: OnceLock<
+        Mutex<FxHashMap<(&'static str, u64), &'static CommandRegistry>>,
+    > = OnceLock::new();
 
     let map = REGISTRIES.get_or_init(|| Mutex::new(FxHashMap::default()));
     let mut guard = map.lock().expect("registry cache mutex");
-    if let Some(r) = guard.get(profile.name) {
+    let key = (profile.name, overlay);
+    if let Some(r) = guard.get(&key) {
         return r;
     }
 
@@ -77,11 +121,24 @@ pub fn registry_for_profile(profile: &'static DialectProfile) -> &'static Comman
     // packs) by profile identity, not a DialectSet bit — a no-op for every
     // other profile (design doc `eda-library-packages.md`).
     registry.load_eda_packs(profile.name);
+    extend(&mut registry);
     registry.set_profile(profile);
     let leaked: &'static CommandRegistry = Box::leak(Box::new(registry));
-    guard.insert(profile.name, leaked);
+
+    // Keep every un-overlaid entry (one per dialect profile, a closed set) and
+    // drop the oldest-indexed overlays past the cap.  Purely a table bound —
+    // see the memory note above.
+    if guard.len() >= OVERLAY_LIMIT {
+        guard.retain(|(_, overlay), _| *overlay == 0);
+    }
+    guard.insert(key, leaked);
     leaked
 }
+
+/// How many `(profile, overlay)` entries the lookup table indexes before it
+/// drops the overlaid ones. Generous: a workspace has one pack set at a time,
+/// so reaching this at all means a long editing session on a pack.
+const OVERLAY_LIMIT: usize = 64;
 
 /// Return the cached registry for `dialect`, building it on first use.
 ///

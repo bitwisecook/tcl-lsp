@@ -1613,7 +1613,7 @@ impl Vm {
     /// surface. The registry owns the only versioned command filter; ordinary
     /// procedures, aliases, and extensions are never hidden here.
     fn builtin_command_visible_for_surface(&self, name: &str, command: &Command) -> bool {
-        !matches!(command, Command::Builtin(_))
+        !matches!(command, Command::Builtin(_) | Command::Native(_))
             || tcl_registry::expr_surface::RuntimeExprSurface::for_tcl_version(self.runtime_version)
                 .permits_builtin_math_function_command(name)
     }
@@ -1649,7 +1649,7 @@ impl Vm {
     /// when there is no such command.
     pub(crate) fn command_kind(&self, name: &str) -> Option<&'static str> {
         self.lookup_command(name).map(|c| match c {
-            Command::Builtin(_) => "native",
+            Command::Builtin(_) | Command::Native(_) => "native",
             Command::Proc(_) => "proc",
             // Cross-interp aliases are aliases (C's `info cmdtype` says
             // `alias` for every `interp alias` product).

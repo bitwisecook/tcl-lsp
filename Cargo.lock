@@ -4365,6 +4365,7 @@ dependencies = [
  "tcl-lsp-core",
  "tcl-registry",
  "tcl-spec-studio",
+ "tcl-spectcl",
  "tcl-syntax",
  "tcl-version",
  "tokio",
@@ -4444,6 +4445,20 @@ dependencies = [
  "tcl-lexer",
  "tcl-registry",
  "tcl-syntax",
+]
+
+[[package]]
+name = "tcl-spectcl"
+version = "0.1.0"
+dependencies = [
+ "rustc-hash",
+ "tcl-compiler",
+ "tcl-dialect",
+ "tcl-lexer",
+ "tcl-registry",
+ "tcl-syntax",
+ "tcl-userdirs",
+ "xxhash-rust",
 ]
 
 [[package]]
@@ -5750,6 +5765,12 @@ dependencies = [
  "tcl-registry",
  "tcl-syntax",
 ]
+
+[[package]]
+name = "xxhash-rust"
+version = "0.8.18"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "aee1b19627c7c60102ab80d3a9cbe18de90bfe03bfa6c3715447681f0e8c8af6"
 
 [[package]]
 name = "zeroize"

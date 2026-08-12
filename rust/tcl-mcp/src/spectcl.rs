@@ -126,7 +126,7 @@ pub fn spectcl_check(args: &Value) -> Value {
         .commands
         .iter()
         .flat_map(|c| c.hooks.iter())
-        .filter(|h| shape_cacheability(h).0 == Some(false))
+        .filter(|h| shape_cacheability(h, &CtxScan::of(h)).0 == Some(false))
         .count();
     let shadowed = collisions
         .iter()
@@ -180,7 +180,7 @@ fn command_json(cmd: &PackCommand, defaults: &Draft, sub_defaults: &Draft) -> Va
         "unrenderable": d.get(UNRENDERABLE_KEY).cloned().unwrap_or(Value::Null),
         "subcommands": subcommands,
         "clause_grammar": cmd.clause_grammar.is_some(),
-        "hook_families": families.iter().collect::<Vec<_>>(),
+        "hook_families": families,
         "hooks": hooks,
     })
 }
@@ -233,14 +233,16 @@ fn hook_json(hook: &HookDecl) -> Value {
         HookSource::Native { id } => ("native", id.clone()),
         HookSource::Derived { keyword } => ("derived", keyword.clone()),
     };
-    let (cacheable, reason) = shape_cacheability(hook);
+    let scan = CtxScan::of(hook);
+    let (cacheable, reason) = shape_cacheability(hook, &scan);
     json!({
         "owner": owner_label(&hook.owner),
         "field": hook.field,
         "family": family_key(hook.family),
         "source": kind,
         "detail": detail,
-        "ctx_keys": ctx_keys(hook),
+        "ctx_keys": &scan.keys,
+        "unknown_ctx_keys": scan.unknown(),
         "shape_cacheable": cacheable,
         "cache_reason": reason,
         "verbs": hook.family.verbs(),
@@ -249,12 +251,45 @@ fn hook_json(hook: &HookDecl) -> Value {
     })
 }
 
-/// The `ctx` keys a Tcl hook body reads, as far as a `dict get $ctx KEY` scan
-/// can tell. Empty for a native or derived hook, which has no body.
-fn ctx_keys(hook: &HookDecl) -> Vec<String> {
-    match &hook.source {
-        HookSource::Body { body, .. } => ctx_reads(body).0.into_iter().collect(),
-        HookSource::Native { .. } | HookSource::Derived { .. } => Vec::new(),
+/// What a hook body reads out of its `ctx` dict.
+#[derive(Debug, Default)]
+struct CtxScan {
+    /// Literal keys the body reads through `dict get $ctx KEY`.
+    keys: BTreeSet<String>,
+    /// Whether some `$ctx` reference was *not* one of those reads, so the
+    /// read set is not fully known.
+    unattributed: bool,
+}
+
+impl CtxScan {
+    /// Scan a hook's body. A native or derived hook has none, and reads
+    /// nothing.
+    fn of(hook: &HookDecl) -> Self {
+        match &hook.source {
+            HookSource::Body { body, .. } => ctx_reads(body),
+            HookSource::Native { .. } | HookSource::Derived { .. } => Self::default(),
+        }
+    }
+
+    /// Keys in neither [`SHAPE_CTX_KEYS`] nor [`BROADER_CTX_KEYS`] — words the
+    /// calling convention does not define, which will read as empty every
+    /// time. Always a pack bug, and invisible without this report because the
+    /// loader carries a body verbatim rather than checking inside it.
+    fn unknown(&self) -> Vec<&str> {
+        self.keys
+            .iter()
+            .map(String::as_str)
+            .filter(|k| !SHAPE_CTX_KEYS.contains(k) && !BROADER_CTX_KEYS.contains(k))
+            .collect()
+    }
+
+    /// The keys read that lie outside the `(command, word-shape)` memo key.
+    fn broader(&self) -> Vec<&str> {
+        BROADER_CTX_KEYS
+            .iter()
+            .copied()
+            .filter(|k| self.keys.contains(*k))
+            .collect()
     }
 }
 
@@ -285,13 +320,13 @@ fn ctx_keys(hook: &HookDecl) -> Vec<String> {
 ///
 /// The scan is textual and therefore may only ever be *pessimistic*: an
 /// unattributed reference downgrades the answer, never upgrades it.
-fn shape_cacheability(hook: &HookDecl) -> (Option<bool>, String) {
-    let HookSource::Body { body, .. } = &hook.source else {
+fn shape_cacheability(hook: &HookDecl, scan: &CtxScan) -> (Option<bool>, String) {
+    if !matches!(hook.source, HookSource::Body { .. }) {
         return (
             None,
             "no VM body — native and derived hooks run at native cost".to_owned(),
         );
-    };
+    }
     if hook.family == HookFamily::ConstFoldVersioned {
         return (
             Some(false),
@@ -300,12 +335,7 @@ fn shape_cacheability(hook: &HookDecl) -> (Option<bool>, String) {
                 .to_owned(),
         );
     }
-    let (keys, unattributed) = ctx_reads(body);
-    let broader: Vec<&str> = BROADER_CTX_KEYS
-        .iter()
-        .copied()
-        .filter(|k| keys.contains(*k))
-        .collect();
+    let broader = scan.broader();
     if !broader.is_empty() {
         return (
             Some(false),
@@ -315,7 +345,7 @@ fn shape_cacheability(hook: &HookDecl) -> (Option<bool>, String) {
             ),
         );
     }
-    if unattributed {
+    if scan.unattributed {
         return (
             Some(false),
             "uses `$ctx` in a way the check cannot attribute to a literal key, \
@@ -333,16 +363,13 @@ fn shape_cacheability(hook: &HookDecl) -> (Option<bool>, String) {
 
 /// Scan a hook body for `dict get $ctx KEY`.
 ///
-/// Returns the literal keys read, and whether any `$ctx` / `${ctx}` reference
-/// was *not* part of such a read — the case where the read set is unknown.
-///
 /// Textual on purpose: the pack itself is parsed exactly once, by the loader,
 /// which carries a hook body through as verbatim text because the sandbox that
 /// will eventually run it does not exist yet. Until it does there is no
 /// compiled form to interrogate, and a heuristic that can only be pessimistic
 /// is the honest amount of machinery for a report.
-fn ctx_reads(body: &str) -> (BTreeSet<String>, bool) {
-    let mut keys = BTreeSet::new();
+fn ctx_reads(body: &str) -> CtxScan {
+    let mut scan = CtxScan::default();
     let mut attributed = 0usize;
     let mut total = 0usize;
 
@@ -359,14 +386,15 @@ fn ctx_reads(body: &str) -> (BTreeSet<String>, bool) {
         total += 1;
         if let Some(key) = dict_get_key(body, at, after) {
             attributed += 1;
-            keys.insert(key);
+            scan.keys.insert(key);
         }
     }
-    // `${ctx}` — the braced spelling reads the same variable.
-    let braced = body.matches("${ctx}").count();
-    total += braced;
+    // `${ctx}` — the braced spelling reads the same variable, and is never
+    // part of the `dict get $ctx KEY` shape this scan recognises.
+    total += body.matches("${ctx}").count();
 
-    (keys, attributed < total)
+    scan.unattributed = attributed < total;
+    scan
 }
 
 fn is_name_byte(b: u8) -> bool {
@@ -753,6 +781,30 @@ speclib mylib 1.0 {
                 .contains("attribute"),
             "{hook}"
         );
+    }
+
+    /// A `ctx` key the calling convention does not define reads as empty
+    /// forever. The loader carries a body verbatim and never looks inside it,
+    /// so this report is the only place that typo shows up.
+    #[test]
+    fn a_ctx_key_outside_the_calling_convention_is_flagged() {
+        let source = r"
+speclib mylib 1.0 {
+    command mylib::typo {
+        arity 1 1
+        arg_role_resolver {words ctx} {
+            if {[dict get $ctx subcomand] eq {}} return
+            role 0 Body
+        }
+    }
+}
+";
+        let result = check(source, "tcl9.0");
+        let hook = &result["commands"][0]["hooks"][0];
+        assert_eq!(hook["unknown_ctx_keys"], json!(["subcomand"]), "{hook}");
+        // Reading an undefined key is a pack bug, not a caching cost: the
+        // read is still a function of nothing outside the word shape.
+        assert_eq!(hook["shape_cacheable"], json!(true), "{hook}");
     }
 
     /// A source with no `speclib` wrapper loads nothing and says why, rather
