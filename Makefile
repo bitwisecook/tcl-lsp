@@ -1442,9 +1442,33 @@ $(ST_PACKAGE): rust-server
 	@mkdir -p $(BUILD_DIR)/sublime-stage/server
 	cp $(ROOT)target/$(PROFILE)/tcl-lsp-server $(BUILD_DIR)/sublime-stage/server/tcl-lsp-server
 	chmod +x $(BUILD_DIR)/sublime-stage/server/tcl-lsp-server
+	@# The bundled SpecTcl loadables go *beside the executable*, which is where
+	@# `tcl_spectcl::discovery::bundled_dir` looks. plugin.py extracts the whole
+	@# `server/` subtree from the .sublime-package ZIP into the cache dir, so
+	@# `server/specs/` lands next to the extracted binary and is found there.
+	@# Without this the shipped EDA syntaxes (Cadence/Xilinx/Quartus/Mentor/
+	@# Synopsys) would highlight commands the server reports as unknown.
+	@mkdir -p $(BUILD_DIR)/sublime-stage/server/specs
+	cp $(SPEC_PACK_SRC)/*.tclspec $(BUILD_DIR)/sublime-stage/server/specs/
 	cp $(LICENSE_SRC) $(BUILD_DIR)/sublime-stage/LICENSE.txt
 	@echo "==> Packaging .sublime-package"
 	cd $(BUILD_DIR)/sublime-stage && zip -r $(ST_PACKAGE) . -x '__pycache__/*'
+	@# Same gate the VSIX and JetBrains packaging carry: a package that ships
+	@# the server without the loadables beside it silently loses every EDA
+	@# vendor command, since those specs have no Rust modules behind them.
+	@set -eu; \
+	entries="$$(unzip -Z1 $(ST_PACKAGE))"; \
+	missing=""; \
+	echo "$$entries" | grep -qx "server/tcl-lsp-server" || missing="$$missing server/tcl-lsp-server"; \
+	for pack in $(notdir $(SPEC_PACK_FILES)); do \
+		echo "$$entries" | grep -qx "server/specs/$$pack" \
+			|| missing="$$missing server/specs/$$pack"; \
+	done; \
+	if [ -n "$$missing" ]; then \
+		echo "Sublime package missing expected server / spec packs:$$missing"; \
+		exit 1; \
+	fi; \
+	echo "==> Sublime package bundles the native server with the shipped spec packs"
 	cp $(ST_PACKAGE) $(BUILD_DIR)/Tcl.sublime-package
 	@echo ""
 	@echo "Built: $(ST_PACKAGE)"

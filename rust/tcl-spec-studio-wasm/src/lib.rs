@@ -209,3 +209,164 @@ pub fn import_package(files_json: &str, dialect: &str) -> String {
     }
     to_string(&tcl_spec_studio::infer::import_package(&files, dialect).to_json())
 }
+
+// ---------------------------------------------------------------------------
+// The pack store — the DSL document is the model
+// ---------------------------------------------------------------------------
+//
+// Every export here takes the `.tclspec` **source** and returns JSON, so the
+// browser holds exactly one piece of state — the document — and the Rust side
+// stays a pure function of it. That is what makes the DSL pane and the form
+// two projections of one thing rather than two stores to reconcile.
+//
+// The one concession to a browser's reality is the cache below. Loading a pack
+// leaks its specs by design (`Box::leak`: a loaded pack is meant to outlive the
+// call, as it does in the server), so re-parsing on every keystroke would grow
+// the page's heap without bound. Keeping the last store keyed on its source
+// text means a burst of queries against an unchanged document parses once.
+
+use std::cell::RefCell;
+
+use tcl_spec_studio::store::{Builtins, PackStore, Resolution};
+
+thread_local! {
+    /// The last document loaded, so repeated queries against it are free.
+    static STORE: RefCell<Option<PackStore>> = const { RefCell::new(None) };
+}
+
+/// Run `body` against `source` as a loaded store, reusing the cached parse
+/// when the document has not changed.
+fn with_store<T>(source: &str, body: impl FnOnce(&PackStore) -> T) -> T {
+    STORE.with(|cell| {
+        let mut slot = cell.borrow_mut();
+        if slot.as_ref().is_none_or(|store| store.source() != source) {
+            *slot = Some(PackStore::from_source(source));
+        }
+        body(slot.as_ref().expect("just loaded"))
+    })
+}
+
+/// Run `body` against a mutable store, publishing whatever document it leaves
+/// behind back into the cache.
+fn with_store_mut<T>(source: &str, body: impl FnOnce(&mut PackStore) -> T) -> (String, T) {
+    STORE.with(|cell| {
+        let mut slot = cell.borrow_mut();
+        if slot.as_ref().is_none_or(|store| store.source() != source) {
+            *slot = Some(PackStore::from_source(source));
+        }
+        let store = slot.as_mut().expect("just loaded");
+        let out = body(store);
+        (store.source().to_owned(), out)
+    })
+}
+
+/// A brand-new, empty pack document named `pack_name` — valid DSL from the
+/// first byte, so the DSL pane never shows a blank page.
+#[wasm_bindgen]
+#[must_use]
+pub fn pack_new(pack_name: &str) -> String {
+    let name = if pack_name.trim().is_empty() {
+        "mylib"
+    } else {
+        pack_name
+    };
+    to_string(&json!({ "source": PackStore::empty(name).source() }))
+}
+
+/// Load `source` into the store and report what it holds.
+///
+/// Returns the sidebar's whole world: the pack name and DSL version, one row
+/// per declared command with its per-command state, every loader notice, and
+/// every collision with the shipped registry.
+#[wasm_bindgen]
+#[must_use]
+pub fn pack_load(source: &str, dialect: &str) -> String {
+    let builtins = Builtins::for_dialect(dialect);
+    with_store(source, |store| {
+        to_string(&Resolution::new(builtins, store).store_view())
+    })
+}
+
+/// The merged view of one command: which of the two definitions is live, and
+/// both of them when the pack and the registry both speak.
+///
+/// `{"error": …}` when neither model knows the name.
+#[wasm_bindgen]
+#[must_use]
+pub fn pack_command(source: &str, name: &str, dialect: &str) -> String {
+    let builtins = Builtins::for_dialect(dialect);
+    with_store(source, |store| {
+        match Resolution::new(builtins, store).view(name) {
+            Some(view) => to_string(&view),
+            None => error(&format!(
+                "`{name}` is in neither the pack nor the {dialect} registry"
+            )),
+        }
+    })
+}
+
+/// Write `draft_json` back as the definition of `name`, returning the new
+/// document.
+///
+/// `overrides` writes the declaration as `command NAME -override { … }` — the
+/// pack's claim on a shipped name.
+///
+/// The reply says two things about how the document was reached. `writeback` is
+/// `"spliced"` when one statement's bytes were replaced and every other byte
+/// (comments included) left alone, or `"rerendered"` when the splice could not
+/// be verified and the whole document was rebuilt. `dropped` names every
+/// property the declaration used to state and no longer does — a hook body the
+/// draft could not carry and the write could not reach — so the loss is
+/// reported to the author instead of happening in silence.
+#[wasm_bindgen]
+#[must_use]
+pub fn pack_set_command(source: &str, name: &str, draft_json: &str, overrides: bool) -> String {
+    let draft = match parse_draft(draft_json) {
+        Ok(draft) => draft,
+        Err(message) => return error(&message),
+    };
+    let (next, write) = with_store_mut(source, |store| store.set_command(name, &draft, overrides));
+    to_string(&json!({
+        "source": next,
+        "writeback": write.how.key(),
+        "dropped": write.dropped,
+        "name": name,
+    }))
+}
+
+/// Drop `name` from the document, returning the new document.
+#[wasm_bindgen]
+#[must_use]
+pub fn pack_remove_command(source: &str, name: &str) -> String {
+    let (next, removed) = with_store_mut(source, |store| store.remove_command(name));
+    if removed {
+        to_string(&json!({ "source": next, "removed": name }))
+    } else {
+        error(&format!("the pack does not declare `{name}`"))
+    }
+}
+
+/// Re-render the whole document from its derived drafts — the pack's canonical
+/// form.
+///
+/// This is the one operation that deliberately discards the author's layout,
+/// so it is an explicit action rather than something a form edit does behind
+/// their back.
+#[wasm_bindgen]
+#[must_use]
+pub fn pack_render(source: &str) -> String {
+    with_store(source, |store| {
+        to_string(&json!({ "source": store.canonical() }))
+    })
+}
+
+/// The structured validation report for `source` — the studio's twin of
+/// `tcl spec check` and the MCP server's `spectcl_check`.
+#[wasm_bindgen]
+#[must_use]
+pub fn pack_validate(source: &str, dialect: &str) -> String {
+    let builtins = Builtins::for_dialect(dialect);
+    with_store(source, |store| {
+        to_string(&Resolution::new(builtins, store).validate())
+    })
+}

@@ -588,13 +588,31 @@ fn the_bundled_eda_loadables_make_their_vendor_commands_known() {
     );
 
     let uri = file_uri(&doc);
-    let diagnostics = lsp.open_ready(&uri, source);
-    let unknown: Vec<String> = diagnostics
-        .iter()
-        .filter(|d| matches!(d.get("code").and_then(Value::as_str), Some("W123" | "W002")))
-        .filter_map(|d| d.get("message").and_then(Value::as_str))
-        .map(ToOwned::to_owned)
-        .collect();
+    lsp.open_ready(&uri, source);
+
+    // Settle rather than take the first publish. The analyser resolves its own
+    // registry and only *looks up* the pack-carrying entry by key
+    // (`Analyser::with_pack_overlay` / `profile_registry`), falling back to the
+    // un-overlaid registry when that entry has not been built yet. So an
+    // analysis racing workspace init can legitimately report every vendor
+    // command unknown, and does under a loaded runner — the honest answer for
+    // the instant it ran, corrected by the re-analysis that follows. What this
+    // test is about is the settled answer, so wait for it; `settled` panics on
+    // timeout, so a pack that never installs still fails here.
+    let unknown_of = |diags: &[Value]| -> Vec<String> {
+        diags
+            .iter()
+            .filter(|d| matches!(d.get("code").and_then(Value::as_str), Some("W123" | "W002")))
+            .filter_map(|d| d.get("message").and_then(Value::as_str))
+            .map(ToOwned::to_owned)
+            .collect()
+    };
+    let diagnostics = lsp.await_diagnostics_settled(
+        &uri,
+        std::time::Duration::from_secs(30),
+        |diags| !unknown_of(diags).iter().any(|m| m.contains("synth_design")),
+    );
+    let unknown = unknown_of(&diagnostics);
 
     assert!(
         !unknown.iter().any(|m| m.contains("synth_design")),

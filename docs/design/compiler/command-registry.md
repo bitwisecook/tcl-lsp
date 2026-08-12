@@ -14,9 +14,12 @@ module exposes a `<pack>_command_specs() -> Vec<CommandSpec>` collector, and
 `CommandRegistry` merges those into a by-name lookup table. Core packs (Tcl,
 stdlib, tcllib, argparse, ticklecharts, itcl, and Tk) are built in by
 `CommandRegistry::build_default`; the remaining dialect packs (iRules, iApps,
-tmsh, Expect, BPF) load on demand through `load_dialect`, and the EDA shells
-through `load_eda_packs`. Registry metadata drives IR lowering, SCCP, GVN,
-taint, side-effects, diagnostics, and code completion.
+tmsh, Expect, BPF) load on demand through `load_dialect`. The EDA shells are
+**not** Rust modules at all — `sdc_base` and the five vendor packs ship as
+bundled `.tclspec` loadables under `specs/` and reach a registry only through
+the `tcl-spectcl` loader (see [`../spec-packs.md`](../spec-packs.md)).
+Registry metadata drives IR lowering, SCCP, GVN, taint, side-effects,
+diagnostics, and code completion.
 
 Source: `rust/tcl-registry/src/spec.rs` (`CommandSpec`, `SubCommand`),
 `rust/tcl-registry/src/registry.rs` (`CommandRegistry`),
@@ -1461,7 +1464,10 @@ is what that looks like from the outside.
   `CommandSpec` ending in `..CommandSpec::DEFAULT`, then declare it (`mod
   foo_;`) and list `foo_::spec(),` in the pack's `<pack>_command_specs()`
   collector.  For a new dialect pack, add its collector to
-  `CommandRegistry::load_dialect` (or `load_eda_packs` for an EDA shell).
+  `CommandRegistry::load_dialect`.  An EDA/vendor *library* is not a Rust
+  module: add or edit its `.tclspec` under `specs/` instead — those packs are
+  the source of truth for their commands and there is no generator to re-run
+  (see [`../spec-packs.md`](../spec-packs.md)).
 - To add taint tracking: set `taint_source` / `taint_transform` / the
   `taint_*_sink*` fields on the spec, and the `TAINT_SOURCE` / `TAINT_SINK`
   trait bits that go with them.

@@ -354,6 +354,51 @@ design above:
   document's "granularity is not restricted, consequences are documented"
   made executable.
 
+### The corpus-validation harness
+
+`rust/tcl-spectcl/tests/spec_corpus.rs` is the gate over **every `.tclspec`
+the repository ships** — the six bundled loadables under `specs/`, the
+eleven ports and the four external drafts under
+[`spec-dsl-examples/`](spec-dsl-examples/). Per pack it loads through the
+real loader, installs into a real per-profile registry, runs the analyser
+and the optimiser over the corpus files in `samples/` that call the pack's
+commands (synthesising an exercising call from a command's own arity and
+argument roles when nothing in the corpus reaches it — which is the case
+for all six vendor packs and all four drafts), drives the hook bodies
+through the sandboxed host at its shipped budgets, and reports commands
+loaded, notices, hooks invoked, quarantines, and load + analysis wall
+clock. Accepted load notices live in `tests/spec_corpus_baseline.txt`,
+compared as a multiset in both directions so a fixed notice must also be
+deleted from the baseline.
+
+Its negative half is `tests/fixtures/hostile.tclspec`: an unbounded loop, a
+dispatch-heavy fold, and a body that panics. All three end as abstention
+with a crash record and a quarantined hook, on a watchdogged thread, so
+"a spec must never be able to take the LSP down" fails in bounded time
+rather than wedging the suite.
+
+Two things it found on its first run, both now true rather than claimed:
+
+- **`object_class` is ratified vocabulary the runtime loader does not
+  implement.** It is in the frozen syntax and in the compiled-in `SpecTcl`
+  self-spec (`commands/spectcl/blocks.rs`), and it appears nowhere in
+  `tcl-spectcl/src/loader.rs` — so all four external drafts lose their
+  handle-returning factories' method tables at load, with a notice each.
+  Nothing under `specs/` uses the statement, which is how the gap survived
+  the EDA migration. It is the largest remaining loader gap and is recorded,
+  with its eleven notices, in the harness's baseline.
+- **A pack could abort the analyser through declarative data alone.**
+  `command_table_effect CreatesAliases` describes `interp alias`'s word
+  grammar and the shipped registry stamps it on that subcommand; the tcllib
+  draft stamps it at command level on `struct::tree` / `struct::graph`,
+  which build their handle through `interp alias` internally. The
+  destructuring helpers `debug_assert`ed the `alias` word, so a debug build
+  aborted, and a release build would have invented an alias out of the
+  command's own arguments. `crate::alias::is_interp_alias_shape` makes that
+  a fact check instead: a call that is not `interp alias`-shaped states no
+  alias. Containment is a hook-body promise in this document; this is the
+  reminder that *data* crosses the same boundary.
+
 ## Compatibility policy
 
 The "ABI" is the DSL vocabulary, and it follows the tolerance rules that

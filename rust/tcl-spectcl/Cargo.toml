@@ -39,5 +39,14 @@ tcl-userdirs = { path = "../tcl-userdirs" }
 rustc-hash = { workspace = true }
 xxhash-rust = { workspace = true }
 
+# The corpus-validation harness (`tests/spec_corpus.rs`) drives the hook host
+# with the shipped engine behind a counting/panic-injecting wrapper, so it
+# needs the engine interface and the tclvm implementation directly. Neither is
+# a library dependency: `hooks.rs` reaches the engine only through
+# `tcl_spec_hooks::tclvm_host`, and that stays the one place naming an engine.
+[dev-dependencies]
+tcl-engine-api = { path = "../tcl-engine-api" }
+tcl-engine-tclvm = { path = "../tcl-engine-tclvm" }
+
 [lints]
 workspace = true

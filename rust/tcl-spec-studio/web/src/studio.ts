@@ -36,6 +36,7 @@ import {
   type Child,
 } from "./dom.js";
 import { asRecord, asString, makeEditors, STRUCTURAL_KINDS, type Editor } from "./editors.js";
+import * as idb from "./idb.js";
 import type {
   CommandIndex,
   DialectEntry,
@@ -45,6 +46,9 @@ import type {
   IndexEntry,
   InferredCommand,
   Json,
+  PackCommandView,
+  PackStoreView,
+  PackWrite,
   Rendered,
   Schema,
   StagedFile,
@@ -64,8 +68,27 @@ const MAX_LISTED = 400;
 /// How many names to offer the browser's native autocomplete at once.
 const MAX_SUGGESTED = 50;
 
-const TABS = ["editor", "rs", "stub", "import", "reference", "share"] as const;
+const TABS = ["editor", "dsl", "rs", "stub", "import", "reference", "share"] as const;
 type Tab = (typeof TABS)[number];
+
+/** How long a keystroke waits before the models are asked to catch up. */
+const SETTLE_MS = 120;
+/** How long a change waits before it is written to browser storage. */
+const SAVE_MS = 250;
+
+/**
+ * The pack under edit.
+ *
+ * `source` is the **whole model**: the `.tclspec` document. `view` is derived
+ * from it by the wasm store on every change and holds nothing the document does
+ * not already say, and `open` is only place-keeping — which of the pack's
+ * commands the form is currently a projection of.
+ */
+interface PackState {
+  source: string;
+  view: PackStoreView | null;
+  open: string | null;
+}
 
 interface State {
   schema: Schema;
@@ -76,6 +99,7 @@ interface State {
   draft: Draft | null;
   files: StagedFile[];
   imported: InferredCommand[];
+  pack: PackState;
 }
 
 let wasm: StudioWasm;
@@ -83,6 +107,15 @@ let state: State;
 let editors: Record<string, Editor>;
 const rendered: { rs: Rendered | null; stub: Rendered | null } = { rs: null, stub: null };
 let renderTimer: number | undefined;
+let saveTimer: number | undefined;
+/**
+ * Whether the draft in the form has been *edited* since it was loaded.
+ *
+ * Loading a command into the form is not an edit, and must not rewrite the
+ * author's file: opening `lsort` and touching nothing has to leave the document
+ * byte for byte as it was.
+ */
+let formDirty = false;
 
 /* Drafts ---------------------------------------------------------------- */
 
@@ -313,18 +346,348 @@ function renderList(): void {
   }
 }
 
+/* The pack store --------------------------------------------------------- */
+
+// One document, many projections. Everything below either *reads* the pack
+// source to paint a surface, or *dispatches an edit* that produces a new pack
+// source — never both, and no surface keeps a copy of the truth.
+
+/** Parse a wasm reply, turning its `{"error": …}` convention into a throw. */
+function unwrap<T extends { error?: string }>(json: string): T {
+  const value = JSON.parse(json) as T;
+  if (value.error) throw new Error(value.error);
+  return value;
+}
+
+/**
+ * Adopt `source` as the pack document and re-render every projection of it.
+ *
+ * `fromDsl` says the edit came from the DSL textarea, which is the one case
+ * where the textarea must *not* be written back to — doing so would move the
+ * author's caret to the end of the file on every keystroke.
+ */
+function setPackSource(
+  source: string,
+  opts: { fromDsl?: boolean; refreshForm?: boolean } = {},
+): void {
+  state.pack.source = source;
+  try {
+    state.pack.view = unwrap<PackStoreView>(wasm.pack_load(source, state.dialect));
+    setStatus("dslStatus", "");
+  } catch (e) {
+    state.pack.view = null;
+    setStatus("dslStatus", `could not read the pack: ${message(e)}`, "err");
+  }
+  if (!opts.fromDsl) byId<HTMLTextAreaElement>("dslText").value = source;
+
+  // A command the document no longer declares cannot stay open.
+  const names = new Set((state.pack.view?.commands ?? []).map((c) => c.name));
+  if (state.pack.open && !names.has(state.pack.open)) state.pack.open = null;
+
+  renderPackList();
+  renderDslReport();
+  if (opts.refreshForm && state.pack.open) refreshOpenCommand();
+  scheduleSave();
+}
+
+/** The pack's file name, used for downloads and the file tray. */
+function packPath(): string {
+  const name = state.pack.view?.pack ?? "";
+  return `${name || "pack"}.tclspec`;
+}
+
+/** Re-read the open command out of the store and rebuild the form from it. */
+function refreshOpenCommand(): void {
+  const name = state.pack.open;
+  if (!name) return;
+  try {
+    const view = unwrap<PackCommandView>(wasm.pack_command(state.pack.source, name, state.dialect));
+    if (view.pack) loadDraft(view.pack, packOrigin(view), name);
+  } catch {
+    // The document no longer declares it; the sidebar already says so.
+    state.pack.open = null;
+  }
+}
+
+/** The sentence above the form explaining which definition is being edited. */
+function packOrigin(view: PackCommandView): string {
+  const where = `Editing ${view.name} in pack ${state.pack.view?.pack ?? ""} — the form and the Pack DSL tab are two views of the same document.`;
+  if (view.origin === "shadowed") {
+    return `${where} ⚠ ${view.name} is also a shipped ${view.dialect} command, and this declaration does not say -override — so an editor would use the shipped spec, not this one.`;
+  }
+  if (view.origin === "override") {
+    return `${where} This declaration replaces the shipped ${view.dialect} command of the same name (-override).`;
+  }
+  return where;
+}
+
+/** Open one of the pack's own commands in the form. */
+function openPackCommand(name: string): void {
+  try {
+    const view = unwrap<PackCommandView>(wasm.pack_command(state.pack.source, name, state.dialect));
+    if (!view.pack) {
+      setStatus("status", `${name} is not declared by this pack`, "err");
+      return;
+    }
+    state.pack.open = name;
+    loadDraft(view.pack, packOrigin(view), name);
+    selectTab("editor");
+    setStatus("status", "");
+    scheduleSave();
+  } catch (e) {
+    setStatus("status", `could not open ${name}: ${message(e)}`, "err");
+  }
+}
+
+/**
+ * Push the form's draft into the document.
+ *
+ * This is the *only* path from a form edit to the DSL text, and it runs on
+ * every settled keystroke — which is what makes "live everywhere" a property of
+ * the architecture rather than a matrix of pairwise syncs.
+ */
+function writeBackOpenCommand(): void {
+  const target = state.pack.open;
+  if (!target || !state.draft || !formDirty) return;
+  const overrides = state.pack.view?.commands.find((c) => c.name === target)?.override ?? false;
+  try {
+    const written = unwrap<PackWrite>(
+      wasm.pack_set_command(state.pack.source, target, JSON.stringify(state.draft), overrides),
+    );
+    // A rename is an ordinary edit: the declaration keeps its place in the
+    // file and the sidebar follows it to its new name.
+    const renamed = typeof state.draft.name === "string" ? state.draft.name : target;
+    state.pack.open = renamed;
+    setPackSource(written.source);
+    // Both of these are losses the author has a right to hear about the moment
+    // they happen, not when they read the file back.
+    if (written.dropped?.length) {
+      setStatus(
+        "dslStatus",
+        `this edit could not keep ${written.dropped.join(", ")} — a hook body the draft model ` +
+          `cannot re-render and the write could not reach. Undo, or restore it by hand in this pane.`,
+        "err",
+      );
+    } else if (written.writeback === "rerendered") {
+      setStatus(
+        "dslStatus",
+        "the whole document was re-rendered — a targeted edit could not be verified, so comments and layout were rebuilt",
+        "err",
+      );
+    }
+  } catch (e) {
+    setStatus("dslStatus", `could not write the edit back: ${message(e)}`, "err");
+  }
+}
+
+/** Copy whatever is in the editor into the pack, and start editing it there. */
+function addDraftToPack(): void {
+  if (!state.draft) return;
+  const name = typeof state.draft.name === "string" ? state.draft.name : "";
+  if (!name) {
+    setStatus("status", "give the command a name first", "err");
+    return;
+  }
+  try {
+    const written = unwrap<PackWrite>(
+      wasm.pack_set_command(state.pack.source, name, JSON.stringify(state.draft), false),
+    );
+    state.pack.open = name;
+    setPackSource(written.source);
+    openPackCommand(name);
+    setStatus("status", `${name} added to pack ${state.pack.view?.pack ?? ""}`, "ok");
+  } catch (e) {
+    setStatus("status", `could not add ${name} to the pack: ${message(e)}`, "err");
+  }
+}
+
+/** Drop a command from the pack. */
+function removeFromPack(name: string): void {
+  try {
+    const written = unwrap<PackWrite>(wasm.pack_remove_command(state.pack.source, name));
+    if (state.pack.open === name) state.pack.open = null;
+    setPackSource(written.source);
+    setStatus("status", `${name} removed from the pack`, "ok");
+  } catch (e) {
+    setStatus("status", message(e), "err");
+  }
+}
+
+/** The always-visible list of the pack's own commands. */
+function renderPackList(): void {
+  const view = state.pack.view;
+  const list = byId("packlist");
+  clear(list);
+  byId("packName").textContent = view?.pack || "—";
+
+  const rows = view?.commands ?? [];
+  byId("packCount").textContent = rows.length
+    ? `${rows.length} command${rows.length === 1 ? "" : "s"}` +
+      (view && view.summary.notices ? ` · ${view.summary.notices} notice(s)` : "")
+    : "empty — add a command, or open a .tclspec on the Pack DSL tab";
+
+  if (!rows.length) return;
+
+  for (const row of rows) {
+    const name = el("span", { class: "nm", text: row.name });
+    const tags = el("span", { class: "state" });
+    const tag = (text: string, kind = "tag"): void => {
+      tags.appendChild(el("span", { class: kind, text }));
+    };
+    tag(`${row.fields_set} field${row.fields_set === 1 ? "" : "s"}`);
+    if (row.subcommands) tag(`${row.subcommands} sub`);
+    if (row.options) tag(`${row.options} opt`);
+    if (row.origin === "override") tag("overrides shipped", "tag live");
+    if (row.origin === "shadowed") tag("shadowed by shipped", "tag warn");
+    if (row.notices) tag(`${row.notices} notice`, "tag warn");
+    if (row.unrenderable) tag(`${row.unrenderable} unreadable`, "tag warn");
+
+    const button = el(
+      "button",
+      {
+        type: "button",
+        "aria-current": state.pack.open === row.name ? "true" : "false",
+        onclick: () => openPackCommand(row.name),
+      },
+      [name, el("span", { class: "sm", text: row.summary || "" }), tags],
+    );
+    const remove = el("button", {
+      type: "button",
+      class: "rm",
+      title: `remove ${row.name} from the pack`,
+      "aria-label": `remove ${row.name} from the pack`,
+      text: "✕",
+      onclick: () => removeFromPack(row.name),
+    });
+    list.appendChild(el("li", { class: "packrow" }, [button, remove]));
+  }
+}
+
+/** The DSL pane's report: what the loader dropped, and what collides. */
+function renderDslReport(): void {
+  const out = byId("dslReport");
+  clear(out);
+  byId("dslPath").textContent = packPath();
+  const view = state.pack.view;
+  if (!view) return;
+
+  if (view.notices.length) {
+    const body = el("div", { class: "body" });
+    for (const notice of view.notices) {
+      body.appendChild(
+        el("div", { class: "dslrow" }, [
+          el("span", { class: "where", text: `${notice.context}:${notice.line}` }),
+          el("span", { class: "what", text: notice.reason }),
+        ]),
+      );
+    }
+    out.appendChild(
+      el("details", { class: "group", open: true }, [
+        el("summary", {}, [
+          document.createTextNode("Dropped by the loader"),
+          el("span", { class: "n", text: `${view.notices.length}` }),
+        ]),
+        body,
+      ]),
+    );
+  }
+
+  if (view.collisions.length) {
+    const body = el("div", { class: "body" });
+    for (const collision of view.collisions) {
+      body.appendChild(
+        el("div", { class: "dslrow" }, [
+          el("span", { class: "where", text: collision.name }),
+          el("span", { class: "what", text: collision.reason }),
+        ]),
+      );
+    }
+    out.appendChild(
+      el("details", { class: "group", open: true }, [
+        el("summary", {}, [
+          document.createTextNode(`Collisions with the shipped ${view.dialect} registry`),
+          el("span", { class: "n", text: `${view.collisions.length}` }),
+        ]),
+        body,
+      ]),
+    );
+  }
+
+  if (!view.notices.length && !view.collisions.length && view.commands.length) {
+    setStatus(
+      "dslStatus",
+      `${view.summary.commands} command(s), nothing dropped, no collision with the shipped ${view.dialect} registry`,
+      "ok",
+    );
+  }
+}
+
+/** Read a `.tclspec` off disk into the store. */
+function readPackFile(files: FileList | null): void {
+  const file = files?.[0];
+  if (!file) return;
+  file.text().then(
+    (text) => {
+      state.pack.open = null;
+      setPackSource(text);
+      selectTab("dsl");
+      setStatus("dslStatus", `loaded ${file.name}`, "ok");
+    },
+    (e: unknown) => setStatus("dslStatus", `could not read ${file.name}: ${String(e)}`, "err"),
+  );
+}
+
+/* Live save -------------------------------------------------------------- */
+
+function scheduleSave(): void {
+  if (saveTimer !== undefined) window.clearTimeout(saveTimer);
+  saveTimer = window.setTimeout(() => {
+    void idb.save({
+      source: state.pack.source,
+      open: state.pack.open,
+      dialect: state.dialect,
+    });
+  }, SAVE_MS);
+}
+
 /* Editing --------------------------------------------------------------- */
 
-function loadDraft(draft: Draft, origin: string): void {
+function message(e: unknown): string {
+  return e instanceof Error ? e.message : String(e);
+}
+
+/**
+ * Load `draft` into the form.
+ *
+ * `packCommand` names the pack declaration this draft came from, or is `null`
+ * when the draft is a registry command or a fresh one — in which case edits go
+ * nowhere near the pack document until the author says "Add to pack".
+ */
+function loadDraft(draft: Draft, origin: string, packCommand: string | null = null): void {
   state.draft = draft;
+  state.pack.open = packCommand;
+  formDirty = false;
   byId("editorSource").textContent = origin;
 
   renderUnrenderableWarning(draft);
 
   const form = byId("form");
   clear(form);
-  buildForm(form, state.schema.command, draft, "command", onDraftChanged);
+  buildForm(form, state.schema.command, draft, "command", onFormEdit);
   renderList();
+  renderPackList();
+  onDraftChanged();
+}
+
+/**
+ * A field in the form actually changed.
+ *
+ * Separate from [`onDraftChanged`] because *loading* a draft also has to
+ * re-render the output panes, and must not be mistaken for an edit — see
+ * [`formDirty`].
+ */
+function onFormEdit(): void {
+  formDirty = true;
   onDraftChanged();
 }
 
@@ -438,7 +801,11 @@ function openCommand(name: string): void {
       setStatus("status", loaded.error, "err");
       return;
     }
-    loadDraft(loaded, `Loaded ${name} from the ${state.dialect} registry.`);
+    loadDraft(
+      loaded,
+      `Loaded ${name} from the ${state.dialect} registry — reference material. ` +
+        `Use “+ Add to pack” to start editing it as one of your own.`,
+    );
     setStatus("status", "");
   } catch (e) {
     setStatus("status", `could not load ${name}: ${String(e)}`, "err");
@@ -447,11 +814,15 @@ function openCommand(name: string): void {
 
 function onDraftChanged(): void {
   if (renderTimer !== undefined) window.clearTimeout(renderTimer);
-  renderTimer = window.setTimeout(renderOutputs, 80);
+  renderTimer = window.setTimeout(renderOutputs, SETTLE_MS);
 }
 
 function renderOutputs(): void {
   if (!state.draft) return;
+  // The document first: every other pane renders from the draft, but the
+  // draft's home is the pack source, and an edit is not real until it is
+  // written there.
+  writeBackOpenCommand();
   renderUnrenderableWarning(state.draft);
   try {
     const pack = byId<HTMLInputElement>("rsPack").value || "tcl";
@@ -846,6 +1217,9 @@ function bindUi(): void {
   byId<HTMLSelectElement>("dialect").addEventListener("change", () => {
     state.dialect = byId<HTMLSelectElement>("dialect").value;
     loadIndex();
+    // The dialect decides what a pack collides with, so the merged world has
+    // to be recomputed too.
+    setPackSource(state.pack.source);
     onDraftChanged();
   });
 
@@ -853,6 +1227,42 @@ function bindUi(): void {
     loadDraft(newCommandDraft(), "A new command — every field at its CommandSpec::DEFAULT.");
     selectTab("editor");
   });
+
+  /* The pack panel and the DSL pane. */
+
+  byId("packAdd").addEventListener("click", addDraftToPack);
+  byId("packNew").addEventListener("click", () => {
+    state.pack.open = null;
+    setPackSource(unwrap<PackWrite>(wasm.pack_new("mylib")).source);
+    selectTab("dsl");
+  });
+
+  // The one place a keystroke edits the model directly. Everything else — the
+  // form, the pack list, the collision report — re-renders from what this
+  // produces.
+  byId("dslText").addEventListener("input", () => {
+    const text = byId<HTMLTextAreaElement>("dslText").value;
+    if (renderTimer !== undefined) window.clearTimeout(renderTimer);
+    renderTimer = window.setTimeout(() => {
+      setPackSource(text, { fromDsl: true, refreshForm: true });
+    }, SETTLE_MS);
+  });
+
+  byId("dslCopy").addEventListener("click", () => copyText(state.pack.source, "dslStatus"));
+  byId("dslDownload").addEventListener("click", () => download(packPath(), state.pack.source));
+  byId("dslAdd").addEventListener("click", () => addFile(packPath(), state.pack.source));
+  byId("dslCanonical").addEventListener("click", () => {
+    try {
+      const out = unwrap<PackWrite>(wasm.pack_render(state.pack.source));
+      setPackSource(out.source, { refreshForm: true });
+      setStatus("dslStatus", "re-rendered from the pack's commands", "ok");
+    } catch (e) {
+      setStatus("dslStatus", `could not re-render: ${message(e)}`, "err");
+    }
+  });
+  const packPicker = byId<HTMLInputElement>("dslPicker");
+  byId("dslOpen").addEventListener("click", () => packPicker.click());
+  packPicker.addEventListener("change", () => readPackFile(packPicker.files));
 
   byId("rsPack").addEventListener("input", onDraftChanged);
   byId("stubMode").addEventListener("change", onDraftChanged);
@@ -924,6 +1334,38 @@ function loadIndex(): void {
   renderList();
 }
 
+/**
+ * Pick up exactly where the last visit left off.
+ *
+ * The persisted record is the pack document plus which command was open, which
+ * is all that is needed because everything else in the studio is derived from
+ * those two. Storage being unavailable is not an error — the page reports that
+ * it will not remember and carries on.
+ */
+async function restoreSession(): Promise<void> {
+  if (!(await idb.available())) {
+    byId("liveSave").textContent =
+      "this browser will not persist your work (IndexedDB unavailable) — download the pack before you leave";
+    byId("liveSave").className = "note warn";
+    return;
+  }
+  const session = await idb.load();
+  if (!session) {
+    byId("liveSave").textContent = "Live save is on: every edit is kept in this browser.";
+    return;
+  }
+  if (session.dialect && session.dialect !== state.dialect) {
+    state.dialect = session.dialect;
+    byId<HTMLSelectElement>("dialect").value = session.dialect;
+    loadIndex();
+  }
+  setPackSource(session.source);
+  byId("liveSave").textContent =
+    `Restored from this browser: pack ${state.pack.view?.pack ?? ""}, ` +
+    `${state.pack.view?.summary.commands ?? 0} command(s).`;
+  if (session.open) openPackCommand(session.open);
+}
+
 function boot(): void {
   const payload = byId("studio-wasm").textContent?.trim() ?? "";
   const binary = Uint8Array.from(atob(payload), (c) => c.charCodeAt(0));
@@ -945,6 +1387,7 @@ function boot(): void {
         draft: null,
         files: [],
         imported: [],
+        pack: { source: "", view: null, open: null },
       };
 
       editors = makeEditors({
@@ -953,7 +1396,7 @@ function boot(): void {
         buildSubcommandForm: (container, draft, onChange) => {
           buildForm(container, schema.subcommand, draft, "subcommand", () => {
             onChange();
-            onDraftChanged();
+            onFormEdit();
           });
         },
       });
@@ -968,6 +1411,7 @@ function boot(): void {
       loadIndex();
       renderFiles();
       buildReference();
+      setPackSource(unwrap<PackWrite>(wasm.pack_new("mylib")).source);
       loadDraft(
         newCommandDraft(),
         "A new command — every field at its CommandSpec::DEFAULT. Pick one on the left to load a real spec.",
@@ -976,6 +1420,7 @@ function boot(): void {
       byId("ver").textContent =
         `${schema.command.length} spec fields · ${state.index.length} commands`;
       setStatus("status", "");
+      void restoreSession();
     },
     (e: unknown) => setStatus("status", `could not start the engine: ${String(e)}`, "err"),
   );

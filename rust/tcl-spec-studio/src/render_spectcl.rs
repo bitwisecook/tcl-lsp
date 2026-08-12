@@ -416,6 +416,17 @@ fn name_word(text: &str) -> String {
     word(text).unwrap_or_else(|| format!("{{{text}}}"))
 }
 
+/// The spelling a `speclib` / `command` header uses for `name`.
+///
+/// Published for [`crate::store`], which rebuilds a header line byte for byte
+/// when it puts an `-override` flag back on a re-rendered command — the flag
+/// lives on the *declaration*, not on `CommandSpec`, so the renderer has
+/// nothing to render it from and the store has to add it afterwards.
+#[must_use]
+pub fn header_word(name: &str) -> String {
+    name_word(name)
+}
+
 /// Push one word onto a row, remembering when it had no faithful spelling.
 fn push_word(row: &mut Vec<String>, lost: &mut bool, spelling: Option<String>) {
     match spelling {

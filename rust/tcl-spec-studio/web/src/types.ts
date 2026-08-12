@@ -127,6 +127,97 @@ export interface StagedFile {
   source: string;
 }
 
+/* The pack store ---------------------------------------------------------- */
+
+/**
+ * Where a name's *effective* definition comes from, from `store::Origin`.
+ *
+ * `shadowed` is the one that matters to an author: the pack declares the name,
+ * a shipped spec already has it, and the pack did not say `-override` — so the
+ * shipped spec is what an editor would use and the pack's declaration is inert.
+ */
+export type PackOrigin = "builtin" | "pack" | "override" | "shadowed";
+
+/** One thing the loader dropped, from `spectcl::Notice`. */
+export interface PackNotice {
+  line: number;
+  context: string;
+  reason: string;
+}
+
+/** A name the pack and the shipped registry both define. */
+export interface PackCollision {
+  name: string;
+  override: boolean;
+  effect: "pack-spec-wins" | "shipped-spec-wins";
+  reason: string;
+}
+
+/** One sidebar row: a pack command and its state at a glance. */
+export interface PackCommandRow {
+  name: string;
+  origin: PackOrigin;
+  override: boolean;
+  summary: string;
+  fields_set: number;
+  subcommands: number;
+  options: number;
+  notices: number;
+  unrenderable: number;
+}
+
+/** The whole store, from `store::Resolution::store_view`. */
+export interface PackStoreView {
+  pack: string;
+  dsl_version: string;
+  dialect: string;
+  commands: PackCommandRow[];
+  notices: PackNotice[];
+  collisions: PackCollision[];
+  summary: {
+    commands: number;
+    notices: number;
+    collisions: number;
+    shadowed_commands: number;
+    bytes: number;
+    hooks?: number;
+  };
+  error?: string;
+}
+
+/** The merged view of one command, from `store::Resolution::view`. */
+export interface PackCommandView {
+  name: string;
+  origin: PackOrigin;
+  editable: boolean;
+  dialect: string;
+  override: boolean;
+  effective: Draft | null;
+  pack: Draft | null;
+  builtin: Draft | null;
+  notices: PackNotice[];
+  error?: string;
+}
+
+/** The reply to a write-back: the new document, and how it was reached. */
+export interface PackWrite {
+  source: string;
+  /** `"spliced"` kept every other byte; `"rerendered"` rebuilt the file. */
+  writeback?: "spliced" | "rerendered";
+  /**
+   * Properties the declaration stated before the edit and does not after it.
+   *
+   * A draft cannot recover a hook body — it holds a function pointer — so a
+   * command re-rendered from its draft would lose the author's Tcl. Most such
+   * statements are carried across verbatim; anything that could not be is named
+   * here so the author is told rather than surprised.
+   */
+  dropped?: string[];
+  name?: string;
+  removed?: string;
+  error?: string;
+}
+
 /**
  * The wasm module's exports.
  *
@@ -143,6 +234,18 @@ export interface StudioWasm {
   render_rs(draftJson: string, pack: string): string;
   render_stub(draftsJson: string, mode: string, dialect: string): string;
   import_package(filesJson: string, dialect: string): string;
+
+  /* The pack store. Every one of these takes the `.tclspec` document, so the
+     browser holds exactly one piece of state and Rust stays a pure function
+     of it — which is what makes the DSL pane and the form two projections of
+     one thing rather than two stores to reconcile. */
+  pack_new(packName: string): string;
+  pack_load(source: string, dialect: string): string;
+  pack_command(source: string, name: string, dialect: string): string;
+  pack_set_command(source: string, name: string, draftJson: string, overrides: boolean): string;
+  pack_remove_command(source: string, name: string): string;
+  pack_render(source: string): string;
+  pack_validate(source: string, dialect: string): string;
 }
 
 /**

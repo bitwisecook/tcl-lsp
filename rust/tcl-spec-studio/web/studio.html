@@ -53,6 +53,18 @@ __STYLES__
 
     <div class="split">
       <div class="card browser" id="browser">
+        <!-- The pack under edit, always visible: defining a library is constant
+             motion between its own commands, not a trip back through a search
+             box. Every row is one click from any other. -->
+        <div class="packpanel" id="packPanel">
+          <label class="fld">Pack <code class="packname" id="packName">—</code></label>
+          <div class="count" id="packCount">—</div>
+          <ul class="cmdlist packlist" id="packlist"></ul>
+          <div class="packactions">
+            <button type="button" class="ghost" id="packAdd" title="Copy the command in the editor into the pack">+ Add to pack</button>
+            <button type="button" class="ghost" id="packNew" title="Start an empty pack">New pack</button>
+          </div>
+        </div>
         <label class="fld">Registry</label>
         <div class="count" id="count">—</div>
         <ul class="cmdlist" id="cmdlist"></ul>
@@ -61,6 +73,7 @@ __STYLES__
       <div>
         <div class="tabs" role="tablist">
           <button type="button" role="tab" id="tab-editor" aria-controls="pane-editor" aria-selected="true">Spec editor</button>
+          <button type="button" role="tab" id="tab-dsl" aria-controls="pane-dsl" aria-selected="false">Pack DSL</button>
           <button type="button" role="tab" id="tab-rs" aria-controls="pane-rs" aria-selected="false">Rendered .rs</button>
           <button type="button" role="tab" id="tab-stub" aria-controls="pane-stub" aria-selected="false">Tcl stub</button>
           <button type="button" role="tab" id="tab-import" aria-controls="pane-import" aria-selected="false">Import a package</button>
@@ -72,6 +85,30 @@ __STYLES__
           <div class="note info" id="editorSource">Pick a command on the left, or start a new one.</div>
           <div id="unrenderable" class="note warn" hidden></div>
           <div id="form"></div>
+        </section>
+
+        <!-- The DSL pane. This textarea is not "an export view of the form":
+             the `.tclspec` document IS the model, and both this and the form
+             are projections of it. Type here and the form follows; edit the
+             form and this follows. A real code editor (Monaco, with the LSP
+             itself as its language server) is a later slice. -->
+        <section class="pane" id="pane-dsl" role="tabpanel" aria-labelledby="tab-dsl" hidden>
+          <p class="hint" style="margin-top:0">The pack's <code>.tclspec</code> source — the studio's one authoritative document. Every other surface is a live projection of it: edit a field in the form and this text updates; edit this text and the form, the pack list, and the collision report all follow. This is also the deliverable.</p>
+          <div class="out">
+            <div class="actions">
+              <button type="button" class="primary" id="dslCopy">Copy</button>
+              <button type="button" class="ghost" id="dslDownload">Download ↓</button>
+              <button type="button" class="ghost" id="dslAdd">Add to files</button>
+              <button type="button" class="ghost" id="dslOpen">Open a .tclspec…</button>
+              <button type="button" class="ghost" id="dslCanonical" title="Re-render the whole document from its commands — this discards your comments and layout">Re-render canonically</button>
+              <span class="path" id="dslPath"></span>
+            </div>
+            <textarea id="dslText" class="dsl" rows="26" spellcheck="false" autocapitalize="off" autocorrect="off" aria-label="Pack .tclspec source"></textarea>
+            <input type="file" id="dslPicker" accept=".tclspec,text/plain">
+            <div class="note info" id="liveSave" style="margin-top:.7rem">Live save is on: every edit is kept in this browser.</div>
+            <div class="status" id="dslStatus"></div>
+            <div id="dslReport"></div>
+          </div>
         </section>
 
         <section class="pane" id="pane-rs" role="tabpanel" aria-labelledby="tab-rs" hidden>
