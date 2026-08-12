@@ -22,7 +22,7 @@ produced at every stage, with field-level detail.
 | **GVN** | Global Value Numbering — an optimisation that detects redundant computations by assigning a canonical identity to each expression.  See `rust/tcl-compiler/src/gvn.rs`. |
 | **IR** | Intermediate Representation — a structured, typed representation of Tcl commands between parsing and code generation.  Defined in `rust/tcl-compiler/src/ir.rs`; every statement kind is a variant of the one `Statement` enum (`rust/tcl-compiler/src/ir.rs`). |
 | **Lattice** | A mathematical structure used in dataflow analysis where values flow from *bottom* (unknown) toward *top* (overdefined).  The SCCP value lattice is `LatticeValue` (`rust/tcl-compiler/src/analyses.rs`); the type lattice is `TypeLattice` (`rust/tcl-compiler/src/types.rs`). |
-| **Liveness** | A dataflow analysis that determines which SSA values are "live" (may still be read) at each program point.  Results are in `FunctionAnalysis.live_in / live_out` (`rust/tcl-compiler/src/analyses.rs`). |
+| **Liveness** | A dataflow analysis that determines which SSA values are "live" (may still be read) at each program point.  The `FunctionAnalysis::live_in / live_out` fields that would hold the results are declared but unpopulated — see the note under [Stage 6](#stage-6--analysis-types-rusttcl-compilersrcanalysesrs) and issue #1406. |
 | **LVT** | Local Variable Table — maps variable names to integer slot indices for fast access inside procedures.  See `LocalVarTable` (`rust/tcl-bytecode/src/lib.rs`). |
 | **Phi node (φ)** | An SSA construct placed at control flow merge points.  `φ(x₁, x₃)` means "use `x₁` if control arrived from predecessor 1, or `x₃` if from predecessor 2."  Represented by `Phi` (`rust/tcl-compiler/src/ssa.rs`). |
 | **SCCP** | Sparse Conditional Constant Propagation — a combined constant propagation and unreachable-code analysis that runs over the SSA graph.  Implemented in `sccp()` (`rust/tcl-compiler/src/sccp.rs`), which returns an `SccpResult`; the lattice types live in `rust/tcl-compiler/src/analyses.rs`. |
@@ -61,7 +61,7 @@ Source text
 │ 3. IR Lowering   lower_to_ir()            → ir::Module               │  rust/tcl-compiler/src/lowering/mod.rs
 │ 4. CFG           build_cfg_function()     → cfg::Function            │  rust/tcl-compiler/src/cfg_builder/mod.rs
 │ 5. SSA           build_ssa()              → SsaFunction              │  rust/tcl-compiler/src/ssa.rs
-│ 6. Core analyses sccp / type_infer / …    → FunctionAnalysis         │  rust/tcl-compiler/src/analyses.rs
+│ 6. Core analyses sccp / type_infer / …    → FunctionUnit / SccpResult│  rust/tcl-compiler/src/sccp.rs
 │ 7. Codegen       codegen_module()         → ModuleAsm                │  rust/tcl-compiler/src/codegen/emitter/mod.rs
 └───────────────────────────────────────────────────────────────────────┘
 ```
