@@ -12799,6 +12799,18 @@ impl Backend {
     /// notice names — so this is the natural surface for it: the author sees
     /// "unknown property `arty` dropped" on the line they typed it, in the
     /// editor they typed it in, exactly as they would a diagnostic on Tcl code.
+    ///
+    /// # Known limitation: an *open* pack file
+    ///
+    /// `.tclspec` is in `TCL_SOURCE_EXTENSIONS` (a pack is one Tcl script), so
+    /// an open pack buffer is also an analysed document, and `publishDiagnostics`
+    /// replaces a URI's whole set. The two publishers therefore overwrite each
+    /// other: whichever ran last wins, so editing an open pack shows the
+    /// analyser's view until the next reload restores the notices. Fixing it
+    /// properly means merging pack notices into the document's diagnostic set
+    /// on both the push and the pull path (which has its own cache) rather than
+    /// publishing them separately — worth doing, and deliberately not smuggled
+    /// into this change.
     async fn publish_spec_pack_notices(&self, packs: &tcl_spectcl::PackSet) {
         use tower_lsp_server::ls_types::{Diagnostic, DiagnosticSeverity, NumberOrString};
 
