@@ -548,6 +548,27 @@ impl WasmEmitter {
         }
     }
 
+    /// Run one emission alternative, rolling the body back if it declines.
+    ///
+    /// A declining `try_*` emitter is not necessarily a no-op: it may append
+    /// part of its sequence before reaching a word it cannot prove. Anything
+    /// that falls through to another alternative must therefore undo the
+    /// partial work first, or the abandoned prefix stays in the body with its
+    /// operands stranded on the operand stack.
+    fn attempt(&mut self, emit: impl FnOnce(&mut Self) -> bool) -> bool {
+        let body_len = self.body.len();
+        let data_len = self.data.len();
+        let data_offset = self.data_offset;
+        if emit(self) {
+            true
+        } else {
+            self.body.truncate(body_len);
+            self.data.truncate(data_len);
+            self.data_offset = data_offset;
+            false
+        }
+    }
+
     fn try_emit_typed_statement(&mut self, statement: &Statement) -> bool {
         let Some(aot) = self.general_imports().aot else {
             return false;
@@ -593,8 +614,19 @@ impl WasmEmitter {
             Statement::Call {
                 span, args, tokens, ..
             } => {
-                self.try_emit_direct_operation(*span, statement, args, tokens.as_ref())
-                    || self.try_emit_leaf_invocation(*span)
+                // Each alternative must be transactional. A `try_*` may emit
+                // part of its sequence before hitting a word it cannot prove
+                // and declining — `try_emit_direct_operation` boxes leading
+                // arguments before it reaches, say, an `$arr(key)` it does not
+                // handle. `emit_typed_statement` only rolls back when the whole
+                // chain declines, so without this a decline followed by a
+                // successful fallback would leave the half-emitted prefix in
+                // the body and its operands stranded on the stack, producing a
+                // module wasmtime rejects with "values remaining on stack at
+                // end of block".
+                self.attempt(|emitter| {
+                    emitter.try_emit_direct_operation(*span, statement, args, tokens.as_ref())
+                }) || self.attempt(|emitter| emitter.try_emit_leaf_invocation(*span))
             }
             _ => false,
         }
@@ -1241,17 +1273,7 @@ impl WasmEmitter {
 
 impl Emit for WasmEmitter {
     fn emit_typed_statement(&mut self, statement: &Statement, _source: &str) -> bool {
-        let body_len = self.body.len();
-        let data_len = self.data.len();
-        let data_offset = self.data_offset;
-        if self.try_emit_typed_statement(statement) {
-            true
-        } else {
-            self.body.truncate(body_len);
-            self.data.truncate(data_len);
-            self.data_offset = data_offset;
-            false
-        }
+        self.attempt(|emitter| emitter.try_emit_typed_statement(statement))
     }
 
     fn emit_command(&mut self, source_text: &str) {

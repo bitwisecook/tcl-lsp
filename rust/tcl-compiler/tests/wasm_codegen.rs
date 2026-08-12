@@ -746,6 +746,18 @@ fn wasmtime_validates_analysed_argv_modules() {
             "for {set i 0} {$i < 3} {incr i} {lappend out [string index $s $i]}\n",
         ),
         ("argv-mixed-decline", "string length {*}$args\nlist a b\n"),
+        // A *partially emitted* direct attempt that then declines, with the
+        // argv path picking the statement up. The direct proc-call
+        // specialisation boxes the literal `2` before it reaches `$a(x)`, a
+        // word it does not handle. Unless that prefix is rolled back it stays
+        // in the body with its operand stranded, and wasmtime rejects the
+        // module with "values remaining on stack at end of block". Reported on
+        // #1413; a behavioural test cannot catch it because the statement's
+        // result is still correct — only validation sees the malformed body.
+        (
+            "argv-after-partially-emitted-direct-decline",
+            "proc add {b c} {return [expr {$b + $c}]}\nset a(x) 4\nputs [add 2 $a(x)]\n",
+        ),
     ] {
         validate(name, &mut compile_wasm_analysed(src));
     }
