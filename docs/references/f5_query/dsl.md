@@ -20,26 +20,31 @@ quick-start lives in
 ## Module map
 
 ```
-dialects/f5/query/
-  __init__.py        # public API: run_query, parse_query, format_*
-  errors.py          # QueryError hierarchy (lex / parse / eval / edit / builtin)
-  values.py          # ObjectRef, PathRef, Stream, Root, FieldSlot
-  source_map.py      # offset → (line, column) lookup
-  lexer.py           # hand-rolled tokeniser
-  ast.py             # frozen-dataclass AST node types
-  parser.py          # recursive-descent parser
-  projection.py      # BigipConfig → navigable Container tree
-  graph.py           # refs / referenced_by — forwards to dialects.f5.bigip.grep
-  builtins.py        # @_register'd function library
-  evaluator.py       # walks the AST, collects edits, returns values
-  edit_plan.py       # routes identity writes through rename_object,
-                     # detects conflicts, applies bottom-up
-  output.py          # auto / scf / raw / paths / json renderers
-  runner.py          # high-level orchestration used by the CLI verb
-  grammar.py         # plain-text grammar for --help-dsl
-  examples.py        # worked-example cookbook for --help-examples
-tooling/f5/verbs/query.py
-                     # argparse plumbing + custom help actions
+rust/tcl-bigip-query/src/
+  lib.rs             # public API: run_query, QueryOptions, QueryResult
+  errors.rs          # error hierarchy (lex / parse / eval / edit / builtin)
+  value.rs           # runtime value model
+  lexer.rs           # tokeniser
+  ast.rs             # AST node types
+  parser.rs          # recursive-descent parser
+  projection.rs      # lazy projection over a parsed BigipConfig
+  builtins/          # the builtin function library, one module per family
+                     # (string, math, net, time_dt, regex_str, graph, files, …)
+  special.rs         # special-form builtins (select, map, the paths family, …)
+  eval.rs            # walks the AST against a root value
+  edit_plan.rs       # collects, routes, and applies query-driven source edits
+  rewrite.rs         # token-bounded source rewriter (the rename half)
+  output.rs          # renders evaluator output for the verb
+  renderers/         # pluggable output renderers
+  jsonfmt.rs         # canonical JSON serialisation of values
+  inputs.rs          # structured-input parsers for side-inputs
+  probes.rs, probes/ # live network-probe layer
+  architecture.rs    # multi-device tier relationships
+  runner.rs          # high-level orchestration used by the CLI verb
+  grammar.rs         # plain-text grammar for --help-dsl
+  examples.rs        # worked-example cookbook for --help-examples
+  manual.rs          # grammar + builtins + cookbook for --help-manual
+rust/f5-cli/src/     # the `f5-query` binary: CLI plumbing and help actions
 ```
 
 ## Grammar

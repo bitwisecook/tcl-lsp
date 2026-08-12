@@ -114,10 +114,9 @@ surface.
   extension points.  User-facing reference (grammar, every
   builtin, sample configs, F5 KB cross-references) lives at
   [`docs/references/f5_query/`](../references/f5_query/); the
-  alphabetical builtin catalogue there is generated from the
-  registry by
-  `scripts/dev/gen_query_builtins_doc.py`
-  and asserted up-to-date by CI.
+  alphabetical builtin catalogue there comes from the builtin registry
+  in `rust/tcl-bigip-query/src/builtins/`, which is also what
+  `f5 query --help-manual` renders.
 - [bigip-registry-architecture.md](bigip-registry-architecture.md) —
   registry contract for object kinds, value specs (parse / project
   / render / references), source-range fidelity, and the pilot
@@ -126,7 +125,7 @@ surface.
   every list-valued property without ``list_operators``, classified
   by emission style (real list / sub-block / uncertain), backing
   the curated override layer in
-  ``dialects/f5/bigip/registry/specs/_base.py``.
+  ``rust/tcl-registry/src/bigip/``.
 - [f5-query-renderer-contract.md](f5-query-renderer-contract.md) —
   decorator-based renderer plugin registry that powers
   ``f5 q --render NAME``: ``RendererSpec`` shape, source-text
