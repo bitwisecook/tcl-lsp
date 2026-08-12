@@ -148,6 +148,10 @@ pub(super) enum WasmWordPlan {
 pub(super) enum WasmLeafInvokeDecline {
     /// Lowering retained no structured word snapshot for the statement.
     MissingCommandTokens,
+    /// Two statements share one source span, so neither can be told apart by
+    /// the span-keyed plan table. Both fall back rather than risk one
+    /// statement executing the other's plan.
+    DuplicateStatementSpan,
     /// The word sequence has no command head.
     MissingCommandHead,
     /// `{*}` expansion needs runtime Tcl list processing.
@@ -174,6 +178,7 @@ impl WasmLeafInvokeDecline {
     pub(super) const fn as_str(self) -> &'static str {
         match self {
             Self::MissingCommandTokens => "missing-command-tokens",
+            Self::DuplicateStatementSpan => "duplicate-statement-span",
             Self::MissingCommandHead => "missing-command-head",
             Self::ArgumentExpansion => "argument-expansion",
             Self::OpaqueWord => "opaque-word",

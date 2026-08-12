@@ -1615,7 +1615,7 @@ fn plan_leaf_statement(
         facts.leaf_invocations.remove(&key);
         facts
             .leaf_declines
-            .insert(key, WasmLeafInvokeDecline::MissingCommandTokens);
+            .insert(key, WasmLeafInvokeDecline::DuplicateStatementSpan);
         return;
     }
     let Some(tokens) = tokens.filter(|tokens| tokens.words_align_with_argv_text()) else {
