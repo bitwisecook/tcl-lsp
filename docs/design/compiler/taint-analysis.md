@@ -83,9 +83,9 @@ Colours compose with `|` (bitwise OR); mitigations join by `&`
 
 Some commands transform taint colours:
 - `string tolower` on tainted data: passes taint through unchanged (no sanitisation).
-- `URI::encode` on tainted data: adds `URL_ENCODED` colour.
-- `b64encode` on tainted data: adds `B64_ENCODED` colour.
-- `HTML::encode` on tainted data: adds `HTML_ESCAPED` colour.
+- `URI::encode` on tainted data: adds `URL_ENCODED | CRLF_FREE`.
+- `HTML::encode` / `HTML::escape` on tainted data: adds
+  `HTML_ESCAPED | CRLF_FREE`.
 
 `transform_colour` in `rust/tcl-compiler/src/taint.rs` applies these
 transforms, reading the command's `taint_transform` colour from the
@@ -176,8 +176,9 @@ set lower [string tolower $host]
 HTTP::respond 200 content "<h1>$lower</h1>"
 ```
 
-1. `HTTP::header value` is a taint source → `host` is `TAINTED_TOP`.
-2. `string tolower $host` → passes taint through → `lower` is `TAINTED_TOP`.
+1. `HTTP::header value` is a taint source → `host` carries `TAINTED` with
+   no mitigation colours.
+2. `string tolower $host` → passes taint through → `lower` carries the same.
 3. `HTTP::respond` body arg is a sink → `IRULE3001` ("XSS: tainted value
    in HTTP response body").
 
