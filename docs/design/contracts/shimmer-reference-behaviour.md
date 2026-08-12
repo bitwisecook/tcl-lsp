@@ -15,8 +15,10 @@ Two further codes sit in the same module but answer different questions:
 - **S103** — mutation of a **potentially shared** value. Not a
   representation change at all: C Tcl duplicates a shared value before
   writing it, so `lappend` / `lset` / `dict set` on a value with refcount ≥ 2
-  is an O(n) whole-value copy every call. Detected by `shimmer::sharing`
-  ([bounded to a deliberately tight pattern](#s103-scope)), severity Hint.
+  is an O(n) whole-value copy every call. Detected by `shimmer::sharing`,
+  severity Hint. It is a deliberate under-approximation: it fires only where
+  the pass can see *both* holders, starting from a same-block pure-copy
+  assignment (`set b $a`).
 - **S110** — a **correctness** shimmer, distinct from the S100/S101/S102
   performance family: a byte array forced through a character-string
   operation and written back to a byte sink silently re-encodes every byte
@@ -40,9 +42,18 @@ Each detector diagnostic maps to specific C functions that trigger `FreeInternal
 | LIST ↔ DICT oscillation | Bidirectional `SetListFromAny` / `SetDictFromAny` | `tclListObj.c`, `tclDictObj.c` |
 | BOOLEAN → INT promotion | `TclGetIntFromObj` (cheap path) | `tclObj.c` |
 
-### Numeric subtype hierarchy
+### Numeric interchangeability
 
-BOOLEAN → INT promotion is **not** flagged because it matches Tcl 9.0's O(1) conversion path. The `_is_numeric_compatible` function implements: BOOLEAN ⊆ INT ⊆ NUMERIC, DOUBLE ⊆ NUMERIC.
+BOOLEAN → INT promotion is **not** flagged because it matches Tcl 9.0's O(1)
+conversion path. `shimmer::hints::is_numeric_compatible(current, expected)`
+implements this as a **symmetric equivalence class**, not a subtype
+hierarchy: `Boolean`, `Int`, and `Numeric` are mutually interchangeable in
+arithmetic and boolean contexts, in either direction, and no intrep
+conversion is needed between any pair of them.
+
+`Double` is deliberately **not** in that class. A `Double` is compatible only
+with itself, so reading a double-typed value where an int is expected (or
+vice versa) is still a shimmer.
 
 ### When shimmering does NOT occur
 
@@ -148,6 +159,11 @@ dedicated `Statement::Incr` node.
 
 ## Cross-links
 
-- Implementation: `rust/tcl-compiler/src/shimmer/` (`hints.rs`, `use_site.rs`, `thunking.rs`, `byte_array.rs`, `phi.rs`, `graph.rs`, `span.rs`).
+- Implementation: `rust/tcl-compiler/src/shimmer/` — `mod.rs` (the
+  per-unit entry points), `hints.rs` (registry hints, numeric
+  compatibility, the uncommitted-first-conversion rule), `use_site.rs`,
+  `expr.rs`, `commit.rs` (the committed-intrep dataflow), `thunking.rs`,
+  `sharing.rs` (S103), `byte_array.rs` (S110), `phi.rs`, `graph.rs`,
+  `span.rs`.
 - Registry data: `rust/tcl-registry/src/commands/**` (`arg_types` on each `CommandSpec`/`SubCommand`).
 - Suppression: `rust/tcl-compiler/src/analyser/utils.rs` (`parse_noqa_line_suppressions`, `apply_preceding_noqa`), consumed by `lift_compiler_diagnostics` in `rust/tcl-lsp-server/src/lib.rs`.
