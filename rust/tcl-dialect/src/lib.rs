@@ -52,8 +52,8 @@ pub use grammar::{BracedVarStyle, LexerGrammar};
 pub use library::{LibraryPin, LibraryVersion, LibraryVersionOverrides, VersionKey};
 pub use profile::DialectProfile;
 pub use version::{
-    ByteStringEncoding, PackagePrefer, TclVersion, Ternary, compare_versions, exact_requirement,
-    select_package_version, version_is_stable, version_satisfies,
+    ByteStringEncoding, PackagePrefer, StringCharacterModel, TclVersion, Ternary, compare_versions,
+    exact_requirement, select_package_version, version_is_stable, version_satisfies,
 };
 
 /// Crate version string.

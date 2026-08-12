@@ -61,6 +61,26 @@ pub enum SemanticOperationId {
 }
 
 impl SemanticOperationId {
+    /// Stable category spelling for compiler and Explorer evidence.
+    #[must_use]
+    pub const fn kind_str(self) -> &'static str {
+        match self {
+            Self::Invoke => "invoke",
+            Self::Intrinsic(_) => "intrinsic",
+            Self::StructuredLowering(_) => "structured-lowering",
+        }
+    }
+
+    /// Stable operation identity inside [`Self::kind_str`]'s category.
+    #[must_use]
+    pub const fn detail_str(self) -> Option<&'static str> {
+        match self {
+            Self::Invoke => None,
+            Self::Intrinsic(intrinsic) => Some(intrinsic.as_str()),
+            Self::StructuredLowering(lowering) => Some(lowering.as_str()),
+        }
+    }
+
     /// Return the Tcl error context contributed when this operation's body is
     /// lowered inline.
     ///

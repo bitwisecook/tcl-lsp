@@ -30,7 +30,7 @@
 
 use std::rc::Rc;
 
-use tcl_syntax::value::{ValueError, ValueOps};
+use tcl_syntax::value::{ValueError, ValueOps, string_char_len};
 
 use crate::interp::Vm;
 use crate::value::Value;
@@ -94,6 +94,10 @@ impl ValueOps for Vm {
 
     fn as_str(&mut self, v: &Value) -> Rc<str> {
         v.to_str()
+    }
+
+    fn char_len(&mut self, v: &Value) -> usize {
+        string_char_len(&v.to_str(), self.runtime_version())
     }
 
     fn as_int(&mut self, v: &Value) -> Result<i64, ValueError> {

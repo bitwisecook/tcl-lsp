@@ -125,3 +125,37 @@ fn architecture_doc_does_not_advertise_removed_backend_choices() {
         );
     }
 }
+
+#[test]
+fn architecture_docs_do_not_advertise_unimplemented_package_or_completion_coverage() {
+    let root = workspace_root();
+    let codegen = source(&root, "docs/design/compiler/wasm-codegen.md");
+    assert!(
+        !codegen.contains("The optional package linker scans"),
+        "WASM documentation must not advertise the future package-driven linker"
+    );
+    assert!(
+        !codegen.contains("full Tcl completion flow explicit"),
+        "bounded executable IR must not be documented as complete Tcl completion coverage"
+    );
+    assert!(codegen.contains("There is currently no compiler package-require scan"));
+    assert!(codegen.contains("Already-lowered operations and opaque"));
+}
+
+#[test]
+fn semantic_aot_contract_keeps_code_changing_passes_default_off() {
+    let root = workspace_root();
+    let contract = source(&root, "docs/design/compiler/semantic-aot-optimisation.md");
+    for required in [
+        "Every new code-changing semantic AOT pass is disabled by default",
+        "Each control must be independently disableable",
+        "Word evaluation precedes the dispatch guard",
+        "`TclType::Int` does not mean WASM `i32` or `i64`",
+        "Command-specific knowledge belongs in `CommandRegistry`",
+    ] {
+        assert!(
+            contract.contains(required),
+            "semantic AOT contract lost required invariant: {required}"
+        );
+    }
+}

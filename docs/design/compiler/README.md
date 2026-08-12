@@ -14,6 +14,9 @@ User-facing compiler troubleshooting and how-tos live in
   contract for the shared semantic IR, value/cell/world SSA, registry
   boundaries, exact completion and trace flow, target-family lowering, and
   current backend contracts.
+- [semantic-aot-optimisation.md](semantic-aot-optimisation.md) — default-off
+  contract for guarded semantic AOT passes, mixed plans, materialisation,
+  native numeric lowering, and Tcl's dynamic dispatch surfaces.
 - [compiler-pipeline-overview.md](compiler-pipeline-overview.md) — stage
   map and fact hand-off boundaries.
 - [compiler-systems-overview.md](compiler-systems-overview.md) —
@@ -142,6 +145,8 @@ User-facing compiler troubleshooting and how-tos live in
 - [wasm-codegen.md](wasm-codegen.md) — shared semantic-to-WASM boundary,
   executable-IR generic argv transport, typed semantic declines, the single
   Rust emitter, and the shared runtime ABI.
+- [wasm-extensions.md](wasm-extensions.md) — current embedded-script boundary
+  and the explicitly future package-driven extension design.
 - [ebpf-backend.md](ebpf-backend.md) — BPF-Tcl layering, typed core and BPF-IR,
   current `rbpf` codegen ABI, event/framework capabilities, verified design
   issues, real-world use cases, and the production-kernel roadmap.

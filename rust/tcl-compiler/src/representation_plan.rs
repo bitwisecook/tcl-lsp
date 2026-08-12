@@ -18,6 +18,8 @@ use std::collections::BTreeMap;
 use std::error::Error;
 use std::fmt;
 
+pub use tcl_runtime_api::guard::{GuardDomain, GuardDomains, GuardIdentity};
+
 /// Whether a dual-representation value can be mutated without copying.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum SharingState {
@@ -677,70 +679,56 @@ impl SuspensionPlan {
     }
 }
 
-/// Runtime domain whose stability protects a speculative fast path.
-#[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
-pub enum GuardDomain {
-    /// Command definition, rename, and alias state.
-    CommandEnvironment,
-    /// The handler selected when ordinary command lookup fails.
-    UnknownHandling,
-    /// Namespace resolution and namespace membership state.
-    Namespace,
-    /// Variable trace state.
-    VariableTrace,
-    /// Command execution trace state.
-    CommandTrace,
-    /// Object and method dispatch state.
-    ObjectDispatch,
-    /// Safe- or child-interpreter policy and command state.
-    Interpreter,
-}
-
-/// An epoch comparison that must hold before entering a fast path.
+/// An offline request for a runtime-issued speculative-execution guard.
+///
+/// The compiler embeds a stable implementation identity and the canonical set
+/// of mutable domains the fast path depends on. The runtime verifies the live
+/// identity, snapshots future epochs, and issues an opaque token immediately
+/// before entering the fast path; offline planning never predicts an epoch.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct GuardCondition {
-    /// Semantic state domain being guarded.
-    domain: GuardDomain,
-    /// Epoch value observed when the fast path was planned.
-    expected_epoch: u64,
+    /// Stable implementation contract expected by the specialised path.
+    expected_identity: GuardIdentity,
+    /// Mutable state domains that must remain stable for the fast path.
+    domains: GuardDomains,
 }
 
 impl GuardCondition {
-    /// Construct an epoch condition inside the common-analysis layer.
+    /// Construct an offline guard request inside the common-analysis layer.
     ///
     /// A backend may inspect and emit a guard selected by common analysis, but
     /// cannot obtain the unforgeable provenance required to manufacture the
     /// semantic evidence that authorises its own fast path.
     #[must_use]
     pub const fn from_analysis(
-        domain: GuardDomain,
-        expected_epoch: u64,
+        expected_identity: GuardIdentity,
+        domains: GuardDomains,
         _provenance: &crate::semantic_analysis::CommonAnalysisProvenance,
     ) -> Self {
         Self {
-            domain,
-            expected_epoch,
+            expected_identity,
+            domains,
         }
     }
 
-    /// Semantic state domain protected by this condition.
+    /// Stable implementation contract expected by the specialised path.
     #[must_use]
-    pub const fn domain(&self) -> GuardDomain {
-        self.domain
+    pub const fn expected_identity(&self) -> GuardIdentity {
+        self.expected_identity
     }
 
-    /// Epoch observed by common analysis when the fast path was planned.
+    /// Canonical mutable-domain coverage requested from the runtime.
     #[must_use]
-    pub const fn expected_epoch(&self) -> u64 {
-        self.expected_epoch
+    pub const fn domains(&self) -> GuardDomains {
+        self.domains
     }
 }
 
 /// A speculative implementation paired with its exact semantic fallback.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct GuardedPlan<Fast, Slow> {
-    /// Conditions required to select `fast` safely.
-    guards: Vec<GuardCondition>,
+    /// Offline runtime guard request required to select `fast` safely.
+    guard: GuardCondition,
     /// Specialised path selected when every guard succeeds.
     fast: Fast,
     /// Semantically exact path selected when any guard fails.
@@ -750,17 +738,14 @@ pub struct GuardedPlan<Fast, Slow> {
 /// Failure to form a useful guarded plan.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum GuardedPlanError {
-    /// A guarded fast path must name at least one invalidation condition.
+    /// A guarded fast path must cover at least one invalidation domain.
     MissingGuard,
-    /// The same semantic domain cannot be guarded by conflicting epochs.
-    ConflictingEpochs,
 }
 
 impl fmt::Display for GuardedPlanError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::MissingGuard => f.write_str("guarded plan requires at least one guard"),
-            Self::ConflictingEpochs => f.write_str("guard domain has conflicting expected epochs"),
         }
     }
 }
@@ -769,34 +754,26 @@ impl Error for GuardedPlanError {}
 
 impl<Fast, Slow> GuardedPlan<Fast, Slow> {
     /// Construct a guarded plan inside the common-analysis layer after checking
-    /// its guard set.
+    /// its offline runtime guard request.
     ///
     /// Backends receive the resulting immutable plan through accessors. They
     /// cannot create guard evidence and feed it back into backend selection.
     pub fn from_analysis(
-        mut guards: Vec<GuardCondition>,
+        guard: GuardCondition,
         fast: Fast,
         slow: Slow,
         _provenance: &crate::semantic_analysis::CommonAnalysisProvenance,
     ) -> Result<Self, GuardedPlanError> {
-        if guards.is_empty() {
+        if guard.domains().is_empty() {
             return Err(GuardedPlanError::MissingGuard);
         }
-        guards.sort_unstable_by_key(|guard| (guard.domain, guard.expected_epoch));
-        for pair in guards.windows(2) {
-            if pair[0].domain == pair[1].domain && pair[0].expected_epoch != pair[1].expected_epoch
-            {
-                return Err(GuardedPlanError::ConflictingEpochs);
-            }
-        }
-        guards.dedup();
-        Ok(Self { guards, fast, slow })
+        Ok(Self { guard, fast, slow })
     }
 
-    /// Canonically ordered conditions protecting the fast path.
+    /// Canonical runtime guard request protecting the fast path.
     #[must_use]
-    pub fn guards(&self) -> &[GuardCondition] {
-        &self.guards
+    pub const fn guard(&self) -> &GuardCondition {
+        &self.guard
     }
 
     /// Specialised path selected when every guard succeeds.
@@ -944,32 +921,37 @@ mod tests {
     }
 
     #[test]
-    fn guarded_plan_rejects_conflicting_epochs() {
+    fn guarded_plan_rejects_an_empty_runtime_guard_request() {
         let provenance = crate::semantic_analysis::test_common_analysis_provenance();
-        let guards = vec![
-            GuardCondition::from_analysis(GuardDomain::CommandEnvironment, 7, &provenance),
-            GuardCondition::from_analysis(GuardDomain::CommandEnvironment, 8, &provenance),
-        ];
+        let guard = GuardCondition::from_analysis(
+            GuardIdentity::new(1, 7),
+            GuardDomains::EMPTY,
+            &provenance,
+        );
         assert_eq!(
-            GuardedPlan::from_analysis(guards, "direct", "invoke", &provenance),
-            Err(GuardedPlanError::ConflictingEpochs)
+            GuardedPlan::from_analysis(guard, "direct", "invoke", &provenance),
+            Err(GuardedPlanError::MissingGuard)
         );
     }
 
     #[test]
-    fn guarded_plan_canonicalises_order_and_identical_duplicates() {
+    fn guarded_plan_carries_identity_and_canonical_domain_coverage() {
         let provenance = crate::semantic_analysis::test_common_analysis_provenance();
-        let namespace = GuardCondition::from_analysis(GuardDomain::Namespace, 2, &provenance);
-        let commands =
-            GuardCondition::from_analysis(GuardDomain::CommandEnvironment, 7, &provenance);
-        let plan = GuardedPlan::from_analysis(
-            vec![namespace, commands, namespace],
-            "direct",
-            "invoke",
+        let identity = GuardIdentity::new(1, 7);
+        let guard = GuardCondition::from_analysis(
+            identity,
+            GuardDomains::one(GuardDomain::Namespace).with(GuardDomain::CommandEnvironment),
             &provenance,
-        )
-        .unwrap();
+        );
+        let plan = GuardedPlan::from_analysis(guard, "direct", "invoke", &provenance).unwrap();
 
-        assert_eq!(plan.guards(), [commands, namespace]);
+        assert_eq!(plan.guard().expected_identity(), identity);
+        assert!(
+            plan.guard()
+                .domains()
+                .contains(GuardDomain::CommandEnvironment)
+        );
+        assert!(plan.guard().domains().contains(GuardDomain::Namespace));
+        assert!(!plan.guard().domains().contains(GuardDomain::ObjectDispatch));
     }
 }

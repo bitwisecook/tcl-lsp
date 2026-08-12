@@ -24,7 +24,8 @@
 //! present) validates the bytes for full structural validity.
 
 use tcl_compiler::codegen::wasm::{
-    RESERVED_DATA_BASE, WasmCompileOptions, WasmModule, compile_wasm as compile_wasm_unit,
+    RESERVED_DATA_BASE, SemanticOptimisationConfig, SemanticOptimisationPassId, WasmCompileOptions,
+    WasmModule, compile_wasm as compile_wasm_unit,
 };
 use tcl_compiler::compilation_unit::CompilationUnit;
 use tcl_registry::CommandRegistry;
@@ -60,7 +61,43 @@ fn compile_wasm_based(source: &str, data_base: i64) -> WasmModule {
 fn compile_wasm_analysed(source: &str) -> WasmModule {
     let registry = CommandRegistry::build_default();
     let unit = CompilationUnit::build_for(source, &registry, false);
-    compile_wasm_unit(&unit, &registry, WasmCompileOptions::hosted()).into_module()
+    compile_wasm_unit(
+        &unit,
+        &registry,
+        WasmCompileOptions::hosted().with_semantic_optimisations(
+            SemanticOptimisationConfig::new()
+                .with_enabled(SemanticOptimisationPassId::LegacyAnalysisSpecialisation),
+        ),
+    )
+    .into_module()
+}
+
+#[test]
+fn default_compilation_keeps_legacy_analysis_specialisations_disabled() {
+    let registry = CommandRegistry::build_default();
+    let unit = CompilationUnit::build_for("set x 1\n", &registry, false);
+    let mut module =
+        compile_wasm_unit(&unit, &registry, WasmCompileOptions::hosted()).into_module();
+    let wat = module.to_wat();
+
+    assert!(wat.contains(r#""tcl_eval_code""#), "{wat}");
+    assert!(!wat.contains(r#""tcl_codegen_var_set""#), "{wat}");
+}
+
+#[test]
+fn analysis_specialisation_requires_its_explicit_pass() {
+    let registry = CommandRegistry::build_default();
+    let unit = CompilationUnit::build_for("set x 1\n", &registry, false);
+    let mut module = compile_wasm_unit(
+        &unit,
+        &registry,
+        WasmCompileOptions::hosted()
+            .with_semantic_optimisation(SemanticOptimisationPassId::LegacyAnalysisSpecialisation),
+    )
+    .into_module();
+    let wat = module.to_wat();
+
+    assert!(wat.contains(r#""tcl_codegen_var_set""#), "{wat}");
 }
 
 /// Import function lines in declaration order (the WASM function-index order).
@@ -554,6 +591,7 @@ fn linear_top_level_eval_fallback() {
     // The eval-fallback import boundary is declared.
     assert!(wat.contains(r#""tcl_obj_new_string""#), "{wat}");
     assert!(wat.contains(r#""tcl_eval_code""#), "{wat}");
+    assert!(wat.contains(r#""tcl_expr_bool""#), "{wat}");
     assert!(wat.contains(r#""memory""#), "{wat}");
     // Both commands' source text is interned in the data section.
     assert!(wat.contains(r#""set x 5""#), "{wat}");

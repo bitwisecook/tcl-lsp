@@ -2081,6 +2081,9 @@ file; this call falls through to the 'unknown' handler."
             &fu.ssa,
             &fu.sccp.values,
             &executable,
+            tcl_dialect::DialectProfile::by_name(self.dialect())
+                .runtime_base
+                .map(tcl_dialect::TclVersion::string_character_model),
         );
         for f in findings {
             if f.span.is_empty() {

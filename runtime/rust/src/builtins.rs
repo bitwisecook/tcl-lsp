@@ -58,7 +58,6 @@ pub fn install(interp: &mut Interp) {
     #[cfg(have_tommath)]
     crate::cmd_lseq::install(interp);
     crate::cmd_dict::install(interp);
-    crate::cmd_string::install(interp);
     crate::cmd_alias::install(interp);
     crate::cmd_namespace::install(interp);
     crate::cmd_var::install(interp);
@@ -84,6 +83,9 @@ pub fn install(interp: &mut Interp) {
     // TclOO last: its `variable`/`self`/`my`/`next` intentionally override the
     // base `variable` (OO-aware inside `oo::define`, forwarding otherwise).
     crate::cmd_oo::install(interp);
+    // Register the spec-backed string implementation after the ordinary
+    // startup sweep so its derived intrinsic identities remain attested.
+    crate::cmd_string::install(interp);
 }
 
 pub(crate) fn var_error(interp: &mut Interp, name: &[u8], e: VarError) -> Code {

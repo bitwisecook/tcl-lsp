@@ -166,6 +166,11 @@ The target-independent implementation contract is
 the common semantic IR and analyses consumed by the LSP, TclVM, WASM, eBPF, and
 future native or accelerator target families.
 
+Guarded native specialisation follows the separate default-off
+[semantic AOT optimisation contract](compiler/semantic-aot-optimisation.md),
+including live runtime identity, trace, materialisation, numeric, TclOO,
+namespace, interpreter, and dialect obligations.
+
 The proof that completes its world/effect half is
 [compiler/dispatch-stability-proof.md](compiler/dispatch-stability-proof.md) —
 the world-state contents/absence lattice, the typed per-site dispatch-stability
