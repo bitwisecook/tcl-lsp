@@ -319,9 +319,15 @@ not change the rule, and must not grow bespoke resolution logic. Every
 - **Custom command resolvers** (`Tcl_SetNamespaceResolvers`, C-level) and
   `namespace unknown` handlers are out of scope for static resolution;
   the runtime's `unknown` fallback fires only after this rule misses.
-- Command names held in **variables** (`set cmd helper; $cmd …`) are
-  statically undecidable and stay unresolved (pinned by LSP tests as a
-  documented limitation).
+- Command names held in **variables** (`set cmd helper; $cmd …`) settle
+  against the compiler's flow-sensitive value model
+  (`value_provenance::const_contributors`) when every reaching definition is
+  a written literal: each may-target of a branch join is referenced, the
+  `$cmd` head is navigation-only and the contributing literals carry the
+  rename edit. Anything unprovable — a computed value, a parameter, an
+  `upvar`/trace write, an opaque `catch` body — abstains, and a contributor
+  with no writable span refuses the whole rename. See
+  [name-resolution.md](../name-resolution.md) §3.4.
 - **`interp eval` bodies** get their own synthetic
   `@interp@<path>[#<epoch>]` scope domain, so definitions made inside one
   (`proc`, `oo::class`, variables) never merge into the parent namespace
@@ -339,11 +345,18 @@ not change the rule, and must not grow bespoke resolution logic. Every
   (silence, never a wrong answer).  A dynamic (`interp eval $handle {…}`)
   target that cannot be resolved to a tracked interpreter keeps its own
   domain but is marked unresolved, and consumers widen across it.
-- **`source` call-site namespaces** are not propagated cross-file: the
-  static model analyses each file as its own global-rooted unit, so a
-  file sourced inside `namespace eval` is not re-homed (cross-file
-  matching is by qualified-name candidates and tails).
-- **`expr` function names** are statically modelled as expression
-  stubs, not routed through command resolution — a user
-  `proc ::tcl::mathfunc::f` is not linked to `f(…)` uses inside `expr`
-  (both execution backends resolve them correctly at run time).
+- **`source` call-site namespaces** are propagated by seeded re-analysis
+  (`Analyser::analyse_with_source_namespace` — the static
+  `namespace eval <ns> {<file>}`), reconciled lazily before every
+  cross-document query, and a document sourced under several namespaces
+  carries one runtime identity per seed. A `source` path the folder cannot
+  prove abstains rather than guessing. See
+  [name-resolution.md](../name-resolution.md) §3.2.
+- **`expr` function names** are routed through command resolution: each
+  `f(…)` application is recorded as an invocation carrying
+  `is_mathfunc_call`, settled with the `namespace path`-aware candidate
+  builder over `tcl::mathfunc::f`, so a user `proc ::tcl::mathfunc::f` — a
+  namespace-local override included — is linked to its `expr` uses. The
+  per-release function set is gated by
+  `tcl_syntax::expr::mathfunc::added_in`. See
+  [name-resolution.md](../name-resolution.md) §7.

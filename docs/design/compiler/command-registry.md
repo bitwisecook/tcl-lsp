@@ -296,8 +296,8 @@ The class's `new` / `create` constructor returns an object handle of
   `set VAR [Class new|create …]` provenance so a variable is known to hold an
   instance of `class_name`; it follows scalar and array-element handles across
   the top level, procedures, and method bodies.  This is *provenance*, not the
-  object→class dispatch *lattice* prototyped in
-  [`../tcloo-mro-lattice.md`](../tcloo-mro-lattice.md), which measured as a
+  object→class dispatch *lattice* described in
+  [`../name-resolution.md`](../name-resolution.md) §5.6, which measured as a
   negative on real `TclOO` corpora (factory-return receivers dominate the ⊤
   bucket); an un-provenanced (proc-parameter) receiver is deliberately left to
   the generic shape-based option highlighting rather than resolved unsoundly.

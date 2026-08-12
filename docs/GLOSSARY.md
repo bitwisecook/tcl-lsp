@@ -708,7 +708,7 @@ makes the site unprovable, the sound abstention. Drives the
 constant-`$cmd` dispatch settlement: navigation anchors at the dispatch
 head, while rename rewrites the defining literals.
 
-See also: [Resolution soundness](design/resolution-soundness-945.md).
+See also: [Name resolution](design/name-resolution.md).
 
 ---
 
@@ -721,7 +721,7 @@ path is a fresh domain). Evaluation bodies home under the synthetic
 `@interp@<path>` namespace, unrepresentable in real Tcl, so a parent
 namespace of the same name can never collide.
 
-See also: [Resolution soundness](design/resolution-soundness-945.md).
+See also: [Name resolution](design/name-resolution.md).
 
 ---
 

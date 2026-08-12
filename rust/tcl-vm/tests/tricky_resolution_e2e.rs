@@ -273,7 +273,7 @@ fn colon_named_proc_dispatches_bare_but_not_via_written_runs() {
 // GLOBAL namespace and misses (tclsh 8.6.16 and 9.0.4 agree on all three;
 // 9.0's `namespace code` round-trip succeeds only via a generation-time
 // nsName intrep — a value-identity behaviour no written name can express,
-// see docs/design/colon-names-and-addressability.md).
+// see docs/design/name-resolution.md §2).
 #[test]
 fn colon_proc_in_colon_namespace_is_relatively_reachable_only() {
     let res = result(

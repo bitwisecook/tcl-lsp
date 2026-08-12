@@ -27,10 +27,6 @@ rules for the KCS/documentation split live in
   persistent per-document analysis worker model: bounded pool + per-uri
   single-writer lock for incremental edits, process pool + serialized
   warm-start seed for the cold build.
-- [tcloo-mro-lattice.md](tcloo-mro-lattice.md) — the (measured-negative)
-  `TclOO` object→class dispatch lattice experiment: why intraprocedural class
-  resolution collapses to ⊤ on real corpora, and what the shipping
-  MRO/CHA + provenance model does instead.
 - [tcloo-object-typing.md](tcloo-object-typing.md) — the shipping `TclOO`
   object-handle typing model: how `set v [Class new]` provenance is harvested
   so `$v method …` dispatch resolves to the object's class.
@@ -59,25 +55,23 @@ rules for the KCS/documentation split live in
 
 ## Name resolution
 
-The workspace-scoped, C-Tcl-faithful command / variable / class
-name-resolution effort (issue #923): the audits behind it, the
-version-sensitive semantics, and the staged fix plan being executed on this
-surface.
+How the stack answers "which command / variable / class / expr function does
+this name denote?" — the model, and the C ground truth it is held to. The
+rule itself, its single Rust home, and its conformance gates live in
+[contracts/command-resolution.md](contracts/command-resolution.md).
 
-- [name-resolution-fix-plan.md](name-resolution-fix-plan.md) — the master
-  execution plan: the staged milestones (M1–M16) for correct, workspace-scoped,
-  dialect-aware resolution, with per-stage status.
-- [resolution-soundness-945.md](resolution-soundness-945.md) — the issue #945
-  follow-up contract: flow-sensitive constant-dispatch value provenance,
-  one-to-many source views, the typed TclOO method table + C-faithful dispatch
-  chains, the interpreter-domain model (safe visibility, temporal identity),
-  and probe command references.
-- [name-resolution-centralization.md](name-resolution-centralization.md) — the
-  audit + proposal to consolidate the ad-hoc target-selection sites onto one
-  C-Tcl command-resolution routine so every LSP provider agrees.
-- [cross-file-command-resolution-lattice.md](cross-file-command-resolution-lattice.md)
-  — the proposal for the cross-file resolution lattice: settling a call to its
-  defining proc/class across the workspace index, sound by abstention.
+- [name-resolution.md](name-resolution.md) — the model: the one-resolver
+  invariant and its drift gate, written-name colon runs and W314
+  addressability, the document / workspace / autoload tiers, source-site
+  namespace seeding, the import-alias-rename link graph, command names held
+  as data (flow-sensitive constant provenance, dispatch tables, probe roles),
+  the variable `VAR_LINK` model, `TclOO` one-hop class resolution and
+  C-faithful dispatch chains, interpreter domains, expr functions, and the
+  catalogue of deliberate abstentions.
+- [name-resolution-c-conformance.md](name-resolution-c-conformance.md) — the
+  ground truth: the algorithm for all four name kinds as extracted from the C
+  sources, and the 8.4 → 9.1 matrix, each fact pinned to a stable C-Tcl
+  permalink (`tclNamesp.c` / `tclVar.c` / `tclOOCall.c` / `tclCompExpr.c`).
 - [import-order-source-graph.md](import-order-source-graph.md) — the load
   order derived from the `source` **and `package require`** graphs
   (`tcl_lsp_core::source_graph::RunOrder`): the relation both wildcard-import
@@ -85,16 +79,6 @@ surface.
   where it deliberately still abstains, and — §7 — the one-sided edge a
   `package require` contributes, its three abstentions, and its measured reach
   on tcllib.
-- [name-resolution-tcl-version-and-c-source.md](name-resolution-tcl-version-and-c-source.md)
-  — the version-sensitive resolution semantics (8.4→9.1), each fact pinned to a
-  stable C-Tcl source permalink (`tclNamesp.c` / `tclVar.c`).
-- [tricky-name-resolution-surfaces.md](tricky-name-resolution-surfaces.md) — the
-  navigation-link audit of the hard cases: aliases, renames, imports, forwards,
-  ensembles, per-object methods, and command-names-held-as-data.
-- [colon-names-and-addressability.md](colon-names-and-addressability.md) — the
-  written-name colon-run rule vs the constructed-key discipline (issue #934):
-  `proc :`, `proc {}`, `namespace eval :`, which definitions have no absolute
-  spelling, and the W314 diagnostic that flags them.
 - [issue-923-differential-audit/STATUS.md](issue-923-differential-audit/STATUS.md)
   — status and handoff for the issue #923 differential-audit campaign: mined
   tricky patterns from tcllib/tk/georgtree/nico-robert corpora, verified

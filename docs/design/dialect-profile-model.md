@@ -741,7 +741,7 @@ mask-resolved `oo::*` availability.
 ## 12. Milestone plan (each milestone independently shippable, CI green)
 
 Uses the project's **milestone / stage** convention (M1..M8, "Stage X.Y"), the
-same as `docs/design/name-resolution-fix-plan.md`'s M1..M16. Re-ordered so each
+same as the M1..M16 scheme the name-resolution effort used. Re-ordered so each
 milestone is genuinely shippable and its CI-gate list is correct. Milestone 1
 (the `tcl-dialect` crate split) is the material change from the draft — it lands
 Option A and **unblocks** the behaviour-axis unification that a registry-hosted
