@@ -79,9 +79,22 @@ ported examples rather than against intent.
   payload layouts, representation effects.
 - Effects: structured side effects, world effects and state transitions
   (where unset means "assume anything"), frame effects (`upvar`,
-  `uplevel`, `namespace upvar`), result stability, completion codes
-  (`break`/`continue`/always-raises), context gates (`return -code`
-  only in a proc; top-level-only commands).
+  `uplevel`, `namespace upvar`), result stability, context gates
+  (`return -code` only in a proc; top-level-only commands).
+- Completion codes, **as amended**: a pack must be able to say that a
+  command breaks a loop, continues a loop, or always raises — the traits
+  `BREAKS_LOOP` / `CONTINUES_LOOP` / `CATCHABLE_THROW`, which are
+  authorable. The `completion` field itself (`CompletionDescriptor`)
+  stays **excluded**, because it describes control-flow *edges* and a
+  wrong value corrupts the CFG rather than one value; see the DSL memo's
+  "Why `completion` is excluded and `const_fold` is not". A
+  library-defined code scoped to one command's body — `struct::tree`'s
+  `return -code 5`, meaningful only inside `struct::tree walk`
+  (`tree_tcl.tcl:181-183`, consumed at `tree_tcl.tcl:2109-2134`) — fits
+  neither the traits nor the excluded field, and is recorded as a known
+  limit rather than claimed. This line was rewritten during the
+  pre-freeze review: as originally written the rubric demanded a field
+  the design excludes, so the design could not have passed its own gate.
 - Folding: const-folders including the degenerate "run the pure Tcl
   implementation on literal args" case; versioned folders.
 - Every hook calling convention must state inputs, output protocol,

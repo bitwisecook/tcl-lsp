@@ -864,6 +864,60 @@ compare *folder outputs over a corpus*, not just spec fields; this is the
 one place where "the DSL says the same thing" is not the same as "the DSL
 does the same thing".
 
+## Rulings on the census drafts
+
+The four external drafts under [`external/`](external/) were written to
+find out what a real private-library author would need to say. Doing
+that surfaced places where a draft reached for a spelling this memo had
+not settled, or had settled differently. Each is ruled here **once**, and
+the drafts have been reconciled to match; until a ruling exists, a draft
+is evidence about the *registry*, never an exemplar of the *syntax*.
+
+| the drafts wrote | ruling | why |
+|---|---|---|
+| `object_class { superclasses {…} allow_unknown_methods no  method … }` | **`object_class NAME ?-superclass {…}? ?-allow-unknown? { method … }`** | `ObjectClassSpec` has four fields, three of which are one word each; a block with three one-word rows is a row wearing a block's clothes. The `NAME` word is `class_name`, which the drafts left implicit and which is *not* always the command name (a factory command may manufacture a differently-named class). |
+| `option NAME -since VERSION` | **`-introduced VERSION`** | the option row already carries the four lifecycle flags `-introduced` / `-deprecated` / `-retired` / `-deprecation-fix`, named for `Lifecycle`'s own fields. `-since` is a second word for the first of them. The drafts' underlying point stands and is unaffected: the version axis here is the *library's*, not Tcl's, which is exactly what `Lifecycle` is documented as being ("orthogonal to `dialects`"). |
+| `option_constraints { forbid {A B} … requires {A B} {C} }` | **`option_conflict {-a -b}`** rows for the `forbid` half; the `requires` half is a **known limit** (below), not syntax | `OptionConstraint` is a flat may-not-co-occur set with no directionality, so `forbid` maps and `requires` has nothing to map to. Writing `requires` inside an otherwise-backed block made an unbacked idea look one flag away from working; as a known limit it is visibly a registry gap. |
+| `sub_subcommands { sub_subcommand … }` | **`sub_subcommand NAME …` rows** | the singular-row rule, unchanged: `sub_subcommands` is a list of rows, so it gets a row statement, exactly like `options` → `option`. |
+| `completion { codes {…} custom_code 5 … }` | **removed** — `completion` is excluded | writing syntax for an excluded field is the one thing a draft must not do, however well marked: it reads as a proposal to un-exclude. The real content (a library-defined code scoped to one command's body) is recorded as a known limit. |
+| `arg N -detail {…}` | **removed from the drafts** — there is no field to hold it | this was an *unmarked* invention in all four drafts, which is what makes it worth a ruling. No per-argument prose field exists on `CommandSpec` or `SubCommand`; argument documentation reaches the user through `synopsis` (inlay parameter names, signature help) and through `hover`'s `description`. *Rejected:* adding one. It would be a new registry field, so it is a contribution and an issue, not a DSL spelling — and the census's own rule is that every invention is marked. |
+| repeated bare `synopsis` rows on a `method` | **one `synopsis` per subcommand/method; use `hover { synopsis … }` for the rest** | `SubCommand::synopsis` is a single `Text`. The repeatable `synopsis` row exists inside a `hover` block, where `HoverSnippet::synopsis` really is a list. A draft that repeated the subcommand-level row was writing hover data in a field that holds one string. |
+
+One draft question the census raised and could not answer is answered
+here, because it is a modelling question rather than a spelling one:
+**where the constructor's argument shape lives for a class command.**
+The drafts put arity and `arg` rows for `Resistor new name np nm`
+directly on the class command, which cannot be right — word 0 of that
+call is `new`, not `name`. The shipped answer already exists and is
+exactly the shape `ticklecharts/mod.rs:409-457` uses: the class command
+takes `arity 1..` (a method word plus its arguments) and
+`allow_unknown_subcommands`; the constructor's shape lives on
+`subcommand create` / `subcommand new`; and the `manufacturer` rows say
+which word names the instance (`-names-instance-at`) and where the
+constructor's own arguments begin (`-constructor-args-from`). The
+drafts now do that.
+
+## Known limits carried forward
+
+Things the design cannot say, kept as a register so they are not
+rediscovered as bugs. Each is real, each is grounded in a corpus
+exemplar or a shipped struct, and none blocks the freeze.
+
+| limit | evidence | why it is a limit |
+|---|---|---|
+| Per-flag-combination return typing | tarray column search: the returned representation depends on which *combination* of mode/shape flags is present | `return_type` is one value per command/subcommand, and even the excluded `command_forms` splits by form, not by flag combination |
+| Library-defined completion codes | `struct::tree::prune`'s `return -code 5`, meaningful only inside `struct::tree walk`'s body | `completion` is excluded, and the authorable traits name only break/continue/raise. Nothing pairs a custom code to the single command whose body accepts it, the way `HAS_LOOP_BODY` pairs with `BREAKS_LOOP` |
+| Option *requirement* relationships | SpiceGenTcl's `argparse` blocks: 189 `-require` vs 75 `-forbid` | `OptionConstraint` is a flat mutual-exclusion set with no direction. `option_conflict` covers the smaller half of what real libraries write |
+| Method-scoped taint sinks | SpiceGenTcl's `Batch::runAndRead` — an `exec` inside a TclOO instance method | `taint_code_sink_args` / `taint_network_sink_args` are command-only fields; the methods that actually spawn processes are `SubCommand`-shaped and cannot declare them |
+| Embedded-language naming beyond the closed catalogues | tDOM's XPath argument; ticklecharts' JS/G6 fragments | `pattern_type` and `format_string_type` are closed catalogues (Glob/Regex; Sprintf/Clock/Binary/Regsub) a pack cannot extend |
+| Callback *callee-shape* declaration | tclvfs's 9-shape `vfshandler` callback | on the registering command, only `-appends {AtLeast N}` / `Unknown` is available. Mitigated, and well: spec the handler proc itself as a `command` with nine `subcommand`s, which is fully expressible |
+| Runtime-assembled ensembles | `namespace ensemble create -map` where the map splices same-file procs | a pack declares commands, not the runtime construction of them |
+| Runtime-computed argument grammars | SpiceGenTcl's computed `argparse` definitions; mustache's position-dependent lambda arity | irreducibly dynamic — `Unknown` is the honest answer for any spec system, native included |
+
+Two of these (`requires`, method-scoped taint sinks) are registry
+changes rather than DSL changes, and both are worth filing; the rest are
+statements about what a static description of a command can be.
+
 ## Coverage matrix
 
 Every key of both tables in `rust/tcl-spec-studio/src/schema.rs`, in
