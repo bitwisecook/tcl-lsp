@@ -5,9 +5,9 @@
 > command, or on a stale classification entry.
 
 Source of truth: `tcl-registry` core command specs (`required_package == None`),
-restricted to those available at Tcl 9.0 or later. Backing: a `register_builtin`
-handler in `runtime/rust/`, a native non-`register_builtin` registration
-(TclOO metaclass, per-object `my`), an embedded-init.tcl (stdlib) fallback,
+restricted to those available at Tcl 9.0 or later. Backing: a literal `register_builtin`
+handler or registry-derived `register_spec_builtin` handler in `runtime/rust/`,
+a native registration outside those scans (TclOO metaclass, per-object `my`),
 or an explicit *not required* classification.
 
 | status | count |

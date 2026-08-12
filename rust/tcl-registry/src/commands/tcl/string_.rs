@@ -27,6 +27,8 @@ const FORMS: &[FormSpec] = &[FormSpec {
     dialects: None,
 }];
 
+const OK_COMPLETION_CODES: &[CompletionCode] = &[CompletionCode::Ok];
+
 /// Compile-time folds for pure `string`
 /// subcommands, consumed by the optimiser's O129 general-builtin
 /// constant-fold path through the registry `const_fold` callbacks.
@@ -1245,7 +1247,14 @@ static SUBCOMMANDS: &[SubCommand] = &[
     SubCommand {
         name: "length",
         semantic_operation: Some(SemanticOperationId::Intrinsic(IntrinsicId::StringLength)),
+        // An already-resolved core `string length` does not consult TclOO or
+        // `unknown`. Live binding, namespace lookup, execution traces, and
+        // interpreter/runtime-version policy remain irreducible BASE guards.
+        dispatch_dependencies: Some(DispatchDependencyDescriptor::replace(
+            DispatchDependencies::NONE,
+        )),
         arity: Arity::exact(1),
+        completion: Some(CompletionDescriptor::exact(OK_COMPLETION_CODES)),
         detail: "Return number of characters.",
         synopsis: "string length string",
         pure: true,
@@ -1266,7 +1275,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
                 transparent_from: &[TclType::ByteArray],
             },
         )],
-        ..SubCommand::DEFAULT
+        ..SubCommand::CLOSED_REFERENTIALLY_TRANSPARENT
     },
     SubCommand {
         name: "map",
@@ -1755,8 +1764,9 @@ pub fn spec() -> CommandSpec {
 #[cfg(test)]
 mod tests {
     use super::fold_is;
-    use crate::CommandRegistry;
+    use crate::dialects::DialectSet;
     use crate::hooks::TclVersion;
+    use crate::{CommandRegistry, DispatchDependencies, DispatchDependencyDomain};
 
     #[test]
     fn string_is_folds_tcl_faithful_classes() {
@@ -2085,6 +2095,33 @@ mod tests {
         assert_eq!(length(&["abcde"]).as_deref(), Some("5"));
         assert_eq!(length(&[""]).as_deref(), Some("0"));
         assert_eq!(length(&["caf\u{e9}"]), None, "non-ASCII bails");
+    }
+
+    #[test]
+    fn string_length_dispatch_uses_only_irreducible_live_domains() {
+        let registry = CommandRegistry::build_default();
+        for dialect in [DialectSet::TCL86, DialectSet::TCL90] {
+            let facts = registry
+                .resolve_invocation("string", &["length", "value"], dialect)
+                .expect("string length resolves")
+                .facts();
+            assert_eq!(facts.dispatch_dependencies, DispatchDependencies::BASE);
+            assert!(
+                facts
+                    .dispatch_dependencies
+                    .contains(DispatchDependencyDomain::InterpreterPolicy)
+            );
+            assert!(
+                !facts
+                    .dispatch_dependencies
+                    .contains(DispatchDependencyDomain::ObjectDispatch)
+            );
+            assert!(
+                !facts
+                    .dispatch_dependencies
+                    .contains(DispatchDependencyDomain::UnknownHandling)
+            );
+        }
     }
 
     #[test]

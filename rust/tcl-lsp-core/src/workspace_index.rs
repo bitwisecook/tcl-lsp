@@ -73,7 +73,7 @@
 //! on both interpreters) has no declaring row of its own, because its name is
 //! not written anywhere.
 
-use std::collections::{BTreeSet, HashSet};
+use std::collections::{BTreeSet, HashMap, HashSet};
 use std::sync::Arc;
 
 use crate::namespace_import::ExportVerdict;
@@ -1104,6 +1104,13 @@ struct DocumentRecords {
     namespace_refs: Vec<WorkspaceNamespaceRef>,
     invocations: Vec<WorkspaceInvocation>,
     sources: Vec<WorkspaceSource>,
+    /// Raw path-constant facts, straight from
+    /// [`AnalysisResult::path_constant_assignments`] — unfolded write facts
+    /// the source-edge resolver chain-folds per parent (with the parent's
+    /// own path standing in for `[info script]`) before resolving a computed
+    /// `source` argument.  Raw here for the same reason as there: the fold
+    /// depends on where the document lives, the index must not.
+    path_constant_assignments: Vec<tcl_compiler::auto_path_eval::PathConstantWrite>,
     package_requires: Vec<WorkspacePackageRequire>,
     package_provides: Vec<WorkspacePackageProvide>,
     package_ifneededs: Vec<WorkspacePackageIfneeded>,
@@ -1141,6 +1148,10 @@ struct SettlementDependencies {
     /// to a namespace and their spans do not affect an import gate.
     declared_namespaces: Vec<String>,
     sources: Vec<WorkspaceSource>,
+    /// A changed constant can change which child a computed source row
+    /// resolves to, so the raw assignments are resolution-relevant exactly
+    /// as the source rows themselves are.
+    path_constant_assignments: Vec<tcl_compiler::auto_path_eval::PathConstantWrite>,
     package_requires: Vec<WorkspacePackageRequire>,
     package_provides: Vec<WorkspacePackageProvide>,
     package_ifneededs: Vec<WorkspacePackageIfneeded>,
@@ -1174,6 +1185,7 @@ impl DocumentRecords {
                 .map(|namespace| namespace.qualified_name.clone())
                 .collect(),
             sources: self.sources.clone(),
+            path_constant_assignments: self.path_constant_assignments.clone(),
             package_requires: self.package_requires.clone(),
             package_provides: self.package_provides.clone(),
             package_ifneededs: self.package_ifneededs.clone(),
@@ -1207,6 +1219,7 @@ impl DocumentRecords {
             namespace_refs,
             invocations,
             sources,
+            path_constant_assignments,
             package_requires,
             package_provides,
             package_ifneededs,
@@ -1220,6 +1233,7 @@ impl DocumentRecords {
             defined_symbols,
         } = self;
         dialect.clear();
+        path_constant_assignments.clear();
         procs.clear();
         classes.clear();
         variables.clear();
@@ -1406,16 +1420,7 @@ impl DocumentRecords {
                 enclosing_body,
             });
         }
-        for target in &analysis.source_targets {
-            self.sources.push(WorkspaceSource {
-                uri: uri.to_owned(),
-                raw_path: target.raw_path.clone(),
-                site_namespace: target.site_namespace.clone(),
-                range: target.range,
-                is_literal: target.is_literal,
-                enclosing_body: analysis.innermost_definition_body_span(target.range.start()),
-            });
-        }
+        self.index_sources(uri, analysis);
         for pr in &analysis.package_requires {
             self.package_requires.push(WorkspacePackageRequire {
                 uri: uri.to_owned(),
@@ -1473,6 +1478,25 @@ impl DocumentRecords {
     ///
     /// Split out of [`Self::index_document`] only for size; the source-order
     /// rule that walk documents applies here unchanged.
+    /// The document's `source` rows, plus the raw path-constant candidates
+    /// the edge resolver folds them with — recorded together because they
+    /// are consumed together (a computed row without its constants is
+    /// unresolvable, constants without rows are inert).
+    fn index_sources(&mut self, uri: &str, analysis: &AnalysisResult) {
+        for target in &analysis.source_targets {
+            self.sources.push(WorkspaceSource {
+                uri: uri.to_owned(),
+                raw_path: target.raw_path.clone(),
+                site_namespace: target.site_namespace.clone(),
+                range: target.range,
+                is_literal: target.is_literal,
+                enclosing_body: analysis.innermost_definition_body_span(target.range.start()),
+            });
+        }
+        self.path_constant_assignments
+            .clone_from(&analysis.path_constant_assignments);
+    }
+
     fn index_classes(&mut self, uri: &str, analysis: &AnalysisResult) {
         for class_def in sorted_by_span(analysis.all_classes.values(), |c| c.name_span) {
             let methods: Vec<WorkspaceMethod> =
@@ -1783,9 +1807,18 @@ pub struct WorkspaceIndex {
     /// The `source`-path → document-URI resolver, when the host has installed
     /// one — see [`WorkspaceIndex::set_source_resolver`].
     source_resolver: Option<SourceResolver>,
+    /// The host's constant folder, installed alongside the resolver — folds
+    /// one document's raw write facts (plus imports) into a `name → value`
+    /// map, with the document's own filesystem path standing in for
+    /// `[info script]`.
+    constant_folder: Option<ConstantFolder>,
     /// The `source`-graph load order derived from it — see
     /// [`WorkspaceIndex::run_order`].
     run_order: Derived<crate::source_graph::RunOrder>,
+    /// Per-document **imported** path constants — values source-graph
+    /// ancestors establish before the document runs (issue #1368) — see
+    /// [`WorkspaceIndex::imported_constants`].
+    imported_constants: Derived<HashMap<String, HashMap<String, String>>>,
 }
 
 /// The host's `source`-path → document-URI resolver: `(sourcing document's
@@ -1796,7 +1829,35 @@ pub struct WorkspaceIndex {
 /// is how the `source`-graph load order gets its edges — see
 /// [`WorkspaceIndex::set_source_resolver`].  The signature is
 /// [`WorkspaceIndex::source_seed_map`]'s, so one host resolver serves both.
-pub type SourceResolver = fn(&str, &str, bool) -> Option<String>;
+///
+/// The fourth argument is the parent document's raw single-assignment
+/// path-constant candidates ([`WorkspaceIndex::path_constant_assignments`]) —
+/// supplied by the index, which carries them, and folded by the host, which
+/// knows the parent's filesystem path; that split is why the argument is the
+/// raw pairs rather than a folded map.
+/// The fifth argument is the document's **imported** constants — values its
+/// source-graph ancestors establish before it runs
+/// ([`WorkspaceIndex::imported_constants`], issue #1368); empty until the
+/// import fixpoint has something to say.
+pub type SourceResolver = fn(
+    &str,
+    &str,
+    bool,
+    &[tcl_compiler::auto_path_eval::PathConstantWrite],
+    &HashMap<String, String>,
+) -> Option<String>;
+
+/// The host's constant folder: `(document URI, raw write facts, imported
+/// constants)` to the document's folded `name → value` view — the
+/// [`tcl_compiler::auto_path_eval::fold_constant_assignments_with_imports`]
+/// fold, with the URI's filesystem path (host knowledge) standing in for
+/// `[info script]`.  Installed with the resolver so the index can compute
+/// what one document *provides* to the documents it sources.
+pub type ConstantFolder = fn(
+    &str,
+    &[tcl_compiler::auto_path_eval::PathConstantWrite],
+    &HashMap<String, String>,
+) -> HashMap<String, String>;
 
 /// A whole-index **derived view**: a value that is a pure function of the
 /// index's contents, built at most once per [`WorkspaceIndex::generation`] and
@@ -2151,9 +2212,11 @@ impl WorkspaceIndex {
     /// **Without a resolver the order is empty**, and both tiers behave
     /// exactly as they did before the `source` graph existed — every
     /// cross-document event unrankable, every same-document one ordered.
-    pub fn set_source_resolver(&mut self, resolve: SourceResolver) {
+    pub fn set_source_resolver(&mut self, resolve: SourceResolver, fold: ConstantFolder) {
         self.source_resolver = Some(resolve);
+        self.constant_folder = Some(fold);
         self.run_order = Derived::default();
+        self.imported_constants = Derived::default();
         // The export snapshot captures the order, so it goes with it.
         self.export_snapshot = Derived::default();
     }
@@ -2172,16 +2235,25 @@ impl WorkspaceIndex {
     /// (issue #1279).
     fn run_order(&self) -> Arc<crate::source_graph::RunOrder> {
         self.run_order.get_or_build(|| {
+            let imports = self.imported_constants();
+            let empty = HashMap::new();
             let source_edges = self.source_resolver.into_iter().flat_map(|resolve| {
+                let imports = &imports;
+                let empty = &empty;
                 self.sources().filter_map(move |s| {
-                    resolve(&s.uri, &s.raw_path, s.is_literal).map(|child| {
-                        crate::source_graph::RunEdge {
-                            parent: s.uri.clone(),
-                            child,
-                            at: s.range.start(),
-                            enclosing_body: s.enclosing_body,
-                            kind: crate::source_graph::RunEdgeKind::Source,
-                        }
+                    resolve(
+                        &s.uri,
+                        &s.raw_path,
+                        s.is_literal,
+                        self.path_constant_assignments(&s.uri),
+                        imports.get(&s.uri).unwrap_or(empty),
+                    )
+                    .map(|child| crate::source_graph::RunEdge {
+                        parent: s.uri.clone(),
+                        child,
+                        at: s.range.start(),
+                        enclosing_body: s.enclosing_body,
+                        kind: crate::source_graph::RunEdgeKind::Source,
                     })
                 })
             });
@@ -2189,6 +2261,148 @@ impl WorkspaceIndex {
                 source_edges.chain(self.package_run_edges()).collect();
             crate::source_graph::RunOrder::build(&edges)
         })
+    }
+
+    /// Per-document **imported** path constants (issue #1368): the values a
+    /// document's source-graph ancestors establish before it runs, agreed
+    /// across every route that reaches it.
+    ///
+    /// Built as a joint fixpoint of edges and imports, in whole rounds so a
+    /// shipped answer is always consistent with the shipped map:
+    ///
+    /// 1. Resolve **every** `source` row against the current imports (round
+    ///    one: none) — no per-row caching across rounds, because a later
+    ///    round can legitimately *shrink* an import (a newly resolved
+    ///    in-edge whose parent does not supply a name drops that name from
+    ///    the agreement), and a cached resolution from a richer map would
+    ///    then be an answer the final map cannot reproduce.
+    /// 2. From the resolved edges, compute what each parent **provides** to
+    ///    each child: the parent's own writes *positioned before the
+    ///    `source` statement* (a later assignment has not happened yet when
+    ///    the child runs), folded by the host with the parent's own imports
+    ///    — which precede the parent's whole execution, so they carry
+    ///    unconditionally.
+    /// 3. A child imports a name only when **every** in-edge supplies it
+    ///    with an identical value — the agreement rule that carries OSVVM,
+    ///    whose `StartUpShared.tcl` is sourced by eleven simulator scripts
+    ///    each assigning `::osvvm::OsvvmScriptDirectory` the same directory.
+    ///    One dissenting or silent route kills the name: whichever parent
+    ///    actually ran, a kept value is the value.  Step 2-then-3 repeats to
+    ///    its own fixpoint over the round's **fixed** edge set, where
+    ///    provided maps only grow and agreement over a fixed edge set is
+    ///    monotone.
+    ///
+    /// Rounds repeat until the map is stable (edges resolved under map M
+    /// reproduce M), almost always round two.  A workspace that has not
+    /// converged by the cap — constructible only from pathological
+    /// import-unlocked cycles — ships **no** imports rather than a map its
+    /// own edges disagree with.
+    fn imported_constants(&self) -> Arc<HashMap<String, HashMap<String, String>>> {
+        const ROUND_CAP: usize = 5;
+        self.imported_constants.get_or_build(|| {
+            let (Some(resolve), Some(fold)) = (self.source_resolver, self.constant_folder) else {
+                return HashMap::new();
+            };
+            let empty: HashMap<String, String> = HashMap::new();
+            let rows: Vec<&WorkspaceSource> = self.sources().collect();
+            let mut imports: HashMap<String, HashMap<String, String>> = HashMap::new();
+            for _round in 0..ROUND_CAP {
+                // Step 1: the round's edge set, from scratch.
+                let edges: Vec<(&WorkspaceSource, String)> = rows
+                    .iter()
+                    .filter_map(|s| {
+                        let child = resolve(
+                            &s.uri,
+                            &s.raw_path,
+                            s.is_literal,
+                            self.path_constant_assignments(&s.uri),
+                            imports.get(&s.uri).unwrap_or(&empty),
+                        )?;
+                        // Self-sourcing provides nothing new.
+                        (child != s.uri).then_some((*s, child))
+                    })
+                    .collect();
+                // Steps 2 + 3 to their own fixpoint over this fixed edge set.
+                let mut next: HashMap<String, HashMap<String, String>> = HashMap::new();
+                for _inner in 0..ROUND_CAP {
+                    let mut candidates: HashMap<&str, Vec<HashMap<String, String>>> =
+                        HashMap::new();
+                    for (s, child) in &edges {
+                        // A `source` inside a proc or method body runs when
+                        // that body is *called*, not at its lexical position
+                        // — `set dir /a; proc load {} {source child.tcl};
+                        // set dir /b; load` reaches the child with `/b`.
+                        // The position gate below reads lexical order, so a
+                        // body-local route instead contributes an **empty**
+                        // candidate: it still reaches the child, and
+                        // intersecting the agreement with an empty map
+                        // correctly drops every name for it (issue #1370
+                        // review).
+                        if s.enclosing_body.is_some() {
+                            candidates
+                                .entry(child.as_str())
+                                .or_default()
+                                .push(HashMap::new());
+                            continue;
+                        }
+                        let before: Vec<tcl_compiler::auto_path_eval::PathConstantWrite> = self
+                            .path_constant_assignments(&s.uri)
+                            .iter()
+                            .filter(|w| w.at < s.range.start())
+                            .cloned()
+                            .collect();
+                        // From `next` only — never the previous round's map:
+                        // the inner iteration is a fixpoint **from below**
+                        // over this round's fixed edge set, and seeding it
+                        // with values the current agreement may drop would
+                        // break exactly the monotonicity that makes it
+                        // terminate.
+                        let parent_imports = next.get(&s.uri).unwrap_or(&empty);
+                        candidates.entry(child.as_str()).or_default().push(fold(
+                            &s.uri,
+                            &before,
+                            parent_imports,
+                        ));
+                    }
+                    let stepped: HashMap<String, HashMap<String, String>> = candidates
+                        .into_iter()
+                        .filter_map(|(child, maps)| {
+                            let (first, rest) = maps.split_first()?;
+                            let agreed: HashMap<String, String> = first
+                                .iter()
+                                .filter(|(name, value)| {
+                                    rest.iter().all(|m| m.get(*name) == Some(*value))
+                                })
+                                .map(|(name, value)| (name.clone(), value.clone()))
+                                .collect();
+                            (!agreed.is_empty()).then(|| (child.to_owned(), agreed))
+                        })
+                        .collect();
+                    if stepped == next {
+                        break;
+                    }
+                    next = stepped;
+                }
+                if next == imports {
+                    return imports;
+                }
+                imports = next;
+            }
+            // Cap hit without convergence: conservative empty map.
+            HashMap::new()
+        })
+    }
+
+    /// The imported constants for one document — the map
+    /// [`SourceResolver`] receives as its fifth argument, exposed so hosts
+    /// can hand the very same view to their other per-document consumers
+    /// (document links, a fresh analysis's own edges).
+    #[must_use]
+    pub fn imported_path_constants_for(&self, uri: &str) -> HashMap<String, String> {
+        self.imported_constants()
+            .get(uri)
+            .cloned()
+            .unwrap_or_default()
     }
 
     /// The `package require` half of the load order: one
@@ -2290,6 +2504,7 @@ impl WorkspaceIndex {
             self.command_link_map = Derived::default();
             self.export_snapshot = Derived::default();
             self.run_order = Derived::default();
+            self.imported_constants = Derived::default();
             for settled in &self.settled_invocations {
                 settled.invalidate_all();
             }
@@ -2527,6 +2742,21 @@ impl WorkspaceIndex {
         self.docs.iter().flat_map(|doc| doc.sources.iter())
     }
 
+    /// `uri`'s raw single-assignment path-constant candidates
+    /// ([`AnalysisResult::path_constant_assignments`], carried per document);
+    /// empty for an unindexed URI.  The source-edge resolver chain-folds
+    /// these with the parent's own path before resolving a computed `source`
+    /// argument.
+    #[must_use]
+    pub fn path_constant_assignments(
+        &self,
+        uri: &str,
+    ) -> &[tcl_compiler::auto_path_eval::PathConstantWrite] {
+        self.slots
+            .get(uri)
+            .map_or(&[][..], |&slot| &self.docs[slot].path_constant_assignments)
+    }
+
     /// Every indexed `package require NAME` declaration.
     pub fn package_requires(&self) -> impl Iterator<Item = &WorkspacePackageRequire> {
         self.docs.iter().flat_map(|doc| doc.package_requires.iter())
@@ -2658,12 +2888,26 @@ impl WorkspaceIndex {
     #[must_use]
     pub fn source_seed_map(
         &self,
-        resolve: impl Fn(&str, &str, bool) -> Option<String>,
+        resolve: impl Fn(
+            &str,
+            &str,
+            bool,
+            &[tcl_compiler::auto_path_eval::PathConstantWrite],
+            &HashMap<String, String>,
+        ) -> Option<String>,
     ) -> std::collections::HashMap<String, std::collections::BTreeSet<String>> {
+        let imports = self.imported_constants();
+        let empty = HashMap::new();
         let mut out: std::collections::HashMap<String, std::collections::BTreeSet<String>> =
             std::collections::HashMap::new();
         for src in self.sources() {
-            let Some(child) = resolve(&src.uri, &src.raw_path, src.is_literal) else {
+            let Some(child) = resolve(
+                &src.uri,
+                &src.raw_path,
+                src.is_literal,
+                self.path_constant_assignments(&src.uri),
+                imports.get(&src.uri).unwrap_or(&empty),
+            ) else {
                 continue;
             };
             // Self-sourcing carries no new namespace view.
@@ -6796,19 +7040,46 @@ mod tests {
 
     /// The server's URI resolver, in miniature: a literal path resolved
     /// against the sourcing document's directory.
-    fn test_resolve(parent_uri: &str, raw_path: &str, is_literal: bool) -> Option<String> {
+    fn test_resolve(
+        parent_uri: &str,
+        raw_path: &str,
+        is_literal: bool,
+        raw_constants: &[tcl_compiler::auto_path_eval::PathConstantWrite],
+        imported: &HashMap<String, String>,
+    ) -> Option<String> {
         let parent = parent_uri.strip_prefix("file://")?;
         let dir = std::path::Path::new(parent).parent()?;
         // The server's two tiers, in miniature: a literal resolves directly, a
-        // computed path only when it folds statically — anything else names no
-        // document and sequences nothing.
+        // computed path only when it folds statically — with the parent's own
+        // constants (and imports) chained in, exactly as the real resolver
+        // folds them — anything else names no document and sequences nothing.
         let raw = if is_literal {
             raw_path.to_owned()
         } else {
-            tcl_compiler::auto_path_eval::evaluate_auto_path_expr(raw_path, Some(parent))?
+            let constants = tcl_compiler::auto_path_eval::fold_constant_assignments_with_imports(
+                raw_constants,
+                Some(parent),
+                imported,
+            );
+            tcl_compiler::auto_path_eval::evaluate_auto_path_expr_with_constants(
+                raw_path,
+                Some(parent),
+                &constants,
+            )?
         };
         let child = crate::source_graph::resolve_under(dir, &raw);
         Some(format!("file://{}", child.display()))
+    }
+
+    /// The server's constant folder, in miniature — the counterpart of
+    /// [`test_resolve`], same URI-to-path convention.
+    fn test_fold(
+        uri: &str,
+        writes: &[tcl_compiler::auto_path_eval::PathConstantWrite],
+        imported: &HashMap<String, String>,
+    ) -> HashMap<String, String> {
+        let path = uri.strip_prefix("file://");
+        tcl_compiler::auto_path_eval::fold_constant_assignments_with_imports(writes, path, imported)
     }
 
     /// An index over `documents` with the `source`-path resolver installed —
@@ -6817,7 +7088,7 @@ mod tests {
         documents: impl IntoIterator<Item = (&'a str, &'a AnalysisResult)>,
     ) -> WorkspaceIndex {
         let mut index = WorkspaceIndex::new();
-        index.set_source_resolver(test_resolve);
+        index.set_source_resolver(test_resolve, test_fold);
         for (uri, analysis) in documents {
             index.add_document(uri, analysis);
         }
@@ -7185,10 +7456,158 @@ mod tests {
     }
 
     #[test]
-    fn a_computed_source_path_orders_nothing() {
-        // TN: `source $dir/exp.tcl` names no document statically, so the edge
-        // is dropped and the export goes back to being unrankable — the
-        // deliberate abstention, not an accident of path resolution.
+    fn an_unfoldable_computed_source_path_orders_nothing() {
+        // TN: `source $dir/exp.tcl` where `dir` comes from `[lindex $argv 0]`
+        // names no document statically — `lindex` is outside the evaluator's
+        // subset, so the constant never folds — the edge is dropped and the
+        // export goes back to being unrankable: the deliberate abstention,
+        // not an accident of path resolution.
+        //
+        // The fixture used to spell `dir` as `[file dirname [info script]]`,
+        // which the chained single-assignment fold (issue #775) now resolves;
+        // the foldable spelling has its own TP pin directly below.
+        let (mod_doc, exp, imp) = import_order_modules();
+        let app = analyse(
+            "set dir [lindex $argv 0]\nsource mod.tcl\nsource imp.tcl\nsource $dir/exp.tcl\n",
+        );
+        let index = sourced_index([
+            ("file:///p/mod.tcl", &mod_doc),
+            ("file:///p/exp.tcl", &exp),
+            ("file:///p/imp.tcl", &imp),
+            ("file:///p/app.tcl", &app),
+        ]);
+        assert_eq!(
+            index
+                .resolve_wildcard_import(
+                    "helper",
+                    &["::app::helper".to_string(), "::helper".to_string()],
+                    call_from("file:///p/caller.tcl"),
+                )
+                .as_deref(),
+            Some("::mymod::helper"),
+        );
+    }
+
+    #[test]
+    fn a_cross_file_constant_resolves_a_readers_source_rows_1368() {
+        // OSVVM's shape in miniature: two simulator entry scripts each
+        // assign the same namespace constant and source the shared reader;
+        // the reader sources a grandchild *through the imported value*.
+        // Both parents live in one directory, so the agreement rule keeps
+        // the name and the reader's own row resolves.
+        let parent = analyse(
+            "namespace eval ::osvvm {\n    variable dir [file dirname [file normalize [info script]]]\n}\nsource ${::osvvm::dir}/shared.tcl\n",
+        );
+        let reader = analyse("source ${::osvvm::dir}/core.tcl\n");
+        let core = analyse("proc core_helper {} {}\n");
+        let index = sourced_index([
+            ("file:///s/start1.tcl", &parent),
+            ("file:///s/start2.tcl", &parent),
+            ("file:///s/shared.tcl", &reader),
+            ("file:///s/core.tcl", &core),
+        ]);
+        assert_eq!(
+            index
+                .imported_path_constants_for("file:///s/shared.tcl")
+                .get("::osvvm::dir")
+                .map(String::as_str),
+            Some("/s"),
+        );
+        let seeds = index.source_seed_map(test_resolve);
+        assert!(
+            seeds.contains_key("file:///s/core.tcl"),
+            "the reader's own source row must resolve through the import: {seeds:?}",
+        );
+    }
+
+    #[test]
+    fn disagreeing_parents_import_nothing_1368() {
+        // TN: the same reader sourced from two directories — the constant
+        // folds to a different value per parent, so no route-independent
+        // value exists and the name must not import.  Whichever parent runs
+        // decides, and this tier never guesses.
+        let parent = analyse(
+            "namespace eval ::osvvm {\n    variable dir [file dirname [file normalize [info script]]]\n}\nsource /s/shared.tcl\n",
+        );
+        let reader = analyse("source ${::osvvm::dir}/core.tcl\n");
+        let core = analyse("proc core_helper {} {}\n");
+        let index = sourced_index([
+            ("file:///a/start1.tcl", &parent),
+            ("file:///b/start2.tcl", &parent),
+            ("file:///s/shared.tcl", &reader),
+            ("file:///s/core.tcl", &core),
+        ]);
+        assert!(
+            !index
+                .imported_path_constants_for("file:///s/shared.tcl")
+                .contains_key("::osvvm::dir"),
+        );
+        let seeds = index.source_seed_map(test_resolve);
+        assert!(
+            !seeds.contains_key("file:///s/core.tcl"),
+            "no agreed value, no edge: {seeds:?}",
+        );
+    }
+
+    #[test]
+    fn a_body_local_source_route_imports_nothing_1368() {
+        // A `source` inside a proc runs when the proc is called, not at its
+        // lexical position: `set dir /a; proc load {} {source shared.tcl};
+        // set dir /b; load` reaches the child with `/b`.  The lexical
+        // position gate would say `/a`, so a body-local route must supply
+        // nothing at all (issue #1370 review).
+        let parent = analyse(
+            "namespace eval ::cfg {\n    variable dir [file dirname [file normalize [info script]]]\n}\nproc load {} {\n    source /s/shared.tcl\n}\n",
+        );
+        let reader = analyse("source ${::cfg::dir}/core.tcl\n");
+        let core = analyse("proc core_helper {} {}\n");
+        let index = sourced_index([
+            ("file:///s/start.tcl", &parent),
+            ("file:///s/shared.tcl", &reader),
+            ("file:///s/core.tcl", &core),
+        ]);
+        assert!(
+            !index
+                .imported_path_constants_for("file:///s/shared.tcl")
+                .contains_key("::cfg::dir"),
+            "a body-local source route must not provide load-time constants",
+        );
+    }
+
+    #[test]
+    fn an_assignment_after_the_source_does_not_import_1368() {
+        // TN: the parent assigns the constant *after* sourcing the reader —
+        // when the reader runs, the variable does not exist yet, and the
+        // position gate must say so.
+        let parent = analyse(
+            "source /s/shared.tcl\nnamespace eval ::osvvm {\n    variable dir [file dirname [file normalize [info script]]]\n}\n",
+        );
+        let reader = analyse("source ${::osvvm::dir}/core.tcl\n");
+        let core = analyse("proc core_helper {} {}\n");
+        let index = sourced_index([
+            ("file:///s/start1.tcl", &parent),
+            ("file:///s/shared.tcl", &reader),
+            ("file:///s/core.tcl", &core),
+        ]);
+        assert!(
+            !index
+                .imported_path_constants_for("file:///s/shared.tcl")
+                .contains_key("::osvvm::dir"),
+            "a write after the source has not happened when the child runs",
+        );
+    }
+
+    #[test]
+    fn a_foldable_computed_source_path_orders_its_export() {
+        // TP (issue #775): the same shape with `dir` from `[file dirname
+        // [info script]]` *does* fold through the chained constant, so
+        // `$dir/exp.tcl` names its document and the load order ranks it.
+        // With the order known the answer sharpens: app.tcl runs the
+        // wildcard import *before* sourcing exp.tcl's `namespace export`,
+        // and `namespace import` copies only currently-exported commands
+        // (a later export does not retro-import), so `helper` is genuinely
+        // not imported and resolution answers nothing — more precise than
+        // the abstention the unfoldable spelling above falls back to.
         let (mod_doc, exp, imp) = import_order_modules();
         let app = analyse(
             "set dir [file dirname [info script]]\nsource mod.tcl\nsource imp.tcl\nsource $dir/exp.tcl\n",
@@ -7207,7 +7626,7 @@ mod tests {
                     call_from("file:///p/caller.tcl"),
                 )
                 .as_deref(),
-            Some("::mymod::helper"),
+            None,
         );
     }
 

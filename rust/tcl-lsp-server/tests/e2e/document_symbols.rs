@@ -16,7 +16,7 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! Document symbols for Tcl and TclOO, end-to-end against the packaged server.
+//! Document symbols for Tcl and `TclOO`, end-to-end against the packaged server.
 //! Symbol kinds come back as raw LSP integer codes (`SymbolKind`); the named
 //! constants here mirror that enum.
 

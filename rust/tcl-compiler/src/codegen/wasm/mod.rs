@@ -31,6 +31,7 @@ mod ir;
 mod pipeline;
 mod semantic_plan;
 
+pub use crate::semantic_optimisation::{SemanticOptimisationConfig, SemanticOptimisationPassId};
 pub use backend::RESERVED_DATA_BASE;
 pub use ir::{
     SectionId, ValType, WasmData, WasmFunction, WasmImport, WasmInstruction, WasmModule, WasmOp,
@@ -38,6 +39,6 @@ pub use ir::{
 pub use pipeline::WasmSemanticDecline;
 pub use pipeline::{
     WasmCodegenPlan, WasmCompilation, WasmCompileOptions, WasmExecutableAvailabilityDecline,
-    WasmPackagingConstraint, compile_wasm,
+    WasmNativeI64AddSelection, WasmPackagingConstraint, compile_wasm,
 };
 pub use semantic_plan::WasmExecutableInvokeDecline;

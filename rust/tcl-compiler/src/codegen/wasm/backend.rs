@@ -55,8 +55,10 @@ use crate::command_binding::{
     Binding, BindingKind, ModuleCommandMutations, analyse_command_binding,
     scan_module_command_mutations,
 };
+use crate::common_aot_plan::semantic_operation_binding_is_trusted;
 use crate::compilation_unit::{CompilationUnit, FunctionUnit};
 use crate::ir::{Module, Procedure, Statement};
+use crate::mixed_region_plan::GuardedSelectionEvidence;
 use crate::registry_invocation::{RegistryInvocationResolution, resolve_command_tokens};
 use tcl_runtime_api::codegen_abi::{
     CodegenAbiImportId, CodegenAbiValueType, WASM32_CODEGEN_DATA_START, WASM32_COMPLETION_ALIGN,
@@ -64,11 +66,24 @@ use tcl_runtime_api::codegen_abi::{
     WASM32_COMPLETION_RESULT_OFFSET, WASM32_COMPLETION_SIZE, WASM32_POINTER_BYTES,
 };
 
-use super::pipeline::WasmCompileOptions;
+use super::pipeline::{WasmCompileOptions, WasmNativeI64AddSelection};
 use super::semantic_plan::WasmGenericInvokePlan;
 
 /// Block type byte for a structured op (`block`/`loop`/`if`) yielding no value.
 const BLOCK_VOID: u8 = 0x40;
+
+const SEMANTIC_FRAME_LOCAL: u64 = 0;
+const SEMANTIC_COMPLETION_LOCAL: u64 = 1;
+const SEMANTIC_CODE_LOCAL: u64 = 2;
+const SEMANTIC_RESULT_LOCAL: u64 = 3;
+const SEMANTIC_OPTIONS_LOCAL: u64 = 4;
+const GUARDED_TOKEN_LOCAL: u64 = 5;
+const GUARDED_STATUS_LOCAL: u64 = 6;
+const SEMANTIC_WORD_LOCAL_START: usize = 7;
+
+fn semantic_word_local(index: usize) -> u64 {
+    u64::try_from(SEMANTIC_WORD_LOCAL_START + index).expect("word local fits u64")
+}
 
 /// The completion-code scratch local (index 0). Every emitted function declares
 /// exactly one `i32` local so [`WasmEmitter::emit_completion_dispatch`] can stash
@@ -121,10 +136,32 @@ struct SemanticImports {
     object_release: u32,
 }
 
+/// Additional ABI imports for a semantic invocation whose common plan carries
+/// a runtime-issued guarded intrinsic proof.
+#[derive(Clone, Copy)]
+struct GuardedIntrinsicImports {
+    semantic: SemanticImports,
+    guard_prepare: u32,
+    guard_check: u32,
+    guard_release: u32,
+    invoke_intrinsic_argv: u32,
+}
+
+/// Imports used exclusively by a selected native i64-to-boxed boundary.
+///
+/// Keeping these out of [`AotImports`] preserves the legacy/general WASM
+/// import surface when native proof selection is disabled.
+#[derive(Clone, Copy)]
+struct NativeI64AddImports {
+    value_new_wide_int: u32,
+    puts: u32,
+}
+
 #[derive(Clone, Copy)]
 enum EmitterImports {
     General(Imports),
     Semantic(SemanticImports),
+    GuardedIntrinsic(GuardedIntrinsicImports),
 }
 
 #[derive(Clone, Copy)]
@@ -232,17 +269,48 @@ impl WasmEmitter {
         }
     }
 
+    fn for_guarded_intrinsic_invoke(imports: GuardedIntrinsicImports, data_offset: i64) -> Self {
+        Self {
+            imports: EmitterImports::GuardedIntrinsic(imports),
+            body: Vec::new(),
+            data: Vec::new(),
+            data_offset,
+            ctrl_depth: 0,
+            loops: Vec::new(),
+            code_local: 0,
+            mode: FunctionMode::Top,
+            local_slots: HashMap::new(),
+            proc_indices: HashMap::new(),
+            procedure_arity: HashMap::new(),
+            direct_procs: HashSet::new(),
+            procedures_by_span: HashMap::new(),
+            facts: FunctionFacts::default(),
+        }
+    }
+
     fn general_imports(&self) -> Imports {
         match self.imports {
             EmitterImports::General(imports) => imports,
-            EmitterImports::Semantic(_) => unreachable!("general lowering in semantic mode"),
+            EmitterImports::Semantic(_) | EmitterImports::GuardedIntrinsic(_) => {
+                unreachable!("general lowering in semantic mode")
+            }
         }
     }
 
     fn semantic_imports(&self) -> SemanticImports {
         match self.imports {
             EmitterImports::Semantic(imports) => imports,
+            EmitterImports::GuardedIntrinsic(imports) => imports.semantic,
             EmitterImports::General(_) => unreachable!("semantic lowering in general mode"),
+        }
+    }
+
+    fn guarded_intrinsic_imports(&self) -> GuardedIntrinsicImports {
+        match self.imports {
+            EmitterImports::GuardedIntrinsic(imports) => imports,
+            EmitterImports::General(_) | EmitterImports::Semantic(_) => {
+                unreachable!("guarded intrinsic lowering outside guarded semantic mode")
+            }
         }
     }
 
@@ -265,6 +333,13 @@ impl WasmEmitter {
     fn push_i32(&mut self, n: i64) {
         self.body.push(WasmInstruction::with_operands(
             WasmOp::I32Const,
+            leb128_signed(n),
+        ));
+    }
+
+    fn push_i64(&mut self, n: i64) {
+        self.body.push(WasmInstruction::with_operands(
+            WasmOp::I64Const,
             leb128_signed(n),
         ));
     }
@@ -643,6 +718,184 @@ impl WasmEmitter {
         }
     }
 
+    /// Emit a guarded intrinsic attempt over the semantic plan's sole,
+    /// already-materialised argv. Any runtime decline executes the exact
+    /// generic argv path; no source words are re-evaluated or replayed.
+    fn finish_guarded_intrinsic_invoke(
+        &mut self,
+        plan: &WasmGenericInvokePlan,
+        evidence: &GuardedSelectionEvidence,
+    ) -> WasmFunction {
+        let semantic = self.semantic_imports();
+        let guarded = self.guarded_intrinsic_imports();
+        assert_eq!(plan.operation, evidence.operation());
+        assert_eq!(evidence.guarded_plan().fast(), &plan.operation);
+        self.emit_guarded_argv_frame(plan, semantic);
+        self.emit_guarded_intrinsic_dispatch(plan, evidence, guarded);
+        self.emit_guarded_intrinsic_completion_return(plan, semantic);
+        self.guarded_intrinsic_function(plan)
+    }
+
+    fn emit_guarded_argv_frame(&mut self, plan: &WasmGenericInvokePlan, imports: SemanticImports) {
+        let layout = SemanticCallFrameLayout::validated(plan.argv_literals.len());
+        let literals = plan
+            .argv_literals
+            .iter()
+            .map(|literal| self.intern(literal))
+            .collect::<Vec<_>>();
+        self.push_i32(i64::from(layout.bytes));
+        self.push_i32(i64::from(WASM32_COMPLETION_ALIGN));
+        self.call(imports.frame_alloc);
+        self.local_set(SEMANTIC_FRAME_LOCAL);
+        for (index, (offset, length)) in literals.iter().copied().enumerate() {
+            self.push_i32(offset);
+            self.push_i32(length);
+            self.call(imports.string_owned);
+            self.local_set(semantic_word_local(index));
+            self.local_get(SEMANTIC_FRAME_LOCAL);
+            self.local_get(semantic_word_local(index));
+            self.store_i32(i64::try_from(index * 4).expect("argv offset fits i64"));
+        }
+        self.local_get(SEMANTIC_FRAME_LOCAL);
+        self.push_i32(i64::from(layout.completion_offset));
+        self.push(WasmOp::I32Add);
+        self.local_set(SEMANTIC_COMPLETION_LOCAL);
+    }
+
+    fn emit_guarded_intrinsic_dispatch(
+        &mut self,
+        plan: &WasmGenericInvokePlan,
+        evidence: &GuardedSelectionEvidence,
+        imports: GuardedIntrinsicImports,
+    ) {
+        let SemanticOperationId::Intrinsic(intrinsic) = evidence.operation() else {
+            unreachable!("guarded intrinsic evidence must retain an intrinsic operation");
+        };
+        let guard = evidence.guarded_plan().guard();
+        let identity = guard.expected_identity();
+        let argc = plan.argv_literals.len();
+        self.push_i32(i64::from(intrinsic.stable_id()));
+        self.local_get(SEMANTIC_FRAME_LOCAL);
+        self.push_i32(i64::try_from(argc).expect("validated argc"));
+        self.push_i32(i64::from(identity.namespace()));
+        self.push_i64(i64::try_from(identity.value()).expect("guard identity fits i64"));
+        self.push_i32(i64::from(guard.domains().bits()));
+        self.call(imports.guard_prepare);
+        self.local_set(GUARDED_TOKEN_LOCAL);
+        self.local_get(GUARDED_TOKEN_LOCAL);
+        self.push(WasmOp::I64Eqz);
+        self.open_frame(WasmOp::If);
+        self.emit_generic_argv_invoke(argc, SEMANTIC_FRAME_LOCAL, SEMANTIC_COMPLETION_LOCAL);
+        self.push(WasmOp::Else);
+        self.emit_guarded_token_path(intrinsic.stable_id(), argc, imports);
+        self.close_frame();
+    }
+
+    fn emit_guarded_token_path(
+        &mut self,
+        intrinsic: u32,
+        argc: usize,
+        imports: GuardedIntrinsicImports,
+    ) {
+        self.local_get(GUARDED_TOKEN_LOCAL);
+        self.push_i32(i64::from(intrinsic));
+        self.local_get(SEMANTIC_FRAME_LOCAL);
+        self.push_i32(i64::try_from(argc).expect("validated argc"));
+        self.call(imports.guard_check);
+        self.push(WasmOp::I32Eqz);
+        self.open_frame(WasmOp::If);
+        self.local_get(GUARDED_TOKEN_LOCAL);
+        self.call(imports.guard_release);
+        self.emit_generic_argv_invoke(argc, SEMANTIC_FRAME_LOCAL, SEMANTIC_COMPLETION_LOCAL);
+        self.push(WasmOp::Else);
+        self.push_i32(i64::from(intrinsic));
+        self.local_get(SEMANTIC_FRAME_LOCAL);
+        self.push_i32(i64::try_from(argc).expect("validated argc"));
+        self.local_get(SEMANTIC_COMPLETION_LOCAL);
+        self.call(imports.invoke_intrinsic_argv);
+        self.local_set(GUARDED_STATUS_LOCAL);
+        self.local_get(GUARDED_STATUS_LOCAL);
+        self.push(WasmOp::I32Eqz);
+        self.open_frame(WasmOp::If);
+        self.local_get(GUARDED_TOKEN_LOCAL);
+        self.call(imports.guard_release);
+        self.push(WasmOp::Else);
+        self.local_get(GUARDED_TOKEN_LOCAL);
+        self.call(imports.guard_release);
+        self.emit_generic_argv_invoke(argc, SEMANTIC_FRAME_LOCAL, SEMANTIC_COMPLETION_LOCAL);
+        self.close_frame();
+        self.close_frame();
+    }
+
+    fn emit_guarded_intrinsic_completion_return(
+        &mut self,
+        plan: &WasmGenericInvokePlan,
+        imports: SemanticImports,
+    ) {
+        self.local_get(SEMANTIC_COMPLETION_LOCAL);
+        self.load_i32(i64::from(WASM32_COMPLETION_CODE_OFFSET));
+        self.local_set(SEMANTIC_CODE_LOCAL);
+        self.local_get(SEMANTIC_COMPLETION_LOCAL);
+        self.load_i32(i64::from(WASM32_COMPLETION_RESULT_OFFSET));
+        self.call(imports.object_retain);
+        self.local_set(SEMANTIC_RESULT_LOCAL);
+        self.local_get(SEMANTIC_COMPLETION_LOCAL);
+        self.load_i32(i64::from(WASM32_COMPLETION_OPTIONS_OFFSET));
+        self.call(imports.object_retain);
+        self.local_set(SEMANTIC_OPTIONS_LOCAL);
+        self.local_get(SEMANTIC_COMPLETION_LOCAL);
+        self.call(imports.completion_release);
+        for index in 0..plan.argv_literals.len() {
+            self.local_get(semantic_word_local(index));
+            self.call(imports.object_release);
+        }
+        self.local_get(SEMANTIC_FRAME_LOCAL);
+        self.call(imports.frame_free);
+        self.push(WasmOp::Drop);
+        self.local_get(SEMANTIC_CODE_LOCAL);
+        self.local_get(SEMANTIC_RESULT_LOCAL);
+        self.local_get(SEMANTIC_OPTIONS_LOCAL);
+        self.push(WasmOp::Return);
+    }
+
+    fn guarded_intrinsic_function(&mut self, plan: &WasmGenericInvokePlan) -> WasmFunction {
+        let mut local_names = vec![
+            "$frame".to_string(),
+            "$completion".to_string(),
+            "$code".to_string(),
+            "$result".to_string(),
+            "$options".to_string(),
+            "$guard_token".to_string(),
+            "$intrinsic_status".to_string(),
+        ];
+        local_names.extend((0..plan.argv_literals.len()).map(|index| format!("$word{index}")));
+        let mut locals = vec![ValType::I32; 5];
+        locals.push(ValType::I64);
+        locals.push(ValType::I32);
+        locals.extend(std::iter::repeat_n(ValType::I32, plan.argv_literals.len()));
+        WasmFunction {
+            name: plan.function_name.clone(),
+            params: Vec::new(),
+            results: vec![ValType::I32, ValType::I32, ValType::I32],
+            locals,
+            body: std::mem::take(&mut self.body),
+            local_names,
+            exported: true,
+            source_range: None,
+            kind: "semantic-guarded-intrinsic-invoke".to_string(),
+        }
+    }
+
+    /// Call the generic ABI over the exact argv and completion frame already
+    /// owned by this semantic emission.
+    fn emit_generic_argv_invoke(&mut self, argc: usize, frame_local: u64, completion_local: u64) {
+        self.local_get(frame_local);
+        self.push_i32(i64::try_from(argc).expect("validated argc"));
+        self.local_get(completion_local);
+        self.call(self.semantic_imports().invoke_argv);
+        self.push(WasmOp::Drop);
+    }
+
     /// Honour the completion code a leaf command's [`tcl_eval_code`] left on the
     /// stack — the AOT realisation of "stop the script on the
     /// first non-`OK` command" loop (`eval_script_mode`), so abrupt completion
@@ -883,17 +1136,6 @@ fn direct_expr_supported(expr: &ExprNode, params: &HashSet<&str>) -> bool {
     }
 }
 
-fn wasm_operation_is_trusted(
-    registry: &CommandRegistry,
-    mutations: &ModuleCommandMutations,
-    operation: SemanticOperationId,
-) -> bool {
-    let mut commands = registry
-        .command_names_for_semantic_operation(operation)
-        .peekable();
-    commands.peek().is_some() && commands.all(|command| mutations.trusts(command))
-}
-
 fn direct_proc_eligible(
     module: &Module,
     proc: &Procedure,
@@ -908,12 +1150,12 @@ fn direct_proc_eligible(
             .is_some_and(|name| name.contains("::"))
         || module.redefined_procedures.contains(&proc.qualified_name)
         || unit.complexity_guarded
-        || !wasm_operation_is_trusted(
+        || !semantic_operation_binding_is_trusted(
             registry,
             mutations,
             SemanticOperationId::StructuredLowering(LoweringHookId::Expr),
         )
-        || !wasm_operation_is_trusted(
+        || !semantic_operation_binding_is_trusted(
             registry,
             mutations,
             SemanticOperationId::StructuredLowering(LoweringHookId::Return),
@@ -1049,55 +1291,65 @@ fn function_facts(
     facts
 }
 
-fn add_tcl_import(m: &mut WasmModule, name: &str, params: &[ValType], results: &[ValType]) -> u32 {
-    u32::try_from(m.add_import("tcl", name, params, results)).expect("import index fits in u32")
-}
-
 const fn abi_value_type(value: CodegenAbiValueType) -> ValType {
     match value {
         CodegenAbiValueType::I32 => ValType::I32,
+        CodegenAbiValueType::I64 => ValType::I64,
     }
 }
 
+fn add_codegen_import(module: &mut WasmModule, import: CodegenAbiImportId) -> u32 {
+    let descriptor = import.descriptor();
+    let parameters = descriptor
+        .parameters
+        .iter()
+        .copied()
+        .map(abi_value_type)
+        .collect::<Vec<_>>();
+    let results = descriptor
+        .results
+        .iter()
+        .copied()
+        .map(abi_value_type)
+        .collect::<Vec<_>>();
+    u32::try_from(module.add_import(descriptor.module, descriptor.name, &parameters, &results))
+        .expect("WASM import index fits u32")
+}
+
 fn add_semantic_imports(wasm: &mut WasmModule) -> SemanticImports {
-    let add = |module: &mut WasmModule, import: CodegenAbiImportId| {
-        let descriptor = import.descriptor();
-        let parameters = descriptor
-            .parameters
-            .iter()
-            .copied()
-            .map(abi_value_type)
-            .collect::<Vec<_>>();
-        let results = descriptor
-            .results
-            .iter()
-            .copied()
-            .map(abi_value_type)
-            .collect::<Vec<_>>();
-        u32::try_from(module.add_import(descriptor.module, descriptor.name, &parameters, &results))
-            .expect("WASM import index fits u32")
-    };
     SemanticImports {
-        frame_alloc: add(wasm, CodegenAbiImportId::CallFrameAlloc),
-        frame_free: add(wasm, CodegenAbiImportId::CallFrameFree),
-        string_owned: add(wasm, CodegenAbiImportId::NewOwnedString),
-        invoke_argv: add(wasm, CodegenAbiImportId::InvokeArgv),
-        completion_release: add(wasm, CodegenAbiImportId::CompletionRelease),
-        object_retain: add(wasm, CodegenAbiImportId::ObjectRetain),
-        object_release: add(wasm, CodegenAbiImportId::ObjectRelease),
+        frame_alloc: add_codegen_import(wasm, CodegenAbiImportId::CallFrameAlloc),
+        frame_free: add_codegen_import(wasm, CodegenAbiImportId::CallFrameFree),
+        string_owned: add_codegen_import(wasm, CodegenAbiImportId::NewOwnedString),
+        invoke_argv: add_codegen_import(wasm, CodegenAbiImportId::InvokeArgv),
+        completion_release: add_codegen_import(wasm, CodegenAbiImportId::CompletionRelease),
+        object_retain: add_codegen_import(wasm, CodegenAbiImportId::ObjectRetain),
+        object_release: add_codegen_import(wasm, CodegenAbiImportId::ObjectRelease),
+    }
+}
+
+fn add_guarded_intrinsic_imports(wasm: &mut WasmModule) -> GuardedIntrinsicImports {
+    GuardedIntrinsicImports {
+        semantic: add_semantic_imports(wasm),
+        guard_prepare: add_codegen_import(wasm, CodegenAbiImportId::GuardPrepare),
+        guard_check: add_codegen_import(wasm, CodegenAbiImportId::GuardCheck),
+        guard_release: add_codegen_import(wasm, CodegenAbiImportId::GuardRelease),
+        invoke_intrinsic_argv: add_codegen_import(wasm, CodegenAbiImportId::InvokeIntrinsicArgv),
+    }
+}
+
+fn add_native_i64_add_imports(wasm: &mut WasmModule) -> NativeI64AddImports {
+    NativeI64AddImports {
+        value_new_wide_int: add_codegen_import(wasm, CodegenAbiImportId::ValueNewWideInt),
+        puts: add_codegen_import(wasm, CodegenAbiImportId::Puts),
     }
 }
 
 fn add_general_imports(wasm: &mut WasmModule, analysis: bool) -> Imports {
     let mut imports = Imports {
-        obj_new_string: add_tcl_import(
-            wasm,
-            "tcl_obj_new_string",
-            &[ValType::I32, ValType::I32],
-            &[ValType::I32],
-        ),
-        eval_code: add_tcl_import(wasm, "tcl_eval_code", &[ValType::I32], &[ValType::I32]),
-        expr_bool: add_tcl_import(wasm, "tcl_expr_bool", &[ValType::I32], &[ValType::I32]),
+        obj_new_string: add_codegen_import(wasm, CodegenAbiImportId::ObjectNewString),
+        eval_code: add_codegen_import(wasm, CodegenAbiImportId::EvalCode),
+        expr_bool: add_codegen_import(wasm, CodegenAbiImportId::ExprBool),
         aot: None,
     };
     if analysis {
@@ -1108,64 +1360,17 @@ fn add_general_imports(wasm: &mut WasmModule, analysis: bool) -> Imports {
 
 fn add_aot_imports(wasm: &mut WasmModule) -> AotImports {
     AotImports {
-        value_new_string: add_tcl_import(
-            wasm,
-            "tcl_value_new_string",
-            &[ValType::I32, ValType::I32],
-            &[ValType::I32],
-        ),
-        frame_push: add_tcl_import(wasm, "tcl_codegen_frame_push", &[], &[]),
-        frame_pop: add_tcl_import(wasm, "tcl_codegen_frame_pop", &[], &[]),
-        local_bind: add_tcl_import(
-            wasm,
-            "tcl_codegen_local_bind",
-            &[ValType::I32, ValType::I32, ValType::I32, ValType::I32],
-            &[ValType::I32],
-        ),
-        local_set: add_tcl_import(
-            wasm,
-            "tcl_codegen_local_set",
-            &[ValType::I32, ValType::I32],
-            &[ValType::I32],
-        ),
-        local_get: add_tcl_import(
-            wasm,
-            "tcl_codegen_local_get",
-            &[ValType::I32],
-            &[ValType::I32],
-        ),
-        var_set: add_tcl_import(
-            wasm,
-            "tcl_codegen_var_set",
-            &[ValType::I32, ValType::I32, ValType::I32],
-            &[ValType::I32],
-        ),
-        var_get: add_tcl_import(
-            wasm,
-            "tcl_codegen_var_get",
-            &[ValType::I32, ValType::I32],
-            &[ValType::I32],
-        ),
-        expr_add: add_tcl_import(
-            wasm,
-            "tcl_codegen_expr_add",
-            &[ValType::I32, ValType::I32],
-            &[ValType::I32],
-        ),
-        puts: add_tcl_import(wasm, "tcl_codegen_puts", &[ValType::I32], &[ValType::I32]),
-        proc_register: add_tcl_import(
-            wasm,
-            "tcl_codegen_proc_register",
-            &[
-                ValType::I32,
-                ValType::I32,
-                ValType::I32,
-                ValType::I32,
-                ValType::I32,
-                ValType::I32,
-            ],
-            &[ValType::I32],
-        ),
+        value_new_string: add_codegen_import(wasm, CodegenAbiImportId::ValueNewString),
+        frame_push: add_codegen_import(wasm, CodegenAbiImportId::FramePush),
+        frame_pop: add_codegen_import(wasm, CodegenAbiImportId::FramePop),
+        local_bind: add_codegen_import(wasm, CodegenAbiImportId::LocalBind),
+        local_set: add_codegen_import(wasm, CodegenAbiImportId::LocalSet),
+        local_get: add_codegen_import(wasm, CodegenAbiImportId::LocalGet),
+        var_set: add_codegen_import(wasm, CodegenAbiImportId::VarSet),
+        var_get: add_codegen_import(wasm, CodegenAbiImportId::VarGet),
+        expr_add: add_codegen_import(wasm, CodegenAbiImportId::ExprAdd),
+        puts: add_codegen_import(wasm, CodegenAbiImportId::Puts),
+        proc_register: add_codegen_import(wasm, CodegenAbiImportId::ProcRegister),
     }
 }
 
@@ -1232,8 +1437,19 @@ fn procedure_plan<'a>(
 /// Selected input mode for the single module emitter.
 #[derive(Clone, Copy)]
 pub(super) enum WasmEmissionMode<'a> {
+    /// Common proofs selected sealed-program native i64 addition with one
+    /// registry-proved boxed output boundary.
+    NativeI64Add(&'a WasmNativeI64AddSelection),
     /// `BackendRegistry` selected one prebuilt-argv semantic invocation.
     SemanticInvoke(&'a WasmGenericInvokePlan),
+    /// Common analysis selected a guarded boxed intrinsic over the semantic
+    /// invocation's exact prebuilt argv and generic fallback.
+    GuardedIntrinsic {
+        /// The sole semantic invocation retaining literal argv ownership.
+        plan: &'a WasmGenericInvokePlan,
+        /// Common proof and guard request selected for that invocation.
+        evidence: &'a GuardedSelectionEvidence,
+    },
     /// General structured lowering, retaining a typed semantic decline in the
     /// outer [`super::WasmCompilation`] evidence.
     General,
@@ -1275,12 +1491,7 @@ fn codegen(
     mode: WasmEmissionMode<'_>,
 ) -> WasmModule {
     let mut wasm = WasmModule::new();
-    if let WasmEmissionMode::SemanticInvoke(plan) = mode {
-        let imports = add_semantic_imports(&mut wasm);
-        let mut emitter = WasmEmitter::for_semantic_invoke(imports, data_base);
-        wasm.functions.push(emitter.finish_semantic_invoke(plan));
-        wasm.memory_pages = required_pages(data_base, &emitter.data);
-        wasm.data_segments = emitter.data;
+    if emit_special_mode(&mut wasm, data_base, mode) {
         return wasm;
     }
     let imports = add_general_imports(&mut wasm, analysis.is_some());
@@ -1288,15 +1499,11 @@ fn codegen(
     // Standalone: the interp-bootstrap imports `_start` drives. Added after the
     // ABI imports so the ABI indices in `Imports` are unchanged.
     let bootstrap = standalone.then(|| {
-        let create = add_tcl_import(&mut wasm, "tcl_runtime_create_interp", &[], &[ValType::I32]);
-        let set_current = add_tcl_import(
-            &mut wasm,
-            "tcl_runtime_set_current_interp",
-            &[ValType::I32],
-            &[],
-        );
-        let init_library = init
-            .then(|| add_tcl_import(&mut wasm, "tcl_runtime_init_library", &[], &[ValType::I32]));
+        let create = add_codegen_import(&mut wasm, CodegenAbiImportId::RuntimeCreateInterp);
+        let set_current =
+            add_codegen_import(&mut wasm, CodegenAbiImportId::RuntimeSetCurrentInterp);
+        let init_library =
+            init.then(|| add_codegen_import(&mut wasm, CodegenAbiImportId::RuntimeInitLibrary));
         (create, set_current, init_library)
     });
 
@@ -1386,6 +1593,86 @@ fn codegen(
     }
 
     wasm
+}
+
+fn emit_special_mode(wasm: &mut WasmModule, data_base: i64, mode: WasmEmissionMode<'_>) -> bool {
+    match mode {
+        WasmEmissionMode::NativeI64Add(plan) => {
+            emit_native_i64_add(wasm, data_base, plan);
+        }
+        WasmEmissionMode::SemanticInvoke(plan) => {
+            let imports = add_semantic_imports(wasm);
+            let mut emitter = WasmEmitter::for_semantic_invoke(imports, data_base);
+            wasm.functions.push(emitter.finish_semantic_invoke(plan));
+            wasm.memory_pages = required_pages(data_base, &emitter.data);
+            wasm.data_segments = emitter.data;
+        }
+        WasmEmissionMode::GuardedIntrinsic { plan, evidence } => {
+            let imports = add_guarded_intrinsic_imports(wasm);
+            let mut emitter = WasmEmitter::for_guarded_intrinsic_invoke(imports, data_base);
+            wasm.functions
+                .push(emitter.finish_guarded_intrinsic_invoke(plan, evidence));
+            wasm.memory_pages = required_pages(data_base, &emitter.data);
+            wasm.data_segments = emitter.data;
+        }
+        WasmEmissionMode::General => return false,
+    }
+    true
+}
+
+fn emit_native_i64_add(wasm: &mut WasmModule, data_base: i64, plan: &WasmNativeI64AddSelection) {
+    let imports = add_native_i64_add_imports(wasm);
+    let top_index = u32::try_from(wasm.imports.len()).expect("import count fits in u32");
+    let add_index = top_index
+        .checked_add(1)
+        .expect("native function index fits u32");
+    wasm.functions.push(WasmFunction {
+        name: "::top".to_owned(),
+        params: Vec::new(),
+        results: Vec::new(),
+        locals: vec![ValType::I32],
+        body: vec![
+            WasmInstruction::with_operands(WasmOp::I64Const, leb128_signed(plan.left)),
+            WasmInstruction::with_operands(WasmOp::I64Const, leb128_signed(plan.right)),
+            WasmInstruction::with_operands(WasmOp::Call, leb128_unsigned(u64::from(add_index))),
+            WasmInstruction::with_operands(
+                WasmOp::Call,
+                leb128_unsigned(u64::from(imports.value_new_wide_int)),
+            ),
+            WasmInstruction::with_operands(WasmOp::Call, leb128_unsigned(u64::from(imports.puts))),
+            // Match structured lowering: a non-OK `puts` completion stops
+            // the top-level script instead of being silently discarded.
+            WasmInstruction::with_operands(WasmOp::LocalSet, leb128_unsigned(0)),
+            WasmInstruction::with_operands(WasmOp::LocalGet, leb128_unsigned(0)),
+            WasmInstruction::with_operands(WasmOp::If, vec![BLOCK_VOID]),
+            WasmInstruction::new(WasmOp::Return),
+            WasmInstruction::new(WasmOp::End),
+            WasmInstruction::new(WasmOp::Return),
+        ],
+        local_names: vec!["$completion_code".to_owned()],
+        exported: true,
+        source_range: None,
+        kind: "native-i64-add-top".to_owned(),
+    });
+    wasm.functions.push(WasmFunction {
+        name: plan.callee.qualified_name.clone(),
+        params: vec![ValType::I64, ValType::I64],
+        results: vec![ValType::I64],
+        locals: Vec::new(),
+        body: vec![
+            WasmInstruction::with_operands(WasmOp::LocalGet, leb128_unsigned(0)),
+            WasmInstruction::with_operands(WasmOp::LocalGet, leb128_unsigned(1)),
+            WasmInstruction::new(WasmOp::I64Add),
+            WasmInstruction::new(WasmOp::Return),
+        ],
+        local_names: vec!["$left".to_owned(), "$right".to_owned()],
+        // The raw i64 function is an implementation detail of the closed
+        // proof. Only the boxed Tcl entry boundary is externally callable.
+        exported: false,
+        source_range: None,
+        kind: "native-i64-add-proc".to_owned(),
+    });
+    wasm.memory_pages = required_pages(data_base, &[]);
 }
 
 fn required_pages(data_base: i64, data: &[WasmData]) -> u64 {

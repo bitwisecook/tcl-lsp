@@ -36,6 +36,49 @@ pub enum ByteStringEncoding {
     CheckedLatin1,
 }
 
+/// Character-counting model used by Tcl string operations.
+///
+/// Tcl 8 stores `Tcl_UniChar` as a 16-bit unit, so a supplementary-plane
+/// character occupies a surrogate pair and contributes two to `string
+/// length`. Tcl 9 widened `Tcl_UniChar` and counts Unicode scalar values.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum StringCharacterModel {
+    /// Tcl 8.x: count UTF-16 code units.
+    Utf16CodeUnits,
+    /// Tcl 9.x: count Unicode scalar values.
+    UnicodeScalars,
+}
+
+impl StringCharacterModel {
+    /// The number of Tcl characters `value` holds under this model.
+    ///
+    /// The one place the counting rule lives, so a compile-time fold and a
+    /// runtime `string length` cannot drift apart.
+    #[must_use]
+    pub fn count(self, value: &str) -> usize {
+        match self {
+            Self::Utf16CodeUnits => value.encode_utf16().count(),
+            Self::UnicodeScalars => value.chars().count(),
+        }
+    }
+
+    /// The character count `model` defines, or — when no release is selected —
+    /// the count both models agree on, if they agree.
+    ///
+    /// A dialect that names no runtime release still counts every string
+    /// outside the supplementary planes identically under both models, so a
+    /// consumer keeps those answers and gives up only the genuinely ambiguous
+    /// ones rather than declining wholesale.
+    #[must_use]
+    pub fn count_for(model: Option<Self>, value: &str) -> Option<usize> {
+        if let Some(model) = model {
+            return Some(model.count(value));
+        }
+        let scalars = Self::UnicodeScalars.count(value);
+        (scalars == Self::Utf16CodeUnits.count(value)).then_some(scalars)
+    }
+}
+
 /// A specific Tcl release whose **compile-time** semantics a constant fold may
 /// depend on — e.g. `string is integer` is unbounded on 9.0 but caps at
 /// `2³²-1` on 8.x, and `string is wideinteger` / `entier` / `dict` and
@@ -175,6 +218,15 @@ impl TclVersion {
         match self {
             Self::V8_4 | Self::V8_5 | Self::V8_6 => ByteStringEncoding::LegacyTruncate,
             Self::V9_0 | Self::V9_1 => ByteStringEncoding::CheckedLatin1,
+        }
+    }
+
+    /// The release-defined unit used by `string length` and character indices.
+    #[must_use]
+    pub const fn string_character_model(self) -> StringCharacterModel {
+        match self {
+            Self::V8_4 | Self::V8_5 | Self::V8_6 => StringCharacterModel::Utf16CodeUnits,
+            Self::V9_0 | Self::V9_1 => StringCharacterModel::UnicodeScalars,
         }
     }
 
@@ -765,7 +817,7 @@ impl Ternary {
 
 #[cfg(test)]
 mod tests {
-    use super::{TclVersion, Ternary, exact_requirement};
+    use super::{StringCharacterModel, TclVersion, Ternary, exact_requirement};
 
     #[test]
     fn from_dialect_maps_every_versioned_tcl() {
@@ -1076,5 +1128,17 @@ mod tests {
         ] {
             assert_eq!(version.dialect_profile_name(), profile);
         }
+    }
+
+    #[test]
+    fn string_character_model_changes_at_tcl_nine() {
+        assert_eq!(
+            TclVersion::V8_6.string_character_model(),
+            StringCharacterModel::Utf16CodeUnits
+        );
+        assert_eq!(
+            TclVersion::V9_0.string_character_model(),
+            StringCharacterModel::UnicodeScalars
+        );
     }
 }

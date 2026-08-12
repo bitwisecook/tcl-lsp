@@ -28,7 +28,7 @@
 //!     `pub`) and end-to-end through the W210 read-before-set surface.
 //!   * `src/auto_path_eval.rs` — the `lappend auto_path` mini-evaluator: the
 //!     `[file join]` / `[file dirname]` / `[info script]` idioms, the tokeniser
-//!     quirks (brace groups, quoted words, the `{[}`-as-open-bracket case,
+//!     quirks (brace groups, quoted words, braced-`[` as a literal,
 //!     unterminated delimiters), and the POSIX path helpers.
 //!   * `src/place_bridge.rs` — the place/SSA-bridge def/read resolution: dict
 //!     paths, must-alias kills, braced-literal data words, upvar aliases,
@@ -569,12 +569,14 @@ fn auto_path_tokeniser_brace_group_and_bracket_quirk() {
         evaluate_auto_path_expr("{/lib}", None).as_deref(),
         Some("/lib"),
     );
-    // The documented `{[}`-as-open-bracket quirk: a brace word whose content is
-    // exactly `[` reads as an open bracket in `parse`, so `{[} info script ]`
-    // parses as a command substitution `[info script]`.
+    // A braced `[` is a literal `[`, not an open bracket — Tcl performs no
+    // substitution inside braces.  The string-token tokeniser used to lose
+    // that distinction and mis-read `{[} info script ]` as the command
+    // substitution `[info script]`; with typed word tokens it is a literal
+    // `[` followed by trailing words, which the expression parser rejects.
     assert_eq!(
-        evaluate_auto_path_expr("{[} info script ]", Some("/proj/x.tcl")).as_deref(),
-        Some("/proj/x.tcl"),
+        evaluate_auto_path_expr("{[} info script ]", Some("/proj/x.tcl")),
+        None,
     );
 }
 

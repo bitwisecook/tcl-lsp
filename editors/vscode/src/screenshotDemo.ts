@@ -1774,6 +1774,25 @@ function buildScenes(): Scene[] {
       },
     },
     {
+      name: "32-document-links",
+      run: async () => {
+        await closePanel();
+        const sample = loadScreenshotSample("32-document-links.tcl");
+        const editor = await openScratchEditor("document-links-scene.tcl", sample.content);
+        await waitForSemanticTokens(editor.document.uri, 40, 10_000);
+        setCursorFromSample(editor, sample);
+        if (!sample.cursor) {
+          await setCursorOnText(editor, "parser.tcl");
+        }
+        // Links paint on Ctrl/Cmd hover; the underline plus the unchanged
+        // colouring of the surrounding `[file join …]` is the point of the
+        // shot (issue #775).
+        await vscode.commands.executeCommand("editor.action.showHover");
+        keepCursorVisible(editor);
+        await sleep(1_250);
+      },
+    },
+    {
       name: "29-ai-validate",
       requiresAi: true,
       run: async () => {

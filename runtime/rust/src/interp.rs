@@ -41,6 +41,9 @@ use std::cell::{Cell, RefCell};
 use std::rc::{Rc, Weak};
 
 use tcl_core_types::RecursionLimit;
+use tcl_runtime_api::guard::{
+    GuardDomain, GuardDomains, GuardError, GuardIdentity, GuardManager, GuardToken,
+};
 
 use crate::builtins;
 use crate::frame::{FrameStack, Link, VarError};
@@ -589,6 +592,10 @@ pub struct InterpState {
     /// The command-table-as-core-service: the namespace tree + the one
     /// `resolve(currentNs, name)` resolver (T1.5).
     namespaces: RefCell<Namespaces>,
+    /// Runtime-issued speculative guards and explicitly attested builtin IDs.
+    guards: RefCell<GuardManager>,
+    guarded_commands:
+        RefCell<std::collections::BTreeMap<Vec<u8>, std::collections::BTreeSet<GuardIdentity>>>,
     /// The current namespace for command resolution (the eval context; a proc
     /// runs in its *defining* namespace — wired with procs). Global at top level.
     current_ns: Cell<NsId>,
@@ -994,9 +1001,17 @@ impl Interp {
         let host: Rc<dyn tcl_platform::Host> = Rc::new(crate::host_wasm::WasiHost::new());
         #[cfg(all(target_arch = "wasm32", not(target_os = "wasi")))]
         let host: Rc<dyn tcl_platform::Host> = Rc::new(crate::host_wasm::BrowserHost::new());
+        let mut guards = GuardManager::default();
+        // Object dispatch still has mutation sites spread through the TclOO
+        // engine. Fail closed until those sites have one mutation owner. The
+        // interpreter-policy surface is centralised on
+        // `invalidate_interpreter_policy` below and can issue live guards.
+        guards.poison(GuardDomain::ObjectDispatch);
         let mut interp = Interp(Rc::new(InterpState {
             frames: RefCell::new(FrameStack::new()),
             namespaces: RefCell::new(Namespaces::new()),
+            guards: RefCell::new(guards),
+            guarded_commands: RefCell::new(std::collections::BTreeMap::new()),
             current_ns: Cell::new(GLOBAL),
             recursion_depth: Cell::new(0),
             recursion_limit: Cell::new(RECURSION_LIMIT),
@@ -1068,6 +1083,7 @@ impl Interp {
     /// no-subprocess host to prove the capability gate, or a safe interp taking
     /// a restricted one). Interior-mutable since the interp is shared via `Rc`.
     pub fn set_host(&self, host: Rc<dyn tcl_platform::Host>) {
+        self.invalidate_interpreter_policy();
         *self.0.host.borrow_mut() = host;
     }
 
@@ -1087,6 +1103,11 @@ impl Interp {
     /// interpreter each resolve against their own global namespace — setting
     /// it here never reaches across an interpreter boundary.
     pub fn set_runtime_version(&mut self, version: tcl_dialect::TclVersion) {
+        if self.runtime_version() == version {
+            return;
+        }
+        self.invalidate_interpreter_policy();
+        self.invalidate_command_environment();
         self.0.runtime_version.set(version);
         self.namespaces.borrow_mut().ns_var_global_fallback =
             version.namespace_var_global_fallback();
@@ -1179,6 +1200,173 @@ impl Interp {
         self.namespaces
             .borrow_mut()
             .register(name, Command::Builtin(f));
+        self.invalidate_command_environment();
+    }
+
+    /// Register a builtin with a stable semantic identity understood by
+    /// offline-generated code. Ordinary registration never infers identity
+    /// from a spelling or function address.
+    pub fn register_guarded_builtin(&mut self, name: &[u8], f: BuiltinFn, identity: GuardIdentity) {
+        self.register_builtin(name, f);
+        if let Some(fqn) = self.namespaces.borrow().resolve_fqn(GLOBAL, name) {
+            self.guarded_commands
+                .borrow_mut()
+                .entry(fqn)
+                .or_default()
+                .insert(identity);
+        }
+    }
+
+    /// Register a builtin and derive every semantic identity from its registry
+    /// command, subcommand, and invocation-form descriptors.
+    pub fn register_spec_builtin(&mut self, spec: &tcl_registry::CommandSpec, f: BuiltinFn) {
+        self.register_builtin(spec.name.as_bytes(), f);
+        let identities: std::collections::BTreeSet<_> = spec
+            .intrinsic_ids()
+            .into_iter()
+            .flat_map(|id| {
+                id.guard_semantics_variants().iter().map(move |semantics| {
+                    GuardIdentity::registry_intrinsic_with_semantics(id.stable_id(), *semantics)
+                })
+            })
+            .collect();
+        if !identities.is_empty() {
+            if let Some(fqn) = self
+                .namespaces
+                .borrow()
+                .resolve_fqn(GLOBAL, spec.name.as_bytes())
+            {
+                self.guarded_commands.borrow_mut().insert(fqn, identities);
+            }
+        }
+    }
+
+    /// Verify live command identity and issue a guard over `domains`.
+    pub fn prepare_command_guard(
+        &self,
+        name: &[u8],
+        expected: GuardIdentity,
+        domains: GuardDomains,
+    ) -> Result<GuardToken, GuardError> {
+        let traces = self.traces.borrow();
+        if (domains.contains(GuardDomain::CommandTrace) && !traces.cmd_traces.is_empty())
+            || (domains.contains(GuardDomain::VariableTrace) && !traces.traces.is_empty())
+        {
+            return Err(GuardError::PrerequisiteUnsatisfied);
+        }
+        drop(traces);
+        let observed = self
+            .namespaces
+            .borrow()
+            .resolve_fqn(self.current_ns.get(), name)
+            .and_then(|fqn| {
+                let identities = self.guarded_commands.borrow();
+                let identities = identities.get(&fqn)?;
+                Some(if identities.contains(&expected) {
+                    expected
+                } else {
+                    *identities.first()?
+                })
+            });
+        self.guards
+            .borrow_mut()
+            .prepare(expected, observed, domains)
+    }
+
+    /// Re-check a guard against the current resolved implementation identity.
+    #[must_use]
+    pub fn check_command_guard(&self, token: GuardToken, name: &[u8]) -> bool {
+        let Some(fqn) = self
+            .namespaces
+            .borrow()
+            .resolve_fqn(self.current_ns.get(), name)
+        else {
+            return false;
+        };
+        let identities = self.guarded_commands.borrow();
+        let Some(identities) = identities.get(&fqn) else {
+            return false;
+        };
+        identities
+            .iter()
+            .any(|identity| self.guards.borrow().check(token, Some(*identity)))
+    }
+
+    /// Re-check a guard for one exact registry intrinsic identity.
+    ///
+    /// This is the current-interpreter boundary used by generated code: it
+    /// refuses a token minted for another intrinsic form even when both forms
+    /// share one command head.
+    #[must_use]
+    pub fn check_command_guard_identity(
+        &self,
+        token: GuardToken,
+        name: &[u8],
+        expected: GuardIdentity,
+    ) -> bool {
+        let Some(fqn) = self
+            .namespaces
+            .borrow()
+            .resolve_fqn(self.current_ns.get(), name)
+        else {
+            return false;
+        };
+        let identities = self.guarded_commands.borrow();
+        if !identities
+            .get(&fqn)
+            .is_some_and(|identities| identities.contains(&expected))
+        {
+            return false;
+        }
+        self.guards
+            .borrow()
+            .check_expected(token, expected, Some(expected))
+    }
+
+    /// Execute one registry intrinsic over arguments after command and
+    /// subcommand dispatch. `None` declines to the caller's slow path.
+    pub fn execute_intrinsic(
+        &mut self,
+        intrinsic: tcl_registry::IntrinsicId,
+        args: &[*mut TclObj],
+    ) -> Option<Code> {
+        match (intrinsic, args) {
+            (tcl_registry::IntrinsicId::StringLength, [value]) => {
+                let result = tcl_cmd_core::string::length(self, value);
+                self.set_result(result);
+                Some(Code::Ok)
+            }
+            _ => None,
+        }
+    }
+
+    /// Release one runtime guard token exactly once.
+    #[must_use]
+    pub fn release_command_guard(&self, token: GuardToken) -> bool {
+        self.guards.borrow_mut().release(token)
+    }
+
+    pub(crate) fn invalidate_guard_domain(&self, domain: GuardDomain) {
+        self.guards.borrow_mut().invalidate(domain);
+    }
+
+    /// Invalidate speculative assumptions about this interpreter's visibility,
+    /// safety, topology/lifecycle, capability, and execution policy.
+    ///
+    /// Keep every write to the corresponding private [`InterpState`] fields
+    /// behind a method that calls this owner. The epoch is deliberately broader
+    /// than any one intrinsic needs: registry dispatch dependencies describe
+    /// interpreter policy as an irreducible live-runtime fact.
+    fn invalidate_interpreter_policy(&self) {
+        self.invalidate_guard_domain(GuardDomain::Interpreter);
+    }
+
+    fn invalidate_command_environment(&self) {
+        self.guarded_commands.borrow_mut().clear();
+        let mut guards = self.guards.borrow_mut();
+        guards.invalidate(GuardDomain::CommandEnvironment);
+        guards.invalidate(GuardDomain::Namespace);
+        guards.invalidate(GuardDomain::UnknownHandling);
     }
 
     /// Command names in the current namespace, filtered through the selected
@@ -1191,6 +1379,7 @@ impl Interp {
     /// `rename old new` (or `rename old ""` to delete), relative to the current
     /// namespace. Drives the one command table; see [`Namespaces::rename`].
     pub(crate) fn rename_command(&mut self, old: &[u8], new: &[u8]) -> RenameOutcome {
+        self.invalidate_command_environment();
         // Command traces fire *before* the table mutation (C's TclRenameCommand:
         // the command still exists under its old name during the callback), with
         // the fully-qualified old and new names.
@@ -1257,6 +1446,7 @@ impl Interp {
 
     /// Install an `interp alias` redirect named `name` → `target ?prefix...?`.
     pub(crate) fn install_alias(&mut self, name: &[u8], target: Vec<u8>, prefix: Vec<Vec<u8>>) {
+        self.invalidate_command_environment();
         self.namespaces
             .borrow_mut()
             .register(name, Command::Alias { target, prefix });
@@ -1294,6 +1484,7 @@ impl Interp {
     /// Delete the command bound to `name` (the alias-clear form); returns whether
     /// it existed.
     pub(crate) fn delete_command(&mut self, name: &[u8]) -> bool {
+        self.invalidate_command_environment();
         // If `name` is a suspended coroutine, terminate its worker first.
         crate::cmd_coro::on_command_deleted(self, name);
         self.namespaces
@@ -1304,6 +1495,7 @@ impl Interp {
     /// Register an ensemble command (`namespace ensemble create`); `name` is the
     /// ensemble command (possibly qualified — rooted at global like any builtin).
     pub(crate) fn create_ensemble(&mut self, name: &[u8], cfg: crate::ensemble::EnsembleConfig) {
+        self.invalidate_command_environment();
         // The `-command` name resolves relative to the current namespace, like a
         // proc name (C's `TclGetNamespaceForQualName(name, cxtPtr=nsPtr, ...)` in
         // `NamespaceEnsembleCmd`). `namespace ensemble create -command path`
@@ -1326,6 +1518,7 @@ impl Interp {
     /// `name` lands in — **relative to the current namespace** (so `proc next`
     /// inside `namespace eval counter` binds `::counter::next`, not a global).
     pub(crate) fn define_proc(&mut self, name: &[u8], params: Vec<Param>, body_obj: *mut TclObj) {
+        self.invalidate_command_environment();
         let body = obj_bytes(body_obj);
         let ns = self
             .namespaces
@@ -1453,6 +1646,7 @@ impl Interp {
         name: &[u8],
         cfg: crate::ensemble::EnsembleConfig,
     ) {
+        self.invalidate_command_environment();
         if !self.namespaces.borrow_mut().rebind_resolved(
             self.current_ns.get(),
             name,
@@ -1557,6 +1751,9 @@ impl Interp {
     /// The namespace tree (mutable) — for the `namespace` builtin's mutations
     /// (`export`/`import`/`forget`/`path`).
     pub(crate) fn namespaces_mut(&self) -> std::cell::RefMut<'_, Namespaces> {
+        // This escape hatch is used only by namespace/OO mutators. Invalidate
+        // conservatively before exposing mutable namespace state.
+        self.invalidate_command_environment();
         self.namespaces.borrow_mut()
     }
 
@@ -2229,8 +2426,13 @@ impl Interp {
     /// popped; its local variables and their traces go away).
     pub(crate) fn clear_frame_var_traces(&self, level: usize) {
         let mut t = self.traces.borrow_mut();
-        if t.traces.iter().any(|v| v.frame_level == Some(level)) {
+        let removed = t.traces.iter().any(|v| v.frame_level == Some(level));
+        if removed {
             t.traces.retain(|v| v.frame_level != Some(level));
+        }
+        drop(t);
+        if removed {
+            self.invalidate_guard_domain(GuardDomain::VariableTrace);
         }
     }
 
@@ -2334,6 +2536,8 @@ impl Interp {
                     )
                 }),
             }
+            drop(t);
+            self.invalidate_guard_domain(GuardDomain::VariableTrace);
         }
         existed
     }
@@ -2364,6 +2568,7 @@ impl Interp {
                 !(crate::cmd_trace::same_variable(v, &resolved_base, access_ns, access_frame_level)
                     && v.elem.as_deref() == Some(key))
             });
+            self.invalidate_guard_domain(GuardDomain::VariableTrace);
         }
         existed
     }
@@ -2651,19 +2856,30 @@ impl Interp {
     /// follows a renamed command, as C keeps the trace list on the moving
     /// `Command`).
     fn move_cmd_traces(&mut self, old_fqn: &[u8], new_fqn: &[u8]) {
-        for t in self.traces.borrow_mut().cmd_traces.iter_mut() {
+        let mut traces = self.traces.borrow_mut();
+        let mut moved = false;
+        for t in traces.cmd_traces.iter_mut() {
             if t.name == old_fqn {
                 t.name = new_fqn.to_vec();
+                moved = true;
             }
+        }
+        drop(traces);
+        if moved {
+            self.invalidate_guard_domain(GuardDomain::CommandTrace);
         }
     }
 
     /// Drop every command/execution trace on `fqn` (the command is gone).
     fn remove_cmd_traces(&mut self, fqn: &[u8]) {
-        self.traces
-            .borrow_mut()
-            .cmd_traces
-            .retain(|t| t.name != fqn);
+        let mut traces = self.traces.borrow_mut();
+        let old_len = traces.cmd_traces.len();
+        traces.cmd_traces.retain(|t| t.name != fqn);
+        let removed = traces.cmd_traces.len() != old_len;
+        drop(traces);
+        if removed {
+            self.invalidate_guard_domain(GuardDomain::CommandTrace);
+        }
     }
 
     /// Whether `name` resolves to an array variable (`set a` array-vs-scalar
@@ -2735,6 +2951,7 @@ impl Interp {
     /// Resolve (creating if needed) a namespace by name, relative to the current
     /// namespace — for `apply`'s optional namespace term.
     pub(crate) fn ensure_namespace(&mut self, name: &[u8]) -> NsId {
+        self.invalidate_command_environment();
         self.namespaces
             .borrow_mut()
             .ensure_namespace(self.current_ns.get(), name)
@@ -2743,6 +2960,7 @@ impl Interp {
     /// Delete the namespace `ns` (by id), e.g. an OO object's instance namespace
     /// when the object is destroyed.
     pub(crate) fn delete_namespace_by_id(&mut self, ns: NsId) {
+        self.invalidate_command_environment();
         // Variables in the namespace (and its descendants) are about to be
         // unset; fire their unset traces. Names are built while the namespace
         // still exists, then the namespace is torn down, then the callbacks run
@@ -2802,6 +3020,7 @@ impl Interp {
         };
         let mut victims = Vec::new();
         let mut traces = self.traces.borrow_mut();
+        let old_len = traces.cmd_traces.len();
         traces.cmd_traces.retain(|t| {
             // The command's home-namespace prefix: everything up to and
             // including the last `::` (global commands are `::cmd` → `::`).
@@ -2819,6 +3038,11 @@ impl Interp {
                 true
             }
         });
+        let removed = traces.cmd_traces.len() != old_len;
+        drop(traces);
+        if removed {
+            self.invalidate_guard_domain(GuardDomain::CommandTrace);
+        }
         victims
     }
 
@@ -2866,6 +3090,7 @@ impl Interp {
             .collect();
         let mut victims = Vec::new();
         let mut traces = self.traces.borrow_mut();
+        let old_len = traces.traces.len();
         let ns_ref = self.namespaces.borrow();
         traces.traces.retain(|t| {
             let hit =
@@ -2892,6 +3117,12 @@ impl Interp {
             }
             !hit
         });
+        let removed = traces.traces.len() != old_len;
+        drop(ns_ref);
+        drop(traces);
+        if removed {
+            self.invalidate_guard_domain(GuardDomain::VariableTrace);
+        }
         victims
     }
 
@@ -3254,6 +3485,7 @@ impl Interp {
 
     /// Set the `interp bgerror` handler command prefix.
     pub(crate) fn set_bgerror_handler(&self, prefix: &[u8]) {
+        self.invalidate_interpreter_policy();
         *self.bgerror.borrow_mut() = prefix.to_vec();
     }
 
@@ -4803,6 +5035,7 @@ impl Interp {
     /// object/class commands.
     pub(crate) fn ns_register(&mut self, name: &[u8], cmd: Command) {
         self.namespaces.borrow_mut().register(name, cmd);
+        self.invalidate_command_environment();
     }
 
     /// The fully-qualified name a (relative or absolute) command/object name
@@ -5120,6 +5353,8 @@ impl Interp {
     /// Create a child interpreter named `name` (auto-generated when empty),
     /// registering it as a command in this interp. Returns the name.
     pub(crate) fn create_child(&mut self, name: Option<Vec<u8>>) -> Vec<u8> {
+        self.invalidate_interpreter_policy();
+        self.invalidate_command_environment();
         let name = name.unwrap_or_else(|| {
             let n = format!("interp{}", self.interp_counter.get());
             self.interp_counter.set(self.interp_counter.get() + 1);
@@ -5145,6 +5380,7 @@ impl Interp {
             .unwrap_or(false)
         {
             child.0.debug_frame.set(true);
+            child.invalidate_interpreter_policy();
         }
         self.children.borrow_mut().insert(name.clone(), child);
         self.namespaces
@@ -5178,16 +5414,23 @@ impl Interp {
         f: impl FnOnce(&mut Interp) -> R,
     ) -> Option<R> {
         let mut child = self.children.borrow().get(name)?.clone();
+        // Parent association and active/deferred-delete lifecycle are part of
+        // child-interpreter policy. A token minted before this entry must not
+        // survive into a differently-associated child evaluation.
+        child.invalidate_interpreter_policy();
         let saved_parent = child.parent.replace(Rc::downgrade(&self.0));
         child.eval_active.set(child.eval_active.get() + 1);
         let r = f(&mut child);
         child.eval_active.set(child.eval_active.get() - 1);
         *child.parent.borrow_mut() = saved_parent;
+        child.invalidate_interpreter_policy();
         let teardown = child.pending_delete.get() && child.eval_active.get() == 0;
         drop(child); // release our handle clone before freeing the table's
         if teardown {
+            self.invalidate_interpreter_policy();
             self.children.borrow_mut().remove(name);
             self.namespaces.borrow_mut().delete(GLOBAL, name);
+            self.invalidate_command_environment();
         }
         Some(r)
     }
@@ -5217,8 +5460,10 @@ impl Interp {
         let resolved = self.namespaces.borrow().resolve(GLOBAL, name);
         match resolved {
             Some(cmd) => {
+                self.invalidate_interpreter_policy();
                 self.namespaces.borrow_mut().delete(GLOBAL, name);
                 self.hidden.borrow_mut().insert(name.to_vec(), cmd);
+                self.invalidate_command_environment();
                 true
             }
             None => false,
@@ -5227,10 +5472,14 @@ impl Interp {
 
     /// `interp expose name`: move a hidden command back into the command table.
     pub(crate) fn expose_command(&mut self, name: &[u8]) -> bool {
+        // Invalidate before removing from the hidden table. A missing entry may
+        // over-invalidate, which is preferable to a re-entrant visibility gap.
+        self.invalidate_interpreter_policy();
         let cmd = self.hidden.borrow_mut().remove(name);
         match cmd {
             Some(cmd) => {
                 self.namespaces.borrow_mut().register(name, cmd);
+                self.invalidate_command_environment();
                 true
             }
             None => false,
@@ -5261,6 +5510,9 @@ impl Interp {
     /// `interp create -safe`. The Safe Base's re-aliasing of `source`/`load`/
     /// `file` is a follow-up (needs cross-interp aliases).
     pub(crate) fn make_safe(&mut self) {
+        // Variable unsets below can fire callbacks. Stale existing tokens before
+        // the first visibility/policy write, not after re-entrant code can run.
+        self.invalidate_interpreter_policy();
         // Pinned against real tclsh 8.6.14 (`interp create -safe s; s hidden`):
         // `after` / `vwait` are deliberately NOT on this list — confirmed
         // present and callable inside a real safe child (`s eval {info
@@ -5334,6 +5586,7 @@ impl Interp {
     /// `interp marktrusted` — clear this interp's safe flag (a parent demoting a
     /// child from safe to trusted). Future children it creates are trusted too.
     pub(crate) fn mark_trusted(&self) {
+        self.invalidate_interpreter_policy();
         self.is_safe.set(false);
     }
 
@@ -5351,6 +5604,7 @@ impl Interp {
             _ => {
                 check_debug_opt(opts[0])?;
                 if parse_truth(&obj_bytes(opts[1])) {
+                    self.invalidate_interpreter_policy();
                     self.debug_frame.set(true);
                 }
                 let frame_byte: &[u8] = if self.debug_frame.get() { b"1" } else { b"0" };
@@ -5372,6 +5626,7 @@ impl Interp {
                 if n <= 0 {
                     return Err(b"recursion limit must be > 0".to_vec());
                 }
+                self.invalidate_interpreter_policy();
                 self.recursion_limit.set(n as usize);
                 Ok(n)
             }
@@ -5426,6 +5681,10 @@ impl Interp {
                     .to_vec(),
             );
         }
+        // The option loop may commit an earlier pair before a later pair is
+        // rejected. Invalidate before its first possible policy write so that
+        // partial-on-error mutation cannot leave an old token live.
+        self.invalidate_interpreter_policy();
         let mut i = 0;
         while i + 1 < opts.len() {
             let opt = resolve_limit_opt(&obj_bytes(opts[i]), OPTS)?;
@@ -5483,6 +5742,9 @@ impl Interp {
                 b"wrong # args: should be \"interp limit path time ?-option value ...?\"".to_vec(),
             );
         }
+        // As with command limits, parsing is incremental and can partially
+        // mutate before returning an error on a later option.
+        self.invalidate_interpreter_policy();
         let (mut sec, mut ms) = self.limits.borrow().time_value.unwrap_or((0, 0));
         let mut touched = self.limits.borrow().time_value.is_some();
         let mut i = 0;
@@ -5587,6 +5849,7 @@ impl Interp {
             let children = self.children.borrow();
             match children.get(name) {
                 Some(child) if child.eval_active.get() > 0 => {
+                    child.invalidate_interpreter_policy();
                     child.pending_delete.set(true);
                     Some(false) // busy: defer the removal
                 }
@@ -5597,10 +5860,12 @@ impl Interp {
         match disposition {
             None => false,
             Some(remove_now) => {
+                self.invalidate_interpreter_policy();
                 if remove_now {
                     self.children.borrow_mut().remove(name);
                 }
                 self.namespaces.borrow_mut().delete(GLOBAL, name);
+                self.invalidate_command_environment();
                 true
             }
         }
@@ -6713,6 +6978,32 @@ mod tests {
     use super::*;
     use crate::counters;
 
+    const GUARDED_IDENTITY: GuardIdentity = GuardIdentity::new(1, 71);
+
+    fn guarded_builtin(interp: &mut Interp, _argv: &[*mut TclObj]) -> Code {
+        interp.set_result_bytes(b"");
+        Code::Ok
+    }
+
+    fn prepare_interpreter_guard(interp: &mut Interp) -> GuardToken {
+        interp.register_guarded_builtin(b"guarded", guarded_builtin, GUARDED_IDENTITY);
+        interp
+            .prepare_command_guard(
+                b"guarded",
+                GUARDED_IDENTITY,
+                GuardDomains::one(GuardDomain::Interpreter),
+            )
+            .expect("interpreter domain should be guardable")
+    }
+
+    fn assert_interpreter_guard_stale(interp: &mut Interp, token: GuardToken) {
+        // Command-table mutation deliberately clears all identity attestations.
+        // Restore this explicit identity so a failed check proves the
+        // Interpreter epoch changed rather than merely observing a missing ID.
+        interp.register_guarded_builtin(b"guarded", guarded_builtin, GUARDED_IDENTITY);
+        assert!(!interp.check_command_guard(token, b"guarded"));
+    }
+
     fn leak_free(body: impl FnOnce(&mut Interp)) {
         counters::reset();
         {
@@ -6727,6 +7018,298 @@ mod tests {
             counters::live_bufs()
         );
         assert_eq!(counters::double_free_count(), 0);
+    }
+
+    #[test]
+    fn command_guard_checks_identity_and_exact_lifecycle() {
+        leak_free(|i| {
+            i.register_guarded_builtin(b"guarded", guarded_builtin, GUARDED_IDENTITY);
+            let domains = GuardDomains::one(GuardDomain::CommandEnvironment);
+            assert_eq!(
+                i.prepare_command_guard(b"guarded", GuardIdentity::new(1, 72), domains),
+                Err(GuardError::IdentityMismatch)
+            );
+            let token = i
+                .prepare_command_guard(b"guarded", GUARDED_IDENTITY, domains)
+                .unwrap();
+            assert!(i.check_command_guard(token, b"guarded"));
+            assert!(i.release_command_guard(token));
+            assert!(!i.release_command_guard(token));
+            assert!(!i.check_command_guard(token, b"guarded"));
+        });
+    }
+
+    #[test]
+    fn command_mutation_invalidates_guard_and_identity_attestation() {
+        leak_free(|i| {
+            i.register_guarded_builtin(b"guarded", guarded_builtin, GUARDED_IDENTITY);
+            let domains = GuardDomains::one(GuardDomain::CommandEnvironment);
+            let token = i
+                .prepare_command_guard(b"guarded", GUARDED_IDENTITY, domains)
+                .unwrap();
+            i.register_builtin(b"unrelated", guarded_builtin);
+            assert!(!i.check_command_guard(token, b"guarded"));
+            assert_eq!(
+                i.prepare_command_guard(b"guarded", GUARDED_IDENTITY, domains),
+                Err(GuardError::IdentityUnavailable)
+            );
+        });
+    }
+
+    #[test]
+    fn trace_registration_invalidates_matching_guard_domains() {
+        leak_free(|i| {
+            i.register_guarded_builtin(b"guarded", guarded_builtin, GUARDED_IDENTITY);
+            let command_token = i
+                .prepare_command_guard(
+                    b"guarded",
+                    GUARDED_IDENTITY,
+                    GuardDomains::one(GuardDomain::CommandTrace),
+                )
+                .unwrap();
+            assert_eq!(
+                i.eval_str(b"trace add command guarded rename callback"),
+                Code::Ok
+            );
+            assert!(!i.check_command_guard(command_token, b"guarded"));
+
+            let variable_token = i
+                .prepare_command_guard(
+                    b"guarded",
+                    GUARDED_IDENTITY,
+                    GuardDomains::one(GuardDomain::VariableTrace),
+                )
+                .unwrap();
+            assert_eq!(
+                i.eval_str(b"trace add variable watched write callback"),
+                Code::Ok
+            );
+            assert!(!i.check_command_guard(variable_token, b"guarded"));
+        });
+    }
+
+    #[test]
+    fn object_dispatch_remains_poisoned_but_interpreter_is_guardable() {
+        leak_free(|i| {
+            i.register_guarded_builtin(b"guarded", guarded_builtin, GUARDED_IDENTITY);
+            assert_eq!(
+                i.prepare_command_guard(
+                    b"guarded",
+                    GUARDED_IDENTITY,
+                    GuardDomains::one(GuardDomain::ObjectDispatch)
+                ),
+                Err(GuardError::Poisoned)
+            );
+            let token = prepare_interpreter_guard(i);
+            assert!(i.check_command_guard(token, b"guarded"));
+        });
+    }
+
+    #[test]
+    fn string_length_guard_accepts_irreducible_base_domains() {
+        leak_free(|i| {
+            let identity = GuardIdentity::registry_intrinsic_with_semantics(
+                tcl_registry::IntrinsicId::StringLength.stable_id(),
+                tcl_registry::IntrinsicId::StringLength.guard_semantics_key(i.runtime_version()),
+            );
+            let domains = GuardDomains::one(GuardDomain::CommandEnvironment)
+                .with(GuardDomain::Namespace)
+                .with(GuardDomain::CommandTrace)
+                .with(GuardDomain::Interpreter);
+            let token = i
+                .prepare_command_guard(b"string", identity, domains)
+                .expect("the registry BASE domains should be live");
+            assert!(i.check_command_guard_identity(token, b"string", identity));
+            assert!(i.release_command_guard(token));
+        });
+    }
+
+    #[test]
+    fn visibility_safety_and_topology_mutations_stale_interpreter_guards() {
+        leak_free(|i| {
+            let token = prepare_interpreter_guard(i);
+            assert!(i.hide_command(b"set"));
+            assert_interpreter_guard_stale(i, token);
+
+            let token = prepare_interpreter_guard(i);
+            assert!(i.expose_command(b"set"));
+            assert_interpreter_guard_stale(i, token);
+
+            let token = prepare_interpreter_guard(i);
+            assert_eq!(i.create_child(Some(b"child".to_vec())), b"child");
+            assert_interpreter_guard_stale(i, token);
+
+            let token = prepare_interpreter_guard(i);
+            assert!(i.delete_child(b"child"));
+            assert_interpreter_guard_stale(i, token);
+
+            let token = prepare_interpreter_guard(i);
+            i.make_safe();
+            assert_interpreter_guard_stale(i, token);
+
+            let token = prepare_interpreter_guard(i);
+            i.mark_trusted();
+            assert_interpreter_guard_stale(i, token);
+        });
+    }
+
+    #[test]
+    fn child_parent_association_stales_interpreter_guard() {
+        leak_free(|parent| {
+            parent.create_child(Some(b"child".to_vec()));
+            let mut child = parent
+                .children
+                .borrow()
+                .get(b"child".as_slice())
+                .expect("child")
+                .clone();
+            let token = prepare_interpreter_guard(&mut child);
+            assert!(child.check_command_guard(token, b"guarded"));
+
+            parent.with_child(b"child", |_| ());
+            assert_interpreter_guard_stale(&mut child, token);
+        });
+    }
+
+    #[test]
+    fn execution_policy_and_runtime_version_mutations_stale_interpreter_guards() {
+        leak_free(|i| {
+            let token = prepare_interpreter_guard(i);
+            i.set_host(i.host());
+            assert_interpreter_guard_stale(i, token);
+
+            let token = prepare_interpreter_guard(i);
+            i.set_bgerror_handler(b"handler");
+            assert_interpreter_guard_stale(i, token);
+
+            let token = prepare_interpreter_guard(i);
+            let frame = new_string(b"-frame");
+            let enabled = new_string(b"1");
+            let result = i.debug_apply(&[frame, enabled]).expect("debug policy");
+            drop_fresh(frame);
+            drop_fresh(enabled);
+            drop_fresh(result);
+            assert_interpreter_guard_stale(i, token);
+
+            let token = prepare_interpreter_guard(i);
+            assert_eq!(i.recursion_limit_apply(Some(b"250")), Ok(250));
+            assert_interpreter_guard_stale(i, token);
+
+            let token = prepare_interpreter_guard(i);
+            let option = new_string(b"-value");
+            let value = new_string(b"100");
+            let result = i
+                .limit_apply(b"commands", &[option, value])
+                .expect("command limit policy");
+            drop_fresh(option);
+            drop_fresh(value);
+            drop_fresh(result);
+            assert_interpreter_guard_stale(i, token);
+
+            let token = prepare_interpreter_guard(i);
+            i.set_runtime_version(tcl_dialect::TclVersion::V8_6);
+            assert_interpreter_guard_stale(i, token);
+        });
+    }
+
+    #[test]
+    fn string_length_intrinsic_uses_the_selected_runtime_character_model() {
+        leak_free(|i| {
+            let domains = GuardDomains::one(GuardDomain::CommandEnvironment);
+            for intrinsic in [
+                tcl_registry::IntrinsicId::StringLength,
+                tcl_registry::IntrinsicId::StringIndex,
+            ] {
+                let identity = GuardIdentity::registry_intrinsic_with_semantics(
+                    intrinsic.stable_id(),
+                    intrinsic.guard_semantics_key(i.runtime_version()),
+                );
+                let token = i
+                    .prepare_command_guard(b"string", identity, domains)
+                    .unwrap();
+                assert!(i.check_command_guard(token, b"string"));
+            }
+
+            let value = new_string("é🙂".as_bytes());
+            assert_eq!(
+                i.execute_intrinsic(tcl_registry::IntrinsicId::StringLength, &[value]),
+                Some(Code::Ok)
+            );
+            assert_eq!(i.result_bytes(), b"2");
+
+            let identity = GuardIdentity::registry_intrinsic_with_semantics(
+                tcl_registry::IntrinsicId::StringLength.stable_id(),
+                tcl_registry::IntrinsicId::StringLength.guard_semantics_key(i.runtime_version()),
+            );
+            let live_domains = GuardDomains::one(GuardDomain::CommandEnvironment)
+                .with(GuardDomain::Namespace)
+                .with(GuardDomain::CommandTrace)
+                .with(GuardDomain::Interpreter);
+            let token = i
+                .prepare_command_guard(b"string", identity, live_domains)
+                .expect("registry BASE domains are guardable");
+            i.set_runtime_version(tcl_dialect::TclVersion::V8_6);
+            assert!(!i.check_command_guard_identity(token, b"string", identity));
+            assert!(i.release_command_guard(token));
+            assert_eq!(
+                i.execute_intrinsic(tcl_registry::IntrinsicId::StringLength, &[value]),
+                Some(Code::Ok)
+            );
+            assert_eq!(i.result_bytes(), b"3");
+            assert_eq!(i.eval_str("string length é🙂".as_bytes()), Code::Ok);
+            assert_eq!(i.result_bytes(), b"3");
+
+            i.set_runtime_version(tcl_dialect::TclVersion::V9_0);
+            assert_eq!(i.eval_str("string length é🙂".as_bytes()), Code::Ok);
+            assert_eq!(i.result_bytes(), b"2");
+            drop_fresh(value);
+            assert_eq!(
+                i.execute_intrinsic(tcl_registry::IntrinsicId::ListLength, &[]),
+                None
+            );
+        });
+    }
+
+    #[test]
+    fn renaming_spec_registered_string_stales_its_intrinsic_guard() {
+        leak_free(|i| {
+            let identity = GuardIdentity::registry_intrinsic_with_semantics(
+                tcl_registry::IntrinsicId::StringLength.stable_id(),
+                tcl_registry::IntrinsicId::StringLength.guard_semantics_key(i.runtime_version()),
+            );
+            let token = i
+                .prepare_command_guard(
+                    b"string",
+                    identity,
+                    GuardDomains::one(GuardDomain::CommandEnvironment),
+                )
+                .unwrap();
+            assert_eq!(i.eval_str(b"rename string moved"), Code::Ok);
+            assert!(!i.check_command_guard(token, b"string"));
+            assert!(!i.check_command_guard(token, b"moved"));
+        });
+    }
+
+    #[test]
+    fn command_trace_stales_the_string_intrinsic_guard() {
+        leak_free(|i| {
+            let identity = GuardIdentity::registry_intrinsic_with_semantics(
+                tcl_registry::IntrinsicId::StringLength.stable_id(),
+                tcl_registry::IntrinsicId::StringLength.guard_semantics_key(i.runtime_version()),
+            );
+            let token = i
+                .prepare_command_guard(
+                    b"string",
+                    identity,
+                    GuardDomains::one(GuardDomain::CommandTrace),
+                )
+                .unwrap();
+            assert_eq!(
+                i.eval_str(b"trace add command string rename callback"),
+                Code::Ok
+            );
+            assert!(!i.check_command_guard(token, b"string"));
+        });
     }
 
     /// Regression coverage for issue #996 in this runtime specifically: a

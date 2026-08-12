@@ -17,7 +17,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 //! Go-to-definition, end-to-end against the packaged server. Covers the plain
-//! Tcl and TclOO cases plus the VS Code `definition.test.ts` scenario (navigate
+//! Tcl and `TclOO` cases plus the VS Code `definition.test.ts` scenario (navigate
 //! from a call site to the proc).
 
 use crate::common::helpers::*;

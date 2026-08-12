@@ -32,6 +32,7 @@ use std::rc::Rc;
 use tcl_bytecode::{ErrorRegion, FunctionAsm, INDEX_END, Instruction, ModuleAsm, Op, Operand};
 use tcl_runtime_api::{Code, Completion};
 use tcl_syntax::expr::{BinOp, UnaryOp};
+use tcl_syntax::value::string_char_len;
 
 use crate::command::{Command, ProcDef};
 use crate::expr;
@@ -2372,7 +2373,10 @@ impl Vm {
             // -- string ops (inline; char-based, mirroring the reference VM) --
             Op::STR_LEN => {
                 let s = pop(f).to_str();
-                f.stack.push(Value::int(ilen(s.chars().count())));
+                f.stack.push(Value::int(ilen(string_char_len(
+                    &s,
+                    self.runtime_version(),
+                ))));
             }
             Op::STR_INDEX => {
                 let idx = pop(f);

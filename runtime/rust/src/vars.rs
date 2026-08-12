@@ -45,7 +45,7 @@
 use tcl_syntax::naming::is_qualified;
 
 use crate::frame::{FrameStack, Link, Var, VarError, VarHome, VarTable};
-use crate::namespace::{GLOBAL, Namespaces, NsId};
+use crate::namespace::{Namespaces, NsId, GLOBAL};
 use crate::obj::{self, TclObj};
 
 /// Bound on the link walk so a pathological alias cycle can't spin forever
@@ -918,8 +918,9 @@ mod tests {
                 set(f, ns, GLOBAL, b"::nosuch::x", rejected),
                 Err(VarError::NoSuchNamespace)
             );
-            unsafe { obj::decr_ref_count(rejected) }; // caller frees; set didn't keep it
-            // a read of the same name simply misses (no such variable).
+            // The caller frees the rejected object because the failed set did
+            // not retain it. A read of the same name simply misses.
+            unsafe { obj::decr_ref_count(rejected) };
             assert_eq!(get(f, ns, GLOBAL, b"::nosuch::x"), None);
         });
     }

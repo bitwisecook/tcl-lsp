@@ -29,9 +29,7 @@ use tcl_core_types::DiagCode;
 
 use rustc_hash::{FxHashMap, FxHashSet};
 use tcl_lexer::Span;
-use tcl_registry::{
-    CommandRegistry, DispatchDependencies, ResultStability, StateTransitionKnowledge, Traits,
-};
+use tcl_registry::{CommandRegistry, ResultStability, StateTransitionKnowledge, Traits};
 
 use crate::cfg::{BlockId, CfgModule, Function as CfgFunction, Terminator};
 use crate::ir::{NodeId, Provenance, SourceSite, Statement};
@@ -710,8 +708,15 @@ struct GvnSemanticSite {
 /// Whether the semantic registry facts permit GVN to reuse a direct call.
 #[derive(Debug, Clone, PartialEq, Eq)]
 enum GvnSiteEligibility {
-    /// A closed registry proof allows a pure CSE candidate at this site.
-    Eligible { canonical_command: String },
+    /// A closed registry proof plus a complete live-dispatch site proof
+    /// allow a stable CSE candidate at this site.
+    Eligible {
+        canonical_command: String,
+        /// World-state version fragments the expression key must include:
+        /// the site's dispatch-dependency tracks plus any registry-declared
+        /// versioned-world result domains.
+        world_key: Vec<String>,
+    },
     /// The site is known but any missing proof makes GVN abstain.
     Declined,
 }
@@ -721,9 +726,12 @@ enum GvnSiteEligibility {
 enum GvnSemanticLookup<'a> {
     /// The source-bearing semantic sidecar has no matching invocation.
     Unmapped,
-    /// A uniquely matched invocation is eligible and supplies its canonical
-    /// registry command identity.
-    Eligible(&'a str),
+    /// A uniquely matched invocation is eligible, supplying its canonical
+    /// registry command identity and world-version key fragments.
+    Eligible {
+        command: &'a str,
+        world_key: &'a [String],
+    },
     /// The source span was mapped, but was ambiguous or lacks a complete
     /// semantic/world proof. GVN must not use the legacy classifier here.
     Declined,
@@ -763,32 +771,36 @@ impl GvnSemanticFacts {
     fn from_function(function: &crate::compilation_unit::FunctionUnit) -> Option<Self> {
         let availability = function.semantic_facts.executable();
         let executable = availability.function()?;
+        // The dispatch-stability contents analysis is meaningful only when
+        // the world-state graph itself was buildable; a world-state decline
+        // fails every site closed exactly as before.
+        let proofs = availability.world_state_ssa().is_some().then(|| {
+            crate::dispatch_proof::analyse_dispatch_stability(
+                executable,
+                function.semantic_facts.dispatch_entry_assumption(),
+            )
+        });
         let mut facts = Self {
             sites: FxHashMap::default(),
         };
-        for block in &executable.blocks {
-            for instruction in &block.instructions {
+        for (block_index, block) in executable.blocks.iter().enumerate() {
+            for (instruction_index, instruction) in block.instructions.iter().enumerate() {
                 let crate::executable_ir::ExecutableInstruction::Invoke(invoke) = instruction
                 else {
                     continue;
                 };
                 let key = SemanticSourceKey::from(invoke.source.span);
+                let site_proof = proofs.as_ref().and_then(|proofs| {
+                    proofs.site(
+                        u32::try_from(block_index).unwrap_or(u32::MAX),
+                        u32::try_from(instruction_index).unwrap_or(u32::MAX),
+                    )
+                });
                 let eligibility = match &invoke.resolution {
-                    crate::executable_ir::InvocationResolution::Resolved(resolved)
-                        if resolved_invocation_is_gvn_eligible(
-                            resolved,
-                            GvnDispatchProof::from_world_state_versions(
-                                resolved,
-                                availability.world_state_ssa().is_some(),
-                            ),
-                        ) =>
-                    {
-                        GvnSiteEligibility::Eligible {
-                            canonical_command: resolved.canonical_command.clone(),
-                        }
+                    crate::executable_ir::InvocationResolution::Resolved(resolved) => {
+                        gvn_site_eligibility(resolved, site_proof)
                     }
-                    crate::executable_ir::InvocationResolution::Resolved(_)
-                    | crate::executable_ir::InvocationResolution::Unresolved(_) => {
+                    crate::executable_ir::InvocationResolution::Unresolved(_) => {
                         GvnSiteEligibility::Declined
                     }
                 };
@@ -817,89 +829,31 @@ impl GvnSemanticFacts {
             return GvnSemanticLookup::Declined;
         }
         match &site.eligibility {
-            GvnSiteEligibility::Eligible { canonical_command } => {
-                GvnSemanticLookup::Eligible(canonical_command)
-            }
+            GvnSiteEligibility::Eligible {
+                canonical_command,
+                world_key,
+            } => GvnSemanticLookup::Eligible {
+                command: canonical_command,
+                world_key,
+            },
             GvnSiteEligibility::Declined => GvnSemanticLookup::Declined,
         }
     }
 }
 
-/// Live-dispatch evidence available to common GVN at one invocation site.
-///
-/// A registry resolution identifies the intended command semantics, while Tcl
-/// permits the binding, namespace lookup, traces, and interpreter policy to
-/// change underneath that resolution. World-state SSA currently versions
-/// those domains but does not track their contents, so a version cannot prove
-/// that a command/execution trace is absent. Keeping that limitation typed
-/// prevents a later optimisation from silently treating "SSA built" as the
-/// stronger closed-world proof.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum GvnDispatchProof {
-    /// Common analysis proved every required dependency stable at this point.
-    Proven { dependencies: DispatchDependencies },
-    /// Common analysis deliberately declined a dispatch proof.
-    Declined(GvnDispatchProofDecline),
-}
-
-/// Why common GVN could not prove live dispatch stable.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum GvnDispatchProofDecline {
-    /// The executable world-state graph was unavailable.
-    WorldStateUnavailable,
-    /// The graph versions the required domains but cannot prove their
-    /// contents (in particular, that command/execution traces are absent).
-    WorldStateContentsUnavailable { dependencies: DispatchDependencies },
-}
-
-impl GvnDispatchProof {
-    fn from_world_state_versions(
-        resolved: &tcl_registry::InvocationFacts,
-        world_state_available: bool,
-    ) -> Self {
-        if !world_state_available {
-            return Self::Declined(GvnDispatchProofDecline::WorldStateUnavailable);
-        }
-        if resolved.dispatch_dependencies.is_empty() {
-            return Self::Proven {
-                dependencies: DispatchDependencies::NONE,
-            };
-        }
-        Self::Declined(GvnDispatchProofDecline::WorldStateContentsUnavailable {
-            dependencies: resolved.dispatch_dependencies,
-        })
-    }
-
-    fn covers(self, required: DispatchDependencies) -> bool {
-        match self {
-            Self::Proven { dependencies } => required
-                .iter()
-                .all(|dependency| dependencies.contains(dependency)),
-            Self::Declined(_) => false,
-        }
-    }
-}
-
-/// Return whether one resolved registry invocation is a static GVN candidate.
+/// Static registry gates shared by every GVN candidate class.
 ///
 /// An empty effect vector on its own is not enough: transition coverage can
-/// remove a write from the ordinary footprint.  Reuse requires both the
-/// explicit pure/CSE registry traits, a referentially-transparent result, and
-/// a closed, empty transition set, no direct state accesses, and no callback
-/// barrier. Live dispatch stability is a separate proof applied by
-/// [`resolved_invocation_is_gvn_eligible`]. Versioned-world results fail closed
-/// until GVN includes those world versions in its expression key; volatile and
-/// undeclared results are never candidates.
-pub(crate) fn resolved_invocation_is_gvn_candidate(
-    resolved: &tcl_registry::InvocationFacts,
-) -> bool {
+/// remove a write from the ordinary footprint.  Reuse requires the explicit
+/// pure/CSE registry traits, a closed and empty transition set, no direct
+/// state accesses, and no callback barrier.  Result stability is judged by
+/// the per-class predicates below; live dispatch stability is a separate
+/// per-site proof ([`crate::dispatch_proof::SiteDispatchProof`]).
+fn resolved_invocation_static_gvn_gates(resolved: &tcl_registry::InvocationFacts) -> bool {
     if !resolved
         .traits
         .contains(Traits::PURE.union(Traits::CSE_CANDIDATE))
     {
-        return false;
-    }
-    if resolved.result_stability != ResultStability::ReferentiallyTransparent {
         return false;
     }
     if !resolved.effects.accesses().is_empty() || resolved.effects.requires_world_barrier() {
@@ -917,13 +871,58 @@ pub(crate) fn resolved_invocation_is_gvn_candidate(
     )
 }
 
-/// Return whether a static GVN candidate also has a live dispatch proof.
-fn resolved_invocation_is_gvn_eligible(
+/// Return whether one resolved registry invocation is a static GVN candidate
+/// whose result depends only on its evaluated argument values.
+pub(crate) fn resolved_invocation_is_gvn_candidate(
     resolved: &tcl_registry::InvocationFacts,
-    dispatch: GvnDispatchProof,
 ) -> bool {
-    resolved_invocation_is_gvn_candidate(resolved)
-        && dispatch.covers(resolved.dispatch_dependencies)
+    resolved.result_stability == ResultStability::ReferentiallyTransparent
+        && resolved_invocation_static_gvn_gates(resolved)
+}
+
+/// Return whether one resolved registry invocation is a static GVN candidate
+/// whose result additionally reads registry-declared versioned world-state
+/// domains.
+///
+/// Such a call is reusable only when the expression key includes the
+/// world-state versions of every declared domain — which the semantic path
+/// supplies from the dispatch-stability analysis.  Volatile and undeclared
+/// results are never candidates.
+pub(crate) fn resolved_invocation_is_versioned_world_gvn_candidate(
+    resolved: &tcl_registry::InvocationFacts,
+) -> bool {
+    matches!(
+        resolved.result_stability,
+        ResultStability::ReadsVersionedWorld(_)
+    ) && resolved_invocation_static_gvn_gates(resolved)
+}
+
+/// Judge one resolved invocation against its live dispatch-stability proof.
+///
+/// Fails closed without a site proof (world-state graph unavailable, the
+/// analysis abandoned, or the site unreached).  A complete proof must cover
+/// every registry-declared dispatch dependency and admit every operand word;
+/// the returned eligibility then carries the world-version key fragments for
+/// the dependency tracks plus any versioned-world result domains.
+fn gvn_site_eligibility(
+    resolved: &tcl_registry::InvocationFacts,
+    site: Option<&crate::dispatch_proof::SiteDispatchProof>,
+) -> GvnSiteEligibility {
+    let Some(site) = site else {
+        return GvnSiteEligibility::Declined;
+    };
+    let result_reusable = resolved_invocation_is_gvn_candidate(resolved)
+        || resolved_invocation_is_versioned_world_gvn_candidate(resolved);
+    if !result_reusable || !site.satisfies(resolved.dispatch_dependencies) {
+        return GvnSiteEligibility::Declined;
+    }
+    GvnSiteEligibility::Eligible {
+        canonical_command: resolved.canonical_command.clone(),
+        world_key: site.world_key(
+            resolved.dispatch_dependencies,
+            resolved.result_stability.versioned_world_dependencies(),
+        ),
+    }
 }
 
 /// Return `true` when the statement's effects must invalidate
@@ -968,7 +967,7 @@ fn statement_writes_state_for_gvn(
             Statement::Barrier { .. } => true,
             Statement::Call { span, .. } => {
                 match semantic.map_or(GvnSemanticLookup::Unmapped, |facts| facts.lookup(*span)) {
-                    GvnSemanticLookup::Eligible(_) => false,
+                    GvnSemanticLookup::Eligible { .. } => false,
                     GvnSemanticLookup::Declined | GvnSemanticLookup::Unmapped => true,
                 }
             }
@@ -1038,19 +1037,23 @@ fn statement_occurrences_for_gvn(
         ..
     } = &stmt_ssa.statement
     {
-        let canonical_command = match legality {
+        let eligible: Option<(&str, &[String])> = match legality {
             GvnLegalitySource::Legacy => (is_pure_command(registry, command, args, dialect)
                 && is_worth_reporting(registry, command))
-            .then_some(command.as_str()),
+            .then_some((command.as_str(), &[] as &[String])),
             GvnLegalitySource::Common(Some(semantic)) => match semantic.lookup(*span) {
-                GvnSemanticLookup::Eligible(command) => Some(command),
+                GvnSemanticLookup::Eligible { command, world_key } => Some((command, world_key)),
                 GvnSemanticLookup::Declined | GvnSemanticLookup::Unmapped => None,
             },
             GvnLegalitySource::Common(None) => None,
         };
-        if let Some(canonical_command) = canonical_command {
+        if let Some((canonical_command, world_key)) = eligible {
+            let mut key = build_call_key(canonical_command, args, &stmt_ssa.uses, ssa);
+            // Two occurrences may only match when the world state their
+            // dispatch and result depend on carries the same versions.
+            key.extend(world_key.iter().cloned());
             out.push(ExprOccurrence {
-                key: build_call_key(canonical_command, args, &stmt_ssa.uses, ssa),
+                key,
                 span: *span,
                 expression_text: format_expression_text(command, args),
                 block: block_name.to_owned(),
@@ -1530,6 +1533,39 @@ pub fn find_loop_invariants(
     ssa: &SsaFunction,
     dialect: Option<&str>,
 ) -> Vec<RedundantComputation> {
+    find_loop_invariants_with_legality(registry, cfg, ssa, dialect, GvnLegalitySource::Legacy)
+}
+
+/// Run loop-invariance detection using one function's dispatch-stability
+/// proofs.
+///
+/// Hoisting a call out of a loop changes how many times it is dispatched, so
+/// it needs the same live-dispatch proof as reusing one: a command whose
+/// binding, traces, or interpreter policy may change inside the loop is not
+/// invariant merely because its arguments are.
+#[must_use]
+pub fn find_loop_invariants_for_function(
+    registry: &CommandRegistry,
+    function: &crate::compilation_unit::FunctionUnit,
+    dialect: Option<&str>,
+) -> Vec<RedundantComputation> {
+    let semantic = GvnSemanticFacts::from_function(function);
+    find_loop_invariants_with_legality(
+        registry,
+        &function.cfg,
+        &function.ssa,
+        dialect,
+        GvnLegalitySource::Common(semantic.as_ref()),
+    )
+}
+
+fn find_loop_invariants_with_legality(
+    registry: &CommandRegistry,
+    cfg: &CfgFunction,
+    ssa: &SsaFunction,
+    dialect: Option<&str>,
+    legality: GvnLegalitySource<'_>,
+) -> Vec<RedundantComputation> {
     let executable = reachable_from(cfg, ssa.entry);
     let mut results: Vec<RedundantComputation> = Vec::new();
     // One O(V) dominator-tree numbering serves every dominance query below.
@@ -1601,11 +1637,13 @@ pub fn find_loop_invariants(
                 // Purity gate — loop-invariance only makes sense
                 // for computations that don't otherwise touch
                 // state each iteration.
-                if statement_writes_state(registry, &stmt_ssa.statement, dialect) {
+                if statement_writes_state_for_gvn(registry, &stmt_ssa.statement, dialect, legality)
+                {
                     continue;
                 }
-                let occurrences =
-                    statement_occurrences(registry, stmt_ssa, block_name, idx, dialect, ssa);
+                let occurrences = statement_occurrences_for_gvn(
+                    registry, stmt_ssa, block_name, idx, dialect, ssa, legality,
+                );
                 for occ in occurrences {
                     if occ.variable_uses.iter().any(|name| defined.contains(name)) {
                         continue;
@@ -1657,6 +1695,26 @@ pub fn collect_function_occurrence_events(
     FxHashMap<BlockId, Vec<OccurrenceEvent>>,
     Vec<ExprOccurrence>,
 ) {
+    collect_function_occurrence_events_with_legality(
+        registry,
+        cfg,
+        ssa,
+        dialect,
+        GvnLegalitySource::Legacy,
+    )
+}
+
+/// Occurrence collection under an explicit legality source.
+fn collect_function_occurrence_events_with_legality(
+    registry: &CommandRegistry,
+    cfg: &CfgFunction,
+    ssa: &SsaFunction,
+    dialect: Option<&str>,
+    legality: GvnLegalitySource<'_>,
+) -> (
+    FxHashMap<BlockId, Vec<OccurrenceEvent>>,
+    Vec<ExprOccurrence>,
+) {
     let mut events_by_block: FxHashMap<BlockId, Vec<OccurrenceEvent>> = FxHashMap::default();
     let mut all_occurrences: Vec<ExprOccurrence> = Vec::new();
 
@@ -1670,11 +1728,13 @@ pub fn collect_function_occurrence_events(
         for idx in 0..stmt_count {
             let ir_stmt = &cfg_block.statements[idx];
             let ssa_stmt = &ssa_block.statements[idx];
-            if statement_writes_state(registry, ir_stmt, dialect) {
+            if statement_writes_state_for_gvn(registry, ir_stmt, dialect, legality) {
                 events.push(OccurrenceEvent::Kill);
                 continue;
             }
-            for occ in statement_occurrences(registry, ssa_stmt, block_name, idx, dialect, ssa) {
+            for occ in statement_occurrences_for_gvn(
+                registry, ssa_stmt, block_name, idx, dialect, ssa, legality,
+            ) {
                 all_occurrences.push(occ.clone());
                 events.push(OccurrenceEvent::Occur(occ));
             }
@@ -1822,12 +1882,45 @@ pub fn find_partial_redundancies(
     ssa: &SsaFunction,
     dialect: Option<&str>,
 ) -> Vec<RedundantComputation> {
+    find_partial_redundancies_with_legality(registry, cfg, ssa, dialect, GvnLegalitySource::Legacy)
+}
+
+/// Run partial-redundancy detection using one function's dispatch-stability
+/// proofs.
+///
+/// This is the production entry point. Like [`find_redundancies_for_function`]
+/// it never consults the legacy command-string classifier: an unavailable
+/// sidecar and every unresolved, ambiguous, declined, or unmapped site fail
+/// closed.
+#[must_use]
+pub fn find_partial_redundancies_for_function(
+    registry: &CommandRegistry,
+    function: &crate::compilation_unit::FunctionUnit,
+    dialect: Option<&str>,
+) -> Vec<RedundantComputation> {
+    let semantic = GvnSemanticFacts::from_function(function);
+    find_partial_redundancies_with_legality(
+        registry,
+        &function.cfg,
+        &function.ssa,
+        dialect,
+        GvnLegalitySource::Common(semantic.as_ref()),
+    )
+}
+
+fn find_partial_redundancies_with_legality(
+    registry: &CommandRegistry,
+    cfg: &CfgFunction,
+    ssa: &SsaFunction,
+    dialect: Option<&str>,
+    legality: GvnLegalitySource<'_>,
+) -> Vec<RedundantComputation> {
     let executable = reachable_from(cfg, ssa.entry);
     if !executable.contains(&ssa.entry) {
         return Vec::new();
     }
     let (events_by_block, all_occurrences) =
-        collect_function_occurrence_events(registry, cfg, ssa, dialect);
+        collect_function_occurrence_events_with_legality(registry, cfg, ssa, dialect, legality);
     if all_occurrences.is_empty() {
         return Vec::new();
     }
@@ -1931,8 +2024,8 @@ pub fn find_partial_redundancies_for_cu(
 ) -> Vec<RedundantComputation> {
     let mut out = Vec::new();
     for fu in cu.analysable_functions() {
-        out.extend(find_partial_redundancies(
-            registry, &fu.cfg, &fu.ssa, dialect,
+        out.extend(find_partial_redundancies_for_function(
+            registry, fu, dialect,
         ));
     }
     out
@@ -1949,7 +2042,7 @@ pub fn find_loop_invariants_for_cu(
 ) -> Vec<RedundantComputation> {
     let mut out = Vec::new();
     for fu in cu.analysable_functions() {
-        out.extend(find_loop_invariants(registry, &fu.cfg, &fu.ssa, dialect));
+        out.extend(find_loop_invariants_for_function(registry, fu, dialect));
     }
     out
 }
@@ -1960,7 +2053,7 @@ mod tests {
     use crate::semantic_analysis::ExecutableAnalysisAvailability;
 
     #[test]
-    fn function_level_gvn_declines_llength_without_live_dispatch_proof() {
+    fn function_level_gvn_proves_llength_dispatch_and_reports_o105() {
         let registry = CommandRegistry::build_default();
         let cu = crate::compilation_unit::CompilationUnit::build_for_dialect(
             "llength {a b}\nllength {a b}",
@@ -1974,10 +2067,13 @@ mod tests {
             !find_redundancies(&registry, &function.cfg, &function.ssa, Some("tcl8.6")).is_empty(),
             "the legacy classifier recognises the registry pure trait"
         );
-        assert!(
-            find_redundancies_for_function(&registry, function, Some("tcl8.6")).is_empty(),
-            "registry purity is only a candidate: world-state versions do not prove command/execution traces absent"
+        let semantic = find_redundancies_for_function(&registry, function, Some("tcl8.6"));
+        assert_eq!(
+            semantic.len(),
+            1,
+            "a complete site proof over a pristine entry world enables stable-call CSE"
         );
+        assert_eq!(semantic[0].code, DiagCode::O105);
     }
 
     #[test]
@@ -2019,7 +2115,7 @@ mod tests {
     }
 
     #[test]
-    fn function_level_gvn_declines_exact_mapped_pure_call_without_dispatch_proof() {
+    fn function_level_gvn_proves_exact_mapped_closed_pure_call() {
         let mut registry = CommandRegistry::build_default();
         registry.insert(tcl_registry::CommandSpec {
             name: "test::pure_cse",
@@ -2036,13 +2132,15 @@ mod tests {
             cu.top_level.semantic_facts.executable(),
             ExecutableAnalysisAvailability::Available(_)
         ));
-        assert!(
-            find_redundancies_for_function(&registry, &cu.top_level, Some("tcl8.6")).is_empty()
+        assert_eq!(
+            find_redundancies_for_function(&registry, &cu.top_level, Some("tcl8.6")).len(),
+            1,
+            "a closed registry contract plus a complete site proof reports the replay"
         );
     }
 
     #[test]
-    fn function_level_gvn_declines_other_stable_commands_without_dispatch_proof() {
+    fn function_level_gvn_proves_other_stable_commands() {
         let registry = CommandRegistry::build_default();
         for source in [
             "format %s x\nformat %s x",
@@ -2052,15 +2150,18 @@ mod tests {
             let cu = crate::compilation_unit::CompilationUnit::build_for_dialect(
                 source, &registry, false, "tcl9.0",
             );
-            assert!(
-                find_redundancies_for_function(&registry, &cu.top_level, Some("tcl9.0")).is_empty(),
-                "closed stable registry category still needs a live dispatch proof: {source}"
+            assert_eq!(
+                find_redundancies_for_function(&registry, &cu.top_level, Some("tcl9.0")).len(),
+                1,
+                "closed stable registry category with a live dispatch proof reuses: {source}"
             );
         }
     }
 
     #[test]
     fn static_llength_candidate_requires_coverage_of_registry_dispatch_dependencies() {
+        use crate::dispatch_proof::{SiteDispatchProof, TrackVersion, WorldTrack};
+
         let registry = CommandRegistry::build_default();
         let resolved = registry
             .resolve_invocation(
@@ -2072,29 +2173,56 @@ mod tests {
             .facts();
 
         assert!(resolved_invocation_is_gvn_candidate(&resolved));
+        assert!(!resolved.dispatch_dependencies.is_empty());
+
+        // No site proof at all (world graph unavailable or unreached).
+        assert_eq!(
+            gvn_site_eligibility(&resolved, None),
+            GvnSiteEligibility::Declined
+        );
+
+        let complete = SiteDispatchProof {
+            covers: resolved.dispatch_dependencies,
+            versions: [TrackVersion::Entry; WorldTrack::ALL.len()],
+            operand_words_admissible: true,
+        };
         assert!(matches!(
-            GvnDispatchProof::from_world_state_versions(&resolved, true),
-            GvnDispatchProof::Declined(
-                GvnDispatchProofDecline::WorldStateContentsUnavailable { dependencies }
-            ) if dependencies == resolved.dispatch_dependencies
+            gvn_site_eligibility(&resolved, Some(&complete)),
+            GvnSiteEligibility::Eligible { .. }
         ));
-        assert!(!resolved_invocation_is_gvn_eligible(
-            &resolved,
-            GvnDispatchProof::from_world_state_versions(&resolved, true),
-        ));
-        assert!(resolved_invocation_is_gvn_eligible(
-            &resolved,
-            GvnDispatchProof::Proven {
-                dependencies: resolved.dispatch_dependencies,
-            },
-        ));
+
+        // Any uncovered dependency domain fails the site closed.
+        let partial = SiteDispatchProof {
+            covers: tcl_registry::DispatchDependencies::NONE,
+            versions: [TrackVersion::Entry; WorldTrack::ALL.len()],
+            operand_words_admissible: true,
+        };
+        assert_eq!(
+            gvn_site_eligibility(&resolved, Some(&partial)),
+            GvnSiteEligibility::Declined
+        );
+
+        // Inadmissible operand words fail the site closed even with covered
+        // dispatch domains.
+        let inadmissible = SiteDispatchProof {
+            operand_words_admissible: false,
+            ..complete
+        };
+        assert_eq!(
+            gvn_site_eligibility(&resolved, Some(&inadmissible)),
+            GvnSiteEligibility::Declined
+        );
     }
 
     #[test]
     fn live_execution_trace_keeps_o105_suppressed() {
         let registry = CommandRegistry::build_default();
-        let source = "proc observe {command op} {}\n\
-                      trace add execution llength enter observe\n\
+        // The handler is deliberately never defined here. `proc` declares a
+        // script-kind callback barrier that clobbers every domain on its own,
+        // so defining `observe` would suppress the report for a reason that
+        // has nothing to do with the trace, and this test would pass while
+        // proving nothing. A trace prefix need not name a defined command.
+        let source = "trace add execution llength enter observe\n\
                       llength {a b}\n\
                       llength {a b}";
         let cu = crate::compilation_unit::CompilationUnit::build_for_dialect(
@@ -2108,6 +2236,19 @@ mod tests {
         assert!(
             find_redundancies_for_function(&registry, &cu.top_level, Some("tcl9.0")).is_empty(),
             "an execution-traced command is observably invoked twice"
+        );
+
+        // Control: with the registration removed, the same two calls report.
+        let untraced = crate::compilation_unit::CompilationUnit::build_for_dialect(
+            "llength {a b}\nllength {a b}",
+            &registry,
+            false,
+            "tcl9.0",
+        );
+        assert_eq!(
+            find_redundancies_for_function(&registry, &untraced.top_level, Some("tcl9.0")).len(),
+            1,
+            "the trace registration must be the only reason the report is withheld"
         );
     }
 
@@ -3613,7 +3754,6 @@ mod tests {
             "llength on mutually-exclusive branches must not be flagged redundant",
         );
     }
-
     #[test]
     fn kill_all_preserves_within_path_detection() {
         // FP-guard for: the in-place clear must not disturb
@@ -3624,6 +3764,616 @@ mod tests {
                 "proc f {lst} { set a [llength $lst]\n set b [llength $lst]\n return [list $a $b] }"
             ),
             vec!["llength $lst".to_string()],
+        );
+    }
+
+    /// Production function-level GVN over one Tcl 9.0 top-level script.
+    ///
+    /// Every acceptance script below is straight-line top-level source, so the
+    /// executable semantic sidecar must exist; a decline there would make an
+    /// empty result meaningless.
+    fn stable_call_findings(registry: &CommandRegistry, source: &str) -> Vec<RedundantComputation> {
+        let cu = crate::compilation_unit::CompilationUnit::build_for_dialect(
+            source, registry, false, "tcl9.0",
+        );
+        assert!(
+            matches!(
+                cu.top_level.semantic_facts.executable(),
+                ExecutableAnalysisAvailability::Available(_)
+            ),
+            "executable semantic facts must be available for: {source}"
+        );
+        find_redundancies_for_function(registry, &cu.top_level, Some("tcl9.0"))
+    }
+
+    /// How many stable-call reuse findings one top-level script produces.
+    fn stable_call_reports(registry: &CommandRegistry, source: &str) -> usize {
+        let findings = stable_call_findings(registry, source);
+        assert!(
+            findings
+                .iter()
+                .all(|finding| finding.code == DiagCode::O105),
+            "stable-call reuse must only ever report O105: {source}"
+        );
+        findings.len()
+    }
+
+    /// Two repeated `llength` calls with no interposed statement.
+    const PLAIN_REPEATED_LLENGTH: &str = "llength {a b}\nllength {a b}";
+
+    #[test]
+    fn literal_execution_trace_removal_restores_stable_call_reuse() {
+        let registry = CommandRegistry::build_default();
+        assert_eq!(
+            stable_call_reports(
+                &registry,
+                "trace add execution llength enter observe\n\
+                 llength {a b}\n\
+                 llength {a b}",
+            ),
+            0,
+            "control: the live enter trace observes both invocations"
+        );
+        assert_eq!(
+            stable_call_reports(
+                &registry,
+                "trace add execution llength enter observe\n\
+                 trace remove execution llength enter observe\n\
+                 llength {a b}\n\
+                 llength {a b}",
+            ),
+            1,
+            "an exactly matching literal removal retires the registration on the success edge"
+        );
+    }
+
+    #[test]
+    fn dynamic_execution_trace_removal_abstains() {
+        let registry = CommandRegistry::build_default();
+        assert_eq!(
+            stable_call_reports(
+                &registry,
+                "set h observe\n\
+                 trace add execution llength enter observe\n\
+                 trace remove execution llength enter $h\n\
+                 llength {a b}\n\
+                 llength {a b}",
+            ),
+            0,
+            "a dynamic removal prefix cannot be proven to match the live registration"
+        );
+        assert_eq!(
+            stable_call_reports(
+                &registry,
+                "set h observe\n\
+                 trace add execution llength enter observe\n\
+                 trace remove execution llength enter observe\n\
+                 llength {a b}\n\
+                 llength {a b}",
+            ),
+            1,
+            "control: the identical script with a literal removal prefix proves retirement"
+        );
+    }
+
+    #[test]
+    fn command_rename_trace_on_the_candidate_suppresses_reuse() {
+        let registry = CommandRegistry::build_default();
+        assert_eq!(
+            stable_call_reports(
+                &registry,
+                "trace add command llength rename observe\n\
+                 llength {a b}\n\
+                 llength {a b}",
+            ),
+            0,
+            "a rename/delete trace on the candidate is a live command-trace observer"
+        );
+        assert_eq!(
+            stable_call_reports(&registry, PLAIN_REPEATED_LLENGTH),
+            1,
+            "control: removing the command trace restores reuse"
+        );
+    }
+
+    #[test]
+    fn step_execution_trace_on_an_unrelated_command_suppresses_every_site() {
+        let registry = CommandRegistry::build_default();
+        assert_eq!(
+            stable_call_reports(
+                &registry,
+                "trace add execution observe enterstep observe\n\
+                 llength {a b}\n\
+                 llength {a b}",
+            ),
+            0,
+            "a step trace observes commands nested inside its target, so it is a global hazard"
+        );
+        assert_eq!(
+            stable_call_reports(&registry, PLAIN_REPEATED_LLENGTH),
+            1,
+            "control: removing the step trace restores reuse"
+        );
+    }
+
+    #[test]
+    fn non_step_execution_trace_on_an_unrelated_command_keeps_reuse() {
+        let registry = CommandRegistry::build_default();
+        assert_eq!(
+            stable_call_reports(
+                &registry,
+                "trace add execution observe enter observe\n\
+                 llength {a b}\n\
+                 llength {a b}",
+            ),
+            1,
+            "an enter trace only observes its own target, so the candidate stays stable"
+        );
+    }
+
+    #[test]
+    fn renaming_the_candidate_command_suppresses_reuse() {
+        let registry = CommandRegistry::build_default();
+        // `rename` declares a trace-only current-interpreter callback barrier,
+        // which the contents lattice discharges here because no trace is live.
+        // What is left is the `CommandBinding(Move)` transition, which records
+        // both subjects — so the candidate fails on CommandBinding alone.
+        assert_eq!(
+            stable_call_reports(
+                &registry,
+                "rename llength llen\nllength {a b}\nllength {a b}",
+            ),
+            0,
+            "the candidate's binding is moved between the two invocations"
+        );
+        assert_eq!(
+            stable_call_reports(&registry, PLAIN_REPEATED_LLENGTH),
+            1,
+            "control: removing the rename restores reuse"
+        );
+    }
+
+    #[test]
+    fn renaming_an_unrelated_command_keeps_reuse_per_subject() {
+        let registry = CommandRegistry::build_default();
+        // The per-domain, per-subject contract: the identity ledger records
+        // only `lreverse` and `lrev`, so a differently-named candidate keeps a
+        // complete CommandBinding proof.
+        assert_eq!(
+            stable_call_reports(
+                &registry,
+                "rename lreverse lrev\nllength {a b}\nllength {a b}",
+            ),
+            1,
+            "renaming another command cannot disturb the candidate's binding"
+        );
+        assert_eq!(
+            stable_call_reports(
+                &registry,
+                "rename llength llen\nllength {a b}\nllength {a b}",
+            ),
+            0,
+            "contrast: renaming the candidate itself does suppress"
+        );
+    }
+
+    #[test]
+    fn aliasing_over_the_candidate_command_suppresses_reuse() {
+        let registry = CommandRegistry::build_default();
+        // Two independent gates fail here: the `Alias` transition records the
+        // candidate's own name, and the invocation's wildcard
+        // interpreter-policy write marks current-interpreter policy unstable.
+        assert_eq!(
+            stable_call_reports(
+                &registry,
+                "interp alias {} llength {} list\nllength {a b}\nllength {a b}",
+            ),
+            0,
+            "an alias installed over the candidate rebinds the name being dispatched"
+        );
+        assert_eq!(
+            stable_call_reports(&registry, PLAIN_REPEATED_LLENGTH),
+            1,
+            "control: removing the alias restores reuse"
+        );
+    }
+
+    #[test]
+    fn aliasing_an_unrelated_name_abstains_on_the_declared_policy_write() {
+        let registry = CommandRegistry::build_default();
+        // Sound-conservative abstention rather than the per-subject report the
+        // `Alias` transition alone would allow: `interp alias` additionally
+        // declares an ordinary read-write of the whole current interpreter's
+        // policy, and InterpreterPolicy is one of the candidate's irreducible
+        // BASE dependencies.  Per-subject binding precision is proven instead
+        // by `renaming_an_unrelated_command_keeps_reuse_per_subject`.
+        assert_eq!(
+            stable_call_reports(
+                &registry,
+                "interp alias {} shortcut {} list\nllength {a b}\nllength {a b}",
+            ),
+            0,
+            "the wildcard interpreter-policy write fails the candidate's policy proof"
+        );
+        assert_eq!(
+            stable_call_reports(&registry, PLAIN_REPEATED_LLENGTH),
+            1,
+            "control: removing the alias restores reuse"
+        );
+    }
+
+    #[test]
+    fn installing_an_alias_into_a_child_interpreter_abstains() {
+        let registry = CommandRegistry::build_default();
+        // `interp create child` alone keeps the site eligible (see
+        // `creating_a_child_interpreter_only_invalidates_the_child_binding`),
+        // so the topology change is not what suppresses.  The alias names
+        // `child` as its source interpreter, which puts the transition outside
+        // the current interpreter; the trace-only callback barrier therefore
+        // cannot be discharged (foreign trace registrations are not tracked)
+        // and clobbers every domain.  A conservative abstention, not a bug.
+        assert_eq!(
+            stable_call_reports(
+                &registry,
+                "interp create child\n\
+                 interp alias child foo {} list\n\
+                 llength {a b}\n\
+                 llength {a b}",
+            ),
+            0,
+            "an alias reaching into a named child interpreter keeps its world barrier"
+        );
+        assert_eq!(
+            stable_call_reports(
+                &registry,
+                "interp create child\nllength {a b}\nllength {a b}",
+            ),
+            1,
+            "control: dropping only the alias statement restores reuse"
+        );
+    }
+
+    #[test]
+    fn hiding_the_candidate_in_the_current_interpreter_suppresses_reuse() {
+        let registry = CommandRegistry::build_default();
+        // The empty interpreter path is Tcl's spelling of "this interpreter",
+        // so the transition records the candidate's visible binding and marks
+        // interpreter policy unstable — exactly the two domains llength needs.
+        assert_eq!(
+            stable_call_reports(
+                &registry,
+                "interp hide {} llength\nllength {a b}\nllength {a b}",
+            ),
+            0,
+            "hiding the candidate in the current interpreter unbinds the dispatched name"
+        );
+        assert_eq!(
+            stable_call_reports(&registry, PLAIN_REPEATED_LLENGTH),
+            1,
+            "control: removing the hide restores reuse"
+        );
+    }
+
+    #[test]
+    fn creating_a_safe_child_interpreter_keeps_reuse() {
+        let registry = CommandRegistry::build_default();
+        assert_eq!(
+            stable_call_reports(
+                &registry,
+                "interp create -safe jail\nllength {a b}\nllength {a b}",
+            ),
+            1,
+            "a child interpreter's safety policy is not the current interpreter's policy"
+        );
+    }
+
+    #[test]
+    fn creating_a_child_interpreter_only_invalidates_the_child_binding() {
+        let registry = CommandRegistry::build_default();
+        // `interp create child` binds the command `child` in the current
+        // interpreter and bumps interpreter topology.  The identity ledger
+        // records only that subject, so an unrelated candidate stays provably
+        // stable — the per-domain, per-subject invalidation contract.
+        assert_eq!(
+            stable_call_reports(
+                &registry,
+                "interp create child\nllength {a b}\nllength {a b}",
+            ),
+            1,
+            "a fresh child-path binding cannot collide with the candidate's resolution"
+        );
+    }
+
+    #[test]
+    fn namespace_import_suppresses_reuse() {
+        let registry = CommandRegistry::build_default();
+        assert_eq!(
+            stable_call_reports(
+                &registry,
+                "namespace import ::tcl::mathfunc::*\nllength {a b}\nllength {a b}",
+            ),
+            0,
+            "an import can shadow the candidate's resolution in the current namespace"
+        );
+        assert_eq!(
+            stable_call_reports(&registry, PLAIN_REPEATED_LLENGTH),
+            1,
+            "control: removing the import restores reuse"
+        );
+    }
+
+    #[test]
+    fn namespace_unknown_abstains_on_its_declared_lookup_and_policy_writes() {
+        let registry = CommandRegistry::build_default();
+        // llength's dispatch dependencies are the irreducible BASE set, which
+        // excludes UnknownHandling, so the `SetUnknown` transition alone would
+        // leave the site eligible.  The invocation additionally declares
+        // ordinary wildcard footprint writes to NamespaceLookup and
+        // InterpreterPolicy, and those two domains *are* in BASE — hence a
+        // conservative abstention rather than the predicted report.
+        assert_eq!(
+            stable_call_reports(
+                &registry,
+                "namespace unknown handler\nllength {a b}\nllength {a b}",
+            ),
+            0,
+            "the invocation's wildcard lookup and policy writes widen two BASE domains"
+        );
+        assert_eq!(
+            stable_call_reports(&registry, PLAIN_REPEATED_LLENGTH),
+            1,
+            "control: removing the unknown-handler statement restores reuse"
+        );
+    }
+
+    #[test]
+    fn eval_source_and_package_barriers_suppress_reuse() {
+        let registry = CommandRegistry::build_default();
+        for barrier in ["eval {set x 1}", "source lib.tcl", "package require json"] {
+            assert_eq!(
+                stable_call_reports(
+                    &registry,
+                    &format!("{barrier}\nllength {{a b}}\nllength {{a b}}"),
+                ),
+                0,
+                "an arbitrary-script barrier widens every dispatch domain: {barrier}"
+            );
+        }
+        assert_eq!(
+            stable_call_reports(&registry, PLAIN_REPEATED_LLENGTH),
+            1,
+            "control: without a barrier statement the same pair reuses"
+        );
+    }
+
+    #[test]
+    fn variable_read_trace_on_an_argument_variable_suppresses_reuse() {
+        let registry = CommandRegistry::build_default();
+        assert_eq!(
+            stable_call_reports(
+                &registry,
+                "set items {a b}\n\
+                 trace add variable items read observe\n\
+                 llength $items\n\
+                 llength $items",
+            ),
+            0,
+            "reading the traced variable runs arbitrary Tcl, so the operand word is inadmissible"
+        );
+        assert_eq!(
+            stable_call_reports(&registry, "set items {a b}\nllength $items\nllength $items",),
+            1,
+            "control: with no variable trace the same argument reads are admissible"
+        );
+    }
+
+    #[test]
+    fn variable_trace_removal_restores_argument_variable_reuse() {
+        let registry = CommandRegistry::build_default();
+        assert_eq!(
+            stable_call_reports(
+                &registry,
+                "set items {a b}\n\
+                 trace add variable items read observe\n\
+                 trace remove variable items read observe\n\
+                 llength $items\n\
+                 llength $items",
+            ),
+            1,
+            "an exactly matching removal retires the read trace and re-admits the operand word"
+        );
+    }
+
+    #[test]
+    fn variable_write_trace_on_another_variable_keeps_reuse() {
+        let registry = CommandRegistry::build_default();
+        // The traced variable is written before the trace is installed and
+        // never touched afterwards; the candidate's operands are literals, so
+        // nothing can fire the trace between the two invocations.
+        assert_eq!(
+            stable_call_reports(
+                &registry,
+                "set other 1\n\
+                 trace add variable other write observe\n\
+                 llength {a b}\n\
+                 llength {a b}",
+            ),
+            1,
+            "a write trace on an untouched variable is not a hazard for literal operands"
+        );
+    }
+
+    #[test]
+    fn procedure_units_abstain_under_the_unknown_world_entry_assumption() {
+        let registry = CommandRegistry::build_default();
+        let cu = crate::compilation_unit::CompilationUnit::build_for_dialect(
+            "proc p {items} {\nllength $items\nllength $items\n}",
+            &registry,
+            false,
+            "tcl9.0",
+        );
+        let procedure = cu.procedures.get("::p").expect("the proc unit is built");
+        assert!(
+            !find_redundancies(&registry, &procedure.cfg, &procedure.ssa, Some("tcl9.0"))
+                .is_empty(),
+            "the legacy classifier still recognises the repeated pure call"
+        );
+        assert!(
+            find_redundancies_for_function(&registry, procedure, Some("tcl9.0")).is_empty(),
+            "a proc body runs after arbitrary interposed history, so every site proof fails closed"
+        );
+    }
+
+    #[test]
+    fn repeated_stable_calls_in_a_while_body_abstain() {
+        let registry = CommandRegistry::build_default();
+        let cu = crate::compilation_unit::CompilationUnit::build_for_dialect(
+            "while {$go} {\nllength {a b}\nllength {a b}\n}",
+            &registry,
+            false,
+            "tcl9.0",
+        );
+        assert!(
+            !find_redundancies(
+                &registry,
+                &cu.top_level.cfg,
+                &cu.top_level.ssa,
+                Some("tcl9.0")
+            )
+            .is_empty(),
+            "the explicit legacy API still sees the nested string-classified calls"
+        );
+        assert!(
+            find_redundancies_for_function(&registry, &cu.top_level, Some("tcl9.0")).is_empty(),
+            "structured loop bodies are unmapped executable source and must abstain"
+        );
+    }
+
+    #[test]
+    fn a_variable_store_write_between_candidates_keeps_reuse() {
+        let registry = CommandRegistry::build_default();
+        // The variable store is versioned but is not a dispatch domain, so an
+        // untraced `set` between the two calls neither widens a ledger nor
+        // changes a key fragment llength depends on.
+        assert_eq!(
+            stable_call_reports(&registry, "llength {a b}\nset x 1\nllength {a b}"),
+            1,
+            "an untraced variable write is not a dispatch-stability hazard"
+        );
+    }
+
+    #[test]
+    fn command_substitution_in_an_operand_word_fails_closed() {
+        let registry = CommandRegistry::build_default();
+        assert_eq!(
+            stable_call_reports(&registry, "llength [list a b]\nllength [list a b]"),
+            0,
+            "a nested command substitution is an inadmissible operand word and a world barrier"
+        );
+        assert_eq!(
+            stable_call_reports(&registry, PLAIN_REPEATED_LLENGTH),
+            1,
+            "control: the same calls with literal operands reuse"
+        );
+    }
+
+    #[test]
+    fn argument_expansion_fails_closed() {
+        let registry = CommandRegistry::build_default();
+        // Every dispatch domain is still proven stable here; expansion is
+        // declined purely on operand-word admissibility, because it changes
+        // the argv shape the registry facts were resolved for.
+        assert_eq!(
+            stable_call_reports(&registry, "set l {a b}\nllength {*}$l\nllength {*}$l"),
+            0,
+            "an expanded word is never an admissible operand"
+        );
+    }
+
+    #[test]
+    fn versioned_world_results_key_on_the_read_domain_version() {
+        let mut registry = CommandRegistry::build_default();
+        registry.insert(tcl_registry::CommandSpec {
+            name: "test::versioned",
+            traits: Traits::PURE | Traits::CSE_CANDIDATE,
+            result_stability: Some(ResultStability::ReadsVersionedWorld(&[
+                tcl_registry::WorldStateDomain::VariableStore,
+            ])),
+            world_effects: Some(tcl_registry::WorldEffectDescriptor::EMPTY),
+            state_transitions: Some(tcl_registry::StateTransitionDescriptor::EMPTY),
+            ..tcl_registry::CommandSpec::DEFAULT
+        });
+
+        let versioned = registry
+            .resolve_invocation(
+                "test::versioned",
+                &["x"],
+                tcl_registry::prelude::DialectSet::TCL90,
+            )
+            .expect("the synthetic spec resolves")
+            .facts();
+        assert!(resolved_invocation_is_versioned_world_gvn_candidate(
+            &versioned
+        ));
+        assert!(!resolved_invocation_is_gvn_candidate(&versioned));
+
+        let llength = registry
+            .resolve_invocation(
+                "llength",
+                &["a b"],
+                tcl_registry::prelude::DialectSet::TCL90,
+            )
+            .expect("llength resolves")
+            .facts();
+        assert!(!resolved_invocation_is_versioned_world_gvn_candidate(
+            &llength
+        ));
+        assert!(resolved_invocation_is_gvn_candidate(&llength));
+
+        assert_eq!(
+            stable_call_reports(&registry, "test::versioned x\ntest::versioned x"),
+            1,
+            "the declared VariableStore version is equal at both sites"
+        );
+        assert_eq!(
+            stable_call_reports(&registry, "test::versioned x\nset y 1\ntest::versioned x",),
+            0,
+            "an interposed variable write bumps the read domain, so the two keys differ"
+        );
+    }
+
+    #[test]
+    fn oo_class_creation_suppresses_reuse_through_its_constructor_barrier() {
+        let registry = CommandRegistry::build_default();
+        // llength's dispatch dependencies are BASE and exclude ObjectDispatch,
+        // so the `oo::define` object-dispatch transition is not what suppresses
+        // here.  Both `oo::class create` and `oo::define` declare a callback
+        // world barrier — a constructor and a definition script run arbitrary
+        // Tcl — and that barrier clobbers every domain.  `oo::class create`
+        // alone is already enough.
+        assert_eq!(
+            stable_call_reports(
+                &registry,
+                "oo::class create C\n\
+                 oo::define C method m {} {}\n\
+                 llength {a b}\n\
+                 llength {a b}",
+            ),
+            0,
+            "the oo definition statements declare callback world barriers"
+        );
+        assert_eq!(
+            stable_call_reports(
+                &registry,
+                "oo::class create C\nllength {a b}\nllength {a b}",
+            ),
+            0,
+            "the class-creation barrier alone already widens every dispatch domain"
+        );
+        assert_eq!(
+            stable_call_reports(&registry, PLAIN_REPEATED_LLENGTH),
+            1,
+            "control: without the oo statements the same pair reuses"
         );
     }
 }

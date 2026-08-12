@@ -35,6 +35,7 @@
 
 use std::collections::HashMap;
 use tcl_core_types::DiagCode;
+use tcl_dialect::StringCharacterModel;
 
 use tcl_lexer::Span;
 use tcl_syntax::expr::ast::ExprNode;
@@ -283,8 +284,16 @@ fn list_length_map(ssa: &SsaFunction) -> HashMap<ValueKey, i64> {
     lengths
 }
 
-/// Character length of string-valued SSA versions from literal assignments.
-fn string_length_map(ssa: &SsaFunction) -> HashMap<ValueKey, i64> {
+/// Character length of string-valued SSA versions from literal assignments,
+/// counted under the selected dialect's character model.
+///
+/// `None` means no runtime release was selected: a string the two models count
+/// identically still contributes its length, while a supplementary character
+/// leaves the width ambiguous and contributes no fact at all.
+fn string_length_map(
+    ssa: &SsaFunction,
+    characters: Option<StringCharacterModel>,
+) -> HashMap<ValueKey, i64> {
     let mut lengths = HashMap::new();
     for sb in ssa.blocks.values() {
         for s in &sb.statements {
@@ -305,7 +314,9 @@ fn string_length_map(ssa: &SsaFunction) -> HashMap<ValueKey, i64> {
             } else {
                 value.clone()
             };
-            if let Ok(len) = i64::try_from(resolved.chars().count()) {
+            if let Some(count) = StringCharacterModel::count_for(characters, &resolved)
+                && let Ok(len) = i64::try_from(count)
+            {
                 for (&sym, &ver) in &s.defs {
                     lengths.insert((sym, ver), len);
                 }
@@ -582,6 +593,7 @@ pub fn find_interval_bounds<S1, S2>(
     ssa: &SsaFunction,
     values: &HashMap<ValueKey, LatticeValue, S1>,
     executable: &std::collections::HashSet<BlockId, S2>,
+    characters: Option<StringCharacterModel>,
 ) -> Vec<BoundsFinding>
 where
     S1: std::hash::BuildHasher,
@@ -601,7 +613,7 @@ where
             .map(|(bid, preds)| (bid, preds.len()))
             .collect(),
         lengths: list_length_map(ssa),
-        str_lengths: string_length_map(ssa),
+        str_lengths: string_length_map(ssa, characters),
         phi_index: ssa
             .blocks
             .values()

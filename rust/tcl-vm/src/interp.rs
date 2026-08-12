@@ -27,13 +27,16 @@
 //! model does (issue #946).
 
 use std::cell::RefCell;
-use std::collections::{BTreeMap, HashMap};
+use std::collections::{BTreeMap, BTreeSet, HashMap};
 use std::io::{self, Write};
 use std::rc::Rc;
 
 use tcl_bytecode::{FunctionAsm, ModuleAsm};
 use tcl_core_types::RecursionLimit;
 use tcl_platform::Host;
+use tcl_runtime_api::guard::{
+    GuardDomain, GuardDomains, GuardError, GuardIdentity, GuardManager, GuardToken,
+};
 use tcl_runtime_api::{
     Code, CommandId, Commands, CompileService, Completion, FrameId, Frames, Introspect, Namespaces,
     NsId, ProcInfo, ProcParam, Procs, ROOT_NS, Traces, VarStore,
@@ -534,6 +537,11 @@ pub struct InterpState {
     /// namespace deletion sweeps, and runtime-version flips (the 8.4 path-
     /// tier gate).  See `bump_cmd_epoch`.
     cmd_epoch: std::cell::Cell<u64>,
+    /// Runtime-issued speculative guard tokens and mutation-domain snapshots.
+    guards: std::cell::RefCell<GuardManager>,
+    /// Stable semantic identities explicitly attached to guardable builtins.
+    /// Ordinary command registration cannot authorise a fast path.
+    guarded_commands: std::cell::RefCell<HashMap<String, BTreeSet<GuardIdentity>>>,
     /// Re-entrancy guard: `"<key>\0<op>"` entries for traces currently firing.
     active_traces: std::collections::HashSet<String>,
     /// Frame depths at which the currently-executing `namespace eval`/`inscope`
@@ -883,6 +891,13 @@ impl InterpState {
     /// registered yet ([`Vm::with_shared_output`] / [`Vm::fork_child`] follow
     /// up with `register_builtins`).
     fn fresh(out: Rc<RefCell<Box<dyn Write>>>) -> Self {
+        let mut guards = GuardManager::default();
+        // Interpreter-policy and TclOO dispatch mutations do not yet have one
+        // central invalidation owner in this runtime. Fail closed until every
+        // mutation site routes through such an owner; an epoch that is never
+        // advanced must not authorise a speculative path.
+        guards.poison(GuardDomain::Interpreter);
+        guards.poison(GuardDomain::ObjectDispatch);
         Self {
             runtime_version: tcl_dialect::TclVersion::V9_0,
             frames: vec![CallFrame::new(0, ROOT_NS, None, Vec::new())],
@@ -909,6 +924,8 @@ impl InterpState {
             pending_exec_leave: None,
             cmd_resolve_cache: std::cell::RefCell::new((0, HashMap::new())),
             cmd_epoch: std::cell::Cell::new(0),
+            guards: std::cell::RefCell::new(guards),
+            guarded_commands: std::cell::RefCell::new(HashMap::new()),
             active_traces: std::collections::HashSet::new(),
             ns_script_frames: Vec::new(),
             out,
@@ -1431,6 +1448,110 @@ impl Vm {
             self.fixed_math_builtins.insert(canonical.to_owned(), f);
         }
         self.register_command(canonical, Command::Builtin(f));
+    }
+
+    /// Register a builtin together with a stable semantic identity that
+    /// offline-generated code may request in a runtime guard.
+    ///
+    /// Ordinary builtins deliberately have no such identity. Adding one is an
+    /// explicit runtime implementation decision, not an inference from the
+    /// command's spelling or handler address.
+    pub fn register_guarded_builtin(&mut self, name: &str, f: BuiltinFn, identity: GuardIdentity) {
+        let canonical = name.strip_prefix("::").unwrap_or(name);
+        self.register(canonical, f);
+        self.guarded_commands
+            .borrow_mut()
+            .entry(canonical.to_owned())
+            .or_default()
+            .insert(identity);
+    }
+
+    /// Register a builtin and derive every semantic identity from its registry
+    /// specification, including subcommand and form intrinsics.
+    pub fn register_spec_builtin(&mut self, spec: &tcl_registry::CommandSpec, f: BuiltinFn) {
+        self.register(spec.name, f);
+        let identities: BTreeSet<_> = spec
+            .intrinsic_ids()
+            .into_iter()
+            .flat_map(|id| {
+                id.guard_semantics_variants().iter().map(move |semantics| {
+                    GuardIdentity::registry_intrinsic_with_semantics(id.stable_id(), *semantics)
+                })
+            })
+            .collect();
+        if !identities.is_empty() {
+            self.guarded_commands
+                .borrow_mut()
+                .insert(spec.name.trim_start_matches("::").to_owned(), identities);
+        }
+    }
+
+    /// Verify the live command identity and snapshot the requested mutation
+    /// domains. Any active trace in a requested trace domain conservatively
+    /// refuses issuance; an epoch snapshot is not an absence proof.
+    pub fn prepare_command_guard(
+        &self,
+        name: &str,
+        expected: GuardIdentity,
+        domains: GuardDomains,
+    ) -> Result<GuardToken, GuardError> {
+        if (domains.contains(GuardDomain::CommandTrace)
+            && !(self.cmd_traces.is_empty() && self.exec_traces.is_empty()))
+            || (domains.contains(GuardDomain::VariableTrace) && !self.var_traces.is_empty())
+        {
+            return Err(GuardError::PrerequisiteUnsatisfied);
+        }
+        let observed = self
+            .resolve_command_fqn(self.current_ns(), name)
+            .and_then(|key| {
+                let identities = self.guarded_commands.borrow();
+                let identities = identities.get(&key)?;
+                Some(if identities.contains(&expected) {
+                    expected
+                } else {
+                    *identities.first()?
+                })
+            });
+        self.guards
+            .borrow_mut()
+            .prepare(expected, observed, domains)
+    }
+
+    /// Re-check a command guard against current live identity and epochs.
+    #[must_use]
+    pub fn check_command_guard(&self, token: GuardToken, name: &str) -> bool {
+        let Some(key) = self.resolve_command_fqn(self.current_ns(), name) else {
+            return false;
+        };
+        let identities = self.guarded_commands.borrow();
+        let Some(identities) = identities.get(&key) else {
+            return false;
+        };
+        identities
+            .iter()
+            .any(|identity| self.guards.borrow().check(token, Some(*identity)))
+    }
+
+    /// Execute one target-neutral intrinsic over arguments after command and
+    /// subcommand dispatch. `None` means this runtime does not implement the ID
+    /// or invocation shape and the caller must use its slow path.
+    pub fn execute_intrinsic(
+        &mut self,
+        intrinsic: tcl_registry::IntrinsicId,
+        args: &[Value],
+    ) -> Option<Completion<Value>> {
+        match (intrinsic, args) {
+            (tcl_registry::IntrinsicId::StringLength, [value]) => {
+                Some(ok(tcl_cmd_core::string::length(self, value)))
+            }
+            _ => None,
+        }
+    }
+
+    /// Release one command guard token.
+    #[must_use]
+    pub fn release_command_guard(&self, token: GuardToken) -> bool {
+        self.guards.borrow_mut().release(token)
     }
 
     /// Invoke the pre-TIP-232 fixed `expr` math-function entry selected by the
@@ -2645,6 +2766,14 @@ impl Vm {
             .set(self.trace_deopt_epoch.get().wrapping_add(1));
     }
 
+    /// Invalidate every offline guard that depends on `domain`.
+    ///
+    /// Keep this at the mutation owner: guard epochs are useful only when no
+    /// registration path can bypass the bump.
+    fn invalidate_guard_domain(&self, domain: GuardDomain) {
+        self.guards.borrow_mut().invalidate(domain);
+    }
+
     /// The current trace-deopt epoch.
     pub(crate) fn trace_deopt_epoch(&self) -> u64 {
         self.trace_deopt_epoch.get()
@@ -2672,7 +2801,16 @@ impl InterpState {
     /// cached `(namespace, name) → key` can never outlive the state it was
     /// computed from.
     pub(crate) fn bump_cmd_epoch(&self) {
-        self.cmd_epoch.set(self.cmd_epoch.get().wrapping_add(1));
+        // Clearing on every mutation makes the resolution memo safe even if its
+        // diagnostic epoch saturates. Guard epochs use their own checked,
+        // poison-on-exhaustion counters.
+        self.cmd_resolve_cache.borrow_mut().1.clear();
+        self.cmd_epoch.set(self.cmd_epoch.get().saturating_add(1));
+        self.guarded_commands.borrow_mut().clear();
+        let mut guards = self.guards.borrow_mut();
+        guards.invalidate(GuardDomain::CommandEnvironment);
+        guards.invalidate(GuardDomain::Namespace);
+        guards.invalidate(GuardDomain::UnknownHandling);
     }
 
     /// Resolve `name` from namespace `cxt` to its command's canonical key
@@ -3138,21 +3276,27 @@ impl Vm {
             .entry(key)
             .or_default()
             .push(VarTrace { ops, command });
+        self.invalidate_guard_domain(GuardDomain::VariableTrace);
     }
 
     /// Remove one `trace remove variable` callback matching `ops` + `command`.
     pub(crate) fn remove_var_trace(&mut self, name: &str, ops: &[String], command: &str) {
         let key = self.trace_key(name);
+        let mut removed = false;
         if let Some(list) = self.var_traces.get_mut(&key) {
             if let Some(index) = list
                 .iter()
                 .position(|t| t.ops == ops && t.command == command)
             {
                 list.remove(index);
+                removed = true;
             }
             if list.is_empty() {
                 self.var_traces.remove(&key);
             }
+        }
+        if removed {
+            self.invalidate_guard_domain(GuardDomain::VariableTrace);
         }
     }
 
@@ -3179,6 +3323,7 @@ impl Vm {
             .entry(key)
             .or_default()
             .push(Rc::new(CmdTraceEntry::new(ops, callback)));
+        self.invalidate_guard_domain(GuardDomain::CommandTrace);
         // A new enterstep/leavestep-capable trace forces every proc in this
         // interp to (re)compile trace-visible on next call — C's
         // `DONT_COMPILE_CMDS_INLINE` (tclTrace.c). Bumped even if a step
@@ -3207,16 +3352,21 @@ impl Vm {
         } else {
             &mut self.cmd_traces
         };
+        let mut removed = false;
         if let Some(list) = table.get_mut(&key) {
             if let Some(index) = list
                 .iter()
                 .position(|t| t.ops == ops && t.callback == callback)
             {
                 list.remove(index);
+                removed = true;
             }
             if list.is_empty() {
                 table.remove(&key);
             }
+        }
+        if removed {
+            self.invalidate_guard_domain(GuardDomain::CommandTrace);
         }
         // Removing a step-capable trace may re-enable fast (inlined)
         // compilation for procs that no longer have one active anywhere;
@@ -3321,18 +3471,23 @@ impl Vm {
     /// `delete` traces (tclsh-pinned: redefining a traced proc fires them
     /// too) and drop every trace registered on it.
     pub(crate) fn on_command_removed(&mut self, key: &str) {
+        let mut removed_trace = false;
         if !self.cmd_traces.is_empty() {
             self.fire_command_traces(key, "", "delete");
-            self.cmd_traces.remove(key);
+            removed_trace |= self.cmd_traces.remove(key).is_some();
         }
         if !self.exec_traces.is_empty()
             && let Some(removed) = self.exec_traces.remove(key)
         {
+            removed_trace = true;
             // Dropping a step-capable trace this way (delete/overwrite,
             // not `trace remove`) needs the same epoch bump.
             if removed.iter().any(|t| is_step_capable(&t.ops)) {
                 self.bump_trace_deopt_epoch();
             }
+        }
+        if removed_trace {
+            self.invalidate_guard_domain(GuardDomain::CommandTrace);
         }
     }
 
@@ -3340,16 +3495,22 @@ impl Vm {
     /// traces with both fully-qualified names, then move every trace with it
     /// (tclsh-pinned: an execution trace keeps firing under the new name).
     pub(crate) fn on_command_renamed_traces(&mut self, old_key: &str, new_key: &str) {
+        let mut moved_trace = false;
         if !self.cmd_traces.is_empty() {
             self.fire_command_traces(old_key, &format!("::{new_key}"), "rename");
             if let Some(entries) = self.cmd_traces.remove(old_key) {
                 self.cmd_traces.insert(new_key.to_owned(), entries);
+                moved_trace = true;
             }
         }
         if !self.exec_traces.is_empty()
             && let Some(entries) = self.exec_traces.remove(old_key)
         {
             self.exec_traces.insert(new_key.to_owned(), entries);
+            moved_trace = true;
+        }
+        if moved_trace {
+            self.invalidate_guard_domain(GuardDomain::CommandTrace);
         }
     }
 
@@ -4097,7 +4258,9 @@ impl Vm {
         // A variable's traces are dropped when it is unset.
         if existed {
             let key = self.trace_key(name);
-            self.var_traces.remove(&key);
+            if self.var_traces.remove(&key).is_some() {
+                self.invalidate_guard_domain(GuardDomain::VariableTrace);
+            }
         }
         existed
     }
@@ -5100,6 +5263,209 @@ fn direct_member_tail<'a>(key: &'a str, canonical: &str) -> Option<&'a str> {
 mod family_b_tests {
     use super::*;
     use tcl_runtime_api::GLOBAL_FRAME;
+
+    const GUARDED_IDENTITY: GuardIdentity = GuardIdentity::new(1, 41);
+
+    fn guarded_builtin(_vm: &mut Vm, _args: &[Value]) -> Completion<Value> {
+        ok(Value::empty())
+    }
+
+    #[test]
+    fn command_guard_requires_identity_and_has_exact_lifecycle() {
+        let mut vm = Vm::new();
+        vm.register_guarded_builtin("guarded", guarded_builtin, GUARDED_IDENTITY);
+        let domains = GuardDomains::one(GuardDomain::CommandEnvironment);
+        assert_eq!(
+            vm.prepare_command_guard("guarded", GuardIdentity::new(1, 42), domains),
+            Err(GuardError::IdentityMismatch)
+        );
+        let token = vm
+            .prepare_command_guard("guarded", GUARDED_IDENTITY, domains)
+            .unwrap();
+        assert!(vm.check_command_guard(token, "guarded"));
+        assert!(vm.release_command_guard(token));
+        assert!(!vm.release_command_guard(token));
+        assert!(!vm.check_command_guard(token, "guarded"));
+    }
+
+    #[test]
+    fn any_command_mutation_invalidates_guard_and_live_identity_attestation() {
+        let mut vm = Vm::new();
+        vm.register_guarded_builtin("guarded", guarded_builtin, GUARDED_IDENTITY);
+        let domains = GuardDomains::one(GuardDomain::CommandEnvironment);
+        let token = vm
+            .prepare_command_guard("guarded", GUARDED_IDENTITY, domains)
+            .unwrap();
+
+        vm.register("unrelated", guarded_builtin);
+
+        assert!(!vm.check_command_guard(token, "guarded"));
+        assert_eq!(
+            vm.prepare_command_guard("guarded", GUARDED_IDENTITY, domains),
+            Err(GuardError::IdentityUnavailable)
+        );
+    }
+
+    #[test]
+    fn trace_registration_invalidates_the_matching_guard_domain() {
+        let mut vm = Vm::new();
+        vm.register_guarded_builtin("guarded", guarded_builtin, GUARDED_IDENTITY);
+
+        let command_token = vm
+            .prepare_command_guard(
+                "guarded",
+                GUARDED_IDENTITY,
+                GuardDomains::one(GuardDomain::CommandTrace),
+            )
+            .unwrap();
+        let added = vm.add_cmd_trace(
+            false,
+            "guarded",
+            vec!["rename".to_owned()],
+            "callback".to_owned(),
+        );
+        assert_eq!(added.code, Code::Ok);
+        assert!(!vm.check_command_guard(command_token, "guarded"));
+
+        let variable_token = vm
+            .prepare_command_guard(
+                "guarded",
+                GUARDED_IDENTITY,
+                GuardDomains::one(GuardDomain::VariableTrace),
+            )
+            .unwrap();
+        vm.add_var_trace("watched", vec!["write".to_owned()], "callback".to_owned());
+        assert!(!vm.check_command_guard(variable_token, "guarded"));
+    }
+
+    #[test]
+    fn unsupported_guard_domains_are_poisoned() {
+        let mut vm = Vm::new();
+        vm.register_guarded_builtin("guarded", guarded_builtin, GUARDED_IDENTITY);
+
+        for domain in [GuardDomain::Interpreter, GuardDomain::ObjectDispatch] {
+            assert_eq!(
+                vm.prepare_command_guard("guarded", GUARDED_IDENTITY, GuardDomains::one(domain)),
+                Err(GuardError::Poisoned),
+                "{domain:?} must decline until its mutation ownership is centralised",
+            );
+        }
+    }
+
+    #[test]
+    fn string_length_base_guard_declines_and_generic_dispatch_remains_available() {
+        let mut vm = Vm::new();
+        let identity = GuardIdentity::registry_intrinsic_with_semantics(
+            tcl_registry::IntrinsicId::StringLength.stable_id(),
+            tcl_registry::IntrinsicId::StringLength.guard_semantics_key(vm.runtime_version()),
+        );
+        let domains = GuardDomains::one(GuardDomain::CommandEnvironment)
+            .with(GuardDomain::Namespace)
+            .with(GuardDomain::CommandTrace)
+            .with(GuardDomain::Interpreter);
+
+        assert_eq!(
+            vm.prepare_command_guard("string", identity, domains),
+            Err(GuardError::Poisoned),
+        );
+
+        let completion = vm.dispatch("string", &[Value::string("length"), Value::string("abc")]);
+        assert_eq!(completion.code, Code::Ok);
+        assert_eq!(completion.result.as_int().unwrap(), 3);
+    }
+
+    #[test]
+    fn string_length_intrinsic_uses_the_selected_runtime_character_model() {
+        let mut vm = Vm::new();
+        let domains = GuardDomains::one(GuardDomain::CommandEnvironment);
+        for intrinsic in [
+            tcl_registry::IntrinsicId::StringLength,
+            tcl_registry::IntrinsicId::StringIndex,
+        ] {
+            let identity = GuardIdentity::registry_intrinsic_with_semantics(
+                intrinsic.stable_id(),
+                intrinsic.guard_semantics_key(vm.runtime_version()),
+            );
+            let token = vm
+                .prepare_command_guard("string", identity, domains)
+                .unwrap();
+            assert!(vm.check_command_guard(token, "string"));
+        }
+
+        let value = Value::string("é🙂");
+        let completion = vm
+            .execute_intrinsic(
+                tcl_registry::IntrinsicId::StringLength,
+                std::slice::from_ref(&value),
+            )
+            .expect("StringLength is implemented");
+        assert_eq!(completion.result.as_int().unwrap(), 2);
+
+        vm.set_runtime_version(tcl_dialect::TclVersion::V8_6);
+        let completion = vm
+            .execute_intrinsic(
+                tcl_registry::IntrinsicId::StringLength,
+                std::slice::from_ref(&value),
+            )
+            .expect("StringLength is implemented for Tcl 8");
+        assert_eq!(completion.result.as_int().unwrap(), 3);
+        let completion = vm.dispatch("string", &[Value::string("length"), Value::string("é🙂")]);
+        assert_eq!(completion.result.as_int().unwrap(), 3);
+
+        vm.set_runtime_version(tcl_dialect::TclVersion::V9_0);
+        let completion = vm.dispatch("string", &[Value::string("length"), Value::string("é🙂")]);
+        assert_eq!(completion.result.as_int().unwrap(), 2);
+        assert!(
+            vm.execute_intrinsic(tcl_registry::IntrinsicId::ListLength, &[])
+                .is_none()
+        );
+    }
+
+    #[test]
+    fn renaming_spec_registered_string_stales_its_intrinsic_guard() {
+        let mut vm = Vm::new();
+        let identity = GuardIdentity::registry_intrinsic_with_semantics(
+            tcl_registry::IntrinsicId::StringLength.stable_id(),
+            tcl_registry::IntrinsicId::StringLength.guard_semantics_key(vm.runtime_version()),
+        );
+        let token = vm
+            .prepare_command_guard(
+                "string",
+                identity,
+                GuardDomains::one(GuardDomain::CommandEnvironment),
+            )
+            .unwrap();
+        let command = vm
+            .take_command("string")
+            .expect("registered string command");
+        vm.register_command("moved", command);
+        assert!(!vm.check_command_guard(token, "string"));
+        assert!(!vm.check_command_guard(token, "moved"));
+    }
+
+    #[test]
+    fn command_trace_stales_the_string_intrinsic_guard() {
+        let mut vm = Vm::new();
+        let identity = GuardIdentity::registry_intrinsic_with_semantics(
+            tcl_registry::IntrinsicId::StringLength.stable_id(),
+            tcl_registry::IntrinsicId::StringLength.guard_semantics_key(vm.runtime_version()),
+        );
+        let token = vm
+            .prepare_command_guard(
+                "string",
+                identity,
+                GuardDomains::one(GuardDomain::CommandTrace),
+            )
+            .unwrap();
+        let added = vm.add_cmd_trace(
+            false,
+            "string",
+            vec!["rename".to_owned()],
+            "callback".to_owned(),
+        );
+        assert_eq!(added.code, Code::Ok);
+        assert!(!vm.check_command_guard(token, "string"));
+    }
 
     #[test]
     fn runtime_version_threads_into_the_release_globals() {

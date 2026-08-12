@@ -29,7 +29,7 @@ use crate::body_kind::BodyKind;
 use crate::clause_shape::ClauseShapeChecker;
 use crate::command_table::CommandTableEffect;
 use crate::dialects::DialectSet;
-use crate::dispatch_stability::DispatchDependencyDescriptor;
+use crate::dispatch_stability::{DispatchDependencies, DispatchDependencyDescriptor};
 use crate::events::{EventRequirementForm, ResolvedEventRequirements};
 use crate::forms::{CommandForm, SubCommandForm};
 use crate::frame_effect::FrameEffectSpec;
@@ -1456,12 +1456,24 @@ impl CommandSpec {
     /// tracked state transitions.
     ///
     /// Command specs still declare their behavioural traits explicitly. This
-    /// base only closes the three independent semantic proof obligations, so
+    /// base only closes the four independent semantic proof obligations, so
     /// `PURE` and `CSE_CANDIDATE` cannot be acquired accidentally.
+    ///
+    /// The dispatch declaration replaces the conservative default with
+    /// [`DispatchDependencies::NONE`], which
+    /// [`crate::ResolvedDispatchDependencies::resolve`] restores to
+    /// [`DispatchDependencies::BASE`]. That is the accurate claim for such a
+    /// command: its dispatch depends only on the irreducible domains — the
+    /// command binding, namespace lookup, command/execution traces, and
+    /// interpreter policy. It is not an object method, and, being resolvable,
+    /// it never reaches `unknown` fallback handling.
     pub const CLOSED_REFERENTIALLY_TRANSPARENT: Self = Self {
         result_stability: Some(crate::result_stability::ResultStability::ReferentiallyTransparent),
         world_effects: Some(WorldEffectDescriptor::EMPTY),
         state_transitions: Some(StateTransitionDescriptor::EMPTY),
+        dispatch_dependencies: Some(DispatchDependencyDescriptor::replace(
+            DispatchDependencies::NONE,
+        )),
         ..Self::DEFAULT
     };
 
@@ -1485,6 +1497,55 @@ impl CommandSpec {
     #[must_use]
     pub fn subcommand(&self, name: &str) -> Option<&SubCommand> {
         self.subcommands.iter().find(|s| s.name == name)
+    }
+
+    /// All target-neutral intrinsic identities declared anywhere in this
+    /// command's command, subcommand, or invocation-form descriptors.
+    ///
+    /// The result is deduplicated and ordered by [`crate::IntrinsicId`], so a
+    /// runtime can attach every semantic identity to one live implementation
+    /// without knowing the command's subcommand layout.
+    #[must_use]
+    pub fn intrinsic_ids(&self) -> Vec<crate::IntrinsicId> {
+        let mut ids = std::collections::BTreeSet::new();
+        let mut add = |semantic, lowering, codegen, inline_codegen| {
+            if let Some(id) =
+                crate::IntrinsicId::from_descriptors(semantic, lowering, codegen, inline_codegen)
+            {
+                ids.insert(id);
+            }
+        };
+        add(
+            self.semantic_operation,
+            self.lowering_hook,
+            self.codegen_hook,
+            self.inline_codegen_hook,
+        );
+        for form in self.command_forms {
+            add(
+                form.semantic_operation,
+                form.lowering_hook,
+                form.codegen_hook,
+                None,
+            );
+        }
+        for subcommand in self.subcommands {
+            add(
+                subcommand.semantic_operation,
+                subcommand.lowering_hook,
+                subcommand.codegen_hook,
+                subcommand.inline_codegen_hook,
+            );
+            for form in subcommand.subcommand_forms {
+                add(
+                    form.semantic_operation,
+                    form.lowering_hook,
+                    form.codegen_hook,
+                    None,
+                );
+            }
+        }
+        ids.into_iter().collect()
     }
 
     /// The command's primary invocation synopsis — the first non-empty
@@ -2365,10 +2426,21 @@ impl SubCommand {
     /// Reusable base for a subcommand whose successful result depends only on
     /// its evaluated arguments and which has no mutable-world effects or
     /// tracked state transitions.
+    ///
+    /// As with [`CommandSpec::CLOSED_REFERENTIALLY_TRANSPARENT`], the dispatch
+    /// declaration replaces the conservative default with
+    /// [`DispatchDependencies::NONE`], which resolution restores to
+    /// [`DispatchDependencies::BASE`] — the irreducible binding, namespace
+    /// lookup, trace, and interpreter-policy domains. Such a subcommand is not
+    /// an object method and, being resolvable, never reaches `unknown`
+    /// fallback handling.
     pub const CLOSED_REFERENTIALLY_TRANSPARENT: Self = Self {
         result_stability: Some(crate::result_stability::ResultStability::ReferentiallyTransparent),
         world_effects: Some(WorldEffectDescriptor::EMPTY),
         state_transitions: Some(StateTransitionDescriptor::EMPTY),
+        dispatch_dependencies: Some(DispatchDependencyDescriptor::replace(
+            DispatchDependencies::NONE,
+        )),
         ..Self::DEFAULT
     };
 

@@ -190,11 +190,20 @@ fn fp_opt_03_inner_impure_blocks_licm() {
 }
 
 #[test]
-fn fp_opt_03_outer_pure_inner_pure_still_fires() {
-    // TP control: genuinely pure-recursive expression IS hoistable and O106 fires.
-    // The `set s [...]` body sits in the loop *header* of this bottom-test `for`
-    // loop; find_loop_invariants must scan header statements (the guard is in the
-    // latch terminator) to surface the hoistable `[format %04d [expr {$k + 1}]]`.
+fn fp_opt_03_outer_pure_inner_pure_abstains_in_a_procedure_body() {
+    // This was a true-positive control while loop-invariance was decided by the
+    // legacy command-string classifier, which treated `format` as pure because
+    // of its name. It is not sound: hoisting a call out of a loop changes how
+    // many times it is dispatched, and a caller can install an execution trace
+    // on `format` before invoking this procedure, so the hoist would change the
+    // number of trace callbacks.
+    //
+    // Loop-invariance now consults the same dispatch-stability proof as reuse
+    // (`find_loop_invariants_for_function`). A procedure body carries the
+    // `UnknownWorld` entry contract, so no proof succeeds inside one and the
+    // pass abstains. Restoring this finding needs an entry contract for
+    // procedure bodies derived from workspace, package, and sourced-file facts
+    // -- the contract issue #1364 requires -- not a return to name-based purity.
     let src = "\
 proc f {} {
     set k 42
@@ -205,8 +214,8 @@ proc f {} {
 }
 ";
     assert!(
-        check_fires(src, D, "O106"),
-        "FP-OPT-03 TP: pure expression should be hoistable, O106 should fire; codes={:?}",
+        !check_fires(src, D, "O106"),
+        "a procedure body cannot prove dispatch stability, so O106 must abstain; codes={:?}",
         check_codes(src, D)
     );
 }

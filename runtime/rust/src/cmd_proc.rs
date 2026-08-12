@@ -24,7 +24,7 @@
 //! (`Interp::call_proc`) pushes a frame, binds the args, and runs the body —
 //! see `proc-call-and-stack-traces.md` (PC-2). `puts` writes to stdout/stderr.
 
-use crate::interp::{CallMeta, Code, Interp, Param, ProcFrame, obj_bytes};
+use crate::interp::{obj_bytes, CallMeta, Code, Interp, Param, ProcFrame};
 use crate::obj::TclObj;
 use crate::parse::split_list;
 use tcl_syntax::formal_params::parse_formal_parameters;

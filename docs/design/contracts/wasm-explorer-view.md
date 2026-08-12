@@ -65,18 +65,73 @@ Every `imports[].typeIdx` indexes into this list.
   "types": [{"index": 0, "params": ["i32"], "results": ["i64"]}],
   "dataSegments": [{"offset": 0, "size": 8}],
   "codegenPlan": {
-    "kind": "generic-invoke", // or "general"
+    "kind": "generic-invoke", // generic-invoke | native-i64-add | general
     "operation": "intrinsic", // invoke | intrinsic | structured-lowering
-    "semanticDecline": null    // typed reason object after a decline
+    "semanticDecline": null,   // typed reason object after a decline
+    "regionPlanStatus": "available",
+    "regionPlanDecline": null,
+    "regions": [{
+      "node": [0],
+      "selectedKind": "generic-prebuilt-argv",
+      "operation": {"kind": "intrinsic", "id": "string-length"},
+      "completion": {"kind": "tcl-completion", "function": 0, "index": 6},
+      "slowPath": {
+        "kind": "prebuilt-argv",
+        "argv": {"kind": "prebuilt-argv", "function": 0, "index": 0},
+        "completion": {"kind": "tcl-completion", "function": 0, "index": 6},
+        "wordReplay": false
+      },
+      "candidates": [{
+        "kind": "guarded-direct",
+        "decision": "declined",
+        "reason": "direct-callee-identity-unavailable",
+        "detail": {}
+      }, {
+        "kind": "guarded-intrinsic",
+        "decision": "declined",
+        "reason": "pass-disabled",
+        "detail": {}
+      }]
+    }]
   },
   "text": "(module (type …) (import …) …)"
 }
 ```
 
-`codegenPlan` is durable compiler evidence, not display inference. A general
+`codegenPlan` is durable compiler evidence, not display inference. A
+`native-i64-add` plan adds `nativeI64Add` with the proof-selected callee,
+exact operands, registry boundary operation, frame-elision fact, and exact
+closed-program statement count. A general
 plan's `semanticDecline` carries stable `kind` and `detailKind` fields
 explaining why narrower executable semantic selection declined. It never
 contains Rust `Debug` output.
+
+The current Explorer UI compiles with its default hosted, default-off options,
+so it does not select `native-i64-add`. The `nativeI64Add` record is retained
+for API/options-aware callers and for the future Explorer configuration that
+can explicitly request sealed-program semantic/AOT passes.
+
+`regions` is the retained target-neutral `MixedRegionPlan`, not a plan rebuilt
+by Explorer. Entries are ordered by structural `NodeId`. An invocation's
+generic and guarded paths name the same prebuilt argv and Tcl completion
+identities; `wordReplay` is always `false`. Guarded candidates retain a typed
+selection or decline. Lowered and opaque regions have `slowPath: null` and an
+empty candidate list. `regionPlanStatus` distinguishes an available plan from
+unavailable executable IR or a typed mixed-plan decline.
+
+The sample shows the default-off baseline. If `GuardedIntrinsic` is explicitly
+enabled for the bounded boxed `string length` invocation, top-level `kind`
+remains `generic-invoke`, `selectedKind` becomes `guarded-intrinsic`, and the
+guarded-intrinsic candidate becomes `selected` with its registry operation and
+`dispatchDependencies`. This is intentional: the generic prebuilt-argv path is
+still the exact runtime slow path. Other intrinsic operations remain typed
+declines rather than acquiring backend-specific special cases.
+
+`native-i64-add` is a separate, sealed-program top-level plan. It is selected
+only when all five required semantic passes are explicitly enabled and exact
+four-statement coverage succeeds; a missing pass, hosted environment, extra
+statement, mutation, trace, unsupported formal list, or non-i64 range returns
+the ordinary generic/general evidence instead.
 
 ## Function entry
 
