@@ -1206,19 +1206,15 @@ The version-gated sets are `DialectSet` constants
 (`rust/tcl-dialect/src/dialect_set.rs`), so a derived dialect inherits the
 right answer from the bits it contains rather than from a name comparison.
 
-**Data flow:**
-
-```
-Registry spec (safe_on_uninit)
-    |
-    +-> Lowering asks the registry whether the resolved call is safe
-    |     +-> the fact is carried on the lowered statement
-    |
-    +-> Analyser reads it back and suppresses W210 when set
-```
-
-No command names or dialect names appear in the compiler or analyser --
-all knowledge lives in the registry specs and the `DialectSet` constants.
+**Current state (verified 2026-08-12):** the field is declared and stamped
+on the specs (`append`, `lappend`, `incr`, `catch`, the `dict` writers),
+but no production consumer reads it — every lowering site constructs
+`safe_on_uninit: false` on the statement, and the analyser's
+`use_site_safe_initialises` can therefore only fire on `Statement::Incr`.
+What actually keeps W210 quiet for these commands today is their
+`ArgRole::VarWrite` declaration, which records the write as a def. Wiring
+the field through lowering (registry lookup → statement flag) is an open
+gap from the port; the spec-side data is already correct for it.
 
 ### Dialect loading
 
@@ -1478,6 +1474,14 @@ is what that looks like from the outside.
 - Prefer a new `CommandSpec` field or a typed hook ID over teaching a
   consumer a command name; the registry is the source of truth, and a
   consumer that matches on a name is the thing this design exists to avoid.
+
+## The reference manual
+
+[`docs/references/command-spec/`](../../references/command-spec/README.md)
+is the library-author-facing manual over this contract: every field in
+Tcl terms (generated from the Spec Studio schema, so it cannot drift),
+plus the impact tables mapping fields to the diagnostics, optimisations,
+and editor features they drive.
 
 ## Authoring a spec without Rust
 

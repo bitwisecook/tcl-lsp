@@ -385,6 +385,9 @@ are its rules, and what are the failure modes". One contract per file.
 - [command-spec-studio.md](contracts/command-spec-studio.md) — the spec
   studio's schema / draft / renderer layering, the invariants that keep it
   in step with `CommandSpec`, and the rules its rendered `.rs` must satisfy.
+- [spec-packs.md](spec-packs.md) — **proposal**: a loadable, data-only
+  command database for private libraries, with the format-stability
+  policy that avoids per-release rebuilds (issue #1363).
 - [proc-arg-traits.md](contracts/proc-arg-traits.md) — proc argument
   trait inference.
 - [variable-case-mismatch-suggestions.md](contracts/variable-case-mismatch-suggestions.md)
@@ -453,6 +456,10 @@ Distilled from the trickiest scars in the WASM runtime history
 - [kcs-completeness-plan.md](kcs-completeness-plan.md) — audit of the
   current KCS coverage (features and top-level notes) and the plan to
   close the gaps toward completeness.
+- [kcs-codes-drift-audit-2026-08-12.md](kcs-codes-drift-audit-2026-08-12.md)
+  — source-verified audit of the per-code diagnostic pages: missing
+  pages, behaviour contradictions, and the `safe_on_uninit` wiring gap
+  it surfaced.
 
 ## Templates
 

@@ -305,8 +305,10 @@ quiet, and rename reaches the name.",
         "Whether the command may be handed a variable name that does not \
 exist yet. `lappend v x` happily creates `v`; so does `append`. `incr` \
 creates it in Tcl 8.5+ but errors in 8.4 — which is why this is a *set of \
-dialects* rather than yes/no. Tick the dialects where creating-on-first-use \
-is fine, and the \"variable read before set\" warning stays quiet there.",
+dialects* rather than yes/no.\n\nNote: today the \"variable read before \
+set\" warning is actually kept quiet by declaring the argument a written \
+variable (a VarWrite role); this field records the version fact but is not \
+yet consulted by that check.",
     ),
     (
         "const_fold",

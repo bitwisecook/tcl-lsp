@@ -47,6 +47,7 @@ pub mod coverage;
 pub mod draft;
 pub mod help;
 pub mod infer;
+pub mod reference;
 pub mod render_rs;
 pub mod render_stub;
 pub mod schema;
