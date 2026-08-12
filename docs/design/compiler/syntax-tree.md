@@ -1,10 +1,12 @@
 # The canonical concrete syntax tree (red-green CST)
 
-The lossless, position-independent concrete syntax tree (CST) is the **single
-representation** the pipeline rides on: command segmentation, AOT lowering to
-the bytecode VM and WASM, the formatter, the minifier, and the per-command
-`tcl` / `f5 irule` tooling all descend one tree rather than each re-lexing the
-bytes it cares about.
+The lossless, position-independent concrete syntax tree (CST) is the
+representation command segmentation rides on. `segment_commands` and every
+`SegmentedCommand` consumer downstream of it — IR lowering, AOT codegen to the
+bytecode VM and WASM, the analyser, and the per-command `tcl` / `f5 irule`
+tooling — read one tree rather than each re-lexing the bytes it cares about.
+Two consumers still lex for themselves and are named under
+[Known gap](#known-gap--the-minifier): the minifier and the formatter.
 
 Living in `rust/tcl-compiler/src/parsing/syntax/`: the position-independent
 green tree, the lazy red overlay, the constructor, lazy descent into braced
@@ -29,8 +31,8 @@ This is deliberately the model the *green token tree* proposal (issue #477,
 design is a context-aware tokenisation memo whose tokens would carry
 **absolute** positions, because ~80 consumers read `Token.start.offset` as
 absolute. That proposal is unbuilt — nothing named `TokenRegion` exists in the
-workspace — so the CST under `parsing/syntax/` is the only tree in the tree.
-It does not change the absolute-offset consumers: `SyntaxToken::to_token`
+workspace — so the CST under `parsing/syntax/` is the only tree there is. It
+does not change the absolute-offset consumers: `SyntaxToken::to_token`
 reproduces the lexer `Token` they already read.
 
 ## Node model

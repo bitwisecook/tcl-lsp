@@ -176,62 +176,91 @@ source is the ground truth**, and the Tcl 9 test suite is the arbiter.
 
 Two stacks, mirroring Tcl, on top of the runtime's `FrameStack`.
 
-### 3.1 `CallFrame`
+### 3.1 `Frame` — the call / variable frame
 
-```
-struct CallFrame {
-    vars:        BTreeMap<Vec<u8>, Var>,   // locals
-    ns:          NsId,                     // namespace
-    argv:        Vec<*mut TclObj>,         // this call's args — `info level`
-    caller:      usize,                    // call-chain parent  (callerPtr)
-    caller_var:  usize,                    // var-scope parent   (callerVarPtr)
-    level:       usize,                    // uplevel nesting
-    proc:        Option<ProcId>,           // the running proc, if any
+```rust
+struct Frame {
+    table:           VarTable,      // this frame's locals (and its links)
+    compiled_slots:  Vec<…>,        // indexed ports for AOT-bound locals
+    level:           usize,         // logical call level (`info level` arithmetic)
+    ns:              NsId,          // namespace current when this frame was pushed
+    words:           Vec<Vec<u8>>,  // the invoking command words (`info level N`)
+    is_proc:         bool,          // proc call vs `namespace eval`/`inscope` frame
+    saved_active:    usize,         // the active level to restore on pop
 }
 ```
 
-The `caller` vs `caller_var` split is the `uplevel`/`info level` keystone (the
-resolved var *links* by path; the frame now records both chains so `info level`
-/ `uplevel N` / `info frame` are exact).
+C's two chains are realised without two parent pointers. `FrameStack` is a
+`Vec<Frame>`, so the **call chain** is stack order; the **variable-scope chain**
+is `FrameStack::active_level`, the level whose frame unqualified names resolve
+against. `uplevel` redirects `active_level` and a frame records the value to
+put back in `saved_active`, so the redirection unwinds correctly even when a
+proc is invoked *while* an `uplevel` is in effect — the case where the logical
+`level` and the stack index genuinely diverge (`uplevel 1 [list SomeProc …]`,
+tcltest's idiom). `push_same_level` is the push for that case.
+
+That divergence is why `level` alone cannot identify a frame, and why the
+`CmdFrame` below carries a separate `frame_index`.
 
 ### 3.2 `CmdFrame` — the source / diagnostic stack
 
-```
-enum FrameKind { Eval, Source, Proc, AotProc }      // ~ TCL_LOCATION_*
+```rust
+enum FrameKind { Eval, Source, Proc }        // ~ TCL_LOCATION_*
 struct CmdFrame {
-    kind:    FrameKind,
-    file:    Option<Rc<[u8]>>,    // sourced-file path (Source)
-    cmd:     Range<usize>,        // span of the executing command in its script
-    line:    u32,                 // 1-based source line of the command
-    word_lines: Vec<u32>,         // per-word start lines (info frame)
-    call:    usize,               // the CallFrame index this runs in
-    proc_name: Option<Vec<u8>>,   // for the "(procedure ... line N)" frame
+    kind:            FrameKind,
+    file:            Option<Rc<[u8]>>,  // sourced-file path
+    proc:            Option<Vec<u8>>,   // the proc FQN this frame runs in
+    level:           usize,             // the proc call level
+    omit_level:      bool,              // C drops `level` for an `uplevel` body
+    frame_index:     usize,             // stack index of the CallFrame (identity)
+    line_base:       u32,               // added to a body-relative line
+    proc_line_base:  u32,               // the enclosing body's base, for errorLine
+    cmd:             Vec<u8>,           // the executing command (the `cmd` key)
+    line:            u32,               // its reported source line
 }
 ```
 
 A parallel `Vec<CmdFrame>` on the interp (the `cmdFramePtr` stack). `eval`
 pushes `Eval`; `source` pushes `Source` with the file path; a proc call pushes
-`Proc`/`AotProc`. The line is computed from the script + the command's byte
-offset (the parser supplies byte offsets — line = count of `\n`
-before the offset, cached per script).
+`Proc`. The line is computed from the script and the command's byte offset (the
+parser supplies byte offsets — line = count of `\n` before the offset).
+
+The two line bases are the subtle part. `line_base` is what a body-relative
+line is added to, and an inline body (`if` / `while` / `catch`) temporarily
+re-points it at the sub-body's own base while it runs. `proc_line_base` is the
+base of the enclosing `codePtr->source` — the proc, lambda, or `eval` body the
+commands ultimately belong to — captured at frame creation and deliberately
+*not* moved by those inline shifts, because C computes `errorLine` against
+`codePtr->source`, which an inline body shares with its proc.
 
 ### 3.3 Exception state
 
-`Code` stays the completion code, plus the options the unwinder needs:
+`Code` stays the completion code; `ExceptionState` carries the accumulating
+trace:
 
-```
+```rust
 struct ExceptionState {
-    error_info:  Vec<u8>,       // accumulated trace (errorInfo)
-    error_code:  *mut TclObj,   // errorCode (a list)
-    error_line:  u32,           // line within the current frame
-    return_level: usize,        // `return -level`
-    return_code:  Code,         // `return -code`
-    already_logged: bool,       // ERR_ALREADY_LOGGED
+    info:            Option<Vec<u8>>, // accumulating errorInfo; None until the
+                                      // first frame is appended (C's NULL)
+    code:            Vec<u8>,         // ::errorCode
+    code_explicit:   bool,            // an explicit `-errorcode {}` reads back
+                                      // empty rather than defaulting to NONE
+    already_logged:  bool,            // ERR_ALREADY_LOGGED
 }
 ```
 
-`error`/`catch`/`return -code -level -options` operate on this. `catch` snapshots
-it into the options dict; `return -options $d` restores it.
+`info` being `Option` is load-bearing: `None` is what selects `while executing`
+over `invoked from within` and seeds the buffer from the result message.
+
+The rest of the exception state lives beside it on `InterpState` rather than
+inside this struct, because its lifetime differs: `error_line` (C's
+`iPtr->errorLine`) is **persistent** interp state written only by
+`log_command_info`, surviving `catch` and the start of a fresh error;
+`return_code` / `return_level` are the pending `return -code`/`-level`; `during`
+holds the TIP 329 `-during` chain; and `error_stack` / `reset_error_stack` are
+the TIP 348 stack. `error` / `catch` / `try` / `return -options` operate across
+all of them, and `snapshot_error` / `restore_error` move the accumulating slice
+between flows (a coroutine swap).
 
 ---
 

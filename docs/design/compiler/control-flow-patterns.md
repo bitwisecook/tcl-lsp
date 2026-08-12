@@ -145,11 +145,14 @@ body. The lowerer marks it `SwitchArm.fallthrough = true` with a `None` body.
 ### `catch` / `try`
 
 **IR**: `Statement::Catch` / `Statement::Try` with `Vec<TryHandler>`.
-**CFG**: `catch` is emitted opaquely by `emit_opaque_catch` — a
+**CFG**: `catch` is always emitted opaquely by `emit_opaque_catch` — a
 `Statement::Call` whose `defs` cover the body's writes plus the result and
 options variables.  `try` is lowered by `cfg_lower::lower_try` into
 `try_body`, `try_handler`, `try_ok`, `try_finally`, `try_after_finally`,
-and `try_end` blocks.
+and `try_end` blocks, except when loop inlining is off for the body (the
+top level under `defer_top_level`), where `lower_try_dispatch` defers it to
+an opaque `Statement::Call` carrying the union of the body's, handlers', and
+`finally` clause's defs.
 
 Because a single-successor terminator cannot express a throw, analysis
 builds record body→handler edges in `Function::exception_edges` instead;

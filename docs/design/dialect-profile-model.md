@@ -661,10 +661,14 @@ than by construction code.
   `HTTP2::*` introduced in a later TMOS, a newer synthesis-tool subcommand)
   stay hidden until the file pins a newer version. A default of "latest" would
   silently mark genuinely-unavailable commands as known on older targets;
-  "oldest" never over-reports availability. `VersionKey::default_floor` is
+  "oldest" never over-reports availability. `VersionKey::default_version` is
   where those floors live — `BigipVersion` is `16.1.0`, while `ToolVersion`
   and `SdcVersion` are `None` (permissive) because no registry pack carries
-  keyed tool or SDC introduction data yet.
+  keyed tool or SDC introduction data yet. It is deliberately distinct from
+  `VersionKey::baseline_version` (`15.0.0` for `BigipVersion`), which says
+  what the *data* claims — an item with no explicit `min_version` is asserted
+  present since 15.0 — rather than what the user targets when they pin
+  nothing.
 
 ### 7.2 Precision costs false positives, and that is the trade
 
