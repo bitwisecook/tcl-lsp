@@ -146,6 +146,35 @@ fn diffs(rendered: &Value, shipped: &Value) -> Vec<Diff> {
     out
 }
 
+fn header(pack: &str) -> String {
+    let what = match pack {
+        "sdc_base" => "the shared SDC constraint / collection library every EDA shell ships",
+        "eda_synopsys" => "the Synopsys tool commands (Design Compiler, IC Compiler, PrimeTime)",
+        "eda_cadence" => "the Cadence tool commands (Genus, Innovus, Xcelium, Conformal)",
+        "eda_xilinx" => "the AMD/Xilinx Vivado tool commands",
+        "eda_quartus" => "the Intel/Altera Quartus tool commands",
+        "eda_mentor" => "the Siemens/Mentor tool commands (Questa, ModelSim, Calibre)",
+        _ => "an EDA vendor command library",
+    };
+    format!(
+        "\
+# tcl-lsp — bundled SpecTcl loadable: {what}.
+#
+# This pack IS the source of truth for these commands. The Rust modules that
+# used to hold them (rust/tcl-registry/src/commands/{pack}/) were deleted when
+# the EDA vendor libraries migrated to bundled `.tclspec` loadables, per
+# docs/design/spec-packs.md (\"the EDA vendor libraries ship as bundled
+# `.tclspec` loadables … so the loader path is exercised in production from day
+# one rather than reserved for private packs\"). Every command was proved
+# field-for-field equal to its compiled spec by the SpecTcl round-trip gate
+# before the modules were removed.
+#
+# Discovery: the **bundled** tier — `specs/` beside the server executable, or
+# wherever $TCL_LSP_SPEC_PACK_DIR points (rust/tcl-spectcl/src/discovery.rs).
+# Edit this file to change the specs; there is no generator to re-run."
+    )
+}
+
 #[test]
 fn eda_packs_render_and_reload_field_equal() {
     let out_dir = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../specs");
@@ -156,7 +185,8 @@ fn eda_packs_render_and_reload_field_equal() {
 
     for (pack_name, specs) in packs() {
         let drafts: Vec<draft::Draft> = specs.iter().map(draft::from_command_spec).collect();
-        let (text, losses) = render_spectcl::render_pack_reporting(&drafts, pack_name);
+        let (body, losses) = render_spectcl::render_pack_reporting(&drafts, pack_name);
+        let text = format!("{}\n{body}", header(pack_name));
         let path = out_dir.join(format!("{pack_name}.tclspec"));
         std::fs::write(&path, &text).expect("write pack");
 

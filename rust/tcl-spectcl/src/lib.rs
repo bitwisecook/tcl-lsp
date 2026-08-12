@@ -32,6 +32,10 @@
 //!
 //! [`cache`] sits beside them: a disposable, hash-keyed compiled-pack cache in
 //! the OS cache directory that makes a reload of an unchanged pack cheap.
+//! [`hooks`] sits beside them too: the seam that turns a pack's declared hook
+//! *bodies* into live function pointers by way of the `tcl-spec-hooks` host —
+//! it is here, and not in either neighbour, because this is the only crate
+//! that owns both the loader's `HookDecl` and the host's `HookProgram`.
 //!
 //! ## Why this is not in `tcl-spec-studio`
 //!
@@ -58,6 +62,7 @@
 pub mod cache;
 pub mod catalogue;
 pub mod discovery;
+pub mod hooks;
 pub mod install;
 pub mod loader;
 pub mod pack;
