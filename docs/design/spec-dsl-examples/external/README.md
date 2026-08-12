@@ -10,7 +10,7 @@ directory) falls short.
 Every claim below is grounded in a `file:line` from an actual clone; nothing
 here is invented from the library's documentation alone. Syntax that is
 *invented* for the drafted specs is marked `DSL GAP` inline in the
-`.tclspec.tcl` files and cross-referenced from [§4](#4-full-gap-catalogue)
+`.tclspec` files and cross-referenced from [§4](#4-full-gap-catalogue)
 below by tag (`G1`, `G2`, …).
 
 ## Contents
@@ -41,9 +41,9 @@ Two corrections to the task brief worth recording:
   `aplsimple/apave` — that path 404s through the session's GitHub proxy
   (confirmed with `mcp__github__search_repositories user:aplsimple`: no
   `apave` repo exists; `pave`, topics `gui layout-engine paver tcl-tk`, does).
-  The draft file is still named `apave.tclspec.tcl` because `apave` is the
+  The draft file is still named `apave.tclspec` because `apave` is the
   package/namespace identity a `speclib` declaration would key off, matching
-  how `oo-class.tclspec.tcl` names itself after the Tcl command, not the
+  how `oo-class.tclspec` names itself after the Tcl command, not the
   shipping crate file.
 - `rust/tcl-lsp/tmp/` (mentioned in the task as a possible source of
   pre-cloned trees) does not exist in this checkout — it is `.gitignore`d
@@ -122,7 +122,7 @@ or binds a new dispatchable command/object.
   {error ...}` — an exhaustive closed set, referenced from `setdef` calls
   by symbol (`-validvalue formatTextAlign`). This is *exactly* the shape
   `values NAME { value V -detail {...} }` + `-values-from NAME` already
-  solves for positional `arg`s in `string.tclspec.tcl:17-42` — it is not
+  solves for positional `arg`s in `string.tclspec:17-42` — it is not
   yet shown applied to `option`s. See G5.
 - **No native ensemble anywhere.** `chart::Add` (`chart.tcl:1006-1069`)
   takes a literal first word (`"barSeries"`, `"lineSeries"`, …) and
@@ -174,8 +174,8 @@ or binds a new dispatchable command/object.
   `-flag value` lists, evaluated via `uplevel 2 subst -nocommand
   -nobackslashes` (`apavebase.tcl:3546`) — variable substitution only, two
   frames up. This is one nesting level past what the already-solved
-  `clause_grammar` (`if.tclspec.tcl:33-37`) or `case_list`
-  (`switch.tclspec.tcl:69-81`) constructs reach. See G8/G9.
+  `clause_grammar` (`if.tclspec:33-37`) or `case_list`
+  (`switch.tclspec:69-81`) constructs reach. See G8/G9.
 - **The widget-type vocabulary is closed *and* runtime-extensible at the
   same time.** `apavebase.tcl:1201` (`method defaultATTRS`) lets a caller
   register a brand-new 3-letter type code at runtime (documented example
@@ -235,7 +235,7 @@ or binds a new dispatchable command/object.
   `OptionConstraint` (`rust/tcl-registry/src/spec.rs:520-525`) is `{
   options: &[&str], dialects }` — a flat "may not co-occur" set, which
   covers `-forbid` (once the DSL grows syntax for it — no sibling
-  `.tclspec.tcl` in the parent directory shows `option_constraints`
+  `.tclspec` in the parent directory shows `option_constraints`
   syntax yet either) but has **no field at all** for "-require" — there
   is no directionality, no "implies", nothing. `-l=` and `-w=` both
   `-require {model}` at `specElementsClassesNgspice.tcl:102-103`. See G2.
@@ -358,7 +358,7 @@ exists and was read directly in `rust/tcl-registry/src/spec.rs` /
 `hover.rs`), `[STRUCT]` (no field exists on the Rust struct at all — a
 registry change, not just a DSL-syntax change, would be needed), or `[SOFT]`
 (expressible today via duplication/authoring effort; a nice-to-have, not a
-blocker). Every drafted `.tclspec.tcl` marks its own invented syntax inline
+blocker). Every drafted `.tclspec` marks its own invented syntax inline
 with the matching tag.
 
 > **Reconciliation note (pre-freeze).** Four of the spellings invented
@@ -432,7 +432,7 @@ with the matching tag.
 - **G5 `[SYNTAX]` — closed value-enums shared across many `option`s.**
   124 validator cases, ~180+ references, in ticklecharts. The exact
   mechanism already exists for positional `arg`s (`values NAME { value V
-  -detail {...} }` + `arg N -values-from NAME`, `string.tclspec.tcl:17-42`)
+  -detail {...} }` + `arg N -values-from NAME`, `string.tclspec:17-42`)
   — invented here is only its *application* to `option NAME -takes value
   -values-from NAME -closed`, not a new mechanism.
 - **G6 `[STRUCT]` — foreign (non-Tcl) code as a value.** `ticklecharts::jsfunc`
@@ -451,14 +451,14 @@ with the matching tag.
   (`spec.rs:255-256`) is `&[SubCommand]`. `Batch::runAndRead` /
   `BatchLiveLog::runAndRead` (both real `exec`/`open |cmd` process-spawn
   sinks) and `chart::Render` (real file-write sink) are exactly the shape
-  this can't reach. Drafted anyway in `SpiceGenTcl.tclspec.tcl` with a loud
+  this can't reach. Drafted anyway in `SpiceGenTcl.tclspec` with a loud
   inline gap marker, to show what an author *wants* to write.
 - **G8 `[STRUCT]`, speculative — structured multi-field-tuple body
   argument.** apave's `Window`/`paveWindow` row shape
   (`{name neighbor posofnei rowspan colspan options attrs}`) is one nesting
   level past `clause_grammar` (flat `Expr`/`Body` word sequence,
-  `if.tclspec.tcl:33-37`) or `case_list` (pattern/body pairs only,
-  `switch.tclspec.tcl:69-81`): each *row* has 7 typed positional fields, two
+  `if.tclspec:33-37`) or `case_list` (pattern/body pairs only,
+  `switch.tclspec:69-81`): each *row* has 7 typed positional fields, two
   of which are themselves nested `-flag value` option lists. No existing
   construct reaches two nesting levels. Most speculative invention in this
   census — drafted as `arg N -role body -repeats { row { field IDX NAME
@@ -533,7 +533,7 @@ with the matching tag.
 - **G16 `[STRUCT]`, not really an external-library finding — `fields.md`'s
   own prose overclaims what `SubSubCommand` holds.** Discovered trying to
   draft `struct::graph`'s `arc`/`node` sub-ensembles
-  (`tcllib.tclspec.tcl`): `fields.md`'s `sub_subcommands` entry says "Each
+  (`tcllib.tclspec`): `fields.md`'s `sub_subcommands` entry says "Each
   carries its own arity and documentation", but `SubSubCommand`
   (`rust/tcl-registry/src/spec.rs:2281-2290`) is `{name, detail, synopsis,
   dialects}` — **no `arity` field, no `pure`/`mutator`, no `arg_roles`** —
@@ -627,7 +627,7 @@ porting *shipped, core-Tcl* commands. Cross-checked against it:
   `oo::configurable`'s `property`" (rubric, TclOO,
   `tricky-surfaces.md:28`) ← G12's first real-world grounding;
   "credential options and args" / "sensitive headers" (rubric, Taint) ←
-  already exercised by `irules-http-header.tclspec.tcl`, unaffected by
+  already exercised by `irules-http-header.tclspec`, unaffected by
   this census.
 - **Sharpens an existing rubric item into something more precise:** the
   rubric's Taint section lists "per-slot code/network sinks" as something

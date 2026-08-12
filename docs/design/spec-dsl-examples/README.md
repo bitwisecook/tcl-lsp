@@ -4,7 +4,7 @@
 > [issue #1363](https://github.com/bitwisecook/tcl-lsp/issues/1363).
 > Nothing here is implemented. The syntax below was **designed by
 > porting**: every construct exists because one of the eleven
-> `*.tclspec.tcl` files beside this page needed it to say something a
+> `*.tclspec` files beside this page needed it to say something a
 > shipped spec already says.
 
 ## The ports
@@ -15,17 +15,17 @@ one.
 
 | pack file | ported from | what it forced into the design |
 |---|---|---|
-| [`lsort.tclspec.tcl`](lsort.tclspec.tcl) | `commands/tcl/lsort_.rs` | option rows, command-prefix options, integer domains, per-option dialect gates |
-| [`foreach.tclspec.tcl`](foreach.tclspec.tcl) | `commands/tcl/foreach_.rs` | stepped arity, repeated-argument layouts, the first hook body |
-| [`string.tclspec.tcl`](string.tclspec.tcl) | `commands/tcl/string_.rs` (`length`, `is`, `map`, `range`) | pack-level shared tables, closed value sets, subcommand facts, const-folds as Tcl |
-| [`switch.tclspec.tcl`](switch.tclspec.tcl) | `commands/tcl/switch_.rs` | `-also` arity, an inline `case_list`, option-skipping in a resolver |
-| [`if.tclspec.tcl`](if.tclspec.tcl) | `commands/tcl/if_.rs` | the declarative `clause_grammar` (extra port — see below) |
-| [`oo-class.tclspec.tcl`](oo-class.tclspec.tcl) | `commands/tcl/oo_class.rs` | manufacturer rows, derived role resolvers, named descriptors |
-| [`geturl.tclspec.tcl`](geturl.tclspec.tcl) | `commands/tcllib/uri__geturl.rs` + `commands/stdlib/http__geturl.rs` | package gating, tri-state index lists, credential options |
-| [`irules-http-header.tclspec.tcl`](irules-http-header.tclspec.tcl) | `commands/irules/http__header.rs` | event requirements, subcommand-scoped taint sinks |
-| [`upvar.tclspec.tcl`](upvar.tclspec.tcl) | `commands/tcl/upvar_.rs` | `frame_effect`, and state transitions derived from it |
-| [`snit-type.tclspec.tcl`](snit-type.tclspec.tcl) | `commands/tcllib/snit__type.rs` + `definer.rs`'s `SNIT_GRAMMAR` | the inline `definition_body` grammar: member rows, built-in method rows, member-body commands, bare-word construction |
-| [`return.tclspec.tcl`](return.tclspec.tcl) | `commands/tcl/return_.rs` | the option-arity hook inside an option row, a context gate, per-option dialect gates, dialect-gated form rows |
+| [`lsort.tclspec`](lsort.tclspec) | `commands/tcl/lsort_.rs` | option rows, command-prefix options, integer domains, per-option dialect gates |
+| [`foreach.tclspec`](foreach.tclspec) | `commands/tcl/foreach_.rs` | stepped arity, repeated-argument layouts, the first hook body |
+| [`string.tclspec`](string.tclspec) | `commands/tcl/string_.rs` (`length`, `is`, `map`, `range`) | pack-level shared tables, closed value sets, subcommand facts, const-folds as Tcl |
+| [`switch.tclspec`](switch.tclspec) | `commands/tcl/switch_.rs` | `-also` arity, an inline `case_list`, option-skipping in a resolver |
+| [`if.tclspec`](if.tclspec) | `commands/tcl/if_.rs` | the declarative `clause_grammar` (extra port — see below) |
+| [`oo-class.tclspec`](oo-class.tclspec) | `commands/tcl/oo_class.rs` | manufacturer rows, derived role resolvers, named descriptors |
+| [`geturl.tclspec`](geturl.tclspec) | `commands/tcllib/uri__geturl.rs` + `commands/stdlib/http__geturl.rs` | package gating, tri-state index lists, credential options |
+| [`irules-http-header.tclspec`](irules-http-header.tclspec) | `commands/irules/http__header.rs` | event requirements, subcommand-scoped taint sinks |
+| [`upvar.tclspec`](upvar.tclspec) | `commands/tcl/upvar_.rs` | `frame_effect`, and state transitions derived from it |
+| [`snit-type.tclspec`](snit-type.tclspec) | `commands/tcllib/snit__type.rs` + `definer.rs`'s `SNIT_GRAMMAR` | the inline `definition_body` grammar: member rows, built-in method rows, member-body commands, bare-word construction |
+| [`return.tclspec`](return.tclspec) | `commands/tcl/return_.rs` | the option-arity hook inside an option row, a context gate, per-option dialect gates, dialect-gated form rows |
 
 `if` is a ninth, unrequested port: it is the only shipped consumer of
 `clause_shape_check`, and the DSL's whole answer to that field is to make
@@ -71,7 +71,7 @@ with a logged notice.
 at a `;`, so a short declaration can be written on one line —
 `subcommand at { arity 1 ; detail {Get header name by index.} ;
 synopsis {HTTP::header at <index>} }`, as
-[`irules-http-header.tclspec.tcl`](irules-http-header.tclspec.tcl) does
+[`irules-http-header.tclspec`](irules-http-header.tclspec) does
 throughout. The trap that comes with it is also ordinary Tcl: a `#` only
 starts a comment **where a command word would start**, so
 `arity 2 # not a comment` passes `#` and `not` and `a` and `comment` to
@@ -169,7 +169,7 @@ flag, `-arity-hook {words ctx} { … }` (or `-arity-hook -native ID`),
 because a hook is *two* words — a parameter list and a body — where every
 other flag value is one, and because a row parser must not have to tell
 `{words ctx}` from an enum payload by inspection. See "The option-arity
-hook" under Hooks, and [`return.tclspec.tcl`](return.tclspec.tcl).
+hook" under Hooks, and [`return.tclspec`](return.tclspec).
 
 ### Other rows
 
@@ -340,7 +340,7 @@ that a non-literal word arrives as the empty string, a fold body that
 never consults `kinds` would otherwise fold `string length $x` to `0`,
 `string range $s 0 1` to `""`, and `string map $m abc` to `abc`. With the
 sentence above, all three bodies in
-[`string.tclspec.tcl`](string.tclspec.tcl) are sound exactly as written;
+[`string.tclspec`](string.tclspec) are sound exactly as written;
 without it, all three are unsound. **No fold body should re-check
 `kinds` itself** — the precondition is the loader's, stated once, rather
 than a guard every author must remember.
@@ -421,7 +421,7 @@ parameter:
   missing value: it is *not* an abstention, because a hook that emits
   nothing still consumes one.
 
-[`return.tclspec.tcl`](return.tclspec.tcl) is the port. The whole family
+[`return.tclspec`](return.tclspec) is the port. The whole family
 exists for the `-errorstack` shape — a *fixed* one-word span whose
 **content** needs checking — so its body never varies the span at all;
 it emits `consume 1` three ways and `consume 0` once. Two notes from
@@ -658,7 +658,7 @@ known limit below rather than papered over.
 They were reference-only on the argument that no port needed an inline
 form; [`tricky-surfaces.md`](tricky-surfaces.md) requires both "from day
 one", and the honest way to close a rubric gap is a port, not an
-amendment. [`snit-type.tclspec.tcl`](snit-type.tclspec.tcl) is that
+amendment. [`snit-type.tclspec`](snit-type.tclspec) is that
 port, and it designed the form.
 
 `definition_body NAME` still names a shipped grammar (`tcloo`,
@@ -834,7 +834,7 @@ explicitly:
 - **Repeated `example` rows join with a single `\n`.** A spec whose Rust
   `examples` string separates its examples with a *blank* line therefore
   writes them as one braced block rather than three rows —
-  [`return.tclspec.tcl`](return.tclspec.tcl) is the worked case, and says
+  [`return.tclspec`](return.tclspec) is the worked case, and says
   so at the site.
 
 An author who wants soft-wrapped source can still have it: the escape is

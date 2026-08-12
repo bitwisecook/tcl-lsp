@@ -27,7 +27,7 @@ speclib ticklecharts 3.2 {
 #   if {$value ni $validvalue} { error ... }
 # The mechanism below (`values NAME { value V -detail {...} }` +
 # `-values-from NAME`) already exists for positional `arg`s
-# (string.tclspec.tcl:17-42, `is-classes`) — applying it to an `option`
+# (string.tclspec:17-42, `is-classes`) — applying it to an `option`
 # further down (`-colorBy`) is the only invented part; see G5.
 
 # The literal first-word cases `Add` dispatches on (chart.tcl:1027-1049,

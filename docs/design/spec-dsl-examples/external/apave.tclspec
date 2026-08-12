@@ -147,7 +147,7 @@ values apave-widget-type-codes {
 # itself: a table of 7-field tuples, two of whose fields are themselves
 # nested `-flag value` lists. This is the single most speculative construct
 # in this whole census (G8) -- nothing in the shipped registry or the
-# sibling `.tclspec.tcl` ports reaches two nesting levels, and the syntax
+# sibling `.tclspec` ports reaches two nesting levels, and the syntax
 # below should be read as "what an author would need," not "what exists."
 command ::apave::APaveBase {
     arity 1..
@@ -178,8 +178,8 @@ command ::apave::APaveBase {
             # DSL GAP (G8) -- INVENTED, no struct backing today. `inplists`
             # (apavebase.tcl:3480-3487) is a list of ROWS, each row a fixed
             # 7-field tuple `{name neighbor posofnei rowspan colspan
-            # options attrs}`. `clause_grammar` (if.tclspec.tcl:33-37) and
-            # `case_list` (switch.tclspec.tcl:69-81) are the closest
+            # options attrs}`. `clause_grammar` (if.tclspec:33-37) and
+            # `case_list` (switch.tclspec:69-81) are the closest
             # existing constructs and both stop at a flat word sequence
             # (pattern/body pairs) -- neither reaches "each repeated unit
             # is itself a tuple of N typed positional sub-fields, two of

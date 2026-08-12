@@ -87,8 +87,19 @@ code that uses it.
 
 ## The format: a Tcl DSL, parsed by our own toolchain
 
-We have a full Tcl compiler; the authoring format should be Tcl. A
-`.tclspec.tcl` file is a declarative script in a small spec DSL:
+We have a full Tcl compiler; the authoring format should be Tcl. The
+canonical extension is **`.tclspec`** — the editor extensions and the
+LSP register it as Tcl in the SpecTcl dialect, so a pack file gets the
+full editor experience with no configuration. That requires two
+implementation pieces alongside the loader: file-type registration
+across every editor integration, and a **compiled-in command pack for
+SpecTcl itself** — `speclib`, `command`, `option`, `arg`,
+`subcommand`, the hook statements — with its `definition_body` grammar,
+so authoring a pack gets highlighting, completion, and
+misspelled-trait diagnostics from the same machinery it configures.
+(Once the loader exists, that self-spec is written *in* SpecTcl and
+AOT-compiled — the final dogfood.) A `.tclspec` file is a declarative
+script in a small spec DSL:
 
 ```tcl
 speclib mylib 2.1 {
@@ -123,7 +134,7 @@ Why this beats JSON for the author:
   completion, and go-to-definition with no new walker code. Authoring a
   spec pack then feels like writing tcltest or snit: full editor support,
   diagnostics for a misspelled trait or role at the point you type it.
-- It is the stub language grown up — same file culture (`*.tclspec.tcl`
+- It is the stub language grown up — same file culture (`*.tclspec`
   beside the code), a superset of what stubs express, with a migration
   path from existing sidecars.
 - Tcl quoting and line-continuation are what our users already know.
@@ -244,11 +255,11 @@ let packs survive releases without rebuilds:
 
 ## Loading and tooling
 
-- Discovery: `tclLsp.specPacks`, plus `*.tclspec.tcl` beside a
+- Discovery: `tclLsp.specPacks`, plus `*.tclspec` beside a
   `tclpkg.tcl` manifest or under `.tcl-lsp/`. Name collisions with
   shipped specs are reported, shipped wins unless the pack says
   `-override`.
-- `tcl spec check lib.tclspec.tcl` validates a pack from the CLI; the
+- `tcl spec check lib.tclspec` validates a pack from the CLI; the
   Spec Studio gains a DSL renderer beside the `.rs` and stub renderers
   (drafts round-trip through it), and the `spec-author` skill emits the
   DSL for the private-library path.
@@ -320,7 +331,7 @@ and every projection re-renders from the models. That is what makes
 of pairwise syncs to maintain.
 
 - **DSL as a first-class surface.** A DSL renderer beside the `.rs` and
-  stub panes, and a DSL *reader*: open an existing `.tclspec.tcl` (hand
+  stub panes, and a DSL *reader*: open an existing `.tclspec` (hand
   written, studio-saved, or emitted by the `spec-author` skill) and get
   the whole pack as editable drafts. The studio's unit of work becomes
   the **library**: a pack browser beside the registry browser, multi

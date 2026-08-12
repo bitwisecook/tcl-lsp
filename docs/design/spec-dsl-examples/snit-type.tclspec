@@ -84,7 +84,7 @@ command snit::type {
     # member_body_commands).  A pack declaring all three writes the shared
     # part once as a descriptor and references it three times — the same
     # choice `world_effects class-factory-effects` makes in
-    # oo-class.tclspec.tcl.
+    # oo-class.tclspec.
     # -----------------------------------------------------------------
     definition_body {
         family Snit

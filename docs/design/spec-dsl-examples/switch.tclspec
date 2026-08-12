@@ -3,7 +3,7 @@
 # Exercises: stepped arity with an extra exact count, value-consuming option
 # skipping in a role-resolver hook body, reserved_trailing_words, and an
 # inline case_list descriptor.  (`if`'s clause chain — the other shape of
-# "clause grammar" — is in if.tclspec.tcl.)
+# "clause grammar" — is in if.tclspec.)
 
 speclib tcl 1.0 {
 

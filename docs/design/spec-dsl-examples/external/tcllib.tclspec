@@ -106,7 +106,7 @@ command struct::tree {
             # Node (arg 0) is fixed, but loopvar/script sit at whatever the
             # LAST TWO words are, after a variable-length run of options --
             # the same shape switch's own resolver handles
-            # (switch.tclspec.tcl:28-46), so the same tool applies with no
+            # (switch.tclspec:28-46), so the same tool applies with no
             # new syntax. A resolver supersedes a static `arg_roles` table
             # entirely (per fields.md), so node's role is set here too,
             # not in a separate `arg 0 ...` statement. tree_tcl.tcl:
@@ -260,7 +260,7 @@ command fileutil::traverse {
 
     # snit(n), "The Type Command": `$type create name ?option value…?`.
     # There is no `new` -- a snit instance is always named.  Identical to
-    # SNIT_MANUFACTURERS in the shipped grammar; see ../snit-type.tclspec.tcl.
+    # SNIT_MANUFACTURERS in the shipped grammar; see ../snit-type.tclspec.
     manufacturer create -names-instance-at 1 -constructor-args-from 2
 
     subcommand create {
