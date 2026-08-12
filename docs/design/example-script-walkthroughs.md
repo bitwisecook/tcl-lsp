@@ -15,32 +15,32 @@ produced at every stage, with field-level detail.
 | Term | Meaning |
 |------|---------|
 | **AST** | Abstract Syntax Tree — a tree representation of parsed source code structure. In this compiler, expression bodies (`expr {…}`) are parsed into `ExprNode` AST trees (`rust/tcl-syntax/src/expr/ast.rs`). |
-| **Basic block** | A straight-line sequence of IR statements with no branches except at the end.  Represented by `CFGBlock` (`rust/tcl-compiler/src/cfg.rs`). |
-| **CFG** | Control Flow Graph — a directed graph of basic blocks connected by jumps and branches.  Built by `build_cfg()` (`rust/tcl-compiler/src/cfg.rs`). |
-| **Dominator / idom** | Block A *dominates* block B if every path from the entry to B passes through A.  The *immediate dominator* (`idom`) is the closest dominator.  Stored in `SSAFunction.idom` (`rust/tcl-compiler/src/ssa.rs`). |
-| **Dominance frontier** | The set of blocks where a variable's dominance "ends" — these are where phi nodes must be inserted.  Stored in `SSAFunction.dominance_frontier` (`rust/tcl-compiler/src/ssa.rs`). |
+| **Basic block** | A straight-line sequence of IR statements with no branches except at the end.  Represented by `Block` (`rust/tcl-compiler/src/cfg.rs`), addressed by a `BlockId`. |
+| **CFG** | Control Flow Graph — a directed graph of basic blocks connected by jumps and branches.  Built by `build_cfg()` / `build_cfg_function()` (`rust/tcl-compiler/src/cfg_builder/mod.rs`) into the types in `rust/tcl-compiler/src/cfg.rs`. |
+| **Dominator / idom** | Block A *dominates* block B if every path from the entry to B passes through A.  The *immediate dominator* (`idom`) is the closest dominator.  Stored in `SsaFunction::idom` (`rust/tcl-compiler/src/ssa.rs`). |
+| **Dominance frontier** | The set of blocks where a variable's dominance "ends" — these are where phi nodes must be inserted.  Stored in `SsaFunction::dominance_frontier` (`rust/tcl-compiler/src/ssa.rs`). |
 | **GVN** | Global Value Numbering — an optimisation that detects redundant computations by assigning a canonical identity to each expression.  See `rust/tcl-compiler/src/gvn.rs`. |
-| **IR** | Intermediate Representation — a structured, typed representation of Tcl commands between parsing and code generation.  Defined in `rust/tcl-compiler/src/ir.rs`; the union type `IRStatement` (`rust/tcl-compiler/src/ir.rs`) covers all statement kinds. |
+| **IR** | Intermediate Representation — a structured, typed representation of Tcl commands between parsing and code generation.  Defined in `rust/tcl-compiler/src/ir.rs`; every statement kind is a variant of the one `Statement` enum (`rust/tcl-compiler/src/ir.rs`). |
 | **Lattice** | A mathematical structure used in dataflow analysis where values flow from *bottom* (unknown) toward *top* (overdefined).  The SCCP value lattice is `LatticeValue` (`rust/tcl-compiler/src/analyses.rs`); the type lattice is `TypeLattice` (`rust/tcl-compiler/src/types.rs`). |
 | **Liveness** | A dataflow analysis that determines which SSA values are "live" (may still be read) at each program point.  Results are in `FunctionAnalysis.live_in / live_out` (`rust/tcl-compiler/src/analyses.rs`). |
-| **LVT** | Local Variable Table — maps variable names to integer slot indices for fast access inside procedures.  See `LocalVarTable` (`rust/tcl-bytecode/src/format.rs`). |
-| **Phi node (φ)** | An SSA construct placed at control flow merge points.  `φ(x₁, x₃)` means "use `x₁` if control arrived from predecessor 1, or `x₃` if from predecessor 2."  Represented by `SSAPhi` (`rust/tcl-compiler/src/ssa.rs`). |
-| **SCCP** | Sparse Conditional Constant Propagation — a combined constant propagation and unreachable-code analysis that runs over the SSA graph.  Implemented in `analyse_function()` (`rust/tcl-compiler/src/analyses.rs`). |
-| **Shimmer** | Tcl's internal type coercion: when a value's string representation is reinterpreted as a different type (e.g. `"42"` read as an integer).  Tracked by `TypeLattice.SHIMMERED` (`rust/tcl-compiler/src/types.rs`). |
+| **LVT** | Local Variable Table — maps variable names to integer slot indices for fast access inside procedures.  See `LocalVarTable` (`rust/tcl-bytecode/src/lib.rs`). |
+| **Phi node (φ)** | An SSA construct placed at control flow merge points.  `φ(x₁, x₃)` means "use `x₁` if control arrived from predecessor 1, or `x₃` if from predecessor 2."  Represented by `Phi` (`rust/tcl-compiler/src/ssa.rs`). |
+| **SCCP** | Sparse Conditional Constant Propagation — a combined constant propagation and unreachable-code analysis that runs over the SSA graph.  Implemented in `sccp()` (`rust/tcl-compiler/src/sccp.rs`), which returns an `SccpResult`; the lattice types live in `rust/tcl-compiler/src/analyses.rs`. |
+| **Shimmer** | Tcl's internal type coercion: when a value's string representation is reinterpreted as a different type (e.g. `"42"` read as an integer).  Tracked by `TypeKind::Shimmered` on the `TypeLattice` (`rust/tcl-compiler/src/types.rs`). |
 | **SSA** | Static Single Assignment — a form where every variable is defined exactly once.  Multiple definitions of the same source variable get unique *version numbers* (e.g. `x₁`, `x₂`).  Built by `build_ssa()` (`rust/tcl-compiler/src/ssa.rs`). |
-| **SSA value key** | A `(variable_name, version)` tuple that uniquely identifies one definition of a variable.  Type alias `SSAValueKey` (`rust/tcl-compiler/src/ssa.rs`). |
+| **SSA value key** | A `(Symbol, Version)` pair that uniquely identifies one definition of a variable, where `Symbol` is the interned variable name.  Type alias `ValueKey` (`rust/tcl-compiler/src/ssa.rs`). |
 | **Taint analysis** | Tracks whether values originate from untrusted sources (user input).  Uses `TaintLattice` (`rust/tcl-compiler/src/taint.rs`). |
-| **Taint colour** | A `Flag` enum describing safety properties of tainted data (e.g. `CRLF_FREE`, `URL_ENCODED`, `HTML_ESCAPED`).  Colours compose with `\|` and join by intersection (`&`) — only properties shared by all incoming paths survive.  Defined in `TaintColour` (`rust/tcl-registry/src/taint.rs`). |
-| **Taint source** | A command whose return value introduces tainted data (e.g. `HTTP::host`, `HTTP::uri`).  Declared via `TaintHint.source` on the command's registry spec (`rust/tcl-registry/src/taint.rs`). |
-| **Taint sink** | A dangerous argument position where tainted data can cause harm (XSS, header injection, SSRF).  Classified by `_classify_sink()` (`rust/tcl-compiler/src/taint.rs`). |
+| **Taint colour** | A `bitflags` set describing safety properties of tainted data (e.g. `CRLF_FREE`, `URL_ENCODED`, `HTML_ESCAPED`).  Colours compose with `\|` and join by intersection (`&`) — only properties shared by all incoming paths survive.  Defined as `TaintColour` (`rust/tcl-registry/src/taint.rs`). |
+| **Taint source** | A command whose return value introduces tainted data (e.g. `HTTP::host`, `HTTP::uri`).  Declared as `taint_source: Option<TaintColour>` on the command's registry spec, resolved by `is_taint_source` / `taint_source_colour` (`rust/tcl-registry/src/taint.rs`). |
+| **Taint sink** | A dangerous argument position where tainted data can cause harm (XSS, header injection, SSRF).  Classified by `classify_sink()` (`rust/tcl-compiler/src/taint.rs`). |
 | **CSE** | Common Subexpression Elimination — detects when the same pure computation is evaluated more than once and suggests extracting it to a variable.  Part of the GVN pass, reported as `O105`.  See `rust/tcl-compiler/src/gvn.rs`. |
 | **ICIP** | Interprocedural Constant/Inline Propagation — evaluates procedure calls with known constant arguments at compile time and replaces the call with the result.  Reported as `O103`.  See `optimise_static_proc_calls()` (`rust/tcl-compiler/src/optimiser/propagation.rs`). |
 | **LCP** | Loop Constant Propagation / Code Sinking — moves invariant assignments out of the hot path into the specific branch that uses them.  Reported as `O125`.  See `rust/tcl-compiler/src/optimiser/code_sinking.rs`. |
 | **DCE** | Dead Code Elimination — removes code whose result is never used.  `O107` (basic DCE), `O108` (aggressive DCE tracking statement liveness), `O109` (dead store elimination).  See `rust/tcl-compiler/src/optimiser/elimination.rs`. |
 | **InstCombine** | Instruction Combine — canonicalises and simplifies expressions by applying algebraic identities (e.g. `$x * 1` → `$x`, DeMorgan's law).  Reported as `O110`.  See `rust/tcl-compiler/src/optimiser/helpers/expr_simplify.rs`. |
 | **CommandSpec** | The central metadata type for a Tcl command — describes its argument layout, purity, side effects, taint properties, event validity, and dialect membership.  See `rust/tcl-registry/src/spec.rs`. |
-| **SubCommand** | An ensemble operation selected by the first argument (e.g. `string length`, `HTTP::header value`).  Each has its own arity, purity, return type, and taint transform hooks.  See `rust/tcl-registry/src/spec.rs`. |
-| **FormSpec** | An invocation form of a command — getter (reads state) or setter (writes state), each with its own arity and side-effect classification.  See `rust/tcl-registry/src/spec.rs`. |
+| **SubCommand** | An ensemble operation selected by the first argument (e.g. `string length`, `HTTP::header value`).  Each has its own arity, purity, return type, and taint transform.  See `rust/tcl-registry/src/spec.rs`. |
+| **FormSpec** | The documentation descriptor for an invocation form of a command — getter (reads state) or setter (writes state).  See `rust/tcl-registry/src/hover.rs`; the behavioural twin that carries per-form arity and routing is `CommandForm` (`rust/tcl-registry/src/forms.rs`). |
 
 ---
 
@@ -80,404 +80,551 @@ stage. They live in `rust/tcl-lexer`, `rust/tcl-compiler`, `rust/tcl-syntax`,
 
 ### Stage 1 — Lexer types (`rust/tcl-lexer/src/tokens.rs`)
 
+```rust
+// rust/tcl-lexer/src/tokens.rs
+pub enum TokenType {
+    Esc,     // plain string / word fragment (possibly with escape sequences)
+    Str,     // braced string {…}
+    Cmd,     // command substitution [… ]
+    Var,     // variable substitution $name
+    Sep,     // whitespace separator
+    Eol,     // end-of-line / semicolon
+    Eof,     // end-of-input
+    Comment, // comment (# to end of line)
+    Expand,  // {*} expansion prefix
+}
+
+// rust/tcl-lexer/src/span.rs — a byte range [start, end); 8 bytes, Copy
+pub struct Span { /* start: u32, end: u32 — read via .start() / .end() */ }
+
+// rust/tcl-lexer/src/tokens.rs
+pub struct SourcePosition {
+    pub line: u32,           // 0-based line number
+    pub character: ByteCol,  // 0-based column, in bytes from the line start
+    pub offset: u32,         // byte offset into the source string
+}
+
+// rust/tcl-lexer/src/tokens.rs — the LSP-facing counterpart, in UTF-16 units
+pub struct Utf16Position {
+    pub line: u32,
+    pub character: Utf16Col,
+    pub offset: u32,
+}
+
+// rust/tcl-lexer/src/tokens.rs — 16 bytes, Copy, no lifetime
+pub struct Token {
+    pub kind: TokenType,
+    pub span: Span,           // byte range; text and positions come from SourceMap
+    pub content_offset: u8,   // leading delimiter bytes to strip ($, ${, [, {, ")
+    pub in_quote: bool,
+}
 ```
-class TokenType(Enum):              # rust/tcl-lexer/src/tokens.rs
-    ESC     # plain string / word fragment (possibly with escape sequences)
-    STR     # braced string {…}
-    CMD     # command substitution [… ]
-    VAR     # variable substitution $name
-    SEP     # whitespace separator
-    EOL     # end-of-line / semicolon
-    EOF     # end-of-input
-    COMMENT # comment (# to end of line)
-    EXPAND  # {*} expansion prefix
 
-@dataclass(frozen=True, slots=True)
-class SourcePosition:               # rust/tcl-lexer/src/tokens.rs
-    line: int       # 0-based line number
-    character: int  # 0-based column (UTF-16 code units per LSP spec)
-    offset: int     # byte offset into the source string
-
-@dataclass(frozen=True, slots=True)
-class Token:                        # rust/tcl-lexer/src/tokens.rs
-    type: TokenType
-    text: str
-    start: SourcePosition
-    end: SourcePosition
-    in_quote: bool = False
-```
-
-- `Token.type` distinguishes variables (`$x` → `VAR`), braced strings
-  (`{hello}` → `STR`), command substitutions (`[foo]` → `CMD`), and plain
-  word fragments (`set` → `ESC`).
-- `SourcePosition` tracks the exact location in source text.  `offset` is
-  the byte offset for fast slicing; `line`/`character` are 0-based for LSP.
+- `Token.kind` distinguishes variables (`$x` → `Var`), braced strings
+  (`{hello}` → `Str`), command substitutions (`[foo]` → `Cmd`), and plain
+  word fragments (`set` → `Esc`).
+- A `Token` carries only a `Span`, never inline text or positions.  Text and
+  `(line, character)` are resolved on demand through a `SourceMap`
+  (`SourceMap::text`, `SourceMap::range_positions`), so a token stays cheap
+  to copy and store on IR and CFG nodes.
+- `SourcePosition` counts its column in **bytes**; `Utf16Position` counts it
+  in UTF-16 code units, which is the unit LSP's `Position.character` is
+  defined in.  `ByteCol` and `Utf16Col` are distinct newtypes so a byte
+  column can never be handed to an LSP consumer without an explicit
+  conversion through `LineIndex::position_at_utf16`.
 
 ### Stage 2 — Segmenter types (`rust/tcl-compiler/src/segmenter.rs`)
 
 > `segment_commands()` builds the canonical lossless **red-green concrete syntax
-> tree** (`compiler/parsing/syntax/`, see
+> tree** (`rust/tcl-compiler/src/parsing/syntax/`, see
 > [syntax-tree.md](compiler/syntax-tree.md)) and derives the `SegmentedCommand`
-> list from it.  The output below is byte-identical to the former hand-rolled
-> token loop, so every example's Stage 2 data structure is unchanged — the tree
-> is the new *backing*, not a new shape.
+> list from it.  The tree is the *backing* for the parallel-array view below,
+> not a different shape: every example's Stage 2 data structure is exactly what
+> a token-level walk of the same command yields.
 
-```
-@dataclass(slots=True)
-class SegmentedCommand:              # rust/tcl-compiler/src/segmenter.rs
-    range: Range                         # source span of the entire command
-    argv: list[Token]                    # first token of each word
-    texts: list[str]                     # concatenated text per word
-    single_token_word: list[bool]        # True when a word is a single token
-    all_tokens: list[Token]              # every token in the command
-    preceding_comment: str | None = None
-    is_partial: bool = False             # True when unclosed delimiter detected
-    partial_delimiter: UnclosedDelimiter | None = None
-    expand_word: list[bool] | None = None  # {*} expansion per word
+```rust
+// rust/tcl-compiler/src/segmenter.rs
+pub struct SegmentedCommand {
+    pub span: Span,                             // byte span of the whole command
+    pub argv: Vec<Token>,                       // representative token per word
+    pub texts: Vec<String>,                     // reconstructed text per word
+    pub word_fragments: Vec<Vec<WordFragment>>, // lossless per-word fragments
+    pub single_token_word: Vec<bool>,           // true when a word is one token
+    pub all_tokens: Vec<Token>,                 // every token, separators included
+    pub is_partial: bool,                       // unclosed delimiter detected
+    pub partial_delimiter: Option<UnclosedDelimiter>,
+    pub expand_word: Option<Vec<bool>>,         // {*} expansion per word
+    pub preceding_comment: Option<String>,
+}
 ```
 
-- `texts[0]` is the command name, `texts[1:]` are the arguments.
-- `single_token_word[i]` is `True` when word `i` is a single atomic token
+- `texts[0]` is the command name, `texts[1..]` are the arguments;
+  `SegmentedCommand::name()` and `::args()` return those two views directly.
+- `single_token_word[i]` is `true` when word `i` is a single atomic token
   (no interpolation) — important for constant tracking downstream.
-- `argv[i]` is the *first* token of word `i`; multi-token words (e.g.
-  `$prefix.txt`) are concatenated into `texts[i]`.
+- `argv[i]` is the *representative* (first) token of word `i`; multi-token
+  words (e.g. `$prefix.txt`) are concatenated into `texts[i]`.
+  `word_fragments[i]` is the lossless companion to that pair, preserving the
+  ordered substitution fragments of the word for consumers that need them.
 
 ### Stage 3 — IR types (`rust/tcl-compiler/src/ir.rs`)
 
-```
-@dataclass(frozen=True, slots=True)
-class IRAssignConst:                     # rust/tcl-compiler/src/ir.rs — set a 1
-    range: Range
-    name: str                            # variable name
-    value: str                           # constant string value
+The IR statement forms are **variants of one `Statement` enum**, not separate
+types.  Every variant carries a `Span`:
 
-@dataclass(frozen=True, slots=True)
-class IRAssignExpr:                      # rust/tcl-compiler/src/ir.rs — set x [expr {$a + 1}]
-    range: Range
-    name: str
-    expr: ExprNode                       # parsed expression AST
+```rust
+// rust/tcl-compiler/src/ir.rs
+pub enum Statement {
+    // set a 1 — constant assignment
+    AssignConst { span: Span, name: String, name_braced: bool,
+                  value: String, value_span: Option<Span> },
 
-@dataclass(frozen=True, slots=True)
-class IRAssignValue:                     # rust/tcl-compiler/src/ir.rs — set x $y, set x "hello $name"
-    range: Range
-    name: str
-    value: str                           # interpolated value text
-    value_needs_backsubst: bool = False
+    // set x [expr {$a + 1}] — expression assignment
+    AssignExpr { span: Span, name: String, name_braced: bool,
+                 expr: ExprNode, expr_base: Option<u32> },
 
-@dataclass(frozen=True, slots=True)
-class IRIncr:                            # rust/tcl-compiler/src/ir.rs — incr i, incr i 5
-    range: Range
-    name: str
-    amount: str | None = None            # None means +1
+    // set x $y, set x "hello $name" — interpolated assignment
+    AssignValue { span: Span, name: String, name_braced: bool, value: String,
+                  value_needs_backsubst: bool, tokens: Option<CommandTokens> },
 
-@dataclass(frozen=True, slots=True)
-class IRCall:                            # rust/tcl-compiler/src/ir.rs — generic command invocation (puts, append, etc.)
-    range: Range
-    command: str
-    args: tuple[str, ...] = ()
-    defs: tuple[str, ...] = ()           # variables this command defines
-    reads: tuple[str, ...] = ()          # variables this command reads by name
-    reads_own_defs: bool = False         # True for read-modify-write (append, lappend)
-    tokens: CommandTokens | None = None
+    // incr i, incr i 5 — amount None means +1
+    Incr { span: Span, name: String, name_braced: bool,
+           amount: Option<String>, safe_on_uninit: bool },
 
-@dataclass(frozen=True, slots=True)
-class IRReturn:                          # rust/tcl-compiler/src/ir.rs
-    range: Range
-    value: str | None = None
+    // expr {…} evaluated for its side effects, result discarded
+    ExprEval { span: Span, expr: ExprNode, expr_base: Option<u32> },
 
-@dataclass(frozen=True, slots=True)
-class IRBarrier:                         # rust/tcl-compiler/src/ir.rs — eval, uplevel, upvar — defeats static analysis
-    range: Range
-    reason: str
-    command: str = ""
-    args: tuple[str, ...] = ()
-    tokens: CommandTokens | None = None
+    // generic command invocation (puts, append, …)
+    Call { span: Span, command: String, canonical_command: Option<String>,
+           args: Vec<String>,
+           defs: Vec<String>,      // variables this command defines
+           reads: Vec<String>,     // variables it reads by name
+           reads_own_defs: bool,   // true for read-modify-write (append, lappend)
+           safe_on_uninit: bool, tokens: Option<CommandTokens>,
+           foreach_groups: Option<Vec<usize>> },
 
-@dataclass(frozen=True, slots=True)
-class IRIf:                              # rust/tcl-compiler/src/ir.rs
-    range: Range
-    clauses: tuple[IRIfClause, ...]      # one per if/elseif branch
-    else_body: IRScript | None = None
+    Return { span: Span, value: Option<String>,
+             expr: Option<ExprNode>, braced: bool },
 
-@dataclass(frozen=True, slots=True)
-class IRIfClause:                        # rust/tcl-compiler/src/ir.rs
-    condition: ExprNode                  # parsed condition expression
-    condition_range: Range
-    body: IRScript
-    body_range: Range
+    // eval / uplevel / upvar — defeats static analysis
+    Barrier { span: Span, reason: String, command: String,
+              canonical_command: Option<String>, args: Vec<String>,
+              tokens: Option<CommandTokens> },
 
-@dataclass(frozen=True, slots=True)
-class IRFor:                             # rust/tcl-compiler/src/ir.rs
-    range: Range
-    init: IRScript                       # {set i 0}
-    init_range: Range
-    condition: ExprNode                  # {$i < 10}
-    condition_range: Range
-    next: IRScript                       # {incr i}
-    next_range: Range
-    body: IRScript
-    body_range: Range
+    // a pre-lowered body spliced into the enclosing scope
+    Block { span: Span, body: Script, namespace: String,
+            tokens: Option<CommandTokens>,
+            error_context: Option<InlineBodyErrorContext> },
 
-@dataclass(frozen=True, slots=True)
-class IRWhile:                           # rust/tcl-compiler/src/ir.rs
-    range: Range
-    condition: ExprNode
-    condition_range: Range
-    body: IRScript
-    body_range: Range
+    // uplevel ?level? {body} with a statically-known body
+    UpFrame { span: Span, frame_shift: i32, absolute: bool,
+              body: Script, tokens: Option<CommandTokens> },
 
-@dataclass(frozen=True, slots=True)
-class IRForeach:                         # rust/tcl-compiler/src/ir.rs
-    range: Range
-    iterators: tuple[tuple[tuple[str, ...], str], ...]  # ((var_names, list_arg), ...)
-    body: IRScript
-    body_range: Range
-    is_lmap: bool = False
+    If { span: Span, clauses: Vec<IfClause>,
+         else_body: Option<Script>, else_span: Option<Span> },
 
-@dataclass(frozen=True, slots=True)
-class IRScript:                          # rust/tcl-compiler/src/ir.rs
-    statements: tuple[IRStatement, ...] = ()
+    For { span: Span, init: Script, init_span: Span,
+          condition: ExprNode, condition_span: Span, condition_base: Option<u32>,
+          next: Script, next_span: Span, body: Script, body_span: Span,
+          raw_args: Vec<String>, raw_tokens: Option<CommandTokens> },
 
-@dataclass
-class IRModule:                          # rust/tcl-compiler/src/ir.rs
-    top_level: IRScript                  # statements outside any proc
-    procedures: dict[str, IRProcedure]   # qualified_name → proc definition
-    redefined_procedures: set[str]
+    While { span: Span, condition: ExprNode, condition_span: Span,
+            condition_base: Option<u32>, body: Script, body_span: Span,
+            raw_args: Vec<String>, raw_tokens: Option<CommandTokens> },
 
-# IRStatement is a union type (rust/tcl-compiler/src/ir.rs):
-IRStatement = (
-    IRAssignConst | IRAssignExpr | IRAssignValue | IRExprEval
-    | IRIncr | IRCall | IRReturn | IRBarrier
-    | IRIf | IRFor | IRWhile | IRForeach | IRCatch | IRTry | IRSwitch
-)
+    // foreach / lmap / dict for / dict map / array for
+    Foreach { span: Span, iterators: Vec<ForeachIterator>,
+              body: Script, body_span: Span, is_lmap: bool,
+              raw_args: Vec<String>, is_dict_iteration: bool,
+              is_array_iteration: bool, raw_tokens: Option<CommandTokens> },
+
+    Catch { span: Span, body: Script, body_span: Span,
+            result_var: Option<String>, options_var: Option<String>,
+            raw_args: Vec<String>, tokens: Option<CommandTokens> },
+
+    Try { span: Span, body: Script, body_span: Span,
+          handlers: Vec<TryHandler>, finally_body: Option<Script>,
+          finally_span: Option<Span>, raw_args: Vec<String> },
+
+    Switch { span: Span, subject: String, subject_span: Span,
+             arms: Vec<SwitchArm>, default_body: Option<Script>,
+             default_span: Option<Span>, mode: SwitchMode,
+             nocase: bool, raw_args: Vec<String>, patterns_braced: bool },
+}
+
+// One if/elseif clause.
+pub struct IfClause {
+    pub condition: ExprNode,
+    pub condition_span: Span,
+    pub condition_base: Option<u32>,  // absolute offset of the condition text
+    pub body: Script,
+    pub body_span: Span,
+}
+
+// One (var_list, list_arg) iterator group of a foreach / lmap.
+pub struct ForeachIterator {
+    pub vars: Vec<String>,
+    pub list_arg: String,
+    pub list_braced: bool,
+}
 ```
 
-- Every IR node carries a `Range` (start/end `SourcePosition`) for precise
-  diagnostic mapping.
-- `IRBarrier` marks commands (`eval`, `uplevel`, `upvar`) whose side effects
-  defeat static analysis — no constant propagation or dead-store reasoning
-  can cross them.
+The containers around them:
+
+```rust
+// rust/tcl-compiler/src/ir.rs
+pub struct Script {
+    pub statements: Vec<Statement>,
+}
+
+pub struct Procedure {
+    pub name: String,
+    pub qualified_name: String,       // e.g. ::ns::proc
+    pub params: Vec<String>,
+    pub span: Span,
+    pub body: Script,
+    pub params_raw: String,
+    pub body_source: Option<String>,
+    pub namespace_scoped: bool,
+    pub base_priority: u32,
+}
+
+pub struct Module {
+    pub source: String,                          // the text spans index into
+    pub top_level: Script,                       // statements outside any proc
+    pub procedures: HashMap<String, Procedure>,  // qualified name → proc
+    pub methods: HashMap<String, MethodDef>,     // "class::method" → TclOO method
+    pub body_units: HashMap<String, Procedure>,  // apply / namespace eval bodies
+    pub lambda_body_units: BTreeSet<String>,
+    pub redefined_procedures: HashSet<String>,
+    pub redefined_methods: HashMap<String, Vec<MethodDef>>,
+    // …plus the namespace / trace / TclOO evidence maps
+}
+```
+
+- Every IR statement carries a `Span`; `Statement::span()` returns it for any
+  variant, whichever it is.
+- `Statement::Barrier` marks commands (`eval`, `uplevel`, `upvar`) whose side
+  effects defeat static analysis — no constant propagation or dead-store
+  reasoning can cross them.
 - Expression conditions are parsed into `ExprNode` AST trees at lowering time.
+- `Statement::Call::canonical_command` holds the registry-resolved name when
+  an alias resolves; `Statement::canonical_command_or_source()` falls back to
+  the source-surface `command` when it is `None`.
 
 ### Expression AST (`rust/tcl-syntax/src/expr/ast.rs`)
 
-```
-@dataclass(frozen=True)
-class ExprLiteral:     # rust/tcl-syntax/src/expr/ast.rs — 42, 3.14, true
-    text: str; start: int; end: int
+The expression forms are likewise variants of one `ExprNode` enum.  Offsets
+are `ExprOffset` (a `u32`) relative to the expression text, not the module:
 
-@dataclass(frozen=True)
-class ExprVar:         # rust/tcl-syntax/src/expr/ast.rs — $x, ${arr(idx)}
-    text: str; name: str; start: int; end: int
+```rust
+// rust/tcl-syntax/src/expr/ast.rs
+pub enum ExprNode {
+    // 42, 3.14, true
+    Literal { text: String, start: ExprOffset, end: ExprOffset },
+    // "…" or {…} string literal
+    String { text: String, start: ExprOffset, end: ExprOffset },
+    // $x, ${var}, $arr(idx)
+    Var { text: String, name: String, start: ExprOffset, end: ExprOffset },
+    // [clock seconds] — an opaque boundary
+    Command { text: String, start: ExprOffset, end: ExprOffset },
+    // $a + $b, $x < 10
+    Binary { op: BinOp, left: Box<ExprNode>, right: Box<ExprNode> },
+    // -$x, !$flag
+    Unary { op: UnaryOp, operand: Box<ExprNode> },
+    // cond ? a : b
+    Ternary { condition: Box<ExprNode>,
+              true_branch: Box<ExprNode>, false_branch: Box<ExprNode> },
+    // sin($x), int($y), max($a, $b)
+    Call { function: String, args: Vec<ExprNode>,
+           start: ExprOffset, end: ExprOffset },
+    // fallback for unparseable expressions — every consumer treats it as "give up"
+    Raw { text: String },
+}
 
-@dataclass(frozen=True)
-class ExprBinary:      # rust/tcl-syntax/src/expr/ast.rs — $a + $b, $x < 10
-    op: BinOp; left: ExprNode; right: ExprNode
-
-@dataclass(frozen=True)
-class ExprUnary:       # rust/tcl-syntax/src/expr/ast.rs — -$x, !$flag
-    op: UnaryOp; operand: ExprNode
-
-@dataclass(frozen=True)
-class ExprCall:        # rust/tcl-syntax/src/expr/ast.rs — sin($x), int($y)
-    function: str; args: tuple[ExprNode, ...]; start: int; end: int
-
-@dataclass(frozen=True)
-class ExprCommand:     # rust/tcl-syntax/src/expr/ast.rs — [clock seconds]
-    text: str; start: int; end: int
-
-@dataclass(frozen=True)
-class ExprRaw:         # rust/tcl-syntax/src/expr/ast.rs — fallback for unparseable expressions
-    text: str
-
-# BinOp (rust/tcl-syntax/src/expr/ast.rs): ADD, SUB, MUL, DIV, MOD, POW, LT, LE, GT, GE, EQ, NE,
-#                          STR_EQ, STR_NE, AND, OR, LSHIFT, RSHIFT, BIT_AND, ...
-# UnaryOp (rust/tcl-syntax/src/expr/ast.rs): NEG, POS, BIT_NOT, NOT
+// BinOp:   Add, Sub, Mul, Div, Mod, Pow, LShift, RShift, BitAnd, BitOr, BitXor,
+//          And, Or, Eq, Ne, Lt, Le, Gt, Ge, StrEq, StrNe, StrLt, StrLe, StrGt
+// UnaryOp: Neg, Pos, BitNot, Not, WordNot
 ```
 
 ### Stage 4 — CFG types (`rust/tcl-compiler/src/cfg.rs`)
 
-```
-@dataclass(frozen=True, slots=True)
-class CFGGoto:         # rust/tcl-compiler/src/cfg.rs — unconditional jump
-    target: str                          # target block name
+Blocks are addressed by an interned `BlockId`, not by name; resolve one back
+to its display name with `Function::block_name`.  The three ways control
+leaves a block are variants of one `Terminator` enum:
 
-@dataclass(frozen=True, slots=True)
-class CFGBranch:       # rust/tcl-compiler/src/cfg.rs — conditional jump
-    condition: ExprNode                  # condition expression
-    true_target: str
-    false_target: str
+```rust
+// rust/tcl-compiler/src/cfg.rs
+pub struct BlockId(pub u32);
 
-@dataclass(frozen=True, slots=True)
-class CFGReturn:       # rust/tcl-compiler/src/cfg.rs — procedure exit
-    value: str | None = None
+pub enum Terminator {
+    // unconditional jump
+    Goto { target: BlockId, span: Option<Span> },
+    // conditional jump
+    Branch { condition: ExprNode, true_target: BlockId, false_target: BlockId,
+             span: Option<Span>, condition_base: Option<u32> },
+    // procedure exit
+    Return { value: Option<String>, span: Option<Span>,
+             expr: Option<ExprNode>, braced: bool },
+}
 
-CFGTerminator = CFGGoto | CFGBranch | CFGReturn  # rust/tcl-compiler/src/cfg.rs
+pub struct Block {
+    pub name: String,                     // e.g. "entry_1", "if_then_2"
+    pub statements: Vec<Statement>,       // straight-line IR statements
+    pub terminator: Option<Terminator>,   // None for unreachable/incomplete blocks
+}
 
-@dataclass(frozen=True, slots=True)
-class CFGBlock:        # rust/tcl-compiler/src/cfg.rs
-    name: str
-    statements: tuple[IRStatement, ...]  # straight-line IR statements
-    terminator: CFGTerminator | None     # exactly one per block
+pub struct Function {
+    pub name: String,                          // e.g. "::top", "::ns::proc"
+    pub entry: BlockId,
+    pub blocks: HashMap<BlockId, Block>,
+    pub loop_nodes: HashMap<BlockId, LoopNode>,      // exit block → loop info
+    pub exception_edges: Vec<(BlockId, BlockId)>,    // try body → handler
+    pub inline_body_error_sites: Vec<InlineBodyErrorSite>,
+    pub caller_frame_barrier: DynamicNameBarrier,
+    pub alias_observed_vars: BTreeSet<String>,
+    // …plus the private block-name interner
+}
 
-@dataclass(frozen=True, slots=True)
-class CFGFunction:     # rust/tcl-compiler/src/cfg.rs
-    name: str
-    entry: str                           # entry block name
-    blocks: dict[str, CFGBlock]          # name → block
-    loop_nodes: dict[str, tuple[str, IRFor]]  # for-loop metadata
-
-@dataclass(frozen=True, slots=True)
-class CFGModule:       # rust/tcl-compiler/src/cfg.rs
-    top_level: CFGFunction
-    procedures: dict[str, CFGFunction]
+pub struct CfgModule {
+    pub top_level: Function,
+    pub procedures: HashMap<String, Function>,   // keyed by qualified name
+}
 ```
 
 ### Stage 5 — SSA types (`rust/tcl-compiler/src/ssa.rs`)
 
+Variable names are interned per function into a `Symbol`, so the hot
+per-statement maps key on a `Copy` `u32` rather than a `String`.  Resolve a
+symbol's display name with `SsaFunction::var_name`.
+
+```rust
+// rust/tcl-compiler/src/ssa.rs
+pub type Version = u32;                 // each definition gets a unique version
+pub struct Symbol(pub u32);             // interned variable name
+pub type ValueKey = (Symbol, Version);  // unique SSA value identity
+
+// A phi node (see Glossary).
+pub struct Phi {
+    pub name: Symbol,
+    pub version: Version,                        // version produced by this phi
+    pub incoming: HashMap<BlockId, Version>,     // predecessor block → version
+}
+
+pub struct SsaStatement {
+    pub statement: Statement,                // the original IR statement
+    pub uses: HashMap<Symbol, Version>,      // variables read → their versions
+    pub defs: HashMap<Symbol, Version>,      // variables written → new versions
+    pub may_defs: HashSet<Symbol>,           // synthetic array-element writes
+    pub quoted_uses: HashSet<Symbol>,        // brace-quoted, unsubstituted uses
+}
+
+pub struct SsaBlock {
+    pub name: String,
+    pub phis: Vec<Phi>,                            // phi nodes at merge points
+    pub statements: Vec<SsaStatement>,
+    pub entry_versions: HashMap<Symbol, Version>,
+    pub exit_versions: HashMap<Symbol, Version>,
+}
+
+pub struct SsaFunction {
+    pub name: String,
+    pub entry: BlockId,
+    pub blocks: HashMap<BlockId, SsaBlock>,
+    pub idom: HashMap<BlockId, Option<BlockId>>,          // (see Glossary)
+    pub dominance_frontier: HashMap<BlockId, Vec<BlockId>>,  // (see Glossary)
+    pub dominator_tree: HashMap<BlockId, Vec<BlockId>>,
+    // …plus the private block-name and variable-name interners
+}
 ```
-SSAVersion = int               # rust/tcl-compiler/src/ssa.rs — each definition gets a unique version
-SSAValueKey = tuple[str, int]  # rust/tcl-compiler/src/ssa.rs — (variable_name, version) — unique SSA value
 
-@dataclass(frozen=True, slots=True)
-class SSAPhi:                  # rust/tcl-compiler/src/ssa.rs — phi node (see Glossary)
-    name: str                            # variable name
-    version: SSAVersion                  # version produced by this phi
-    incoming: dict[str, SSAVersion]      # predecessor_block → version
-
-@dataclass(frozen=True, slots=True)
-class SSAStatement:            # rust/tcl-compiler/src/ssa.rs
-    statement: IRStatement               # the original IR statement
-    uses: dict[str, SSAVersion]          # variables read → their versions
-    defs: dict[str, SSAVersion]          # variables written → new versions
-
-@dataclass(frozen=True, slots=True)
-class SSABlock:                # rust/tcl-compiler/src/ssa.rs
-    name: str
-    phis: tuple[SSAPhi, ...]             # phi nodes at merge points
-    statements: tuple[SSAStatement, ...]
-    entry_versions: dict[str, SSAVersion]
-    exit_versions: dict[str, SSAVersion]
-
-@dataclass(frozen=True, slots=True)
-class SSAFunction:             # rust/tcl-compiler/src/ssa.rs
-    name: str
-    entry: str
-    blocks: dict[str, SSABlock]
-    idom: dict[str, str | None]          # immediate dominator tree (see Glossary)
-    dominance_frontier: dict[str, tuple[str, ...]]  # (see Glossary)
-    dominator_tree: dict[str, tuple[str, ...]]
-```
+- `may_defs` is the subset of `defs` the statement does not write itself — the
+  base refresh alongside an element write (`set arr(k) v` also defs `arr`), and
+  the element fan of a dynamic-key write.  Type inference *joins* across one;
+  write-sensitive passes must not count it as a real write.
+- `quoted_uses` is the subset of `uses` carried by a brace-quoted word the
+  statement never substitutes.  Liveness must keep the use (the text may be
+  evaluated later); read-before-set must ignore it.
 
 ### Stage 6 — Analysis types (`rust/tcl-compiler/src/analyses.rs`)
 
-```
-class LatticeKind(Enum):       # rust/tcl-compiler/src/analyses.rs (see Glossary → Lattice)
-    UNKNOWN      # not yet analysed (bottom)
-    CONST        # provably constant
-    OVERDEFINED  # multiple possible values (top)
+```rust
+// rust/tcl-compiler/src/analyses.rs (see Glossary → Lattice)
+pub enum LatticeKind {
+    Unknown,      // not yet analysed (bottom)
+    Const,        // provably constant
+    ConstSet,     // a small set of possible constants
+    Overdefined,  // too many values to track (top)
+}
 
-@dataclass(frozen=True, slots=True)
-class LatticeValue:            # rust/tcl-compiler/src/analyses.rs
-    kind: LatticeKind
-    value: int | float | bool | str | None = None
+// The lattice value itself carries its payload in the variant.
+pub enum LatticeValue {
+    Unknown,
+    Const(ConstValue),
+    ConstSet(Vec<ConstValue>),   // up to MAX_CONSTSET_SIZE, then widened
+    Overdefined,
+}
 
-@dataclass(frozen=True, slots=True)
-class FunctionAnalysis:        # rust/tcl-compiler/src/analyses.rs — produced by analyse_function() (line 3964)
-    live_in: dict[str, set[SSAValueKey]]     # (see Glossary → Liveness)
-    live_out: dict[str, set[SSAValueKey]]
-    dead_stores: tuple[DeadStore, ...]       # DeadStore at line 404
-    unreachable_blocks: set[str]
-    constant_branches: tuple[ConstantBranch, ...]  # ConstantBranch at line 395
-    values: dict[SSAValueKey, LatticeValue]     # SCCP results (see Glossary → SCCP)
-    types: dict[SSAValueKey, TypeLattice]        # type inference results
-    read_before_set: tuple[ReadBeforeSet, ...]   # ReadBeforeSet at line 412
-    unused_variables: tuple[UnusedVariable, ...]  # UnusedVariable at line 419
+pub enum ConstValue {
+    Int(i64),
+    Float(f64),
+    Bool(bool),
+    String(String),
+}
+
+// Aggregate per-function analysis shape.
+pub struct FunctionAnalysis {
+    pub live_in: HashMap<String, HashSet<ValueKey>>,   // (see Glossary → Liveness)
+    pub live_out: HashMap<String, HashSet<ValueKey>>,
+    pub dead_stores: Vec<DeadStore>,
+    pub unreachable_blocks: HashSet<String>,
+    pub constant_branches: Vec<ConstantBranch>,
+    pub values: HashMap<ValueKey, LatticeValue>,   // SCCP (see Glossary → SCCP)
+    pub types: HashMap<ValueKey, TypeLattice>,     // type-inference results
+    pub read_before_set: Vec<ReadBeforeSet>,
+    pub unused_variables: Vec<UnusedVariable>,
+    pub unused_params: Vec<String>,
+}
 ```
+
+In the live pipeline these results reach consumers through the per-function
+`FunctionUnit` on the `CompilationUnit` (below), whose `sccp: SccpResult`
+carries `values`, `executable_blocks`, `executable_edges`, and
+`constant_branches` from `sccp()` (`rust/tcl-compiler/src/sccp.rs`).
 
 #### Type lattice (`rust/tcl-compiler/src/types.rs`)
 
+```rust
+// rust/tcl-registry/src/types.rs — the coarse registry vocabulary
+pub enum TclType {
+    String,
+    Int,
+    Double,
+    Boolean,
+    List,
+    Dict,
+    ByteArray,
+    Numeric,   // abstract join of Int and Double
+    Object,    // TclOO object instance
+    Channel,   // I/O channel handle
+}
+
+// rust/tcl-compiler/src/types.rs — the compiler's finer shape vocabulary
+pub enum TypeShape {
+    String, Int, Bignum, Double, Boolean, Numeric, ByteArray,
+    List(Elements),            // with optional element facts
+    Dict(Elements),            // with optional facts about its values
+    Object(Option<Box<str>>),  // with its class when known
+    Channel,
+}
+
+pub enum TypeKind {
+    Unknown,      // bottom — no information
+    Known,        // exactly one possible shape
+    Shimmered,    // two or more shapes (see Glossary → Shimmer)
+    Overdefined,  // top — too many types to track
+}
+
+// A lattice element: Unknown, a canonicalised bounded union of TypeShapes
+// (never empty), or Overdefined.  The representation is private; read it
+// through TypeLattice::kind() and the shape accessors.
+pub struct TypeLattice { /* repr: Unknown | Union(BoundedSet<TypeShape>) | Overdefined */ }
+
+// Lattice order:  Unknown < Known(t) < Shimmered(a, b) < Overdefined
 ```
-class TclType(Enum):           # rust/tcl-compiler/src/types.rs
-    STRING = auto()
-    INT = auto()
-    DOUBLE = auto()
-    BOOLEAN = auto()
-    LIST = auto()
-    DICT = auto()
-    BYTEARRAY = auto()
-    NUMERIC = auto()   # abstract join of INT and DOUBLE
 
-class TypeKind(Enum):          # rust/tcl-compiler/src/types.rs
-    UNKNOWN      # not yet analysed (bottom)
-    KNOWN        # concrete type determined
-    SHIMMERED    # forced type change detected (see Glossary → Shimmer)
-    OVERDEFINED  # multiple incompatible types (top)
+### Stage 7 — Codegen types (`rust/tcl-compiler/src/codegen/`, `rust/tcl-bytecode/src/lib.rs`)
 
-@dataclass(frozen=True, slots=True)
-class TypeLattice:             # rust/tcl-compiler/src/types.rs
-    kind: TypeKind
-    tcl_type: TclType | None = None
-    from_type: TclType | None = None  # only for SHIMMERED
-
-# Lattice order:  UNKNOWN < KNOWN(t) < SHIMMERED(a,b) < OVERDEFINED
-```
-
-### Stage 7 — Codegen types (`compiler/codegen/`)
-
-```
-class Op(Enum):        # rust/tcl-bytecode/src/lib.rs — ~100 Tcl 9.0.2 bytecode opcodes
+```rust
+// rust/tcl-bytecode/src/lib.rs — the Tcl 9.0.2 bytecode opcodes
+pub enum Op {
     PUSH1, PUSH4, POP, DUP,
-    LOAD_SCALAR1, STORE_SCALAR1,
-    INVOKE_STK1, INVOKE_STK4,
+    LOAD_SCALAR1, LOAD_SCALAR4, STORE_SCALAR1, STORE_SCALAR4,
+    INVOKE_STK1, INVOKE_STK4, EVAL_STK, EXPR_STK,
     JUMP1, JUMP4, JUMP_TRUE1, JUMP_FALSE1,
-    ADD, SUB, MULT, DIV, LT, GT, EQ, NEQ,
-    ...
+    ADD, SUB, // …
+}
 
-@dataclass(slots=True)
-class Instruction:     # rust/tcl-bytecode/src/format.rs
-    op: Op
-    operands: tuple[int | str, ...]  # int = literal/imm, str = label ref
-    comment: str = ""
-    offset: int = -1                 # filled by layout pass
+// An operand is an immediate or a symbolic label resolved during layout.
+pub enum Operand {
+    Imm(i32),
+    Label(String),
+}
 
-class LiteralTable:    # rust/tcl-bytecode/src/format.rs — intern pool: string → object-array index
-class LocalVarTable:   # rust/tcl-bytecode/src/format.rs — LVT: variable name → slot index (see Glossary)
+pub struct Instruction {
+    pub op: Op,
+    pub operands: Vec<Operand>,
+    pub comment: String,           // for disassembly
+    pub offset: i32,               // filled by the layout pass; -1 before it
+    pub source_line: u32,          // 1-based, for errorInfo
+    pub source_cmd_text: String,   // original command text, for errorInfo
+    pub source_span: Option<Span>, // byte span this was lowered from
+    // …plus the per-opcode emitter hints (jump_table, foreach_vars, dict_vars,
+    //   no_fold, foreach_collect, push_verbatim)
+}
 
-@dataclass(slots=True)
-class FunctionAsm:     # rust/tcl-bytecode/src/format.rs
-    name: str
-    literals: LiteralTable
-    lvt: LocalVarTable
-    instructions: list[Instruction]
-    labels: dict[str, int]           # label → byte offset
+// Intern pool: string → object-array index.  Fields are private.
+pub struct LiteralTable { /* entries: Vec<String>, index: HashMap<String, usize> */ }
+// LVT: variable name → slot index (see Glossary).
+pub struct LocalVarTable { /* … */ }
 
-@dataclass(slots=True)
-class ModuleAsm:       # rust/tcl-bytecode/src/format.rs
-    top_level: FunctionAsm
-    procedures: dict[str, FunctionAsm]
+pub struct FunctionAsm {
+    pub name: String,
+    pub literals: LiteralTable,
+    pub lvt: LocalVarTable,
+    pub instructions: Vec<Instruction>,
+    pub labels: HashMap<String, usize>,   // label → byte offset
+    pub loop_targets: HashMap<usize, (Option<i32>, Option<i32>)>,
+    pub body_base_line: u32,
+    pub error_regions: Vec<ErrorRegion>,
+}
+
+pub struct ModuleAsm {
+    pub top_level: FunctionAsm,
+    pub procedures: HashMap<String, FunctionAsm>,   // keyed by qualified name
+}
 ```
 
 ### Orchestration (`rust/tcl-compiler/src/compilation_unit.rs`)
 
-```
-@dataclass(frozen=True, slots=True)
-class FunctionUnit:                # rust/tcl-compiler/src/compilation_unit.rs
-    cfg: CFGFunction
-    ssa: SSAFunction
-    analysis: FunctionAnalysis
-    execution_intent: FunctionExecutionIntent
+```rust
+// rust/tcl-compiler/src/compilation_unit.rs
+pub struct FunctionUnit {
+    pub name: String,                  // qualified name, e.g. ::top, ::foo::bar
+    pub cfg: cfg::Function,
+    pub ssa: SsaFunction,
+    pub def_use: Arc<DefUseResult>,
+    pub sccp: SccpResult,              // lattice values, executable blocks, branches
+    pub types: Arc<HashMap<ValueKey, TypeLattice>>,
+    pub return_type: TypeLattice,
+    pub taints: Arc<HashMap<ValueKey, TaintLattice>>,
+    pub rendered_props: Arc<HashMap<ValueKey, RenderedValueProps>>,
+    pub memory_ssa: Option<MemorySsaFunction>,
+    pub dynamic_names: DynamicNameBarrier,
+    pub complexity_guarded: bool,
+    pub base_offset: i64,
+    pub method_facts: Option<Arc<MethodBodyFacts>>,
+    pub semantic_facts: SemanticAnalysisBundle,
+}
 
-@dataclass(frozen=True, slots=True)
-class CompilationUnit:             # rust/tcl-compiler/src/compilation_unit.rs — produced by compile_source() (line 89)
-    source: str
-    ir_module: IRModule
-    cfg_module: CFGModule
-    top_level: FunctionUnit
-    procedures: dict[str, FunctionUnit]
-    interproc: InterproceduralAnalysis            # rust/tcl-compiler/src/interprocedural.rs
-    connection_scope: ConnectionScope | None = None  # rust/tcl-compiler/src/connection_scope.rs
+// Produced by CompilationUnit::build_for().
+pub struct CompilationUnit {
+    pub source: String,
+    pub ir_module: ir::Module,
+    pub cfg_module: CfgModule,
+    pub top_level: FunctionUnit,
+    pub procedures: HashMap<String, FunctionUnit>,
+    pub methods: HashMap<String, FunctionUnit>,     // per TclOO method
+    pub body_units: HashMap<String, FunctionUnit>,  // apply / namespace eval bodies
+    pub interproc: Option<InterproceduralAnalysis>, // …/interprocedural.rs
+    pub connection_scope: Option<ConnectionScope>,  // …/connection_scope.rs
+    pub caller_scope: UnitCallerScope,
+}
 ```
+
+The `Arc`-shared fields (`def_use`, `types`, `taints`, `rendered_props`) are
+span-free, so a memoised unit taken from the incremental cache and rebased to
+a new offset keeps the very same lattice without a deep copy.
 
 ---
 
@@ -491,118 +638,175 @@ of that infrastructure and how the pieces connect.
 ### Overview
 
 ```
-┌─────────────────────────────────────────────────────────────────┐
-│                     CommandRegistry                             │
-│                                                                 │
-│   ┌───────────┐  ┌───────────┐  ┌──────────┐  ┌─────────────┐  │
-│   │ Tcl defs  │  │ iRules    │  │ iApps    │  │ Tk / tcllib │  │
-│   │ (tcl/)    │  │ (irules/) │  │ (iapps/) │  │ (tk/ stdlib)│  │
-│   └─────┬─────┘  └─────┬─────┘  └────┬─────┘  └──────┬──────┘  │
-│         │              │              │               │         │
-│         ▼              ▼              ▼               ▼         │
-│                  CommandSpec                                     │
-│     ┌──────────────────────────────────────────┐                │
-│     │ name, dialects, forms, subcommands,      │                │
-│     │ validation, event_requires, pure,        │                │
-│     │ side_effect_hints, taint_sink, ...       │                │
-│     └──────────────────────────────────────────┘                │
-│         │          │          │          │                       │
-│         ▼          ▼          ▼          ▼                       │
-│     FormSpec   SubCommand   TaintHint   SideEffect              │
-│                                                                 │
-└─────────────────────────────────────────────────────────────────┘
+┌──────────────────────────────────────────────────────────────────────┐
+│                          CommandRegistry                             │
+│                                                                      │
+│   ┌───────────┐  ┌───────────┐  ┌──────────┐  ┌─────────────┐       │
+│   │ Tcl defs  │  │ iRules    │  │ iApps    │  │ Tk / tcllib │  …    │
+│   │ commands/ │  │ commands/ │  │ commands/│  │ commands/   │       │
+│   │   tcl/    │  │  irules/  │  │  iapps/  │  │  tk/ stdlib/│       │
+│   └─────┬─────┘  └─────┬─────┘  └────┬─────┘  └──────┬──────┘       │
+│         │              │             │               │              │
+│         │   each file: pub fn spec() -> CommandSpec                  │
+│         │   each mod.rs: <dialect>_command_specs() -> Vec<CommandSpec>│
+│         ▼              ▼             ▼               ▼              │
+│                       CommandSpec                                    │
+│     ┌────────────────────────────────────────────────┐              │
+│     │ name, dialects, arity, traits, forms,          │              │
+│     │ subcommands, arg_roles, event_requires,        │              │
+│     │ side_effects, taint_source, taint_*_sink*, …   │              │
+│     └────────────────────────────────────────────────┘              │
+│         │          │            │            │                       │
+│         ▼          ▼            ▼            ▼                       │
+│     FormSpec   SubCommand   TaintColour   SideEffect                 │
+│                                                                      │
+└──────────────────────────────────────────────────────────────────────┘
 ```
 
-Every command is defined as a `CommandDef` subclass (`rust/tcl-registry/src/spec.rs`) whose
-`spec()` classmethod returns a `CommandSpec` (`rust/tcl-registry/src/spec.rs`).  At import
-time, the `@register` decorator adds each definition to its dialect's
-registry list, and the singleton `CommandRegistry` (`rust/tcl-registry/src/registry.rs`)
-merges all dialect lists into a unified lookup table.
+Every command lives in its own module at
+`rust/tcl-registry/src/commands/<dialect>/<name>.rs`, which exposes a single
+`pub fn spec() -> CommandSpec` (`rust/tcl-registry/src/spec.rs`) returning a
+struct literal.  Each dialect's `mod.rs` collects those into a
+`Vec<CommandSpec>` from one `<dialect>_command_specs()` function that lists
+every `spec()` call in a `vec![]`, and `CommandRegistry`
+(`rust/tcl-registry/src/registry.rs`) merges the vectors into a unified lookup
+table.  There is no registration decorator and no per-command type — a command
+exists in a dialect because its `spec()` appears in that dialect's vector.
 
-### CommandDef — defining a command
+### Defining a command
 
-```
-class CommandDef:                      # rust/tcl-registry/src/spec.rs
-    name: str                          # command name (e.g. "string", "HTTP::host")
-
-    @classmethod
-    def spec(cls) -> CommandSpec: ...  # returns the full metadata
-
-    @classmethod
-    def taint_hints(cls) -> TaintHint | None: ...  # optional taint metadata
-```
-
-Each dialect sub-package (`tcl/`, `irules/`, `iapps/`, `tk/`) has its own
-`_REGISTRY` list and `@register` decorator, both created by `make_registry()`
-(`rust/tcl-registry/src/spec.rs`).
+Most fields come from a base constant via struct-update syntax
+(`..CommandSpec::DEFAULT`, or a more specific base such as
+`..CommandSpec::CLOSED_REFERENTIALLY_TRANSPARENT`), so a spec literal names
+only what differs from the base.  Taint metadata is data on the same literal
+(`taint_source`, `taint_output_sink`, …), not a second callback.
 
 **Concrete example** — `string` (`rust/tcl-registry/src/commands/tcl/string_.rs`):
 
-```
-@register
-class StringCommand(CommandDef):
-    name = "string"
+```rust
+use crate::prelude::*;
 
-    @classmethod
-    def spec(cls) -> CommandSpec:
-        return CommandSpec(
-            name="string",
-            forms=(FormSpec(kind=FormKind.DEFAULT, synopsis="string option arg ?arg ...?", ...),),
-            subcommands={"length": SubCommand(name="length", arity=Arity(1,1), pure=True, ...), ...},
-            validation=ValidationSpec(arity=Arity(1)),
-            cse_candidate=True,
-            ...
-        )
+const FORMS: &[FormSpec] = &[FormSpec {
+    kind: FormKind::Default,
+    synopsis: "string option arg ?arg ...?",
+    dialects: None,
+}];
+
+const SUBCOMMANDS: &[SubCommand] = &[
+    SubCommand {
+        name: "length",
+        arity: Arity::exact(1),
+        detail: "Return the number of characters.",
+        return_type: Some(TclType::Int),
+        pure: true,
+        ..SubCommand::DEFAULT
+    },
+    // …
+];
+
+pub fn spec() -> CommandSpec {
+    CommandSpec {
+        name: "string",
+        dialects: Some(DialectSet::ALL_TCL.union(DialectSet::IRULES)),
+        traits: Traits::FRAMELESS_RUNTIME
+            | Traits::NOT_PROC_FACTORY
+            | Traits::BYTE_COMPILED
+            | Traits::CSE_CANDIDATE,
+        arity: Arity::at_least(1),
+        subcommands: SUBCOMMANDS,
+        forms: FORMS,
+        inline_codegen_hook: Some(InlineCodegenHookId::String),
+        ..CommandSpec::DEFAULT
+    }
+}
 ```
+
+The behavioural flags live in the single `traits: Traits` field — a `u128`
+bitset over the `Trait` enum (`rust/tcl-registry/src/traits.rs`) — set by
+`|`-ing named constants; a bit that is not named is unset.
 
 ### FormSpec — invocation forms
 
 A single command can have multiple invocation forms — e.g. a getter
-(no args, reads state) and a setter (one arg, writes state).  Each
-form is a `FormSpec` (`rust/tcl-registry/src/spec.rs`):
+(no args, reads state) and a setter (one arg, writes state).  Two distinct
+types carry them.
 
-```
-@dataclass(frozen=True, slots=True)
-class FormSpec:                        # rust/tcl-registry/src/spec.rs
-    kind: FormKind                     # DEFAULT, GETTER, or SETTER
-    synopsis: str                      # human-readable signature
-    arity: Arity | None = None         # per-form arg count (None → inherit)
-    options: tuple[OptionSpec, ...] = ()  # valid switch options
-    pure: bool = False                 # no side effects
-    mutator: bool = False              # modifies external state
-    side_effect_hints: tuple[SideEffect, ...] = ()  # structured effects
-    arg_values: dict[int, tuple[ArgumentValueSpec, ...]] = {}  # completable values
+`FormSpec` (`rust/tcl-registry/src/hover.rs`), reached via
+`CommandSpec.forms`, is the thin documentation descriptor consumed by hover
+and completion:
+
+```rust
+// rust/tcl-registry/src/hover.rs
+pub enum FormKind {
+    Default,
+    Getter,   // read-only
+    Setter,   // modifying
+}
+
+pub struct FormSpec {
+    pub kind: FormKind,
+    pub synopsis: &'static str,          // human-readable signature
+    pub dialects: Option<DialectSet>,    // None = inherit the command's own
+}
 ```
 
-**Form resolution** — `CommandSpec.resolve_form(args)` (`rust/tcl-registry/src/spec.rs`)
-matches actual arguments against per-form arities.  Example for
-`HTTP::host`:
+`CommandForm` (`rust/tcl-registry/src/forms.rs`), reached via
+`CommandSpec.command_forms` — and `SubCommandForm` via
+`SubCommand.subcommand_forms` — is the behavioural descriptor that drives
+compiler routing: `name`, per-form `arity`, `arg_roles`, `options`,
+`option_constraints`, `dialects`, per-form overrides of the
+`result_stability` / `world_effects` / `state_transitions` /
+`dispatch_dependencies` / `representation_effect` descriptors, and per-form
+`lowering_hook` / `codegen_hook` routing.
 
-```
-forms=(
-    FormSpec(kind=FormKind.GETTER, synopsis="HTTP::host", arity=Arity(0, 0),
-             pure=True,  # reading is side-effect-free
-             side_effect_hints=(SideEffect(target=HTTP_HEADER, reads=True, ...),)),
-)
+**Form resolution** — `pick_form` (`rust/tcl-registry/src/registry.rs`)
+matches a call's argument count and dialect against the form list; the chosen
+form is reported as the `form` field of the resolved invocation.  Example for
+`HTTP::host` (`rust/tcl-registry/src/commands/irules/http__host.rs`), whose
+purity and header read are declared on the command spec itself:
+
+```rust
+traits: Traits::PURE
+    .union(Traits::CSE_CANDIDATE)
+    .union(Traits::DIAGRAM_ACTION),
+forms: &[
+    FormSpec { kind: FormKind::Getter, synopsis: "HTTP::host", dialects: None },
+    FormSpec { kind: FormKind::Setter, synopsis: "HTTP::host <name>", dialects: None },
+],
+side_effects: &[SideEffect {
+    target: SideEffectTarget::HttpHeader,
+    reads: true,
+    writes: false,
+    connection_side: ConnectionSide::Both,
+    dialects: None,
+}],
 ```
 
 When a command has both getter and setter forms, the resolved form determines
-whether the invocation is pure (a read) or a mutator (a write).
+whether the invocation is treated as a read or a write.
 
 ### Arity — argument count constraints
 
-```
-@dataclass(frozen=True, slots=True)
-class Arity:                           # rust/tcl-registry/src/spec.rs
-    min: int = 0                       # minimum args (after command name)
-    max: int = sys.maxsize             # max args (sys.maxsize = unlimited)
+```rust
+// rust/tcl-registry/src/arity.rs
+pub struct Arity {
+    pub min: u16,                  // minimum args (after the command name)
+    pub max: u16,                  // maximum args (u16::MAX = unlimited)
+    pub step: u16,                 // 0 = no parity constraint; S restricts to
+                                   //   min, min+S, min+2S, …
+    pub also_exact: Option<u16>,   // one extra exact count valid despite `step`
+}
 
-    def accepts(self, n: int) -> bool: # True when min ≤ n ≤ max
+// Constructors: Arity::exact(n), Arity::at_least(min),
+//               Arity::new(min, max), Arity::any()
 ```
 
-The `ValidationSpec` on each `CommandSpec` holds the overall arity.  The
-arity checker emits diagnostic `W101` (wrong number of arguments) when
-an invocation falls outside the bounds.
+The `arity: Arity` field on each `CommandSpec` holds the overall arity, and
+each `SubCommand` has its own.  The arity checker emits diagnostic `W101`
+(wrong number of arguments) when an invocation falls outside the bounds.  A
+command whose valid shapes are not a single `min..=max` range (`if`'s
+`elseif`/`else` chain) declares a `clause_shape_check` hook instead and sets
+`Traits::STRUCTURALLY_CHECKED_ARITY` so the generic check steps aside.
 
 ### SubCommand — ensemble commands
 
@@ -610,61 +814,89 @@ Commands like `string`, `dict`, `info`, and `HTTP::header` use
 subcommands (the first argument selects the operation).  Each
 subcommand is a `SubCommand` (`rust/tcl-registry/src/spec.rs`):
 
-```
-@dataclass(slots=True)
-class SubCommand:                      # rust/tcl-registry/src/spec.rs
-    name: str                          # "length", "match", "replace", ...
-    arity: Arity                       # arg count for this subcommand
-    pure: bool = False                 # no side effects
-    mutator: bool = False              # modifies state
-    return_type: TclType | None        # return value type
-    options: tuple[OptionSpec, ...] = ()      # per-subcommand options
-    option_terminator: OptionTerminatorSpec | None = None
-    arg_values: dict[int, tuple[ArgumentValueSpec, ...]] = {}  # completions
-    deprecated_replacement: str | None = None  # replacement command name
-    dialects: frozenset[str] | None = None     # None = inherit from parent
-    forms: tuple[FormSpec, ...] = ()   # per-subcommand getter/setter forms
-    handler: SubcommandHandler | None  # VM execution hook
-    codegen: CodegenHook | None        # bytecode specialisation
-    lowering: LoweringHook | None      # IR lowering specialisation
-    taint_transform: TaintTransformHook | None   # taint colour transform
-    side_effect_hints: tuple[SideEffect, ...] | None = None
-    validation_hook: ValidationHook | None = None
+```rust
+// rust/tcl-registry/src/spec.rs
+pub struct SubCommand {
+    pub name: &'static str,            // "length", "match", "replace", …
+    pub arity: Arity,                  // arg count after the subcommand word
+    pub traits: Traits,                // composed with the parent's traits
+    pub detail: &'static str,          // completion-list description
+    pub synopsis: &'static str,
+    pub hover: Option<HoverSnippet>,
+    pub pure: bool,                    // no side effects
+    pub mutator: bool,                 // modifies state
+    pub return_type: Option<TclType>,
+    pub var_write_typing: VarWriteTyping,   // overrides the parent's
+    pub arg_roles: &'static [(u8, ArgRole)],
+    pub arg_role_resolver: Option<ArgRoleResolver>,
+    pub arg_types: &'static [(u8, ArgTypeHint)],
+    pub arg_values: &'static [(u8, &'static [ArgValue])],   // completions
+    pub options: &'static [OptionSpec],       // per-subcommand options
+    pub dialects: Option<DialectSet>,         // None = inherit from parent
+    pub lifecycle: Lifecycle,                 // introduced / deprecated / retired
+    pub subcommand_forms: &'static [SubCommandForm],
+    pub sub_subcommands: &'static [SubSubCommand],   // a third dispatch level
+    pub const_fold: Option<ConstFoldFn>,
+    pub lowering_hook: Option<LoweringHookId>,       // IR lowering hook
+    pub codegen_hook: Option<CodegenHookId>,         // bytecode specialisation
+    pub taint_transform: Option<TaintColour>,        // colour added to output
+    pub side_effects: &'static [SideEffect],
+    // …
+}
 ```
 
-**Example** — `string length` has `arity=Arity(1, 1)` (exactly one arg),
-`pure=True`, and `return_type=TclType.INT`.  The arity checker validates
-each subcommand invocation independently.
+Hooks are typed IDs, not function pointers into a consumer crate: the registry
+names the hook (`rust/tcl-registry/src/hooks.rs`) and the consumer owns the
+dispatch table.
 
-Subcommands can be dialect-filtered: `SubCommand.supports_dialect()` checks
-the subcommand's own `dialects` set, falling back to the parent command's
-dialects.
+**Example** — `string length` declares `arity: Arity::exact(1)`,
+`pure: true`, and `return_type: Some(TclType::Int)`.  The arity checker
+validates each subcommand invocation independently.
+
+Subcommands can be dialect-filtered by their own `dialects` set, which
+overrides the parent command's when present and inherits it when `None`.
+Ensemble dispatch resolves a subcommand prefix-aware (`string le` ⇒
+`length`), matching C Tcl's `Tcl_GetIndexFromObj`, unless the spec sets
+`prefix_matching: PrefixMatching::Strict`.
 
 ### OptionSpec and option terminators
 
 Commands that accept `-flag` switches declare them via `OptionSpec`
-(`rust/tcl-registry/src/spec.rs`):
+(`rust/tcl-registry/src/hover.rs`):
 
-```
-@dataclass(frozen=True, slots=True)
-class OptionSpec:                      # rust/tcl-registry/src/spec.rs
-    name: str                          # e.g. "-nocase", "-length"
-    takes_value: bool = False          # True if the option consumes the next arg
-    detail: str = ""                   # completion description
+```rust
+// rust/tcl-registry/src/hover.rs
+pub struct OptionSpec {
+    pub name: &'static str,             // e.g. "-nocase", "-length"
+    pub value: OptionValue,             // a boolean flag, or a described value
+    pub detail: &'static str,           // completion description
+    pub dialects: Option<DialectSet>,   // None = inherit from the parent spec
+    pub aliases: &'static [&'static str],   // documented alternate spellings
+    pub lifecycle: Lifecycle,
+    pub min_abbrev: Option<u8>,         // None = any unique prefix resolves
+}
 ```
 
 **Option terminators** (`--`) prevent a dynamic argument from being
-mistaken for a flag.  The `OptionTerminatorSpec` (`rust/tcl-registry/src/spec.rs`)
-configures the `W304` diagnostic:
+mistaken for a flag.  `W304` has no dedicated flag field: it is driven by an
+`OptionSpec` named `"--"` in `options` (on the command or on a subcommand),
+plus the command's `reserved_trailing_words`, resolved by
+`CommandRegistry::resolve_option_terminator`
+(`rust/tcl-registry/src/registry.rs`) into a `ResolvedTerminator`:
 
+```rust
+// rust/tcl-registry/src/registry.rs
+pub struct ResolvedTerminator {
+    pub scan_start: usize,          // arg index where option scanning begins
+    pub subcommand: Option<&'static str>,   // set for a subcommand-scoped match
+    pub options: &'static [OptionSpec],     // every option on the matched spec
+    pub reserved_trailing_words: usize,     // trailing words never scanned
+}
 ```
-@dataclass(frozen=True, slots=True)
-class OptionTerminatorSpec:            # rust/tcl-registry/src/spec.rs
-    scan_start: int = 0                # arg index where option scanning begins
-    options_with_values: frozenset[str] = frozenset()  # options that eat next arg
-    warn_without_terminator: bool = False  # warn even for static values
-    subcommand: str | None = None      # restrict to a specific subcommand
-```
+
+`reserved_trailing_words` mirrors C Tcl: `switch`'s implementation scans for
+`-flag` words only up to `objc - 2`, so `switch $x $caseListVar` needs no
+`--`.
 
 When a command like `string match` receives a dynamic pattern (`$pat`)
 without `--`, the checker emits `W304` because `$pat` could start with
@@ -680,15 +912,15 @@ string match -- $pat $str     ;# safe:  -- terminates option scanning
 
 Validation is layered:
 
-1. **Arity** — `ValidationSpec.arity` on the `CommandSpec` sets the
-   overall arg count.  Each `SubCommand` has its own `arity`.  Violations
-   produce `W101`.
+1. **Arity** — `CommandSpec.arity` sets the overall arg count.  Each
+   `SubCommand` has its own `arity`.  Violations produce `W101`.
 
-2. **Option terminator** — `OptionTerminatorSpec` triggers `W304` when
-   `--` is missing before dynamic arguments.
+2. **Option terminator** — an `OptionSpec` named `"--"` triggers `W304`
+   when `--` is missing before dynamic arguments.
 
-3. **Validation hooks** — per-command or per-subcommand
-   `ValidationHook` callables run additional checks.
+3. **Validation hooks** — `analyser_hook` (a typed `AnalyserHookId`
+   selecting a handler in the analyser's central dispatch) and
+   `literal_argument_validator` run per-command checks beyond arity.
 
 4. **Event validity** — `event_requires` and `excluded_events` are
    checked against the active event context (see [Events](#events-irules-only)
@@ -702,166 +934,201 @@ command expects, and what hover/completion information to present.
 
 #### ArgRole — what each argument means
 
-`ArgRole` (`rust/tcl-registry/src/spec.rs`) classifies how the compiler should
-treat each argument position:
+`ArgRole` (`rust/tcl-registry/src/arg_role.rs`) classifies how the compiler
+should treat each argument position:
 
-```
-class ArgRole(Enum):                   # rust/tcl-registry/src/spec.rs
-    BODY            # Tcl script body — recursively lowered into IR
-    EXPR            # Expression — parsed into ExprNode AST
-    VAR_NAME        # Variable name written by the command (set, incr)
-    VAR_READ        # Variable name read without modification (info exists)
-    PARAM_LIST      # Procedure parameter list (proc)
-    NAME            # Symbolic name (proc name, namespace name)
-    PATTERN         # Pattern or regex argument
-    OPTION          # A switch/flag argument
-    VALUE           # Generic value (default for unlisted positions)
-    SUBCOMMAND      # The subcommand word ("length" in "string length")
-    OPTION_TERMINATOR  # The "--" terminator
-    CHANNEL         # Channel identifier (stdout, channelId)
-    INDEX           # List/string index expression
-```
-
-Roles are declared via `CommandSpec.arg_roles` or
-`SubCommand.arg_roles` — a `dict[int, ArgRole]` mapping argument
-index (0-based after the command name) to its role.
-
-For variable-layout commands like `if`, `try`, and `switch` (where
-argument structure depends on the actual arguments), an
-`ArgRoleResolver` (`rust/tcl-registry/src/spec.rs`) callback dynamically maps argument
-values to roles:
-
-```
-ArgRoleResolver = Callable[[list[str]], dict[int, ArgRole]]
-```
-
-The IR lowering pass uses `ArgRole.BODY` and `ArgRole.EXPR` to decide
-which arguments should be recursively lowered or parsed as expressions,
-and `ArgRole.VAR_NAME` to extract variable definitions for dataflow
-analysis.
-
-#### ArgumentValueSpec — completable values
-
-`ArgumentValueSpec` (`rust/tcl-registry/src/spec.rs`) describes a valid value for a
-specific argument position, providing completion text and hover
-documentation:
-
-```
-@dataclass(frozen=True, slots=True)
-class ArgumentValueSpec:               # rust/tcl-registry/src/spec.rs
-    value: str                         # completion text (e.g. "length", "alnum")
-    detail: str = ""                   # short description in completion list
-    hover: HoverSnippet | None = None  # full hover documentation
+```rust
+// rust/tcl-registry/src/arg_role.rs
+pub enum ArgRole {
+    Body,             // Tcl script body — recursively lowered into IR
+    Expr,             // Expression — parsed into an ExprNode AST
+    VarWrite,         // Variable name written by the command (set, incr, lassign)
+    VarRead,          // Variable name read without modification (info exists)
+    LoopVarList,      // A *list* of loop variable names (dict for {k v} …)
+    ParamList,        // Procedure parameter list (proc)
+    Name,             // Symbolic name (proc name, namespace name)
+    Pattern,          // Pattern or regex argument
+    Option,           // A switch/flag argument
+    Value,            // Generic value (default for unlisted positions)
+    Subcommand,       // The subcommand word ("length" in "string length")
+    OptionTerminator, // The "--" terminator
+    FormatString,     // A `format` %-string
+    ScanFormat,       // A `scan` %-string
+    Channel,          // Channel identifier (stdout, channelId)
+    Index,            // List/string index expression
+    Keyword,          // A structural keyword (if's then/elseif/else)
+    CommandPrefix,    // A callback reference invoked with args appended
+    CommandName,      // A bare command name held as data (info body PROC)
+    CommandNameProbe,
+    LambdaLiteral,    // An {argList body ?namespace?} anonymous-lambda literal
+    NamespaceName,
+    Boolean,
+    NumericOrBoolean,
+    Result,
+    Unknown,
+}
 ```
 
-Argument values are declared in three places:
+Roles are declared via `CommandSpec.arg_roles` or `SubCommand.arg_roles` — a
+`&'static [(u8, ArgRole)]` of `(index, role)` pairs, the index 0-based after
+the command name (or after the subcommand word).
 
-1. **FormSpec.arg_values** (`dict[int, tuple[ArgumentValueSpec, ...]]`)
-   — maps arg index to valid values.  Index 0 typically holds
-   subcommand names:
+For variable-layout commands like `if`, `try`, and `switch` (where argument
+structure depends on the actual arguments), an `ArgRoleResolver`
+(`rust/tcl-registry/src/spec.rs`) maps argument values to roles dynamically:
 
+```rust
+pub type ArgRoleResolver = fn(args: &[&str]) -> Vec<(u8, ArgRole)>;
+```
+
+A third declaration form, `repeated_args: &'static [RepeatedArgLayout]`,
+covers the regular unbounded tails (`global a b c`, `foreach v1 $l1 v2 $l2
+body`) that neither a fixed index table nor an opaque closure expresses well.
+All three feed `CommandRegistry::arg_indices_for_role` **additively**, so a
+consumer asks "which arguments carry role X" and gets the whole answer.
+
+The IR lowering pass uses `ArgRole::Body` and `ArgRole::Expr` to decide which
+arguments should be recursively lowered or parsed as expressions, and
+`ArgRole::VarWrite` to extract variable definitions for dataflow analysis.
+Two predicates on `ArgRole` itself — `carries_script()` and
+`names_variable()` — answer the cross-cutting questions so no consumer
+re-derives them.
+
+#### ArgValue — completable values
+
+`ArgValue` (`rust/tcl-registry/src/hover.rs`) describes a valid value for a
+specific argument position, providing completion text and its version gate:
+
+```rust
+// rust/tcl-registry/src/hover.rs
+pub struct ArgValue {
+    pub value: &'static str,          // completion text (e.g. "length", "alnum")
+    pub detail: &'static str,         // short description in the completion list
+    pub min_tcl: Option<TclVersion>,  // lowest release accepting this value
+    pub code: Option<i64>,            // canonical integer equivalent ("ok" → 0)
+}
+```
+
+Argument values are declared in two places, both as
+`&'static [(u8, &'static [ArgValue])]` keyed by 0-based argument index:
+
+1. **`CommandSpec.arg_values`** — command-level positional values, flattened
+   from per-form values since the completion consumer keys purely on
+   positional index:
+
+   ```rust
+   arg_values: &[(2, &[
+       ArgValue { value: "enable",  detail: "Enable event timing.",  ..ArgValue::DEFAULT },
+       ArgValue { value: "disable", detail: "Disable event timing.", ..ArgValue::DEFAULT },
+   ])],
    ```
-   FormSpec(
-       kind=FormKind.DEFAULT,
-       synopsis="string option arg ?arg ...?",
-       arg_values={0: (
-           ArgumentValueSpec("length", "Return number of characters."),
-           ArgumentValueSpec("match", "Test glob-style pattern match."),
-           ...
-       )},
-   )
+
+2. **`SubCommand.arg_values`** — per-subcommand values, indexed *after* the
+   subcommand word.  For example, `string is` has character-class values at
+   arg index 0:
+
+   ```rust
+   SubCommand {
+       name: "is",
+       arg_values: &[(0, &[
+           ArgValue { value: "alnum",
+                      detail: "Any Unicode alphabet or digit character.",
+                      ..ArgValue::DEFAULT },
+           ArgValue { value: "integer",
+                      detail: "Any valid integer of arbitrary size.",
+                      ..ArgValue::DEFAULT },
+           // …
+       ])],
+       ..SubCommand::DEFAULT
+   }
    ```
 
-2. **SubCommand.arg_values** — per-subcommand completable values.
-   For example, `string is` has character-class values at arg index 0:
-
-   ```
-   SubCommand(name="is", ..., arg_values={
-       0: (ArgumentValueSpec("alnum", "Any Unicode alphabet or digit character."),
-           ArgumentValueSpec("integer", "Any valid integer of arbitrary size."),
-           ...),
-   })
-   ```
-
-3. **FormSpec.subcommand_arg_values** (`dict[tuple[str, int], ...]`)
-   — keyed by `(subcommand_name, sub_arg_index)` for legacy definitions.
-
-`CommandSpec` provides lookup helpers:
-- `argument_values(arg_index)` — collects values across all forms.
-- `subcommand_argument_values(subcmd, arg_index)` — values for a
-  subcommand argument, preferring `SubCommand.arg_values` over the
-  legacy `FormSpec.subcommand_arg_values`.
+`SubCommand::arg_values_at(index)` returns the slice for one index, and
+`versioned_arg_values` carries the owning-package release ranges for
+individual literal values when they differ from the subcommand's own
+lifecycle.
 
 #### HoverSnippet — documentation content
 
-`HoverSnippet` (`rust/tcl-registry/src/spec.rs`) carries hover and signature-help
-content derived from man pages or vendor documentation:
+`HoverSnippet` (`rust/tcl-registry/src/hover.rs`) carries hover and
+signature-help content derived from man pages or vendor documentation:
 
-```
-@dataclass(frozen=True, slots=True)
-class HoverSnippet:                    # rust/tcl-registry/src/spec.rs
-    summary: str                       # one-line description
-    synopsis: tuple[str, ...] = ()     # invocation signatures
-    snippet: str = ""                  # extended description (for signature help)
-    source: str = ""                   # attribution (e.g. "Tcl man page string.n")
-    examples: str = ""                 # code example
-    return_value: str = ""             # return value description
+```rust
+// rust/tcl-registry/src/hover.rs
+pub struct HoverSnippet {
+    pub summary: &'static str,                // one-line description
+    pub synopsis: &'static [&'static str],    // invocation signatures
+    pub snippet: &'static str,                // extended description
+    pub source: &'static str,                 // attribution ("Tcl string(n)")
+    pub examples: &'static str,               // code example
+    pub return_value: &'static str,           // return value description
+}
 ```
 
-`HoverSnippet` appears on `CommandSpec.hover`, `SubCommand.hover`,
-`ArgumentValueSpec.hover`, and `OptionSpec.hover`.  The LSP server
-uses `render_hover_lean()` for compact hover tooltips and
-`render_markdown()` for signature help documentation.
+`HoverSnippet` appears on `CommandSpec.hover` and `SubCommand.hover`.
+`HoverSnippet::brief(summary, synopsis, source)` builds the common case —
+the three fields most specs fill — leaving the rest empty.
 
 #### ArgTypeHint — expected types
 
-`ArgTypeHint` (`rust/tcl-registry/src/types.rs`) declares what Tcl internal
+`ArgTypeHint` (`rust/tcl-registry/src/hooks.rs`) declares what Tcl internal
 representation (intrep) a command expects for a given argument:
 
-```
-@dataclass(frozen=True, slots=True)
-class ArgTypeHint:                     # rust/tcl-registry/src/types.rs
-    expected: TclType | None = None    # expected type (None = any)
-    shimmers: bool = False             # True if the command forces conversion
+```rust
+// rust/tcl-registry/src/hooks.rs
+pub struct ArgTypeHint {
+    pub expected: Option<TclType>,   // expected type (None = any)
+    pub shimmers: bool,              // true if the command forces conversion
+    pub transparent_from: &'static [TclType],  // intreps read without converting
+}
 ```
 
 Type hints are declared via `SubCommand.arg_types` or
-`CommandSpec.arg_types` — a `dict[int, ArgTypeHint]`.  The type
-inference pass uses these to detect shimmer risks (diagnostic `O130`)
-and propagate types through the SSA graph.
+`CommandSpec.arg_types` — a `&'static [(u8, ArgTypeHint)]` of
+`(index, hint)` pairs.  The type-inference pass uses these to detect shimmer
+risks (diagnostic `O130`) and propagate types through the SSA graph.
+`transparent_from` records the fast paths that read an operand in its current
+intrep without installing `expected`, so no shimmer is reported: `string
+length` is `expected: Some(TclType::String), shimmers: true, transparent_from:
+&[TclType::ByteArray]`, matching `Tcl_GetCharLength`'s short-circuit.
 
 Return types are declared via `SubCommand.return_type` or
-`CommandSpec.return_type` — a `TclType | None`.  For example,
-`string length` has `return_type=TclType.INT`.
+`CommandSpec.return_type` — an `Option<TclType>`.  For example,
+`string length` has `return_type: Some(TclType::Int)`.  What the command
+writes into a *variable* is a separate fact, `var_write_typing:
+VarWriteTyping`, because a destructuring writer (`lassign`, `scan`, `regexp`,
+`gets`) returns one thing and writes another.
 
-#### KeywordCompletion — variable-layout scaffolding
+#### Structural keywords — variable-layout scaffolding
 
-Commands like `if`, `try`, and `switch` have keyword-delimited
-structure rather than fixed argument positions.
-`KeywordCompletion` (`rust/tcl-registry/src/spec.rs`) provides completion items
-for these structural keywords:
-
-```
-@dataclass(frozen=True, slots=True)
-class KeywordCompletion:               # rust/tcl-registry/src/spec.rs
-    keyword: str                       # e.g. "elseif", "else", "on", "finally"
-    detail: str = ""                   # completion list description
-    snippet: str | None = None         # LSP snippet with placeholders
-```
-
-A `KeywordCompletionProvider` callback on `CommandSpec` generates
-context-aware keyword suggestions based on the arguments entered so far.
+Commands like `if`, `try`, and `switch` have keyword-delimited structure
+rather than fixed argument positions.  Their `then` / `elseif` / `else` and
+`on` / `trap` / `finally` words carry `ArgRole::Keyword` at the positions the
+C-Tcl-shaped clause walk puts them, so completion and the formatter read the
+role directly rather than scanning argument *values* for those words.  The
+distinction is observable: in `if {1} {a} else then` the trailing `then` sits
+in the else-branch **body** slot, so it is a body word, not a keyword, and
+only a positional answer gets that right.
 
 #### Deprecation
 
 Commands and subcommands can be marked as deprecated with a replacement:
 
-- `CommandSpec.deprecated_replacement` — the replacement command name
-  (either a string or a `CommandDef` class reference).
+- `CommandSpec.deprecated_replacement` — `Option<&'static str>`, the
+  replacement command *name*.  There is no command type to reference: a
+  command is a `spec()` module, so a replacement is always a plain name.
+- `CommandSpec.deprecated_replacement_drop_in` — `bool`, whether the
+  replacement accepts the deprecated command's argument list unchanged, so a
+  quick fix may mechanically swap the command head (`client_addr` →
+  `IP::client_addr`).  `false` for replacements that restructure arguments or
+  are prose; those stay message-only.
 - `SubCommand.deprecated_replacement` — per-subcommand replacement.
-- `CommandSpec.deprecation_fixer` / `SubCommand.deprecation_fixer` —
-  a `DeprecationFixer` callback that generates LSP code actions to
-  automatically rewrite deprecated usage.
+- `lifecycle: Lifecycle` on commands, subcommands, options, and argument
+  values — `introduced` / `deprecated` / `retired` releases on the owning
+  package's version axis, plus an optional `deprecation_fix:
+  Option<DeprecationFixHook>`.  Consumers invoke the hook only while
+  `deprecated` applies, so every versioned entity shares one quick-fix
+  contract.
 
 ### Side effects and purity
 
@@ -870,69 +1137,89 @@ classifies what each command invocation reads and writes.
 
 **Enums** describe the vocabulary:
 
-```
-class SideEffectTarget(Enum):          # rust/tcl-compiler/src/side_effects.rs
-    VARIABLE, SESSION_TABLE, HTTP_HEADER, HTTP_BODY, HTTP_URI,
-    RESPONSE_COMMIT, POOL_SELECTION, FILE_IO, LOG_IO, ...
+```rust
+// rust/tcl-compiler/src/side_effects.rs
+pub enum SideEffectTarget {
+    Variable, SessionTable, HttpHeader, HttpBody, HttpUri,
+    ResponseCommit, PoolSelection, FileIo, LogIo, // …
+}
 
-class StorageScope(Enum):              # rust/tcl-compiler/src/side_effects.rs
-    PROC_LOCAL, NAMESPACE, GLOBAL, UPVAR,       # Tcl-universal
-    EVENT, CONNECTION, STATIC, SESSION_TABLE,    # F5 iRules-specific
-    DATA_GROUP, FILE_SYSTEM, NETWORK_SOCKET, ...
+pub enum StorageScope {
+    ProcLocal, Namespace, Global, Upvar,           // Tcl-universal
+    Event, Connection, Static, SessionTable,       // F5 iRules-specific
+    Persistence, DataGroup,
+    FileSystem, NetworkSocket, LogOutput,          // external I/O
+    Unknown,
+}
 
-class ConnectionSide(Enum):            # rust/tcl-compiler/src/side_effects.rs
-    CLIENT, SERVER, BOTH, GLOBAL, NONE
+pub enum ConnectionSide {
+    Client, Server, Both, Global, None,
+}
 
-class StorageType(Enum):               # rust/tcl-compiler/src/side_effects.rs
-    SCALAR, LIST, DICT, ARRAY, UNKNOWN
+pub enum StorageType {
+    Scalar, List, Dict, Array, Unknown,
+}
 ```
 
 **Per-invocation facts** compose into `SideEffect` and
-`CommandSideEffects`:
+`CommandSideEffects`.  Note that the registry declares a *narrower*
+`SideEffect` (`rust/tcl-registry/src/side_effects.rs`) — target, reads,
+writes, connection side, dialects — and the compiler's classifier widens it
+to the full record:
 
+```rust
+// rust/tcl-compiler/src/side_effects.rs
+pub struct SideEffect {
+    pub target: SideEffectTarget,        // what resource
+    pub reads: bool,                     // does it read?
+    pub writes: bool,                    // does it write?
+    pub storage_type: StorageType,       // data shape
+    pub scope: StorageScope,             // where it lives
+    pub connection_side: ConnectionSide, // F5 proxy context
+    pub namespace: Option<String>,       // Tcl or protocol namespace
+    pub dialect: Option<String>,         // None = dialect-independent
+    pub key: Option<String>,             // literal variable/header name
+    pub subtable: Option<String>,        // F5 session-table subtable
+}
+
+pub struct CommandSideEffects {
+    pub effects: Vec<SideEffect>,   // individual effects
+    pub pure: bool,                 // no observable side effects
+    pub deterministic: bool,        // same inputs → same outputs
+    pub dynamic_barrier: bool,      // eval/uplevel — unknowable
+    pub dialect: Option<String>,    // context this classification was made in
+}
 ```
-@dataclass(frozen=True, slots=True)
-class SideEffect:                      # rust/tcl-compiler/src/side_effects.rs
-    target: SideEffectTarget           # what resource
-    reads: bool = False                # does it read?
-    writes: bool = False               # does it write?
-    storage_type: StorageType          # data shape
-    scope: StorageScope                # where it lives
-    connection_side: ConnectionSide    # F5 proxy context
-    key: str | None = None             # literal variable/header name
 
-@dataclass(frozen=True, slots=True)
-class CommandSideEffects:              # rust/tcl-compiler/src/side_effects.rs
-    effects: tuple[SideEffect, ...]    # individual effects
-    pure: bool = False                 # no observable side effects
-    deterministic: bool = False        # same inputs → same outputs
-    dynamic_barrier: bool = False      # eval/uplevel — unknowable
-```
+**Classification** — `classify_side_effects(registry, command, args, dialect,
+callee_summary)` (`rust/tcl-compiler/src/side_effects.rs`) combines registry
+declarations with the call's actual arguments:
 
-**Classification** — `classify_side_effects(command, args, ...)`
-(`rust/tcl-compiler/src/side_effects.rs`) combines registry hints with runtime arguments:
-
-1. Check interprocedural summary (for user-defined procs).
+1. Check the interprocedural `CalleeSummary` (for user-defined procs).
 2. Check for dynamic barriers (`eval`, `uplevel`).
-3. Resolve the subcommand and matching `FormSpec`.
-4. Read `side_effect_hints` from the resolved form, subcommand, or
+3. Resolve the subcommand and the matching form.
+4. Read the `side_effects` slice from the resolved form, subcommand, or
    command spec.
-5. Check command-level or subcommand-level `pure`/`mutator` flags.
+5. Check the `Traits::PURE` bit and the subcommand-level `pure` / `mutator`
+   flags.
 
 **How purity propagates:**
 
-- A command is pure if `CommandSpec.pure = True` (e.g. `string`, `list`).
-- A subcommand can override: `SubCommand.pure = True` makes
-  `string length` pure even if the parent weren't.
-- A subcommand can also override downward: `SubCommand.mutator = True`
-  makes `HTTP::header replace` impure even though `HTTP::header` itself
-  is pure (the getter form reads without side effects).
-- A `FormSpec` can further refine: `FormSpec.pure` / `FormSpec.mutator`
-  overrides all higher levels for that specific arity match.
+- A command is pure when its spec sets `Traits::PURE` (e.g. `string`, `list`).
+- A subcommand can override upward: `SubCommand.pure = true` makes
+  `string length` pure even if the parent were not.
+- A subcommand can also override downward: `SubCommand.mutator = true` makes
+  `HTTP::header replace` impure even though `HTTP::header` itself carries
+  `Traits::PURE` (its getter form reads without side effects).
+- A `CommandForm` / `SubCommandForm` refines further, overriding the levels
+  above it for that specific arity match.
 
 The GVN optimiser uses purity to decide whether a command's result can be
-cached (`cse_candidate = True`), and the SCCP analysis uses it to infer
-through pure calls without bailing out.
+cached (`Traits::CSE_CANDIDATE`), and the SCCP analysis uses it to infer
+through pure calls without bailing out.  Purity alone is not sufficient for
+call reuse: reuse also needs `result_stability`, closed `state_transitions`,
+no relevant `world_effects`, and a site proof covering every
+`dispatch_dependencies` entry.
 
 ### Taint analysis
 
@@ -942,124 +1229,208 @@ Taint tracking determines whether values originate from untrusted input
 **TaintColour** (`rust/tcl-registry/src/taint.rs`) is a `Flag` enum — colours compose
 with `|` and the lattice join is their intersection (`&`):
 
-```
-class TaintColour(Flag):               # rust/tcl-registry/src/taint.rs
-    TAINTED         # base: value comes from untrusted input
-    PATH_PREFIXED   # starts with "/" (HTTP::uri, HTTP::path)
-    CRLF_FREE       # no CR/LF characters (header-injection safe)
-    IP_ADDRESS      # IPv4/IPv6 digits-dots-colons
-    PORT            # integer 0-65535
-    FQDN            # fully qualified domain name
-    LIST_CANONICAL  # canonical Tcl list (safe for list operations)
-    HTML_ESCAPED    # HTML-escaped text context
-    URL_ENCODED     # URL-encoded text context
-    ...
+```rust
+// rust/tcl-registry/src/taint.rs
+bitflags! {
+    pub struct TaintColour: u32 {
+        const TAINTED            = 1 << 0;  // base: value is attacker-controlled
+        const PATH_PREFIXED      = 1 << 1;  // starts with "/" (HTTP::uri, HTTP::path)
+        const NON_DASH_PREFIXED  = 1 << 2;  // provably starts with a non-"-" literal
+        const CRLF_FREE          = 1 << 3;  // no CR/LF (header-injection safe)
+        const SHELL_ATOM         = 1 << 4;  // no shell metachar splitting
+        const LIST_CANONICAL     = 1 << 5;  // canonical Tcl list representation
+        const REGEX_LITERAL      = 1 << 6;  // regex-escaped literal payload
+        const PATH_NORMALISED    = 1 << 7;
+        const PATH_BOUNDED       = 1 << 8;
+        const HEADER_TOKEN_SAFE  = 1 << 9;
+        const HTML_ESCAPED       = 1 << 10; // HTML-escaped text context
+        const URL_ENCODED        = 1 << 11; // URL-encoded text context
+        const IP_ADDRESS         = 1 << 12; // IPv4/IPv6 digits-dots-colons
+        const PORT               = 1 << 13; // integer 0-65535
+        const FQDN               = 1 << 14; // fully qualified domain name
+        const PATH_JOINED        = 1 << 15;
+        const CHANNEL            = 1 << 16; // I/O channel handle
+    }
+}
 ```
 
 Colours represent *safety properties* of tainted data.  A value with
 `TAINTED | IP_ADDRESS` is tainted but known to be a safe IP address
 format, which may satisfy certain sinks (e.g. connecting to a backend).
 
-**TaintHint** (`rust/tcl-registry/src/taint.rs`) declares a command's taint sources
-and sinks:
+**Sources and sinks are plain fields on the `CommandSpec` literal**, not a
+separate hint object hung off a callback.  The relevant ones are:
 
-```
-@dataclass(frozen=True, slots=True)
-class TaintHint:                       # rust/tcl-registry/src/taint.rs
-    source: dict[Arity | None, TaintColour] | None  # return value is tainted
-    source_subcommands: frozenset[str] | None        # restrict to specific subcmds
-    sinks: tuple[TaintSinkSpec, ...]                  # dangerous arg positions
-    setter_constraints: tuple[SetterConstraint, ...]  # e.g. must start with "/"
-```
+| Field | Type | Meaning |
+|-------|------|---------|
+| `taint_source` | `Option<TaintColour>` | Colour this command's result carries as an origin of untrusted data.  `None` = not a source |
+| `taint_transform` | `Option<TaintColour>` | Colour bits added to tainted output (a sanitiser) |
+| `taint_output_sink` | `Option<&'static str>` | Output-sink diagnostic code (`"IRULE3001"` for XSS) |
+| `taint_output_sink_subcommands` | `&'static [&'static str]` | Restricts the output sink to those subcommands; empty = every invocation |
+| `taint_log_sink` | `Option<&'static str>` | Log-injection sink diagnostic code |
+| `taint_network_sink_args` | `Option<&'static [u8]>` | Argument indices that are network sinks |
+| `taint_code_sink_args` | `Option<&'static [u8]>` | Argument indices carrying the code-execution hazard; `None` = the whole tail reaches evaluation |
+| `taint_sink_safe_colour` | `Option<TaintColour>` | Colour that suppresses the sink diagnostic |
+| `taint_sink_gate` | `Option<fn(&[&str]) -> bool>` | A `false` result suppresses sink classification for that call (`subst -nocommands`) |
+| `setter_constraints` | `&'static [SetterConstraint]` | Setter-form argument constraints (IRULE3101) |
 
-**Example** — `HTTP::host` is a taint source (returns user-controlled
-data):
+**Example** — `HTTP::host`
+(`rust/tcl-registry/src/commands/irules/http__host.rs`) is a taint source, one
+line on its spec literal:
 
-```
-@classmethod
-def taint_hints(cls) -> TaintHint:
-    return TaintHint(source={None: TaintColour.TAINTED})
-```
-
-**TaintSinkSpec** marks argument positions as dangerous:
-
-```
-@dataclass(frozen=True, slots=True)
-class TaintSinkSpec:                   # rust/tcl-registry/src/taint.rs
-    code: str                          # diagnostic code (e.g. "IRULE3001")
-    subcommands: frozenset[str] | None # None = all invocations
+```rust
+taint_source: Some(TaintColour::TAINTED),
 ```
 
-The taint engine (`compiler/taint/`) propagates colours through the
-SSA graph, and emits diagnostics (e.g. `IRULE3001` for XSS,
-`IRULE3002` for header injection) when tainted data reaches a sink
-without sufficient safety colours.
+**Example** — `HTTP::header`
+(`rust/tcl-registry/src/commands/irules/http__header.rs`) is both a source and
+a subcommand-restricted sink:
+
+```rust
+taint_source: Some(TaintColour::TAINTED),
+taint_output_sink: Some("IRULE3002"),          // header injection
+taint_output_sink_subcommands: &["insert", "replace"],
+```
+
+`SetterConstraint` is the one taint declaration with a struct of its own:
+
+```rust
+// rust/tcl-registry/src/taint.rs
+pub struct SetterConstraint {
+    pub arg_index: u8,                  // 0-based after the command name
+    pub required_prefix: &'static str,  // literal prefix the argument must start with
+    pub code: DiagCode,                 // e.g. "IRULE3101"
+    pub message: &'static str,
+}
+```
+
+`is_taint_source` and `taint_source_colour`
+(`rust/tcl-registry/src/taint.rs`) resolve a call against all of this —
+the `Traits::TAINT_SOURCE` / `Traits::UNNORMALISED_HTTP_GETTER` bits, a
+subcommand's own `TAINT_SOURCE` bit (resolved prefix-aware so `chan g` cannot
+dodge classification), and the registry's dialect-agnostic taint-source index.
+`augment_source_colours` then adds the properties a colour implies: a
+path-prefixed value also proves `NON_DASH_PREFIXED`; an IP / port / FQDN value
+also proves `NON_DASH_PREFIXED`, `CRLF_FREE`, and `SHELL_ATOM`.
+
+The taint engine (`rust/tcl-compiler/src/taint.rs`) propagates colours through
+the SSA graph, and emits diagnostics (e.g. `IRULE3001` for XSS, `IRULE3002`
+for header injection) when tainted data reaches a sink — classified by
+`classify_sink` — without sufficient safety colours.
 
 ### Dialects
 
 Dialects partition command availability across Tcl versions and tool
-contexts.  Known dialects (`rust/tcl-registry/src/dialects.rs`):
+contexts.  The canonical profile names (`rust/tcl-dialect/src/dialect_set.rs`,
+re-exported from `rust/tcl-registry/src/dialects.rs`) are a sorted
+`&'static [&'static str]`:
 
+```rust
+// rust/tcl-dialect/src/dialect_set.rs
+pub const KNOWN_DIALECTS: &[&str] = &[
+    "bpf",
+    "cadence-eda-tcl",
+    "expect",
+    "f5-bigip",                  // F5 BIG-IP config surface
+    "f5-iapps",                  // F5 iApps
+    "f5-irules",                 // F5 iRules
+    "f5-tmsh",                   // F5 tmsh scripting
+    "intel-quartus-eda-tcl",
+    "mentor-eda-tcl",
+    "synopsys-eda-tcl",
+    "tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1",   // Tcl version dialects
+    "xilinx-eda-tcl",
+];
 ```
-KNOWN_DIALECTS = frozenset({
-    "tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1",  # Tcl version dialects
-    "f5-irules",                                 # F5 iRules
-    "f5-iapps",                                  # F5 iApps
-    "f5-bigip",                                  # F5 BIG-IP config
-    "synopsys-eda-tcl",                          # Synopsys EDA
-    "cadence-eda-tcl",                           # Cadence EDA
-    "xilinx-eda-tcl",                            # Xilinx/AMD EDA
-    "intel-quartus-eda-tcl",                     # Intel Quartus
-    "mentor-eda-tcl",                            # Mentor/Siemens EDA
-    "expect",                                    # Expect
-})
+
+A spec's own gating is not a set of those strings but a `DialectSet` — a
+`bitflags` set over `u64`, with composite constants combined by `union` /
+`|`:
+
+```rust
+// rust/tcl-dialect/src/dialect_set.rs
+bitflags! {
+    pub struct DialectSet: u64 {
+        const TCL84  = 1 << 0;
+        const TCL85  = 1 << 1;
+        const TCL86  = 1 << 2;
+        const TCL90  = 1 << 3;
+        const IRULES = 1 << 4;
+        const IAPPS  = 1 << 5;
+        const TK     = 1 << 6;
+        const EXPECT = 1 << 7;
+        const BPF    = 1 << 13;
+        const TCL91  = 1 << 14;
+        const TMSH   = 1 << 15;
+        const BIGIP  = 1 << 16;
+
+        const ALL_TCL     = /* TCL84 | TCL85 | TCL86 | TCL90 | TCL91 */;
+        const TCL85_PLUS  = /* TCL85 | TCL86 | TCL90 | TCL91 */;
+        const TCL86_PLUS  = /* TCL86 | TCL90 | TCL91 */;
+        const TCL8X       = /* TCL84 | TCL85 | TCL86 */;
+        const TCL90_PLUS  = /* TCL90 | TCL91 */;
+        const TK_AND_TCL  = /* ALL_TCL | TK */;
+    }
+}
 ```
 
-Every `CommandSpec` has an optional `dialects` field:
+The EDA shells have no dialect bits of their own: they are modelled as a base
+Tcl version plus `required_package`-gated command libraries.
 
-- `dialects = None` → available in **all** dialects.
-- `dialects = frozenset({"f5-irules"})` → iRules-only command
-  (e.g. `HTTP::host`, `pool`, `table`).
+Every `CommandSpec` has an optional `dialects: Option<DialectSet>` field:
 
-Subcommands can have their own `dialects` set that overrides the parent
-command's.  `SubCommand.supports_dialect()` checks the subcommand's own
-set first, falling back to the parent.
+- `dialects: None` → available in **all** dialects.
+- `dialects: Some(DialectSet::IRULES)` → iRules-only command (e.g.
+  `HTTP::host`, `pool`, `table`).
+- `dialects: Some(DialectSet::ALL_TCL.union(DialectSet::IRULES))` → core Tcl
+  plus iRules, the `string` case.
 
-**DialectStatus** (`rust/tcl-registry/src/spec.rs`) is the result of a dialect lookup:
-
-```
-class DialectStatus(Enum):             # rust/tcl-registry/src/spec.rs
-    EXISTS       # available in this dialect
-    DEPRECATED   # available but has a replacement
-    DISALLOWED   # exists in some dialect, but not this one
-    NOT_EXISTS   # not known anywhere
-```
+Subcommands, options, forms, and individual side effects each carry the same
+`Option<DialectSet>`, overriding the parent's when `Some` and inheriting it
+when `None`.  `DialectSet::is_valid_nested_dialects(child, parent)` is a
+`const fn`, so an unreachable nesting can be rejected at build time rather
+than by a test sweep.
 
 ### Events (iRules only)
 
 In F5 iRules, commands are only valid in certain events (e.g. `HTTP::uri`
 requires an HTTP profile and only works in HTTP events).  This is
-modelled by `EventRequires` (`rust/tcl-registry/src/spec.rs`):
+modelled by `EventRequires` (`rust/tcl-registry/src/events.rs`):
 
-```
-@dataclass(frozen=True, slots=True)
-class EventRequires:                   # rust/tcl-registry/src/spec.rs
-    client_side: bool = False          # needs client-side connection
-    server_side: bool = False          # needs server-side connection
-    transport: str | None = None       # "tcp" or "udp"
-    profiles: frozenset[str] = frozenset()  # needs one of these profiles
-    also_in: frozenset[str] = frozenset()   # always valid in these events
-    init_only: bool = False            # only valid in RULE_INIT
-    flow: bool = False                 # needs an active traffic flow
-    capability: str | None = None      # profile capability (e.g. "sni")
+```rust
+// rust/tcl-registry/src/events.rs
+pub struct EventRequires {
+    pub client_side: bool,                    // needs client-side connection
+    pub server_side: bool,                    // needs server-side connection
+    pub transport: Option<&'static str>,      // "tcp" or "udp"
+    pub profiles: &'static [&'static str],    // needs one of these profiles
+    pub also_in: &'static [&'static str],     // always valid in these events
+    pub init_only: bool,                      // only valid in RULE_INIT
+    pub flow: bool,                           // needs an active traffic flow
+    pub capability: Option<&'static str>,     // profile capability (e.g. "sni")
+}
 ```
 
 **Example** — `HTTP::host` requires TCP transport and an HTTP or FASTHTTP
 profile:
 
+```rust
+event_requires: Some(EventRequires {
+    client_side: false,
+    server_side: false,
+    transport: Some("tcp"),
+    profiles: &["FASTHTTP", "HTTP"],
+    also_in: &[],
+    init_only: false,
+    flow: false,
+    capability: None,
+}),
 ```
-event_requires=EventRequires(transport="tcp", profiles=frozenset({"HTTP", "FASTHTTP"}))
-```
+
+A command whose subforms have *different* event contracts declares
+`event_requirement_forms: &'static [EventRequirementForm]`, each keyed on a
+literal leading-argument prefix; the longest match wins and overrides
+`event_requires`.
 
 The validator matches `event_requires` against the event's `EventProps`
 (`rust/tcl-registry/src/spec.rs`), which describes what each event provides
@@ -1073,32 +1444,35 @@ forbidden (e.g. a command that crashes in `RULE_INIT`).
 
 The registry metadata flows into every stage of the compilation pipeline:
 
-1. **IR Lowering** — `lower_to_ir()` uses `arg_roles` to identify
-   which arguments are bodies (`BODY`), expressions (`EXPR`), or
-   variable names (`VAR_NAME`).  This drives recursive lowering of
+1. **IR Lowering** — `lower_to_ir()` uses `arg_roles` to identify which
+   arguments are bodies (`ArgRole::Body`), expressions (`ArgRole::Expr`), or
+   variable names (`ArgRole::VarWrite`).  This drives recursive lowering of
    script bodies and expression parsing.
 
-2. **CFG** — `creates_dynamic_barrier` marks commands that defeat
-   static analysis (e.g. `eval`, `uplevel`).  The CFG builder emits
-   `IRBarrier` for these.
+2. **CFG** — `Traits::CREATES_DYNAMIC_BARRIER` marks commands that defeat
+   static analysis (e.g. `eval`, `uplevel`).  The lowering emits a
+   `Statement::Barrier` for these.
 
-3. **SSA/SCCP** — `pure` commands can be inferred through without
-   invalidating the lattice state.  Impure commands force variables
-   to `OVERDEFINED`.
+3. **SSA/SCCP** — `Traits::PURE` commands can be inferred through without
+   invalidating the lattice state.  Impure commands force variables to
+   `LatticeValue::Overdefined`.
 
-4. **GVN** — `cse_candidate` and `pure` determine whether a command's
-   result can be cached and reused (common subexpression elimination).
+4. **GVN** — `Traits::CSE_CANDIDATE` and `Traits::PURE` determine whether a
+   command's result is a static reuse candidate (common subexpression
+   elimination); `result_stability`, `world_effects`, `state_transitions`,
+   and `dispatch_dependencies` decide whether the reuse is actually sound.
 
-5. **Codegen** — `codegen` hooks on `SubCommand` or `CommandSpec`
-   emit specialised bytecode (e.g. `string length` → `strLen` opcode
-   instead of generic `invokeStk`).
+5. **Codegen** — `codegen_hook` / `inline_codegen_hook` typed IDs on
+   `SubCommand` or `CommandSpec` select specialised bytecode (e.g.
+   `string length` → `strLen` opcode instead of a generic `invokeStk`).
 
-6. **Taint engine** — `taint_hints()` marks sources and sinks; the
-   taint lattice propagates `TaintColour` through the SSA graph.
+6. **Taint engine** — `taint_source` / `taint_transform` / the
+   `taint_*_sink*` fields mark sources and sinks; the taint lattice
+   propagates `TaintColour` through the SSA graph.
 
 7. **Diagnostics** — arity, option terminators, event requirements,
-   deprecation, and validation hooks all produce diagnostics
-   (`W101`, `W304`, `IRULE1001`, etc.).
+   deprecation, `analyser_hook`, and `literal_argument_validator` all
+   produce diagnostics (`W101`, `W304`, `IRULE1001`, etc.).
 
 ---
 
@@ -2112,57 +2486,68 @@ when HTTP_REQUEST {
 The taint analysis relies on `CommandSpec` and `SubCommand` metadata from
 the command registry.  Here is how each command contributes:
 
-**`HTTP::header`** — the `value` subcommand is a taint source:
+**`HTTP::header`** — a taint source at the command level, so every
+invocation (including `HTTP::header value Host`) returns tainted data:
 
-```
-# From rust/tcl-registry/src/commands/irules/ (simplified)
-CommandSpec(
-    name="HTTP::header",
-    subcommands={
-        "value": SubCommand(
-            name="value",
-            arity=Arity(1, 1),
-            pure=True,                # reading a header has no side effects
-            return_type=TclType.STRING,
-            taint_transform=None,     # no colour transform
-        ),
-        "replace": SubCommand(
-            name="replace",
-            arity=Arity(2, 2),
-            mutator=True,             # writing a header IS a side effect
-        ),
-        ...
+```rust
+// rust/tcl-registry/src/commands/irules/http__header.rs (simplified)
+const SUBCOMMANDS: &[SubCommand] = &[
+    SubCommand {
+        name: "value",
+        arity: Arity::exact(1),
+        detail: "Get first header value.",
+        // reading a header has no side effects; no colour transform declared
+        ..SubCommand::DEFAULT
     },
-)
+    SubCommand {
+        name: "replace",
+        arity: Arity::new(1, 2),
+        detail: "Replace header value.",
+        mutator: true,              // writing a header IS a side effect
+        ..SubCommand::DEFAULT
+    },
+    // …
+];
 
-# TaintHint for HTTP::header:
-TaintHint(
-    source={None: TaintColour.TAINTED},   # return value is tainted
-    source_subcommands=frozenset({"value", "values", "names"}),  # only these subcmds
-    sinks=(),
-)
+pub const fn spec() -> CommandSpec {
+    CommandSpec {
+        name: "HTTP::header",
+        traits: Traits::PURE
+            .union(Traits::CSE_CANDIDATE)
+            .union(Traits::DIAGRAM_ACTION),
+        dialects: Some(DialectSet::IRULES),
+        arity: Arity::at_least(1),
+        subcommands: SUBCOMMANDS,
+        taint_source: Some(TaintColour::TAINTED),   // return value is tainted
+        taint_output_sink: Some("IRULE3002"),       // header injection
+        taint_output_sink_subcommands: &["insert", "replace"],
+        ..CommandSpec::DEFAULT
+    }
+}
 ```
 
-**`HTTP::respond`** — the `content` argument is a taint sink:
+**`HTTP::respond`** — the response body is a taint sink:
 
-```
-# TaintSinkSpec for HTTP::respond body content:
-TaintSinkSpec(
-    code="IRULE3001",               # XSS diagnostic code
-    subcommands=None,               # all invocations
-)
+```rust
+// rust/tcl-registry/src/commands/irules/http__respond.rs
+// Tainted data in the response body → XSS / content injection.
+taint_output_sink: Some("IRULE3001"),
+// No `taint_output_sink_subcommands` → every invocation is a sink.
 ```
 
-**`string tolower`** — a pure command, but *not* a sanitiser:
+**`string tolower`** — a pure subcommand, but *not* a sanitiser:
 
-```
-SubCommand(
-    name="tolower",
-    arity=Arity(1, 3),
-    pure=True,
-    return_type=TclType.STRING,
-    taint_transform=None,           # does NOT strip taint
-)
+```rust
+// rust/tcl-registry/src/commands/tcl/string_.rs
+SubCommand {
+    name: "tolower",
+    arity: Arity::new(1, 3),
+    detail: "Convert to lower case.",
+    pure: true,
+    return_type: Some(TclType::String),
+    // no `taint_transform` → does NOT strip taint
+    ..SubCommand::DEFAULT
+}
 ```
 
 ### Stage 3 — IR Lowering
@@ -3156,7 +3541,7 @@ positives: `W103` (read before set) for `$request_count` and
 
 ### EventVarSummary construction
 
-`_extract_event_summary()` in
+`extract_event_summary()` in
 `rust/tcl-compiler/src/connection_scope.rs` walks
 each event's SSA blocks:
 
@@ -3165,9 +3550,9 @@ each event's SSA blocks:
 ```
 EventVarSummary(
     event="CLIENT_ACCEPTED",
-    defs=frozenset({"conn_start", "request_count"}),
-    uses_before_def=frozenset(),    # no version-0 reads
-    unsets=frozenset(),
+    defs={"conn_start", "request_count"},
+    uses_before_def={},    # no version-0 reads
+    unsets={},
 )
 ```
 
@@ -3176,9 +3561,9 @@ EventVarSummary(
 ```
 EventVarSummary(
     event="HTTP_REQUEST",
-    defs=frozenset({"request_count"}),      # incr defines it
-    uses_before_def=frozenset({"request_count", "conn_start"}),  # version 0
-    unsets=frozenset(),
+    defs={"request_count"},      # incr defines it
+    uses_before_def={"request_count", "conn_start"},  # version 0
+    unsets={},
 )
 ```
 
@@ -3193,8 +3578,8 @@ EventVarSummary(
 ```
 ConnectionScope(
     summaries={...},
-    cross_event_defs=frozenset({"conn_start", "request_count"}),
-    cross_event_imports=frozenset({"conn_start", "request_count"}),
+    cross_event_defs={"conn_start", "request_count"},
+    cross_event_imports={"conn_start", "request_count"},
 )
 ```
 
@@ -3737,7 +4122,7 @@ set x 42    ;# noqa: O109  — suppress dead store warning
 eval $cmd   ;# noqa: *     — suppress ALL warnings on this line
 ```
 
-The suppression map `suppressed_lines: dict[int, frozenset[str]]` is built
+The suppression map `suppressed_lines: HashMap<i32, HashSet<String>>` is built
 during semantic analysis and checked by both Phase 1 and Phase 2 before
 emitting any diagnostic.  `# noqa: *` suppresses all codes; `# noqa: O109`
 suppresses only the specified code.
