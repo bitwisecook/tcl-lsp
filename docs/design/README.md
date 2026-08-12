@@ -389,6 +389,10 @@ are its rules, and what are the failure modes". One contract per file.
   database for private libraries, statically parsed by our own
   toolchain, with the vocabulary-tolerance policy that avoids
   per-release rebuilds (issue #1363).
+- [spec-dsl-examples/tricky-surfaces.md](spec-dsl-examples/tricky-surfaces.md)
+  — the DSL's acceptance rubric: the tricky Tcl surfaces (operator
+  aliasing, TclOO corners, real-world options, paired tails, hooks)
+  each ticked against a ported example during review.
 - [proc-arg-traits.md](contracts/proc-arg-traits.md) — proc argument
   trait inference.
 - [variable-case-mismatch-suggestions.md](contracts/variable-case-mismatch-suggestions.md)

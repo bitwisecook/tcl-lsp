@@ -174,6 +174,20 @@ let packs survive releases without rebuilds:
   optimisation only — never required, never version-locked beyond the
   DSL itself.
 
+## The acceptance rubric
+
+[`spec-dsl-examples/tricky-surfaces.md`](spec-dsl-examples/tricky-surfaces.md)
+is the checklist the design is reviewed against: the `::tcl::mathop` /
+`::tcl::mathfunc` operator-command aliasing and the ensemble
+implementation namespaces, every TclOO corner (both `oo::define`
+spellings, flag-keyed and dialect-gated members, manufacturers, handle
+bindings), options as really used (`--` terminators, options changing
+later arguments' language or arity, abbreviation rules), paired and
+n-paired tails, dynamic arity, and the full documentation / quick-fix /
+analysis-hook surface. No construct graduates from sketch to proposal
+until the review ticks its rubric lines against a ported example, not
+against intent.
+
 ## Phasing
 
 1. **Freeze the surface**: one DSL word per schema key, enumerated from
