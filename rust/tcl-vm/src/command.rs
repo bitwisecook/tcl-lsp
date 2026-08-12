@@ -40,7 +40,7 @@ pub type BuiltinFn = fn(&mut Vm, &[Value]) -> Completion<Value>;
 ///
 /// [`BuiltinFn`] is a bare function pointer, so it can only implement a
 /// command whose whole state is the interpreter's. An embedder registering a
-/// command — a SpecTcl emitter verb collecting what a hook body emitted, a
+/// command — a `SpecTcl` emitter verb collecting what a hook body emitted, a
 /// shimmed C extension holding its `ClientData` — needs to carry state of its
 /// own, which is what this trait is for: the VM stores it behind an `Rc` and
 /// hands it the same `(&mut Vm, argv)` a builtin gets.
@@ -100,7 +100,7 @@ pub enum Command {
     Builtin(BuiltinFn),
     /// An embedder-registered handler carrying its own state
     /// ([`NativeCommand`]) — the extension-registration path, used by the
-    /// SpecTcl hook host's emitter verbs.
+    /// `SpecTcl` hook host's emitter verbs.
     Native(Rc<dyn NativeCommand>),
     /// A user procedure (dispatched by the engine, which pushes an activation).
     Proc(Rc<ProcDef>),

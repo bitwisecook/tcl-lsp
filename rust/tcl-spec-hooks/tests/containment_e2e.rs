@@ -30,9 +30,7 @@ use std::rc::Rc;
 
 use tcl_engine_api::{Budget, CompileUnit, Engine, EngineError, HostCommand, Value};
 use tcl_registry::invocation_words::InvocationWordKind;
-use tcl_registry::pack_hooks::{
-    self, HookAnswer, HookCall, HookFamily, HookWord, PackHookHost,
-};
+use tcl_registry::pack_hooks::{self, HookAnswer, HookCall, HookFamily, HookWord, PackHookHost};
 use tcl_spec_hooks::{CrashKind, HookHost, HookProgram, PackPrograms};
 
 /// What the hostile engine does when a body is invoked.
@@ -146,18 +144,16 @@ fn literal<'w>(value: &'w str) -> HookWord<'w> {
 fn a_panicking_hook_abstains_and_is_quarantined_with_a_record() {
     let invocations = Rc::new(Cell::new(0));
     let host = host(&invocations);
-    let installed = host.load_pack(
-        PackPrograms {
-            pack: "badlib".to_owned(),
-            content_hash: "deadbeef".to_owned(),
-            dsl_version: "1".to_owned(),
-            programs: vec![HookProgram::new(
-                "badlib::boom",
-                HookFamily::ConstFold,
-                "panic",
-            )],
-        },
-    );
+    let installed = host.load_pack(PackPrograms {
+        pack: "badlib".to_owned(),
+        content_hash: "deadbeef".to_owned(),
+        dsl_version: "1".to_owned(),
+        programs: vec![HookProgram::new(
+            "badlib::boom",
+            HookFamily::ConstFold,
+            "panic",
+        )],
+    });
     let slot = installed[0].slot.expect("installed");
 
     let words = [literal("x")];
@@ -193,13 +189,11 @@ fn a_panicking_hook_abstains_and_is_quarantined_with_a_record() {
 fn a_budget_blowout_is_recorded_and_quarantined_but_named_differently() {
     let invocations = Rc::new(Cell::new(0));
     let host = host(&invocations);
-    let installed = host.load_pack(
-        PackPrograms::new("slowlib").with(HookProgram::new(
-            "slowlib::spin",
-            HookFamily::ConstFold,
-            "burn",
-        )),
-    );
+    let installed = host.load_pack(PackPrograms::new("slowlib").with(HookProgram::new(
+        "slowlib::spin",
+        HookFamily::ConstFold,
+        "burn",
+    )));
     let slot = installed[0].slot.expect("installed");
     let words = [literal("x")];
     assert_eq!(host.invoke(slot, &call(&words)), HookAnswer::Abstain);
@@ -214,13 +208,11 @@ fn a_budget_blowout_is_recorded_and_quarantined_but_named_differently() {
 fn an_erroring_hook_abstains_forever_but_is_logged_once() {
     let invocations = Rc::new(Cell::new(0));
     let host = host(&invocations);
-    let installed = host.load_pack(
-        PackPrograms::new("mylib").with(HookProgram::new(
-            "mylib::wrong",
-            HookFamily::ConstFold,
-            "error",
-        )),
-    );
+    let installed = host.load_pack(PackPrograms::new("mylib").with(HookProgram::new(
+        "mylib::wrong",
+        HookFamily::ConstFold,
+        "error",
+    )));
     let slot = installed[0].slot.expect("installed");
     let words = [literal("x")];
     for _ in 0..5 {
@@ -240,20 +232,16 @@ fn an_erroring_hook_abstains_forever_but_is_logged_once() {
 fn a_crash_in_one_pack_leaves_another_pack_working() {
     let invocations = Rc::new(Cell::new(0));
     let host = host(&invocations);
-    let bad = host.load_pack(
-        PackPrograms::new("badlib").with(HookProgram::new(
-            "badlib::boom",
-            HookFamily::ConstFold,
-            "panic",
-        )),
-    );
-    let good = host.load_pack(
-        PackPrograms::new("goodlib").with(HookProgram::new(
-            "goodlib::ok",
-            HookFamily::ConstFold,
-            "fold",
-        )),
-    );
+    let bad = host.load_pack(PackPrograms::new("badlib").with(HookProgram::new(
+        "badlib::boom",
+        HookFamily::ConstFold,
+        "panic",
+    )));
+    let good = host.load_pack(PackPrograms::new("goodlib").with(HookProgram::new(
+        "goodlib::ok",
+        HookFamily::ConstFold,
+        "fold",
+    )));
     let words = [literal("x")];
     let previous = std::panic::take_hook();
     std::panic::set_hook(Box::new(|_| {}));
@@ -308,13 +296,11 @@ fn a_panic_costs_the_pack_its_other_hooks_and_nothing_more() {
 fn a_fold_never_runs_on_a_call_carrying_a_dynamic_word() {
     let invocations = Rc::new(Cell::new(0));
     let host = host(&invocations);
-    let installed = host.load_pack(
-        PackPrograms::new("mylib").with(HookProgram::new(
-            "mylib::fold",
-            HookFamily::ConstFold,
-            "fold",
-        )),
-    );
+    let installed = host.load_pack(PackPrograms::new("mylib").with(HookProgram::new(
+        "mylib::fold",
+        HookFamily::ConstFold,
+        "fold",
+    )));
     let slot = installed[0].slot.expect("installed");
     let words = [
         literal("a"),
@@ -335,8 +321,11 @@ fn a_fold_never_runs_on_a_call_carrying_a_dynamic_word() {
 fn an_unknown_slot_abstains() {
     let invocations = Rc::new(Cell::new(0));
     let host = host(&invocations);
-    let orphan = pack_hooks::allocate(HookFamily::ConstFold, &pack_hooks::HookInputs::unrestricted())
-        .expect("a slot");
+    let orphan = pack_hooks::allocate(
+        HookFamily::ConstFold,
+        &pack_hooks::HookInputs::unrestricted(),
+    )
+    .expect("a slot");
     let words = [literal("x")];
     assert_eq!(host.invoke(orphan, &call(&words)), HookAnswer::Abstain);
 }

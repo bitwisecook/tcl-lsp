@@ -52,7 +52,7 @@ use std::path::PathBuf;
 
 use serde_json::Value;
 use tcl_spec_studio::spectcl;
-use tcl_spec_studio::{load_command, schema};
+use tcl_spec_studio::{draft, load_command, schema};
 
 /// One command inside a ported pack.
 struct PortedCommand {
@@ -307,7 +307,10 @@ fn every_port_loads_and_matches_its_shipped_spec() {
             let loaded = pack
                 .command(expected.name)
                 .unwrap_or_else(|| panic!("{} declares no `{}`", port.file, expected.name));
-            let ported = Value::Object(loaded.draft());
+            // Seeded through the *same* `from_command_spec` the browser uses
+            // for a shipped spec, which is what makes the comparison below
+            // meaningful — both sides are drafts built by one code path.
+            let ported = Value::Object(draft::from_command_spec(loaded.spec));
             let shipped = load_command(expected.name, expected.dialect)
                 .unwrap_or_else(|| panic!("no shipped `{}`", expected.name));
 

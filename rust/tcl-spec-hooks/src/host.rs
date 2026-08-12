@@ -26,9 +26,7 @@ use std::rc::Rc;
 use tcl_dialect::TclVersion;
 use tcl_engine_api::{Budget, BudgetKind, CompileUnit, Engine, EngineError, Value};
 use tcl_registry::invocation_words::InvocationWordKind;
-use tcl_registry::pack_hooks::{
-    self, HookAnswer, HookCall, HookFamily, HookSlot, PackHookHost,
-};
+use tcl_registry::pack_hooks::{self, HookAnswer, HookCall, HookFamily, HookSlot, PackHookHost};
 
 use crate::crash::{CrashKind, CrashRecord};
 use crate::emit::{Sink, answer_of, verbs_for};
@@ -82,7 +80,7 @@ struct PackRuntime<E: Engine> {
     poisoned: bool,
 }
 
-/// The SpecTcl hook host.
+/// The `SpecTcl` hook host.
 ///
 /// Generic over the engine, never over an engine's *identity*: the host names
 /// no concrete engine anywhere below this signature, so a new engine slots in
@@ -100,11 +98,13 @@ pub struct HookHost<E: Engine> {
 
 impl<E: Engine> HookHost<E> {
     /// A host that builds one engine per pack with `engine_factory`.
+    #[must_use]
     pub fn new(engine_factory: impl Fn() -> E + 'static) -> Self {
         Self::with_config(engine_factory, HostConfig::default())
     }
 
     /// A host with a non-default budget or server version.
+    #[must_use]
     pub fn with_config(engine_factory: impl Fn() -> E + 'static, config: HostConfig) -> Self {
         Self {
             engine_factory: Box::new(engine_factory),
@@ -121,6 +121,7 @@ impl<E: Engine> HookHost<E> {
     ///
     /// Per-pack isolation is structural: the engine is built here and never
     /// shared, so no interpreter state crosses packs.
+    #[must_use]
     pub fn load_pack(&self, programs: PackPrograms) -> Vec<HookInstallation> {
         let mut engine = (self.engine_factory)();
         let sink = Rc::new(Sink::default());
@@ -320,10 +321,7 @@ fn words_value(call: &HookCall<'_>) -> Value {
 /// option-arity family's three.
 fn ctx_value(program: &HookProgram, call: &HookCall<'_>) -> Value {
     let mut entries: Vec<(Value, Value)> = vec![
-        (
-            Value::string("command"),
-            Value::string(&program.command),
-        ),
+        (Value::string("command"), Value::string(&program.command)),
         (
             Value::string("subcommand"),
             program
@@ -342,8 +340,9 @@ fn ctx_value(program: &HookProgram, call: &HookCall<'_>) -> Value {
         ),
         (
             Value::string("tcl-version"),
-            call.version
-                .map_or(Value::Empty, |version| Value::string(version.version_string())),
+            call.version.map_or(Value::Empty, |version| {
+                Value::string(version.version_string())
+            }),
         ),
         (
             Value::string("dialect"),
@@ -402,7 +401,8 @@ impl<E: Engine> PackHookHost for HookHost<E> {
             }
             let arguments = [words_value(call), ctx_value(&hook.program, call)];
             sink.clear();
-            let invoked = catch_unwind(AssertUnwindSafe(|| engine.invoke(&hook.handle, &arguments)));
+            let invoked =
+                catch_unwind(AssertUnwindSafe(|| engine.invoke(&hook.handle, &arguments)));
             match invoked {
                 Ok(Ok(_)) => Outcome::Answer(answer_of(hook.program.family, sink.drain())),
                 Ok(Err(error)) => {
@@ -422,7 +422,7 @@ impl<E: Engine> PackHookHost for HookHost<E> {
                 }
                 Err(payload) => {
                     sink.clear();
-                    Outcome::Crash(CrashKind::Panic, panic_payload(&payload))
+                    Outcome::Crash(CrashKind::Panic, panic_payload(payload.as_ref()))
                 }
             }
         };
@@ -460,7 +460,7 @@ enum Outcome {
     Crash(CrashKind, String),
 }
 
-fn panic_payload(payload: &Box<dyn std::any::Any + Send>) -> String {
+fn panic_payload(payload: &(dyn std::any::Any + Send)) -> String {
     payload.downcast_ref::<&str>().map_or_else(
         || {
             payload

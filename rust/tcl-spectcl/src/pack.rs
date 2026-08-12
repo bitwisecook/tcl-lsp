@@ -152,7 +152,6 @@ impl PackSet {
     }
 
     /// The notices that belong to `path`.
-    #[must_use]
     pub fn notices_for<'a>(&'a self, path: &Path) -> impl Iterator<Item = &'a PackNotice> {
         let path = path.to_path_buf();
         self.notices.iter().filter(move |n| n.path == path)
@@ -261,7 +260,7 @@ fn merge_group(
 
     for (file, pack) in files {
         if merged.dsl_version.is_empty() {
-            merged.dsl_version = pack.dsl_version.clone();
+            merged.dsl_version.clone_from(&pack.dsl_version);
         } else if !pack.dsl_version.is_empty() && pack.dsl_version != merged.dsl_version {
             notices.push(PackNotice::whole_file(
                 &file.path,

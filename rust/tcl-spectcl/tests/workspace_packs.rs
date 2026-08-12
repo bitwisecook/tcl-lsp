@@ -20,7 +20,7 @@
 //! right for pinning one rule at a time and wrong for catching the thing that
 //! actually breaks a layered design: a rule that holds on a two-line pack and
 //! not on a thousand-line one. These packs are the corpus the DSL was designed
-//! against — `lsort`, `switch`, `string`, the TclOO and snit definers, `upvar`,
+//! against — `lsort`, `switch`, `string`, the `TclOO` and snit definers, `upvar`,
 //! an iRules taint command, plus four third-party libraries — so running the
 //! runtime path over them is the closest thing to a production load this
 //! repository can stage.
@@ -219,15 +219,16 @@ fn a_warm_cache_produces_the_identical_load() {
     let warm = load_workspace(&root);
 
     let shape = |set: &PackSet| {
+        use std::fmt::Write as _;
         let mut out = String::new();
         for pack in &set.packs {
-            out.push_str(&format!("{} v{}\n", pack.name, pack.dsl_version));
+            let _ = writeln!(out, "{} v{}", pack.name, pack.dsl_version);
             for command in &pack.commands {
-                out.push_str(&format!("  {}\n", command.spec.name));
+                let _ = writeln!(out, "  {}", command.spec.name);
             }
         }
         for notice in &set.notices {
-            out.push_str(&format!("  {} {}\n", notice.line, notice.message));
+            let _ = writeln!(out, "  {} {}", notice.line, notice.message);
         }
         out
     };

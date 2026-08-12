@@ -4460,6 +4460,7 @@ dependencies = [
  "tcl-engine-api",
  "tcl-engine-tclvm",
  "tcl-registry",
+ "tcl-spectcl",
 ]
 
 [[package]]

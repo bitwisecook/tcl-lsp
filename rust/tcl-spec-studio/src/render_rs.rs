@@ -186,6 +186,7 @@ fn dialect_constant(name: &str) -> Option<&'static str> {
         "bpf" => "BPF",
         "f5-tmsh" => "TMSH",
         "f5-bigip" => "BIGIP",
+        "spectcl" => "SPECTCL",
         _ => return None,
     })
 }

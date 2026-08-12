@@ -24,7 +24,7 @@
 //!
 //! This started life inside `tcl-pkg` (which still re-exports it, so
 //! `tcl_pkg::cache_dir()` keeps working). It was lifted out when the LSP
-//! server needed the *same* directories for SpecTcl packs: depending on the
+//! server needed the *same* directories for `SpecTcl` packs: depending on the
 //! package manager — an HTTP client, a tar/zip reader, a resolver — to learn
 //! where `$XDG_CACHE_HOME` points would have been a layering inversion.
 //!
@@ -73,7 +73,7 @@ pub fn venv_pool_dir() -> PathBuf {
 /// The per-user configuration directory. `$XDG_CONFIG_HOME` wins, otherwise
 /// `%APPDATA%/tcl-lsp` (Windows), `~/Library/Application Support/tcl-lsp`
 /// (macOS), or `~/.config/tcl-lsp` (Linux/BSD). This is where the per-user
-/// `pkg.toml` policy layer and the user-tier SpecTcl packs live.
+/// `pkg.toml` policy layer and the user-tier `SpecTcl` packs live.
 #[must_use]
 pub fn config_dir() -> PathBuf {
     if let Some(xdg) = std::env::var_os("XDG_CONFIG_HOME")

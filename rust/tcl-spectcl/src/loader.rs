@@ -95,6 +95,7 @@ use tcl_registry::hover::{
 };
 use tcl_registry::intrinsic::IntrinsicId;
 use tcl_registry::literal_validation::LiteralArgumentValidation;
+use tcl_registry::pack_hooks::HookInputs;
 use tcl_registry::patterns::PatternType;
 use tcl_registry::presentation::ArgPresentation;
 use tcl_registry::semantic_operation::SemanticOperationId;
@@ -309,82 +310,12 @@ fn leak_one<T>(value: T) -> &'static T {
 /// The family is what decides a body's emitter verbs, what its *silence*
 /// means, and whether it may run at all against a call carrying a dynamic
 /// word. Those are the three things `README.md`'s "When a hook runs" and
-/// "Outputs: the emitter protocol" pin normatively, so they live on the type
-/// rather than in a comment.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum HookFamily {
-    /// `arg_role_resolver` — emits `role IDX ROLE`.
-    ArgRoleResolver,
-    /// `command_prefix_resolver` — emits `prefix IDX {Exactly N}`.
-    CommandPrefixResolver,
-    /// `const_fold` — emits `fold VALUE`.
-    ConstFold,
-    /// `const_fold_versioned` — `const_fold` with `tcl-version` in `ctx`.
-    ConstFoldVersioned,
-    /// `taint_sink_gate` — emits `sink-applies` / `sink-suppressed`.
-    TaintSinkGate,
-    /// `context_gate` — emits `reject MESSAGE`.
-    ContextGate,
-    /// `literal_argument_validator` — emits `invalid …` / `abstain REASON`.
-    LiteralArgumentValidator,
-    /// `clause_shape_check` — emits `missing-expr` / `missing-body` /
-    /// `extra-words`.
-    ClauseShapeCheck,
-    /// The option-arity hook, written `-arity-hook` inside an option row —
-    /// emits `consume N ?-invalid MESSAGE?`.
-    OptionArity,
-}
-
-impl HookFamily {
-    /// The emitter verbs this family injects into the sandbox.
-    #[must_use]
-    pub fn verbs(self) -> &'static [&'static str] {
-        match self {
-            Self::ArgRoleResolver => &["role"],
-            Self::CommandPrefixResolver => &["prefix"],
-            Self::ConstFold | Self::ConstFoldVersioned => &["fold"],
-            Self::TaintSinkGate => &["sink-applies", "sink-suppressed"],
-            Self::ContextGate => &["reject"],
-            Self::LiteralArgumentValidator => &["invalid", "abstain"],
-            Self::ClauseShapeCheck => &["missing-expr", "missing-body", "extra-words"],
-            Self::OptionArity => &["consume"],
-        }
-    }
-
-    /// What calling no verb at all means — the per-field conservative answer.
-    #[must_use]
-    pub fn silence(self) -> &'static str {
-        match self {
-            Self::ArgRoleResolver => "no roles (fall back to arg_roles)",
-            Self::CommandPrefixResolver => "no prefix positions",
-            Self::ConstFold | Self::ConstFoldVersioned => "no fold",
-            // The one family whose silence is not "no opinion": a security
-            // finding must survive a hook that says nothing.
-            Self::TaintSinkGate => "the sink applies",
-            Self::ContextGate => "the call is allowed",
-            Self::LiteralArgumentValidator => "valid",
-            Self::ClauseShapeCheck => "the shape is accepted",
-            Self::OptionArity => "consume one word",
-        }
-    }
-
-    /// Whether the family may only run when **every** word's `kinds` entry is
-    /// `literal`.
-    ///
-    /// Normative (`README.md`, "When a hook runs"): the fold families and the
-    /// option-arity hook are literal-only. The DSL's own convention is that a
-    /// non-literal word arrives as the empty string, so a fold body that never
-    /// consults `kinds` would otherwise fold `string length $x` to `0`. The
-    /// precondition is the loader's, stated once, rather than a guard every
-    /// author must remember.
-    #[must_use]
-    pub fn requires_all_literal(self) -> bool {
-        matches!(
-            self,
-            Self::ConstFold | Self::ConstFoldVersioned | Self::OptionArity
-        )
-    }
-}
+/// "Outputs: the emitter protocol" pin normatively, and they live on the
+/// **registry's** type ([`tcl_registry::pack_hooks::HookFamily`]) rather than
+/// on a loader-local copy: the registry owns the vocabulary, and the hook host
+/// that actually runs a body reads the same enum the loader classified it
+/// with, so the two cannot drift into disagreeing about what silence means.
+pub use tcl_registry::pack_hooks::HookFamily;
 
 /// The whitelist a hook body is evaluated against once the sandbox lands.
 ///
@@ -407,6 +338,15 @@ pub enum HookSource {
         params: Vec<String>,
         /// Every byte between the body braces.
         body: String,
+        /// What `-inputs {…}` declared this body reads.
+        ///
+        /// The hook host turns this into the registry's cacheability rule
+        /// ([`HookInputs::shape_only`]): a hook that declares only shape
+        /// inputs is answered from the shape-keyed cache at native speed, and
+        /// one that declares nothing (the default) is fully legal, always
+        /// correct, and uncacheable — `docs/design/spec-packs.md`'s
+        /// "granularity is not restricted; consequences are documented".
+        inputs: HookInputs,
     },
     /// `-native ID` — the engine, by name.
     Native {
@@ -1320,6 +1260,9 @@ struct ArgRows {
 }
 
 impl ArgRows {
+    // One flag per `arg` row column, and there are eleven of them; splitting
+    // the match would put each column further from the others it constrains.
+    #[allow(clippy::too_many_lines)]
     fn apply(&mut self, stmt: &Stmt, tables: &PackTables, log: &mut Log) {
         let raw = stmt.word_text(1);
         let Ok(index) = raw.parse::<usize>() else {
@@ -1470,10 +1413,10 @@ fn option_row(
             }
             "-min-abbrev" => option.min_abbrev = next_text(words, &mut i).parse().ok(),
             "-introduced" => {
-                option.lifecycle.introduced = Some(leak_str(&next_text(words, &mut i)))
+                option.lifecycle.introduced = Some(leak_str(&next_text(words, &mut i)));
             }
             "-deprecated" => {
-                option.lifecycle.deprecated = Some(leak_str(&next_text(words, &mut i)))
+                option.lifecycle.deprecated = Some(leak_str(&next_text(words, &mut i)));
             }
             "-retired" => option.lifecycle.retired = Some(leak_str(&next_text(words, &mut i))),
             "-arity" => {
@@ -1509,6 +1452,12 @@ fn option_row(
                         HookSource::Body {
                             params: list_words(&first),
                             body,
+                            // An option row's `-arity-hook` has no `-inputs`
+                            // flag of its own: the row's own flag parser owns
+                            // this word position, and the family reads the
+                            // option keys, which are not part of the shape
+                            // key — so it is uncacheable by construction.
+                            inputs: HookInputs::unrestricted(),
                         },
                         option.name.to_owned(),
                     ));
@@ -2143,7 +2092,7 @@ fn manufacturer_row(stmt: &Stmt, log: &mut Log) -> ManufacturerMethod {
         match words[i].text.as_str() {
             "-unexported" => method.visibility = MemberVisibility::Unexported,
             "-names-instance-at" => {
-                method.names_instance_at = next_text(words, &mut i).parse().ok()
+                method.names_instance_at = next_text(words, &mut i).parse().ok();
             }
             "-definition-body-at" => {
                 method.definition_body_at = next_text(words, &mut i).parse().ok();
@@ -2291,16 +2240,27 @@ fn load_command(stmt: &Stmt, tables: &PackTables, log: &mut Log) -> Option<PackC
 /// Read a hook property statement: a body, a `-native` id, or a derivation
 /// keyword. Returns the source, or `None` when the statement is malformed.
 fn hook_source(stmt: &Stmt) -> Option<HookSource> {
-    match stmt.words.len() {
-        2 => Some(HookSource::Derived {
+    // An optional leading `-inputs {…}` declares what the body reads, and is
+    // the only flag a hook statement takes; everything after it is the shape
+    // below.
+    let (inputs, rest) = if stmt.words.len() >= 2 && stmt.word_text(1) == "-inputs" {
+        let declared = list_words(stmt.word_text(2));
+        let declared: Vec<&str> = declared.iter().map(String::as_str).collect();
+        (HookInputs::parse(&declared), 2)
+    } else {
+        (HookInputs::unrestricted(), 0)
+    };
+    match stmt.words.len() - rest {
+        2 if rest == 0 => Some(HookSource::Derived {
             keyword: stmt.word_text(1).to_owned(),
         }),
-        3 if stmt.word_text(1) == "-native" => Some(HookSource::Native {
-            id: stmt.word_text(2).to_owned(),
+        3 if stmt.word_text(rest + 1) == "-native" => Some(HookSource::Native {
+            id: stmt.word_text(rest + 2).to_owned(),
         }),
         3 => Some(HookSource::Body {
-            params: list_words(stmt.word_text(1)),
-            body: stmt.word_text(2).to_owned(),
+            params: list_words(stmt.word_text(rest + 1)),
+            body: stmt.word_text(rest + 2).to_owned(),
+            inputs,
         }),
         _ => None,
     }
@@ -3086,7 +3046,7 @@ fn apply_subcommand_stmt(
                 enum_by_name(EFFECTS, &value, "command-table effect", stmt.line, log);
         }
         "lowering_hook" => {
-            sub.lowering_hook = native_id(stmt, LOWERING_HOOKS, "lowering hook", log)
+            sub.lowering_hook = native_id(stmt, LOWERING_HOOKS, "lowering hook", log);
         }
         "codegen_hook" => sub.codegen_hook = native_id(stmt, CODEGEN_HOOKS, "codegen hook", log),
         "inline_codegen_hook" => {
@@ -3094,7 +3054,7 @@ fn apply_subcommand_stmt(
                 native_id(stmt, INLINE_CODEGEN_HOOKS, "inline codegen hook", log);
         }
         "analyser_hook" => {
-            sub.analyser_hook = native_id(stmt, ANALYSER_HOOKS, "analyser hook", log)
+            sub.analyser_hook = native_id(stmt, ANALYSER_HOOKS, "analyser hook", log);
         }
         "semantic_operation" => {
             sub.semantic_operation = parse_semantic_operation(&value, stmt.line, log);

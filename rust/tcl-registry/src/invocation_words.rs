@@ -264,7 +264,7 @@ impl<'w> CommandPrefixArguments<'w> {
 
     /// The source-aware view: values where proven literal, and the
     /// dynamic / expanded / opaque classification everywhere else. A resolver
-    /// that must report *why* a word is not usable — the SpecTcl hook host
+    /// that must report *why* a word is not usable — the `SpecTcl` hook host
     /// builds the DSL's `kinds` from it — reads this rather than inferring
     /// "not literal" from [`Self::literal_at`] returning `None`.
     #[must_use]

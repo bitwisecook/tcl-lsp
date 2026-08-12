@@ -129,6 +129,19 @@ fn field_of(key: &str) -> &str {
     key.rsplit('.').next().unwrap_or(key)
 }
 
+/// The object a diff key names — the draft itself, or the subcommand inside it.
+fn at_level<'a>(key: &str, draft: &'a Value) -> Option<&'a Value> {
+    let Some(rest) = key.strip_prefix("subcommands[") else {
+        return Some(draft);
+    };
+    let name = rest.split(']').next()?;
+    draft
+        .get("subcommands")?
+        .as_array()?
+        .iter()
+        .find(|sub| sub["name"].as_str() == Some(name))
+}
+
 /// Compare a rendered-and-reloaded draft against the one it was rendered from.
 fn diffs(rendered: &Value, shipped: &Value) -> Vec<Diff> {
     let mut out = Vec::new();
@@ -175,21 +188,103 @@ fn diffs(rendered: &Value, shipped: &Value) -> Vec<Diff> {
     out
 }
 
-/// Render `shipped`, load the pack back, and return the reloaded draft plus
-/// the loader's notices.
-fn round_trip(shipped: &Value) -> (Value, Vec<String>, String) {
+/// Whether a notice is the loader's *policy report* rather than a degradation.
+///
+/// Naming a lowering or codegen hook is reported by design — "this changes how
+/// the compiler translates the command, not just what the editor knows about
+/// it" — so a pack the renderer wrote faithfully still raises it. Every other
+/// notice means a declaration was dropped, and the gate fails on those.
+fn is_policy_report(message: &str) -> bool {
+    message.contains("names a lowering hook") || message.contains("names a codegen hook")
+}
+
+/// What one command's round trip produced.
+struct Trip {
+    /// The draft the reloaded pack seeds.
+    reloaded: Value,
+    /// Loader notices that mean something was *dropped* — the policy reports
+    /// are filtered out below.
+    notices: Vec<String>,
+    /// The rendered pack.
+    text: String,
+    /// Fields the renderer said up front it could not carry.
+    losses: Vec<render_spectcl::Loss>,
+}
+
+/// Render `shipped`, load the pack back, and report what happened.
+fn round_trip(shipped: &Value) -> Trip {
     let draft = shipped
         .as_object()
         .expect("a draft is a JSON object")
         .clone();
-    let text = render_spectcl::render(&draft);
+    let pack_name = draft
+        .get(draft::SOURCE_DIALECT_KEY)
+        .and_then(Value::as_str)
+        .unwrap_or("pack")
+        .to_owned();
+    let (text, losses) = render_spectcl::render_pack_reporting(&[draft], &pack_name);
     let pack = spectcl::load_pack(&text);
     let name = shipped["name"].as_str().unwrap_or_default();
-    let notices: Vec<String> = pack.notices.iter().map(ToString::to_string).collect();
-    let reloaded = pack
-        .command(name)
-        .map_or(Value::Null, |command| Value::Object(draft::from_command_spec(command.spec)));
-    (reloaded, notices, text)
+    // Naming a lowering or codegen hook is *reported* by design — "this
+    // changes how the compiler translates the command" — so it is a policy
+    // report about a pack the renderer wrote faithfully, not a degradation.
+    // Every other notice means something was dropped, and the gate fails on it.
+    let notices: Vec<String> = pack
+        .notices
+        .iter()
+        .filter(|notice| !is_policy_report(&notice.message))
+        .map(ToString::to_string)
+        .collect();
+    let reloaded = pack.command(name).map_or(Value::Null, |command| {
+        Value::Object(draft::from_command_spec(command.spec))
+    });
+    Trip {
+        reloaded,
+        notices,
+        text,
+        losses,
+    }
+}
+
+/// Whether an `arg_roles` difference is exactly the `CommandPrefix` roles the
+/// DSL *implies*.
+///
+/// `arg N -appends {Exactly 2}` implies `-role CommandPrefix` — README says so,
+/// and the loader does it — so a spec that declares a command-prefix position
+/// with **no** role at that index cannot be said in SpecTcl: reloading always
+/// finds the implied role. That is an expressiveness gap in the DSL rather
+/// than a renderer bug, and it is the only shape of `arg_roles` difference the
+/// gate tolerates.
+fn only_implied_command_prefix_roles(rendered: &Value, shipped: &Value) -> bool {
+    let prefixes: BTreeSet<u64> = rendered
+        .get("command_prefixes")
+        .and_then(Value::as_array)
+        .map(|entries| {
+            entries
+                .iter()
+                .filter_map(|entry| entry["index"].as_u64())
+                .collect()
+        })
+        .unwrap_or_default();
+    let roles = |value: &Value| -> Vec<Value> {
+        value
+            .get("arg_roles")
+            .and_then(Value::as_array)
+            .cloned()
+            .unwrap_or_default()
+    };
+    let shipped_roles = roles(shipped);
+    let implied: Vec<Value> = roles(rendered)
+        .into_iter()
+        .filter(|entry| {
+            !(entry["role"] == "CommandPrefix"
+                && entry["index"].as_u64().is_some_and(|i| prefixes.contains(&i))
+                && !shipped_roles
+                    .iter()
+                    .any(|other| other["index"] == entry["index"]))
+        })
+        .collect();
+    implied == shipped_roles && !prefixes.is_empty()
 }
 
 /// **The gate.** Every command of every browsable dialect renders to SpecTcl,
@@ -211,38 +306,55 @@ fn every_command_in_every_dialect_round_trips_through_spectcl() {
         for name in command_names(dialect) {
             let shipped = load_command(name, dialect)
                 .unwrap_or_else(|| panic!("{name} is listed in {dialect} but does not load"));
-            let (reloaded, notices, text) = round_trip(&shipped);
+            let trip = round_trip(&shipped);
             total += 1;
             dialect_total += 1;
 
             assert!(
-                !reloaded.is_null(),
-                "{dialect}/{name}: the rendered pack does not declare the command:\n{text}"
+                !trip.reloaded.is_null(),
+                "{dialect}/{name}: the rendered pack does not declare the command:\n{}",
+                trip.text
             );
 
-            for notice in &notices {
+            for notice in &trip.notices {
                 let entry = noticed
                     .entry(notice_shape(notice))
                     .or_insert_with(|| (0, format!("{dialect}/{name}: {notice}")));
                 entry.0 += 1;
             }
 
-            let found = diffs(&reloaded, &shipped);
-            if found.is_empty() && notices.is_empty() {
+            let found = diffs(&trip.reloaded, &shipped);
+            if found.is_empty() {
                 clean += 1;
                 dialect_clean += 1;
                 continue;
             }
-            if found.is_empty() {
-                clean += 1;
-                dialect_clean += 1;
-            }
+            let reported: BTreeSet<&str> =
+                trip.losses.iter().map(|loss| loss.key.as_str()).collect();
             for diff in &found {
                 let field = field_of(&diff.key);
-                match render_spectcl::gap(field) {
-                    Some(gap) => {
+                // Three ways a difference is legitimate: the field is in the
+                // renderer's own gap register, the renderer said at render
+                // time that it could not carry it, or it is the implied
+                // command-prefix role.
+                let documented = render_spectcl::gap(field)
+                    .map(|gap| format!("{field} ({:?})", gap.kind))
+                    .or_else(|| {
+                        reported
+                            .contains(field)
+                            .then(|| format!("{field} (unwritable text)"))
+                    })
+                    .or_else(|| {
+                        (field == "arg_roles"
+                            && at_level(&diff.key, &trip.reloaded)
+                                .zip(at_level(&diff.key, &shipped))
+                                .is_some_and(|(a, b)| only_implied_command_prefix_roles(a, b)))
+                        .then(|| "arg_roles (implied by -appends)".to_owned())
+                    });
+                match documented {
+                    Some(bucket) => {
                         let entry = lossy
-                            .entry(format!("{field} ({:?})", gap.kind))
+                            .entry(bucket)
                             .or_insert_with(|| (0, format!("{dialect}/{name}")));
                         entry.0 += 1;
                     }
@@ -296,8 +408,9 @@ fn every_command_in_every_dialect_round_trips_through_spectcl() {
     println!("{report}");
     assert!(
         failures.is_empty(),
-        "{} undocumented round-trip difference(s):\n{}\n{report}",
+        "{} undocumented round-trip difference(s), {} shown:\n{}\n{report}",
         failures.len(),
+        failures.len().min(40),
         failures
             .iter()
             .take(40)
@@ -381,7 +494,7 @@ fn the_eleven_port_fixtures_render_and_reload_as_themselves() {
              {} notice(s) on reload",
             reloaded.notices.len()
         );
-        for notice in &reloaded.notices {
+        for notice in reloaded.notices.iter().filter(|notice| !is_policy_report(&notice.message)) {
             failures.push(format!("{file}: reloading the rendered pack: {notice}"));
         }
 

@@ -16,7 +16,7 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! SpecTcl spec packs, end to end (`docs/design/spec-packs.md`).
+//! `SpecTcl` spec packs, end to end (`docs/design/spec-packs.md`).
 //!
 //! The claim under test is the whole point of the feature: **a user with a
 //! private Tcl library drops a `.tclspec` in their workspace and their own
@@ -48,11 +48,19 @@ speclib mylib 1 {
 }
 ";
 
+/// A private on-disk workspace for one test.
+///
+/// The name is deliberately plain ASCII: these paths become `file://` URIs on
+/// both sides of the protocol, and the server percent-encodes what
+/// `Uri::from_file_path` says to. A directory named after `ThreadId(17)` is
+/// then two different strings depending on who built the URI, which is a
+/// property of the test fixture and not of anything worth testing.
 fn workspace(name: &str) -> PathBuf {
+    static NEXT: std::sync::atomic::AtomicU32 = std::sync::atomic::AtomicU32::new(0);
+    let unique = NEXT.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
     let root = std::env::temp_dir().join(format!(
-        "tcl-lsp-e2e-spec-packs-{name}-{}-{:?}",
-        std::process::id(),
-        std::thread::current().id()
+        "tcl-lsp-e2e-spec-packs-{name}-{}-{unique}",
+        std::process::id()
     ));
     let _ = std::fs::remove_dir_all(&root);
     std::fs::create_dir_all(&root).expect("workspace root");
@@ -81,12 +89,37 @@ fn notify_pack_changed(lsp: &mut Lsp, path: &Path, kind: i64) {
 const CREATED: i64 = 1;
 const CHANGED: i64 = 2;
 
-fn messages(diagnostics: &[Value]) -> Vec<String> {
-    diagnostics
-        .iter()
-        .filter_map(|d| d.get("message").and_then(Value::as_str))
-        .map(str::to_owned)
-        .collect()
+/// The packs the server reports as loaded, from `tcl-lsp.getEffectiveConfig`.
+///
+/// The settle signal these tests wait on. W123 is deliberately *not* it: the
+/// analyser skips the unknown-command check for any name containing `::`
+/// ("qualified — defer to per-namespace logic, conservative skip"), so a
+/// namespaced pack command never had a W123 to suppress in the first place.
+/// What a pack demonstrably changes for a qualified name is what the server
+/// *knows* about it — hover, signature, arity — so that is what is asserted,
+/// with this as the barrier.
+fn loaded_packs(lsp: &mut Lsp) -> Vec<Value> {
+    lsp.effective_config("")
+        .get("spec_packs_loaded")
+        .and_then(Value::as_array)
+        .cloned()
+        .unwrap_or_default()
+}
+
+/// Block until the server reports at least one loaded pack.
+fn await_packs_loaded(lsp: &mut Lsp) -> Vec<Value> {
+    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(30);
+    loop {
+        let packs = loaded_packs(lsp);
+        if !packs.is_empty() {
+            return packs;
+        }
+        assert!(
+            std::time::Instant::now() < deadline,
+            "no SpecTcl pack was ever reported as loaded"
+        );
+        std::thread::sleep(std::time::Duration::from_millis(50));
+    }
 }
 
 /// The headline case: a workspace pack makes an unknown command resolve, with
@@ -122,17 +155,12 @@ fn a_workspace_pack_makes_an_unknown_command_resolve_with_hover() {
         "hover carries the pack's synopsis; got:\n{hover}"
     );
 
-    let diagnostics = lsp.await_diagnostics_settled(
-        &uri,
-        std::time::Duration::from_secs(10),
-        |diags| !messages(diags).iter().any(|m| m.contains("with_var")),
-    );
-    assert!(
-        !messages(&diagnostics)
-            .iter()
-            .any(|m| m.contains("with_var")),
-        "a pack-declared command is not unknown: {:#?}",
-        messages(&diagnostics)
+    let packs = loaded_packs(&mut lsp);
+    assert_eq!(packs.len(), 1, "exactly the workspace pack: {packs:#?}");
+    assert_eq!(packs[0].get("name").and_then(Value::as_str), Some("mylib"));
+    assert_eq!(
+        packs[0].get("tier").and_then(Value::as_str),
+        Some("workspace")
     );
 
     let _ = std::fs::remove_dir_all(&root);
@@ -152,18 +180,15 @@ fn without_a_pack_the_same_command_is_unknown() {
         &root,
     );
     let uri = file_uri(&doc);
-    let diagnostics = lsp.open_ready(&uri, source);
+    lsp.open_ready(&uri, source);
     let hover = hover_text(&lsp.hover(&uri, 0, 4));
     assert!(
         !hover.contains("Run a script with a caller variable bound."),
         "no pack, no pack hover; got:\n{hover}"
     );
     assert!(
-        messages(&diagnostics)
-            .iter()
-            .any(|m| m.contains("with_var")),
-        "expected an unknown-command diagnostic, got {:#?}",
-        messages(&diagnostics)
+        loaded_packs(&mut lsp).is_empty(),
+        "and the server reports no packs at all"
     );
 
     let _ = std::fs::remove_dir_all(&root);
@@ -183,31 +208,24 @@ fn a_pack_added_after_startup_reloads_and_re_analyses_open_documents() {
         &root,
     );
     let uri = file_uri(&doc);
-    let before = lsp.open_ready(&uri, source);
+    lsp.open_ready(&uri, source);
     assert!(
-        messages(&before).iter().any(|m| m.contains("with_var")),
-        "unknown before the pack exists: {:#?}",
-        messages(&before)
+        !hover_text(&lsp.hover(&uri, 0, 4))
+            .contains("Run a script with a caller variable bound."),
+        "nothing is known about the command before the pack exists"
     );
+    assert!(loaded_packs(&mut lsp).is_empty());
 
     let pack = root.join(".tcl-lsp/mylib.tclspec");
     write(&pack, MYLIB_PACK);
     notify_pack_changed(&mut lsp, &pack, CREATED);
 
-    let after = lsp.await_diagnostics_settled(
-        &uri,
-        std::time::Duration::from_secs(15),
-        |diags| !messages(diags).iter().any(|m| m.contains("with_var")),
-    );
-    assert!(
-        !messages(&after).iter().any(|m| m.contains("with_var")),
-        "the command is known once the pack loads: {:#?}",
-        messages(&after)
-    );
+    let packs = await_packs_loaded(&mut lsp);
+    assert_eq!(packs[0].get("name").and_then(Value::as_str), Some("mylib"));
     let hover = hover_text(&lsp.hover(&uri, 0, 4));
     assert!(
         hover.contains("Run a script with a caller variable bound."),
-        "and hovers from the pack; got:\n{hover}"
+        "and hovers from the pack once it loads; got:\n{hover}"
     );
 
     let _ = std::fs::remove_dir_all(&root);
@@ -268,7 +286,7 @@ fn pack_load_notices_are_diagnostics_on_the_pack_file() {
     let cleared = lsp.await_diagnostics_settled(
         &pack_uri,
         std::time::Duration::from_secs(15),
-        |diags| diags.is_empty(),
+        <[Value]>::is_empty,
     );
     assert!(cleared.is_empty(), "{cleared:#?}");
 
@@ -393,9 +411,22 @@ fn a_pack_cannot_silently_redefine_a_shipped_command() {
         "the shipped lsort wins; got:\n{hover}"
     );
     assert!(
-        !messages(&diagnostics).iter().any(|m| m.contains("99")),
-        "and the shipped arity is what `lsort {{c a b}}` is checked against: {:#?}",
-        messages(&diagnostics)
+        hover.contains("lsort"),
+        "and the shipped hover is what is shown; got:\n{hover}"
+    );
+    // The pack claimed `arity 99`; if it had won, this perfectly ordinary
+    // `lsort {c a b}` would be an arity error.
+    let arity_complaints: Vec<&Value> = diagnostics
+        .iter()
+        .filter(|d| {
+            d.get("message")
+                .and_then(Value::as_str)
+                .is_some_and(|m| m.contains("99"))
+        })
+        .collect();
+    assert!(
+        arity_complaints.is_empty(),
+        "the shipped arity is what the call is checked against: {arity_complaints:#?}"
     );
 
     let _ = std::fs::remove_dir_all(&root);

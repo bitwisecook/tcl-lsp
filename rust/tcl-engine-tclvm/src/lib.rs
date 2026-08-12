@@ -35,6 +35,14 @@
 //! | [`Budget::commands`] | [`Vm::set_command_limit`] — enforced, not merely stored |
 //! | [`Budget::wall_clock`] | [`Vm::set_wall_clock_budget`] |
 //!
+//! **What each budget bounds.** The command limit counts *dispatched*
+//! commands, which is what C Tcl's `interp limit commands` counts too — a loop
+//! the compiler inlines into bytecode dispatches nothing and is not charged.
+//! The wall-clock cap is what bounds that case: the VM polls it inside the
+//! bytecode trampoline, so `while {1} {}` is stopped even though it never
+//! dispatches. A host that wants containment therefore sets both, and
+//! [`tcl_spec_hooks`]'s default config does.
+//!
 //! Values cross as structure, never as text: a `words` list arrives as a Tcl
 //! list value and a `ctx` dict as a Tcl dict value, both built directly.
 
@@ -148,6 +156,10 @@ pub struct TclVmEngine {
     /// Command names registered through [`Engine::define_command`], kept so a
     /// later [`Engine::restrict_commands`] does not remove them.
     host_commands: Vec<String>,
+    /// The procedures compiled units were defined as — likewise kept, since a
+    /// unit compiled before the whitelist was applied must still be callable
+    /// after it.
+    unit_commands: Vec<String>,
 }
 
 impl TclVmEngine {
@@ -167,6 +179,7 @@ impl TclVmEngine {
             budget: Budget::default(),
             units: 0,
             host_commands: Vec::new(),
+            unit_commands: Vec::new(),
         }
     }
 
@@ -225,8 +238,11 @@ impl Engine for TclVmEngine {
 
     fn restrict_commands(&mut self, allowed: &[&str]) -> Result<(), EngineError> {
         let host_commands = self.host_commands.clone();
+        let unit_commands = self.unit_commands.clone();
         self.vm.retain_commands(&|name| {
-            allowed.contains(&name) || host_commands.iter().any(|command| command == name)
+            allowed.contains(&name)
+                || host_commands.iter().any(|command| command == name)
+                || unit_commands.iter().any(|command| command == name)
         });
         Ok(())
     }
@@ -239,17 +255,17 @@ impl Engine for TclVmEngine {
         self.vm
             .define_procedure(&procedure, unit.parameters, unit.body)
             .map_err(|error| EngineError::Compile(error.message))?;
+        // The VM's command table is keyed by the canonical *unrooted* name, so
+        // that is what the whitelist sweep compares against.
+        self.unit_commands
+            .push(procedure.trim_start_matches("::").to_owned());
         Ok(VmHandle {
             procedure,
             parameters: unit.parameters.len(),
         })
     }
 
-    fn invoke(
-        &mut self,
-        handle: &Self::Handle,
-        arguments: &[Value],
-    ) -> Result<Value, EngineError> {
+    fn invoke(&mut self, handle: &Self::Handle, arguments: &[Value]) -> Result<Value, EngineError> {
         if arguments.len() != handle.parameters {
             return Err(EngineError::Script {
                 message: format!(
@@ -307,7 +323,7 @@ mod tests {
         }
     }
 
-    fn unit<'a>(body: &'a str) -> CompileUnit<'a> {
+    fn unit(body: &str) -> CompileUnit<'_> {
         CompileUnit {
             name: "test",
             parameters: &["words", "ctx"],
@@ -388,13 +404,41 @@ mod tests {
         engine
             .set_budget(Budget::of_commands(200).with_wall_clock(Duration::from_secs(5)))
             .expect("the VM enforces both");
+        // Dispatch-driven: `[$cmd length abc]` resolves a computed command
+        // name, so every iteration is a real dispatch and is charged.
         let handle = engine
-            .compile(unit("set i 0\nwhile {$i < 100000} { incr i }"))
+            .compile(unit(
+                "set cmd string\nset i 0\nwhile {$i < 100000} { set x [$cmd length abc]\n incr i }",
+            ))
             .expect("compiles");
         let error = engine
             .invoke(&handle, &[Value::list([]), Value::dict_of::<&str>([])])
             .expect_err("the budget stops it");
         assert_eq!(error, EngineError::BudgetExceeded(BudgetKind::Commands));
+    }
+
+    /// A loop the compiler inlines dispatches nothing, so the command budget
+    /// never fires on it — the wall clock is what contains that case, and the
+    /// two together are why the host sets both.
+    #[test]
+    fn the_wall_clock_budget_stops_a_loop_the_command_budget_cannot_see() {
+        let mut engine = TclVmEngine::new();
+        engine
+            .set_budget(Budget::of_commands(1_000_000).with_wall_clock(Duration::from_millis(50)))
+            .expect("the VM enforces both");
+        let handle = engine
+            .compile(unit("set i 0\nwhile {1} { incr i }"))
+            .expect("compiles");
+        let started = std::time::Instant::now();
+        let error = engine
+            .invoke(&handle, &[Value::list([]), Value::dict_of::<&str>([])])
+            .expect_err("the wall clock stops it");
+        assert_eq!(error, EngineError::BudgetExceeded(BudgetKind::WallClock));
+        assert!(
+            started.elapsed() < Duration::from_secs(5),
+            "the cap must fire promptly: {:?}",
+            started.elapsed()
+        );
     }
 
     #[test]
@@ -413,7 +457,10 @@ mod tests {
         engine
             .invoke(
                 &handle,
-                &[Value::list([Value::string("abcde")]), Value::dict_of::<&str>([])],
+                &[
+                    Value::list([Value::string("abcde")]),
+                    Value::dict_of::<&str>([]),
+                ],
             )
             .expect("the whitelisted body still runs");
 
@@ -446,7 +493,9 @@ mod tests {
     fn each_invocation_gets_its_own_locals() {
         let mut engine = TclVmEngine::new();
         let handle = engine
-            .compile(unit("if {[info exists leak]} { return leaked }\nset leak 1\nreturn fresh"))
+            .compile(unit(
+                "if {[info exists leak]} { return leaked }\nset leak 1\nreturn fresh",
+            ))
             .expect("compiles");
         for _ in 0..3 {
             let result = engine

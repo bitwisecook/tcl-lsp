@@ -3240,46 +3240,46 @@ impl Vm {
         f: &mut Frame,
         res: Completion<Value>,
     ) -> Result<Option<Tick>, Completion<Value>> {
-                // A `yield`/`yieldto` sets `coro.pending` (after its own boundary
-                // check); convert it into a suspend `Tick` that freezes the whole
-                // activation stack. The builtin's placeholder result is dropped —
-                // the resume value replaces it on the operand stack.
-                if let Some(req) = self.coro.pending.take() {
-                    return Ok(Some(Tick::Suspend(req)));
-                }
-                // An `eval`/`uplevel`/`apply`-style builtin defers its body to the
-                // explicit stack (yieldable): drain it into a `PushScript`, whose
-                // frame result replaces this builtin's placeholder (as for yield).
-                if let Some((asm, label, cleanup_proc)) = self.pending_eval.take() {
-                    return Ok(Some(Tick::PushScript {
-                        asm,
-                        label,
-                        cleanup_proc,
-                    }));
-                }
-                // A `catch` defers its body the same way, but into a catch frame
-                // whose completion the epilogue absorbs (see `Frame::catch`).
-                if let Some(req) = self.pending_catch.take() {
-                    return Ok(Some(Tick::PushCatch(req)));
-                }
-                // A `subst` defers to a scanner-driven subst frame, whose `[…]`
-                // bodies run yieldably as child frames (see `Frame::subst`).
-                if let Some(req) = self.pending_subst.take() {
-                    return Ok(Some(Tick::PushSubst(req)));
-                }
-                // A `foreach`/`lmap` runtime-fallback loop defers to a
-                // scanner-driven each-loop frame, whose iterations run yieldably
-                // as child frames (see `Frame::each_loop`, issue #1311).
-                if let Some(req) = self.pending_each_loop.take() {
-                    return Ok(Some(Tick::PushEachLoop(req)));
-                }
-                // A `try` defers its body (and, from `advance_try`, each
-                // subsequent phase) to a try-phase frame (see `Frame::try_ctx`,
-                // issue #1311).
-                if let Some(req) = self.pending_try.take() {
-                    return Ok(Some(Tick::PushTry(req)));
-                }
-                Self::deliver_sync(f, res)
+        // A `yield`/`yieldto` sets `coro.pending` (after its own boundary
+        // check); convert it into a suspend `Tick` that freezes the whole
+        // activation stack. The builtin's placeholder result is dropped —
+        // the resume value replaces it on the operand stack.
+        if let Some(req) = self.coro.pending.take() {
+            return Ok(Some(Tick::Suspend(req)));
+        }
+        // An `eval`/`uplevel`/`apply`-style builtin defers its body to the
+        // explicit stack (yieldable): drain it into a `PushScript`, whose
+        // frame result replaces this builtin's placeholder (as for yield).
+        if let Some((asm, label, cleanup_proc)) = self.pending_eval.take() {
+            return Ok(Some(Tick::PushScript {
+                asm,
+                label,
+                cleanup_proc,
+            }));
+        }
+        // A `catch` defers its body the same way, but into a catch frame
+        // whose completion the epilogue absorbs (see `Frame::catch`).
+        if let Some(req) = self.pending_catch.take() {
+            return Ok(Some(Tick::PushCatch(req)));
+        }
+        // A `subst` defers to a scanner-driven subst frame, whose `[…]`
+        // bodies run yieldably as child frames (see `Frame::subst`).
+        if let Some(req) = self.pending_subst.take() {
+            return Ok(Some(Tick::PushSubst(req)));
+        }
+        // A `foreach`/`lmap` runtime-fallback loop defers to a
+        // scanner-driven each-loop frame, whose iterations run yieldably
+        // as child frames (see `Frame::each_loop`, issue #1311).
+        if let Some(req) = self.pending_each_loop.take() {
+            return Ok(Some(Tick::PushEachLoop(req)));
+        }
+        // A `try` defers its body (and, from `advance_try`, each
+        // subsequent phase) to a try-phase frame (see `Frame::try_ctx`,
+        // issue #1311).
+        if let Some(req) = self.pending_try.take() {
+            return Ok(Some(Tick::PushTry(req)));
+        }
+        Self::deliver_sync(f, res)
     }
 
     /// The untraced dispatch body — see [`Self::dispatch_words`].
@@ -3460,48 +3460,48 @@ impl Vm {
     /// [`settle_native_dispatch`](Self::settle_native_dispatch); the two differ
     /// only in having a trampoline to push onto.
     fn settle_native_invoke(&mut self, res: Completion<Value>) -> Completion<Value> {
-                // An `eval`/`uplevel`/`apply`-style builtin deferred its body to
-                // `pending_eval`. This call site is on the native Rust stack (no
-                // trampoline to push onto), so run the body via a nested drive —
-                // a `yield` inside cannot cross it, exactly like every other
-                // `invoke_command` re-entry.
-                if let Some((asm, label, cleanup_proc)) = self.pending_eval.take() {
-                    let comp = self.run_activation(Frame::new_script(asm, label));
-                    if let Some(name) = cleanup_proc {
-                        self.take_command(&name);
-                    }
-                    return comp;
-                }
-                // A `catch` deferred its body: run it via a nested drive (a `yield`
-                // inside cannot cross this native re-entry), then absorb its
-                // completion with the catch epilogue.
-                if let Some(req) = self.pending_catch.take() {
-                    let comp = self.run_activation(Frame::new_script(req.asm, None));
-                    return self.finish_catch(comp, req.resvar.as_ref(), req.optvar.as_ref());
-                }
-                // A `subst` deferred: run the scanner-driven subst frame via a
-                // nested drive (its `[…]` bodies can't yield across this native
-                // re-entry), returning its accumulated result.
-                if let Some(req) = self.pending_subst.take() {
-                    return self.run_activation(Frame::new_subst(req));
-                }
-                // A `foreach`/`lmap` runtime-fallback loop deferred: run the
-                // scanner-driven each-loop frame via a nested drive (a `yield` in
-                // its body can't cross this native re-entry either).
-                if let Some(req) = self.pending_each_loop.take() {
-                    return self.run_activation(Frame::new_each_loop(req));
-                }
-                // A `try` deferred its body: run it (and, via `Vm::unwind`'s own
-                // `try_ctx` handling, every subsequent phase `advance_try`
-                // decides on) via a nested drive — a `yield` anywhere in it
-                // can't cross this native re-entry either. `unwind` pushes each
-                // next phase onto the same nested `acts`, so one
-                // `run_activation` call carries the whole construct through to
-                // its final completion.
-                if let Some(req) = self.pending_try.take() {
-                    return self.run_activation(Frame::new_try(req));
-                }
-                res
+        // An `eval`/`uplevel`/`apply`-style builtin deferred its body to
+        // `pending_eval`. This call site is on the native Rust stack (no
+        // trampoline to push onto), so run the body via a nested drive —
+        // a `yield` inside cannot cross it, exactly like every other
+        // `invoke_command` re-entry.
+        if let Some((asm, label, cleanup_proc)) = self.pending_eval.take() {
+            let comp = self.run_activation(Frame::new_script(asm, label));
+            if let Some(name) = cleanup_proc {
+                self.take_command(&name);
+            }
+            return comp;
+        }
+        // A `catch` deferred its body: run it via a nested drive (a `yield`
+        // inside cannot cross this native re-entry), then absorb its
+        // completion with the catch epilogue.
+        if let Some(req) = self.pending_catch.take() {
+            let comp = self.run_activation(Frame::new_script(req.asm, None));
+            return self.finish_catch(comp, req.resvar.as_ref(), req.optvar.as_ref());
+        }
+        // A `subst` deferred: run the scanner-driven subst frame via a
+        // nested drive (its `[…]` bodies can't yield across this native
+        // re-entry), returning its accumulated result.
+        if let Some(req) = self.pending_subst.take() {
+            return self.run_activation(Frame::new_subst(req));
+        }
+        // A `foreach`/`lmap` runtime-fallback loop deferred: run the
+        // scanner-driven each-loop frame via a nested drive (a `yield` in
+        // its body can't cross this native re-entry either).
+        if let Some(req) = self.pending_each_loop.take() {
+            return self.run_activation(Frame::new_each_loop(req));
+        }
+        // A `try` deferred its body: run it (and, via `Vm::unwind`'s own
+        // `try_ctx` handling, every subsequent phase `advance_try`
+        // decides on) via a nested drive — a `yield` anywhere in it
+        // can't cross this native re-entry either. `unwind` pushes each
+        // next phase onto the same nested `acts`, so one
+        // `run_activation` call carries the whole construct through to
+        // its final completion.
+        if let Some(req) = self.pending_try.take() {
+            return self.run_activation(Frame::new_try(req));
+        }
+        res
     }
 
     /// The untraced invoke body — see [`Self::invoke_command`].

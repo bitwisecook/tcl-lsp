@@ -201,8 +201,11 @@ pub trait Engine {
 
     /// Register a host command under `name`, replacing any existing command of
     /// that name.
-    fn define_command(&mut self, name: &str, command: Rc<dyn HostCommand>)
-    -> Result<(), EngineError>;
+    fn define_command(
+        &mut self,
+        name: &str,
+        command: Rc<dyn HostCommand>,
+    ) -> Result<(), EngineError>;
 
     /// Reduce the engine's command surface to exactly `allowed` plus whatever
     /// [`Self::define_command`] has registered.
@@ -218,10 +221,9 @@ pub trait Engine {
     /// positionally.
     ///
     /// The returned value is the body's result. A host whose protocol ignores
-    /// the result (SpecTcl's emitter protocol does) still calls this and reads
+    /// the result (`SpecTcl`'s emitter protocol does) still calls this and reads
     /// what its host commands collected.
-    fn invoke(&mut self, handle: &Self::Handle, arguments: &[Value])
-    -> Result<Value, EngineError>;
+    fn invoke(&mut self, handle: &Self::Handle, arguments: &[Value]) -> Result<Value, EngineError>;
 
     /// Set the budget every subsequent invocation runs under.
     fn set_budget(&mut self, budget: Budget) -> Result<(), EngineError>;

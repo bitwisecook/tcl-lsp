@@ -1684,6 +1684,19 @@ fn config_reflected(requested: &Value, effective: &Value) -> bool {
         "libraryPaths" => effective
             .get("library_paths")
             .is_some_and(|got| got == want),
+        // `tclLsp.specPacks` is reported verbatim, *and* the packs it produced
+        // are reported beside it — so this barrier waits for the discovery +
+        // load pass, not merely for the setting to be recorded.  Without that
+        // second half a test could open a document before its pack was in the
+        // registry and see the very W123 the pack exists to remove.
+        "specPacks" => {
+            effective.get("spec_packs").is_some_and(|got| got == want)
+                && effective.get("spec_packs_loaded").is_some_and(|loaded| {
+                    want.as_array().is_none_or(|w| {
+                        w.is_empty() || loaded.as_array().is_some_and(|l| !l.is_empty())
+                    })
+                })
+        }
         // Nested formatting settings; only `docstringStyle` has a settle
         // signal (`getEffectiveConfig`'s `docstring_style`) today.
         "formatting" => want.as_object().is_none_or(|fmt| {

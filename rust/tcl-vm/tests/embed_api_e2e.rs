@@ -21,7 +21,7 @@
 //! bytecode clone, an enforced `commands` limit, embedder-registered stateful
 //! commands, and a whitelist-reduced command table.
 //!
-//! These are the primitives the SpecTcl hook host is built from, so each test
+//! These are the primitives the `SpecTcl` hook host is built from, so each test
 //! asserts the property the host depends on rather than a Tcl surface
 //! behaviour.
 
@@ -119,16 +119,24 @@ fn an_embedder_command_carries_its_own_state() {
     );
 }
 
+/// A loop whose body really dispatches — `[$cmd length abc]` resolves a
+/// computed command name, so each iteration is a command the limit charges.
+const DISPATCHING_LOOP: &str =
+    "set cmd string\nset i 0\nwhile {$i < 100000} { set x [$cmd length abc]\n incr i }\nset i";
+
 #[test]
 fn the_command_limit_is_enforced() {
     let mut vm = vm();
     vm.set_command_limit(Some(50));
     let handle = vm
-        .compile_function("set i 0\nwhile {$i < 100000} { incr i }\nset i")
+        .compile_function(DISPATCHING_LOOP)
         .expect("the body compiles");
     let completion = vm.invoke_function(&handle);
     assert!(!completion.code.is_ok(), "the budget must stop the loop");
-    assert_eq!(completion.result.to_str().to_string(), "command count limit exceeded");
+    assert_eq!(
+        completion.result.to_str().to_string(),
+        "command count limit exceeded"
+    );
     assert!(
         vm.commands_run() >= 50,
         "the counter records the spend: {}",
@@ -136,12 +144,40 @@ fn the_command_limit_is_enforced() {
     );
 }
 
+/// **What the limit does not see.** The counter charges *dispatched* commands
+/// — which is what C Tcl's `interp limit commands` charges too. A loop the
+/// compiler inlines into bytecode dispatches nothing, so it runs to completion
+/// under a budget of one. An embedder that needs containment against *any*
+/// runaway pairs this with [`Vm::set_wall_clock_budget`], which the trampoline
+/// polls per tick; this test pins the gap so it is a documented property
+/// rather than a surprise.
+#[test]
+fn an_inlined_loop_dispatches_nothing_and_so_is_not_charged() {
+    let mut vm = vm();
+    vm.set_command_limit(Some(1));
+    let handle = vm
+        .compile_function("set i 0\nwhile {$i < 500} { incr i }\nset i")
+        .expect("the body compiles");
+    let completion = vm.invoke_function(&handle);
+    assert!(
+        completion.code.is_ok(),
+        "an inlined loop is not charged: {}",
+        completion.result.to_str()
+    );
+    assert_eq!(completion.result.to_str().to_string(), "500");
+}
+
 #[test]
 fn the_command_counter_refills_per_invocation() {
     let mut vm = vm();
-    vm.set_command_limit(Some(1000));
+    // Enough for ten dispatching iterations, nowhere near the hundred thousand
+    // the loop would run unbudgeted: without the refill the second invocation
+    // would start already spent.
+    vm.set_command_limit(Some(200));
     let handle = vm
-        .compile_function("set i 0\nwhile {$i < 10} { incr i }\nset i")
+        .compile_function(
+            "set cmd string\nset i 0\nwhile {$i < 10} { set x [$cmd length abc]\n incr i }\nset i",
+        )
         .expect("the body compiles");
     for _ in 0..5 {
         vm.reset_command_count();
@@ -155,11 +191,17 @@ fn the_command_counter_refills_per_invocation() {
 fn an_unlimited_vm_still_counts_commands() {
     let mut vm = vm();
     assert_eq!(vm.command_limit(), None);
-    let handle = vm.compile_function("set a 1\nset b 2\n").expect("compiles");
+    let handle = vm
+        .compile_function("set cmd string\n$cmd length abc\n$cmd length de\n")
+        .expect("compiles");
     vm.reset_command_count();
     let completion = vm.invoke_function(&handle);
     assert!(completion.code.is_ok());
-    assert!(vm.commands_run() >= 2, "{}", vm.commands_run());
+    assert!(
+        vm.commands_run() >= 2,
+        "the counter runs free even with no limit armed: {}",
+        vm.commands_run()
+    );
 }
 
 #[test]

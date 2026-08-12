@@ -22,7 +22,7 @@
 //! `docs/design/spec-packs.md`: "a spec must never be able to take the LSP
 //! down". A panic inside a hook is converted to abstention, the hook is
 //! quarantined for the session, and a structured record is written — pack name
-//! and content hash, command and hook family, the SpecTcl vocabulary and
+//! and content hash, command and hook family, the `SpecTcl` vocabulary and
 //! server versions, the input word **shapes**, and the panic payload.
 //!
 //! **Shapes, not words.** The record deliberately carries `literal`/`dynamic`/
@@ -69,7 +69,7 @@ pub struct CrashRecord {
     pub hook: String,
     /// The family, which fixes what the hook was being asked for.
     pub family: HookFamily,
-    /// The SpecTcl vocabulary version the pack declared.
+    /// The `SpecTcl` vocabulary version the pack declared.
     pub dsl_version: String,
     /// The server build that ran it.
     pub server_version: String,

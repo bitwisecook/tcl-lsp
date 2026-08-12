@@ -4037,9 +4037,9 @@ pub struct Backend {
     /// `AnalyserConfig`.
     extra_commands: Mutex<Vec<String>>,
     /// `tclLsp.specPacks` — extra `.tclspec` files or directories to load as
-    /// SpecTcl packs, on top of the ones discovery finds by convention.
+    /// `SpecTcl` packs, on top of the ones discovery finds by convention.
     spec_pack_paths: Mutex<Vec<String>>,
-    /// The workspace's loaded SpecTcl packs (`docs/design/spec-packs.md`).
+    /// The workspace's loaded `SpecTcl` packs (`docs/design/spec-packs.md`).
     ///
     /// Workspace scope, deliberately: the set is loaded at `initialized` and
     /// reloaded when a pack file changes, **never** per document and never per
@@ -10827,6 +10827,7 @@ impl Backend {
         // analysed before or after its config landed.
         let optimiser_profile = self.optimiser_profile.lock().await.name();
         let library_paths = self.editor_library_paths.lock().await.clone();
+        let (spec_packs, spec_packs_loaded) = self.spec_pack_report().await;
         let line_length = *self.line_length.lock().await;
         // `tclLsp.formatting.docstringStyle` (#1314) — same per-URI fold as
         // `resolved_docstring_style`, but a folder-only query (no readable
@@ -10888,6 +10889,8 @@ impl Backend {
             "optimiser_enabled": optimiser_enabled,
             "optimiser_profile": optimiser_profile,
             "library_paths": library_paths,
+            "spec_packs": spec_packs,
+            "spec_packs_loaded": spec_packs_loaded,
             "line_length": line_length,
             "docstring_style": docstring_style_str,
             "non_ascii_mode": non_ascii_mode_str(mode),
@@ -12049,7 +12052,7 @@ impl Backend {
     }
 
     /// Return the command registry with `dialect` loaded on top of the
-    /// default Tcl + stdlib + tcllib specs, **plus the workspace's SpecTcl
+    /// default Tcl + stdlib + tcllib specs, **plus the workspace's `SpecTcl`
     /// packs**.
     ///
     /// The registry is the process-wide per-profile cache in `tcl-registry`,
@@ -12075,7 +12078,38 @@ impl Backend {
         db.registry(dialect)
     }
 
-    /// The workspace's loaded SpecTcl packs.  Clones the `Arc` and drops the
+    /// `tclLsp.specPacks` and what discovery made of it, for
+    /// `tcl-lsp.getEffectiveConfig`: the configured paths, and one entry per
+    /// loaded pack.
+    ///
+    /// Both halves are reported because they answer different questions. The
+    /// paths are the *settle signal* a test polls after pushing a config. The
+    /// loaded packs are what a user needs when the answer to "why is my pack
+    /// not loading?" is that discovery never saw it — visible without reading
+    /// a server log, which is the only other place that fact exists.
+    async fn spec_pack_report(&self) -> (Vec<String>, Vec<serde_json::Value>) {
+        let configured = self.spec_pack_paths.lock().await.clone();
+        let loaded = self.spec_packs().await;
+        let report = loaded
+            .packs
+            .iter()
+            .map(|pack| {
+                serde_json::json!({
+                    "name": pack.name,
+                    "tier": pack.tier.label(),
+                    "commands": pack.commands.len(),
+                    "files": pack
+                        .files
+                        .iter()
+                        .map(|f| f.display().to_string())
+                        .collect::<Vec<String>>(),
+                })
+            })
+            .collect();
+        (configured, report)
+    }
+
+    /// The workspace's loaded `SpecTcl` packs.  Clones the `Arc` and drops the
     /// lock, so no request path holds it across an await.
     async fn spec_packs(&self) -> Arc<tcl_spectcl::PackSet> {
         Arc::clone(&*self.spec_packs.lock().await)
@@ -12695,7 +12729,7 @@ impl Backend {
         }
     }
 
-    /// Discover, load and install the workspace's SpecTcl packs, then publish
+    /// Discover, load and install the workspace's `SpecTcl` packs, then publish
     /// each pack file's load notices as diagnostics on that file.
     ///
     /// Runs at `initialized` and again whenever a `.tclspec` changes on disk or
@@ -17709,14 +17743,14 @@ fn formatter_config_from(
 /// glob can reach it; it is re-read on the next pull instead.
 const PROJECT_CONFIG_GLOB: &str = "**/.tcl-lsp.ini";
 
-/// The watcher glob for SpecTcl packs.
+/// The watcher glob for `SpecTcl` packs.
 ///
 /// Case-folded in the glob for the same reason [`tcl_source_watch_glob`] is:
 /// watcher registrations carry no `ignoreCase` option and VS Code matches them
 /// case-sensitively on Linux (issue #1215).
 const SPEC_PACK_GLOB: &str = "**/*.[tT][cC][lL][sS][pP][eE][cC]";
 
-/// `true` when `uri` names a `.tclspec` SpecTcl pack.
+/// `true` when `uri` names a `.tclspec` `SpecTcl` pack.
 fn is_spec_pack_file(uri: &Uri) -> bool {
     uri.to_file_path()
         .is_some_and(|path| tcl_spectcl::discovery::is_pack_file(&path))
@@ -17783,7 +17817,7 @@ struct WatchedFileChanges {
     config_changed: bool,
     /// A `.tcl.stubs` sidecar moved.
     sidecar_changed: bool,
-    /// A `.tclspec` SpecTcl pack moved.
+    /// A `.tclspec` `SpecTcl` pack moved.
     spec_pack_changed: bool,
     /// The Tcl source files, one entry per URI, with its last event kind.
     last_kind: HashMap<Uri, FileChangeType>,
@@ -19653,7 +19687,7 @@ fn compute_source_inheritance(
     }
 }
 
-/// The diagnostic code every SpecTcl pack-load notice carries.
+/// The diagnostic code every `SpecTcl` pack-load notice carries.
 ///
 /// One code for the family rather than one per notice kind: the notices are
 /// *degradations* the loader chose to report, not a diagnostic catalogue with

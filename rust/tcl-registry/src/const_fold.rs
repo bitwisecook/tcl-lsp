@@ -194,11 +194,12 @@ pub(crate) fn fold_concat(args: &[&str]) -> Option<String> {
 /// `Option` is the dispatch-table contract, not redundant wrapping — building
 /// a list never fails. `unnecessary_wraps` is a false positive here.
 ///
-/// Public because it is also the SpecTcl sandbox's `foldlist` builtin: a pack
+/// Public because it is also the `SpecTcl` sandbox's `foldlist` builtin: a pack
 /// fold body that returns a list must produce the same quoting the shipped
 /// `list` fold produces, and sharing this function is what makes that true by
 /// construction rather than by review.
 #[allow(clippy::unnecessary_wraps)] // signature fixed by ConstFoldFn dispatch contract
+#[must_use]
 pub fn fold_list(args: &[&str]) -> Option<String> {
     Some(list_join(args))
 }

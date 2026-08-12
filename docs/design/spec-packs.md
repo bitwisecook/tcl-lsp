@@ -308,6 +308,38 @@ which is 75× slower). The design consequences are binding:
   shape-keyed caching stays regardless — it clears budget even if the
   VM never gets faster.
 
+## What exists today
+
+Phase 5's first half has landed: hook bodies run, in the two layers this
+document specifies, and a pack-declared `const_fold` folds real call
+sites in the optimiser. The crates are:
+
+| crate | layer | what it is |
+|---|---|---|
+| `tcl-engine-api` | bottom | The **Tcl extension interface**: `CompileUnit` → engine handle, invoked with owned structured `Value`s (list and dict are first-class, so `words`/`ctx` never round-trip through text); `HostCommand` for embedder-registered commands; `Budget` the engine must enforce; `EngineError` distinguishing a script error, a budget blowout, and a crash. No dependencies at all — selecting one engine cannot drag in another. |
+| `tcl-engine-tclvm` | bottom | The `tcl-vm` implementation. Each interface obligation maps onto a real VM embedder API rather than a shim: `Vm::define_procedure` (compile once), `Vm::invoke_command` (now public), `Vm::register_native_command` (stateful host commands), `Vm::retain_commands` (a closed whitelist), and the enforced `commands` limit + wall-clock cap. |
+| `tcl-spec-hooks` | top | The **hook host**: emitter verbs as native commands, the per-family calling conventions and the literal-only precondition, abstention and error policy, per-pack engines, `catch_unwind`, quarantine-on-first-crash with a structured crash record, and the sandbox whitelist plus `foldlist`. Names no engine except in one convenience constructor. |
+| `tcl-registry::pack_hooks` | seam | Slots, per-family thunk tables, the thread-local host, and the **shape-keyed cache**. A pack hook is a plain function pointer of the family's shipped type, so `run_const_fold` and every other consumer is unchanged and unaware. |
+
+Three consequences of the implementation are worth recording against the
+design above:
+
+- **The VM boundary work is done in the VM** (#1373): `Vm::invoke_command`
+  is public, `Vm::invoke_function` runs a pre-compiled handle with no
+  per-call `FunctionAsm` clone, and the `commands` limit is enforced at
+  both dispatch funnels instead of merely stored.
+- **The two budgets bound different things.** The command limit counts
+  *dispatched* commands — as C Tcl's does — so a loop the compiler inlines
+  into bytecode is not charged; the wall-clock cap, polled inside the
+  bytecode trampoline, is what stops that case. Containment needs both,
+  and the host's default config sets both.
+- **The cacheability rule has a spelling**: `-inputs {nwords kinds}` on a
+  hook statement. A hook whose declared inputs exclude the words' content
+  is answered from the registry's shape-keyed cache; a hook that declares
+  nothing is fully legal, always correct, and uncacheable — which is this
+  document's "granularity is not restricted, consequences are documented"
+  made executable.
+
 ## Compatibility policy
 
 The "ABI" is the DSL vocabulary, and it follows the tolerance rules that

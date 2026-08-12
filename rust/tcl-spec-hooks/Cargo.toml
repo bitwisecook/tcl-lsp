@@ -43,6 +43,10 @@ tcl-dialect = { path = "../tcl-dialect" }
 
 [dev-dependencies]
 tcl-compiler = { path = "../tcl-compiler" }
+# The proving case reaches the loader only from a test: the host depends on no
+# loader type and the loader on no host type, so the adapter between them lives
+# where both are already in scope.
+tcl-spectcl = { path = "../tcl-spectcl" }
 
 [lints]
 workspace = true

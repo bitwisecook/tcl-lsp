@@ -21,7 +21,7 @@
 //! `docs/design/spec-packs.md`: on first load a pack's compiled form is
 //! written to `$XDG_CACHE_HOME/tcl-lsp/spectcl/` (and the platform
 //! equivalents) keyed by an **xxhash-class** digest of the pack source *plus
-//! the SpecTcl vocabulary version and loader build*, so an edited pack or an
+//! the `SpecTcl` vocabulary version and loader build*, so an edited pack or an
 //! upgraded server recompiles exactly once and everything else is a hash check
 //! and a fast read.
 //!
@@ -104,7 +104,7 @@ pub fn redirect_for_test(target: Option<(PathBuf, bool)>) {
 }
 
 fn override_of<T>(read: impl Fn(&(PathBuf, bool)) -> T) -> Option<T> {
-    OVERRIDE.lock().ok()?.as_ref().map(|value| read(value))
+    OVERRIDE.lock().ok()?.as_ref().map(read)
 }
 
 /// The on-disk format version. Bumped when the byte layout below changes; an
@@ -568,19 +568,21 @@ speclib mylib 1 {
     /// loader said about it. `CommandSpec` is not `PartialEq`, so equality is
     /// asserted over this projection.
     fn shape(pack: &Pack) -> String {
+        use std::fmt::Write as _;
         let mut out = format!("{} v{}\n", pack.name, pack.dsl_version);
         for command in &pack.commands {
-            out.push_str(&format!(
-                "  {} arity {}..{} traits {:?} subs {}\n",
+            let _ = writeln!(
+                out,
+                "  {} arity {}..{} traits {:?} subs {}",
                 command.spec.name,
                 command.spec.arity.min,
                 command.spec.arity.max,
                 command.spec.traits,
                 command.spec.subcommands.len()
-            ));
+            );
         }
         for notice in &pack.notices {
-            out.push_str(&format!("  notice {notice}\n"));
+            let _ = writeln!(out, "  notice {notice}");
         }
         out
     }

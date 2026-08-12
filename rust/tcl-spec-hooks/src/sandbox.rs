@@ -73,6 +73,7 @@ impl HostCommand for FoldList {
 }
 
 /// The host builtins every hook body gets, whatever its family.
+#[must_use]
 pub fn builtins() -> Vec<(&'static str, Rc<dyn HostCommand>)> {
     vec![("foldlist", Rc::new(FoldList) as Rc<dyn HostCommand>)]
 }

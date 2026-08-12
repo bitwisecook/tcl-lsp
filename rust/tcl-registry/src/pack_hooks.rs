@@ -16,7 +16,7 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! Pack-declared hooks: the registry side of the SpecTcl hook host.
+//! Pack-declared hooks: the registry side of the `SpecTcl` hook host.
 //!
 //! A shipped spec's `const_fold` / `arg_role_resolver` / … is a Rust function
 //! pointer.  A **pack**-declared one is a Tcl body running on a sandboxed VM,
@@ -392,7 +392,7 @@ pub struct HookCall<'w> {
     pub option: Option<OptionCallCtx<'w>>,
 }
 
-impl<'w> HookCall<'w> {
+impl HookCall<'_> {
     /// Whether every word is literal — the precondition the fold families and
     /// the option-arity hook run under.
     #[must_use]
@@ -476,6 +476,7 @@ static CACHEABLE: [[AtomicBool; SLOTS_PER_FAMILY]; 9] =
 ///
 /// `None` when the family's slots are exhausted; the caller installs no hook
 /// and the command keeps its declarative facts.
+#[must_use]
 pub fn allocate(family: HookFamily, inputs: &HookInputs) -> Option<HookSlot> {
     let index = NEXT_SLOT[family.index()].fetch_add(1, Ordering::Relaxed);
     let index = usize::try_from(index).ok()?;
@@ -508,21 +509,25 @@ thread_local! {
 /// unaccelerated process pays.
 static ANY_HOST: AtomicBool = AtomicBool::new(false);
 
-/// Install `host` as this thread's pack-hook host, returning the previous one.
+/// Install `host` as this thread's pack-hook host, replacing any previous one.
 ///
 /// Every pack-declared hook on this thread abstains until this is called, so
 /// a worker thread that never installs a host behaves exactly like a build
 /// with no packs loaded.
-pub fn install_host(host: Rc<dyn PackHookHost>) -> Option<Rc<dyn PackHookHost>> {
+pub fn install_host(host: Rc<dyn PackHookHost>) {
     ANY_HOST.store(true, Ordering::Relaxed);
     clear_cache();
-    HOST.with(|slot| slot.borrow_mut().replace(host))
+    HOST.with(|slot| {
+        slot.borrow_mut().replace(host);
+    });
 }
 
 /// Remove this thread's host; every pack hook abstains again.
-pub fn clear_host() -> Option<Rc<dyn PackHookHost>> {
+pub fn clear_host() {
     clear_cache();
-    HOST.with(|slot| slot.borrow_mut().take())
+    HOST.with(|slot| {
+        slot.borrow_mut().take();
+    });
 }
 
 /// Whether this thread has a host installed.
@@ -670,6 +675,16 @@ fn intern(message: &str) -> &'static str {
 /// Build the DSL's `words` view from the compatibility `&[&str]` a shipped
 /// hook signature carries: every word is literal, which is what that view
 /// means.
+///
+/// **Fidelity, stated plainly.** Only the families whose shipped Rust
+/// signature carries [`InvocationArguments`] — the literal-argument validator
+/// and the command-prefix resolver — can report a word as `dynamic`,
+/// `expanded`, or `opaque`; the families whose signature is a bare `&[&str]`
+/// have no such information to pass on, so their `kinds` reads `literal`
+/// throughout. That is exactly as sound as the shipped Rust hooks are, since
+/// they receive the same strings — but a body must not read `kinds` as proof
+/// of literality on those families. Widening it is a change to the registry's
+/// hook signatures, not to this boundary.
 fn literal_words<'w>(args: &'w [&'w str]) -> Vec<HookWord<'w>> {
     args.iter()
         .map(|value| HookWord {
@@ -679,7 +694,7 @@ fn literal_words<'w>(args: &'w [&'w str]) -> Vec<HookWord<'w>> {
         .collect()
 }
 
-fn structured_words<'w>(args: InvocationArguments<'w>) -> Vec<HookWord<'w>> {
+fn structured_words(args: InvocationArguments<'_>) -> Vec<HookWord<'_>> {
     (0..args.len())
         .map(|index| {
             let word = args.get(index).unwrap_or(InvocationWord::Opaque);

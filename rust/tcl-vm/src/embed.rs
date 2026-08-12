@@ -19,7 +19,7 @@
 //! The embedder surface: what a Rust host needs to run small Tcl bodies at
 //! rate, register commands of its own, and bound what a body may do.
 //!
-//! Everything here is issue #1373: the gaps SpecTcl hook benchmarking found in
+//! Everything here is issue #1373: the gaps `SpecTcl` hook benchmarking found in
 //! the VM's boundary, closed in the VM rather than shimmed around in the
 //! embedder.
 //!
@@ -29,7 +29,7 @@
 //!   `FunctionAsm` clone — the deep copy [`Vm::run_function`] performs.
 //! - **Register a stateful command.** [`Vm::register_native_command`] takes an
 //!   `Rc<dyn NativeCommand>`, so an embedder's command can carry state (the
-//!   emitter verbs of a SpecTcl hook family collect what the body emitted).
+//!   emitter verbs of a `SpecTcl` hook family collect what the body emitted).
 //! - **Restrict the command table.** [`Vm::retain_commands`] reduces a fresh VM
 //!   to a closed whitelist, which is how a sandbox is built out of a normal
 //!   interpreter rather than a second one.
@@ -140,6 +140,7 @@ impl Vm {
     /// The invoke-by-handle path: no compilation, no `FunctionAsm` clone, and
     /// no driver script — the three costs an embedder previously paid per
     /// call.
+    #[must_use]
     pub fn invoke_function(&mut self, handle: &FunctionHandle) -> Completion<Value> {
         self.run_function_rc(Rc::clone(&handle.asm))
     }

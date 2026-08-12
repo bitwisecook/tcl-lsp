@@ -607,6 +607,7 @@ pub const DIALECTS: &[Variant] = &[
     v("bpf", "BPF"),
     v("f5-tmsh", "F5 tmsh"),
     v("f5-bigip", "F5 BIG-IP config"),
+    v("spectcl", "SpecTcl spec packs"),
 ];
 
 /// The primitive [`DialectSet`] bit for a canonical dialect name from
@@ -626,6 +627,7 @@ pub fn dialect_bit(name: &str) -> Option<DialectSet> {
         ("bpf", DialectSet::BPF),
         ("f5-tmsh", DialectSet::TMSH),
         ("f5-bigip", DialectSet::BIGIP),
+        ("spectcl", DialectSet::SPECTCL),
     ];
     BITS.iter().find(|(n, _)| *n == name).map(|(_, b)| *b)
 }

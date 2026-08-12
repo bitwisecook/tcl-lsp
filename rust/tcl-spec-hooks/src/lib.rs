@@ -16,7 +16,7 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! `tcl-spec-hooks` — the **SpecTcl hook host**.
+//! `tcl-spec-hooks` — the **`SpecTcl` hook host**.
 //!
 //! The upper of the two layers in `docs/design/spec-packs.md`. It owns
 //! everything DSL-specific and speaks only [`tcl_engine_api`] beneath it, so
@@ -52,7 +52,7 @@
 //! ```no_run
 //! use std::rc::Rc;
 //! use tcl_registry::pack_hooks::{self, HookFamily};
-//! use tcl_spec_hooks::{HookHost, PackPrograms, HookProgram, tclvm_host};
+//! use tcl_spec_hooks::{HookProgram, PackPrograms, tclvm_host};
 //!
 //! let host = Rc::new(tclvm_host());
 //! let installed = host.load_pack(

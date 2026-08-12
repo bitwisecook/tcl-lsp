@@ -5,6 +5,28 @@ use std::collections::BTreeMap;
 use serde_json::Value;
 use tcl_spec_studio::{BROWSABLE_DIALECTS, command_names, draft, load_command, schema};
 
+fn brace_safe(text: &str) -> bool {
+    let mut depth = 0i32;
+    let mut chars = text.chars();
+    while let Some(c) = chars.next() {
+        match c {
+            '\\' => match chars.next() {
+                None | Some('\n') => return false,
+                Some(_) => {}
+            },
+            '{' => depth += 1,
+            '}' => {
+                depth -= 1;
+                if depth < 0 {
+                    return false;
+                }
+            }
+            _ => {}
+        }
+    }
+    depth == 0
+}
+
 fn main() {
     let mut args = std::env::args().skip(1);
     let what = args.next().unwrap_or_else(|| "defaults".to_owned());
@@ -121,6 +143,41 @@ fn main() {
             }
             if back[draft::UNRENDERABLE_KEY] != v[draft::UNRENDERABLE_KEY] {
                 println!("DIFF __unrenderable\n   rendered: {}\n   shipped : {}", back[draft::UNRENDERABLE_KEY], v[draft::UNRENDERABLE_KEY]);
+            }
+        }
+        "quote" => {
+            let src = "speclib p 1.0 {\ncommand demo {\n  subcommand a { detail \"q \\[b\\] $c and \\{ brace\" }\n  subcommand b { detail {braced \\[b\\] $c} }\n  subcommand c { detail \"tail\" }\n}\n}\n";
+            println!("SOURCE:\n{src}");
+            let pack = tcl_spec_studio::spectcl::load_pack(src);
+            for n in &pack.notices { println!("NOTICE {n}"); }
+            for c in &pack.commands {
+                for s in c.spec.subcommands {
+                    println!("SUB {} detail={:?}", s.name, s.detail);
+                }
+            }
+        }
+        "unwritable" => {
+            // Which prose strings no Tcl word can carry, and what they look like.
+            for (dialect, _) in BROWSABLE_DIALECTS.iter() {
+                for name in command_names(dialect) {
+                    let Some(v) = load_command(name, dialect) else { continue };
+                    let d = v.as_object().unwrap().clone();
+                    let (_, losses) = tcl_spec_studio::render_spectcl::render_pack_reporting(&[d], "p");
+                    for l in &losses {
+                        if l.reason.contains("unbalanced") {
+                            println!("{dialect}/{name}: {}", l.key);
+                            if let Some(h) = v["hover"].as_object() {
+                                for (k, hv) in h {
+                                    if let Some(t) = hv.as_str() {
+                                        if !brace_safe(t) {
+                                            println!("    {k}: {:?}", &t.chars().take(160).collect::<String>());
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
             }
         }
         other => println!("unknown probe {other}"),

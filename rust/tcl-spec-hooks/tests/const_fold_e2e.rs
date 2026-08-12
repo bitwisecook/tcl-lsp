@@ -63,10 +63,12 @@ struct Folders {
 /// `mylib::strlen` with the pack's folder installed.
 fn load() -> Folders {
     let host = Rc::new(tclvm_host());
-    let installed = host.load_pack(PackPrograms::new("mylib").with(
-        HookProgram::new("mylib::strlen", HookFamily::ConstFold, STRLEN_BODY)
-            .with_inputs(HookInputs::parse(&["words"])),
-    ));
+    let installed = host.load_pack(
+        PackPrograms::new("mylib").with(
+            HookProgram::new("mylib::strlen", HookFamily::ConstFold, STRLEN_BODY)
+                .with_inputs(HookInputs::parse(&["words"])),
+        ),
+    );
     assert_eq!(installed.len(), 1);
     assert!(
         installed[0].declined.is_none(),
@@ -81,7 +83,7 @@ fn load() -> Folders {
     let mut registry = CommandRegistry::build_default();
     registry.insert(CommandSpec {
         name: "mylib::strlen",
-        arity: Arity::Fixed(1),
+        arity: Arity::exact(1),
         const_fold: Some(pack),
         ..CommandSpec::DEFAULT
     });

@@ -1857,7 +1857,7 @@ impl Vm {
     /// in bytecode and one that loops through native re-entry are charged
     /// alike. Unlike C Tcl this checks every command rather than every
     /// `-granularity`th: the check is an increment and a compare, and an
-    /// exactly-enforced budget is what the SpecTcl containment guarantee needs
+    /// exactly-enforced budget is what the `SpecTcl` containment guarantee needs
     /// from a hook body.
     pub(crate) fn charge_command(&mut self) -> Option<Completion<Value>> {
         self.commands_run = self.commands_run.saturating_add(1);

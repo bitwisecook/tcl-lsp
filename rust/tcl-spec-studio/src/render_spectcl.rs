@@ -335,31 +335,23 @@ fn brace_safe(text: &str) -> bool {
     depth == 0
 }
 
-/// The quoted spelling of `text`, escaping everything Tcl would substitute.
+/// One word carrying `text` verbatim, or `None` when no spelling does.
 ///
-/// The fallback for prose a braced word cannot hold — README's "one place the
-/// format will bite an author writing about Tcl syntax".
-fn quoted(text: &str) -> String {
-    let mut out = String::with_capacity(text.len() + 2);
-    out.push('"');
-    for c in text.chars() {
-        if matches!(c, '\\' | '"' | '$' | '[') {
-            out.push('\\');
-        }
-        out.push(c);
-    }
-    out.push('"');
-    out
-}
-
-/// One word carrying `text` verbatim, in the lightest spelling that works.
-fn word(text: &str) -> String {
+/// **There is no quoted fallback, because a quoted word is not verbatim.** The
+/// loader reads its words off the CST, where a quoted word keeps its
+/// backslashes (`\[` stays `\[`) and has its variable references normalised
+/// (`$c` becomes `${c}`), while a braced word really is every byte between the
+/// braces. So a bare or braced word is faithful and a quoted one is not, and
+/// text that can be neither is reported as a loss rather than written down
+/// wrong. In practice that is a handful of registry strings carrying a lone
+/// `{` from a man-page extractor.
+fn word(text: &str) -> Option<String> {
     if bare_safe(text) {
-        text.to_owned()
+        Some(text.to_owned())
     } else if brace_safe(text) {
-        format!("{{{text}}}")
+        Some(format!("{{{text}}}"))
     } else {
-        quoted(text)
+        None
     }
 }
 
@@ -367,28 +359,59 @@ fn word(text: &str) -> String {
 ///
 /// Unlike [`word`] this never degrades to a bare word, because a `detail` or
 /// `description` is braced in every port whether or not it needs to be.
-fn braced(text: &str) -> String {
-    if brace_safe(text) {
-        format!("{{{text}}}")
-    } else {
-        quoted(text)
-    }
+fn braced(text: &str) -> Option<String> {
+    brace_safe(text).then(|| format!("{{{text}}}"))
 }
 
 /// A Tcl list word holding `items`, each element carrying its text verbatim.
-fn list_word<S: AsRef<str>>(items: &[S]) -> String {
-    let inner = items
-        .iter()
-        .map(|item| word(item.as_ref()))
-        .collect::<Vec<_>>()
-        .join(" ");
-    braced(&inner)
+fn list_word<S: AsRef<str>>(items: &[S]) -> Option<String> {
+    let words: Option<Vec<String>> = items.iter().map(|item| word(item.as_ref())).collect();
+    braced(&words?.join(" "))
 }
 
 /// The elements of a JSON string array as a list word.
-fn str_list_word(value: &Value) -> String {
+fn str_list_word(value: &Value) -> Option<String> {
     let items: Vec<&str> = as_array(value).iter().filter_map(Value::as_str).collect();
     list_word(&items)
+}
+
+/// A declaration's own name word — a command, subcommand, or option name.
+///
+/// Unlike prose these are identifiers in every shipped spec, so the braced
+/// form always works; a pathological name that even braces cannot hold would
+/// break the pack loudly rather than lose a field silently.
+fn name_word(text: &str) -> String {
+    word(text).unwrap_or_else(|| format!("{{{text}}}"))
+}
+
+/// Push one word onto a row, remembering when it had no faithful spelling.
+fn push_word(row: &mut Vec<String>, lost: &mut bool, spelling: Option<String>) {
+    match spelling {
+        Some(spelling) => row.push(spelling),
+        None => *lost = true,
+    }
+}
+
+/// Push `flag value` onto a row, remembering when the value had no faithful
+/// spelling.
+fn push_flag(row: &mut Vec<String>, lost: &mut bool, flag: &str, spelling: Option<String>) {
+    match spelling {
+        Some(spelling) => {
+            row.push(flag.to_owned());
+            row.push(spelling);
+        }
+        None => *lost = true,
+    }
+}
+
+/// Write a row, or report the field when one of its words had no faithful
+/// spelling.
+fn emit_row(out: &mut Out, key: &str, row: &[String], lost: bool, break_before: &str) {
+    if lost {
+        unwritable(out, key);
+    } else {
+        out.row(row, break_before);
+    }
 }
 
 fn as_array(value: &Value) -> &[Value] {
@@ -416,6 +439,21 @@ struct Out {
     /// Every statement written, unindented — what the one-line subcommand
     /// form is decided from.
     statements: Vec<String>,
+    /// Every field this buffer could not carry, in the order they arose.
+    losses: Vec<Loss>,
+}
+
+/// One field a render could not carry, and why.
+///
+/// Returned by [`render_pack_reporting`] so a caller — the studio's DSL pane,
+/// or the round-trip gate — can say what a pack does *not* say without having
+/// to re-derive it from the `TODO` comments.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Loss {
+    /// The draft / schema key.
+    pub key: String,
+    /// One sentence naming the cause.
+    pub reason: String,
 }
 
 impl Out {
@@ -456,8 +494,8 @@ impl Out {
         }
         self.pending_blank = false;
         self.text.push_str(&other.text);
-        self.statements
-            .extend(other.statements.iter().map(Clone::clone));
+        self.statements.extend(other.statements.iter().cloned());
+        self.losses.extend(other.losses.iter().cloned());
     }
 
     fn indented<T>(&mut self, body: impl FnOnce(&mut Self) -> T) -> T {
@@ -556,7 +594,11 @@ impl ValueTables {
             out.line(&format!("values {name} {{"));
             out.indented(|out| {
                 for value in as_array(values) {
-                    let mut row = vec!["value".to_owned(), word(str_of(&value["value"]))];
+                    let Some(spelling) = word(str_of(&value["value"])) else {
+                        unwritable(out, "arg_values");
+                        continue;
+                    };
+                    let mut row = vec!["value".to_owned(), spelling];
                     if let Some(version) = value["min_tcl"].as_str() {
                         row.push("-min-tcl".to_owned());
                         row.push(tcl_version_word(version));
@@ -567,8 +609,13 @@ impl ValueTables {
                     }
                     let detail = str_of(&value["detail"]);
                     if !detail.is_empty() {
-                        row.push("-detail".to_owned());
-                        row.push(braced(detail));
+                        match braced(detail) {
+                            Some(spelling) => {
+                                row.push("-detail".to_owned());
+                                row.push(spelling);
+                            }
+                            None => unwritable(out, "arg_values"),
+                        }
                     }
                     out.row(&row, "-detail");
                 }
@@ -735,6 +782,7 @@ fn dialect_names(expr: &str) -> Option<Vec<&'static str>> {
         ("BPF", &["bpf"]),
         ("TMSH", &["f5-tmsh"]),
         ("BIGIP", &["f5-bigip"]),
+        ("SPECTCL", &["spectcl"]),
     ];
     let mut names: Vec<&'static str> = Vec::new();
     for part in expr.replace(".union(", " ").replace(')', " ").split_whitespace() {
@@ -810,10 +858,10 @@ fn option_conflict_rows(expr: &str) -> Option<Vec<Vec<String>>> {
             .into_iter()
             .map(rust_str)
             .collect();
-        let mut row = vec!["option_conflict".to_owned(), list_word(&options?)];
+        let mut row = vec!["option_conflict".to_owned(), list_word(&options?)?];
         if let Some(inner) = unwrap_some(fields.get("dialects")?) {
             row.push("-dialects".to_owned());
-            row.push(list_word(&dialect_names(inner)?));
+            row.push(list_word(&dialect_names(inner)?)?);
         }
         rows.push(row);
     }
@@ -831,7 +879,7 @@ fn oo_context_fact_rows(expr: &str) -> Option<Vec<Vec<String>>> {
         };
         rows.push(vec![
             "oo_context_fact".to_owned(),
-            word(&rust_str(name)?),
+            word(&rust_str(name)?)?,
             variant_of(fact).to_owned(),
         ]);
     }
@@ -843,10 +891,12 @@ fn oo_context_fact_rows(expr: &str) -> Option<Vec<Vec<String>>> {
 fn binds_handle_word(expr: &str) -> Option<String> {
     let fields = struct_fields(unwrap_some(expr)?)?;
     let source = |text: &str| -> Option<String> {
-        let variant = variant_of(text.split('(').next()?);
-        let payload = between(text, &format!("{variant}("), ")")?;
+        // `HandleName::Word(0)` / `HandleClassSource::ConstructionValue(1)` —
+        // the path has to come off before the payload can be read.
+        let (variant, payload) = variant_of(text).split_once('(')?;
+        let payload = payload.strip_suffix(')')?;
         Some(match variant {
-            "Implicit" => format!("{{Implicit {}}}", word(&rust_str(payload)?)),
+            "Implicit" => format!("{{Implicit {}}}", word(&rust_str(payload)?)?),
             other => format!("{{{other} {payload}}}"),
         })
     };
@@ -862,10 +912,10 @@ fn binds_handle_word(expr: &str) -> Option<String> {
         parts.push(format!(
             "{{{} {}}}",
             inner.get("at")?,
-            word(&rust_str(inner.get("word")?)?)
+            word(&rust_str(inner.get("word")?)?)?
         ));
     }
-    Some(braced(&parts.join(" ")))
+    braced(&parts.join(" "))
 }
 
 /// `versioned_arg_value N VALUE …` rows from a rendered gate table.
@@ -876,7 +926,7 @@ fn versioned_arg_value_rows(expr: &str) -> Option<Vec<Vec<String>>> {
         let mut row = vec![
             "versioned_arg_value".to_owned(),
             (*fields.get("index")?).to_owned(),
-            word(&rust_str(fields.get("value")?)?),
+            word(&rust_str(fields.get("value")?)?)?,
         ];
         let lifecycle = struct_fields(fields.get("lifecycle")?)?;
         for (field, flag) in [
@@ -886,7 +936,7 @@ fn versioned_arg_value_rows(expr: &str) -> Option<Vec<Vec<String>>> {
         ] {
             if let Some(inner) = unwrap_some(lifecycle.get(field)?) {
                 row.push(flag.to_owned());
-                row.push(word(&rust_str(inner)?));
+                row.push(word(&rust_str(inner)?)?);
             }
         }
         rows.push(row);
@@ -938,6 +988,10 @@ fn todo(out: &mut Out, key: &str) {
         out.comment(&format!(
             "TODO(spectcl): `{key}` is set on the source spec and has no DSL spelling."
         ));
+        out.losses.push(Loss {
+            key: key.to_owned(),
+            reason: "set on the source spec, with no DSL spelling".to_owned(),
+        });
         return;
     };
     let spelling = if gap.spelling.is_empty() {
@@ -950,6 +1004,30 @@ fn todo(out: &mut Out, key: &str) {
         "TODO(spectcl): `{key}` is set on the source spec.{spelling}{joiner}{}.",
         gap.kind.why()
     ));
+    out.losses.push(Loss {
+        key: key.to_owned(),
+        reason: gap.kind.why().to_owned(),
+    });
+}
+
+/// The `# TODO(spectcl):` line for text no Tcl word can carry verbatim.
+///
+/// A braced word is the only faithful spelling (see [`word`]), so a string
+/// with an unbalanced brace or a backslash-newline has to be dropped rather
+/// than written down wrong.
+fn unwritable(out: &mut Out, key: &str) {
+    out.comment(&format!(
+        "TODO(spectcl): `{key}` holds text no Tcl word carries verbatim — an \
+         unbalanced brace or a backslash-newline. A braced word is the only \
+         faithful spelling, so the statement is dropped rather than written \
+         down wrong."
+    ));
+    out.losses.push(Loss {
+        key: key.to_owned(),
+        reason: "the text has an unbalanced brace or a backslash-newline, which no \
+                 Tcl word carries verbatim"
+            .to_owned(),
+    });
 }
 
 /// Emit `key` when it is set, as a one-value property statement.
@@ -976,7 +1054,10 @@ fn text(out: &mut Out, ctx: &Ctx<'_>, draft: &Draft, key: &str) {
     if ctx.set(draft, key)
         && let Some(value) = draft[key].as_str()
     {
-        out.line(&format!("{key} {}", word(value)));
+        match word(value) {
+            Some(spelling) => out.line(&format!("{key} {spelling}")),
+            None => unwritable(out, key),
+        }
     }
 }
 
@@ -1003,7 +1084,10 @@ fn enum_word(out: &mut Out, ctx: &Ctx<'_>, draft: &Draft, key: &str) {
 /// Emit a flag-set / dialect-set property.
 fn set_word(out: &mut Out, ctx: &Ctx<'_>, draft: &Draft, key: &str) {
     if ctx.set(draft, key) && draft[key].is_array() {
-        out.line(&format!("{key} {}", str_list_word(&draft[key])));
+        match str_list_word(&draft[key]) {
+            Some(spelling) => out.line(&format!("{key} {spelling}")),
+            None => unwritable(out, key),
+        }
     }
 }
 
@@ -1137,6 +1221,7 @@ fn arg_rows(out: &mut Out, ctx: &mut Ctx<'_>, draft: &Draft) {
 
     for index in order {
         let mut row = vec!["arg".to_owned(), index.to_string()];
+        let mut lost = false;
         if let Some(entry) = at(&roles, index) {
             row.push("-role".to_owned());
             row.push(str_of(&entry["role"]).to_owned());
@@ -1151,12 +1236,22 @@ fn arg_rows(out: &mut Out, ctx: &mut Ctx<'_>, draft: &Draft) {
             }
             let transparent = as_array(&entry["transparent_from"]);
             if !transparent.is_empty() {
-                row.push("-transparent".to_owned());
-                row.push(str_list_word(&entry["transparent_from"]));
+                push_flag(
+                    &mut row,
+                    &mut lost,
+                    "-transparent",
+                    str_list_word(&entry["transparent_from"]),
+                );
             }
         }
         if let Some(entry) = at(&values, index) {
-            push_values(&mut row, ctx, &entry["values"], &format!("{}-arg{index}", ctx.scope));
+            push_values(
+                &mut row,
+                &mut lost,
+                ctx,
+                &entry["values"],
+                &format!("{}-arg{index}", ctx.scope),
+            );
         }
         if closed.contains(&index) {
             row.push("-closed".to_owned());
@@ -1169,7 +1264,7 @@ fn arg_rows(out: &mut Out, ctx: &mut Ctx<'_>, draft: &Draft) {
             row.push("-appends".to_owned());
             row.push(appended_arity_word(&entry["arity"]));
         }
-        out.row(&row, "-detail");
+        emit_row(out, "arg_values", &row, lost, "-detail");
     }
 }
 
@@ -1187,7 +1282,13 @@ fn appended_arity_word(value: &Value) -> String {
 /// The inline form carries the value words and nothing else, so a table whose
 /// rows have a detail, a version floor, or a completion code is hoisted to a
 /// pack-level `values` declaration instead.
-fn push_values(row: &mut Vec<String>, ctx: &mut Ctx<'_>, values: &Value, hint: &str) {
+fn push_values(
+    row: &mut Vec<String>,
+    lost: &mut bool,
+    ctx: &mut Ctx<'_>,
+    values: &Value,
+    hint: &str,
+) {
     let entries = as_array(values);
     if entries.is_empty() {
         return;
@@ -1197,8 +1298,7 @@ fn push_values(row: &mut Vec<String>, ctx: &mut Ctx<'_>, values: &Value, hint: &
     });
     if plain {
         let words: Vec<&str> = entries.iter().map(|entry| str_of(&entry["value"])).collect();
-        row.push("-values".to_owned());
-        row.push(list_word(&words));
+        push_flag(row, lost, "-values", list_word(&words));
     } else {
         let name = ctx.tables.intern(hint, values);
         row.push("-values-from".to_owned());
@@ -1209,11 +1309,11 @@ fn push_values(row: &mut Vec<String>, ctx: &mut Ctx<'_>, values: &Value, hint: &
 /// One `option NAME …` row.
 fn option_row(out: &mut Out, ctx: &mut Ctx<'_>, option: &Value) {
     let name = str_of(&option["name"]);
-    let mut row = vec!["option".to_owned(), word(name)];
+    let mut row = vec!["option".to_owned(), name_word(name)];
+    let mut lost = false;
     let value = &option["value"];
     if !value.is_null() {
-        row.push("-takes".to_owned());
-        row.push(word(str_of(&value["hint"])));
+        push_flag(&mut row, &mut lost, "-takes", word(str_of(&value["hint"])));
 
         let arity = &value["arity"];
         match str_of(&arity["kind"]) {
@@ -1244,6 +1344,7 @@ fn option_row(out: &mut Out, ctx: &mut Ctx<'_>, option: &Value) {
         }
         push_values(
             &mut row,
+            &mut lost,
             ctx,
             &value["values"],
             &format!("{}-{}", ctx.scope, name.trim_start_matches('-')),
@@ -1264,12 +1365,20 @@ fn option_row(out: &mut Out, ctx: &mut Ctx<'_>, option: &Value) {
     if let Some(aliases) = option["aliases"].as_array()
         && !aliases.is_empty()
     {
-        row.push("-aliases".to_owned());
-        row.push(str_list_word(&option["aliases"]));
+        push_flag(
+            &mut row,
+            &mut lost,
+            "-aliases",
+            str_list_word(&option["aliases"]),
+        );
     }
     if let Some(dialects) = option["dialects"].as_array() {
-        row.push("-dialects".to_owned());
-        row.push(str_list_word(&Value::Array(dialects.clone())));
+        push_flag(
+            &mut row,
+            &mut lost,
+            "-dialects",
+            str_list_word(&Value::Array(dialects.clone())),
+        );
     }
     if let Some(n) = option["min_abbrev"].as_u64() {
         row.push("-min-abbrev".to_owned());
@@ -1281,16 +1390,14 @@ fn option_row(out: &mut Out, ctx: &mut Ctx<'_>, option: &Value) {
         ("retired_version", "-retired"),
     ] {
         if let Some(version) = option[key].as_str() {
-            row.push(flag.to_owned());
-            row.push(word(version));
+            push_flag(&mut row, &mut lost, flag, word(version));
         }
     }
     let detail = str_of(&option["detail"]);
     if !detail.is_empty() {
-        row.push("-detail".to_owned());
-        row.push(braced(detail));
+        push_flag(&mut row, &mut lost, "-detail", braced(detail));
     }
-    out.row(&row, "-detail");
+    emit_row(out, "options", &row, lost, "-detail");
     if option[draft::OPTION_DEPRECATION_FIX_UNRECOVERABLE_KEY]
         .as_bool()
         .unwrap_or(false)
@@ -1344,13 +1451,20 @@ fn hover_block(out: &mut Out, ctx: &Ctx<'_>, draft: &Draft) {
     out.indented(|out| {
         let scalar_row = |out: &mut Out, key: &str, word_name: &str| {
             let text = str_of(&hover[key]);
-            if !text.is_empty() {
-                out.line(&format!("{word_name} {}", braced(text)));
+            if text.is_empty() {
+                return;
+            }
+            match braced(text) {
+                Some(spelling) => out.line(&format!("{word_name} {spelling}")),
+                None => unwritable(out, "hover"),
             }
         };
         scalar_row(out, "summary", "summary");
         for synopsis in as_array(&hover["synopsis"]) {
-            out.line(&format!("synopsis {}", braced(str_of(synopsis))));
+            match braced(str_of(synopsis)) {
+                Some(spelling) => out.line(&format!("synopsis {spelling}")),
+                None => unwritable(out, "hover"),
+            }
         }
         // Three words are renamed from their Rust field names, and nothing
         // else in the DSL renames a key.
@@ -1544,16 +1658,18 @@ fn command_body(out: &mut Out, ctx: &mut Ctx<'_>, draft: &Draft) {
     if ctx.set(draft, "forms") {
         out.gap();
         for form in as_array(&draft["forms"]) {
-            let mut row = vec![
-                "form".to_owned(),
-                str_of(&form["kind"]).to_owned(),
-                braced(str_of(&form["synopsis"])),
-            ];
+            let mut row = vec!["form".to_owned(), str_of(&form["kind"]).to_owned()];
+            let mut lost = false;
+            push_word(&mut row, &mut lost, braced(str_of(&form["synopsis"])));
             if let Some(dialects) = form["dialects"].as_array() {
-                row.push("-dialects".to_owned());
-                row.push(str_list_word(&Value::Array(dialects.clone())));
+                push_flag(
+                    &mut row,
+                    &mut lost,
+                    "-dialects",
+                    str_list_word(&Value::Array(dialects.clone())),
+                );
             }
-            out.row(&row, "");
+            emit_row(out, "forms", &row, lost, "");
         }
     }
     hover_block(out, ctx, draft);
@@ -1605,11 +1721,16 @@ fn side_effect_rows(out: &mut Out, draft: &Draft) {
             row.push("-side".to_owned());
             row.push(side.to_owned());
         }
+        let mut lost = false;
         if let Some(dialects) = effect["dialects"].as_array() {
-            row.push("-dialects".to_owned());
-            row.push(str_list_word(&Value::Array(dialects.clone())));
+            push_flag(
+                &mut row,
+                &mut lost,
+                "-dialects",
+                str_list_word(&Value::Array(dialects.clone())),
+            );
         }
-        out.row(&row, "");
+        emit_row(out, "side_effects", &row, lost, "");
     }
 }
 
@@ -1617,7 +1738,7 @@ fn manufacturer_rows(out: &mut Out, draft: &Draft) {
     for method in as_array(draft.get("manufacturer_methods").unwrap_or(&Value::Null)) {
         let mut row = vec![
             "manufacturer".to_owned(),
-            word(str_of(&method["keyword"])),
+            name_word(str_of(&method["keyword"])),
         ];
         if str_of(&method["visibility"]) == "Unexported" {
             row.push("-unexported".to_owned());
@@ -1662,10 +1783,16 @@ fn subcommand_block(out: &mut Out, parent: &mut Ctx<'_>, sub: &Draft) {
 
     arity_row(out_body, ctx, sub);
     if ctx.set(sub, "detail") {
-        out_body.line(&format!("detail {}", braced(str_of(&sub["detail"]))));
+        match braced(str_of(&sub["detail"])) {
+            Some(spelling) => out_body.line(&format!("detail {spelling}")),
+            None => unwritable(out_body, "detail"),
+        }
     }
     if ctx.set(sub, "synopsis") {
-        out_body.line(&format!("synopsis {}", braced(str_of(&sub["synopsis"]))));
+        match braced(str_of(&sub["synopsis"])) {
+            Some(spelling) => out_body.line(&format!("synopsis {spelling}")),
+            None => unwritable(out_body, "synopsis"),
+        }
     }
     set_word(out_body, ctx, sub, "traits");
     set_word(out_body, ctx, sub, "dialects");
@@ -1774,22 +1901,25 @@ fn subcommand_block(out: &mut Out, parent: &mut Ctx<'_>, sub: &Draft) {
         }
     }
     for row in as_array(sub.get("sub_subcommands").unwrap_or(&Value::Null)) {
-        let mut words = vec!["sub_subcommand".to_owned(), word(str_of(&row["name"]))];
+        let mut words = vec!["sub_subcommand".to_owned(), name_word(str_of(&row["name"]))];
+        let mut lost = false;
         let detail = str_of(&row["detail"]);
         if !detail.is_empty() {
-            words.push("-detail".to_owned());
-            words.push(braced(detail));
+            push_flag(&mut words, &mut lost, "-detail", braced(detail));
         }
         let synopsis = str_of(&row["synopsis"]);
         if !synopsis.is_empty() {
-            words.push("-synopsis".to_owned());
-            words.push(braced(synopsis));
+            push_flag(&mut words, &mut lost, "-synopsis", braced(synopsis));
         }
         if let Some(dialects) = row["dialects"].as_array() {
-            words.push("-dialects".to_owned());
-            words.push(str_list_word(&Value::Array(dialects.clone())));
+            push_flag(
+                &mut words,
+                &mut lost,
+                "-dialects",
+                str_list_word(&Value::Array(dialects.clone())),
+            );
         }
-        out_body.row(&words, "-detail");
+        emit_row(out_body, "sub_subcommands", &words, lost, "-detail");
     }
     hover_block(out_body, ctx, sub);
 
@@ -1797,7 +1927,7 @@ fn subcommand_block(out: &mut Out, parent: &mut Ctx<'_>, sub: &Draft) {
     // line — `;` separates statements exactly as a newline does.
     let one_liner = format!(
         "subcommand {} {{ {} }}",
-        word(name),
+        name_word(name),
         body.statements.join(" ; ")
     );
     let simple = body.statements.len() <= 3
@@ -1807,10 +1937,11 @@ fn subcommand_block(out: &mut Out, parent: &mut Ctx<'_>, sub: &Draft) {
             .any(|line| line.ends_with('{') || line.contains('\n') || line.starts_with('#'));
     if simple && out.indent * 4 + one_liner.len() <= WRAP_COLUMN {
         out.line(&one_liner);
+        out.losses.extend(body.losses);
         return;
     }
 
-    out.line(&format!("subcommand {} {{", word(name)));
+    out.line(&format!("subcommand {} {{", name_word(name)));
     out.block(&body);
     out.line("}");
 }
@@ -1837,6 +1968,15 @@ pub fn render(draft: &Draft) -> String {
 /// Render a pack of drafts as one `.tclspec` file.
 #[must_use]
 pub fn render_pack(drafts: &[Draft], pack_name: &str) -> String {
+    render_pack_reporting(drafts, pack_name).0
+}
+
+/// [`render_pack`], plus every field the render could not carry.
+///
+/// Each [`Loss`] corresponds to one `# TODO(spectcl):` line in the text, so a
+/// caller can list what the pack does not say without re-reading its comments.
+#[must_use]
+pub fn render_pack_reporting(drafts: &[Draft], pack_name: &str) -> (String, Vec<Loss>) {
     let mut tables = ValueTables::default();
     let mut bodies: Vec<(String, Out)> = Vec::new();
 
@@ -1867,20 +2007,20 @@ pub fn render_pack(drafts: &[Draft], pack_name: &str) -> String {
          line below names a field the source spec sets that a pack cannot yet say.",
     );
     out.line("");
-    out.line(&format!("speclib {} {DSL_VERSION} {{", word(pack_name)));
+    out.line(&format!("speclib {} {DSL_VERSION} {{", name_word(pack_name)));
     // The ports do not indent a pack's own declarations — a `.tclspec` is one
     // long file of `command` blocks, and a second level of indentation buys
     // nothing.
     tables.render(&mut out);
     for (name, body) in &bodies {
         out.gap();
-        out.line(&format!("command {} {{", word(name)));
+        out.line(&format!("command {} {{", name_word(name)));
         out.block(body);
         out.line("}");
     }
     out.gap();
     out.line("}");
-    out.text
+    (out.text, out.losses)
 }
 
 #[cfg(test)]

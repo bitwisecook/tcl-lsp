@@ -91,6 +91,7 @@ pub struct Sink {
 impl Sink {
     /// Take everything emitted, leaving the sink empty for the next
     /// invocation.
+    #[must_use]
     pub fn drain(&self) -> Vec<Emission> {
         std::mem::take(&mut self.emissions.borrow_mut())
     }
@@ -270,10 +271,7 @@ fn invalid_emission(arguments: &[Value]) -> Result<Emission, EngineError> {
             "-allowed" => allowed = word_list(value),
             "-replacement" => replacement = Some(text(value)),
             other => {
-                return Err(misuse(
-                    "invalid",
-                    &format!("unknown flag \"{other}\""),
-                ));
+                return Err(misuse("invalid", &format!("unknown flag \"{other}\"")));
             }
         }
     }
@@ -281,10 +279,7 @@ fn invalid_emission(arguments: &[Value]) -> Result<Emission, EngineError> {
         Some("empty") => LiteralArgumentIssueReason::Empty,
         Some("invalid-members") | None => LiteralArgumentIssueReason::InvalidMembers(members),
         Some(other) => {
-            return Err(misuse(
-                "invalid",
-                &format!("unknown reason \"{other}\""),
-            ));
+            return Err(misuse("invalid", &format!("unknown reason \"{other}\"")));
         }
     };
     Ok(Emission::Invalid(LiteralArgumentIssue {
@@ -323,6 +318,7 @@ fn word_list(value: &Value) -> Vec<String> {
 }
 
 /// Build the verb commands a family injects, all sharing `sink`.
+#[must_use]
 pub fn verbs_for(family: HookFamily, sink: &Rc<Sink>) -> Vec<(&'static str, Rc<dyn HostCommand>)> {
     family
         .verbs()
@@ -408,15 +404,21 @@ pub fn answer_of(family: HookFamily, emissions: Vec<Emission>) -> HookAnswer {
         HookFamily::ClauseShapeCheck => emissions
             .into_iter()
             .find_map(|emission| match emission {
-                Emission::MissingExpr(after) => Some(HookAnswer::ClauseShape(
-                    ClauseShapeError::MissingExpr { after },
-                )),
-                Emission::MissingBody(after) => Some(HookAnswer::ClauseShape(
-                    ClauseShapeError::MissingBody { after },
-                )),
-                Emission::ExtraWords(first_extra) => Some(HookAnswer::ClauseShape(
-                    ClauseShapeError::ExtraWords { first_extra },
-                )),
+                Emission::MissingExpr(after) => {
+                    Some(HookAnswer::ClauseShape(ClauseShapeError::MissingExpr {
+                        after,
+                    }))
+                }
+                Emission::MissingBody(after) => {
+                    Some(HookAnswer::ClauseShape(ClauseShapeError::MissingBody {
+                        after,
+                    }))
+                }
+                Emission::ExtraWords(first_extra) => {
+                    Some(HookAnswer::ClauseShape(ClauseShapeError::ExtraWords {
+                        first_extra,
+                    }))
+                }
                 _ => None,
             })
             .unwrap_or(HookAnswer::Abstain),

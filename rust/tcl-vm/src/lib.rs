@@ -72,8 +72,8 @@ mod subst;
 
 pub use cmd_thread::{CompileFactory, ThreadedOutput};
 pub use command::NativeCommand;
-pub use embed::FunctionHandle;
 pub use debug::{DebugAction, DebugFrame, DebugHook, DebugSnapshot, DebugVar};
+pub use embed::FunctionHandle;
 pub use error::TclError;
 pub use interp::Vm;
 pub use value::Value;

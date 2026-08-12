@@ -59,6 +59,7 @@ pub fn default_registry() -> &'static CommandRegistry {
 /// [`base_layers`](DialectProfile::base_layers) command packs, keyed by the
 /// profile's canonical name — so aliases share their canonical entry and
 /// every unknown dialect string shares the one `PLAIN_TCL` entry.
+#[must_use]
 pub fn registry_for_profile(profile: &'static DialectProfile) -> &'static CommandRegistry {
     registry_for_profile_with_overlay(profile, 0, |_| {})
 }
@@ -76,7 +77,7 @@ pub fn registry_for_profile(profile: &'static DialectProfile) -> &'static Comman
 ///
 /// # Why this lives here, and takes a closure
 ///
-/// The one caller today is `tcl-spectcl`, inserting a workspace's SpecTcl
+/// The one caller today is `tcl-spectcl`, inserting a workspace's `SpecTcl`
 /// packs (`docs/design/spec-packs.md`: packs layer into the per-profile cached
 /// registry at **workspace scope**, never the per-document overlay path stubs
 /// use). This crate must not depend on that one — the registry is the bottom
@@ -102,9 +103,8 @@ pub fn registry_for_profile_with_overlay(
     overlay: u64,
     extend: impl FnOnce(&mut CommandRegistry),
 ) -> &'static CommandRegistry {
-    static REGISTRIES: OnceLock<
-        Mutex<FxHashMap<(&'static str, u64), &'static CommandRegistry>>,
-    > = OnceLock::new();
+    static REGISTRIES: OnceLock<Mutex<FxHashMap<(&'static str, u64), &'static CommandRegistry>>> =
+        OnceLock::new();
 
     let map = REGISTRIES.get_or_init(|| Mutex::new(FxHashMap::default()));
     let mut guard = map.lock().expect("registry cache mutex");

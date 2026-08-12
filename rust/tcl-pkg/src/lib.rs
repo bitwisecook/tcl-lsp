@@ -48,7 +48,7 @@ pub use version::{Version, VersionError, max_version, parse_version};
 /// leaf crate.
 ///
 /// They lived here first and every `tcl_pkg::cache_dir()` call site still
-/// resolves; the bodies moved out when the LSP server's SpecTcl pack loader
+/// resolves; the bodies moved out when the LSP server's `SpecTcl` pack loader
 /// needed the same answers and could not reasonably depend on the package
 /// manager to get them. One implementation, two consumers.
 pub use tcl_userdirs::{cache_dir, config_dir, state_dir, system_config_dir, venv_pool_dir};
