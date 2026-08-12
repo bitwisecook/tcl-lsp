@@ -121,11 +121,28 @@ under-delivers or is broken).
 at lines 266 `bpf`, 286 `cadence-eda-tcl`, 346 `expect`, 376 `f5-bigip`, 403
 `f5-iapps`, 437 `f5-irules`, 467 `f5-tmsh`, 491 `intel-quartus-eda-tcl`, 552
 `mentor-eda-tcl`, 596 `synopsys-eda-tcl`, 654 `tcl8.4`, 682 `tcl8.5`, 706
-`tcl8.6`, 730 `tcl9.0`, 756 `tcl9.1`, 780 `xilinx-eda-tcl`). Of these, 15 are
-the LSP-selectable set (`bpf` is explicitly a `tcl-lsp CLI`-only dialect per
-its KCS page `docs/kcs/features/kcs-feature-bpf-tcl.md`'s `## Applies to`
-line, not something `tclLsp.dialect` is meant to expose — README.md's own
-tables at lines 867-881 list the 15 LSP dialects and `bpf` separately). None
+`tcl8.6`, 730 `tcl9.0`, 756 `tcl9.1`, 780 `xilinx-eda-tcl`).
+
+> **Correction (review of PR #1401).** This report originally claimed only 15
+> of the 16 were LSP-selectable, treating `bpf` as CLI-only on the strength of
+> its KCS page's `## Applies to: tcl-lsp CLI` line. That was wrong, and the
+> server says so directly: `is_known_dialect_name`
+> (`rust/tcl-lsp-server/src/lib.rs:20059-20061`) accepts **any** catalogue
+> profile for `initializationOptions.folderDialects` and the per-folder
+> `tclLsp.dialect`, and its doc comment names the case explicitly — *"including
+> the config-only f5-tmsh / f5-bigip / **bpf**, which a bare `DialectSet::parse`
+> check wrongly rejects"*. `dialect_from_language_id`
+> (`lib.rs:5879`) maps `"tcl-bpf" | "bpf" => "bpf"`. The `## Applies to` line
+> scopes the *KCS note*, not `tclLsp.dialect`.
+>
+> All **16** catalogue entries are therefore LSP-selectable, and the finding is
+> larger than first written: `bpf` appears nowhere in
+> `editors/vscode/package.json` at all, so it is a supported dialect missing
+> from every editor enum — a second live drift alongside the Sublime README
+> one below. A generator that excludes "CLI-only" entries would preserve that
+> omission rather than detect it; it should emit all 16.
+
+None
 of the xtask generators (`gen-editor-settings`, `gen-vscode-package`,
 `gen-jetbrains-catalog`, `gen-editor-catalogs`, `gen-tmlanguage-keywords`)
 touch a dialect enum — they are all scoped to `DiagCode`/`OptCategory`
@@ -133,7 +150,8 @@ tables, event/command catalogues, and TextMate keyword lists (confirmed by
 grepping `dialect` across `rust/xtask/src/gen_*.rs`: the only hits are
 `TCL_SOURCE_EXTENSIONS`/glob helpers, not the dialect *name* list).
 
-**The duplicate / stale copy:** the 15-entry dialect list is hand-typed,
+**The duplicate / stale copy:** the dialect list is hand-typed (as 15
+entries, omitting `bpf` — see the correction above),
 independently, in at least these places:
 
 - `editors/vscode/package.json:3193-3207` (`tclLsp.dialect` setting `enum`)
@@ -161,7 +179,7 @@ dialect profile can be added to `profile.rs` and every one of the ~10 copies
 above will silently continue advertising the old set.
 
 **Drift evidence:** `editors/sublime-text/README.md:150-163`'s "Supported
-dialects" table has already drifted from the canonical 15: it lists 11
+dialects" table has already drifted from the canonical set: it lists 11
 entries (`tcl8.4`, `tcl8.5`, `tcl8.6`, `tcl9.0`, `f5-irules`, `f5-iapps`,
 `synopsys-eda-tcl`, `cadence-eda-tcl`, `xilinx-eda-tcl`,
 `intel-quartus-eda-tcl`, `mentor-eda-tcl`) and is missing **`tcl9.1`,
@@ -212,7 +230,7 @@ Two findings, both verified on both sides of the duplication:
   (`editors/jetbrains/.../TclLspActions.kt:86`) — while Zed's MCP-routed
   `diagram` tool gets the correct answer for the identical input. Fix is a
   ~10-line change plus a dependency add.
-- **F2 (medium-high confidence, ungated-duplication):** the 15-entry
+- **F2 (medium-high confidence, ungated-duplication):** the 16-entry
   LSP-facing dialect list, canonically `rust/tcl-dialect/src/profile.rs`'s
   `CATALOG`, is hand-copied into 10+ files across VS Code, JetBrains, Sublime,
   Neovim, Helix, Emacs, Zed, and the root README, with zero drift-gate
@@ -220,4 +238,6 @@ Two findings, both verified on both sides of the duplication:
   which the `xtask-check` gate protects). It has already drifted: the
   Sublime README's "Supported dialects" table is missing `tcl9.1`,
   `f5-tmsh`, `f5-bigip`, and `expect`, even though the extension's own
-  `plugin.py` `DIALECTS` list supports all 15.
+  `plugin.py` `DIALECTS` list supports all 15 of the ones it lists. Per the
+  correction at the top of F2, the canonical set is 16 — `bpf` is
+  LSP-selectable and missing from every editor enum.
