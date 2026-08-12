@@ -21,6 +21,8 @@ all-editors, analyser
 
 ## Operational context
 
+![Document links on computed source paths](../screenshots/32-document-links.png)
+
 A relative path resolves against the document's own directory, and `~`
 expands against `$HOME`. A computed path resolves when it is built from
 `[info script]`, `[file dirname …]`, `[file join …]`, `[file normalize

@@ -2328,6 +2328,23 @@ impl WorkspaceIndex {
                     let mut candidates: HashMap<&str, Vec<HashMap<String, String>>> =
                         HashMap::new();
                     for (s, child) in &edges {
+                        // A `source` inside a proc or method body runs when
+                        // that body is *called*, not at its lexical position
+                        // — `set dir /a; proc load {} {source child.tcl};
+                        // set dir /b; load` reaches the child with `/b`.
+                        // The position gate below reads lexical order, so a
+                        // body-local route instead contributes an **empty**
+                        // candidate: it still reaches the child, and
+                        // intersecting the agreement with an empty map
+                        // correctly drops every name for it (issue #1370
+                        // review).
+                        if s.enclosing_body.is_some() {
+                            candidates
+                                .entry(child.as_str())
+                                .or_default()
+                                .push(HashMap::new());
+                            continue;
+                        }
                         let before: Vec<tcl_compiler::auto_path_eval::PathConstantWrite> = self
                             .path_constant_assignments(&s.uri)
                             .iter()
@@ -7529,6 +7546,31 @@ mod tests {
         assert!(
             !seeds.contains_key("file:///s/core.tcl"),
             "no agreed value, no edge: {seeds:?}",
+        );
+    }
+
+    #[test]
+    fn a_body_local_source_route_imports_nothing_1368() {
+        // A `source` inside a proc runs when the proc is called, not at its
+        // lexical position: `set dir /a; proc load {} {source shared.tcl};
+        // set dir /b; load` reaches the child with `/b`.  The lexical
+        // position gate would say `/a`, so a body-local route must supply
+        // nothing at all (issue #1370 review).
+        let parent = analyse(
+            "namespace eval ::cfg {\n    variable dir [file dirname [file normalize [info script]]]\n}\nproc load {} {\n    source /s/shared.tcl\n}\n",
+        );
+        let reader = analyse("source ${::cfg::dir}/core.tcl\n");
+        let core = analyse("proc core_helper {} {}\n");
+        let index = sourced_index([
+            ("file:///s/start.tcl", &parent),
+            ("file:///s/shared.tcl", &reader),
+            ("file:///s/core.tcl", &core),
+        ]);
+        assert!(
+            !index
+                .imported_path_constants_for("file:///s/shared.tcl")
+                .contains_key("::cfg::dir"),
+            "a body-local source route must not provide load-time constants",
         );
     }
 

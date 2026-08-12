@@ -3465,6 +3465,12 @@ struct IndexedDiagnosticFacts {
     classes: HashSet<String>,
     links: Vec<core_workspace_index::WorkspaceCommandLink>,
     sources: Vec<core_workspace_index::WorkspaceSource>,
+    /// Raw path-constant write facts: a constants-only edit (`set dir /a` →
+    /// `/b`) changes which child a computed `source` resolves to — and which
+    /// values sourced children import — while the source rows themselves
+    /// compare equal, so the constants are resolution-relevant exactly as
+    /// the rows are (issue #1368 review).
+    path_constants: Vec<tcl_compiler::auto_path_eval::PathConstantWrite>,
     package_requires: Vec<core_workspace_index::WorkspacePackageRequire>,
     package_provides: Vec<core_workspace_index::WorkspacePackageProvide>,
     package_ifneededs: Vec<core_workspace_index::WorkspacePackageIfneeded>,
@@ -3494,6 +3500,7 @@ impl IndexedDiagnosticFacts {
                 .filter(|source| source.uri == uri)
                 .cloned()
                 .collect(),
+            path_constants: index.path_constant_assignments(uri).to_vec(),
             package_requires: index
                 .package_requires()
                 .filter(|require| require.uri == uri)
@@ -3517,6 +3524,26 @@ impl IndexedDiagnosticFacts {
         }
     }
 
+    /// The documents this one sourced **before** the edit — resolved from
+    /// the captured rows *and the captured constants*, so a computed path
+    /// reconstructs the edge it actually had (issue #1370 review).  Call on
+    /// the pre-edit capture; the post-edit consumers come from
+    /// [`source_diagnostic_consumers`] against the live index.
+    fn stale_source_consumers(
+        &self,
+        index: &core_workspace_index::WorkspaceIndex,
+        uri: &str,
+    ) -> HashSet<String> {
+        source_diagnostic_consumers_with_sources(
+            index,
+            uri,
+            Some(ReplacedSources {
+                rows: &self.sources,
+                constants: &self.path_constants,
+            }),
+        )
+    }
+
     fn change_to(&self, newer: &Self) -> IndexedDiagnosticChange {
         let mut command_names: HashSet<String> = self
             .procs
@@ -3535,6 +3562,7 @@ impl IndexedDiagnosticFacts {
         IndexedDiagnosticChange {
             command_names,
             source_or_package_changed: self.sources != newer.sources
+                || self.path_constants != newer.path_constants
                 || self.package_requires != newer.package_requires
                 || self.package_provides != newer.package_provides
                 || self.package_ifneededs != newer.package_ifneededs
@@ -3590,6 +3618,15 @@ fn source_diagnostic_consumers(
     source_diagnostic_consumers_with_sources(index, changed_uri, None)
 }
 
+/// The replacement rows plus the constants they resolved under **when they
+/// were live** — the pre-replacement capture.  Folding an old row with the
+/// post-edit constants would reconstruct an edge the old document never had
+/// (issue #1368 review), so the old facts travel together.
+struct ReplacedSources<'a> {
+    rows: &'a [core_workspace_index::WorkspaceSource],
+    constants: &'a [tcl_compiler::auto_path_eval::PathConstantWrite],
+}
+
 /// [`source_diagnostic_consumers`] with one document's source rows replaced.
 /// The publish path uses this after the atomic index replacement to recover
 /// the pre-change graph without scanning the workspace before every ordinary
@@ -3597,7 +3634,7 @@ fn source_diagnostic_consumers(
 fn source_diagnostic_consumers_with_sources(
     index: &core_workspace_index::WorkspaceIndex,
     changed_uri: &str,
-    replacement: Option<&[core_workspace_index::WorkspaceSource]>,
+    replacement: Option<ReplacedSources<'_>>,
 ) -> HashSet<String> {
     fn closure(
         initial: &str,
@@ -3627,14 +3664,18 @@ fn source_diagnostic_consumers_with_sources(
     }
 
     let mut edges = workspace_source_edges(index);
-    if let Some(sources) = replacement {
+    if let Some(replaced) = replacement {
         edges.retain(|edge| edge.parent != changed_uri);
-        edges.extend(sources.iter().filter_map(|source| {
+        edges.extend(replaced.rows.iter().filter_map(|source| {
+            // Old rows fold with the old constants.  Imports are the one
+            // best-effort input: the pre-edit import view is not
+            // reconstructible once the index has moved, and using the
+            // current one can only vary which *stale* child gets a refresh.
             resolve_source_edge(
                 &source.uri,
                 &source.raw_path,
                 source.is_literal,
-                index.path_constant_assignments(&source.uri),
+                replaced.constants,
                 &index.imported_path_constants_for(&source.uri),
             )
             .map(|child| tcl_lsp_core::source_graph::RunEdge {
@@ -3744,11 +3785,7 @@ async fn publish_diagnostics_result(
             let change = before.change_to(&after);
             let mut consumers = command_diagnostic_consumers(&index, &change.command_names);
             if change.source_or_package_changed {
-                consumers.extend(source_diagnostic_consumers_with_sources(
-                    &index,
-                    delivery.uri.as_str(),
-                    Some(&before.sources),
-                ));
+                consumers.extend(before.stale_source_consumers(&index, delivery.uri.as_str()));
                 consumers.extend(source_diagnostic_consumers(&index, delivery.uri.as_str()));
             }
             (change, consumers)
@@ -21691,6 +21728,61 @@ mod tests {
             stable.change_to(&IndexedDiagnosticFacts::capture(&index, lib.as_str())),
             IndexedDiagnosticChange::default(),
             "a body-only edit changes no cross-file diagnostic fact",
+        );
+    }
+
+    /// **A constants-only edit is a source-graph change** (issue #1370
+    /// review). Retargeting `set dir /a` to `/b` leaves the `source [file
+    /// join $dir x.tcl]` row byte-identical, so comparing rows alone reports
+    /// "nothing changed" and neither the old child nor the new one is
+    /// rescheduled — both were stale.  The captured constants must move the
+    /// needle, and the old rows must reconstruct the **old** edge from the
+    /// old constants, not the post-edit ones.
+    #[test]
+    fn a_constants_only_edit_reschedules_both_children() {
+        let parent = Uri::from_file_path("/proj/parent.tcl").unwrap();
+        let old_child = Uri::from_file_path("/proj/a/x.tcl").unwrap();
+        let new_child = Uri::from_file_path("/proj/b/x.tcl").unwrap();
+        let parent_before = "set dir /proj/a\nsource [file join $dir x.tcl]\n";
+        let mut index = ws_index(&[
+            (&parent, parent_before),
+            (&old_child, "proc a_helper {} {}\n"),
+            (&new_child, "proc b_helper {} {}\n"),
+        ]);
+        let before = IndexedDiagnosticFacts::capture(&index, parent.as_str());
+        let edited = Analyser::new()
+            .analyse("set dir /proj/b\nsource [file join $dir x.tcl]\n", "tcl8.6")
+            .clone();
+        index.replace_document(parent.as_str(), &edited);
+        let after = IndexedDiagnosticFacts::capture(&index, parent.as_str());
+        let change = before.change_to(&after);
+        assert_eq!(
+            before.sources, after.sources,
+            "precondition: the source row text is untouched by this edit",
+        );
+        assert!(
+            change.source_or_package_changed,
+            "the constant moved, so the resolved graph moved",
+        );
+
+        // The old edge, reconstructed from the old constants.
+        let stale = source_diagnostic_consumers_with_sources(
+            &index,
+            parent.as_str(),
+            Some(ReplacedSources {
+                rows: &before.sources,
+                constants: &before.path_constants,
+            }),
+        );
+        assert!(
+            stale.contains(old_child.as_str()),
+            "the child that is no longer sourced must be refreshed: {stale:?}",
+        );
+        // The new edge, from the current index.
+        let fresh = source_diagnostic_consumers(&index, parent.as_str());
+        assert!(
+            fresh.contains(new_child.as_str()),
+            "the newly sourced child must be refreshed: {fresh:?}",
         );
     }
 
