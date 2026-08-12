@@ -242,6 +242,14 @@ pub const GAPS: &[Gap] = &[
         kind: GapKind::LoaderGap,
     },
     Gap {
+        // Only the payload-carrying `Rebinarifies(N)` variant: the loader's
+        // byte-array-effect table lists the five fieldless ones, and a payload
+        // variant is not one word anyway.
+        key: "byte_array_effect",
+        spelling: "byte_array_effect None|Transparent|Coerces|CaseFolds|Encodes|{Rebinarifies N}",
+        kind: GapKind::LoaderGap,
+    },
+    Gap {
         key: "defines_symbol",
         spelling: "defines_symbol -name-arg N ?-detail-arg N? ?-requires-arg N? -kind KIND",
         kind: GapKind::LoaderGap,
@@ -306,8 +314,12 @@ fn brace_safe(text: &str) -> bool {
     while let Some(c) = chars.next() {
         match c {
             '\\' => {
-                if chars.next().is_none() {
-                    return false;
+                // Backslash-newline is the one substitution Tcl still performs
+                // inside braces, so a word carrying one does not come back out
+                // byte for byte.
+                match chars.next() {
+                    None | Some('\n') => return false,
+                    Some(_) => {}
                 }
             }
             '{' => depth += 1,
@@ -969,11 +981,22 @@ fn text(out: &mut Out, ctx: &Ctx<'_>, draft: &Draft, key: &str) {
 }
 
 /// Emit an enum property, whose draft value is already the catalogue spelling.
+///
+/// A variant carrying a payload (`Rebinarifies { data_index: 2 }`) is *not*
+/// one word, and no loader vocabulary lists it, so it becomes a `TODO` rather
+/// than a statement the loader would drop half of.
 fn enum_word(out: &mut Out, ctx: &Ctx<'_>, draft: &Draft, key: &str) {
     if ctx.set(draft, key)
         && let Some(value) = draft[key].as_str()
     {
-        out.line(&format!("{key} {value}"));
+        if value
+            .chars()
+            .all(|c| c.is_ascii_alphanumeric() || c == '_' || c == '.')
+        {
+            out.line(&format!("{key} {value}"));
+        } else {
+            todo(out, key);
+        }
     }
 }
 
@@ -1822,7 +1845,7 @@ pub fn render_pack(drafts: &[Draft], pack_name: &str) -> String {
         let defaults = draft::default_command_draft();
         // Rendered at its final indent: a braced word's continuation lines are
         // part of the value and must never be shifted afterwards.
-        let mut body = Out::at(2);
+        let mut body = Out::at(1);
         {
             let mut ctx = Ctx {
                 defaults: &defaults,
@@ -1844,28 +1867,18 @@ pub fn render_pack(drafts: &[Draft], pack_name: &str) -> String {
          line below names a field the source spec sets that a pack cannot yet say.",
     );
     out.line("");
-    out.line(&format!(
-        "speclib {} {DSL_VERSION} {{",
-        word(pack_name)
-    ));
-    out.indented(|out| {
-        tables.render(out);
-        for (name, body) in &bodies {
-            out.gap();
-            out.line(&format!("command {} {{", word(name)));
-            out.indented(|out| {
-                let indent = "    ".repeat(out.indent);
-                for line in body.lines() {
-                    if line.is_empty() {
-                        out.raw("\n");
-                    } else {
-                        out.raw(&format!("{indent}{line}\n"));
-                    }
-                }
-            });
-            out.line("}");
-        }
-    });
+    out.line(&format!("speclib {} {DSL_VERSION} {{", word(pack_name)));
+    // The ports do not indent a pack's own declarations — a `.tclspec` is one
+    // long file of `command` blocks, and a second level of indentation buys
+    // nothing.
+    tables.render(&mut out);
+    for (name, body) in &bodies {
+        out.gap();
+        out.line(&format!("command {} {{", word(name)));
+        out.block(body);
+        out.line("}");
+    }
+    out.gap();
     out.line("}");
     out.text
 }
