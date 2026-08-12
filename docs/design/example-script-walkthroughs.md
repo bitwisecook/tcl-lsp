@@ -1702,7 +1702,7 @@ In command 2, `texts[2]` is `"${x}"` — the segmenter wraps `Var` tokens in
 ```
 Script { statements: [
     Statement::AssignConst { name: "x", value: "42" },
-    Statement::AssignValue { name: "y", value: "${x}" },   # has variable reference
+    Statement::AssignValue { name: "y", value: "${x}" },   // has variable reference
 ] }
 ```
 
@@ -2446,7 +2446,7 @@ proc add {a b} {
 
 ```
 Module {
-    top_level: Script { statements: [] },   # proc def is extracted
+    top_level: Script { statements: [] },   // proc def is extracted
     procedures: {
         "::add": Procedure {
             name: "add",
@@ -3344,7 +3344,7 @@ This produces:
 Statement::Call {
     command: "regexp",
     args: [r"(\d+)", "${input}", "match", "submatch"],
-    defs: ["match", "submatch"],   # SSA tracks these as definitions
+    defs: ["match", "submatch"],   // SSA tracks these as definitions
 }
 ```
 
