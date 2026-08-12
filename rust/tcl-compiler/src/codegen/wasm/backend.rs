@@ -52,7 +52,7 @@ use crate::codegen::cmd_subst::{is_pure_cmd_subst, parse_cmd_parts};
 use crate::codegen::emit::Emit;
 use crate::codegen::structured;
 use crate::command_binding::{
-    Binding, BindingKind, ModuleCommandMutations, analyse_command_binding,
+    Binding, BindingKind, CommandBinding, ModuleCommandMutations, analyse_command_binding,
     scan_module_command_mutations,
 };
 use crate::compilation_unit::{CompilationUnit, FunctionUnit};
@@ -64,8 +64,12 @@ use tcl_runtime_api::codegen_abi::{
     WASM32_COMPLETION_RESULT_OFFSET, WASM32_COMPLETION_SIZE, WASM32_POINTER_BYTES,
 };
 
+use super::leaf_invoke::{
+    WasmInvokeNode, WasmLeafInvokeDecline, WasmLeafInvokePlan, WasmWordPlan, select_leaf_invocation,
+};
 use super::pipeline::WasmCompileOptions;
 use super::semantic_plan::WasmGenericInvokePlan;
+use crate::backend_registry::SelectionFacts;
 
 /// Block type byte for a structured op (`block`/`loop`/`if`) yielding no value.
 const BLOCK_VOID: u8 = 0x40;
@@ -76,8 +80,19 @@ const BLOCK_VOID: u8 = 0x40;
 /// Tcl completion codes the dispatch tests (`TCL_BREAK` / `TCL_CONTINUE`); the
 /// others (`TCL_ERROR` = 1, `TCL_RETURN` = 2, or a `return -code N`) are handled
 /// as "any non-`OK` code" (see [`WasmEmitter::emit_completion_dispatch`]).
+const TCL_ERROR: i64 = 1;
 const TCL_BREAK: i64 = 3;
 const TCL_CONTINUE: i64 = 4;
+
+/// Byte offset of one owned-object slot inside a leaf statement's call frame.
+fn slot_offset(slot: usize) -> i64 {
+    i64::try_from(slot).unwrap_or(i64::MAX) * i64::from(WASM32_POINTER_BYTES)
+}
+
+/// Byte offset of one completion record relative to the frame's completion base.
+fn completion_offset(index: usize) -> i32 {
+    i32::try_from(index).unwrap_or(i32::MAX) * WASM32_COMPLETION_SIZE
+}
 
 /// Default linear-memory base for the emitted module's constant pool: the
 /// **reserved region** the whole-program runtime leaves free.
@@ -162,6 +177,21 @@ struct AotImports {
     expr_add: u32,
     puts: u32,
     proc_register: u32,
+    argv: ArgvImports,
+}
+
+/// The runtime ABI the general tier's normal leaf-command path calls: evaluate
+/// the words, hand the runtime a complete argv, release everything.
+#[derive(Clone, Copy, Default)]
+struct ArgvImports {
+    frame_alloc: u32,
+    frame_free: u32,
+    string_owned: u32,
+    invoke_argv: u32,
+    object_release: u32,
+    var_get: u32,
+    var_get_element: u32,
+    word_concat: u32,
 }
 
 #[derive(Default)]
@@ -169,6 +199,10 @@ struct FunctionFacts {
     operations: HashMap<(u32, u32), SemanticOperationId>,
     direct_assignments: HashSet<(u32, u32)>,
     direct_calls: HashMap<(u32, u32, String), String>,
+    /// Selected prebuilt-argv plans, keyed by leaf-statement span.
+    leaf_invocations: HashMap<(u32, u32), WasmLeafInvokePlan>,
+    /// Typed reasons a leaf statement stayed on the source-span eval fallback.
+    leaf_declines: HashMap<(u32, u32), WasmLeafInvokeDecline>,
 }
 
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -203,6 +237,8 @@ struct WasmEmitter {
     /// target, since Tcl has no labelled break).
     loops: Vec<LoopFrame>,
     code_local: u64,
+    /// The transient call-frame pointer local, immediately after `code_local`.
+    frame_local: u64,
     mode: FunctionMode,
     local_slots: HashMap<String, u32>,
     proc_indices: HashMap<String, u32>,
@@ -222,6 +258,7 @@ impl WasmEmitter {
             ctrl_depth: 0,
             loops: Vec::new(),
             code_local: 0,
+            frame_local: 1,
             mode: FunctionMode::Top,
             local_slots: HashMap::new(),
             proc_indices: HashMap::new(),
@@ -348,6 +385,12 @@ impl WasmEmitter {
             self.push_i32(i64::from(slot));
             self.call(aot.local_get);
         } else {
+            // `tcl_codegen_var_get` reads a variable under its exact name, so a
+            // spelling that may be an array element (`$a(b)`) must not reach it
+            // — the general leaf-invocation path resolves that shape properly.
+            if name.contains('(') {
+                return false;
+            }
             self.push_text_pair(name);
             self.call(aot.var_get);
         }
@@ -472,47 +515,237 @@ impl WasmEmitter {
             Statement::Call {
                 span, args, tokens, ..
             } => {
-                let Some(operation) = self.facts.operations.get(&span_key(*span)).copied() else {
-                    return false;
-                };
-                match operation {
-                    SemanticOperationId::StructuredLowering(LoweringHookId::Proc) => {
-                        let Some(proc) = self.procedures_by_span.get(&span_key(*span)).cloned()
-                        else {
-                            return false;
-                        };
-                        let Some(body) = proc.body_source.as_deref() else {
-                            return false;
-                        };
-                        self.push_text_pair(&proc.qualified_name);
-                        self.push_text_pair(&proc.params_raw);
-                        self.push_text_pair(body);
-                        self.call(aot.proc_register);
-                        self.emit_completion_dispatch();
-                        true
-                    }
-                    SemanticOperationId::Intrinsic(IntrinsicId::ChannelWrite)
-                        if args.len() == 1
-                            && !tokens
-                                .as_ref()
-                                .is_some_and(|tokens| tokens.arg_is_braced_literal(0))
-                            && (simple_var_name(&args[0]).is_some()
-                                || is_pure_cmd_subst(&args[0])) =>
-                    {
-                        if !self.emit_word_value(&args[0], statement) {
-                            return false;
-                        }
-                        self.call(aot.puts);
-                        self.emit_completion_dispatch();
-                        true
-                    }
-                    SemanticOperationId::Invoke
-                    | SemanticOperationId::Intrinsic(_)
-                    | SemanticOperationId::StructuredLowering(_) => false,
-                }
+                self.try_emit_direct_operation(*span, statement, args, tokens.as_ref())
+                    || self.try_emit_leaf_invocation(*span)
             }
             _ => false,
         }
+    }
+
+    /// The narrow direct specialisations that beat generic argv invocation
+    /// when the binding lattice proves the command is still its builtin.
+    fn try_emit_direct_operation(
+        &mut self,
+        span: Span,
+        statement: &Statement,
+        args: &[String],
+        tokens: Option<&crate::ir::CommandTokens>,
+    ) -> bool {
+        let Some(aot) = self.general_imports().aot else {
+            return false;
+        };
+        let Some(operation) = self.facts.operations.get(&span_key(span)).copied() else {
+            return false;
+        };
+        match operation {
+            SemanticOperationId::StructuredLowering(LoweringHookId::Proc) => {
+                let Some(proc) = self.procedures_by_span.get(&span_key(span)).cloned() else {
+                    return false;
+                };
+                let Some(body) = proc.body_source.as_deref() else {
+                    return false;
+                };
+                self.push_text_pair(&proc.qualified_name);
+                self.push_text_pair(&proc.params_raw);
+                self.push_text_pair(body);
+                self.call(aot.proc_register);
+                self.emit_completion_dispatch();
+                true
+            }
+            SemanticOperationId::Intrinsic(IntrinsicId::ChannelWrite)
+                if args.len() == 1
+                    && !tokens.is_some_and(|tokens| tokens.arg_is_braced_literal(0))
+                    && (simple_var_name(&args[0]).is_some() || is_pure_cmd_subst(&args[0])) =>
+            {
+                if !self.emit_word_value(&args[0], statement) {
+                    return false;
+                }
+                self.call(aot.puts);
+                self.emit_completion_dispatch();
+                true
+            }
+            SemanticOperationId::Invoke
+            | SemanticOperationId::Intrinsic(_)
+            | SemanticOperationId::StructuredLowering(_) => false,
+        }
+    }
+
+    /// The general tier's normal leaf-command path: evaluate every word into a
+    /// transient call frame, dispatch the complete argv through the runtime's
+    /// ordinary command resolution, and release everything before the
+    /// completion is allowed to branch anywhere.
+    ///
+    /// The whole statement sits inside one `block`. Word evaluation branches to
+    /// its end on an abrupt completion, so there is exactly one cleanup path:
+    /// every object slot was nulled up front and is released null-safely, then
+    /// the frame is freed. Only after that does the completion dispatch run and
+    /// possibly `br`/`return` out of the statement, so no exit path can leak.
+    fn try_emit_leaf_invocation(&mut self, span: Span) -> bool {
+        // A direct procedure returns a value, so the completion dispatch's bare
+        // `return` is not well typed there. Its body is a single proven
+        // expression return, so no leaf call reaches this in practice; the
+        // guard keeps that a property of the code rather than of the caller.
+        if self.mode == FunctionMode::DirectProc {
+            return false;
+        }
+        let Some(aot) = self.general_imports().aot else {
+            return false;
+        };
+        let Some(plan) = self.facts.leaf_invocations.get(&span_key(span)).cloned() else {
+            return false;
+        };
+        let argv = aot.argv;
+
+        self.push_i32(i64::from(plan.frame_bytes));
+        self.push_i32(i64::from(plan.frame_align));
+        self.call(argv.frame_alloc);
+        self.local_set(self.frame_local);
+        for slot in 0..plan.object_slots {
+            self.local_get(self.frame_local);
+            self.push_i32(0);
+            self.store_i32(slot_offset(slot));
+        }
+        self.push_i32(0);
+        self.local_set(self.code_local);
+
+        let abort = self.open_frame(WasmOp::Block);
+        self.emit_invoke_node(&plan.root, &plan, argv, abort, true);
+        self.close_frame();
+
+        for slot in 0..plan.object_slots {
+            self.local_get(self.frame_local);
+            self.load_i32(slot_offset(slot));
+            self.call(argv.object_release);
+        }
+        self.local_get(self.frame_local);
+        self.call(argv.frame_free);
+        self.push(WasmOp::Drop);
+
+        self.dispatch_stashed_code();
+        true
+    }
+
+    /// Emit one invocation: its words, the argv dispatch, and adoption of the
+    /// completion's owned result and options into frame slots the single
+    /// cleanup path releases.
+    ///
+    /// A nested invocation additionally propagates an abrupt completion to the
+    /// statement's `abort` block; the outermost one leaves its code in
+    /// `code_local` for the completion dispatch after cleanup.
+    fn emit_invoke_node(
+        &mut self,
+        node: &WasmInvokeNode,
+        plan: &WasmLeafInvokePlan,
+        argv: ArgvImports,
+        abort: u32,
+        outermost: bool,
+    ) {
+        for word in &node.words {
+            self.emit_word_plan(word, plan, argv, abort);
+        }
+        let completion = plan.completion_base + completion_offset(node.completion);
+
+        self.local_get(self.frame_local);
+        self.push_i32(slot_offset(node.argv_slot));
+        self.push(WasmOp::I32Add);
+        self.push_i32(i64::try_from(node.words.len()).unwrap_or(i64::MAX));
+        self.local_get(self.frame_local);
+        self.push_i32(i64::from(completion));
+        self.push(WasmOp::I32Add);
+        self.call(argv.invoke_argv);
+        self.push(WasmOp::Drop);
+
+        self.local_get(self.frame_local);
+        self.load_i32(i64::from(completion + WASM32_COMPLETION_CODE_OFFSET));
+        self.local_set(self.code_local);
+        self.adopt_completion_handle(
+            completion + WASM32_COMPLETION_RESULT_OFFSET,
+            node.result_slot,
+        );
+        self.adopt_completion_handle(
+            completion + WASM32_COMPLETION_OPTIONS_OFFSET,
+            node.options_slot,
+        );
+
+        if !outermost {
+            self.local_get(self.code_local);
+            self.open_frame(WasmOp::If);
+            self.br(abort);
+            self.close_frame();
+        }
+    }
+
+    /// Move one owned completion handle into the frame slot the statement's
+    /// cleanup path releases.
+    fn adopt_completion_handle(&mut self, completion_field: i32, slot: usize) {
+        self.local_get(self.frame_local);
+        self.local_get(self.frame_local);
+        self.load_i32(i64::from(completion_field));
+        self.store_i32(slot_offset(slot));
+    }
+
+    fn emit_word_plan(
+        &mut self,
+        word: &WasmWordPlan,
+        plan: &WasmLeafInvokePlan,
+        argv: ArgvImports,
+        abort: u32,
+    ) {
+        match word {
+            WasmWordPlan::Literal { slot, text } => {
+                self.local_get(self.frame_local);
+                self.push_text_pair(text);
+                self.call(argv.string_owned);
+                self.store_i32(slot_offset(*slot));
+            }
+            WasmWordPlan::Scalar { slot, name } => {
+                self.local_get(self.frame_local);
+                self.push_text_pair(name);
+                self.call(argv.var_get);
+                self.store_i32(slot_offset(*slot));
+                self.emit_word_error_guard(*slot, abort);
+            }
+            WasmWordPlan::Element { slot, name, key } => {
+                self.local_get(self.frame_local);
+                self.push_text_pair(name);
+                self.push_text_pair(key);
+                self.call(argv.var_get_element);
+                self.store_i32(slot_offset(*slot));
+                self.emit_word_error_guard(*slot, abort);
+            }
+            WasmWordPlan::Invoke(node) => self.emit_invoke_node(node, plan, argv, abort, false),
+            WasmWordPlan::Concat {
+                slot,
+                parts_slot,
+                parts,
+            } => {
+                for part in parts {
+                    self.emit_word_plan(part, plan, argv, abort);
+                }
+                self.local_get(self.frame_local);
+                self.local_get(self.frame_local);
+                self.push_i32(slot_offset(*parts_slot));
+                self.push(WasmOp::I32Add);
+                self.push_i32(i64::try_from(parts.len()).unwrap_or(i64::MAX));
+                self.call(argv.word_concat);
+                self.store_i32(slot_offset(*slot));
+                self.emit_word_error_guard(*slot, abort);
+            }
+        }
+    }
+
+    /// A null word means the runtime reported a Tcl error while evaluating it
+    /// (a missing variable, a failed read trace). Record `TCL_ERROR` and leave
+    /// through the statement's single cleanup path.
+    fn emit_word_error_guard(&mut self, slot: usize, abort: u32) {
+        self.local_get(self.frame_local);
+        self.load_i32(slot_offset(slot));
+        self.push(WasmOp::I32Eqz);
+        self.open_frame(WasmOp::If);
+        self.push_i32(TCL_ERROR);
+        self.local_set(self.code_local);
+        self.br(abort);
+        self.close_frame();
     }
 
     fn local_get(&mut self, idx: u64) {
@@ -657,7 +890,11 @@ impl WasmEmitter {
     fn emit_completion_dispatch(&mut self) {
         // Stash the code; the dispatch reads it up to three times.
         self.local_set(self.code_local);
+        self.dispatch_stashed_code();
+    }
 
+    /// [`Self::emit_completion_dispatch`] for a code already in `code_local`.
+    fn dispatch_stashed_code(&mut self) {
         // In a loop, codes 3/4 are a structural break/continue of *this* loop.
         if let Some(frame) = self.loops.last() {
             let break_block = frame.break_block;
@@ -725,6 +962,7 @@ impl WasmEmitter {
             Vec::new()
         };
         local_names.push("$code".to_string());
+        local_names.push("$frame".to_string());
         WasmFunction {
             name: name.to_string(),
             params,
@@ -733,7 +971,9 @@ impl WasmEmitter {
             } else {
                 Vec::new()
             },
-            locals: vec![ValType::I32],
+            // `$code` (the completion-dispatch scratch) and `$frame` (the leaf
+            // invocation's transient call frame).
+            locals: vec![ValType::I32; 2],
             body: std::mem::take(&mut self.body),
             local_names,
             exported: true,
@@ -972,6 +1212,7 @@ fn function_facts(
     };
     let bindings = analyse_command_binding(&unit.cfg, registry, &initial);
     let mut facts = FunctionFacts::default();
+    let mut planned_spans: HashSet<(u32, u32)> = HashSet::new();
     for block in unit.cfg.reverse_postorder() {
         let Some(cfg_block) = unit.cfg.blocks.get(&block) else {
             continue;
@@ -984,6 +1225,10 @@ fn function_facts(
                 ..
             } = statement
                 && (*name_braced || !crate::naming::is_dynamic_word(name))
+                // `tcl_codegen_var_set` stores under the exact name, so an
+                // unbraced `a(b)` target — an array element, not a scalar whose
+                // name contains parentheses — keeps the source-span fallback.
+                && (*name_braced || !name.contains('('))
                 && registry
                     .command_names_for_semantic_operation(SemanticOperationId::StructuredLowering(
                         LoweringHookId::Set,
@@ -1018,35 +1263,121 @@ fn function_facts(
                     .operations
                     .insert(span_key(statement.span()), invocation.operation);
             }
-            if !is_top {
-                continue;
+            // Generic prebuilt-argv invocation is the normal leaf-command path
+            // and needs no binding proof: the runtime resolves the command head
+            // exactly as interpreted Tcl does, so a rename, alias, ensemble, or
+            // trace stays honoured. Only the *words* have to be provable.
+            if let Statement::Call { tokens, .. } = statement {
+                plan_leaf_statement(
+                    &mut facts,
+                    &mut planned_spans,
+                    registry,
+                    unit.semantic_facts.dialect(),
+                    statement.span(),
+                    tokens.as_ref(),
+                );
             }
-            for proc in module.procedures.values() {
-                if is_top && proc.span.start() >= statement.span().start() {
-                    continue;
-                }
-                for written in [proc.name.as_str(), proc.qualified_name.as_str()] {
-                    let binding = bindings.binding_at(block, stmt_idx, written);
-                    if binding.kind == BindingKind::Proc
-                        && binding.target.as_deref() == Some(proc.qualified_name.as_str())
-                        && mutations.trusts_proc_binding(&proc.qualified_name)
-                        && !module.has_dynamic_trace
-                        && !module.traced_commands.contains(
-                            proc.qualified_name
-                                .strip_prefix("::")
-                                .unwrap_or(&proc.qualified_name),
-                        )
-                    {
-                        facts.direct_calls.insert(
-                            span_command_key(statement.span(), written),
-                            proc.qualified_name.clone(),
-                        );
-                    }
-                }
+            if is_top {
+                record_direct_calls(
+                    &mut facts,
+                    module,
+                    &mutations,
+                    &bindings,
+                    (block, stmt_idx),
+                    statement,
+                );
             }
         }
     }
     facts
+}
+
+/// Record every procedure this call site provably binds to, so the emitter may
+/// call the generated function instead of dispatching through the runtime.
+fn record_direct_calls(
+    facts: &mut FunctionFacts,
+    module: &Module,
+    mutations: &ModuleCommandMutations,
+    bindings: &CommandBinding<'_>,
+    site: (crate::cfg::BlockId, usize),
+    statement: &Statement,
+) {
+    let (block, stmt_idx) = site;
+    for proc in module.procedures.values() {
+        if proc.span.start() >= statement.span().start() {
+            continue;
+        }
+        for written in [proc.name.as_str(), proc.qualified_name.as_str()] {
+            let binding = bindings.binding_at(block, stmt_idx, written);
+            if binding.kind == BindingKind::Proc
+                && binding.target.as_deref() == Some(proc.qualified_name.as_str())
+                && mutations.trusts_proc_binding(&proc.qualified_name)
+                && !module.has_dynamic_trace
+                && !module.traced_commands.contains(
+                    proc.qualified_name
+                        .strip_prefix("::")
+                        .unwrap_or(&proc.qualified_name),
+                )
+            {
+                facts.direct_calls.insert(
+                    span_command_key(statement.span(), written),
+                    proc.qualified_name.clone(),
+                );
+            }
+        }
+    }
+}
+
+/// Select and record the prebuilt-argv plan for one leaf `Statement::Call`.
+///
+/// A span is planned at most once. The control-flow graph can carry a
+/// synthetic header call over the same source range as the statement the
+/// structured walk emits (iterator headers do exactly that), and the two need
+/// not describe the same argv, so a second sighting of a span poisons it back
+/// to the source-span eval fallback rather than risk emitting the wrong argv.
+fn plan_leaf_statement(
+    facts: &mut FunctionFacts,
+    planned_spans: &mut HashSet<(u32, u32)>,
+    registry: &CommandRegistry,
+    dialect: tcl_registry::dialects::DialectSet,
+    span: Span,
+    tokens: Option<&crate::ir::CommandTokens>,
+) {
+    let key = span_key(span);
+    if !planned_spans.insert(key) {
+        facts.leaf_invocations.remove(&key);
+        facts
+            .leaf_declines
+            .insert(key, WasmLeafInvokeDecline::MissingCommandTokens);
+        return;
+    }
+    let Some(tokens) = tokens.filter(|tokens| tokens.words_align_with_argv_text()) else {
+        facts
+            .leaf_declines
+            .insert(key, WasmLeafInvokeDecline::MissingCommandTokens);
+        return;
+    };
+    let resolution = resolve_command_tokens(registry, dialect, tokens);
+    let resolved = match &resolution {
+        Ok(RegistryInvocationResolution::Resolved(invocation)) => Some(invocation.as_ref()),
+        _ => None,
+    };
+    let operation = resolved.map_or(SemanticOperationId::Invoke, |facts| facts.operation);
+    let selection_facts = resolved.map_or_else(SelectionFacts::unavailable, |facts| {
+        SelectionFacts::from_invocation(facts)
+    });
+    match select_leaf_invocation(tokens.words(), operation, selection_facts) {
+        Ok(plan) => {
+            facts.leaf_invocations.insert(key, plan);
+        }
+        Err(decline) => {
+            facts.leaf_declines.insert(
+                key,
+                super::leaf_invoke::word_decline(&decline)
+                    .unwrap_or(WasmLeafInvokeDecline::MissingCommandTokens),
+            );
+        }
+    }
 }
 
 fn add_tcl_import(m: &mut WasmModule, name: &str, params: &[ValType], results: &[ValType]) -> u32 {
@@ -1059,32 +1390,34 @@ const fn abi_value_type(value: CodegenAbiValueType) -> ValType {
     }
 }
 
+/// Declare one shared code-generation ABI import from its descriptor.
+fn add_abi_import(wasm: &mut WasmModule, import: CodegenAbiImportId) -> u32 {
+    let descriptor = import.descriptor();
+    let parameters = descriptor
+        .parameters
+        .iter()
+        .copied()
+        .map(abi_value_type)
+        .collect::<Vec<_>>();
+    let results = descriptor
+        .results
+        .iter()
+        .copied()
+        .map(abi_value_type)
+        .collect::<Vec<_>>();
+    u32::try_from(wasm.add_import(descriptor.module, descriptor.name, &parameters, &results))
+        .expect("WASM import index fits u32")
+}
+
 fn add_semantic_imports(wasm: &mut WasmModule) -> SemanticImports {
-    let add = |module: &mut WasmModule, import: CodegenAbiImportId| {
-        let descriptor = import.descriptor();
-        let parameters = descriptor
-            .parameters
-            .iter()
-            .copied()
-            .map(abi_value_type)
-            .collect::<Vec<_>>();
-        let results = descriptor
-            .results
-            .iter()
-            .copied()
-            .map(abi_value_type)
-            .collect::<Vec<_>>();
-        u32::try_from(module.add_import(descriptor.module, descriptor.name, &parameters, &results))
-            .expect("WASM import index fits u32")
-    };
     SemanticImports {
-        frame_alloc: add(wasm, CodegenAbiImportId::CallFrameAlloc),
-        frame_free: add(wasm, CodegenAbiImportId::CallFrameFree),
-        string_owned: add(wasm, CodegenAbiImportId::NewOwnedString),
-        invoke_argv: add(wasm, CodegenAbiImportId::InvokeArgv),
-        completion_release: add(wasm, CodegenAbiImportId::CompletionRelease),
-        object_retain: add(wasm, CodegenAbiImportId::ObjectRetain),
-        object_release: add(wasm, CodegenAbiImportId::ObjectRelease),
+        frame_alloc: add_abi_import(wasm, CodegenAbiImportId::CallFrameAlloc),
+        frame_free: add_abi_import(wasm, CodegenAbiImportId::CallFrameFree),
+        string_owned: add_abi_import(wasm, CodegenAbiImportId::NewOwnedString),
+        invoke_argv: add_abi_import(wasm, CodegenAbiImportId::InvokeArgv),
+        completion_release: add_abi_import(wasm, CodegenAbiImportId::CompletionRelease),
+        object_retain: add_abi_import(wasm, CodegenAbiImportId::ObjectRetain),
+        object_release: add_abi_import(wasm, CodegenAbiImportId::ObjectRelease),
     }
 }
 
@@ -1106,8 +1439,25 @@ fn add_general_imports(wasm: &mut WasmModule, analysis: bool) -> Imports {
     imports
 }
 
+/// The prebuilt-argv surface the general tier's normal leaf-command path uses.
+///
+/// `var_get` is shared with the direct scalar-read specialisation; everything
+/// else is the shared code-generation ABI's own transport surface.
+fn add_argv_imports(wasm: &mut WasmModule, var_get: u32) -> ArgvImports {
+    ArgvImports {
+        frame_alloc: add_abi_import(wasm, CodegenAbiImportId::CallFrameAlloc),
+        frame_free: add_abi_import(wasm, CodegenAbiImportId::CallFrameFree),
+        string_owned: add_abi_import(wasm, CodegenAbiImportId::NewOwnedString),
+        invoke_argv: add_abi_import(wasm, CodegenAbiImportId::InvokeArgv),
+        object_release: add_abi_import(wasm, CodegenAbiImportId::ObjectRelease),
+        var_get,
+        var_get_element: add_abi_import(wasm, CodegenAbiImportId::VarGetElement),
+        word_concat: add_abi_import(wasm, CodegenAbiImportId::WordConcat),
+    }
+}
+
 fn add_aot_imports(wasm: &mut WasmModule) -> AotImports {
-    AotImports {
+    let mut imports = AotImports {
         value_new_string: add_tcl_import(
             wasm,
             "tcl_value_new_string",
@@ -1166,7 +1516,10 @@ fn add_aot_imports(wasm: &mut WasmModule) -> AotImports {
             ],
             &[ValType::I32],
         ),
-    }
+        argv: ArgvImports::default(),
+    };
+    imports.argv = add_argv_imports(wasm, imports.var_get);
+    imports
 }
 
 struct ProcedurePlan<'a> {
@@ -1323,6 +1676,7 @@ fn codegen(
         ctrl_depth: 0,
         loops: Vec::new(),
         code_local: 0,
+        frame_local: 1,
         mode: FunctionMode::Top,
         local_slots: HashMap::new(),
         proc_indices,
@@ -1363,6 +1717,7 @@ fn codegen(
         } else {
             0
         };
+        emitter.frame_local = emitter.code_local.saturating_add(1);
         emitter.facts = analysis
             .and_then(|(unit, registry)| {
                 unit.procedures
@@ -1435,5 +1790,59 @@ fn start_function(
         exported: true,
         source_range: None,
         kind: "start".to_string(),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Plan the top-level statements of `source` under the full analysed tier.
+    fn top_level_facts(source: &str) -> FunctionFacts {
+        let registry = CommandRegistry::build_default();
+        let unit = CompilationUnit::build_for(source, &registry, false);
+        function_facts(&unit.top_level, &unit.ir_module, &registry, true)
+    }
+
+    fn only_decline(facts: &FunctionFacts) -> WasmLeafInvokeDecline {
+        let mut declines = facts.leaf_declines.values().copied().collect::<Vec<_>>();
+        assert_eq!(declines.len(), 1, "expected exactly one declined statement");
+        declines.pop().expect("one decline")
+    }
+
+    /// A leaf command whose words all compile selects a plan and records no
+    /// decline for that statement.
+    #[test]
+    fn provable_words_select_a_prebuilt_argv_plan() {
+        let facts = top_level_facts("string length $value\n");
+        assert_eq!(facts.leaf_invocations.len(), 1);
+        assert!(facts.leaf_declines.is_empty(), "{:?}", facts.leaf_declines);
+    }
+
+    /// A word the emitter cannot prove records the precise typed reason, so the
+    /// remaining source-span evaluation stays observable rather than anonymous.
+    #[test]
+    fn unprovable_words_record_their_typed_decline() {
+        for (source, expected) in [
+            (
+                "string length {*}$args\n",
+                WasmLeafInvokeDecline::ArgumentExpansion,
+            ),
+            (
+                "string length a\\tb\n",
+                WasmLeafInvokeDecline::BackslashSubstitution,
+            ),
+            (
+                "string length $a($i)\n",
+                WasmLeafInvokeDecline::DynamicVariableName,
+            ),
+        ] {
+            let facts = top_level_facts(source);
+            assert!(
+                facts.leaf_invocations.is_empty(),
+                "{source} should not select a plan"
+            );
+            assert_eq!(only_decline(&facts), expected, "{source}");
+        }
     }
 }

@@ -63,6 +63,48 @@ fn compile_wasm_analysed(source: &str) -> WasmModule {
     compile_wasm_unit(&unit, &registry, WasmCompileOptions::hosted()).into_module()
 }
 
+/// Import function lines in declaration order (the WASM function-index order).
+fn import_lines(wat: &str) -> Vec<&str> {
+    wat.lines()
+        .filter(|line| line.contains("(func $imp_"))
+        .collect()
+}
+
+/// How many `call` instructions target the host import `name`.
+fn import_calls(wat: &str, name: &str) -> usize {
+    let Some(index) = import_lines(wat)
+        .iter()
+        .position(|line| line.contains(&format!("\"{name}\"")))
+    else {
+        return 0;
+    };
+    let target = format!("call {index}");
+    wat.lines().filter(|line| line.trim() == target).count()
+}
+
+/// How many `call` instructions target the module's own function `name`.
+///
+/// Defined functions follow every import, in emission order, so the call index
+/// is the import count plus the function's position among the definitions.
+fn function_calls(wat: &str, name: &str) -> usize {
+    let imports = import_lines(wat).len();
+    let needle = format!("(func ${name} ");
+    let Some(position) = wat
+        .lines()
+        .filter(|line| line.contains("(func $") && !line.contains("(func $imp_"))
+        .position(|line| line.contains(&needle))
+    else {
+        return 0;
+    };
+    let target = format!("call {}", imports + position);
+    wat.lines().filter(|line| line.trim() == target).count()
+}
+
+/// How many `tcl_eval_code` source-span fallbacks the module still performs.
+fn eval_fallbacks(wat: &str) -> usize {
+    import_calls(wat, "tcl_eval_code")
+}
+
 #[test]
 fn analysed_add_program_uses_direct_tcl_object_operations() {
     let source = r"proc add {b c} {
@@ -84,10 +126,16 @@ puts [add $e $f]
     assert!(wat.contains(r#""tcl_codegen_expr_add""#), "{wat}");
     assert!(wat.contains(r#""tcl_codegen_puts""#), "{wat}");
     assert!(wat.contains(r#""tcl_codegen_proc_register""#), "{wat}");
-    assert!(!wat.lines().any(|line| line.trim() == "call 1"), "{wat}");
+    assert_eq!(eval_fallbacks(&wat), 0, "{wat}");
+    // Every statement has a proven direct form, so nothing needs the generic
+    // prebuilt-argv path either.
+    assert_eq!(import_calls(&wat, "tcl_invoke_argv"), 0, "{wat}");
     assert_eq!(&module.to_bytes()[0..4], b"\0asm");
 }
 
+/// A rebound command must never become a direct call to the procedure's own
+/// generated function. It stays on runtime dispatch — which the general tier
+/// now reaches through a compiled argv rather than by re-evaluating source.
 #[test]
 fn analysed_direct_call_declines_when_binding_lattice_is_opaque() {
     let source = r"proc add {b c} {return [expr {$b + $c}]}
@@ -97,10 +145,19 @@ puts [add 2 4]
     let mut module = compile_wasm_analysed(source);
     let wat = module.to_wat();
 
-    assert!(
-        wat.lines().any(|line| line.trim() == "call 1"),
-        "the rebound call must retain source evaluation:\n{wat}"
+    assert_eq!(
+        function_calls(&wat, "::add"),
+        0,
+        "the rebound call must not bind to the generated procedure:\n{wat}"
     );
+    assert_eq!(
+        import_calls(&wat, "tcl_codegen_puts"),
+        0,
+        "the rebound call must not take the direct channel-write path:\n{wat}"
+    );
+    // `rename …`, `puts …`, and the nested `[add 2 4]` all dispatch through the
+    // runtime's own command resolution.
+    assert_eq!(import_calls(&wat, "tcl_invoke_argv"), 3, "{wat}");
     assert_eq!(&module.to_bytes()[0..4], b"\0asm");
 }
 
@@ -161,9 +218,14 @@ fn analysed_direct_proc_requires_original_expr_and_return_bindings() {
             ),
             "a potentially rebound {name} must disable the direct procedure:\n{wat}"
         );
+        assert_eq!(
+            function_calls(&wat, "::add"),
+            0,
+            "the call must not bind to a generated procedure when {name} can change:\n{wat}"
+        );
         assert!(
-            wat.contains(r#""puts [add 2 4]""#),
-            "the call must retain source evaluation when {name} can change:\n{wat}"
+            import_calls(&wat, "tcl_invoke_argv") > 0,
+            "the call must reach runtime dispatch when {name} can change:\n{wat}"
         );
         assert_eq!(&module.to_bytes()[0..4], b"\0asm");
     }
@@ -187,24 +249,221 @@ fn analysed_direct_call_preserves_static_and_dynamic_execution_traces() {
         let mut module = compile_wasm_analysed(&source);
         let wat = module.to_wat();
 
+        assert_eq!(
+            function_calls(&wat, "::add"),
+            0,
+            "a {name} execution trace must not bind to the generated procedure:\n{wat}"
+        );
         assert!(
-            wat.contains(r#""puts [add 1 2]""#),
+            import_calls(&wat, "tcl_invoke_argv") > 0,
             "a {name} execution trace must retain runtime dispatch:\n{wat}"
         );
         assert_eq!(&module.to_bytes()[0..4], b"\0asm");
     }
 }
 
+/// A braced word is one unsubstituted literal argv value: it is materialised
+/// straight from the constant pool, never evaluated as a command.
 #[test]
 fn analysed_puts_preserves_braced_command_text_as_literal() {
     let mut module = compile_wasm_analysed("puts {[add 2 4]}\n");
     let wat = module.to_wat();
 
     assert!(
-        wat.lines().any(|line| line.trim() == "call 1"),
-        "a braced command-shaped word must remain literal:\n{wat}"
+        wat.contains(r#"(data (i32.const 1048580) "[add 2 4]")"#),
+        "a braced command-shaped word must be interned as its literal value:\n{wat}"
+    );
+    assert_eq!(function_calls(&wat, "::add"), 0, "{wat}");
+    // One invocation only: the braced word is data, not a nested command.
+    assert_eq!(import_calls(&wat, "tcl_invoke_argv"), 1, "{wat}");
+    assert_eq!(import_calls(&wat, "tcl_obj_new_string_owned"), 2, "{wat}");
+    assert_eq!(&module.to_bytes()[0..4], b"\0asm");
+}
+
+/// The general tier's normal leaf-command path: one transient call frame, one
+/// owned word per argv slot, one `tcl_invoke_argv`, and no source-span eval.
+#[test]
+fn analysed_leaf_command_compiles_to_a_prebuilt_argv() {
+    let mut module = compile_wasm_analysed("string tolower ABC\n");
+    let wat = module.to_wat();
+
+    assert_eq!(eval_fallbacks(&wat), 0, "{wat}");
+    assert_eq!(
+        import_calls(&wat, "tcl_codegen_call_frame_alloc"),
+        1,
+        "{wat}"
+    );
+    assert_eq!(
+        import_calls(&wat, "tcl_codegen_call_frame_free"),
+        1,
+        "{wat}"
+    );
+    assert_eq!(import_calls(&wat, "tcl_obj_new_string_owned"), 3, "{wat}");
+    assert_eq!(import_calls(&wat, "tcl_invoke_argv"), 1, "{wat}");
+    // Three argv words plus the completion's owned result and options.
+    assert_eq!(import_calls(&wat, "tcl_obj_release"), 5, "{wat}");
+    // Three argv pointers and two adopted handles, then one completion triple.
+    assert!(wat.contains("i32.const 20\n"), "{wat}");
+    assert!(wat.contains("i32.const 32\n"), "{wat}");
+    for word in ["string", "tolower", "ABC"] {
+        assert!(wat.contains(&format!("\"{word}\"")), "{wat}");
+    }
+    assert_eq!(&module.to_bytes()[0..4], b"\0asm");
+}
+
+/// Every owned value a statement creates is released on the one cleanup path,
+/// and the release count scales with the words the statement evaluates.
+#[test]
+fn analysed_leaf_command_releases_every_word_it_creates() {
+    for (source, words) in [("list a\n", 2), ("list a b\n", 3), ("list a b c d\n", 5)] {
+        let mut module = compile_wasm_analysed(source);
+        let wat = module.to_wat();
+        assert_eq!(
+            import_calls(&wat, "tcl_obj_release"),
+            words + 2,
+            "{source}:\n{wat}"
+        );
+        assert_eq!(
+            import_calls(&wat, "tcl_codegen_call_frame_free"),
+            1,
+            "{wat}"
+        );
+    }
+}
+
+/// A `$var` word is a compiled variable read, not a re-evaluated source span.
+#[test]
+fn analysed_leaf_command_compiles_a_scalar_variable_word() {
+    let mut module = compile_wasm_analysed("string length $value\n");
+    let wat = module.to_wat();
+
+    assert_eq!(eval_fallbacks(&wat), 0, "{wat}");
+    assert_eq!(import_calls(&wat, "tcl_codegen_var_get"), 1, "{wat}");
+    assert_eq!(import_calls(&wat, "tcl_invoke_argv"), 1, "{wat}");
+    assert!(wat.contains(r#""value""#), "{wat}");
+    assert_eq!(&module.to_bytes()[0..4], b"\0asm");
+}
+
+/// `$a(b)` is an array-element read; `${a(b)}` names a scalar. The two have the
+/// same compatibility spelling, so the emitted read proves they stayed apart.
+#[test]
+fn analysed_leaf_command_separates_array_and_scalar_variable_spellings() {
+    let mut element = compile_wasm_analysed("string length $a(b)\n");
+    let element = element.to_wat();
+    assert_eq!(
+        import_calls(&element, "tcl_codegen_var_get_element"),
+        1,
+        "{element}"
+    );
+    assert_eq!(
+        import_calls(&element, "tcl_codegen_var_get"),
+        0,
+        "{element}"
+    );
+
+    let mut scalar = compile_wasm_analysed("string length ${a(b)}\n");
+    let scalar = scalar.to_wat();
+    assert_eq!(
+        import_calls(&scalar, "tcl_codegen_var_get_element"),
+        0,
+        "{scalar}"
+    );
+    assert_eq!(import_calls(&scalar, "tcl_codegen_var_get"), 1, "{scalar}");
+}
+
+/// A quoted or compound word is evaluated part by part and joined by the
+/// runtime, never by string work in the emitter.
+#[test]
+fn analysed_leaf_command_compiles_a_compound_word() {
+    let mut module = compile_wasm_analysed("string length \"hi $name!\"\n");
+    let wat = module.to_wat();
+
+    assert_eq!(eval_fallbacks(&wat), 0, "{wat}");
+    assert_eq!(import_calls(&wat, "tcl_codegen_word_concat"), 1, "{wat}");
+    assert_eq!(import_calls(&wat, "tcl_codegen_var_get"), 1, "{wat}");
+    assert!(wat.contains(r#""hi ""#), "{wat}");
+    assert_eq!(&module.to_bytes()[0..4], b"\0asm");
+}
+
+/// A `[nested command]` word is the same compiled argv invocation, with the
+/// completion's owned result becoming the enclosing word's value.
+#[test]
+fn analysed_leaf_command_compiles_a_nested_command_word() {
+    let mut module = compile_wasm_analysed("string length [string tolower ABC]\n");
+    let wat = module.to_wat();
+
+    assert_eq!(eval_fallbacks(&wat), 0, "{wat}");
+    assert_eq!(import_calls(&wat, "tcl_invoke_argv"), 2, "{wat}");
+    // One frame carries both invocations' argv and completion storage.
+    assert_eq!(
+        import_calls(&wat, "tcl_codegen_call_frame_alloc"),
+        1,
+        "{wat}"
+    );
+    assert_eq!(
+        import_calls(&wat, "tcl_codegen_call_frame_free"),
+        1,
+        "{wat}"
     );
     assert_eq!(&module.to_bytes()[0..4], b"\0asm");
+}
+
+/// A word shape the emitter cannot prove keeps the whole statement on the
+/// source-span eval fallback — the truncate-and-retry path, not a half-built
+/// argv.
+#[test]
+fn analysed_leaf_command_declines_argument_expansion() {
+    let mut module = compile_wasm_analysed("set args {a b}\nstring length {*}$args\n");
+    let wat = module.to_wat();
+
+    assert!(
+        wat.contains(r#""string length {*}$args""#),
+        "expansion must keep the source-span fallback:\n{wat}"
+    );
+    assert_eq!(import_calls(&wat, "tcl_invoke_argv"), 0, "{wat}");
+    assert_eq!(eval_fallbacks(&wat), 1, "{wat}");
+    assert_eq!(&module.to_bytes()[0..4], b"\0asm");
+}
+
+/// A backslash-substituted word is not modelled by the emitter, so the
+/// statement declines cleanly rather than emitting the unprocessed bytes.
+#[test]
+fn analysed_leaf_command_declines_backslash_substitution() {
+    let mut module = compile_wasm_analysed("string length a\\tb\n");
+    let wat = module.to_wat();
+
+    assert_eq!(import_calls(&wat, "tcl_invoke_argv"), 0, "{wat}");
+    assert_eq!(eval_fallbacks(&wat), 1, "{wat}");
+    assert_eq!(&module.to_bytes()[0..4], b"\0asm");
+}
+
+/// Abrupt completion still propagates through the compiled path: a leaf
+/// command inside a loop keeps its `break`/`continue` re-entry, and the
+/// cleanup that precedes it is unconditional.
+#[test]
+fn analysed_leaf_command_keeps_the_completion_dispatch_after_cleanup() {
+    let mut module = compile_wasm_analysed("while {$go} {string length abc}\n");
+    let wat = module.to_wat();
+
+    assert_eq!(import_calls(&wat, "tcl_invoke_argv"), 1, "{wat}");
+    // The frame is freed before any completion branch can leave the statement.
+    let free = wat
+        .lines()
+        .position(|line| line.trim() == format!("call {}", frame_free_index(&wat)))
+        .expect("frame free is emitted");
+    let dispatch = wat
+        .lines()
+        .position(|line| line.trim() == "i32.eq")
+        .expect("the completion dispatch tests break/continue");
+    assert!(free < dispatch, "cleanup must precede the dispatch:\n{wat}");
+}
+
+/// The import index of `tcl_codegen_call_frame_free`.
+fn frame_free_index(wat: &str) -> usize {
+    import_lines(wat)
+        .iter()
+        .position(|line| line.contains("\"tcl_codegen_call_frame_free\""))
+        .expect("the frame-free import is declared")
 }
 
 /// With a non-zero data base, both the data segments and the `i32.const` offsets
@@ -385,16 +644,81 @@ fn foreach_is_opaque_eval_fallback() {
     assert_eq!(&m.to_bytes()[0..4], b"\0asm");
 }
 
+fn have_wasmtime() -> bool {
+    std::process::Command::new("wasmtime")
+        .arg("--version")
+        .output()
+        .is_ok_and(|o| o.status.success())
+}
+
+/// Validate one emitted module with `wasmtime compile`.
+fn validate(name: &str, module: &mut WasmModule) {
+    let tmp = std::env::temp_dir();
+    let wasm = tmp.join(format!("tcl_wasm_stage2_{name}.wasm"));
+    let cwasm = tmp.join(format!("tcl_wasm_stage2_{name}.cwasm"));
+    std::fs::write(&wasm, module.to_bytes()).expect("write wasm");
+    let status = std::process::Command::new("wasmtime")
+        .arg("compile")
+        .arg(&wasm)
+        .arg("-o")
+        .arg(&cwasm)
+        .output()
+        .expect("run wasmtime");
+    assert!(
+        status.status.success(),
+        "{name}.wasm failed wasmtime validation:\n{}\n--- wat ---\n{}",
+        String::from_utf8_lossy(&status.stderr),
+        module.to_wat(),
+    );
+    let _ = std::fs::remove_file(&wasm);
+    let _ = std::fs::remove_file(&cwasm);
+}
+
+/// The compiled prebuilt-argv path is **structurally valid WASM** across every
+/// word shape it accepts, including the abrupt-completion branches out of a
+/// part-built argv.
+#[test]
+fn wasmtime_validates_analysed_argv_modules() {
+    if !have_wasmtime() {
+        eprintln!("wasmtime CLI unavailable; skipping structural validation");
+        return;
+    }
+    for (name, src) in [
+        ("argv-literal", "string tolower ABC\n"),
+        ("argv-braced", "puts {a b c}\n"),
+        ("argv-scalar", "string length $value\n"),
+        ("argv-element", "string length $a(b)\n"),
+        ("argv-compound", "string length \"hi $name!\"\n"),
+        ("argv-nested", "string length [string tolower ABC]\n"),
+        (
+            "argv-deep-nested",
+            "string length [string tolower [string trim \" ABC \"]]\n",
+        ),
+        ("argv-in-if", "if {$x} {string length $value}\n"),
+        (
+            "argv-in-loop",
+            "while {$go} {string length $value\nlappend out $value}\n",
+        ),
+        (
+            "argv-in-loop-break",
+            "while {1} {if {$done} {break}\nstring length [set v]}\n",
+        ),
+        (
+            "argv-in-for",
+            "for {set i 0} {$i < 3} {incr i} {lappend out [string index $s $i]}\n",
+        ),
+        ("argv-mixed-decline", "string length {*}$args\nlist a b\n"),
+    ] {
+        validate(name, &mut compile_wasm_analysed(src));
+    }
+}
+
 /// Every emitted module is **structurally valid WASM** — confirmed by
 /// `wasmtime compile` (which fully validates before native compilation). Skips
 /// gracefully where the `wasmtime` CLI isn't available.
 #[test]
 fn wasmtime_validates_emitted_modules() {
-    let have_wasmtime = std::process::Command::new("wasmtime")
-        .arg("--version")
-        .output()
-        .is_ok_and(|o| o.status.success());
-    if !have_wasmtime {
+    if !have_wasmtime() {
         eprintln!("wasmtime CLI unavailable; skipping structural validation");
         return;
     }

@@ -753,6 +753,14 @@ fn escape_wat_bytes(bytes: &[u8]) -> String {
     escaped
 }
 
+/// The byte offset of a memory instruction's memarg, skipping its alignment
+/// exponent. `None` when the operands are not a complete memarg pair.
+fn memarg_offset(operands: &[u8]) -> Option<u64> {
+    let align_bytes = operands.iter().position(|byte| byte & 0x80 == 0)? + 1;
+    let offset = operands.get(align_bytes..)?;
+    (!offset.is_empty()).then(|| decode_leb128_unsigned(offset))
+}
+
 /// Format one instruction for WAT, indented. Operand-bearing ops decode their
 /// LEB128 operand for display; structural opens render their block type.
 fn format_wat_instr(instr: &WasmInstruction, indent: usize) -> String {
@@ -778,6 +786,15 @@ fn format_wat_instr(instr: &WasmInstruction, indent: usize) -> String {
                 format!("{prefix}{name}")
             } else {
                 format!("{prefix}{name} {}", decode_leb128_signed(&instr.operands))
+            }
+        }
+        // A memarg is an alignment exponent followed by a byte offset. The
+        // emitter always uses the operand's natural alignment, so only the
+        // offset carries information worth reading.
+        WasmOp::I32Load | WasmOp::I64Load | WasmOp::I32Store | WasmOp::I64Store => {
+            match memarg_offset(&instr.operands) {
+                Some(offset) => format!("{prefix}{name} offset={offset}"),
+                None => format!("{prefix}{name}"),
             }
         }
         WasmOp::Block | WasmOp::Loop | WasmOp::If => {

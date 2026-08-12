@@ -108,6 +108,23 @@ fn walk_stmt<E: Emit>(
         emit.emit_command(slice(source, stmt.span()));
         return Flow::Normal;
     }
+    // `break` / `continue` inside a loop are completion codes the walk realises
+    // as structured jumps. That decision belongs to the walk, not to a backend's
+    // statement emission, so it is taken before the typed-statement seam — a
+    // backend that can compile the call would otherwise route the jump through
+    // its own completion dispatch instead.
+    if loop_depth > 0
+        && let Statement::Call { command, .. } = stmt
+    {
+        if command == "break" {
+            emit.emit_break();
+            return Flow::Diverged;
+        }
+        if command == "continue" {
+            emit.emit_continue();
+            return Flow::Diverged;
+        }
+    }
     if emit.emit_typed_statement(stmt, source) {
         return if matches!(stmt, Statement::Return { .. }) {
             Flow::Diverged
@@ -167,20 +184,12 @@ fn walk_stmt<E: Emit>(
             Flow::Diverged
         }
 
-        Statement::Call { command, span, .. } => {
-            // `break` / `continue` inside a loop are completion codes, realised
-            // as structured jumps; everywhere else they are ordinary commands
-            // (the runtime raises "invoked … outside of a loop").
-            if loop_depth > 0 && command == "break" {
-                emit.emit_break();
-                Flow::Diverged
-            } else if loop_depth > 0 && command == "continue" {
-                emit.emit_continue();
-                Flow::Diverged
-            } else {
-                emit.emit_command(slice(source, *span));
-                Flow::Normal
-            }
+        // A leaf command the backend declined; outside a loop `break` /
+        // `continue` are ordinary commands too (the runtime raises "invoked …
+        // outside of a loop").
+        Statement::Call { span, .. } => {
+            emit.emit_command(slice(source, *span));
+            Flow::Normal
         }
 
         // Everything else — assignments, `foreach`/`switch`/`catch`/`try`,
