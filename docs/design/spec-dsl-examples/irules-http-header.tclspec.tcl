@@ -49,7 +49,9 @@ command HTTP::header {
         detail   {Insert header/value pair.}
         synopsis {HTTP::header insert <name> <value>}
         mutator
-        # Carried verbatim from the shipped spec.
+        # Carried verbatim from the shipped spec.  NOT an off-by-one: the W310
+        # consumer indexes with the subcommand word at 0 (args[1] = header
+        # name, args[2] = value), so 2 is the value slot as consumed.
         credential_arg 2
         sensitive_headers {authorization proxy-authorization x-api-key x-auth-token x-secret}
     }

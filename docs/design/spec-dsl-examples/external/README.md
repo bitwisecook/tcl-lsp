@@ -190,18 +190,24 @@ or binds a new dispatchable command/object.
   widget on *this instance only*. No `CommandSpec`/`SubCommand` field
   models "this call installs a method on an object" — only interpreter
   command-table effects exist (`proc`/`rename`/`interp alias`). See G11.
-- **Getter/setter-by-arity, cleanly.** `obbit.tcl:1176-1190`
-  (`method setProperty {name args}`) is 0-args-getter / 1-arg-setter by
-  its own docstring and a `switch -exact [llength $args] {0 {...} 1
-  {...}}` (`obbit.tcl:1183-1189`) — a clean, non-Tk-widget confirmation
-  that `forms` (`Getter`/`Setter`/`Default`) already covers this shape;
-  no gap, just fresh grounding (see `fields.md`'s own `$w cget -opt`
-  versus `$w configure -opt value` example).
-- **Deprecation as a same-class method pair.** `apavebase.tcl:3673-3678`
-  (`method window {args}`) is `uplevel 1 [list [self] paveWindow {*}$args]`
-  with the docstring "Obsolete version of paveWindow (remains for
-  compatibility)" — a drop-in `deprecated_replacement` at the
-  `object_class` method level. Again a confirmation, not a gap.
+- **Getter/setter-by-arity, on a method — and `forms` can't say so.**
+  `obbit.tcl:1176-1190` (`method setProperty {name args}`) is
+  0-args-getter / 1-arg-setter by its own docstring and a `switch -exact
+  [llength $args] {0 {...} 1 {...}}` (`obbit.tcl:1183-1189`) — textbook
+  `Getter`/`Setter` `forms`. But `forms` is marked **`*command only*`**
+  in `fields.md` (its own field description), even though `fields.md`'s
+  *own illustrative example for the field* is method-shaped (`$w cget
+  -opt` versus `$w configure -opt value` — a widget-handle method pair).
+  `setProperty` is a `SubCommand` inside `object_class.instance_methods`
+  and so cannot carry `forms` at all today. See G15.
+- **Deprecation as a same-class method pair — and `deprecated_replacement`
+  can't say so either.** `apavebase.tcl:3673-3678` (`method window
+  {args}`) is `uplevel 1 [list [self] paveWindow {*}$args]` with the
+  docstring "Obsolete version of paveWindow (remains for compatibility)"
+  — a drop-in replacement, method calling sibling method on the same
+  object. `deprecated_replacement` and `deprecated_replacement_drop_in`
+  are both **`*command only*`** (`fields.md`) — a `SubCommand`/`method`
+  cannot declare either. Same structural gap as `forms`, see G15.
 
 ### 3.3 SpiceGenTcl (`georgtree/SpiceGenTcl`) — the issue's own library, TclOO-heavy
 
@@ -230,7 +236,7 @@ or binds a new dispatchable command/object.
   options: &[&str], dialects }` — a flat "may not co-occur" set, which
   covers `-forbid` (once the DSL grows syntax for it — no sibling
   `.tclspec.tcl` in the parent directory shows `option_constraints`
-  syntax yet either) but has **no field at all** for "-require" ‑ there
+  syntax yet either) but has **no field at all** for "-require" — there
   is no directionality, no "implies", nothing. `-l=` and `-w=` both
   `-require {model}` at `specElementsClassesNgspice.tcl:102-103`. See G2.
 - **Argument-shape ensembles, again.** `Device::actOnParam`
@@ -472,6 +478,38 @@ with the matching tag.
 - **G14 `[STRUCT]` — option immutability after construction.**
   `fileutil::traverse`'s `-readonly 1` (`traverse.tcl:95-97`, all 3
   options). `OptionSpec` (`hover.rs:380-415`) has no field for it at all.
+- **G15 `[STRUCT]` — `forms` and `deprecated_replacement*` are
+  `*command only*` despite being canonically method-shaped.** Same family
+  as G7 (a field restricted to `CommandSpec` whose real-world need sits on
+  an `object_class` method), evidenced independently: `fields.md`'s *own*
+  worked example for `forms` (`$w cget -opt` vs `$w configure -opt
+  value`) is a widget-method pair, yet the field cannot be attached to
+  the `SubCommand` that models such a method. apave's `setProperty`
+  (`obbit.tcl:1176-1190`, textbook `Getter`/`Setter`) and `window`→
+  `paveWindow` (`apavebase.tcl:3673-3678`, textbook drop-in replacement,
+  same class) are both real, grounded instances that hit this exact
+  wall. Between G7 and G15, three whole field families
+  (taint-sink, invocation-forms, deprecation) turn out to be
+  `*command only*` in ways their own canonical examples contradict —
+  worth treating as one pattern when scoping a fix: audit every
+  `*command only*` field for whether its own doc-comment example is
+  secretly method-shaped, rather than fixing G7/G15's fields one at a
+  time.
+- **G16 `[STRUCT]`, not really an external-library finding — `fields.md`'s
+  own prose overclaims what `SubSubCommand` holds.** Discovered trying to
+  draft `struct::graph`'s `arc`/`node` sub-ensembles
+  (`tcllib.tclspec.tcl`): `fields.md`'s `sub_subcommands` entry says "Each
+  carries its own arity and documentation", but `SubSubCommand`
+  (`rust/tcl-registry/src/spec.rs:2281-2290`) is `{name, detail, synopsis,
+  dialects}` — **no `arity` field, no `pure`/`mutator`, no `arg_roles`** —
+  and `sub_subcommands: &'static [SubSubCommand]` (`spec.rs:2245`) is a
+  plain slice with no paired arity/trait side-table. Every one of
+  `struct::graph::arc`'s ~15 real operations (`graph_tcl.tcl:425-1050`)
+  has a fixed, known arity (`get` is exactly 2, `getall` is 1..2, …) with
+  nowhere to put it. A genuine documentation/implementation drift,
+  orthogonal to whether the DSL is fixed — worth a `fields.md` correction
+  (or a `SubSubCommand` field addition) either way, independent of
+  spec-packs.
 
 ## 5. Ranked DSL requirements (by cross-library frequency)
 
@@ -490,7 +528,9 @@ with the matching tag.
    messages. **Zero** uses of `namespace ensemble create` for a primary
    public surface across all 4 corpora. `object_class.instance_methods` +
    `subcommands`/`sub_subcommands` already cover every one of these once
-   G1 lands — this is the evidence that they must.
+   G1 lands — this is the evidence that they must, with one caveat:
+   `sub_subcommands` (struct::graph's `arc`/`node`) turns out to be
+   documentation-only today, no arity/purity — see G16.
 3. **Option relationship vocabulary (G2, G5).** 264 grounded
    `-forbid`/`-require` relationships in SpiceGenTcl alone, plus
    ticklecharts' shared closed-enum validators (124 cases, ~180+
@@ -500,13 +540,15 @@ with the matching tag.
 4. **Per-option lifecycle against a third-party package's own version
    axis (G3).** 3,961 raw occurrences in ticklecharts. `[SYNTAX]`-only —
    `OptionSpec::lifecycle` already does the job.
-5. **Method-level taint-sink modelling (G7).** Only reachable where an
-   `object_class` method does something dangerous, but that is *exactly*
-   where real libraries put dangerous things: SpiceGenTcl's
-   `exec`/`open |cmd` process spawns and untrusted-path file writes are
-   both inside TclOO methods, not free commands. `[STRUCT]` — the
-   command-only taint fields cannot be attached to a `SubCommand` at all
-   today.
+5. **`*command only*` fields whose own canonical example is method-shaped
+   (G7, G15).** Taint sinks, `forms`, and `deprecated_replacement*` are
+   all restricted to `CommandSpec`, yet real dangerous calls
+   (SpiceGenTcl's `exec`/`open |cmd`, untrusted-path file writes),
+   textbook getter/setter pairs (apave's `setProperty`), and drop-in
+   method replacements (apave's `window`→`paveWindow`) all live on
+   `object_class` methods across 2 of the 4 corpora. `[STRUCT]` in every
+   case — a `SubCommand` cannot carry any of these three field families
+   today, no matter how the DSL is spelled.
 6. **`argparse`-as-embedded-grammar / no derivation path (G4).** 164 raw
    occurrences, but a tooling gap, not a vocabulary one — every fact
    `argparse` states, the DSL can already say once transcribed by hand.
@@ -527,6 +569,13 @@ with the matching tag.
     corpus) but a clean, total struct gap (`OptionSpec` has nothing for
     it), cheap to add if wanted.
 
+Unranked, because it isn't a DSL gap at all: **G16** (`sub_subcommands`'s
+real, thin shape vs. `fields.md`'s claim that it carries arity) is a
+documentation/implementation drift the census method surfaced as a side
+effect of trying to draft real third-party evidence, not a finding about
+any of the four libraries — worth a `fields.md` fix (or a struct addition)
+on its own schedule, unrelated to the spec-pack DSL design.
+
 ## 6. Relationship to `tricky-surfaces.md`
 
 The [rubric](../tricky-surfaces.md) predates this census and was built by
@@ -542,13 +591,19 @@ porting *shipped, core-Tcl* commands. Cross-checked against it:
   `tricky-surfaces.md:28`) ← G12's first real-world grounding;
   "credential options and args" / "sensitive headers" (rubric, Taint) ←
   already exercised by `irules-http-header.tclspec.tcl`, unaffected by
-  this census; deprecation-as-data (rubric, Documentation) ← apave's
-  `window`/`paveWindow` pair.
+  this census.
 - **Sharpens an existing rubric item into something more precise:** the
   rubric's Taint section lists "per-slot code/network sinks" as something
   the DSL must cover, without noting *where* — G7 is the sharper claim
   that the command-only scoping of those fields collides with exactly
-  where real libraries put the dangerous calls (TclOO methods).
+  where real libraries put the dangerous calls (TclOO methods). The
+  rubric's Documentation section lists "deprecation as data" and hover
+  "at all three levels (command / subcommand / sub-subcommand)" as goals
+  without flagging that `forms` and `deprecated_replacement*`
+  specifically stop at the command level — G15 sharpens this the same
+  way G7 sharpens the taint item, off apave's `setProperty` and
+  `window`/`paveWindow`, which *looked* like they would simply confirm
+  the rubric until the field-scope markers were checked.
 - **Genuinely new, not on the rubric at all:** G2's "requires" option
   relationship (rubric only anticipates "mutual exclusion sets"); G13's
   custom completion codes (rubric only anticipates the 5 standard ones);

@@ -1,0 +1,214 @@
+# Draft spec for the `apave` package, shipped from repo aplsimple/pave (NOT
+# aplsimple/apave -- that repo does not exist; confirmed via
+# mcp__github__search_repositories, see ../external/README.md §1). Source:
+# github.com/aplsimple/pave @ 875de1f1 (2026-07-08), package version 4.9.1.
+#
+# Exercises: object_class (INVENTED, G1) on a class deliberately designed as
+# a mixin-only ingredient, a getter/setter method pair that cannot actually
+# carry `forms` (documents G15), a structured multi-field-tuple body
+# argument with nested option sub-lists (INVENTED, most speculative
+# construct in this whole census — G8), a value position that is closed
+# AND runtime-extensible at once (G9), and dynamic per-object method
+# installation (documents G11 — deliberately NOT drafted as a fix).
+#
+# Full evidence and gap numbering: ../external/README.md
+
+speclib apave 4.9 {
+
+# ---------------------------------------------------------------------------
+# ::apave::ObjectProperty (obbit.tcl:1159-1208) -- a class written to be
+# MIXED IN, not instantiated standalone: its constructor
+# (obbit.tcl:1163-1167) is `if {[llength [self next]]} { next {*}$args }`,
+# i.e. it defensively chains onward only if something is ahead of it in the
+# MRO. `::apave::APaveBase` mixes in `::apave::ObjectTheming`
+# (apavebase.tcl:432) the same way; ObjectProperty itself is not mixed into
+# any class in this snapshot but ships as reusable mixin ingredient (its own
+# doc comment says so verbatim).
+command ::apave::ObjectProperty {
+    arity 0..
+    required_package apave
+
+    object_class {
+        superclasses {}
+        allow_unknown_methods no
+
+        # obbit.tcl:1176-1190. Textbook Getter/Setter-by-arity: 0 args
+        # returns [my getProperty $name], 1 arg sets and returns it
+        # (`switch -exact [llength $args] {0 {...} 1 {...}}`,
+        # obbit.tcl:1183-1189). This is EXACTLY `fields.md`'s own
+        # illustrative example for `forms` ("testConstraint NAME (getter)
+        # versus testConstraint NAME value (setter)") -- except `forms` is
+        # marked `*command only*`, and this is a `SubCommand`. Cannot be
+        # written today (G15); the two `method` blocks below are the
+        # honest fallback (two separately-documented forms of the same
+        # underlying operation) rather than one `forms`-carrying method.
+        method setProperty {
+            arity 1..2
+            detail   {Get (1 arg) or set (2 args) an object-wide property.}
+            synopsis {$obj setProperty name ?value?}
+            arg 0 -role Name
+            # arg 1, when present, is the new value -- and this call
+            # becomes a mutator; when absent, it is a pure getter. Real
+            # arity-dependent purity, which `forms` exists to say cleanly
+            # (`fields.md`: "each can carry its own purity and effects: a
+            # getter is harmless where its setter is not") and cannot here.
+            hover {
+                summary  {Get or set a property's value as "object-wide" (persists across calls on this object).}
+                description {With one argument, returns the property's current value (delegates to getProperty). With two, sets it and returns the new value.}
+                source   {obbit.tcl:1176-1190}
+            }
+        }
+
+        method getProperty {
+            arity 1..2
+            detail   {Get a property's value, or defvalue if unset.}
+            synopsis {$obj getProperty name ?defvalue?}
+            pure
+            arg 0 -role Name
+            return_type String
+            hover { summary {Return a property's value, or defvalue (default "") if it was never set.} source {obbit.tcl:1193-1204} }
+        }
+    }
+}
+
+# ---------------------------------------------------------------------------
+# ::apave::APaveDialog -- one rung of the inheritance chain
+# (superclass ::apave::APaveBase, apavedialog.tcl:46-48; APave in turn
+# superclasses THIS, apave.tcl:810-812). `ok` is representative of 6
+# same-shaped message-box methods (ok/okcancel/yesno/yesnocancel/
+# retrycancel/abortretrycancel, apavedialog.tcl:149-231) -- included mainly
+# to show `superclasses` chaining 3 deep costs nothing extra in the DSL.
+command ::apave::APaveDialog {
+    arity 0..
+    required_package apave
+
+    object_class {
+        superclasses {::apave::APaveBase}
+        allow_unknown_methods no
+
+        method ok {
+            arity 3..
+            detail   {Show an OK message box.}
+            synopsis {$obj ok icon title message ?-opt value ...?}
+            mutator
+            arg 0 -role Value -values {info warn err ques} -closed
+            arg 1 -role Value
+            arg 2 -role Value
+            hover { summary {Pop up a modal OK dialog.} source {apavedialog.tcl:149-160} }
+        }
+    }
+}
+
+# ---------------------------------------------------------------------------
+# ::apave::APaveBase -- the geometry-manager core (apavebase.tcl:430-432,
+# `mixin ::apave::ObjectTheming`). `Window`/`paveWindow` is the layout DSL
+# itself: a table of 7-field tuples, two of whose fields are themselves
+# nested `-flag value` lists. This is the single most speculative construct
+# in this whole census (G8) -- nothing in the shipped registry or the
+# sibling `.tclspec.tcl` ports reaches two nesting levels, and the syntax
+# below should be read as "what an author would need," not "what exists."
+command ::apave::APaveBase {
+    arity 0..
+    required_package apave
+
+    # A representative slice of the widget-type vocabulary switch
+    # (apavebase.tcl:986-1201, `switch -glob -- $nam3 { bts {...} but
+    # {...} chb {...} ... }`, ~40 cases total). NOT closed in practice:
+    # `defaultATTRS` (apavebase.tcl:1201-1243) registers new 3-letter type
+    # codes at runtime -- documented example at apavebase.tcl:1212: `my
+    # defaultATTRS tbt {} {-style Toolbutton -compound top} ttk::button`.
+    # `-closed` below is deliberately OMITTED for this reason (G9): there
+    # is no way to say "closed, but with a registered escape valve" at a
+    # sub-field granularity, so the honest choice is to leave it open and
+    # lose the "not in this list" diagnostic entirely.
+    values apave-widget-type-codes {
+        value but -detail {ttk::button}
+        value ent -detail {ttk::entry}
+        value lab -detail {ttk::label}
+        value fra -detail {ttk::frame}
+        value chb -detail {ttk::checkbutton}
+        value swi -detail {ttk::checkbutton styled as a switch}
+        value cbx -detail {ttk::combobox}
+        value can -detail {canvas}
+        # ... ~30 more (apavebase.tcl:986-1201); dynamically extensible,
+        # see the comment above -- this table can never be exhaustive.
+    }
+
+    object_class {
+        superclasses {}
+        # ObjectTheming is `mixin`ed at the class level (apavebase.tcl:432),
+        # not inherited via `superclass` -- modelled the same way today
+        # since `superclasses` (spec.rs:259-261) is documented only as
+        # "for inherited-method resolution" and doesn't distinguish TclOO
+        # `superclass` from `mixin`; both resolve methods the same way for
+        # `object_class`'s purposes, so no gap is claimed here.
+        superclasses {::apave::ObjectTheming}
+
+        method Window {
+            arity 2
+            detail   {Pave one window/frame with a table of widgets.}
+            synopsis {$obj Window w inplists}
+            mutator
+            arg 0 -role Name
+
+            # DSL GAP (G8) -- INVENTED, no struct backing today. `inplists`
+            # (apavebase.tcl:3480-3487) is a list of ROWS, each row a fixed
+            # 7-field tuple `{name neighbor posofnei rowspan colspan
+            # options attrs}`. `clause_grammar` (if.tclspec.tcl:33-37) and
+            # `case_list` (switch.tclspec.tcl:69-81) are the closest
+            # existing constructs and both stop at a flat word sequence
+            # (pattern/body pairs) -- neither reaches "each repeated unit
+            # is itself a tuple of N typed positional sub-fields, two of
+            # which are themselves nested option lists."
+            # `-body-kind Plain`, not Structural: the options/attrs
+            # sub-fields are `subst`-ed 2 CALLER frames up
+            # (apavebase.tcl:3546), so they genuinely touch the enclosing
+            # data flow rather than opting out of it -- but "Body" itself
+            # is already a stretch for a declarative table whose leaves are
+            # variable-substituted rather than evaluated as commands; see
+            # the substitution-scope note on fields 5/6 below.
+            arg 1 -role Body -body-kind Plain -repeats {
+                row {
+                    # First 3 characters of the word select the widget
+                    # type (apavebase.tcl:981-985); the rest of the word is
+                    # the widget's own name. No existing role expresses
+                    # "closed/extensible enum keyed off a fixed-length
+                    # PREFIX of this field's text," so `-values-from` is
+                    # applied to the whole field as an approximation.
+                    field 0 -name name     -role Name  -values-from apave-widget-type-codes
+                    field 1 -name neighbor -role Name
+                    field 2 -name posofnei -values {T L} -closed
+                    field 3 -name rowspan  -type Int
+                    field 4 -name colspan  -type Int
+                    # Fields 5/6: nested `-flag value` sub-lists, evaluated
+                    # via `uplevel 2 subst -nocommand -nobackslashes`
+                    # (apavebase.tcl:3546) -- variable substitution ONLY,
+                    # two caller frames up. `-nested optionlist` has no
+                    # backing anywhere; `EVALUATES_IN_SHIFTED_FRAME` +
+                    # `PERFORMS_SUBSTITUTION` (both real traits) get close
+                    # but can't say WHICH substitution types apply.
+                    field 5 -name options  -role Value -nested optionlist
+                    field 6 -name attrs    -role Value -nested optionlist
+                }
+            }
+
+            hover {
+                summary  {Create and grid/pack every widget described in inplists under window w.}
+                description {Called by `paveWindow` (apavebase.tcl:3631-3670), the public entry point, which itself takes repeated `w inplists` pairs -- an ordinary `repeated_args` pairing (already expressible, unlike the row shape above).}
+                source   {apavebase.tcl:3476-3630}
+            }
+        }
+
+        # Deliberately NOT drafted as a fix: `makeWidgetMethod`
+        # (apavebase.tcl:2385-2409) runs `oo::objdefine [self] "method
+        # $method {} {return $wnamefull} ; export $method"`
+        # (apavebase.tcl:2407-2408) -- installing a NEW METHOD, with a
+        # COMPUTED name, on the ONE object instance being paved right now.
+        # No CommandSpec/SubCommand field models "this call adds a method
+        # to a specific existing object" (distinct from command_table_effect,
+        # which is interpreter-command-table scoped, and from
+        # definition_body, which is class-wide). Documents G11.
+    }
+}
+
+}

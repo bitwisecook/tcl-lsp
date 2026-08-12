@@ -491,7 +491,7 @@ What each port loses, if anything, against its `.rs`.
 | `string` (4 subcommands) | **near-complete** | `string is`'s `const_fold_versioned` stays `-native`. Its Rust is a version-aware classifier (per-class availability floors, 8.x/9.x magnitude caps, radix prefixes, digit separators, ambiguous-form bail-outs); a Tcl body would be a re-implementation, not a port. `length` / `map` / `range` port fully — but see the note below. |
 | `oo::class` | **partial** | the three subcommands' `state_transitions` resolvers stay `-native`: they emit typed `CommandBinding::Define` + `ObjectDispatch::Create` facts, and the DSL has no vocabulary for constructing transition facts. Everything around them (composition, argument shape, widening rules, effect coverage, commit) is data and ports. `arg_role_resolver` is *removed*, derived from the `manufacturer` rows. |
 | `uri::geturl` + `http::geturl` | **complete** | — |
-| `HTTP::header` | **complete** | including the shipped spec's `credential_arg 2` on `insert`, which reads like an off-by-one against a 2-argument subcommand and is carried verbatim rather than silently fixed |
+| `HTTP::header` | **complete** | including the shipped spec's `credential_arg 2` on `insert`/`replace`, carried verbatim. Design review verified it is **not** an off-by-one: the W310 consumer (`security.rs::emit_w310_hardcoded_credentials`) indexes with the *subcommand word at 0* (`args[0]` = `insert`, `args[1]` = header name, `args[2]` = value), so `2` is the value slot as consumed — the schema help text's "index after the subcommand word" is the erroneous half. A loader must store this field verbatim, **not** re-base it to after-subcommand coordinates |
 | `upvar` | **near-complete** | `state_transitions.resolver` becomes `from-frame-effect`. That is a *derivation claim*, not a transcription: it asserts that the alias facts `upvar_state_transitions` produces are exactly determined by `AliasPairs` + `ArityParity`. Reading the Rust, they are — but an implementation must prove it, not assume it. |
 
 **The const-fold porting hazard.** A Tcl hook body inherits the *hook
@@ -672,7 +672,7 @@ schema order. "excluded" rows carry the reason.
 | `taint_transform` | `taint_transform {COLOUR …}` |  |
 | `taint_double_encode_colour` | `taint_double_encode_colour {COLOUR …}` |  |
 | `taint_output_sink` | `taint_output_sink CODE` |  |
-| `credential_arg` | `credential_arg N` |  |
+| `credential_arg` | `credential_arg N` | **verbatim coordinates**: the W310 consumer counts the subcommand word itself as index 0, unlike every other per-index subcommand field — see the `HTTP::header` fidelity note |
 | `sensitive_headers` | `sensitive_headers {NAME …}` |  |
 | `pattern_type` | `pattern_type Glob\|Regex` |  |
 | `format_string_type` | `format_string_type Sprintf\|Clock\|Binary\|Regsub` |  |

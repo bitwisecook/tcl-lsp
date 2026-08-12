@@ -393,6 +393,13 @@ are its rules, and what are the failure modes". One contract per file.
   — the DSL's acceptance rubric: the tricky Tcl surfaces (operator
   aliasing, TclOO corners, real-world options, paired tails, hooks)
   each ticked against a ported example during review.
+- [spec-dsl-examples/external/README.md](spec-dsl-examples/external/README.md)
+  — the external-library census (ticklecharts, apave, SpiceGenTcl,
+  uncovered tcllib): per-library command-shape findings and the
+  frequency-ranked DSL requirements with their gap catalogue.
+- [spec-dsl-examples/external/corpus-expansion.md](spec-dsl-examples/external/corpus-expansion.md)
+  — the wider corpus hunt behind the #1181 additions, plus sixteen
+  hook-pattern exemplars quoted from cloned sources.
 - [proc-arg-traits.md](contracts/proc-arg-traits.md) — proc argument
   trait inference.
 - [variable-case-mismatch-suggestions.md](contracts/variable-case-mismatch-suggestions.md)

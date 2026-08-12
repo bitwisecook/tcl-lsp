@@ -251,7 +251,7 @@ For ensembles whose subcommands are also reachable as plain commands in a namesp
 
 *subcommand only* — Operations selected by the word after this subcommand (`info object <op>`).
 
-A third level of keywords — operations selected by the word *after* this subcommand, as in `info object isa`. Each carries its own arity and documentation, counted after its own word.
+A third level of keywords — operations selected by the word *after* this subcommand, as in `info object isa`. Deliberately lighter than a full subcommand: each carries only its name, a one-line detail, a synopsis, and an optional dialect gate — enough for highlighting, hover, and completion. Arity stays on the owning subcommand.
 
 ## Documentation
 
