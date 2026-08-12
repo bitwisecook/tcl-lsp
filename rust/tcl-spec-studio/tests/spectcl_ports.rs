@@ -160,9 +160,12 @@ const PORTS: &[Port] = &[
             dialect: "f5-irules",
             unequal: &[(
                 "traits",
-                "the port omits REQUIRES_HTTP_CONTEXT, which the shipped spec \
-                 carries. A genuine transcription gap in the fixture, not a loader \
-                 limit: adding the word to the pack closes it",
+                "the shipped registry adds REQUIRES_HTTP_CONTEXT at registration \
+                 (irules/mod.rs's http_context() wrapper over IRULES_SPECS — \
+                 pack-level curation, the IRULE1201 source of truth), not in the \
+                 spec literal. The port is faithful to the .rs; a pack loader \
+                 installing into the iRules registry applies the same wrapper \
+                 policy, exactly like the tcllib dialect fill above",
             )],
             unequal_subcommand: NO_SUBS,
             subcommand_subset: ALL_SUBS,
@@ -278,7 +281,8 @@ fn every_port_loads_and_matches_its_shipped_spec() {
             .unwrap_or_else(|e| panic!("reading {}: {e}", port.file));
         let pack = spectcl::load_pack(&source);
 
-        let _ = writeln!(report, 
+        let _ = writeln!(
+            report,
             "\n=== {} — pack `{}` v{} ({} command(s), {} notice(s))",
             port.file,
             pack.name,
@@ -360,7 +364,8 @@ fn every_port_loads_and_matches_its_shipped_spec() {
                 )
                 .collect();
 
-            let _ = writeln!(report, 
+            let _ = writeln!(
+                report,
                 "  {} @ {}: {} differing field(s)",
                 expected.name,
                 expected.dialect,
@@ -384,7 +389,8 @@ fn every_port_loads_and_matches_its_shipped_spec() {
                 if !documented {
                     failures += 1;
                 }
-                let _ = writeln!(report, 
+                let _ = writeln!(
+                    report,
                     "    {} {}\n        ported : {}\n        shipped: {}\n        reason : {reason}",
                     if documented { "[documented]" } else { "[FAIL]" },
                     diff.key,
@@ -395,7 +401,8 @@ fn every_port_loads_and_matches_its_shipped_spec() {
 
             for (key, why) in expected.unequal {
                 if !diffs.iter().any(|d| d.key == *key) {
-                    let _ = writeln!(report, 
+                    let _ = writeln!(
+                        report,
                         "    [stale] `{key}` is documented as unequal ({why}) but now matches"
                     );
                 }
@@ -642,7 +649,9 @@ fn the_manufacturer_derivation_agrees_with_the_shipped_resolver() {
     let shipped = tcl_registry::cache::registry_for_dialect("tcl9.1")
         .get("oo::class")
         .expect("shipped oo::class");
-    let shipped_roles = shipped.arg_role_resolver.expect("oo::class's role resolver");
+    let shipped_roles = shipped
+        .arg_role_resolver
+        .expect("oo::class's role resolver");
     for call in [
         "",
         "create",
@@ -699,11 +708,18 @@ fn the_inline_snit_grammar_matches_the_shipped_constant() {
     // The port's own claim, spelled out so a silently-empty grammar cannot
     // pass the field comparisons below by matching nothing against nothing.
     assert_eq!(built.members.len(), 15, "member rows");
-    assert_eq!(built.builtin_object_methods.len(), 6, "built-in object methods");
+    assert_eq!(
+        built.builtin_object_methods.len(),
+        6,
+        "built-in object methods"
+    );
     assert_eq!(built.member_body_commands.len(), 1, "member-body commands");
     assert_eq!(built.manufacturers.len(), 1, "manufacturer rows");
 
-    assert_eq!(format!("{:?}", built.family), format!("{:?}", shipped.family));
+    assert_eq!(
+        format!("{:?}", built.family),
+        format!("{:?}", shipped.family)
+    );
     assert_eq!(built.implicit_vars, shipped.implicit_vars);
     assert_eq!(
         built.member_body_namespace_path,

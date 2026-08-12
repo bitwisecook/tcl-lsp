@@ -126,7 +126,10 @@ mod tests {
         for group in schema::GROUPS {
             assert!(doc.contains(&format!("\n## {group}\n")), "missing {group}");
         }
-        for field in schema::COMMAND_FIELDS.iter().chain(schema::SUBCOMMAND_FIELDS) {
+        for field in schema::COMMAND_FIELDS
+            .iter()
+            .chain(schema::SUBCOMMAND_FIELDS)
+        {
             assert!(
                 doc.contains(&format!("### `{}`", field.key)),
                 "missing field {}",

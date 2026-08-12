@@ -69,11 +69,13 @@ use tcl_compiler::parsing::syntax::build::build_document;
 use tcl_compiler::parsing::syntax::segment::segments_from_document;
 use tcl_dialect::{DialectSet, TclVersion};
 use tcl_lexer::{LexerConfig, SourceMap, TokenType};
+use tcl_registry::abbrev::PrefixMatching;
 use tcl_registry::arg_role::{AppendedArity, ArgRole};
 use tcl_registry::arity::Arity;
 use tcl_registry::body_kind::BodyKind;
 use tcl_registry::byte_array_effect::ByteArrayEffect;
 use tcl_registry::clause_shape::ClauseShapeError;
+use tcl_registry::command_table::CommandTableEffect;
 use tcl_registry::definer::{
     BuiltinMethodReceiver, BuiltinObjectMethod, DefinerFamily, DefinitionBodyGrammar,
     ManufacturerMethod, MemberBodyCommand, MemberKind, MemberRefKind, MemberRetraction, MemberSpec,
@@ -93,12 +95,10 @@ use tcl_registry::hover::{
 };
 use tcl_registry::intrinsic::IntrinsicId;
 use tcl_registry::literal_validation::LiteralArgumentValidation;
+use tcl_registry::patterns::PatternType;
 use tcl_registry::presentation::ArgPresentation;
 use tcl_registry::semantic_operation::SemanticOperationId;
 use tcl_registry::side_effects::{ConnectionSide, SideEffect, SideEffectTarget, StorageType};
-use tcl_registry::abbrev::PrefixMatching;
-use tcl_registry::command_table::CommandTableEffect;
-use tcl_registry::patterns::PatternType;
 use tcl_registry::spec::{CaseListSpec, CommandSpec, SubCommand, SubSubCommand};
 use tcl_registry::traits::Traits;
 use tcl_registry::types::{TclType, VarWriteTyping};
@@ -638,7 +638,10 @@ impl PackTables {
     fn add_hook(&mut self, stmt: &Stmt, log: &mut Log) {
         let name = stmt.word_text(1).to_owned();
         let (Some(params), Some(body)) = (stmt.arg(2), stmt.arg(3)) else {
-            log.say(stmt.line, "`hook` needs a name, a parameter list, and a body");
+            log.say(
+                stmt.line,
+                "`hook` needs a name, a parameter list, and a body",
+            );
             return;
         };
         self.hooks
@@ -740,7 +743,10 @@ fn list_words(text: &str) -> Vec<String> {
 
 /// A bare property word means `yes`; an explicit `yes` / `no` overrides it.
 fn parse_flag(tail: &[Word]) -> bool {
-    !matches!(tail.first().map(|w| w.text.as_str()), Some("no" | "false" | "0"))
+    !matches!(
+        tail.first().map(|w| w.text.as_str()),
+        Some("no" | "false" | "0")
+    )
 }
 
 /// The tri-state form, where the argument is required.
@@ -1185,11 +1191,15 @@ fn parse_var_write_typing(text: &str, line: u32, log: &mut Log) -> Option<VarWri
         Some((head, rest)) if head == "Fixed" && rest.len() == 1 => {
             by_name(TCL_TYPES, &rest[0]).map(VarWriteTyping::Fixed)
         }
-        Some((head, rest)) if head == "ElementsOf" && rest.len() == 1 => {
-            rest[0].parse().ok().map(|container_arg| VarWriteTyping::ElementsOf { container_arg })
-        }
+        Some((head, rest)) if head == "ElementsOf" && rest.len() == 1 => rest[0]
+            .parse()
+            .ok()
+            .map(|container_arg| VarWriteTyping::ElementsOf { container_arg }),
         _ => {
-            log.say(line, format!("unreadable var_write_typing `{text}` dropped"));
+            log.say(
+                line,
+                format!("unreadable var_write_typing `{text}` dropped"),
+            );
             None
         }
     }
@@ -1199,7 +1209,9 @@ fn parse_var_write_typing(text: &str, line: u32, log: &mut Log) -> Option<VarWri
 fn parse_semantic_operation(text: &str, line: u32, log: &mut Log) -> Option<SemanticOperationId> {
     let parts = list_words(text);
     match parts.split_first() {
-        Some((head, rest)) if head == "Invoke" && rest.is_empty() => Some(SemanticOperationId::Invoke),
+        Some((head, rest)) if head == "Invoke" && rest.is_empty() => {
+            Some(SemanticOperationId::Invoke)
+        }
         Some((head, rest)) if head == "Intrinsic" && rest.len() == 1 => {
             by_name(INTRINSICS, &rest[0]).map(SemanticOperationId::Intrinsic)
         }
@@ -1207,7 +1219,10 @@ fn parse_semantic_operation(text: &str, line: u32, log: &mut Log) -> Option<Sema
             by_name(LOWERING_HOOKS, &rest[0]).map(SemanticOperationId::StructuredLowering)
         }
         _ => {
-            log.say(line, format!("unreadable semantic_operation `{text}` dropped"));
+            log.say(
+                line,
+                format!("unreadable semantic_operation `{text}` dropped"),
+            );
             None
         }
     }
@@ -1242,9 +1257,10 @@ fn parse_handle_binding(text: &str, line: u32, log: &mut Log) -> Option<HandleBi
                     Some((head, rest)) if head == "Word" && rest.len() == 1 => {
                         rest[0].parse().ok().map(HandleClassSource::Word)
                     }
-                    Some((head, rest)) if head == "ConstructionValue" && rest.len() == 1 => {
-                        rest[0].parse().ok().map(HandleClassSource::ConstructionValue)
-                    }
+                    Some((head, rest)) if head == "ConstructionValue" && rest.len() == 1 => rest[0]
+                        .parse()
+                        .ok()
+                        .map(HandleClassSource::ConstructionValue),
                     _ => None,
                 };
             }
@@ -1294,13 +1310,18 @@ impl ArgRows {
     fn apply(&mut self, stmt: &Stmt, tables: &PackTables, log: &mut Log) {
         let raw = stmt.word_text(1);
         let Ok(index) = raw.parse::<usize>() else {
-            log.say(stmt.line, format!("unreadable argument index `{raw}` dropped"));
+            log.say(
+                stmt.line,
+                format!("unreadable argument index `{raw}` dropped"),
+            );
             return;
         };
         if index > MAX_ARG_INDEX {
             log.say(
                 stmt.line,
-                format!("argument index {index} is above the {MAX_ARG_INDEX} the tables hold; dropped"),
+                format!(
+                    "argument index {index} is above the {MAX_ARG_INDEX} the tables hold; dropped"
+                ),
             );
             return;
         }
@@ -1326,8 +1347,7 @@ impl ArgRows {
                 }
                 "-type" => {
                     let name = next_text(words, &mut i);
-                    hint.expected =
-                        enum_by_name(TCL_TYPES, &name, "argument type", stmt.line, log);
+                    hint.expected = enum_by_name(TCL_TYPES, &name, "argument type", stmt.line, log);
                     saw_type_flag = true;
                 }
                 "-shimmers" => {
@@ -1436,8 +1456,12 @@ fn option_row(
                 option.dialects = parse_dialects(&text, stmt.line, log);
             }
             "-min-abbrev" => option.min_abbrev = next_text(words, &mut i).parse().ok(),
-            "-introduced" => option.lifecycle.introduced = Some(leak_str(&next_text(words, &mut i))),
-            "-deprecated" => option.lifecycle.deprecated = Some(leak_str(&next_text(words, &mut i))),
+            "-introduced" => {
+                option.lifecycle.introduced = Some(leak_str(&next_text(words, &mut i)))
+            }
+            "-deprecated" => {
+                option.lifecycle.deprecated = Some(leak_str(&next_text(words, &mut i)))
+            }
             "-retired" => option.lifecycle.retired = Some(leak_str(&next_text(words, &mut i))),
             "-arity" => {
                 let text = next_text(words, &mut i);
@@ -1480,7 +1504,8 @@ fn option_row(
             "-role" => {
                 let name = next_text(words, &mut i);
                 let entry = arg.get_or_insert(OptionArg::DEFAULT);
-                if let Some(role) = enum_by_name(ArgRole::ALL, &name, "argument role", stmt.line, log)
+                if let Some(role) =
+                    enum_by_name(ArgRole::ALL, &name, "argument role", stmt.line, log)
                 {
                     entry.role = role;
                 }
@@ -1515,8 +1540,7 @@ fn option_row(
                 let name = next_text(words, &mut i);
                 match tables.values.get(&name) {
                     Some(values) => {
-                        arg.get_or_insert(OptionArg::DEFAULT).values =
-                            leak_slice(values.clone());
+                        arg.get_or_insert(OptionArg::DEFAULT).values = leak_slice(values.clone());
                     }
                     None => log.say(
                         stmt.line,
@@ -1708,11 +1732,7 @@ impl ClauseGrammar {
             if i >= n {
                 return ClauseWalk { roles, error: None };
             }
-            if let Some((_, slots)) = self
-                .repeated
-                .iter()
-                .find(|(keyword, _)| args[i] == keyword)
-            {
+            if let Some((_, slots)) = self.repeated.iter().find(|(keyword, _)| args[i] == keyword) {
                 push_role(&mut roles, i, ArgRole::Keyword);
                 i += 1;
                 if let Err(error) = Self::fill(slots, args, &mut i, &mut roles) {
@@ -1841,13 +1861,16 @@ fn clause_grammar_block(stmts: &[Stmt], log: &mut Log) -> ClauseGrammar {
                 .push((stmt.word_text(1).to_owned(), list_words(stmt.word_text(2)))),
             "tail" => {
                 let (keyword, slots) = if stmt.words.len() >= 3 {
-                    (Some(stmt.word_text(1).to_owned()), list_words(stmt.word_text(2)))
+                    (
+                        Some(stmt.word_text(1).to_owned()),
+                        list_words(stmt.word_text(2)),
+                    )
                 } else {
                     (None, list_words(stmt.word_text(1)))
                 };
-                let optional = keyword.as_deref().is_some_and(|k| {
-                    k.starts_with('?') && k.ends_with('?') && k.len() > 1
-                });
+                let optional = keyword
+                    .as_deref()
+                    .is_some_and(|k| k.starts_with('?') && k.ends_with('?') && k.len() > 1);
                 let keyword = keyword.map(|k| k.trim_matches('?').to_owned());
                 grammar.tail = Some((keyword, optional, slots));
             }
@@ -2106,7 +2129,9 @@ fn manufacturer_row(stmt: &Stmt, log: &mut Log) -> ManufacturerMethod {
     while i < words.len() {
         match words[i].text.as_str() {
             "-unexported" => method.visibility = MemberVisibility::Unexported,
-            "-names-instance-at" => method.names_instance_at = next_text(words, &mut i).parse().ok(),
+            "-names-instance-at" => {
+                method.names_instance_at = next_text(words, &mut i).parse().ok()
+            }
             "-definition-body-at" => {
                 method.definition_body_at = next_text(words, &mut i).parse().ok();
             }
@@ -2350,17 +2375,18 @@ fn apply_command_stmt(
                 enum_by_name(STORAGE_TYPES, &value, "storage type", stmt.line, log);
         }
         "byte_array_effect" => {
-            if let Some(effect) =
-                enum_by_name(BYTE_ARRAY_EFFECTS, &value, "byte-array effect", stmt.line, log)
-            {
+            if let Some(effect) = enum_by_name(
+                BYTE_ARRAY_EFFECTS,
+                &value,
+                "byte-array effect",
+                stmt.line,
+                log,
+            ) {
                 spec.byte_array_effect = effect;
             }
         }
         "pattern_type" => {
-            const PATTERNS: &[PatternType] = &[
-                PatternType::Glob,
-                PatternType::Regex,
-            ];
+            const PATTERNS: &[PatternType] = &[PatternType::Glob, PatternType::Regex];
             spec.pattern_type = enum_by_name(PATTERNS, &value, "pattern type", stmt.line, log);
         }
 
@@ -2439,8 +2465,7 @@ fn apply_command_stmt(
             acc.options.push(option);
         }
         "option_conflict" => {
-            acc.option_constraints
-                .push(option_conflict_row(stmt, log));
+            acc.option_constraints.push(option_conflict_row(stmt, log));
         }
 
         // --- descriptors --------------------------------------------------
@@ -2458,7 +2483,8 @@ fn apply_command_stmt(
         "oo_context_fact" => {
             const FACTS: &[tcl_registry::spec::OoContextFact] =
                 &[tcl_registry::spec::OoContextFact::DefiningClass];
-            if let Some(fact) = enum_by_name(FACTS, stmt.word_text(2), "oo context fact", stmt.line, log)
+            if let Some(fact) =
+                enum_by_name(FACTS, stmt.word_text(2), "oo context fact", stmt.line, log)
             {
                 acc.oo_context_facts.push((leak_str(&value), fact));
             }
@@ -2504,9 +2530,14 @@ fn apply_command_stmt(
         }
 
         // --- Tcl-body hooks -------------------------------------------------
-        "arg_role_resolver" | "command_prefix_resolver" | "const_fold"
-        | "const_fold_versioned" | "taint_sink_gate" | "context_gate"
-        | "literal_argument_validator" | "clause_shape_check" => {
+        "arg_role_resolver"
+        | "command_prefix_resolver"
+        | "const_fold"
+        | "const_fold_versioned"
+        | "taint_sink_gate"
+        | "context_gate"
+        | "literal_argument_validator"
+        | "clause_shape_check" => {
             let Some(source) = hook_source(stmt) else {
                 log.say(stmt.line, format!("unreadable `{key}` hook dropped"));
                 return;
@@ -2567,12 +2598,7 @@ fn index_list(text: &str) -> Vec<u8> {
         .collect()
 }
 
-fn native_id<T: Copy + fmt::Debug>(
-    stmt: &Stmt,
-    all: &[T],
-    what: &str,
-    log: &mut Log,
-) -> Option<T> {
+fn native_id<T: Copy + fmt::Debug>(stmt: &Stmt, all: &[T], what: &str, log: &mut Log) -> Option<T> {
     if stmt.word_text(1) != "-native" {
         log.say(stmt.line, format!("`{what}` takes `-native ID`"));
         return None;
@@ -2581,7 +2607,13 @@ fn native_id<T: Copy + fmt::Debug>(
 }
 
 fn repeat_row(stmt: &Stmt, log: &mut Log) -> Option<tcl_registry::repeated::RepeatedArgLayout> {
-    let role = enum_by_name(ArgRole::ALL, stmt.word_text(1), "argument role", stmt.line, log)?;
+    let role = enum_by_name(
+        ArgRole::ALL,
+        stmt.word_text(1),
+        "argument role",
+        stmt.line,
+        log,
+    )?;
     let mut layout = tcl_registry::repeated::RepeatedArgLayout {
         role,
         start: 0,
@@ -2705,8 +2737,13 @@ fn frame_effect_row(stmt: &Stmt, log: &mut Log) -> Option<FrameEffectSpec> {
             }
             "-layout" => {
                 let name = next_text(words, &mut i);
-                layout =
-                    enum_by_name(FRAME_LAYOUTS, &name, "frame argument layout", stmt.line, log);
+                layout = enum_by_name(
+                    FRAME_LAYOUTS,
+                    &name,
+                    "frame argument layout",
+                    stmt.line,
+                    log,
+                );
             }
             other => log.unknown_flag("frame_effect", stmt.line, other),
         }
@@ -2740,11 +2777,7 @@ fn resolve_block<'a>(
     Some(stmts.to_vec())
 }
 
-fn event_requires_value(
-    stmt: &Stmt,
-    tables: &PackTables,
-    log: &mut Log,
-) -> Option<EventRequires> {
+fn event_requires_value(stmt: &Stmt, tables: &PackTables, log: &mut Log) -> Option<EventRequires> {
     resolve_block(stmt, "event_requires", tables, log)
         .map(|stmts| event_requires_block(&stmts, log))
 }
@@ -2755,7 +2788,9 @@ fn case_list_value(
     log: &mut Log,
 ) -> Option<&'static CaseListSpec> {
     let word = stmt.arg(1)?;
-    if !word.braced && let Some(shipped) = shipped_case_list(&word.text) {
+    if !word.braced
+        && let Some(shipped) = shipped_case_list(&word.text)
+    {
         return Some(shipped);
     }
     resolve_block(stmt, "case_list", tables, log)
@@ -2768,7 +2803,9 @@ fn definition_body_value(
     log: &mut Log,
 ) -> Option<&'static DefinitionBodyGrammar> {
     let word = stmt.arg(1)?;
-    if !word.braced && let Some(shipped) = shipped_definition_body(&word.text) {
+    if !word.braced
+        && let Some(shipped) = shipped_definition_body(&word.text)
+    {
         return Some(shipped);
     }
     resolve_block(stmt, "definition_body", tables, log)
@@ -2831,7 +2868,8 @@ fn state_transitions_value(
     for stmt in &stmts {
         match stmt.word_text(0) {
             "composition" => {
-                const COMPOSITIONS: &[tcl_registry::state_transition::StateTransitionComposition] = &[
+                const COMPOSITIONS:
+                    &[tcl_registry::state_transition::StateTransitionComposition] = &[
                     tcl_registry::state_transition::StateTransitionComposition::Replace,
                     tcl_registry::state_transition::StateTransitionComposition::Extend,
                 ];
@@ -2974,9 +3012,13 @@ fn apply_subcommand_stmt(
             }
         }
         "byte_array_effect" => {
-            if let Some(effect) =
-                enum_by_name(BYTE_ARRAY_EFFECTS, &value, "byte-array effect", stmt.line, log)
-            {
+            if let Some(effect) = enum_by_name(
+                BYTE_ARRAY_EFFECTS,
+                &value,
+                "byte-array effect",
+                stmt.line,
+                log,
+            ) {
                 sub.byte_array_effect = effect;
             }
         }
@@ -2991,10 +3033,7 @@ fn apply_subcommand_stmt(
             }
         }
         "pattern_type" => {
-            const PATTERNS: &[PatternType] = &[
-                PatternType::Glob,
-                PatternType::Regex,
-            ];
+            const PATTERNS: &[PatternType] = &[PatternType::Glob, PatternType::Regex];
             sub.pattern_type = enum_by_name(PATTERNS, &value, "pattern type", stmt.line, log);
         }
         "option" => {
@@ -3033,20 +3072,27 @@ fn apply_subcommand_stmt(
             sub.command_table_effect =
                 enum_by_name(EFFECTS, &value, "command-table effect", stmt.line, log);
         }
-        "lowering_hook" => sub.lowering_hook = native_id(stmt, LOWERING_HOOKS, "lowering hook", log),
+        "lowering_hook" => {
+            sub.lowering_hook = native_id(stmt, LOWERING_HOOKS, "lowering hook", log)
+        }
         "codegen_hook" => sub.codegen_hook = native_id(stmt, CODEGEN_HOOKS, "codegen hook", log),
         "inline_codegen_hook" => {
             sub.inline_codegen_hook =
                 native_id(stmt, INLINE_CODEGEN_HOOKS, "inline codegen hook", log);
         }
-        "analyser_hook" => sub.analyser_hook = native_id(stmt, ANALYSER_HOOKS, "analyser hook", log),
+        "analyser_hook" => {
+            sub.analyser_hook = native_id(stmt, ANALYSER_HOOKS, "analyser hook", log)
+        }
         "semantic_operation" => {
             sub.semantic_operation = parse_semantic_operation(&value, stmt.line, log);
         }
         "world_effects" => sub.world_effects = world_effects_value(stmt, tables, log),
         "state_transitions" => sub.state_transitions = state_transitions_value(stmt, tables, log),
-        "arg_role_resolver" | "command_prefix_resolver" | "const_fold"
-        | "const_fold_versioned" | "literal_argument_validator" => {
+        "arg_role_resolver"
+        | "command_prefix_resolver"
+        | "const_fold"
+        | "const_fold_versioned"
+        | "literal_argument_validator" => {
             let Some(source) = hook_source(stmt) else {
                 log.say(stmt.line, format!("unreadable `{key}` hook dropped"));
                 return;
@@ -3149,22 +3195,14 @@ mod tests {
             all.iter().map(catalogue::variant_name).collect()
         }
         for (what, mine, catalogue) in [
-            (
-                "lowering",
-                names(LOWERING_HOOKS),
-                catalogue::LOWERING_HOOKS,
-            ),
+            ("lowering", names(LOWERING_HOOKS), catalogue::LOWERING_HOOKS),
             ("codegen", names(CODEGEN_HOOKS), catalogue::CODEGEN_HOOKS),
             (
                 "inline codegen",
                 names(INLINE_CODEGEN_HOOKS),
                 catalogue::INLINE_CODEGEN_HOOKS,
             ),
-            (
-                "analyser",
-                names(ANALYSER_HOOKS),
-                catalogue::ANALYSER_HOOKS,
-            ),
+            ("analyser", names(ANALYSER_HOOKS), catalogue::ANALYSER_HOOKS),
         ] {
             let mut expected: Vec<&str> = catalogue.iter().map(|variant| variant.key).collect();
             let mut mine: Vec<&str> = mine.iter().map(String::as_str).collect();
@@ -3200,7 +3238,11 @@ mod tests {
                 catalogue::CONNECTION_SIDES,
             ),
             ("form kind", names(FORM_KINDS), catalogue::FORM_KINDS),
-            ("storage type", names(STORAGE_TYPES), catalogue::STORAGE_TYPES),
+            (
+                "storage type",
+                names(STORAGE_TYPES),
+                catalogue::STORAGE_TYPES,
+            ),
         ] {
             let mut expected: Vec<&str> = catalogue.iter().map(|variant| variant.key).collect();
             let mut mine: Vec<&str> = mine.iter().map(String::as_str).collect();
@@ -3252,7 +3294,10 @@ mod tests {
             parse_dialects("all-tcl f5-irules", 1, &mut log),
             Some(DialectSet::ALL_TCL | DialectSet::IRULES)
         );
-        assert_eq!(parse_dialects("tcl8.x", 1, &mut log), Some(DialectSet::TCL8X));
+        assert_eq!(
+            parse_dialects("tcl8.x", 1, &mut log),
+            Some(DialectSet::TCL8X)
+        );
         assert!(log.notices.is_empty());
     }
 
