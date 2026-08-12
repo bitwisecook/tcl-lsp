@@ -22,6 +22,16 @@ inference treat its arguments correctly?
 - You have write access to the file that calls the command, or to a
   workspace-wide stubs file.
 
+## Before you start
+
+Stubs are the quick, legacy fallback: no subcommands, no arity checking,
+just enough for the analyser to stop calling a command unknown. For the
+full treatment — hover, options, subcommands, version gates — write a
+[SpecTcl pack](kcs-howto-write-a-tclspec-pack.md) instead. A pack's `arg
+-role` values are almost the same words as a stub's roles below (`body` →
+`Body`, `var` → `VarWrite`, `var_read` → `VarRead`, and so on), so a stub
+you already have is a quick starting point for one.
+
 ## Answer
 
 Stubs are declared either inline in the Tcl file that uses the command, or
@@ -146,6 +156,8 @@ an operator when you leave it out.
 
 ## Related
 
+- [How to write a SpecTcl pack](kcs-howto-write-a-tclspec-pack.md) — the
+  fuller replacement for a stub, once you need subcommands or options.
 - [How to add a third-party Tcl library to the command registry](kcs-howto-add-command-registry-package.md)
 - [KCS: What annotations does tcl-lsp understand?](kcs-qa-tcl-lsp-annotations.md)
 - [How to suppress diagnostics inline](kcs-howto-suppress-diagnostics.md)

@@ -417,12 +417,12 @@ mod tests {
         let a = write(
             &dir,
             "a.tclspec",
-            "speclib mylib 1 {\n  command mylib::alpha { arity 1 1 }\n}\n",
+            "speclib mylib 1 {\n  command mylib::alpha { arity 1 }\n}\n",
         );
         let b = write(
             &dir,
             "b.tclspec",
-            "speclib mylib 1 {\n  command mylib::beta { arity 2 2 }\n}\n",
+            "speclib mylib 1 {\n  command mylib::beta { arity 2 }\n}\n",
         );
 
         let set = load(&[workspace_file(b), workspace_file(a)]);
@@ -443,12 +443,12 @@ mod tests {
         let a = write(
             &dir,
             "a.tclspec",
-            "speclib mylib 1 {\n  command mylib::dup { arity 1 1 }\n}\n",
+            "speclib mylib 1 {\n  command mylib::dup { arity 1 }\n}\n",
         );
         let b = write(
             &dir,
             "b.tclspec",
-            "speclib mylib 1 {\n  command mylib::dup { arity 9 9 }\n}\n",
+            "speclib mylib 1 {\n  command mylib::dup { arity 9 }\n}\n",
         );
 
         let set = load(&[workspace_file(a), workspace_file(b.clone())]);
@@ -471,12 +471,12 @@ mod tests {
         let a = write(
             &dir,
             "a.tclspec",
-            "speclib alpha 1 {\n  command a::one { arity 1 1 }\n}\n",
+            "speclib alpha 1 {\n  command a::one { arity 1 }\n}\n",
         );
         let b = write(
             &dir,
             "b.tclspec",
-            "speclib beta 1 {\n  command b::one { arity 1 1 }\n}\n",
+            "speclib beta 1 {\n  command b::one { arity 1 }\n}\n",
         );
         let set = load(&[workspace_file(a), workspace_file(b)]);
         let names: Vec<&str> = set.packs.iter().map(|p| p.name.as_str()).collect();
@@ -490,12 +490,12 @@ mod tests {
         let ws = write(
             &dir,
             "ws/mylib.tclspec",
-            "speclib mylib 1 {\n  command mylib::ws { arity 1 1 }\n}\n",
+            "speclib mylib 1 {\n  command mylib::ws { arity 1 }\n}\n",
         );
         let user = write(
             &dir,
             "user/mylib.tclspec",
-            "speclib mylib 1 {\n  command mylib::user { arity 1 1 }\n}\n",
+            "speclib mylib 1 {\n  command mylib::user { arity 1 }\n}\n",
         );
         let set = load(&[
             workspace_file(ws),
@@ -556,7 +556,7 @@ mod tests {
         let a = write(
             &dir,
             "a.tclspec",
-            "speclib mylib 1 {\n  command mylib::x { arity 1 1 }\n}\n",
+            "speclib mylib 1 {\n  command mylib::x { arity 1 }\n}\n",
         );
         let before = load(&[workspace_file(a.clone())]).key;
         assert_ne!(before, 0, "a non-empty set never keys as the empty identity");
@@ -568,7 +568,7 @@ mod tests {
         write(
             &dir,
             "a.tclspec",
-            "speclib mylib 1 {\n  command mylib::x { arity 2 2 }\n}\n",
+            "speclib mylib 1 {\n  command mylib::x { arity 2 }\n}\n",
         );
         assert_ne!(before, load(&[workspace_file(a)]).key, "an edit rekeys");
         assert_eq!(load(&[]).key, 0);

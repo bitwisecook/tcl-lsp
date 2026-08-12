@@ -57,10 +57,10 @@
 use std::collections::BTreeMap;
 use std::fmt::Write as _;
 
-use serde_json::{Map, Value};
+use serde_json::Value;
 
 use crate::draft::{
-    self, Draft, OPTION_DEPRECATION_FIX_HOOK_KEY, OPTION_HOOK_KEY, SOURCE_DIALECT_KEY,
+    self, Draft, OPTION_DEPRECATION_FIX_HOOK_KEY, SOURCE_DIALECT_KEY,
 };
 
 /// The DSL **vocabulary** version a rendered pack declares — the word after
@@ -1060,7 +1060,7 @@ fn arg_rows(out: &mut Out, ctx: &mut Ctx<'_>, draft: &Draft) {
         .collect();
 
     let mut order: Vec<u64> = Vec::new();
-    let mut note = |index: Option<u64>, order: &mut Vec<u64>| {
+    let note = |index: Option<u64>, order: &mut Vec<u64>| {
         if let Some(index) = index
             && !order.contains(&index)
         {

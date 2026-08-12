@@ -27,8 +27,8 @@ the compiler's own inference — never guesswork from names.
 ## Steps
 
 1. Ask (or infer from `$ARGUMENTS`) the library's source directory and the
-   target: **private** (stub sidecar, stays in the project) or
-   **contribution** (registry `.rs` drafts plus a GitHub issue body).
+   target: **private** (a SpecTcl pack, stays in the project) or
+   **contribution** (the same SpecTcl pack plus a GitHub issue body).
 2. Glob the library's `.tcl` files. Note `package provide` and any
    `namespace export` — they set `required_package` gating and the
    public-command surface.

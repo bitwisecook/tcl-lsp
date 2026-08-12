@@ -522,7 +522,7 @@ mod tests {
     const VALID: &str = r"
 speclib mylib 1.0 {
     command mylib::with_var {
-        arity 2 3
+        arity 2..3
         arg 0 -role VarWrite
         arg 1 -role Body
         return_type String
@@ -580,7 +580,7 @@ speclib mylib 1.0 {
         let source = r"
 speclib mylib 1.0 {
     command mylib::guarded {
-        arity 1 1
+        arity 1
         context_gate {words ctx} {
             if {![dict get $ctx in-event-body]} return
             reject {mylib::guarded is only valid in an event body}
@@ -610,7 +610,7 @@ speclib mylib 1.0 {
         let source = r"
 speclib mylib 1.0 {
     command mylib::native {
-        arity 1 1
+        arity 1
         const_fold -native Concat
     }
 }
@@ -630,7 +630,7 @@ speclib mylib 1.0 {
         let source = r"
 speclib mylib 1.0 {
     command mylib::typo {
-        arity 1 2
+        arity 1..2
         traits {NOT_PROC_FACTORY WOBBLY_TRAIT}
         frobnicate yes
         return_type String
@@ -677,7 +677,7 @@ speclib mylib 1.0 {
         let source = r"
 speclib mylib 1.0 {
     command lsort {
-        arity 1 -1
+        arity 1..
     }
 }
 ";
@@ -704,7 +704,7 @@ speclib mylib 1.0 {
         let source = r"
 speclib mylib 1.0 {
     command lsort -override {
-        arity 1 -1
+        arity 1..
     }
 }
 ";
@@ -723,7 +723,7 @@ speclib mylib 1.0 {
         let source = r"
 speclib mylib 1.0 {
     command HTTP::uri {
-        arity 0 1
+        arity 0..1
     }
 }
 ";
@@ -739,9 +739,9 @@ speclib mylib 1.0 {
         let source = r"
 speclib mylib 1.0 {
     command mylib::ensemble {
-        arity 1 -1
+        arity 1..
         subcommand indices {
-            arity 1 1
+            arity 1
             return_type List
         }
     }
@@ -762,7 +762,7 @@ speclib mylib 1.0 {
         let source = r"
 speclib mylib 1.0 {
     command mylib::dynamic {
-        arity 1 1
+        arity 1
         arg_role_resolver {words ctx} {
             set key command
             if {[dict get $ctx $key] eq {}} return
@@ -791,7 +791,7 @@ speclib mylib 1.0 {
         let source = r"
 speclib mylib 1.0 {
     command mylib::typo {
-        arity 1 1
+        arity 1
         arg_role_resolver {words ctx} {
             if {[dict get $ctx subcomand] eq {}} return
             role 0 Body
@@ -811,7 +811,7 @@ speclib mylib 1.0 {
     /// than erroring.
     #[test]
     fn a_pack_with_no_speclib_wrapper_reports_a_notice() {
-        let result = check("command foo { arity 1 1 }\n", "tcl9.0");
+        let result = check("command foo { arity 1 }\n", "tcl9.0");
         assert_eq!(result["summary"]["commands"], 0, "{result}");
         assert!(
             result["notices"].as_array().is_some_and(|n| !n.is_empty()),

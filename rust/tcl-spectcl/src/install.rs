@@ -127,7 +127,7 @@ mod tests {
             "mylib.tclspec",
             "speclib mylib 1 {\n  \
              command mylib::with_var {\n    \
-               arity 2 3\n    \
+               arity 2..3\n    \
                arg 0 -role varwrite\n    \
                arg 1 -role body\n    \
                hover -summary {Run a script with a caller variable bound.}\n  \
@@ -150,7 +150,7 @@ mod tests {
     #[test]
     fn the_same_pack_set_resolves_to_the_same_registry() {
         let dir = tmpdir("identity");
-        let source = "speclib mylib 1 {\n  command mylib::same { arity 1 1 }\n}\n";
+        let source = "speclib mylib 1 {\n  command mylib::same { arity 1 }\n}\n";
         let a = pack_set(&dir, "a.tclspec", source);
         let b = pack_set(&dir, "a.tclspec", source);
         assert_eq!(a.key, b.key);
@@ -176,7 +176,7 @@ mod tests {
         let polite = pack_set(
             &dir,
             "polite.tclspec",
-            "speclib polite 1 {\n  command lsort { arity 99 99 }\n}\n",
+            "speclib polite 1 {\n  command lsort { arity 99 }\n}\n",
         );
         let registry = registry_for_dialect_with_packs("tcl8.6", &polite);
         let shipped = tcl_registry::registry_for_dialect("tcl8.6")
@@ -194,7 +194,7 @@ mod tests {
         let bold = pack_set(
             &dir,
             "bold.tclspec",
-            "speclib bold 1 {\n  command lsort -override { arity 99 99 }\n}\n",
+            "speclib bold 1 {\n  command lsort -override { arity 99 }\n}\n",
         );
         let overridden = registry_for_dialect_with_packs("tcl8.6", &bold);
         assert_eq!(
@@ -213,7 +213,7 @@ mod tests {
         let packs = pack_set(
             &dir,
             "loud.tclspec",
-            "speclib loud 1 {\n  command lsort -override { arity 99 99 }\n}\n",
+            "speclib loud 1 {\n  command lsort -override { arity 99 }\n}\n",
         );
         let _ = registry_for_dialect_with_packs("tcl8.6", &packs);
         assert_ne!(
@@ -234,7 +234,7 @@ mod tests {
         let packs = pack_set(
             &dir,
             "mylib.tclspec",
-            "speclib mylib 1 {\n  command mylib::everywhere { arity 1 1 }\n}\n",
+            "speclib mylib 1 {\n  command mylib::everywhere { arity 1 }\n}\n",
         );
         for dialect in ["tcl8.6", "tcl9.0", "f5-irules"] {
             let registry = registry_for_dialect_with_packs(dialect, &packs);

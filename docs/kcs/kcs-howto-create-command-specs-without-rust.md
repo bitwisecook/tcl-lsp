@@ -5,7 +5,7 @@
 
 ## Applies to
 
-all-editors, tcl-lsp CLI
+all-editors, tcl-lsp CLI, MCP, Claude skill
 
 ## Question
 
@@ -14,53 +14,58 @@ How do I get them treated like built-ins?
 
 ## Before you start
 
-For a quick, per-project fix, [stubs](kcs-howto-annotate-commands-with-stubs.md)
-declare the essentials in minutes. For the full treatment — hover,
-completion, subcommands, options, version gates, security checks — write a
-command spec in the [Spec Studio](features/kcs-feature-spec-studio.md).
-No Rust needed.
+For a five-minute fix, [stubs](kcs-howto-annotate-commands-with-stubs.md) are
+the quick fallback: no subcommands, no arity checking, but your commands
+stop being flagged unknown. For the full treatment — hover, completion,
+subcommands, options, version gates, security checks — write a **SpecTcl**
+pack: a `.tclspec` file that describes your commands the same way a
+built-in's own spec does.
 
 ## Answer
 
-Open <https://bitwisecook.github.io/tcl-lsp/spec-studio/>. Everything runs
-in your browser; nothing is uploaded.
+Two ways to write a pack today:
 
-1. **Start from something like your command.** Pick your dialect, then
-   load the built-in that behaves most like yours — `foreach` for a loop,
-   `dict` for subcommands, `set` for a variable writer, `lsort` for
-   `-flag` switches. Or drop your package's `.tcl` files on **Import a
-   package** and every `proc` becomes a draft spec, inferred from how the
-   body uses each parameter.
-2. **Fill in what you know.** Name and arity first, then argument roles
-   (which words are scripts, variables, patterns — this is what makes
-   highlighting and rename work through your command), then availability,
-   hover text, subcommands, and options. Every field and group has a
-   **?** button explaining it in Tcl terms. Everything beyond the name is
-   optional: unset means "unknown", never "wrong".
-3. **Look things up on the Reference tab** — every field, trait, argument
-   role, and taint colour, behind one search box.
-4. **Send it in.** Press **Add to files** on the **Rendered .rs** tab,
-   then **Open a GitHub issue ↗** on **Files & issue**. The generated
-   Rust goes with it — you never write or read it.
+1. **By hand.** A `.tclspec` file is its own dialect, so it gets full
+   editor support out of the box — highlighting, completion, and
+   diagnostics for a misspelled trait or role — the same machinery it
+   configures. See [how to write a SpecTcl
+   pack](kcs-howto-write-a-tclspec-pack.md) for the minimal shape, or copy
+   one of the worked examples in
+   [`spec-dsl-examples/`](../design/spec-dsl-examples/README.md).
+2. **With the spec-author Claude Code skill.** Point it at your library's
+   source; it scans every `proc` with the real compiler, infers arity and
+   argument roles from how each parameter is used, and writes the pack for
+   you, citing the evidence behind every field.
 
-A few behaviours need code (under **Advanced**, shown as opaque
-expressions). Describe the rule in plain words in the issue notes and a
-maintainer writes the few lines.
+Validate what you write with `mcp__tcl-lsp__spectcl_check` (the skill runs
+this for you). It loads the pack through the real parser and reports, per
+command, which fields your declaration set, every dropped or misspelled
+word, and any name clash with a shipped command.
 
-For commands that must stay private to your project, use stubs; richer
-private registries are being discussed in
-[issue #1363](https://github.com/bitwisecook/tcl-lsp/issues/1363).
+The [Spec Studio](features/kcs-feature-spec-studio.md) still renders a
+drop-in `.rs` module or a stub from its form, which is what a **shipped**
+contribution needs today; reading and writing a `.tclspec` pack directly in
+the studio is designed but not built yet.
+
+**Contributing** a pack is the same file you wrote for yourself: attach it
+to a GitHub issue instead of dropping it in your config directory.
+
+Loading a pack automatically — so it lights your commands up in the editor
+the moment you save it — is still landing; see [how to write a SpecTcl
+pack](kcs-howto-write-a-tclspec-pack.md) for exactly what works today.
 
 ## How to tell it worked
 
-The **Rendered .rs** tab shows your command with no unexpected `TODO`
-markers. Once the spec ships, the command stops being flagged as unknown,
-hover shows your documentation, and its body arguments highlight like a
-built-in's.
+`mcp__tcl-lsp__spectcl_check` reports each command with the fields you
+expect set and no unexpected notices. Once runtime loading ships, the
+signal moves to the editor: the command stops being flagged unknown and
+hover shows your documentation.
 
 ## Related
 
+- [How to write a SpecTcl pack](kcs-howto-write-a-tclspec-pack.md)
 - [The Command Spec Studio](features/kcs-feature-spec-studio.md)
 - [How to annotate commands with stubs](kcs-howto-annotate-commands-with-stubs.md)
 - [The command registry design doc](../design/compiler/command-registry.md)
+- [SpecTcl pack design](../design/spec-packs.md)
 - [KCS index](README.md)

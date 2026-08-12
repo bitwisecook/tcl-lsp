@@ -2,8 +2,11 @@
 
 > **Audience:** authors of Tcl libraries describing their commands, and
 > contributors reviewing specs. For the guided workflow, start with
-> [creating a command spec without knowing Rust](../../kcs/kcs-howto-create-command-specs-without-rust.md)
-> and the [Spec Studio](https://bitwisecook.github.io/tcl-lsp/spec-studio/).
+> [creating a command spec without knowing Rust](../../kcs/kcs-howto-create-command-specs-without-rust.md).
+> The authoring format is a **SpecTcl** `.tclspec` pack — see [how to write
+> one](../../kcs/kcs-howto-write-a-tclspec-pack.md) — alongside the
+> [Spec Studio](https://bitwisecook.github.io/tcl-lsp/spec-studio/) for
+> browsing the live registry and rendering a `.rs` module or a stub.
 
 A `CommandSpec` is everything tcl-lsp knows about one command. The tools
 never special-case command names: whatever `foreach` or `string` get, they
@@ -151,5 +154,9 @@ influence, with the field that causes or suppresses it.
   — the architecture and consumer contracts behind all of this.
 - [The Spec Studio](../../kcs/features/kcs-feature-spec-studio.md) — edit
   every field here in a form, with this manual's text behind **?** buttons.
-- [Spec packs (proposal)](../../design/spec-packs.md) — the loadable
-  private command database under discussion in issue #1363.
+- [SpecTcl pack design](../../design/spec-packs.md) — the loadable
+  command-pack architecture, discovery tiers, and crash containment, under
+  active design for issue #1363.
+- [How to write a SpecTcl pack](../../kcs/kcs-howto-write-a-tclspec-pack.md)
+  — the quickstart, and what runtime loading does today versus what is
+  landing.

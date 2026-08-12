@@ -252,9 +252,13 @@ symptom with several possible causes worth telling apart. See rule 13 in
   factory-created instance commands) so the call graph, arity checker,
   and trait inferencer understand them.
 - [kcs-howto-create-command-specs-without-rust.md](kcs-howto-create-command-specs-without-rust.md)
-  — describe your own package's commands in the Command Spec Studio, a
-  web form with plain-language help on every field, and propose them
-  for the shipped registry without writing any Rust.
+  — describe your own package's commands as a SpecTcl pack or in the
+  Command Spec Studio, and propose them for the shipped registry
+  without writing any Rust.
+- [kcs-howto-write-a-tclspec-pack.md](kcs-howto-write-a-tclspec-pack.md)
+  — the SpecTcl pack quickstart: the minimal `.tclspec` shape, the
+  three discovery tiers, validation, and what runtime loading does
+  today versus what is landing.
 - [kcs-howto-add-command-registry-package.md](kcs-howto-add-command-registry-package.md)
   — add first-class registry support for a Tcl package (sqlite3,
   tcllib, etc.) so the shipped distribution recognises its commands

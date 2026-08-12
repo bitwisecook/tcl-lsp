@@ -40,6 +40,7 @@
 //! - [`draft`] — the JSON draft model, and seeding a draft from a live spec.
 //! - [`render_rs`] — draft → registry `.rs` source, copyright banner included.
 //! - [`render_stub`] — draft → `# tcl-lsp: stub` block or `.tcl.stubs` file.
+//! - [`render_spectcl`] — draft → `.tclspec` spec pack, the loader's inverse.
 //! - [`infer`] — Tcl package sources → draft specs, via the real analyser.
 //! - [`spectcl`] — `.tclspec` spec packs → live `CommandSpec`s, read from the
 //!   CST and never executed.
@@ -58,6 +59,7 @@ pub mod help;
 pub mod infer;
 pub mod reference;
 pub mod render_rs;
+pub mod render_spectcl;
 pub mod render_stub;
 pub mod schema;
 

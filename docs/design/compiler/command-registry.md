@@ -1485,13 +1485,41 @@ and editor features they drive.
 
 ## Authoring a spec without Rust
 
-The [Command Spec Studio](../contracts/command-spec-studio.md) is a browser
-front-end over this registry: it browses the live command surface, edits
-every field described above, and renders the result back out as a drop-in
-`.rs` module. Each field carries a plain-language explanation written for Tcl
-developers, and a Reference tab searches the whole vocabulary — every field,
-trait, argument role, and taint colour. See the KCS how-to,
-[creating a command spec without knowing Rust](../../kcs/kcs-howto-create-command-specs-without-rust.md).
+The primary non-Rust authoring format is **SpecTcl**: a `.tclspec` file,
+written in a Tcl dialect built for exactly this, that declares the same
+facts this page describes as `speclib` / `command` / `option` / `arg`
+statements instead of a `CommandSpec` literal. It is its own compiled-in
+command pack (`rust/tcl-registry/src/commands/spectcl/`), so a `.tclspec`
+file gets full editor support — highlighting, completion, and diagnostics
+for a misspelled trait or role — with no extra tooling. The frozen syntax
+is [`spec-dsl-examples/README.md`](../spec-dsl-examples/README.md); the
+architecture, discovery tiers, and crash-containment guarantee are
+[`spec-packs.md`](../spec-packs.md).
+
+Two pieces of that design are implemented and two are still landing.
+Implemented: the `.tclspec` dialect and its self-spec pack (editor
+support), the parser (`tcl-spectcl::load_pack`), and its validation report,
+exposed today as the `spectcl_check` MCP tool — it loads a pack for real
+and reports which fields each declaration set, every dropped or
+misspelled word, every declared hook, and any collision with a shipped
+name. Landing: the three-tier discovery, pack merge, and compiled-pack
+cache exist as a library (`tcl-spectcl::discovery` / `pack` / `cache`) but
+are not yet wired into the running language server or exposed as an editor
+setting, so a pack dropped in a workspace or config directory does not yet
+change what the editor shows; a `tcl spec check` CLI equivalent and the
+Spec Studio's DSL tab are likewise designed, not shipped.
+
+The [Command Spec Studio](../contracts/command-spec-studio.md) is the other
+non-Rust route today: a browser front-end over this registry that browses
+the live command surface, edits every field described above, and renders
+the result back out as a drop-in `.rs` module or a stub. Each field carries
+a plain-language explanation written for Tcl developers, and a Reference
+tab searches the whole vocabulary — every field, trait, argument role, and
+taint colour.
+
+See the KCS how-tos: [creating a command spec without knowing
+Rust](../../kcs/kcs-howto-create-command-specs-without-rust.md) and [writing
+a SpecTcl pack](../../kcs/kcs-howto-write-a-tclspec-pack.md).
 
 ## Related docs
 

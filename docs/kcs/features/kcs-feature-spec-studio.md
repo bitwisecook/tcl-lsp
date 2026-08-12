@@ -97,6 +97,16 @@ every `proc` it finds becomes a draft specification:
 Every guess is listed with the evidence behind it, so you can accept it or
 overrule it. They are a starting point, not an assertion.
 
+### A DSL tab is coming
+
+Today the studio reads and writes the live registry as a form, a `.rs`
+module, and a stub. A fourth surface — open an existing `.tclspec`
+[SpecTcl pack](../../design/spec-packs.md) and edit it the same way, then
+save your changes back as SpecTcl instead of Rust — is designed but not
+yet built. Until it lands, write a pack by hand or with the spec-author
+Claude Code skill; see [how to write a SpecTcl
+pack](../kcs-howto-write-a-tclspec-pack.md).
+
 ### What a stub cannot carry
 
 The stub language is deliberately narrower than a command specification: it
@@ -157,3 +167,7 @@ reasoning that produced it.
   how the schema, draft model, and renderers fit together.
 - [Dialect command stubs](../../design/contracts/dialect-stubs.md) — the stub
   language the studio emits.
+- [SpecTcl pack design](../../design/spec-packs.md) — the `.tclspec`
+  authoring format the studio's coming DSL tab reads and writes.
+- [How to write a SpecTcl pack](../kcs-howto-write-a-tclspec-pack.md) —
+  write one by hand today.

@@ -493,17 +493,17 @@ speclib mylib 1 {
     }
     command mylib::sort {
         synopsis {mylib::sort ?options? list}
-        arity 1 -1
+        arity 1..
         option -mode -takes enum -values sortmodes
         option --
         subcommand indices {
-            arity 1 1
+            arity 1
             hover -summary {Return indices rather than elements.}
         }
         hover -summary {Sort a list.} -returns {The sorted list.}
     }
     command mylib::with_var {
-        arity 2 3
+        arity 2..3
         arg 0 -role varwrite
         arg 1 -role body
         traits {EVALUATES_CODE}
@@ -609,7 +609,7 @@ speclib mylib 1 {
         let cache = CacheDir::new("edit");
 
         let _ = load_pack_cached(SOURCE);
-        let edited = SOURCE.replace("arity 2 3", "arity 2 4");
+        let edited = SOURCE.replace("arity 2..3", "arity 2..4");
         let after = load_pack_cached(&edited);
 
         assert_eq!(cache.entries().len(), 2, "an edit is a different key");
@@ -676,7 +676,7 @@ speclib mylib 1 {
     #[test]
     fn the_key_covers_the_build_not_just_the_source() {
         let a = key_for(SOURCE);
-        let b = key_for(&SOURCE.replace("arity 1 -1", "arity 1 2"));
+        let b = key_for(&SOURCE.replace("arity 1..", "arity 1..2"));
         assert_ne!(a, b, "different sources key differently");
         assert_eq!(a, key_for(SOURCE), "the same source keys the same");
 

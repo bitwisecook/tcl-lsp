@@ -1,0 +1,41 @@
+# tcl-lsp — a language server and toolchain for Tcl
+# Copyright (C) 2026 James Deucker (bitwisecook) <https://github.com/bitwisecook>
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU Affero General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU Affero General Public License for more details.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with this program.  If not, see <https://www.gnu.org/licenses/>.
+#
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
+# The Tcl extension interface: the layer that plays, for our engines, the role
+# Tcl's C API plays for C Tcl — in modern idiomatic Rust, with owned structured
+# values and no interp pointers. Deliberately dependency-free: an engine
+# implements it (`tcl-engine-tclvm`), a host consumes it (`tcl-spec-hooks`),
+# and selecting one engine must never require another to be present.
+[package]
+name = "tcl-engine-api"
+publish.workspace = true
+description = "The Tcl extension interface — compile-unit / handle / structured-value contract every execution engine implements"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+
+[lib]
+name = "tcl_engine_api"
+
+[dependencies]
+
+[lints]
+workspace = true
