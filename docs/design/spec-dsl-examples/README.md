@@ -589,45 +589,157 @@ gate rather than pass silently.
 
 ## What a pack cannot author
 
-Four kinds of field are **excluded** outright, and four more are
+Four kinds of field are **excluded** outright, and two more are
 **reference-only**. Every one is in the coverage matrix with its reason;
 the summary is:
 
 | field(s) | why not |
 |---|---|
-| `command_forms`, `subcommand_forms` | per-form bundles of arity/roles/options/hooks. `forms` covers the getter/setter split; a command needing the structured form is deep enough in the compiler to be a contribution. |
-| `completion` | the Tcl completion-code contract is a proof obligation the optimiser relies on. A wrong value is unsound, not imprecise. |
+| `command_forms`, `subcommand_forms` | per-form bundles of arity/roles/options/hooks. `forms` covers the getter/setter split; a command needing the structured form is deep enough in the compiler to be a contribution. Six shipped modules use them; the list is in [spec-packs.md](../spec-packs.md). |
+| `completion` | a compiler proof obligation, not a description of the command. See the rationale below. |
 | `dispatch_dependencies` | specialisation-proof machinery whose meaning is defined by the optimiser; `fields.md` itself says "leave unset". |
-| `definition_body`, `body_scope`, `data_collection`, `bpf_op` | shared named descriptors, referenced by name — the boundary spec-packs.md's bucket 2 draws. See the caveat below. |
+| `data_collection`, `bpf_op` | shared named descriptors, referenced by name — the boundary spec-packs.md's bucket 2 draws. `data_collection`'s descriptor is paired with protocol machinery outside the registry; `bpf_op` is a closed compiler catalogue. |
 | the `resolver` of `world_effects` / `state_transitions` | a function producing typed transition facts. The surrounding plain data *is* authorable; only the resolver is `-native`, `none`, or a derivation keyword. |
 
-### The definer-grammar caveat
+`definition_body` and `body_scope` **were** on that list and are not any
+more — see the next section.
 
-`definition_body` and `body_scope` being reference-only is the one place
-this sketch is knowingly behind
-[`tricky-surfaces.md`](tricky-surfaces.md), which requires a private
-definer grammar and says `body_scope` "must be expressible from day one"
-— the DSL will use one for its own editing experience. Nothing in the
-data blocks it: `DefinitionBodyGrammar`'s fourteen fields and
-`ScopedCommandEnv` are plain data that `coverage.rs` already enumerates.
-None of the nine ports needs an inline form (every one references a
-shipped grammar), so none was designed — designing it without a port to
-drive it is exactly the mistake this exercise exists to avoid. The shape
-it wants is a pack-level `descriptor definition_body NAME { … }` whose
-body is `member` rows in the same style as `manufacturer` and `option`:
+### Why `completion` is excluded and `const_fold` is not
+
+The one-line reason ("a wrong value is unsound, not imprecise") does not
+survive contact with `const_fold`, which is authorable, is written in
+Tcl by hand, and can be *more* wrong more easily. Stating the real
+asymmetry now is cheaper than being asked later:
+
+- **A wrong fold is a wrong value in one expression.** It is bounded by
+  the call site, it is observable by running the corpus-output
+  equivalence gate, and every consumer downstream of it is still
+  operating on a well-formed program. The mitigation is a test, and the
+  DSL provides one.
+- **A wrong `completion` is a wrong control-flow graph.** It tells the
+  compiler which edges leave the command — whether the block can fall
+  through, whether a loop can exit here, whether the code after it is
+  reachable at all. Get it wrong and the CFG is structurally false, so
+  every later pass reasons about a program that does not exist: DCE
+  deletes live code, the optimiser reorders across an edge that is real,
+  the analyser reports on branches that cannot run. There is no output
+  to diff, because the damage is to the shape of the analysis rather
+  than to a value in it.
+- **`fields.md` already says "leave unset"** for the same reason it says
+  it of `dispatch_dependencies`: unset means "assume anything", which is
+  always sound. An authored value can only ever *narrow* that, and
+  narrowing is the unsound direction.
+
+So the exclusion is not "completion is hard" — it is that completion is
+the one field where the conservative default is free and the
+non-default is a claim only the compiler can check. The **traits**
+`BREAKS_LOOP`, `CONTINUES_LOOP`, and `CATCHABLE_THROW`
+(`rust/tcl-spec-studio/src/catalogue.rs:524-526`) remain authorable and
+cover the standard codes a pack actually needs; what stays out is
+`CompletionDescriptor` itself. A library-defined code — `struct::tree`'s
+`return -code 5`, meaningful only inside its own `walk` body — fits
+neither, and is recorded as a known limit below rather than papered over.
+
+### Definer grammars and scoped bodies
+
+`definition_body` and `body_scope` are **authorable**, inline or as a
+`descriptor`, and this is a change from the first draft of this memo.
+They were reference-only on the argument that no port needed an inline
+form; [`tricky-surfaces.md`](tricky-surfaces.md) requires both "from day
+one", and the honest way to close a rubric gap is a port, not an
+amendment. [`snit-type.tclspec.tcl`](snit-type.tclspec.tcl) is that
+port, and it designed the form.
+
+`definition_body NAME` still names a shipped grammar (`tcloo`,
+`tcloo-configurable`, `snit`, `snit-widget`, `itcl`) — that is what
+every core port does. `definition_body { … }` and
+`descriptor definition_body NAME { … }` spell one out. The block's rows
+are `DefinitionBodyGrammar`'s own fields:
 
 ```tcl
-descriptor definition_body mylib-type {
-    family Snit                          ;# or a private family word
-    member method -name 0 -params 1 -body 2
-    member option -name 0 -default 1 -visibility flag-keyed
-    implicit_vars {self type options}
-    member_body_command install -binds-handle {…}
+definition_body {
+    family Snit                              ;# TclOo | Snit | Itcl
+    member method     -roles {0 Name 1 ParamList 2 Body}
+    member superclass -all-refs Class -slot Set
+    member variable   -all-vars -slot Append -dedup
+    member property   -kind FlagKeyed -dialects tcl9.0+
+    member self       -kind Wrapper -block-body
+    member export     -all-refs Method -visibility Exported
+    member renamemethod -all-refs Method -retracts FirstArgument
+    member option                            ;# keyword-only
+    member_option method 1 -export -role Option -visibility Public -dialects tcl9.0+
+    implicit_vars {self selfns type options}
+    member_body_namespace_path {::oo::Helpers}
+    builtin_type_methods {info destroy}
+    builtin_object_method cget ?-unexported? -receiver AnyObject|ClassObject -detail {…}
+    builtin_terminating_methods {unknown}
+    member_body_command install -detail {…} -binds-handle {-name-from {Word 0} -class-from {Word 2} -keyword {1 using}}
+    bare_word_construction ?-hint-values {…}? ?-hint-prefixes {…}?
+    dynamic_method_dispatch
+    manufacturer create ?-unexported? ?-names-instance-at N? ?-definition-body-at N? -constructor-args-from N
+    unknown_dispatch_method unknown
+    property_accessor_methods {configure}
 }
 ```
 
-Porting `snit__type.rs` together with `SNIT_GRAMMAR` is the work that
-should settle it.
+Four notes, three of them things the port changed:
+
+- **`-roles {N ROLE …}` replaced the sketched
+  `-name 0 -params 1 -body 2`.** `MemberSpec::arg_roles` is a list of
+  (index, role) pairs, so the sketch needed one new flag word per
+  `ArgRole` and still could not spell snit's `onconfigure -option
+  valueVar BODY`, whose roles sit at 1 and 2 with index 0 carrying none.
+  `-roles` *is* the field.
+- **`builtin_object_method` is a row, not a name list.** Each entry
+  carries a visibility and a receiver as well as a name, and the
+  visibility decides which dispatch spellings reach it (`my variable v`
+  works, `$obj variable v` does not). `?-unexported?` is spelled exactly
+  as on `manufacturer`.
+- **`bare_word_construction`'s hint is data.** It is the one function
+  pointer in `DefinitionBodyGrammar`, and reading it
+  (`definer.rs:1651-1653`) it is an exact-word set plus a prefix set —
+  `%AUTO%`, or a leading `.`. A family whose hint is not that shape
+  keeps `-native`.
+- **`member_option` is spelled, not ported.** It is the one
+  `MemberSpec` field the snit grammar does not exercise
+  (`optional_argument`); its witnesses are the shipped TclOO rows
+  `method ?-export|-private|-unexport?` and `definitionnamespace
+  ?-class|-instance?`, read from `definer.rs:1196-1240`. It is a
+  sibling row keyed by the member keyword and the fixed position, so
+  option-bearing members stay rows rather than growing a nested block.
+
+`body_scope` takes the same treatment, one level smaller —
+`ScopedCommandEnv` is four fields and `ScopedCommand` is six:
+
+```tcl
+descriptor body_scope report-style {
+    name {report style definition}
+    include_sibling_definitions
+    allow_unknown_commands no
+    command top {
+        arity 1..2
+        detail {…}
+        allow_unknown_subcommands no
+        subcommand set { arity 1  detail {…} }
+        subcommand get { arity 0  detail {…} }
+        hover { … }
+    }
+}
+```
+
+Inside a `body_scope` block, `command` is a scoped-command row rather
+than a pack-level command declaration — the same context rule that makes
+`method` a member row inside `object_class`. Its nested `subcommand`
+blocks are ordinary `subcommand` bodies, reused unchanged, because
+`ScopedCommand::subcommands` really is `&[SubCommand]`.
+
+`body_scope` is **spelled, not ported**: its shape was read off the two
+shipped environments (`REPORT_DEFSTYLE_ENV` and `TCLPKG_MANIFEST_ENV`,
+`rust/tcl-registry/src/scoped.rs:337` and `:479`), not driven by a port,
+and the fidelity table records it as such. That is a weaker warrant than
+the `definition_body` form has, and it is the honest status: the rubric
+asks for expressibility from day one, and expressible-from-plain-data is
+what this is.
 
 ## Ambiguities resolved, and roads not taken
 
@@ -727,10 +839,12 @@ What each port loses, if anything, against its `.rs`.
 | `switch` | **complete** | — |
 | `if` | **complete, and smaller** | two hook functions (~110 lines of Rust) become a three-line grammar; the derived walk agrees with `walk_if` on its whole test matrix |
 | `string` (4 subcommands) | **near-complete** | `string is`'s `const_fold_versioned` stays `-native`. Its Rust is a version-aware classifier (per-class availability floors, 8.x/9.x magnitude caps, radix prefixes, digit separators, ambiguous-form bail-outs); a Tcl body would be a re-implementation, not a port. `length` / `map` / `range` port fully — but see the note below. |
-| `oo::class` | **partial** | the three subcommands' `state_transitions` resolvers stay `-native`: they emit typed `CommandBinding::Define` + `ObjectDispatch::Create` facts, and the DSL has no vocabulary for constructing transition facts. Everything around them (composition, argument shape, widening rules, effect coverage, commit) is data and ports. `arg_role_resolver` is *removed*, derived from the `manufacturer` rows. |
+| `oo::class` | **partial** | the three subcommands' `state_transitions` resolvers stay `-native`: they emit typed `CommandBinding::Define` + `ObjectDispatch::Create` facts, and the DSL has no vocabulary for constructing transition facts. Everything around them (composition, argument shape, widening rules, effect coverage, commit) is data and ports. `arg_role_resolver` is *removed*, derived from the `manufacturer` rows — a **derivation claim**, not a transcription, and one that must be **proved, not assumed**: `oo_class_arg_roles` (`oo_class.rs:245-256`) reads `TCLOO_GRAMMAR.manufacturers`, while the port's rows are `TCLOO_ROOT_CLASS_MANUFACTURERS`. The two tables differ on `new`'s visibility and agree on every keyword and body index *today*, which is what makes the derivation correct now and not correct by construction. A loader must diff them; a future divergence must fail the equivalence gate. |
 | `uri::geturl` + `http::geturl` | **complete** | — |
 | `HTTP::header` | **complete** | including the shipped spec's `credential_arg 2` on `insert`/`replace`, carried verbatim. Design review verified it is **not** an off-by-one: the W310 consumer (`security.rs::emit_w310_hardcoded_credentials`) indexes with the *subcommand word at 0* (`args[0]` = `insert`, `args[1]` = header name, `args[2]` = value), so `2` is the value slot as consumed — the schema help text's "index after the subcommand word" is the erroneous half. A loader must store this field verbatim, **not** re-base it to after-subcommand coordinates |
-| `upvar` | **near-complete** | `state_transitions.resolver` becomes `from-frame-effect`. That is a *derivation claim*, not a transcription: it asserts that the alias facts `upvar_state_transitions` produces are exactly determined by `AliasPairs` + `ArityParity`. Reading the Rust, they are — but an implementation must prove it, not assume it. |
+| `upvar` | **near-complete** | `state_transitions.resolver` becomes `from-frame-effect`. That is a *derivation claim*, not a transcription: it asserts that the alias facts `upvar_state_transitions` produces are exactly determined by `AliasPairs` + `ArityParity`. Reading the Rust, they are — but an implementation must prove it, not assume it, and must match the two abstention policies pinned under "Derivations, exactly". |
+| `snit::type` + `SNIT_GRAMMAR` | **complete** | all 14 `DefinitionBodyGrammar` fields, 15 member rows, 6 built-in object methods, the `install` member-body command with its handle binding, and the single `create` manufacturer, transcribed field for field. The one field that is a function pointer in the Rust — `bare_word_construction_hint` — becomes data (`-hint-values {%AUTO%} -hint-prefixes {.}`), which is a transcription of a two-clause boolean, not a derivation. Deliberate omissions, each equal to the Rust default: `member_body_namespace_path` (`&[]`), `builtin_terminating_methods` (`&[]`), `unknown_dispatch_method` (`None`), `property_accessor_methods` (`&[]`). `snit::widget` / `snit::widgetadaptor` are **not** ported: they carry `SNIT_WIDGET_GRAMMAR`, a second constant differing in `implicit_vars` and `member_body_commands` only. |
+| `return` | **complete** | including the option-arity hook: `errorstack_value`'s four outcomes port one-for-one, with `string is list` standing in for `split_list_raw`'s `Ok`/`Err` because the sandbox has no `catch` (the two agree on which words are lists). `arg_role_resolver` and `context_gate` are Tcl bodies; `lowering_hook` / `inline_codegen_hook` stay `-native`, which is the closed-catalogue rule, not a loss. The three-example `examples` string is one `example` block, not three rows — see the newline rule. |
 
 **The const-fold porting hazard.** A Tcl hook body inherits the *hook
 interpreter's* Tcl semantics, and the registry's folders deliberately
@@ -765,7 +879,7 @@ schema order. "excluded" rows carry the reason.
 | `arg_role_resolver` | `arg_role_resolver {words ctx} { … }` \| `-native ID` \| `from-manufacturers` | also **derived** from `clause_grammar`; emitter verb `role IDX ROLE` |
 | `arg_presentation` | `arg N -layout BlockScript\|InlineScript` |  |
 | `repeated_args` | `repeat ROLE -from N -stride N ?-exclude-trailing N? ?-optional-leading? ?-conditional?` | one row per layout |
-| `frame_effect` | `frame_effect -level_word W -layout L` | both payloads are closed enums, so fully declarative |
+| `frame_effect` | `frame_effect -level-word W -layout L` | both payloads are closed enums, so fully declarative |
 | `clause_shape_check` | **derived** from `clause_grammar`; `-native ID` escape | no hook body needed for any chain the grammar can spell |
 | `command_prefixes` | `arg N -appends {Exactly 2}` | implies `-role CommandPrefix` |
 | `command_prefix_resolver` | `command_prefix_resolver {words ctx} { … }` \| `-native ID` | emitter verb `prefix IDX {Exactly N}` |
@@ -783,7 +897,7 @@ schema order. "excluded" rows carry the reason.
 | `forms` | `form KIND {synopsis} ?-dialects {…}?` | one row per form |
 | `command_forms` | **excluded** | per-form arity/roles/options/hook bundles; the studio carries it as one opaque Rust expression and `forms` covers the getter/setter split every pack has needed. A command needing it is a contribution. |
 | `semantic_operation` | `semantic_operation Invoke\|{Intrinsic ID}\|{StructuredLowering ID}` | an operation identity, so it keeps the enum spelling rather than `-native` |
-| `completion` | **excluded** | `CompletionDescriptor` is a compiler proof obligation, not a description of the command; wrong values are unsound rather than imprecise |
+| `completion` | **excluded** | `CompletionDescriptor` describes the command's *control-flow edges*, so a wrong value corrupts the CFG rather than one value — see "Why `completion` is excluded and `const_fold` is not". The traits `BREAKS_LOOP` / `CONTINUES_LOOP` / `CATCHABLE_THROW` stay authorable and cover the standard codes |
 | `assigns_variable_at` | `assigns_variable_at N` |  |
 | `safe_on_uninit` | `safe_on_uninit {SET …}` |  |
 | `const_fold` | `const_fold {words ctx} { … }` \| `-native ID` | emitter verb `fold VALUE`; no call = no fold |
@@ -845,14 +959,14 @@ schema order. "excluded" rows carry the reason.
 | `deprecated_replacement_drop_in` | `deprecated_replacement_drop_in ?yes\|no?` |  |
 | `byte_array_payload` | `byte_array_payload -replace-data-index N ?-message-flag-shift?` |  |
 | `byte_array_effect` | `byte_array_effect None\|Transparent\|Coerces\|CaseFolds\|Encodes\|{Rebinarifies N}` |  |
-| `definition_body` | `definition_body NAME` | reference-only (`tcloo`, `tcloo-configurable`, `snit`, `snit-widget`, `itcl`) — a private definer grammar is a contribution, per spec-packs.md |
+| `definition_body` | `definition_body NAME\|{ … }` | a shipped grammar by name (`tcloo`, `tcloo-configurable`, `snit`, `snit-widget`, `itcl`), a pack `descriptor`, or the inline block — see "Definer grammars and scoped bodies" |
 | `manufacturer_methods` | `manufacturer KEYWORD ?-unexported? ?-names-instance-at N? ?-definition-body-at N? -constructor-args-from N` | one row per method |
 | `case_list` | `case_list NAME\|{ … }` | `switch` / `expect` by name, or the 13 plain-data fields inline |
 | `oo_context_facts` | `oo_context_fact WORD FACT` | one row per fact |
 | `self_receiver_words` | `self_receiver_words {WORD …}` |  |
 | `object_class` | `object_class NAME` \| `object_class NAME ?-superclass {…}? ?-allow-unknown? { method … }` | `method` rows reuse the `subcommand` body grammar |
 | `defines_symbol` | `defines_symbol -name-arg N ?-detail-arg N? ?-requires-arg N? -kind KIND` |  |
-| `body_scope` | `body_scope NAME` | reference-only, same reason as `definition_body` |
+| `body_scope` | `body_scope NAME\|{ … }` | a shipped environment by name, a pack `descriptor`, or the inline block; **spelled from `ScopedCommandEnv`, not exercised by a port** |
 | `binds_handle` | `binds_handle -name-from {Word N} -class-from {Word N} ?-keyword {N WORD}?` |  |
 | `creates_instance_at` | `creates_instance_at N` |  |
 | `defines_command_at` | `defines_command_at N` |  |
@@ -896,7 +1010,7 @@ schema order. "excluded" rows carry the reason.
 | `versioned_arg_values` | `versioned_arg_value N VALUE ?-introduced V? ?-deprecated V? ?-retired V?` | one row per gate |
 | `subcommand_forms` | **excluded** | the subcommand-level twin of `command_forms`, excluded for the same reason |
 | `semantic_operation` | `semantic_operation Invoke\|{Intrinsic ID}\|{StructuredLowering ID}` | an operation identity, so it keeps the enum spelling rather than `-native` |
-| `completion` | **excluded** | `CompletionDescriptor` is a compiler proof obligation, not a description of the command; wrong values are unsound rather than imprecise |
+| `completion` | **excluded** | `CompletionDescriptor` describes the command's *control-flow edges*, so a wrong value corrupts the CFG rather than one value — see "Why `completion` is excluded and `const_fold` is not". The traits `BREAKS_LOOP` / `CONTINUES_LOOP` / `CATCHABLE_THROW` stay authorable and cover the standard codes |
 | `dialects` | `dialects {SET …}` | absent inherits the parent command's set |
 | `introduced_version` | `introduced_version V` | `Lifecycle.introduced` |
 | `deprecated_version` | `deprecated_version V` | `Lifecycle.deprecated` |

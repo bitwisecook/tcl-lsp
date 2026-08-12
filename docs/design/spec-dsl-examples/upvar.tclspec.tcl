@@ -33,9 +33,9 @@ command upvar {
     # `upvar 1 b` aliases a caller variable literally named `1`, while
     # `upvar $lvl a b` really does take `$lvl` as its level.
     #
-    # (`uplevel` is the other spelling: `-level_word LeadingProbe
+    # (`uplevel` is the other spelling: `-level-word LeadingProbe
     #  -layout ScriptInSelectedFrame`.)
-    frame_effect -level_word ArityParity -layout AliasPairs
+    frame_effect -level-word ArityParity -layout AliasPairs
 
     lowering_hook -native Upvar
     codegen_hook  -native Upvar

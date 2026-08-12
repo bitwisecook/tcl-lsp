@@ -158,6 +158,15 @@ extension-registration path itself becomes a first-class, dogfooded
 API — the same road a future C-extension-style plugin story would
 take — and the DSL gets the best performance floor the VM can offer.
 
+The host surface is **engine-neutral by contract**: one interface
+(compile a hook body → handle; invoke handle with words + context →
+emissions; the verb set and structured-value marshalling defined on the
+interface, not the engine) with two implementations — `tcl-vm` and the
+Tcl→WASM codegen runtime. Selecting the wasm-codegen engine must not
+require `tcl-vm` to be present at all; extension builders target the
+interface. A shim adapting existing C Tcl extensions to the same
+surface is tracked as its own issue.
+
 Hot-path budget: role resolvers run per call site during semantic
 tokens. Built-in packs keep native pointers (bucket 2 of the
 architecture above), so only pack-declared commands pay the VM cost —
