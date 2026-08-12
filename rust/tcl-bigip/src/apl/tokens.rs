@@ -788,8 +788,9 @@ mod tests {
         assert_no_overlap(src);
     }
 
-    /// Tcl escape widths are not uniform: `\x` used to consume *unbounded* hex
-    /// digits here and `\U` was not recognised at all.
+    /// Tcl escape widths are not uniform: `\x` takes a *bounded* run of hex
+    /// digits, `\U` eight, and `\101` is octal — each must lex as exactly one
+    /// escape token.
     #[test]
     fn escape_widths_follow_tcl() {
         let t = toks("display \"a\\x41b\\U0001F600c\\101d\"\n");

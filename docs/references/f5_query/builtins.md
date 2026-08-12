@@ -1865,8 +1865,9 @@ match of *pattern* and returns them as a list.
   is a list of capture values (matching jq's array-per-match
   shape; the full match is **not** included).
 
-Empty matches at advancing positions are skipped to avoid infinite
-loops — Python's ``finditer`` already does this.
+Empty matches at advancing positions are handled correctly and don't
+loop forever — the Rust ``regex`` crate's ``find_iter`` /
+``captures_iter`` already guarantee this.
 
 Related: ``match`` / ``test`` (predicate), ``capture`` (named
 groups), ``splits``.
@@ -1892,9 +1893,9 @@ POSIX-shell-quote a string or list of strings — jq's ``@sh``.
 Matches jq's ``@sh``: returns a representation safe to interpolate
 into a POSIX shell command.  **Every** value is wrapped in single
 quotes (with embedded ``'`` escaped as ``'\''``) — jq parity, and
-cheaper to reason about than Python's ``shlex.quote`` which leaves
-"obviously safe" tokens unquoted.  Lists become space-separated
-single-quoted fields.
+cheaper to reason about than a quoter that leaves "obviously safe"
+tokens unquoted (fewer cases to get wrong).  Lists become
+space-separated single-quoted fields.
 
 Related: ``uri``, ``base64``, ``join``.
 
@@ -1916,7 +1917,7 @@ Split a string on a separator.  Returns a list.
 **Details**
 
 Splits *value* on every occurrence of *separator*, returning a
-Python list of substrings.  The separator is not a regex — use
+list of substrings.  The separator is not a regex — use
 a literal string.
 
 Common pattern: project a single string field, split it, and
@@ -2000,8 +2001,11 @@ Replace the first regex match in a string.
 **Details**
 
 Replaces the **first** occurrence of *pattern* in *value* with
-*replacement* and returns the new string.  *pattern* is a Python
-regex; *replacement* may use ``\1`` / ``\g<name>`` backrefs.
+*replacement* and returns the new string.  *pattern* is a Rust
+``regex``-crate pattern; *replacement* may use ``\1`` / ``\g<name>``
+backrefs — Python ``re``-style syntax, hand-expanded rather than the
+``regex`` crate's native ``$name`` templating, kept for compatibility
+with existing queries.
 
 Optional *flags* string takes the same letters as ``test`` /
 ``scan`` / ``capture`` / ``splits``: ``i`` for case-insensitive,

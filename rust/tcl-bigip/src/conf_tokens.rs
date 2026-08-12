@@ -941,8 +941,9 @@ mod tests {
         }
     }
 
-    /// Tcl escape widths are not uniform: this lexer used to assume every escape
-    /// was two bytes, so `\x41` came out as an escape `\x` plus a string `41`.
+    /// Tcl escape widths are not uniform, so the lexer cannot assume every
+    /// escape is two bytes — that would split `\x41` into an escape `\x` plus
+    /// a string `41`.
     #[test]
     fn escape_widths_follow_tcl() {
         let t = toks("ltm x /C/m {\n    recv \"a\\x41b\\U0001F600c\\101d\"\n}\n");

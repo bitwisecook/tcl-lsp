@@ -56,10 +56,9 @@ honour the documented rc=0 convention exactly, because extension source is
 written to it. We tag every C-API constructor `fresh_zero` to make the
 distinction impossible to miss.
 
-#### Open: single-decref of a fresh obj, and the macro/`TclFreeObj` path (PR #557)
+#### Open: single-decref of a fresh obj, and the macro / `TclFreeObj` path
 
-Two related items raised in the runtime-port review, to nail down as the Track-2
-loader/ABI surface lands:
+Two related unresolved questions, both of which an extension can hit:
 
 1. **`Tcl_DecrRefCount` on an rc-0 `fresh_zero` obj.** The shipped `tcl.h` macro
    is `if ((objPtr)->refCount-- <= 1) TclFreeObj(objPtr);`, so a *single* decref
@@ -74,8 +73,9 @@ loader/ABI surface lands:
    compiled against `tcl.h` never calls our exported functions — it inlines the
    refcount test and calls `TclFreeObj` directly. `TclFreeObj` is **not** in the
    current export surface; settle how extension-side decrefs reach this
-   allocator's free path (export `TclFreeObj`, or ship refcount ops as real
-   functions, when the dynamic loader lands).
+   allocator's free path — export `TclFreeObj`, or ship the refcount ops as
+   real functions. Until it is settled, an extension's decrefs do not reach
+   this allocator at all.
 
 ---
 
