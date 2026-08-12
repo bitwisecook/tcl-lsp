@@ -12658,6 +12658,14 @@ impl Backend {
                         // Case-folded in the glob itself: watcher registrations
                         // carry no `ignoreCase` option and VS Code matches them
                         // case-sensitively on Linux (issue #1215).
+                        //
+                        // This also covers `.tclspec` SpecTcl packs, which are
+                        // in `TCL_SOURCE_EXTENSIONS` — a pack *is* one Tcl
+                        // script. A second watcher for them would only make the
+                        // client send every pack event twice; what makes a pack
+                        // event different is not the watch but what
+                        // `did_change_watched_files` does with it (see
+                        // `WatchedFileChanges::spec_pack_changed`).
                         glob_pattern: GlobPattern::String(tcl_source_watch_glob()),
                         kind: all_kinds,
                     },
@@ -12666,14 +12674,6 @@ impl Backend {
                         // source documents. Their events advance the tracked
                         // sidecar epoch and republish affected open documents.
                         glob_pattern: GlobPattern::String("**/*.tcl.stubs".to_owned()),
-                        kind: all_kinds,
-                    },
-                    FileSystemWatcher {
-                        // SpecTcl packs. A pack is a workspace-scope analysis
-                        // input like the sidecars above, not a Tcl document:
-                        // its events reload the pack set and republish its
-                        // load notices, they do not index a source file.
-                        glob_pattern: GlobPattern::String(SPEC_PACK_GLOB.to_owned()),
                         kind: all_kinds,
                     },
                     FileSystemWatcher {
@@ -17742,13 +17742,6 @@ fn formatter_config_from(
 /// The user `config.ini` lives outside the workspace, so no workspace-relative
 /// glob can reach it; it is re-read on the next pull instead.
 const PROJECT_CONFIG_GLOB: &str = "**/.tcl-lsp.ini";
-
-/// The watcher glob for `SpecTcl` packs.
-///
-/// Case-folded in the glob for the same reason [`tcl_source_watch_glob`] is:
-/// watcher registrations carry no `ignoreCase` option and VS Code matches them
-/// case-sensitively on Linux (issue #1215).
-const SPEC_PACK_GLOB: &str = "**/*.[tT][cC][lL][sS][pP][eE][cC]";
 
 /// `true` when `uri` names a `.tclspec` `SpecTcl` pack.
 fn is_spec_pack_file(uri: &Uri) -> bool {
@@ -29338,6 +29331,33 @@ mod tests {
         assert!(is_config_file(
             &"file:///w/.tcl-lsp.ini".parse::<Uri>().unwrap()
         ));
+    }
+
+    /// `SpecTcl` packs are watched by the *source* glob rather than by a
+    /// watcher of their own, so this is the assertion that keeps them watched
+    /// at all: drop `tclspec` from `TCL_SOURCE_EXTENSIONS` and pack reload
+    /// silently stops working, with nothing else failing.
+    #[test]
+    fn the_source_watch_glob_covers_spec_packs() {
+        let glob = tcl_source_watch_glob();
+        assert!(
+            glob.contains("[tT][cC][lL][sS][pP][eE][cC]"),
+            "the source watcher must cover `.tclspec`, or a pack edit reaches \
+             nothing: {glob}"
+        );
+        // And the classifier routes such an event to the pack reload rather
+        // than to the workspace index.
+        let uri: Uri = "file:///w/lib/mylib.TCLSPEC".parse().unwrap();
+        assert!(is_spec_pack_file(&uri));
+        let partition = partition_watched_file_changes(vec![FileEvent {
+            uri,
+            typ: FileChangeType::CHANGED,
+        }]);
+        assert!(partition.spec_pack_changed);
+        assert!(
+            partition.last_kind.is_empty(),
+            "a pack is an analysis input, not an indexed document"
+        );
     }
 
     #[test]
