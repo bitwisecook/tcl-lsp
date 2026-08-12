@@ -1972,8 +1972,8 @@ fn try_fold_static_proc_call(
     // the literal replacement would turn `::answer` into a
     // command named `42`, which is invalid Tcl. Targeting
     // `[procName …]` command substitutions with their token span
-    // would avoid this. Until the Rust side tracks CMD-subst
-    // spans at the call argument level, emit as a hint so
+    // would avoid this. Until CMD-subst spans are tracked at
+    // the call argument level, emit as a hint so
     // editors surface the fold without proposing an applicable
     // quick-fix.
     let mut opt = Optimisation::new(

@@ -19,7 +19,7 @@
 //! Session driver — bootstrap the TMM-sim orchestrator on the VM and fire
 //! events.
 //!
-//! The simulation is the Tcl under `tooling/irule_test/tcl/` (orchestrator +
+//! The simulation is the Tcl under `rust/tcl-irule-test/tcl/` (orchestrator +
 //! TMM shim + command mocks); a session sources it on a [`tcl-vm`] interpreter,
 //! applies a [`crate::topology`] setup (or hand-built `::orch::` calls), fires
 //! events, and reads back the pool/node decisions, logs, and assertions.

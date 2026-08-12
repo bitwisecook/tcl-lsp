@@ -38,7 +38,7 @@ fn run(src: &str, packet: &mut [u8]) -> u64 {
 
 #[test]
 fn when_non_integer_priority_is_rejected_not_silently_500() {
-    // TP: `priority nope` used to become priority 500 with no diagnostic.
+    // TP: `priority nope` must not be silently normalised to priority 500.
     let err = compile_module("when XDP priority nope { pass }\n").unwrap_err();
     assert_eq!(err.code, BpfDiag::BadArity);
     assert!(err.msg.contains("priority"), "{}", err.msg);
@@ -84,7 +84,7 @@ fn every_path_terminated_compiles() {
 
 #[test]
 fn full_width_64bit_constant_materialises() {
-    // A constant beyond 32 bits used to be rejected; now it uses `lddw`.
+    // A constant beyond 32 bits is materialised with `lddw`.
     let mut pkt = vec![0u8; 8];
     let v = run(
         "when SOCKET_FILTER { setint x {0x1122334455}\n accept {$x} }\n",

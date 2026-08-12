@@ -1482,7 +1482,7 @@ mod tests {
 
     #[test]
     fn argv_with_word_spans_is_identity() {
-        // Rust's segmenter already widens; this helper is a
+        // The segmenter already widens; this helper is a
         // transparent passthrough.
         use tcl_lexer::TokenType;
         let tok = Token::new(TokenType::Esc, Span::new(0, 4));

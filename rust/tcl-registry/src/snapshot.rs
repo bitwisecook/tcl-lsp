@@ -201,7 +201,7 @@ pub fn profile_graph_snapshot() -> Json {
         let mut entry = BTreeMap::new();
         entry.insert("name".to_owned(), Json::s(spec.name));
         insert_lifecycle(&mut entry, spec.lifecycle());
-        // The Rust crate stores `tls_shared` for the shared TLS/persistence
+        // The registry stores `tls_shared` for the shared TLS/persistence
         // layer (PERSIST / SSL_PERSISTENCE) to drive its infrastructure logic;
         // both are reported as `tls`.
         let layer = if spec.layer == "tls_shared" {

@@ -17,7 +17,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 //! APM access-profile walk — the "walk the whole profile, link to everything"
-//! view (a port of the old `graphviz`/`docviz_apm` APM dependency visitor).
+//! view.
 //!
 //! For every `apm profile access` stanza this follows each reference out to the
 //! objects it depends on — the virtual servers that attach it, its connectivity
@@ -29,7 +29,7 @@
 //! model. The report's elkjs renderer (`elk-graph.js`) lays it out left-to-right
 //! with rectangular nodes and true orthogonal edge routing — right-angle
 //! connectors, separated channels, arrowheads seated on the node border — the
-//! way the F5 Visual Policy Editor (and the original graphviz visitor) drew it.
+//! way the F5 Visual Policy Editor draws it.
 //!
 //! Why a bespoke parse rather than the `f5-query` engine: the query projection
 //! only covers the `ltm` module, and even the parsed `tcl-bigip` model keeps
@@ -403,8 +403,8 @@ impl Graph {
     }
 }
 
-/// The style class for a policy item, from its `item-type` / caption, echoing
-/// the original's green start / green allow / red deny / plain action fills.
+/// The style class for a policy item, from its `item-type` / caption: the
+/// green start / green allow / red deny / plain action fills.
 fn item_class(item_type: &str, caption: &str) -> &'static str {
     let cap = caption.to_ascii_lowercase();
     match item_type {

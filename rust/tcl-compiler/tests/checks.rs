@@ -82,8 +82,8 @@
 //!   supersedes it everywhere — so the IP tests assert "W122 or W124".
 //! - Per-event cross-`when` scoping, taint-pipeline-only `W201`/`W313`
 //!   internals, and a few message-format / fix-shape assertions are pinned to
-//!   the Rust shape (dead-store reported as `W220` "never read" rather than
-//!   `W211` "set but never used" in structural-body cases, etc.).
+//!   this implementation's shape (dead-store reported as `W220` "never read"
+//!   rather than `W211` "set but never used" in structural-body cases, etc.).
 
 use tcl_compiler::analyser::{Analyser, Severity};
 use tcl_compiler::compilation_unit::CompilationUnit;
@@ -2287,10 +2287,10 @@ mod unused_proc_parameters {
 }
 
 // ===========================================================================
-// W210 — read-before-set, checks-specific shapes that are CORRECT in Rust.
+// W210 — read-before-set, checks-specific shapes that are handled correctly.
 //
-// These mirror tclsh ground truth and pass cleanly. (The catch-body false
-// positive is isolated in the `catch_body_defs_rust_bug` module below.)
+// These mirror tclsh ground truth and pass cleanly. (The catch-body case is
+// pinned in `catch_body_defs_no_false_w210` below.)
 // ===========================================================================
 mod read_before_set_correct {
     use super::*;
@@ -2436,10 +2436,10 @@ mod read_before_set_correct {
 //
 // tclsh ground truth (8.6 + 9.0): `if {![catch {set x 1}]} { puts $x }` prints
 // `1` — the catch *body* defines `x`, so the read in the if-body is safe and
-// W210 must NOT fire. The Rust analyser previously recognised the
-// `[catch {…} err]` *result-message* var (FP-RBS-02) but not a body-`set` of
-// an *other* variable read after the catch, so it false-fired W210. The
-// command-substitution out-var recovery now also scans the catch body, and
+// W210 must NOT fire. Recognising only the `[catch {…} err]` *result-message*
+// var (FP-RBS-02), and not a body-`set` of an *other* variable read after the
+// catch, false-fires W210. The
+// command-substitution out-var recovery therefore also scans the catch body, and
 // the read-before-set suppression scans branch conditions (not just
 // `set x [expr …]` assignments), so these guard-safe reads are no longer
 // flagged.

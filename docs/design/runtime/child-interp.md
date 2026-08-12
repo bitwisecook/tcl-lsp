@@ -46,12 +46,14 @@ In:
   target, or transfer`; `bad option "-X": must be -safe or --`
   for `interp create`.
 
-Out (deferred to later waves):
+Known gaps:
 
-- `-safe` semantics enforcement.  The flag is recorded on
-  `Interp.flags` but file / exec / package / env / load access
-  isn't gated — matches the runtime's "no fs / exec anyway"
-  stance.
+- **`-safe` semantics are not enforced.**  The flag is recorded on
+  `Interp.flags`, but file / exec / package / env / load access is not gated.
+  A script that assumes a `-safe` child cannot reach the filesystem is
+  therefore not actually protected by this flag; the runtime's own lack of
+  filesystem and exec access is doing that work, which is not the same
+  guarantee.
 - `interp bgerror` — no event loop to pump background errors.
 - `interp limit` / `interp marktrusted` — limit enforcement is
   cooperative in C Tcl and we have no event loop.
@@ -292,14 +294,12 @@ Three layers:
    - A hand-port of
      ``tmp/tcl9.0.3/tests/interp.test`` sections 1.* / 2.* /
      3.* / 4.* / 5.* / 6.* (options, create, exists, children,
-     delete, consistency, eval).  Upstream bundle compilation
-     is still blocked by tcltest features unrelated to this
-     wave (``::tcltest::normalizePath`` etc.), so the
-     individual ``test interp-N.M`` bodies are ported
-     verbatim instead.
-3. **Upstream `interp.test` whole-file bundle** — blocked by
-   tcltest harness features outside the child-interp scope.
-   Revisit once the surrounding primitives land.
+     delete, consistency, eval).  The bodies are ported verbatim
+     rather than run as a whole-file bundle.
+3. **The `interp.test` whole-file bundle does not run.**  It is blocked by
+   tcltest harness features unrelated to child interpreters
+   (``::tcltest::normalizePath`` and friends), which is why the individual
+   ``test interp-N.M`` bodies are hand-ported above.
 
 ## 12. Ship summary
 

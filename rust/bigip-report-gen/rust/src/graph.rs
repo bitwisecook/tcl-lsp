@@ -292,8 +292,8 @@ pub(crate) fn pattern_reaches(
 /// Build, per attachable object type, the [`Attach`] records an iRule could
 /// dynamically construct, tagged with the partition contexts the rule runs in.
 ///
-/// This supersedes the old all-or-nothing "risk" heuristic: instead of demoting
-/// an *entire* object type the moment any rule attaches it dynamically, each
+/// Rather than an all-or-nothing "risk" heuristic that demotes an *entire*
+/// object type the moment any rule attaches it dynamically, each
 /// attach expression is reconstructed (via [`tcl_diagram::attach_reach`]) into a
 /// prefix / contained / suffix name pattern, resolved *per partition*. A pool
 /// called `db_backend` stays a *confirmed* orphan even when a rule does

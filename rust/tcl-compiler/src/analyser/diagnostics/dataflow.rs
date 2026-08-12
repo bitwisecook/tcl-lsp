@@ -1703,7 +1703,7 @@ file; this call falls through to the 'unknown' handler."
     /// - Otherwise → I230 with the generic
     ///   ``"Branch condition '...' is constant"`` message.
     ///
-    /// Severity is mapped to ``Hint`` because the Rust
+    /// Severity is mapped to ``Hint`` because the
     /// [`Severity`] enum has no ``Info`` variant — ``Hint`` is
     /// the closest non-actionable level.
     pub(super) fn emit_constant_branch_diagnostics(

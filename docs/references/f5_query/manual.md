@@ -196,19 +196,22 @@ Major families:
 ## Network probes {#network-probes}
 
 All probes need `f5 query --enable-probes` (the gate keeps
-read-only queries from accidentally reaching out).  Probes use
-shared caches keyed on the request shape so multiple references
-in one query are cheap.
+read-only queries from accidentally reaching out).  Probe results
+are **not** cached or memoised — each call is a fresh network
+round-trip, so referencing the same probe repeatedly in one query
+repeats the work.
 
 | Builtin | Returns |
 |---|---|
 | `url_get(url, [headers])` | `{ status, headers, body, body_json, peer_cert, reason, error }` |
 | `url_head(url, [headers])` | same shape, no body |
 | `url_options(url, [headers])` | same shape |
-| `tls_handshake(host, port, [sni], [alpn])` | `{ protocol, cipher, peer_cert, alpn_selected, verify_status, reason, error }` |
-| `dns_resolve(name, [type])` | `{ records, ttl, error }` |
-| `ping(ip, [timeout_s])` | `{ ok, rtt_ms, error }` |
-| `port_ping(host, port, [timeout_s])` | `{ ok, rtt_ms, error }` |
+| `url_post(url, [body], [headers])` | same shape — note the argument order differs from `url_get` / `url_head` / `url_options` |
+| `tls_handshake(host, port, [sni])` | `{ protocol, cipher, peer_cert, alpn_selected, verify_status, reason, error }` |
+| `dns(name)` | `list[string]` — sorted, unique A + AAAA addresses (not cached; see [`dns`](builtins.md#dns)) |
+| `rev_dns(ip)` | `list[string]` — reverse-DNS name(s), best-effort |
+| `ping(ip)` | `{ ok, rtt_ms, error }` |
+| `portping(ip, port, [protocol])` | `{ ok, rtt_ms, error }` — *protocol* is `tcp` (default) or `udp` |
 
 ### Reason taxonomy {#reason-taxonomy}
 

@@ -90,8 +90,8 @@ registration-time export name.  The trade-off was that
 ``proc_get_name_ptr`` consumers saw the original name while
 ``info commands`` saw the renamed key — a minor parity gap.
 
-The command-introspection wave replaced the exception with a
-sidecar at ``Command[36..39]`` (``OFF_EXPORT_NAME_BUCKET``):
+The exception is replaced by a sidecar at ``Command[36..39]``
+(``OFF_EXPORT_NAME_BUCKET``):
 ``proc_register_compiled`` stashes the registration-time FQN
 there, and the host-bridge dispatcher reads the sidecar first
 (falling back to the live name slot when it's zero).  Rename
@@ -209,7 +209,7 @@ through the eval fallback rather than the pre-wired stub table:
   ``interp`` built-in handles the alias forms; other ``interp``
   subcommands still trap via ``tcl_env_stubs``.
 
-These are the only compiler-side changes in this wave.
+These are the only compiler-side surfaces this touches.
 
 ## 6. Test strategy
 

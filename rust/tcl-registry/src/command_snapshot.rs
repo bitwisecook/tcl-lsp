@@ -310,8 +310,8 @@ fn subcommands_json(spec: &CommandSpec, profile: &DialectProfile) -> Json {
             m.insert("pure".to_owned(), Json::Bool(sub.pure));
             m.insert("mutator".to_owned(), Json::Bool(sub.mutator));
             m.insert("destructive".to_owned(), Json::Bool(sub.destructive));
-            // The Rust `SubCommand` carries no deprecation field (no Tcl
-            // subcommand declares one); always `false` / `null`.
+            // `SubCommand` carries no deprecation field (no Tcl subcommand
+            // declares one); always `false` / `null`.
             m.insert("deprecated".to_owned(), Json::Bool(false));
             m.insert("deprecatedReplacement".to_owned(), Json::Null);
             m.insert(

@@ -1,20 +1,22 @@
-# TCLVM opcode status — C Tcl 9.0 instruction coverage
+# VM opcode coverage — the C Tcl 9.0 instruction set
 
-> **Goal:** the bytecode VM (`rust/tcl-vm`) executes the **same opcode set** as
-> the C Tcl 9.0 bytecode engine (`tmp/tcl9.0.3/generic/tclExecute.c`,
-> `tclCompile.c` `InstructionDesc`). This is the binary-compatibility checklist:
-> all 191 C Tcl 9.0 instructions, ticked off as the VM implements them. Match
-> C Tcl semantics exactly (operands, stack effect, error behaviour).
+Binary compatibility means the bytecode VM (`rust/tcl-vm`) executes the **same
+opcode set** as the C Tcl 9.0 bytecode engine
+(`tmp/tcl9.0.3/generic/tclExecute.c`, `tclCompile.c`'s `InstructionDesc`), with
+matching operands, stack effect, and error behaviour. This is the inventory of
+where each of the 191 instructions currently stands.
+
+Coverage: **98 executed · 39 enum-only · 54 absent · 191 total**. It is
+maintained by hand — adding an opcode means updating its row and the count in
+the same change.
 
 ## Legend
 
 - `[x]` — executed by `tcl-vm` (`exec.rs`).
-- `[~]` — present in the `tcl-bytecode` `Op` enum (the codegen can emit it) but
-  **not yet executed** by the VM.
-- `[ ]` — **not yet in** the `Op` enum (needs adding to `tcl-bytecode` first,
-  matching the C Tcl mnemonic/operands).
-Status (auto-countable): **98 executed · 39 enum-only · 54 missing · 191 total**.
-Keep this in sync when adding opcodes — update the row and the count.
+- `[~]` — present in the `tcl-bytecode` `Op` enum, so codegen can emit it, but
+  **not executed** by the VM.
+- `[ ]` — **not in** the `Op` enum; it has to be added to `tcl-bytecode` first,
+  matching the C Tcl mnemonic and operands.
 
 ## Instructions (C Tcl 9.0 `InstructionDesc` order)
 
@@ -212,10 +214,19 @@ Keep this in sync when adding opcodes — update the row and the count.
 ## Notes
 
 - The `Op` enum also carries dialect-only opcodes (`irule*`) that are **not**
-  C Tcl instructions; they are intentionally outside this checklist.
-- `foreach_start`/`foreach_step`/`foreach_end`/`lmap_collect` need the
-  `ForeachInfo` aux (loop-var groups) carried on the instruction + the implicit
-  start→step / step→body jumps (`tclExecute.c` INST_FOREACH_*); see the VM
-  milestone notes.
-- Variable opcodes come in `Scalar1/Scalar4/ScalarStk/Array1/Array4/ArrayStk/Stk`
-  families — the VM should cover each family member C Tcl emits.
+  C Tcl instructions; they are intentionally outside this inventory.
+- `foreach_start` / `foreach_step` / `foreach_end` / `lmap_collect` need the
+  `ForeachInfo` aux (loop-variable groups) carried on the instruction, plus the
+  implicit start→step and step→body jumps (`tclExecute.c`'s `INST_FOREACH_*`).
+- Variable opcodes come in `Scalar1` / `Scalar4` / `ScalarStk` / `Array1` /
+  `Array4` / `ArrayStk` / `Stk` families; every family member C Tcl emits needs
+  covering, not just one representative.
+
+## Cross-references
+
+- [`rust-vm-tier-parity.md`](rust-vm-tier-parity.md) — the generated per-stem
+  tcltest scoreboard.
+- [`tcl-test-tiers.md`](tcl-test-tiers.md) — the capability ladder the
+  scoreboard groups by.
+- [`../contracts/vm-bytecode-test-boundary.md`](../contracts/vm-bytecode-test-boundary.md)
+  — identity versus behaviour at this boundary.

@@ -478,10 +478,10 @@ fn auto_path_normpath_collapses_dotdot_and_dot() {
 
 #[test]
 fn auto_path_normpath_double_slash_preserved() {
-    // POSIX `os.path.normpath` preserves EXACTLY two leading slashes and
+    // POSIX `normpath` preserves EXACTLY two leading slashes and
     // collapses three-or-more to one (a deliberate POSIX-specific rule; tclsh's
     // own `file` command differs across 8.6/9.0, so this is the documented
-    // Rust/POSIX behaviour, asserted structurally).
+    // POSIX behaviour, asserted structurally).
     assert_eq!(
         evaluate_auto_path_expr("//net/share", None).as_deref(),
         Some("//net/share"),

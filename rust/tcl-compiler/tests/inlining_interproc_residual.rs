@@ -237,7 +237,7 @@ fn binding_value(stmts: &[Statement], suffix: &str) -> Option<String> {
 fn count_statements_block_recurses() {
     // `eval {literal}` inside a proc body lowers to a `Block` whose two inner
     // statements are counted transitively (the `Block` node is transparent to
-    // the count).  (`namespace eval` lowers to an opaque Barrier in Rust — see
+    // the count).  (`namespace eval` lowers to an opaque Barrier — see
     // inlining.rs — so `eval` is used to get a real recursable Block.)
     let m = module_for("proc f {} {\n eval { set a 1\nset b 2 }\n}\n");
     assert_eq!(

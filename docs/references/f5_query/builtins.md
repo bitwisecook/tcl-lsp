@@ -3257,10 +3257,11 @@ Round to nearest integer using current rounding mode (banker's).
 
 **Details**
 
-Matches jq's ``nearbyint``: same result as ``rint`` (Python's
-``round`` uses banker's rounding).  C distinguishes them by
-whether they raise the inexact flag; Python doesn't expose
-that, so the two are aliases here.
+Matches jq's ``nearbyint``: same result as ``rint`` — both round
+ties to even (banker's rounding), matching the IEEE 754 default
+rounding mode.  C distinguishes them by whether they raise the
+inexact flag; this DSL has no concept of floating-point exception
+flags, so the two are aliases here.
 
 Related: ``rint``, ``round``, ``trunc``.
 
@@ -4341,15 +4342,15 @@ Resolve a hostname to its IP addresses (A + AAAA records).
 
 **Details**
 
-Performs a forward DNS lookup of *name* via the system
-resolver (``socket.getaddrinfo``).  Returns the sorted list
-of unique IP addresses or an empty list when resolution
-fails.
+Performs a forward DNS lookup of *name* via the system resolver
+(Rust's ``ToSocketAddrs``, which mirrors ``getaddrinfo``).  Returns
+the sorted list of unique IP addresses or an empty list when
+resolution fails.
 
-Results are memoised for the lifetime of the Python process
-so repeated lookups inside one query don't hammer DNS.
-Lookups are time-bounded by the resolver's default timeout
-(typically 5s).
+Each call performs a fresh lookup — results are **not** memoised, so
+a query that calls ``dns()`` on the same name repeatedly makes that
+many resolver round-trips.  Lookups are time-bounded by the
+resolver's default timeout (typically 5s).
 
 Pair with ``rev_dns`` for round-trip checks
 (``dns("host.example.com") | map(rev_dns(.))``).
@@ -5106,9 +5107,9 @@ True when *value* is a multicast IP (``224.0.0.0/4`` / ``ff00::/8``).
 
 **Details**
 
-Classifies through Python's ``ipaddress``: IPv4 ``224.0.0.0/4``
-and IPv6 ``ff00::/8``.  Returns ``false`` for FQDNs, unicast
-IPs, and unparseable input.
+Classifies via bitwise range checks on the parsed address: IPv4
+``224.0.0.0/4`` and IPv6 ``ff00::/8``.  Returns ``false`` for FQDNs,
+unicast IPs, and unparseable input.
 
 Related: ``is_link_local``, ``is_reserved``, ``is_public``.
 
@@ -5128,7 +5129,7 @@ True when *value* is an RFC-1918 / RFC-4193 private IP.
 
 **Details**
 
-Classifies through Python's ``ipaddress`` stdlib —
+Classifies via bitwise range checks on the parsed address —
 ``10.0.0.0/8``, ``172.16.0.0/12``, ``192.168.0.0/16`` for IPv4;
 ``fc00::/7`` for IPv6 ULAs; plus a handful of other "non-global"
 ranges per the IANA registries.
@@ -5791,8 +5792,9 @@ HTTP GET request.  Requires --enable-probes.
 
 **Details**
 
-Issues an HTTP ``GET`` to *url* via urllib.
+Issues an HTTP ``GET`` to *url* via the ``ureq`` HTTP client.
 Returns ``{status: int | null, headers: object, body: string,
+body_json: any | null, peer_cert: object | null, reason: object | null,
 error: string | null}``.  Default timeout 5s.
 
 Optional second argument is a dict of request headers.
@@ -5817,8 +5819,9 @@ HTTP HEAD request.  Requires --enable-probes.
 
 **Details**
 
-Issues an HTTP ``HEAD`` to *url* via urllib.
+Issues an HTTP ``HEAD`` to *url* via the ``ureq`` HTTP client.
 Returns ``{status: int | null, headers: object, body: string,
+body_json: any | null, peer_cert: object | null, reason: object | null,
 error: string | null}``.  Default timeout 5s.
 
 Optional second argument is a dict of request headers.
@@ -5843,8 +5846,9 @@ HTTP OPTIONS request.  Requires --enable-probes.
 
 **Details**
 
-Issues an HTTP ``OPTIONS`` to *url* via urllib.
+Issues an HTTP ``OPTIONS`` to *url* via the ``ureq`` HTTP client.
 Returns ``{status: int | null, headers: object, body: string,
+body_json: any | null, peer_cert: object | null, reason: object | null,
 error: string | null}``.  Default timeout 5s.
 
 Optional second argument is a dict of request headers.
@@ -5865,15 +5869,18 @@ HTTP POST request.  Requires --enable-probes.
 
 **Signatures**
 
-- `url_post(url: string[, headers: object]) -> object`
+- `url_post(url: string[, body: string[, headers: object]]) -> object`
 
 **Details**
 
-Issues an HTTP ``POST`` to *url* via urllib.
+Issues an HTTP ``POST`` to *url* via the ``ureq`` HTTP client.
 Returns ``{status: int | null, headers: object, body: string,
+body_json: any | null, peer_cert: object | null, reason: object | null,
 error: string | null}``.  Default timeout 5s.
 
-Optional second argument is a dict of request headers.
+Unlike ``url_get`` / ``url_head`` / ``url_options``, the optional
+second argument is the request *body* (a string) and the optional
+third argument is a dict of request headers.
 
 Related: ``url_get``, ``url_head``, ``url_post``,
 ``url_options``.
@@ -5882,7 +5889,7 @@ Related: ``url_get``, ``url_head``, ``url_post``,
 
 ```
 url_post("https://example.com/")
-url_post("https://api.example/v1", {"Authorization": "Bearer X"})
+url_post("https://api.example/v1", "{\"a\":1}", {"Authorization": "Bearer X"})
 ```
 
 ### `with_folder`
@@ -7026,8 +7033,8 @@ the slot at *path* set to *new_value*.  Missing intermediate
 containers are auto-created based on the next key type: a string
 key creates a dict, an integer key creates a list.
 
-Returns a fresh Python value — this is a functional update, not
-an in-place mutation.  For BIG-IP edit-pipeline writes, use the
+Returns a fresh value — this is a functional update, not an
+in-place mutation.  For BIG-IP edit-pipeline writes, use the
 ``=`` / ``|=`` assignment operators instead.
 
 Related: ``getpath``, ``del``, ``delpaths``.

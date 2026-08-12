@@ -42,16 +42,14 @@ name, possibly through `namespace import`, possibly from inside
   those use.
 - **Not** any bytecode-level caching (`ResolvedCmdName`,
   `resolverEpoch` on compiled bodies). Our bodies are either compiled
-  to WASM (resolution happens at lowering time, see P2/P6) or
-  re-parsed per call (fixed by P9's parse cache). The `cmdRefEpoch`
-  analogue is purely for path-cache invalidation of
-  runtime lookups — no bytecode invalidation.
-- **Not** safe interps, custom resolvers, ensemble dispatch, variable
-  traces, or command deletion handlers. See §4 for the full deferred
-  list.
-- **Not** a change to the compiler's FQN mangling. Compiled procs
-  keep their existing `::ns::name` mangled symbols; the new tree is
-  what `proc_lookup` walks at runtime.
+  to WASM (resolution happens at lowering time) or re-parsed per call
+  (the parse cache). The `cmdRefEpoch` analogue is purely for path-cache
+  invalidation of runtime lookups — no bytecode invalidation.
+- **Not** custom resolvers. Ensembles, traces, safe interpreters, and
+  namespace deletion are all implemented, but elsewhere — see §4 for where.
+- **Not** a change to the compiler's FQN mangling. Compiled procs keep their
+  `::ns::name` mangled symbols; the tree is what `proc_lookup` walks at
+  runtime.
 
 ## 2. C Tcl 9 reference model
 
@@ -341,35 +339,62 @@ per-frame header (outside the bucket array): `ns: u32` — the
 this; until then frames carry no ns pointer and the current-ns state
 lives in the compiler-emitted `tcl_ns_set` / `tcl_ns_restore` global.
 
-## 4. Deferred / omitted
+## 4. Structures C carries that this tree does not
 
-Every item is tracked here so later PRs can revisit without guessing
-why it was skipped.  "Defer" means we'll add it if a user-visible
-correctness bug is traced to it; "omit" means we believe it's
-unreachable from the supported surface.
+"Omit" means the structure is unreachable from the supported surface, not that
+it is pending. Where behaviour C attaches to one of these structures *is*
+implemented, it is implemented differently — the pointer below says where.
 
-### Refcounting / cleanup (**omit**)
+### Namespace lifecycle bookkeeping (**omit the bookkeeping, not the behaviour**)
 
 C Tcl uses `refCount`, `activationCount`, `NS_DYING` / `NS_DEAD`,
-`deleteProc`, `earlyDeleteProc`, `VarInHash.refCount`, `Command.refCount`,
-`Command.cmdEpoch`.  The runtime never deletes namespaces or commands,
-so there is no `free` symmetry to mirror.  `flags` is
-carried on `Namespace` + `Command` for code structure parity, but
-`NS_DYING` / `CMD_DYING` bits stay zero.
+`deleteProc`, `earlyDeleteProc`, `VarInHash.refCount`, `Command.refCount`, and
+`Command.cmdEpoch` to sequence a namespace teardown that can be re-entered by
+the very code it is tearing down. `flags` is carried on `Namespace` and
+`Command` for structural parity, but the `NS_DYING` / `CMD_DYING` bits stay
+zero.
 
-Consequence: `namespace delete` is a no-op in the runtime; we simply
-leave the ns in place.  The compiler already can't encounter a
-delete-then-recreate-same-name pattern on compiled procs (mangling
-handles it), and tcltest itself never deletes namespaces.
+`namespace delete` **is** implemented (`cmd_namespace.rs::ns_delete`, mirroring
+C's `NamespaceDeleteCmd`): it deletes each named namespace with its children,
+commands, and variables, errors on a missing namespace, and destroys any object
+living in that namespace — running its destructor while the namespace is still
+intact, as C's `ObjectNamespaceDeleted` does. Deletion goes **by namespace id**
+rather than by name, specifically so variable unset traces fire as the
+namespace is torn down.
 
-### Variable traces (**defer**)
+### Variable and command traces
 
-Every `VAR_TRACED_*` bit, `CommandTrace`, `Tcl_TraceVar2`.  These
-touch every var-write site; adding them before the tree settles
-would blow up the diff.  Revisit after Phase 3 is stable; if a
-bundled test requires traces, that's the trigger.
+Implemented, but not as `VAR_TRACED_*` bits on the cell. Both runtimes keep
+interpreter-level trace tables keyed by the *resolved* variable or command
+identity and fire from their access and dispatch chokepoints — see
+[`trace-implementation.md`](trace-implementation.md) and the firing contract in
+[`../contracts/variable-trace-dispatch-and-introspection.md`](../contracts/variable-trace-dispatch-and-introspection.md).
 
-### Custom resolvers (**defer**)
+### Ensembles
+
+Implemented in `runtime/rust/src/ensemble.rs` — the `ens sub …` → target
+redirect with `-map`, `-prefix`, `-subcommands`, and `-unknown`, modelled on
+C's `tclEnsemble.c`. `EnsembleConfig` and the subcommand-resolution and
+error-wording rules are the pure half; the dispatch trampoline lives on the
+interpreter.
+
+### Child and safe interpreters
+
+Implemented — see [`child-interp.md`](child-interp.md) for the per-interpreter
+state (root namespace, hidden-command table, children registry) and
+[`rename-alias.md`](rename-alias.md) for `interp alias`. The interpreter
+carries a `hidden` command table, which is what a safe interpreter hides the
+dangerous commands into.
+
+### Per-namespace `unknown` (`unknownHandlerPtr`)
+
+Implemented — `namespace unknown` is a real subcommand
+(`cmd_namespace.rs::ns_unknown`), and handlers are per-namespace and **not**
+inherited by children; the global namespace's handler is the interpreter-wide
+default and beats the plain `::unknown` proc. See
+[`../contracts/command-resolution.md`](../contracts/command-resolution.md).
+
+### Custom resolvers (**omit**)
 
 `Tcl_SetNamespaceResolvers`, `Tcl_AddInterpResolver`, `cmdResProc`,
 `varResProc`, `compiledVarResProc`, `ResolverScheme`,
@@ -377,25 +402,6 @@ bundled test requires traces, that's the trigger.
 need them later the hook point is at the top of `ns_find_command`
 before the context-ns table check — same position as C's
 `Tcl_FindCommand:2678`.
-
-### Ensembles (**defer**)
-
-`Tcl_Ensemble`, `tclEnsemble.c`.  Our current partial-ensemble
-support (`namespace ensemble create` compiles to a dispatch helper
-in the compiler) stays as-is.  A real runtime ensemble layer can
-hang off `Namespace.ensembles` when we need it; irrelevant to the
-correctness of command lookup.
-
-### Safe interps / interp aliases (**omit**)
-
-`Tcl_CreateSlave`, `Tcl_CreateAlias`, `Tcl_HideCommand`, the hidden
-command table.  We're single-interp by design (one WASM module).
-
-### `unknownHandlerPtr` (**defer**)
-
-Per-ns `unknown` override (TIP 181).  Deferred; the global
-`unknown` proc still runs through the normal resolution chain and
-works fine.
 
 ### Compiled-local `Var`s (**omit by construction**)
 
@@ -408,10 +414,11 @@ written.
 
 ### `nsId` / `interp` (**omit**)
 
-`nsId` is a monotonic counter used by debug tooling and `[namespace
-code]` serialisation.  We can regenerate from `parent` chain + name
-if ever needed; no current consumer.  `interp` is the enclosing
-`Tcl_Interp *`, irrelevant in single-interp world.
+`nsId` is a monotonic counter used by debug tooling and `[namespace code]`
+serialisation; it is regenerable from the `parent` chain plus the name, and has
+no consumer here.  `interp` is the enclosing `Tcl_Interp *`; the runtime's
+per-interpreter state is held on the interpreter itself
+([`child-interp.md`](child-interp.md)), not on each namespace.
 
 ### `resolverEpoch` / bytecode invalidation (**omit**)
 
@@ -503,7 +510,7 @@ done.
 
 ```
 fn ns_find_command(cxt: *Namespace, name: []const u8) -> ?*Command {
-    // [Deferred in P1-P5] custom resolver hook goes here.
+    // A custom-resolver hook would go here (not implemented — §4).
 
     // A. If qualified OR name starts with ``::``, do the FQN walk.
     if (name starts with "::" or name contains "::") {

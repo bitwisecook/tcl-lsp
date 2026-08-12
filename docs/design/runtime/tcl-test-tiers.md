@@ -1,38 +1,29 @@
-# Tcl test tiers — the capability ladder to C parity
+# Tcl test tiers — the capability ladder
 
-The goal is for the Rust interpreters (`tcl-vm` bytecode VM, `runtime/rust`
-tree-walk runtime — both native and the wasm/WASI build) to match C Tcl 9's
-pass / fail / skip on the upstream tcltest suite. This document orders that
-work as a **capability ladder**: a lower tier is a prerequisite for the tiers
-above it, so fixing bottom-up is the highest-leverage order. A bug in parsing
-corrupts every test above it; a missing socket only affects advanced I/O.
+The Rust interpreters (`tcl-vm` bytecode VM, `runtime/rust` tree-walk runtime,
+both native and wasm/WASI) are held to C Tcl 9's pass / fail / skip on the
+upstream tcltest suite. This document is the **capability ladder** that
+organises that suite: which upstream `.test` files belong to each tier, what
+each tier means, and why one tier depends on another.
 
-The live per-stem scoreboard (C P/S/F vs VM P/S/F, MATCH / gap / CRASH) lives
-in [`rust-vm-tier-parity.md`](rust-vm-tier-parity.md). This document is the
-*semantic* grouping behind it — what each tier means, which **exact upstream
-`.test` files** belong to it, and why the order matters.
+It is the *semantic* grouping behind the per-stem scoreboard in
+[`rust-vm-tier-parity.md`](rust-vm-tier-parity.md) — that file says *where* the
+gaps are, this one says *why* they matter and in what order they are worth
+fixing.
 
-## Purpose — incremental delivery with a ratchet
+## Why the ordering matters
 
-The ladder is not just a description; it is the **delivery plan**. We bring the
-runtime to C parity **one tier at a time, bottom-up**, and once a tier is green
-we **lock it** so later work cannot silently break it. Two properties fall out:
+A lower tier is a prerequisite for every tier above it, so a defect low down
+manifests as scattered failures higher up. A bug in parsing corrupts every test
+above it; a missing socket only affects advanced I/O. Fixing the fundamentals
+once — parsing, traces, encodings, channels — lifts everything that depends on
+them, instead of the same root cause being patched per-symptom across ten
+higher-tier files.
 
-- **Contained rework.** A lower tier is a prerequisite for every tier above it,
-  so fixing it once (the fundamentals — parsing, traces, encodings, channels)
-  lifts everything that depends on it instead of being patched per-symptom in
-  ten higher-tier files. We finish a tier before climbing, so we are never
-  building Tier 5 behaviour on a Tier 3 bug.
-- **No backsliding.** Each tier's parity is captured as a pass-only ratchet in
-  the committed baselines (`tests/baselines/tcl9-tcltest-vm/summary.json` and
-  the WASM/runtime equivalents) — the regression gate only ever lets the
-  pass-count rise. A change that regresses a tier already declared green fails
-  the gate, so progress is monotonic: a tier, once passed, stays passed.
-
-So the workflow is: pick the lowest tier not yet at parity → drive it to
-MATCH across its files → ratchet the baseline → move up. The tier number is the
-order; the ratchet is what keeps the lower rungs from rotting while we work on
-the higher ones.
+Parity is protected by a pass-only ratchet in the committed baselines
+(`tests/baselines/tcl9-tcltest-vm/summary.json` and the WASM / runtime
+equivalents): the regression gate only ever lets the pass count rise, so a
+change that regresses a tier already at parity fails the gate.
 
 ## Core language vs optional features
 

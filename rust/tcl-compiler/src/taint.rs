@@ -38,7 +38,7 @@
 //!    `uplevel`, `subst`, `expr`) and **T101** when it reaches an
 //!    output sink (`puts`).
 //!
-//! ## What is implemented (was previously listed as deferred)
+//! ## What is implemented
 //!
 //! - **T104 SSRF / T105 cross-interpreter injection** — registry-driven
 //!   via `taint_network_sink_args` (`socket`) and
@@ -956,7 +956,7 @@ fn colour_from_rendered(lat: TaintLattice, props: RenderedValueProps) -> TaintLa
 }
 
 /// True when a version-0 SSA use should be skipped by the *reporting*
-/// passes as the Rust-only conservative global-write taint seeding rather
+/// passes as the conservative global-write taint seeding rather
 /// than a genuine taint.
 ///
 /// Version-0 (`(name, 0)`) taints arise from two sources: the
@@ -975,7 +975,7 @@ fn is_seeded_global_v0(name: &str, ver: u32) -> bool {
 ///
 /// Version-0 uses contribute when they carry a genuine parameter
 /// entry-taint (non-`::` name): the join takes `(name, 0)` when
-/// present in the taint map. The Rust-only
+/// present in the taint map. The conservative
 /// global-write seeding (`::` names at version 0) is excluded so it does
 /// not over-propagate into expression results.
 fn join_uses<S: std::hash::BuildHasher>(
@@ -2119,7 +2119,7 @@ pub fn apply_module_variable_traces(
 /// `TaintWarning`-producing passes — sink detection, setter-constraint
 /// violations, iRules URI-split suggestions, and destructive-file warnings
 /// — over each function in the unit, in `cu.functions()` order. The
-/// path-concatenation pass is omitted: its Rust lattice colours are not yet
+/// path-concatenation pass is omitted: its lattice colours are not yet
 /// assigned (latent, always empty today).
 #[must_use]
 pub fn find_taint_warnings_for_cu(
@@ -5436,7 +5436,7 @@ mod tests {
         // cannot be proved `/`-prefixed by the static analyser, so
         // IRULE3101 fires. Latent suppression paths
         // via tainted-with-PATH_PREFIXED / _NORMALISED / _BOUNDED colours
-        // will light up once iRules source `taint_hints` reach the Rust
+        // will light up once iRules source `taint_hints` reach the
         // lattice.
         let w = setter_warnings_for("set p /safe\nHTTP::uri $p");
         assert!(

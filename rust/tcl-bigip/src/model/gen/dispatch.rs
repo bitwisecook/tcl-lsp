@@ -552,7 +552,7 @@ const FOUR_WORD_TYPES: &[&str] = &[
     "message-routing sip profile session",
 ];
 
-/// Port of the strict `_parse_header` -> `(module, object_type, full_path)`.
+/// Strict header parse -> `(module, object_type, full_path)`.
 #[must_use]
 pub fn parse_header_strict(header: &str) -> Option<(String, String, String)> {
     // Quote-aware tokenisation (like the generic path): a quoted identifier

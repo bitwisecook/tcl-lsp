@@ -195,7 +195,7 @@ mod tests {
 
     #[test]
     fn glob_char_classes_match_tcl_string_match() {
-        // `[…]` sets and ranges work (the old regex-based matcher had none).
+        // `[…]` sets and ranges work, as in Tcl's `string match`.
         assert!(string_match("etc/rc[0-6].d/*", "etc/rc2.d/S10network"));
         assert!(string_match("var/log/messages.[0-9]", "var/log/messages.3"));
         assert!(string_match("[abc]dir/f", "bdir/f"));

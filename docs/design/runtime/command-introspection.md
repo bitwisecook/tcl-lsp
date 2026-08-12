@@ -38,23 +38,15 @@ In:
 - Compiled-proc rename completeness via
   ``OFF_EXPORT_NAME_BUCKET``.
 
-Out (deferred to later waves):
+Covered by sibling documents:
 
-- Command-trace machinery — still no trace infrastructure
-  in the runtime.
-- ``info level N`` (per-frame argv retrieval) — the zero-arg
-  depth form ships here, but the ``info level N`` form would
-  require per-frame argv tracking the runtime doesn't keep.
-  Callers supplying a numeric level get the tclsh
-  ``bad level "N"`` error.
-- ``info frame`` — a separate introspection axis (source
-  location + stack detail), out of scope for this wave.
-
-Child interpreters moved to
-[`child-interp.md`](child-interp.md) — the single-interp scope
-here has been lifted, and cross-interp
-``interp invokehidden`` / ``hide`` / ``expose`` / ``alias`` now
-honour real child paths.
+- Command and execution traces —
+  [`trace-implementation.md`](trace-implementation.md).
+- ``info level N`` and ``info frame`` — the source-location and call-stack
+  introspection axis, [`proc-call-and-stack-traces.md`](proc-call-and-stack-traces.md).
+- Child interpreters, and the cross-interp forms of ``interp invokehidden`` /
+  ``hide`` / ``expose`` / ``alias`` —
+  [`child-interp.md`](child-interp.md).
 
 ## 2. Hidden commands table
 
