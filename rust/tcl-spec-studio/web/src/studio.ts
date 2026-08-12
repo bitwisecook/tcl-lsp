@@ -1002,17 +1002,87 @@ function openIssue(): void {
 
 /* Package import -------------------------------------------------------- */
 
-function readFiles(fileList: FileList | null): void {
-  const files = Array.from(fileList ?? []);
+/** The extensions a Tcl library is written in — what a directory pass keeps. */
+const TCL_EXTENSIONS = [".tcl", ".tm", ".test", ".itcl", ".itk"];
+
+/**
+ * Read a chosen set of files and infer a spec for every `proc` in them.
+ *
+ * A directory pass hands over everything under the folder, so it is filtered
+ * to Tcl sources here — the alternative is analysing a `.png` and reporting
+ * that it had no procedures. File names keep their path relative to the
+ * chosen directory, because "which file was this proc in" is the first thing
+ * an author checks in the evidence.
+ */
+function readFiles(fileList: FileList | null, opts: { directory?: boolean } = {}): void {
+  let files = Array.from(fileList ?? []);
   if (!files.length) return;
-  setStatus("importStatus", `reading ${files.length} file(s)…`);
-  Promise.all(files.map(async (file) => ({ name: file.name, text: await file.text() }))).then(
+  const total = files.length;
+  if (opts.directory) {
+    files = files.filter((file) =>
+      TCL_EXTENSIONS.some((ext) => file.name.toLowerCase().endsWith(ext)),
+    );
+    if (!files.length) {
+      setStatus(
+        "importStatus",
+        `no Tcl sources in that directory (looked at ${total} file(s) for ${TCL_EXTENSIONS.join(", ")})`,
+        "err",
+      );
+      return;
+    }
+  }
+  setStatus(
+    "importStatus",
+    opts.directory
+      ? `reading ${files.length} Tcl source(s) of ${total} file(s)…`
+      : `reading ${files.length} file(s)…`,
+  );
+  Promise.all(
+    files.map(async (file) => ({
+      name: file.webkitRelativePath || file.name,
+      text: await file.text(),
+    })),
+  ).then(
     (payload) => {
-      setStatus("importStatus", "analysing…");
+      setStatus("importStatus", `analysing ${payload.length} file(s)…`);
       // Let the status paint before the analyser blocks the main thread.
       window.setTimeout(() => runImport(payload), 0);
     },
     (e: unknown) => setStatus("importStatus", `could not read the files: ${String(e)}`, "err"),
+  );
+}
+
+/**
+ * Write every inferred command into the pack document.
+ *
+ * The importer's whole point is the *library*, so the finish line is the pack,
+ * not a list of drafts to open one at a time. Each write goes through the same
+ * store call a form edit does, so the document that results is exactly what
+ * the DSL pane shows and what live-save persists.
+ */
+function addImportedToPack(): void {
+  if (!state.imported.length) return;
+  let source = state.pack.source;
+  let written = 0;
+  const failed: string[] = [];
+  for (const found of state.imported) {
+    try {
+      const out = unwrap<PackWrite>(
+        wasm.pack_set_command(source, found.name, JSON.stringify(found.draft), false),
+      );
+      source = out.source;
+      written += 1;
+    } catch {
+      failed.push(found.name);
+    }
+  }
+  state.pack.open = null;
+  setPackSource(source);
+  setStatus(
+    "importStatus",
+    `${written} command(s) written into pack ${state.pack.view?.pack ?? ""}` +
+      (failed.length ? ` — ${failed.length} could not be written: ${failed.join(", ")}` : ""),
+    failed.length ? "err" : "ok",
   );
 }
 
@@ -1071,9 +1141,13 @@ function runImport(payload: { name: string; text: string }[]): void {
     );
   }
 
+  byId("importAll").hidden = state.imported.length === 0;
+  byId("importAll").textContent = `Add all ${state.imported.length} to the pack`;
   setStatus(
     "importStatus",
-    state.imported.length ? `found ${state.imported.length} procedure(s)` : "no procedures found",
+    state.imported.length
+      ? `found ${state.imported.length} procedure(s) across ${payload.length} file(s)`
+      : "no procedures found",
     state.imported.length ? "ok" : "err",
   );
 }
@@ -1157,7 +1231,7 @@ function renderTestReport(): void {
   );
 
   // Keep whatever was being inspected selected across a re-run.
-  if (inspected !== null) inspectAt(inspected, { keepScroll: true });
+  if (inspected !== null) inspectAt(inspected);
 }
 
 /**
@@ -1198,6 +1272,9 @@ function tokenButton(token: TestToken, text: string): HTMLButtonElement {
     type: "button",
     class: classes.join(" "),
     text,
+    // A word that holds other words contributes several chunks, so the
+    // pressed state is keyed on the word's offset rather than on DOM order.
+    "data-tok": String(token.start),
     "aria-pressed": inspected === token.start ? "true" : "false",
     title:
       `${token.command} — ${token.detail}` +
@@ -1208,7 +1285,7 @@ function tokenButton(token: TestToken, text: string): HTMLButtonElement {
 }
 
 /** Show the deep view of the word at byte `offset`. */
-function inspectAt(offset: number, opts: { keepScroll?: boolean } = {}): void {
+function inspectAt(offset: number): void {
   let view: TestInspection;
   try {
     view = unwrap<TestInspection>(
@@ -1219,20 +1296,10 @@ function inspectAt(offset: number, opts: { keepScroll?: boolean } = {}): void {
     return;
   }
   inspected = offset;
-  if (!opts.keepScroll) {
-    for (const node of byId("testTokens").querySelectorAll<HTMLElement>(".tok")) {
-      node.setAttribute("aria-pressed", "false");
-    }
-  }
   renderInspection(view);
-  // Re-mark the pressed token without a full repaint.
-  const report = testReport;
-  if (report) {
-    const index = report.tokens.findIndex((t) => t.start === offset);
-    const buttons = byId("testTokens").querySelectorAll<HTMLElement>(".tok");
-    buttons.forEach((node, i) => {
-      node.setAttribute("aria-pressed", i === index ? "true" : "false");
-    });
+  // Mark every chunk of the inspected word, without repainting the view.
+  for (const node of byId("testTokens").querySelectorAll<HTMLElement>(".tok")) {
+    node.setAttribute("aria-pressed", node.dataset.tok === String(offset) ? "true" : "false");
   }
 }
 
@@ -1783,6 +1850,10 @@ function bindUi(): void {
     }
   });
   picker.addEventListener("change", () => readFiles(picker.files));
+  const dirPicker = byId<HTMLInputElement>("dirPicker");
+  byId("importDir").addEventListener("click", () => dirPicker.click());
+  dirPicker.addEventListener("change", () => readFiles(dirPicker.files, { directory: true }));
+  byId("importAll").addEventListener("click", addImportedToPack);
   for (const name of ["dragenter", "dragover"]) {
     drop.addEventListener(name, (event) => {
       event.preventDefault();

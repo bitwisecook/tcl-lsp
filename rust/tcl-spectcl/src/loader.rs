@@ -171,8 +171,44 @@ impl Log {
     }
 
     fn unknown_flag(&mut self, row: &str, line: u32, flag: &str) {
-        self.say(line, format!("unknown flag `{flag}` on `{row}` dropped"));
+        self.say(
+            line,
+            format!("unknown flag `{}` on `{row}` dropped", quotable(flag)),
+        );
     }
+}
+
+/// The longest a word quoted inside a notice may be before it is elided.
+const QUOTABLE_WIDTH: usize = 40;
+
+/// A word as a notice can quote it: one physical line, bounded length.
+///
+/// An unknown flag is *usually* a short word, but a flag the loader does not
+/// know consumes no value, so the braced word that followed it is read as a
+/// flag in its own right on the next turn — and that word can be a twenty-line
+/// block (`apave.tclspec`'s invented `-repeats { row { … } }`). Quoting it
+/// verbatim would put newlines inside a notice message, which the notice's
+/// consumers cannot carry: `tests/spec_corpus_baseline.txt` is one
+/// tab-separated record per line, and an editor's problems pane is one line
+/// per diagnostic.
+fn quotable(word: &str) -> String {
+    // The first line of a braced word is usually empty — the brace is followed
+    // by a newline — so the first line with content is what identifies it.
+    let head = word
+        .lines()
+        .map(str::trim)
+        .find(|l| !l.is_empty())
+        .unwrap_or("");
+    let elided = head.len() < word.trim().len();
+    if head.chars().count() <= QUOTABLE_WIDTH {
+        return if elided {
+            format!("{head}…")
+        } else {
+            head.to_owned()
+        };
+    }
+    let cut: String = head.chars().take(QUOTABLE_WIDTH).collect();
+    format!("{cut}…")
 }
 
 // ---------------------------------------------------------------------------
@@ -3818,7 +3854,13 @@ mod tests {
                 .iter()
                 .any(|notice| notice.message.contains(needle))
         };
-        assert!(pack.command("nameless").expect("still loads").spec.object_class.is_none());
+        assert!(
+            pack.command("nameless")
+                .expect("still loads")
+                .spec
+                .object_class
+                .is_none()
+        );
         assert!(said("`object_class` with no class name dropped"));
 
         let odd = pack.command("odd").expect("still loads").spec;

@@ -203,11 +203,19 @@ fn synopsis(name: &str, params: &[ParamDef]) -> String {
 }
 
 /// Turn one analysed procedure into a draft.
+///
+/// `body` is the proc's own source between its braces, so the corpus shape
+/// heuristics ([`crate::corpus`]) can read what the *body* says about the
+/// interface — option tables, mode words, closed value sets, callback arity —
+/// which the parameter list alone cannot show. `dialect` is the registry the
+/// body walk resolves script arguments against.
 fn draft_for_proc(
     proc_def: &tcl_compiler::analyser::types::ProcDef,
     package: Option<&str>,
     version: Option<&str>,
     file: &str,
+    body: &str,
+    dialect: &str,
 ) -> Inferred {
     let mut d = draft::default_command_draft();
     let mut notes: Vec<String> = Vec::new();
@@ -259,6 +267,10 @@ fn draft_for_proc(
     });
 
     infer_roles_and_traits(&mut d, proc_def, &mut notes);
+    // What the body says about the caller-visible shape, each conclusion with
+    // its own evidence line. Runs after the signature pass so a role the
+    // analyser proved is never overwritten by a shape guess.
+    crate::corpus::scan(body, params, dialect).apply(&mut d, &mut notes);
     describe(&mut d, proc_def, &name, package, version, file, &mut notes);
 
     notes.push(
@@ -393,7 +405,10 @@ pub fn import_package(files: &[SourceFile], dialect: &str) -> Import {
         }
 
         for proc_def in result.all_procs.values() {
-            let inferred = draft_for_proc(proc_def, None, None, &file.name);
+            let start = proc_def.body_span.start() as usize;
+            let end = proc_def.body_span.end() as usize;
+            let body = file.text.get(start..end).unwrap_or_default();
+            let inferred = draft_for_proc(proc_def, None, None, &file.name, body, dialect);
             by_name.insert(proc_def.qualified_name.clone(), inferred);
         }
     }

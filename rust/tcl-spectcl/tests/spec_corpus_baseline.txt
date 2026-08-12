@@ -56,22 +56,16 @@
 # Adding a line here is therefore an admission with a reason attached. Adding
 # one for a file under `specs/` would be a regression in the only tier that
 # ships.
-docs/design/spec-dsl-examples/external/SpiceGenTcl.tclspec	Warning	command ::SpiceGenTcl::Device	unknown property `object_class` dropped
-docs/design/spec-dsl-examples/external/SpiceGenTcl.tclspec	Warning	command ::SpiceGenTcl::Ngspice::BasicDevices::R	unknown property `object_class` dropped
-docs/design/spec-dsl-examples/external/SpiceGenTcl.tclspec	Warning	command ::SpiceGenTcl::Ngspice::BasicDevices::Resistor	unknown property `object_class` dropped
-docs/design/spec-dsl-examples/external/SpiceGenTcl.tclspec	Warning	command ::SpiceGenTcl::Ngspice::Simulators::Batch	unknown property `object_class` dropped
-docs/design/spec-dsl-examples/external/SpiceGenTcl.tclspec	Warning	command ::SpiceGenTcl::Ngspice::Simulators::BatchLiveLog	unknown property `object_class` dropped
-docs/design/spec-dsl-examples/external/apave.tclspec	Warning	command ::apave::APaveBase	unknown property `object_class` dropped
-docs/design/spec-dsl-examples/external/apave.tclspec	Warning	command ::apave::APaveDialog	unknown property `object_class` dropped
-docs/design/spec-dsl-examples/external/apave.tclspec	Warning	command ::apave::ObjectProperty	unknown property `object_class` dropped
+docs/design/spec-dsl-examples/external/apave.tclspec	Warning	command ::apave::APaveBase / object_class ::apave::APaveBase / method Window	unknown flag `-body-kind` on `arg` dropped
+docs/design/spec-dsl-examples/external/apave.tclspec	Warning	command ::apave::APaveBase / object_class ::apave::APaveBase / method Window	unknown flag `-repeats` on `arg` dropped
+docs/design/spec-dsl-examples/external/apave.tclspec	Warning	command ::apave::APaveBase / object_class ::apave::APaveBase / method Window	unknown flag `Plain` on `arg` dropped
+docs/design/spec-dsl-examples/external/apave.tclspec	Warning	command ::apave::APaveBase / object_class ::apave::APaveBase / method Window	unknown flag `row {…` on `arg` dropped
 docs/design/spec-dsl-examples/external/tcllib.tclspec	Warning	command fileutil::traverse	unknown flag `-readonly` on `option` dropped
 docs/design/spec-dsl-examples/external/tcllib.tclspec	Warning	command fileutil::traverse	unknown flag `-readonly` on `option` dropped
 docs/design/spec-dsl-examples/external/tcllib.tclspec	Warning	command fileutil::traverse	unknown flag `-readonly` on `option` dropped
-docs/design/spec-dsl-examples/external/tcllib.tclspec	Warning	command fileutil::traverse	unknown property `object_class` dropped
-docs/design/spec-dsl-examples/external/tcllib.tclspec	Warning	command struct::graph	unknown property `object_class` dropped
-docs/design/spec-dsl-examples/external/tcllib.tclspec	Warning	command struct::tree	unknown property `object_class` dropped
-docs/design/spec-dsl-examples/external/ticklecharts.tclspec	Warning	command ticklecharts::chart	unknown property `object_class` dropped
-docs/design/spec-dsl-examples/external/ticklecharts.tclspec	Warning	command ticklecharts::jsfunc	unknown property `object_class` dropped
+docs/design/spec-dsl-examples/external/tcllib.tclspec	Warning	command fileutil::traverse / object_class ::fileutil::traverse / method foreach	unknown flag `-body-kind` on `arg` dropped
+docs/design/spec-dsl-examples/external/tcllib.tclspec	Warning	command fileutil::traverse / object_class ::fileutil::traverse / method foreach	unknown flag `Plain` on `arg` dropped
+docs/design/spec-dsl-examples/external/tcllib.tclspec	Warning	command struct::tree / object_class ::struct::tree	`arg_role_resolver` hook body on `method walk` is not yet bindable; the field abstains
 docs/design/spec-dsl-examples/foreach.tclspec	Warning	command foreach	names a lowering hook: this changes how the compiler translates the command, not just what the editor knows about it
 docs/design/spec-dsl-examples/if.tclspec	Warning	command if	names a lowering hook: this changes how the compiler translates the command, not just what the editor knows about it
 docs/design/spec-dsl-examples/oo-class.tclspec	Warning	command oo::class / subcommand create	`state_transitions` row `argument_shape` is not yet loadable; dropped

@@ -2608,4 +2608,109 @@ mod tests {
             "{text}"
         );
     }
+
+    /// The class's three one-word facts ride on the statement; only the
+    /// method table goes in the block, and a method is written with the
+    /// subcommand body grammar under a `method` keyword.
+    #[test]
+    fn an_object_class_writes_its_flags_on_the_row_and_its_methods_in_the_block() {
+        let mut d = drafted("probe");
+        let mut method = draft::default_subcommand_draft();
+        method.insert("name".into(), json!("configure"));
+        method.insert(
+            "arity".into(),
+            json!({ "min": 1, "max": 1, "step": 0, "also_exact": null }),
+        );
+        method.insert("detail".into(), json!("Reconfigure the widget."));
+        d.insert(
+            "object_class".into(),
+            json!({
+                "class_name": "::probe::Widget",
+                "instance_methods": [Value::Object(method)],
+                "superclasses": ["::probe::Base", "::probe::Mixin"],
+                "allow_unknown_methods": true,
+            }),
+        );
+        let text = render_pack(&[d], "probe");
+        assert!(
+            text.contains(
+                "object_class ::probe::Widget -superclass {::probe::Base ::probe::Mixin} \
+                 -allow-unknown {"
+            ),
+            "{text}"
+        );
+        assert!(
+            text.contains("method configure { arity 1 ; detail {Reconfigure the widget.} }"),
+            "{text}"
+        );
+    }
+
+    /// A class with no methods of its own — `SpiceGenTcl`'s `R`, an empty
+    /// subclass — is one row, not an empty block.
+    #[test]
+    fn an_object_class_with_no_methods_is_a_single_row() {
+        let mut d = drafted("probe");
+        d.insert(
+            "object_class".into(),
+            json!({
+                "class_name": "::probe::R",
+                "instance_methods": [],
+                "superclasses": ["::probe::Resistor"],
+                "allow_unknown_methods": false,
+            }),
+        );
+        let text = render_pack(&[d], "probe");
+        assert!(
+            text.contains("object_class ::probe::R -superclass ::probe::Resistor\n"),
+            "{text}"
+        );
+        assert!(!text.contains("-allow-unknown"), "{text}");
+    }
+
+    /// The gate in miniature: a spec carrying an `object_class` renders,
+    /// loads, and drafts back **equal** — no notices, no gap.
+    #[test]
+    fn an_object_class_survives_render_load_draft() {
+        static METHODS: &[tcl_registry::spec::SubCommand] = &[tcl_registry::spec::SubCommand {
+            name: "Add",
+            arity: tcl_registry::arity::Arity::at_least(1),
+            detail: "Add a series by literal type name.",
+            synopsis: "$chart Add seriesType ?-opt value ...?",
+            mutator: true,
+            ..tcl_registry::spec::SubCommand::DEFAULT
+        }];
+        static CLASS: tcl_registry::spec::ObjectClassSpec = tcl_registry::spec::ObjectClassSpec {
+            class_name: "probe::chart",
+            instance_methods: METHODS,
+            superclasses: &["probe::base"],
+            allow_unknown_methods: true,
+        };
+        let spec = tcl_registry::spec::CommandSpec {
+            name: "probe::chart",
+            arity: tcl_registry::arity::Arity::at_least(1),
+            object_class: Some(&CLASS),
+            ..tcl_registry::spec::CommandSpec::DEFAULT
+        };
+
+        let before = draft::from_command_spec(&spec);
+        let text = render_pack(std::slice::from_ref(&before), "probe");
+        let pack = crate::spectcl::load_pack(&text);
+        assert!(pack.notices.is_empty(), "{:?}\n{text}", pack.notices);
+        let reloaded = pack.command("probe::chart").expect("the command reloads");
+        let after = draft::from_command_spec(reloaded.spec);
+        assert_eq!(
+            after.get("object_class"),
+            before.get("object_class"),
+            "{text}"
+        );
+        assert_eq!(
+            after.get(draft::UNRENDERABLE_KEY),
+            before.get(draft::UNRENDERABLE_KEY),
+            "{text}"
+        );
+        assert!(
+            gap("object_class").is_none(),
+            "`object_class` is no longer a renderer gap"
+        );
+    }
 }

@@ -420,7 +420,7 @@ impl<'a> Bench<'a> {
         let tokens: Vec<Value> = words
             .iter()
             .map(|word| {
-                let position = lines.position_at_utf16(word.start as u32, sample);
+                let position = lines.position_at_utf16(clamp_u32(word.start), sample);
                 let (origin, resolved) = self.resolve_head(&word.head);
                 let arg_refs: Vec<&str> = word.args.iter().map(String::as_str).collect();
                 let roles = resolved
@@ -470,11 +470,7 @@ impl<'a> Bench<'a> {
         let from_pack = words
             .iter()
             .filter(|w| w.index == 0)
-            .filter(|w| {
-                self.resolve_head(&w.head)
-                    .0
-                    .is_some_and(Origin::pack_wins)
-            })
+            .filter(|w| self.resolve_head(&w.head).0.is_some_and(Origin::pack_wins))
             .count();
 
         json!({
@@ -521,13 +517,13 @@ impl<'a> Bench<'a> {
         let arg_refs: Vec<&str> = word.args.iter().map(String::as_str).collect();
         let (origin, resolved) = self.resolve_head(&word.head);
         let lines = LineIndex::new(sample);
-        let position = lines.position_at_utf16(word.start as u32, sample);
+        let position = lines.position_at_utf16(clamp_u32(word.start), sample);
         let diagnostics: Vec<Value> = self
             .diagnostics(sample)
             .into_iter()
             .filter(|d| {
-                let start = d["start"].as_u64().unwrap_or(0) as usize;
-                let end = d["end"].as_u64().unwrap_or(0) as usize;
+                let start = json_usize(&d["start"]);
+                let end = json_usize(&d["end"]);
                 start < word.end && end > word.start
             })
             .collect();
@@ -651,7 +647,7 @@ impl<'a> Bench<'a> {
                 .merged
                 .store()
                 .draft(name)
-                .map(|d| crate::store::fields_set_of(d))
+                .map(crate::store::fields_set_of)
                 .unwrap_or_default(),
         })
     }
@@ -685,7 +681,12 @@ impl<'a> Bench<'a> {
                 })
             })
             .collect();
-        out.sort_by_key(|d| (d["start"].as_u64().unwrap_or(0), d["end"].as_u64().unwrap_or(0)));
+        out.sort_by_key(|d| {
+            (
+                d["start"].as_u64().unwrap_or(0),
+                d["end"].as_u64().unwrap_or(0),
+            )
+        });
         out
     }
 }
@@ -693,6 +694,23 @@ impl<'a> Bench<'a> {
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
+
+/// A byte offset as the line index takes it.
+///
+/// Saturating rather than wrapping: a sample past 4 GiB is not a thing a
+/// browser tab holds, and clamping keeps the position honest (the end) instead
+/// of wrapping it to the start.
+fn clamp_u32(offset: usize) -> u32 {
+    u32::try_from(offset).unwrap_or(u32::MAX)
+}
+
+/// A JSON number read back as an offset.
+fn json_usize(value: &Value) -> usize {
+    value
+        .as_u64()
+        .and_then(|n| usize::try_from(n).ok())
+        .unwrap_or(0)
+}
 
 /// A phrase naming which of the two models answered.
 fn origin_label(origin: Option<Origin>) -> &'static str {
@@ -732,8 +750,8 @@ fn severity_by_span(diagnostics: &[Value]) -> Vec<(usize, usize, &str)> {
         .iter()
         .filter_map(|d| {
             Some((
-                d["start"].as_u64()? as usize,
-                d["end"].as_u64()? as usize,
+                json_usize(&d["start"]),
+                json_usize(&d["end"]),
                 d["severity"].as_str()?,
             ))
         })
@@ -756,27 +774,82 @@ fn worst_severity(spans: &[(usize, usize, &str)], start: usize, end: usize) -> V
         .map_or(Value::Null, |(_, _, sev)| json!(sev))
 }
 
+/// A word and the words written inside it — a `{ … }` body holds the
+/// statements of its own script.
+struct Nest {
+    token: usize,
+    start: usize,
+    end: usize,
+    children: Vec<Nest>,
+}
+
+/// Arrange the (start-sorted) words into containment order.
+///
+/// Word spans nest strictly — a body's statements lie inside the braced word
+/// that holds them — so one stack is enough.
+fn nest(words: &[Word]) -> Vec<Nest> {
+    let mut roots: Vec<Nest> = Vec::new();
+    let mut stack: Vec<Nest> = Vec::new();
+    let close = |stack: &mut Vec<Nest>, roots: &mut Vec<Nest>, before: usize| {
+        while stack.last().is_some_and(|top| top.end <= before) {
+            let done = stack.pop().expect("checked");
+            match stack.last_mut() {
+                Some(parent) => parent.children.push(done),
+                None => roots.push(done),
+            }
+        }
+    };
+    for (token, word) in words.iter().enumerate() {
+        close(&mut stack, &mut roots, word.start);
+        stack.push(Nest {
+            token,
+            start: word.start,
+            end: word.end,
+            children: Vec::new(),
+        });
+    }
+    close(&mut stack, &mut roots, usize::MAX);
+    roots
+}
+
 /// The sample split into render chunks: every byte of it, in order, each
-/// either plain text or word `n`.
+/// either plain text or a word.
 ///
 /// The front-end paints this list straight through, so it never has to convert
 /// a Rust byte offset into a JavaScript string index — a conversion that is
 /// wrong the moment the sample contains a non-ASCII character.
+///
+/// A word that holds other words contributes the bytes its children do not:
+/// the braces and whitespace of a body belong to the body word (click them and
+/// the inspector explains *why this argument is a script*), while the
+/// statements inside it are their own clickable words.
 fn render_chunks(sample: &str, words: &[Word]) -> Value {
+    fn walk(sample: &str, node: &Nest, chunks: &mut Vec<Value>) {
+        if node.children.is_empty() {
+            chunks.push(json!({ "text": &sample[node.start..node.end], "token": node.token }));
+            return;
+        }
+        let mut cursor = node.start;
+        for child in &node.children {
+            if child.start > cursor {
+                chunks.push(json!({ "text": &sample[cursor..child.start], "token": node.token }));
+            }
+            walk(sample, child, chunks);
+            cursor = child.end;
+        }
+        if cursor < node.end {
+            chunks.push(json!({ "text": &sample[cursor..node.end], "token": node.token }));
+        }
+    }
+
     let mut chunks: Vec<Value> = Vec::new();
     let mut cursor = 0usize;
-    for (index, word) in words.iter().enumerate() {
-        if word.start < cursor {
-            // A word nested inside an already-emitted one: the outer word is
-            // the clickable unit, so skip the inner duplicate rather than
-            // emitting overlapping chunks.
-            continue;
+    for root in nest(words) {
+        if root.start > cursor {
+            chunks.push(json!({ "text": &sample[cursor..root.start], "token": Value::Null }));
         }
-        if word.start > cursor {
-            chunks.push(json!({ "text": &sample[cursor..word.start], "token": Value::Null }));
-        }
-        chunks.push(json!({ "text": &sample[word.start..word.end], "token": index }));
-        cursor = word.end;
+        walk(sample, &root, &mut chunks);
+        cursor = root.end;
     }
     if cursor < sample.len() {
         chunks.push(json!({ "text": &sample[cursor..], "token": Value::Null }));
@@ -829,9 +902,7 @@ mod tests {
             let report = bench.analyse("greet world\n");
             let diagnostics = report["diagnostics"].as_array().expect("diagnostics");
             assert!(
-                !diagnostics
-                    .iter()
-                    .any(|d| d["code"] == json!("W123")),
+                !diagnostics.iter().any(|d| d["code"] == json!("W123")),
                 "a pack command must not report as unknown: {diagnostics:?}"
             );
             assert_eq!(report["summary"]["pack_calls"], json!(1));
@@ -947,7 +1018,7 @@ mod tests {
     #[test]
     fn the_render_chunks_reassemble_the_sample_exactly() {
         bench_on(PACK, |bench| {
-            let sample = "greet «wörld»\nproc p {} { greet x }\n";
+            let sample = "greet «wörld»\nproc p {} {\n    greet x\n}\n";
             let report = bench.analyse(sample);
             let rebuilt: String = report["render"]
                 .as_array()
@@ -956,6 +1027,41 @@ mod tests {
                 .filter_map(|c| c["text"].as_str())
                 .collect();
             assert_eq!(rebuilt, sample);
+        });
+    }
+
+    /// The bug the browser caught: a body's own statements have to be
+    /// *rendered*, not swallowed by the braced word that holds them.
+    #[test]
+    fn a_nested_statement_gets_its_own_render_chunk() {
+        bench_on(PACK, |bench| {
+            let sample = "withbody {\n    greet inner\n}\n";
+            let report = bench.analyse(sample);
+            let tokens = report["tokens"].as_array().expect("tokens");
+            let chunks = report["render"].as_array().expect("render");
+            let inner = tokens
+                .iter()
+                .position(|t| t["text"] == json!("greet") && t["depth"] == json!(1))
+                .expect("the nested call is a token");
+            assert!(
+                chunks.iter().any(|c| c["token"] == json!(inner)),
+                "the nested word must be clickable in its own right: {chunks:?}"
+            );
+            let rebuilt: String = chunks.iter().filter_map(|c| c["text"].as_str()).collect();
+            assert_eq!(rebuilt, sample);
+            // And the body word still owns its braces, so clicking one explains
+            // why the argument is a script at all.
+            let body = tokens
+                .iter()
+                .position(|t| t["index"] == json!(1) && t["depth"] == json!(0))
+                .expect("the body word");
+            assert!(
+                chunks.iter().any(|c| {
+                    c["token"] == json!(body)
+                        && c["text"].as_str().is_some_and(|t| t.starts_with('{'))
+                }),
+                "{chunks:?}"
+            );
         });
     }
 

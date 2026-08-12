@@ -1089,7 +1089,10 @@ pub const OBJECT_CLASS_SPEC: &[Field] = &[
     f("class_name", Surface::Key("class_name")),
     f("instance_methods", Surface::Key("instance_methods")),
     f("superclasses", Surface::Key("superclasses")),
-    f("allow_unknown_methods", Surface::Key("allow_unknown_methods")),
+    f(
+        "allow_unknown_methods",
+        Surface::Key("allow_unknown_methods"),
+    ),
 ];
 
 /// Compile-time witness for [`CASE_LIST_SPEC`].
