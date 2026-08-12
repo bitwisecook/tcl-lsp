@@ -503,7 +503,11 @@ optimiser only folds provably-simple lists; a Tcl body using `llength` /
 *more* than the shipped folder does — changing optimiser output while
 looking like a faithful port. `string map`'s port re-adds the backslash
 guard by hand and says so in a comment. A residual gap remains for a
-mapping containing a bare `"`. Any equivalence gate must therefore
+mapping containing a mid-word `"` or brace (`a"b X`, `a}b X`,
+`a{b}c X`): Tcl's list grammar takes those literally, while
+`split_list`'s bare-word scan bails on any of `\` `{` `}` `"`
+(`const_fold.rs:112`), so the Tcl body folds calls the shipped folder
+abstains on. Any equivalence gate must therefore
 compare *folder outputs over a corpus*, not just spec fields; this is the
 one place where "the DSL says the same thing" is not the same as "the DSL
 does the same thing".
