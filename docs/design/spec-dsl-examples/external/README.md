@@ -361,6 +361,23 @@ registry change, not just a DSL-syntax change, would be needed), or `[SOFT]`
 blocker). Every drafted `.tclspec.tcl` marks its own invented syntax inline
 with the matching tag.
 
+> **Reconciliation note (pre-freeze).** Four of the spellings invented
+> below were subsequently **ruled on** in
+> [`../README.md`](../README.md#rulings-on-the-census-drafts) and the four
+> drafted files reconciled to the ratified form: `object_class` (G1) is
+> now a named statement with optional flags rather than a nameless block;
+> the option lifecycle flag (G3) is `-introduced`, not `-since`; the
+> mutual-exclusion half of G2 is `option_conflict` rows rather than an
+> `option_constraints { … }` block, and the `-require` half is recorded as
+> a known limit rather than written as syntax; `sub_subcommands` is a row
+> statement, not a block. Two further things the drafts wrote were caught
+> as **unmarked** inventions and removed: `arg N -detail {…}` (no field
+> holds per-argument prose) and repeated bare `synopsis` rows on a method
+> (`SubCommand::synopsis` is one string). The G-tags below record what the
+> census *found*; the spellings in them are the ones it originally
+> proposed, and each is annotated where the ruling differs. The gaps
+> themselves are unchanged — none of the four rulings closes one.
+
 - **G1 `[SYNTAX]` — no `object_class`/TclOO syntax at all.** `spec-packs.md`'s
   sketch shows zero TclOO. `ObjectClassSpec` (`spec.rs:249-268`:
   `class_name`, `instance_methods: &[SubCommand]`, `superclasses: &[&str]`,
@@ -368,11 +385,13 @@ with the matching tag.
   (`spec.rs:1122-1125`, whose own doc comment names `ticklecharts::chart`
   as *the* example of "ordinary TclOO `new`/`create` dispatch") are fully
   designed and load-bearing for every one of the 4 corpora. Invented in
-  every drafted file: an `object_class { superclasses {...}
-  allow_unknown_methods no  method NAME { ...same grammar as `subcommand`...
-  } }` block, reusing `subcommand`'s existing body grammar under a `method`
-  keyword (methods **are** `SubCommand`s structurally, so no new per-field
-  syntax is invented — only the wrapping keyword).
+  every drafted file: an `object_class` block reusing `subcommand`'s
+  existing body grammar under a `method` keyword (methods **are**
+  `SubCommand`s structurally, so no new per-field syntax was invented —
+  only the wrapping keyword). **Ruled:** the ratified spelling is
+  `object_class NAME ?-superclass {…}? ?-allow-unknown? { method … }` —
+  the drafts' nameless block left `class_name` implicit and spent three
+  rows on three one-word fields. The drafts now use the ratified form.
 - **G2 `[STRUCT]` — option "requires" relationship.** `-require` outnumbers
   `-forbid` in SpiceGenTcl (189 vs 75). `OptionConstraint`
   (`spec.rs:520-525`) is a flat "may not co-occur" set with no
@@ -382,13 +401,23 @@ with the matching tag.
   requirement the way there is for exclusion. Invented:
   `option_constraints { forbid {A B} ... requires {A B} {C} }` with the
   `requires` clause marked as unsupported by any struct field today.
+  **Ruled:** the backed half is written with the ratified
+  `option_conflict {-a -b}` row (one per pair); the `requires` half is
+  **not** written at all, because syntax inside an otherwise-backed block
+  made an unbacked idea look one flag away from working. It is recorded
+  in the DSL memo's known-limits register, and the drafts keep the real
+  constraints as comments so no evidence is lost.
 - **G3 `[SYNTAX]` — per-option lifecycle against a non-Tcl version axis.**
   3,961 grounded occurrences in ticklecharts alone. `OptionSpec::lifecycle:
   Lifecycle` (`hover.rs:402-408`) already exists and is explicitly
   documented as "orthogonal to `dialects`". Invented: `option NAME -since
   VERSION` (maps to `Lifecycle.introduced`), noting `-deprecated`/`-retired`
   as the natural (undemonstrated in the draft, since no ticklecharts option
-  sampled needed them) extensions.
+  sampled needed them) extensions. **Ruled:** the flag already exists and
+  is spelled `-introduced`, one of the option row's four lifecycle flags,
+  named for `Lifecycle`'s own fields. The finding is untouched by the
+  rename — the version axis really is the library's, not Tcl's, which is
+  exactly what `Lifecycle` is for.
 - **G4 `[SOFT]`, tooling not vocabulary — `argparse`-declared option
   grammar is invisible to static declaration.** 164 call sites across
   SpiceGenTcl; every constructor's *declared* arity is `{args}` from the
@@ -474,7 +503,13 @@ with the matching tag.
   (`tree_tcl.tcl:2109-2134`). `fields.md`'s `completion` vocabulary names
   only 0-4. No construct pairs a custom code to the one command whose body
   legitimately accepts it, the way `HAS_LOOP_BODY` pairs with
-  `BREAKS_LOOP`/`CONTINUES_LOOP` for the standard codes.
+  `BREAKS_LOOP`/`CONTINUES_LOOP` for the standard codes. **Ruled:** the
+  standard half is authorable and the tcllib draft now says it as traits
+  (`HAS_LOOP_BODY BREAKS_LOOP CONTINUES_LOOP`); the custom code is
+  recorded as a known limit. The draft's invented `completion { … }`
+  block is **removed** — `completion` is an excluded field, so writing
+  syntax for it reads as a proposal to un-exclude it however well marked.
+  `tricky-surfaces.md`'s completion line was amended to match.
 - **G14 `[STRUCT]` — option immutability after construction.**
   `fileutil::traverse`'s `-readonly 1` (`traverse.tcl:95-97`, all 3
   options). `OptionSpec` (`hover.rs:380-415`) has no field for it at all.
@@ -516,8 +551,10 @@ with the matching tag.
 1. **`object_class` / TclOO method modelling (G1).** Present in **4/4**
    corpora, load-bearing for the majority of every public surface examined
    (chart's 47 methods, apave's ~250, 241 SpiceGenTcl classes, tcllib's
-   hand-rolled dispatchers). Completely absent from the DSL sketch. The
-   single highest-value addition this census found.
+   hand-rolled dispatchers). Completely absent from the DSL sketch when
+   this census was written, and **now ratified** in the DSL memo's
+   coverage matrix and block-statement table. The single highest-value
+   addition this census found.
 2. **Argument-shape ensembles are the norm, native `namespace ensemble` is
    not.** Not a field gap (each individual case reduces to `object_class`
    methods, `subcommands`, or `sub_subcommands`) but the **dominant

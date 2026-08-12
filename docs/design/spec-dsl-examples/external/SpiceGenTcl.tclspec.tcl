@@ -2,10 +2,12 @@
 # library. Source: github.com/georgtree/SpiceGenTcl @ e8aa45ce (2026-08-11),
 # package version 0.71, `package require Tcl 9.0-` (SpiceGenTcl.tcl:17).
 #
-# Exercises: object_class (INVENTED, G1) on an argparse-driven constructor
-# whose real shape is invisible from the outside (G4), option_constraints
-# for `-forbid` (INVENTED syntax, real struct backing) alongside an
-# invented `requires` clause with NO struct backing at all (G2), a
+# Exercises: object_class (raised as G1 from this census; syntax now
+# ratified in ../README.md and used here) on an argparse-driven constructor
+# whose real shape is invisible from the outside (G4), `option_conflict`
+# rows for the `-forbid` half alongside a `-require` half with NO struct
+# backing at all, recorded as a known limit rather than written as syntax
+# (G2), a
 # zero-method alias-via-subclass needing no new syntax at all, an
 # argument-shape ensemble via `-key/-value` argparse flags (same family as
 # ticklecharts::chart's Add and apave's widgetType — see README §5 item 2),
@@ -37,37 +39,76 @@ speclib SpiceGenTcl 0.71 {
 # `-require` relationships. Transcribed here by hand — see G4 for why that
 # transcription cannot be automated today (164 such blocks in this corpus).
 command ::SpiceGenTcl::Ngspice::BasicDevices::Resistor {
-    arity 3..
+    # This is a TclOO class command, so word 0 of a call is the manufacturer
+    # keyword: `Resistor new name np nm -r 1k`.  The constructor's own shape
+    # therefore belongs on the `new` / `create` subcommands, with
+    # `manufacturer` rows saying where the instance name and the constructor
+    # arguments start -- the ratified shape (../README.md, "Rulings on the
+    # census drafts"), matching the shipped ticklecharts class factories at
+    # rust/tcl-registry/src/commands/ticklecharts/mod.rs:409-457.  The first
+    # draft of this file put `arity 3..` and three `arg` rows directly on the
+    # class command, which reads `new` as the device name.
+    arity 1..
+    allow_unknown_subcommands
     dialects {tcl9.0 tcl9.1}
     required_package SpiceGenTcl
 
-    arg 0 -role Name  -detail {Device name, without the leading "R" designator.}
-    arg 1 -role Value -detail {Node connected to the positive pin.}
-    arg 2 -role Value -detail {Node connected to the negative pin.}
+    manufacturer new                       -constructor-args-from 1
+    manufacturer create -names-instance-at 1 -constructor-args-from 2
 
-    option -r     -takes value -detail {Resistance value or equation.}
-    option -beh                -detail {Behavioural (equation-driven) resistor.}
-    option -model -takes value -detail {Model card name (semiconductor resistor).}
-    option -ac    -takes value -detail {AC resistance value.}
-    option -l     -takes value -detail {Length of a semiconductor resistor.}
-    option -w     -takes value -detail {Width of a semiconductor resistor.}
-    option -noisy -takes value -values {0 1} -closed -detail {Selects noise behaviour.}
+    subcommand new {
+        arity 3..
+        detail   {Construct a resistor with an auto-generated object name.}
+        synopsis {Resistor new name np nm ?-r value? ?-model name? ...}
 
-    # specElementsClassesNgspice.tcl:92: `{-beh -forbid {model} -require {r}
-    # ...}`; :102-103: `{-l= -require {model} ...} {-w= -require {model}
-    # ...}`. `forbid` maps onto the real `OptionConstraint`
-    # (rust/tcl-registry/src/spec.rs:520-525, `{options: &[&str], dialects}`
-    # -- a flat "may not co-occur" set); no sibling `.tclspec.tcl` in the
-    # parent directory shows `option_constraints` syntax yet either, so
-    # this spelling is new even for the *backed* half. `requires` is
-    # INVENTED with NO struct backing whatsoever (G2) -- 189 real
-    # occurrences of `-require` across this corpus, vs 75 `-forbid`.
-    option_constraints {
-        forbid {-beh -model}
-        forbid {-ac -model} {-ac -beh}
-        forbid {-m -beh}
-        requires {-l -w} {-model}   ;# DSL GAP (G2): no struct field backs this at all.
-        requires {-beh} {-r}        ;# DSL GAP (G2): ditto.
+        arg 0 -role Name   ;# device name, without the leading "R" designator
+        arg 1 -role Value  ;# node connected to the positive pin
+        arg 2 -role Value  ;# node connected to the negative pin
+
+        option -r     -takes value -detail {Resistance value or equation.}
+        option -beh                -detail {Behavioural (equation-driven) resistor.}
+        option -model -takes value -detail {Model card name (semiconductor resistor).}
+        option -ac    -takes value -detail {AC resistance value.}
+        option -l     -takes value -detail {Length of a semiconductor resistor.}
+        option -w     -takes value -detail {Width of a semiconductor resistor.}
+        option -noisy -takes value -values {0 1} -closed -detail {Selects noise behaviour.}
+
+        # specElementsClassesNgspice.tcl:92: `{-beh -forbid {model} -require
+        # {r} ...}`; :102-103: `{-l= -require {model} ...} {-w= -require
+        # {model} ...}`.  The `-forbid` half maps onto the real
+        # `OptionConstraint` (rust/tcl-registry/src/spec.rs:520-525,
+        # `{options: &[&str], dialects}` -- a flat "may not co-occur" set),
+        # one `option_conflict` row per pair.
+        option_conflict {-beh -model}
+        option_conflict {-ac -model}
+        option_conflict {-ac -beh}
+        option_conflict {-m -beh}
+
+        # The `-require` half has NO struct backing whatsoever -- 189 real
+        # occurrences across this corpus, vs 75 `-forbid`.  The first draft
+        # wrote it as a `requires {…} {…}` clause inside an invented
+        # `option_constraints { … }` block, which made an unbacked idea look
+        # one flag away from working.  It is recorded as a known limit
+        # instead (G2; ../README.md, "Known limits carried forward"), and the
+        # two real constraints it would have expressed are:
+        #   -l and -w each require -model   (specElementsClassesNgspice.tcl:102-103)
+        #   -beh requires -r                (specElementsClassesNgspice.tcl:92)
+    }
+
+    subcommand create {
+        arity 4..
+        detail   {Construct a resistor under an explicit object command name.}
+        synopsis {Resistor create objName name np nm ?-r value? ...}
+        arg 0 -role Name   ;# the object command's own name
+        arg 1 -role Name   ;# device name, as for `new`
+        arg 2 -role Value
+        arg 3 -role Value
+        # The option table is `new`'s, shifted one word right.  Restating it
+        # is real authoring cost the DSL does not mitigate: `new` and
+        # `create` differ only by a leading name word, and every TclOO class
+        # command must write its constructor's options twice.  Left
+        # deliberately unduplicated here so the cost is visible rather than
+        # hidden behind 200 lines of copy.
     }
 
     hover {
@@ -78,13 +119,11 @@ command ::SpiceGenTcl::Ngspice::BasicDevices::Resistor {
         source   {specElementsClassesNgspice.tcl:34-135}
     }
 
-    object_class {
-        # ::SpiceGenTcl::Device (drafted below) supplies genSPICEString,
-        # actOnParam, actOnPin, checkFloatingPins, etc. via ordinary TclOO
-        # inheritance -- `superclasses` already covers this with zero new
-        # fields.
-        superclasses {::SpiceGenTcl::Device}
-        allow_unknown_methods no
+    # ::SpiceGenTcl::Device (drafted below) supplies genSPICEString,
+    # actOnParam, actOnPin, checkFloatingPins, etc. via ordinary TclOO
+    # inheritance -- `-superclass` already covers this with zero new fields.
+    object_class ::SpiceGenTcl::Ngspice::BasicDevices::Resistor \
+            -superclass {::SpiceGenTcl::Device} {
     }
 }
 
@@ -97,13 +136,15 @@ command ::SpiceGenTcl::Ngspice::BasicDevices::Resistor {
 # `ObjectClassSpec.superclasses` (spec.rs:259-261) already resolves
 # inherited methods, exactly as its own doc comment promises.
 command ::SpiceGenTcl::Ngspice::BasicDevices::R {
-    arity 3..
+    arity 1..
+    allow_unknown_subcommands
     dialects {tcl9.0 tcl9.1}
     required_package SpiceGenTcl
+    manufacturer new                       -constructor-args-from 1
+    manufacturer create -names-instance-at 1 -constructor-args-from 2
     hover { summary {Alias for Resistor (the "R" SPICE element-letter designator).} source {specElementsClassesNgspice.tcl:137-140} }
-    object_class {
-        superclasses {::SpiceGenTcl::Ngspice::BasicDevices::Resistor}
-        allow_unknown_methods no
+    object_class ::SpiceGenTcl::Ngspice::BasicDevices::R \
+            -superclass {::SpiceGenTcl::Ngspice::BasicDevices::Resistor} {
         # No `method` entries: R contributes nothing of its own: every
         # method (including the constructor's argument shape above,
         # inherited via `superclass`, not restated) comes from Resistor.
@@ -121,22 +162,25 @@ command ::SpiceGenTcl::Ngspice::BasicDevices::R {
 # idioms (literal switch, char-prefix switch, argparse `-key/-value` flags)
 # converging on the exact same DSL requirement (README §5 item 2).
 command ::SpiceGenTcl::Device {
-    arity 0..
+    arity 1..
+    allow_unknown_subcommands
     dialects {tcl9.0 tcl9.1}
     required_package SpiceGenTcl
+    manufacturer new                       -constructor-args-from 1
+    manufacturer create -names-instance-at 1 -constructor-args-from 2
     hover { summary {Base class for every two-or-more-pin circuit element.} source {generalClasses.tcl:649-978} }
 
-    object_class {
-        superclasses {}
-        allow_unknown_methods no
+    object_class ::SpiceGenTcl::Device {
 
         method actOnParam {
             arity 1..
             detail   {Add, get, set, or delete one of the device's SPICE parameters.}
-            synopsis {$dev actOnParam -add ?-pos|-eq|...? name value}
-            synopsis {$dev actOnParam -get name}
-            synopsis {$dev actOnParam -set name value ?name value ...?}
-            synopsis {$dev actOnParam -delete name}
+            # ONE `synopsis` row: `SubCommand::synopsis` is a single Text.
+            # The first draft repeated it four times, which is hover data
+            # written into a field that holds one string -- the four forms
+            # live in `hover { synopsis … }` below, where
+            # `HoverSnippet::synopsis` really is a list.
+            synopsis {$dev actOnParam -add|-get|-set|-delete name ?value ...?}
             mutator
 
             option -add    -detail {Add a new parameter (requires: name, value). generalClasses.tcl:822.}
@@ -145,19 +189,26 @@ command ::SpiceGenTcl::Device {
             option -delete -detail {Delete an existing parameter. generalClasses.tcl:825.}
             option -all    -detail {With -get: return every parameter as a name/value dict. generalClasses.tcl:826.}
 
-            # generalClasses.tcl:822 `{-add -key action -value add -require
-            # pname ...}` -- one more `-require` instance, same G2 gap as
-            # Resistor's constructor above; repeated here to show it is not
-            # confined to constructors.
-            option_constraints {
-                forbid {-add -get} {-add -set} {-add -delete}
-                forbid {-get -set} {-get -delete}
-                forbid {-set -delete}
-                requires {-add} {pname}        ;# DSL GAP (G2)
-                requires {-all} {-get}         ;# DSL GAP (G2)
-            }
+            option_conflict {-add -get}
+            option_conflict {-add -set}
+            option_conflict {-add -delete}
+            option_conflict {-get -set}
+            option_conflict {-get -delete}
+            option_conflict {-set -delete}
 
-            hover { summary {The device's parameter-table CRUD surface, dispatched by mutually-exclusive option flags rather than a subcommand word.} source {generalClasses.tcl:795-908} }
+            # generalClasses.tcl:822 `{-add -key action -value add -require
+            # pname ...}` -- one more `-require` instance, showing the G2
+            # limit is not confined to constructors.  Unwritable, recorded:
+            #   -add requires a following pname positional
+            #   -all requires -get
+            hover {
+                summary {The device's parameter-table CRUD surface, dispatched by mutually-exclusive option flags rather than a subcommand word.}
+                synopsis {$dev actOnParam -add ?-pos|-eq|...? name value}
+                synopsis {$dev actOnParam -get name}
+                synopsis {$dev actOnParam -set name value ?name value ...?}
+                synopsis {$dev actOnParam -delete name}
+                source {generalClasses.tcl:795-908}
+            }
         }
     }
 }
@@ -173,23 +224,32 @@ command ::SpiceGenTcl::Device {
 # fields.md, and these are unambiguously SubCommand-shaped (object_class
 # instance methods).
 command ::SpiceGenTcl::Ngspice::Simulators::Batch {
-    arity 1..2
+    arity 1..
+    allow_unknown_subcommands
     dialects {tcl9.0 tcl9.1}
     required_package SpiceGenTcl
-    arg 0 -role Name -detail {Simulator object name.}
-    arg 1 -role Value -detail {Run/output directory (default ".").}
+    manufacturer new                       -constructor-args-from 1
+    manufacturer create -names-instance-at 1 -constructor-args-from 2
+
+    subcommand new {
+        arity 1..2
+        detail   {Construct a batch simulator.}
+        synopsis {Batch new name ?runLocation?}
+        arg 0 -role Name   ;# simulator object name
+        arg 1 -role Value  ;# run/output directory (default ".")
+    }
+
     hover { summary {Batch (non-interactive) ngspice simulator.} source {specSimulatorClassesNgspice.tcl:21-58} }
 
-    object_class {
-        superclasses {::SpiceGenTcl::Simulator}
-        allow_unknown_methods no
+    object_class ::SpiceGenTcl::Ngspice::Simulators::Batch \
+            -superclass {::SpiceGenTcl::Simulator} {
 
         method runAndRead {
             arity 1..2
             detail   {Write circuitStr to a .cir file, run ngspice on it, and read back the results.}
             synopsis {$sim runAndRead circuitStr ?-nodelete?}
             mutator
-            arg 0 -role Value -detail {Top-level SPICE netlist text.}
+            arg 0 -role Value  ;# top-level SPICE netlist text
             option -nodelete -detail {Keep the generated .cir/.raw/.log files instead of deleting them.}
 
             # specSimulatorClassesNgspice.tcl:71,74-76: `[file join
@@ -215,18 +275,20 @@ command ::SpiceGenTcl::Ngspice::Simulators::Batch {
 }
 
 command ::SpiceGenTcl::Ngspice::Simulators::BatchLiveLog {
-    arity 1..2
+    arity 1..
+    allow_unknown_subcommands
     dialects {tcl9.0 tcl9.1}
     required_package SpiceGenTcl
+    manufacturer new                       -constructor-args-from 1
+    manufacturer create -names-instance-at 1 -constructor-args-from 2
     hover { summary {Batch ngspice simulator that streams its log live.} source {specSimulatorClassesNgspice.tcl:105-147} }
 
-    object_class {
-        # Inherits everything from Batch except runAndRead, which it
-        # OVERRIDES with a different sink shape -- same method name, real
-        # polymorphism, no `next` call (specSimulatorClassesNgspice.tcl:
-        # 108-146 is a full replacement, not an extension).
-        superclasses {::SpiceGenTcl::Ngspice::Simulators::Batch}
-        allow_unknown_methods no
+    # Inherits everything from Batch except runAndRead, which it OVERRIDES
+    # with a different sink shape -- same method name, real polymorphism, no
+    # `next` call (specSimulatorClassesNgspice.tcl:108-146 is a full
+    # replacement, not an extension).
+    object_class ::SpiceGenTcl::Ngspice::Simulators::BatchLiveLog \
+            -superclass {::SpiceGenTcl::Ngspice::Simulators::Batch} {
 
         method runAndRead {
             arity 1..2

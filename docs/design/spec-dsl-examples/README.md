@@ -260,10 +260,6 @@ body with a proc-shaped signature**:
 <field> {words ctx} { … body … }
 ```
 
-The ninth — the option-arity hook — is a *flag* on an option row rather
-than a property statement, so it is spelled `-arity-hook {words ctx}
-{ … }`; everything else in this section applies to it unchanged.
-
 or a reference to a shipped implementation:
 
 ```tcl

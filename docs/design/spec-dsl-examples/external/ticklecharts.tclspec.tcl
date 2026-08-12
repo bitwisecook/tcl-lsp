@@ -2,12 +2,13 @@
 # shipped registry). Source: github.com/nico-robert/ticklecharts @ b49f014c
 # (2025-07-04), package version 3.2.8.
 #
-# Exercises: object_class with a large instance-method surface (INVENTED —
-# see G1), an argument-shape ensemble dispatched by a literal first word
-# rather than a native namespace ensemble, a shared closed-value table
-# applied to *options* rather than positional args (INVENTED — see G5), a
-# per-option version gate against a third-party library's own release train
-# rather than a Tcl dialect (INVENTED — see G3), a file-write sink on an
+# Exercises: object_class with a large instance-method surface (raised as
+# G1 from this file; syntax now ratified in ../README.md and used here), an
+# argument-shape ensemble dispatched by a literal first word rather than a
+# native namespace ensemble, a shared closed-value table applied to
+# *options* rather than positional args (INVENTED — see G5), a per-option
+# version gate against a third-party library's own release train rather
+# than a Tcl dialect (G3, spelled with the ratified `-introduced`), a file-write sink on an
 # object-class method (documents G7 — cannot actually be declared today),
 # and foreign (non-Tcl) code as a value (documents G6 — deliberately NOT
 # drafted as a fix).

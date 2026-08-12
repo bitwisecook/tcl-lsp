@@ -38,7 +38,7 @@ command struct::tree {
     tcllib_package struct::tree
     required_package struct::tree
 
-    arg 0 -role Name -detail {Tree instance name (auto-generated "treeN" if omitted).}
+    arg 0 -role Name  ;# tree instance name (auto-generated "treeN" if omitted)
     # `creates_instance_at` (binds arg 0's name to THIS command's own
     # object_class for method dispatch) is the stronger of the two name-
     # binding fields and supersedes `defines_command_at` ("lighter... the
@@ -54,17 +54,23 @@ command struct::tree {
         source   {tree_tcl.tcl:38-161}
     }
 
-    object_class {
-        superclasses {}
-        allow_unknown_methods no
+    # The class NAME is the statement's own word (ObjectClassSpec.class_name).
+    # struct::tree is NOT a TclOO class -- the handle is an `interp alias`
+    # onto a dispatcher proc -- so the class name is the factory command's
+    # own name, no superclasses, and no unknown-method handler.  Because it
+    # is not a class command, word 0 of a `struct::tree` call really is the
+    # instance name and the `arity`/`arg` rows above stay on the command
+    # itself; the manufacturer-row treatment the TclOO drafts need does not
+    # apply here.
+    object_class ::struct::tree {
 
         method insert {
             arity 2..
             detail   {Insert one or more new nodes as children of parentNode.}
             synopsis {$tree insert parentNode index ?child ...?}
             mutator
-            arg 0 -role Value -detail {Existing parent node.}
-            arg 1 -role Index -detail {Insertion position, or "end".}
+            arg 0 -role Value  ;# existing parent node
+            arg 1 -role Index  ;# insertion position, or "end"
             return_type List
             hover { summary {Insert new child node(s) at a given position under parentNode.} source {tree_tcl.tcl:944-1017} }
         }
@@ -117,22 +123,28 @@ command struct::tree {
             }
             body_kind Plain
 
-            # DSL GAP (G13) -- INVENTED, no vocabulary slot exists.
+            # The standard codes ARE sayable, as traits -- this is the whole
+            # authorable half of the completion question (../README.md, "Why
+            # `completion` is excluded and `const_fold` is not").
+            traits {HAS_LOOP_BODY BREAKS_LOOP CONTINUES_LOOP}
+
+            # G13 is what is left over, and it is recorded, not written.
             # `struct::tree::prune` (tree_tcl.tcl:181-183) is `return -code
             # 5`, a Tcl completion code with NO standard name (fields.md's
-            # `completion` vocabulary only names 0-4: ok/error/return/
-            # break/continue). It is meaningful ONLY inside `walk`'s own
-            # body -- WalkCall's `switch -exact -- $code { ... 5 {...
-            # return -code continue ...} }` (tree_tcl.tcl:2109-2134) is the
-            # ONLY place code 5 means anything. There is no construct that
-            # pairs a library-defined code to the one command whose body
-            # legitimately accepts it, the way BREAKS_LOOP/CONTINUES_LOOP
-            # pair the standard codes to HAS_LOOP_BODY.
-            completion {
-                codes {ok break continue}
-                custom_code 5 -meaning {struct::tree::prune: stop descending into this node's children} \
-                              -valid-only-inside {struct::tree walk}
-            }
+            # `completion` vocabulary names only 0-4).  It is meaningful ONLY
+            # inside `walk`'s own body -- WalkCall's `switch -exact -- $code
+            # { ... 5 {... return -code continue ...} }`
+            # (tree_tcl.tcl:2109-2134) is the only place code 5 means
+            # anything.  Nothing pairs a library-defined code to the one
+            # command whose body accepts it, the way BREAKS_LOOP /
+            # CONTINUES_LOOP pair the standard codes to HAS_LOOP_BODY.
+            #
+            # The first draft of this file wrote an invented
+            # `completion { codes … custom_code 5 … }` block here.  That was
+            # the one thing a draft must not do: `completion` is an EXCLUDED
+            # field, so syntax for it reads as a proposal to un-exclude it
+            # however well marked.  Removed; the fact survives as a known
+            # limit in ../README.md and as this comment.
 
             hover {
                 summary  {Depth- or breadth-first traversal, running script once per node with loop variables bound.}
@@ -177,29 +189,29 @@ command struct::graph {
     arity 0..2
     tcllib_package struct::graph
     required_package struct::graph
-    arg 0 -role Name -detail {Graph instance name (auto-generated "graphN" if omitted).}
+    arg 0 -role Name  ;# graph instance name (auto-generated "graphN" if omitted)
     creates_instance_at 0
     command_table_effect CreatesAliases
 
     hover { summary {Create a new graph object (nodes + arcs, both with attribute dicts).} source {graph_tcl.tcl:17-184} }
 
-    object_class {
-        superclasses {}
-        allow_unknown_methods no
+    object_class ::struct::graph {
 
         method arc {
             arity 1..
             detail   {Operate on an arc (edge) of the graph.}
             synopsis {$g arc op ?arg ...?}
             mutator
-            sub_subcommands {
-                sub_subcommand get       -detail {Get one attribute value. Real arity: exactly 2 (arc, key) — see G16, no field to say so.} -synopsis {$g arc get arc key}
-                sub_subcommand getall    -detail {Get all attributes as a dict. Real arity: 1..2.} -synopsis {$g arc getall arc ?pattern?}
-                sub_subcommand set       -detail {Set one attribute value. Real arity: 2..3. MUTATES — no field to say so either (no pure/mutator on SubSubCommand).} -synopsis {$g arc set arc key ?value?}
-                sub_subcommand attr      -detail {Get/set/list a named attribute across every arc.} -synopsis {$g arc attr key ?arg ...?}
-                sub_subcommand move      -detail {Change an arc's source and/or target node. Mutates.} -synopsis {$g arc move arc ?newsource? ?newtarget?}
-                sub_subcommand setweight -detail {Set an arc's weight. Mutates.} -synopsis {$g arc setweight arc weight}
-            }
+            # `sub_subcommands` is a list of rows, so it gets a singular ROW
+            # statement, exactly like `options` -> `option`; the first draft
+            # wrapped these in a `sub_subcommands { … }` block, which the
+            # ratified grammar does not use.
+            sub_subcommand get       -detail {Get one attribute value. Real arity: exactly 2 (arc, key) — see G16, no field to say so.} -synopsis {$g arc get arc key}
+            sub_subcommand getall    -detail {Get all attributes as a dict. Real arity: 1..2.} -synopsis {$g arc getall arc ?pattern?}
+            sub_subcommand set       -detail {Set one attribute value. Real arity: 2..3. MUTATES — no field to say so either (no pure/mutator on SubSubCommand).} -synopsis {$g arc set arc key ?value?}
+            sub_subcommand attr      -detail {Get/set/list a named attribute across every arc.} -synopsis {$g arc attr key ?arg ...?}
+            sub_subcommand move      -detail {Change an arc's source and/or target node. Mutates.} -synopsis {$g arc move arc ?newsource? ?newtarget?}
+            sub_subcommand setweight -detail {Set an arc's weight. Mutates.} -synopsis {$g arc setweight arc weight}
             hover { summary {Arc sub-ensemble: get/getall/keys/set/append/attr/move/setweight/... (graph_tcl.tcl:425-1050 for the full ~15-op set).} source {graph_tcl.tcl:287-424} }
         }
 
@@ -211,11 +223,9 @@ command struct::graph {
             # Same G16 limitation as arc's sub_subcommands above: real
             # arity/purity facts exist (graph_tcl.tcl:1756-1834) but
             # SubSubCommand has nowhere to hold them.
-            sub_subcommands {
-                sub_subcommand get    -detail {Get one attribute value. Real arity: exactly 2.} -synopsis {$g node get node key}
-                sub_subcommand getall -detail {Get all attributes as a dict. Real arity: 1..2.} -synopsis {$g node getall node ?pattern?}
-                sub_subcommand keys   -detail {List attribute names. Real arity: 1..2.} -synopsis {$g node keys node ?pattern?}
-            }
+            sub_subcommand get    -detail {Get one attribute value. Real arity: exactly 2.} -synopsis {$g node get node key}
+            sub_subcommand getall -detail {Get all attributes as a dict. Real arity: 1..2.} -synopsis {$g node getall node ?pattern?}
+            sub_subcommand keys   -detail {List attribute names. Real arity: 1..2.} -synopsis {$g node keys node ?pattern?}
             hover { summary {Node sub-ensemble, same shape as arc.} source {graph_tcl.tcl:1575-1834} }
         }
     }
@@ -230,11 +240,31 @@ command struct::graph {
 # type: its 3 options (each a documented CommandPrefix with a different
 # appended arity) and its 3 methods.
 command fileutil::traverse {
+    # A snit::type, so its type command manufactures through `create` (and
+    # through snit's bare-instance-name shorthand, which `SNIT_GRAMMAR`
+    # models as `bare_word_construction`).  Word 0 of a call is therefore
+    # the instance name or the `create` keyword, never the base directory:
+    # the constructor's shape belongs on `subcommand create`, with a
+    # `manufacturer` row saying where the constructor's own arguments start.
+    # The first draft put `arg 0 -role Value` (the base directory) on the
+    # type command itself, which reads `%AUTO%` as the directory.
     arity 1..
+    allow_unknown_subcommands
     tcllib_package fileutil::traverse
     required_package fileutil::traverse
 
-    arg 0 -role Value -detail {Base directory to traverse (constructor's 2nd positional after %AUTO%/name -- traverse.tcl:99).}
+    # snit(n), "The Type Command": `$type create name ?option value…?`.
+    # There is no `new` -- a snit instance is always named.  Identical to
+    # SNIT_MANUFACTURERS in the shipped grammar; see ../snit-type.tclspec.tcl.
+    manufacturer create -names-instance-at 1 -constructor-args-from 2
+
+    subcommand create {
+        arity 2..
+        detail   {Construct a traverser.}
+        synopsis {::fileutil::traverse create name basedir ?-filter cmd? ?-prefilter cmd? ?-errorcmd cmd?}
+        arg 0 -role Name   ;# instance name, or %AUTO%
+        arg 1 -role Value  ;# base directory to traverse (traverse.tcl:99)
+    }
 
     # traverse.tcl:63-77 (the corpus's own doc comment, quoted almost
     # verbatim -- these three appended arities are stated explicitly in
@@ -266,16 +296,14 @@ command fileutil::traverse {
         source   {traverse.tcl:1-100}
     }
 
-    object_class {
-        superclasses {}
-        allow_unknown_methods no
+    object_class ::fileutil::traverse {
 
         method next {
             arity 1
             detail   {Advance to the next path; write it into fvar.}
             synopsis {$t next fvar}
             mutator
-            arg 0 -role VarWrite -detail {Written with the next path when found.}
+            arg 0 -role VarWrite  ;# written with the next path when found
             return_type Boolean
             hover { summary {Advance the incremental iterator; returns false once exhausted.} source {traverse.tcl:148-242} }
         }

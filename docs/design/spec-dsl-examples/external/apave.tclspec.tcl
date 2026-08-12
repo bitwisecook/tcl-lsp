@@ -3,7 +3,8 @@
 # mcp__github__search_repositories, see ../external/README.md §1). Source:
 # github.com/aplsimple/pave @ 875de1f1 (2026-07-08), package version 4.9.1.
 #
-# Exercises: object_class (INVENTED, G1) on a class deliberately designed as
+# Exercises: object_class (raised as G1 from this file; syntax now ratified
+# in ../README.md and used here) on a class deliberately designed as
 # a mixin-only ingredient, a getter/setter method pair that cannot actually
 # carry `forms` (documents G15), a structured multi-field-tuple body
 # argument with nested option sub-lists (INVENTED, most speculative
@@ -25,12 +26,23 @@ speclib apave 4.9 {
 # any class in this snapshot but ships as reusable mixin ingredient (its own
 # doc comment says so verbatim).
 command ::apave::ObjectProperty {
-    arity 0..
+    # Every command in this file is a TclOO class command, so word 0 of a
+    # call is the manufacturer keyword (`new` / `create`), never a
+    # constructor argument.  `arity 1..` + `allow_unknown_subcommands` +
+    # `manufacturer` rows is the ratified shape (../README.md, "Rulings on
+    # the census drafts"), matching the shipped ticklecharts factories at
+    # rust/tcl-registry/src/commands/ticklecharts/mod.rs:409-457.
+    arity 1..
+    allow_unknown_subcommands
     required_package apave
 
-    object_class {
-        superclasses {}
-        allow_unknown_methods no
+    manufacturer new                       -constructor-args-from 1
+    manufacturer create -names-instance-at 1 -constructor-args-from 2
+
+    # The class NAME is the `object_class` statement's own word
+    # (ObjectClassSpec.class_name); no superclasses and no unknown-method
+    # handler here, so both optional flags are absent.
+    object_class ::apave::ObjectProperty {
 
         # obbit.tcl:1176-1190. Textbook Getter/Setter-by-arity: 0 args
         # returns [my getProperty $name], 1 arg sets and returns it
@@ -79,12 +91,14 @@ command ::apave::ObjectProperty {
 # retrycancel/abortretrycancel, apavedialog.tcl:149-231) -- included mainly
 # to show `superclasses` chaining 3 deep costs nothing extra in the DSL.
 command ::apave::APaveDialog {
-    arity 0..
+    arity 1..
+    allow_unknown_subcommands
     required_package apave
 
-    object_class {
-        superclasses {::apave::APaveBase}
-        allow_unknown_methods no
+    manufacturer new                       -constructor-args-from 1
+    manufacturer create -names-instance-at 1 -constructor-args-from 2
+
+    object_class ::apave::APaveDialog -superclass {::apave::APaveBase} {
 
         method ok {
             arity 3..
@@ -99,6 +113,34 @@ command ::apave::APaveDialog {
     }
 }
 
+# A shared value table is a PACK-LEVEL declaration (../README.md,
+# "Pack-level declarations"); the draft originally nested this one inside
+# the command that uses it, which the ratified grammar does not allow --
+# `values` sits beside `command`, and a command references it with
+# `-values-from NAME`.
+# A representative slice of the widget-type vocabulary switch
+# (apavebase.tcl:986-1201, `switch -glob -- $nam3 { bts {...} but
+# {...} chb {...} ... }`, ~40 cases total). NOT closed in practice:
+# `defaultATTRS` (apavebase.tcl:1201-1243) registers new 3-letter type
+# codes at runtime -- documented example at apavebase.tcl:1212: `my
+# defaultATTRS tbt {} {-style Toolbutton -compound top} ttk::button`.
+# `-closed` below is deliberately OMITTED for this reason (G9): there
+# is no way to say "closed, but with a registered escape valve" at a
+# sub-field granularity, so the honest choice is to leave it open and
+# lose the "not in this list" diagnostic entirely.
+values apave-widget-type-codes {
+    value but -detail {ttk::button}
+    value ent -detail {ttk::entry}
+    value lab -detail {ttk::label}
+    value fra -detail {ttk::frame}
+    value chb -detail {ttk::checkbutton}
+    value swi -detail {ttk::checkbutton styled as a switch}
+    value cbx -detail {ttk::combobox}
+    value can -detail {canvas}
+    # ... ~30 more (apavebase.tcl:986-1201); dynamically extensible,
+    # see the comment above -- this table can never be exhaustive.
+}
+
 # ---------------------------------------------------------------------------
 # ::apave::APaveBase -- the geometry-manager core (apavebase.tcl:430-432,
 # `mixin ::apave::ObjectTheming`). `Window`/`paveWindow` is the layout DSL
@@ -108,41 +150,23 @@ command ::apave::APaveDialog {
 # sibling `.tclspec.tcl` ports reaches two nesting levels, and the syntax
 # below should be read as "what an author would need," not "what exists."
 command ::apave::APaveBase {
-    arity 0..
+    arity 1..
+    allow_unknown_subcommands
     required_package apave
 
-    # A representative slice of the widget-type vocabulary switch
-    # (apavebase.tcl:986-1201, `switch -glob -- $nam3 { bts {...} but
-    # {...} chb {...} ... }`, ~40 cases total). NOT closed in practice:
-    # `defaultATTRS` (apavebase.tcl:1201-1243) registers new 3-letter type
-    # codes at runtime -- documented example at apavebase.tcl:1212: `my
-    # defaultATTRS tbt {} {-style Toolbutton -compound top} ttk::button`.
-    # `-closed` below is deliberately OMITTED for this reason (G9): there
-    # is no way to say "closed, but with a registered escape valve" at a
-    # sub-field granularity, so the honest choice is to leave it open and
-    # lose the "not in this list" diagnostic entirely.
-    values apave-widget-type-codes {
-        value but -detail {ttk::button}
-        value ent -detail {ttk::entry}
-        value lab -detail {ttk::label}
-        value fra -detail {ttk::frame}
-        value chb -detail {ttk::checkbutton}
-        value swi -detail {ttk::checkbutton styled as a switch}
-        value cbx -detail {ttk::combobox}
-        value can -detail {canvas}
-        # ... ~30 more (apavebase.tcl:986-1201); dynamically extensible,
-        # see the comment above -- this table can never be exhaustive.
-    }
+    manufacturer new                       -constructor-args-from 1
+    manufacturer create -names-instance-at 1 -constructor-args-from 2
 
-    object_class {
-        superclasses {}
-        # ObjectTheming is `mixin`ed at the class level (apavebase.tcl:432),
-        # not inherited via `superclass` -- modelled the same way today
-        # since `superclasses` (spec.rs:259-261) is documented only as
-        # "for inherited-method resolution" and doesn't distinguish TclOO
-        # `superclass` from `mixin`; both resolve methods the same way for
-        # `object_class`'s purposes, so no gap is claimed here.
-        superclasses {::apave::ObjectTheming}
+    # ObjectTheming is `mixin`ed at the class level (apavebase.tcl:432), not
+    # inherited via `superclass` -- modelled the same way today since
+    # `superclasses` (spec.rs:259-261) is documented only as "for
+    # inherited-method resolution" and doesn't distinguish TclOO
+    # `superclass` from `mixin`; both resolve methods the same way for
+    # `object_class`'s purposes, so no gap is claimed here.  (The draft
+    # previously wrote two `superclasses` rows here, an empty one and this
+    # one; the ratified single `-superclass` flag makes that impossible to
+    # write.)
+    object_class ::apave::APaveBase -superclass {::apave::ObjectTheming} {
 
         method Window {
             arity 2

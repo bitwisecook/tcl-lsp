@@ -196,7 +196,18 @@ in Rust on top of it; and the C-Tcl shim (#1372), which lets users
 compile existing C Tcl extensions to run on our tclvm or in wasm
 through the same surface. One plug point for every way executable
 behaviour can arrive — and an API whose shape is disciplined by having
-both a native-Rust and a legacy-C consumer from day one. The
+both a native-Rust and a legacy-C consumer in view from day one.
+
+Three rules govern that interface. It is **stable and common to the
+backends** — tclvm and the wasm codegen runtime, explicitly *not* the
+BPF backend, where hosted extensions make no sense. It is **designed
+for the two use cases and built for the first**: the clean, modern,
+idiomatic Rust surface the DSL framework needs now. And **all
+C-required mangling lives in the shim, never in the interface** — the
+shim absorbs the impedance mismatch (string lifetimes, interp-pointer
+idioms, result codes) so the interface never grows a C-shaped wart.
+The C-Tcl shim itself is later, separate work (#1372); the interface's
+only obligation to it today is to not preclude it. The
 **hook host** is the layer above: it owns everything DSL-specific — the
 emitter verbs, per-family calling conventions and preconditions,
 abstention and error policy, fuel budgets, memoisation — and speaks
