@@ -93,13 +93,16 @@ fields:
 
 ### Per-argument facts
 
-Five schema keys are indexed by the same argument position, and reading
-them as five parallel tables is the single worst thing about the `.rs`
-form. The DSL collapses them into one row per index:
+Six schema keys are indexed by the same argument position, and reading
+them as six parallel tables is the single worst thing about the `.rs`
+form. The DSL collapses them into one row per index — not every flag is
+used together, but every one belongs to the same word:
 
 ```tcl
-arg 0 -role Pattern -type String -shimmers -transparent {ByteArray} \
-      -values-from is-classes -closed -layout InlineScript -appends {Exactly 2}
+arg 0 -type String -shimmers -transparent {ByteArray} \
+      -values-from is-classes -closed
+arg 1 -role Body -layout InlineScript
+arg 2 -appends {Exactly 2}
 ```
 
 | flag | fills |
@@ -186,11 +189,31 @@ keys (`dialects`, `required_package`, `tcllib_package`, the three
 versions, `warn_missing_import`, `is_namespace_exported`); a command
 stating the key itself wins.
 
+### Block statements
+
+Seven properties take a braced block instead of a value, and each may
+instead name a `descriptor` or a shipped constant. Their inner words are
+the descriptor's own field names, so nothing new has to be learnt:
+
+| block | inner words |
+|---|---|
+| `hover` | `summary`, `synopsis`*, `description`, `source`, `example`*, `returns` |
+| `values NAME` | `value V ?-detail {…}? ?-min-tcl VER? ?-code N?`* |
+| `case_list` | `subject_args`, `exact_option`, `glob_option`, `regex_option`, `nocase_option`, `end_options_option`, `fallthrough_body`, `value_options_require_regex`, `clause_flags`, `clause_regex_flag`, `clause_value_flags`, `keyword_patterns {…} ?-final-only?` |
+| `clause_grammar` | `head {slots}`, `repeated KEYWORD {slots}`*, `tail ?KEYWORD? {slots}` |
+| `event_requires` | `client_side`, `server_side`, `transport`, `profiles`, `also_in`, `init_only`, `flow`, `capability` |
+| `world_effects` | `composition`, `access …`*, `callback -kinds {…} -reentrancy R`, `resolver`, `dynamic_fallback` |
+| `state_transitions` | `composition`, `argument_shape`, `resolver`, `widen -operands L -domains {…}`*, `covers SOURCE -domains {…}`*, `commit` |
+| `object_class NAME` | `superclasses`, `allow_unknown_methods`, `method NAME { … }`* (a `subcommand` body) |
+
+`*` marks a repeatable row. `world_effects none` is the one-word
+`WorldEffectDescriptor::EMPTY`.
+
 ## Hooks
 
-Six `CommandSpec` fields and one `SubCommand` field are function pointers
-today. Each becomes a **small pure Tcl body with a proc-shaped
-signature**:
+Eight fields across `CommandSpec` / `SubCommand`, plus one inside an
+option row, are function pointers today. Each becomes a **small pure Tcl
+body with a proc-shaped signature**:
 
 ```tcl
 <field> {words ctx} { … body … }
@@ -202,9 +225,20 @@ or a reference to a shipped implementation:
 <field> -native <id>
 ```
 
-or, for the two that the DSL can derive, a closed keyword
-(`arg_role_resolver from-manufacturers`, `state_transitions … resolver
-from-frame-effect`).
+`-native ID` is the spelling for **every field whose value names engine
+code**: the function-pointer fields above and the closed compiler-hook
+catalogues (`lowering_hook`, `codegen_hook`, `inline_codegen_hook`,
+`analyser_hook`, `bpf_op`). They share a spelling because they share a
+meaning — "the engine, by name" — and a load policy. IDs are
+`command::hook` for a per-command implementation (`string::is`,
+`oo::class::create`) and the bare catalogue variant for a shared one
+(`Foreach`, `Upvar`). `semantic_operation` deliberately keeps the enum
+spelling: it names an operation *identity*, not an implementation.
+
+or, where the DSL can derive the behaviour from data the spec already
+declares, a closed keyword — `arg_role_resolver from-manufacturers`,
+`state_transitions … resolver from-frame-effect`, and the whole of
+`clause_grammar`.
 
 ### Inputs
 
@@ -233,8 +267,8 @@ source spelling.
 
 ### Outputs: the emitter protocol
 
-**Every hook's own return value is ignored.** Each family injects one or
-two verbs; calling none is an abstention. One protocol for all seven
+**Every hook's own return value is ignored.** Each family injects one to
+three verbs; calling none is an abstention. One protocol for all eight
 fields, so "what does silence mean" has one answer per field and it is
 always the conservative one.
 
@@ -342,7 +376,7 @@ what a private Expect-like command needs.
 
 ## What a pack cannot author
 
-Four fields are **excluded** outright, and four more are
+Four kinds of field are **excluded** outright, and four more are
 **reference-only**. Every one is in the coverage matrix with its reason;
 the summary is:
 
@@ -399,11 +433,12 @@ tolerance rule still works in both directions. *Rejected:* a literal
 `options { … }` block per key. It nests one level deeper for no gain and
 makes every option a two-line edit.
 
-**Per-index facts are one row, not five tables.** `arg N -role … -type …`
-merges five schema keys. *Rejected:* one statement per key
+**Per-index facts are one row, not six tables.** `arg N -role … -type …`
+merges six schema keys. *Rejected:* one statement per key
 (`arg_role 0 Body`, `arg_type 0 List`, …), which is faithful to the
-schema and unreadable — `string map`'s two arguments would take six
-statements instead of two.
+schema and unreadable — `string is`'s single class argument would take
+three statements instead of one, and `lsort`'s `-command` would split its
+callback position from its appended arity.
 
 **Emitter verbs, not return values.** *Rejected:* "the hook returns a
 dict of results". A returned dict makes abstention (`{}`) look exactly
@@ -425,15 +460,15 @@ eight scalars, `case_list` thirteen, `binds_handle` three,
 `HTTP::header` is what surfaced this — both look like hard cases in the
 `.rs` and are trivial in the DSL.
 
-**Derived hooks beat written hooks.** Three of the eight shipped hook
-uses in these ports need no code at all once the *data they read* is
-declared: `if`'s two hooks come from `clause_grammar`, `oo::class`'s
-resolver from its `manufacturer` rows, and `upvar`'s state-transition
-resolver from its `frame_effect`. Each derivation is an explicit
-one-word opt-in (`from-manufacturers`, `from-frame-effect`), never an
-implicit consequence of declaring something else — a spec that silently
-grows behaviour when you add a row is worse than one that makes you say
-so.
+**Derived hooks beat written hooks.** The nine ports contain thirteen
+function-pointer hook uses. Four of them need **no code at all** once the
+data they read is declared — `if`'s two come from `clause_grammar`,
+`oo::class`'s role resolver from its `manufacturer` rows, and `upvar`'s
+state-transition resolver from its `frame_effect`. Five become Tcl
+bodies, and four stay `-native`. Each derivation is an explicit one-word
+opt-in (`from-manufacturers`, `from-frame-effect`), never an implicit
+consequence of declaring something else — a spec that silently grows
+behaviour when you add a row is worse than one that makes you say so.
 
 **Brace-quoted prose, with a known sharp edge.** Prose and examples are
 braced words, so backslashes and `$`/`[` are literal and newlines
@@ -505,7 +540,7 @@ schema order. "excluded" rows carry the reason.
 | `hover` | `hover { … }` | block; see the hover statements below |
 | `forms` | `form KIND {synopsis} ?-dialects {…}?` | one row per form |
 | `command_forms` | **excluded** | per-form arity/roles/options/hook bundles; the studio carries it as one opaque Rust expression and `forms` covers the getter/setter split every pack has needed. A command needing it is a contribution. |
-| `semantic_operation` | `semantic_operation Invoke\|{Intrinsic ID}\|{StructuredLowering ID}` | compiler-internal; load policy drops it from an untrusted pack |
+| `semantic_operation` | `semantic_operation Invoke\|{Intrinsic ID}\|{StructuredLowering ID}` | an operation identity, so it keeps the enum spelling rather than `-native` |
 | `completion` | **excluded** | `CompletionDescriptor` is a compiler proof obligation, not a description of the command; wrong values are unsound rather than imprecise |
 | `assigns_variable_at` | `assigns_variable_at N` |  |
 | `safe_on_uninit` | `safe_on_uninit {SET …}` |  |
@@ -618,7 +653,7 @@ schema order. "excluded" rows carry the reason.
 | `arg_values` | `arg N -values {v …}` \| `arg N -values-from NAME` | `values NAME { … }` declares the shared table |
 | `versioned_arg_values` | `versioned_arg_value N VALUE ?-introduced V? ?-deprecated V? ?-retired V?` | one row per gate |
 | `subcommand_forms` | **excluded** | the subcommand-level twin of `command_forms`, excluded for the same reason |
-| `semantic_operation` | `semantic_operation Invoke\|{Intrinsic ID}\|{StructuredLowering ID}` | compiler-internal; load policy drops it from an untrusted pack |
+| `semantic_operation` | `semantic_operation Invoke\|{Intrinsic ID}\|{StructuredLowering ID}` | an operation identity, so it keeps the enum spelling rather than `-native` |
 | `completion` | **excluded** | `CompletionDescriptor` is a compiler proof obligation, not a description of the command; wrong values are unsound rather than imprecise |
 | `dialects` | `dialects {SET …}` | absent inherits the parent command's set |
 | `introduced_version` | `introduced_version V` | `Lifecycle.introduced` |
