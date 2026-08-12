@@ -1035,6 +1035,20 @@ pub struct ManufacturerSpec {
 /// when `Meta` is written in another document (issue #1276).
 pub type ClassFactoryIndex = BTreeMap<String, ClassFactory>;
 
+/// Instance methods dispatchable on some workspace **descendant** of each
+/// class, keyed by the ancestor's fully-qualified name — what a host hands
+/// the analyser so the template-method abstention (issue #1367) can see a
+/// subclass written in another document.
+///
+/// `map["::Formatter"]` holds every instance-side member name reachable on
+/// any workspace class that lists `::Formatter` anywhere in its
+/// linearisation — including names the descendant inherits from a mixin,
+/// and excluding `private` members, which `TclOO` hides even from a base
+/// class's own `my` dispatch.  `BTreeMap`/`BTreeSet` so equal contents
+/// compare equal regardless of build order (the host's compare-then-set
+/// depends on it).
+pub type SubclassProvidedMethods = BTreeMap<String, std::collections::BTreeSet<String>>;
+
 /// How a user-defined `TclOO` metaclass manufactures classes.
 ///
 /// Recorded on the metaclass's own [`ClassDef`] when it is written, so a
@@ -1759,6 +1773,20 @@ pub struct AnalysisResult {
     pub has_dynamic_providers: bool,
     /// Source-target records.
     pub source_targets: Vec<SignatureSource>,
+    /// Every path-constant fact the document's load-time surface records —
+    /// top-level `set`s, and `variable`/`set` writes inside literal
+    /// `namespace eval` bodies — in document order, values **unfolded**
+    /// ([`crate::auto_path_eval::constant_path_assignments`]).
+    ///
+    /// Recorded raw rather than folded because folding the
+    /// `[file dirname [info script]]` idiom needs the document's own
+    /// filesystem path, which the analyser deliberately does not know — the
+    /// same text must analyse identically wherever the file lives.  Consumers
+    /// that know the path (the source-graph edge resolver, `auto_path`
+    /// folding) chain-fold these with
+    /// [`crate::auto_path_eval::fold_constant_assignments`], which also owns
+    /// the multi-write poisoning rule.
+    pub path_constant_assignments: Vec<crate::auto_path_eval::PathConstantWrite>,
     /// Command-alias records keyed by qualified alias name.
     pub command_aliases: HashMap<String, SignatureCommandAlias>,
     /// Byte offset of the `interp alias` command token that established each

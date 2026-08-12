@@ -75,6 +75,69 @@ oo::class create Widget {
 The analyser reports **`W308`** on `[self] paint` — `Widget` has no
 `paint` method — exactly as it would for `my paint`.
 
+## Methods the class system generates for you
+
+A method does not have to be written as a `method` to exist. A class
+created by Tcl 9.0's `oo::configurable` metaclass answers `configure` for
+the `property` members it declares, even though no `method` body defines it,
+so it draws no `W308`:
+
+```tcl
+oo::configurable create Point {
+    property x y
+}
+set p [Point new]
+$p configure -x 27
+```
+
+The same holds for a class that merely *inherits* from a configurable one —
+`configure` is a real method on the configurable ancestor — and inside a
+method body via `my configure`.
+
+Two receivers are deliberately *not* covered, because both really do fail at
+run time and `W308` is right to report them:
+
+- A plain `oo::class` receiver has no `configure` at all.
+- `cget` is **not** generated. Tk widgets, snit and \[incr Tcl] all pair
+  `configure` with `cget`, but `oo::configurable` does not — `configure`
+  with a single `-property` argument is how you read one. `$p cget -y`
+  above would fail with `unknown method "cget"`.
+
+## Template methods a subclass supplies
+
+An abstract base class may `my`-dispatch a method it never defines, leaving
+each concrete subclass to write it — the template-method pattern:
+
+```tcl
+oo::class create Formatter {
+    method run {} { my Render }     ;# no Render on Formatter's MRO
+}
+oo::class create HtmlFormatter {
+    superclass Formatter
+    method Render {} { ... }
+}
+```
+
+This runs fine: `my` late-binds on the actual receiver, which is always a
+subclass instance when the base is never instantiated, and it bypasses
+export filtering, so even a capitalised (unexported) subclass method is
+reachable. `W308` abstains when any known class whose linearisation
+contains the receiver class resolves the method — whether that subclass is
+in the same file or, in an editor workspace, in a sibling document. A
+subclass that gets the method from its own `mixin` counts too.
+
+The boundary is evidence, not charity:
+
+- A `my` dispatch **no** subclass anywhere defines is still a warning —
+  that is the typo case the check exists for.
+- The abstention is `my`-only. `[self] Render` in the base keeps its
+  `W308`: it dispatches through the object's own command, where an
+  unexported subclass method really is unreachable (the same reach split
+  as `my varname` versus `[self] varname`).
+- Single-file tools (`tcl diag` on one file, the fp-sweep harness) see no
+  sibling documents, so a base analysed alone still warns — the workspace
+  view is what supplies the refuting subclass.
+
 ## What a deleted class changes
 
 The check asks whether the class is still live **at the dispatch**, not

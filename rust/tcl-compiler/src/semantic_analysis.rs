@@ -19,6 +19,7 @@ use tcl_registry::dialects::DialectSet;
 use tcl_registry::{CommandRegistry, EffectFootprint};
 
 use crate::completion::CompletionObligations;
+use crate::dispatch_proof::DispatchEntryAssumption;
 use crate::executable_ir::{
     ExecutableFunction, ExecutableFunctionId, GenericInvoke, InvocationResolution,
     LoweredOperation, OpaqueRegion, SourceCompatibilityDecline, build_linear_executable_ir,
@@ -58,17 +59,24 @@ pub(crate) const fn test_common_analysis_provenance() -> CommonAnalysisProvenanc
 pub struct SemanticAnalysisBundle {
     dialect: DialectSet,
     executable: ExecutableAnalysisAvailability,
+    entry_assumption: DispatchEntryAssumption,
 }
 
 impl SemanticAnalysisBundle {
     /// Build facts from source-faithful IR under the explicitly selected
-    /// registry dialect.
+    /// registry dialect and dispatch entry contract.
     #[must_use]
-    pub fn build(registry: &CommandRegistry, dialect: DialectSet, script: &Script) -> Self {
+    pub fn build(
+        registry: &CommandRegistry,
+        dialect: DialectSet,
+        script: &Script,
+        entry_assumption: DispatchEntryAssumption,
+    ) -> Self {
         if dialect.canonical_name().is_none() {
             return Self::from_executable(
                 dialect,
                 ExecutableAnalysisAvailability::DialectUnavailable { dialect },
+                entry_assumption,
             );
         }
         let executable = match build_linear_executable_ir(
@@ -90,7 +98,7 @@ impl SemanticAnalysisBundle {
             },
             Err(decline) => ExecutableAnalysisAvailability::SourceDeclined(decline),
         };
-        Self::from_executable(dialect, executable)
+        Self::from_executable(dialect, executable, entry_assumption)
     }
 
     /// Build the executable invocation facts used by interactive GVN, and
@@ -106,20 +114,29 @@ impl SemanticAnalysisBundle {
         registry: &CommandRegistry,
         dialect: DialectSet,
         script: &Script,
+        entry_assumption: DispatchEntryAssumption,
     ) -> Self {
         if dialect.canonical_name().is_none() {
             return Self::from_executable(
                 dialect,
                 ExecutableAnalysisAvailability::DialectUnavailable { dialect },
+                entry_assumption,
             );
         }
+        // A unit whose dispatch entry contract is `UnknownWorld` starts at the
+        // contents lattice's top element, and widening is absorbing, so no
+        // site proof it could produce would ever succeed. Building its world
+        // graph would materialise a structure whose only interactive consumer
+        // is that proof. The deep [`Self::build`] path is unaffected: code
+        // generation and auditing consume the graph directly.
+        let proof_can_succeed = entry_assumption != DispatchEntryAssumption::UnknownWorld;
         let executable = match build_linear_executable_ir(
             registry,
             dialect,
             ExecutableFunctionId::new(0),
             script,
         ) {
-            Ok(function) if interactive_gvn_needs_world_state(&function) => {
+            Ok(function) if proof_can_succeed && interactive_gvn_needs_world_state(&function) => {
                 match build_executable_world_state_ssa(&function) {
                     Ok(world_state_ssa) => {
                         ExecutableAnalysisAvailability::Available(ExecutableSemanticFacts {
@@ -135,7 +152,7 @@ impl SemanticAnalysisBundle {
             Ok(function) => ExecutableAnalysisAvailability::WorldStateNotRequired { function },
             Err(decline) => ExecutableAnalysisAvailability::SourceDeclined(decline),
         };
-        Self::from_executable(dialect, executable)
+        Self::from_executable(dialect, executable, entry_assumption)
     }
 
     /// Build an explicit unavailable bundle for a function build that did not
@@ -149,6 +166,7 @@ impl SemanticAnalysisBundle {
             } else {
                 ExecutableAnalysisAvailability::DialectUnavailable { dialect }
             },
+            DispatchEntryAssumption::UnknownWorld,
         )
     }
 
@@ -217,13 +235,21 @@ impl SemanticAnalysisBundle {
         }
     }
 
+    /// The dispatch entry contract this unit's world proofs are made under.
+    #[must_use]
+    pub const fn dispatch_entry_assumption(&self) -> DispatchEntryAssumption {
+        self.entry_assumption
+    }
+
     const fn from_executable(
         dialect: DialectSet,
         executable: ExecutableAnalysisAvailability,
+        entry_assumption: DispatchEntryAssumption,
     ) -> Self {
         Self {
             dialect,
             executable,
+            entry_assumption,
         }
     }
 }
@@ -428,6 +454,7 @@ fn interactive_gvn_needs_world_state(function: &ExecutableFunction) -> bool {
                 &invoke.resolution,
                 InvocationResolution::Resolved(facts)
                     if crate::gvn::resolved_invocation_is_gvn_candidate(facts)
+                        || crate::gvn::resolved_invocation_is_versioned_world_gvn_candidate(facts)
             )
         })
     })
@@ -463,7 +490,12 @@ mod tests {
     fn guarded_intrinsic_selection_requires_explicit_enablement() {
         let registry = CommandRegistry::build_default();
         let module = lower_to_ir("string length value", &registry);
-        let bundle = SemanticAnalysisBundle::build(&registry, DialectSet::TCL90, &module.top_level);
+        let bundle = SemanticAnalysisBundle::build(
+            &registry,
+            DialectSet::TCL90,
+            &module.top_level,
+            DispatchEntryAssumption::PristineRegistryWorld,
+        );
         let node = NodeId::from_path(vec![0]);
 
         let off = bundle.mixed_plan_with_optimisations(SemanticOptimisationConfig::default());
@@ -488,8 +520,12 @@ mod tests {
         };
         assert_eq!(tcl9.runtime_version(), tcl_dialect::TclVersion::V9_0);
 
-        let tcl8_bundle =
-            SemanticAnalysisBundle::build(&registry, DialectSet::TCL86, &module.top_level);
+        let tcl8_bundle = SemanticAnalysisBundle::build(
+            &registry,
+            DialectSet::TCL86,
+            &module.top_level,
+            DispatchEntryAssumption::PristineRegistryWorld,
+        );
         let tcl8 = tcl8_bundle.mixed_plan_with_optimisations(
             SemanticOptimisationConfig::new()
                 .with_enabled(SemanticOptimisationPassId::GuardedIntrinsic),

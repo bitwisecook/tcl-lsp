@@ -373,7 +373,7 @@ exists, a triggering example, and the fix:
 | **I** | Hints — constant conditions, unreachable arms |
 | **S** | [Shimmer detection](docs/kcs/codes/README.md) — values repeatedly converted between representations in hot paths, including [byte-array corruption](docs/kcs/features/kcs-feature-byte-array-corruption.md) (S110) |
 | **T** | [Taint analysis](docs/kcs/codes/README.md) — untrusted data reaching dangerous sinks, option positions, regex patterns, and network addresses |
-| **O** | [Optimiser](docs/kcs/features/kcs-feature-optimiser.md) suggestions — constant folding, propagation, dead code, LICM, strength reduction |
+| **O** | [Optimiser](docs/kcs/features/kcs-feature-optimiser.md) suggestions — constant folding, propagation, dead code, LICM, strength reduction, and repeated stable calls whose [dispatch is provably unobserved](docs/design/compiler/dispatch-stability-proof.md) |
 | **IRULE** | iRules-only checks — see [README-f5.md](README-f5.md#irules-diagnostic-codes) |
 
 Full tables: [diagnostic codes](docs/generated/diagnostic_codes.md) ·
@@ -585,6 +585,36 @@ proc main {}          { process "42" }
 # Incoming calls to 'validate': process
 # Outgoing calls from 'process': validate, store
 ```
+
+#### `source` links, including computed paths
+
+Every `source` argument the server can place becomes a clickable link, and
+the same resolved path drives navigation, cross-file diagnostics and load
+order — so a file reached through a computed path behaves exactly like one
+named literally.
+
+```tcl
+source lib/util.tcl                                    ;# literal
+source [file join [file dirname [info script]] x.tcl]  ;# [info script] idiom
+
+set dir [file dirname [info script]]
+set src [file join $dir src]
+source [file join $src parser.tcl]                     ;# chained constants
+
+namespace eval ::snit:: {
+    variable library [file dirname [info script]]
+}
+source [file join $::snit::library main1.tcl]          ;# namespace variable
+```
+
+A variable another file assigns resolves too, when every file that sources
+this one agrees on its value before sourcing (the OSVVM
+`${::osvvm::OsvvmScriptDirectory}/…` shape). A path the server cannot prove
+— built from `$argv`, from a write guarded by `if {![info exists …]}`, or
+from routes that disagree — produces no link rather than a guessed one.
+
+The link is offered on the file name itself, never across the surrounding
+substitution, so `[file join …]` keeps its normal syntax colouring.
 
 ### 6. Quick fixes and refactorings
 

@@ -107,6 +107,7 @@ pub mod dataflow_graph;
 pub mod dead_stores;
 pub mod def_use;
 mod depth_guard;
+pub mod dispatch_proof;
 pub mod dynamic_names;
 pub mod effect_ssa;
 pub mod executable_ir;

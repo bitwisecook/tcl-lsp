@@ -30,10 +30,16 @@
 //! ```
 //!
 //! The supported subset is `[info script]`, `[file dirname …]`,
-//! `[file join …]`, literal words, and `~`-prefixed paths.  Variable
-//! substitutions (`$auto_path`, `$env(…)`) and list-manipulation
-//! commands are *not* evaluated — anything outside the subset returns
-//! `None` and the caller skips the entry.  We never guess.
+//! `[file join …]`, `[file normalize …]` (anchored arguments only — see
+//! [`eval_file_normalize`]), literal words, and `~`-prefixed paths.
+//! Variable references (`$dir`, `${dir}`, `pre_$dir`) are resolved through
+//! whatever resolver the **caller** supplies — this module owns what a path
+//! expression *means*, the caller owns what a variable *is worth*, and the
+//! two compose through [`evaluate_auto_path_expr_with_resolver`].  A
+//! variable the resolver cannot answer (including every variable, for the
+//! resolver-less [`evaluate_auto_path_expr`]), an array element, or a
+//! list-manipulation command returns `None` and the caller skips the
+//! entry.  We never guess.
 //!
 //! The `signature_scan` handler records only the raw literal of
 //! each entry; this evaluator resolves those idioms.  It is consulted
@@ -81,12 +87,32 @@
 //! already anchors on its own base).
 
 use crate::analyser::types::{AutoPathEntry, AutoPathForm};
+use crate::segmenter::segment_commands_with_offset_and_config;
+use std::collections::HashMap;
 
-/// A parsed word: a literal, or a command substitution
-/// `[name arg …]`.
+/// A parsed word: a literal, a substitutable word, or a command
+/// substitution `[name arg …]`.
 enum Node {
+    /// A word taken verbatim — a braced group (Tcl performs no substitution
+    /// inside braces), or any word with no `$` in it.
     Lit(String),
+    /// A bare or double-quoted word containing `$` — Tcl *would* substitute
+    /// here, so [`eval`] folds it through the caller's variable resolver
+    /// ([`crate::text::fold_interpolation_single`]), never textually: a
+    /// resolved value containing spaces or brackets is still exactly one
+    /// word, where splicing it into the raw text and re-parsing would split
+    /// it (`$d` = `my dir` inside `[file join $d x]` is `my dir/x`, not
+    /// `my/dir/x`).
+    Subst(String),
     Cmd(String, Vec<Node>),
+}
+
+/// One lexical token: a structural bracket, or a word that remembers whether
+/// its spelling suppresses substitution (braced) or permits it (bare/quoted).
+enum Tok {
+    Open,
+    Close,
+    Word { text: String, verbatim: bool },
 }
 
 /// Every directory one recorded [`AutoPathEntry`] adds to `auto_path`.
@@ -113,10 +139,25 @@ enum Node {
 /// Entries outside the supported subset contribute nothing — we never guess.
 #[must_use]
 pub fn evaluate_auto_path_entry(entry: &AutoPathEntry, info_script: Option<&str>) -> Vec<String> {
+    evaluate_auto_path_entry_with_constants(entry, info_script, &HashMap::new())
+}
+
+/// [`evaluate_auto_path_entry`], with the document's single-assignment
+/// constants ([`constant_path_assignments`], folded) answering variable
+/// references — which is what carries the corpus idiom
+/// `set libDir [file join $dir lib]; lappend auto_path $libDir` (issue #775;
+/// georgtree/SpiceGenTcl's own `SpiceGenTcl.tcl` registers its `lib`
+/// directory exactly this way, and contributed nothing without it).
+#[must_use]
+pub fn evaluate_auto_path_entry_with_constants<S: std::hash::BuildHasher>(
+    entry: &AutoPathEntry,
+    info_script: Option<&str>,
+    constants: &HashMap<String, String, S>,
+) -> Vec<String> {
     let raw = entry.raw_path.as_str();
     if raw.contains('$') || raw.contains('[') {
         // Computed: fold it as an expression, as one directory.
-        return evaluate_auto_path_expr(raw, info_script)
+        return evaluate_auto_path_expr_with_constants(raw, info_script, constants)
             .into_iter()
             .collect();
     }
@@ -166,6 +207,71 @@ fn fold_path_value(value: &str) -> Option<String> {
 /// supported subset.
 #[must_use]
 pub fn evaluate_auto_path_expr(raw: &str, info_script: Option<&str>) -> Option<String> {
+    evaluate_auto_path_expr_with_constants(raw, info_script, &HashMap::new())
+}
+
+/// Whether `text` still carries an unevaluated substitution — a `$` variable
+/// reference or a `[` command substitution.
+///
+/// The segmenter reconstructs a word with its `${var}` / `[cmd]` markers
+/// intact, so their absence is reliable evidence the word is a plain literal
+/// (the same test `SignatureSource::is_literal` uses).  A word that still
+/// carries one is *not* a path, however plausible it looks spelled out.
+#[must_use]
+pub fn carries_substitution(text: &str) -> bool {
+    text.contains('$') || text.contains('[')
+}
+
+/// [`evaluate_auto_path_expr_with_resolver`] over a plain constant map — the
+/// convenience form for callers whose variable facts are already a
+/// `name → value` table, such as [`constant_path_vars`]'s.  Qualified
+/// spellings canonicalise on lookup, so `$::snit::library`, `$snit::library`
+/// (relative, read from the global context), and `$::dir` (a
+/// globally-qualified reference to a top-level global) all reach their key.
+///
+/// Names absent from `constants` stay unresolved, so the fold abstains on
+/// them exactly as it does on any other unevaluated substitution — passing an
+/// empty map is precisely [`evaluate_auto_path_expr`].
+#[must_use]
+pub fn evaluate_auto_path_expr_with_constants<S: std::hash::BuildHasher>(
+    raw: &str,
+    info_script: Option<&str>,
+    constants: &HashMap<String, String, S>,
+) -> Option<String> {
+    evaluate_auto_path_expr_with_resolver(raw, info_script, &|name| {
+        lookup_constant(constants, name)
+    })
+}
+
+/// The full evaluator: fold `raw` with variable references answered by
+/// `resolve_var` — the provenance/semantics split that makes this a shared
+/// lower layer rather than one consumer's helper.
+///
+/// This module owns what a path expression **means** (`[file join …]`,
+/// `[file dirname …]`, `[file normalize …]`, `[info script]`, `~`); the
+/// caller owns what a variable **is worth** at the point being analysed, and
+/// says so through `resolve_var`.  A simple consumer passes a single-
+/// assignment constant map ([`evaluate_auto_path_expr_with_constants`]); a
+/// consumer with real flow information (the analyser's constant-string
+/// lattice, an SCCP-backed value table) passes its own resolver and gets the
+/// same path semantics with better provenance — the evaluator does not care
+/// where the values came from, only that the caller vouches for them.
+///
+/// Resolution happens on the parsed expression, **never** by splicing values
+/// into the raw text and re-lexing: a value containing spaces is still one
+/// word (`$d` = `my dir` in `[file join $d x]` folds to `my dir/x`, where
+/// textual substitution would re-parse it as two words and answer
+/// `my/dir/x`), and a value containing `[` or `$` is data, not syntax to be
+/// re-interpreted.
+///
+/// An unresolved variable — `resolve_var` answering `None` — abstains the
+/// whole fold, the module-wide rule: we never guess.
+#[must_use]
+pub fn evaluate_auto_path_expr_with_resolver(
+    raw: &str,
+    info_script: Option<&str>,
+    resolve_var: &dyn Fn(&str) -> Option<String>,
+) -> Option<String> {
     let raw = raw.trim();
     if raw.is_empty() {
         return None;
@@ -183,11 +289,588 @@ pub fn evaluate_auto_path_expr(raw: &str, info_script: Option<&str>) -> Option<S
     let info_script = info_script
         .map(to_tcl_slash_form)
         .filter(|p| !is_drive_relative(p));
-    let result = eval(&node, info_script.as_deref())?;
+    let result = eval(&node, info_script.as_deref(), resolve_var)?;
     // Expand `~` and normalise (collapsing `..`) so the parent-dir idiom
     // resolves to a real directory.  A rootless result is left for the
     // caller to anchor.
     fold_path_value(&result)
+}
+
+/// Path-valued variables `source` assigns **exactly once** at its top level,
+/// mapped to their folded values — the map
+/// [`evaluate_auto_path_expr_with_constants`] consumes.
+///
+/// Assignments fold in document order, each one seeing the constants
+/// established before it, so a chain resolves:
+///
+/// ```tcl
+/// set dir       [file dirname [file normalize [info script]]]
+/// set sourceDir [file join $dir src]
+/// source [file join $sourceDir generalClasses.tcl]
+/// ```
+///
+/// Without the chain only `dir` folds, and every `source` built on
+/// `$sourceDir` abstains — the shape that leaves a whole package's worth of
+/// `source` lines unresolved (issue #775; georgtree/SpiceGenTcl's own
+/// `SpiceGenTcl.tcl` is seventeen such lines).
+///
+/// Deliberately narrow in two ways it must stay narrow:
+///
+/// * A name written by more than one top-level `set` is dropped **outright**,
+///   counted in a pre-pass rather than as the walk goes.  Last-write-wins
+///   would be wrong for a `source` sitting between the two writes, and
+///   first-write-wins wrong for one after both — so a re-assigned name
+///   contributes nothing, and contributes nothing to anything computed from
+///   it either.
+/// * Only values this evaluator can fold are kept, so nothing here can invent
+///   a target that the single-expression path would have refused.
+///
+/// Only top-level `set`s are seen at all: a body is one braced word to the
+/// segmenter, so an assignment inside a `proc` or an `if` never enters the
+/// map and never has to be reasoned about.
+#[must_use]
+pub fn constant_path_vars(
+    source: &str,
+    dialect: &str,
+    info_script: Option<&str>,
+) -> HashMap<String, String> {
+    fold_constant_assignments(&constant_path_assignments(source, dialect), info_script)
+}
+
+/// One recorded fact about a path-constant candidate: a write, a
+/// declaration, or a write that cannot be attributed.
+///
+/// Three kinds because the corpus needs all three distinguished
+/// (issue #775): ruff's `variable ruff_dir` **declaration** followed by an
+/// unconditional `set` must fold (so a declaration cannot count as a write),
+/// Tk's declaration plus *if-guarded* set must abstain (so a declaration
+/// must still mark namespace membership, blocking a bare read from falling
+/// through to an unrelated global), and a `set` in a namespace body whose
+/// target Tcl itself resolves dynamically must kill both candidate names
+/// (so "unattributable" must be expressible, not just "absent").
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PathConstantWrite {
+    /// Canonical variable name: `::`-rooted when namespace-qualified
+    /// (`::snit::library`), bare for a global (`dir`).
+    pub name: String,
+    /// The **execution** namespace the write ran in (canonical, empty for
+    /// the top level) — where a bare variable read in the value resolves,
+    /// which is *not* always the target's own namespace: alited's
+    /// `set ::e_menu_dir [file join $LIBDIR e_menu]` targets the global but
+    /// executes inside `namespace eval alited`, so `$LIBDIR` reads
+    /// `::alited::LIBDIR`.
+    pub ns: String,
+    /// Byte offset of the writing command in its document.  Cross-file
+    /// import (issue #1368) is position-gated on it: a parent's write flows
+    /// to a sourced child only when it precedes the `source` statement, so
+    /// an assignment *after* the source contributes nothing to it.
+    pub at: u32,
+    /// What this fact says about the name.
+    pub value: PathConstantValue,
+}
+
+/// The payload of one [`PathConstantWrite`].
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum PathConstantValue {
+    /// An assignment, with its raw (unfolded) value word.  `literal` is true
+    /// for a braced value: Tcl suppresses substitution inside braces, so
+    /// `set dir {$root}` assigns the five characters `$root`, and the fold
+    /// must keep the text as data rather than resolving it as a reference.
+    Raw {
+        /// The value word's text, delimiters stripped.
+        text: String,
+        /// Whether the word was braced — substitution-suppressed.
+        literal: bool,
+    },
+    /// A `variable name` declaration without a value — namespace membership
+    /// only.  Assigns nothing and does not count toward multi-write
+    /// poisoning, but a bare read of the name inside that namespace's body
+    /// resolves against it (and only it), never the global.
+    Declared,
+    /// A write whose target or value cannot be attributed statically.  The
+    /// name never folds, and unlike mere absence it also cannot be answered
+    /// by a fallback.
+    Poisoned,
+}
+
+/// The **raw** facts of [`constant_path_vars`]: every path-constant write the
+/// document's load-time surface performs, in document order, values unfolded.
+/// Multi-write poisoning happens at fold time
+/// ([`fold_constant_assignments`]), not here, so the raw list can be
+/// accumulated chunk by chunk without any chunk needing the whole document's
+/// write counts.
+///
+/// Split out from the fold so the fact can be *recorded* where only the text
+/// is known and *folded* where the document's own filesystem path is (the
+/// analyser stores this on `AnalysisResult`, the workspace index carries it,
+/// and the source-graph edge resolver folds it lazily per parent).  The raw
+/// form is deliberately path-independent: the same text yields the same
+/// facts wherever the file lives, which is what makes it safe to cache
+/// alongside the rest of the analysis.
+#[must_use]
+pub fn constant_path_assignments(source: &str, dialect: &str) -> Vec<PathConstantWrite> {
+    constant_path_assignments_from_commands(
+        &segment_commands_with_offset_and_config(
+            source,
+            0,
+            tcl_lexer::LexerConfig::for_dialect(dialect),
+        ),
+        dialect,
+    )
+}
+
+/// [`constant_path_assignments`] over already-segmented commands — the form
+/// the analyser's walk uses, which has the segmentation in hand and must not
+/// pay for a second one.  `dialect` configures the re-segmentation of
+/// `namespace eval` bodies, which are one braced word here.
+#[must_use]
+pub fn constant_path_assignments_from_commands(
+    commands: &[crate::segmenter::SegmentedCommand],
+    dialect: &str,
+) -> Vec<PathConstantWrite> {
+    let mut out: Vec<PathConstantWrite> = Vec::new();
+    collect_writes(commands, dialect, "", 0, &mut out);
+    out
+}
+
+/// A plain scalar variable word: no substitution markers, no array element.
+fn is_plain_scalar_name(name: &str) -> bool {
+    !name.is_empty() && !name.contains('$') && !name.contains('[') && !name.contains('(')
+}
+
+/// Canonical `::`-rooted form of a qualified name: split on `::`, drop empty
+/// segments (absorbing leading `::` and trailing-colon spellings like
+/// `::snit::`), re-root.  `canon("snit::")` and `canon("::snit")` are both
+/// `::snit`.
+fn canon(name: &str) -> String {
+    let mut out = String::new();
+    for segment in name.split("::").filter(|s| !s.is_empty()) {
+        out.push_str("::");
+        out.push_str(segment);
+    }
+    out
+}
+
+/// The canonical key for `name` written or declared under `ns_prefix`
+/// (`""` at the top level): a bare global stays bare, everything else roots.
+fn qualified_key(ns_prefix: &str, name: &str) -> String {
+    if name.starts_with("::") {
+        return canon(name);
+    }
+    if ns_prefix.is_empty() && !name.contains("::") {
+        return name.to_owned();
+    }
+    canon(&format!("{ns_prefix}::{name}"))
+}
+
+/// Walk one command stream under `ns_prefix`, appending facts to `out`.
+///
+/// The walk descends into `namespace eval NAME { … }` when NAME is a literal
+/// and the body is one braced word — the body runs unconditionally at load
+/// time, exactly like the commands around it, so its `variable` and `set`
+/// commands are load-time facts too (the corpus idiom: snit's, ruff's,
+/// alited's library directories all live in such a body).  A dynamic
+/// namespace name or a substituted body stays invisible, the same accepted
+/// blindness as an `if` body.
+///
+/// Write attribution inside a namespace body follows Tcl's own resolution:
+///
+/// * `variable` creates/writes in the **current** namespace, full stop —
+///   value'd pairs are [`PathConstantValue::Raw`] writes, a trailing lone
+///   name is a [`PathConstantValue::Declared`] membership fact.
+/// * `set name` resolves current-namespace-first, falling back to an
+///   **existing** global (the classic namespace-eval write trap).  It is
+///   attributed to the namespace when the body has already declared or
+///   written the name, to the global when the top level has already written
+///   it, and otherwise it is unattributable — Tcl's answer would depend on
+///   whether some *other* file created the global first — so both candidate
+///   names are [`PathConstantValue::Poisoned`].
+/// * `set ::abs::name` is absolute and attributes exactly; a *relative*
+///   qualified `set a::b` resolves current-first-then-global like any bare
+///   name, so both candidates poison.
+fn collect_writes(
+    commands: &[crate::segmenter::SegmentedCommand],
+    dialect: &str,
+    ns_prefix: &str,
+    base_offset: u32,
+    out: &mut Vec<PathConstantWrite>,
+) {
+    for seg in commands {
+        let words = &seg.texts;
+        if words.is_empty() {
+            continue;
+        }
+        match words[0].as_str() {
+            "set" if words.len() == 3 => {
+                collect_set_write(seg, ns_prefix, base_offset, out);
+            }
+            "variable" if words.len() >= 2 => {
+                // `variable ?name value…? name ?value?` — value'd pairs
+                // assign, a trailing lone name declares.  Names resolve in
+                // the current namespace (no global fallback — `variable`'s
+                // own rule, unlike `set`'s).
+                let mut i = 1;
+                while i < words.len() {
+                    let name = words[i].as_str();
+                    if !is_plain_scalar_name(name) {
+                        break;
+                    }
+                    let key = qualified_key(ns_prefix, name);
+                    let value = if i + 1 < words.len() {
+                        PathConstantValue::Raw {
+                            text: words[i + 1].clone(),
+                            literal: seg
+                                .argv
+                                .get(i + 1)
+                                .is_some_and(|tok| tok.kind == tcl_lexer::TokenType::Str)
+                                && seg.single_token_word.get(i + 1) == Some(&true),
+                        }
+                    } else {
+                        PathConstantValue::Declared
+                    };
+                    out.push(PathConstantWrite {
+                        name: key,
+                        ns: ns_prefix.to_owned(),
+                        at: base_offset + seg.span.start(),
+                        value,
+                    });
+                    i += 2;
+                }
+            }
+            "namespace"
+                if words.len() == 4
+                    && words[1] == "eval"
+                    && is_plain_scalar_name(&words[2])
+                    && !words[2].contains('$') =>
+            {
+                // Literal name + braced body only: braces mean the body text
+                // reached us unsubstituted, so re-segmenting it walks the
+                // commands Tcl would run.
+                let body_is_braced = seg
+                    .argv
+                    .get(3)
+                    .is_some_and(|tok| tok.kind == tcl_lexer::TokenType::Str)
+                    && seg.single_token_word.get(3) == Some(&true);
+                if !body_is_braced {
+                    continue;
+                }
+                // Always `::`-rooted, unlike a variable key (whose bare
+                // global spelling `qualified_key` preserves): this is a
+                // namespace name, and `::alited` is its only canonical form.
+                let child_prefix = if words[2].starts_with("::") {
+                    canon(&words[2])
+                } else {
+                    canon(&format!("{ns_prefix}::{}", words[2]))
+                };
+                let body_base = base_offset
+                    + seg
+                        .argv
+                        .get(3)
+                        .map_or(0, |tok| tok.span.start() + u32::from(tok.content_offset));
+                let body_commands = segment_commands_with_offset_and_config(
+                    &words[3],
+                    0,
+                    tcl_lexer::LexerConfig::for_dialect(dialect),
+                );
+                collect_writes(&body_commands, dialect, &child_prefix, body_base, out);
+            }
+            _ => {
+                poison_mutated_variables(seg, dialect, ns_prefix, base_offset, out);
+            }
+        }
+    }
+}
+
+/// Record one `set NAME VALUE` write, attributing it the way Tcl resolves
+/// the target: absolute names bind exactly, a bare name inside a namespace
+/// body resolves current-namespace-first **with a global fallback**, and a
+/// relative-qualified name has the same ambiguity.  Where the answer depends
+/// on state this tier cannot see, both candidate names are poisoned rather
+/// than one guessed — see [`collect_writes`] for the whole rule set.
+fn collect_set_write(
+    seg: &crate::segmenter::SegmentedCommand,
+    ns_prefix: &str,
+    base_offset: u32,
+    out: &mut Vec<PathConstantWrite>,
+) {
+    let words = &seg.texts;
+    let name = words[1].as_str();
+    if !is_plain_scalar_name(name) {
+        return;
+    }
+    let seen = |out: &Vec<PathConstantWrite>, key: &str| out.iter().any(|w| w.name == key);
+    let at = base_offset + seg.span.start();
+    let push = move |out: &mut Vec<PathConstantWrite>, key: String, value| {
+        out.push(PathConstantWrite {
+            name: key,
+            ns: ns_prefix.to_owned(),
+            at,
+            value,
+        });
+    };
+    let raw = PathConstantValue::Raw {
+        text: words[2].clone(),
+        literal: seg
+            .argv
+            .get(2)
+            .is_some_and(|tok| tok.kind == tcl_lexer::TokenType::Str)
+            && seg.single_token_word.get(2) == Some(&true),
+    };
+    if name.starts_with("::") {
+        push(out, canon(name), raw);
+    } else if name.contains("::") {
+        // Relative-qualified: current-ns-first, global fallback —
+        // unattributable, kill both candidates.
+        for key in [qualified_key(ns_prefix, name), canon(&format!("::{name}"))] {
+            push(out, key, PathConstantValue::Poisoned);
+        }
+    } else if ns_prefix.is_empty() {
+        push(out, name.to_owned(), raw);
+    } else {
+        let ns_key = qualified_key(ns_prefix, name);
+        if seen(out, &ns_key) {
+            push(out, ns_key, raw);
+        } else if seen(out, name) {
+            // The top level already wrote this global, so the body `set`
+            // writes it too (it exists).
+            push(out, name.to_owned(), raw);
+        } else {
+            for key in [ns_key, name.to_owned()] {
+                push(out, key, PathConstantValue::Poisoned);
+            }
+        }
+    }
+}
+
+/// Poison every path-constant candidate a load-time command **mutates**.
+///
+/// `set dir /a; append dir /b; source [file join $dir x.tcl]` loads
+/// `/a/b/x.tcl`, so `$dir` must fold to nothing rather than to the `set`'s
+/// value (issue #1370 review).  Which arguments a command writes is registry
+/// data ([`tcl_registry::ArgRole::VarWrite`]) rather than a command-name
+/// match (AGENTS.md), so every read-modify-write — `append`, `lappend`,
+/// `incr`, `dict set`, a user command whose spec says so — counts without
+/// being listed here.  An alias-creating command (`upvar`, `global`, marked
+/// [`tcl_registry::Traits::CREATES_SCOPE_ALIAS`]) binds *every* name it
+/// lists to a variable another scope may write, so each one poisons too.
+///
+/// Residuals, both shared with `unit_scope`'s equivalent write scan: a
+/// computed command head has no spec to read, and a computed target name is
+/// not a plain scalar.  Neither is modelled.
+fn poison_mutated_variables(
+    seg: &crate::segmenter::SegmentedCommand,
+    dialect: &str,
+    ns_prefix: &str,
+    base_offset: u32,
+    out: &mut Vec<PathConstantWrite>,
+) {
+    let words = &seg.texts;
+    let head = words[0].strip_prefix("::").unwrap_or(&words[0]);
+    // A 2-word `set` is a read; its 3-word write has its own arm.  A
+    // computed head has no spec.
+    if head == "set" || head.contains('$') || head.contains('[') {
+        return;
+    }
+    let registry = tcl_registry::registry_for_dialect(dialect);
+    let args: Vec<&str> = words[1..].iter().map(String::as_str).collect();
+    let mut written: Vec<&str> = registry
+        .arg_indices_for_role(head, &args, tcl_registry::ArgRole::VarWrite)
+        .into_iter()
+        .filter_map(|idx| args.get(idx).copied())
+        .collect();
+    if registry.get(head).is_some_and(|spec| {
+        spec.traits
+            .contains(tcl_registry::Traits::CREATES_SCOPE_ALIAS)
+    }) {
+        written.extend(args.iter().copied());
+    }
+    let at = base_offset + seg.span.start();
+    let poison = |out: &mut Vec<PathConstantWrite>, key: String| {
+        out.push(PathConstantWrite {
+            name: key,
+            ns: ns_prefix.to_owned(),
+            at,
+            value: PathConstantValue::Poisoned,
+        });
+    };
+    for name in written {
+        if !is_plain_scalar_name(name) {
+            continue;
+        }
+        // The `set` arm's target-attribution rules, every outcome poisoned:
+        // the keys must be the keys the fold counts (a bare global's key is
+        // the bare name).
+        if name.starts_with("::") {
+            poison(out, canon(name));
+        } else if name.contains("::") {
+            poison(out, qualified_key(ns_prefix, name));
+            poison(out, canon(&format!("::{name}")));
+        } else if ns_prefix.is_empty() {
+            poison(out, name.to_owned());
+        } else {
+            poison(out, qualified_key(ns_prefix, name));
+            poison(out, name.to_owned());
+        }
+    }
+}
+
+/// Look `name` (as written in an expression) up in the folded constants map,
+/// canonicalising qualified spellings: `$::snit::library`, `$snit::library`
+/// (relative, resolved from the global context), and `$::dir` (a
+/// globally-qualified reference to a top-level global) all reach their key.
+fn lookup_constant<S: std::hash::BuildHasher>(
+    constants: &HashMap<String, String, S>,
+    name: &str,
+) -> Option<String> {
+    if let Some(v) = constants.get(name) {
+        return Some(v.clone());
+    }
+    if name.contains("::") {
+        let rooted = canon(name);
+        if let Some(v) = constants.get(&rooted) {
+            return Some(v.clone());
+        }
+        // `$::dir` names the top-level global `dir`, whose key is bare.
+        if let Some(bare) = rooted.strip_prefix("::")
+            && !bare.contains("::")
+        {
+            return constants.get(bare).cloned();
+        }
+    }
+    None
+}
+
+/// Fold [`constant_path_assignments`]' raw facts into the `name → value` map
+/// [`evaluate_auto_path_expr_with_constants`] consumes.
+///
+/// Chaining: each assignment folds with the constants established before it,
+/// in document order, so a value naming a *later* constant does not fold.
+/// A bare variable read inside a namespaced assignment's value resolves
+/// namespace-first: if the namespace has the name at all (declared, written,
+/// or poisoned), the read is answered from it alone — never the global —
+/// which is Tcl's own read rule and what carries alited's in-body chain
+/// (`variable LIBDIR [file join $DIR lib]` reading the namespace's `DIR`).
+///
+/// Poisoning: a name with more than one [`PathConstantValue::Raw`] write, or
+/// any [`PathConstantValue::Poisoned`] fact, is dropped **outright** —
+/// counted in a pre-pass here rather than as the walk goes.  Last-write-wins
+/// would be wrong for a `source` sitting between the two writes, and
+/// first-write-wins wrong for one after both — so a re-assigned name
+/// contributes nothing, and contributes nothing to anything computed from it
+/// either.  A [`PathConstantValue::Declared`] fact counts toward neither.
+#[must_use]
+pub fn fold_constant_assignments(
+    assignments: &[PathConstantWrite],
+    info_script: Option<&str>,
+) -> HashMap<String, String> {
+    fold_constant_assignments_with_imports(assignments, info_script, &HashMap::new())
+}
+
+/// [`fold_constant_assignments`] with **imported** constants — values a
+/// source-graph ancestor established before this document runs (issue
+/// #1368; OSVVM's `StartUpShared.tcl` reads `::osvvm::OsvvmScriptDirectory`,
+/// which every file that sources it assigns first).
+///
+/// The returned map is the document's complete view: the imports, overlaid
+/// by the document's own folds.  Ownership rules, each load-bearing:
+///
+/// * A name this document **writes** ([`PathConstantValue::Raw`] or
+///   [`PathConstantValue::Poisoned`]) never answers from the import: a
+///   foldable single write replaces it, and an unfoldable or multiply
+///   written one *removes* it — the runtime overwrote the inherited value
+///   with something unknowable, so keeping the import would answer with a
+///   value the variable no longer has.
+/// * A bare [`PathConstantValue::Declared`] keeps the import: `variable X`
+///   inside the namespace does not unset a variable the ancestor already
+///   set.  (OSVVM's guarded `if {![info exists …]} { variable … }` writes
+///   are invisible to this tier, which is exactly right — under a sourcing
+///   parent the guard is false and the import is the value.)
+/// * Namespace membership for bare in-body reads includes imported names,
+///   so `variable home [file normalize ${OsvvmScriptDirectory}/..]` chains
+///   off the import inside `namespace eval ::osvvm`.
+#[must_use]
+pub fn fold_constant_assignments_with_imports<S: std::hash::BuildHasher>(
+    assignments: &[PathConstantWrite],
+    info_script: Option<&str>,
+    imported: &HashMap<String, String, S>,
+) -> HashMap<String, String> {
+    let mut writes: HashMap<&str, usize> = HashMap::new();
+    let mut known_names: std::collections::HashSet<&str> = std::collections::HashSet::new();
+    for w in assignments {
+        known_names.insert(w.name.as_str());
+        match w.value {
+            PathConstantValue::Raw { .. } => *writes.entry(w.name.as_str()).or_default() += 1,
+            // A poisoned name can never fold, however many raw writes it has.
+            PathConstantValue::Poisoned => *writes.entry(w.name.as_str()).or_default() += 2,
+            PathConstantValue::Declared => {}
+        }
+    }
+    // Own writes shadow the import entirely — see the ownership rules above.
+    let blocked = &writes;
+    let mut constants: HashMap<String, String> = HashMap::new();
+    for w in assignments {
+        let PathConstantValue::Raw { text: raw, literal } = &w.value else {
+            continue;
+        };
+        if writes.get(w.name.as_str()) != Some(&1) {
+            continue;
+        }
+        // Bare reads in the value resolve in the write's **execution**
+        // namespace first (recorded on the fact — not derivable from the
+        // key, whose namespace is the *target*'s).
+        let resolve = |name: &str| -> Option<String> {
+            let one = |key: &str| -> Option<String> {
+                if blocked.contains_key(key) {
+                    // Own-written: the document's fold is the only truth —
+                    // absent/poisoned means abstain, never the import.
+                    constants.get(key).cloned()
+                } else {
+                    imported.get(key).cloned()
+                }
+            };
+            if !name.contains("::") && !w.ns.is_empty() {
+                let ns_key = format!("{}::{name}", w.ns);
+                if known_names.contains(ns_key.as_str()) || imported.contains_key(&ns_key) {
+                    // The namespace has this name: resolve from it alone,
+                    // never the global.
+                    return one(&ns_key);
+                }
+            }
+            if let Some(v) = lookup_constant(&constants, name) {
+                return Some(v);
+            }
+            if name.contains("::") {
+                let rooted = canon(name);
+                if blocked.contains_key(rooted.as_str()) {
+                    return None;
+                }
+                return imported.get(&rooted).cloned();
+            }
+            one(name)
+        };
+        // A literal keeps its own text: a path with spaces (`set d "my dir"`)
+        // is one path value, not the several words the expression parser
+        // would split it into — and a braced value is *always* its own text,
+        // because braces suppressed substitution at assignment time.
+        let value = if !literal && carries_substitution(raw) {
+            evaluate_auto_path_expr_with_resolver(raw, info_script, &resolve)
+        } else {
+            Some(raw.clone())
+        };
+        if let Some(value) = value {
+            constants.insert(w.name.clone(), value);
+        }
+    }
+    if imported.is_empty() {
+        return constants;
+    }
+    let mut merged: HashMap<String, String> = imported
+        .iter()
+        .filter(|(name, _)| !blocked.contains_key(name.as_str()))
+        .map(|(name, value)| (name.clone(), value.clone()))
+        .collect();
+    merged.extend(constants);
+    merged
 }
 
 /// A native filesystem path as Tcl's slash form.
@@ -260,15 +943,14 @@ fn root_len(p: &str) -> Option<usize> {
     p.starts_with('/').then_some(1)
 }
 
-/// Split `text` into `[` / `]` / word tokens.  Brace groups are kept
-/// as a single word (brackets inside braces are literal); an
-/// unterminated brace / quote aborts with `None`.  One quirk: a brace
-/// word whose content is exactly `[` reads as an open bracket in
-/// `parse` (the `{[}`-as-open-bracket case).
-fn tokenise(text: &str) -> Option<Vec<String>> {
+/// Split `text` into bracket / word tokens.  Brace groups are kept as a
+/// single **verbatim** word (Tcl performs no substitution inside braces, and
+/// brackets inside braces are literal); bare and double-quoted words are
+/// substitutable.  An unterminated brace / quote aborts with `None`.
+fn tokenise(text: &str) -> Option<Vec<Tok>> {
     let b: Vec<char> = text.chars().collect();
     let n = b.len();
-    let mut tokens: Vec<String> = Vec::new();
+    let mut tokens: Vec<Tok> = Vec::new();
     let mut i = 0;
     while i < n {
         let ch = b[i];
@@ -277,7 +959,7 @@ fn tokenise(text: &str) -> Option<Vec<String>> {
             continue;
         }
         if ch == '[' || ch == ']' {
-            tokens.push(ch.to_string());
+            tokens.push(if ch == '[' { Tok::Open } else { Tok::Close });
             i += 1;
             continue;
         }
@@ -295,7 +977,10 @@ fn tokenise(text: &str) -> Option<Vec<String>> {
             if depth != 0 {
                 return None;
             }
-            tokens.push(b[i + 1..j - 1].iter().collect());
+            tokens.push(Tok::Word {
+                text: b[i + 1..j - 1].iter().collect(),
+                verbatim: true,
+            });
             i = j;
             continue;
         }
@@ -311,7 +996,10 @@ fn tokenise(text: &str) -> Option<Vec<String>> {
             if j >= n {
                 return None;
             }
-            tokens.push(b[i + 1..j].iter().collect());
+            tokens.push(Tok::Word {
+                text: b[i + 1..j].iter().collect(),
+                verbatim: false,
+            });
             i = j + 1;
             continue;
         }
@@ -319,51 +1007,73 @@ fn tokenise(text: &str) -> Option<Vec<String>> {
         while j < n && !b[j].is_whitespace() && b[j] != '[' && b[j] != ']' {
             j += 1;
         }
-        tokens.push(b[i..j].iter().collect());
+        tokens.push(Tok::Word {
+            text: b[i..j].iter().collect(),
+            verbatim: false,
+        });
         i = j;
     }
     Some(tokens)
 }
 
 /// Parse a single word starting at `pos`; returns `(node, next_pos)`.
-fn parse(tokens: &[String], mut pos: usize) -> (Option<Node>, usize) {
+///
+/// A substitutable word containing `$` parses as [`Node::Subst`]; everything
+/// else word-shaped is [`Node::Lit`].  A braced word is always `Lit`, even
+/// when it spells `$` or `[` — braces suppress substitution in Tcl, so
+/// `{$d}` names a file literally called `$d` and `{[}` is a literal `[`
+/// (this used to mis-read as an open bracket when tokens were bare strings).
+fn parse(tokens: &[Tok], mut pos: usize) -> (Option<Node>, usize) {
     let Some(tok) = tokens.get(pos) else {
         return (None, pos);
     };
-    if tok == "[" {
-        pos += 1;
-        let Some(name) = tokens.get(pos) else {
-            return (None, pos);
-        };
-        let name = name.clone();
-        pos += 1;
-        let mut args: Vec<Node> = Vec::new();
-        while pos < tokens.len() && tokens[pos] != "]" {
-            let (node, next) = parse(tokens, pos);
-            pos = next;
-            match node {
-                Some(n) => args.push(n),
-                None => return (None, pos),
+    match tok {
+        Tok::Open => {
+            pos += 1;
+            let Some(Tok::Word { text: name, .. }) = tokens.get(pos) else {
+                return (None, pos);
+            };
+            let name = name.clone();
+            pos += 1;
+            let mut args: Vec<Node> = Vec::new();
+            while pos < tokens.len() && !matches!(tokens[pos], Tok::Close) {
+                let (node, next) = parse(tokens, pos);
+                pos = next;
+                match node {
+                    Some(n) => args.push(n),
+                    None => return (None, pos),
+                }
             }
+            if pos >= tokens.len() {
+                return (None, pos);
+            }
+            pos += 1; // consume `]`
+            (Some(Node::Cmd(name, args)), pos)
         }
-        if pos >= tokens.len() {
-            return (None, pos);
+        Tok::Close => (None, pos),
+        Tok::Word { text, verbatim } => {
+            let node = if !verbatim && text.contains('$') {
+                Node::Subst(text.clone())
+            } else {
+                Node::Lit(text.clone())
+            };
+            (Some(node), pos + 1)
         }
-        pos += 1; // consume `]`
-        return (Some(Node::Cmd(name, args)), pos);
     }
-    if tok == "]" {
-        return (None, pos);
-    }
-    (Some(Node::Lit(tok.clone())), pos + 1)
 }
 
-/// Evaluate a parsed node to a path string (pre-normalisation).
-fn eval(node: &Node, info_script: Option<&str>) -> Option<String> {
+/// Evaluate a parsed node to a path string (pre-normalisation), answering
+/// variable references through `resolve_var`.
+fn eval(
+    node: &Node,
+    info_script: Option<&str>,
+    resolve_var: &dyn Fn(&str) -> Option<String>,
+) -> Option<String> {
     match node {
         Node::Lit(value) => {
-            // Reject any word still carrying a variable substitution —
-            // we refuse to guess.
+            // A verbatim word carrying `$` would name a file with a literal
+            // dollar in it — legal, vanishingly rare, and impossible to
+            // distinguish from an authoring mistake, so abstain.
             if value.contains('$') {
                 None
             } else {
@@ -372,22 +1082,30 @@ fn eval(node: &Node, info_script: Option<&str>) -> Option<String> {
                 Some(to_tcl_slash_form(value))
             }
         }
+        // Resolution happens on the parsed word, via the interpolation
+        // folder's own segment grammar (which also rejects array-indexed
+        // names and stray `[`) — never by splicing text and re-lexing.
+        Node::Subst(word) => crate::text::fold_interpolation_single(word, |name| resolve_var(name))
+            .map(|v| to_tcl_slash_form(&v)),
         Node::Cmd(name, args) => {
             if name == "info" && args.len() == 1 {
-                return match eval(&args[0], info_script).as_deref() {
+                return match eval(&args[0], info_script, resolve_var).as_deref() {
                     Some("script") => info_script.map(str::to_owned),
                     _ => None,
                 };
             }
             if name == "file" && args.len() >= 2 {
-                let sub = eval(&args[0], info_script)?;
+                let sub = eval(&args[0], info_script, resolve_var)?;
                 if sub == "dirname" && args.len() == 2 {
-                    return Some(path_dirname(&eval(&args[1], info_script)?));
+                    return Some(path_dirname(&eval(&args[1], info_script, resolve_var)?));
+                }
+                if sub == "normalize" && args.len() == 2 {
+                    return eval_file_normalize(&eval(&args[1], info_script, resolve_var)?);
                 }
                 if sub == "join" && args.len() >= 2 {
                     let mut parts: Vec<String> = Vec::new();
                     for a in &args[1..] {
-                        parts.push(eval(a, info_script)?);
+                        parts.push(eval(a, info_script, resolve_var)?);
                     }
                     if parts.is_empty() {
                         return None;
@@ -398,6 +1116,36 @@ fn eval(node: &Node, info_script: Option<&str>) -> Option<String> {
             None
         }
     }
+}
+
+/// `file normalize` in slash form, or `None` when the argument is not already
+/// anchored.
+///
+/// `file normalize` always *returns* an absolute path: given a relative one it
+/// resolves against the interpreter's run-time working directory, which is
+/// exactly the fact this module refuses to guess at (module docs, "A relative
+/// result stays relative").  So only an anchored argument folds — by a literal
+/// root, or by `~`, which [`expanduser`] resolves here for the same reason
+/// [`fold_path_value`] does at the top level.
+///
+/// For an anchored path the command's remaining work is collapsing `.` and
+/// `..`, which [`normpath`] already does.  Symbolic links are *not* resolved:
+/// tclsh follows them, and this cannot without touching the filesystem — the
+/// gap is deliberate, and it only ever leaves a path a reader would recognise
+/// rather than one pointing somewhere else.
+///
+/// This is what makes the corpus idiom fold — `set dir [file normalize [file
+/// dirname [info script]]]`, and the equivalent `[file dirname [file normalize
+/// [info script]]]`, both of which are anchored by `[info script]`.  Without
+/// it every `source [file join $dir …]` in a file written that way abstained
+/// (issue #775).
+/// A drive-relative `C:foo` is rejected by the same test, since [`root_len`]
+/// only counts `X:/` as a root — it names a per-drive working directory, which
+/// is no more knowable than the process-wide one.
+fn eval_file_normalize(path: &str) -> Option<String> {
+    let expanded = expanduser(&to_tcl_slash_form(path));
+    root_len(&expanded)?;
+    Some(normpath(&expanded))
 }
 
 /// `file dirname` in slash form — everything up to (not including) the last
@@ -665,6 +1413,555 @@ mod tests {
         );
     }
 
+    // `file normalize` — the wrapper the corpus writes around the
+    // `[info script]` idiom, and the reason every `source [file join $dir …]`
+    // in a file spelled that way used to abstain (issue #775).
+
+    /// Both nestings of the corpus idiom fold, and to the same directory.
+    ///
+    /// Oracle (tclsh 8.6.16 / 9.0.4): with `[info script]` reporting
+    /// `/proj/test/arbitaryTest.tcl`, both spellings answer `/proj/test`.
+    #[test]
+    fn file_normalize_folds_the_info_script_idiom() {
+        for expr in [
+            "[file normalize [file dirname [info script]]]",
+            "[file dirname [file normalize [info script]]]",
+        ] {
+            assert_eq!(
+                evaluate_auto_path_expr(expr, Some("/proj/test/arbitaryTest.tcl")).as_deref(),
+                Some("/proj/test"),
+                "{expr} must fold",
+            );
+        }
+    }
+
+    /// `file normalize` collapses `.` and `..` like the rest of the module.
+    #[test]
+    fn file_normalize_collapses_dot_segments() {
+        assert_eq!(
+            evaluate_auto_path_expr("[file normalize /proj/test/../lib/.]", None).as_deref(),
+            Some("/proj/lib"),
+        );
+    }
+
+    /// A relative argument does not fold: `file normalize` would resolve it
+    /// against the interpreter's working directory, which is not knowable
+    /// statically — and inventing the analysing process's own cwd is the one
+    /// answer that is always wrong.
+    #[test]
+    fn file_normalize_of_a_relative_path_is_none() {
+        for expr in [
+            "[file normalize lib]",
+            "[file normalize ../lib]",
+            "[file normalize [file dirname helper.tcl]]",
+            "[file normalize C:lib]",
+        ] {
+            assert_eq!(
+                evaluate_auto_path_expr(expr, Some("/proj/test/caller.tcl")),
+                None,
+                "{expr} must abstain",
+            );
+        }
+    }
+
+    /// Anchored by `~` rather than a literal root, expanded the same way the
+    /// top-level fold expands it.
+    #[test]
+    fn file_normalize_expands_tilde() {
+        temp_env::with_var("HOME", Some("/home/tester"), || {
+            assert_eq!(
+                evaluate_auto_path_expr("[file normalize ~/lib/..]", None).as_deref(),
+                Some("/home/tester"),
+            );
+        });
+    }
+
+    // Chained single-assignment constants (issue #775).
+
+    /// A directory reached through an intermediate folds, so the whole chain
+    /// resolves — georgtree/SpiceGenTcl's own `SpiceGenTcl.tcl` shape.
+    ///
+    /// Oracle (tclsh 8.6.16 / 9.0.4): running `/proj/SpiceGenTcl.tcl`, `dir`
+    /// is `/proj` and `sourceDir` is `/proj/src`.
+    #[test]
+    fn constants_fold_through_a_chain() {
+        let src = "set dir [file dirname [file normalize [info script]]]\n\
+                   set libDir [file join $dir lib]\n\
+                   set sourceDir [file join $dir src]\n";
+        let constants = constant_path_vars(src, "tcl", Some("/proj/SpiceGenTcl.tcl"));
+        assert_eq!(constants.get("dir").map(String::as_str), Some("/proj"));
+        assert_eq!(
+            constants.get("libDir").map(String::as_str),
+            Some("/proj/lib")
+        );
+        assert_eq!(
+            constants.get("sourceDir").map(String::as_str),
+            Some("/proj/src"),
+        );
+        assert_eq!(
+            evaluate_auto_path_expr_with_constants(
+                "[file join $sourceDir ngspice x.tcl]",
+                Some("/proj/SpiceGenTcl.tcl"),
+                &constants,
+            )
+            .as_deref(),
+            Some("/proj/src/ngspice/x.tcl"),
+        );
+    }
+
+    /// Order matters: a value naming a constant established *later* does not
+    /// fold, because at that point in the file the name has no value.
+    #[test]
+    fn a_constant_used_before_it_is_assigned_does_not_fold() {
+        let src = "set early [file join $late x]\n\
+                   set late /opt\n";
+        let constants = constant_path_vars(src, "tcl", None);
+        assert_eq!(constants.get("late").map(String::as_str), Some("/opt"));
+        assert!(!constants.contains_key("early"), "{constants:?}");
+    }
+
+    /// A re-assigned name contributes nothing — and nothing computed from it
+    /// contributes either, since the poison is counted in a pre-pass rather
+    /// than as the walk goes.  Which value a later `source` sees is a flow
+    /// question this map does not answer.
+    #[test]
+    fn a_reassigned_name_poisons_itself_and_its_dependents() {
+        let src = "set dir /opt/a\n\
+                   set sub [file join $dir sub]\n\
+                   set dir /opt/b\n";
+        let constants = constant_path_vars(src, "tcl", None);
+        assert!(!constants.contains_key("dir"), "{constants:?}");
+        assert!(
+            !constants.contains_key("sub"),
+            "a value computed from a poisoned name must not survive: {constants:?}",
+        );
+    }
+
+    /// A resolved value containing spaces is **one** path element, exactly as
+    /// `file join {my dir} x` treats its arguments (filename(n): join takes
+    /// arguments, not words — a space is just a character).  Oracle, tclsh
+    /// 8.6.14: `set d "my dir"; file join $d x` → `my dir/x`, and a `source`
+    /// through such a join really loads from the spaced directory.  This is
+    /// the case that makes node-based resolution obligatory: splicing
+    /// `my dir` into the raw text and re-lexing splits it into two words and
+    /// answers `my/dir/x`.
+    #[test]
+    fn a_constant_with_spaces_folds_as_one_join_element() {
+        let src = "set d {my dir}\nset sub [file join $d x]\n";
+        let constants = constant_path_vars(src, "tcl", None);
+        assert_eq!(constants.get("d").map(String::as_str), Some("my dir"));
+        assert_eq!(constants.get("sub").map(String::as_str), Some("my dir/x"));
+        assert_eq!(
+            evaluate_auto_path_expr_with_constants("[file join $d y.tcl]", None, &constants)
+                .as_deref(),
+            Some("my dir/y.tcl"),
+        );
+    }
+
+    /// A mixed word — literal text around the reference — folds through the
+    /// same interpolation grammar, so `source $base/lib/x.tcl` resolves.
+    #[test]
+    fn a_mixed_word_resolves_through_the_resolver() {
+        let constants: HashMap<String, String> = [("base".to_owned(), "/opt".to_owned())]
+            .into_iter()
+            .collect();
+        assert_eq!(
+            evaluate_auto_path_expr_with_constants("$base/lib/x.tcl", None, &constants).as_deref(),
+            Some("/opt/lib/x.tcl"),
+        );
+        assert_eq!(
+            evaluate_auto_path_expr_with_constants("${base}2/x.tcl", None, &constants).as_deref(),
+            Some("/opt2/x.tcl"),
+        );
+    }
+
+    /// Braces suppress substitution: `{$d}` names a file with a literal `$`
+    /// in it, and the fold abstains on it even when the resolver knows `d` —
+    /// resolving there would be inventing a substitution Tcl never performs.
+    #[test]
+    fn a_braced_dollar_word_is_never_resolved() {
+        let constants: HashMap<String, String> =
+            [("d".to_owned(), "/opt".to_owned())].into_iter().collect();
+        assert_eq!(
+            evaluate_auto_path_expr_with_constants("[file join {$d} x]", None, &constants),
+            None,
+        );
+    }
+
+    /// The resolver entry point is the lower-layer contract: any caller with
+    /// its own variable facts — the analyser's constant-string lattice, an
+    /// SCCP value table — plugs in here without this module knowing it.
+    #[test]
+    fn a_custom_resolver_supplies_variable_provenance() {
+        let folded =
+            evaluate_auto_path_expr_with_resolver("[file join $root pkg]", None, &|name| {
+                (name == "root").then(|| "/from/lattice".to_owned())
+            });
+        assert_eq!(folded.as_deref(), Some("/from/lattice/pkg"));
+        // An unresolved name abstains the whole fold — never a guess.
+        assert_eq!(
+            evaluate_auto_path_expr_with_resolver("[file join $other pkg]", None, &|_| None),
+            None,
+        );
+    }
+
+    /// Assignments inside a body are not top-level and never enter the map:
+    /// the segmenter sees the `proc` body as one braced word.
+    #[test]
+    fn a_set_inside_a_body_is_not_a_top_level_constant() {
+        let src = "proc p {} {\n    set inner /opt\n}\n";
+        let constants = constant_path_vars(src, "tcl", None);
+        assert!(!constants.contains_key("inner"), "{constants:?}");
+    }
+
+    // Namespace-variable path constants (issue #775) — each test is a
+    // corpus shape, named for the project that writes it.
+
+    /// tcllib snit's shape, verbatim: `variable` with a value inside a
+    /// `namespace eval ::snit:: { … }` (trailing colons and all), consumed
+    /// by a fully-qualified reference in the same file.
+    #[test]
+    fn snit_variable_with_value_in_namespace_eval_folds() {
+        let src = "namespace eval ::snit:: {\n\
+                   \x20   variable library [file dirname [info script]]\n\
+                   }\n";
+        let constants = constant_path_vars(src, "tcl", Some("/lib/snit/snit.tcl"));
+        assert_eq!(
+            constants.get("::snit::library").map(String::as_str),
+            Some("/lib/snit"),
+        );
+        assert_eq!(
+            evaluate_auto_path_expr_with_constants(
+                "[file join $::snit::library main1.tcl]",
+                Some("/lib/snit/snit.tcl"),
+                &constants,
+            )
+            .as_deref(),
+            Some("/lib/snit/main1.tcl"),
+        );
+    }
+
+    /// ruff's shape: a *nested relative* `namespace eval private` inside
+    /// `namespace eval ruff`, with a value-less `variable` declaration
+    /// followed by an unconditional `set` — the declaration must not count
+    /// as a write, or the set would look like a second one and poison.
+    #[test]
+    fn ruff_declaration_then_set_in_nested_namespace_folds() {
+        let src = "namespace eval ruff {\n\
+                   \x20   namespace eval private {\n\
+                   \x20       variable ruff_dir\n\
+                   \x20       set ruff_dir [file dirname [info script]]\n\
+                   \x20       variable names\n\
+                   \x20       set names(display) \"Ruff!\"\n\
+                   \x20   }\n\
+                   }\n";
+        let constants = constant_path_vars(src, "tcl", Some("/proj/src/ruff.tcl"));
+        assert_eq!(
+            constants
+                .get("::ruff::private::ruff_dir")
+                .map(String::as_str),
+            Some("/proj/src"),
+            "{constants:?}",
+        );
+        // The array-element set is neither recorded nor allowed to disturb
+        // anything else.
+        assert!(!constants.contains_key("::ruff::private::names(display)"));
+    }
+
+    /// alited's shape: a multi-hop bare chain *inside* the namespace body —
+    /// each `variable` value reads the previous one by bare name, which
+    /// resolves namespace-first exactly as Tcl reads it — consumed by
+    /// qualified references.
+    #[test]
+    fn alited_bare_chain_inside_namespace_body_folds() {
+        let src = "namespace eval alited {\n\
+                   \x20   variable DIR [file normalize [file dirname [info script]]]\n\
+                   \x20   variable LIBDIR [file join $DIR lib]\n\
+                   \x20   variable HLDIR [file join $LIBDIR hl_tcl]\n\
+                   }\n";
+        let constants = constant_path_vars(src, "tcl", Some("/app/src/alited.tcl"));
+        assert_eq!(
+            constants.get("::alited::HLDIR").map(String::as_str),
+            Some("/app/src/lib/hl_tcl"),
+            "{constants:?}",
+        );
+        assert_eq!(
+            evaluate_auto_path_expr_with_constants(
+                "[file join $::alited::HLDIR hl_c.tcl]",
+                Some("/app/src/alited.tcl"),
+                &constants,
+            )
+            .as_deref(),
+            Some("/app/src/lib/hl_tcl/hl_c.tcl"),
+        );
+    }
+
+    // Cross-file imports (issue #1368) — the fold-level half: how one
+    // document's fold consumes values its source-graph ancestors provide.
+    // The graph half lives with the workspace index.
+
+    /// OSVVM's `StartUpShared.tcl` shape: the reader's only writes of the
+    /// imported name are if-guarded (invisible), an unguarded `variable` in
+    /// the same namespace chains off the imported value by bare reference,
+    /// and a `source` folds through the qualified one.
+    #[test]
+    fn osvvm_reader_chains_off_an_imported_namespace_constant() {
+        let imported: HashMap<String, String> = [(
+            "::osvvm::OsvvmScriptDirectory".to_owned(),
+            "/scripts".to_owned(),
+        )]
+        .into_iter()
+        .collect();
+        let src = "namespace eval ::osvvm {\n\
+                   \x20   if {![info exists OsvvmScriptDirectory]} {\n\
+                   \x20       variable OsvvmScriptDirectory ${SCRIPT_DIR}\n\
+                   \x20   }\n\
+                   \x20   variable OsvvmHomeDirectory [file normalize ${OsvvmScriptDirectory}/..]\n\
+                   }\n";
+        let merged = fold_constant_assignments_with_imports(
+            &constant_path_assignments(src, "tcl"),
+            Some("/scripts/StartUpShared.tcl"),
+            &imported,
+        );
+        assert_eq!(
+            merged
+                .get("::osvvm::OsvvmHomeDirectory")
+                .map(String::as_str),
+            Some("/"),
+            "the in-namespace bare read must chain off the import: {merged:?}",
+        );
+        // The import itself survives into the merged view for the reader's
+        // own `source ${::osvvm::OsvvmScriptDirectory}/x.tcl` lines.
+        assert_eq!(
+            evaluate_auto_path_expr_with_constants(
+                "${::osvvm::OsvvmScriptDirectory}/OsvvmScriptsCore.tcl",
+                Some("/scripts/StartUpShared.tcl"),
+                &merged,
+            )
+            .as_deref(),
+            Some("/scripts/OsvvmScriptsCore.tcl"),
+        );
+    }
+
+    /// A name the reader itself writes never answers from the import: a
+    /// foldable single write replaces it, an unfoldable one removes it —
+    /// the runtime overwrote the inherited value with something this tier
+    /// cannot know.
+    #[test]
+    fn an_own_write_shadows_or_removes_the_import() {
+        let imported: HashMap<String, String> = [("dir".to_owned(), "/inherited".to_owned())]
+            .into_iter()
+            .collect();
+        let replaced = fold_constant_assignments_with_imports(
+            &constant_path_assignments("set dir /own\n", "tcl"),
+            None,
+            &imported,
+        );
+        assert_eq!(replaced.get("dir").map(String::as_str), Some("/own"));
+        let removed = fold_constant_assignments_with_imports(
+            &constant_path_assignments("set dir [pwd]\n", "tcl"),
+            None,
+            &imported,
+        );
+        assert!(
+            !removed.contains_key("dir"),
+            "an unfoldable own write must remove the import, not defer to it: {removed:?}",
+        );
+    }
+
+    /// alited's cross-target write: `set ::e_menu_dir [file join $LIBDIR
+    /// e_menu]` **targets** the global but **executes** inside `namespace
+    /// eval alited`, so its `$LIBDIR` reads `::alited::LIBDIR` — the write's
+    /// execution namespace is a recorded fact of its own, not derivable from
+    /// the target key.  A later `variable PAVEDIR [file join $::e_menu_dir
+    /// src]` then reads the global back by qualified name.
+    #[test]
+    fn alited_global_target_written_from_namespace_body_folds() {
+        let src = "namespace eval alited {\n\
+                   \x20   variable LIBDIR [file dirname [info script]]\n\
+                   \x20   set ::e_menu_dir [file join $LIBDIR e_menu]\n\
+                   \x20   variable PAVEDIR [file join $::e_menu_dir src]\n\
+                   }\n";
+        let constants = constant_path_vars(src, "tcl", Some("/app/alited.tcl"));
+        assert_eq!(
+            constants.get("::e_menu_dir").map(String::as_str),
+            Some("/app/e_menu"),
+            "{constants:?}",
+        );
+        assert_eq!(
+            constants.get("::alited::PAVEDIR").map(String::as_str),
+            Some("/app/e_menu/src"),
+            "{constants:?}",
+        );
+    }
+
+    /// A read-modify-write (`append`) poisons its target: the value after it
+    /// is not the `set`'s.  Recognised through the registry's
+    /// [`tcl_registry::ArgRole::VarWrite`] roles, so every mutating command
+    /// counts, not a hand-listed few (issue #1370 review).
+    #[test]
+    fn a_read_modify_write_poisons_the_constant() {
+        for src in [
+            "set dir /a\nappend dir /b\n",
+            "set dir /a\nlappend dir x\n",
+            "set dir /a\nset other [file join $dir y]\nincr dir\n",
+        ] {
+            let constants = constant_path_vars(src, "tcl", None);
+            assert!(
+                !constants.contains_key("dir"),
+                "a mutated name must not fold to its first value: {src:?} -> {constants:?}",
+            );
+        }
+        // And nothing computed *from* it folds either.
+        let constants = constant_path_vars(
+            "set dir /a\nset sub [file join $dir s]\nappend dir /b\n",
+            "tcl",
+            None,
+        );
+        assert!(!constants.contains_key("sub"), "{constants:?}");
+    }
+
+    /// `upvar`/`global` bind a name to a variable another scope may write —
+    /// the registry marks them `CREATES_SCOPE_ALIAS`, and every listed name
+    /// poisons.
+    #[test]
+    fn a_scope_alias_poisons_every_bound_name() {
+        let constants = constant_path_vars("set dir /a\nupvar 1 elsewhere dir\n", "tcl", None);
+        assert!(!constants.contains_key("dir"), "{constants:?}");
+    }
+
+    /// A braced value is data: Tcl suppressed substitution when it was
+    /// assigned, so `$root` inside it is five characters, not a reference
+    /// (issue #1370 review).
+    #[test]
+    fn a_braced_value_is_literal_data() {
+        let constants = constant_path_vars("set root /a\nset dir {$root}\n", "tcl", None);
+        assert_eq!(constants.get("dir").map(String::as_str), Some("$root"));
+        assert_eq!(
+            evaluate_auto_path_expr_with_constants("[file join $dir x.tcl]", None, &constants,)
+                .as_deref(),
+            Some("$root/x.tcl"),
+            "the folded target is the literal directory Tcl would use",
+        );
+        // The quoted twin *does* substitute — the distinction is real.
+        let quoted = constant_path_vars("set root /a\nset dir \"$root\"\n", "tcl", None);
+        assert_eq!(quoted.get("dir").map(String::as_str), Some("/a"));
+    }
+
+    /// A relative qualified reference (`$demo::dir`, no leading `::`) read
+    /// from the global context reaches the same key.
+    #[test]
+    fn a_relative_qualified_reference_resolves() {
+        let src = "namespace eval demo {\n    variable dir [file dirname [info script]]\n}\n";
+        let constants = constant_path_vars(src, "tcl", Some("/ex/config.tcl"));
+        assert_eq!(
+            evaluate_auto_path_expr_with_constants(
+                "[file join $demo::dir config.tcl]",
+                Some("/ex/config.tcl"),
+                &constants,
+            )
+            .as_deref(),
+            Some("/ex/config.tcl"),
+        );
+    }
+
+    /// Tk ttk's shape must keep abstaining: the declaration marks the name,
+    /// but the only `set` hides behind `if {![info exists library]}` — a
+    /// braced body this tier deliberately does not see — so the value is
+    /// statically unknown and `$::ttk::library` folds to nothing.
+    #[test]
+    fn ttk_if_guarded_set_still_abstains() {
+        let src = "namespace eval ttk {\n\
+                   \x20   variable library\n\
+                   \x20   if {![info exists library]} {\n\
+                   \x20       set library [file dirname [info script]]\n\
+                   \x20   }\n\
+                   }\n";
+        let constants = constant_path_vars(src, "tcl", Some("/tk/ttk/ttk.tcl"));
+        assert!(!constants.contains_key("::ttk::library"), "{constants:?}");
+        assert_eq!(
+            evaluate_auto_path_expr_with_constants(
+                "[file join $::ttk::library fonts.tcl]",
+                Some("/tk/ttk/ttk.tcl"),
+                &constants,
+            ),
+            None,
+        );
+    }
+
+    /// A declared namespace name also *blocks* a bare in-body read from
+    /// falling through to an unrelated global of the same name — Tcl reads
+    /// the namespace's variable, whose value we do not know.
+    #[test]
+    fn a_declared_namespace_name_shadows_the_global_for_body_reads() {
+        let src = "set library /wrong/global\n\
+                   namespace eval ttk {\n\
+                   \x20   variable library\n\
+                   \x20   variable sub [file join $library themes]\n\
+                   }\n";
+        let constants = constant_path_vars(src, "tcl", None);
+        assert!(
+            !constants.contains_key("::ttk::sub"),
+            "a bare read of a declared-but-valueless namespace name must \
+             abstain, not bind the global: {constants:?}",
+        );
+    }
+
+    /// An unattributable body `set` — no prior declaration in the namespace,
+    /// no prior top-level global — poisons both candidate names: Tcl's own
+    /// answer depends on whether some other file created the global first.
+    #[test]
+    fn an_unattributable_body_set_poisons_both_candidates() {
+        let src = "namespace eval foo {\n    set dir /opt/foo\n}\n\
+                   set dir /opt/global\n";
+        let constants = constant_path_vars(src, "tcl", None);
+        assert!(!constants.contains_key("::foo::dir"), "{constants:?}");
+        assert!(
+            !constants.contains_key("dir"),
+            "the later top-level set is the global's second possible write: {constants:?}",
+        );
+    }
+
+    /// A body `set` of a name the top level already wrote goes to the
+    /// existing global (Tcl's write fallback) — making it a second write,
+    /// which poisons the global.
+    #[test]
+    fn a_body_set_of_an_existing_global_counts_as_its_write() {
+        let src = "set dir /opt/first\n\
+                   namespace eval foo {\n    set dir /opt/second\n}\n";
+        let constants = constant_path_vars(src, "tcl", None);
+        assert!(!constants.contains_key("dir"), "{constants:?}");
+        assert!(!constants.contains_key("::foo::dir"), "{constants:?}");
+    }
+
+    /// `variable` pairs: value'd names assign, the trailing lone name only
+    /// declares.
+    #[test]
+    fn variable_pairs_assign_and_a_trailing_name_declares() {
+        let src = "namespace eval cfg {\n\
+                   \x20   variable base /opt/app sub lib pending\n\
+                   }\n";
+        let constants = constant_path_vars(src, "tcl", None);
+        assert_eq!(
+            constants.get("::cfg::base").map(String::as_str),
+            Some("/opt/app")
+        );
+        assert_eq!(constants.get("::cfg::sub").map(String::as_str), Some("lib"));
+        assert!(!constants.contains_key("::cfg::pending"));
+    }
+
+    /// An absolute-qualified `set ::ns::name` at the top level (ntext's
+    /// shape) records under its canonical key.
+    #[test]
+    fn an_absolute_qualified_top_level_set_records() {
+        let src = "set ::mypkg::dir /opt/mypkg\n";
+        let constants = constant_path_vars(src, "tcl", None);
+        assert_eq!(
+            constants.get("::mypkg::dir").map(String::as_str),
+            Some("/opt/mypkg"),
+        );
+    }
+
     #[test]
     fn unsupported_command_is_none() {
         assert_eq!(
@@ -693,6 +1990,39 @@ mod tests {
     /// TP (issue #923 idx 73) — the raw text the analyser records for a
     /// `lappend auto_path …` argument is exactly what this evaluator folds, so
     /// the package database can consume `AnalysisResult::auto_path_entries`
+    /// An `auto_path` entry naming a chained constant contributes its
+    /// directory — georgtree/SpiceGenTcl's exact registration shape (issue
+    /// #775):
+    ///
+    /// ```tcl
+    /// set dir [file dirname [file normalize [info script]]]
+    /// set libDir [file join $dir lib]
+    /// lappend auto_path $libDir
+    /// ```
+    #[test]
+    fn an_auto_path_entry_through_a_chained_constant_contributes_its_directory() {
+        let src = "set dir [file dirname [file normalize [info script]]]\n\
+                   set libDir [file join $dir lib]\n\
+                   lappend auto_path $libDir\n";
+        let constants = constant_path_vars(src, "tcl", Some("/proj/SpiceGenTcl.tcl"));
+        let entry = AutoPathEntry {
+            raw_path: "$libDir".to_owned(),
+            range: tcl_lexer::Span::new(0, 0),
+            form: AutoPathForm::Append,
+        };
+        assert_eq!(
+            evaluate_auto_path_entry_with_constants(
+                &entry,
+                Some("/proj/SpiceGenTcl.tcl"),
+                &constants,
+            ),
+            vec!["/proj/lib".to_owned()],
+        );
+        // The constant-less form still contributes nothing — the wiring is
+        // opt-in per consumer, never a change to the bare entry point.
+        assert!(evaluate_auto_path_entry(&entry, Some("/proj/SpiceGenTcl.tcl")).is_empty());
+    }
+
     /// directly.  Pins the *contract between the two*, which is what the
     /// workspace scan's `extend_resolver_with_document_auto_paths` relies on.
     #[test]

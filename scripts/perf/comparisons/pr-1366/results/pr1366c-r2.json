@@ -1,0 +1,653 @@
+{
+  "anchors": [
+    "georgtree/tcl_tools/mathutil.tcl"
+  ],
+  "checks": [
+    {
+      "cpu_s": 4.0,
+      "id": "scan.workspace",
+      "items": null,
+      "label": "Workspace scan (cold index)",
+      "note": null,
+      "ok": true,
+      "ops": null,
+      "ord": 1,
+      "rss_after_kib": 139768,
+      "rss_before_kib": 0,
+      "wall_s": 2.5116
+    },
+    {
+      "cpu_s": 1.0,
+      "id": "open.docs",
+      "items": null,
+      "label": "Open 4 documents + analyse",
+      "note": null,
+      "ok": true,
+      "ops": null,
+      "ord": 2,
+      "rss_after_kib": 170684,
+      "rss_before_kib": 139768,
+      "wall_s": 0.2226
+    },
+    {
+      "cpu_s": 3.0,
+      "id": "edit.storm",
+      "items": null,
+      "label": "Typing storm (400 edits, no requests)",
+      "note": null,
+      "ok": true,
+      "ops": null,
+      "ord": 3,
+      "rss_after_kib": 206208,
+      "rss_before_kib": 170684,
+      "wall_s": 1.656
+    },
+    {
+      "cpu_s": 11.0,
+      "id": "edit.tokens",
+      "items": null,
+      "label": "Typing + semantic tokens (100 edits)",
+      "note": null,
+      "ok": true,
+      "ops": null,
+      "ord": 4,
+      "rss_after_kib": 234484,
+      "rss_before_kib": 206208,
+      "wall_s": 4.9725
+    },
+    {
+      "cpu_s": 0.0,
+      "id": "nav.hover",
+      "items": 6,
+      "label": "Hover at definition sites",
+      "note": null,
+      "ok": true,
+      "ops": 6,
+      "ord": 5,
+      "rss_after_kib": 234612,
+      "rss_before_kib": 234484,
+      "wall_s": 0.006
+    },
+    {
+      "cpu_s": 0.0,
+      "id": "nav.definition",
+      "items": 6,
+      "label": "Go to definition",
+      "note": null,
+      "ok": true,
+      "ops": 6,
+      "ord": 6,
+      "rss_after_kib": 234612,
+      "rss_before_kib": 234612,
+      "wall_s": 0.0079
+    },
+    {
+      "cpu_s": 1.0,
+      "id": "nav.references",
+      "items": 25,
+      "label": "Find references",
+      "note": null,
+      "ok": true,
+      "ops": 6,
+      "ord": 7,
+      "rss_after_kib": 235080,
+      "rss_before_kib": 234612,
+      "wall_s": 0.7092
+    },
+    {
+      "cpu_s": 0.0,
+      "id": "nav.completion",
+      "items": 14064,
+      "label": "Completion at definition sites",
+      "note": null,
+      "ok": true,
+      "ops": 6,
+      "ord": 8,
+      "rss_after_kib": 237588,
+      "rss_before_kib": 235080,
+      "wall_s": 0.0662
+    },
+    {
+      "cpu_s": 0.0,
+      "id": "nav.symbols",
+      "items": null,
+      "label": "Document symbols + folding",
+      "note": null,
+      "ok": true,
+      "ops": null,
+      "ord": 9,
+      "rss_after_kib": 237588,
+      "rss_before_kib": 237588,
+      "wall_s": 0.2212
+    },
+    {
+      "cpu_s": 0.0,
+      "id": "lens.resolve",
+      "items": null,
+      "label": "Code lens + resolve",
+      "note": null,
+      "ok": true,
+      "ops": null,
+      "ord": 10,
+      "rss_after_kib": 237588,
+      "rss_before_kib": 237588,
+      "wall_s": 0.3773
+    },
+    {
+      "cpu_s": 1.0,
+      "id": "action.codeaction",
+      "items": null,
+      "label": "Code actions at definition sites",
+      "note": null,
+      "ok": true,
+      "ops": null,
+      "ord": 11,
+      "rss_after_kib": 242428,
+      "rss_before_kib": 237588,
+      "wall_s": 0.2742
+    },
+    {
+      "cpu_s": 3.0,
+      "id": "refactor.rename",
+      "items": null,
+      "label": "Rename symbol (one per document)",
+      "note": null,
+      "ok": true,
+      "ops": null,
+      "ord": 12,
+      "rss_after_kib": 264368,
+      "rss_before_kib": 242428,
+      "wall_s": 3.4217
+    },
+    {
+      "cpu_s": 1.0,
+      "id": "refactor.filerename",
+      "items": null,
+      "label": "External file rename (one per document)",
+      "note": null,
+      "ok": true,
+      "ops": null,
+      "ord": 13,
+      "rss_after_kib": 276708,
+      "rss_before_kib": 264368,
+      "wall_s": 0.3269
+    },
+    {
+      "cpu_s": 0.0,
+      "id": "nav.after_rename",
+      "items": 25,
+      "label": "Find references after rename",
+      "note": null,
+      "ok": true,
+      "ops": 6,
+      "ord": 14,
+      "rss_after_kib": 276708,
+      "rss_before_kib": 276708,
+      "wall_s": 0.2569
+    },
+    {
+      "cpu_s": 1.0,
+      "id": "close.docs",
+      "items": null,
+      "label": "Close all documents",
+      "note": null,
+      "ok": true,
+      "ops": null,
+      "ord": 15,
+      "rss_after_kib": 276708,
+      "rss_before_kib": 276708,
+      "wall_s": 0.3007
+    }
+  ],
+  "corpus_files": 113,
+  "corpus_revision": 1,
+  "documents": [
+    {
+      "bytes": 8198,
+      "path": "georgtree/tcl_tools/mathutil.tcl",
+      "positions": 6
+    },
+    {
+      "bytes": 59467,
+      "path": "georgtree/ruff/src/formatter.tcl",
+      "positions": 20
+    },
+    {
+      "bytes": 6030,
+      "path": "georgtree/SpiceGenTcl/src/ngspice/specAnalysesClassesNgspice.tcl",
+      "positions": 0
+    },
+    {
+      "bytes": 7109,
+      "path": "georgtree/SpiceGenTcl/examples/ngspice/advanced/verilog_a_magnetic.tcl",
+      "positions": 0
+    }
+  ],
+  "host": {
+    "cores": 4,
+    "cpu": "Intel(R) Xeon(R) Processor @ 2.10GHz",
+    "load_1m": 1.91,
+    "mem_gb": 16
+  },
+  "platform": "linux-x86_64",
+  "schema": 1,
+  "scope": "small",
+  "timeline": [
+    {
+      "cpu_s": 0.0,
+      "rss_kib": 17040,
+      "t_s": 0.006
+    },
+    {
+      "cpu_s": 0.0,
+      "rss_kib": 74152,
+      "t_s": 0.263
+    },
+    {
+      "cpu_s": 1.0,
+      "rss_kib": 98060,
+      "t_s": 0.523
+    },
+    {
+      "cpu_s": 2.0,
+      "rss_kib": 113324,
+      "t_s": 0.789
+    },
+    {
+      "cpu_s": 3.0,
+      "rss_kib": 139616,
+      "t_s": 1.043
+    },
+    {
+      "cpu_s": 3.0,
+      "rss_kib": 139616,
+      "t_s": 1.298
+    },
+    {
+      "cpu_s": 3.0,
+      "rss_kib": 139680,
+      "t_s": 1.552
+    },
+    {
+      "cpu_s": 4.0,
+      "rss_kib": 139680,
+      "t_s": 1.807
+    },
+    {
+      "cpu_s": 4.0,
+      "rss_kib": 139680,
+      "t_s": 2.062
+    },
+    {
+      "cpu_s": 4.0,
+      "rss_kib": 139680,
+      "t_s": 2.317
+    },
+    {
+      "cpu_s": 4.0,
+      "rss_kib": 139768,
+      "t_s": 2.571
+    },
+    {
+      "cpu_s": 4.0,
+      "rss_kib": 139768,
+      "t_s": 2.826
+    },
+    {
+      "cpu_s": 5.0,
+      "rss_kib": 165908,
+      "t_s": 3.081
+    },
+    {
+      "cpu_s": 5.0,
+      "rss_kib": 170684,
+      "t_s": 3.335
+    },
+    {
+      "cpu_s": 6.0,
+      "rss_kib": 176508,
+      "t_s": 3.59
+    },
+    {
+      "cpu_s": 6.0,
+      "rss_kib": 186036,
+      "t_s": 3.844
+    },
+    {
+      "cpu_s": 6.0,
+      "rss_kib": 188100,
+      "t_s": 4.099
+    },
+    {
+      "cpu_s": 7.0,
+      "rss_kib": 189572,
+      "t_s": 4.354
+    },
+    {
+      "cpu_s": 7.0,
+      "rss_kib": 193348,
+      "t_s": 4.608
+    },
+    {
+      "cpu_s": 7.0,
+      "rss_kib": 193568,
+      "t_s": 4.863
+    },
+    {
+      "cpu_s": 8.0,
+      "rss_kib": 200000,
+      "t_s": 5.118
+    },
+    {
+      "cpu_s": 8.0,
+      "rss_kib": 206208,
+      "t_s": 5.372
+    },
+    {
+      "cpu_s": 8.0,
+      "rss_kib": 213036,
+      "t_s": 5.627
+    },
+    {
+      "cpu_s": 9.0,
+      "rss_kib": 213052,
+      "t_s": 5.881
+    },
+    {
+      "cpu_s": 9.0,
+      "rss_kib": 213052,
+      "t_s": 6.139
+    },
+    {
+      "cpu_s": 10.0,
+      "rss_kib": 213828,
+      "t_s": 6.393
+    },
+    {
+      "cpu_s": 10.0,
+      "rss_kib": 219996,
+      "t_s": 6.648
+    },
+    {
+      "cpu_s": 11.0,
+      "rss_kib": 220016,
+      "t_s": 6.902
+    },
+    {
+      "cpu_s": 11.0,
+      "rss_kib": 220040,
+      "t_s": 7.156
+    },
+    {
+      "cpu_s": 12.0,
+      "rss_kib": 220064,
+      "t_s": 7.411
+    },
+    {
+      "cpu_s": 12.0,
+      "rss_kib": 221816,
+      "t_s": 7.667
+    },
+    {
+      "cpu_s": 13.0,
+      "rss_kib": 221852,
+      "t_s": 7.921
+    },
+    {
+      "cpu_s": 14.0,
+      "rss_kib": 221852,
+      "t_s": 8.181
+    },
+    {
+      "cpu_s": 14.0,
+      "rss_kib": 221852,
+      "t_s": 8.436
+    },
+    {
+      "cpu_s": 15.0,
+      "rss_kib": 226604,
+      "t_s": 8.699
+    },
+    {
+      "cpu_s": 15.0,
+      "rss_kib": 226648,
+      "t_s": 8.953
+    },
+    {
+      "cpu_s": 16.0,
+      "rss_kib": 226648,
+      "t_s": 9.208
+    },
+    {
+      "cpu_s": 17.0,
+      "rss_kib": 226648,
+      "t_s": 9.462
+    },
+    {
+      "cpu_s": 17.0,
+      "rss_kib": 226648,
+      "t_s": 9.725
+    },
+    {
+      "cpu_s": 18.0,
+      "rss_kib": 229656,
+      "t_s": 9.98
+    },
+    {
+      "cpu_s": 18.0,
+      "rss_kib": 234456,
+      "t_s": 10.237
+    },
+    {
+      "cpu_s": 19.0,
+      "rss_kib": 234484,
+      "t_s": 10.491
+    },
+    {
+      "cpu_s": 19.0,
+      "rss_kib": 234484,
+      "t_s": 10.746
+    },
+    {
+      "cpu_s": 19.0,
+      "rss_kib": 234612,
+      "t_s": 11.0
+    },
+    {
+      "cpu_s": 19.0,
+      "rss_kib": 234612,
+      "t_s": 11.255
+    },
+    {
+      "cpu_s": 19.0,
+      "rss_kib": 234612,
+      "t_s": 11.51
+    },
+    {
+      "cpu_s": 19.0,
+      "rss_kib": 234748,
+      "t_s": 11.764
+    },
+    {
+      "cpu_s": 19.0,
+      "rss_kib": 234748,
+      "t_s": 12.019
+    },
+    {
+      "cpu_s": 20.0,
+      "rss_kib": 235080,
+      "t_s": 12.273
+    },
+    {
+      "cpu_s": 20.0,
+      "rss_kib": 235080,
+      "t_s": 12.528
+    },
+    {
+      "cpu_s": 20.0,
+      "rss_kib": 237588,
+      "t_s": 12.784
+    },
+    {
+      "cpu_s": 20.0,
+      "rss_kib": 237588,
+      "t_s": 13.038
+    },
+    {
+      "cpu_s": 20.0,
+      "rss_kib": 237588,
+      "t_s": 13.293
+    },
+    {
+      "cpu_s": 20.0,
+      "rss_kib": 237588,
+      "t_s": 13.548
+    },
+    {
+      "cpu_s": 20.0,
+      "rss_kib": 237588,
+      "t_s": 13.802
+    },
+    {
+      "cpu_s": 20.0,
+      "rss_kib": 237588,
+      "t_s": 14.057
+    },
+    {
+      "cpu_s": 20.0,
+      "rss_kib": 237588,
+      "t_s": 14.312
+    },
+    {
+      "cpu_s": 20.0,
+      "rss_kib": 242428,
+      "t_s": 14.566
+    },
+    {
+      "cpu_s": 21.0,
+      "rss_kib": 242428,
+      "t_s": 14.821
+    },
+    {
+      "cpu_s": 21.0,
+      "rss_kib": 242428,
+      "t_s": 15.075
+    },
+    {
+      "cpu_s": 21.0,
+      "rss_kib": 242464,
+      "t_s": 15.33
+    },
+    {
+      "cpu_s": 21.0,
+      "rss_kib": 242464,
+      "t_s": 15.585
+    },
+    {
+      "cpu_s": 21.0,
+      "rss_kib": 242464,
+      "t_s": 15.839
+    },
+    {
+      "cpu_s": 22.0,
+      "rss_kib": 243724,
+      "t_s": 16.094
+    },
+    {
+      "cpu_s": 22.0,
+      "rss_kib": 243724,
+      "t_s": 16.348
+    },
+    {
+      "cpu_s": 22.0,
+      "rss_kib": 243728,
+      "t_s": 16.603
+    },
+    {
+      "cpu_s": 22.0,
+      "rss_kib": 244048,
+      "t_s": 16.858
+    },
+    {
+      "cpu_s": 23.0,
+      "rss_kib": 251456,
+      "t_s": 17.113
+    },
+    {
+      "cpu_s": 23.0,
+      "rss_kib": 251456,
+      "t_s": 17.367
+    },
+    {
+      "cpu_s": 23.0,
+      "rss_kib": 256704,
+      "t_s": 17.622
+    },
+    {
+      "cpu_s": 23.0,
+      "rss_kib": 257412,
+      "t_s": 17.877
+    },
+    {
+      "cpu_s": 24.0,
+      "rss_kib": 257412,
+      "t_s": 18.131
+    },
+    {
+      "cpu_s": 24.0,
+      "rss_kib": 263228,
+      "t_s": 18.386
+    },
+    {
+      "cpu_s": 24.0,
+      "rss_kib": 264368,
+      "t_s": 18.64
+    },
+    {
+      "cpu_s": 24.0,
+      "rss_kib": 264368,
+      "t_s": 18.894
+    },
+    {
+      "cpu_s": 25.0,
+      "rss_kib": 267916,
+      "t_s": 19.149
+    },
+    {
+      "cpu_s": 25.0,
+      "rss_kib": 276708,
+      "t_s": 19.403
+    },
+    {
+      "cpu_s": 25.0,
+      "rss_kib": 276708,
+      "t_s": 19.658
+    },
+    {
+      "cpu_s": 25.0,
+      "rss_kib": 276708,
+      "t_s": 19.912
+    },
+    {
+      "cpu_s": 25.0,
+      "rss_kib": 276708,
+      "t_s": 20.167
+    },
+    {
+      "cpu_s": 26.0,
+      "rss_kib": 276708,
+      "t_s": 20.422
+    },
+    {
+      "cpu_s": 26.0,
+      "rss_kib": 276708,
+      "t_s": 20.677
+    },
+    {
+      "cpu_s": 26.0,
+      "rss_kib": 276708,
+      "t_s": 20.931
+    }
+  ],
+  "version": "pr1366c-r2"
+}

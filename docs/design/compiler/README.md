@@ -186,6 +186,10 @@ User-facing compiler troubleshooting and how-tos live in
 - [tail-call-recursion-optimisation.md](tail-call-recursion-optimisation.md)
   — tail-call rewriting, recursion-to-loop, and accumulator hints
   (O121–O123).
+- [dispatch-stability-proof.md](dispatch-stability-proof.md) — the world-state
+  contents/absence lattice and the typed per-site proof that gates stable-call
+  CSE (`O105`): the tracks and ledgers, the transfer functions, the
+  `DispatchEntryAssumption` entry contract, and the conservative abstentions.
 - [optimiser-o124-unused-irule-procs.md](optimiser-o124-unused-irule-procs.md)
   — O124 comment out unused procs in iRules.
 - [o125-code-sinking.md](o125-code-sinking.md) — O125 code sinking into

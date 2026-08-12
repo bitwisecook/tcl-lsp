@@ -513,7 +513,12 @@ mod tests {
     fn bpf_descriptor_alone_never_seals_a_generic_tcl_invocation() {
         let registry = bpf_registry();
         let module = lower_to_ir("setint result {1}", &registry);
-        let bundle = SemanticAnalysisBundle::build(&registry, DialectSet::BPF, &module.top_level);
+        let bundle = SemanticAnalysisBundle::build(
+            &registry,
+            DialectSet::BPF,
+            &module.top_level,
+            tcl_compiler::dispatch_proof::DispatchEntryAssumption::PristineRegistryWorld,
+        );
 
         let EbpfRegionEligibility::Declined(EbpfRegionDecline::Invocations(declines)) =
             EbpfSemanticBridge::new().assess(&registry, &bundle)
@@ -532,7 +537,12 @@ mod tests {
     fn non_bpf_lowered_statement_retains_a_typed_shape_decline() {
         let registry = bpf_registry();
         let module = lower_to_ir("set result 1", &registry);
-        let bundle = SemanticAnalysisBundle::build(&registry, DialectSet::BPF, &module.top_level);
+        let bundle = SemanticAnalysisBundle::build(
+            &registry,
+            DialectSet::BPF,
+            &module.top_level,
+            tcl_compiler::dispatch_proof::DispatchEntryAssumption::PristineRegistryWorld,
+        );
 
         let EbpfRegionEligibility::Declined(EbpfRegionDecline::ExecutableShape(declines)) =
             EbpfSemanticBridge::new().assess(&registry, &bundle)
@@ -600,7 +610,12 @@ mod tests {
     fn any_common_tcl_world_access_prevents_sealing() {
         let registry = bpf_registry();
         let module = lower_to_ir("setint result {1}", &registry);
-        let bundle = SemanticAnalysisBundle::build(&registry, DialectSet::BPF, &module.top_level);
+        let bundle = SemanticAnalysisBundle::build(
+            &registry,
+            DialectSet::BPF,
+            &module.top_level,
+            tcl_compiler::dispatch_proof::DispatchEntryAssumption::PristineRegistryWorld,
+        );
         let mut facts = first_resolved_facts(&bundle);
         facts
             .effects

@@ -171,6 +171,11 @@ Guarded native specialisation follows the separate default-off
 including live runtime identity, trace, materialisation, numeric, TclOO,
 namespace, interpreter, and dialect obligations.
 
+The proof that completes its world/effect half is
+[compiler/dispatch-stability-proof.md](compiler/dispatch-stability-proof.md) —
+the world-state contents/absence lattice, the typed per-site dispatch-stability
+proof, and the entry contract that together gate stable-call CSE (`O105`).
+
 ## Runtime internals
 
 - [runtime/namespace-tree.md](runtime/namespace-tree.md) — design for
