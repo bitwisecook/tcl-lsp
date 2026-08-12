@@ -605,9 +605,11 @@ iRules hardening: setter forms that must be called with a given literal argument
 
 ### `credential_arg` — Credential argument
 
-*subcommand only* — Index after the subcommand word carrying a credential value.
+*subcommand only* — Credential-value index, counted WITH the subcommand word at 0 (unlike every other subcommand index field) — `HTTP::header insert name value` declares 2.
 
-The argument position (after the subcommand word) whose value is a secret — a password or key handed to this specific subcommand. A literal there is a hard-coded credential finding.
+The argument position whose value is a secret — a password or key handed to this specific subcommand. A literal there is a hard-coded credential finding.
+
+Coordinate warning: unlike every other subcommand index field, the consumer counts the subcommand word itself as 0 — `HTTP::header insert name value` declares 2 for the value slot. Store the index verbatim; never re-base it.
 
 ## Deprecation and translation
 

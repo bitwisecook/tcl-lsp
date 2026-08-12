@@ -1545,7 +1545,9 @@ pub const SUBCOMMAND_FIELDS: &[FieldSchema] = &[
         "Credential argument",
         TAINT,
         FieldKind::OptIndex,
-        "Index after the subcommand word carrying a credential value.",
+        "Credential-value index, counted WITH the subcommand word at 0 \
+         (unlike every other subcommand index field) — `HTTP::header insert \
+         name value` declares 2.",
     ),
     f(
         "sensitive_headers",

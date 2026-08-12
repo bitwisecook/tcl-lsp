@@ -894,9 +894,12 @@ exact spellings only.",
     ),
     (
         "credential_arg",
-        "The argument position (after the subcommand word) whose value is a \
-secret — a password or key handed to this specific subcommand. A literal \
-there is a hard-coded credential finding.",
+        "The argument position whose value is a secret — a password or key \
+handed to this specific subcommand. A literal there is a hard-coded \
+credential finding.\n\nCoordinate warning: unlike every other subcommand \
+index field, the consumer counts the subcommand word itself as 0 — \
+`HTTP::header insert name value` declares 2 for the value slot. Store the \
+index verbatim; never re-base it.",
     ),
     (
         "destructive",
