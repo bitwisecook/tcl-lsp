@@ -477,7 +477,12 @@ of pairwise syncs to maintain.
   the human (or the AI tab) is judgment — taint, effects, versions —
   not transcription. One Rust engine serves all three consumers: the
   studio's import tab, the spec-author skill, and a `tcl spec infer`
-  CLI.
+  CLI. When the user has configured AI access, the studio steers them
+  to the skill path as the better one — the model runs on top of the
+  same mechanical engine and adds the judgment layer (naming the
+  ambiguous shapes, drafting hover prose, proposing taint and effect
+  facts for review); the pure-mechanical pass remains the full-featured
+  floor for everyone without a key.
 - **A Test tab.** Paste code that uses built-ins *plus* the pack under
   edit. The embedded wasm already carries the real analyser and
   registry; the pack loads as an overlay, then the tab shows exactly
