@@ -191,16 +191,23 @@ pub enum Op {
     END_CATCH,
     PUSH_RESULT,
     PUSH_RETURN_CODE,
+    /// `returnCodeBranch` — pop a return code (1–5) and jump forward
+    /// `2*code − 1` bytes past this instruction: the compiler lays a table of
+    /// five 2-byte `jump1` stubs right after it, one per code, error first
+    /// (C Tcl's `INST_RETURN_CODE_BRANCH`, the compiled `try` handler
+    /// dispatch). A code outside `error..continue` lands on the fifth stub.
+    RETURN_CODE_BRANCH,
     FOREACH_START,
     FOREACH_STEP,
     FOREACH_END,
-    /// `lmapCollect` — pop the top of stack and append it to the *collecting*
+    /// `lmap_collect` — pop the top of stack and append it to the *collecting*
     /// `foreach`/`lmap` loop's VM-side accumulator (`ForeachState.accum`). Emitted
     /// on the body's fall-through path only (a `break`/`continue` redirect skips
     /// it), so the accumulator survives break/continue with the operand stack at a
     /// statement boundary. The paired `FOREACH_END` pushes `list(accum)` as the
-    /// loop result. No C-Tcl analogue — C compiles `lmap` from `INST_FOREACH` +
-    /// an accumulator temp; the VM keeps the accumulator in the loop state instead.
+    /// loop result. A real C Tcl 9.0 instruction (`lmap_collect`,
+    /// `tclCompile.c`), though C keeps the accumulator in a temp local where the
+    /// VM keeps it in the loop state.
     LMAP_COLLECT,
     /// `dictFirst <slot>` — begin iterating a dict (top of stack), storing the
     /// iterator state in local `<slot>`; pushes value, key, and a done flag
@@ -463,6 +470,7 @@ impl Op {
             Self::END_CATCH => "endCatch",
             Self::PUSH_RESULT => "pushResult",
             Self::PUSH_RETURN_CODE => "pushReturnCode",
+            Self::RETURN_CODE_BRANCH => "returnCodeBranch",
             Self::FOREACH_START => "foreach_start",
             Self::FOREACH_STEP => "foreach_step",
             Self::FOREACH_END => "foreach_end",
@@ -776,6 +784,7 @@ impl Op {
                 | Self::END_CATCH
                 | Self::PUSH_RESULT
                 | Self::PUSH_RETURN_CODE
+                | Self::RETURN_CODE_BRANCH
                 | Self::PUSH_RETURN_OPTS
                 | Self::RETURN_STK
                 | Self::FOREACH_STEP
@@ -1092,9 +1101,18 @@ pub struct Instruction {
     /// substitution that the VM otherwise applies to `${…}` / `[…]` markers
     /// (see `tcl-vm::subst::subst_word`). This is the Rust analogue of the
     /// reference VM's brace/`_RAW_PREFIX` `PUSH` handling, carried out-of-band
-    /// so the literal pool and disassembly stay byte-identical (keeps identity
+    /// so the literal pool and disassembly stay byte-stable (keeps identity
     /// stable).
     pub push_verbatim: bool,
+    /// `BEGIN_CATCH4` only: the label of the range's handler — where the VM
+    /// resumes (stack trimmed, caught completion recorded) when an exceptional
+    /// completion unwinds into the range. This is the analogue of C Tcl's
+    /// `ExceptionRange.catchOffset`, carried out-of-band (like `foreach_vars`)
+    /// so the 4-byte operand keeps C's meaning (the range index) and the
+    /// disassembly stays byte-stable. `None` marks a *decorative* range — the
+    /// codegen emitted the C-faithful shape but relies on the VM's
+    /// activation-stack unwinding instead, so `BEGIN_CATCH4` is inert.
+    pub catch_target: Option<String>,
 }
 
 impl Instruction {
@@ -1115,6 +1133,7 @@ impl Instruction {
             foreach_collect: false,
             dict_vars: None,
             push_verbatim: false,
+            catch_target: None,
         }
     }
 }

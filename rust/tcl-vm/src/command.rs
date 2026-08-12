@@ -1366,7 +1366,10 @@ pub(crate) fn opt_get(options: &Value, key: &str) -> Option<Value> {
 }
 
 /// `return ?-code c? ?-level l? ?-errorcode ec? ?-errorinfo ei? ?value?`.
-fn cmd_return(_vm: &mut Vm, args: &[Value]) -> Completion<Value> {
+/// Shared with the `returnStk` opcode (C `INST_RETURN_STK` →
+/// `Tcl_SetReturnOptions`), which behaves exactly like
+/// `return -options $opts $result`.
+pub(crate) fn cmd_return(_vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     // Apply one option pair, from a direct argument or an expanded `-options`
     // dict. `-code`/`-level` drive the completion; every other key (`-errorcode`,
     // `-errorinfo`, or a user option like `-foo`) is preserved in the options
@@ -1700,6 +1703,30 @@ impl Vm {
             self.publish_error(einfo, ecode);
         }
         ok(Value::int(comp.code.as_int()))
+    }
+
+    /// The options dict a *compiled* catch range records when it absorbs
+    /// `comp` — the same digestion [`Vm::finish_catch`] performs (consume the
+    /// accumulated `errorInfo` trace, resolve the error code and line, publish
+    /// the `$errorInfo`/`$errorCode` globals) minus the variable binding,
+    /// which the bytecode epilogue does itself from
+    /// `PUSH_RESULT`/`PUSH_RETURN_CODE`/`PUSH_RETURN_OPTS`.
+    pub(crate) fn digest_catch_options(&mut self, comp: &Completion<Value>) -> Value {
+        if comp.code == Code::Error {
+            let einfo = self.take_error_info().unwrap_or_else(|| {
+                opt_get(&comp.options, "-errorinfo").map_or_else(
+                    || comp.result.to_str().to_string(),
+                    |v| v.to_str().to_string(),
+                )
+            });
+            let ecode = resolved_error_code(comp);
+            let opts = catch_error_options(comp, &ecode, &einfo, self.error_line());
+            self.publish_error(&einfo, &ecode);
+            opts
+        } else {
+            let _ = self.take_error_info();
+            completion_options(comp)
+        }
     }
 }
 

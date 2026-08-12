@@ -676,8 +676,12 @@ impl CodegenCtx<'_> {
             self.lvt.intern(rv);
         }
 
-        // beginCatch4 with current nesting depth.
-        self.emit(
+        // beginCatch4 with current nesting depth. The handler label rides
+        // out-of-band on the instruction (`Instruction::catch_target`, the
+        // analogue of C's `ExceptionRange.catchOffset`) so the VM opens a
+        // *live* range; the operand keeps C's range-index meaning and the
+        // disassembly its shape. Back-patched once the handler is placed.
+        let begin_idx = self.emit(
             Op::BEGIN_CATCH4,
             vec![Operand::Imm(
                 i32::try_from(self.catch_depth).expect("catch_depth fits in i32"),
@@ -691,12 +695,14 @@ impl CodegenCtx<'_> {
         // Normal completion: push code "0".
         self.push_lit("0");
 
+        let handler_label = self.fresh_label("catch_handler");
         if options_var.is_some() {
             // 3-arg catch: normal path jumps to shared pushReturnOpts.
             let opts_label = self.fresh_label("catch_opts");
             self.emit(Op::JUMP1, vec![Operand::Label(opts_label.clone())]);
 
             // Handler entry: push caught result and return code.
+            self.place_label(&handler_label);
             self.emit(Op::PUSH_RESULT, vec![]);
             self.emit(Op::PUSH_RETURN_CODE, vec![]);
 
@@ -709,11 +715,13 @@ impl CodegenCtx<'_> {
             self.emit(Op::JUMP1, vec![Operand::Label(end_label.clone())]);
 
             // Handler entry: push caught result and return code.
+            self.place_label(&handler_label);
             self.emit(Op::PUSH_RESULT, vec![]);
             self.emit(Op::PUSH_RETURN_CODE, vec![]);
 
             self.place_label(&end_label);
         }
+        self.instructions[begin_idx].catch_target = Some(handler_label);
 
         // endCatch.
         self.catch_depth -= 1;

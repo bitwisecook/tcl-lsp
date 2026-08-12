@@ -69,6 +69,37 @@ struct DictIterState {
     pos: usize,
 }
 
+/// One live in-frame catch range (see [`Frame::catch_ranges`]): where its
+/// handler starts, the depths to restore on absorption, and the instruction
+/// index of its `BEGIN_CATCH4` (the loop-vs-catch innermost-ness tiebreak for
+/// a caught `break`/`continue` — see [`Vm::absorb_catch_range`]). Absorption
+/// trims the operand stack *and* the in-flight `foreach` / `{*}`-expansion
+/// stacks, as C's exception handling pops `auxObjList` entries opened inside
+/// the range.
+struct CatchRange {
+    target_idx: usize,
+    stack_len: usize,
+    foreach_len: usize,
+    expand_len: usize,
+    begin_idx: usize,
+    /// The range has fired and execution is in its handler. It stays on the
+    /// stack so its `END_CATCH` pops it (C leaves the catchStack entry for
+    /// `endCatch`), but it can no longer absorb — an exception raised *inside*
+    /// the handler belongs to the enclosing range, as C's pc-containment test
+    /// decides (the handler lies outside the range's code region).
+    in_handler: bool,
+}
+
+/// A completion absorbed by a catch range, pre-digested for the compiled catch
+/// epilogue: the result value, the numeric return code, and the full options
+/// dict (`catch_error_options` shape for an error — `-errorinfo`/`-errorcode`/
+/// `-errorline` attached — `completion_options` otherwise).
+struct CaughtState {
+    result: Value,
+    code: Code,
+    options: Value,
+}
+
 /// One activation record: a bytecode function in mid-execution. `pub(crate)` so
 /// a suspended coroutine can own its frozen activation stack (`Vec<Frame>`); the
 /// fields stay private to `exec` (a coroutine only stores/moves whole frames and
@@ -88,6 +119,21 @@ pub(crate) struct Frame {
     /// last). `EXPAND_START` records the word-list start; `INVOKE_EXPANDED`
     /// pops it to recover the (post-expansion) argument count.
     expand_markers: Vec<usize>,
+    /// Active in-frame catch ranges (innermost last) — the analogue of C Tcl's
+    /// per-execution `catchStack` + `ExceptionRange` table. Pushed by a
+    /// `BEGIN_CATCH4` carrying an out-of-band handler label
+    /// (`Instruction::catch_target`), popped by `END_CATCH`. An exceptional
+    /// completion unwinding into this frame is absorbed by the innermost range:
+    /// the stack is trimmed to its depth, the completion is recorded in
+    /// [`Frame::caught`], and execution resumes at the handler.
+    catch_ranges: Vec<CatchRange>,
+    /// The completion most recently absorbed by a catch range — what the
+    /// compiled catch epilogue reads: `PUSH_RESULT` pushes its result,
+    /// `PUSH_RETURN_CODE` its code, `PUSH_RETURN_OPTS` its options dict (the
+    /// analogue of the interp result + `Tcl_GetReturnOptions` state a C catch
+    /// range leaves behind). Sticky until the next absorption, matching how C's
+    /// interp state persists past `endCatch` for the epilogue to read.
+    caught: Option<CaughtState>,
     /// Last value dropped by `POP` — the `DONE` result when the stack is empty.
     last_result: Value,
     /// Whether this activation owns a `Vm` call-frame (a proc body) that must be
@@ -250,6 +296,8 @@ impl Frame {
             foreach_stack: Vec::new(),
             dict_iters: HashMap::new(),
             expand_markers: Vec::new(),
+            catch_ranges: Vec::new(),
+            caught: None,
             last_result: Value::empty(),
             is_proc,
             is_script: false,
@@ -977,17 +1025,7 @@ impl Vm {
                     acts.push(fr);
                 }
                 Tick::Return(c) => {
-                    // A `break`/`continue` *returned by a command* (`if {…} $z`,
-                    // `eval break`) inside an inline loop body: jump to the
-                    // loop's exit/continue point rather than unwinding out of
-                    // the function (the inline `JUMP` only covers a *literal*
-                    // break/continue). Mirrors C Tcl's exception ranges.
-                    if matches!(c.code, Code::Break | Code::Continue)
-                        && Self::catch_loop_completion(acts.last_mut().unwrap(), c.code)
-                    {
-                        continue;
-                    }
-                    if let Some(done) = self.unwind(acts, c) {
+                    if let Some(done) = self.settle_completion(acts, c) {
                         return RunExit::Done(done);
                     }
                 }
@@ -1015,6 +1053,33 @@ impl Vm {
                 },
             }
         }
+    }
+
+    /// Settle a frame's exceptional completion (`Tick::Return`): a live catch
+    /// range in the faulting frame absorbs it first (C's catchStack; it defers
+    /// internally when an inline loop is nested inside the range); then a
+    /// `break`/`continue` *returned by a command* (`if {…} $z`, `eval break`)
+    /// inside an inline loop body jumps to the loop's exit/continue point
+    /// rather than unwinding out of the function (the inline `JUMP` only
+    /// covers a *literal* break/continue — this mirrors C Tcl's loop exception
+    /// ranges); anything still unhandled unwinds. `Some(done)` ends the drive.
+    fn settle_completion(
+        &mut self,
+        acts: &mut Vec<Frame>,
+        c: Completion<Value>,
+    ) -> Option<Completion<Value>> {
+        let c = match self
+            .absorb_catch_range(acts.last_mut().expect("activation stack is non-empty"), c)
+        {
+            Ok(()) => return None,
+            Err(c) => c,
+        };
+        if matches!(c.code, Code::Break | Code::Continue)
+            && Self::catch_loop_completion(acts.last_mut().expect("still non-empty"), c.code)
+        {
+            return None;
+        }
+        self.unwind(acts, c)
     }
 
     /// If the instruction that just produced a `break`/`continue` completion is
@@ -1083,6 +1148,67 @@ impl Vm {
 
     /// Unwind one or more activations with completion `c`. Returns `Some` when
     /// the whole `run` is finished, `None` when a parent activation resumed.
+    /// Offer an exceptional completion to `f`'s innermost live catch range
+    /// (C's `TclGetExceptionRangeForPc(catchOnly)` at the faulting pc).
+    /// `Ok(())` means the range absorbed it: the operand/foreach/expand stacks
+    /// are trimmed to the range's depths, the digested completion is recorded
+    /// for the epilogue's `PUSH_RESULT`/`PUSH_RETURN_CODE`/`PUSH_RETURN_OPTS`,
+    /// and `pc` moves to the handler. `Err(c)` gives the completion back:
+    /// no live range, an uncatchable `exit`, or a `break`/`continue` whose
+    /// inline loop is nested *inside* the range (the loop's redirect wins, as
+    /// C picks the smallest enclosing exception range).
+    fn absorb_catch_range(
+        &mut self,
+        f: &mut Frame,
+        c: Completion<Value>,
+    ) -> Result<(), Completion<Value>> {
+        if self.exit_pending() {
+            return Err(c);
+        }
+        // Innermost range not already in its handler (an exception inside a
+        // handler belongs to the *enclosing* range, per C's pc containment).
+        let Some(pos) = f.catch_ranges.iter().rposition(|r| !r.in_handler) else {
+            return Err(c);
+        };
+        if matches!(c.code, Code::Break | Code::Continue) {
+            // The faulting instruction sits in an inline loop body iff
+            // `loop_targets` has it; the catch range is *inner* to that loop
+            // iff its `BEGIN_CATCH4` sits in the same body (same target
+            // pair). Otherwise the loop is the smaller range — defer to
+            // `catch_loop_completion`.
+            let fault = f.pc.wrapping_sub(1);
+            if let Some(pair) = f.asm.loop_targets.get(&fault) {
+                let begin = f.catch_ranges[pos].begin_idx;
+                if f.asm.loop_targets.get(&begin) != Some(pair) {
+                    return Err(c);
+                }
+            }
+        }
+        // Ranges nested above the firing one belong to abandoned constructs —
+        // their `END_CATCH`s are skipped by the handler jump — so drop them;
+        // the firing range itself stays (armed) for its own `END_CATCH`.
+        f.catch_ranges.truncate(pos + 1);
+        let range = f.catch_ranges.last_mut().expect("pos is in bounds");
+        range.in_handler = true;
+        let (target_idx, stack_len, foreach_len, expand_len) = (
+            range.target_idx,
+            range.stack_len,
+            range.foreach_len,
+            range.expand_len,
+        );
+        f.stack.truncate(stack_len);
+        f.foreach_stack.truncate(foreach_len);
+        f.expand_markers.truncate(expand_len);
+        f.pc = target_idx;
+        let options = self.digest_catch_options(&c);
+        f.caught = Some(CaughtState {
+            result: c.result,
+            code: c.code,
+            options,
+        });
+        Ok(())
+    }
+
     fn unwind(
         &mut self,
         acts: &mut Vec<Frame>,
@@ -1210,6 +1336,15 @@ impl Vm {
                     if c.code.is_ok() {
                         parent.stack.push(c.result);
                         return None;
+                    }
+                    // A live catch range in the parent absorbs the child's
+                    // exceptional completion — the child was invoked from
+                    // inside the range, so this is C's "command returned
+                    // non-OK inside a catch range" path at the parent's
+                    // invoke instruction.
+                    match self.absorb_catch_range(parent, c) {
+                        Ok(()) => return None,
+                        Err(back) => c = back,
                     }
                     // A child activation that leaves an unhandled
                     // `break`/`continue` delivers it to the enclosing frame's
@@ -1617,11 +1752,38 @@ impl Vm {
                 }
                 f.stack.push(Value::string(s));
             }
-            // `START_CMD`/`NOP` are inert; so are the `catch` exception-range
-            // markers (the VM unwinds errors through its activation stack rather
-            // than bytecode exception ranges — the inline `dict for`/`dict map`/
-            // try codegen emits them for C-faithful reference bytecode,).
-            Op::NOP | Op::START_CMD | Op::BEGIN_CATCH4 | Op::END_CATCH => {}
+            // `START_CMD`/`NOP` are inert.
+            Op::NOP | Op::START_CMD => {}
+
+            // A `BEGIN_CATCH4` carrying an out-of-band handler label opens a
+            // live catch range (C `INST_BEGIN_CATCH4` pushing the catchStack);
+            // without one it is a *decorative* range — C-faithful reference
+            // bytecode whose construct the VM protects via its activation
+            // stack instead (`dict for`/`dict map`/`try` epilogues) — and
+            // stays inert. The 4-byte operand keeps C's meaning (range index)
+            // and is not consulted.
+            Op::BEGIN_CATCH4 => {
+                if let Some(idx) = instr
+                    .catch_target
+                    .as_deref()
+                    .and_then(|label| label_to_idx(&asm, &f.off2idx, label))
+                {
+                    f.catch_ranges.push(CatchRange {
+                        target_idx: idx,
+                        stack_len: f.stack.len(),
+                        foreach_len: f.foreach_stack.len(),
+                        expand_len: f.expand_markers.len(),
+                        begin_idx: f.pc - 1,
+                        in_handler: false,
+                    });
+                }
+            }
+            // `END_CATCH` closes the innermost range. A decorative
+            // `BEGIN_CATCH4` pushed nothing, so its paired `END_CATCH` finds
+            // the stack empty and stays a no-op.
+            Op::END_CATCH => {
+                f.catch_ranges.pop();
+            }
 
             // -- variables (stack form, by name) --
             // The `*ScalarStk` opcodes share their C `TEBCresume` case with the
@@ -2814,7 +2976,14 @@ impl Vm {
             // `SYNTAX` shares `RETURN_IMM`'s shape (a code immediate, result +
             // options on the stack): the inline `if {…}` codegen emits it to
             // raise a compile-time expression error at runtime.
-            Op::RETURN_IMM | Op::RETURN_STK | Op::SYNTAX => {
+            //
+            // Divergence from C, tracked in the opcode-status doc: our codegen
+            // pushes `result` then `options` (options on top) and encodes an
+            // immediate code as `level 0` where C pushes options *under* the
+            // result and compiles a plain `return` as `(code 0, level 1)`;
+            // realigning is a compiler-identity change (peephole `done`
+            // folding, tclsh byte comparison), not a VM-only one.
+            Op::RETURN_IMM | Op::SYNTAX => {
                 let (result, options) = if f.stack.len() >= 2 {
                     let opts = pop(f);
                     let res = pop(f);
@@ -2822,13 +2991,29 @@ impl Vm {
                 } else {
                     (pop(f), Value::empty())
                 };
-                let code = if instr.op == Op::RETURN_STK {
-                    Code::Ok
-                } else {
-                    code_from_int(imm0(instr))
-                };
+                let code = code_from_int(imm0(instr));
                 let final_code = if code == Code::Ok { Code::Return } else { code };
                 return Tick::Return(Completion::new(final_code, result, options));
+            }
+            // `returnStk` is C-ordered — result on top, the return-options dict
+            // under it — and applies the dict exactly as `return -options $opts
+            // $result` would: `-code`/`-level` drive the completion (level 0 ⇒
+            // the code takes effect immediately, level > 0 ⇒ `TCL_RETURN`
+            // counted down at proc boundaries), and a malformed dict overrides
+            // the result with its own error (C `INST_RETURN_STK` →
+            // `Tcl_SetReturnOptions`). An outcome of TCL_OK (`-level 0 -code
+            // ok`) pushes the result and *continues* — C only routes non-OK
+            // codes to `processExceptionReturn`.
+            Op::RETURN_STK => {
+                let result = pop(f);
+                let opts = pop(f);
+                let c =
+                    crate::command::cmd_return(self, &[Value::string("-options"), opts, result]);
+                if c.code == Code::Ok {
+                    f.stack.push(c.result);
+                } else {
+                    return Tick::Return(c);
+                }
             }
 
             // -- command dispatch / expr --
@@ -3302,11 +3487,50 @@ impl Vm {
                     .unwrap_or_else(|| f.last_result.clone())));
             }
 
-            // Push the current result / a normal return-options dict — the
-            // operands an inline catch epilogue consults.
-            Op::PUSH_RESULT => f.stack.push(f.last_result.clone()),
+            // The compiled catch epilogue's reads (C `INST_PUSH_RESULT`/
+            // `INST_PUSH_RETURN_CODE`/`INST_PUSH_RETURN_OPTS`): after a range
+            // absorbed a completion they report *it*; on the fall-through (no
+            // catch fired) path they report the current result / an ok options
+            // dict, as C's untouched interp state would.
+            Op::PUSH_RESULT => {
+                let v = f
+                    .caught
+                    .as_ref()
+                    .map_or_else(|| f.last_result.clone(), |c| c.result.clone());
+                f.stack.push(v);
+            }
+            Op::PUSH_RETURN_CODE => {
+                let code = f.caught.as_ref().map_or(0, |c| c.code.as_int());
+                f.stack.push(Value::int(code));
+            }
             Op::PUSH_RETURN_OPTS => {
-                f.stack.push(crate::command::options_dict(Code::Ok, 0, &[]));
+                let opts = f.caught.as_ref().map_or_else(
+                    || crate::command::options_dict(Code::Ok, 0, &[]),
+                    |c| c.options.clone(),
+                );
+                f.stack.push(opts);
+            }
+            // Pop a (non-ok) return code and branch into the 5-slot `jump1`
+            // table the compiler lays out right after this instruction: target
+            // byte = `2*code − 1` past the opcode, error (1) first; anything
+            // outside `error..continue` lands on the fifth slot (C
+            // `INST_RETURN_CODE_BRANCH`, which panics on TCL_OK / non-integers
+            // — the VM errors instead of aborting).
+            Op::RETURN_CODE_BRANCH => {
+                let Ok(code) = pop(f).as_int() else {
+                    return Tick::Return(err("returnCodeBranch: TOS not a return code"));
+                };
+                if code == 0 {
+                    return Tick::Return(err("returnCodeBranch: TOS is TCL_OK"));
+                }
+                let code = if (1..=4).contains(&code) { code } else { 5 };
+                let target_off = instr.offset + 2 * i32::try_from(code).unwrap_or(5) - 1;
+                match f.off2idx.get(&target_off) {
+                    Some(&idx) => f.pc = idx,
+                    None => {
+                        return Tick::Return(err("returnCodeBranch: no jump table"));
+                    }
+                }
             }
             // Evaluate a popped script string and push its result — value-position
             // multi-command substitution `[a; b]`. A non-OK
