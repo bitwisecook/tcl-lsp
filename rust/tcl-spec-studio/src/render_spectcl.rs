@@ -52,16 +52,29 @@
 //! dialect is drafted, rendered here, loaded back through
 //! [`crate::spectcl::load_pack`], and the two drafts are compared field by
 //! field. Every field that legitimately differs is one of the [`GAPS`] below,
-//! and the test fails on anything else.
+//! or a [`Loss`] this render reported for itself, and the test fails on
+//! anything else.
+//!
+//! Two differences are neither, and are worth naming here because they are
+//! properties of the *language* rather than of this renderer:
+//!
+//! - **`arg N -appends …` implies `-role CommandPrefix`.** So a spec that
+//!   declares a command-prefix position with *no* role at that index cannot be
+//!   said in `SpecTcl`: reloading always finds the implied role. 531 of the
+//!   registry's command/dialect pairs are in that shape.
+//! - **A quoted word is not verbatim.** The loader reads its words off the
+//!   CST, where a braced word is every byte between the braces but a quoted
+//!   one keeps its backslashes and has `$x` normalised to `${x}`. Prose with
+//!   an unbalanced brace or a backslash-newline therefore has no faithful
+//!   spelling at all, and is reported as a [`Loss`] rather than written down
+//!   wrong — see [`word`].
 
 use std::collections::BTreeMap;
 use std::fmt::Write as _;
 
 use serde_json::Value;
 
-use crate::draft::{
-    self, Draft, OPTION_DEPRECATION_FIX_HOOK_KEY, SOURCE_DIALECT_KEY,
-};
+use crate::draft::{self, Draft, OPTION_DEPRECATION_FIX_HOOK_KEY, SOURCE_DIALECT_KEY};
 
 /// The DSL **vocabulary** version a rendered pack declares — the word after
 /// the pack name in `speclib <pack> <version> { … }`.
@@ -75,15 +88,15 @@ const WRAP_COLUMN: usize = 92;
 ///
 /// Wider than [`WRAP_COLUMN`] because that is what the ports do:
 /// `irules-http-header.tclspec` writes fourteen subcommands as one line each,
-/// the longest of them 111 columns, and breaking those into five-line blocks
+/// the longest of them 143 columns, and breaking those into five-line blocks
 /// would cost the file its one-screen shape for nothing.
-const ONE_LINE_COLUMN: usize = 112;
+const ONE_LINE_COLUMN: usize = 144;
 
 // ---------------------------------------------------------------------------
 // Why a field did not survive
 // ---------------------------------------------------------------------------
 
-/// Why a draft key cannot be written as SpecTcl.
+/// Why a draft key cannot be written as `SpecTcl`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum GapKind {
     /// The DSL has a spelling and the loader reads it, but the **draft** holds
@@ -372,7 +385,18 @@ fn braced(text: &str) -> Option<String> {
 }
 
 /// A Tcl list word holding `items`, each element carrying its text verbatim.
+///
+/// A one-element list is written as the bare element — `dialects all-tcl`,
+/// `-dialects tcl8.6+` — which is how every port writes one, and which
+/// `split_list_lenient` reads back as the same single-element list. The braces
+/// stay whenever the element needs them, since a braced element inside a bare
+/// word would split into several.
 fn list_word<S: AsRef<str>>(items: &[S]) -> Option<String> {
+    if let [only] = items
+        && bare_safe(only.as_ref())
+    {
+        return Some(only.as_ref().to_owned());
+    }
     let words: Option<Vec<String>> = items.iter().map(|item| word(item.as_ref())).collect();
     braced(&words?.join(" "))
 }
@@ -381,6 +405,52 @@ fn list_word<S: AsRef<str>>(items: &[S]) -> Option<String> {
 fn str_list_word(value: &Value) -> Option<String> {
     let items: Vec<&str> = as_array(value).iter().filter_map(Value::as_str).collect();
     list_word(&items)
+}
+
+/// The five Tcl releases, in ladder order — the members the DSL's dialect-set
+/// shorthands close over.
+const TCL_LADDER: &[&str] = &["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"];
+
+/// A dialect set written the way the ports write one: with the `all-tcl`,
+/// `tcl8.x`, and `tclX.Y+` shorthands rather than five version bits.
+///
+/// `README.md` adds the shorthands "because writing five version bits per
+/// option is unreadable", and every port uses them — `{all-tcl f5-irules}`,
+/// `tcl8.6+`. They are exact: `parse_dialects` unions the same bits either
+/// way, so the round trip does not notice, but the file reads like a
+/// hand-written one.
+fn dialect_set_word(value: &Value) -> Option<String> {
+    let members: Vec<&str> = as_array(value).iter().filter_map(Value::as_str).collect();
+    dialect_words(&members)
+}
+
+/// [`dialect_set_word`] over member names already in hand.
+fn dialect_words(members: &[&str]) -> Option<String> {
+    let versions: Vec<&str> = TCL_LADDER
+        .iter()
+        .copied()
+        .filter(|version| members.contains(version))
+        .collect();
+    let mut words: Vec<String> = Vec::new();
+    if versions.len() == TCL_LADDER.len() {
+        words.push("all-tcl".to_owned());
+    } else if versions == TCL_LADDER[..3] {
+        words.push("tcl8.x".to_owned());
+    } else if versions.len() > 1
+        && TCL_LADDER.ends_with(versions.as_slice())
+        && let Some(first) = versions.first()
+    {
+        words.push(format!("{first}+"));
+    } else {
+        words.extend(versions.iter().map(|version| (*version).to_owned()));
+    }
+    words.extend(
+        members
+            .iter()
+            .filter(|member| !TCL_LADDER.contains(member))
+            .map(|member| (*member).to_owned()),
+    );
+    list_word(&words)
 }
 
 /// A declaration's own name word — a command, subcommand, or option name.
@@ -793,7 +863,11 @@ fn dialect_names(expr: &str) -> Option<Vec<&'static str>> {
         ("SPECTCL", &["spectcl"]),
     ];
     let mut names: Vec<&'static str> = Vec::new();
-    for part in expr.replace(".union(", " ").replace(')', " ").split_whitespace() {
+    for part in expr
+        .replace(".union(", " ")
+        .replace(')', " ")
+        .split_whitespace()
+    {
         let key = part.trim().rsplit("::").next()?;
         let (_, members) = CONSTANTS.iter().find(|(name, _)| *name == key)?;
         for member in *members {
@@ -869,7 +943,7 @@ fn option_conflict_rows(expr: &str) -> Option<Vec<Vec<String>>> {
         let mut row = vec!["option_conflict".to_owned(), list_word(&options?)?];
         if let Some(inner) = unwrap_some(fields.get("dialects")?) {
             row.push("-dialects".to_owned());
-            row.push(list_word(&dialect_names(inner)?)?);
+            row.push(dialect_words(&dialect_names(inner)?)?);
         }
         rows.push(row);
     }
@@ -1039,7 +1113,7 @@ fn unwritable(out: &mut Out, key: &str) {
 }
 
 /// Emit `key` when it is set, as a one-value property statement.
-fn scalar(out: &mut Out, ctx: &Ctx<'_>, draft: &Draft, key: &str, value: String) {
+fn scalar(out: &mut Out, ctx: &Ctx<'_>, draft: &Draft, key: &str, value: &str) {
     if ctx.set(draft, key) {
         out.line(&format!("{key} {value}"));
     }
@@ -1089,14 +1163,24 @@ fn enum_word(out: &mut Out, ctx: &Ctx<'_>, draft: &Draft, key: &str) {
     }
 }
 
-/// Emit a flag-set / dialect-set property.
+/// Emit a flag-set property — a trait, taint-colour, or dialect set.
 fn set_word(out: &mut Out, ctx: &Ctx<'_>, draft: &Draft, key: &str) {
     if ctx.set(draft, key) && draft[key].is_array() {
-        match str_list_word(&draft[key]) {
+        let spelling = if is_dialect_set(key) {
+            dialect_set_word(&draft[key])
+        } else {
+            str_list_word(&draft[key])
+        };
+        match spelling {
             Some(spelling) => out.line(&format!("{key} {spelling}")),
             None => unwritable(out, key),
         }
     }
+}
+
+/// Whether a flag-set field holds dialect members, which take the shorthands.
+fn is_dialect_set(key: &str) -> bool {
+    matches!(key, "dialects" | "safe_on_uninit")
 }
 
 /// Emit a `&'static [&'static str]` property.
@@ -1188,7 +1272,8 @@ fn arity_row(out: &mut Out, ctx: &Ctx<'_>, draft: &Draft) {
 /// first, then the tables that only ever accompany them — so a spec that
 /// declares its roles out of index order keeps that order on the way back in.
 fn arg_rows(out: &mut Out, ctx: &mut Ctx<'_>, draft: &Draft) {
-    let table = |key: &str| -> Vec<Value> { as_array(draft.get(key).unwrap_or(&Value::Null)).to_vec() };
+    let table =
+        |key: &str| -> Vec<Value> { as_array(draft.get(key).unwrap_or(&Value::Null)).to_vec() };
     let roles = table("arg_roles");
     let types = table("arg_types");
     let values = table("arg_values");
@@ -1305,7 +1390,10 @@ fn push_values(
         str_of(&entry["detail"]).is_empty() && entry["min_tcl"].is_null() && entry["code"].is_null()
     });
     if plain {
-        let words: Vec<&str> = entries.iter().map(|entry| str_of(&entry["value"])).collect();
+        let words: Vec<&str> = entries
+            .iter()
+            .map(|entry| str_of(&entry["value"]))
+            .collect();
         push_flag(row, lost, "-values", list_word(&words));
     } else {
         let name = ctx.tables.intern(hint, values);
@@ -1315,6 +1403,7 @@ fn push_values(
 }
 
 /// One `option NAME …` row.
+#[allow(clippy::too_many_lines)]
 fn option_row(out: &mut Out, ctx: &mut Ctx<'_>, option: &Value) {
     let name = str_of(&option["name"]);
     let mut row = vec!["option".to_owned(), name_word(name)];
@@ -1332,7 +1421,11 @@ fn option_row(out: &mut Out, ctx: &mut Ctx<'_>, option: &Value) {
             "Hook" => {
                 row.push("-arity-hook".to_owned());
                 row.push("-native".to_owned());
-                row.push(format!("{}::{}::arity", ctx.scope, name.trim_start_matches('-')));
+                row.push(format!(
+                    "{}::{}::arity",
+                    ctx.scope,
+                    name.trim_start_matches('-')
+                ));
             }
             _ => {}
         }
@@ -1385,7 +1478,7 @@ fn option_row(out: &mut Out, ctx: &mut Ctx<'_>, option: &Value) {
             &mut row,
             &mut lost,
             "-dialects",
-            str_list_word(&Value::Array(dialects.clone())),
+            dialect_set_word(&Value::Array(dialects.clone())),
         );
     }
     if let Some(n) = option["min_abbrev"].as_u64() {
@@ -1548,13 +1641,31 @@ fn command_body(out: &mut Out, ctx: &mut Ctx<'_>, draft: &Draft) {
     count(out, ctx, draft, "reserved_trailing_words");
     count(out, ctx, draft, "body_arg_implicit_args");
     if ctx.set(draft, "assigns_variable_at") {
-        scalar(out, ctx, draft, "assigns_variable_at", draft["assigns_variable_at"].to_string());
+        scalar(
+            out,
+            ctx,
+            draft,
+            "assigns_variable_at",
+            &draft["assigns_variable_at"].to_string(),
+        );
     }
     if ctx.set(draft, "creates_instance_at") {
-        scalar(out, ctx, draft, "creates_instance_at", draft["creates_instance_at"].to_string());
+        scalar(
+            out,
+            ctx,
+            draft,
+            "creates_instance_at",
+            &draft["creates_instance_at"].to_string(),
+        );
     }
     if ctx.set(draft, "defines_command_at") {
-        scalar(out, ctx, draft, "defines_command_at", draft["defines_command_at"].to_string());
+        scalar(
+            out,
+            ctx,
+            draft,
+            "defines_command_at",
+            &draft["defines_command_at"].to_string(),
+        );
     }
     gap_todo(out, ctx, draft, "defines_symbol");
 
@@ -1674,7 +1785,7 @@ fn command_body(out: &mut Out, ctx: &mut Ctx<'_>, draft: &Draft) {
                     &mut row,
                     &mut lost,
                     "-dialects",
-                    str_list_word(&Value::Array(dialects.clone())),
+                    dialect_set_word(&Value::Array(dialects.clone())),
                 );
             }
             emit_row(out, "forms", &row, lost, "");
@@ -1684,8 +1795,9 @@ fn command_body(out: &mut Out, ctx: &mut Ctx<'_>, draft: &Draft) {
 
     // --- subcommands -------------------------------------------------------
     for sub in as_array(draft.get("subcommands").unwrap_or(&Value::Null)) {
-        let Some(body) = sub.as_object() else { continue };
-        out.gap();
+        let Some(body) = sub.as_object() else {
+            continue;
+        };
         subcommand_block(out, ctx, body);
     }
 }
@@ -1735,7 +1847,7 @@ fn side_effect_rows(out: &mut Out, draft: &Draft) {
                 &mut row,
                 &mut lost,
                 "-dialects",
-                str_list_word(&Value::Array(dialects.clone())),
+                dialect_set_word(&Value::Array(dialects.clone())),
             );
         }
         emit_row(out, "side_effects", &row, lost, "");
@@ -1924,7 +2036,7 @@ fn subcommand_block(out: &mut Out, parent: &mut Ctx<'_>, sub: &Draft) {
                 &mut words,
                 &mut lost,
                 "-dialects",
-                str_list_word(&Value::Array(dialects.clone())),
+                dialect_set_word(&Value::Array(dialects.clone())),
             );
         }
         emit_row(out_body, "sub_subcommands", &words, lost, "-detail");
@@ -1943,12 +2055,23 @@ fn subcommand_block(out: &mut Out, parent: &mut Ctx<'_>, sub: &Draft) {
             .statements
             .iter()
             .any(|line| line.ends_with('{') || line.contains('\n') || line.starts_with('#'));
+    // Consecutive one-liners are a table and read as one; a block always gets
+    // air around it. That is exactly how `irules-http-header.tclspec` lays its
+    // fourteen subcommands out.
+    let after_one_liner = out
+        .statements
+        .last()
+        .is_some_and(|last| last.starts_with("subcommand ") && last.ends_with('}'));
     if simple && out.indent * 4 + one_liner.len() <= ONE_LINE_COLUMN {
+        if !after_one_liner {
+            out.gap();
+        }
         out.line(&one_liner);
         out.losses.extend(body.losses);
         return;
     }
 
+    out.gap();
     out.line(&format!("subcommand {} {{", name_word(name)));
     out.block(&body);
     out.line("}");
@@ -2015,7 +2138,10 @@ pub fn render_pack_reporting(drafts: &[Draft], pack_name: &str) -> (String, Vec<
          line below names a field the source spec sets that a pack cannot yet say.",
     );
     out.line("");
-    out.line(&format!("speclib {} {DSL_VERSION} {{", name_word(pack_name)));
+    out.line(&format!(
+        "speclib {} {DSL_VERSION} {{",
+        name_word(pack_name)
+    ));
     // The ports do not indent a pack's own declarations — a `.tclspec` is one
     // long file of `command` blocks, and a second level of indentation buys
     // nothing.
@@ -2078,10 +2204,7 @@ mod tests {
                 json!({ "min": min, "max": max, "step": step, "also_exact": also }),
             );
             let text = render_pack(&[d], "probe");
-            assert!(
-                text.contains(expected),
-                "expected `{expected}` in:\n{text}"
-            );
+            assert!(text.contains(expected), "expected `{expected}` in:\n{text}");
         }
     }
 
@@ -2144,7 +2267,10 @@ mod tests {
         );
         let text = render_pack(&[d], "probe");
         assert!(text.contains("values probe-arg0 {"), "{text}");
-        assert!(text.contains("value alnum -detail {Any alphanumeric.}"), "{text}");
+        assert!(
+            text.contains("value alnum -detail {Any alphanumeric.}"),
+            "{text}"
+        );
         assert!(text.contains("value dict -min-tcl tcl9.0"), "{text}");
         assert!(text.contains("arg 0 -values-from probe-arg0"), "{text}");
     }
@@ -2189,7 +2315,7 @@ mod tests {
         .expect("the constraint parses");
         assert_eq!(
             rows[0].join(" "),
-            "option_conflict {-glob -regexp} -dialects {tcl8.4 tcl8.5 tcl8.6 tcl9.0 tcl9.1 f5-irules}"
+            "option_conflict {-glob -regexp} -dialects {all-tcl f5-irules}"
         );
     }
 

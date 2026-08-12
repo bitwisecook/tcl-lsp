@@ -22,7 +22,7 @@
 //! [`spectcl::load_pack`](tcl_spec_studio::spectcl::load_pack), so the honest
 //! test of it is the round trip, run over the *whole* command surface rather
 //! than a handful of examples: every command in every browsable dialect is
-//! drafted from the live registry, rendered to SpecTcl, loaded back, drafted
+//! drafted from the live registry, rendered to `SpecTcl`, loaded back, drafted
 //! again, and the two drafts are compared **field by field** — the same
 //! comparison `tests/spectcl_ports.rs` makes between a ported pack and the
 //! shipped spec it was ported from.
@@ -251,7 +251,7 @@ fn round_trip(shipped: &Value) -> Trip {
 ///
 /// `arg N -appends {Exactly 2}` implies `-role CommandPrefix` — README says so,
 /// and the loader does it — so a spec that declares a command-prefix position
-/// with **no** role at that index cannot be said in SpecTcl: reloading always
+/// with **no** role at that index cannot be said in `SpecTcl`: reloading always
 /// finds the implied role. That is an expressiveness gap in the DSL rather
 /// than a renderer bug, and it is the only shape of `arg_roles` difference the
 /// gate tolerates.
@@ -278,7 +278,9 @@ fn only_implied_command_prefix_roles(rendered: &Value, shipped: &Value) -> bool 
         .into_iter()
         .filter(|entry| {
             !(entry["role"] == "CommandPrefix"
-                && entry["index"].as_u64().is_some_and(|i| prefixes.contains(&i))
+                && entry["index"]
+                    .as_u64()
+                    .is_some_and(|i| prefixes.contains(&i))
                 && !shipped_roles
                     .iter()
                     .any(|other| other["index"] == entry["index"]))
@@ -287,7 +289,7 @@ fn only_implied_command_prefix_roles(rendered: &Value, shipped: &Value) -> bool 
     implied == shipped_roles && !prefixes.is_empty()
 }
 
-/// **The gate.** Every command of every browsable dialect renders to SpecTcl,
+/// **The gate.** Every command of every browsable dialect renders to `SpecTcl`,
 /// loads back, and drafts equal — except on the documented [`GAPS`].
 #[test]
 #[allow(clippy::too_many_lines)]
@@ -398,8 +400,7 @@ fn every_command_in_every_dialect_round_trips_through_spectcl() {
             gap.key,
             gap.kind,
             match gap.kind {
-                GapKind::DraftOpaque => gap.spelling,
-                GapKind::LoaderGap => gap.spelling,
+                GapKind::DraftOpaque | GapKind::LoaderGap => gap.spelling,
                 GapKind::Excluded => "excluded from what a pack may author",
             }
         );
@@ -494,17 +495,21 @@ fn the_eleven_port_fixtures_render_and_reload_as_themselves() {
              {} notice(s) on reload",
             reloaded.notices.len()
         );
-        for notice in reloaded.notices.iter().filter(|notice| !is_policy_report(&notice.message)) {
+        for notice in reloaded
+            .notices
+            .iter()
+            .filter(|notice| !is_policy_report(&notice.message))
+        {
             failures.push(format!("{file}: reloading the rendered pack: {notice}"));
         }
 
         for command in &hand.commands {
             let name = command.spec.name;
             let before = Value::Object(draft::from_command_spec(command.spec));
-            let after = reloaded
-                .command(name)
-                .map(|c| Value::Object(draft::from_command_spec(c.spec)))
-                .unwrap_or_else(|| panic!("{file}: the rendered pack lost `{name}`"));
+            let after = reloaded.command(name).map_or_else(
+                || panic!("{file}: the rendered pack lost `{name}`"),
+                |c| Value::Object(draft::from_command_spec(c.spec)),
+            );
             let found = diffs(&after, &before);
             let _ = writeln!(report, "  {name}: {} differing field(s)", found.len());
             for diff in &found {
@@ -513,11 +518,7 @@ fn the_eleven_port_fixtures_render_and_reload_as_themselves() {
                 let _ = writeln!(
                     report,
                     "    {} {}\n        rendered: {}\n        hand    : {}",
-                    if documented {
-                        "[documented]"
-                    } else {
-                        "[FAIL]"
-                    },
+                    if documented { "[documented]" } else { "[FAIL]" },
                     diff.key,
                     diff.rendered,
                     diff.shipped

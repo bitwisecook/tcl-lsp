@@ -486,7 +486,11 @@ fn hook_bodies_are_carried_as_text_with_their_family_metadata() {
     // an all-literal call.
     assert!(arity_hook.family.requires_all_literal());
     match &arity_hook.source {
-        spectcl::HookSource::Body { params, body } => {
+        // `..`: this assertion is about the *body* the row carried. A hook
+        // source grows fields (declared inputs, and whatever the hook host
+        // needs next); naming them here would make every such addition a
+        // failing test with nothing to say.
+        spectcl::HookSource::Body { params, body, .. } => {
             assert_eq!(params, &["words".to_owned(), "ctx".to_owned()]);
             assert!(body.contains("option-value-start"));
             assert!(body.contains("consume 0 -invalid {missing value for -errorstack}"));
