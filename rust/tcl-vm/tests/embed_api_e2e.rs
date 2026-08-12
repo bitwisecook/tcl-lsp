@@ -32,7 +32,7 @@ use tcl_compiler::cfg_builder::build_cfg_codegen;
 use tcl_compiler::codegen::codegen_module;
 use tcl_compiler::lowering::lower_to_ir_for_bytecode as lower_to_ir;
 use tcl_registry::CommandRegistry;
-use tcl_vm::{CompileError, CompileService, NativeCommand, Value, Vm};
+use tcl_vm::{Code, CompileError, CompileService, Completion, NativeCommand, Value, Vm};
 
 /// A `tcl-compiler`-backed compile service — the injection seam `tcl-vm`
 /// itself never links.
@@ -68,11 +68,11 @@ struct Recorder {
 }
 
 impl NativeCommand for Recorder {
-    fn invoke(&self, _vm: &mut Vm, args: &[Value]) -> tcl_vm::Completion<Value> {
+    fn invoke(&self, _vm: &mut Vm, args: &[Value]) -> Completion<Value> {
         self.calls
             .borrow_mut()
-            .push(args.iter().map(|a| a.to_str().to_string()).collect());
-        tcl_vm::Completion::ok(Value::string(""))
+            .push(args.iter().map(|arg| arg.to_str().to_string()).collect());
+        Completion::new(Code::Ok, Value::string(""), Value::string(""))
     }
 }
 
@@ -81,7 +81,7 @@ fn invoke_command_is_callable_without_a_driver_script() {
     let mut vm = vm();
     let result = vm.invoke_command("string", &[Value::string("length"), Value::string("abcde")]);
     assert!(result.code.is_ok());
-    assert_eq!(result.result.to_str(), "5");
+    assert_eq!(result.result.to_str().to_string(), "5");
 }
 
 #[test]
@@ -95,7 +95,7 @@ fn a_compiled_handle_runs_repeatedly_without_recompiling() {
         let completion = vm.invoke_function(&handle);
         assert!(completion.code.is_ok());
     }
-    assert_eq!(vm.get_var("n").expect("n is set").to_str(), "5");
+    assert_eq!(vm.get_var("n").expect("n is set").to_str().to_string(), "5");
 }
 
 #[test]
@@ -128,7 +128,7 @@ fn the_command_limit_is_enforced() {
         .expect("the body compiles");
     let completion = vm.invoke_function(&handle);
     assert!(!completion.code.is_ok(), "the budget must stop the loop");
-    assert_eq!(completion.result.to_str(), "command count limit exceeded");
+    assert_eq!(completion.result.to_str().to_string(), "command count limit exceeded");
     assert!(
         vm.commands_run() >= 50,
         "the counter records the spend: {}",
@@ -147,7 +147,7 @@ fn the_command_counter_refills_per_invocation() {
         vm.reset_command_count();
         let completion = vm.invoke_function(&handle);
         assert!(completion.code.is_ok(), "{}", completion.result.to_str());
-        assert_eq!(completion.result.to_str(), "10");
+        assert_eq!(completion.result.to_str().to_string(), "10");
     }
 }
 
@@ -174,7 +174,7 @@ fn retain_commands_reduces_the_table_to_a_whitelist() {
     // A whitelisted command still works …
     let ok = vm.invoke_command("string", &[Value::string("length"), Value::string("abc")]);
     assert!(ok.code.is_ok());
-    assert_eq!(ok.result.to_str(), "3");
+    assert_eq!(ok.result.to_str().to_string(), "3");
     // … and a removed one is gone, not merely hidden.
     let denied = vm.invoke_command("open", &[Value::string("/etc/passwd")]);
     assert!(!denied.code.is_ok());
