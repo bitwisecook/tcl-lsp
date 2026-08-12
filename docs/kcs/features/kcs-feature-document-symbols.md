@@ -37,7 +37,7 @@ The same side-scoping governs the `export` / `unexport` words, which change a me
 
 `filter` is sided the same way. An unwrapped (or `private`-scoped) `filter f` fills the class's instance filter slot (`info class filters`) and intercepts dispatches on *instances*; a `self filter f` fills the class object's own slot (`info object filters`) and intercepts dispatches on the **class command** — `::B cls`, and even `::B new` — leaving instances unfiltered. Verified byte-identical on tclsh 9.0.4 and 8.6.14. Filters are not listed in the outline, but the split matters to rename safety, which must find and rewrite a `self filter X` word as surely as an unwrapped one.
 
-A BIG-IP `.conf` file (any canonical basename — `bigip.conf`, `bigip_base.conf`, …) gets a different outline shape: a `module → kind → object` tree built from the config stanza tree rather than the Tcl scope walk. Nameless global singletons (`auth password-policy`, `net self-allow`, …) fall back to their kind label so no outline entry is ever empty. Both the Python and the native Rust servers serve this outline.
+A BIG-IP `.conf` file (any canonical basename — `bigip.conf`, `bigip_base.conf`, …) gets a different outline shape: a `module → kind → object` tree built from the config stanza tree rather than the Tcl scope walk. Nameless global singletons (`auth password-policy`, `net self-allow`, …) fall back to their kind label so no outline entry is ever empty.
 
 ## File-path anchors
 

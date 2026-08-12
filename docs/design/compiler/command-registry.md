@@ -1319,7 +1319,6 @@ rename/alias-awareness for one diagnostic.
 by-name lookup, and every consumer above resolves *before* calling it. A
 consumer added later that queries the registry on raw head text re-opens the
 gap for itself; the `apply`-lambda reproduction in the
-[`apply`-lambda-body KCS note](../../kcs/kcs-issue-apply-lambda-body-not-highlighted-via-list-quoting.md)
 is what that looks like from the outside.
 
 ## Decision rule

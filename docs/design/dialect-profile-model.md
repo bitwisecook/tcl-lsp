@@ -75,7 +75,7 @@ The F5 command surface (`HTTP::*`, `pool`, `table`, `TCP::*`, …) is a
 to the pinned 8.4 base — exactly as `Tk`/`tcllib` are versioned libraries over a
 Tcl base. There is **no "classic vs modern 8.5/8.6" framing anywhere** in this
 model. The stale "iRules loads `tcl8.6` signatures" line
-(`dialects-events.md:74-78`) is **retired** by this ratification (see below).
+(`dialects-events.md:74-78`) is superseded by this model (see below).
 
 Concretely, at **every** BIG-IP version:
 - `dict` / `lassign` (8.5), `lmap` / `throw` / `yieldto` (8.6), `zipfs` (9.0)
@@ -293,7 +293,7 @@ registry-hosted `DialectProfile` without a dependency cycle (§1.2) — which is
 why `LexerConfig::for_dialect` and `parse_expr` are string-keyed and duplicate
 the behaviour tables.
 
-**DECIDED — Option A: introduce a foundational `tcl-dialect` crate below
+**Option A: a foundational `tcl-dialect` crate below
 tcl-lexer.** This is the chosen architecture; the whole model below assumes it.
 (Option B — keeping the behaviour tables string-keyed — is recorded as a
 rejected alternative in §3.1.)
@@ -327,8 +327,8 @@ cache key (`expr/parser.rs`) changes to a profile-identity key, and
 `dialects.rs`'s detection heuristics either move too or stay in registry
 re-exporting the enum. This is the **only** option that delivers the stated
 single-source-of-truth for the behaviour axis, which is why it was chosen. The
-split lands in its own milestone (§12, Milestone 1) ahead of any behaviour
-routing, and it **unblocks** the behaviour-axis unification (§12, Milestone 3)
+split is the prerequisite for any behaviour routing, and it is what makes
+the behaviour-axis unification (§5.4)
 that a registry-hosted profile could not reach.
 
 ### 3.1 Alternatives considered — Option B (rejected)
@@ -359,7 +359,7 @@ prerequisite is **DONE**. What remains under this heading is additive:
 - The combinator constants (`ALL_TCL`, `TCL85_PLUS`, `NON_IRULES_OPERATORS`, …)
   are `.bits()` unions and are width-agnostic — untouched.
 
-New bits land with the profiles that need them (§12, Milestone 6:
+New bits land with the profiles that need them (
 `TMSH`/`BIGIP` for first-class f5-tmsh/f5-bigip), not as a standalone width
 change.
 
@@ -396,7 +396,7 @@ as parent (`hover.rs:422-437`). Confirmed against `expect_after`
 parse("expect") = EXPECT` and `EXPECT.contains(EXPECT) = true`, so options
 resolve.
 
-The draft's fix ("keep `contains`, just pass one bit") is **wrong**: passing
+Keeping `contains` and passing one bit does not work: passing
 `signature_base` as a single bit gives `TCL86` for expect, and
 `EXPECT.contains(TCL86) = false`, so **every inherited option on every vendor
 command silently drops**. Conversely, a core option gated `TCL85_PLUS`
@@ -416,13 +416,13 @@ The resolution is a genuine **semantics change** to option availability:
 // TCL90-only option does NOT resolve in an 8.5 superset.
 ```
 
-Switching `contains`→`intersects` for options is exactly why the draft's version
+Switching `contains`→`intersects` for options is exactly why the version
 guard is *also* needed: `intersects` alone would leak a `TCL90`-only option into
 an 8.5 profile whose mask contains… nothing 9.0, so in practice the
-`version_ceiling` guard is what prevents the leak the review flagged. This
+`version_ceiling` guard is what prevents that leak. This
 change moves the **switch / regsub / option-arity** goldens (options that were
 `contains`-gated flip visibility under vendor masks). Budget those golden
-regens in the milestone that lands it (§12, Milestone 4) — **not** Milestone 2.
+regenerates the affected goldens when it lands.
 
 ### 5.3 The single spec-selection strategy
 
@@ -437,7 +437,7 @@ and version-arm gaps).
 `resolve_command` primitive (it is strictly more principled — "best spec for
 this profile" — and is already golden-tested), and route `get_for_dialect`
 callers through it. This regenerates registry-dump goldens; do it in its own
-milestone (§12, Milestone 5) with review, **not** folded into the W123 fix.
+change on its own, reviewed separately from the W123 availability fix.
 
 ### 5.4 Behaviour (axis B)
 
@@ -499,14 +499,14 @@ impl DialectProfile {
 
 ### 6.2 Scoping
 
-The DSL validators are their **own milestone** (§12, Milestone 7), not part of
+The DSL validators are their own increment, not part of
 the availability fix. They are new diagnostics (a `format %u on 8.4` warning, a
 `string is` class warning) built on `p.effective_tcl_version()`. Because
 `format.rs`/`scan.rs` live in **tcl-syntax below registry**, they can only
-consume the profile once the DECIDED `tcl-dialect` crate (§3, Milestone 1) puts
-the catalog **below** tcl-syntax — after Milestone 1 the DSL validators read
+consume the profile because the `tcl-dialect` crate (§3) puts
+the catalogue **below** `tcl-syntax`, so the DSL validators read
 `p.effective_tcl_version()` directly from tcl-syntax with no cycle. This is why
-Milestone 7 is scheduled after Milestone 1, not before.
+
 
 ---
 
@@ -543,7 +543,7 @@ collapse to plain Tcl — verified: `parse` has no arm for them, `dialects.rs:86
 Giving them real profiles requires a new `TMSH` bit (u64 has headroom, §4) or an
 explicit `base_layers` arm in `load_dialect` (currently no arm). This is a
 **user-visible, bidirectionally-regressive** change (§7.2) — gate behind
-Milestone 6.
+a later increment.
 
 ### 7.1 Derivation rules
 
@@ -561,7 +561,7 @@ Milestone 6.
   f5-tmsh** (drives `minify.rs:2164` prefix-shortening; a wrong `true`
   mis-minifies). Matches `DialectSet::has_fixed_ensembles` (`dialects.rs:860`).
 - Default `bigip_version` / `tool_version` / `sdc_version` = **the OLDEST
-  supported version** (owner-final, D5 — the *conservative* choice, reversing the
+  supported version** (the *conservative* choice — the
   draft's "latest" recommendation). By default only **floor-version** commands
   are offered; newer F5/EDA commands (a `CMP::*`/`HTTP2::*` introduced in a later
   TMOS, a newer synthesis-tool subcommand) are **hidden until the file pins a
@@ -581,7 +581,7 @@ Today `parse("f5-tmsh")`/`parse("bpf")` → `None` → W123/W002
 `f5-tmsh` the precise mask `TCL85|TMSH` and `bpf` a base makes **8.6/9.0 core
 commands newly draw W123** in tmsh/bpf files — a false-positive surface on
 *general Tcl commands*, not just "tmsh:: stops drawing W123". This is a real
-regression to budget in Milestone 6's golden/test set, not a footnote.
+regression to budget in the golden/test set, not a footnote.
 
 **Not dialects — model as `LibraryPin`, not profiles:** `tk` (express as
 `Tk TracksBase` on a Tcl profile — `wish` = Tcl base + Tk; the standalone `TK`
@@ -659,7 +659,7 @@ Verified un-migrated hazard: the CLI snapshot `command_names()` filters solely
 by `get_for_dialect` (`command_snapshot.rs:411-414`) and is **not** in the LSP
 migration set; several `get_for_dialect(IRULES)` callers exist.
 
-**Pre-retag gate (blocking Milestone 5):** *"No consumer resolves iRules
+**Pre-retag gate:** *"No consumer resolves iRules
 availability via a bare mask query."* Before the retag lands, enumerate and
 migrate **every** `get_for_dialect` / `supports_dialect(IRULES)` caller to apply
 `disabled_commands`:
@@ -669,7 +669,7 @@ migrate **every** `get_for_dialect` / `supports_dialect(IRULES)` caller to apply
 - **the CLI snapshot** `command_names` + `resolve_spec`
   (`command_snapshot.rs:411,427,437`),
 - every other `get_for_dialect(…, IRULES)` / `resolve_dialect("f5-irules")`
-  call across the 22 crates (enumerate from the complete inventory in §15,
+  call across the 22 crates (enumerate them,
   filtered to the IRULES/`get_for_dialect`/`resolve_dialect` columns).
 
 Until this gate is green the retag **must not** land — an un-migrated consumer

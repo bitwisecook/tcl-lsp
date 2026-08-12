@@ -108,4 +108,3 @@ The LSP client applies all grouped edits atomically via a single code action.
 - [Diagnostics section in walkthroughs](../../../docs/design/example-script-walkthroughs.md#how-diagnostics-are-calculated)
 - [kcs-async-diagnostics-tiering.md](../../../docs/design/compiler/async-diagnostics-tiering.md)
 - [kcs-diagnostics-integration.md](../../../docs/design/compiler/diagnostics-integration.md)
-- [kcs-troubleshooting-duplicate-diagnostics.md](../../../docs/kcs/kcs-issue-duplicate-diagnostics.md)

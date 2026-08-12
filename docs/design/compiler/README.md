@@ -186,7 +186,6 @@ User-facing compiler troubleshooting and how-tos live in
 ## Related KCS how-tos
 
 - [How do I add a compiler pass?](../../kcs/kcs-howto-add-compiler-pass.md)
-- [How do I debug an IR/CFG/SSA diagnostic?](../../kcs/kcs-howto-ir-cfg-ssa-diagnostics.md)
-- [Stale compiler cache issue](../../kcs/kcs-issue-stale-compiler-cache.md)
-- [Range drift issue](../../kcs/kcs-issue-range-drift.md)
-- [Duplicate diagnostics issue](../../kcs/kcs-issue-duplicate-diagnostics.md)
+- [How do I add a command-registry package?](../../kcs/kcs-howto-add-command-registry-package.md)
+- [How does array-element SSA typing work?](../../kcs/kcs-howto-array-element-ssa-typing.md)
+- [How do I suppress a diagnostic?](../../kcs/kcs-howto-suppress-diagnostics.md)
