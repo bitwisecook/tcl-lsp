@@ -4460,7 +4460,6 @@ dependencies = [
  "tcl-engine-api",
  "tcl-engine-tclvm",
  "tcl-registry",
- "tcl-spectcl",
 ]
 
 [[package]]
@@ -4486,6 +4485,7 @@ dependencies = [
  "tcl-dialect",
  "tcl-lexer",
  "tcl-registry",
+ "tcl-spec-hooks",
  "tcl-syntax",
  "tcl-userdirs",
  "xxhash-rust",

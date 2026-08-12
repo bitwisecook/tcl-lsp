@@ -43,6 +43,7 @@
 use tcl_dialect::DialectProfile;
 use tcl_registry::registry::CommandRegistry;
 
+use crate::hooks;
 use crate::pack::{PackSet, installs_over};
 
 /// The registry for `profile` with `packs` installed.
@@ -82,11 +83,19 @@ pub fn registry_for_dialect_with_packs(
 /// `CommandRegistry::get` answers with the *last* spec registered for a name —
 /// which is why an `-override` command replaces the shipped one simply by
 /// being inserted, with no removal step.
+///
+/// Each spec goes in **specialised** ([`hooks::specialise`]): a command that
+/// declared a `const_fold { … }` body carries that slot's thunk rather than
+/// the loader's abstaining placeholder, so the hook answers as soon as a
+/// thread has a host ([`hooks::ensure_thread_host`]) and abstains exactly as
+/// before until one does. A pack that declares no body is untouched, and pays
+/// nothing.
 fn install_into(registry: &mut CommandRegistry, packs: &PackSet) {
+    let plan = hooks::plan_for(packs);
     for pack in &packs.packs {
         for command in &pack.commands {
             if installs_over(command, registry) {
-                registry.insert(command.spec.clone());
+                registry.insert(hooks::specialise(command, &plan).clone());
             }
         }
     }

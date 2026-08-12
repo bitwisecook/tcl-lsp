@@ -30,6 +30,7 @@ authors.workspace = true
 [dependencies]
 tcl-dialect = { path = "../tcl-dialect" }
 tcl-registry = { path = "../tcl-registry" }
+tcl-spec-hooks = { path = "../tcl-spec-hooks" }
 tcl-compiler = { path = "../tcl-compiler" }
 tcl-lexer = { path = "../tcl-lexer" }
 tcl-syntax = { path = "../tcl-syntax" }

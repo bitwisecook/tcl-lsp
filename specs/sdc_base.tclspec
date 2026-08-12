@@ -1,3 +1,17 @@
+# tcl-lsp — bundled SpecTcl loadable: the shared SDC constraint / collection library every EDA shell ships.
+#
+# This pack IS the source of truth for these commands. The Rust modules that
+# used to hold them (rust/tcl-registry/src/commands/sdc_base/) were deleted when
+# the EDA vendor libraries migrated to bundled `.tclspec` loadables, per
+# docs/design/spec-packs.md ("the EDA vendor libraries ship as bundled
+# `.tclspec` loadables … so the loader path is exercised in production from day
+# one rather than reserved for private packs"). Every command was proved
+# field-for-field equal to its compiled spec by the SpecTcl round-trip gate
+# before the modules were removed.
+#
+# Discovery: the **bundled** tier — `specs/` beside the server executable, or
+# wherever $TCL_LSP_SPEC_PACK_DIR points (rust/tcl-spectcl/src/discovery.rs).
+# Edit this file to change the specs; there is no generator to re-run.
 # Rendered from the tcl-lsp command registry by the spec studio's SpecTcl
 #   renderer (rust/tcl-spec-studio/src/render_spectcl.rs).
 # The syntax is docs/design/spec-dsl-examples/README.md. Every `TODO(spectcl)`
