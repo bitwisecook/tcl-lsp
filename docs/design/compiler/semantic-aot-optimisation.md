@@ -36,6 +36,34 @@ sealed native lowering, but neither is a general Tcl AOT mode.
 | Guarded boxed intrinsic | `GuardedIntrinsic` | One executable-IR prebuilt-argv invocation resolved by the registry as `IntrinsicId::StringLength`. The common mixed-region plan retains the registry intrinsic identity, every dispatch-dependency domain, exact completion identity, and the original argv slow path. | The WASM emitter evaluates/builds argv once, asks the live Rust runtime to prepare and re-check a per-interpreter guard token, and invokes the boxed runtime intrinsic only on success. Rename/rebinding, execution traces, unsupported live policy, intrinsic refusal, and guard invalidation use `tcl_invoke_argv` with the same argv. Other intrinsics retain typed declines. |
 | Sealed native i64 add | `DirectProc`, `MaterialisableSlot`, `FrameElision`, `NativeInteger`, and `SemanticOperationSpecialisation`, plus `for_sealed_program()` | The exact four-statement demonstration: one two-required-parameter procedure, two covered constant `set` actuals, and one registry-resolved channel-write boundary containing the direct call. Common proofs cover the procedure binding and body operations, caller/formal SSA identities, integer types and exact ranges, frame privacy, top-level statement coverage, and the boxed output boundary. WASM emits an exported `(i64, i64) -> i64` function using `i64.add`; only the result is boxed as a Tcl wide integer at the output boundary. | Selection requires overflow-impossible exact i64 operands, no extra top-level statement, no relevant mutation or trace, non-standalone packaging, and sealed-program policy. Any missing premise declines before emission to the existing generic/general path. This slice has no mid-function deoptimisation, checked-overflow branch, general materialisation protocol, default arguments, `args`, namespace-relative procedure dispatch, or TclOO support. |
 
+### Tcl 8 supplementary-character boundary
+
+The guarded `StringLength` slice must not be read as authorisation for general
+native Tcl string operations. C Tcl 8 stores characters as 16-bit
+`Tcl_UniChar` units. A supplementary-plane character therefore occupies two
+units, and `string index` or `string range` can produce a Tcl value containing
+one isolated surrogate. Rust `String` cannot represent that value. Counting a
+Rust string's UTF-16 encoding is enough to implement Tcl 8 `string length`, but
+it is not a representation from which exact Tcl 8 index, range, first, or last
+semantics can be reconstructed.
+
+The executable C Tcl oracle for the literal string `A😀B` is:
+
+| Operation | Tcl 8.6 | Tcl 9.0 |
+|---|---|---|
+| `string length` | `4` UTF-16 units | `3` Unicode scalar values |
+| `string index` at 1 and 2 | separate high- and low-surrogate Tcl values | the emoji, then `B` |
+| `string range` 1 2 | the complete emoji | the emoji followed by `B` |
+| `string first B` | `3` | `2` |
+
+Until the shared Tcl value layer can retain unpaired UTF-16 surrogates (for
+example through an exact UTF-16, WTF-8, or equivalent lossless internal
+representation) and defines conversion and shimmering at every boundary, Tcl
+8 string index/range/search specialisation must decline to generic runtime
+dispatch. The representation belongs below both TclVM and WASM code generation;
+an emitter or command-specific compiler branch must not approximate it with
+Unicode scalar iteration or replacement characters.
+
 `WasmCodegenPlan::GenericInvoke` remains the top-level record for the guarded
 intrinsic because the operation's exact slow path is still generic argv
 dispatch; `regions[].selectedKind` records `guarded-intrinsic`. The native

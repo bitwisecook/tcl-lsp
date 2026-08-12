@@ -147,7 +147,11 @@ With the guarded pass enabled, the same emitter additionally imports guard
 prepare/check/release and boxed intrinsic invocation. It builds argv once,
 prepares and re-checks a live per-interpreter token after word evaluation, and
 uses `tcl_invoke_argv` with that same argv when admission or intrinsic execution
-declines. No source word is replayed.
+declines. No source word is replayed. The selected `string length` operation is
+not evidence that other Tcl 8 string operations are safe to specialise: Tcl 8
+indices can denote isolated UTF-16 surrogates that Rust `String` cannot retain.
+The exact oracle and required shared-value representation are documented in
+the [semantic AOT contract](semantic-aot-optimisation.md#tcl-8-supplementary-character-boundary).
 
 The sealed native-add mode emits an exported native `(i64, i64) -> i64`
 procedure and a no-argument top function containing the two proved constants.
