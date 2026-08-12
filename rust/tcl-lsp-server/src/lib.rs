@@ -8054,7 +8054,9 @@ impl Backend {
         };
         {
             let index = self.workspace_index.read().await;
-            let registry = tcl_registry::registry_for_dialect(&analysis.dialect);
+            // Pack-aware: a call site settled against the workspace index must
+            // see the same command universe hover and diagnostics do.
+            let registry = self.registry_for_dialect(&analysis.dialect).await;
             let exports = index.export_snapshot();
             if let Some(cand) = settle_call_against_workspace(
                 &index,
@@ -11205,6 +11207,12 @@ impl Backend {
     /// on-demand providers.
     async fn run_config_reload(&self) {
         self.pull_and_apply_config().await;
+        // `tclLsp.specPacks` is part of what was just applied: if it moved, the
+        // pack set — and therefore the registry every open document resolves
+        // against — moves with it.  The reload is content-keyed, so a settings
+        // burst that does not touch `specPacks` costs one discovery walk and
+        // nothing else.
+        self.reload_spec_packs().await;
         // The re-pull may have flipped `features.diagnostics`,
         // `optimiser.enabled`, or the disabled-diagnostics set — none of which
         // changes a document's dialect (the dialect the re-pull *does* resolve
@@ -12404,7 +12412,7 @@ impl Backend {
             CrossFileCalls::default()
         } else {
             let index = self.workspace_index.read().await;
-            let registry = tcl_registry::registry_for_dialect(inputs.dialect);
+            let registry = self.registry_for_dialect(inputs.dialect).await;
             settle_cross_file_calls(&index, analysis, registry, uri.as_str())
         };
         let analyser_diags = refine_workspace_w120(
