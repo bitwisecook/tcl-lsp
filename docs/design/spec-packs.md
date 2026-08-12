@@ -186,13 +186,17 @@ extension-registration path itself becomes a first-class, dogfooded
 API — the same road a future C-extension-style plugin story would
 take — and the DSL gets the best performance floor the VM can offer.
 
-**Two layers, deliberately.** The bottom layer is the **engine
-interface**: compile a unit → handle, invoke a handle with structured
-values → structured results — nothing DSL-specific in it. `tcl-vm` and
-the Tcl→WASM codegen runtime are its two implementations (selecting one
-must not require the other to be present), and it is the same surface
-the C Tcl extension shim (#1372) adapts existing extensions to later —
-one plug point for every way executable behaviour can arrive. The
+**Two layers, deliberately.** The bottom layer is a **Tcl extension
+interface** in modern, idiomatic Rust — traits and owned structured
+values, no raw interp pointers — playing the role Tcl's C API plays for
+C Tcl. `tcl-vm` and the Tcl→WASM codegen runtime implement it
+(selecting one must not require the other to be present), and it is
+designed against exactly **two consumers**: the hook framework, written
+in Rust on top of it; and the C-Tcl shim (#1372), which lets users
+compile existing C Tcl extensions to run on our tclvm or in wasm
+through the same surface. One plug point for every way executable
+behaviour can arrive — and an API whose shape is disciplined by having
+both a native-Rust and a legacy-C consumer from day one. The
 **hook host** is the layer above: it owns everything DSL-specific — the
 emitter verbs, per-family calling conventions and preconditions,
 abstention and error policy, fuel budgets, memoisation — and speaks
