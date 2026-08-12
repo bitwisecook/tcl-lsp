@@ -16,8 +16,6 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! Native port of `tests/lsp_e2e/test_semantic_tokens_e2e.py`.
-//!
 //! Semantic tokens, end-to-end against the packaged server. A fresh document is
 //! opened per case and `textDocument/semanticTokens/full` is requested once,
 //! then the delta-encoded `data` is decoded and the legend (advertised in
@@ -29,7 +27,7 @@ use crate::common::{Lsp, unique_uri};
 
 use serde_json::Value;
 
-/// A decoded token with its resolved type-name (like the pytest `_typed`).
+/// A decoded token with its resolved type-name.
 #[derive(Debug, Clone)]
 struct TypedToken {
     line: i64,
@@ -1591,12 +1589,12 @@ fn test_apl_presentation_uses_the_apl_token_set() {
     assert!(has("# a comment", "comment"), "{tokens:?}");
 
     // The validator name is split out of its quotes rather than overlaid on
-    // the string, which is how the retired Python implementation did it.
+    // the string.
     assert!(has("IpAddress", "aplValidator"), "{tokens:?}");
 
     // A quoted value after a field-type keyword is a string, never the field's
-    // name — the Python version's `\S+` name group swallowed the opening quote
-    // and emitted `"Welcome` as a field name overlapping the string.
+    // name: a name group that matched non-whitespace greedily would swallow the
+    // opening quote and emit `"Welcome` as a field name overlapping the string.
     assert!(
         !tokens
             .iter()

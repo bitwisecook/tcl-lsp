@@ -16,11 +16,8 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! Native port of `tests/lsp_e2e/test_completion_e2e.py`.
-//!
-//! Completion, end-to-end against the packaged server. Full-parity port of the
-//! request/response cases: the text-edit assertions matter on the live surface,
-//! since an editor applies `textEdit` verbatim.
+//! Completion, end-to-end against the packaged server. The text-edit assertions
+//! matter on the live surface, since an editor applies `textEdit` verbatim.
 
 use crate::common::helpers::*;
 use crate::common::{Lsp, unique_uri};

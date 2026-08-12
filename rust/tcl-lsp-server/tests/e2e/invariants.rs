@@ -16,8 +16,6 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! Native port of `tests/lsp_e2e/test_invariants_e2e.py`.
-//!
 //! Universal invariants + adversarial robustness, end-to-end against the server.
 //! These assert properties that must hold for *every* provider on *every*
 //! document: well-formed ranges, disjoint `WorkspaceEdit`s, and that hostile

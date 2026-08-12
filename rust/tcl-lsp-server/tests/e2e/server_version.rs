@@ -16,8 +16,6 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! Native port of `tests/lsp_e2e/test_server_version.py`.
-//!
 //! The smallest real round-trip: boot the live server and read the version it
 //! reports in the `initialize` response's `serverInfo`. Guards against the
 //! banner regressing to a `dev` fallback, and pins the reported version to

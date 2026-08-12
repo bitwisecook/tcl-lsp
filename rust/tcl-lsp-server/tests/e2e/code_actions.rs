@@ -16,13 +16,10 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! Native port of `tests/lsp_e2e/test_code_actions_e2e.py`.
-//!
-//! Code actions, end-to-end against the packaged server. Full-parity port of
-//! the Tcl-dialect cases in `tests/test_code_actions.py`. The realistic flow
-//! drives diagnostics back into the `codeAction` context — exactly what an
-//! editor does — so quick-fix offers are exercised against real (or, where a
-//! specific range matters, fabricated) diagnostics.
+//! Code actions for the Tcl dialect, end-to-end against the packaged server.
+//! The realistic flow drives diagnostics back into the `codeAction` context —
+//! exactly what an editor does — so quick-fix offers are exercised against real
+//! (or, where a specific range matters, fabricated) diagnostics.
 //!
 //! The F5 iRules-only code actions (collect-bootstrap, the IRULE3001/3002
 //! wrap-with-encode taint fixes, profile headers) run against the dedicated
@@ -151,7 +148,7 @@ fn kinds(actions: &Value, kind_prefix: &str) -> Vec<Value> {
         .unwrap_or_default()
 }
 
-/// A synthetic diagnostic (`_diag`).
+/// A synthetic diagnostic.
 fn diag(code: &str, message: &str, start: (u32, u32), end: (u32, u32)) -> Value {
     json!({
         "range": {

@@ -16,8 +16,6 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! Native port of `tests/lsp_e2e/test_diagnostics_e2e.py`.
-//!
 //! Push diagnostics, end-to-end against the packaged server. The server
 //! advertises no pull provider, so these assert on the `publishDiagnostics` the
 //! server pushes after analysis, keyed by version.
@@ -28,7 +26,7 @@ use serde_json::Value;
 use std::collections::BTreeSet;
 use std::time::Duration;
 
-/// The set of `code` strings carried by `diags` (mirrors Python `_codes`).
+/// The set of `code` strings carried by `diags`.
 fn codes(diags: &[Value]) -> BTreeSet<String> {
     diags
         .iter()
@@ -45,7 +43,7 @@ fn has_code(diags: &[Value], code: &str) -> bool {
     codes(diags).contains(code)
 }
 
-/// The set of start lines for diagnostics carrying `code` (mirrors `_on_line`).
+/// The set of start lines for diagnostics carrying `code`.
 fn on_line(diags: &[Value], code: &str) -> BTreeSet<i64> {
     diags
         .iter()

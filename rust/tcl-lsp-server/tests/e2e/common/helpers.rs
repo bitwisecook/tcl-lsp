@@ -18,11 +18,11 @@
 
 //! Decoders for raw JSON-RPC LSP responses used by the e2e suite.
 //!
-//! Native port of `tests/lsp_e2e/_lsp_helpers.py`. The harness speaks raw JSON,
-//! so every response is a `serde_json::Value`. These helpers normalise the
-//! handful of shapes the protocol allows (`Location` vs `LocationLink`, `Hover`
-//! content variants, hierarchical document symbols, the semantic-tokens delta
-//! encoding) so the feature tests can assert on stable, decoded values.
+//! The harness speaks raw JSON, so every response is a `serde_json::Value`.
+//! These helpers normalise the handful of shapes the protocol allows
+//! (`Location` vs `LocationLink`, `Hover` content variants, hierarchical
+//! document symbols, the semantic-tokens delta encoding) so the feature tests
+//! can assert on stable, decoded values.
 
 #![allow(dead_code)]
 
@@ -293,9 +293,9 @@ fn doc_lines_utf16(text: &str) -> Vec<i64> {
 }
 
 /// Return well-formedness violations for every `Range` in `result` (empty ==
-/// ok). See the pytest docstring: non-negative coords, `start <= end`, real
-/// lines, `start` column within its line (UTF-16). `strict_end_column` also
-/// requires `end` within its line.
+/// ok): coordinates are non-negative, `start <= end`, both lines exist in the
+/// document, and `start`'s column falls within its line (in UTF-16 units).
+/// `strict_end_column` additionally requires `end` within its line.
 pub fn range_violations(
     result: &Value,
     text: &str,
@@ -407,8 +407,11 @@ pub fn workspace_edit_violations(result: &Value, label: &str) -> Vec<String> {
     out
 }
 
-/// Return semantic-token invariant violations (empty == valid). See the pytest
-/// docstring for the full property list.
+/// Return semantic-token invariant violations (empty == valid): `data` is
+/// present and a multiple of five, every delta is non-negative, lengths are
+/// positive, type and modifier indices fall inside the legend, each decoded
+/// token lies within its line (in UTF-16 units), and the tokens are in strictly
+/// ascending, non-overlapping document order.
 pub fn semantic_token_violations(
     result: &Value,
     text: &str,

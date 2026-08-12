@@ -16,8 +16,6 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! Native port of `tests/lsp_e2e/test_bigip_e2e.py`.
-//!
 //! F5 BIG-IP `*.conf` handling, end-to-end against the packaged server. Two
 //! 1.11.0 fixes are pinned here, keyed on the canonical BIG-IP basename:
 //!
@@ -46,9 +44,7 @@ static BIGIP_COUNTER: AtomicU64 = AtomicU64::new(0);
 
 /// A fresh unique `file://` URI whose basename is the canonical BIG-IP name.
 /// The server routes BIG-IP handling on the basename, so the basename is fixed
-/// (`bigip.conf`) while the directory is unique per call — the native analogue
-/// of pytest's `bigip_uri_factory`. `unique_uri` supplies the uniqueness; we
-/// only reuse it to seed a distinct directory.
+/// (`bigip.conf`) while the directory is made unique per call.
 fn bigip_uri() -> String {
     let n = BIGIP_COUNTER.fetch_add(1, Ordering::Relaxed);
     format!("file:///bigip/{}_{n}/bigip.conf", std::process::id())
@@ -81,7 +77,7 @@ ltm rule /Common/r {
 }
 ";
 
-/// The set of `code` strings on a diagnostics array (mirrors `_codes`).
+/// The set of `code` strings on a diagnostics array.
 fn codes(diags: &[Value]) -> BTreeSet<String> {
     diags
         .iter()

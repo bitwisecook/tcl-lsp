@@ -16,11 +16,9 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! Native port of `tests/lsp_e2e/test_document_symbols_e2e.py`.
-//!
-//! Document symbols, end-to-end against the packaged server. Full-parity port
-//! of the Tcl/TclOO cases. Symbol kinds come back as raw LSP integer codes
-//! (`SymbolKind`); the named constants here mirror that enum.
+//! Document symbols for Tcl and TclOO, end-to-end against the packaged server.
+//! Symbol kinds come back as raw LSP integer codes (`SymbolKind`); the named
+//! constants here mirror that enum.
 
 use crate::common::helpers::*;
 use crate::common::{Lsp, unique_uri};

@@ -16,12 +16,11 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! Native port of `tests/lsp_e2e/test_structure_e2e.py`.
-//!
 //! Folding ranges, selection ranges, and workspace symbols, end-to-end.
 //!
-//! Ported from `tests/test_workspace_symbols.py` and the VS Code
-//! `foldingRanges.test.ts` / `selectionRange.test.ts` scenarios.
+//! The folding and selection-range cases mirror the VS Code
+//! `foldingRanges.test.ts` / `selectionRange.test.ts` scenarios, so a gap
+//! between the extension host and the raw protocol is caught here too.
 
 use crate::common::{Lsp, unique_uri};
 
@@ -30,8 +29,7 @@ use std::collections::BTreeSet;
 
 const FUNCTION: i64 = 12;
 
-/// The `(startLine, endLine)` span set of a folding-range result (mirrors the
-/// pytest `_spans` static helper).
+/// The `(startLine, endLine)` span set of a folding-range result.
 fn spans(result: &Value) -> BTreeSet<(i64, i64)> {
     result
         .as_array()
@@ -175,8 +173,8 @@ fn find_proc() {
 
 #[test]
 fn empty_query_returns_all() {
-    // An empty query returns every indexed symbol; assert our uniquely-named
-    // procs are present (the shared session holds other tests' docs too).
+    // An empty query returns every indexed symbol, so assert our uniquely-named
+    // procs are present rather than pinning the exact result set.
     let mut lsp = Lsp::tcl();
     let a = unique_uri("tcl");
     let b = unique_uri("tcl");
