@@ -821,9 +821,7 @@ layers — not just the one closest to the symptom.
   command registry and the iRules event/profile/object graphs.  The
   registry **generates** real Tcl scripts and iRules (`when EVENT { … }`)
   and the tests assert the live analysis — arity (E002/E003), subcommands
-  (E001/W001), event scoping (IRULE1001/1002), and event ordering.  The old
-  Python-era presence baselines (the `tests/fixtures/registry/*.csv` golden
-  dumps and their comparison test) have been retired.  See
+  (E001/W001), event scoping (IRULE1001/1002), and event ordering.  See
   [`docs/design/contracts/registry-contract-tests.md`](docs/design/contracts/registry-contract-tests.md).
 - **iRule test framework** (`rust/tcl-irule-test`): simulates TMM for testing
   iRules without hardware.  See

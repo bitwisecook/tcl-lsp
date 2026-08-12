@@ -13,8 +13,8 @@ for immediate feedback (basic diagnostics) and an expensive asynchronous phase
 (deep diagnostics) that runs in a background thread.  The `DiagnosticScheduler`
 manages task lifecycle with cancellation and version tracking.
 
-Source: `server/features/diagnostics.py`,
-`server/async_diagnostics.py`
+Source: `rust/tcl-lsp-db/src/lib.rs`,
+`rust/tcl-lsp-server/src/lib.rs`
 
 ## Content
 

@@ -14,7 +14,7 @@ input) and whether they reach dangerous sinks (XSS, injection, SSRF).
 model which sanitisation properties hold.  Interprocedural propagation extends
 taint tracking across procedure boundaries.
 
-Source: `compiler/taint/` —
+Source: `rust/tcl-compiler/src/taint.rs` —
 `_lattice.py`,
 `_sinks.py`,
 `_propagation.py`,

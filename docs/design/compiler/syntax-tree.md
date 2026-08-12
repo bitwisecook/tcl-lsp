@@ -7,7 +7,7 @@
 > `command_segmenter._segment_raw` derives its `SegmentedCommand`s from the tree
 > byte-identically (cycle 1); lazy descent into braced bodies and `[…]`
 > substitutions is in `syntax/descend.py`, byte-identical to a direct
-> `green_tree` tokenisation (cycle 2); and `analyser/compiler_checks.py` now descends
+> `green_tree` tokenisation (cycle 2); and `rust/tcl-compiler/src/compiler_checks.rs` now descends
 > the shared tree and runs checks from its segments, retiring its duplicate
 > mini-segmenter so nested commands are analysed identically to top-level (cycle
 > 3 — a reviewed behaviour change, not byte-identical). The formatter, the whole
@@ -190,7 +190,7 @@ locked by the suite afterwards:
   `all_tokens`, `preceding_comment`, `expand_word`) over the corpus, 120k
   randomised differential cases, and nested-body (non-zero base) anchoring,
   before the loop was replaced.
-- **Full `make test-py`** green with the segmenter on the tree — the
+- **Full `make test-rust`** green with the segmenter on the tree — the
   end-to-end proof that diagnostics, analysis, and AOT codegen are unchanged.
 
 ## Performance
@@ -297,9 +297,9 @@ and the refactoring body splitters left to fold onto `descend_*`.
    `{*}` markers, per-word `single`/`braced`/`quoted`/`expand` shape, and descent
    with the `terminated`/`recovered` flag) and a `segments` view (the public
    `SegmentedCommand` contract — range, word pieces, flags, preceding comment)
-   are live in `tooling/explorer/cli.py`, registered in `_VIEW_ORDER` /
+   are live in `rust/tcl-explorer/src/views.rs`, registered in `_VIEW_ORDER` /
    `ALL_VIEWS`. `greentree` stays the oracle. Mirrored into every surface: the
-   TUI renders both as captured-ANSI text views; `tooling/cli/serialise.py` gains
+   TUI renders both as captured-ANSI text views; `rust/tcl-explorer/src/serialise.rs` gains
    `_serialise_cst` / `_serialise_segments` (+ `_VIEW_META`) so the web GUI
    (`static/index.html`, `explorer-core.js`) and the in-browser pyodide worker
    show structural, expandable, source-linked trees. **The Rust explorer

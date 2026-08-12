@@ -1,121 +1,95 @@
-# Variable traces — implementation
+# Trace dispatch — as built
 
-## Status
+Both Rust interpreters implement the full `trace` surface: variable traces
+(`array`/`read`/`unset`/`write`), command traces (`rename`/`delete`), and
+execution traces (`enter`/`leave`/`enterstep`/`leavestep`). This document
+describes how each runtime stores and fires them. The *semantic* contract the
+firing must satisfy — ordering, error reshaping, re-entrancy, and
+introspection coherence — is
+[`../contracts/variable-trace-dispatch-and-introspection.md`](../contracts/variable-trace-dispatch-and-introspection.md).
 
-`trace add variable …` is **implemented** in the Rust runtime's
-`runtime/rust/src/cmd_trace.rs`.  Variable traces
-fire on read, write, and unset for global scalars, global arrays,
-array elements, namespace variables, and proc-local variables (via a
-parallel per-frame chain rooted in `frame.rs`).
+Reference: `tmp/tcl9.0.3/generic/tclTrace.c` (`Tcl_TraceObjCmd`,
+`TraceVariableObjCmd` / `TraceCommandObjCmd` / `TraceExecutionObjCmd`,
+`TclCallVarTraces`) and `tclVar.c`.
 
-`trace add command …` and `trace add execution …` remain
-**no-ops** — they are accepted syntactically (so tcltest harnesses
-load) but silently drop the callback.  See
-`runtime/rust/src/cmd_trace.rs` (header comment) for the
-canonical statement of their deferred status.
+## What is shared, and what is not
 
-The remaining gaps are tracked here because they are independent
-of the variable-trace work that has already landed.
+`trace` is heavily stateful — each runtime owns its trace tables, and the
+firing is wired into that runtime's own variable, command, and dispatch
+chokepoints. Only the **argument decoding** is shared, in
+`tcl_cmd_core::trace`:
 
-## What has to change
+- `TraceKind` (`Variable` / `Command` / `Execution`) selects the valid
+  operation names in C's `opStrings[]` table order, which is the order the
+  bad-operation error enumerates them in;
+- the op-list parser validates `{read write}`-shaped specs and produces the
+  canonical `bad type` / `bad operation` messages.
 
-A real implementation needs a hook on every `var` mutation site.
-The runtime touches vars through three layers:
+Each runtime converts the canonical op names into its own representation: the
+bytecode VM keeps the name list, the WASM runtime folds them into an op
+bitset.
 
-1. **Compiled-side direct writes.**  `_emit_var_write_obj_impl` in
-   `compiler/codegen/wasm/_emitter/_variables.py` emits
-   `tcl_global_set` / `tcl_local_set` / `_emit_owned_local_write`
-   / `tcl_array_set` for set-shaped operations.  Each of those
-   call sites is an opportunity to invoke a write trace.
-2. **Runtime-side mutators.**  `tcl_cmd_lappend`, `dict_set` (when
-   it routes back through a var), `incr`, and the array-element
-   commands all eventually call `var_set_scalar` (scalars) or
-   `array_set` / `bucket_set_value` (array elements).  Centralising
-   the trace-fire on those bottlenecks would cover compiled and
-   eval-fallback paths together.
-3. **Eval-fallback writes.**  `tcl_eval` routes every interpreter-
-   side `set` through the `set` implementation in
-   `runtime/rust/src/cmd_var.rs`.
-   Traces installed on a var must fire there too.
+## Chokepoints
 
-## Trace storage
+A trace is only correct if **every** mutation or dispatch path routes through
+one firing site. Both runtimes funnel accordingly.
 
-Each `Var` and each array element (both modelled by the `Var` type
-in `frame.rs`) needs an optional pointer to a TraceList struct:
+### `runtime/rust` (tree-walking runtime)
 
-```
-TraceList:
-  count: u32
-  cap:   u32
-  ents:  pointer to TraceEntry[]
+| Trace kind | Storage | Fired from |
+|---|---|---|
+| variable | keyed by resolved variable identity — home namespace *or* local call-frame level, plus the simple name | `Interp::fire_var_trace` / `fire_var_trace_resolved`, called from the scalar and array-element read/write/unset paths |
+| command | keyed by resolved FQN (`Interp::resolve_cmd_fqn`) | `Interp::fire_cmd_trace`, from the `rename` and command-delete paths |
+| execution | keyed by resolved FQN | `Interp::dispatch` — `enter`/`leave` around the traced command's own invocation, `enterstep`/`leavestep` around every command executed while a step-traced command is on the stack |
 
-TraceEntry:
-  ops:        u32   // bitmask: 1=read, 2=write, 4=unset, 8=array
-  cmd_obj:    i32   // TclObj of the callback prefix
-  next:       u32   // pointer for chained removals
-```
+Because the key is the *resolved* identity rather than the written name, a
+trace follows the variable or command through `upvar`/`global` links and
+through a `rename` (`move_cmd_traces`), and is dropped when the command is
+deleted (`remove_cmd_traces`) or its frame is popped
+(`clear_frame_var_traces`).
 
-Adding a 4-byte `traces` slot to the existing `Var` and bucket
-layouts is the minimal change.  It's zero-cost on the no-trace path
-(load-and-test against zero in the existing fast paths).
+### `rust/tcl-vm` (bytecode VM)
 
-## Firing semantics
+The VM keeps the same three tables (`cmd_traces` / `exec_traces` on the
+interpreter) keyed by resolved FQN, plus one extra piece of state that the
+tree-walker does not need: because the VM executes compiled proc bodies,
+installing a new `enterstep`/`leavestep`-capable trace has to invalidate the
+compiled bodies that would otherwise skip the per-command step hook. An
+epoch counter, bumped on every `trace add|remove execution … enterstep`,
+drives that invalidation.
 
-When a write fires:
+Behaviour is pinned end-to-end in `rust/tcl-vm/tests/command_traces_e2e.rs`:
+names arrive fully qualified, an enter-trace error aborts the command, a
+leave-trace error replaces its result, `rename`/`delete` callback errors are
+ignored, traces follow a `rename`, and a redefinition fires the `delete`
+trace.
 
-1. Build a 3-element TclObj list `[name1 name2 op]` per Tcl spec
-   (name1 = base name, name2 = element key for arrays else empty,
-   op = "write" / "read" / "unset" / "array").
-2. Append to the user callback prefix to form the full command.
-3. Bump `recursion_depth`; if a write trace mutates the same var
-   from inside the trace, fire-and-forget rather than re-enter
-   (Tcl matches this).
-4. Run the command via `tcl_eval`.
-5. Decrement; clear `trace_in_progress`.
+## Callback shape and firing order
 
-`tcl_eval` already knows how to invoke commands, so step 4 is just
-re-using existing machinery.  The complexity is in steps 1–3: name
-synthesis, recursion guards, and integration with the catch system
-(a trace error becomes the var-op's error).
+A callback is evaluated as a script: the verbatim command prefix with the
+trace's arguments appended as list elements.
 
-## Effort estimate
+| Kind | Appended words |
+|---|---|
+| variable | `name1 name2 op` — `name2` is the element key for an array access, empty for a scalar; `op` is the full word (`read`/`write`/`unset`/`array`) |
+| command | `oldName newName rename`, or `oldName {} delete` |
+| execution | the command's own words, plus the op word |
 
-Roughly:
+Whole-array traces fire before element traces; within a list, newest-first.
+A per-record active flag makes a callback that re-enters the same variable
+terminate. A read or write callback that errors reshapes the operation's
+result (`can't read "NAME": …` / `can't set "NAME": …`) and stops further
+firing; an unset callback's error is discarded and the remaining unset traces
+still fire. The mutation itself is never gated on the callback's outcome.
 
-* **0.5 day** — TraceList allocator + add/remove ops on Var and
-  array bucket.
-* **0.5 day** — fire-on-write hook in `var_set_scalar` and
-  `bucket_set_value`.
-* **0.5 day** — read trace (pre-fetch hook in `var_get_scalar` /
-  `array_get`).
-* **1.0 day** — unset traces + the array-shape `array` op
-  variant + recursion guard.
-* **0.5 day** — `trace info variable` / `trace remove variable`
-  back-ends.
-* **0.5 day** — port `_emit_unsupported_trap` for `trace info` /
-  `trace info variable` back to the no-op return-path so existing
-  tests that probe the surface API still load.
+## Key files
 
-So **~3.5 days** of careful work.  This is the order-of-magnitude
-estimate for a correct implementation; someone familiar with the
-runtime might do it in 2 days, somebody not might take 5.
-
-## What unblocks once it lands
-
-* tcltest's lazy-init traces (e.g. `testConstraint` lookups that
-  populate `tcl_platform` on first read) start firing — currently
-  the harness silently runs against the *initial* values for all
-  constraints, which incorrectly rejects some platform-conditional
-  tests.
-* `trace add command rename` fires on `[rename]` — used by some
-  tcltest fixtures to count proc swaps.
-* User-script `trace add variable` invocations are observed —
-  removes the silent-drop hazard for end users who write
-  reactive-style Tcl.
-
-## Out of scope here
-
-* Execution traces (`trace add execution …`) — separate project,
-  hooks per-proc rather than per-var.
-* `trace add command rename` for compiled procs — straightforward
-  once the var-trace machinery is in place but follows from it.
+| File | Role |
+|---|---|
+| `rust/tcl-cmd-core/src/trace.rs` | shared op-list parsing + error catalogue |
+| `runtime/rust/src/cmd_trace.rs` | the `trace` command for the tree-walking runtime |
+| `runtime/rust/src/interp.rs` | `fire_var_trace`, `fire_cmd_trace`, the dispatch-side execution hook |
+| `runtime/rust/src/frame.rs` | per-frame variable cells the variable-trace key resolves against |
+| `rust/tcl-vm/src/cmd_trace.rs` | the `trace` command for the bytecode VM |
+| `rust/tcl-vm/src/interp.rs` | VM trace tables, the step-trace epoch, `cmd_trace_entries` |
+| `rust/tcl-vm/tests/command_traces_e2e.rs` | tclsh-pinned command/execution trace vectors |

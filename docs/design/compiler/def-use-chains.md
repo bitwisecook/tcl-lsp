@@ -141,9 +141,9 @@ than lowered.
 
 ## Module Location
 
-- **Source**: `compiler/def_use.py`
-- **Integration**: `compiler/core_analyses.py` (built in `analyse_function`)
-- **Graph export**: `compiler/dataflow_graph.py`
+- **Source**: `rust/tcl-compiler/src/def_use.rs`
+- **Integration**: `rust/tcl-compiler/src/analyses.rs` / `rust/tcl-compiler/src/sccp.rs` (built in `analyse_function`)
+- **Graph export**: `rust/tcl-compiler/src/dataflow_graph.rs`
 
 ## Example
 

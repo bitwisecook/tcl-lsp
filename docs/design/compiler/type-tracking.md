@@ -240,7 +240,8 @@ catalogue + lsp_e2e where user-visible).
 ## Cross-links
 
 - `docs/design/contracts/shimmer-reference-behaviour.md` — shimmer contract.
-- `docs/design/compiler/FP.md` §FP-SH-21 — pure-first-conversion catalogue.
+- `rust/tcl-compiler/src/analyser/diagnostics/fp/sh.rs` — the paired
+  pure-first-conversion regression tests.
 - `docs/design/contracts/numeric-tower-and-expr-semantics.md` — expr numeric
   semantics.
 - `rust/tcl-compiler/src/shimmer/hints.rs` — `is_pure_intrep` /

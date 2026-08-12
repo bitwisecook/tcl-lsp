@@ -25,10 +25,10 @@ This path runs frequently during editing, so incremental proc reuse (`proc_cache
 
 ## File-path anchors
 
-- `compiler/compilation_unit.py` (`compile_source`, `CompilationUnit`, `FunctionUnit`)
-- `compiler/interprocedural.py` (`analyse_interprocedural_ir`)
-- `server/features/diagnostics.py` (`get_diagnostics`, CU consumption)
-- `analyser/_analyser/__init__.py` (CU-assisted semantic diagnostics)
+- `rust/tcl-compiler/src/compilation_unit.rs` (`compile_source`, `CompilationUnit`, `FunctionUnit`)
+- `rust/tcl-compiler/src/interprocedural.rs` (`analyse_interprocedural_ir`)
+- `rust/tcl-lsp-db/src/lib.rs` (`get_diagnostics`, CU consumption)
+- `rust/tcl-compiler/src/analyser/` (CU-assisted semantic diagnostics)
 
 ## Failure modes
 

@@ -21,10 +21,7 @@ The [diagnostics feature page](../features/kcs-feature-diagnostics.md)
 is the user-facing entry point for the whole family; it links here
 for per-code details.
 
-This index lists every per-code KCS page.  The original phased plan
-that set out the coverage targets is archived at
-[`docs/archive/kcs-completeness-plan-2026.md`](../../archive/kcs-completeness-plan-2026.md)
-for historical reference.
+This index lists every per-code KCS page.
 
 ## Errors (E-codes)
 

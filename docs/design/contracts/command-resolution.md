@@ -286,10 +286,11 @@ not change the rule, and must not grow bespoke resolution logic. Every
   table. Statically, an `interp eval` script argument is still walked in
   the parent's context for injection diagnostics — its name bindings are
   a **known approximation**, documented below.
-- **Execution traces** observe dispatch; they never alter it (both
-  backends key traces by the resolved FQN; the VM accepts but does not
-  yet fire command/execution traces — a completeness gap, not a
-  resolution one).
+- **Execution traces** observe dispatch; they never alter it. Both
+  backends key command and execution traces by the resolved FQN and fire
+  them from their dispatch chokepoint (`tcl-vm`'s `cmd_trace.rs` /
+  `interp.rs`, `runtime/rust`'s `Interp::fire_cmd_trace` /
+  `Interp::dispatch`).
 - **`args` variadics and alias prepended words** are an *arity* surface:
   the alias prepend happens before the target's own arity check
   (prepend-then-invoke, matching C).

@@ -163,5 +163,5 @@ on a parameter folded and it should not have.
 
 - [sccp-core-analyses.md](sccp-core-analyses.md)
 - [interprocedural-analysis.md](interprocedural-analysis.md)
-- [fp-audit-todo.md](fp-audit-todo.md) — entries `FP-IPCP-01`, `FP-IPCP-02`
+- [fp-sweep.md](fp-sweep.md) — the false-positive sweep harness.
 - [KCS: when is a proc parameter treated as a constant?](../../kcs/kcs-qa-when-is-a-proc-parameter-treated-as-a-constant.md)

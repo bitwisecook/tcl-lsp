@@ -14,7 +14,7 @@ Variables set in `CLIENT_ACCEPTED` persist until the connection closes, so
 reads in `HTTP_REQUEST` are legitimate — not read-before-set errors.
 `ConnectionScope` analysis tracks this flow to suppress false positives.
 
-Source: `compiler/connection_scope.py`
+Source: `rust/tcl-compiler/src/connection_scope.rs`
 
 ## Content
 

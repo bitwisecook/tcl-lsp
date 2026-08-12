@@ -31,7 +31,7 @@ For command substitutions (`set x [cmd ...]`), intent records:
 
 ## Related files
 
-- `compiler/execution_intent.py`
-- `compiler/compilation_unit.py`
-- `compiler/shimmer.py`
-- `compiler/optimiser/`
+- `rust/tcl-compiler/src/execution_intent.rs`
+- `rust/tcl-compiler/src/compilation_unit.rs`
+- `rust/tcl-compiler/src/shimmer/`
+- `rust/tcl-compiler/src/optimiser/`

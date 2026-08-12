@@ -1,4 +1,4 @@
-# KCS: W133 — why does my manifest fail with "not permitted in safe mode"?
+# KCS: W133 — why would a manifest fail with "not permitted in safe mode"?
 
 > **Audience:** User
 > **Type:** Issue
@@ -9,45 +9,42 @@ all-editors, diagnostic, tclpkg
 
 ## Profiles
 
-default
+Reserved — see Status.
 
 ## Question
 
-Why does my editor report W133 on a line in `tclpkg.tcl`?
+What will W133 report about a line in `tclpkg.tcl`?
+
+## Status
+
+W133 is specified in the diagnostic registry but is not yet emitted by
+the analyser. No editor or CLI surface currently reports it, and there
+is no `tclLsp.diagnostics.W133` setting to toggle. This page describes
+the check as designed, for when it ships.
 
 ## Why
 
-The manifest is evaluated in a sandboxed Tcl interpreter that only permits
-13 directives (`package`, `version`, `require`, etc.). Commands like
-`exec`, `open`, `source`, `file`, and `puts` are blocked to prevent
-untrusted manifests from running arbitrary code.
+The manifest is evaluated in a sandboxed Tcl interpreter that only
+permits declarative directives (`package`, `version`, `require`, and
+so on). Commands like `exec`, `open`, `source`, `file`, and `puts` are
+blocked to prevent untrusted manifests from running arbitrary code.
 
-## Symptoms
+## Intended message
 
-- Red squiggle on the offending command in `tclpkg.tcl`.
-- Problems panel: "tclpkg.tcl directive not permitted in safe mode."
+"tclpkg.tcl directive not permitted in safe mode."
 
-## Example that triggers it
+## Example that would trigger it
 
 ```tcl
 package myapp
 version 1.0.0
-exec ls /        ;# ← triggers W133
+exec ls /        ;# ← would trigger W133
 ```
 
 ## Fix
 
 Remove the non-directive command. The manifest should only contain
 declarative directives — see `tcl pkg init` for the full list.
-
-## How to suppress
-
-`tclLsp.diagnostics.W133: false`
-
-This is not recommended — W133 fires only when a manifest tries to run
-a command the safe-mode sandbox blocks. The diagnostic is the
-user-visible side of a security boundary; the command is already refused
-at runtime regardless of whether the diagnostic is shown.
 
 ## Related
 

@@ -23,14 +23,14 @@ After CU assembly, specialised passes consume shared facts and emit typed findin
 
 ## File-path anchors
 
-- `compiler/optimiser/` (`find_optimisations`)
-- `compiler/taint/` (`find_taint_warnings`)
-- `compiler/shimmer.py` (`find_shimmer_warnings`)
-- `compiler/gvn.py` (`find_redundant_computations`)
-- `compiler/irules_flow.py` (`find_irules_flow_warnings`)
-- `compiler/value_shapes.py`
-- `compiler/var_refs.py`
-- `server/features/diagnostics.py` (pass aggregation and suppression)
+- `rust/tcl-compiler/src/optimiser/` (`find_optimisations`)
+- `rust/tcl-compiler/src/taint.rs` (`find_taint_warnings`)
+- `shimmer/` (`find_shimmer_warnings_for_cu`)
+- `gvn.rs`
+- `irules_checks.rs`
+- `value_shapes.rs`
+- `var_refs.rs`
+- `rust/tcl-lsp-db/src/lib.rs` (pass aggregation and suppression)
 
 ## Failure modes
 
@@ -45,13 +45,8 @@ After CU assembly, specialised passes consume shared facts and emit typed findin
 
 ## Test anchors
 
-- `tests/test_optimiser.py`
-- `tests/test_taint.py`
-- `tests/test_shimmer.py`
-- `tests/test_gvn.py`
-- `tests/test_irules_checks.py`
-- `tests/test_diagnostics.py`
-- `tests/test_compiler_helpers.py`
+The unit tests colocated with each producer module above, plus the LSP
+end-to-end diagnostic suites in `rust/tcl-lsp-server/tests/e2e/`.
 
 
 ## Discoverability

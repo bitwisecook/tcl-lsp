@@ -3,10 +3,15 @@
 > **Audience:** Developer / Maintainer
 > **Type:** Reference
 
-**This page is generated from the builtin registry in
-`dialects/f5/query/builtins.py`.  Edit that registry, not this file.**
-The generator lives at `scripts/dev/gen_query_builtins_doc.py`;
-a CI check asserts the on-disk file is up to date.
+**This page is hand-maintained.** The registry of record is the Rust
+crate [`rust/tcl-bigip-query/`](../../../rust/tcl-bigip-query/):
+plain and stream builtins are registered across
+[`src/builtins/mod.rs`](../../../rust/tcl-bigip-query/src/builtins/mod.rs)
+and its submodules, special-form builtins (`select`, `map`, the `paths` /
+`getpath` family, …) in `src/special.rs`, and the network-probe builtins
+in `src/probes.rs`. When a builtin's signature, arity, or behaviour
+changes there, update this file by hand to match — there is no generator
+and no CI check keeping the two in sync.
 
 This is the **canonical per-function reference** for every builtin the
 `f5 query` DSL exposes.  For grammar, value-model, edit-pipeline, and

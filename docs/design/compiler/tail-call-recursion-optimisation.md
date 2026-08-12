@@ -138,10 +138,10 @@ Neither O121 nor O122 fires because neither call is in tail position. O123 does 
 
 ## File-path anchors
 
-- `compiler/optimiser/_tail_call.py` — pass implementation
-- `compiler/optimiser/_types.py` — `_OPT_PRIORITY` entries, `hint_only` field
-- `compiler/optimiser/_manager.py` — pass invocation, `hint_only` skip in `apply_optimisations`
-- `compiler/optimiser/_helpers.py` — hint-only separation in `_select_non_overlapping_optimisations`
+- `rust/tcl-compiler/src/optimiser/_tail_call.py` — pass implementation
+- `rust/tcl-compiler/src/optimiser/_types.py` — `_OPT_PRIORITY` entries, `hint_only` field
+- `rust/tcl-compiler/src/optimiser/_manager.py` — pass invocation, `hint_only` skip in `apply_optimisations`
+- `rust/tcl-compiler/src/optimiser/_helpers.py` — hint-only separation in `_select_non_overlapping_optimisations`
 
 ## Failure modes
 

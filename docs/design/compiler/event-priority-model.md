@@ -17,13 +17,13 @@ Splitting into base + offset makes disambiguation explicit.
 
 ## Data model
 
-### `IRProcedure.base_priority` (`compiler/ir.py`)
+### `IrProcedure::base_priority` (`rust/tcl-compiler/src/ir.rs`)
 
 The declared priority from `when EVENT priority N { body }`. Defaults to 500.
-Set during lowering (`compiler/lowering.py`). Does **not** carry an
+Set during lowering (`rust/tcl-compiler/src/lowering/`). Does **not** carry an
 offset — a single `IRProcedure` does not know about sibling handlers.
 
-### `EventOrderEntry` (`compiler/irules_flow.py`)
+### `EventOrderEntry` (`rust/tcl-compiler/src/irules_checks.rs`)
 
 ```python
 @dataclass(frozen=True, slots=True)
@@ -49,7 +49,7 @@ There are two independent priority extraction paths:
 
 1. **Compiler path** — `lowering.py` parses `when EVENT priority N { body }`
    during IR lowering and stores `base_priority` on `IRProcedure`. Consumed by
-   `tooling/diagram/extract.py` for diagram data.
+   `rust/tcl-diagram/src/data.rs` for diagram data.
 
 2. **Lightweight lexer path** — `_find_when_bodies()` in `irules_flow.py`
    re-parses the same syntax directly from source. Consumed by
@@ -57,19 +57,18 @@ There are two independent priority extraction paths:
 
 ## JSON serialisation
 
-- **Diagram data** (`tooling/diagram/extract.py`): emits `"priority"` as
+- **Diagram data** (`rust/tcl-diagram/src/data.rs`): emits `"priority"` as
   `base_priority` or `null` when equal to 500.
-- **Explorer event order** (`tooling/cli/serialise.py`): emits `"base_priority"`
+- **Explorer event order** (`rust/tcl-explorer/src/serialise.rs`): emits `"base_priority"`
   and `"priority_offset"`.
 
 ## File-path anchors
 
-- `compiler/ir.py` — `IRProcedure.base_priority`
-- `compiler/lowering.py` — priority extraction during lowering
-- `compiler/irules_flow.py` — `EventOrderEntry`, `RuleInitExport`
-- `tooling/diagram/extract.py` — diagram consumer
-- `tooling/cli/serialise.py` — JSON serialisation
-- `tooling/explorer/static/index.html` — explorer HTML consumer
-- `server/workspace/workspace_index.py` — `RuleInitVarDef`
-- `tests/test_irules_checks.py` — priority and offset assertions
-- `tests/test_rule_init_vars.py` — RULE_INIT priority assertions
+- `rust/tcl-compiler/src/ir.rs` — `IrProcedure::base_priority`
+- `rust/tcl-compiler/src/lowering/` — priority extraction during lowering
+- `rust/tcl-compiler/src/irules_checks.rs` — `EventOrderEntry`, `RuleInitExport`
+- `rust/tcl-diagram/src/data.rs` — diagram consumer
+- `rust/tcl-explorer/src/serialise.rs` — JSON serialisation
+- `rust/tcl-lsp-core/src/workspace_index.rs` — `RuleInitVarDef`
+- `rust/tcl-compiler/src/irules_checks.rs` unit tests — priority and offset assertions
+- `rust/tcl-lsp-core/src/workspace_index.rs` unit tests — RULE_INIT priority assertions

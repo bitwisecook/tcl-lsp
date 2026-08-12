@@ -1,15 +1,20 @@
-# Current Rust architecture
+# Rust workspace architecture
 
-> Snapshot of the Rust workspace as of the **ARCH0–ARCH9**
-> crate-and-registry cleanup. Use this page when picking up a new
-> chunk; cross-reference [`docs/rust-rewrite.md`](../../rust-rewrite.md)
-> for the long-form policy and the chunk log.
+How the Rust workspace is laid out today: which crate owns what, the
+dependency direction that must not be violated, and the runtime shape of the
+native LSP server. Read this before adding a crate, a command fact, or an LSP
+feature. The engineering rules that govern *how* code is written live in
+[`docs/rust-rewrite.md`](../../rust-rewrite.md); the architectural direction the
+workspace is converging on is in
+[`target-architecture.md`](target-architecture.md).
 
 ## Crate graph
 
+Dependency direction is consumer → provider, and no edge may point back up.
+
 ```
                   +--------------+
-                  |  tcl-lexer   |   no deps; spans, tokens, source map
+                  |  tcl-lexer   |   spans, tokens, line index, source map, CST
                   +--------------+
                           ^
                           |
@@ -24,202 +29,123 @@
    |  IR/CFG/SSA   |   | folding,      |   | tower-lsp       |
    |  analyses,    |   | symbols,      |   | binary; holds   |
    |  codegen      |   | diagnostics   |   | the query db    |
-   |               |   |               |   | + async diags   |
    +---------------+   +---------------+   +-----------------+
             ^                  ^                 |
             |                  |                 v
             +---------+--------+        +-----------------+
-                      |                 |  tcl-lsp-db     |  salsa 0.26 query
-                      +-----------------|  inputs +       |  database (incremental
-                                        |  tracked queries|  analysis foundation)
-                                        +-----------------+
-                          ^
-                          |
-                  +--------------+
-                  |  tcl-lsp-py  |   public PyO3 binding crate
-                  +--------------+   (cdylib + rlib)
-                          ^
-                          |
-                  +--------------+
-                  | tcl-lsp-rust |   transitional alias — re-exports
-                  +--------------+   tcl-lsp-py under the legacy
-                                     `tcl_lsp_rust` Python module
-                                     name; retires in vNext.
+                                        |  tcl-lsp-db     |  salsa query database
+                                        +-----------------+  (incremental analysis)
 ```
 
-The arrows are dependency direction (consumer → provider). `tcl-lsp-
-core` and `tcl-compiler` link against `tcl-registry` directly; the
-PyO3 binding crates only exist to translate Python ↔ Rust shapes.
+Below the lexer sit the dependency-free vocabulary crates (`tcl-core-types`,
+`tcl-version`, `tcl-dialect`) and the host seam (`tcl-platform`,
+`tcl-host-native`); beside the compiler sit the execution backends (`tcl-vm`,
+`tcl-bytecode`, `bpf-tcl*`, `runtime/rust`), the F5 stack (`tcl-bigip*`,
+`tcl-irules`, `f5-xc`), and the tooling crates (`tcl-explorer`, `tcl-cli*`,
+`f5-cli`, `tcl-pkg`, `tcl-mcp`, `tcl-fuzz`, `tcl-debugger`, `tcl-irule-test`,
+`xtask`). `Cargo.toml` is the authoritative member list, and its `exclude`
+block records why each excluded crate (wasm32 cdylibs, `runtime/rust`,
+`editors/zed`, the maturin-built `bigip-report-gen/python` sidecar) is out of
+the workspace: each needs `unsafe`, a foreign target, or a foreign toolchain,
+and the workspace lints `unsafe_code = "forbid"`.
 
 ### Ownership rules
 
-- **No `pyo3` in pure crates.** `tcl-lexer`, `tcl-registry`,
-  `tcl-compiler`, `tcl-lsp-core`, and the future `tcl-lsp-server`
-  must not depend on `pyo3`. The dependency graph above is the
-  enforcement mechanism — any chunk that adds `pyo3` to a pure
-  crate is rejected.
-- **No product behaviour in PyO3 crates.** `tcl-lsp-rust` may only
-  contain conversion code and Python-API back-compat shims. LSP
-  feature providers, compiler passes, and registry queries live in
-  `tcl-lsp-core`, `tcl-compiler`, and `tcl-registry` respectively.
-- **No command-name tables outside `tcl-registry`.** Compiler,
-  analyser, diagnostics, and LSP code ask the registry "which
-  hook?" / "is this a taint source?" / "does this command have
-  `-normalized`?". Adding a new command to the registry is the
-  only place that code knows about command-specific facts.
-- **Typed hook IDs.** Lowering and codegen specialisation is
-  selected by a typed enum (`LoweringHookId`, `CodegenHookId`) on
-  the matched `CommandSpec` / `SubCommand`. The compiler-side
-  dispatcher matches exhaustively on the enum, so a new variant
-  produces a deliberate compile-time error.
+- **No command-name tables outside `tcl-registry`.** Compiler, analyser,
+  diagnostics, and LSP code ask the registry "which hook?", "is this a taint
+  source?", "which argument is a body?". Adding a command to the registry is the
+  only place code learns a command-specific fact. A hardcoded `HashSet` of
+  command names or a `match cmd.name` outside registry-owned routing is design
+  debt, not a pattern to copy.
+- **Typed hook IDs.** Lowering and codegen specialisation is selected by a typed
+  enum (`LoweringHookId`, `CodegenHookId`) on the matched `CommandSpec` /
+  `SubCommand`, and the compiler-side dispatcher matches exhaustively — a new
+  variant is a deliberate compile-time error, never a silent fallthrough.
+- **Feature logic lives in `tcl-lsp-core`, not in the binary.** The server crate
+  wires providers together, handles protocol, cancellation, and progress; it
+  does not implement features.
+- **No `unsafe`.** Forbidden workspace-wide; a crate that genuinely needs it
+  (the wasm32 cdylibs, `runtime/rust`) is excluded from the workspace and gated
+  by its own `make` target.
 
-## Authoritative Rust paths
+### Authoritative surfaces
 
-These paths are the canonical implementation; the corresponding
-Python is either retired or kept only as a one-release fallback.
-
-| Surface | Crate | Module | Status |
-|---|---|---|---|
-| Backslash substitution | `tcl-lexer` | `substitution` | authoritative |
-| Tokeniser | `tcl-lexer` | `lexer` / `tokens` | authoritative |
-| Spans / line index / source map | `tcl-lexer` | `span` / `line_index` / `source_map` | authoritative |
-| Command registry & lookups | `tcl-registry` | `registry` / `commands/` | authoritative |
-| Typed hook IDs | `tcl-registry` | `hooks` | authoritative |
-| Command / subcommand forms | `tcl-registry` | `forms` | authoritative |
-| Taint source / sanitiser facts | `tcl-registry` | `taint` | authoritative |
-| Lowering hook dispatch | `tcl-compiler` | `lowering_hooks` | authoritative |
-| Codegen hook dispatch | `tcl-compiler` | `codegen::emitter::bytecoded` | authoritative |
-| IR / CFG / SSA | `tcl-compiler` | `ir` / `cfg` / `ssa` | authoritative |
-| Analyser | `tcl-compiler` | `analyser` | default-on Python-supplemented |
-| Folding ranges | `tcl-lsp-core` | `folding` | authoritative (Python wraps via shim) |
-| Document symbols | `tcl-lsp-core` | `document_symbols` | authoritative (Python wraps via shim; native server wires the same provider) |
-
-## Default-on, Python-supplemented paths
-
-These chunks landed default-on through the env-var gate. Python
-remains as a safety-net fallback for one release cycle, after which
-the env var inverts to opt-out and the Python implementation
-retires.
-
-| Subsystem | Env var | Python fallback module | Notes |
-|---|---|---|---|
-| Background signature scan | `TCL_LSP_RUST_SIGNATURE_SCAN` | `core/analysis/signature_scan.py` | flipped in C40-default-on |
-
-The **single-pass analyser has no env-var gate** any more. The Python
-override it was meant to flip (`_merge_rust_with_python_supplement` in
-`core/analysis/_analyser/__init__.py`) was deleted at #241 when that
-module shrank to a ~47-LOC passthrough, so there is nothing left to
-flip — `TCL_LSP_RUST_ANALYSER` does not exist in the tree. The native
-`tcl-lsp-server` calls `Analyser::analyse()` directly
-(`publish_analyser_diagnostics`), so analyser precision fixes are
-already user-facing on the Rust path. Only four `TCL_LSP_RUST_*` gates
-are live in the Python tree today: `…_SIGNATURE_SCAN` (above) plus
-`…_OPTIMISER`, `…_INTERPROC`, and `…_GVN` (default-off shims, next
-section).
-
-## Default-off Rust shims
-
-These chunks are feature-complete in Rust but still default to the
-Python implementation. They flip to default-on once differential
-parity has baked.
-
-| Subsystem | Env var | Python module |
+| Surface | Crate | Module |
 |---|---|---|
-| Optimiser pass manager | `TCL_LSP_RUST_OPTIMISER` | `core/compiler/optimiser/_manager.py` |
-| Interprocedural analysis | `TCL_LSP_RUST_INTERPROC` | `core/compiler/interprocedural.py` |
-| GVN | `TCL_LSP_RUST_GVN` | `core/compiler/gvn.py` |
+| Backslash substitution, tokeniser | `tcl-lexer` | `substitution`, `lexer` / `tokens` |
+| Spans / line index / source map | `tcl-lexer` | `span` / `line_index` / `source_map` |
+| Byte-exact list, subst, expr, format semantics | `tcl-syntax` | `list` / `subst` / `expr` / `format` |
+| Command registry & lookups | `tcl-registry` | `registry` / `commands/` |
+| Typed hook IDs, command forms, taint facts | `tcl-registry` | `hooks` / `forms` / `taint` |
+| Lowering / codegen hook dispatch | `tcl-compiler` | `lowering_hooks`, `codegen::emitter::bytecoded` |
+| IR / CFG / SSA / dataflow | `tcl-compiler` | `ir` / `cfg` / `ssa` / `sccp` / `memory_ssa` |
+| Analyser + diagnostics | `tcl-compiler` | `analyser`, `compiler_checks` |
+| LSP feature providers | `tcl-lsp-core` | `folding`, `document_symbols`, `hover`, … |
+| Incremental query graph | `tcl-lsp-db` | `lib` |
 
-**Current reality (2026-06-19).** These env-var gates govern only the **opt-out
-Python server**. The native `tcl-lsp-server` is now the **default backend**
-(`TCL_LSP_SERVER_KIND=python` opts out), and on that default path the Rust
-optimiser and the GVN / SCCP / taint / shimmer diagnostics run **ungated** via
-`compiler_checks::run_all_checks` and `optimiser::optimise_with_dialect` — so
-GVN redundancy diagnostics (O105 / O106) are already user-facing. The
-`TCL_LSP_RUST_INTERPROC` gate is currently **inert** (named but never called).
-The residual Rust↔Python optimiser parity (O104 / O108 / O114 / O119 / O128 /
-O130 and the general proc inliner) and the interprocedural precision deltas are
-tracked as the **FE-OPT** track in
-[`../../rust-rewrite.md`](../../rust-rewrite.md#remaining-work); the per-item
-evidence is in [`compiler-pipeline-parity.md`](compiler-pipeline-parity.md).
+## LSP server runtime
 
-## Python fallbacks planned for deletion
+The native server holds no hand-maintained analysis caches. Its runtime state
+is a salsa query database plus a document store.
 
-After each chunk's env var has been default-on for one release
-cycle, the Python fallback retires. Folding is the first LSP
-feature with a pure-Rust home (`tcl-lsp-core::folding`); the Python
-side now imports `tcl_lsp_rust.folding_ranges` and only retains the
-`_normalise_overlaps` post-pass plus a fallback path for installs
-without the wheel.
+- **`tcl-lsp-db` (salsa 0.27) query database.** `Backend` holds an
+  `Arc<Mutex<TclDatabase>>`. Inputs are the per-URI `SourceFile { text, dialect,
+  path, … }`, the shared `AnalyserConfig`, and the `Project` (the workspace's
+  file set). Tracked queries wrap the pure providers: `file_analysis` /
+  `file_analysis_incremental`, `compiler_check_diagnostics`, `document_symbols`,
+  `semantic_tokens`, `folding_ranges`, and the project-level indexes
+  (`project_diagnostics`, `project_class_index`, `project_proc_var_index`,
+  `project_command_arities`). The static command registry is a durable field on
+  the db (read through the `TclDb` trait), not a salsa input, so queries need no
+  `CommandRegistry: PartialEq`. `AnalysisResult` derives `PartialEq`, giving
+  salsa's no-`unsafe` `Update` fallback early cutoff.
+- **One invalidation point.** `did_open` / `did_change` set the `SourceFile`
+  input; everything downstream invalidates by dependency. Reads clone the db
+  handle onto a `spawn_blocking` worker and catch `salsa::Cancelled`.
+- **Interned keys are garbage-collected, and that is load-bearing.** Six
+  interned structs key on per-keystroke content; the invariant that keeps them
+  from leaking is written up in [`salsa-interned-gc.md`](salsa-interned-gc.md).
+  Read it before touching durability or interning in `tcl-lsp-db`.
+- **Diagnostics are async, debounced, and tiered.** `schedule_diagnostics`
+  spawns the work behind a 50 ms debounce and returns immediately, so the
+  message loop is never blocked on analysis. See
+  [`lsp-performance.md`](lsp-performance.md) for the tiering and the latency
+  contract, and [`incremental-analysis.md`](incremental-analysis.md) for the
+  per-item walk the queries sit on.
+- **Document snapshots are shared, not copied.** `DocumentState` carries
+  `text: Arc<str>` and an `Arc`-backed `LineIndex`, installed together as one
+  build-and-swap revision, so a reader that crosses an `.await` observes a
+  single consistent revision without holding a lock.
 
-The full retirement list lives in the chunk log
-([`docs/rust-rewrite.md`](../../rust-rewrite.md)) under the
-**PYTHON-RETIRE** chunk; the v2.0 release deletes `core/`, `lsp/`,
-`vm/`, `debugger/`, `explorer/`, `ai/`, and `scripts/` once every
-chunk above has flipped.
+## CLI crates
 
-## Crate boundary intentions
+The two native CLIs are thin `clap` + I/O shells over the same pure engines the
+server links:
 
-- **`tcl-lsp-core`** — pure LSP feature providers (folding,
-  document symbols). No `pyo3`. Both the native LSP server and the
-  PyO3 binding link against this crate so the algorithm has one
-  canonical home.
-- **`tcl-lsp-server`** — `tower-lsp` binary serving folding
-  ranges and document symbols over stdio. ARCH8 lands the
-  bootstrap; `S-document-symbols` adds the second provider; future
-  `S*` chunks extend the set further (hover, completion, semantic
-  tokens, diagnostics).
-- **`tcl-lsp-py`** — canonical public PyO3 binding crate. ARCH9
-  lands it as the new home for every `#[pyclass]` / `#[pyfunction]`
-  surface.
-- **`tcl-lsp-rust`** — transitional alias. Re-exports `tcl-lsp-py`
-  under the legacy `tcl_lsp_rust` Python module name for one
-  release cycle, then retires in vNext. Carries no product logic;
-  new bindings land in `tcl-lsp-py`.
+| Crate | Role |
+|---|---|
+| `tcl-cli` | bin `tcl` — command tree + verb dispatch (incl. `tcl explore --serve`) |
+| `f5-cli` | bin `f5-query` — command tree + verb dispatch |
+| `tcl-cli-support` | shared plumbing: input resolution, output writers, per-dialect registry cache, syntax highlighter, `difflib`, and the `chrome` module |
+| `tcl-bigip-io` | F5 input layer: UCS archives (gzip-tar + OpenPGP-symmetric decrypt, pure Rust, all in-memory), the `read_path` / `load_paths` resolver, passphrase resolution |
+| `tcl-bigip-query` | the jq-flavoured `f5 query` DSL: front-end, value model, evaluator, builtins, projection over the typed BIG-IP model, edit plans, renderers |
 
-New LSP features land in `tcl-lsp-core`; any Python-facing wiring
-lives in a thin per-feature `*_binding.rs` file under
-`tcl-lsp-py/src/features/` that re-exports via `#[pyfunction]`.
+Where a pure core already exists (`tcl_lsp_core::{minify,formatting}`,
+`tcl_compiler::optimiser`, `tcl_registry`), a verb calls it rather than
+duplicating it. Engine crates stay I/O-free: typed in → typed out, with file and
+stdout handling confined to the binary.
 
-## LSP server runtime — query database + async diagnostics
+**Chrome (terminal styling) — `tcl_cli_support::chrome`.** `anstream` +
+`anstyle` + `tabled`; auto-detects a TTY and honours `NO_COLOR` /
+`CLICOLOR_FORCE`. It drives stderr, error messages, and decorative surfaces
+**only** — never a verb's stdout. Piped output stays plain so scripted consumers
+and golden tests remain byte-stable.
 
-The native server (`tcl-lsp-server`) is no longer a bag of hand-maintained
-caches. Its runtime state is:
-
-- **`tcl-lsp-db` (salsa 0.26) query database.** `Backend` holds an
-  `Arc<Mutex<TclDatabase>>`. Inputs: per-URI `SourceFile { text, dialect }` and
-  a shared `AnalyserConfig { disabled_diagnostics, non_ascii_mode }`. Tracked
-  queries wrap the existing sync providers: `file_analysis` (→
-  `Arc<AnalysisResult>`), `document_symbols`, `semantic_tokens`, `folding_ranges`.
-  The static command registry is carried as a durable field on the db (read via
-  the `TclDb` trait), not a salsa input, so queries needn't make
-  `CommandRegistry: PartialEq`. `AnalysisResult` derives `PartialEq` for salsa's
-  no-unsafe `Update`/early-cutoff (the workspace forbids `unsafe`).
-- **Caches eliminated.** The former `analyses`, `hover_cache`,
-  `semantic_tokens_cache`, and `dialect_registries` maps are gone — replaced by
-  the query graph + the durable registry. `did_open`/`did_change` set the
-  `SourceFile` input once (the single invalidation point); reads clone the db
-  handle onto a `spawn_blocking` worker and catch `salsa::Cancelled`. Only
-  `workspace_index` (cross-document aggregate + disk scan) remains a manual
-  structure for now.
-- **Diagnostics are async + debounced.** `did_open`/`did_change` call
-  `schedule_diagnostics`, which spawns the work after a 50 ms debounce (a burst
-  of edits collapses to one run via a per-URI generation check) and returns
-  immediately — the message loop is never blocked on analysis. The diagnostics
-  path computes its base analysis with a *direct* `Analyser::analyse` (not the
-  salsa query) on a blocking worker: salsa's `set_text` takes global write
-  exclusivity, so a diagnostic read-handle held across the uncancellable analyse
-  would block the next edit's write and stall worker threads. Interactive read
-  handlers still use the memoised queries.
-- **Shared CompilationUnit.** `lift_compiler_diagnostics` builds one
-  `CompilationUnit` and runs both `run_all_checks` and `optimiser::optimise_unit`
-  over it (no double lowering).
-
-Measured impact (practcl.tcl, 8463 lines): post-edit interactive latency
-~1080 ms → **1–20 ms** (async diagnostics); documentSymbol across a 119-file
-corpus ~8.2 s → **43 ms** (Python → memoised Rust); diagnostics ~1.4 s → ~1.3 s
-(shared CU). The remaining ~1 s diagnostic cost is the whole-file analyser walk,
-which **per-item incremental analysis** targets — see
-[`incremental-analysis.md`](incremental-analysis.md).
+**Adding a verb.** Resolve inputs via `tcl_cli_support::read_input_documents`
+(+ `combine_sources`), call the pure engine, format the output (field order and
+separators are part of the contract; JSON via field-ordered structs), write via
+`write_text_output` / `write_highlighted_output`, and add a golden test to the
+matching `tests/cli_parity.rs` suite.
 
 ## Where to add a new fact
 
@@ -230,27 +156,21 @@ which **per-item incremental analysis** targets — see
 | Codegen specialisation | new `CodegenHookId` variant + arm in `tcl_compiler::codegen::emitter::bytecoded::dispatch_codegen_hook` |
 | Taint source (top-level command) | stamp `Traits::TAINT_SOURCE` on the matching `CommandSpec` |
 | Taint source (subcommand-shaped, e.g. `chan gets`) | stamp `Traits::TAINT_SOURCE` on the matching `SubCommand` |
-| iRules option-driven check | declare the option in the registry (`OptionSpec`); consumer reads `spec.options` |
-| Side-effect summary | populate `side_effects: &[SideEffect { ... }]` on the spec |
+| iRules option-driven check | declare the option in the registry (`OptionSpec`); the consumer reads `spec.options` |
+| Side-effect summary | populate `side_effects: &[SideEffect { … }]` on the spec |
 
 ## Related
 
-- [`lsp-performance.md`](lsp-performance.md) — measured Python-vs-Rust results,
-  the optimisations shipped, and how to reproduce every number.
-- [`incremental-analysis.md`](incremental-analysis.md) — the per-item
-  incremental-analysis design, query graph, cascade, and staged plan.
+- [`docs/rust-rewrite.md`](../../rust-rewrite.md) — the engineering rules for
+  the workspace: the non-negotiable principles, library choices, and what good
+  Rust looks like here.
+- [`target-architecture.md`](target-architecture.md) — the zero-copy,
+  single-parse, cascading, MVCC destination.
+- [`incremental-analysis.md`](incremental-analysis.md) — the per-item analyser
+  walk, the query graph, and the fallback contract.
 - [`incremental-analysis-experiments.md`](incremental-analysis-experiments.md) —
-  corpus, every Phase-0 experiment, discoveries, results snapshot, and the
-  reasoning behind the plan.
-- [`target-architecture.md`](target-architecture.md) — the zero-copy /
-  single-parse / MVCC destination (salsa engine decision recorded).
-- [`docs/rust-rewrite.md`](../../rust-rewrite.md) — porting principles, the
-  durable reference, and the **live remaining-work plan** (parallel tracks in
-  dependency order).
-- [`compiler-pipeline-parity.md`](compiler-pipeline-parity.md) — deep
-  Rust-vs-Python parity audit of the lexer, CST, IR/CFG/SSA, analyses,
-  optimiser, and bytecode codegen, with a per-code coverage table.
-- [`docs/kcs/kcs-qa-rust-shim-env-vars.md`](../../kcs/kcs-qa-rust-shim-env-vars.md) —
-  Rust shim env-var reference.
-- [`docs/rust-rewrite-test-audit.md`](../../rust-rewrite-test-audit.md)
-  — test-port classification.
+  the corpus and the measurements behind that design.
+- [`lsp-performance.md`](lsp-performance.md) — how the server hits its latency
+  targets, and how to measure it.
+- [`salsa-interned-gc.md`](salsa-interned-gc.md) — the interning invariant the
+  edit path depends on.

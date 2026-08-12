@@ -15,12 +15,12 @@ adding new analyses or debugging data-flow issues.
 
 Source: `shared/tokens.py`,
 `compiler/parsing/command_segmenter.py`,
-`compiler/ir.py`,
-`compiler/cfg.py`,
-`compiler/ssa.py`,
-`compiler/core_analyses.py`,
+`rust/tcl-compiler/src/ir.rs`,
+`rust/tcl-compiler/src/cfg.rs`,
+`rust/tcl-compiler/src/ssa.rs`,
+`rust/tcl-compiler/src/analyses.rs` / `rust/tcl-compiler/src/sccp.rs`,
 `compiler/codegen/bytecode/_types.py`,
-`compiler/compilation_unit.py`
+`rust/tcl-compiler/src/compilation_unit.rs`
 
 ## Content
 

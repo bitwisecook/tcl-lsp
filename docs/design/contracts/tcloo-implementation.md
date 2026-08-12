@@ -22,7 +22,7 @@ are pure registry data; the shared walkers hold no member-keyword lists.
 The list-valued definition words — `filter`, `superclass`, `mixin`,
 `variable` — are **slots** (`oo::Slot` instances in real Tcl), not
 assignments, and their behaviour is registry data too
-(`MemberSpec::slot`, a `SlotSpec`; issue #1169): each slot carries its
+(`MemberSpec::slot`, a `SlotSpec`): each slot carries its
 C-pinned default operation (`-append` for `filter`/`variable`, `-set` for
 `superclass`/`mixin` — identical in 8.6.16 and 9.0.4) plus a dedup rule
 (`variable` dedups, `filter` keeps duplicates), and the explicit
@@ -56,7 +56,7 @@ dynamic names (`superclass $base`).  Because these references land in the same
 `command_invocations` collection as ordinary calls, find-references, rename,
 go-to-definition, and call-hierarchy resolve them across files through the
 workspace index — and rename and references can never disagree about a
-`superclass` / `mixin` / `inherit` site (issue #923).
+`superclass` / `mixin` / `inherit` site.
 
 ### LSP analysis layer (`rust/tcl-compiler/src/analyser/`)
 
@@ -67,7 +67,7 @@ entries in the semantic model.  These feed the `rust/tcl-lsp-core` providers:
 - **Hover** (`hover.rs`) — class hierarchy, method signatures, inherited
   methods.
 - **Go-to-definition** (`definition.rs`) — method bodies and class
-  definitions, including the cross-file method paths (plan M6).
+  definitions, including the cross-file method paths.
 - **Completion** (`completion.rs`) — methods in `my` and `self` contexts.
 - **Type hierarchy** (`type_hierarchy.rs`) — supertypes and subtypes, from
   the owner-aware class-hierarchy index.
@@ -95,8 +95,8 @@ The VM manages the object/class registry at runtime:
 
 Class name resolution during `oo::define` body evaluation resolves relative
 names in the namespace where `oo::define` was invoked (`cmd_oo.rs::
-resolve_class`, mirroring C's `GetClassInOuterContext` — the plan-M4 one-hop
-rule), not the `::oo::define` evaluation namespace.
+resolve_class`, mirroring C's `GetClassInOuterContext` — the one-hop
+call-site rule), not the `::oo::define` evaluation namespace.
 
 ## Test conformance
 

@@ -13,7 +13,7 @@ decomposing structured IR into basic blocks with explicit terminators
 (`CFGGoto`, `CFGBranch`, `CFGReturn`).  Each block is a straight-line
 sequence of IR statements with no branches except at the end.
 
-Source: `compiler/cfg.py` (`build_cfg` at line 1447, `CFGBlock` at line 473)
+Source: `rust/tcl-compiler/src/cfg.rs` (`build_cfg` at line 1447, `CFGBlock` at line 473)
 
 ## Content
 

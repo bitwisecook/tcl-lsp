@@ -21,14 +21,14 @@ result stays *sound* under Tcl's runtime dynamism.
 "Efficiently Computing Static Single Assignment Form and the Control Dependence
 Graph," *ACM TOPLAS* 13(4):451–490, 1991 (doi:10.1145/115372.115320).
 
-**Where.** `compiler/ssa.py` (`build_ssa`, `_phi_vars`, renaming).
+**Where.** `rust/tcl-compiler/src/ssa.rs` (`build_ssa`, `_phi_vars`, renaming).
 
 **Adaptation.** Phi placement uses the iterated dominance frontier exactly as in
 Cytron et al.  Tcl-specific: variables that escape the frame
 (`upvar`/`global`/`variable`/`namespace upvar`, traced vars) are detected via
-the shared `compiler/var_scoping.py` grammar and handled conservatively by
+the shared `rust/tcl-compiler/src/var_scoping.rs` grammar and handled conservatively by
 downstream passes rather than being renamed away; command substitutions inside
-words are descended for variable *reads* (`compiler/var_refs.py`) so SSA use
+words are descended for variable *reads* (`rust/tcl-compiler/src/var_refs.rs`) so SSA use
 sets are not blind to `[expr {$x}]`-style hidden references.
 
 ## Dominators
@@ -37,8 +37,8 @@ sets are not blind to `[expr {$x}]`-style hidden references.
 Algorithm," Rice University TR, 2001 (the iterative O(N²)-in-practice
 dominator/df formulation).
 
-**Where.** `compiler/ssa.py` (`_compute_idom_fast`, `_dominance_frontier`),
-`compiler/loops.py` (`dominates`).
+**Where.** `rust/tcl-compiler/src/ssa.rs` (`_compute_idom_fast`, `_dominance_frontier`),
+`rust/tcl-compiler/src/loops.rs` (`dominates`).
 
 **Adaptation.** Used as published over the per-function CFG.  The CFG itself is
 Tcl-shaped: control structures (`if`/`while`/`for`/`foreach`/`switch`/`catch`/
@@ -52,7 +52,7 @@ an **`IRBarrier`** node that conservatively breaks dataflow.
 nodes reaching *tail* without leaving through *header*) — as in the dragon book
 and the dominance literature above.
 
-**Where.** `compiler/loops.py` (`build_loop_forest`, `NaturalLoop`,
+**Where.** `rust/tcl-compiler/src/loops.rs` (`build_loop_forest`, `NaturalLoop`,
 `LoopForest`).
 
 **Adaptation.** The single natural-loop source for GVN/LICM and the interval
@@ -60,7 +60,7 @@ domain's widening points, built from the SSA dominator info.  Because dominance
 queries are O(1) (Euler-tour interval labels on the dominator tree, see above),
 re-deriving the forest per consumer is cheap, so it is recomputed rather than
 cached on the `FunctionUnit`.  Shimmer keeps a *separate* any-cycle detector
-(`compiler/shimmer.py:_loop_body_blocks`): it must count a block reachable only
+(`rust/tcl-compiler/src/shimmer/:_loop_body_blocks`): it must count a block reachable only
 through a `try`→handler exception edge as "in a loop", which the dominance-based
 natural-loop construction classifies differently (the two sets diverge on ~0.3%
 of corpus functions — all `try`/coroutine bodies), so the two detectors are
@@ -71,7 +71,7 @@ intentionally not unified.
 **Reference.** M. N. Wegman, F. K. Zadeck, "Constant Propagation with Conditional
 Branches," *ACM TOPLAS* 13(2):181–210, 1991 (doi:10.1145/103135.103136).
 
-**Where.** `compiler/core_analyses.py` (`_sccp`, `LatticeValue`, `_join`).
+**Where.** `rust/tcl-compiler/src/analyses.rs` / `rust/tcl-compiler/src/sccp.rs` (`_sccp`, `LatticeValue`, `_join`).
 
 **Adaptation.** The optimistic constant lattice and executable-edge worklist are
 as published, extended with a `CONSTSET` (small finite value-set) kind for Tcl's
@@ -89,19 +89,17 @@ files — folding through them is unsound across any opaque call (e.g.
 Improvements to the Construction and Destruction of Static Single Assignment
 Form," *Software: Practice and Experience* 28(8):859–881, 1998.
 
-**Where.** `compiler/ssa.py` (`_nonlocal_names_and_defsites`, `_phi_vars`).
+**Where.** `rust/tcl-compiler/src/ssa.rs` (`_nonlocal_names_and_defsites`, `_phi_vars`).
 
 **Adaptation.** The non-local (upward-exposed-use) set is computed over the Tcl
 CFG including branch-condition and `return`-value reads, in the same pass that
 collects def-sites.  **Shipped** — phis are placed only for non-local names
 (≈20% fewer phis on the corpus, so smaller SCCP/type/liveness/taint fixpoints).
-The output-equivalence gap that originally deferred it — false `W220`/`W211`
-where the only read of a variable sat in a form the use-tracker missed (e.g.
-`$w` in `::tcl::idna::punydecode`) — was closed by the structural read recovery
-(`compiler/var_refs.py` + the Place bridge), so dropping the now-dead phis no
-longer surfaces a latent false positive; the SSA / GVN / shimmer / interval /
-dead-store suites pass with it enabled.  See `semi-pruned-ssa-deferred.md` for
-the investigation history.
+Placing fewer phis is only safe once every read is tracked: a read the use
+tracker misses makes an omitted phi look like a dead store.  The structural read
+recovery in `rust/tcl-compiler/src/place_bridge.rs` closes that gap — reads
+hidden inside command-substituted `expr` bodies and other nested forms are
+recovered — so dropping the now-dead phis surfaces no latent false positive.
 
 ## Abstract interpretation — interval domain with widening/narrowing
 
@@ -110,7 +108,7 @@ Model for Static Analysis of Programs by Construction or Approximation of
 Fixpoints," *POPL* 1977, pp. 238–252 (introduces the widening/narrowing
 framework that guarantees termination over infinite-height domains).
 
-**Where.** `compiler/intervals.py` (`Interval`, `widen`, `compute_intervals`,
+**Where.** `rust/tcl-compiler/src/intervals.rs` (`Interval`, `widen`, `compute_intervals`,
 `refine_interval`).
 
 **Adaptation.** A small integer-interval domain runs **after** SCCP (it reads,
@@ -129,10 +127,10 @@ length, a deliberately-documented precision limit.
 Variables in Programs," *POPL* 1988 (the value-partitioning basis of value
 numbering).
 
-**Where.** `compiler/gvn.py`.
+**Where.** `rust/tcl-compiler/src/gvn.rs`.
 
 **Adaptation.** Value numbering plus loop-invariant code-motion hints, consuming
-the shared `LoopForest`.  Only side-effect-free (`compiler/side_effects.py`
+the shared `LoopForest`.  Only side-effect-free (`rust/tcl-compiler/src/side_effects.rs`
 pure) expressions are numbered/hoisted; barriers and impure calls reset value
 equivalences, so dynamic dispatch never produces an unsound equivalence.
 
@@ -143,9 +141,8 @@ Colouring," *SIGPLAN Symp. on Compiler Construction*, 1982 (interference-graph
 colouring); M. Poletto, V. Sarkar, "Linear Scan Register Allocation," *ACM
 TOPLAS* 21(5):895–913, 1999 (single-pass live-range allocation).
 
-**Where.** `compiler/slot_allocation.py` (`build_interference`,
-`coalesce_slots` — the algorithm core; emitter wiring is risk-gated, see
-`phases-3-5-6-design.md`).
+**Where.** `rust/tcl-compiler/src/slot_allocation.rs` (`build_interference`,
+`coalesce_slots`).
 
 **Adaptation.** Coalesces *variable-name* slots (not machine registers): two
 names whose SSA live ranges do not overlap share a slot.  Interference is
@@ -161,8 +158,8 @@ default bytecode path stays one-slot-per-name for tclsh byte-parity.
 Optimization," *POPL* 1973 (the monotone-framework fixpoint that underlies the
 worklist solvers).
 
-**Where.** `compiler/core_analyses.py` (liveness, type lattice, rendered-property
-propagation), `compiler/taint/`.
+**Where.** `rust/tcl-compiler/src/analyses.rs` / `rust/tcl-compiler/src/sccp.rs` (liveness, type lattice, rendered-property
+propagation), `rust/tcl-compiler/src/taint.rs`.
 
 **Adaptation.** Standard monotone worklists over the SSA value graph, sharing one
 reverse-postorder and the SCCP executable-block/edge sets so unreachable code is
@@ -174,7 +171,7 @@ not analysed.  Tcl barriers act as ⊤-introducing transfer functions.
 recomputation idea (recompute a unit only when its inputs change), with the
 *dependency fingerprint* playing the role of the unit's input summary.
 
-**Where.** `compiler/proc_fingerprint.py` (`dependency_fingerprint` — an
+**Where.** `rust/tcl-compiler/src/compilation_unit.rs` (`dependency_fingerprint` — an
 experimental foundation, **not wired into any cache**; the per-proc
 `FunctionUnit` reuse that shipped keys on body + stub + CFG-context + position +
 known-classes fingerprints in `document_state._build_proc_cache`, not on this

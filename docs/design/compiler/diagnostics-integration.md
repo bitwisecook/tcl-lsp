@@ -28,10 +28,10 @@ The diagnostics layer is the contract boundary for code-family mapping and suppr
 
 ## File-path anchors
 
-- `server/features/diagnostics.py` (`get_diagnostics`, suppression, family aggregation)
-- `analyser/_analyser/__init__.py` (semantic warning production)
-- `compiler/compilation_unit.py` (shared artefact generation)
-- `server/async_diagnostics.py` (tiered publish integration)
+- `rust/tcl-lsp-db/src/lib.rs` (`get_diagnostics`, suppression, family aggregation)
+- `rust/tcl-compiler/src/analyser/` (semantic warning production)
+- `rust/tcl-compiler/src/compilation_unit.rs` (shared artefact generation)
+- `rust/tcl-lsp-server/src/lib.rs` (tiered publish integration)
 
 ## Failure modes
 

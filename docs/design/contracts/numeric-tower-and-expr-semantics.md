@@ -1,8 +1,7 @@
 # Contract: the numeric tower & `expr` semantics
 
-> **Status:** First-principles design contract (v2 / "if starting over").
-> The numeric value model and the `expr` language a from-scratch runtime must
-> fix *before* any arithmetic command exists. Related as-built notes:
+> The numeric value model and the `expr` language every arithmetic consumer in
+> the stack routes through. Related as-built notes:
 > [shimmer-reference-behaviour.md](shimmer-reference-behaviour.md) and the
 > bignum/arith modules in the Rust runtime (`runtime/rust/src/bignum.rs`,
 > `expr.rs`).
@@ -17,7 +16,7 @@ and route *every* numeric consumer through them — `expr`, `tcl::mathop::*`,
 `incr`, `format`/`scan`, `string repeat`, list indices, comparisons, dict
 keys, hashing. The chronic failure mode is one consumer rolling its own
 integer parse and silently truncating beyond 64 bits, or an `i32`/`i64` cast
-panicking on a promoted value (a real bug class in this repo).
+panicking on a promoted value.
 
 ## The tower
 

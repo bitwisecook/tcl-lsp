@@ -35,10 +35,9 @@ eval {set total} 0
 eval {set total 0}
 ```
 
-The analyser used to walk only the first script word and ignore the rest. It
-therefore analysed `eval set total 0` as if the whole script were the single
-word `set` — which really is a wrong-argument-count error — and never saw the
-write to `total`, so a later `puts $total` looked like a read before set.
+The analyser joins the words the same way and analyses the resulting script,
+so neither report should appear on a well-formed multi-word call. If you do
+see one, you are on a build older than the fix — update, and the reports go.
 
 The same joining rule applies to `uplevel`, `namespace eval`, and
 `interp eval`. It does **not** apply to `catch`, whose script is a single
@@ -46,28 +45,16 @@ bounded argument.
 
 ## Answer
 
-Both false reports are fixed — no configuration change or workaround is
-needed. Update to a build containing the fix.
-
-To confirm the fix is present, put this in a file and check the Problems
-view:
-
-```tcl
-eval set total 0
-puts $total
-```
-
-Before the fix: one `E002` on the `eval` line and one `W210` on the `puts`
-line. After the fix: nothing.
-
-A genuinely malformed joined script is still reported, because the analyser
-now checks the script Tcl actually runs:
+A genuinely malformed joined script *is* reported, because the analyser
+checks the script Tcl actually runs:
 
 ```tcl
 eval set
 ```
 
-still reports `E002` — the joined script really is `set` on its own.
+still reports `E002` — the joined script really is `set` on its own. So the
+question to ask about an `E002` or `W210` on an `eval` is whether the
+*joined* script is well formed, not whether the first word is.
 
 ## When the analyser stays quiet
 

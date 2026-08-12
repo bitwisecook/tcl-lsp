@@ -31,5 +31,5 @@ If a rule in codegen would improve diagnostics or quick-fix quality, model it as
 ## Related files
 
 - `compiler/codegen/`
-- `compiler/lowering.py`
-- `compiler/compilation_unit.py`
+- `rust/tcl-compiler/src/lowering/`
+- `rust/tcl-compiler/src/compilation_unit.rs`

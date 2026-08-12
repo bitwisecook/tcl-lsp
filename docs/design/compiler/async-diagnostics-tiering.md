@@ -26,9 +26,9 @@ This split is coordinated by `DiagnosticScheduler`, while `get_diagnostics()` pr
 
 ## File-path anchors
 
-- `server/async_diagnostics.py` (`DiagnosticScheduler`)
-- `server/features/diagnostics.py` (`get_diagnostics`, phase-aware collection)
-- `server/workspace/document_state.py` (document version + CU cache interactions)
+- `rust/tcl-lsp-server/src/lib.rs` (`DiagnosticScheduler`)
+- `rust/tcl-lsp-db/src/lib.rs` (`get_diagnostics`, phase-aware collection)
+- `rust/tcl-lsp-db/src/lib.rs` (document version + CU cache interactions)
 
 ## Failure modes
 

@@ -199,7 +199,7 @@ their contract.
 ## C. Edit-range inference — *shipped*
 
 pygls is configured for **FULL** text sync, so `did_change`
-(`server/lifecycle.py`) receives the entire new source, not edit ranges.
+(`rust/tcl-lsp-server/src/lib.rs`) receives the entire new source, not edit ranges.
 `infer_edit_range(old, new)` (`compiler/parsing/incremental.py`) recovers the
 changed span by a common-prefix / common-suffix diff:
 
@@ -301,7 +301,7 @@ The bar is unchanged and strict:
 
 - **Byte-identical diagnostics** on the trigger corpus (`wcswidth.tcl`,
   `http.tcl`, `filetypes.tcl`) and the 800+-file real-world differential, plus
-  the full `make test-py` suite green at each phase.
+  the full `make test-rust` suite green at each phase.
 - **Mode-correctness + ERROR-node tests:** `tests/test_green_tree.py` asserts
   region modes, descent anchoring, intern sharing, and that unterminated
   `{...}` / `[...]` descents are tagged `NodeKind.ERROR` (terminated ones
@@ -318,7 +318,7 @@ The bar is unchanged and strict:
   byte-identical to a full pass, the existing semantic-token chunk cache and
   delta path are unaffected (covered by `tests/test_semantic_tokens_delta.py`).
 
-> Note for contributors: validate with `make test-py` (parallel, excludes the
+> Note for contributors: validate with `make test-rust` (parallel, excludes the
 > pyvm `test_vm_*_test.py` tcltest suite), **not** a bare `pytest tests/` — the
 > latter runs the Tcl tcltest corpus through the Python bytecode VM
 > single-threaded and is ~15× slower for no extra coverage of this subsystem.
@@ -366,11 +366,11 @@ edit. Phase 5 gives the tree a lossless representation of malformed regions.
   `shared/tokens.py`
 - Segmentation: `compiler/parsing/command_segmenter.py`
 - Recovery: `compiler/parsing/recovery.py`
-- Re-lexing consumers: `analyser/compiler_checks.py`,
-  `compiler/var_refs.py`
-- Pipeline: `compiler/lowering.py`
-- LSP sync / caches: `server/lifecycle.py`,
-  `server/workspace/document_state.py`,
+- Re-lexing consumers: `rust/tcl-compiler/src/compiler_checks.rs`,
+  `rust/tcl-compiler/src/var_refs.rs`
+- Pipeline: `rust/tcl-compiler/src/lowering/`
+- LSP sync / caches: `rust/tcl-lsp-server/src/lib.rs`,
+  `rust/tcl-lsp-db/src/lib.rs`,
   `shared/document_buffer.py`
 
 ## Related docs
@@ -386,5 +386,5 @@ edit. Phase 5 gives the tree a lossless representation of malformed regions.
   tree's `tokenise` memo for the leaf lexing.
 - [lexing-segmentation.md](lexing-segmentation.md) — current lexer/segmenter
   contract and the shipped memo.
-- [error-recovery.md](error-recovery.md) — virtual-token injection.
+- [error-recovery.md](error-recovery.md) — ghost delimiter injection.
 - [compiler-pipeline-overview.md](compiler-pipeline-overview.md) — stage map.

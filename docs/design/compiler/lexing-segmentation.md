@@ -126,8 +126,8 @@ sets the flag based on the active dialect:
   braced literal `{*}` concatenated with `$x`.
 
 Arity checks at both the analyser (`_check_proc_call_arity` in
-`analyser/_analyser/_proc.py`) and the IR layer (`_check_simple_arity` in
-`analyser/compiler_checks.py`) treat each expanded word as an
+`rust/tcl-compiler/src/analyser/handlers.rs`) and the IR layer (`_check_simple_arity` in
+`rust/tcl-compiler/src/compiler_checks.rs`) treat each expanded word as an
 unknown number of runtime arguments and try to refine the bound by
 constant-folding the expanded word.  Refinement requires the word to
 be **single-token** (so concatenations like `{*}$x$y` or
@@ -230,5 +230,5 @@ IRAssignValue(name="y", value="${x}")
   builds and derives `SegmentedCommand`s from
 - [Examples 1–2 in walkthroughs](../../../docs/design/example-script-walkthroughs.md#example-1-set-x-42)
 - [Data structure reference](../../../docs/design/example-script-walkthroughs.md#data-structure-reference)
-- [kcs-error-recovery.md](../../../docs/design/compiler/error-recovery.md)
-- [kcs-compiler-pipeline-overview.md](../../../docs/design/compiler/compiler-pipeline-overview.md)
+- [error-recovery.md](error-recovery.md)
+- [compiler-pipeline-overview.md](compiler-pipeline-overview.md)

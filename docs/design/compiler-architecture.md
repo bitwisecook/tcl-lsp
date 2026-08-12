@@ -74,23 +74,25 @@ flowchart TD
 
 ### 1. Lexer
 
-**File:** `compiler/parsing/lexer.py` — class `TclLexer`
+**File:** `rust/tcl-lexer/src/lexer.rs` — `Lexer::tokenise_all()`
 
-Converts raw source text into a flat stream of `Token` values.  Each token
-carries its `TokenType`, text content, and precise `SourcePosition`
-(line, column, byte offset).
+Converts raw source text into a flat stream of `Token` values.  A token is
+a `TokenType` plus a byte `Span`; the text and line/column position are
+resolved on demand through a `SourceMap`, so the token stream itself stays
+allocation-free.  `delim_len` records how many leading bytes of the span
+are opening delimiters (`$`, `${`, `[`, `{`, `"`), which lets
+`SourceMap::token_text` strip them without a second range.
 
 ```mermaid
 flowchart LR
-    SRC["source text"] --> LEX["TclLexer"]
-    LEX --> TOK["Token stream"]
+    SRC["source text"] --> LEX["Lexer::tokenise_all()"]
+    LEX --> TOK["Vec&lt;Token&gt;"]
 
     subgraph Token
         direction TB
-        TT["type: TokenType"]
-        TX["text: str"]
-        SP["start / end: SourcePosition"]
-        IQ["in_quote: bool"]
+        TT["kind: TokenType"]
+        SP["span: Span (byte range)"]
+        DL["delim_len: opening bytes"]
     end
 
     TOK --- Token
@@ -100,13 +102,15 @@ Token types:
 
 | Type | Meaning | Example |
 |------|---------|---------|
-| `STR` | Braced string | `{hello world}` |
-| `VAR` | Variable reference | `$name`, `${arr(idx)}` |
-| `CMD` | Command substitution | `[clock seconds]` |
-| `ESC` | String / word fragment | `hello` |
-| `SEP` | Whitespace separator | spaces, tabs |
-| `EOL` | Command terminator | newline, `;` |
-| `COMMENT` | Comment text | `# ...` |
+| `Str` | Braced string | `{hello world}` |
+| `Var` | Variable reference | `$name`, `${arr(idx)}` |
+| `Cmd` | Command substitution | `[clock seconds]` |
+| `Esc` | String / word fragment | `hello` |
+| `Sep` | Whitespace separator | spaces, tabs |
+| `Eol` | Command terminator | newline, `;` |
+| `Eof` | End-of-input sentinel | — |
+| `Comment` | Comment text | `# ...` |
+| `Expand` | Argument-expansion prefix (8.5+) | `{*}` |
 
 The lexer handles Tcl-specific constructs: nested command substitutions,
 `$var`, `${name}`, `$arr(idx)`, namespace separators `::`, backslash
@@ -115,7 +119,7 @@ be re-entered for nested bodies (brace/bracket contents).
 
 ### 2. Command Segmenter
 
-**File:** `compiler/parsing/command_segmenter.py` — function `segment_commands()`
+**File:** `rust/tcl-compiler/src/segmenter.rs` — `segment_commands()`
 
 Tcl has no traditional grammar — a "program" is a sequence of commands, each
 being a list of whitespace-separated words terminated by a newline or
@@ -136,10 +140,12 @@ flowchart LR
 
     subgraph SegmentedCommand
         direction TB
-        AV["argv: list[Token]"]
-        TX["texts: list[str]"]
-        ST["single_token_word: list[bool]"]
-        AT["all_tokens: list[Token]"]
+        SP["span: Span"]
+        AV["argv: Vec&lt;Token&gt;"]
+        TX["texts: Vec&lt;String&gt;"]
+        WF["word_fragments: Vec&lt;Vec&lt;WordFragment&gt;&gt;"]
+        ST["single_token_word: Vec&lt;bool&gt;"]
+        AT["all_tokens: Vec&lt;Token&gt;"]
         IP["is_partial: bool"]
     end
 
@@ -149,10 +155,13 @@ flowchart LR
 Multi-token words (adjacent tokens with no separator, e.g. `$prefix.txt`) are
 concatenated into a single `texts` entry.  The `single_token_word` flags
 record which words are atomic — important for downstream constant tracking.
+`word_fragments` is the lossless companion to the `argv` / `texts` parallel
+arrays: it keeps every word's lexical fragments in substitution order, and
+is what a new semantic IR consumer should read.
 
 ### 3. Error Recovery
 
-**File:** `compiler/parsing/recovery.py` — function `segment_with_recovery()`
+**File:** `rust/tcl-compiler/src/segmenter.rs` — `segment_with_recovery()`
 
 When the segmenter encounters an unclosed delimiter (`{`, `[`, `"`), recovery
 kicks in:
@@ -175,28 +184,31 @@ unterminated `[`, E202 = unterminated `"`, E203 = unterminated `{`).
 
 ### 4. Semantic Analyser
 
-**File:** `analyser/_analyser/__init__.py` — class `Analyser`
+**Module:** `rust/tcl-compiler/src/analyser/` — `Analyser` (state in
+`state.rs`, dispatch in `dispatch.rs`, per-command handlers in
+`handlers.rs` and `commands.rs`)
 
 A single-pass walk over segmented commands that builds a semantic model:
 scopes, procedure definitions, variable definitions, command invocations.
-It pattern-matches command names and dispatches to specialised handlers.
+Dispatch is registry-driven — a command's `CommandSpec` selects the
+handler — rather than a chain of name comparisons.
 
 ```mermaid
 flowchart TD
-    CMDS["SegmentedCommand list"] --> ANA["Analyser.analyse()"]
-    ANA --> BODY["_analyse_body()"]
-    BODY --> |"per command"| PROC["_process_command()"]
+    CMDS["Vec&lt;SegmentedCommand&gt;"] --> ANA["Analyser::analyse()"]
+    ANA --> BODY["analyse_body()"]
+    BODY --> |"per command"| PROC["dispatch.rs"]
 
-    PROC --> MATCH{"Match<br/>command name"}
-    MATCH --> H_PROC["_handle_proc()"]
-    MATCH --> H_SET["_handle_set()"]
-    MATCH --> H_IF["_handle_if()"]
-    MATCH --> H_FOR["_handle_for()"]
-    MATCH --> H_CALL["_handle_call()"]
+    PROC --> MATCH{"CommandSpec<br/>lookup"}
+    MATCH --> H_PROC["proc / namespace handlers"]
+    MATCH --> H_SET["variable handlers (set, upvar, …)"]
+    MATCH --> H_IF["control-flow handlers (if, for, …)"]
+    MATCH --> H_OO["TclOO handlers (oo.rs)"]
+    MATCH --> H_TK["Tk handlers (tk_checks.rs)"]
     MATCH --> H_ETC["...other handlers"]
 
-    ANA --> VUSG["_emit_variable_usage_diagnostics()"]
-    ANA --> VCFG["_emit_cfg_ssa_diagnostics()"]
+    ANA --> VUSG["diagnostics/usage.rs"]
+    ANA --> VCFG["diagnostics/dataflow.rs"]
 
     ANA --> RES["AnalysisResult"]
 

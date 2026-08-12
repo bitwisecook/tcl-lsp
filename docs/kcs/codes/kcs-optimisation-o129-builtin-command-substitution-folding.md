@@ -149,15 +149,6 @@ deliberately do not trip the gate. See the "evidence rules" section of
 Toggle the optimiser profile in your editor settings. See the
 [optimiser feature](../features/kcs-feature-optimiser.md) for profile options.
 
-## File-path anchors
-
-- `rust/tcl-compiler/src/optimiser/propagation.rs` — `fold_builtin_cmd_subst_raw`, and `run_oo_method_folds` / `oo_frame_for` / `oo_context_fact_fold` / `oo_method_constants` / `methods_reach_caller_frames` for the method-frame half
-- `rust/tcl-compiler/src/cfg_builder/upvar_info.rs` — `reaches_caller_frame` (the barrier's caller-frame evidence)
-- `rust/tcl-compiler/src/lowering/mod.rs` — `Lowerer::class_instance_vars` (per-class instance-variable union across definition blocks)
-- `rust/tcl-registry/src/commands/tcl/namespace_.rs` — `fold_qualifiers` / `fold_tail` and the oracle table
-- `rust/tcl-registry/src/spec.rs` — `CommandSpec::oo_context_facts`, `OoContextFact` (with the oracle transcript)
-- `rust/tcl-registry/src/commands/tcl/oo_self.rs` — `self`'s declaration
-
 ## Related
 
 - [KCS codes index](README.md)

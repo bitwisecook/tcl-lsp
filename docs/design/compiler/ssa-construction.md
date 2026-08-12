@@ -14,7 +14,7 @@ placed at dominance frontiers to merge definitions from different paths.
 The dominator tree and dominance frontiers are computed as part of SSA
 construction.
 
-Source: `compiler/ssa.py` (`build_ssa` at line 1012, `SSAPhi` at line 606, `SSAFunction` at line 648)
+Source: `rust/tcl-compiler/src/ssa.rs` (`build_ssa` at line 1012, `SSAPhi` at line 606, `SSAFunction` at line 648)
 
 ## Content
 
@@ -119,7 +119,7 @@ Three definitions merge — the phi has three incoming edges.
 ### Def-use chain derivation
 
 After SSA construction, def-use chains can be built with
-`build_def_use_chains(ssa)` from `compiler/def_use.py`.
+`build_def_use_chains(ssa)` from `rust/tcl-compiler/src/def_use.rs`.
 The chains map each `SSAValueKey` to its definition site and all
 use sites, enabling precise dead-store detection and copy propagation.
 
@@ -131,7 +131,7 @@ Phi nodes participate in def-use chains in two roles:
 ### Memory-SSA for aliases
 
 Variables aliased via `upvar`, `global`, or `variable` are tracked by
-memory-SSA (`compiler/memory_ssa.py`).  Memory-SSA versions each
+memory-SSA (`rust/tcl-compiler/src/memory_ssa.rs`).  Memory-SSA versions each
 store/load to aliased locations and builds alias sets, enabling
 alias-aware optimisation and taint tracking.
 

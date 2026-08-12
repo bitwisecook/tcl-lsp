@@ -26,6 +26,6 @@ Later passes disagree on command/argument interpretation, especially around subs
 
 ## Related files
 
-- `compiler/lowering.py`
-- `compiler/ir.py`
-- `compiler/token_helpers.py`
+- `rust/tcl-compiler/src/lowering/`
+- `rust/tcl-compiler/src/ir.rs`
+- `rust/tcl-compiler/src/ir_helpers.rs`

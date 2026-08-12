@@ -262,10 +262,10 @@ All parts share a ``group`` ID so they are applied or dropped together.
 
 ## File-path anchors
 
-- `compiler/optimiser/_code_sinking.py`
-- `compiler/optimiser/_manager.py` (wiring)
-- `compiler/optimiser/_types.py` (priority table — O125 has priority 5)
-- `server/server.py` (``_ALL_OPTIMISATION_CODES`` — disable toggle)
+- `rust/tcl-compiler/src/optimiser/_code_sinking.py`
+- `rust/tcl-compiler/src/optimiser/_manager.py` (wiring)
+- `rust/tcl-compiler/src/optimiser/_types.py` (priority table — O125 has priority 5)
+- `rust/tcl-lsp-server/src/lib.rs` (``_ALL_OPTIMISATION_CODES`` — disable toggle)
 - `editors/vscode/package.json` (``tclLsp.optimiser.O125`` setting)
 - `tests/test_optimiser.py` (``TestCodeSinking``)
 

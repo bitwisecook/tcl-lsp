@@ -12,7 +12,7 @@ offline).
 It is the WebAssembly sibling of the Python [`f5report`](../python)
 package: the Python version stays as the demonstration of driving the query
 engine as a **library** (PyO3), while this crate is the same generator
-([`bigip-report-gen-rust`](../bigip-report/rust)) compiled for the browser.
+([`bigip-report-gen-rust`](../rust)) compiled for the browser.
 
 ## Features
 

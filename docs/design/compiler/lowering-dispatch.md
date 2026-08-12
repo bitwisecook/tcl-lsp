@@ -12,7 +12,7 @@ registered lowering hooks → match/case on command name → fallthrough via
 `arg_roles`.  The dispatch produces specific IR nodes (`IRAssignConst`,
 `IRAssignExpr`, `IRIf`, etc.) rather than generic `IRCall` wherever possible.
 
-Source: `compiler/lowering.py`,
+Source: `rust/tcl-compiler/src/lowering/`,
 `compiler/lowering_hooks/`
 
 ## Content
@@ -149,7 +149,7 @@ are all plain literals (`TokenType.ESC` with no `$` / `[`, or
 `TokenType.STR`). The gate synthesises the body by joining the
 list arguments — `STR` tokens get re-braced — and lowers the
 result as `IRBlock`. See `_Lowerer._eval_list_literal_body` in
-`compiler/lowering.py`. Shapes that stay as `IRBarrier`:
+`rust/tcl-compiler/src/lowering/`. Shapes that stay as `IRBarrier`:
 `eval [foo …]` (inner command isn't `list`), `eval [list $v w]`
 (dynamic substitution), and `eval [list {*}$args]` (`{*}`
 expansion).

@@ -13,7 +13,7 @@ first collecting local facts (`ProcLocalSummary`), then running a transitive
 closure over the call graph to propagate effects.  Summaries are consumed by
 ICIP, ADCE, and taint analysis.
 
-Source: `compiler/interprocedural.py`
+Source: `rust/tcl-compiler/src/interprocedural.rs`
 
 ## Content
 
@@ -90,7 +90,7 @@ A `my <method>` / `next` self-dispatch surfaces as an unknown call, which
 already forces the method impure — so a method is never marked pure on the
 strength of an unproven peer method (sound: false negatives only). The
 summaries are consumed by the O126 `set unused [my <pure-method>]` deletion
-gate (`compiler/optimiser/_elimination.py::_method_pure`); SF-2 / FP-OPT-12.
+gate (`rust/tcl-compiler/src/optimiser/_elimination.py::_method_pure`); SF-2 / FP-OPT-12.
 
 ### Call resolution
 

@@ -8,13 +8,13 @@ A contributor needs to understand how the compiler determines what a command rea
 
 The side-effects system is the single source of truth for all effect classification in the compiler. It is consumed by:
 
-- **GVN** (`compiler/gvn.py`) — kill safety for common subexpression elimination.
-- **Interprocedural analysis** (`compiler/interprocedural.py`) — procedure summaries across call boundaries.
-- **iRules flow checker** (`compiler/irules_flow.py`) — response-commit and connection-drop tracking.
-- **Execution intent** (`compiler/execution_intent.py`) — purity classification for command substitution intent.
-- **Core analyses** (`compiler/core_analyses.py`) — purity checks for constant propagation.
+- **GVN** (`gvn.rs`) — kill safety for common subexpression elimination.
+- **Interprocedural analysis** (`interprocedural.rs`) — procedure summaries across call boundaries.
+- **iRules flow checker** (`irules_checks.rs`) — response-commit and connection-drop tracking.
+- **Execution intent** (`execution_intent.rs`) — purity classification for command substitution intent.
+- **Core analyses** (`sccp.rs`, `analyses.rs`) — purity checks for constant propagation.
 
-All classification flows through a single function: `classify_side_effects()` in `compiler/side_effects.py`.
+All classification flows through a single function: `classify_side_effects` in `side_effects.rs`.
 
 ## Architecture
 
@@ -303,21 +303,20 @@ SideEffect(
 - [ ] Subcommand hints where read/write varies
 - [ ] `pure=True` on read-only subcommands
 - [ ] `mutator=True` on write subcommands
-- [ ] Run `tests/test_side_effects.py` to verify classification
 
 ## File-path anchors
 
-- `compiler/side_effects.py` — enums, dataclasses, `classify_side_effects()`, `_compose_with_traces()`, `EffectRegion` bridge
+- `side_effects.rs` — the effect enums, `classify_side_effects`, trace composition, and the `EffectRegion` bridge
 - `compiler/registry/models.py` — `CommandSpec.side_effect_hints`, `SubCommand.side_effect_hints`
 - `compiler/registry/command_registry.py` — `REGISTRY.side_effect_hints()` lookup
-- `compiler/ir.py` — `CommandTrace`, `IRModule.command_traces`, `IRModule.traced_commands()`, `IRModule.has_dynamic_trace()`
-- `compiler/lowering.py` — `trace add/remove execution` capture (search "Capture ``trace add execution``")
-- `compiler/gvn.py` — GVN consumer (threads `traced_commands` from `IRModule`)
-- `compiler/interprocedural.py` — interprocedural consumer
-- `compiler/irules_flow.py` — response-commit and drop-command derivation
-- `compiler/execution_intent.py` — purity consumer
-- `compiler/core_analyses.py` — purity consumer
-- `compiler/optimiser/_propagation.py` — load-forwarding consumer (threads `traced_commands` via `ctx.ir_module`)
+- `ir.rs` — `CommandTrace`, the module's traced-command set, and the dynamic-trace flag
+- `lowering/` — `trace add`/`trace remove execution` capture
+- `gvn.rs` — GVN consumer (threads the module's traced commands)
+- `interprocedural.rs` — interprocedural consumer
+- `irules_checks.rs` — response-commit and drop-command derivation
+- `execution_intent.rs` — purity consumer
+- `sccp.rs` — purity consumer
+- `rust/tcl-compiler/src/optimiser/_propagation.py` — load-forwarding consumer (threads `traced_commands` via `ctx.ir_module`)
 
 ## Failure modes
 
@@ -329,8 +328,7 @@ SideEffect(
 
 ## Test anchors
 
-- `tests/test_side_effects.py`
-- `tests/test_trace_execution_effects.py` — `trace add/remove execution` capture and side-effect composition (issue #251)
+- `side_effects.rs` unit tests — `trace add`/`trace remove execution` capture and side-effect composition (issue #251)
 
 ## Discoverability
 

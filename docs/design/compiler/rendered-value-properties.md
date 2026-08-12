@@ -14,9 +14,9 @@ rendered (post-backslash-subst) string content.  It runs **after SCCP** (so
 constant values are resolved) and **before taint propagation** (so downstream
 consumers can query properties without re-lexing).
 
-Source: `compiler/rendered_properties.py`
+Source: `rust/tcl-compiler/src/rendered_properties.rs`
 
-Primary consumer: `compiler/taint/_path_concat.py` (W201 detection).
+Primary consumer: `rust/tcl-compiler/src/taint.rs_path_concat.py` (W201 detection).
 
 ## Content
 

@@ -1,7 +1,6 @@
 # Contract: command binding, aliasing & resolution
 
-> **Status:** First-principles design contract (v2 / "if starting over").
-> Describes the one resolution model all command-name indirection must share —
+> The one resolution model all command-name indirection shares —
 > `rename`, `interp alias`, `namespace import`/`export`/`forget`,
 > `namespace path`, ensembles, and the `::tcl::mathop` / `::tcl::mathfunc`
 > operator commands — and how an AOT compiler may snapshot it safely. The
@@ -13,7 +12,7 @@
 > command-layer parallel of
 > [runtime-variable-frame-model.md](runtime-variable-frame-model.md).
 
-## Why this is the first thing to get right
+## Why resolution is a runtime function
 
 A command name does not name a fixed implementation. `rename` moves a binding,
 `interp alias` adds a redirect with frozen prefix args, `namespace import`
@@ -21,9 +20,8 @@ installs a transparent redirect, an ensemble maps a subcommand to a target,
 `namespace path` adds search fallback, and a plain `proc` can shadow a builtin
 — all at runtime, often mid-eval. An AOT compiler that resolves `+` or `dict
 for` or an aliased `=` *once* and bakes in the answer is correct only until any
-of those mutate the binding. Almost every command-dispatch bug is a symptom of
-treating resolution as a compile-time fact instead of a runtime function with
-a guarded compile-time cache.
+of those mutate the binding. Resolution is a runtime function with a guarded
+compile-time cache, never a compile-time fact.
 
 **Design rule:** there is exactly one way to reach a command —
 `resolve(ns, name) → target`, evaluated against the command tables *as they
@@ -130,7 +128,7 @@ redefinition.
   the name and forces dispatch through the live runtime command table. The
   as-built `builtin_is_trusted` check is the seed of this — make it
   first-class and monotonic.
-* **Keep both spellings (issue #246).** Match optimiser/registry patterns on
+* **Keep both spellings.** Match optimiser/registry patterns on
   the *canonical* form, but retain the *source* spelling for the eval-fallback:
   the user's bare name resolves through the live scope walk (a namespace-local
   proc), whereas an eagerly-globalised `::name` would miss it.

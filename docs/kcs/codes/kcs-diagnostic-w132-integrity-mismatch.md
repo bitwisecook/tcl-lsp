@@ -1,4 +1,4 @@
-# KCS: W132 — why does my editor say there is an integrity mismatch?
+# KCS: W132 — why does a package have an integrity mismatch?
 
 > **Audience:** User
 > **Type:** Issue
@@ -9,28 +9,33 @@ all-editors, diagnostic, tclpkg
 
 ## Profiles
 
-default
+Reserved — see Status.
 
 ## Question
 
-Why does my editor report W132 on a package in `tclpkg.lock`?
+What will W132 report about a package in `tclpkg.lock`?
+
+## Status
+
+W132 is specified in the diagnostic registry but is not yet emitted by
+the analyser. No editor or CLI surface currently reports it, and there
+is no `tclLsp.diagnostics.W132` setting to toggle. This page describes
+the check as designed, for when it ships.
 
 ## Why
 
-The SHA-256 hash of the package in the content-addressable cache does not
-match the hash recorded in the lockfile. The cached files may have been
-modified or corrupted.
+The SHA-256 hash of the package in the content-addressable cache does
+not match the hash recorded in the lockfile — the cached files may
+have been modified or corrupted.
 
-## Symptoms
+## Intended message
 
-- Red squiggle on the package entry in `tclpkg.lock`.
-- Problems panel: "tclpkg.lock integrity mismatch — CAS hash differs
-  from lockfile."
+"tclpkg.lock integrity mismatch — CAS hash differs from lockfile."
 
-## Example that triggers it
+## Example that would trigger it
 
-Manually editing a file inside `~/.cache/tcl-lsp/tooling/tclpkg/cas/` changes
-the worktree hash and triggers this diagnostic.
+Manually editing a file inside the local tclpkg content-addressable
+cache changes the worktree hash and would trigger this diagnostic.
 
 ## Fix
 
@@ -41,11 +46,6 @@ tcl pkg install
 ```
 
 The resolver re-fetches the package and recomputes the hash.
-
-## How to suppress
-
-`tclLsp.diagnostics.W132: false`. Not recommended — integrity mismatches
-can indicate supply-chain tampering.
 
 ## Related
 

@@ -31,14 +31,14 @@ CFG/SSA/core analyses already compute high-value facts (reachability, definition
 
 ## Related files
 
-- `compiler/core_analyses.py`
-- `compiler/ssa.py`
-- `compiler/def_use.py`
-- `compiler/memory_ssa.py`
-- `compiler/dataflow_graph.py`
-- `compiler/compilation_unit.py`
+- `rust/tcl-compiler/src/analyses.rs` / `rust/tcl-compiler/src/sccp.rs`
+- `rust/tcl-compiler/src/ssa.rs`
+- `rust/tcl-compiler/src/def_use.rs`
+- `rust/tcl-compiler/src/memory_ssa.rs`
+- `rust/tcl-compiler/src/dataflow_graph.rs`
+- `rust/tcl-compiler/src/compilation_unit.rs`
 - `docs/design/compiler/execution-intent-model.md`
 - `docs/design/compiler/def-use-chains.md`
 - `docs/design/compiler/memory-ssa.md`
-- `compiler/shimmer.py`
-- `compiler/optimiser/`
+- `rust/tcl-compiler/src/shimmer/`
+- `rust/tcl-compiler/src/optimiser/`

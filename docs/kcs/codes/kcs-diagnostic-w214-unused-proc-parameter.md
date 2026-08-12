@@ -64,18 +64,11 @@ info commands ::helper       ;# -> {}   (nothing was created here)
 
 so W214 reports `::a::helper`. The name word's own qualifier wins over any
 enclosing `namespace eval`, and an absolutely-written inner name (`proc ::abs
-…`) is unaffected. Before #1077 the lexical position was used instead, which
-both named the wrong proc and — because the per-parameter span lookup is keyed
-on that name — dropped the tight range back to the whole definition.
+…`) is unaffected.
 
 ## How to suppress
 
 Add `# noqa: W214` at the end of the offending line.
-
-## File-path anchors
-
-- `rust/tcl-compiler/src/analyser/diagnostics/dataflow.rs` — `emit_unused_param_diagnostics`, `param_name_spans_for`
-- `rust/tcl-compiler/src/lowering/mod.rs` — `proc_body_namespace` (the defining-namespace rule, with its oracle transcript)
 
 ## Related
 

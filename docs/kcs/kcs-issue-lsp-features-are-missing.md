@@ -28,8 +28,11 @@ where do I read its startup log if it did not?
 - The `tcl-lsp v<version>` badge and the dialect indicator are missing
   from the bottom-right status bar.
 - `Tcl: ...` entries in the Command Palette (for example **Tcl: Restart
-  Language Server**, **Tcl: Optimise Document**, **Tcl: Open Compiler
-  Explorer**) are missing, greyed out, or error as soon as you run them.
+  Language Server**, **Tcl: Apply All Optimisations**, **Tcl: Open in Tcl
+  Compiler Explorer**) are missing, greyed out, or error as soon as you
+  run them.
+- An error notification saying no native `tcl-lsp-server` binary was found
+  for your operating system and processor architecture.
 
 ## Answer
 
@@ -39,16 +42,19 @@ where do I read its startup log if it did not?
    Language Server**.
 3. Open any `.tcl`, `.tm`, `.itcl`, `.irul`, or `.iapp` file so the
    extension activates, if it has not already.
-4. Look for a healthy startup sequence in the channel:
-   - If you installed the extension from the Marketplace or a VSIX, you
-     should see lines beginning with `Python discovery:`, one line per
-     candidate interpreter, followed by `Selected: <path> (<version>)`
-     and `[timing] Python discovery: Nms`.
-   - If you are running from a git checkout, you should see a single
-     `Dev mode: using uv in <serverDir>` line.
-   - In both cases, the startup ends with `Server initialized`. A
-     repeated `Connection to server got closed. Server will restart.`
+4. Look for a healthy startup sequence in the channel. The extension runs
+   one native `tcl-lsp-server` binary, so a healthy start is short:
+   - `Using native tcl-lsp-server: <path>` names the binary that was
+     picked. A packaged install reads it from the extension folder; a git
+     checkout reads it from `target/release/` or `target/debug/`.
+   - `[timing] client.start: Nms` and `[timing] extension activation: Nms`
+     close the sequence.
+   - A repeated `Connection to server got closed. Server will restart.`
      line means the server crashed during startup.
+   - No `Using native tcl-lsp-server` line at all means no binary was
+     found. In a checkout, build one with `cargo build -p tcl-lsp-server`
+     (or `make rust-server`). Otherwise point **Tcl LSP: Rust Server
+     Path** (`tclLsp.rustServerPath`) at a native binary.
 5. Check the status bar in the bottom right. A healthy activation shows
    `tcl-lsp v<version>` and a dialect indicator. If you do not see
    either, the extension failed to activate before it could write to

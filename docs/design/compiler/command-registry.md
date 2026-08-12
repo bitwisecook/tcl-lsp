@@ -906,7 +906,7 @@ analysis layers handle these at different levels:
 - The **registry** uses `SubCommand` entries on the parent `CommandSpec`.
   The parent's `arg_role_resolver` inspects the subcommand word to assign
   roles to the remaining arguments.
-- **Variable scoping** (`compiler/var_scoping.py`) has explicit
+- **Variable scoping** (`rust/tcl-compiler/src/var_scoping.rs`) has explicit
   handlers for compound forms like `namespace upvar`, `dict set`,
   `dict update`, and `dict with`.
 - **Lowering hooks** (`compiler/lowering_hooks/`) have per-command
@@ -914,7 +914,7 @@ analysis layers handle these at different levels:
 
 When verifying whether a compound command is handled, search all three
 layers — the feature module closest to the symptom (e.g.
-`server/features/declaration.py`) may intentionally delegate to a deeper
+`rust/tcl-lsp-core/src/definition.rs`) may intentionally delegate to a deeper
 module.
 
 ### OptionSpec and option terminators

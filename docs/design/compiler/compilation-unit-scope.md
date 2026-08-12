@@ -51,8 +51,9 @@ Resolution goes through `interprocedural::resolve_internal_call` (Tcl's real
 existence-checked, namespace-relative order, evaluated in the *calling*
 function's namespace) with a `namespace import` fallback, and recurses into
 `ArgRole::Body` arguments so a call inside `catch { … }` or a literal
-`uplevel { … }` still counts. See FP-IPCP-01 in
-[`fp-audit-todo.md`](fp-audit-todo.md) for why each of those matters.
+`uplevel { … }` still counts.  Each of those is load-bearing: a call the walk
+does not see is a call site whose literal cannot contradict the others, so the
+seed would be granted on incomplete evidence.
 
 ### 2. Cross-unit evidence
 
@@ -148,8 +149,7 @@ one — is still unenumerable. That is precisely why `PROVIDES_PACKAGE` and
 enumeration that cannot cover them.
 
 `namespace ensemble configure -map` redirection, and `uplevel #0`'s
-global-resolving body (pinned by an `#[ignore]`d regression), remain open —
-see FP-IPCP-01/02 in [`fp-audit-todo.md`](fp-audit-todo.md).
+global-resolving body (pinned by an `#[ignore]`d regression), remain open.
 
 ## Seeing it
 
@@ -165,7 +165,6 @@ tcl explore --show unitScope --text lib.tcl
 
 ## Related docs
 
-- [fp-audit-todo.md](fp-audit-todo.md) — FP-IPCP-01 / FP-IPCP-02.
 - [command-registry.md](command-registry.md) — `CommandSpec` field reference.
 - [interprocedural-analysis.md](interprocedural-analysis.md) — `ProcSummary`
   construction (a separate interprocedural product from this seed).

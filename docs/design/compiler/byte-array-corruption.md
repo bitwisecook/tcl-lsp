@@ -167,7 +167,7 @@ convertto`) stay enabled everywhere.
 
 Python reference implementation:
 
-- `compiler/shimmer.py` — `_find_byte_array_corruption`, `_payload_replace_data_index`, and helpers
+- `rust/tcl-compiler/src/shimmer/` — `_find_byte_array_corruption`, `_payload_replace_data_index`, and helpers
 - `compiler/registry/runtime.py` — `byte_array_payload_commands`, `byte_array_payload_layouts`
 - `compiler/registry/models.py` — `BytePayloadSpec`, `CommandSpec.byte_array_payload`
 - `dialects/f5/irules/*__payload.py` — `byte_array_payload=True` (default index-3 layout) or `=BytePayloadSpec(...)`
@@ -182,5 +182,6 @@ Rust port (see [`../rust/s110-byte-array-corruption-port.md`](../rust/s110-byte-
 
 Shared:
 
-- `docs/design/compiler/FP.md` — FP-SH-09 (intrinsic), FP-SH-10 (round-trip)
+- `rust/tcl-compiler/src/analyser/diagnostics/fp/sh.rs` — the paired
+  must-fire / must-stay-silent regression tests for both damage kinds
 - `docs/kcs/features/kcs-feature-byte-array-corruption.md` — user-facing note

@@ -20,26 +20,32 @@ quick-start lives in
 ## Module map
 
 ```
-dialects/f5/query/
-  __init__.py        # public API: run_query, parse_query, format_*
-  errors.py          # QueryError hierarchy (lex / parse / eval / edit / builtin)
-  values.py          # ObjectRef, PathRef, Stream, Root, FieldSlot
-  source_map.py      # offset → (line, column) lookup
-  lexer.py           # hand-rolled tokeniser
-  ast.py             # frozen-dataclass AST node types
-  parser.py          # recursive-descent parser
-  projection.py      # BigipConfig → navigable Container tree
-  graph.py           # refs / referenced_by — forwards to dialects.f5.bigip.grep
-  builtins.py        # @_register'd function library
-  evaluator.py       # walks the AST, collects edits, returns values
-  edit_plan.py       # routes identity writes through rename_object,
-                     # detects conflicts, applies bottom-up
-  output.py          # auto / scf / raw / paths / json renderers
-  runner.py          # high-level orchestration used by the CLI verb
-  grammar.py         # plain-text grammar for --help-dsl
-  examples.py        # worked-example cookbook for --help-examples
-tooling/f5/verbs/query.py
-                     # argparse plumbing + custom help actions
+rust/tcl-bigip-query/src/
+  lib.rs              # crate root — re-exports the public API
+  errors.rs           # QueryError hierarchy (lex / parse / eval / edit / builtin)
+  value.rs            # runtime value model: ObjectRef, PathRef, Stream, scalars
+  lexer.rs            # hand-rolled tokeniser
+  ast.rs              # AST node types
+  parser.rs           # recursive-descent parser
+  projection.rs       # BigipConfig → navigable Container tree
+  eval.rs             # walks the AST, collects edits, returns values
+  builtins/           # plain + stream builtin function library (mod.rs + submodules)
+  special.rs          # special-form builtins (select / map / paths / getpath / …)
+  probes.rs           # network-probe + X.509 builtins (refs / referenced_by
+                       # forward into tcl-bigip's grep/graph support)
+  edit_plan.rs         # routes identity writes through rewrite::rename_object,
+                       # detects conflicts, applies bottom-up
+  rewrite.rs          # token-bounded rename engine used by edit_plan and the
+                       # rename* builtins
+  output.rs           # auto / scf / raw / paths / json renderers
+  runner.rs           # high-level orchestration used by the CLI verb
+  grammar.rs          # plain-text grammar for --help-dsl
+  manual.rs           # combined --help-manual surface (grammar + builtins + examples)
+  examples.rs         # worked-example cookbook for --help-examples
+  architecture.rs     # multi-device architecture / tier detection
+  inputs.rs           # side-input parsers (--input-json / -jsonl / -csv / -f5log)
+rust/f5-cli/src/commands/query.rs
+                     # clap plumbing + help actions for the `f5 query` verb
 ```
 
 ## Grammar
@@ -129,11 +135,11 @@ Deliberate divergences:
 | Regex test | `test("pat")` builtin | `["~pat"]` subscript form, **and** `match()` builtin (jq's `match()` returns match objects; ours returns boolean — equivalent to jq's `test()`) |
 | Identifier hyphens | quoted only | bareword (`source-address-translation`) |
 | Object literals `{...}` | yes | yes — `{name, dest: .destination}` bareword keys desugar to `key: .key`; stream-valued fields broadcast element-wise into one row per item |
-| `expr as $x \| body` | yes | yes — streams iterate (one body call per item), plain Python lists (from an explicit `[...]` collector) bind once.  Right-associative so `.a[] as $x \| .b \| $x.c + ...` keeps `$x` bound across subsequent pipe stages |
+| `expr as $x \| body` | yes | yes — streams iterate (one body call per item), plain lists (from an explicit `[...]` collector) bind once.  Right-associative so `.a[] as $x \| .b \| $x.c + ...` keeps `$x` bound across subsequent pipe stages |
 | `$name` variable | yes (let-binding only) | also names each loaded source — `$ltm`, `$gtm`, ... — for cross-config queries.  Auto-named from filename stem; `--name N=PATH` overrides |
 | String interpolation `"\(.x)"` | yes | not present in v1 |
 | Optional path suffix `?` | yes | yes for path steps (`.foo?`, `.items[]?`, `.[expr]?`); `try-catch` is still absent |
-| `//` / `try-catch` / `reduce` / `foreach` / `paths` / `getpath` / `setpath` / `del` / `to_entries` / `from_entries` | yes | not present in v1 — practical query language, not a jq subset |
+| `//` / `try-catch` / `reduce` / `foreach` | yes | not present — practical query language, not a jq subset. (`paths` / `leaf_paths` / `getpath` / `setpath` / `del` / `delpaths` / `to_entries` / `from_entries` **are** implemented — see the `value` category in [`builtins.md`](builtins.md).) |
 | Truthiness (`select`, `and`, `or`, `if`) | only `false` and `null` are falsey | also: empty string, empty list/stream, empty `PathRef`, numeric `0`, `null` (broader falsey set; closer to "empty / zero / absent" than jq's strict definition) |
 | Assignment + pipe | `path \|= f` binds tight via custom precedence | `\|=` is a pipe-stage trailing operator, so `a \| b \|= c` parses as `a \| (b \|= c)` |
 | `--format` flag | not applicable | `--format scf` (default) emits the rewritten config; `--format tmsh` emits a `tmsh modify` script suitable for piping to a live device.  Refused with `--in-place` (would silently overwrite SCF with a different file format) |
@@ -148,8 +154,10 @@ each VS, update its destination".
 
 ## Value model
 
-The runtime is mostly plain Python values (`str`, `int`, `float`,
-`bool`, `None`, `list`).  Three wrapper types carry extra information:
+The runtime value is the [`Value`](../../../rust/tcl-bigip-query/src/value.rs)
+enum: the plain scalar/container variants (`Str`, `Int`, `Float`, `Bool`,
+`Null`, `List`, `Object`) plus three wrapper variants that carry extra
+information:
 
 ### `ObjectRef`
 

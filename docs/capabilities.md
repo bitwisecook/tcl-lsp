@@ -22,14 +22,14 @@ report generator built on it.
 | **CLI** | `f5 query '.ltm.virtual[].name' device.ucs` (alias `f5 q`). Renderers: `f5 q --render mermaid …`. Help: `f5 query --help-manual \| --help-dsl \| --help-builtins`. |
 | **Python** | `import f5report; html = f5report.build_report(f5report.load_paths(["dev.ucs"]))`; ad-hoc `f5report.query('.ltm.pool[]', sources)`. |
 | **Web** | the in-browser report generator (above); every generated report embeds a live f5-query **console** and the **full manual**. |
-| **Server** | `f5-report-web` — upload a config, get a report server-side (`rust/bigip-report/py`). |
+| **Server** | `f5-report-web` — upload a config, get a report server-side (`rust/bigip-report-gen/python`). |
 
 **Enrichment / side-inputs** — a query (and the report) can bind external tables to
 `$name`: `--input csv nat=nat.csv`, `--input zone dns=example.com.zone` (a new
 RFC 1035 DNS zone-file format), `--input json`/`jsonl`/`f5log`. The report's
 **topology + enrichment DSL** (the architecture manifest) declares devices, tiers,
 links, network **zones**, device **interfaces**, **DNS zones**, and CIDR/service/NAT
-maps in one place — see `rust/bigip-report/rust/src/architecture.rs`.
+maps in one place — see `rust/tcl-bigip-query/src/architecture.rs`.
 
 Reference: **[docs/references/f5_query/](references/f5_query/)** (`manual.md`, `dsl.md`,
 `builtins.md`), how-tos in **[docs/kcs/](kcs/)** (`kcs-howto-*query*`), internals in
