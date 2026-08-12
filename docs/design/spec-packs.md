@@ -265,12 +265,21 @@ a 68× gap. A const-folder is 16.6 µs; pack load by the CST route is
 — and pack load must use the CST route, never the flat analyser path,
 which is 75× slower). The design consequences are binding:
 
-- **Resolver results are cached by the registry, keyed by
-  command + word-shape** (24.5 ns/call at steady state — clears
-  budget). To make that key sound, the hook contract requires a
-  resolver to depend only on its declared inputs and to return the
-  **complete** index→role map in one invocation. A plain word-vector
-  memo is not enough (2.94 µs at a 90% hit rate — fresh variable names
+- **Granularity is not restricted — consequences are documented and
+  shown live.** A resolver that depends only on its declared inputs
+  and returns the complete index→role map in one invocation is
+  **shape-cacheable**: the registry caches it by command + word-shape
+  at 24.5 ns/call — indistinguishable from native. A hook that
+  declares broader dependencies stays fully legal but uncacheable, and
+  the cost is stated plainly rather than hidden: ~28 µs per call site,
+  ~48 ms of semantic-token time per 2,000-line file at today's VM
+  floor. That consequence is documented here, in the syntax memo's
+  hook chapter, and **live in the Spec Studio** — a performance badge
+  on the hook editor and measured timings in the Test tab — and
+  `tcl spec check` reports it. Users who need the power take the cost
+  knowingly; packs that take it and matter are exactly the motivation
+  signal for the VM performance work (#1373). A plain word-vector memo
+  is not a rescue (2.94 µs at a 90% hit rate — fresh variable names
   are all misses).
 - **Folders and predicate gates run on the VM freely** — bounded,
   off the interactive path, contractually pure.
