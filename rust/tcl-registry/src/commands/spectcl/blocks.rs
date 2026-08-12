@@ -83,6 +83,50 @@ fn named_block(
     }
 }
 
+/// `object_class NAME ?-superclass {…}? ?-allow-unknown? { method … }`.
+const OBJECT_CLASS_OPTIONS: &[OptionSpec] = &[
+    OptionSpec {
+        name: "-superclass",
+        value: OptionValue::value("classes"),
+        detail: "the class's superclasses",
+        ..OptionSpec::DEFAULT
+    },
+    OptionSpec {
+        name: "-allow-unknown",
+        detail: "an unrecognised method on this class is not flagged",
+        ..OptionSpec::DEFAULT
+    },
+];
+
+/// The name is the first word and the block, when present, is the last —
+/// which is what keeps the block's position right however many of the two
+/// optional flags sit between them. A resolver rather than a fixed pair
+/// because `OptionSpec`-shaped flags of differing widths can intervene, so
+/// the index is genuinely a function of the call's own words.
+fn object_class_arg_roles(args: &[&str]) -> Vec<(u8, ArgRole)> {
+    let mut roles = vec![(0u8, ArgRole::Name)];
+    if args.len() >= 2
+        && let Ok(last) = u8::try_from(args.len() - 1)
+    {
+        roles.push((last, ArgRole::Body));
+    }
+    roles
+}
+
+fn object_class() -> CommandSpec {
+    CommandSpec {
+        arity: Arity::new(1, 4),
+        options: OBJECT_CLASS_OPTIONS,
+        arg_role_resolver: Some(object_class_arg_roles),
+        ..block(
+            "object_class",
+            &crate::definer::SPECTCL_OBJECT_CLASS_GRAMMAR,
+            "Declare the class this command's instances belong to.",
+            "`object_class NAME ?-superclass {…}? ?-allow-unknown? { method … }`. The NAME word is the class name, which is not always the command name — a factory command may manufacture a differently-named class. `method` rows reuse the `subcommand` body grammar.",
+        )
+    }
+}
+
 /// `descriptor KEY NAME { … }` — the schema key first, then the name the
 /// descriptor is declared under.
 ///
@@ -224,12 +268,6 @@ pub(super) fn specs() -> Vec<CommandSpec> {
             "Declare (or name) the curated command environment of this command's body.",
             "Inside a `body_scope` block, `command` is a scoped-command row rather than a pack-level command declaration — the same context rule that makes `method` a member row inside `object_class`. Its nested `subcommand` blocks are ordinary subcommand bodies, reused unchanged.",
         ),
-        named_block(
-            "object_class",
-            &crate::definer::SPECTCL_OBJECT_CLASS_GRAMMAR,
-            Arity::new(1, 4),
-            "Declare the class this command's instances belong to.",
-            "`object_class NAME ?-superclass {…}? ?-allow-unknown? { method … }`. The NAME word is the class name, which is not always the command name — a factory command may manufacture a differently-named class. `method` rows reuse the `subcommand` body grammar.",
-        ),
+        object_class(),
     ]
 }
