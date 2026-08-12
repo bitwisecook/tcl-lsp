@@ -1,6 +1,6 @@
 # KCS: How do I <task>?
 
-> **Audience:** <pick one: User, Contributor, or Maintainer — prefer one audience; use multiple only when the note is explicitly broadly applicable>
+> **Audience:** <pick exactly one: User, Contributor, or Maintainer. If the note needs two, it is two notes — see rule 2 in [`../STYLE.md`](../STYLE.md).>
 > **Type:** How-To
 
 ## Applies to

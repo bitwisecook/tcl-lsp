@@ -29,7 +29,7 @@ flowchart LR
 
 ## Alphabetic index
 
-[AST](#ast) · [Basic block](#basic-block) · [CFG](#cfg) · [Codegen](#codegen) · [CommandSpec](#commandspec) · [Constant folding](#constant-folding) · [CSE](#cse) · [Data-flow graph](#data-flow-graph) · [DCE](#dce) · [Def-use chains](#def-use-chains) · [dialect](#dialect) · [Dominator / idom](#dominator--idom) · [Dominance frontier](#dominance-frontier) · [Escape tag](#escape-tag) · [Execution intent](#execution-intent) · [FormSpec](#formspec) · [Frame-only var](#frame-only-var) · [GVN](#gvn) · [ICIP](#icip) · [Interpreter domain](#interpreter-domain) · [InstCombine](#instcombine) · [IPA](#ipa) · [IR](#ir) · [Lattice](#lattice) · [LCP](#lcp) · [Lexing](#lexing) · [LICM](#licm) · [Liveness](#liveness) · [Lowering](#lowering) · [LVT](#lvt) · [Memory-SSA](#memory-ssa) · [Phi node (φ)](#phi-node-φ) · [Rendered-value properties](#rendered-value-properties) · [salsa](#salsa) · [SCCP](#sccp) · [Shimmer](#shimmer) · [Side-effects](#side-effects) · [Source edge](#source-edge) · [Special variable](#special-variable) · [SSA](#ssa) · [SSA value key](#ssa-value-key) · [Strength reduction](#strength-reduction) · [SubCommand](#subcommand) · [Symbol-definer command](#symbol-definer-command) · [Tail-call optimisation](#tail-call-optimisation) · [Taint analysis](#taint-analysis) · [Taint colour](#taint-colour) · [Taint sink](#taint-sink) · [Taint source](#taint-source) · [Type inference](#type-inference) · [Unused procs elimination](#unused-procs-elimination) · [Value provenance](#value-provenance) · [ValueOps](#valueops) · [Var-escape analysis](#var-escape-analysis)
+[AST](#ast) · [Barrier](#barrier) · [Basic block](#basic-block) · [CFG](#cfg) · [Codegen](#codegen) · [CommandSpec](#commandspec) · [Constant folding](#constant-folding) · [CSE](#cse) · [Data-flow graph](#data-flow-graph) · [DCE](#dce) · [Def-use chains](#def-use-chains) · [dialect](#dialect) · [Dominator / idom](#dominator--idom) · [Dominance frontier](#dominance-frontier) · [Escape tag](#escape-tag) · [Execution intent](#execution-intent) · [FormSpec](#formspec) · [Frame-only var](#frame-only-var) · [GVN](#gvn) · [ICIP](#icip) · [Interpreter domain](#interpreter-domain) · [InstCombine](#instcombine) · [IPA](#ipa) · [IR](#ir) · [Lattice](#lattice) · [LCP](#lcp) · [Lexing](#lexing) · [LICM](#licm) · [Liveness](#liveness) · [Lowering](#lowering) · [LVT](#lvt) · [Memory-SSA](#memory-ssa) · [Pattern recognition](#pattern-recognition) · [Phi node (φ)](#phi-node-φ) · [Rendered-value properties](#rendered-value-properties) · [salsa](#salsa) · [SCCP](#sccp) · [Shimmer](#shimmer) · [Side-effects](#side-effects) · [Source edge](#source-edge) · [Special variable](#special-variable) · [SSA](#ssa) · [SSA value key](#ssa-value-key) · [Strength reduction](#strength-reduction) · [SubCommand](#subcommand) · [Symbol-definer command](#symbol-definer-command) · [Tail-call optimisation](#tail-call-optimisation) · [Tail position](#tail-position) · [Taint analysis](#taint-analysis) · [Taint colour](#taint-colour) · [Taint sink](#taint-sink) · [Taint source](#taint-source) · [Trace](#trace) · [Type inference](#type-inference) · [Unused procs elimination](#unused-procs-elimination) · [Value provenance](#value-provenance) · [ValueOps](#valueops) · [Var-escape analysis](#var-escape-analysis)
 
 ---
 
@@ -223,6 +223,24 @@ classDiagram
     IRStatement <|-- IRWhile
     IRStatement <|-- IRFor
 ```
+
+See also: [IR types and lowering](design/compiler/ir-types-lowering.md).
+KCS tag: `lowering`.
+
+### Barrier
+
+The IR statement that stands in for a command whose runtime effects
+defeat static analysis. `eval`, `uplevel`, and `upvar` can name and
+rewrite arbitrary variables, and a control-flow command whose body or
+option words are not literal — `if` with a non-literal body, `switch`
+with a computed arm list, `catch` with a dynamic body — cannot be
+lowered to structured IR at all. Lowering emits a barrier in their
+place, carrying the original command name, its argument texts, and a
+human-readable reason. SCCP widens the values it is tracking to
+`Overdefined` at a barrier, and load forwarding (`O102`) refuses to
+carry a literal past one, because the command could have reassigned
+the name in between. Defined as `Statement::Barrier` in
+`tcl_compiler::ir`.
 
 See also: [IR types and lowering](design/compiler/ir-types-lowering.md).
 KCS tag: `lowering`.
@@ -658,6 +676,28 @@ store elimination. Implemented in `tcl_compiler::side_effects`.
 See also: [Side-effects system](design/compiler/side-effects-system.md).
 KCS tag: `side-effects`.
 
+### Trace
+
+A Tcl callback attached to a variable (`trace add variable NAME ops
+HANDLER`, or the deprecated `trace variable` / `vdelete` spellings)
+that runs arbitrary script on every read, write, or unset of that
+name. A read handler can run any command and a write handler can
+rewrite the value being stored, so a use of a traced name is never
+equivalent to its last literal assignment. Lowering records two
+whole-module facts — `Module::traced_variables`, the literal names a
+trace targets anywhere in the module, and
+`Module::has_dynamic_variable_trace`, set when the target name is
+itself computed, which forces every variable to be treated as traced.
+SCCP, the propagation optimiser, and taint all consult them before
+forwarding a value or dropping a store. Membership is registry-driven
+(`Traits::ESTABLISHES_VARIABLE_TRACE`), never a hardcoded command
+list. The flow-sensitive counterpart, which marks only the accesses
+that follow the installing call, is the alias / observability lattice
+in `tcl_compiler::var_observability`.
+
+See also: [Constant folding and type inference](design/compiler/constant-folding-type-inference.md)
+and [variable-trace dispatch](design/contracts/variable-trace-dispatch-and-introspection.md).
+
 ### Special variable
 
 An interpreter-, `init.tcl`-, or platform-provided global that behaves
@@ -856,6 +896,21 @@ flowchart TD
 See also: [Tail-call recursion optimisation](design/compiler/tail-call-recursion-optimisation.md).
 KCS tag: `tail-call`.
 
+### Tail position
+
+The place in a proc body where a call is the last thing the body runs:
+the final statement of the body, or the final statement of every branch
+of an `if` / `elseif` / `else` or `switch` that ends it. A `return`
+whose value is a single command substitution counts as well, so
+`return [f $n]` is a tail call but `return [a][b]` is not. A call
+anywhere else — inside `expr`, `catch`, `try`, a loop body, or a nested
+command substitution — is not in tail position, and `O121` / `O122`
+leave it alone. The walk that collects them is `collect_tail_sites` in
+`tcl_compiler::optimiser::tail_call`.
+
+See also: [Tail-call recursion optimisation](design/compiler/tail-call-recursion-optimisation.md).
+KCS tag: `tail-call`.
+
 ### Constant folding
 
 Compile-time evaluation of expressions whose inputs are all known
@@ -894,6 +949,23 @@ Implemented in `tcl_compiler::optimiser::propagation`.
 
 See also: [Optimisation passes](design/compiler/optimisation-passes.md).
 KCS tag: `strength-reduce`.
+
+### Pattern recognition
+
+The optimiser pass that matches a whole source idiom rather than a
+single expression, and rewrites it to the shorter form Tcl already
+provides: `set x [expr {$x + 1}]` becomes `incr x` (`O114`), length
+arithmetic in an index argument becomes `end` / `end-N` (`O128`), a
+write-only `set` plus `append` / `lappend` build chain collapses into
+one literal `set` (`O104`, `O130`), and three or more contiguous
+constant `set`s suggest a single `lassign` (`O119`, hint-only). Each
+rewrite is gated on the variable being provably safe to fold — an
+`O114` rewrite needs every SSA version of the name to be an integer,
+because `expr` promotes a float operand where `incr` raises an error.
+Implemented in `tcl_compiler::optimiser::pattern_recognition`.
+
+See also: [Optimisation passes](design/compiler/optimisation-passes.md).
+KCS tag: `pattern`.
 
 ### GVN
 

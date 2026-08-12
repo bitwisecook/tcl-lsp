@@ -78,7 +78,7 @@ fn make_scanner() -> VarReferenceScanner {
 
 /// Names read by a block's terminator (branch condition / return value).
 ///
-/// Mirrors `compiler/slot_allocation.py::_terminator_read_names`. These reads
+/// These reads
 /// occur *after* every statement in the block, so they must be in the live set
 /// when the backward walk starts — otherwise a value used only in a
 /// `return` / `if` (e.g. a parameter passed straight to `return [expr {$x +
@@ -281,7 +281,7 @@ fn add_clique(graph: &mut Interference, live: &HashSet<String>) {
 /// Build the undirected interference graph over variable **names**, at
 /// instruction granularity.
 ///
-/// Mirrors `compiler/slot_allocation.py::build_interference`. For each block we
+/// For each block we
 /// seed the live set from its `live_out` plus the terminator's own reads, add
 /// that as an interference clique, then walk the block's statements
 /// **backwards** — recording the simultaneously-live names at every point as a
@@ -342,7 +342,7 @@ pub fn build_interference<S1: std::hash::BuildHasher, S2: std::hash::BuildHasher
 /// Assign each variable name a slot index, reusing slots between names whose
 /// live ranges do not interfere (greedy interference-graph colouring).
 ///
-/// Mirrors `compiler/slot_allocation.py::coalesce_slots`. `params` are coloured
+/// `params` are coloured
 /// first, in order, so they occupy slots `0..n-1` (an emitter could keep
 /// incoming-argument slots stable); since parameters are live on entry they
 /// mutually interfere and thus never share a slot. The remaining names are
@@ -408,8 +408,7 @@ pub fn coalesce_slots<S1: std::hash::BuildHasher, S2: std::hash::BuildHasher>(
 
 /// Number of distinct slots a coalescing uses (0 for an empty mapping).
 ///
-/// Mirrors `compiler/slot_allocation.py::slot_count`: `max(slot) + 1`, or 0 if
-/// the mapping is empty.
+/// `max(slot) + 1`, or 0 if the mapping is empty.
 #[must_use]
 pub fn slot_count(mapping: &SlotMapping) -> usize {
     mapping.values().copied().max().map_or(0, |m| m + 1)

@@ -1,6 +1,6 @@
 # KCS: How do I run the C tcltest suite through the bytecode VM?
 
-> **Audience:** Contributor, Maintainer
+> **Audience:** Contributor
 > **Type:** How-To
 
 ## Applies to
