@@ -101,6 +101,28 @@ fn main() {
                 }
             }
         }
+        "rt" => {
+            let name = args.next().unwrap();
+            let dialect = args.next().unwrap_or_else(|| "tcl9.1".to_owned());
+            let v = load_command(&name, &dialect).unwrap();
+            let d = v.as_object().unwrap().clone();
+            let text = tcl_spec_studio::render_spectcl::render(&d);
+            println!("{text}");
+            let pack = tcl_spec_studio::spectcl::load_pack(&text);
+            for n in &pack.notices {
+                println!("NOTICE {n}");
+            }
+            let back = pack.command(&name).map(|c| Value::Object(draft::from_command_spec(c.spec)));
+            let Some(back) = back else { println!("NOT LOADED"); return };
+            for f in schema::COMMAND_FIELDS {
+                if back.get(f.key) != v.get(f.key) {
+                    println!("DIFF {}\n   rendered: {}\n   shipped : {}", f.key, back[f.key], v[f.key]);
+                }
+            }
+            if back[draft::UNRENDERABLE_KEY] != v[draft::UNRENDERABLE_KEY] {
+                println!("DIFF __unrenderable\n   rendered: {}\n   shipped : {}", back[draft::UNRENDERABLE_KEY], v[draft::UNRENDERABLE_KEY]);
+            }
+        }
         other => println!("unknown probe {other}"),
     }
 }

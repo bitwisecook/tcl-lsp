@@ -76,6 +76,65 @@ impl Vm {
         })
     }
 
+    /// Define a Tcl procedure from the host, without going through the `proc`
+    /// command.
+    ///
+    /// The body compiles once, here, and every later call runs that bytecode.
+    /// Host-defined rather than `proc`-defined because an embedder building a
+    /// sandbox removes `proc` from the command table
+    /// ([`Self::retain_commands`]) — the procedure it wants to *call* must not
+    /// depend on the command it wants to *forbid*, and ordering the two would
+    /// be a trap.
+    ///
+    /// Proc semantics are what make each invocation independent: its own
+    /// locals, and `return` as an ordinary early exit rather than an error.
+    pub fn define_procedure(
+        &mut self,
+        name: &str,
+        parameters: &[&str],
+        body: &str,
+    ) -> Result<(), TclError> {
+        let registered = self.qualify_name(name.strip_prefix("::").unwrap_or(name));
+        let namespace = registered
+            .rsplit_once("::")
+            .map_or_else(String::new, |(namespace, _)| namespace.to_owned());
+        let (parameters, has_args) =
+            crate::command::parse_params(&parameters.join(" ")).map_err(TclError::new)?;
+        let Some(compiled) = self.compile_dynamic_body(body) else {
+            return Err(TclError::new(format!(
+                "procedure \"{name}\": could not compile body"
+            )));
+        };
+        self.define_proc(crate::command::ProcDef {
+            name: registered,
+            namespace,
+            params: parameters,
+            has_args,
+            body: compiled,
+            body_src: Value::string(body),
+            usage_name: None,
+            compiled_epoch: 0,
+        });
+        Ok(())
+    }
+
+    /// Arm a wall-clock cap: `budget` from now, after which the VM's poll
+    /// ([`interp limit time`](Vm::limit_check_tick)) fails the running body
+    /// with `time limit exceeded`. `None` disarms it.
+    ///
+    /// Polled rather than pre-emptive — a body between polls can overrun by
+    /// the poll interval, which is why the command budget, not this, is the
+    /// containment guarantee. This is the belt to its braces: it catches a
+    /// body that spends its time inside *one* command.
+    pub fn set_wall_clock_budget(&mut self, budget: Option<std::time::Duration>) {
+        let deadline = budget.map(|budget| {
+            let now = self.host_rc().clock().now_millis();
+            let millis = i128::try_from(budget.as_millis()).unwrap_or(i128::from(i64::MAX));
+            now.saturating_add(millis)
+        });
+        self.set_time_limit_deadline(deadline);
+    }
+
     /// Run a pre-compiled body to completion in the current frame.
     ///
     /// The invoke-by-handle path: no compilation, no `FunctionAsm` clone, and

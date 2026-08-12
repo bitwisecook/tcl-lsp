@@ -1836,6 +1836,17 @@ impl Vm {
         None
     }
 
+    /// Set (or clear) the absolute wall-clock deadline the `time` limit polls
+    /// against, in host-clock milliseconds. The embedder-facing wrapper is
+    /// [`Vm::set_wall_clock_budget`].
+    pub(crate) fn set_time_limit_deadline(&mut self, deadline_millis: Option<i128>) {
+        self.limits.time_value = deadline_millis.map(|deadline| {
+            let seconds = i64::try_from(deadline / 1000).unwrap_or(i64::MAX);
+            let millis = i64::try_from(deadline % 1000).unwrap_or(0);
+            (seconds, millis)
+        });
+    }
+
     /// Charge one command against this interp's `commands` limit, returning
     /// the `command count limit exceeded` completion when the budget is spent
     /// (issue #1373 finding 1: the limit was stored but never enforced).

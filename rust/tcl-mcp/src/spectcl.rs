@@ -38,9 +38,10 @@
 //!
 //! 1. **Commands** — the name, and which draft fields the pack actually set,
 //!    computed by diffing the pack's draft against
-//!    [`draft::default_command_draft`]. A field is "set" exactly when it
-//!    differs from a brand-new command's value, so the list answers "what did
-//!    this declaration actually say" rather than "which keys exist".
+//!    [`draft::default_command_draft`] (see [`fields_set`](fn@fields_set) for
+//!    what "set" means, hooks included). The list answers "what did this
+//!    declaration actually say" rather than "which keys exist", which is how a
+//!    silently-dropped property becomes visible: it is simply absent.
 //! 2. **Notices** — every [`Notice`] the loader raised, as
 //!    `{line, context, reason}`. A notice is always a *degradation*: the named
 //!    declaration was dropped and the rest of the pack loaded. An unknown word
@@ -185,17 +186,38 @@ fn command_json(cmd: &PackCommand, defaults: &Draft, sub_defaults: &Draft) -> Va
     })
 }
 
-/// The draft keys whose value differs from a brand-new command's — i.e. the
-/// ones this declaration actually said something about.
+/// The draft keys this declaration actually said something about, sorted.
 ///
-/// `name` is excluded because it is reported separately and always differs;
-/// [`UNRENDERABLE_KEY`] because it is bookkeeping, not a declared field.
+/// Two kinds, because the draft model has two ways of saying "set":
+///
+/// - a key whose **value** differs from a brand-new command's, and
+/// - a key under [`UNRENDERABLE_KEY`], which is precisely the list of fields
+///   that *are* set but whose defining Rust expression could not be recovered
+///   — every function-pointer field, so every hook. Without these a declared
+///   hook would read as unset, which is the opposite of true.
+///
+/// `name` is excluded because it is reported separately and always differs.
+///
+/// **One roll-up to know about**: the draft model bubbles a subcommand's
+/// unrenderable keys into its command's list, so a hook declared only on a
+/// subcommand also appears in the command's `fields_set`. The per-hook `owner`
+/// in `hooks` is the authoritative answer to *where* a hook hangs.
 fn fields_set(d: &Map<String, Value>, defaults: &Draft) -> Vec<String> {
-    d.iter()
+    let mut set: BTreeSet<String> = d
+        .iter()
         .filter(|(key, _)| key.as_str() != "name" && key.as_str() != UNRENDERABLE_KEY)
         .filter(|(key, value)| defaults.get(key.as_str()) != Some(*value))
         .map(|(key, _)| key.to_owned())
-        .collect()
+        .collect();
+    set.extend(
+        d.get(UNRENDERABLE_KEY)
+            .and_then(Value::as_array)
+            .into_iter()
+            .flatten()
+            .filter_map(Value::as_str)
+            .map(str::to_owned),
+    );
+    set.into_iter().collect()
 }
 
 // ── Hooks ─────────────────────────────────────────────────────────────
@@ -805,6 +827,27 @@ speclib mylib 1.0 {
         // Reading an undefined key is a pack bug, not a caching cost: the
         // read is still a function of nothing outside the word shape.
         assert_eq!(hook["shape_cacheable"], json!(true), "{hook}");
+    }
+
+    #[test]
+    #[ignore = "scratch"]
+    fn scratch_real_ports() {
+        let root = concat!(env!("CARGO_MANIFEST_DIR"), "/../../docs/design/spec-dsl-examples/");
+        for f in ["return.tclspec", "if.tclspec", "string.tclspec", "oo-class.tclspec"] {
+            let src = std::fs::read_to_string(format!("{root}{f}")).expect("port");
+            let d = if f == "oo-class.tclspec" { "tcl9.0" } else { "tcl9.0" };
+            let out = check(&src, d);
+            println!("===== {f} =====");
+            println!("{}", serde_json::to_string_pretty(&out["summary"]).unwrap());
+            for c in out["commands"].as_array().unwrap() {
+                println!("  {} fields={} hooks={}", c["name"], c["fields_set"], c["hooks"].as_array().unwrap().len());
+                for h in c["hooks"].as_array().unwrap() {
+                    println!("    {} {} src={} cache={} ctx={} unknown={}", h["family"], h["owner"], h["source"], h["shape_cacheable"], h["ctx_keys"], h["unknown_ctx_keys"]);
+                }
+            }
+            println!("  notices: {}", serde_json::to_string(&out["notices"]).unwrap());
+            println!("  collisions: {}", serde_json::to_string(&out["collisions"]).unwrap());
+        }
     }
 
     /// A source with no `speclib` wrapper loads nothing and says why, rather

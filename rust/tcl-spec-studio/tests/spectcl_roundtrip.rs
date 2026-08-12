@@ -188,7 +188,7 @@ fn round_trip(shipped: &Value) -> (Value, Vec<String>, String) {
     let notices: Vec<String> = pack.notices.iter().map(ToString::to_string).collect();
     let reloaded = pack
         .command(name)
-        .map_or(Value::Null, |command| Value::Object(command.draft()));
+        .map_or(Value::Null, |command| Value::Object(draft::from_command_spec(command.spec)));
     (reloaded, notices, text)
 }
 
@@ -365,7 +365,11 @@ fn the_eleven_port_fixtures_render_and_reload_as_themselves() {
     for file in &files {
         let source = std::fs::read_to_string(dir.join(file)).expect("a port");
         let hand = spectcl::load_pack(&source);
-        let drafts: Vec<draft::Draft> = hand.commands.iter().map(spectcl::PackCommand::draft).collect();
+        let drafts: Vec<draft::Draft> = hand
+            .commands
+            .iter()
+            .map(|command| draft::from_command_spec(command.spec))
+            .collect();
         let rendered = render_spectcl::render_pack(&drafts, &hand.name);
         let reloaded = spectcl::load_pack(&rendered);
 
@@ -383,10 +387,10 @@ fn the_eleven_port_fixtures_render_and_reload_as_themselves() {
 
         for command in &hand.commands {
             let name = command.spec.name;
-            let before = Value::Object(command.draft());
+            let before = Value::Object(draft::from_command_spec(command.spec));
             let after = reloaded
                 .command(name)
-                .map(|c| Value::Object(c.draft()))
+                .map(|c| Value::Object(draft::from_command_spec(c.spec)))
                 .unwrap_or_else(|| panic!("{file}: the rendered pack lost `{name}`"));
             let found = diffs(&after, &before);
             let _ = writeln!(report, "  {name}: {} differing field(s)", found.len());

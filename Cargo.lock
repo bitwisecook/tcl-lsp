@@ -4340,6 +4340,7 @@ dependencies = [
  "tcl-lsp-core",
  "tcl-lsp-db",
  "tcl-registry",
+ "tcl-spectcl",
  "tcl-version",
  "temp-env",
  "tokio",
