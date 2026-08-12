@@ -21,22 +21,33 @@ lexicographically smallest name is chosen.
 ## Decision rules / contracts
 
 1. Case-mismatch detection only considers variables *defined* (assigned) in
-   the same CFG function scope -- not variables that are merely read.
-2. The suggestion is purely informational; no `CodeFix` is attached because
-   the analyser cannot determine which spelling the user intended.
-3. Commands with `safe_on_uninit` (e.g. `lappend`, `append`, `incr` on 8.5+)
-   suppress W210 for the variable they define, even when a case mismatch
-   exists. The remaining W211/W220 for the *other* spelling still carry the
-   suggestion.
+   the same CFG function scope -- not variables that are merely read. The
+   defined set is collected by walking every block's statements and taking the
+   assignment / `incr` targets plus the explicit defs on call statements.
+2. A case-insensitive twin always beats an edit-distance match. W210 falls
+   back to a length-scaled edit-distance suggestion when no twin exists (and
+   never suggests the variable as its own correction); W211 and W220 offer the
+   case-mismatch suggestion only.
+3. The suggestion is purely informational; no `CodeFix` is attached to any of
+   W210 / W211 / W220, because the analyser cannot determine which spelling
+   the user intended.
+4. Commands whose spec sets `safe_on_uninit` (e.g. `lappend`, `append`, `incr`
+   on 8.5+) suppress W210 for the variable they define, even when a case
+   mismatch exists. The remaining W211/W220 for the *other* spelling still
+   carry the suggestion. The field is a `DialectSet`, so the suppression is
+   per-dialect rather than a plain boolean.
 
 ## File-path anchors
 
-- `analyser/_analyser/_diag_var_lifecycle.py` -- `_collect_defined_vars()`, `_find_case_mismatch()`
-- `compiler/registry/models.py` -- `safe_on_uninit` field
+- `rust/tcl-compiler/src/analyser/diagnostics/dataflow.rs` -- `find_case_mismatch`, `undefined_var_suggestion`, and the W210 / W211 / W220 emitters
+- `rust/tcl-compiler/src/analyser/diagnostics/helpers.rs` -- `collect_defined_vars`
+- `rust/tcl-compiler/src/analyser/diagnostics.rs` -- where the defined-variable set is built per function unit
+- `rust/tcl-compiler/src/text.rs` -- `suggest_similar` / `scaled_max_distance_strict`, the edit-distance fallback
+- `rust/tcl-registry/src/spec.rs` -- the `safe_on_uninit` field on `CommandSpec` and `SubCommand`
 
 ## Test anchors
 
-- `tests/test_upstream_var.py` -- `TestCaseMismatchSuggestions`
+- `rust/tcl-compiler/src/analyser/diagnostics/tests.rs` -- the `did_you_mean_variables` module
 
 ## Discoverability
 

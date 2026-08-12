@@ -1,67 +1,66 @@
-# KCS: tcltest `numTests(Failed)` reads as empty string in compiled bundle
+# KCS: tcltest `numTests(Failed)` reads as empty string
 
-> **Audience:** Developer
+> **Audience:** Contributor
 > **Type:** Issue
 
 ## Applies to
 
-all-editors
+tcl-lsp CLI
 
 ## Question
 
-Why does the counter-bundle summary line print
-`Total 9 Passed 9 Skipped 0 Failed` (no digit) instead of
-`Total 9 Passed 9 Skipped 0 Failed 0` when every test passes?
+Why does a tcltest summary line print
+`Total 9 Passed 9 Skipped 0 Failed` — with no digit after `Failed` —
+instead of `Failed 0` when every test passed?
 
 ## Symptoms
 
-- `tests/external/run_tcllib_test.py::TestCounterBundle::test_counter_bundle_runs_and_passes`
-  has a regex workaround matching `Failed\s*(\d*)` (digit is optional)
-  rather than the tclsh-canonical `Failed\s+(\d+)`.
-- `::tcltest::numTests(Failed)` reads back as an empty string rather
-  than `0` when the counter was never incremented.
-- Other `numTests(*)` slots (Total, Passed, Skipped) print as expected
-  because they were incremented at least once during the run.
+- `::tcltest::numTests(Failed)` reads back as an empty string rather than
+  `0` when the counter was never incremented.
+- The other slots (`Total`, `Passed`, `Skipped`) print correctly, because
+  each was incremented at least once during the run.
 
 ## Answer
 
-Two divergent code paths write to the same logical variable:
+This is a symptom of the retired 1.x Python engine, not of the native
+toolchain. Two code paths wrote to the same logical variable but disagreed
+about its name: tcltest's own `ArrayDefault` helper seeded the array under
+the bare name `numTests`, while the compiled procs read and wrote a
+fully-qualified `::tcltest::numTests`. The slot the compiled procs read
+was therefore never the slot the initial `array set` filled, so an
+un-incremented counter came back as the null value it was created with,
+whose string form is empty.
 
-- `ArrayDefault` (invoked via the interpreter during
-  `::tcltest::Option` bootstrapping) stores the initial value under
-  the bare name `numTests` — it calls `array set $varName pairs`
-  where `$varName` resolves dynamically to `numTests`.
-- Compiled `::tcltest::*` procs have a static `variable numTests`
-  alias, so their reads and writes go through
-  `tcl_array_get("::tcltest::numTests", ...)` — a fully-qualified
-  name.
+If you see this, you are on a 1.x Python build. Move to a current native
+build. The native engine resolves a bare name inside a `namespace eval`
+body to the namespace-qualified variable, so the initialising `array set`
+and the compiled `incr` land in the same slot and an untouched counter
+reads back as `0`.
 
-When `tcltest::test` passes, the compiled proc calls
-`incr numTests(Passed)` which reads the null value at the qualified
-name, adds 1, and writes it back — that's why `Passed` prints `9`.
-When `Failed` is never incremented, the qualified slot stays as the
-null TclObj the array was initialised with, whose string rep is `""`.
+## How to check which one you are on
 
-## Workaround
+Run the initialisation and the read through the same namespace, the way
+tcltest does:
 
-The test regex accepts the missing digit and treats it as zero:
-
-```python
-m = re.search(
-    r"Total\s+(\d+)\s+Passed\s+(\d+)\s+Skipped\s+(\d+)\s+Failed\s*(\d*)",
-    stdout,
-)
-failed = int(m.group(4)) if m.group(4) else 0
+```tcl
+namespace eval ::tt {
+    proc ArrayDefault {varName value} {
+        variable $varName
+        array set $varName $value
+    }
+    ArrayDefault numTests [list Total 0 Passed 0 Skipped 0 Failed 0]
+    proc bump {} {
+        variable numTests
+        incr numTests(Passed)
+    }
+}
+::tt::bump
+puts "Passed $::tt::numTests(Passed) Failed $::tt::numTests(Failed)"
 ```
 
-## Proper fix (follow-up)
+A correct engine prints `Passed 1 Failed 0`. An engine with the split
+prints an empty value after `Failed`.
 
-The compiler should resolve the `variable numTests` alias to the same
-fully-qualified name (`::tcltest::numTests`) that `ArrayDefault` uses
-when it stores the initial value, or `ArrayDefault` should itself use
-the qualified name. Either direction works; what matters is that the
-read and the initial write agree on the namespace.
+## Related
 
-Remove the `Failed\s*(\d*)` workaround from
-`tests/external/run_tcllib_test.py` when the namespace-array-init
-bug is fixed.
+- [KCS index](README.md)

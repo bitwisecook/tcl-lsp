@@ -1,22 +1,34 @@
 # Python → Rust rewrite
 
-> **Complete (2026-07): Python is fully retired on this branch.** The
-> rewrite goal below ("zero Python in the shipping product") has been
-> reached across every axis: **source**, **CI/CD**, **release
-> artefacts**, **editor extensions**, and **tests** are all native. The
-> product is now purely the Rust workspace + native binaries (`tcl`,
-> `f5-query`, `tcl-lsp-server`, `tcl-mcp`). The Python source trees
-> (`shared/ compiler/ dialects/ analyser/ server/ tooling/`, the
-> `ai/**/*.py` engine), `pyproject.toml`, `uv.lock`, `.importlinter`, the
-> `.pyz` zipapp machinery (`build_zipapp.py` / `zipapps.py`), and the
-> pytest suites no longer exist here. The `lsp_e2e` suite was ported to
-> native Rust (`rust/tcl-lsp-server/tests/*_e2e.rs`, run by `cargo
-> test`); the editor extensions bundle the native binary; CI/CD runs
-> Python-free. The PyO3 public-API surface once discussed as a *future*
-> product was **not shipped** — the binding crates `tcl-lsp-py` and
+> **Complete (2026-07): the Python implementation is fully retired on
+> this branch.** The rewrite goal below ("zero Python in the shipping
+> product") has been reached across every axis: **source**, **CI/CD**,
+> **release artefacts**, **editor extensions**, and **tests** are
+> native. The toolchain is now purely the Rust workspace + native
+> binaries (`tcl`, `f5-query`, `tcl-lsp-server`, `tcl-mcp`). The Python
+> source trees (`shared/ compiler/ dialects/ analyser/ server/
+> tooling/`, the `ai/**/*.py` engine), the root `pyproject.toml`,
+> `uv.lock`, `.importlinter`, the old zipapp machinery
+> (`build_zipapp.py` / `zipapps.py`), and the pytest suites no longer
+> exist here. The `lsp_e2e` suite was ported to native Rust
+> (`rust/tcl-lsp-server/tests/*_e2e.rs`, run by `cargo test`); the
+> editor extensions bundle the native binary. The PyO3 public-API
+> surface once discussed as a *future* product for the LSP and compiler
+> was **not shipped** — the binding crates `tcl-lsp-py` and
 > `tcl-lsp-rust` were **removed**, not published. `ai/` is native: the
 > Claude skills call the native `tcl-mcp` MCP tools rather than importing
 > an in-tree Python engine.
+>
+> **Two Python surfaces are current and deliberate**, and neither is a
+> remnant of the retired implementation: the Sublime Text plugin
+> (`editors/sublime-text/plugin.py`), because Sublime's plugin host *is*
+> a Python interpreter, and `f5report` (`rust/bigip-report-gen/python`),
+> a maturin-built PyO3 binding that hands the Rust BIG-IP query engine to
+> Python. `f5report` post-dates the retirement, has its own
+> `pyproject.toml`, ships as a `.pyz` release artefact, and is linted and
+> type-checked by a dedicated CI job. Read "Python is retired" as "the
+> Python *implementation* of the toolchain is retired", not "no Python
+> exists".
 >
 > **This document is now a live plan for the remaining Rust
 > runtime/tooling parity work** (the RT-VM / RT-WASM runtime scope plus a
@@ -35,7 +47,9 @@ below.)  **All of it** has been rewritten in Rust: the repo's runtime,
 LSP server, bytecode VM, formatter, minifier, debugger, refactoring
 engine, code-action surface, compiler explorer, iRule test framework,
 BigIP / APL config parsers, and even the build/release scripts run as
-Rust code, with **zero** Python in the shipping product.
+Rust code, with **zero** Python left in the shipping toolchain (see the
+note above for the two deliberate Python surfaces that are not part of
+it).
 
 The rewrite proceeded bottom-up, in dependency order: each layer's
 behaviour was reproduced and proven against the Python oracle before
@@ -98,9 +112,12 @@ own (see *Command facts live in the registry*).
 The end state reached:
 
 - **All** runtime logic lives in the Rust workspace under `rust/`. No
-  Python is shipped or executed by the LSP server, the editor
-  extensions, the compiler explorer, the MCP server, the debugger CLI,
-  or any other entry point in this repository.
+  Python is shipped or executed by the LSP server, the compiler
+  explorer, the MCP server, the debugger CLI, or any other entry point
+  into the toolchain. (Two Python surfaces remain by design and are not
+  the retired implementation: the Sublime Text plugin, which must be
+  Python because Sublime's plugin host is a Python interpreter, and the
+  `f5report` package described below.)
 - The LSP server is a standalone Rust binary.
 - The bytecode VM is a Rust crate. The Rust WASM runtime (`runtime/rust/`)
   is the out-of-process runtime for compiled scripts; the VM is the in-process
@@ -110,12 +127,19 @@ The end state reached:
 - The formatter, minifier, refactoring engine, code-action surface,
   iRule test framework, and BigIP / APL parsers are all Rust crates.
 - Build / release scripts under `scripts/` were rewritten as
-  `cargo xtask` subcommands or shell scripts, eliminating the Python
-  toolchain dependency entirely.
-- No Python-importable artifact ships. The PyO3 public-API surface once
-  planned as a downstream product was **not** shipped — the binding
-  crates `tcl-lsp-py` / `tcl-lsp-rust` were removed rather than
-  published.
+  `cargo xtask` subcommands or shell scripts. What Python survives there
+  is developer tooling only — the perf-benchmark harness, the LSP stress
+  driver, and a table generator — none of it on the build or release
+  path for the binaries.
+- The PyO3 public-API surface once planned as a downstream product for
+  the LSP and compiler was **not** shipped — the binding crates
+  `tcl-lsp-py` / `tcl-lsp-rust` were removed rather than published. One
+  PyO3 binding does ship, and it post-dates the retirement: `f5report`
+  (`rust/bigip-report-gen/python`) exposes the BIG-IP query engine to
+  Python via maturin, as a downstream *consumer* of a Rust crate rather
+  than a Python implementation of anything. It is released as a
+  per-platform `.pyz` attached to the GitHub Release, and CI carries a
+  `python` job that lints and type-checks it.
 - All Python test suites were ported to Rust as cargo unit + integration
   tests, including the native `lsp_e2e` port. The legacy `tests/`
   directory is gone.
@@ -467,8 +491,11 @@ harnesses are the standard shape.
 
 The product ships as native binaries (`tcl`, `f5-query`,
 `tcl-lsp-server`, `tcl-mcp`) plus the editor extensions that bundle
-them. There is no wheel, no zipapp, and no Python packaging. The Rust
-toolchain tracks `stable` floating via `rust-toolchain.toml`.
+them. Nothing in the toolchain is packaged for Python. The one exception
+is the downstream `f5report` package, which is built with maturin and
+released as a `.pyz`; it consumes the query-engine crate through PyO3
+and is not part of the toolchain's own packaging. The Rust toolchain
+tracks `stable` floating via `rust-toolchain.toml`.
 
 ## What a good port looks like
 
@@ -642,7 +669,8 @@ rust/
   xtask/                  cargo-xtask build/release verbs (kcs-index-links, diag-tables, …)
 runtime/
   rust/                   Rust WASM runtime (out-of-process runtime for compiled scripts) + RT-VM parity oracle
-.github/workflows/ci.yml  rust job + rust-gate (cargo tests + native lsp_e2e); no Python
+.github/workflows/ci.yml  rust job + rust-gate (cargo tests + native lsp_e2e); the only
+                          Python job lints/type-checks the f5report binding
 Makefile                  rust-build/test/lint/format; check-rust; test-rust
 ```
 
@@ -1040,8 +1068,9 @@ subsystem-status / track-map tables above. Only the 🟢 tracks carry residuals:
   WAT text the TUI renders. The graph is *sparse* under the current
   eval-fallback tier (most leaf commands are a single `call` to the imported
   `tcl_eval`) and densifies automatically as the real **RT-WASM** emitter emits
-  more instructions — no further explorer work is required for that. The Pyodide
-  web server stays Python. *(S)*
+  more instructions — no further explorer work is required for that. The
+  browser front-end's Pyodide worker is gone: the GUI drives an inlined
+  Rust → WASM module instead. *(S)*
 - **TOOL-FUZZ** 🟢 *(depends on RT-VM)* — the RT-VM-gated generator broadening
   has **landed** (2026-06-22): the seeded generator now emits `proc`
   definitions + calls, `namespace eval`, the `dict` ensemble (value ops +
@@ -1093,9 +1122,12 @@ pytest `lsp_e2e` suite ported to native Rust (`rust/tcl-lsp-server/tests/*_e2e.r
 run by `cargo test`). The PyO3 public-API surface once planned here was **not
 shipped** — the binding crates `tcl-lsp-py` / `tcl-lsp-rust` were removed rather
 than published — and `ai/` was re-pointed onto the native `tcl-mcp` MCP tools.
-CI/CD, release artefacts, and the editor extensions are all Python-free. The
-full close-out narrative (what was deleted, the e2e port, the editor bundling)
-is in the history archive → *PYTHON-RETIRE*.
+At close-out, CI/CD, release artefacts, and the editor extensions were all
+Python-free; the `f5report` PyO3 binding and its CI job and `.pyz` artefact
+arrived afterwards, as a downstream consumer of the query-engine crate (see
+the note at the top of this document). The full close-out narrative (what was
+deleted, the e2e port, the editor bundling) is in the history archive →
+*PYTHON-RETIRE*.
 
 ### Cross-cutting (fold into the owning track)
 

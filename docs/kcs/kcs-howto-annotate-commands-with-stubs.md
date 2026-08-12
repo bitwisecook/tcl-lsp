@@ -10,25 +10,25 @@ VS Code, Zed, JetBrains, Neovim, Helix, Emacs, Sublime Text, tcl-lsp CLI
 ## Question
 
 How do I tell tcl-lsp about a command from a third-party Tcl library — one
-whose source the analyser cannot see — so that arity checks, the call graph,
-and trait inference treat its arguments correctly?
+whose source the analyser cannot see — so that the call graph and trait
+inference treat its arguments correctly?
 
 ## Before you start
 
 - The command lives outside the workspace (a shared library, a C extension,
-  an `sqlite3`-style instance command, an EDA-vendor builtin).
+  an EDA-vendor builtin).
 - You know the command's argument shape and which arguments are scripts,
   expressions, or variable names.
 - You have write access to the file that calls the command, or to a
-  workspace-wide `<dialect>.tcl.stubs` file.
+  workspace-wide stubs file.
 
 ## Answer
 
 Stubs are declared either inline in the Tcl file that uses the command, or
-in a sidecar `<dialect>.tcl.stubs` file. Both forms use the same syntax. The
-analyser merges the declared signature into the active command registry for
-the duration of analysis, so the call graph, arity checker, and proc-arg
-trait inferencer all see the stubbed command as if it were a built-in.
+in a sidecar stubs file. Both forms use the same syntax. The analyser merges
+the declared signature into the command surface for the duration of
+analysis, so the call graph and the argument-role inferencer see the stubbed
+command as if it were built in.
 
 ### Inline stubs (one file)
 
@@ -47,15 +47,23 @@ proc main {} {
 }
 ```
 
-After this, `tcl callgraph` reports `::main → ::on_row`, the `script`
-argument is recognised as a Tcl script, and arity violations on `db_eval`
-are reported.
+After this, `tcl callgraph` reports `::main → ::on_row`, and the `script`
+argument is recognised as a Tcl script rather than an opaque string.
 
 ### Sidecar stubs file (whole workspace)
 
-Drop a `<dialect>.tcl.stubs` file next to your Tcl sources — for example
-`sqlite.tcl.stubs` or `synopsys.tcl.stubs`. Each non-comment line is one
-declaration:
+A sidecar is named after the **dialect**, not after the library:
+`<dialect>.tcl.stubs`, where `<dialect>` is the dialect profile the file is
+analysed under — `tcl8.6.tcl.stubs`, `f5-irules.tcl.stubs`,
+`synopsys-eda-tcl.tcl.stubs`, and so on. A file named after the library
+(`sqlite.tcl.stubs`) is never loaded.
+
+tcl-lsp looks in the analysed file's own directory first, then each parent
+directory, and uses the **nearest** match. Put a broad bundle at the
+workspace root, and override it closer to a subproject if you need to.
+
+Each non-comment line is one declaration; the `#` prefix and the `tcl-lsp:`
+tag are not used in this form:
 
 ```
 stub db_eval {sql script:body} -barrier
@@ -63,18 +71,17 @@ stub sqlite3 {name path}
 stub redirect {?-file? filename body:body}
 ```
 
-The `#` prefix and the `tcl-lsp:` tag are optional in this form.
+A declaration in the file being analysed beats a sidecar declaration of the
+same name.
 
 ### Stub syntax
 
 ```
-stub <command-name> ?<subcommand>? {arg1:role arg2 ?optArg:role?} ?flags...?
+stub <command-name> {arg1:role arg2 ?optArg:role?} ?flags...?
 ```
 
-A subcommand word between the command name and the braced argument list
-turns the stub into an ensemble entry — multiple stubs with the same
-command name but different subcommands fold into a single dispatch
-table so `db eval` and `db transaction` can declare different shapes.
+The braced argument list is required — `stub NAME` on its own is ignored.
+Declaring the same command twice keeps the last declaration.
 
 Argument roles (after the `:`):
 
@@ -89,76 +96,27 @@ Argument roles (after the `:`):
 | `channel`  | Channel identifier                                     |
 | `value`    | Generic value (default when no role is specified)      |
 
-An argument wrapped in `?...?` is optional. An argument literally named
-`args` marks the tail as variadic.
+An argument wrapped in `?...?` is optional. A role that is not in this table
+throws the whole declaration away, so check your spelling if a stub seems to
+have no effect.
 
-Flags:
+The flags `-barrier`, `-loop`, `-pure`, `-mutator`, `-unsafe`, and
+`-scope_alias` are accepted and recorded against the command, but no
+analysis currently changes its answer because of one. Argument roles are
+what do the work today.
 
-| Flag           | What it does today                                  |
-|----------------|-----------------------------------------------------|
-| `-barrier`     | Marks the command as crossing an interpreter boundary; downstream passes recognise it via `StubCommandDef.barrier`. |
-| `-loop`        | Records `StubCommandDef.loop`; informational, kept for future code-flow specialisation. |
-| `-pure`        | Recorded on the `StubCommandDef`. *Not yet* fed into purity / constant-folding propagation. |
-| `-mutator`     | Recorded on the `StubCommandDef`. *Not yet* fed into side-effect classification. |
-| `-unsafe`      | Recorded on the `StubCommandDef`. *Not yet* fed into safe-interp checks. |
-| `-scope_alias` | Recorded on the `StubCommandDef`. *Not yet* fed into upvar-style scope tracking. |
+### What a stub does not do
 
-The flags marked *not yet* fed through are parsed and surfaced on the
-analyser's `AnalysisResult.stub_commands` for inspection, but the
-purity / side-effect / safe-interp passes do not currently change
-behaviour based on them. Argument roles (`body`, `expr`, `var`,
-`var_read`, `pattern`, `channel`, `name`) and arity *do* drive
-analyses today.
-
-### Worked example — sqlite `db eval` / `db transaction`
-
-The sqlite3 Tcl extension creates an instance command (`sqlite3 db
-:memory:` → command `db`) whose subcommands include `eval`,
-`transaction`, `function`, `onecolumn`, and so on. Each subcommand has
-its own shape:
-
-```tcl
-db eval $sql ?$rowvar? ?$script?     ;# row callback at the trailing slot
-db transaction ?$type? $script       ;# script always trailing
-db function NAME ?-argcount N? $script
-```
-
-Stub each subcommand separately. The `?rowvar?` optional slot is
-honoured by the resolver — the body's index shifts based on the actual
-call:
-
-```tcl
-# tcl-lsp: stubs-begin
-# tcl-lsp: stub db eval {sql ?rowvar? script:body} -barrier
-# tcl-lsp: stub db transaction {script:body} -barrier
-# tcl-lsp: stub db function {name script:body} -barrier
-# tcl-lsp: stubs-end
-
-package require sqlite3
-sqlite3 db :memory:
-
-proc handle_row {} { puts "$name = $value" }
-proc apply_change {} {}
-
-proc dump {} {
-    db eval {SELECT name, value FROM kv} {handle_row}     ;# body at arg 2
-}
-
-proc dump_rowvar {} {
-    db eval {SELECT name FROM kv} row {handle_row}        ;# body at arg 3
-}
-
-proc run_in_tx {} {
-    db transaction {apply_change}                          ;# body at arg 1
-}
-```
-
-With these stubs in place, `tcl callgraph` reports `::dump →
-::handle_row`, `::dump_rowvar → ::handle_row`, and `::run_in_tx →
-::apply_change`. The unused-proc analyser leaves the callbacks alone.
-
-This stub block has been exercised against `libsqlite3-tcl` 3.45.1 — the
-exact source runs in `tclsh` and our analyser sees every callback.
+- **It does not add ensembles.** There is no subcommand form: `stub db eval
+  {...}` is not a valid declaration and is silently ignored. Give each
+  entry point its own top-level name, or leave the ensemble unstubbed.
+- **It does not turn on arity checking.** A stub declares a name so the
+  analyser stops calling it unknown; it does not make tcl-lsp count the
+  arguments you pass. Where a stub shadows a built-in command, it
+  *suppresses* the built-in arity and subcommand checks instead.
+- **It does not carry types, options, or side effects.** Those need a real
+  registry entry — see
+  [how to add a library to the command registry](kcs-howto-add-command-registry-package.md).
 
 ### Expression-function and operator stubs
 
@@ -172,8 +130,8 @@ stubbed separately:
 # tcl-lsp: stubs-end
 ```
 
-The numeric argument is the arity — 1 for unary functions, 2 for binary
-operators, and so on.
+The numeric argument is the arity. It defaults to 1 for a function and 2 for
+an operator when you leave it out.
 
 ## How to tell it worked
 
@@ -181,11 +139,14 @@ operators, and so on.
   the stubbed command's body argument appear as outgoing edges from the
   caller.
 - Open the file in your editor and confirm that the stubbed command no
-  longer raises "unknown command" / "unresolved command" diagnostics.
-- Pass too few or too many arguments — the arity check should report it.
+  longer raises the "unresolved command" hint.
+- For a sidecar, confirm the filename matches the dialect the file is
+  analysed under — a mismatch is the most common reason a sidecar appears to
+  be ignored.
 
 ## Related
 
+- [How to add a third-party Tcl library to the command registry](kcs-howto-add-command-registry-package.md)
 - [KCS: What annotations does tcl-lsp understand?](kcs-qa-tcl-lsp-annotations.md)
 - [How to suppress diagnostics inline](kcs-howto-suppress-diagnostics.md)
 - [KCS index](README.md)

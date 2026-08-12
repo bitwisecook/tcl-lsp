@@ -111,8 +111,8 @@ symptom with several possible causes worth telling apart. See rule 13 in
 - [kcs-issue-duplicate-diagnostics.md](kcs-issue-duplicate-diagnostics.md)
   — the same finding is reported twice.
 - [kcs-issue-counter-numtests-array-init.md](kcs-issue-counter-numtests-array-init.md)
-  — tcltest's `numTests(Failed)` reads as an empty string in the
-  compiled counter-bundle run.
+  — tcltest's `numTests(Failed)` read as an empty string on a retired
+  implementation; how to recognise the affected versions.
 - [kcs-issue-reconstruct-a-stress-test-failure.md](kcs-issue-reconstruct-a-stress-test-failure.md)
   — a stress-test suite run failed and you want to reconstruct it from
   the `STRESS_FAILURE:` reproduction bundle.

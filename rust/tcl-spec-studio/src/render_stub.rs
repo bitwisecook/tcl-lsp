@@ -19,8 +19,8 @@
 //! Render a draft as a Tcl dialect stub.
 //!
 //! A stub is the lightweight half of the registry: a one-line declaration the
-//! compiler reads straight out of a user's own source, giving completion,
-//! arity checking, and argument-role analysis for a command that has no
+//! compiler reads straight out of a user's own source, giving unknown-command
+//! suppression and argument-role analysis for a command that has no
 //! `CommandSpec`. See `docs/design/contracts/dialect-stubs.md`.
 //!
 //! Two deliveries, same line:

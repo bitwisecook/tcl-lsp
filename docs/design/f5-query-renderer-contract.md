@@ -1,394 +1,244 @@
-# `f5 query` plugin contract — renderers, builtins, input formats, and the loader
+# `f5 query` output contract — renderers, builtins, and input formats
 
-The query engine ships with **three decorator-registered registries**
-— one each for output renderers, DSL builtin functions, and
-side-input parsers — plus a **shared user-plugin loader** that
-auto-imports Python files from `$XDG_CONFIG_HOME/dialects/f5/query/plugins/` on
-first registry access.  External users can extend any of the three
-surfaces without forking the project; the CLI and the Python API
-both consult the same registries so plugins are visible from both.
+The query engine (`rust/tcl-bigip-query`) carries three extension surfaces:
+**output renderers**, **DSL builtin functions**, and **side-input parsers**.
+Each is a static, in-tree registry built into the crate; the `f5 query` verb
+in `rust/f5-cli` and the PyO3 binding in `rust/bigip-report-gen/python` both
+consult the same registries, so the three surfaces behave identically
+whichever front-end drives them.
 
-This doc fixes the contracts: what each plugin shape must do, what
-the engine guarantees, where the registrations live, and how errors
-propagate.
+This doc fixes the contracts: what each registry entry must do, what the
+engine guarantees, and how errors propagate.
+
+> **No runtime plugin loading.** There is no decorator API, no
+> user-plugin directory, and no entry-point discovery. Every renderer,
+> builtin, and input format is a Rust function compiled into the crate.
+> Extending a surface means adding an entry to the matching registry and
+> rebuilding. An earlier Python implementation loaded user plugins from an
+> XDG directory; that engine is retired, and the `--help-plugins` action
+> that listed them no longer exists.
 
 ## Registry layout
 
-| File | Role |
+| Module | Role |
 |---|---|
-| `dialects/f5/query/renderers/__init__.py` | `RendererSpec`, `@renderer` decorator, `lookup`, `list_renderers`, `render`, `bind_render_sources`. |
-| `dialects/f5/query/renderers/gantt.py` | `@renderer("gantt")` — ASCII Gantt timeline. |
-| `dialects/f5/query/renderers/ascii_blocks.py` | `@renderer("ascii-blocks")` — Unicode line-art tree. |
-| `dialects/f5/query/renderers/mermaid.py` | `@renderer("mermaid")` — Mermaid diagram. |
-| `dialects/f5/query/inputs.py` | `InputFormatSpec`, `@input_format` decorator, `lookup`, `list_input_formats`. |
-| `dialects/f5/query/_builtin_inputs.py` | Registers the four built-in formats (json / jsonl / csv / f5log) by wrapping the parsers in `_inputs.py`. |
-| `dialects/f5/query/builtins.py` | Public `@builtin` decorator wrapping the private `_register` used by in-tree builtins. |
-| `dialects/f5/query/plugins.py` | `xdg_plugin_dir`, `load_user_plugins`, `iter_plugin_files`. |
-| `dialects/f5/query/output.py` | `render(values, *, mode, **opts)` — falls through to the renderer registry on an unknown built-in mode. |
-| `dialects/f5/query/api.py` | `QueryRun.render(name, **opts)` — wraps `render` with `bind_render_sources` so renderers can reach the originating source text. |
-
-The pattern mirrors two existing in-repo registries:
-
-- `@verb` in `tooling/f5/verbs/_registry.py` (CLI subcommands)
-- `@_register` in `dialects/f5/query/builtins.py` (DSL builtins)
-- `@tool` in `ai/mcp/tcl_mcp_server.py` (MCP tools)
-
-— same decorator-then-spec shape, same duplicate-registration guard,
-same introspection helpers (`list_renderers()` ↔ `list_builtins()` ↔
-`get_verb_catalogue()`).
-
-## `RendererSpec`
-
-```python
-@dataclass(frozen=True, slots=True)
-class RendererSpec:
-    name: str
-    summary: str
-    accepts: str
-    impl: Callable[..., str]
-    details: str = ""
-```
-
-- `name` — the lookup key used by `lookup`, `render`, and the CLI's
-  `-R / --render NAME` flag.  Convention: lowercase, dash-separated
-  (`ascii-blocks`, not `AsciiBlocks` or `ascii_blocks`).
-- `summary` — one-line description rendered by `--help-renderers`.
-- `accepts` — free-text shape hint shown by `--help-renderers`
-  ("stream of `ObjectRef`", "rows of `(ts, label, state)`").  The
-  registry **does not enforce** it — it's documentation, not
-  validation.
-- `impl` — the renderer callable; see [Renderer contract](#renderer-contract).
-- `details` — optional multi-paragraph prose surfaced verbatim by
-  `--help-renderers`.
+| `renderers` | `RendererSpec`, the static renderer registry, `lookup`, `list_renderers`, `render`. |
+| `renderers::{gantt, ascii_blocks, mermaid}` | The three built-in renderers. |
+| `inputs` | `InputFormatSpec`, `InputSpec`, `list_input_formats`, `is_registered`, `parse_input`. |
+| `builtins` | `BuiltinSpec`, the `Builtin` dispatch enum, `lookup`, `all_specs`, `format_catalogue`. |
+| `special` | Dispatch for the special-form builtins, against the unevaluated AST. |
+| `output` | `render` / `render_with_opts` — the built-in output modes, falling through to the renderer registry for anything else. |
 
 ## Renderer contract
 
-A renderer is a callable
+```rust
+type RenderFn = fn(&[Value], &BTreeMap<String, String>) -> Result<String, QueryError>;
 
-```python
-def renderer_impl(values: list[Any], **opts: Any) -> str: ...
+pub struct RendererSpec {
+    pub name: &'static str,
+    pub summary: &'static str,
+    pub accepts: &'static str,
+    pub details: &'static str,
+    pub impl_fn: RenderFn,
+}
 ```
 
-with the following contract:
+- `name` — the lookup key used by `lookup`, `render`, and the CLI's
+  `-R` / `--render NAME` flag. Convention: lowercase, dash-separated
+  (`ascii-blocks`, not `AsciiBlocks` or `ascii_blocks`).
+- `summary` — the one-line description `--help-renderers` prints.
+- `accepts` — a free-text shape hint, also printed by `--help-renderers`.
+  The registry does **not** enforce it; it is documentation, not
+  validation.
+- `details` — optional multi-paragraph prose, surfaced verbatim by
+  `--help-renderers`.
+- `impl_fn` — the renderer itself.
 
-- **Pure** — must not print, must not write files, must not mutate
-  *values*.  Side-effecting renderers break the CLI's per-file
-  dispatch and break `QueryRun.render`'s composability.
-- **Total over its declared shape** — if `accepts` says "stream of
-  `ObjectRef`", the renderer must handle every legal `ObjectRef`
-  shape (with or without `stanza_slot`, with or without `config_uri`).
-- **Tolerant of unknown shapes** — when *values* doesn't match
-  `accepts`, the renderer SHOULD fall back to a reasonable default
-  ("emit the values as a chain"); only raise
-  `~dialects.f5.query.errors.RendererError` for inputs that genuinely
-  cannot be rendered (e.g. a dict missing a required key the
-  renderer documented as mandatory).  This matches the way built-in
-  `output` modes coerce mixed-shape input to JSON rather than
-  refusing.
-- **Self-validating options** — `opts` arrives as plain strings from
-  `--render-opt KEY=VALUE`.  Renderers parse, type-check, and clamp
-  their own options, raising `RendererError` on invalid input with a
-  message the CLI can prefix with `error:`.
+A renderer must be:
 
-The return value is a single string written verbatim to stdout (or
-returned from `QueryRun.render`).  Renderers conventionally end with
-a trailing newline so multi-file CLI runs stack cleanly.
+- **Pure.** It must not print, must not write files, and must not mutate
+  its values. The CLI dispatches it once per source file.
+- **Total over its declared shape.** If `accepts` names a shape, every
+  legal instance of that shape must render.
+- **Tolerant of unknown shapes.** When the values do not match `accepts`,
+  prefer a reasonable fallback over an error. The `mermaid` renderer's
+  chain mode is the model. Reserve `QueryError::Renderer` for input that
+  genuinely cannot be rendered — a required key missing from a dict the
+  renderer documented as mandatory, for instance.
+- **Self-validating over its options.** Options arrive as raw strings from
+  `--render-opt KEY=VALUE`. The renderer parses, type-checks, and clamps
+  them itself, and raises `QueryError::Renderer` with a message the CLI can
+  prefix with `error:`.
+
+The return value is a single string written verbatim to stdout.
+Conventionally it ends with a newline so multi-file runs stack cleanly.
+
+`REGISTRY` is kept sorted by name at definition time, so `list_renderers`
+and the "registered: …" list in the unknown-renderer error are both sorted.
+
+### The built-in renderers
+
+| Name | Accepts | Options |
+|---|---|---|
+| `ascii-blocks` | a `{title, rows}` dict, or a list of them | `style` (`rounded` default, `square`, `ascii`), `min-width` (default 12) |
+| `gantt` | rows of `(timestamp, label, state)` — a TSV string, 3-tuples, or dicts | `unit-minutes` (a positive divisor of 60, default 5), `year` |
+| `mermaid` | any ordered stream | `direction` (`LR` default, `RL`, `TB`, `BT`), `reverse`, `max-depth` |
+
+`mermaid` renders a left-to-right chain of nodes. It also carries an
+ObjectRef graph mode, but that mode is unreachable today: no source map is
+threaded into `output::render`, because the renderer runs after the query
+has completed and the CLI dispatch path holds no sources by then. Its
+options are still validated, and the renderer falls back to chain mode
+rather than erroring. For the reference graph, use
+`f5 graph --format mermaid`, which owns the source text it walks.
+
+## Output-mode dispatch
+
+`output::render_with_opts(values, mode, opts)` is the single dispatch point.
+The built-in modes — `auto`, `scf`, `raw`, `paths`, `json`, `table`, and
+`table-lineart` — ignore `opts`. Any other mode falls through to
+`renderers::lookup`, so `--render NAME` needs no separate code path in the
+verb; it simply sets the mode. An unrecognised mode returns
+`QueryError::Renderer("unknown output mode: …")`.
 
 ## Error mapping
 
-Two exceptions matter:
+Every caller-visible failure is a `QueryError` variant:
+`Lex`, `Parse`, `Eval`, `Edit`, `Builtin`, and `Renderer`. `Lex` and
+`Parse` carry a source offset and display as `{message} at offset {offset}`;
+the rest are a bare message.
 
-- `RendererError(QueryError)` — caller-visible problem (unknown
-  option, malformed input shape, missing required argument).  The
-  CLI's `_emit_values` catches `QueryError` and prints `error: <msg>`
-  with exit code 2.  Python callers can catch either the specific
-  class or the broader `QueryError` umbrella.
-- `ValueError` — only raised by `output.render` itself, when the
-  requested mode is neither a built-in nor a registered renderer.
-  Also surfaced via `error:` exit 2 by `_emit_values`.
-
-Any other exception propagates with its original traceback so a
-renderer bug surfaces as a bug, not as a CLI error message.
-
-## Registration lifecycle
-
-Built-in renderer modules are imported **lazily**: the first call to
-`lookup`, `list_renderers`, or `render` triggers
-`_ensure_builtins_loaded()`, which imports the three sibling modules
-once.  This keeps `import dialects.f5.query` cheap for callers that
-never ask for a renderer (the LSP server, the bytecode compiler,
-unit tests) while still ensuring the CLI's `--help-renderers` action
-sees them without an explicit import.
-
-Third-party renderer plugins must be imported before the registry
-consults them — there is no entry-point-based auto-discovery today.
-The recommended packaging shape is:
-
-```python
-# my_pkg/__init__.py
-from . import renderers  # side-effect: registers @renderer plugins
-```
-
-The user then runs `python -c "import my_pkg; from tooling.f5.main import main; main()"`
-or ships a tiny wrapper script that imports the plugin package
-before calling into the CLI.  Entry-point discovery is deliberately
-out of scope for v1 — see the **Open questions** section.
-
-## Source-text recovery (renderer-side)
-
-Renderers like `mermaid` need the originating BIG-IP source text to
-build a reference graph.  Two cooperating contextvars surface it:
-
-| ContextVar | Set by | Read by |
-|---|---|---|
-| `RENDER_SOURCES` (in `renderers/__init__.py`) | `QueryRun.render` via `bind_render_sources` | `mermaid._recover_source_text` (preferred path) |
-| `_ACTIVE_ROOTS` (in `runner.py`) | `run_query` during an in-flight query | `mermaid._recover_source_text` (fallback for renderers invoked mid-evaluation) |
-
-The render-time contextvar is the **primary** path so a script that
-calls `f5q.q(...).render("mermaid")` Just Works without threading
-source text by hand.  The runner-side contextvar exists for the
-rarer case of a renderer invoked from inside a builtin, where
-`run_query` is still on the stack.
-
-When neither contextvar yields a source, the mermaid renderer falls
-back to chain mode rather than raising — same "tolerant of unknown
-shapes" rule as elsewhere in the contract.
+The CLI prints `error: {e}` to stderr and exits `2` for any of them. The
+PyO3 binding maps every one to the Python `QueryError` exception with the
+same message text, so a script sees exactly what the CLI would have
+printed.
 
 ## CLI integration
 
-`tooling/f5/verbs/query.py` adds:
+`f5 query` (alias `f5 q`) exposes:
 
-1. `--render NAME` / `-R NAME` — added to the existing mutually
-   exclusive output-format group (alongside `--scf` / `--raw` /
-   `--paths-only` / `--json` / `--table` / `--table-lineart`).
-2. `--render-opt KEY=VALUE` — repeatable; parsed into a flat
-   `{KEY: VALUE}` dict and forwarded to the renderer as kwargs.
-3. `--input KIND NAME=PATH` — generic side-input flag that
-   dispatches through the input-format registry.  Covers user
-   plugins and any future built-in formats without needing a
-   dedicated `--input-<kind>` flag.  The typed `--input-json`,
-   `--input-jsonl`, `--input-csv`, `--input-f5log` shorthands stay
-   for back-compat.
-4. `--help-renderers`, `--help-inputs`, `--help-builtins`,
-   `--help-plugins` — argparse actions that import the relevant
-   registry contents and print the catalogue.
-
-The `_run_query` handler sets `args.output_mode = args.render_name`
-when `--render` is passed and forwards `args.render_opts` through
-the standard `_emit_values` path.  `output.render` does the actual
-dispatch — its existing `mode` argument is the single source of
-truth for "which formatter handles this batch".
+1. `--render NAME` / `-R NAME` — dispatch through the renderer registry.
+   Overrides the output-mode flags (`--scf`, `--raw`, `--paths-only`,
+   `--json`, `--table`, `--table-lineart`).
+2. `--render-opt KEY=VALUE` — repeatable, parsed into a flat map and
+   forwarded to the renderer. A duplicate key takes the last value; an
+   entry with no `=`, or an empty key, is an error.
+3. `--input KIND NAME=PATH` — the generic side-input flag, dispatched
+   through the input-format registry. The typed `--input-json`,
+   `--input-jsonl`, `--input-csv`, and `--input-f5log` shorthands remain.
+4. `--help-renderers`, `--help-inputs`, `--help-builtins [NAME]`,
+   `--help-dsl`, `--help-examples`, and `--help-manual` — catalogue
+   actions that print and exit. The builtins catalogue is generated from
+   the registry metadata (name, category, arity, and flags), so it stays
+   in step with the registry by construction.
 
 ### Side-input name dedup
 
-`_load_side_input` is the shared helper every `--input-*` flag
-goes through.  It checks the requested `$NAME` against
-`side_resolved_names` before claiming it and errors with a pointer
-to the prior binding if the name is already taken — so
-``--input-json routes=a.json --input yaml routes=b.yaml`` fails
-fast rather than silently rebinding `$routes`.  The check covers
-every typed-vs-typed and typed-vs-generic combination because all
-flags route through the same helper.
+Every `--input*` flag routes through one shared binder, which refuses a
+`$NAME` already claimed by a prior side input, and refuses a URI already
+loaded as a positional or side input. So
+`--input-json routes=a.json --input yaml routes=b.yaml` fails fast rather
+than silently rebinding `$routes`. The check covers every typed-versus-typed
+and typed-versus-generic combination because all flags share the binder.
 
-## Python API integration
+## Builtin contract
 
-`dialects/f5/query/api.py` exposes the public surface external
-scripts use:
+```rust
+pub enum Builtin {
+    Plain(fn(&[Value]) -> Result<Value, QueryError>),
+    Ctx(fn(&[Value], &mut EvalContext) -> Result<Value, QueryError>),
+    Special,
+}
 
-| Symbol | Role |
-|---|---|
-| `Query` / `Query.run` | Lower-level entry — parsed-and-ready query, run against pre-staged sources.  Forwards to `run_query` and stashes the source map on the returned `QueryRun` so renderers can recover it. |
-| `q(*args, parser=None)` | Polymorphic single-call entry.  First non-file-path string is the expression; everything else is an input (file path / Path / Sources / prior QueryRun / dict / list).  See "Chain semantics" below. |
-| `load(*inputs, parser=None)` | Pre-stage files / in-memory values into a `Sources` object that ``q()`` consumes the same way it consumes a path.  `parser` accepts a registered format name OR an inline callable. |
-| `Sources` | Container of `{uri: text}` + per-uri `InputSpec` + inline parsers.  Composes via `.merged(other)`. |
-| `QueryRun` | Result wrapper: list-like (iter / len / `[i]` / `bool`), plus `.values()` / `.first()` / `.objects()` / `.paths()` / `.rows()`. |
-| `QueryRun.q(expr, *extras)` | Method form of progressive chaining — `run.q(expr)` ≡ `q(expr, run)`. |
-| `QueryRun.render(name_or_callable, **opts)` | Dispatches through the renderer registry on a string name, or calls the function directly on a callable.  Binds source text into `RENDER_SOURCES` for the call. |
-| `QueryRun.out()` | Walks values and coerces `ObjectRef` / `PathRef` / `Stream` to plain JSON-compatible Python.  The explicit boundary between engine-typed handles and serialisable data. |
-| `QueryRun.edits(uri)` | Post-edit source text for *uri*, or `None`.  CLI's `--in-place` is `Path(uri).write_text(run.edits(uri))`. |
-
-```python
-def render(self, renderer, **opts):
-    from .renderers import bind_render_sources, render as _render
-    with bind_render_sources(self._sources):
-        if isinstance(renderer, str):
-            return _render(renderer, self.values(), **opts)
-        return renderer(self.values(), **opts)
+pub struct BuiltinSpec {
+    pub name: &'static str,
+    pub category: &'static str,
+    pub min_args: usize,
+    pub max_args: Option<usize>,
+    pub special_form: bool,
+    pub with_ctx: bool,
+    pub stream_aware: bool,
+    pub broadcasts: bool,
+    pub imp: Builtin,
+}
 ```
 
-The `isinstance(renderer, str)` branch — rather than `callable()` —
-is deliberate: ty's `call-top-callable` rule rejects narrowing a
-`str | Callable[...]` union by `callable()` because every `str` is
-also a `Top[Callable[...]]` for type-checking purposes.
+The registry is a `OnceLock<HashMap<&str, BuiltinSpec>>` built on first
+lookup from the per-family modules (`string`, `regex_str`, `math`, `net`,
+`graph`, `rename`, `time_dt`, `value2`, `encoding`, `files`,
+`inputs_load`, `f5profile`, and `extras`), plus the special forms and the
+feature-gated network probes. `all_specs` returns them sorted by
+`(category, name)`, which is the order `--help-builtins` prints.
 
-### Chain semantics
+The dispatch flags:
 
-`q()` and `QueryRun.q()` accept one or more prior `QueryRun`
-instances as inputs.  Their flattened values are serialised to JSON
-and synthesised as a single source:
+- `stream_aware` — the builtin receives the whole stream as one argument
+  rather than element-wise.
+- `special_form` — dispatched by `special` against the unevaluated AST, so
+  the builtin drives its own rebinding of the current value (`select`,
+  `map`).
+- `with_ctx` — receives the `EvalContext`, for builtins that queue
+  cascading edits or need the active root.
+- `broadcasts` — whether a stream argument broadcasts element-wise. This
+  is the scalar default; `with_ctx` builtins normally opt out, with
+  `refs` / `referenced_by` the exception.
 
-- **Only priors** — the synthesised JSON list becomes the primary
-  input; `.` reads it, `.[]` iterates per prior value.  The runner's
-  all-JSON fallback (in `run_query`) makes this work without a
-  BIG-IP source to act as primary.
-- **Priors mixed with other inputs** — the priors land under the
-  name `$_chain` (one combined list across every prior); files /
-  in-memory data act as primary.  The runner's primary-iteration
-  loop skips URIs that appear in `names` even in all-JSON mode, so
-  the chain source never double-iterates as `.`.
+Builtins raise `QueryError::Builtin` for argument-type mistakes, which the
+CLI maps to `error:` uniformly.
 
-The `$_chain` skip rule is what makes
-`f5q.q(expr, prior, [in_memory_data])` evaluate *expr* exactly
-once against the in-memory data — without it the loop would iterate
-both JSON sources as primary and the user would see duplicated
-output.
+## Input-format contract
 
-## Builtin contract (`@builtin`)
+```rust
+pub struct InputFormatSpec {
+    pub name: &'static str,
+    pub summary: &'static str,
+    pub details: &'static str,
+}
 
-```python
-@builtin(
-    name: str,
-    *,
-    summary: str = "",
-    signatures: tuple[str, ...] = (),
-    examples: tuple[str, ...] = (),
-    category: str = "user",
-    min_args: int = 0,
-    max_args: int | None = None,
-    details: str = "",
-    special_form: bool = False,
-    with_ctx: bool = False,
-    stream_aware: bool = False,
-)
+pub struct InputSpec {
+    pub kind: String,
+    pub csv_headers: Option<Vec<String>>,
+}
 ```
 
-`@builtin` is a thin public wrapper over the private
-`_register` decorator the in-tree builtins use.  The default
-`category="user"` keeps plugin builtins out of the curated
-in-tree categories shown at the top of `--help-builtins`; setting
-`category` to one of the in-tree slots (`stream`, `string`,
-`path`, `rename`, `net`, `graph`, `value`) groups the plugin
-alongside the matching in-tree builtins.
+`parse_input(source, uri, spec)` turns a side-input file's text into a
+`Value` the DSL can navigate: a list becomes an iterable stream under
+`$name[]`, and a dict navigates with `$name.field`. `uri` is carried for
+error messages. `csv_headers` is the only per-format option the CLI
+exposes, set from `--input-csv NAME=PATH:hdr1,hdr2,…`.
 
-The advanced flags map directly onto `BuiltinSpec`:
+Five formats are registered: `csv`, `f5log`, `json`, `jsonl`, and `zone`.
+An unknown kind raises a `QueryError` naming every registered format,
+which is far more useful than a bare "unknown" when the user has typed
+`--input jzon`.
 
-- `stream_aware=True` — receives the whole stream as one argument
-  (`count`, `sort`, `any`, …).
-- `special_form=True` — receives the unevaluated AST plus an
-  `EvalContext`; the function must drive its own `current`
-  rebinding (`select`, `map`).
-- `with_ctx=True` — receives the `EvalContext` as a keyword
-  argument so the builtin can queue cascading edits or look up the
-  active `Root` (`rename_partition`).
+## Python binding surface
 
-Plugin builtins raise `BuiltinError` for argument-type mistakes;
-the runner re-raises as `error: <msg>` from the CLI just like the
-in-tree builtins.
+`rust/bigip-report-gen/python` exposes the engine to Python as the
+`f5report` package (native module `f5report._engine`). `query()` runs an
+expression against in-memory `(uri, text)` sources and converts engine
+values to native Python objects — an object reference becomes a dict of
+`kind` / `full-path` / `fields`, a path reference becomes its full-path
+string, and a stream becomes a list. The binding is read-only: a mutating
+expression raises `QueryError` rather than rewriting anything.
 
-## Input-format contract (`@input_format`)
-
-```python
-@input_format(name: str, *, summary: str = "", details: str = "")
-def parse(source: str, *, uri: str, options: tuple[tuple[str, Any], ...] = ()) -> Any: ...
-```
-
-- *source* — file contents as text (UTF-8 decoded by the loader;
-  binary formats need pre-decoding).
-- *uri* — the file path / URI, for inclusion in error messages.
-- *options* — `InputSpec.options` verbatim; the parser reads the
-  keys it understands and ignores the rest.  CSV uses
-  ``("headers", (col1, col2, ...))`` as the only built-in option
-  today.
-- Return value — any Python value the DSL can navigate naturally.
-  Lists become iterable streams via the DSL's `$name[]` operator;
-  dicts navigate with `$name.field`.
-
-The runner replaces its previous hard-coded `if spec.kind == "json"
-…` chain with `inputs.lookup(spec.kind)`.  An unknown kind raises
-`QueryError(f"unknown input format {kind!r} (registered: ...)")`
-listing every registered name — much more useful than a bare
-"unknown" error when the user typo'd `--input jzon`.
-
-User parsers raise `QueryError` for caller-visible problems; the
-runner's catch wraps the more permissive `ValueError` /
-`InputError` shapes the in-tree parsers raise so they still
-surface cleanly.
-
-## Plugin loader (XDG auto-discovery)
-
-`dialects/f5/query/plugins.py`:
-
-```python
-def xdg_plugin_dir() -> Path:
-    """$XDG_CONFIG_HOME/dialects/f5/query/plugins/, falling back to ~/.config/dialects/f5/query/plugins/."""
-
-def load_user_plugins(*, force: bool = False) -> list[Path]:
-    """Auto-import *.py under xdg_plugin_dir().  Idempotent."""
-```
-
-Each registry's `_ensure_loaded` (`builtins._ensure_plugins_loaded`,
-`inputs._ensure_loaded`, `renderers._ensure_builtins_loaded`) calls
-`load_user_plugins()` after the in-tree built-ins finish
-registering.  The first call to any `lookup` / `list_*` helper
-across any registry triggers the scan; subsequent calls are a flag
-check.
-
-The loader's invariants:
-
-- **Hidden files (`_*.py`) are skipped** — convention for helper
-  modules a plugin imports privately.  Sub-directories are
-  recursively scanned.
-- **Load order is `(depth, full path)`** — top-level plugin files
-  load before sub-folder files; within each tier files load
-  alphabetically.  The order is reproducible across runs and
-  matches the way users read the tree.
-- **Sibling imports work** — `_import_plugin_file` temporarily
-  prepends `path.parent` to `sys.path` for the duration of
-  `exec_module` and removes it in a `finally`.  A plugin can
-  `import helper` to pull in a sibling `helper.py` (or
-  `_helper.py` — the scanner skips them but they stay
-  importable).  `sys.path` doesn't accumulate state between
-  plugin imports.
-- **Module names are uniquified** (`f5q_user_plugin_<stem>_<hash>`)
-  so a `force=True` re-scan doesn't collide with the prior
-  incarnation in `sys.modules` — required for the test fixture
-  pattern.
-- **Warn-not-crash** — every `Exception` raised during import is
-  reported to stderr as `f5q: warning: failed to load plugin
-  <path>: <exc>` and the file is skipped.  One broken plugin must
-  never kill the CLI or a script that doesn't use it.
-- **Idempotent by default** — `load_user_plugins()` returns
-  immediately after the first call.  `force=True` re-scans **only
-  files the loader hasn't already imported successfully**
-  (tracked in `_LOADED_FILES`).  This keeps force-reload free of
-  duplicate-registration warnings the decorators would otherwise
-  emit, and surfaces only the genuinely new file in the return
-  value.  Files that previously *failed* (broken syntax, missing
-  import) are still retried in case the user just fixed them.
-
-The CLI exposes `f5 q --help-plugins` as a diagnostic action that
-prints the scan directory and the list of loaded files; pair with
-`2>&1` to see warnings inline.
+Renderers are not exposed to Python. Rendered output is a CLI surface; a
+script that wants a chart either calls `f5 query --render …` or formats the
+returned values itself. See
+[the scripting how-to](../kcs/kcs-howto-script-against-f5-query-from-python.md).
 
 ## Open questions / future work
 
-- **Entry-point discovery.**  We deliberately defer
-  `setuptools.entry_points`-based plugin discovery to v2.  When we
-  add it, the natural group names are `f5q.renderers`,
-  `f5q.builtins`, and `f5q.input_formats` and the discovery should
-  happen inside the same `_ensure_loaded` hooks the XDG loader
-  uses so the CLI and the Python API pick up the same plugin set.
-- **APM-policy renderer.**  The `ascii-blocks` renderer is the
-  scaffold for the future TMUI-style APM policy view (tracked in a
-  separate spec).  When that lands it can re-use `_Box` and
-  `_render_box` directly rather than reimplementing the tree walker.
-- **Multi-file Mermaid.**  Today the Mermaid renderer's
-  ObjectRef-mode emits one diagram per CLI invocation.  Per-file
-  dispatch (one `graph` block per source URI, with cross-file edges
-  inside a `subgraph`) is the natural follow-on for `--merge` mode.
-- **Custom operators.**  True new infix operators (`a <op> b`) would
-  need lexer + parser + precedence-table changes — an order of
-  magnitude more work than the function-form `op(a, b)` builtins
-  cover today.  Tracked but not planned; the `@builtin` decorator
-  is the recommended extension point for any operator-like
-  function.
+- **Reachable ObjectRef mermaid mode.** Threading the source map into
+  `output::render` would let the `mermaid` renderer build the reference
+  graph in place, instead of deferring to `f5 graph --format mermaid`.
+- **Multi-file mermaid.** One diagram per source URI, with cross-file
+  edges inside a subgraph, is the natural follow-on for `--merge` mode.
+- **APM-policy renderer.** `ascii-blocks` is the scaffold for a future
+  TMUI-style APM policy view; that work can reuse its box renderer rather
+  than reimplementing the tree walker.
+- **Custom operators.** True infix operators (`a <op> b`) would need
+  lexer, parser, and precedence-table changes — an order of magnitude more
+  work than the function-form `op(a, b)` builtins already cover. The
+  builtin registry stays the recommended extension point for anything
+  operator-shaped.

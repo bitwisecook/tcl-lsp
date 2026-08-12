@@ -127,10 +127,9 @@ surface.
   the curated override layer in
   ``rust/tcl-registry/src/bigip/``.
 - [f5-query-renderer-contract.md](f5-query-renderer-contract.md) —
-  decorator-based renderer plugin registry that powers
-  ``f5 q --render NAME``: ``RendererSpec`` shape, source-text
-  recovery via ``RENDER_SOURCES`` contextvar, error-mapping rules,
-  and CLI / Python API wiring.
+  the static renderer, builtin, and input-format registries behind
+  ``f5 q --render NAME``: ``RendererSpec`` shape, error-mapping
+  rules, output-mode fall-through, and CLI wiring.
 
 ## tclpkg package manager
 
