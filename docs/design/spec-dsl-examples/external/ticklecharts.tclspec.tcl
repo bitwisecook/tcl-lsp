@@ -66,10 +66,38 @@ values chart-add-series-names {
 # the "3-5 representative commands" brief — full method list is grep'able
 # at chart.tcl with `grep -n "    method [A-Za-z]" chart.tcl` (47 hits).
 command ticklecharts::chart {
-    arity 0..
+    # `arity 1..` is the METHOD word plus its arguments, not the
+    # constructor's: `ticklecharts::chart new -theme dark` puts `new` at
+    # word 0.  Reconciled against the shipped ticklecharts class factories
+    # (rust/tcl-registry/src/commands/ticklecharts/mod.rs:409-457), which
+    # are the ratified shape for any TclOO class command: arity 1.. +
+    # allow_unknown_subcommands (a TclOO object also answers every
+    # oo::object method) + `new`/`create` subcommands carrying the
+    # constructor's own shape + manufacturer rows saying where the
+    # instance name and the constructor arguments sit.
+    arity 1..
+    allow_unknown_subcommands
     # Not a tcllib module -- `required_package` (package-require gating)
     # applies; `tcllib_package` is left unset entirely, not "".
     required_package ticklecharts
+
+    manufacturer new                       -constructor-args-from 1
+    manufacturer create -names-instance-at 1 -constructor-args-from 2
+
+    subcommand new {
+        arity 0..
+        detail   {Create a new chart object with an auto-generated command name.}
+        synopsis {ticklecharts::chart new ?-theme name?}
+        option -theme -takes name -detail {Chart theme name (chart.tcl:6-32).}
+    }
+
+    subcommand create {
+        arity 1..
+        detail   {Create a new chart object with the given command name.}
+        synopsis {ticklecharts::chart create name ?-theme name?}
+        arg 0 -role Name
+        option -theme -takes name -detail {Chart theme name (chart.tcl:6-32).}
+    }
 
     hover {
         summary  {Create a chart object (Apache ECharts wrapper).}
@@ -82,18 +110,18 @@ $chart Render -outfile out.html}
         returns  {A TclOO object command.}
     }
 
-    # INVENTED (G1): no object_class/TclOO syntax exists anywhere in the
-    # provisional DSL sketch (spec-packs.md) despite `CommandSpec::object_class`
-    # (rust/tcl-registry/src/spec.rs:1122-1125) already existing and that
-    # field's OWN doc comment naming `ticklecharts::chart` as its example.
-    # `method` blocks below reuse `subcommand`'s existing grammar 1:1 —
-    # instance methods ARE SubCommands structurally (ObjectClassSpec.
-    # instance_methods: &[SubCommand], spec.rs:255-256) — only the wrapping
-    # `object_class { ... }` keyword and the `method` (vs `subcommand`)
-    # keyword are new.
-    object_class {
-        superclasses {}
-        allow_unknown_methods no
+    # G1 was raised against this file: no object_class/TclOO syntax existed
+    # in the DSL sketch despite `CommandSpec::object_class`
+    # (rust/tcl-registry/src/spec.rs:1122-1125) existing and that field's OWN
+    # doc comment naming `ticklecharts::chart` as its example.  The syntax is
+    # now ratified in ../README.md and this file uses it: the class NAME is
+    # the statement's own word (ObjectClassSpec.class_name), superclasses and
+    # allow-unknown are optional flags, and `method` blocks reuse
+    # `subcommand`'s grammar 1:1 because instance methods ARE SubCommands
+    # structurally (ObjectClassSpec.instance_methods: &[SubCommand],
+    # spec.rs:255-256).  No superclasses and no unknown-method handler here,
+    # so both flags are absent.
+    object_class ticklecharts::chart {
 
         # `Add` is the argument-shape ensemble: chart.tcl:1006-1069 takes a
         # LITERAL first word ("barSeries", "lineSeries", ...) and
@@ -131,14 +159,15 @@ $chart Render -outfile out.html}
 
             # series.tcl:19 `setdef options -colorBy -minversion "5.2.0" ...`
             # -- version-gated against ECharts' OWN release train, not a Tcl
-            # dialect. INVENTED (G3): `-since VERSION` maps to
-            # `OptionSpec::lifecycle.introduced` (rust/tcl-registry/src/
-            # hover.rs:402-408), which already exists and is explicitly
-            # documented as "orthogonal to dialects" (gated against the
-            # package version, i.e. exactly this case) — only the DSL
-            # spelling is new, not the underlying field.
+            # dialect.  G3 was raised here as `-since VERSION`; the ratified
+            # spelling is the option row's existing `-introduced`, one of the
+            # four lifecycle flags named for `Lifecycle`'s own fields
+            # (rust/tcl-registry/src/hover.rs:402-408).  The gap G3 actually
+            # documents survives the rename intact: the version axis is the
+            # LIBRARY's, which is precisely what `Lifecycle` is documented as
+            # being ("orthogonal to dialects").
             option -colorBy -takes value -values {series data} -closed \
-                -since 5.2.0 \
+                -introduced 5.2.0 \
                 -detail {Group `-itemStyle color` assignment by series or by data point. Needs Echarts >= 5.2.0.}
 
             # series.tcl:76-77 `setdef options -label ... -default
@@ -207,18 +236,38 @@ $chart Render -outfile out.html}
 # HTML (chart.tcl:316,348-351, `ticklecharts::htmlMap`). Documents G6;
 # deliberately NOT drafted as a fix — see the note in the method body below.
 command ticklecharts::jsfunc {
-    arity 1
+    # Same class-command shape as chart above: word 0 is the manufacturer
+    # keyword, so the JS payload's position is stated on the `new` / `create`
+    # subcommands rather than on the class command.
+    arity 1..
+    allow_unknown_subcommands
     required_package ticklecharts
 
-    # `arg 0` genuinely is NOT `-role Body`: Body is documented (fields.md)
-    # as "Tcl script body, recursed into by the analyser" -- jsfunc's
-    # payload is never analysed as Tcl and would corrupt highlighting/
-    # folding/completion if treated as one. There is no ArgRole for
-    # "opaque code in a different language, later embedded as an output
-    # sink" and no taint colour parallel to HTML_ESCAPED for "safe JS to
-    # inline" (G6). Left as the honest default (Value) rather than
+    manufacturer new                       -constructor-args-from 1
+    manufacturer create -names-instance-at 1 -constructor-args-from 2
+
+    # `arg 0` of the constructor genuinely is NOT `-role Body`: Body is
+    # documented (fields.md) as "Tcl script body, recursed into by the
+    # analyser" -- jsfunc's payload is never analysed as Tcl and would
+    # corrupt highlighting/folding/completion if treated as one. There is no
+    # ArgRole for "opaque code in a different language, later embedded as an
+    # output sink" and no taint colour parallel to HTML_ESCAPED for "safe JS
+    # to inline" (G6). Left as the honest default (Value) rather than
     # inventing a role with no registry backing to point at.
-    arg 0 -role Value
+    subcommand new {
+        arity 1
+        detail   {Wrap a JavaScript source fragment.}
+        synopsis {ticklecharts::jsfunc new {javascript source}}
+        arg 0 -role Value
+    }
+
+    subcommand create {
+        arity 2
+        detail   {Wrap a JavaScript source fragment under an explicit command name.}
+        synopsis {ticklecharts::jsfunc create name {javascript source}}
+        arg 0 -role Name
+        arg 1 -role Value
+    }
 
     hover {
         summary  {Wrap a literal JavaScript source fragment for embedding in the rendered chart.}
@@ -227,8 +276,7 @@ command ticklecharts::jsfunc {
         source   {jsfunc.tcl:1-65}
     }
 
-    object_class {
-        superclasses {}
+    object_class ticklecharts::jsfunc {
         method get { arity 0 ; detail {Return the wrapped JS source.} ; synopsis {$jsf get} ; return_type String }
     }
 }
