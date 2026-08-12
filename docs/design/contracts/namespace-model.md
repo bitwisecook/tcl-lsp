@@ -25,9 +25,10 @@ supports, and the current codebase has no unified model for any of them:
 2. **F5 iRules "protocol namespaces"** -- `HTTP::`, `SSL::`, `TCP::` etc.
    These are not Tcl `namespace eval` namespaces.  They are command prefixes
    whose availability depends on which profiles are attached to the virtual
-   server and which events have fired.  The existing `EventRequires` /
-   `EventProps` / `FlowChain` systems encode this knowledge but in scattered,
-   implicit ways.
+   server and which events have fired.  `EventRequires` / `EventProps` /
+   `FlowChain` (`rust/tcl-registry/src/events.rs`) encode this knowledge, and
+   `ProtocolNamespaceSpec` (`rust/tcl-registry/src/profiles.rs`) maps each
+   prefix to the profiles that provide it.
 
 3. **F5 iRules "proc namespaces"** -- when you define `proc my_helper {}` in
    an iRule named `my_irule`, it ends up as `::my_irule::my_helper` and is
@@ -36,112 +37,94 @@ supports, and the current codebase has no unified model for any of them:
    The LSP has no model for this today.
 
 4. **EDA tool namespaces** -- EDA tools have their own namespace conventions
-   but the LSP support is currently minimal and conservative.
+   and the support is deliberately minimal and conservative.  Note that EDA
+   shells are no longer modelled as vendor *dialects*: the Synopsys /
+   Cadence / Xilinx / Quartus / Mentor bits were retired from `DialectSet`,
+   and an EDA shell is now a base Tcl version plus `required_package`-gated
+   command libraries (see
+   [eda-library-packages.md](../eda-library-packages.md)).
 
 ## Property naming convention
 
 All boolean and set properties must be expressed in **positive form**:
-`has_flow`, `client_side`, `dialects` (not `no_flow`, `excluded_dialects`,
+`flow`, `client_side`, `dialects` (not `no_flow`, `excluded_dialects`,
 `never_inline_body`).  A positive property means "this thing is true /
-present".  Consumers check `if prop.has_flow` rather than `if not
-prop.no_flow`.
+present".  Consumers check `if props.flow` rather than `if !props.no_flow`.
 
 Where the existing model uses negative forms, the migration flips them:
 
-| Old (negative)         | New (positive)           | Semantics                        |
-|------------------------|--------------------------|----------------------------------|
-| `EventRegistry._non_flow` | derived: `events where has_flow is False` | No stored negative set |
-| `excluded_dialects`    | `dialects`               | Explicit set of supported dialects (out of scope for this plan but noted) |
-| `never_inline_body`    | (out of scope)           | Noted for future cleanup         |
+| Old (negative)          | New (positive)                                   | Semantics                        |
+|-------------------------|--------------------------------------------------|----------------------------------|
+| a stored "non-flow" set  | `EventProps::flow: bool`, negated at the query site | No stored negative set        |
+| `excluded_dialects`     | `CommandSpec::dialects: Option<DialectSet>`      | Explicit set of supported dialects |
+| `never_inline_body`     | (out of scope)                                   | Noted for future cleanup         |
 
-Within the new namespace model all properties follow positive form from
-day one.
+The Rust registry already follows this: `tcl_registry::events::EventProps`
+stores `flow`, `client_side`, `server_side`, `hot`, and `common` as positive
+booleans, and `tcl_registry::events::event_satisfies` derives the negative
+cases at the point of use.  The one exception is
+`CommandSpec::excluded_events`, which is a genuine per-command exclusion
+list rather than a negated set.
 
 ## Design: two-tier namespace model
 
 Rather than one model trying to be everything, use two tiers:
 
-### Tier 1: Tcl namespace scope tracker (all dialects)
+### Tier 1: Tcl namespace scope tracking (all dialects)
 
-A lightweight model that tracks the "current namespace" at any point in
-a file.  This is dialect-agnostic and works for standard Tcl and iRules
-alike.
+A model that tracks the "current namespace" at any point in a file.  This
+is dialect-agnostic and works for standard Tcl and iRules alike.
 
-```python
-@dataclass(frozen=True, slots=True)
-class NamespaceScope:
-    """A namespace scope at a point in the source."""
+**This tier is implemented, but not as a single standalone tracker type.**
+The work is split between three places, none of which is called
+`NamespaceTracker`:
 
-    path: tuple[str, ...]               # ("", "foo", "bar") for ::foo::bar
-    source: str                         # "namespace_eval", "proc_body", "irule", "oo_class"
+| Concern | Where it lives |
+|---|---|
+| Name spelling: qualification, normalisation, splitting | [`tcl_syntax::naming`](../../../rust/tcl-syntax/src/naming.rs) — `normalise_qualified_name`, `qualify`, `qualifier_segments`, `key_holder_and_tail`, `is_qualified` |
+| Call-site resolution against a candidate set | `tcl_syntax::naming::command_resolution_candidates` / `bareword_resolution_candidates` / `resolve_command_with` — the single canonical algorithm, contracted in [command-resolution.md](command-resolution.md) |
+| Scope carried through lowering | `tcl_compiler::ir::Procedure::qualified_name` and `Procedure::namespace_scoped`; `Statement::Block` carries the fully-qualified `namespace` its body was lowered in |
+| Declared `namespace path` per namespace | `tcl_compiler::analyser` — `handle_namespace_path_command` records literal declarations into `namespace_paths: HashMap<String, Vec<String>>`; `command_resolution_namespace` returns the namespace a call site resolves in |
 
-    @property
-    def qualified(self) -> str:
-        """Fully qualified name: '::foo::bar'."""
-        return "::" + "::".join(self.path) if self.path else "::"
+The lowering pass qualifies procedure names as it walks
+`namespace eval` bodies, so `namespace eval mylib { proc helper … }`
+lands in `Module::procedures` under the key `::mylib::helper` (Example 26
+of [example-script-walkthroughs.md](../example-script-walkthroughs.md)
+traces this end to end).  Resolution of a *call* to that name is a
+separate, call-time step, and it is the one governed by
+[command-resolution.md](command-resolution.md).
 
-    def resolve(self, name: str) -> str:
-        """Resolve a potentially unqualified name in this scope."""
-        if name.startswith("::"):
-            return name
-        return self.qualified + "::" + name
-
-
-@dataclass(slots=True)
-class NamespaceTracker:
-    """Tracks namespace scope through a file's AST.
-
-    Handles:
-    - namespace eval ::foo { ... } -- pushes scope
-    - proc definitions -- infers parent namespace
-    - oo::class create -- pushes scope for methods
-    - iRule name detection -- sets root scope for procs
-    """
-
-    _stack: list[NamespaceScope] = field(default_factory=list)
-    _irule_name: str | None = None      # from pragma or filename
-
-    @property
-    def current(self) -> NamespaceScope:
-        return self._stack[-1] if self._stack else NamespaceScope((), "global")
-
-    def push(self, scope: NamespaceScope) -> None: ...
-    def pop(self) -> None: ...
-
-    def set_irule_name(self, name: str) -> None:
-        """Set the iRule name (from pragma comment or filename).
-
-        In iRules, procs defined at top level end up in ::irule_name::
-        """
-        self._irule_name = name
-
-    @property
-    def irule_namespace(self) -> str | None:
-        """The iRule's implicit namespace, if known."""
-        return f"::{self._irule_name}" if self._irule_name else None
-```
+> **Naming caution.** `tcl_registry::NamespaceScope` exists but is an
+> unrelated type: it is the namespace facet of the world-effect
+> descriptor (`Current` / `Named` / `Any`), describing *which* namespace a
+> command's effect touches, not the lexical scope a name is written in.
 
 #### iRule name detection
 
-The iRule name determines the namespace for its procs.  We need it from
-one of:
+The iRule name determines the namespace for its procs.  Three sources are
+possible:
 
-1. **Pragma comment** (most reliable):
-   ```tcl
-   # irule: my_irule_name
-   # OR
-   # irule: /Common/my_irule_name
-   ```
-
-2. **Filename heuristic**: strip `.tcl`/`.irule` suffix, take the basename.
-   E.g. `/path/to/my_irule.tcl` -> `my_irule`.
-
-3. **bigip.conf extraction**: when processing a `bigip.conf`, the iRule
-   name comes from the `ltm rule` stanza.
+1. **Pragma comment** — `# irule: my_irule_name` (or
+   `# irule: /Common/my_irule_name`).  **Not implemented.**  The only
+   leading-comment directive the registry parses today is
+   `# profiles: …`, via
+   `tcl_registry::profiles::parse_profile_directive`, which scans at most
+   the first 20 lines and stops at the first non-comment line.  An
+   `# irule:` pragma would follow the same scan convention.
+2. **Filename heuristic** — strip the `.tcl` / `.irule` suffix and take
+   the basename.  Not implemented.
+3. **`bigip.conf` extraction** — when processing a BIG-IP configuration
+   the rule name comes from the `ltm rule` stanza.  This one *is*
+   available: `tcl_bigip` parses `ltm rule` stanzas into `BigipRule`
+   objects, and `tcl_bigip::irule_context::build_irule_context` resolves
+   the objects one named rule references.
 
 Once known, procs defined in that iRule resolve to
 `::irule_name::proc_name` and are callable from any other iRule via
-`call irule_name::proc_name`.
+`call irule_name::proc_name`.  The `call` command itself is registry data
+(`rust/tcl-registry/src/commands/irules/call.rs`): it carries
+`Traits::INVOKES_USER_PROC` and `arg_roles: &[(0, ArgRole::Name)]`, so the
+consumer that resolves the callee never needs to know the command by name.
 
 #### Cross-iRule proc visibility
 
@@ -152,28 +135,42 @@ system.  This means:
 - `call other_irule::my_proc` -- resolves to a proc in `other_irule`
 - `call /Common/other_irule::my_proc` -- fully qualified with partition
 
-The namespace tracker needs a file-set-aware resolution mode for
-multi-file iRules projects, but the basic model is: each iRule file
-contributes procs to its `::irule_name::` namespace, and `call` can
-reference any of them.
+Cross-iRule resolution needs a file-set-aware mode for multi-file iRules
+projects, but the basic model is: each iRule file contributes procs to
+its `::irule_name::` namespace, and `call` can reference any of them.
 
 ### Tier 2: F5 protocol namespace model (iRules only)
 
 This is the profile/event/layer/side model specific to F5.
 
+This tier is implemented in
+[`rust/tcl-registry/src/profiles.rs`](../../../rust/tcl-registry/src/profiles.rs)
+as `ProfileSpec`, `ProtocolNamespaceSpec`, `StackModification`, and the
+`ProfileRegistry` facade over their static tables (57 profile types, 87
+protocol command namespaces).
+
 #### ProfileSpec -- profile type metadata
 
-```python
-@dataclass(frozen=True, slots=True)
-class ProfileSpec:
-    """Metadata for one F5 profile type."""
-
-    name: str                           # "HTTP", "CLIENTSSL", "SERVERSSL", "TCP", ...
-    layer: str                          # "transport", "tls", "application", "security"
-    side: str                           # "client", "server", "both", "global"
-    requires: frozenset[str] = frozenset()   # profiles this one requires
-    conflicts: frozenset[str] = frozenset()  # profiles this one conflicts with
-    capabilities: frozenset[str] = frozenset()  # capabilities this profile provides
+```rust
+/// Metadata for an F5 profile type.
+pub struct ProfileSpec {
+    /// Profile type name (e.g. `"HTTP"`, `"CLIENTSSL"`, `"DNS"`).
+    pub name: &'static str,
+    /// Protocol stack layer.
+    pub layer: &'static str,
+    /// Connection side: `"client"`, `"server"`, `"both"`, `"global"`.
+    pub side: &'static str,
+    /// Required parent profiles.
+    pub requires: &'static [&'static str],
+    /// Conflicting profiles.
+    pub conflicts: &'static [&'static str],
+    /// Profile capabilities (e.g. `"sni"`, `"cipher"`, `"cert"`).
+    pub capabilities: &'static [&'static str],
+    /// Introduction / deprecation / retirement releases on the BIG-IP
+    /// release axis; an absent introducing release inherits the axis
+    /// baseline (BIG-IP 15.0).
+    pub lifecycle: Lifecycle,
+}
 ```
 
 The `capabilities` field models **what subset of protocol functionality** a
@@ -182,9 +179,18 @@ provide a reduced subset of an SSL profile's functionality without requiring
 a full TLS termination profile.  See
 [SSL persistence profile](#ssl-persistence-profile) below.
 
-The `conflicts` field encodes **mutual exclusivity**.  On a real BIG-IP,
-certain profiles cannot coexist on the same connection -- or if they do,
-one must be disabled before the other's events fire.
+The `lifecycle` field version-gates a profile type: `ProfileRegistry::
+profile_available_at(name, version)` answers whether the type exists at a
+given BIG-IP release (e.g. `AIMCP` is introduced in 21.1.0), and
+`profile_lifecycle` returns the resolved range.
+
+The `conflicts` field is intended to encode **mutual exclusivity**.  On a
+real BIG-IP, certain profiles cannot coexist on the same connection -- or
+if they do, one must be disabled before the other's events fire.
+**No shipped `ProfileSpec` populates `conflicts` today** — every entry in
+the generated table is `conflicts: &[]`, and no consumer reads the field.
+The exclusivity groups below are therefore the design intent, not
+enforced data.
 
 #### Mutual exclusivity groups
 
@@ -247,39 +253,49 @@ when CLIENT_ACCEPTED {
 }
 ```
 
-The model handles this through `StackModification`: disabling a profile
+The design handles this through `StackModification`: disabling a profile
 removes it from the active set, which removes its events from the
-reachable event graph and its command namespace from the valid set.  The
-`ConnectionModel` tracks the modification timeline so we can determine
-what's valid at each event.
+reachable event set and its command namespace from the valid set, with
+some per-connection state tracking the modification timeline so we can
+determine what is valid at each event.  `StackModification` exists as
+registry data (four entries, see below); the replay that would consume it
+does not.
 
-#### Conflicts in PROFILE_SPECS
+#### Conflicts in the profile table
 
-The `conflicts` field on `ProfileSpec` encodes these exclusivity groups:
+Populating `conflicts` would look like this (proposed — see the note
+above, the shipped table leaves every entry empty):
 
-```python
-"TCP":       ProfileSpec("TCP",       ..., conflicts=frozenset({"UDP", "FASTL4", "SCTP"})),
-"UDP":       ProfileSpec("UDP",       ..., conflicts=frozenset({"TCP", "FASTL4", "SCTP"})),
-"FASTL4":    ProfileSpec("FASTL4",    ..., conflicts=frozenset({"TCP", "UDP", "SCTP"})),
-"HTTP":      ProfileSpec("HTTP",      ..., conflicts=frozenset({"FASTHTTP", "DNS", "SIP", "FIX", ...})),
-"FASTHTTP":  ProfileSpec("FASTHTTP",  ..., conflicts=frozenset({"HTTP", "DNS", "SIP", "FIX", ...})),
-"DNS":       ProfileSpec("DNS",       ..., conflicts=frozenset({"HTTP", "FASTHTTP", "SIP", "FIX", ...})),
+```rust
+ProfileSpec { name: "TCP",    conflicts: &["UDP", "FASTL4", "SCTP"], .. },
+ProfileSpec { name: "UDP",    conflicts: &["TCP", "FASTL4", "SCTP"], .. },
+ProfileSpec { name: "FASTL4", conflicts: &["TCP", "UDP", "SCTP"],    .. },
+ProfileSpec { name: "HTTP",   conflicts: &["FASTHTTP", "DNS", "SIP", "FIX"], .. },
 ```
 
-When constructing a `VirtualServerModel`, the registry validates that
-no two conflicting profiles are active simultaneously (unless one is
-disabled via a `StackModification` before the other's events fire).
+A consumer would then validate that no two conflicting profiles are
+active simultaneously (unless one is disabled via a `StackModification`
+before the other's events fire).
 
-The `layer` field models the protocol stack position:
+The `layer` field models the protocol stack position.  The values in the
+shipped table, and the wire-proximity order `ProfileRegistry::layer_rank`
+assigns them (lowest is nearest the wire), are:
 
-| Layer         | Examples                      |
-|---------------|-------------------------------|
-| transport     | TCP, UDP, FASTL4              |
-| tls           | CLIENTSSL, SERVERSSL          |
-| application   | HTTP, FASTHTTP, DNS, SIP, FIX |
-| security      | ASM, BOTDEFENSE, ACCESS       |
-| acceleration  | WEBACCELERATION, STREAM       |
-| message       | GENERICMSG, MR, DIAMETER      |
+| Rank | Layer         | Examples                      |
+|:----:|---------------|-------------------------------|
+| 0    | transport     | TCP, UDP, FASTL4, SCTP        |
+| 1    | tls_shared    | PERSIST, SSL_PERSISTENCE      |
+| 2    | tls           | CLIENTSSL, SERVERSSL          |
+| 3    | application   | HTTP, FASTHTTP, DNS, SIP, FIX, MQTT, DIAMETER, MR |
+| 4    | load_balance  | (namespaces only — no profile type) |
+| 5    | security      | ASM, BOTDEFENSE, ACCESS, PEM  |
+| 6    | acceleration  | WEBACCELERATION, STREAM, XML  |
+| 7    | utility       | (namespaces only — no profile type) |
+
+`ProfileRegistry::is_infrastructure_profile` derives "the stack implies
+this, the operator does not pick it" from the `transport` and
+`tls_shared` layers; the `# Profiles:` header code action filters those
+out.
 
 The `side` field models the connection side:
 
@@ -292,207 +308,182 @@ The `side` field models the connection side:
 
 #### ProtocolNamespaceSpec -- protocol command namespace
 
-```python
-@dataclass(frozen=True, slots=True)
-class ProtocolNamespaceSpec:
-    """An iRules protocol command namespace (e.g. HTTP::, SSL::, TCP::).
-
-    Not a Tcl namespace -- these are command prefixes whose availability
-    depends on attached profiles.
-    """
-
-    prefix: str                         # "HTTP", "SSL", "TCP", "LB", ...
-    profiles: frozenset[str]            # profiles that provide this namespace
-    layer: str                          # which protocol layer it operates on
-    side: str                           # default connection side
-    side_selectable: bool = False       # can append "clientside"/"serverside"
+```rust
+/// iRules protocol command namespace availability.
+///
+/// Not a Tcl namespace — these are command prefixes whose availability
+/// depends on attached profiles.
+pub struct ProtocolNamespaceSpec {
+    /// Namespace prefix (e.g. `"HTTP"`, `"SSL"`, `"TCP"`).
+    pub prefix: &'static str,
+    /// Profiles that provide this namespace.
+    pub profiles: &'static [&'static str],
+    /// Protocol layer.
+    pub layer: &'static str,
+    /// Default connection side.
+    pub side: &'static str,
+    /// Whether `clientside`/`serverside` qualifiers are supported.
+    pub side_selectable: bool,
+}
 ```
 
 The key insight: **profiles map to protocol namespaces**.  When a profile is
 active, its command prefixes become available.  When it's removed (e.g.
 `SSL::disable`), the commands are revoked for subsequent events.
 
-| Namespace | Profiles                    | Layer       | Side   |
-|-----------|-----------------------------|-------------|--------|
-| HTTP      | {HTTP, FASTHTTP}            | application | both   |
-| SSL       | {CLIENTSSL, SERVERSSL}      | tls         | both*  |
-| TCP       | {TCP}                       | transport   | both*  |
-| LB        | (any)                       | load_balance| global |
-| DNS       | {DNS}                       | application | both   |
+A sample of the shipped table (`ProfileRegistry::get_namespace`):
 
-*`SSL` and `TCP` commands accept `clientside`/`serverside` qualifiers.
+| Namespace | Profiles                                        | Layer        | Side   | Side-selectable |
+|-----------|-------------------------------------------------|--------------|--------|:---------------:|
+| HTTP      | `FASTHTTP`, `HTTP`, `HTTP_PROXY_CONNECT`        | application  | both   | no              |
+| SSL       | `CLIENTSSL`, `PERSIST`, `SERVERSSL`, `SSL_PERSISTENCE` | tls   | both   | yes             |
+| TCP       | `TCP`                                           | transport    | both   | yes             |
+| UDP       | `UDP`                                           | transport    | both   | yes             |
+| IP        | (none — always present)                         | transport    | both   | yes             |
+| LB        | (none — always present)                         | load_balance | global | no              |
+| DNS       | `DNS`                                           | application  | both   | no              |
 
-#### LayerStack -- protocol stack model
+An empty `profiles` slice means the namespace has no profile gate: `LB::`
+and `IP::` resolve regardless of the attached stack.
 
-```python
-@dataclass(frozen=True, slots=True)
-class LayerStack:
-    """Active protocol layers for a connection at a point in time."""
+#### Modelling the layer stack
 
-    transport: str | None = None        # "TCP" or "UDP"
-    tls_client: str | None = None       # "CLIENTSSL" or None
-    tls_server: str | None = None       # "SERVERSSL" or None
-    tls_shared: frozenset[str] = frozenset()  # {"PERSIST"}, ...
-    application: frozenset[str] = frozenset()  # {"HTTP"}, {"DNS"}, ...
-    security: frozenset[str] = frozenset()     # {"ASM", "ACCESS"}, ...
-    acceleration: frozenset[str] = frozenset() # {"STREAM", "WEBACCELERATION"}, ...
-```
+There is **no `LayerStack` type in Rust**.  The two facts a stack model
+would carry are held directly on the specs and derived on demand:
 
-Shared/non-terminating TLS helpers such as `PERSIST` live in `tls_shared`
-so they can coexist with client-side or server-side TLS profiles without
-displacing them in the stack model.
+- The layer a profile sits at is `ProfileSpec::layer`; ordering the stack
+  bottom-up is `ProfileRegistry::layer_rank`.
+- Transitive stack membership is
+  `ProfileRegistry::expand_profile_stack(&["HTTP"])`, which adds every
+  transitive `requires` parent (so `HTTP` pulls in `TCP`), uppercasing as
+  it goes.  `ProfileRegistry::stack_satisfies(required, active)` then
+  tests a requirement set against an active stack with OR semantics.
+
+Shared/non-terminating TLS helpers such as `PERSIST` and
+`SSL_PERSISTENCE` carry `layer: "tls_shared"` so they rank below — and
+coexist with — the client-side or server-side `tls` profiles rather than
+displacing them.
+
+`tcl_registry::profiles::compute_file_profiles(source, events, profiles)`
+is the whole-file entry point: it unions the `# profiles:` directive with
+the profiles implied by every `when EVENT` handler present, expands the
+transitive stack, and returns a sorted, uppercased profile list.
 
 #### StackModification -- dynamic profile changes
 
-```python
-@dataclass(frozen=True, slots=True)
-class StackModification:
-    """A command that changes the effective profile stack."""
-
-    command: str                        # "SSL::disable", "HTTP::disable"
-    side: str | None                    # "clientside", "serverside", or None (both)
-    removes_profile: str | None = None  # profile type removed
-    adds_profile: str | None = None     # profile type added (rare)
-    requires_before_event: str | None = None  # must happen before this event
+```rust
+/// A command that changes the active profile stack at runtime.
+pub struct StackModification {
+    /// Command name (e.g. `"SSL::disable"`).
+    pub command: &'static str,
+    /// Connection side affected.
+    pub side: Option<&'static str>,
+    /// Profile removed by this command.
+    pub removes_profile: Option<&'static str>,
+    /// Profile added by this command.
+    pub adds_profile: Option<&'static str>,
+}
 ```
 
-All properties use positive form.  `has_flow = True` means an active
-traffic flow is present; `client_side = True` means the client-side
-connection is available.  There are no negative-form stored sets like
-`_non_flow` -- those are derived as needed by querying
-`events where has_flow is False`.
+The shipped table has four entries (`SSL::disable`, `SSL::enable`,
+`HTTP::disable`, `HTTP::enable`), reachable via
+`ProfileRegistry::modifications()`.  **No consumer reads them yet** — the
+timeline-replay analysis the rest of this section describes is design, not
+implemented behaviour.  The design also wanted a
+`requires_before_event: Option<&'static str>` field for the
+"`SSL::disable serverside` must precede `SERVER_CONNECTED`" case; that
+field does not exist.
 
-#### ConnectionModel -- per-connection state
+All properties use positive form.  `flow = true` means an active traffic
+flow is present; `client_side = true` means the client-side connection is
+available.  There are no negative-form stored sets — those are derived at
+the query site (`tcl_registry::events::event_satisfies`).
 
-```python
-@dataclass(slots=True)
-class ConnectionModel:
-    """Models a connection's profile state across its lifecycle."""
+#### Per-connection state
 
-    initial_profiles: frozenset[str]    # from virtual server config
-    current_stack: LayerStack           # active at current event
-    modifications: list[StackModification] = field(default_factory=list)
+There is **no `ConnectionModel` type**.  What exists instead is the static
+event model in
+[`rust/tcl-registry/src/events.rs`](../../../rust/tcl-registry/src/events.rs):
 
-    def available_namespaces(self) -> frozenset[str]:
-        """Which protocol command namespaces are currently available."""
-        ...
-
-    def apply_modification(self, mod: StackModification) -> None:
-        """Apply a dynamic profile change (SSL::disable, etc.)."""
-        ...
-
-    def profiles_at_event(self, event: str) -> frozenset[str]:
-        """What profiles are effective when this event fires."""
-        ...
-```
+| Design concept | Implemented as |
+|---|---|
+| "what profiles are effective at this event" | `EventProps::implied_profiles` (plus `transport`, `client_side`, `server_side`, `flow`), read via `EventRegistry::get_props` |
+| "which namespaces are available here" | derived: intersect `ProtocolNamespaceSpec::profiles` with the event's implied stack |
+| "apply a dynamic profile change" | not implemented (see `StackModification` above) |
 
 #### Event graph model
 
-```python
-@dataclass(frozen=True, slots=True)
-class EventNode:
-    """A node in the event graph."""
+There is **no `EventNode` / `EventEdge` / `EventGraph`**.  The ordering
+and reachability facts they would carry are held as two flat static
+tables on `EventRegistry`:
 
-    event: str
-    side: str                           # "client", "server", "both", "global"
-    profiles: frozenset[str]            # profiles active when this fires
-    layer: str                          # which layer triggers this event
-    multiplicity: str                   # "once_per_connection", "per_request"
+```rust
+/// A step in an event flow chain.
+pub struct FlowStep {
+    /// Event name.
+    pub event: &'static str,
+    /// Logical phase (`init`, `l4_client`, `tls_client`, `http_request`, …).
+    pub phase: &'static str,
+    /// Whether this event only fires conditionally.
+    pub conditional: bool,
+    /// Human-readable condition note.
+    pub condition_note: &'static str,
+}
 
+/// Complete event flow for a profile combination.
+pub struct FlowChain {
+    /// Unique identifier (e.g. `"plain_tcp"`, `"tcp_clientssl_http"`).
+    pub chain_id: &'static str,
+    /// Human-readable description.
+    pub description: &'static str,
+    /// Profile types on the virtual server.
+    pub profiles: &'static [&'static str],
+    /// Ordered steps.
+    pub steps: Vec<FlowStep>,
+    /// Any caveats or implementation notes.
+    pub notes: &'static str,
+}
 
-@dataclass(frozen=True, slots=True)
-class EventEdge:
-    """An edge in the event graph (temporal ordering)."""
-
-    source: str                         # preceding event
-    target: str                         # following event
-    conditional: bool = False           # only fires under conditions
-    condition: str = ""                 # human-readable condition
-
-
-@dataclass(slots=True)
-class EventGraph:
-    """The complete event flow graph for a profile combination."""
-
-    nodes: dict[str, EventNode]
-    edges: list[EventEdge]
-    profiles: frozenset[str]            # virtual server profiles
-
-    def reachable_after(
-        self, event: str, modifications: list[StackModification] | None = None,
-    ) -> frozenset[str]:
-        """Events reachable after this one, considering modifications."""
-        ...
-
-    def valid_namespaces_at(
-        self, event: str, modifications: list[StackModification] | None = None,
-    ) -> frozenset[str]:
-        """Protocol command namespaces valid at this event."""
-        ...
+/// An entry in the master event firing order.
+pub struct OrderEntry {
+    /// Event name.
+    pub event: &'static str,
+    /// Profile gates (must be active for the event to fire). Empty = always.
+    pub profile_gates: &'static [&'static str],
+}
 ```
 
-### The NamespaceRegistry -- unifying facade
+`EventRegistry::flow_chains()` returns the per-stack chains
+(`plain_tcp`, `tcp_http`, `tcp_clientssl_http`,
+`tcp_clientssl_serverssl_http`, `tcp_clientssl_serverssl_http_collect`,
+`udp_dns`, `tcp_dns`); `EventRegistry::master_order()` returns the
+profile-gated global ordering, and `order_events` / `order_events_for_file`
+sort an event set into firing order using it.
 
-```python
-@dataclass(slots=True)
-class NamespaceRegistry:
-    """Registry-backed namespace model.
+### The registry facade
 
-    Combines:
-    - Tcl namespace scope tracking (tier 1, all dialects)
-    - F5 protocol namespace model (tier 2, iRules only)
-    """
+There is **no `NamespaceRegistry`**.  Tier 1 and tier 2 are reached
+through separate, already-built registries rather than one unifying type:
 
-    _profiles: dict[str, ProfileSpec]
-    _protocol_namespaces: dict[str, ProtocolNamespaceSpec]
-    _modifications: dict[str, StackModification]
+| Query | Rust entry point |
+|---|---|
+| Namespace-qualified name handling | `tcl_syntax::naming::*` (tier 1) |
+| Look up a profile type | `ProfileRegistry::get_profile(name)` |
+| Look up a protocol namespace | `ProfileRegistry::get_namespace(prefix)` |
+| Transitive profile requirements | `ProfileRegistry::expand_profile_stack(&[…])` |
+| Does an active stack satisfy a requirement? | `ProfileRegistry::stack_satisfies(required, active)` |
+| Profiles implied by an event | `EventRegistry::get_props(event)` → `EventProps::implied_profiles` |
+| Profiles a command needs | `CommandSpec::event_requires` → `EventRequires::profiles` |
+| Is this command legal in this event? | `CommandRegistry::is_irules_command_legal_in_event(cmd, event, events, profiles)` — the O(1) legality-matrix test that drives IRULE1001 |
+| Every command legal in an event | `CommandRegistry::valid_irules_commands_for_event(event, events, profiles, bigip_version)` |
+| Stack-modification commands | `ProfileRegistry::modifications()` |
+| Profiles for a whole file | `tcl_registry::profiles::compute_file_profiles(source, events, profiles)` |
 
-    @classmethod
-    def build_default(cls) -> NamespaceRegistry: ...
-
-    # ── Tier 1: Tcl namespace scope ──────────────────────────────────
-
-    def tracker_for_file(
-        self, source: str, *, filename: str | None = None,
-        dialect: str = "tcl8.6",
-    ) -> NamespaceTracker:
-        """Create a namespace tracker for a file.
-
-        For iRules dialect, attempts to detect the iRule name from:
-        1. ``# irule: name`` pragma comment in source
-        2. Filename heuristic (basename minus extension)
-        """
-        ...
-
-    # ── Tier 2: F5 protocol namespaces (iRules only) ─────────────────
-
-    # Profile queries
-    def profile_for_namespace(self, prefix: str) -> frozenset[str]: ...
-    def namespaces_for_profile(self, profile: str) -> frozenset[str]: ...
-    def required_profiles(self, profile: str) -> frozenset[str]: ...
-
-    # Event-to-profile mapping (wraps EventProps)
-    def profiles_implied_by_event(self, event: str) -> frozenset[str]: ...
-    def events_for_profile(self, profile: str) -> frozenset[str]: ...
-
-    # Command-to-namespace mapping (wraps CommandSpec.event_requires)
-    def namespace_for_command(self, command: str) -> str | None: ...
-    def profiles_for_command(self, command: str) -> frozenset[str]: ...
-
-    # Dynamic modification lookups
-    def modification_for_command(self, command: str) -> StackModification | None: ...
-
-    # Stack computation
-    def initial_stack(self, profiles: frozenset[str]) -> LayerStack: ...
-    def stack_after_modification(
-        self, stack: LayerStack, mod: StackModification,
-    ) -> LayerStack: ...
-
-    # Virtual server model
-    def virtual_server_model(
-        self, profiles: frozenset[str],
-    ) -> VirtualServerModel: ...
-```
+The registries are built once and cached:
+`tcl_registry::cache::default_registry()` /
+`registry_for_dialect(dialect)` for commands, `ProfileRegistry::build()`
+and `EventRegistry::build()` for the F5 tables.  There is no
+`VirtualServerModel` type.
 
 ## Modelling complex scenarios
 
@@ -515,13 +506,18 @@ when HTTP_REQUEST {
 }
 ```
 
-The `NamespaceTracker` with `irule_name = "utility_irule"` resolves:
+With the iRule name known to be `utility_irule`, the intended resolution
+is:
 - `proc log_request` -> `::utility_irule::log_request`
-- `call log_request` -> first looks in current iRule's namespace, then global
+- `call log_request` -> first looks in the current iRule's namespace, then
+  global — which is exactly the base order
+  `tcl_syntax::naming::command_resolution_candidates` already produces
+  once the current namespace is `::utility_irule`
 
-Without a known iRule name (no pragma, unclear filename), the tracker
-still works but can't resolve cross-iRule references -- procs are
-treated as local.  This is a graceful degradation.
+Without a known iRule name (no pragma, unclear filename), resolution
+degrades gracefully: procs are treated as local, so a cross-iRule
+reference simply stays unresolved rather than binding to the wrong
+target.
 
 ### HTTP + HTTPS on the same port with SSL::disable
 
@@ -587,53 +583,75 @@ when CLIENTSSL_CLIENTHELLO {
 
 #### Modelling SSL persistence as a reduced-capability profile
 
-The `capabilities` field on `ProfileSpec` captures this:
+The `capabilities` field on `ProfileSpec` captures this, and the shipped
+table already carries it:
 
-```python
-"CLIENTSSL": ProfileSpec("CLIENTSSL", layer="tls", side="client",
-                         requires=frozenset({"TCP"}),
-                         capabilities=frozenset({
-                             "sni", "extensions", "sessionid",
-                             "cipher", "cert", "tls_data",
-                             "tls_control",  # enable/disable/renegotiate
-                         })),
-"SSL_PERSISTENCE": ProfileSpec("SSL_PERSISTENCE", layer="tls", side="client",
-                               requires=frozenset({"TCP"}),
-                               capabilities=frozenset({
-                                   "sni", "extensions", "sessionid",
-                               })),
+```rust
+ProfileSpec {
+    name: "CLIENTSSL",
+    layer: "tls",
+    side: "client",
+    requires: &["TCP"],
+    conflicts: &[],
+    capabilities: &[
+        "cert", "cipher", "extensions", "sessionid", "sni",
+        "tls_control", "tls_data",
+    ],
+    ..ProfileSpec::DEFAULT
+},
+ProfileSpec {
+    name: "SSL_PERSISTENCE",
+    // Side-independent (shared) TLS layer. Stack infrastructure,
+    // not an operator-selected profile.
+    layer: "tls_shared",
+    side: "client",
+    requires: &["TCP"],
+    conflicts: &[],
+    capabilities: &["extensions", "sessionid", "sni"],
+    ..ProfileSpec::DEFAULT
+},
 ```
 
-Commands declare the capability they need rather than (or in addition to)
-a profile name:
+`SERVERSSL` carries the same seven capabilities as `CLIENTSSL`.  These
+three are the only profile types in the table with a non-empty
+`capabilities` list.
 
-```python
-# In EventRequires or the new CommandNamespaceRequires:
-"SSL::sni":        requires_capability="sni"         # works with SSL_PERSISTENCE or CLIENTSSL
-"SSL::extensions": requires_capability="extensions"   # works with SSL_PERSISTENCE or CLIENTSSL
-"SSL::cipher":     requires_capability="cipher"       # needs full CLIENTSSL/SERVERSSL
-"SSL::collect":    requires_capability="tls_data"     # needs full CLIENTSSL/SERVERSSL
+The intent is that a command declares the capability it needs rather than
+(or in addition to) a profile name.  `EventRequires` has the field for it:
+
+```rust
+pub struct EventRequires {
+    /// Requires client side.
+    pub client_side: bool,
+    /// Requires server side.
+    pub server_side: bool,
+    /// Required transport (`"tcp"` or `"udp"`).
+    pub transport: Option<&'static str>,
+    /// Required profile types.
+    pub profiles: &'static [&'static str],
+    /// Events where the command is unconditionally valid.
+    pub also_in: &'static [&'static str],
+    /// Only valid in `RULE_INIT`.
+    pub init_only: bool,
+    /// Requires active traffic flow.
+    pub flow: bool,
+    /// Required profile capability (e.g. `"sni"`).
+    pub capability: Option<&'static str>,
+}
 ```
 
-The validation logic becomes:
+**The `capability` field is declared but not yet used.**  Every shipped
+command spec sets `capability: None`, and
+`tcl_registry::events::event_satisfies` — the function that decides
+IRULE1001 validity — does not consult it.  Wiring it up means (a) setting
+`capability: Some("sni")` on `SSL::sni`, `Some("cipher")` on
+`SSL::cipher`, `Some("tls_data")` on `SSL::collect`, and so on, and
+(b) adding a clause to `event_satisfies` that asks whether any profile in
+`EventProps::implied_profiles` lists that capability.
 
-```python
-def command_valid_with_profiles(
-    command_capability: str,
-    active_profiles: frozenset[str],
-    profile_specs: dict[str, ProfileSpec],
-) -> bool:
-    """Check if any active profile provides the required capability."""
-    return any(
-        command_capability in profile_specs[p].capabilities
-        for p in active_profiles
-        if p in profile_specs
-    )
-```
-
-This means `SSL::sni` in `CLIENTSSL_CLIENTHELLO` is valid whether the VS
-has a full CLIENTSSL profile *or* just an SSL persistence profile, because
-both provide the `"sni"` capability.
+Once wired, `SSL::sni` in `CLIENTSSL_CLIENTHELLO` would be valid whether
+the virtual server has a full CLIENTSSL profile *or* just an SSL
+persistence profile, because both provide the `"sni"` capability.
 
 #### SSL persistence events
 
@@ -646,42 +664,79 @@ events fire:
 | `CLIENTSSL_HANDSHAKE` | **no** |
 | `CLIENTSSL_DATA` | **no** |
 
-The `EventNode.profiles` field in the event graph needs to reflect this:
-`CLIENTSSL_CLIENTHELLO` should list both `CLIENTSSL` and
-`SSL_PERSISTENCE` as profiles that trigger it.
+`EventProps::implied_profiles` already reflects this — the shipped entry
+for `CLIENTSSL_CLIENTHELLO` is:
 
-#### Impact on PROTOCOL_NAMESPACE_SPECS
-
-The SSL protocol namespace becomes available with SSL_PERSISTENCE too:
-
-```python
-"SSL": ProtocolNamespaceSpec("SSL",
-    profiles=frozenset({"CLIENTSSL", "SERVERSSL", "SSL_PERSISTENCE"}),
-    layer="tls", side="both", side_selectable=True),
+```rust
+(
+    "CLIENTSSL_CLIENTHELLO",
+    EventProps {
+        client_side: true,
+        transport: &["tcp"],
+        implied_profiles: &["CLIENTSSL", "PERSIST", "SSL_PERSISTENCE"],
+        ..EventProps::DEFAULT
+    },
+),
 ```
 
-But individual SSL:: commands are gated by capability, not just namespace
-availability.  The namespace is reachable (the prefix resolves), but
-specific subcommands may produce diagnostics if the required capability
-is missing.
+`CLIENTSSL_HANDSHAKE` and `CLIENTSSL_DATA` do not list
+`SSL_PERSISTENCE`.  The master-order gate for `CLIENTSSL_CLIENTHELLO` is
+correspondingly wider than its siblings'
+(`profile_gates: &["CLIENTSSL", "PERSIST"]`).
+
+#### Impact on the protocol-namespace table
+
+The SSL protocol namespace is available with SSL persistence too — this
+is shipped data:
+
+```rust
+ProtocolNamespaceSpec {
+    prefix: "SSL",
+    profiles: &["CLIENTSSL", "PERSIST", "SERVERSSL", "SSL_PERSISTENCE"],
+    layer: "tls",
+    side: "both",
+    side_selectable: true,
+},
+```
+
+But individual `SSL::` commands should be gated by capability, not just
+namespace availability.  The namespace is reachable (the prefix
+resolves), but specific subcommands ought to produce diagnostics if the
+required capability is missing — which is the unused
+`EventRequires::capability` field described above.
 
 ### Profile requirements inference
 
 Given an iRule using events `{HTTP_REQUEST, CLIENTSSL_HANDSHAKE,
-SERVER_CONNECTED}` and commands `{HTTP::header, SSL::cert, pool}`:
+SERVER_CONNECTED}`, the profile set the file needs is computed by
+`compute_file_profiles`, which unions the `# profiles:` directive with
+every event's `implied_profiles` and then expands the transitive stack:
 
-```python
-registry = NamespaceRegistry.build_default()
-model = registry.virtual_server_model(frozenset())
-needed = model.required_profiles_for_events(events)
-# -> {"HTTP", "CLIENTSSL", "TCP"}
+```rust
+use tcl_registry::events::EventRegistry;
+use tcl_registry::profiles::{ProfileRegistry, compute_file_profiles};
 
-needed |= model.required_profiles_for_commands(commands)
-# -> {"HTTP", "CLIENTSSL", "TCP"}  (SSL::cert needs CLIENTSSL/SERVERSSL)
+let events = EventRegistry::build();
+let profiles = ProfileRegistry::build();
 
-needed = registry.resolve_profile_dependencies(needed)
-# -> {"HTTP", "CLIENTSSL", "TCP"}  (HTTP requires TCP, already present)
+let needed = compute_file_profiles(
+    "# profiles: HTTP\nwhen CLIENTSSL_HANDSHAKE { }\n",
+    &events,
+    &profiles,
+);
+// -> ["CLIENTSSL", "HTTP", "TCP"]  (sorted; TCP is the transitive
+//    parent of both CLIENTSSL and HTTP)
 ```
+
+Expansion alone, without the event scan, is
+`ProfileRegistry::expand_profile_stack(&["HTTP", "CLIENTSSL"])`.  Going
+the other way — testing whether a command's declared requirement is met
+by an active stack — is
+`ProfileRegistry::stack_satisfies(spec.event_requires.profiles, active)`,
+which is what `event_satisfies` calls.
+
+There is no per-command "required profiles" roll-up helper: a consumer
+reads `CommandSpec::event_requires` directly.
 
 ### Connection sides and proxy model
 
@@ -711,172 +766,248 @@ namespace eval ::app {
 }
 ```
 
-The `NamespaceTracker` models this by tracking the scope stack as the
-AST is walked.  It doesn't do full Tcl namespace resolution (that would
-require runtime semantics), but it covers the common patterns:
-`namespace eval`, `namespace import`, `proc` definitions, and qualified
-command references.
+Command-name resolution across these forms is the shared algorithm in
+`tcl_syntax::naming::resolve_command_with`, pinned to real tclsh by the
+conformance vectors — see
+[command-resolution.md](command-resolution.md) for the rule, its
+consumers, and the anti-drift gates.  The analyser records each
+namespace's declared `namespace path` (`handle_namespace_path_command`)
+and settles every call site against the whole-file proc table after the
+walk, which is what gives call-time semantics for a proc defined later in
+the file.  What it deliberately does not do is model runtime-only
+behaviour: a namespace created by a computed name, or an import performed
+inside an `eval`.
 
 ## Integration with existing code
 
-### Wrapping, not replacing
+### Where the pieces already live
 
-The `NamespaceRegistry` wraps the existing registries:
+Rather than a wrapping facade, the tier-2 model is spread across the
+registry crate:
 
-- `EventProps` / `EVENT_PROPS` -> indexed by profile metadata
-- `EventRequires` on `CommandSpec` -> queried via `profiles_for_command()`
-- `FlowChain` / `MASTER_ORDER` -> used by `ConnectionModel.profiles_at_event()`
-- `BigipConfig.profiles` -> feeds `VirtualServerModel` construction
+- `EventProps` (`rust/tcl-registry/src/events.rs`) — per-event side,
+  transport, implied profiles, flow, and lifecycle.
+- `EventRequires` on `CommandSpec` — per-command stack requirements,
+  consumed by `event_satisfies` and thence
+  `CommandRegistry::is_irules_command_legal_in_event` (IRULE1001).
+- `FlowChain` / `OrderEntry` — the per-stack event chains and the
+  profile-gated master firing order, consumed by
+  `EventRegistry::order_events`.
+- `tcl_bigip`'s parsed configuration — `BigipConfig`, `BigipRule`,
+  `BigipProfile` — supplies a virtual server's real profile list to
+  `tcl_bigip::irule_context::build_irule_context`.
 
 ### New diagnostic opportunities
 
-- **IRULE1010**: "command `SSL::cert` used after `SSL::disable`"
-- **IRULE1011**: "virtual server needs CLIENTSSL profile for this iRule"
-- **IRULE1012**: "HTTP::header in CLIENT_ACCEPTED -- HTTP events fire later"
-- **IRULE1013**: "`SSL::disable serverside` must be before SERVER_CONNECTED"
-- **IRULE1014**: "profiles HTTP and DNS are mutually exclusive -- disable
-  one before its events fire"
-- **IRULE1015**: "HTTP::header used after HTTP::disable in same connection
-  flow"
-- **IRULE1016**: "`SSL::cipher` requires a client-ssl or server-ssl profile
-  (ssl persistence alone is not sufficient)"
-- **TCL2010**: "proc `foo` defined in namespace `::bar` shadows import"
+None of the codes below exist.  The shipped iRules families are
+IRULE1001–1008, IRULE1201/1202, IRULE2xxx, IRULE3xxx, IRULE4xxx, and
+IRULE5xxx (`docs/generated/diagnostic_codes.md` is the generated
+inventory), so any of these would need a new code allocated and the
+editor catalogues regenerated (`make gen-editor-settings`):
+
+- command `SSL::cert` used after `SSL::disable`
+- virtual server needs a CLIENTSSL profile for this iRule
+- `HTTP::header` in `CLIENT_ACCEPTED` — HTTP events fire later
+- `SSL::disable serverside` must be before `SERVER_CONNECTED`
+- profiles HTTP and DNS are mutually exclusive — disable one before its
+  events fire
+- `HTTP::header` used after `HTTP::disable` in the same connection flow
+- `SSL::cipher` requires a client-ssl or server-ssl profile (ssl
+  persistence alone is not sufficient)
+- proc `foo` defined in namespace `::bar` shadows an import
+
+The first six all depend on the `StackModification` replay that is not
+implemented; the seventh depends on wiring
+`EventRequires::capability`.
 
 ### Existing pragma format
 
-The existing `# profiles: HTTP, CLIENTSSL` pragma (in `event_tree.py:
-parse_profile_directive`) is extended with:
+The `# profiles: HTTP, CLIENTSSL` pragma is parsed by
+`tcl_registry::profiles::parse_profile_directive`
+([`rust/tcl-registry/src/profiles.rs`](../../../rust/tcl-registry/src/profiles.rs)).
+It accepts the singular `# profile:` spelling too, matches
+case-insensitively, splits on commas or whitespace, uppercases the
+names, scans at most the first 20 lines, and stops at the first
+non-comment, non-blank line.  Extending it with
 
 ```
 # irule: my_irule_name
 # irule: /Common/my_irule_name
 ```
 
-Same scan-first-20-lines convention.
+would follow the same scan convention (`profile_directive_payload` is
+the per-line matcher to generalise).
 
 ## File layout
 
 ```
-compiler/registry/
-    namespace_registry.py       # NamespaceRegistry facade
-    namespace_models.py         # NamespaceScope, NamespaceTracker,
-                                # ProfileSpec, ProtocolNamespaceSpec,
-                                # LayerStack, ConnectionModel,
-                                # StackModification, EventNode/Edge/Graph,
-                                # VirtualServerModel
-    namespace_data.py           # PROFILE_SPECS, PROTOCOL_NAMESPACE_SPECS,
-                                # MODIFICATION_SPECS tables
+rust/tcl-registry/src/
+    profiles.rs         # ProfileSpec, ProtocolNamespaceSpec,
+                        # StackModification, ProfileRegistry,
+                        # layer_rank, parse_profile_directive,
+                        # scan_file_events, compute_file_profiles,
+                        # plus the generated static tables
+    events.rs           # EventProps, EventRequires, FlowStep, FlowChain,
+                        # OrderEntry, EventRegistry, event_satisfies,
+                        # plus the generated event tables
+    registry.rs         # CommandRegistry — is_irules_command_legal_in_event,
+                        # valid_irules_commands_for_event
+    spec.rs             # CommandSpec (event_requires, excluded_events, …)
+
+rust/tcl-syntax/src/
+    naming.rs           # tier 1: qualification, normalisation, and the
+                        # canonical command-resolution algorithm
 
 docs/design/contracts/
-    namespace-model.md              # this document
+    namespace-model.md  # this document
 ```
 
 ## Data tables
 
-### PROFILE_SPECS
+All three tables live at the bottom of
+[`rust/tcl-registry/src/profiles.rs`](../../../rust/tcl-registry/src/profiles.rs)
+under an `AUTO-GENERATED — do not edit manually` marker, split into
+chunked builder functions (`profile_specs_0()` … `profile_specs_6()`,
+`protocol_namespace_specs_0()` … `protocol_namespace_specs_9()`) so no
+single function is oversized.  `ProfileRegistry::build()` indexes them by
+`name` / `prefix`.
 
-```python
-PROFILE_SPECS: dict[str, ProfileSpec] = {
-    "TCP":         ProfileSpec("TCP",       layer="transport",    side="both"),
-    "UDP":         ProfileSpec("UDP",       layer="transport",    side="both"),
-    "FASTL4":      ProfileSpec("FASTL4",    layer="transport",    side="both"),
-    "CLIENTSSL":   ProfileSpec("CLIENTSSL", layer="tls",          side="client",
-                               requires=frozenset({"TCP"}),
-                               capabilities=frozenset({
-                                   "sni", "extensions", "sessionid",
-                                   "cipher", "cert", "tls_data", "tls_control",
-                               })),
-    "SERVERSSL":   ProfileSpec("SERVERSSL", layer="tls",          side="server",
-                               requires=frozenset({"TCP"}),
-                               capabilities=frozenset({
-                                   "sni", "extensions", "sessionid",
-                                   "cipher", "cert", "tls_data", "tls_control",
-                               })),
-    "SSL_PERSISTENCE": ProfileSpec("SSL_PERSISTENCE", layer="tls", side="client",
-                               requires=frozenset({"TCP"}),
-                               capabilities=frozenset({
-                                   "sni", "extensions", "sessionid",
-                               })),
-    "HTTP":        ProfileSpec("HTTP",      layer="application",  side="both",
-                               requires=frozenset({"TCP"})),
-    "FASTHTTP":    ProfileSpec("FASTHTTP",  layer="application",  side="both",
-                               requires=frozenset({"TCP"})),
-    "DNS":         ProfileSpec("DNS",       layer="application",  side="both"),
-    "SIP":         ProfileSpec("SIP",       layer="application",  side="both"),
-    "FIX":         ProfileSpec("FIX",       layer="application",  side="both",
-                               requires=frozenset({"TCP"})),
-    "DIAMETER":    ProfileSpec("DIAMETER",  layer="application",  side="both",
-                               requires=frozenset({"TCP"})),
-    "MQTT":        ProfileSpec("MQTT",      layer="application",  side="both",
-                               requires=frozenset({"TCP"})),
-    "ASM":         ProfileSpec("ASM",       layer="security",     side="both",
-                               requires=frozenset({"HTTP"})),
-    "ACCESS":      ProfileSpec("ACCESS",    layer="security",     side="client",
-                               requires=frozenset({"TCP"})),
-    "BOTDEFENSE":  ProfileSpec("BOTDEFENSE",layer="security",     side="client",
-                               requires=frozenset({"HTTP"})),
-    "STREAM":      ProfileSpec("STREAM",    layer="acceleration", side="both",
-                               requires=frozenset({"TCP"})),
-    "WEBACCELERATION": ProfileSpec("WEBACCELERATION", layer="acceleration", side="both",
-                               requires=frozenset({"HTTP"})),
-    # ... remaining profiles
+### Profile specs
+
+57 entries.  A representative slice, verbatim:
+
+```rust
+ProfileSpec {
+    name: "TCP",
+    layer: "transport",
+    side: "both",
+    requires: &[],
+    conflicts: &[],
+    capabilities: &[],
+    ..ProfileSpec::DEFAULT
+},
+ProfileSpec {
+    name: "CLIENTSSL",
+    layer: "tls",
+    side: "client",
+    requires: &["TCP"],
+    conflicts: &[],
+    capabilities: &[
+        "cert", "cipher", "extensions", "sessionid", "sni",
+        "tls_control", "tls_data",
+    ],
+    ..ProfileSpec::DEFAULT
+},
+ProfileSpec {
+    name: "HTTP",
+    layer: "application",
+    side: "both",
+    requires: &["TCP"],
+    conflicts: &[],
+    capabilities: &[],
+    ..ProfileSpec::DEFAULT
+},
+ProfileSpec {
+    name: "ASM",
+    layer: "security",
+    side: "both",
+    requires: &["HTTP"],
+    conflicts: &[],
+    capabilities: &[],
+    ..ProfileSpec::DEFAULT
+},
+ProfileSpec {
+    name: "AIMCP",
+    layer: "application",
+    side: "both",
+    requires: &["HTTP"],
+    conflicts: &[],
+    capabilities: &[],
+    lifecycle: Lifecycle::introduced_in("21.1.0"),
+},
+```
+
+`ProfileSpec::DEFAULT` supplies `lifecycle: Lifecycle::UNSPECIFIED`, which
+resolves to the BIG-IP 15.0 axis baseline; only a profile with real
+version knowledge (such as `AIMCP`) names its own `lifecycle`.
+
+### Protocol namespace specs
+
+87 entries.  A representative slice, verbatim:
+
+```rust
+ProtocolNamespaceSpec {
+    prefix: "HTTP",
+    profiles: &["FASTHTTP", "HTTP", "HTTP_PROXY_CONNECT"],
+    layer: "application",
+    side: "both",
+    side_selectable: false,
+},
+ProtocolNamespaceSpec {
+    prefix: "SSL",
+    profiles: &["CLIENTSSL", "PERSIST", "SERVERSSL", "SSL_PERSISTENCE"],
+    layer: "tls",
+    side: "both",
+    side_selectable: true,
+},
+ProtocolNamespaceSpec {
+    prefix: "TCP",
+    profiles: &["TCP"],
+    layer: "transport",
+    side: "both",
+    side_selectable: true,
+},
+ProtocolNamespaceSpec {
+    prefix: "LB",
+    profiles: &[],
+    layer: "load_balance",
+    side: "global",
+    side_selectable: false,
+},
+```
+
+`side_selectable: true` is rare — only `SSL`, `TCP`, `UDP`, and `IP`
+accept `clientside` / `serverside` qualifiers.
+
+### Stack-modification specs
+
+The complete table, verbatim:
+
+```rust
+fn modification_specs() -> Vec<StackModification> {
+    vec![
+        StackModification {
+            command: "SSL::disable",
+            side: None,
+            removes_profile: None,
+            adds_profile: None,
+        },
+        StackModification {
+            command: "SSL::enable",
+            side: None,
+            removes_profile: None,
+            adds_profile: None,
+        },
+        StackModification {
+            command: "HTTP::disable",
+            side: None,
+            removes_profile: Some("HTTP"),
+            adds_profile: None,
+        },
+        StackModification {
+            command: "HTTP::enable",
+            side: None,
+            removes_profile: None,
+            adds_profile: Some("HTTP"),
+        },
+    ]
 }
 ```
 
-### PROTOCOL_NAMESPACE_SPECS
-
-```python
-PROTOCOL_NAMESPACE_SPECS: dict[str, ProtocolNamespaceSpec] = {
-    "HTTP":   ProtocolNamespaceSpec("HTTP",  profiles=frozenset({"HTTP", "FASTHTTP"}),
-                                    layer="application", side="both"),
-    "SSL":    ProtocolNamespaceSpec("SSL",   profiles=frozenset({"CLIENTSSL", "SERVERSSL", "SSL_PERSISTENCE"}),
-                                    layer="tls", side="both", side_selectable=True),
-    "TCP":    ProtocolNamespaceSpec("TCP",   profiles=frozenset({"TCP"}),
-                                    layer="transport", side="both", side_selectable=True),
-    "UDP":    ProtocolNamespaceSpec("UDP",   profiles=frozenset({"UDP"}),
-                                    layer="transport", side="both"),
-    "IP":     ProtocolNamespaceSpec("IP",    profiles=frozenset({"TCP", "UDP"}),
-                                    layer="transport", side="both", side_selectable=True),
-    "LB":     ProtocolNamespaceSpec("LB",    profiles=frozenset(),
-                                    layer="load_balance", side="global"),
-    "DNS":    ProtocolNamespaceSpec("DNS",   profiles=frozenset({"DNS"}),
-                                    layer="application", side="both"),
-    "SIP":    ProtocolNamespaceSpec("SIP",   profiles=frozenset({"SIP"}),
-                                    layer="application", side="both"),
-    "ACCESS": ProtocolNamespaceSpec("ACCESS",profiles=frozenset({"ACCESS"}),
-                                    layer="security", side="client"),
-    "ASM":    ProtocolNamespaceSpec("ASM",   profiles=frozenset({"ASM"}),
-                                    layer="security", side="both"),
-    # ... remaining namespaces
-}
-```
-
-### MODIFICATION_SPECS
-
-```python
-MODIFICATION_SPECS: dict[str, StackModification] = {
-    "SSL::disable": StackModification(
-        command="SSL::disable",
-        side=None,          # resolved from arg: clientside/serverside
-        removes_profile=None,  # resolved: CLIENTSSL or SERVERSSL per side
-    ),
-    "SSL::enable": StackModification(
-        command="SSL::enable",
-        side=None,
-        adds_profile=None,  # resolved per side arg
-    ),
-    "HTTP::disable": StackModification(
-        command="HTTP::disable",
-        side=None,
-        removes_profile="HTTP",
-    ),
-    "HTTP::enable": StackModification(
-        command="HTTP::enable",
-        side=None,
-        adds_profile="HTTP",
-    ),
-}
-```
+The `SSL::` pair leaves `removes_profile` / `adds_profile` unset because
+the affected profile (`CLIENTSSL` or `SERVERSSL`) depends on the
+`clientside` / `serverside` argument, which a consumer would have to
+resolve from the call words.
 
 ## Discoverability
 

@@ -14,465 +14,630 @@ produced at every stage, with field-level detail.
 
 | Term | Meaning |
 |------|---------|
-| **AST** | Abstract Syntax Tree — a tree representation of parsed source code structure. In this compiler, expression bodies (`expr {…}`) are parsed into `ExprNode` AST trees (`expr_ast.py:174`). |
-| **Basic block** | A straight-line sequence of IR statements with no branches except at the end.  Represented by `CFGBlock` (`cfg.py:473`). |
-| **CFG** | Control Flow Graph — a directed graph of basic blocks connected by jumps and branches.  Built by `build_cfg()` (`cfg.py:1447`). |
-| **Dominator / idom** | Block A *dominates* block B if every path from the entry to B passes through A.  The *immediate dominator* (`idom`) is the closest dominator.  Stored in `SSAFunction.idom` (`ssa.py:648`). |
-| **Dominance frontier** | The set of blocks where a variable's dominance "ends" — these are where phi nodes must be inserted.  Stored in `SSAFunction.dominance_frontier` (`ssa.py:648`). |
-| **GVN** | Global Value Numbering — an optimisation that detects redundant computations by assigning a canonical identity to each expression.  See `gvn.py:88`. |
-| **IR** | Intermediate Representation — a structured, typed representation of Tcl commands between parsing and code generation.  Defined in `ir.py`; the union type `IRStatement` (`ir.py:609`) covers all statement kinds. |
-| **Lattice** | A mathematical structure used in dataflow analysis where values flow from *bottom* (unknown) toward *top* (overdefined).  The SCCP value lattice is `LatticeValue` (`core_analyses.py:328`); the type lattice is `TypeLattice` (`types.py:55`). |
-| **Liveness** | A dataflow analysis that determines which SSA values are "live" (may still be read) at each program point.  Results are in `FunctionAnalysis.live_in / live_out` (`core_analyses.py:426`). |
-| **LVT** | Local Variable Table — maps variable names to integer slot indices for fast access inside procedures.  See `LocalVarTable` (`codegen/bytecode/_types.py:68`). |
-| **Phi node (φ)** | An SSA construct placed at control flow merge points.  `φ(x₁, x₃)` means "use `x₁` if control arrived from predecessor 1, or `x₃` if from predecessor 2."  Represented by `SSAPhi` (`ssa.py:606`). |
-| **SCCP** | Sparse Conditional Constant Propagation — a combined constant propagation and unreachable-code analysis that runs over the SSA graph.  Implemented in `analyse_function()` (`core_analyses.py:3964`). |
-| **Shimmer** | Tcl's internal type coercion: when a value's string representation is reinterpreted as a different type (e.g. `"42"` read as an integer).  Tracked by `TypeLattice.SHIMMERED` (`types.py:55`). |
-| **SSA** | Static Single Assignment — a form where every variable is defined exactly once.  Multiple definitions of the same source variable get unique *version numbers* (e.g. `x₁`, `x₂`).  Built by `build_ssa()` (`ssa.py:1012`). |
-| **SSA value key** | A `(variable_name, version)` tuple that uniquely identifies one definition of a variable.  Type alias `SSAValueKey` (`ssa.py:76`). |
-| **Taint analysis** | Tracks whether values originate from untrusted sources (user input).  Uses `TaintLattice` (`taint/_lattice.py:46`). |
-| **Taint colour** | A `Flag` enum describing safety properties of tainted data (e.g. `CRLF_FREE`, `URL_ENCODED`, `HTML_ESCAPED`).  Colours compose with `\|` and join by intersection (`&`) — only properties shared by all incoming paths survive.  Defined in `TaintColour` (`taint_hints.py:17`). |
-| **Taint source** | A command whose return value introduces tainted data (e.g. `HTTP::host`, `HTTP::uri`).  Declared via `TaintHint.source` on the command's registry spec (`taint_hints.py:63`). |
-| **Taint sink** | A dangerous argument position where tainted data can cause harm (XSS, header injection, SSRF).  Classified by `_classify_sink()` (`taint/_sinks.py:436`). |
-| **CSE** | Common Subexpression Elimination — detects when the same pure computation is evaluated more than once and suggests extracting it to a variable.  Part of the GVN pass, reported as `O105`.  See `gvn.py`. |
-| **ICIP** | Interprocedural Constant/Inline Propagation — evaluates procedure calls with known constant arguments at compile time and replaces the call with the result.  Reported as `O103`.  See `optimise_static_proc_calls()` (`_propagation.py:459`). |
-| **LCP** | Loop Constant Propagation / Code Sinking — moves invariant assignments out of the hot path into the specific branch that uses them.  Reported as `O125`.  See `_code_sinking.py`. |
-| **DCE** | Dead Code Elimination — removes code whose result is never used.  `O107` (basic DCE), `O108` (aggressive DCE tracking statement liveness), `O109` (dead store elimination).  See `_elimination.py`. |
-| **InstCombine** | Instruction Combine — canonicalises and simplifies expressions by applying algebraic identities (e.g. `$x * 1` → `$x`, DeMorgan's law).  Reported as `O110`.  See `_expr_simplify.py`. |
-| **CommandSpec** | The central metadata type for a Tcl command — describes its argument layout, purity, side effects, taint properties, event validity, and dialect membership.  See `models.py:616`. |
-| **SubCommand** | An ensemble operation selected by the first argument (e.g. `string length`, `HTTP::header value`).  Each has its own arity, purity, return type, and taint transform hooks.  See `models.py:424`. |
-| **FormSpec** | An invocation form of a command — getter (reads state) or setter (writes state), each with its own arity and side-effect classification.  See `models.py:370`. |
+| **AST** | Abstract Syntax Tree — a tree representation of parsed source code structure. In this compiler, expression bodies (`expr {…}`) are parsed into `ExprNode` AST trees (`rust/tcl-syntax/src/expr/ast.rs`). |
+| **Basic block** | A straight-line sequence of IR statements with no branches except at the end.  Represented by `cfg::Block` (`rust/tcl-compiler/src/cfg.rs`). |
+| **CFG** | Control Flow Graph — a directed graph of basic blocks connected by jumps and branches.  Built by `build_cfg()` (`rust/tcl-compiler/src/cfg_builder/mod.rs`). |
+| **Dominator / idom** | Block A *dominates* block B if every path from the entry to B passes through A.  The *immediate dominator* (`idom`) is the closest dominator.  Stored in `SsaFunction::idom` (`rust/tcl-compiler/src/ssa.rs`). |
+| **Dominance frontier** | The set of blocks where a variable's dominance "ends" — these are where phi nodes must be inserted.  Stored in `SsaFunction::dominance_frontier`. |
+| **GVN** | Global Value Numbering — an optimisation that detects redundant computations by assigning a canonical identity to each expression.  See `rust/tcl-compiler/src/gvn.rs`. |
+| **IR** | Intermediate Representation — a structured, typed representation of Tcl commands between parsing and code generation.  Defined in `rust/tcl-compiler/src/ir.rs`; the enum `ir::Statement` covers all statement kinds. |
+| **Lattice** | A mathematical structure used in dataflow analysis where values flow from *bottom* (unknown) toward *top* (overdefined).  The SCCP value lattice is `LatticeValue` (`rust/tcl-compiler/src/analyses.rs`); the type lattice is `TypeLattice` (`rust/tcl-compiler/src/types.rs`). |
+| **Liveness** | A dataflow analysis that determines which SSA values are "live" (may still be read) at each program point.  Results are in `FunctionAnalysis::live_in` / `live_out`. |
+| **LVT** | Local Variable Table — maps variable names to integer slot indices for fast access inside procedures.  See `LocalVarTable` (`rust/tcl-bytecode/src/lib.rs`). |
+| **Phi node (φ)** | An SSA construct placed at control flow merge points.  `φ(x₁, x₃)` means "use `x₁` if control arrived from predecessor 1, or `x₃` if from predecessor 2."  Represented by `ssa::Phi`. |
+| **SCCP** | Sparse Conditional Constant Propagation — a combined constant propagation and unreachable-code analysis that runs over the SSA graph.  Implemented by `sccp()` (`rust/tcl-compiler/src/sccp.rs`). |
+| **Shimmer** | Tcl's internal type coercion: when a value's string representation is reinterpreted as a different type (e.g. `"42"` read as an integer).  Tracked by `TypeKind::Shimmered` (`rust/tcl-compiler/src/types.rs`) and analysed in `rust/tcl-compiler/src/shimmer/`. |
+| **SSA** | Static Single Assignment — a form where every variable is defined exactly once.  Multiple definitions of the same source variable get unique *version numbers* (e.g. `x₁`, `x₂`).  Built by `build_ssa()` (`rust/tcl-compiler/src/ssa.rs`). |
+| **SSA value key** | A `(Symbol, Version)` pair that uniquely identifies one definition of a variable.  Type alias `ssa::ValueKey`; `Symbol` is an interned variable-name index, `Version` a `u32`. |
+| **Taint analysis** | Tracks whether values originate from untrusted sources (user input).  Uses `TaintLattice` (`rust/tcl-compiler/src/taint.rs`). |
+| **Taint colour** | A `bitflags` set describing safety properties of tainted data (e.g. `CRLF_FREE`, `URL_ENCODED`, `HTML_ESCAPED`).  Colours compose with `\|` and join by intersection (`&`) — only properties shared by all incoming paths survive.  Defined as `TaintColour` (`rust/tcl-registry/src/taint.rs`). |
+| **Taint source** | A command whose return value introduces tainted data (e.g. `HTTP::host`, `HTTP::uri`).  Declared via `CommandSpec::taint_source` on the command's registry spec. |
+| **Taint sink** | A dangerous argument position where tainted data can cause harm (XSS, header injection, SSRF).  Declared via the `taint_*_sink*` fields on `CommandSpec` and resolved by the taint engine. |
+| **CSE** | Common Subexpression Elimination — detects when the same pure computation is evaluated more than once and suggests extracting it to a variable.  Part of the GVN pass, reported as `O105`.  See `rust/tcl-compiler/src/gvn.rs`. |
+| **ICIP** | Interprocedural Constant/Inline Propagation — evaluates procedure calls with known constant arguments at compile time and replaces the call with the result.  Reported as `O103`, emitted by the `Propagation` pass (`rust/tcl-compiler/src/optimiser/propagation.rs`). |
+| **LCP** | Loop Constant Propagation / Code Sinking — moves invariant assignments out of the hot path into the specific branch that uses them.  Reported as `O125`, emitted by `rust/tcl-compiler/src/optimiser/code_sinking.rs`. |
+| **DCE** | Dead Code Elimination — removes code whose result is never used.  `O107` (unreachable blocks), `O108` (aggressive DCE tracking statement liveness), `O109` (dead store elimination).  All emitted by `rust/tcl-compiler/src/optimiser/elimination.rs`. |
+| **InstCombine** | Instruction Combine — canonicalises and simplifies expressions by applying algebraic identities (e.g. `$x * 1` → `$x`, DeMorgan's law).  Reported as `O110`, emitted by `rust/tcl-compiler/src/optimiser/expr_simplify.rs`. |
+| **CommandSpec** | The central metadata type for a Tcl command — describes its argument layout, purity, side effects, taint properties, event validity, and dialect membership.  See `rust/tcl-registry/src/spec.rs`. |
+| **SubCommand** | An ensemble operation selected by the first argument (e.g. `string length`, `HTTP::header value`).  Each has its own arity, purity, return type, and hook IDs.  Also in `rust/tcl-registry/src/spec.rs`. |
+| **FormSpec** | A named invocation form of a command — `Default`, `Getter` (reads state), or `Setter` (writes state) — carrying that form's synopsis and dialect gate.  See `rust/tcl-registry/src/hover.rs`. |
 
 ---
 
 ## Pipeline stage summary
 
-Every Tcl source string passes through these stages (the orchestrating
-entry point is `compile_source()`
-at `compilation_unit.py:376`):
+Every Tcl source string passes through these stages.  The orchestrating
+entry point is `CompilationUnit::build_for(source, registry,
+defer_top_level)` in `rust/tcl-compiler/src/compilation_unit.rs`:
+
+| # | Stage | Entry point | Produces | Home |
+|---|-------|-------------|----------|------|
+| 1 | Lexer | `Lexer::tokenise_all()` | `Vec<Token>` | `rust/tcl-lexer/src/lexer.rs` |
+| 2 | Segmenter | `segment_commands()` | `Vec<SegmentedCommand>` | `rust/tcl-compiler/src/segmenter.rs` |
+| 3 | IR lowering | `lower_to_ir()` | `ir::Module` | `rust/tcl-compiler/src/lowering/mod.rs` |
+| 4 | CFG | `build_cfg()` / `build_cfg_function()` | `CfgModule` | `rust/tcl-compiler/src/cfg_builder/mod.rs` |
+| 5 | SSA | `build_ssa()` | `SsaFunction` | `rust/tcl-compiler/src/ssa.rs` |
+| 6 | Core analyses | `sccp()` + the liveness / type / taint passes | `FunctionAnalysis` | `rust/tcl-compiler/src/analyses.rs` |
+| 7 | Codegen | `codegen_module()` | `ModuleAsm` | `rust/tcl-compiler/src/codegen/emitter/mod.rs` |
+
+Stage 2 derives its command list from the canonical red-green CST built
+by `rust/tcl-syntax`, not from a hand-rolled token loop.
+
+Every stage below can be inspected for real with the compiler explorer:
 
 ```
-Source text
-  │
-  ▼
-┌───────────────────────────────────────────────────────────────────────┐
-│ 1. Lexer         TclLexer.tokenise_all()  → list[Token]              │  lexer.py:1183
-│ 2. Segmenter     segment_commands()       → list[SegmentedCommand]   │  command_segmenter.py:344
-│      (derived byte-identically from the red-green CST — syntax/build.py)        │
-│ 3. IR Lowering   lower_to_ir()            → IRModule                 │  lowering.py:2767
-│ 4. CFG           build_cfg() / build_cfg_function()  → CFGModule     │  cfg.py:1447
-│ 5. SSA           build_ssa()              → SSAFunction              │  ssa.py:1012
-│ 6. Core analyses analyse_function()       → FunctionAnalysis         │  core_analyses.py:3964
-│ 7. Codegen       codegen_module()         → ModuleAsm                │  codegen/bytecode/_emitter.py:1194
-└───────────────────────────────────────────────────────────────────────┘
+cargo run -p tcl-cli --bin tcl -- explore FILE.tcl --show ir,cfg,ssa,asm --text
 ```
+
+The `ir` / `cfg` / `ssa` / `asm` listings quoted in the examples that
+follow are that command's output.
 
 ---
 
 ## Data structure reference
 
-Before diving into examples, here are the key types that appear at each stage.
-All types live under `compiler/`, `analyser/`, or `shared/` and are frozen dataclasses unless noted.
+Before diving into examples, here are the key types that appear at each
+stage.  All of them are Rust types in the `rust/` workspace; the crate
+and module are named on each heading.
 
-### Stage 1 — Lexer types (`shared/tokens.py`)
+### Stage 1 — Lexer types (`rust/tcl-lexer/src/tokens.rs`)
 
-```python
-class TokenType(Enum):              # tokens.py:9
-    ESC     # plain string / word fragment (possibly with escape sequences)
-    STR     # braced string {…}
-    CMD     # command substitution [… ]
-    VAR     # variable substitution $name
-    SEP     # whitespace separator
-    EOL     # end-of-line / semicolon
-    EOF     # end-of-input
-    COMMENT # comment (# to end of line)
-    EXPAND  # {*} expansion prefix
+```rust
+pub enum TokenType {
+    /// Plain string fragment, possibly containing escape sequences.
+    Esc,
+    /// Braced string `{…}` (the braces are stripped from the token text).
+    Str,
+    /// Command substitution `[…]` (the brackets are stripped).
+    Cmd,
+    /// Variable substitution `$name`, `${name}`, or `$arr(idx)`.
+    Var,
+    /// Run of intra-command whitespace separators (space, tab, etc.).
+    Sep,
+    /// End-of-line: newline or `;`.
+    Eol,
+    /// End-of-input sentinel.
+    Eof,
+    /// Comment from `#` to end of line.
+    Comment,
+    /// `{*}` argument-expansion prefix (Tcl 8.5+).
+    Expand,
+}
 
-@dataclass(frozen=True, slots=True)
-class SourcePosition:               # tokens.py:24
-    line: int       # 0-based line number
-    character: int  # 0-based column (UTF-16 code units per LSP spec)
-    offset: int     # byte offset into the source string
-
-@dataclass(frozen=True, slots=True)
-class Token:                        # tokens.py:33
-    type: TokenType
-    text: str
-    start: SourcePosition
-    end: SourcePosition
-    in_quote: bool = False
+pub struct Token {
+    /// Token kind.
+    pub kind: TokenType,
+    /// Byte range in the source.
+    pub span: Span,
+    /// Leading bytes of `span` that are delimiters rather than content
+    /// (1 for most wrappers, 2 for `${…}`, 0 for bare words).
+    pub content_offset: u8,
+    /// True when the token was emitted inside a quoted-string context.
+    pub in_quote: bool,
+}
 ```
 
-- `Token.type` distinguishes variables (`$x` → `VAR`), braced strings
-  (`{hello}` → `STR`), command substitutions (`[foo]` → `CMD`), and plain
-  word fragments (`set` → `ESC`).
-- `SourcePosition` tracks the exact location in source text.  `offset` is
-  the byte offset for fast slicing; `line`/`character` are 0-based for LSP.
+The key structural difference from a naive token type: **a `Token` carries
+no text and no line/column of its own**, only a `Span` of byte offsets
+(`rust/tcl-lexer/src/span.rs`, a packed `{ start: u32, end: u32 }`).
+Text and positions are resolved on demand through a
+`SourceMap` (`rust/tcl-lexer/src/source_map.rs`):
 
-### Stage 2 — Segmenter types (`compiler/parsing/command_segmenter.py`)
+| Need | Call |
+|---|---|
+| The raw slice for a span | `SourceMap::text(span)` |
+| A token's human-readable text, opening delimiter stripped | `SourceMap::token_text(tok)` |
+| Line/character for an offset | `SourceMap::position_at(offset)` → `SourcePosition` |
+| Both ends of a span at once | `SourceMap::range_positions(span)` |
+
+- `Token::kind` distinguishes variables (`$x` → `Var`), braced strings
+  (`{hello}` → `Str`), command substitutions (`[foo]` → `Cmd`), and plain
+  word fragments (`set` → `Esc`).
+- `SourcePosition` carries a 0-based `line`, a 0-based `character` as a
+  `ByteCol` (bytes from the line start), and the absolute byte `offset`.
+  The LSP-facing UTF-16 column is a *separate* type, `Utf16Position`, so a
+  byte column can never be mistaken for an LSP column.
+
+### Stage 2 — Segmenter types (`rust/tcl-compiler/src/segmenter.rs`)
 
 > `segment_commands()` builds the canonical lossless **red-green concrete syntax
-> tree** (`compiler/parsing/syntax/`, see
-> [syntax-tree.md](compiler/syntax-tree.md)) and derives the `SegmentedCommand`
-> list from it.  The output below is byte-identical to the former hand-rolled
-> token loop, so every example's Stage 2 data structure is unchanged — the tree
-> is the new *backing*, not a new shape.
+> tree** (`rust/tcl-syntax`, see [syntax-tree.md](compiler/syntax-tree.md))
+> and derives the `SegmentedCommand` list from it.  The tree is the
+> *backing*, not a different shape.
 
-```python
-@dataclass(slots=True)
-class SegmentedCommand:              # command_segmenter.py:62
-    range: Range                         # source span of the entire command
-    argv: list[Token]                    # first token of each word
-    texts: list[str]                     # concatenated text per word
-    single_token_word: list[bool]        # True when a word is a single token
-    all_tokens: list[Token]              # every token in the command
-    preceding_comment: str | None = None
-    is_partial: bool = False             # True when unclosed delimiter detected
-    partial_delimiter: UnclosedDelimiter | None = None
-    expand_word: list[bool] | None = None  # {*} expansion per word
+```rust
+pub struct SegmentedCommand {
+    /// Byte span covering the whole command.
+    pub span: Span,
+    /// Per-word representative tokens (one per argv entry).
+    pub argv: Vec<Token>,
+    /// Per-word reconstructed text.
+    pub texts: Vec<String>,
+    /// Ordered lexical fragments for every word — the lossless companion
+    /// to the `argv` / `texts` parallel arrays.
+    pub word_fragments: Vec<Vec<WordFragment>>,
+    /// Whether each word is a single token.
+    pub single_token_word: Vec<bool>,
+    /// All tokens in the command (including separators).
+    pub all_tokens: Vec<Token>,
+    /// Whether the command is incomplete (unclosed delimiter).
+    pub is_partial: bool,
+    /// Which delimiter was left unclosed, when `is_partial`.
+    pub partial_delimiter: Option<UnclosedDelimiter>,
+    /// `{*}` expansion markers per word, if any word uses expansion.
+    pub expand_word: Option<Vec<bool>>,
+    /// Comment line(s) immediately preceding the command.
+    pub preceding_comment: Option<String>,
+}
 ```
 
-- `texts[0]` is the command name, `texts[1:]` are the arguments.
-- `single_token_word[i]` is `True` when word `i` is a single atomic token
+- `texts[0]` is the command name, `texts[1..]` are the arguments;
+  `SegmentedCommand::name()` returns the former directly.
+- `single_token_word[i]` is `true` when word `i` is a single atomic token
   (no interpolation) — important for constant tracking downstream.
-- `argv[i]` is the *first* token of word `i`; multi-token words (e.g.
-  `$prefix.txt`) are concatenated into `texts[i]`.
+- `argv[i]` is the *representative* token of word `i`; multi-token words
+  (e.g. `$prefix.txt`) are concatenated into `texts[i]`, and their full
+  substitution order is preserved in `word_fragments[i]`.
 
-### Stage 3 — IR types (`compiler/ir.py`)
+### Stage 3 — IR types (`rust/tcl-compiler/src/ir.rs`)
 
-```python
-@dataclass(frozen=True, slots=True)
-class IRAssignConst:                     # ir.py:65 — set a 1
-    range: Range
-    name: str                            # variable name
-    value: str                           # constant string value
+IR is **one enum**, `ir::Statement`, with 17 variants — not a union of
+separate node classes.  Every variant carries a `span: Span` for precise
+diagnostic mapping.  The variants, in declaration order:
 
-@dataclass(frozen=True, slots=True)
-class IRAssignExpr:                      # ir.py:72 — set x [expr {$a + 1}]
-    range: Range
-    name: str
-    expr: ExprNode                       # parsed expression AST
+| Variant | Shape | Example source |
+|---|---|---|
+| `AssignConst` | `{ span, name, name_braced, value, value_span }` | `set a 1` |
+| `AssignExpr` | `{ span, name, name_braced, expr, expr_base }` | `set x [expr {$a + 1}]` |
+| `AssignValue` | `{ span, name, name_braced, value, value_needs_backsubst, tokens }` | `set x $y`, `set x "hi $name"` |
+| `Incr` | `{ span, name, name_braced, amount, safe_on_uninit }` | `incr i`, `incr i 5` |
+| `ExprEval` | `{ span, expr, expr_base }` | `expr {2 + 3}` |
+| `Call` | `{ span, command, canonical_command, args, defs, reads, reads_own_defs, safe_on_uninit, tokens, foreach_groups }` | `puts $x`, `append s a` |
+| `Return` | `{ span, value, expr, braced }` | `return $r` |
+| `Barrier` | `{ span, reason, command, canonical_command, args, tokens }` | `eval $script` |
+| `Block` | `{ span, body, namespace, tokens, error_context }` | an inlined passthrough body |
+| `UpFrame` | `{ span, frame_shift, absolute, body, tokens, … }` | `uplevel 1 {…}` |
+| `If` | `{ span, clauses, else_body, else_span }` | `if {…} {…} else {…}` |
+| `For` | `{ span, init, condition, next, body, … }` | `for {…} {…} {…} {…}` |
+| `While` | `{ span, condition, body, … }` | `while {…} {…}` |
+| `Foreach` | `{ span, iterators, body, is_lmap, is_dict, … }` | `foreach x $l {…}` |
+| `Catch` | — | `catch {…} err` |
+| `Try` | — | `try {…} on error {…}` |
+| `Switch` | — | `switch $x {…}` |
 
-@dataclass(frozen=True, slots=True)
-class IRAssignValue:                     # ir.py:79 — set x $y, set x "hello $name"
-    range: Range
-    name: str
-    value: str                           # interpolated value text
-    value_needs_backsubst: bool = False
+Supporting types in the same module:
 
-@dataclass(frozen=True, slots=True)
-class IRIncr:                            # ir.py:88 — incr i, incr i 5
-    range: Range
-    name: str
-    amount: str | None = None            # None means +1
+```rust
+/// A sequence of statements in execution order.
+pub struct Script {
+    pub statements: Vec<Statement>,
+}
 
-@dataclass(frozen=True, slots=True)
-class IRCall:                            # ir.py:108 — generic command invocation (puts, append, etc.)
-    range: Range
-    command: str
-    args: tuple[str, ...] = ()
-    defs: tuple[str, ...] = ()           # variables this command defines
-    reads: tuple[str, ...] = ()          # variables this command reads by name
-    reads_own_defs: bool = False         # True for read-modify-write (append, lappend)
-    tokens: CommandTokens | None = None
+/// One `if` / `elseif` clause.
+pub struct IfClause { /* condition, condition_base, body, spans */ }
 
-@dataclass(frozen=True, slots=True)
-class IRReturn:                          # ir.py:143
-    range: Range
-    value: str | None = None
+/// A `foreach` / `lmap` iterator group: a variable list and its list argument.
+pub struct ForeachIterator { /* var names + list arg */ }
 
-@dataclass(frozen=True, slots=True)
-class IRBarrier:                         # ir.py:151 — eval, uplevel, upvar — defeats static analysis
-    range: Range
-    reason: str
-    command: str = ""
-    args: tuple[str, ...] = ()
-    tokens: CommandTokens | None = None
+/// A procedure definition.
+pub struct Procedure {
+    /// Short procedure name.
+    pub name: String,
+    /// Fully qualified name (e.g. `::ns::proc`).
+    pub qualified_name: String,
+    /// Parameter names.
+    pub params: Vec<String>,
+    /// Source span of the definition.
+    pub span: Span,
+    /// Procedure body.
+    pub body: Script,
+    /// Raw parameter list text.
+    pub params_raw: String,
+    /// Source text of the body (`None` for synthetic procs like `when`).
+    pub body_source: Option<String>,
+    /// Whether defined inside `namespace eval`.
+    pub namespace_scoped: bool,
+    /// BIG-IP handler priority (0..2^32-1, default 500).
+    pub base_priority: u32,
+}
 
-@dataclass(frozen=True, slots=True)
-class IRIf:                              # ir.py:292
-    range: Range
-    clauses: tuple[IRIfClause, ...]      # one per if/elseif branch
-    else_body: IRScript | None = None
-
-@dataclass(frozen=True, slots=True)
-class IRIfClause:                        # ir.py:284
-    condition: ExprNode                  # parsed condition expression
-    condition_range: Range
-    body: IRScript
-    body_range: Range
-
-@dataclass(frozen=True, slots=True)
-class IRFor:                             # ir.py:300
-    range: Range
-    init: IRScript                       # {set i 0}
-    init_range: Range
-    condition: ExprNode                  # {$i < 10}
-    condition_range: Range
-    next: IRScript                       # {incr i}
-    next_range: Range
-    body: IRScript
-    body_range: Range
-
-@dataclass(frozen=True, slots=True)
-class IRWhile:                           # ir.py:314
-    range: Range
-    condition: ExprNode
-    condition_range: Range
-    body: IRScript
-    body_range: Range
-
-@dataclass(frozen=True, slots=True)
-class IRForeach:                         # ir.py:326
-    range: Range
-    iterators: tuple[tuple[tuple[str, ...], str], ...]  # ((var_names, list_arg), ...)
-    body: IRScript
-    body_range: Range
-    is_lmap: bool = False
-
-@dataclass(frozen=True, slots=True)
-class IRScript:                          # ir.py:207
-    statements: tuple[IRStatement, ...] = ()
-
-@dataclass
-class IRModule:                          # ir.py:504
-    top_level: IRScript                  # statements outside any proc
-    procedures: dict[str, IRProcedure]   # qualified_name → proc definition
-    redefined_procedures: set[str]
-
-# IRStatement is a union type (ir.py:609):
-IRStatement = (
-    IRAssignConst | IRAssignExpr | IRAssignValue | IRExprEval
-    | IRIncr | IRCall | IRReturn | IRBarrier
-    | IRIf | IRFor | IRWhile | IRForeach | IRCatch | IRTry | IRSwitch
-)
+/// A whole lowered module.
+pub struct Module {
+    /// The source text this module was lowered from — spans index into it.
+    pub source: String,
+    /// Top-level script (code outside any procedure).
+    pub top_level: Script,
+    /// Named procedures, keyed by qualified name.
+    pub procedures: HashMap<String, Procedure>,
+    /// Named methods, keyed by `class::method`.
+    pub methods: HashMap<String, MethodDef>,
+    /// Synthetic body units — `apply` lambdas and `namespace eval` bodies,
+    /// lowered so the analysis pipeline reaches inside them, but never
+    /// emitted as callable procs.
+    pub body_units: HashMap<String, Procedure>,
+    /// Procedure names defined more than once.
+    pub redefined_procedures: HashSet<String>,
+    // … plus `lambda_body_units`, `redefined_methods`, and OO evidence fields
+}
 ```
 
-- Every IR node carries a `Range` (start/end `SourcePosition`) for precise
-  diagnostic mapping.
-- `IRBarrier` marks commands (`eval`, `uplevel`, `upvar`) whose side effects
-  defeat static analysis — no constant propagation or dead-store reasoning
-  can cross them.
-- Expression conditions are parsed into `ExprNode` AST trees at lowering time.
+- `Statement::Barrier` marks commands (`eval`, `uplevel`, `upvar`) whose
+  side effects defeat static analysis — no constant propagation or
+  dead-store reasoning can cross them.
+- Expression conditions are parsed into `ExprNode` AST trees at lowering
+  time.
+- `Statement::Call` carries **both** `command` (the source-surface
+  spelling, so a diagnostic can quote what the user typed) and
+  `canonical_command` (the registry-resolved name, populated when an
+  alias resolves).  Dispatch sites use
+  `Statement::canonical_command_or_source()` so a `None` canonical falls
+  back to the source spelling.
 
-### Expression AST (`compiler/expr_ast.py`)
+### Expression AST (`rust/tcl-syntax/src/expr/ast.rs`)
 
-```python
-@dataclass(frozen=True)
-class ExprLiteral:     # expr_ast.py:90 — 42, 3.14, true
-    text: str; start: int; end: int
-
-@dataclass(frozen=True)
-class ExprVar:         # expr_ast.py:108 — $x, ${arr(idx)}
-    text: str; name: str; start: int; end: int
-
-@dataclass(frozen=True)
-class ExprBinary:      # expr_ast.py:127 — $a + $b, $x < 10
-    op: BinOp; left: ExprNode; right: ExprNode
-
-@dataclass(frozen=True)
-class ExprUnary:       # expr_ast.py:136 — -$x, !$flag
-    op: UnaryOp; operand: ExprNode
-
-@dataclass(frozen=True)
-class ExprCall:        # expr_ast.py:153 — sin($x), int($y)
-    function: str; args: tuple[ExprNode, ...]; start: int; end: int
-
-@dataclass(frozen=True)
-class ExprCommand:     # expr_ast.py:118 — [clock seconds]
-    text: str; start: int; end: int
-
-@dataclass(frozen=True)
-class ExprRaw:         # expr_ast.py:163 — fallback for unparseable expressions
-    text: str
-
-# BinOp (expr_ast.py:27): ADD, SUB, MUL, DIV, MOD, POW, LT, LE, GT, GE, EQ, NE,
-#                          STR_EQ, STR_NE, AND, OR, LSHIFT, RSHIFT, BIT_AND, ...
-# UnaryOp (expr_ast.py:76): NEG, POS, BIT_NOT, NOT
+```rust
+pub enum ExprNode {
+    /// Integer, float, or boolean literal.
+    Literal { text: String, start: ExprOffset, end: ExprOffset },
+    /// Quoted or braced string literal (`"..."` or `{...}`).
+    String { text: String, start: ExprOffset, end: ExprOffset },
+    /// Variable reference (`$var`, `${var}`, `$arr(idx)`).
+    Var { text: String, name: String, start: ExprOffset, end: ExprOffset },
+    /// Command substitution `[cmd ...]` — opaque boundary.
+    Command { text: String, start: ExprOffset, end: ExprOffset },
+    /// Binary operator application.
+    Binary { op: BinOp, left: Box<ExprNode>, right: Box<ExprNode> },
+    /// Unary operator application.
+    Unary { op: UnaryOp, operand: Box<ExprNode> },
+    /// Ternary conditional `cond ? a : b`.
+    Ternary {
+        condition: Box<ExprNode>,
+        true_branch: Box<ExprNode>,
+        false_branch: Box<ExprNode>,
+    },
+    /// Math function call: `sin($x)`, `int($y)`, `max($a, $b)`.
+    Call { function: String, args: Vec<ExprNode>, start: ExprOffset, end: ExprOffset },
+    /// Fallback: unparseable expression preserved as raw text.
+    Raw { text: String },
+}
 ```
 
-### Stage 4 — CFG types (`compiler/cfg.py`)
+`BinOp` covers arithmetic (`Add`, `Sub`, `Mul`, `Div`, `Mod`, `Pow`),
+shifts (`LShift`, `RShift`), bitwise (`BitAnd`, `BitOr`, `BitXor`),
+logical (`And`, `Or`), numeric comparison (`Eq`, `Ne`, `Lt`, `Le`, `Gt`,
+`Ge`), string comparison (`StrEq`, `StrNe`, `StrLt`, `StrLe`, `StrGt`,
+`StrGe`), list membership (`In`, `Ni`), the iRules word-logical operators
+(`WordAnd`, `WordOr`), and the iRules string operators (`Contains`,
+`StartsWith`, `EndsWith`, `StrEquals`, `MatchesGlob`, `MatchesRegex`).
+`UnaryOp` is `Neg`, `Pos`, `BitNot`, `Not`, and the iRules `WordNot`.
+`BinOp::as_str()` / `UnaryOp::as_str()` render each back to its source
+spelling.
 
-```python
-@dataclass(frozen=True, slots=True)
-class CFGGoto:         # cfg.py:438 — unconditional jump
-    target: str                          # target block name
+Two helper methods on `ExprNode` do most of the downstream work:
+`vars()` collects every variable name in the tree, and
+`function_calls()` returns every math-function application as
+`(name, offset, arg_count)` so a consumer can map it back to the
+`::tcl::mathfunc::` command it dispatches.
 
-@dataclass(frozen=True, slots=True)
-class CFGBranch:       # cfg.py:444 — conditional jump
-    condition: ExprNode                  # condition expression
-    true_target: str
-    false_target: str
+### Stage 4 — CFG types (`rust/tcl-compiler/src/cfg.rs`)
 
-@dataclass(frozen=True, slots=True)
-class CFGReturn:       # cfg.py:452 — procedure exit
-    value: str | None = None
+```rust
+/// Interned block identifier — blocks are addressed by id, not by name.
+pub struct BlockId(pub u32);
 
-CFGTerminator = CFGGoto | CFGBranch | CFGReturn  # cfg.py:459
+pub enum Terminator {
+    /// Unconditional jump.
+    Goto { target: BlockId, span: Option<Span> },
+    /// Conditional jump.
+    Branch {
+        condition: ExprNode,
+        true_target: BlockId,
+        false_target: BlockId,
+        span: Option<Span>,
+        condition_base: Option<u32>,
+    },
+    /// Function exit.
+    Return {
+        value: Option<String>,
+        span: Option<Span>,
+        expr: Option<ExprNode>,
+        braced: bool,
+    },
+}
 
-@dataclass(frozen=True, slots=True)
-class CFGBlock:        # cfg.py:473
-    name: str
-    statements: tuple[IRStatement, ...]  # straight-line IR statements
-    terminator: CFGTerminator | None     # exactly one per block
+pub struct Block {
+    pub name: String,
+    /// Straight-line IR statements.
+    pub statements: Vec<Statement>,
+    /// Exactly one per block once the builder has finished.
+    pub terminator: Option<Terminator>,
+}
 
-@dataclass(frozen=True, slots=True)
-class CFGFunction:     # cfg.py:480
-    name: str
-    entry: str                           # entry block name
-    blocks: dict[str, CFGBlock]          # name → block
-    loop_nodes: dict[str, tuple[str, IRFor]]  # for-loop metadata
+pub struct Function {
+    pub name: String,
+    pub entry: BlockId,
+    pub blocks: HashMap<BlockId, Block>,
+    pub loop_nodes: HashMap<BlockId, LoopNode>,
+    pub exception_edges: Vec<(BlockId, BlockId)>,
+    pub inline_body_error_sites: Vec<InlineBodyErrorSite>,
+    pub caller_frame_barrier: DynamicNameBarrier,
+    // …
+}
 
-@dataclass(frozen=True, slots=True)
-class CFGModule:       # cfg.py:543
-    top_level: CFGFunction
-    procedures: dict[str, CFGFunction]
+pub struct CfgModule {
+    pub top_level: Function,
+    pub procedures: HashMap<String, Function>,
+}
 ```
 
-### Stage 5 — SSA types (`compiler/ssa.py`)
+`Terminator::successors()` returns the outgoing `BlockId`s for any
+terminator kind, which is what the dataflow passes walk.
 
-```python
-SSAVersion = int               # ssa.py:70 — each definition gets a unique version
-SSAValueKey = tuple[str, int]  # ssa.py:76 — (variable_name, version) — unique SSA value
+### Stage 5 — SSA types (`rust/tcl-compiler/src/ssa.rs`)
 
-@dataclass(frozen=True, slots=True)
-class SSAPhi:                  # ssa.py:606 — phi node (see Glossary)
-    name: str                            # variable name
-    version: SSAVersion                  # version produced by this phi
-    incoming: dict[str, SSAVersion]      # predecessor_block → version
+```rust
+/// Each definition gets a unique version.
+pub type Version = u32;
+/// Interned variable-name index.
+pub struct Symbol(pub u32);
+/// A unique SSA value: (variable, version).
+pub type ValueKey = (Symbol, Version);
 
-@dataclass(frozen=True, slots=True)
-class SSAStatement:            # ssa.py:619
-    statement: IRStatement               # the original IR statement
-    uses: dict[str, SSAVersion]          # variables read → their versions
-    defs: dict[str, SSAVersion]          # variables written → new versions
+pub struct Phi {
+    pub name: Symbol,
+    pub version: Version,
+    pub incoming: HashMap<BlockId, Version>,
+}
 
-@dataclass(frozen=True, slots=True)
-class SSABlock:                # ssa.py:633
-    name: str
-    phis: tuple[SSAPhi, ...]             # phi nodes at merge points
-    statements: tuple[SSAStatement, ...]
-    entry_versions: dict[str, SSAVersion]
-    exit_versions: dict[str, SSAVersion]
+pub struct SsaStatement {
+    /// The original IR statement.
+    pub statement: Statement,
+    /// Variables read → their versions.
+    pub uses: HashMap<Symbol, Version>,
+    /// Variables written → new versions.
+    pub defs: HashMap<Symbol, Version>,
+    /// Variables this statement *may* define (dynamic names, barriers).
+    pub may_defs: HashSet<Symbol>,
+    /// Uses that appear only inside a quoted (unsubstituted) word.
+    pub quoted_uses: HashSet<Symbol>,
+}
 
-@dataclass(frozen=True, slots=True)
-class SSAFunction:             # ssa.py:648
-    name: str
-    entry: str
-    blocks: dict[str, SSABlock]
-    idom: dict[str, str | None]          # immediate dominator tree (see Glossary)
-    dominance_frontier: dict[str, tuple[str, ...]]  # (see Glossary)
-    dominator_tree: dict[str, tuple[str, ...]]
+pub struct SsaBlock {
+    pub name: String,
+    /// Phi nodes at merge points.
+    pub phis: Vec<Phi>,
+    pub statements: Vec<SsaStatement>,
+    pub entry_versions: HashMap<Symbol, Version>,
+    pub exit_versions: HashMap<Symbol, Version>,
+}
+
+pub struct SsaFunction {
+    pub name: String,
+    pub entry: BlockId,
+    pub blocks: HashMap<BlockId, SsaBlock>,
+    /// Immediate dominator tree (see Glossary).
+    pub idom: HashMap<BlockId, Option<BlockId>>,
+    pub dominance_frontier: HashMap<BlockId, Vec<BlockId>>,
+    pub dominator_tree: HashMap<BlockId, Vec<BlockId>>,
+    // … plus the private block-name / variable-name interners
+}
 ```
 
-### Stage 6 — Analysis types (`compiler/core_analyses.py`)
+Variable names are **interned**: `SsaFunction` holds the name table
+privately and hands out `Symbol` indices, so the hot dataflow maps are
+keyed by two integers rather than by strings.  `may_defs` and
+`quoted_uses` are the two facts a naive `(uses, defs)` model cannot
+express — a barrier that might write anything, and a name that appears in
+a word Tcl will not substitute.
 
-```python
-class LatticeKind(Enum):       # core_analyses.py:316 (see Glossary → Lattice)
-    UNKNOWN      # not yet analysed (bottom)
-    CONST        # provably constant
-    OVERDEFINED  # multiple possible values (top)
+### Stage 6 — Analysis types (`rust/tcl-compiler/src/analyses.rs`)
 
-@dataclass(frozen=True, slots=True)
-class LatticeValue:            # core_analyses.py:328
-    kind: LatticeKind
-    value: int | float | bool | str | None = None
+```rust
+pub enum LatticeKind {
+    /// Not yet analysed (bottom).
+    Unknown,
+    /// Provably one constant.
+    Const,
+    /// Provably one of a small set of constants.
+    ConstSet,
+    /// Multiple possible values (top).
+    Overdefined,
+}
 
-@dataclass(frozen=True, slots=True)
-class FunctionAnalysis:        # core_analyses.py:426 — produced by analyse_function() (line 3964)
-    live_in: dict[str, set[SSAValueKey]]     # (see Glossary → Liveness)
-    live_out: dict[str, set[SSAValueKey]]
-    dead_stores: tuple[DeadStore, ...]       # DeadStore at line 404
-    unreachable_blocks: set[str]
-    constant_branches: tuple[ConstantBranch, ...]  # ConstantBranch at line 395
-    values: dict[SSAValueKey, LatticeValue]     # SCCP results (see Glossary → SCCP)
-    types: dict[SSAValueKey, TypeLattice]        # type inference results
-    read_before_set: tuple[ReadBeforeSet, ...]   # ReadBeforeSet at line 412
-    unused_variables: tuple[UnusedVariable, ...]  # UnusedVariable at line 419
+pub enum LatticeValue {
+    Unknown,
+    Const(ConstValue),
+    ConstSet(Vec<ConstValue>),
+    Overdefined,
+}
+
+pub enum ConstValue {
+    Int(i64),
+    Float(f64),
+    Bool(bool),
+    String(String),
+}
+
+pub struct FunctionAnalysis {
+    /// See Glossary → Liveness.
+    pub live_in: HashMap<String, HashSet<ValueKey>>,
+    pub live_out: HashMap<String, HashSet<ValueKey>>,
+    pub dead_stores: Vec<DeadStore>,
+    pub unreachable_blocks: HashSet<String>,
+    pub constant_branches: Vec<ConstantBranch>,
+    /// SCCP results (see Glossary → SCCP).
+    pub values: HashMap<ValueKey, LatticeValue>,
+    /// Type inference results.
+    pub types: HashMap<ValueKey, TypeLattice>,
+    pub read_before_set: Vec<ReadBeforeSet>,
+    pub unused_variables: Vec<UnusedVariable>,
+    pub unused_params: Vec<String>,
+}
 ```
 
-#### Type lattice (`compiler/types.py`)
+`LatticeKind::ConstSet` is the notable addition over a textbook SCCP
+lattice: a value that is provably one of a *bounded* set of constants
+(e.g. the loop variable of a `foreach` over a literal list) stays more
+precise than `Overdefined`.  `LatticeValue::constset()` collapses to
+`Overdefined` once the set exceeds `MAX_CONSTSET_SIZE`.
 
-```python
-class TclType(Enum):           # types.py:30
-    STRING = auto()
-    INT = auto()
-    DOUBLE = auto()
-    BOOLEAN = auto()
-    LIST = auto()
-    DICT = auto()
-    BYTEARRAY = auto()
-    NUMERIC = auto()   # abstract join of INT and DOUBLE
+The finding records — `ConstantBranch`, `DeadStore`, `ReadBeforeSet`,
+`UnusedVariable` — all identify a site as `{ block: String,
+statement_index: usize, … }` (a `ConstantBranch` instead names its
+condition text, its value, and both targets).
 
-class TypeKind(Enum):          # types.py:45
-    UNKNOWN      # not yet analysed (bottom)
-    KNOWN        # concrete type determined
-    SHIMMERED    # forced type change detected (see Glossary → Shimmer)
-    OVERDEFINED  # multiple incompatible types (top)
+#### Type lattice (`rust/tcl-compiler/src/types.rs`)
 
-@dataclass(frozen=True, slots=True)
-class TypeLattice:             # types.py:55
-    kind: TypeKind
-    tcl_type: TclType | None = None
-    from_type: TclType | None = None  # only for SHIMMERED
+The type lattice is **shape**-based, not a single coarse type tag:
 
-# Lattice order:  UNKNOWN < KNOWN(t) < SHIMMERED(a,b) < OVERDEFINED
+```rust
+/// A structural type shape.
+pub enum TypeShape {
+    String,
+    Int,
+    Bignum,
+    Double,
+    Boolean,
+    Numeric,
+    ByteArray,
+    /// A list, with what is known about its elements.
+    List(Elements),
+    /// A dict, with what is known about its values.
+    Dict(Elements),
+    /// A TclOO object of a (possibly unknown) class.
+    Object(Option<Box<str>>),
+    Channel,
+}
+
+/// What is known about a container's elements.
+pub enum Elements {
+    Unknown,
+    /// Every element has this shape.
+    Uniform(Box<TypeShape>),
+    /// Element `i` has shape `[i]` (`None` = unknown at that position).
+    Exact(Box<[Option<TypeShape>]>),
+}
+
+pub enum TypeKind {
+    /// Not yet analysed (bottom).
+    Unknown,
+    /// Concrete type determined.
+    Known,
+    /// Forced type change detected (see Glossary → Shimmer).
+    Shimmered,
+    /// Multiple incompatible types (top).
+    Overdefined,
+}
+
+/// The lattice element itself: bottom, a bounded union of shapes, or top.
+pub struct TypeLattice { /* private repr: Unknown | Union(ShapeSet) | Overdefined */ }
 ```
 
-### Stage 7 — Codegen types (`compiler/codegen/`)
+`TypeShape::coarse()` projects a shape down to the registry-level
+`tcl_registry::types::TclType` (`String`, `Int`, `Double`, `Boolean`,
+`List`, `Dict`, `ByteArray`, `Numeric`, `Object`, `Channel`) — that
+coarse enum is what a `CommandSpec` declares in `return_type` and
+`arg_types`.  `type_join()` is the lattice join; the union is bounded at
+`MAX_TYPE_UNION` shapes before collapsing to `Overdefined`.
 
-```python
-class Op(Enum):        # codegen/bytecode/opcodes.py:61 — ~100 Tcl 9.0.2 bytecode opcodes
+### Stage 7 — Codegen types (`rust/tcl-bytecode/src/lib.rs`)
+
+```rust
+/// The Tcl bytecode opcode set. Variants are SCREAMING_CASE so they read
+/// as the C Tcl opcode names; `Op::mnemonic()` renders each to the
+/// lower-camel spelling tclsh's disassembler prints (`PUSH1` → `push1`).
+pub enum Op {
     PUSH1, PUSH4, POP, DUP,
-    LOAD_SCALAR1, STORE_SCALAR1,
-    INVOKE_STK1, INVOKE_STK4,
-    JUMP1, JUMP4, JUMP_TRUE1, JUMP_FALSE1,
-    ADD, SUB, MULT, DIV, LT, GT, EQ, NEQ,
-    ...
+    LOAD_SCALAR1, LOAD_SCALAR4, STORE_SCALAR1, STORE_SCALAR4,
+    INCR_SCALAR1, INCR_SCALAR1_IMM,
+    INVOKE_STK1, INVOKE_STK4, EVAL_STK, EXPR_STK,
+    JUMP1, JUMP4, JUMP_TRUE1, JUMP_TRUE4, JUMP_FALSE1,
+    // …
+}
 
-@dataclass(slots=True)
-class Instruction:     # codegen/bytecode/_types.py:15
-    op: Op
-    operands: tuple[int | str, ...]  # int = literal/imm, str = label ref
-    comment: str = ""
-    offset: int = -1                 # filled by layout pass
+pub enum Operand {
+    /// Immediate / literal-table index.
+    Imm(i32),
+    /// Unresolved label reference, patched by the layout pass.
+    Label(String),
+}
 
-class LiteralTable:    # codegen/bytecode/_types.py:37 — intern pool: string → object-array index
-class LocalVarTable:   # codegen/bytecode/_types.py:68 — LVT: variable name → slot index (see Glossary)
+pub struct Instruction {
+    pub op: Op,
+    pub operands: Vec<Operand>,
+    pub comment: String,
+    /// Filled by the layout pass; -1 until then.
+    pub offset: i32,
+    /// Source provenance for `errorInfo` reconstruction.
+    pub source_line: u32,
+    pub source_cmd_text: String,
+    pub source_span: Option<Span>,
+    // … plus jump_table / foreach_vars / dict_vars specialisation payloads
+}
 
-@dataclass(slots=True)
-class FunctionAsm:     # codegen/bytecode/_types.py:106
-    name: str
-    literals: LiteralTable
-    lvt: LocalVarTable
-    instructions: list[Instruction]
-    labels: dict[str, int]           # label → byte offset
+/// Intern pool: string → object-array index.
+pub struct LiteralTable { /* entries + index */ }
+/// LVT: variable name → slot index (see Glossary).
+pub struct LocalVarTable { /* … */ }
 
-@dataclass(slots=True)
-class ModuleAsm:       # codegen/bytecode/_types.py:105
-    top_level: FunctionAsm
-    procedures: dict[str, FunctionAsm]
+pub struct FunctionAsm {
+    pub name: String,
+    pub literals: LiteralTable,
+    pub lvt: LocalVarTable,
+    pub instructions: Vec<Instruction>,
+    /// Label → byte offset.
+    pub labels: HashMap<String, usize>,
+    pub loop_targets: HashMap<usize, (Option<i32>, Option<i32>)>,
+    pub body_base_line: u32,
+    pub error_regions: Vec<ErrorRegion>,
+}
+
+pub struct ModuleAsm {
+    pub top_level: FunctionAsm,
+    pub procedures: HashMap<String, FunctionAsm>,
+}
 ```
 
-### Orchestration (`compiler/compilation_unit.py`)
+The emitter that produces these lives in
+`rust/tcl-compiler/src/codegen/`; `codegen_module()` in
+`codegen/emitter/mod.rs` is its entry point.  The bytecode VM that
+executes them is `rust/tcl-vm`.
 
-```python
-@dataclass(frozen=True, slots=True)
-class FunctionUnit:                # compilation_unit.py:27
-    cfg: CFGFunction
-    ssa: SSAFunction
-    analysis: FunctionAnalysis
-    execution_intent: FunctionExecutionIntent
+### Orchestration (`rust/tcl-compiler/src/compilation_unit.rs`)
 
-@dataclass(frozen=True, slots=True)
-class CompilationUnit:             # compilation_unit.py:37 — produced by compile_source() (line 89)
-    source: str
-    ir_module: IRModule
-    cfg_module: CFGModule
-    top_level: FunctionUnit
-    procedures: dict[str, FunctionUnit]
-    interproc: InterproceduralAnalysis            # interprocedural.py:121
-    connection_scope: ConnectionScope | None = None  # connection_scope.py:40
+```rust
+pub struct FunctionUnit {
+    pub name: String,
+    pub cfg: CfgFunction,
+    pub ssa: SsaFunction,
+    pub def_use: Arc<DefUseResult>,
+    pub sccp: SccpResult,
+    pub types: Arc<HashMap<ValueKey, TypeLattice>>,
+    pub return_type: TypeLattice,
+    pub taints: Arc<HashMap<ValueKey, TaintLattice>>,
+    // …
+}
+
+pub struct CompilationUnit {
+    pub source: String,
+    pub ir_module: IrModule,
+    pub cfg_module: CfgModule,
+    pub top_level: FunctionUnit,
+    pub procedures: HashMap<String, FunctionUnit>,
+    pub methods: HashMap<String, FunctionUnit>,
+    pub body_units: HashMap<String, FunctionUnit>,
+    pub interproc: Option<InterproceduralAnalysis>,
+    pub connection_scope: Option<ConnectionScope>,
+}
 ```
+
+Built by `CompilationUnit::build_for(source, registry, defer_top_level)`.
+Note that the per-function analysis results are *not* one bundled
+`FunctionAnalysis` field: SCCP (`sccp`), def-use (`def_use`), types, and
+taint are separate, individually `Arc`-shared so consumers that only need
+one do not clone the rest.  TclOO methods and synthetic body units get
+their own `FunctionUnit`s alongside real procedures, so the whole
+analysis pipeline reaches inside them.
 
 ---
 
@@ -486,180 +651,213 @@ of that infrastructure and how the pieces connect.
 ### Overview
 
 ```
-┌─────────────────────────────────────────────────────────────────┐
-│                     CommandRegistry                             │
-│                                                                 │
-│   ┌───────────┐  ┌───────────┐  ┌──────────┐  ┌─────────────┐  │
-│   │ Tcl defs  │  │ iRules    │  │ iApps    │  │ Tk / tcllib │  │
-│   │ (tcl/*.py)│  │ (irules/) │  │ (iapps/) │  │ (tk/ stdlib)│  │
-│   └─────┬─────┘  └─────┬─────┘  └────┬─────┘  └──────┬──────┘  │
-│         │              │              │               │         │
-│         ▼              ▼              ▼               ▼         │
-│                  CommandSpec                                     │
-│     ┌──────────────────────────────────────────┐                │
-│     │ name, dialects, forms, subcommands,      │                │
-│     │ validation, event_requires, pure,        │                │
-│     │ side_effect_hints, taint_sink, ...       │                │
-│     └──────────────────────────────────────────┘                │
-│         │          │          │          │                       │
-│         ▼          ▼          ▼          ▼                       │
-│     FormSpec   SubCommand   TaintHint   SideEffect              │
-│                                                                 │
-└─────────────────────────────────────────────────────────────────┘
+┌────────────────────────────────────────────────────────────────────┐
+│                     CommandRegistry                                │
+│                                                                    │
+│   rust/tcl-registry/src/commands/                                  │
+│   ┌──────┐ ┌────────┐ ┌───────┐ ┌────┐ ┌────────┐ ┌─────┐ ┌─────┐ │
+│   │ tcl/ │ │ irules/│ │ iapps/│ │ tk/│ │ tcllib/│ │itcl/│ │ bpf/│ │
+│   └──┬───┘ └───┬────┘ └───┬───┘ └─┬──┘ └───┬────┘ └──┬──┘ └──┬──┘ │
+│      │         │          │       │        │         │       │     │
+│      └─────────┴──────────┴───────┴────────┴─────────┴───────┘     │
+│                            │                                       │
+│                            ▼                                       │
+│                     CommandSpec                                    │
+│     ┌────────────────────────────────────────────────┐            │
+│     │ name, traits, dialects, arity, arg_roles,      │            │
+│     │ forms, subcommands, options, side_effects,     │            │
+│     │ event_requires, taint_*, lifecycle, hooks …    │            │
+│     └────────────────────────────────────────────────┘            │
+│         │          │           │            │                      │
+│         ▼          ▼           ▼            ▼                      │
+│     FormSpec   SubCommand   SideEffect   EventRequires             │
+│                                                                    │
+└────────────────────────────────────────────────────────────────────┘
 ```
 
-Every command is defined as a `CommandDef` subclass (`_base.py:48`) whose
-`spec()` classmethod returns a `CommandSpec` (`models.py:616`).  At import
-time, the `@register` decorator adds each definition to its dialect's
-registry list, and the singleton `CommandRegistry` (`command_registry.py:149`)
-merges all dialect lists into a unified lookup table.
+(Plus `argparse/`, `expect/`, `sdc_base/`, `stdlib/`, `ticklecharts/`,
+and the five `eda_*/` vendor library packs.)
 
-### CommandDef — defining a command
+Every command is **one Rust file** under
+`rust/tcl-registry/src/commands/<dialect>/`, exporting a single
+`pub const fn spec() -> CommandSpec`.  There is no decorator and no
+import-time registration: the per-dialect `mod.rs` lists its commands,
+and `CommandRegistry::build_default()` walks those lists into the
+`by_name` lookup table.  Built registries are cached —
+`tcl_registry::cache::default_registry()` and
+`registry_for_dialect(dialect)` hand out `&'static CommandRegistry`.
 
-```python
-class CommandDef:                      # _base.py:48
-    name: str                          # command name (e.g. "string", "HTTP::host")
+Because the whole spec is a `const fn` returning `&'static` data, adding a
+command costs no runtime allocation and the tables are shareable across
+threads without locking.
 
-    @classmethod
-    def spec(cls) -> CommandSpec: ...  # returns the full metadata
+### Defining a command
 
-    @classmethod
-    def taint_hints(cls) -> TaintHint | None: ...  # optional taint metadata
+```rust
+//! `SSL::sni` iRules command.
+use crate::prelude::*;
+
+pub const fn spec() -> CommandSpec {
+    CommandSpec {
+        name: "SSL::sni",
+        dialects: Some(DialectSet::IRULES),
+        arity: Arity::at_least(0),
+        hover: Some(HoverSnippet { /* summary, synopsis, examples, … */ }),
+        forms: &[FormSpec {
+            kind: FormKind::Default,
+            synopsis: "SSL::sni <name | required>",
+            dialects: None,
+        }],
+        subcommands: SUBCOMMANDS,
+        side_effects: &[SideEffect {
+            target: SideEffectTarget::SslState,
+            reads: true,
+            writes: false,
+            connection_side: ConnectionSide::Both,
+            dialects: None,
+        }],
+        taint_source: Some(TaintColour::TAINTED.union(TaintColour::FQDN)),
+        ..CommandSpec::DEFAULT
+    }
+}
 ```
 
-Each dialect sub-package (`tcl/`, `irules/`, `iapps/`, `tk/`) has its own
-`_REGISTRY` list and `@register` decorator, both created by `make_registry()`
-(`_base.py:75`).
+The `..CommandSpec::DEFAULT` tail is the load-bearing idiom: `CommandSpec`
+has well over a hundred fields, and a spec names only the ones it
+actually uses.
 
-**Concrete example** — `string` (`tcl/string.py`):
-
-```python
-@register
-class StringCommand(CommandDef):
-    name = "string"
-
-    @classmethod
-    def spec(cls) -> CommandSpec:
-        return CommandSpec(
-            name="string",
-            forms=(FormSpec(kind=FormKind.DEFAULT, synopsis="string option arg ?arg ...?", ...),),
-            subcommands={"length": SubCommand(name="length", arity=Arity(1,1), pure=True, ...), ...},
-            validation=ValidationSpec(arity=Arity(1)),
-            cse_candidate=True,
-            ...
-        )
-```
+**Dialect membership** is a `DialectSet` bitflag rather than a set of
+strings — `DialectSet::IRULES`, `DialectSet::ALL_TCL`,
+`DialectSet::TCL86_PLUS`, and so on
+(`rust/tcl-dialect/src/dialect_set.rs`).  `dialects: None` used to mean
+"universal", but universal specs were eliminated registry-wide: every
+command now carries an explicit group, with the `IRULES` bit present
+if and only if iRules enables it.
 
 ### FormSpec — invocation forms
 
-A single command can have multiple invocation forms — e.g. a getter
-(no args, reads state) and a setter (one arg, writes state).  Each
-form is a `FormSpec` (`models.py:249`):
+A command can declare several named invocation forms — typically a getter
+(reads state) and a setter (writes state):
 
-```python
-@dataclass(frozen=True, slots=True)
-class FormSpec:                        # models.py:249
-    kind: FormKind                     # DEFAULT, GETTER, or SETTER
-    synopsis: str                      # human-readable signature
-    arity: Arity | None = None         # per-form arg count (None → inherit)
-    options: tuple[OptionSpec, ...] = ()  # valid switch options
-    pure: bool = False                 # no side effects
-    mutator: bool = False              # modifies external state
-    side_effect_hints: tuple[SideEffect, ...] = ()  # structured effects
-    arg_values: dict[int, tuple[ArgumentValueSpec, ...]] = {}  # completable values
+```rust
+pub enum FormKind { Default, Getter, Setter }
+
+pub struct FormSpec {
+    pub kind: FormKind,
+    /// Human-readable signature.
+    pub synopsis: &'static str,
+    /// Dialect gate; `None` inherits the parent command's.
+    pub dialects: Option<DialectSet>,
+}
 ```
 
-**Form resolution** — `CommandSpec.resolve_form(args)` (`models.py:600`)
-matches actual arguments against per-form arities.  Example for
-`HTTP::host`:
-
-```python
-forms=(
-    FormSpec(kind=FormKind.GETTER, synopsis="HTTP::host", arity=Arity(0, 0),
-             pure=True,  # reading is side-effect-free
-             side_effect_hints=(SideEffect(target=HTTP_HEADER, reads=True, ...),)),
-)
-```
-
-When a command has both getter and setter forms, the resolved form determines
-whether the invocation is pure (a read) or a mutator (a write).
+Note what a Rust `FormSpec` is **not**: it carries no per-form arity,
+options, purity, or side-effect list.  Those all live on the
+`CommandSpec` / `SubCommand` itself.  A `FormSpec` is documentation and a
+dialect gate — the thing that varies *by form* and is consumed
+programmatically is `CommandSpec::command_forms` (`&[CommandForm]`) and
+`SubCommand::subcommand_forms`.
 
 ### Arity — argument count constraints
 
-```python
-@dataclass(frozen=True, slots=True)
-class Arity:                           # signatures.py:64
-    min: int = 0                       # minimum args (after command name)
-    max: int = sys.maxsize             # max args (sys.maxsize = unlimited)
-
-    def accepts(self, n: int) -> bool: # True when min ≤ n ≤ max
+```rust
+pub struct Arity {
+    /// Minimum args (after the command name).
+    pub min: u16,
+    /// Maximum args; `Arity::UNLIMITED` is `u16::MAX`.
+    pub max: u16,
+    /// Accepted counts step by this from `min` (e.g. 2 for pair-taking forms).
+    pub step: u16,
+    /// One extra exact count accepted outside the `min`/`max`/`step` pattern.
+    pub also_exact: Option<u16>,
+}
 ```
 
-The `ValidationSpec` on each `CommandSpec` holds the overall arity.  The
-arity checker emits diagnostic `W101` (wrong number of arguments) when
-an invocation falls outside the bounds.
+`step` and `also_exact` are the two additions over a plain min/max: they
+express "takes key/value pairs" and "…or the one-argument shorthand"
+without a bespoke validator.  Arity violations produce **`E002`** (too
+few arguments) and **`E003`** (too many); a count that is in range but
+the wrong *shape* — an odd `dict create` tail, an unpaired `foreach`
+list — produces **`E005`**.
 
 ### SubCommand — ensemble commands
 
 Commands like `string`, `dict`, `info`, and `HTTP::header` use
-subcommands (the first argument selects the operation).  Each
-subcommand is a `SubCommand` (`models.py:319`):
+subcommands (the first argument selects the operation).  `SubCommand`
+mirrors much of `CommandSpec`, including its own arity, argument roles,
+options, hooks, side effects, and lifecycle.  The fields most often set:
 
-```python
-@dataclass(slots=True)
-class SubCommand:                      # models.py:319
-    name: str                          # "length", "match", "replace", ...
-    arity: Arity                       # arg count for this subcommand
-    pure: bool = False                 # no side effects
-    mutator: bool = False              # modifies state
-    return_type: TclType | None        # return value type
-    options: tuple[OptionSpec, ...] = ()      # per-subcommand options
-    option_terminator: OptionTerminatorSpec | None = None
-    arg_values: dict[int, tuple[ArgumentValueSpec, ...]] = {}  # completions
-    deprecated_replacement: str | None = None  # replacement command name
-    dialects: frozenset[str] | None = None     # None = inherit from parent
-    forms: tuple[FormSpec, ...] = ()   # per-subcommand getter/setter forms
-    handler: SubcommandHandler | None  # VM execution hook
-    codegen: CodegenHook | None        # bytecode specialisation
-    lowering: LoweringHook | None      # IR lowering specialisation
-    taint_transform: TaintTransformHook | None   # taint colour transform
-    side_effect_hints: tuple[SideEffect, ...] | None = None
-    validation_hook: ValidationHook | None = None
+```rust
+pub struct SubCommand {
+    pub name: &'static str,
+    pub traits: Traits,
+    /// Arg count for this subcommand (excluding the subcommand word).
+    pub arity: Arity,
+    pub detail: &'static str,
+    pub synopsis: &'static str,
+    pub hover: Option<HoverSnippet>,
+    pub arg_roles: &'static [(u8, ArgRole)],
+    pub arg_role_resolver: Option<ArgRoleResolver>,
+    pub arg_types: &'static [(u8, ArgTypeHint)],
+    pub return_type: Option<TclType>,
+    /// No side effects.
+    pub pure: bool,
+    /// Modifies state.
+    pub mutator: bool,
+    pub options: &'static [OptionSpec],
+    pub arg_values: &'static [(u8, &'static [ArgValue])],
+    /// `None` inherits the parent command's dialects.
+    pub dialects: Option<DialectSet>,
+    pub side_effects: &'static [SideEffect],
+    /// Typed hook IDs — dispatched on, never called through a stored closure.
+    pub lowering_hook: Option<LoweringHookId>,
+    pub codegen_hook: Option<CodegenHookId>,
+    pub analyser_hook: Option<AnalyserHookId>,
+    pub const_fold: Option<ConstFoldFn>,
+    pub taint_transform: Option<TaintColour>,
+    // … ~60 fields in total; `..SubCommand::DEFAULT` fills the rest
+}
 ```
 
-**Example** — `string length` has `arity=Arity(1, 1)` (exactly one arg),
-`pure=True`, and `return_type=TclType.INT`.  The arity checker validates
-each subcommand invocation independently.
+**Example** — `SSL::sni name` has `arity: Arity::exact(0)`, `pure: true`,
+and a read-only `SideEffectTarget::SslState` effect.  Each subcommand
+invocation is arity-checked independently.
 
-Subcommands can be dialect-filtered: `SubCommand.supports_dialect()` checks
-the subcommand's own `dialects` set, falling back to the parent command's
-dialects.
+The **hooks are typed IDs, not function pointers to arbitrary
+closures**: `LoweringHookId`, `CodegenHookId`, and `AnalyserHookId` are
+enums the consumer matches on.  That is what keeps the spec `const` and
+keeps per-command knowledge in the registry rather than in a walker's
+`match cmd_name`.
 
-### OptionSpec and option terminators
+### OptionSpec and option constraints
 
-Commands that accept `-flag` switches declare them via `OptionSpec`
-(`models.py:230`):
+Commands that accept `-flag` switches declare them via `OptionSpec`:
 
-```python
-@dataclass(frozen=True, slots=True)
-class OptionSpec:                      # models.py:230
-    name: str                          # e.g. "-nocase", "-length"
-    takes_value: bool = False          # True if the option consumes the next arg
-    detail: str = ""                   # completion description
+```rust
+pub struct OptionSpec {
+    /// e.g. `"-nocase"`, `"-length"`.
+    pub name: &'static str,
+    /// Whether the option takes a value, and of what kind.
+    pub value: OptionValue,
+    /// Completion description.
+    pub detail: &'static str,
+    /// `None` inherits the parent's dialects.
+    pub dialects: Option<DialectSet>,
+    pub aliases: &'static [&'static str],
+    pub lifecycle: Lifecycle,
+}
 ```
+
+`OptionValue::flag()` is the no-value form; a value-taking option
+describes its value instead of setting a bare `takes_value: bool`.
+Relationships between options — mutual exclusion, requires-another — are
+declared separately as `CommandSpec::option_constraints`
+(`&[OptionConstraint]`).
 
 **Option terminators** (`--`) prevent a dynamic argument from being
-mistaken for a flag.  The `OptionTerminatorSpec` (`models.py:298`)
-configures the `W304` diagnostic:
-
-```python
-@dataclass(frozen=True, slots=True)
-class OptionTerminatorSpec:            # models.py:298
-    scan_start: int = 0                # arg index where option scanning begins
-    options_with_values: frozenset[str] = frozenset()  # options that eat next arg
-    warn_without_terminator: bool = False  # warn even for static values
-    subcommand: str | None = None      # restrict to a specific subcommand
-```
+mistaken for a flag.  The `ArgRole::OptionTerminator` role marks the
+`--` position, and the `W304` check uses the command's declared option
+set to decide whether a dynamic argument is at risk.
 
 When a command like `string match` receives a dynamic pattern (`$pat`)
 without `--`, the checker emits `W304` because `$pat` could start with
@@ -673,21 +871,30 @@ string match -- $pat $str     ;# safe:  -- terminates option scanning
 
 ### Validation
 
-Validation is layered:
+Validation is layered.  There is **no `ValidationSpec` wrapper** — each
+layer reads a field on the spec directly:
 
-1. **Arity** — `ValidationSpec.arity` on the `CommandSpec` sets the
-   overall arg count.  Each `SubCommand` has its own `arity`.  Violations
-   produce `W101`.
-
-2. **Option terminator** — `OptionTerminatorSpec` triggers `W304` when
-   `--` is missing before dynamic arguments.
-
-3. **Validation hooks** — per-command or per-subcommand
-   `ValidationHook` callables run additional checks.
-
-4. **Event validity** — `event_requires` and `excluded_events` are
-   checked against the active event context (see [Events](#events-irules-only)
-   below).
+1. **Arity** — `CommandSpec::arity` sets the overall argument count and
+   each `SubCommand` has its own.  Violations produce `E002` (too few) /
+   `E003` (too many), and an in-range but wrong-shaped count produces
+   `E005`.
+2. **Option terminator** — a dynamic argument in an option-scanning
+   position without `--` produces `W304`.
+3. **Option constraints** — `CommandSpec::option_constraints`
+   (`&[OptionConstraint]`) declares mutual exclusion and
+   requires-another relationships between options.
+4. **Literal argument validation** —
+   `CommandSpec::literal_argument_validator`
+   (`Option<LiteralArgumentValidator>`) and
+   `clause_shape_check` (`Option<ClauseShapeChecker>`) are the two typed
+   hooks for checks a field cannot express, feeding `W127` / `W141` and
+   `E004` / `E005` respectively.
+5. **Event validity** — `event_requires`, `event_requirement_forms`, and
+   `excluded_events` are checked against the active event context (see
+   [Events](#events-irules-only) below), producing `IRULE1001`.
+6. **Lifecycle** — `Lifecycle` on the command, subcommand, option, or
+   argument value gates it against the resolved version, producing
+   `W135`–`W139` and `W144`.
 
 ### Argument processing — roles, values, and types
 
@@ -697,403 +904,539 @@ command expects, and what hover/completion information to present.
 
 #### ArgRole — what each argument means
 
-`ArgRole` (`signatures.py:16`) classifies how the compiler should
-treat each argument position:
+`ArgRole` (`rust/tcl-registry/src/arg_role.rs`) classifies how the
+compiler should treat each argument position:
 
-```python
-class ArgRole(Enum):                   # signatures.py:16
-    BODY            # Tcl script body — recursively lowered into IR
-    EXPR            # Expression — parsed into ExprNode AST
-    VAR_NAME        # Variable name written by the command (set, incr)
-    VAR_READ        # Variable name read without modification (info exists)
-    PARAM_LIST      # Procedure parameter list (proc)
-    NAME            # Symbolic name (proc name, namespace name)
-    PATTERN         # Pattern or regex argument
-    OPTION          # A switch/flag argument
-    VALUE           # Generic value (default for unlisted positions)
-    SUBCOMMAND      # The subcommand word ("length" in "string length")
-    OPTION_TERMINATOR  # The "--" terminator
-    CHANNEL         # Channel identifier (stdout, channelId)
-    INDEX           # List/string index expression
+```rust
+pub enum ArgRole {
+    /// Tcl script body — recursively lowered into IR.
+    Body,
+    /// Expression — parsed into an `ExprNode` AST.
+    Expr,
+    /// Variable name written by the command (`set`, `incr`).
+    VarWrite,
+    /// Variable name read without modification (`info exists`).
+    VarRead,
+    /// A `foreach`-style variable list.
+    LoopVarList,
+    /// Procedure parameter list (`proc`).
+    ParamList,
+    /// Symbolic name (proc name, namespace name).
+    Name,
+    /// Pattern or regex argument.
+    Pattern,
+    /// A switch/flag argument.
+    Option,
+    /// Generic value (default for unlisted positions).
+    Value,
+    /// The subcommand word (`length` in `string length`).
+    Subcommand,
+    /// The `--` terminator.
+    OptionTerminator,
+    /// A `format`-family format string.
+    FormatString,
+    /// A `scan`-family format string.
+    ScanFormat,
+    /// Channel identifier (`stdout`, a channel id).
+    Channel,
+    /// List/string index expression.
+    Index,
+    /// A structural keyword (`elseif`, `on`, `finally`).
+    Keyword,
+    /// A command prefix that will be invoked with appended arguments.
+    CommandPrefix,
+    /// A command name.
+    CommandName,
+    /// A word that may or may not be a command name — probe, do not assume.
+    CommandNameProbe,
+    /// An `apply` lambda literal.
+    LambdaLiteral,
+}
 ```
 
-Roles are declared via `CommandSpec.arg_roles` or
-`SubCommand.arg_roles` — a `dict[int, ArgRole]` mapping argument
-index (0-based after the command name) to its role.
+Note the naming: the write/read pair is **`VarWrite` / `VarRead`**, not
+`VAR_NAME` / `VAR_READ`.  The four roles with no counterpart in the
+older model — `CommandPrefix`, `CommandName`, `CommandNameProbe`, and
+`LambdaLiteral` — are what let callback-taking commands
+(`trace add`, `lsort -command`, `after`, `apply`) be described as data
+rather than special-cased in a walker.
+
+Roles are declared as `CommandSpec::arg_roles` or
+`SubCommand::arg_roles`, both `&'static [(u8, ArgRole)]` — a sorted
+slice of `(arg_index, role)` pairs, 0-based after the command name,
+rather than a map.
 
 For variable-layout commands like `if`, `try`, and `switch` (where
 argument structure depends on the actual arguments), an
-`ArgRoleResolver` (`models.py:73`) callback dynamically maps argument
-values to roles:
+`arg_role_resolver` inspects the real argument list:
 
-```python
-ArgRoleResolver = Callable[[list[str]], dict[int, ArgRole]]
+```rust
+pub type ArgRoleResolver = fn(args: &[&str]) -> Vec<(u8, ArgRole)>;
 ```
 
-The IR lowering pass uses `ArgRole.BODY` and `ArgRole.EXPR` to decide
+It is a plain `fn` pointer, not a closure, so the whole spec stays
+`const`.  The dynamic resolver takes priority over the static
+`arg_roles`, which in turn takes priority over the legacy
+`assigns_variable_at: Option<u8>` shorthand.
+
+The IR lowering pass uses `ArgRole::Body` and `ArgRole::Expr` to decide
 which arguments should be recursively lowered or parsed as expressions,
-and `ArgRole.VAR_NAME` to extract variable definitions for dataflow
+and `ArgRole::VarWrite` to extract variable definitions for dataflow
 analysis.
 
-#### ArgumentValueSpec — completable values
+#### ArgValue — completable values
 
-`ArgumentValueSpec` (`models.py:221`) describes a valid value for a
-specific argument position, providing completion text and hover
+`ArgValue` (`rust/tcl-registry/src/hover.rs`) describes a valid value for
+a specific argument position, providing completion text and hover
 documentation:
 
-```python
-@dataclass(frozen=True, slots=True)
-class ArgumentValueSpec:               # models.py:221
-    value: str                         # completion text (e.g. "length", "alnum")
-    detail: str = ""                   # short description in completion list
-    hover: HoverSnippet | None = None  # full hover documentation
+```rust
+pub struct ArgValue {
+    /// Completion text (e.g. `"length"`, `"alnum"`).
+    pub value: &'static str,
+    /// Short description shown in the completion list.
+    pub detail: &'static str,
+    /// Minimum Tcl version this value exists at, if it is version-gated.
+    pub min_tcl: Option<tcl_dialect::TclVersion>,
+    /// Numeric code, for value sets that carry one.
+    pub code: Option<i64>,
+}
 ```
 
-Argument values are declared in three places:
+Argument values are declared in two places, both as
+`&'static [(u8, &'static [ArgValue])]` — arg index to its value set:
 
-1. **FormSpec.arg_values** (`dict[int, tuple[ArgumentValueSpec, ...]]`)
-   — maps arg index to valid values.  Index 0 typically holds
-   subcommand names:
+1. **`CommandSpec::arg_values`** — for the command's own positions.
+2. **`SubCommand::arg_values`** — per-subcommand completable values;
+   e.g. `string is` has its character-class values at index 0.
 
-   ```python
-   FormSpec(
-       kind=FormKind.DEFAULT,
-       synopsis="string option arg ?arg ...?",
-       arg_values={0: (
-           ArgumentValueSpec("length", "Return number of characters."),
-           ArgumentValueSpec("match", "Test glob-style pattern match."),
-           ...
-       )},
-   )
-   ```
-
-2. **SubCommand.arg_values** — per-subcommand completable values.
-   For example, `string is` has character-class values at arg index 0:
-
-   ```python
-   SubCommand(name="is", ..., arg_values={
-       0: (ArgumentValueSpec("alnum", "Any Unicode alphabet or digit character."),
-           ArgumentValueSpec("integer", "Any valid integer of arbitrary size."),
-           ...),
-   })
-   ```
-
-3. **FormSpec.subcommand_arg_values** (`dict[tuple[str, int], ...]`)
-   — keyed by `(subcommand_name, sub_arg_index)` for legacy definitions.
-
-`CommandSpec` provides lookup helpers:
-- `argument_values(arg_index)` — collects values across all forms.
-- `subcommand_argument_values(subcmd, arg_index)` — values for a
-  subcommand argument, preferring `SubCommand.arg_values` over the
-  legacy `FormSpec.subcommand_arg_values`.
+`SubCommand::versioned_arg_values` (`&[VersionedArgValue]`) covers value
+sets whose membership changes across Tcl releases, and
+`arg_values_accept_prefix` marks a set where unambiguous prefixes are
+accepted.  A value outside a closed set produces **`W127`**; one that
+needs a newer Tcl than the active dialect produces **`W137`**.
 
 #### HoverSnippet — documentation content
 
-`HoverSnippet` (`models.py:170`) carries hover and signature-help
-content derived from man pages or vendor documentation:
+`HoverSnippet` (`rust/tcl-registry/src/hover.rs`) carries hover and
+signature-help content derived from man pages or vendor documentation:
 
-```python
-@dataclass(frozen=True, slots=True)
-class HoverSnippet:                    # models.py:170
-    summary: str                       # one-line description
-    synopsis: tuple[str, ...] = ()     # invocation signatures
-    snippet: str = ""                  # extended description (for signature help)
-    source: str = ""                   # attribution (e.g. "Tcl man page string.n")
-    examples: str = ""                 # code example
-    return_value: str = ""             # return value description
+```rust
+pub struct HoverSnippet {
+    /// One-line description.
+    pub summary: &'static str,
+    /// Invocation signatures.
+    pub synopsis: &'static [&'static str],
+    /// Extended description (used by signature help).
+    pub snippet: &'static str,
+    /// Attribution (e.g. a man-page name or a clouddocs URL).
+    pub source: &'static str,
+    /// Code example.
+    pub examples: &'static str,
+    /// Return-value description.
+    pub return_value: &'static str,
+}
 ```
 
-`HoverSnippet` appears on `CommandSpec.hover`, `SubCommand.hover`,
-`ArgumentValueSpec.hover`, and `OptionSpec.hover`.  The LSP server
-uses `render_hover_lean()` for compact hover tooltips and
-`render_markdown()` for signature help documentation.
+`HoverSnippet::brief(summary, synopsis, source)` is the `const`
+constructor for the common case.  Snippets appear on `CommandSpec::hover`
+and `SubCommand::hover`; the LSP hover provider
+(`rust/tcl-lsp-core/src/hover.rs`) renders them.
 
 #### ArgTypeHint — expected types
 
-`ArgTypeHint` (`type_hints.py:17`) declares what Tcl internal
-representation (intrep) a command expects for a given argument:
+`ArgTypeHint` (`rust/tcl-registry/src/hooks.rs`) declares what Tcl
+internal representation (intrep) a command expects for a given argument:
 
-```python
-@dataclass(frozen=True, slots=True)
-class ArgTypeHint:                     # type_hints.py:17
-    expected: TclType | None = None    # expected type (None = any)
-    shimmers: bool = False             # True if the command forces conversion
+```rust
+pub struct ArgTypeHint {
+    /// Expected type (`None` = any).
+    pub expected: Option<TclType>,
+    /// Whether the command forces a conversion.
+    pub shimmers: bool,
+    /// Types this argument passes through without forcing a conversion.
+    pub transparent_from: &'static [TclType],
+}
 ```
 
-Type hints are declared via `SubCommand.arg_types` or
-`CommandSpec.arg_types` — a `dict[int, ArgTypeHint]`.  The type
-inference pass uses these to detect shimmer risks (diagnostic `O130`)
-and propagate types through the SSA graph.
+Type hints are declared as `CommandSpec::arg_types` /
+`SubCommand::arg_types`, both `&'static [(u8, ArgTypeHint)]`.  The type
+inference pass uses these to detect shimmer risks — the **`S100`–`S103`**
+and **`S110`** family — and to propagate types through the SSA graph.
+`transparent_from` is the field that stops a false positive when a
+command accepts a type without re-representing it.
 
-Return types are declared via `SubCommand.return_type` or
-`CommandSpec.return_type` — a `TclType | None`.  For example,
-`string length` has `return_type=TclType.INT`.
+Return types are declared as `CommandSpec::return_type` /
+`SubCommand::return_type`, an `Option<TclType>`; richer shape knowledge
+goes in `return_elements` (`Option<ReturnElements>`).
 
-#### KeywordCompletion — variable-layout scaffolding
+#### Keyword completion — variable-layout scaffolding
 
-Commands like `if`, `try`, and `switch` have keyword-delimited
-structure rather than fixed argument positions.
-`KeywordCompletion` (`models.py:90`) provides completion items
-for these structural keywords:
+Commands like `if`, `try`, and `switch` have keyword-delimited structure
+rather than fixed argument positions.  Their structural words are
+described by `ArgRole::Keyword` positions plus a
+`CommandSpec::completion` descriptor
+(`Option<CompletionDescriptor>`, `rust/tcl-registry/src/completion.rs`),
+which the LSP completion provider consumes to suggest `elseif`, `else`,
+`on`, `finally`, and so on based on what has been typed so far.
 
-```python
-@dataclass(frozen=True, slots=True)
-class KeywordCompletion:               # models.py:90
-    keyword: str                       # e.g. "elseif", "else", "on", "finally"
-    detail: str = ""                   # completion list description
-    snippet: str | None = None         # LSP snippet with placeholders
-```
+#### Deprecation and lifecycle
 
-A `KeywordCompletionProvider` callback on `CommandSpec` generates
-context-aware keyword suggestions based on the arguments entered so far.
+Version and deprecation knowledge is a single `Lifecycle` value
+(`rust/tcl-registry/src/lifecycle.rs`) on `CommandSpec`, `SubCommand`,
+`OptionSpec`, `ProfileSpec`, and `EventProps` alike — introducing,
+deprecating, and retiring releases on the relevant version axis.  It
+drives `W139` (retired), `W144` (deprecated), `W135`/`W136` (needs a
+newer package), and `W137`/`W138` (needs a newer Tcl).
 
-#### Deprecation
+Straight replacements are named separately:
 
-Commands and subcommands can be marked as deprecated with a replacement:
-
-- `CommandSpec.deprecated_replacement` — the replacement command name
-  (either a string or a `CommandDef` class reference).
-- `SubCommand.deprecated_replacement` — per-subcommand replacement.
-- `CommandSpec.deprecation_fixer` / `SubCommand.deprecation_fixer` —
-  a `DeprecationFixer` callback that generates LSP code actions to
-  automatically rewrite deprecated usage.
+- `CommandSpec::deprecated_replacement: Option<&'static str>` — the
+  replacement command name.
+- `CommandSpec::deprecated_replacement_drop_in: bool` — whether the
+  replacement is a literal drop-in, which is what lets the LSP offer an
+  automatic code action rather than only a message.
 
 ### Side effects and purity
 
-The side-effect model lives in `compiler/side_effects.py` and
-classifies what each command invocation reads and writes.
+The side-effect model has **two halves**, and the distinction matters:
 
-**Enums** describe the vocabulary:
+- **Declared** effects live on the registry spec —
+  `tcl_registry::side_effects::SideEffect`, a `&'static` record of what
+  the command *can* touch.
+- **Classified** effects are per-invocation —
+  `tcl_compiler::side_effects::{SideEffect, CommandSideEffects}`, built
+  from the declaration plus this call's actual arguments.
 
-```python
-class SideEffectTarget(Enum):          # side_effects.py:154
-    VARIABLE, SESSION_TABLE, HTTP_HEADER, HTTP_BODY, HTTP_URI,
-    RESPONSE_COMMIT, POOL_SELECTION, FILE_IO, LOG_IO, ...
+The registry-side record is deliberately minimal:
 
-class StorageScope(Enum):              # side_effects.py:67
-    PROC_LOCAL, NAMESPACE, GLOBAL, UPVAR,       # Tcl-universal
-    EVENT, CONNECTION, STATIC, SESSION_TABLE,    # F5 iRules-specific
-    DATA_GROUP, FILE_SYSTEM, NETWORK_SOCKET, ...
-
-class ConnectionSide(Enum):            # side_effects.py:135
-    CLIENT, SERVER, BOTH, GLOBAL, NONE
-
-class StorageType(Enum):               # side_effects.py:48
-    SCALAR, LIST, DICT, ARRAY, UNKNOWN
+```rust
+// rust/tcl-registry/src/side_effects.rs
+pub struct SideEffect {
+    pub target: SideEffectTarget,
+    pub reads: bool,
+    pub writes: bool,
+    pub connection_side: ConnectionSide,
+    /// Dialect gate; `None` inherits the command's.
+    pub dialects: Option<DialectSet>,
+}
 ```
 
-**Per-invocation facts** compose into `SideEffect` and
-`CommandSideEffects`:
+`SideEffectTarget` has 42 variants covering the Tcl-universal resources
+(`Variable`, `FileIo`, `LogIo`, `NetworkIo`, `ChannelIo`, `Process`,
+`ProcDefinition`, `NamespaceState`, `InterpState`) and the F5 ones
+(`HttpHeader`, `HttpBody`, `HttpUri`, `HttpCookie`, `SslState`,
+`TcpState`, `PoolSelection`, `SnatSelection`, `SessionTable`,
+`PersistenceTable`, `DataGroup`, `AsmState`, `ApmState`, …), plus
+`Unknown`.  `SideEffectTarget::as_str()` renders each to a stable
+kebab-case name.  `ConnectionSide` is `None`, `Client`, `Server`, `Both`,
+`Global`.
 
-```python
-@dataclass(frozen=True, slots=True)
-class SideEffect:                      # side_effects.py:359
-    target: SideEffectTarget           # what resource
-    reads: bool = False                # does it read?
-    writes: bool = False               # does it write?
-    storage_type: StorageType          # data shape
-    scope: StorageScope                # where it lives
-    connection_side: ConnectionSide    # F5 proxy context
-    key: str | None = None             # literal variable/header name
+The compiler-side record adds everything that can only be known at a call
+site:
 
-@dataclass(frozen=True, slots=True)
-class CommandSideEffects:              # side_effects.py:413
-    effects: tuple[SideEffect, ...]    # individual effects
-    pure: bool = False                 # no observable side effects
-    deterministic: bool = False        # same inputs → same outputs
-    dynamic_barrier: bool = False      # eval/uplevel — unknowable
+```rust
+// rust/tcl-compiler/src/side_effects.rs
+pub struct SideEffect {
+    pub target: SideEffectTarget,
+    pub reads: bool,
+    pub writes: bool,
+    /// Data shape: Scalar / List / Dict / Array / Unknown.
+    pub storage_type: StorageType,
+    /// Where it lives.
+    pub scope: StorageScope,
+    /// F5 proxy context.
+    pub connection_side: ConnectionSide,
+    /// Enclosing namespace, when known.
+    pub namespace: Option<String>,
+    pub dialect: Option<String>,
+    /// Literal variable / header / table name.
+    pub key: Option<String>,
+    /// Literal `table`/`session` subtable, when given.
+    pub subtable: Option<String>,
+}
+
+pub struct CommandSideEffects {
+    pub effects: Vec<SideEffect>,
+    /// No observable side effects.
+    pub pure: bool,
+    /// Same inputs → same outputs.
+    pub deterministic: bool,
+    /// `eval` / `uplevel` — unknowable.
+    pub dynamic_barrier: bool,
+    pub dialect: Option<String>,
+}
+
+pub enum StorageScope {
+    // Tcl-universal
+    ProcLocal, Namespace, Global, Upvar,
+    // F5 iRules-specific
+    Event, Connection, Static, SessionTable, Persistence, DataGroup,
+    // host resources
+    FileSystem, NetworkSocket, LogOutput,
+    Unknown,
+}
 ```
 
-**Classification** — `classify_side_effects(command, args, ...)`
-(`side_effects.py:561`) combines registry hints with runtime arguments:
+**Classification** —
+`classify_side_effects(registry, command, args, dialect, callee_summary)`
+combines registry data with the real arguments:
 
-1. Check interprocedural summary (for user-defined procs).
-2. Check for dynamic barriers (`eval`, `uplevel`).
-3. Resolve the subcommand and matching `FormSpec`.
-4. Read `side_effect_hints` from the resolved form, subcommand, or
-   command spec.
-5. Check command-level or subcommand-level `pure`/`mutator` flags.
+1. If a `callee_summary` is supplied (a user-defined proc), classify from
+   the interprocedural summary and stop.
+2. Unknown command → a conservative unknown-write fallback.
+3. Resolve the subcommand and read its `side_effects`, falling back to
+   the command's.
+4. Apply the command-level or subcommand-level `pure` / `mutator` flags.
+5. Bind literal argument values into `key` / `subtable` where the spec
+   says which argument names the resource.
 
 **How purity propagates:**
 
-- A command is pure if `CommandSpec.pure = True` (e.g. `string`, `list`).
-- A subcommand can override: `SubCommand.pure = True` makes
-  `string length` pure even if the parent weren't.
-- A subcommand can also override downward: `SubCommand.mutator = True`
-  makes `HTTP::header replace` impure even though `HTTP::header` itself
-  is pure (the getter form reads without side effects).
-- A `FormSpec` can further refine: `FormSpec.pure` / `FormSpec.mutator`
-  overrides all higher levels for that specific arity match.
+- Purity is a `SubCommand::pure` / `SubCommand::mutator` pair plus
+  `Traits` on the parent `CommandSpec` — the two flags are per-subcommand
+  precisely so `HTTP::header value` can be pure while
+  `HTTP::header replace` is a mutator.
+- `target_to_region(target, scope)` projects an effect onto an
+  `EffectRegion` bitset, which is the granularity the interprocedural
+  summaries and the optimiser actually compare.
 
 The GVN optimiser uses purity to decide whether a command's result can be
-cached (`cse_candidate = True`), and the SCCP analysis uses it to infer
-through pure calls without bailing out.
+cached (`gvn::is_pure_command` / `is_pure_with_procs`), and SCCP uses it
+to infer through pure calls without bailing out.
 
 ### Taint analysis
 
 Taint tracking determines whether values originate from untrusted input
 (user-controlled HTTP headers, URI, query parameters, etc.).
 
-**TaintColour** (`taint_hints.py:17`) is a `Flag` enum — colours compose
-with `|` and the lattice join is their intersection (`&`):
+**TaintColour** (`rust/tcl-registry/src/taint.rs`) is a `bitflags` set —
+colours compose with `|` and the lattice join is their intersection
+(`&`):
 
-```python
-class TaintColour(Flag):               # taint_hints.py:17
-    TAINTED         # base: value comes from untrusted input
-    PATH_PREFIXED   # starts with "/" (HTTP::uri, HTTP::path)
-    CRLF_FREE       # no CR/LF characters (header-injection safe)
-    IP_ADDRESS      # IPv4/IPv6 digits-dots-colons
-    PORT            # integer 0-65535
-    FQDN            # fully qualified domain name
-    LIST_CANONICAL  # canonical Tcl list (safe for list operations)
-    HTML_ESCAPED    # HTML-escaped text context
-    URL_ENCODED     # URL-encoded text context
-    ...
+```rust
+bitflags! {
+    pub struct TaintColour: u32 {
+        /// Base: the value comes from untrusted input.
+        const TAINTED            = 1 << 0;
+        /// Starts with `/` (`HTTP::uri`, `HTTP::path`).
+        const PATH_PREFIXED      = 1 << 1;
+        const NON_DASH_PREFIXED  = 1 << 2;
+        /// No CR/LF characters — header-injection safe.
+        const CRLF_FREE          = 1 << 3;
+        const SHELL_ATOM         = 1 << 4;
+        /// Canonical Tcl list — safe for list operations.
+        const LIST_CANONICAL     = 1 << 5;
+        const REGEX_LITERAL      = 1 << 6;
+        const PATH_NORMALISED    = 1 << 7;
+        const PATH_BOUNDED       = 1 << 8;
+        const HEADER_TOKEN_SAFE  = 1 << 9;
+        const HTML_ESCAPED       = 1 << 10;
+        const URL_ENCODED        = 1 << 11;
+        const IP_ADDRESS         = 1 << 12;
+        const PORT               = 1 << 13;
+        const FQDN               = 1 << 14;
+        const PATH_JOINED        = 1 << 15;
+        const CHANNEL            = 1 << 16;
+    }
+}
 ```
 
 Colours represent *safety properties* of tainted data.  A value with
-`TAINTED | IP_ADDRESS` is tainted but known to be a safe IP address
+`TAINTED | IP_ADDRESS` is tainted but known to be a safe IP-address
 format, which may satisfy certain sinks (e.g. connecting to a backend).
 
-**TaintHint** (`taint_hints.py:63`) declares a command's taint sources
-and sinks:
+There is **no `TaintHint` type**.  Taint metadata is a set of flat fields
+directly on `CommandSpec`:
 
-```python
-@dataclass(frozen=True, slots=True)
-class TaintHint:                       # taint_hints.py:63
-    source: dict[Arity | None, TaintColour] | None  # return value is tainted
-    source_subcommands: frozenset[str] | None        # restrict to specific subcmds
-    sinks: tuple[TaintSinkSpec, ...]                  # dangerous arg positions
-    setter_constraints: tuple[SetterConstraint, ...]  # e.g. must start with "/"
+| Field | Meaning |
+|---|---|
+| `taint_source: Option<TaintColour>` | the return value is tainted, with these colours |
+| `taint_transform: Option<TaintColour>` | colours this command *adds* to its input (a sanitiser) |
+| `taint_output_sink: Option<&'static str>` | an output sink, named by its diagnostic |
+| `taint_output_sink_subcommands: &'static [&'static str]` | restrict the sink to these subcommands |
+| `taint_log_sink: Option<&'static str>` | a log sink (log injection) |
+| `taint_network_sink_args: Option<&'static [u8]>` | argument indices that are network-address sinks (SSRF) |
+| `taint_code_sink_args: Option<&'static [u8]>` | argument indices that are code-execution sinks |
+| `taint_interp_eval_subcommands: &'static [&'static str]` | cross-interpreter eval subcommands |
+| `taint_sink_safe_colour: Option<TaintColour>` | the colour that satisfies this sink |
+| `taint_sink_gate: Option<fn(&[&str]) -> bool>` | a predicate that decides whether this call is a sink at all |
+| `taint_double_encode_colour: Option<TaintColour>` | drives the `T106` double-encoding check |
+| `setter_constraints: &'static [SetterConstraint]` | e.g. "must start with `/`" |
+
+**Example** — `SSL::sni` is a taint source that also proves its result is
+a domain name:
+
+```rust
+taint_source: Some(TaintColour::TAINTED.union(TaintColour::FQDN)),
 ```
 
-**Example** — `HTTP::host` is a taint source (returns user-controlled
-data):
+`SetterConstraint` names the argument index, the required prefix, the
+`DiagCode`, and the message, so the "`HTTP::uri` must start with `/`"
+check (`IRULE3101`) is data rather than a hardcoded rule.
 
-```python
-@classmethod
-def taint_hints(cls) -> TaintHint:
-    return TaintHint(source={None: TaintColour.TAINTED})
-```
-
-**TaintSinkSpec** marks argument positions as dangerous:
-
-```python
-@dataclass(frozen=True, slots=True)
-class TaintSinkSpec:                   # taint_hints.py:45
-    code: str                          # diagnostic code (e.g. "IRULE3001")
-    subcommands: frozenset[str] | None # None = all invocations
-```
-
-The taint engine (`compiler/taint/`) propagates colours through the
-SSA graph, and emits diagnostics (e.g. `IRULE3001` for XSS,
-`IRULE3002` for header injection) when tainted data reaches a sink
-without sufficient safety colours.
+The taint engine (`rust/tcl-compiler/src/taint.rs` plus
+`taint_interproc.rs`) propagates colours through the SSA graph as a
+`TaintLattice` — a single `colours: TaintColour` field, where `TAINTED`
+membership is "may be tainted" (a may-analysis) and every other colour is
+a must-analysis surviving only when present on every incoming edge.  It
+emits `T100`–`T106` for the Tcl-universal sinks and `IRULE3001`–`3004`
+for the F5 ones when tainted data reaches a sink without sufficient
+safety colours.
 
 ### Dialects
 
 Dialects partition command availability across Tcl versions and tool
-contexts.  Known dialects (`dialects.py:5`):
+contexts.  A dialect *set* is a bitflag rather than a set of strings
+(`rust/tcl-dialect/src/dialect_set.rs`):
 
-```python
-KNOWN_DIALECTS = frozenset({
-    "tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1",  # Tcl version dialects
-    "f5-irules",                                 # F5 iRules
-    "f5-iapps",                                  # F5 iApps
-    "f5-bigip",                                  # F5 BIG-IP config
-    "synopsys-eda-tcl",                          # Synopsys EDA
-    "cadence-eda-tcl",                           # Cadence EDA
-    "xilinx-eda-tcl",                            # Xilinx/AMD EDA
-    "intel-quartus-eda-tcl",                     # Intel Quartus
-    "mentor-eda-tcl",                            # Mentor/Siemens EDA
-    "expect",                                    # Expect
-})
+```rust
+bitflags! {
+    pub struct DialectSet: u64 {
+        const TCL84     = 1 << 0;
+        const TCL85     = 1 << 1;
+        const TCL86     = 1 << 2;
+        const TCL90     = 1 << 3;
+        const IRULES    = 1 << 4;
+        const IAPPS     = 1 << 5;
+        const TK        = 1 << 6;
+        const EXPECT    = 1 << 7;
+        const BPF       = 1 << 13;
+        const TCL91     = 1 << 14;
+        const TMSH      = 1 << 15;
+        const BIGIP     = 1 << 16;
+
+        // Convenience unions
+        const ALL_TCL     = /* TCL84 | TCL85 | TCL86 | TCL90 | TCL91 */;
+        const TCL85_PLUS  = /* … */;
+        const TCL86_PLUS  = /* … */;
+        const TCL8X       = /* TCL84 | TCL85 | TCL86 */;
+        const TCL90_PLUS  = /* TCL90 | TCL91 */;
+        const TK_AND_TCL  = /* ALL_TCL | TK */;
+    }
+}
 ```
 
-Every `CommandSpec` has an optional `dialects` field:
+Bits 8–12 are **free**: they used to be the Synopsys / Cadence / Xilinx /
+Quartus / Mentor EDA vendor bits, and were retired when EDA shells moved
+to "a base Tcl version plus `required_package`-gated command libraries"
+(see [eda-library-packages.md](eda-library-packages.md)).  The
+`KNOWN_DIALECTS` *name* list still carries the EDA names for profile
+selection, but they no longer have their own spec-visibility bits.
 
-- `dialects = None` → available in **all** dialects.
-- `dialects = frozenset({"f5-irules"})` → iRules-only command
+Every `CommandSpec` has a `dialects: Option<DialectSet>` field:
+
+- `dialects: Some(DialectSet::IRULES)` → iRules-only command
   (e.g. `HTTP::host`, `pool`, `table`).
+- `dialects: Some(DialectSet::TCL86_PLUS)` → present from Tcl 8.6 on.
 
-Subcommands can have their own `dialects` set that overrides the parent
-command's.  `SubCommand.supports_dialect()` checks the subcommand's own
-set first, falling back to the parent.
+A universal `dialects: None` was **eliminated registry-wide**: every
+command now carries an explicit group, with the `IRULES` bit present if
+and only if iRules enables it.  That is what makes a K36322151-banned
+command such as `exec` simply `ALL_TCL`, never intersecting the bare
+`IRULES` mask, without a negative exclusion list.  Subcommands and
+options keep `dialects: None` meaning "inherit the parent's".
 
-**DialectStatus** (`models.py:25`) is the result of a dialect lookup:
-
-```python
-class DialectStatus(Enum):             # models.py:25
-    EXISTS       # available in this dialect
-    DEPRECATED   # available but has a replacement
-    DISALLOWED   # exists in some dialect, but not this one
-    NOT_EXISTS   # not known anywhere
-```
+Lookup is `CommandRegistry::get_for_dialect(name, dialect)`, which
+applies the most-specific-spec rule when several specs share a name.
+Per-version presence within a dialect is `Lifecycle`, not a separate
+status enum — there is no `DialectStatus` type.
 
 ### Events (iRules only)
 
 In F5 iRules, commands are only valid in certain events (e.g. `HTTP::uri`
 requires an HTTP profile and only works in HTTP events).  This is
-modelled by `EventRequires` (`namespace_models.py:146`):
+modelled by `EventRequires` (`rust/tcl-registry/src/events.rs`):
 
-```python
-@dataclass(frozen=True, slots=True)
-class EventRequires:                   # namespace_models.py:146
-    client_side: bool = False          # needs client-side connection
-    server_side: bool = False          # needs server-side connection
-    transport: str | None = None       # "tcp" or "udp"
-    profiles: frozenset[str] = frozenset()  # needs one of these profiles
-    also_in: frozenset[str] = frozenset()   # always valid in these events
-    init_only: bool = False            # only valid in RULE_INIT
-    flow: bool = False                 # needs an active traffic flow
-    capability: str | None = None      # profile capability (e.g. "sni")
+```rust
+pub struct EventRequires {
+    /// Requires client side.
+    pub client_side: bool,
+    /// Requires server side.
+    pub server_side: bool,
+    /// Required transport (`"tcp"` or `"udp"`).
+    pub transport: Option<&'static str>,
+    /// Required profile types.
+    pub profiles: &'static [&'static str],
+    /// Events where the command is unconditionally valid.
+    pub also_in: &'static [&'static str],
+    /// Only valid in `RULE_INIT`.
+    pub init_only: bool,
+    /// Requires active traffic flow.
+    pub flow: bool,
+    /// Required profile capability (e.g. `"sni"`) — declared, not yet consumed.
+    pub capability: Option<&'static str>,
+}
 ```
 
-**Example** — `HTTP::host` requires TCP transport and an HTTP or FASTHTTP
-profile:
+**Example** — `ASM::is_authenticated` requires an ASM profile:
 
-```python
-event_requires=EventRequires(transport="tcp", profiles=frozenset({"HTTP", "FASTHTTP"}))
+```rust
+event_requires: Some(EventRequires {
+    client_side: false,
+    server_side: false,
+    transport: None,
+    profiles: &["ASM"],
+    also_in: &[],
+    init_only: false,
+    flow: false,
+    capability: None,
+}),
 ```
 
-The validator matches `event_requires` against the event's `EventProps`
-(`namespace_models.py:117`), which describes what each event provides
-(client/server side, transport, implied profiles).  Mismatches produce
-diagnostic `IRULE1001`.
+`tcl_registry::events::event_satisfies(props, requires, event_name,
+profiles)` matches these against the event's `EventProps`, which
+describes what each event provides (client/server side, transport,
+implied profiles, whether there is an active flow).  Mismatches produce
+**`IRULE1001`**, via
+`CommandRegistry::is_irules_command_legal_in_event`; the inverse query,
+"every command legal here", is `valid_irules_commands_for_event`.
 
-`CommandSpec.excluded_events` lists events where a command is explicitly
+A few commands have subforms with different event contracts —
+`FIX::tag get` reads a live message while `FIX::tag map set` configures
+a mapping.  `CommandSpec::event_requirement_forms`
+(`&[EventRequirementForm]`) overrides the top-level contract for a
+matching literal argument prefix, longest match winning, so a consumer
+selects the right contract from the call words without knowing the
+command by name.
+
+`CommandSpec::excluded_events` lists events where a command is explicitly
 forbidden (e.g. a command that crashes in `RULE_INIT`).
 
 ### How the infrastructure feeds the compiler
 
 The registry metadata flows into every stage of the compilation pipeline:
 
-1. **IR Lowering** — `lower_to_ir()` uses `arg_roles` to identify
-   which arguments are bodies (`BODY`), expressions (`EXPR`), or
-   variable names (`VAR_NAME`).  This drives recursive lowering of
-   script bodies and expression parsing.
+1. **IR Lowering** — `lower_to_ir()` uses `arg_roles` /
+   `arg_role_resolver` to identify which arguments are bodies
+   (`ArgRole::Body`), expressions (`ArgRole::Expr`), or variable names
+   (`ArgRole::VarWrite`).  This drives recursive lowering of script
+   bodies and expression parsing.  A `lowering_hook: Option<LoweringHookId>`
+   selects a per-command specialisation.
 
-2. **CFG** — `creates_dynamic_barrier` marks commands that defeat
-   static analysis (e.g. `eval`, `uplevel`).  The CFG builder emits
-   `IRBarrier` for these.
+2. **CFG** — commands whose effects defeat static analysis (`eval`,
+   `uplevel`, `upvar`) lower to `Statement::Barrier`, which the CFG
+   builder carries through as an opaque statement.
 
 3. **SSA/SCCP** — `pure` commands can be inferred through without
-   invalidating the lattice state.  Impure commands force variables
-   to `OVERDEFINED`.
+   invalidating the lattice state.  Impure commands force values to
+   `LatticeValue::Overdefined`.
 
-4. **GVN** — `cse_candidate` and `pure` determine whether a command's
-   result can be cached and reused (common subexpression elimination).
+4. **GVN** — purity (`gvn::is_pure_command`) plus the declared
+   `EffectRegion` determine whether a command's result can be cached and
+   reused (common subexpression elimination, `O105`).
 
-5. **Codegen** — `codegen` hooks on `SubCommand` or `CommandSpec`
-   emit specialised bytecode (e.g. `string length` → `strLen` opcode
-   instead of generic `invokeStk`).
+5. **Codegen** — `codegen_hook` / `inline_codegen_hook` on `SubCommand`
+   or `CommandSpec` select specialised bytecode (e.g. a `string length`
+   opcode instead of a generic `invokeStk`).
 
-6. **Taint engine** — `taint_hints()` marks sources and sinks; the
-   taint lattice propagates `TaintColour` through the SSA graph.
+6. **Taint engine** — `taint_source` / `taint_transform` / the
+   `taint_*_sink*` fields mark sources and sinks; the taint lattice
+   propagates `TaintColour` through the SSA graph.
 
-7. **Diagnostics** — arity, option terminators, event requirements,
-   deprecation, and validation hooks all produce diagnostics
-   (`W101`, `W304`, `IRULE1001`, etc.).
+7. **Diagnostics** — arity (`E002`/`E003`/`E005`), option terminators
+   (`W304`), argument value sets (`W127`), event requirements
+   (`IRULE1001`), and lifecycle (`W139`/`W144`) all read the spec.
 
 ---
 
@@ -1109,125 +1452,156 @@ set x 42
 
 ### Stage 1 — Lexer → Token stream
 
-The `TclLexer` scans character-by-character and produces a flat stream:
+The lexer scans byte-by-byte and produces a flat stream.  Rendering each
+token as `kind span → text` (the text resolved through the `SourceMap`):
 
 ```
-Token(type=ESC, text="set",  start=Pos(0,0,0),  end=Pos(0,3,3))
-Token(type=SEP, text=" ",    start=Pos(0,3,3),  end=Pos(0,4,4))
-Token(type=ESC, text="x",    start=Pos(0,4,4),  end=Pos(0,5,5))
-Token(type=SEP, text=" ",    start=Pos(0,5,5),  end=Pos(0,6,6))
-Token(type=ESC, text="42",   start=Pos(0,6,6),  end=Pos(0,8,8))
-Token(type=EOF, text="",     start=Pos(0,8,8),  end=Pos(0,8,8))
+Esc  0..3  → "set"
+Sep  3..4  → " "
+Esc  4..5  → "x"
+Sep  5..6  → " "
+Esc  6..8  → "42"
+Eof  8..8  → ""
 ```
 
 Key observations:
-- `set`, `x`, and `42` are all `ESC` (plain word fragments) — no variable
+- `set`, `x`, and `42` are all `Esc` (plain word fragments) — no variable
   substitution or braces involved.
-- Whitespace becomes `SEP` tokens — they delimit words but carry no semantic
+- Whitespace becomes `Sep` tokens — they delimit words but carry no semantic
   value.
+- The tokens hold only spans; `"set"` is a slice of the source, not an
+  owned `String`.
 
 ### Stage 2 — Segmenter → SegmentedCommand
 
 The segmenter builds the red-green CST for the source and derives one
-`SegmentedCommand` per command (split at `EOL`/`EOF` boundaries):
+`SegmentedCommand` per command (split at `Eol`/`Eof` boundaries):
 
-```python
-SegmentedCommand(
-    range=Range(Pos(0,0,0), Pos(0,8,8)),
-    argv=[Token(ESC,"set",...), Token(ESC,"x",...), Token(ESC,"42",...)],
-    texts=["set", "x", "42"],
-    single_token_word=[True, True, True],
-    all_tokens=[...all 6 tokens...],
-)
+```rust
+SegmentedCommand {
+    span: Span::new(0, 8),
+    argv: vec![/* the Esc tokens for `set`, `x`, `42` */],
+    texts: vec!["set".into(), "x".into(), "42".into()],
+    single_token_word: vec![true, true, true],
+    all_tokens: vec![/* all six tokens, separators included */],
+    is_partial: false,
+    ..
+}
 ```
 
-- `texts[0] == "set"` → command name
+- `texts[0] == "set"` → command name (`SegmentedCommand::name()`)
 - `texts[1] == "x"` → variable name argument
 - `texts[2] == "42"` → value argument
 - All words are single-token (no interpolation), so `single_token_word` is
-  all `True` — this tells the lowerer the value is a compile-time constant.
+  all `true` — this tells the lowerer the value is a compile-time constant.
 
-### Stage 3 — IR Lowering → IRAssignConst
+### Stage 3 — IR Lowering → `Statement::AssignConst`
 
-The lowerer pattern-matches `set` with two arguments where the second argument
-is a single-token constant:
+The lowerer's `set` hook matches two arguments where the second is a
+single-token constant.  `tcl explore set.tcl --show ir --text`:
 
-```python
-IRModule(
-    top_level=IRScript(statements=(
-        IRAssignConst(
-            range=Range(Pos(0,0,0), Pos(0,8,8)),
-            name="x",
-            value="42",
-        ),
-    )),
-    procedures={},
-)
+```
+=== ir ===
+└── top-level
+    └── assign-const x = 42
+        · kind: IRAssignConst
+        · summary: assign-const x = 42
+        · range: 1:1  (0…8)
 ```
 
-Why `IRAssignConst` and not `IRAssignValue`?  Because `"42"` is a single
-atomic token with no variable substitution — it's known at compile time.
+As a Rust value that is:
+
+```rust
+Statement::AssignConst {
+    span: Span::new(0, 8),
+    name: "x".into(),
+    name_braced: false,
+    value: "42".into(),
+    value_span: Some(Span::new(6, 8)),
+}
+```
+
+Why `AssignConst` and not `AssignValue`?  Because `"42"` is a single
+atomic token with no variable substitution — it is known at compile time.
+
+(The explorer labels nodes with the `IR*` names from
+`tcl_explorer::formatters::stmt_kind`, which map one-to-one onto the
+`Statement` variants: `IRAssignConst` ⇔ `Statement::AssignConst`, and so
+on.)
 
 ### Stage 4 — CFG → single basic block
 
-With no control flow, the CFG is trivial:
+With no control flow, the CFG is trivial —
+`tcl explore set.tcl --show cfg --text`:
 
 ```
-CFGFunction(
-    name="::top",
-    entry="entry_1",
-    blocks={
-        "entry_1": CFGBlock(
-            name="entry_1",
-            statements=(IRAssignConst(name="x", value="42"),),
-            terminator=None,
-        ),
-        "exit_2": CFGBlock(
-            name="exit_2",
-            statements=(),
-            terminator=None,
-        ),
-    },
-)
+=== cfg ===
+└── function ::top (entry=entry_1, 2 blocks)
+    ├── block entry_1 [entry]
+    │   ├── assign-const x = 42
+    │   │   · summary: assign-const x = 42
+    │   │   · range: 1:1  (0…8)
+    │   └── term goto exit_2
+    │       · range: ?
+    └── block exit_2
+        └── term <none>
+            · range: ?
 ```
 
 The builder creates an entry block containing the statement, linked to an
-exit block via `CFGGoto`.
+exit block via `Terminator::Goto`.  The exit block's terminator is `None`
+— it is where control leaves the function.
 
-### Stage 5 — SSA → x₀
+### Stage 5 — SSA → x₁
 
-With a single block and a single definition, SSA is trivial:
+With a single block and a single definition, SSA is trivial —
+`tcl explore set.tcl --show ssa --text`:
 
 ```
-SSAFunction blocks:
-  entry_1:
-    phis: ()
-    statements: (
-        SSAStatement(
-            statement=IRAssignConst(name="x", value="42"),
-            uses={},
-            defs={"x": 1},
-        ),
-    )
-    entry_versions: {}
-    exit_versions: {"x": 1}
+=== ssa ===
+└── function ::top (entry=entry_1, 2 blocks)
+    ├── block entry_1 [entry]
+    │   ├── assign-const x = 42
+    │   │   · summary: assign-const x = 42
+    │   │   · range: 1:1  (0…8)
+    │   │   · uses: {}
+    │   │   · defs: {x#1=const(42):int}
+    │   └── term goto exit_2
+    ├── block exit_2
+    │   └── term <none>
+    └── analysis
+        ├── dead store entry_1 x#1
+        │   · block: entry_1
+        │   · stmt index: 0
+        └── x#1: int
+            · value: x#1
+            · type: int
 ```
 
-- `x` gets version 1 (its first definition): SSA value key `("x", 1)` (see [Glossary → SSA](#glossary)).
-- No phi nodes — there is only one path through the program (see [Glossary → Phi node](#glossary)).
+- `x` gets version 1 (its first definition): SSA value key `x#1`, i.e. the
+  `ValueKey` pair `(Symbol(x), 1)` (see [Glossary → SSA](#glossary)).
+- No phi nodes — there is only one path through the program (see
+  [Glossary → Phi node](#glossary)).
 - `uses` is empty — `set x 42` doesn't read any variables.
 
 ### Stage 6 — Core analyses
 
-**SCCP** (see [Glossary](#glossary))**:** `("x", 1)` → `LatticeValue(CONST, "42")` — provably constant.
+Note that the explorer prints all of these inline under `analysis`, as
+seen above.
 
-**Type inference:** `("x", 1)` → `TypeLattice.of(TclType.INT)` — `"42"` is
-a valid integer literal, so the intrep is INT.
+**SCCP** (see [Glossary](#glossary))**:** `x#1` →
+`LatticeValue::Const(ConstValue::Int(42))` — provably constant.  The
+explorer renders it `const(42):int`.
 
-**Liveness:** `("x", 1)` is dead if nothing reads it.
+**Type inference:** `x#1` → a `TypeLattice` holding `TypeShape::Int` —
+`"42"` is a valid integer literal, so the intrep is `Int`.
 
-**Dead stores:** If `x` is never read, SCCP marks it as a dead store →
-diagnostic `O109` (dead store elimination).
+**Liveness:** `x#1` is dead here, because nothing reads it.
+
+**Dead stores:** the `dead store entry_1 x#1` finding is a
+`DeadStore { block: "entry_1", statement_index: 0, variable: "x",
+version: 1 }`, which the elimination pass turns into diagnostic
+**`O109`**.
 
 ### Stage 7 — Bytecode (matches tclsh 9.0 identically)
 
@@ -1260,59 +1634,80 @@ set y $x
 ### Stage 1 — Lexer
 
 ```
-Token(ESC, "set")  Token(SEP, " ")  Token(ESC, "x")  Token(SEP, " ")  Token(ESC, "42")  Token(EOL, "\n")
-Token(ESC, "set")  Token(SEP, " ")  Token(ESC, "y")  Token(SEP, " ")  Token(VAR, "x")   Token(EOF, "")
+Esc "set"   Sep " "   Esc "x"   Sep " "   Esc "42"   Eol "\n"
+Esc "set"   Sep " "   Esc "y"   Sep " "   Var "x"    Eof ""
 ```
 
-Note the critical difference: `42` is `ESC` (plain text), but `$x` produces
-`Token(type=VAR, text="x")` — the `$` prefix is consumed by the lexer, and
-the token text is the bare variable name.
+Note the critical difference: `42` is `Esc` (plain text), but `$x` produces
+a `Var` token whose *text* is the bare variable name — the token's
+`content_offset` is 1, so `SourceMap::token_text` strips the leading `$`
+and yields `"x"`.
 
 ### Stage 2 — Segmenter
 
-Two `SegmentedCommand` objects:
+Two `SegmentedCommand` values:
 
-```python
-# Command 1: set x 42
-SegmentedCommand(
-    texts=["set", "x", "42"],
-    single_token_word=[True, True, True],   # all constant
-)
+```rust
+// Command 1: set x 42
+SegmentedCommand {
+    texts: vec!["set".into(), "x".into(), "42".into()],
+    single_token_word: vec![true, true, true],   // all constant
+    ..
+}
 
-# Command 2: set y $x
-SegmentedCommand(
-    texts=["set", "y", "${x}"],             # VAR token → "${x}" text
-    single_token_word=[True, True, True],   # single token, but it's a VAR
-)
+// Command 2: set y $x
+SegmentedCommand {
+    texts: vec!["set".into(), "y".into(), "${x}".into()],  // Var → "${x}"
+    single_token_word: vec![true, true, true],   // single token, but a Var
+    ..
+}
 ```
 
-In command 2, `texts[2]` is `"${x}"` — the segmenter wraps `VAR` tokens in
-`${...}` form so the text reflects what the user wrote.
+In command 2, `texts[2]` is `"${x}"` — the segmenter renders `Var` tokens
+in canonical `${…}` form so a downstream consumer can tell a substitution
+from a literal without re-inspecting the token kind.
 
 ### Stage 3 — IR Lowering
 
-```python
-IRScript(statements=(
-    IRAssignConst(name="x", value="42"),
-    IRAssignValue(name="y", value="${x}"),     # has variable reference
-))
+```
+=== ir ===
+└── top-level
+    ├── assign-const x = 42
+    │   · kind: IRAssignConst
+    │   · range: 1:1  (0…8)
+    └── assign-value y = ${x}
+        · kind: IRAssignValue
+        · range: 2:1  (9…17)
 ```
 
-The second `set` produces `IRAssignValue` (not `IRAssignConst`) because the
-value `${x}` contains a variable substitution that must be resolved at
-runtime.
+The second `set` produces `Statement::AssignValue` (not `AssignConst`)
+because the value `${x}` contains a variable substitution that must be
+resolved at run time.
 
 ### Stage 5 — SSA
 
 ```
-  entry_1:
-    SSAStatement(IRAssignConst(name="x", value="42"), uses={}, defs={"x": 1})
-    SSAStatement(IRAssignValue(name="y", value="${x}"), uses={"x": 1}, defs={"y": 1})
+=== ssa ===
+└── function ::top (entry=entry_1, 2 blocks)
+    ├── block entry_1 [entry]
+    │   ├── assign-const x = 42
+    │   │   · uses: {}
+    │   │   · defs: {x#1=const(42):int}
+    │   ├── assign-value y = ${x}
+    │   │   · uses: {x#1=const(42):int}
+    │   │   · defs: {y#1=const(42):int}
+    │   └── term goto exit_2
+    └── analysis
+        ├── dead store entry_1 y#1
+        │   · stmt index: 1
+        ├── x#1: int
+        └── y#1: int
 ```
 
-- `x₁ = "42"` — defined by the first `set`.
-- `y₁` uses `x₁` — the SSA pass resolves `${x}` to version 1 of `x`.
-- SCCP can prove `y₁` is also constant `"42"` (propagated from `x₁`).
+- `x#1 = "42"` — defined by the first `set`.
+- `y#1` uses `x#1` — the SSA pass resolves `${x}` to version 1 of `x`.
+- SCCP proves `y#1` is also constant `42`, propagated from `x#1` — the
+  explorer prints the lattice value inline on both the use and the def.
 
 ### Stage 7 — Bytecode (matches tclsh 9.0)
 
@@ -1350,26 +1745,38 @@ expr {2 + 3}
 
 The `expr` command with a braced body triggers expression parsing:
 
-```python
-IRScript(statements=(
-    IRExprEval(
-        range=Range(...),
-        expr=ExprBinary(
-            op=BinOp.ADD,
-            left=ExprLiteral(text="2", start=0, end=1),
-            right=ExprLiteral(text="3", start=4, end=5),
-        ),
-    ),
-))
+```
+=== ir ===
+└── top-level
+    └── IRExprEval
+        · kind: IRExprEval
+        · range: 1:1  (0…12)
 ```
 
-The expression parser produces a structured `ExprBinary` node, not a raw
-string.
+The statement is `Statement::ExprEval`, and its `expr` field holds a
+structured tree, not a raw string:
+
+```rust
+Statement::ExprEval {
+    span: Span::new(0, 12),
+    expr: ExprNode::Binary {
+        op: BinOp::Add,
+        left: Box::new(ExprNode::Literal { text: "2".into(), start: 0, end: 1 }),
+        right: Box::new(ExprNode::Literal { text: "3".into(), start: 4, end: 5 }),
+    },
+    expr_base: Some(6),
+}
+```
+
+`expr_base` is the absolute source offset the expression text starts at,
+so the offsets inside the tree (which are relative to the expression
+text) can be mapped back to the file.
 
 ### Stage 6 — SCCP
 
-SCCP evaluates the expression: `ExprLiteral("2") + ExprLiteral("3")` →
-`CONST(5)`.  The compiler knows the result at compile time.
+SCCP evaluates the expression: `Literal("2") + Literal("3")` →
+`LatticeValue::Const(ConstValue::Int(5))`.  The compiler knows the result
+at compile time.
 
 ### Stage 7 — Bytecode (matches tclsh 9.0)
 
@@ -1400,30 +1807,44 @@ expr {$a + $b}
 
 ### Stage 3 — IR Lowering
 
-```python
-IRScript(statements=(
-    IRAssignConst(name="a", value="10"),
-    IRAssignConst(name="b", value="20"),
-    IRExprEval(
-        expr=ExprBinary(
-            op=BinOp.ADD,
-            left=ExprVar(text="$a", name="a", start=0, end=2),
-            right=ExprVar(text="$b", name="b", start=5, end=7),
-        ),
-    ),
-))
 ```
+=== ir ===
+└── top-level
+    ├── assign-const a = 10
+    │   · kind: IRAssignConst
+    │   · range: 1:1  (0…8)
+    ├── assign-const b = 20
+    │   · kind: IRAssignConst
+    │   · range: 2:1  (9…17)
+    └── IRExprEval
+        · kind: IRExprEval
+        · range: 3:1  (18…32)
+```
+
+The `ExprEval`'s tree this time has variable leaves:
+
+```rust
+ExprNode::Binary {
+    op: BinOp::Add,
+    left:  Box::new(ExprNode::Var { text: "$a".into(), name: "a".into(), start: 0, end: 2 }),
+    right: Box::new(ExprNode::Var { text: "$b".into(), name: "b".into(), start: 5, end: 7 }),
+}
+```
+
+`ExprNode::vars()` on this tree returns `{"a", "b"}` — that is how the
+SSA builder learns which versions the statement uses without re-scanning
+the text.
 
 ### Stage 5 — SSA
 
 ```
-  a₁ = "10"   (CONST)
-  b₁ = "20"   (CONST)
-  ExprEval uses: {a: 1, b: 1}
+  a#1 = const(10):int
+  b#1 = const(20):int
+  IRExprEval  uses: {a#1, b#1}
 ```
 
-SCCP propagates: `a₁ = 10`, `b₁ = 20`, so the expression result is
-`CONST(30)`.
+SCCP propagates: `a#1 = 10`, `b#1 = 20`, so the expression result is
+`Const(Int(30))`.
 
 **Optimisation opportunity — O101 (fold constant integer expression):**
 Since both operands are compile-time constants, the optimiser can suggest
@@ -1472,55 +1893,55 @@ if {$x} {
 
 ### Stage 3 — IR Lowering
 
-```python
-IRScript(statements=(
-    IRAssignConst(name="x", value="1"),
-    IRIf(
-        range=Range(...),
-        clauses=(
-            IRIfClause(
-                condition=ExprVar(text="$x", name="x", start=0, end=2),
-                condition_range=Range(...),
-                body=IRScript(statements=(
-                    IRAssignConst(name="y", value="10"),
-                )),
-                body_range=Range(...),
-            ),
-        ),
-        else_body=None,
-    ),
-))
+```
+=== ir ===
+└── top-level
+    ├── assign-const x = 1
+    │   · kind: IRAssignConst
+    │   · range: 1:1  (0…7)
+    └── if (1 clause(s))
+        · kind: IRIf
+        · summary: if (1 clause(s))
+        · range: 2:1  (8…32)
+        └── clause 1: $x:
+            └── assign-const y = 10
+                · kind: IRAssignConst
+                · range: 3:5  (22…30)
 ```
 
-- `IRIf` holds a tuple of `IRIfClause` objects (one per `if`/`elseif`).
-- The condition `{$x}` is parsed as `ExprVar(name="x")`.
-- No `else_body` for this example.
+- `Statement::If` holds a `Vec<IfClause>` (one per `if` / `elseif`).
+- The condition `{$x}` is parsed as `ExprNode::Var { name: "x", .. }`.
+- No `else_body` for this example — the explorer's summary would read
+  `if (1 clause(s), else)` if there were one.
 
 ### Stage 4 — CFG decomposition
 
-The `IRIf` is decomposed into basic blocks:
+The `If` statement is decomposed into basic blocks —
+`tcl explore --show cfg --text`:
 
 ```
-  entry_1:
-    statements: [IRAssignConst(name="x", value="1")]
-    terminator: CFGBranch(
-        condition=ExprVar("$x"),
-        true_target="if_then_3",
-        false_target="if_next_4"
-    )
-
-  if_then_3:
-    statements: [IRAssignConst(name="y", value="10")]
-    terminator: CFGGoto(target="if_end_2")
-
-  if_next_4:
-    statements: []
-    terminator: CFGGoto(target="if_end_2")
-
-  if_end_2:
-    statements: []
-    terminator: CFGGoto(target="exit_5")
+=== cfg ===
+└── function ::top (entry=entry_1, 5 blocks)
+    ├── block entry_1 [entry]
+    │   ├── assign-const x = 1
+    │   │   · range: 1:1  (0…7)
+    │   └── term branch $x → if_then_3/if_next_4
+    │       · range: 2:4  (11…15)
+    ├── block if_end_2
+    │   └── term goto exit_5
+    ├── block if_then_3
+    │   ├── assign-const y = 10
+    │   │   · range: 3:5  (22…30)
+    │   └── term goto if_end_2
+    ├── block if_next_4
+    │   └── term goto if_end_2
+    └── block exit_5
+        └── term <none>
 ```
+
+`term branch $x → if_then_3/if_next_4` is a
+`Terminator::Branch { condition, true_target, false_target, .. }`; the
+plain `term goto …` lines are `Terminator::Goto`.
 
 ```
       entry_1
@@ -1542,33 +1963,46 @@ The `IRIf` is decomposed into basic blocks:
 ### Stage 5 — SSA
 
 ```
-  entry_1:
-    x₁ = "1"
-    branch uses: {x: 1}
-
-  if_then_3:
-    y₁ = "10"
-
-  if_end_2:
-    (no phi nodes needed — y is only defined in one branch)
+=== ssa ===
+    ├── block entry_1 [entry]
+    │   ├── assign-const x = 1
+    │   │   · defs: {x#1=const(1):int}
+    │   └── term branch $x → if_then_3/if_next_4
+    ├── block if_then_3
+    │   ├── assign-const y = 10
+    │   │   · defs: {y#1=const(10):int}
+    │   └── term goto if_end_2
+    ├── block if_next_4 [unreachable]
+    │   └── term goto if_end_2
 ```
+
+No phi nodes are needed — `y` is only defined in one branch.
 
 ### Stage 6 — SCCP and constant branch detection
 
 SCCP determines:
-- `x₁ = CONST("1")` — `"1"` is truthy in Tcl.
-- The branch condition is constant `true` → `if_next_4` is unreachable.
+- `x#1 = const(1)` — `"1"` is truthy in Tcl.
+- The branch condition is constant `true` → `if_next_4` is unreachable
+  (the explorer tags the block `[unreachable]`).
 
-This produces a `ConstantBranch`:
-```python
-ConstantBranch(
-    block="entry_1",
-    condition="$x",
-    value=True,
-    taken_target="if_then_3",
-    not_taken_target="if_next_4",
-)
+The explorer's `analysis` section shows both findings:
+
 ```
+    └── analysis
+        ├── const branch entry_1: always True
+        │   · condition: $x
+        │   · take: if_then_3
+        ├── dead store if_then_3 y#1
+        │   · block: if_then_3
+        │   · stmt index: 0
+        ├── unreachable: if_next_4
+        │   · blocks: if_next_4
+        ├── x#1: int
+        └── y#1: int
+```
+
+The first is a `ConstantBranch { block: "entry_1", condition: "$x",
+value: true, taken_target: "if_then_3", not_taken_target: "if_next_4" }`.
 
 **Optimisation opportunity — O112 (constant condition elimination):**
 The condition `{$x}` is always true when `x` is `"1"`, so the `if` could
@@ -1617,17 +2051,19 @@ if {1} {
 
 ### Stage 3 — IR Lowering
 
-```python
-IRIf(
-    clauses=(
-        IRIfClause(
-            condition=ExprLiteral(text="1", start=0, end=1),
-            body=IRScript((IRAssignConst(name="x", value="1"),)),
-        ),
-    ),
-    else_body=IRScript((IRAssignConst(name="x", value="2"),)),
-)
 ```
+=== ir ===
+└── top-level
+    └── if (1 clause(s), else)
+        · kind: IRIf
+        ├── clause 1: 1:
+        │   └── assign-const x = 1
+        └── else:
+            └── assign-const x = 2
+```
+
+The clause's condition is `ExprNode::Literal { text: "1", .. }` and
+`Statement::If::else_body` is `Some(Script { … })`.
 
 ### Stage 4/5 — CFG and SCCP
 
@@ -1673,25 +2109,30 @@ if {$x < 0} {
 
 ### Stage 3 — IR Lowering
 
-```python
-IRIf(
-    clauses=(
-        IRIfClause(
-            condition=ExprBinary(op=BinOp.LT,
-                left=ExprVar(text="$x", name="x"),
-                right=ExprLiteral(text="0")),
-            body=IRScript((IRAssignConst(name="sign", value="-1"),)),
-        ),
-        IRIfClause(
-            condition=ExprBinary(op=BinOp.GT,
-                left=ExprVar(text="$x", name="x"),
-                right=ExprLiteral(text="0")),
-            body=IRScript((IRAssignConst(name="sign", value="1"),)),
-        ),
-    ),
-    else_body=IRScript((IRAssignConst(name="sign", value="0"),)),
-)
 ```
+=== ir ===
+└── top-level
+    ├── assign-const x = 5
+    │   · kind: IRAssignConst
+    │   · range: 1:1  (0…7)
+    └── if (2 clause(s), else)
+        · kind: IRIf
+        · range: 2:1  (8…98)
+        ├── clause 1: $x < 0:
+        │   └── assign-const sign = -1
+        │       · range: 3:5  (26…37)
+        ├── clause 2: $x > 0:
+        │   └── assign-const sign = 1
+        │       · range: 5:5  (62…72)
+        └── else:
+            └── assign-const sign = 0
+                · range: 7:5  (86…96)
+```
+
+Each clause's condition is an `ExprNode::Binary { op: BinOp::Lt, .. }` /
+`{ op: BinOp::Gt, .. }` over an `ExprNode::Var` and an
+`ExprNode::Literal`; the explorer prints the clause header as the
+condition's rendered source text.
 
 ### Stage 4 — CFG decomposition
 
@@ -1717,21 +2158,43 @@ Each `elseif` clause chains to a new dispatch block:
 
 ### Stage 5 — SSA (phi nodes at merge)
 
+Phi insertion is **pruned**: a phi is placed only where a later use
+actually needs the merged value.  With the script exactly as written
+above, nothing reads `sign` afterwards, so `if_end_2` carries no phi —
+just three separate definitions (`sign#1` in `if_then_3`, `sign#2` in
+`if_then_5`, `sign#3` in `if_next_6`) that die at the merge.
+
+Add a `puts $sign` after the `if`, and the phi appears:
+
 ```
-  if_end_2:
-    phi: sign₄ = phi(sign₁ from if_then_3,
-                      sign₂ from if_then_5,
-                      sign₃ from if_next_6)
+    ├── block if_end_2
+    │   ├── phi sign#1 ← if_next_6:sign#4, if_then_3:sign#2, if_then_5:sign#3
+    │   │   · incoming: if_next_6:sign#4, if_then_3:sign#2, if_then_5:sign#3
 ```
 
-Three definitions of `sign` merge at `if_end_2` — a phi node (see
+Three definitions of `sign` merge at `if_end_2` — the phi node (see
 [Glossary → Phi node](#glossary)) selects the correct version based on
-which predecessor block executed.
+which predecessor block executed.  It is a `ssa::Phi { name, version,
+incoming: HashMap<BlockId, Version> }`; the explorer renders the map as
+`predecessor:variable#version` pairs.
 
-SCCP determines `x₁ = CONST("5")`:
+SCCP determines `x#1 = const(5)`:
 - `5 < 0` → false, so `if_then_3` is unreachable
 - `5 > 0` → true, so `if_then_5` is taken
-- Result: `sign` is `CONST("1")`
+- Result: `sign` is `const(1)`
+
+The explorer's `analysis` section names both folded branches:
+
+```
+    └── analysis
+        ├── const branch entry_1: always False
+        │   · condition: $x < 0
+        │   · take: if_next_4
+        ├── const branch if_next_4: always True
+        │   · condition: $x > 0
+        │   · take: if_then_5
+        ├── unreachable: if_next_6, if_then_3
+```
 
 ### Stage 7 — Bytecode (matches tclsh 9.0)
 
@@ -1787,60 +2250,89 @@ while {$i < 5} {
 
 ### Stage 3 — IR Lowering
 
-```python
-IRScript(statements=(
-    IRAssignConst(name="i", value="0"),
-    IRWhile(
-        condition=ExprBinary(op=BinOp.LT,
-            left=ExprVar(text="$i", name="i"),
-            right=ExprLiteral(text="5")),
-        body=IRScript((IRIncr(name="i"),)),
-    ),
-))
+```
+=== ir ===
+└── top-level
+    ├── assign-const i = 0
+    │   · kind: IRAssignConst
+    │   · range: 1:1  (0…7)
+    └── IRWhile
+        · kind: IRWhile
+        · range: 2:1  (8…37)
 ```
 
-- `IRWhile` has a structured `ExprBinary` condition and an `IRScript` body.
-- `IRIncr(name="i")` with `amount=None` means increment by 1.
+- `Statement::While` has a structured `ExprNode` condition and a `Script`
+  body.  (The explorer's IR view prints the statement kind for `While`
+  rather than expanding its sub-scripts; the CFG view below is where the
+  body becomes visible.)
+- `Statement::Incr { name: "i", amount: None, .. }` means increment by 1.
 
 ### Stage 4 — CFG decomposition
+
+```
+=== cfg ===
+└── function ::top (entry=entry_1, 5 blocks)
+    ├── block entry_1 [entry]
+    │   ├── assign-const i = 0
+    │   └── term goto while_header_2
+    ├── block while_header_2
+    │   └── term branch $i < 5 → while_body_3/while_end_4
+    ├── block while_body_3
+    │   ├── incr i
+    │   └── term goto while_header_2
+    ├── block while_end_4
+    │   └── term goto exit_5
+    └── block exit_5
+        └── term <none>
+```
 
 ```
   entry_1: i = "0"
       │
       ▼
-  ┌──► while_header_3:
+  ┌──► while_header_2:
   │    branch($i < 5)
   │    ┌────────┴────────┐
   │ true│                 │false
   │    ▼                  ▼
-  │  while_body_4:     while_end_5:
+  │  while_body_3:     while_end_4:
   │  incr i               │
   │    │                   ▼
-  └────┘                 exit_6
+  └────┘                 exit_5
 ```
 
 The `while` decomposes into:
-- A header block with the condition `CFGBranch`
+- A header block with the condition `Terminator::Branch`
 - A body block that jumps back to the header (back edge)
 - An exit block for when the condition is false
 
 ### Stage 5 — SSA with loop phi
 
 ```
-  while_header_3:
-    phi: i₂ = phi(i₁ from entry_1, i₃ from while_body_4)
-    branch uses: {i: 2}
-
-  while_body_4:
-    IRIncr(i) → i₃ = i₂ + 1
+=== ssa ===
+    ├── block entry_1 [entry]
+    │   ├── assign-const i = 0
+    │   │   · defs: {i#1=const(0):int}
+    │   └── term goto while_header_2
+    ├── block while_header_2
+    │   ├── phi i#2 ← entry_1:i#1, while_body_3:i#3
+    │   │   · type: int
+    │   │   · incoming: entry_1:i#1, while_body_3:i#3
+    │   └── term branch $i < 5 → while_body_3/while_end_4
+    ├── block while_body_3
+    │   ├── incr i
+    │   │   · uses: {i#2=overdefined:int}
+    │   │   · defs: {i#3=overdefined:int}
+    │   └── term goto while_header_2
 ```
 
 The phi node at the loop header merges:
-- `i₁ = 0` (initial value from entry)
-- `i₃` (incremented value from the body)
+- `i#1 = 0` (initial value from entry)
+- `i#3` (incremented value from the body)
 
 SCCP cannot fold this to a constant (the value changes each iteration),
-so `i₂` is `OVERDEFINED`.
+so `i#2` is `LatticeValue::Overdefined` — but the **type** stays `int`,
+which is the point of keeping the value and type lattices separate.
 
 ### Stage 7 — Bytecode (matches tclsh 9.0)
 
@@ -1890,40 +2382,78 @@ for {set i 0} {$i < 10} {incr i} {
 
 ### Stage 3 — IR Lowering
 
-```python
-IRFor(
-    init=IRScript((IRAssignConst(name="i", value="0"),)),
-    condition=ExprBinary(op=BinOp.LT,
-        left=ExprVar(text="$i", name="i"),
-        right=ExprLiteral(text="10")),
-    next=IRScript((IRIncr(name="i"),)),
-    body=IRScript((IRAssignValue(name="x", value="${i}"),)),
-)
+```
+=== ir ===
+└── top-level
+    └── for ($i < 10)
+        · kind: IRFor
+        · summary: for ($i < 10)
+        · range: 1:1  (0…49)
+        ├── init:
+        │   └── assign-const i = 0
+        │       · range: 1:6  (5…12)
+        ├── condition: $i < 10:
+        ├── next:
+        │   └── incr i
+        │       · range: 1:26  (25…31)
+        └── body:
+            └── assign-value x = ${i}
+                · range: 2:5  (39…47)
 ```
 
+Unlike `While`, the explorer expands `Statement::For` in the IR view,
+because each of its four sub-parts (`init`, `condition`, `next`, `body`)
+is a separately-lowered field on the variant.
+
 ### Stage 4 — CFG decomposition
+
+```
+=== cfg ===
+└── function ::top (entry=entry_1, 6 blocks)
+    ├── block entry_1 [entry]
+    │   ├── assign-const i = 0
+    │   └── term goto for_header_2
+    ├── block for_header_2
+    │   └── term branch 1 → for_body_3/for_end_5
+    ├── block for_body_3
+    │   ├── assign-value x = ${i}
+    │   └── term goto for_step_4
+    ├── block for_step_4
+    │   ├── incr i
+    │   └── term branch $i < 10 → for_body_3/for_end_5
+    ├── block for_end_5
+    │   └── term goto exit_6
+    └── block exit_6
+        └── term <none>
+```
 
 ```
   entry_1: i = "0"  (init clause)
       │
       ▼
-  ┌──► for_header_3:
-  │    branch($i < 10)
-  │    ┌────────┴────────┐
-  │ true│                 │false
-  │    ▼                  ▼
-  │  for_body_4:       for_end_6:
-  │  x = $i               │
-  │    │                   ▼
-  │    ▼                 exit_7
-  │  for_step_5:
-  │  incr i
-  │    │
-  └────┘
+    for_header_2:
+    branch(1)              ← first-iteration entry: the guard is already
+    ┌────────┴────────┐      known true when the init ran
+true│                  │false
+    ▼                  ▼
+  for_body_3:       for_end_5:
+  x = $i               │
+    │                   ▼
+    ▼                 exit_6
+  for_step_4:
+  incr i
+  branch($i < 10) ──true──► for_body_3
+    │ false
+    ▼
+  for_end_5
 ```
 
-Unlike `while`, the `for` loop has a separate step block that runs after the
-body, before looping back to the header.
+Unlike `while`, the `for` loop has a separate step block that runs after
+the body.  Note that the *real* shape is bottom-tested: the header's
+branch is the trivially-true first-iteration guard, and the live loop
+test lives at the end of the step block, branching straight back to the
+body.  That is the same condition-at-bottom layout the bytecode uses,
+built at the CFG level rather than only in codegen.
 
 ### Stage 7 — Bytecode (matches tclsh 9.0)
 
@@ -1959,8 +2489,9 @@ Same condition-at-bottom layout as `while`, but with the step clause
 
 ## Example 10: `foreach` (top-level)
 
-At top level, `foreach` compiles as a generic `invokeStk` call rather than
-an inlined loop.
+`foreach` is inlined into a real loop CFG and emits the specialised
+`foreach_start` / `foreach_step` / `foreach_end` opcodes — at top level
+as well as inside a `proc`.
 
 ### Source
 
@@ -1972,45 +2503,86 @@ foreach item {a b c} {
 
 ### Stage 3 — IR Lowering
 
-```python
-IRForeach(
-    iterators=((("item",), "{a b c}"),),
-    body=IRScript((IRAssignValue(name="x", value="${item}"),)),
-    is_lmap=False,
-)
+```
+=== ir ===
+└── top-level
+    └── IRForeach
+        · kind: IRForeach
+        · range: 1:1  (0…40)
 ```
 
-### Stage 4 — CFG (top-level deferral)
+The statement is `Statement::Foreach { iterators, body, is_lmap: false,
+is_dict: false, .. }`, where `iterators` is a `Vec<ForeachIterator>`
+pairing each variable list with its list argument.
 
-At top level, `foreach` is **not** inlined into a loop CFG.  Instead, it is
-emitted as an opaque `IRCall`:
+### Stage 4 — CFG
 
-```python
-CFGBlock(
-    statements=[
-        IRCall(command="foreach", args=("item", "{a b c}", "\n    set x $item\n"),
-               defs=("item",)),
-    ],
-)
-```
-
-This matches tclsh 9.0's behaviour: top-level `foreach` is compiled as a
-generic `invokeStk` call to the `foreach` command.  Inside a `proc`, the
-compiler would inline it with `foreach_start`/`foreach_step`/`foreach_end`
-opcodes.
-
-### Stage 7 — Bytecode (matches tclsh 9.0)
+The loop is decomposed the same way `while` and `for` are, with the
+addition of a **latch** block that drives the iterator:
 
 ```
-  Literals:  0="foreach"  1="item"  2="a b c"  3="\n    set x $item\n"
-
-  (0)  push1 0       # "foreach"
-  (2)  push1 1       # "item"
-  (4)  push1 2       # "a b c"
-  (6)  push1 3       # body script
-  (8)  invokeStk1 4  # invoke foreach with 4 args
-  (10) done
+=== cfg ===
+└── function ::top (entry=entry_1, 6 blocks)
+    ├── block entry_1 [entry]
+    │   └── term goto foreach_header_2
+    ├── block foreach_header_2
+    │   └── term branch 1 → foreach_body_3/foreach_end_4
+    ├── block foreach_body_3
+    │   ├── call foreach a b c
+    │   │   · summary: call foreach a b c
+    │   │   · range: 1:1  (0…40)
+    │   ├── assign-value x = ${item}
+    │   │   · range: 2:5  (27…38)
+    │   └── term goto foreach_latch_5
+    ├── block foreach_end_4
+    │   └── term goto exit_6
+    └── block exit_6
 ```
+
+The synthetic `call foreach a b c` at the head of the body block is the
+iterator-binding header the CFG builder inserts: it is a
+`Statement::Call` whose `defs` are the loop variables and whose
+`foreach_groups` field records how many variables belong to each
+iterator group, so codegen can reconstruct the original
+`var-list` ↔ `list-arg` pairing.
+
+### Stage 7 — Bytecode
+
+```
+  ByteCode ::top, 11 instructions, 19 bytes, 4 literals, 0 variables
+    Literals:
+      0: "a b c"
+      1: "x"
+      2: "item"
+      3: ""
+
+    # entry_1:
+    # foreach_header_2:
+      (0)  push1 0          # "a b c"
+      (2)  foreach_start 0
+    # foreach_body_3:
+      (7)  push1 1          # "x"
+      (9)  push1 2          # "item"
+      (11) loadStk
+      (12) storeStk
+    # cmd_end_2:
+      (13) pop
+    # foreach_continue_0:
+      (14) foreach_step
+    # foreach_break_1:
+      (15) foreach_end
+    # foreach_end_4:
+      (16) push1 3          # ""
+    # exit_5:
+      (18) done
+```
+
+Note that the literal table holds only the *list* (`"a b c"`), the
+variable names, and the empty-string loop result — the body never becomes
+a literal, because it is compiled inline rather than passed to a generic
+`invokeStk` call to the `foreach` command.  `foreach_continue_0` and
+`foreach_break_1` are the labels `continue` and `break` inside the body
+would jump to.
 
 ---
 
@@ -2030,52 +2602,64 @@ proc add {a b} {
 
 ### Stage 3 — IR Lowering
 
-```python
-IRModule(
-    top_level=IRScript(statements=()),   # proc def is extracted
-    procedures={
-        "::add": IRProcedure(
-            name="add",
-            qualified_name="::add",
-            params=("a", "b"),
-            body=IRScript(statements=(
-                IRExprEval(
-                    expr=ExprBinary(op=BinOp.ADD,
-                        left=ExprVar(text="$a", name="a"),
-                        right=ExprVar(text="$b", name="b")),
-                ),
-            )),
-        ),
-    },
-)
+```
+=== ir ===
+├── top-level
+│   └── call proc add a b \n    expr {$a + ...
+│       · kind: IRCall
+│       · range: 1:1  (0…37)
+└── ::add {a b}
+    · range: 1:1  (0…37)
+    └── IRExprEval
+        · kind: IRExprEval
+        · range: 2:5  (21…35)
 ```
 
-The procedure definition is extracted from `top_level` into
-`IRModule.procedures`.  The top-level code emits the `proc` registration
-as an `invokeStk` call.
+The procedure body is lifted into `Module::procedures` under the key
+`::add`, as a `Procedure { name: "add", qualified_name: "::add", params:
+vec!["a", "b"], body, .. }`.  Note that the `proc` command itself
+**stays** in `top_level` as a `Statement::Call` — the definition is
+copied out for analysis, not removed, because the registration is a real
+runtime effect that must still be emitted.
 
-### Stage 7 — Bytecode (matches tclsh 9.0)
+### Stage 7 — Bytecode
 
 **Top-level (proc registration):**
 ```
-  Literals:  0="proc"  1="add"  2="{a b}"  3="{\n    expr {$a + $b}\n}"
+  ByteCode ::top, 6 instructions, 11 bytes, 4 literals, 0 variables
+    Literals:
+      0: "proc"
+      1: "add"
+      2: "a b"
+      3: "\n    expr {$a + $b}\n"
 
-  (0)  push1 0       # "proc"
-  (2)  push1 1       # "add"
-  (4)  push1 2       # "{a b}"
-  (6)  push1 3       # body source
-  (8)  invokeStk1 4  # proc add {a b} {...}
-  (10) done
+    # entry_1:
+      (0)  push1 0          # "proc"
+      (2)  push1 1          # "add"
+      (4)  push1 2          # "a b"
+      (6)  push1 3          # "\n    expr {$a + $b}\n"
+      (8)  invokeStk1 4     # proc
+    # exit_2:
+      (10) done
 ```
 
-**Procedure body (::add):**
-```
-  LVT:  %v0="a"  %v1="b"
+The parameter list and body literals are the **brace contents**
+(`a b`, not `{a b}`) — the braces are word delimiters the lexer strips,
+not part of the value.
 
-  (0) loadScalar1 %v0  # load param a from LVT slot 0
-  (2) loadScalar1 %v1  # load param b from LVT slot 1
-  (4) add              # a + b
-  (5) done
+**Procedure body (`::add`):**
+```
+  ByteCode ::add, 4 instructions, 6 bytes, 0 literals, 2 variables
+    Local variables:
+      %v0: "a"
+      %v1: "b"
+
+    # entry_1:
+      (0) loadScalar1 %v0   # var "a"
+      (2) loadScalar1 %v1   # var "b"
+      (4) add
+    # exit_2:
+      (5) done
 ```
 
 Inside a proc, variables are accessed via `loadScalar1` using a
@@ -2107,78 +2691,112 @@ when HTTP_REQUEST {
 The taint analysis relies on `CommandSpec` and `SubCommand` metadata from
 the command registry.  Here is how each command contributes:
 
-**`HTTP::header`** — the `value` subcommand is a taint source:
+**`HTTP::header`** — the whole command is a taint source, and its
+mutating subcommands are a header-injection sink
+(`rust/tcl-registry/src/commands/irules/http__header.rs`):
 
-```python
-# From irules/http_header.py (simplified)
-CommandSpec(
-    name="HTTP::header",
-    subcommands={
-        "value": SubCommand(
-            name="value",
-            arity=Arity(1, 1),
-            pure=True,                # reading a header has no side effects
-            return_type=TclType.STRING,
-            taint_transform=None,     # no colour transform
-        ),
-        "replace": SubCommand(
-            name="replace",
-            arity=Arity(2, 2),
-            mutator=True,             # writing a header IS a side effect
-        ),
-        ...
+```rust
+const SUBCOMMANDS: &[SubCommand] = &[
+    // …
+    SubCommand {
+        name: "replace",
+        arity: Arity::new(1, 2),
+        detail: "Replace header value.",
+        synopsis: "HTTP::header replace <name> ?value?",
+        mutator: true,                 // writing a header IS a side effect
+        ..SubCommand::DEFAULT
     },
-)
+    SubCommand {
+        name: "value",
+        arity: Arity::exact(1),
+        detail: "Get first header value.",
+        synopsis: "HTTP::header value <name>",
+        ..SubCommand::DEFAULT           // pure by inheritance: Traits::PURE
+    },
+];
 
-# TaintHint for HTTP::header:
-TaintHint(
-    source={None: TaintColour.TAINTED},   # return value is tainted
-    source_subcommands=frozenset({"value", "values", "names"}),  # only these subcmds
-    sinks=(),
-)
+pub const fn spec() -> CommandSpec {
+    CommandSpec {
+        name: "HTTP::header",
+        traits: Traits::PURE
+            .union(Traits::CSE_CANDIDATE)
+            .union(Traits::DIAGRAM_ACTION),
+        // `HTTP::header insert|replace` with tainted data →
+        // header injection (IRULE3002).
+        taint_output_sink: Some("IRULE3002"),
+        taint_output_sink_subcommands: &["insert", "replace"],
+        event_requires: Some(EventRequires {
+            transport: Some("tcp"),
+            profiles: &["FASTHTTP", "HTTP"],
+            also_in: &["MR_EGRESS", "MR_INGRESS", "SERVER_CONNECTED"],
+            ..
+        }),
+        side_effects: &[SideEffect {
+            target: SideEffectTarget::HttpHeader,
+            reads: true,
+            writes: true,
+            connection_side: ConnectionSide::Both,
+            dialects: None,
+        }],
+        taint_source: Some(TaintColour::TAINTED),
+        ..CommandSpec::DEFAULT
+    }
+}
 ```
 
-**`HTTP::respond`** — the `content` argument is a taint sink:
+Two things worth noticing.  First, `taint_source` is declared **on the
+command**, not per-subcommand — the engine narrows it by call shape
+rather than the spec enumerating source subcommands.  Second,
+`taint_output_sink` and `taint_output_sink_subcommands` are a pair: the
+sink applies only to `insert` and `replace`.
 
-```python
-# TaintSinkSpec for HTTP::respond body content:
-TaintSinkSpec(
-    code="IRULE3001",               # XSS diagnostic code
-    subcommands=None,               # all invocations
-)
+**`HTTP::respond`** — the response body is an XSS sink, declared as a
+single field on its spec
+(`rust/tcl-registry/src/commands/irules/http__respond.rs`):
+
+```rust
+taint_output_sink: Some("IRULE3001"),
 ```
 
-**`string tolower`** — a pure command, but *not* a sanitiser:
+With no `taint_output_sink_subcommands` list, the sink covers every
+invocation.
 
-```python
-SubCommand(
-    name="tolower",
-    arity=Arity(1, 3),
-    pure=True,
-    return_type=TclType.STRING,
-    taint_transform=None,           # does NOT strip taint
-)
+**`string tolower`** — a pure command, but *not* a sanitiser
+(`rust/tcl-registry/src/commands/tcl/string_.rs`):
+
+```rust
+SubCommand {
+    name: "tolower",
+    byte_array_effect: ByteArrayEffect::CaseFolds,
+    arity: Arity::new(1, 3),
+    detail: "Convert to lower case.",
+    synopsis: "string tolower string ?first? ?last?",
+    pure: true,
+    return_type: Some(TclType::String),
+    const_fold: Some(fold_tolower),
+    ..SubCommand::DEFAULT
+}
 ```
+
+It sets no `taint_transform`, so it adds no mitigating colour — case
+conversion does not sanitise anything.  Contrast a real sanitiser, which
+declares `taint_transform: Some(TaintColour::HTML_ESCAPED)` (or
+`URL_ENCODED`, `CRLF_FREE`, …).
 
 ### Stage 3 — IR Lowering
 
-```python
-IRModule(
-    top_level=IRScript(statements=()),
-    procedures={
-        "::when::HTTP_REQUEST": IRProcedure(
-            body=IRScript(statements=(
-                IRAssignValue(name="host", value="[HTTP::header value Host]"),
-                IRAssignValue(name="lower", value="[string tolower ${host}]"),
-                IRCall(command="HTTP::respond",
-                       args=("200", "content",
-                             "<h1>Welcome to ${lower}</h1>"),
-                       defs=(), reads=("lower",)),
-            )),
-        ),
-    },
-)
+The `when HTTP_REQUEST { … }` handler is lowered as a synthetic
+`Procedure`, so the whole analysis pipeline reaches inside it:
+
 ```
+  ::when::HTTP_REQUEST
+    assign-value host  = [HTTP::header value Host]
+    assign-value lower = [string tolower ${host}]
+    call HTTP::respond 200 content <h1>Welcome to ${lower}</h1>
+```
+
+The third statement is a `Statement::Call { command: "HTTP::respond",
+args, reads: vec!["lower"], .. }`.
 
 ### Stage 4 — CFG
 
@@ -2196,54 +2814,57 @@ A single straight-line block (no control flow):
 
 ```
   entry_1:
-    SSAStatement(IRAssignValue(name="host", ...), uses={}, defs={"host": 1})
-    SSAStatement(IRAssignValue(name="lower", ...), uses={"host": 1}, defs={"lower": 1})
-    SSAStatement(IRCall("HTTP::respond", ...), uses={"lower": 1}, defs={})
+    assign-value host   uses: {}          defs: {host#1}
+    assign-value lower  uses: {host#1}    defs: {lower#1}
+    call HTTP::respond  uses: {lower#1}   defs: {}
 ```
 
 ### Taint propagation
 
-The taint engine (`_propagation.py`)
-walks the SSA graph and computes a `TaintLattice` for each SSA value key:
+The taint engine (`rust/tcl-compiler/src/taint.rs`, with the cross-proc
+half in `taint_interproc.rs`) walks the SSA graph and computes a
+`TaintLattice` for each `ValueKey`:
 
-1. **`("host", 1)`** — the `[HTTP::header value Host]` command substitution
-   is evaluated:
-   - `_taint_source_colour("HTTP::header", ("value", "Host"))` looks up the
-     `TaintHint` from the registry → returns `TaintColour.TAINTED`.
-   - Result: `TaintLattice(tainted=True, colour=TAINTED)`
+1. **`host#1`** — the `[HTTP::header value Host]` command substitution is
+   evaluated:
+   - the registry's `CommandSpec::taint_source` for `HTTP::header` is
+     `Some(TaintColour::TAINTED)`.
+   - Result: `TaintLattice { colours: TaintColour::TAINTED }`
 
-2. **`("lower", 1)`** — `[string tolower $host]`:
-   - The argument `$host` has taint `("host", 1)` → `TAINTED`.
-   - `_is_sanitiser("string", ("tolower", ...))` → `False` (case
-     conversion does not sanitise).
-   - `_derive_transform_colours("string", ("tolower", ...))` → no extra
-     colours.
-   - The command is pure, so taint flows through: result inherits from
-     arguments.
-   - Result: `TaintLattice(tainted=True, colour=TAINTED)`
+2. **`lower#1`** — `[string tolower $host]`:
+   - the argument `$host` carries `host#1`'s lattice → `TAINTED`.
+   - `string tolower` sets no `taint_transform`, so no mitigating colour
+     is added.
+   - The subcommand is `pure`, so taint flows through: the result
+     inherits from its arguments.
+   - Result: `TaintLattice { colours: TaintColour::TAINTED }`
 
 3. **`HTTP::respond`** — the sink check:
-   - `_classify_sink(IRCall("HTTP::respond", ...))` queries the registry:
-     `REGISTRY.classify_taint_sinks("HTTP::respond", None, dialect)`.
-   - Returns `[("IRULE3001", "HTTP::respond")]` — the content body is an
-     XSS-sensitive output sink.
-   - `_stmt_var_arg_indexes(stmt, "lower")` → `(2,)` — `$lower` appears at
-     arg index 2 (the content argument).
-   - The taint of `("lower", 1)` is `TAINTED` with no mitigating colours
-     (e.g. `HTML_ESCAPED` would suppress the warning).
+   - the spec's `taint_output_sink` is `Some("IRULE3001")` — the response
+     body is an XSS-sensitive output sink.
+   - `$lower` appears in the content argument.
+   - `lower#1` is `TAINTED` with no mitigating colours; had it carried
+     `HTML_ESCAPED`, the check would pass.
 
 ### Taint warning emitted
 
-```python
-TaintWarning(
-    range=Range(Pos(3,4,...), Pos(3,55,...)),   # HTTP::respond line
-    variable="lower",
-    sink_command="HTTP::respond",
-    code="IRULE3001",
-    message="Tainted variable $lower in HTTP response body (HTTP::respond); "
-            "risk of XSS or content injection",
-)
+```rust
+TaintWarning {
+    span: /* the HTTP::respond command's span */,
+    variable: "lower".into(),
+    sink_command: "HTTP::respond".into(),
+    code: DiagCode::Irule3001,
+    message: "Tainted variable $lower in HTTP response body (HTTP::respond); \
+              risk of XSS or content injection".into(),
+    replacement: None,
+    fixes: vec![/* offered code actions, e.g. wrap in an escaper */],
+}
 ```
+
+`TaintWarning::fixes` is the field with no counterpart in a
+message-only warning: the engine can attach concrete `CodeFix` edits, so
+the LSP offers "wrap this in `HTML::encode`" rather than only reporting
+the risk.
 
 ### How to suppress the warning
 
@@ -2315,62 +2936,80 @@ puts $result
 
 ### Stage 3 — IR Lowering
 
-```python
-IRModule(
-    top_level=IRScript(statements=(
-        IRAssignValue(name="result", value="[double 21]"),
-        IRCall(command="puts", args=("${result}",)),
-    )),
-    procedures={
-        "::double": IRProcedure(
-            name="double",
-            qualified_name="::double",
-            params=("n",),
-            body=IRScript(statements=(
-                IRExprEval(
-                    expr=ExprBinary(op=BinOp.MUL,
-                        left=ExprVar(text="$n", name="n"),
-                        right=ExprLiteral(text="2")),
-                ),
-            )),
-        ),
-    },
-)
 ```
+=== ir ===
+├── top-level
+│   ├── call proc double n \n    expr {$n * ...
+│   ├── assign-value result = [double 21]
+│   └── call puts ${result}
+└── ::double {n}
+    └── IRExprEval
+```
+
+`Module::procedures` gains a `Procedure { name: "double",
+qualified_name: "::double", params: vec!["n"], .. }` whose body holds the
+single `Statement::ExprEval` for `expr {$n * 2}`.
 
 ### Interprocedural analysis
 
-The `InterproceduralAnalysis` pass (`interprocedural.py`) builds summaries
-for each procedure.  For `::double`:
+`InterproceduralAnalysis`
+(`rust/tcl-compiler/src/interprocedural.rs`) builds a `ProcSummary` for
+each procedure.  For `::double`:
 
 1. The body is a single `expr {$n * 2}` in tail position.
-2. SCCP within the proc body: parameter `n` is initially `UNKNOWN`.
-3. The interprocedural solver calls `fold_static_proc_call("::double", ("21",))`:
-   - Binds `n₁ = "21"` (constant).
-   - Evaluates `$n * 2` → `21 * 2` → `CONST(42)`.
+2. SCCP within the proc body: parameter `n` starts `LatticeValue::Unknown`.
+3. Folding a call binds `n#1 = 21` and evaluates `$n * 2` →
+   `Const(Int(42))`.
 4. Result: the call `[double 21]` folds to the string `"42"`.
+
+The eligibility gate is `ProcSummary::can_fold_static_calls`, computed in
+the closure phase below.
 
 ### Optimisation pass — O103
 
-`optimise_static_proc_calls()` in
-`_propagation.py:459`:
+The `PassId::Propagation` pass
+(`rust/tcl-compiler/src/optimiser/propagation.rs`) is the one that emits
+O103, alongside O100 constant-var-ref, O100 string-interpolation, O102
+load forwarding, and O100 return-terminator folding:
 
-1. Encounters the `[double 21]` command substitution token.
-2. Resolves `double` → qualified name `::double`.
-3. Checks: `::double` is not in `ir_module.redefined_procedures`.
-4. All arguments are static: `"21"` is a literal.
-5. Calls `fold_static_proc_call(interproc, "::double", ("21",))`.
+1. Encounters the `[double 21]` command substitution.
+2. Resolves `double` → the qualified name `::double`, using
+   `resolve_internal_call` (which is `tcl_syntax::naming`'s canonical
+   resolution over the unit's proc table).
+3. Checks that `::double` is not in `Module::redefined_procedures`.
+4. Checks all arguments are static: `"21"` is a literal.
+5. Folds the body with the argument bound.
 6. Gets back `"42"`.
 7. Emits:
 
-```python
-Optimisation(
-    code="O103",
-    message="Fold static procedure call",
-    range=Range(Pos(4,13,...), Pos(4,23,...)),  # [double 21]
-    replacement="42",
-)
+`tcl explore --show opt --text` shows exactly that:
+
 ```
+=== opt ===
+└── O103 Fold pure-proc call to '::double' to its constant return → 42
+    · code: O103
+    · message: Fold pure-proc call to '::double' to its constant return
+    · replacement: 42
+    · range: 5:12  (50…61)
+```
+
+As a Rust value:
+
+```rust
+Optimisation {
+    code: DiagCode::O103,
+    message: "Fold pure-proc call to '::double' to its constant return".into(),
+    span: /* 50..61 — the span of `[double 21]` */,
+    replacement: "42".into(),
+    group: None,
+    hint_only: false,
+}
+```
+
+`Optimisation::hint_only` is the field that distinguishes a suggestion
+the LSP can apply as an edit from one it can only describe — a pass falls
+back to `hint_only: true` when it cannot compute a safe replacement span.
+`group` links edits that must be applied together (see O125 below).
 
 After applying O103, the source becomes:
 
@@ -2410,41 +3049,52 @@ immediately overwritten.
 
 ### Optimisation pass — O125
 
-`optimise_code_sinking()` in
-`_code_sinking.py:510`:
+`PassId::CodeSinking` → `rust/tcl-compiler/src/optimiser/code_sinking.rs`:
 
-1. **Sinkability check** (`_is_sinkable()`): `IRAssignConst(name="msg", value="Request denied")`
-   is sinkable — it is a simple constant assignment with no command
+1. **Sinkability check**: `Statement::AssignConst { name: "code", value:
+   "403", .. }` is sinkable — a simple constant assignment with no command
    substitutions.
+2. **Variable reference scan**: walks the `Statement::If` bodies
+   recursively.  `$code` appears only in the `else` body
+   (`HTTP::respond $code …`), not in the `if` body (which defines a new
+   `code`).
+3. **Deepest target**: the only use of the original `code` is in the
+   `else` branch → the sink target is the else body.
+4. **Emission**: a rewrite that prepends the sunk statement into the
+   target body.
 
-2. **Variable reference scan** (`_stmt_uses_var()`): walks the `IRIf` body
-   recursively.  `$msg` appears only in the `else` body (`HTTP::respond ...
-   $msg`), not in the `if` body (which defines a new `msg`).
+`tcl explore --show opt --text` on the source above:
 
-3. **Deepest target** (`_find_deepest_sink_targets()`): the only use of the
-   original `msg` is in the `else` branch → sink target is the else body.
+```
+=== opt ===
+└── O125 Sink 'code' into branch — prepend in target body → set code 403; HTTP::respond $code content $msg
+    · code: O125
+    · message: Sink 'code' into branch — prepend in target body
+    · replacement: set code 403; HTTP::respond $code content $msg
+    · range: 7:5  (117…149)
+```
 
-4. **Emission** (`_emit_sinking_opts()`): emits a grouped pair of O125
-   optimisations:
+Note the shape: this is **one** `Optimisation` whose `replacement`
+rewrites the whole target statement, not a delete/insert pair sharing a
+`group`.  The `group: Option<u32>` field exists for passes that genuinely
+need paired edits (allocated by `PassContext::alloc_group`); code sinking
+uses it only when it cannot express the move as a single span rewrite,
+and falls back to `hint_only: true` when the original `set`'s span is
+local-offset rather than file-absolute.
 
-```python
-# Part 1: Comment out the original statement
-Optimisation(
-    code="O125",
-    message="Sink set msg \"Request denied\" into else body",
-    range=Range(Pos(0,0,...), Pos(0,24,...)),   # set msg "Request denied"
-    replacement="",
-    group=0,
-)
+The `optimiserPasses` view shows which pass produced what, including the
+O102 load-forwarding rewrite the propagation pass finds on the same
+source:
 
-# Part 2: Insert at the start of the else body
-Optimisation(
-    code="O125",
-    message="Insert sunk set msg \"Request denied\"",
-    range=Range(Pos(6,0,...), Pos(6,0,...)),     # start of else body
-    replacement="    set msg \"Request denied\"\n",
-    group=0,
-)
+```
+=== optimiserPasses ===
+├── Copy / constant propagation (1)
+│   · pass: propagation
+│   └── O102 Forward literal load of 'code' from its single reaching definition → 403
+│       · range: 7:19  (131…136)
+├── Constant-branch folding (0)
+│   · pass: branch_folding
+…
 ```
 
 After applying O125 to both statements:
@@ -2489,34 +3139,42 @@ single event), so the second call is redundant.
 
 ### GVN pass — O105
 
-`find_redundant_computations()` in
-`gvn.py`:
+`rust/tcl-compiler/src/gvn.rs`.  Unlike the O1xx rewrites, GVN is a
+separate analysis rather than a `PassId` in `run_passes`, so it does not
+appear in the explorer's `optimiserPasses` breakdown:
 
-1. **Purity check** (`_is_pure_command()`): looks up `HTTP::uri` in the
-   command registry → `CommandSpec.pure = True`, `cse_candidate = True`.
-
-2. **Value numbering**: assigns a canonical `ExprKey` to each computation.
-   Both `[HTTP::uri]` calls get the same key `("HTTP::uri",)`.
-
+1. **Purity check** (`gvn::is_pure_command` / `is_pure_with_procs`):
+   looks up `HTTP::uri` in the command registry and checks its `Traits`
+   for `PURE` and `CSE_CANDIDATE`, and its declared `EffectRegion` writes
+   for `EffectRegion::NONE`.
+2. **Value numbering**: `gvn::build_call_key` assigns a canonical
+   `ExprKey` (a `Vec<String>` beginning `["call", command, …canonicalised
+   args]`) to each computation.  Both `[HTTP::uri]` calls get the same
+   key `["call", "HTTP::uri"]`.
 3. **Dominance check**: the first occurrence (in the `if` condition)
    dominates the second (in the `log` command) — every path to the `log`
-   statement passes through the `if` condition first.
-
+   statement passes through the `if` condition first.  The dominator tree
+   comes from `SsaFunction::dominator_tree`.
 4. **Kill check**: no barriers or mutating commands between the two
    occurrences invalidate the value.
-
 5. **Emission**:
 
-```python
-RedundantComputation(
-    range=Range(Pos(4,28,...), Pos(4,40,...)),    # second [HTTP::uri]
-    first_range=Range(Pos(1,8,...), Pos(1,20,...)),  # first [HTTP::uri]
-    expression_text="HTTP::uri",
-    code="O105",
-    message="Redundant computation of [HTTP::uri]; result already "
-            "available from line 2",
-)
+```rust
+RedundantComputation {
+    span: /* the second [HTTP::uri] */,
+    first_span: /* the first [HTTP::uri] */,
+    expression_text: "HTTP::uri".into(),
+    code: DiagCode::O105,
+    message: gvn::full_redundancy_message("HTTP::uri"),
+}
 ```
+
+`gvn` distinguishes three message shapes for the same finding —
+`full_redundancy_message`, `partial_redundancy_message` (the value is
+available on some but not all incoming paths), and
+`loop_invariant_message` (the `O106` LICM case).  Which one is used is
+what tells the reader whether extracting the value is unconditionally
+safe.
 
 The fix is to extract to a local variable:
 
@@ -2552,38 +3210,45 @@ proc compute {x} {
 
 ```
   entry_1:
-    temp₁ = expr {$x * 2}     uses: {x: 1}  defs: {temp: 1}
-    unused₁ = 99               uses: {}       defs: {unused: 1}
-    result₁ = expr {$temp + 1} uses: {temp: 1} defs: {result: 1}
-    return $result              uses: {result: 1}
+    temp#1   = expr {$x * 2}     uses: {x#1}     defs: {temp#1}
+    unused#1 = 99                uses: {}        defs: {unused#1}
+    result#1 = expr {$temp + 1}  uses: {temp#1}  defs: {result#1}
+    return $result               uses: {result#1}
 ```
 
 **Liveness analysis:**
-- `result₁` is live (read by `return`).
-- `temp₁` is live (read by the `result` expression).
-- `unused₁` is dead — never read by any statement.
+- `result#1` is live (read by `return`).
+- `temp#1` is live (read by the `result` expression).
+- `unused#1` is dead — never read by any statement.
 
 ### Elimination passes
 
-`optimise_elimination_passes()` in
-`_elimination.py`:
+`PassId::Elimination` → `rust/tcl-compiler/src/optimiser/elimination.rs`,
+which covers four codes: O107 unreachable blocks, O108 ADCE, O109 dead
+stores, and O126 unused-variable assignments.
 
-**O109 — Dead Store Elimination:**
-`unused₁` is assigned but never read.  The assignment `set unused 99` is
-a dead store:
+On this source it emits O126 — the assignment defines a variable no one
+ever reads:
 
-```python
-Optimisation(
-    code="O109",
-    message="Dead store: unused is set but never read",
-    range=Range(...),   # set unused 99
-    replacement="",
-)
+```
+=== opt ===
+└── O126 Remove unused variable assignment → 
+    · code: O126
+    · message: Remove unused variable assignment
+    · replacement: 
+    · range: 3:5  (52…65)
 ```
 
-**O107 — Dead Code Elimination (basic DCE):**
-If a conditional branch is unreachable (e.g. dead code after `return`), the
-entire block is flagged:
+Note the empty `replacement` — that is how a removal is expressed:
+rewrite the statement's span to nothing.
+
+**O109 — Dead Store Elimination** is the sibling case: a variable that
+*is* read somewhere, but whose particular store is overwritten before any
+read reaches it.  It comes from the `FunctionAnalysis::dead_stores`
+findings (`DeadStore { block, statement_index, variable, version }`).
+
+**O107 — unreachable code:**
+If a block is unreachable (e.g. code after `return`), it is flagged:
 
 ```tcl
 proc example {} {
@@ -2594,9 +3259,10 @@ proc example {} {
 
 **O108 — Aggressive DCE (ADCE):**
 Tracks statement-level liveness backwards from live roots (return values,
-side-effecting calls).  A statement is dead if its defined values are never
-used AND it has no side effects (checked via `_is_adce_removable_statement()`
-which inspects `FunctionExecutionIntent` for command substitution purity).
+side-effecting calls).  A statement is dead if its defined values are
+never used **and** it has no side effects — the second half checked
+against `FunctionExecutionIntent`, so a "dead" assignment whose
+right-hand side is `[http::geturl …]` survives (see Example 23).
 
 ---
 
@@ -2614,8 +3280,11 @@ append result $name
 append result "!"
 ```
 
-`optimise_string_build_chains()` recognises the `set` + `append` pattern →
-suggests combining into `set result "Hello ${name}!"` (O104).
+`PassId::PatternRecognition`
+(`rust/tcl-compiler/src/optimiser/pattern_recognition.rs`) recognises the
+`set` + `append` pattern and suggests combining into
+`set result "Hello ${name}!"` (O104).  The same pass covers `O130`, the
+`lappend` equivalent.
 
 ### O114 — Incr Idiom
 
@@ -2630,9 +3299,9 @@ set count [expr {$count + 1}]
 incr count
 ```
 
-`optimise_incr_idioms()` matches the pattern: the `set` target is the
-same variable used in the expression, and the expression is an integer
-addition.
+The same `PassId::PatternRecognition` pass matches this: the `set` target
+is the same variable used in the expression, and the expression is an
+integer addition.  It also emits `O119`, the multi-set packing hint.
 
 ---
 
@@ -2649,17 +3318,35 @@ if {$debug} {
 pool main_pool
 ```
 
-SCCP determines `debug₁ = CONST("0")` → the `if` condition is always
+SCCP determines `debug#1 = const(0)` → the `if` condition is always
 false → the body is unreachable.
 
-`optimise_structure_elimination()` in
-`_structure_elimination.py`
-replaces the entire `if {$debug} { ... }` block with nothing (O112),
-and a grouped O109 removes the dead `set debug 0`:
+`PassId::StructureElimination`
+(`rust/tcl-compiler/src/optimiser/structure_elimination.rs`) replaces the
+entire `if {$debug} { … }` block with nothing:
+
+```
+=== opt ===
+└── O112 Eliminate dead if (all conditions are always false) → 
+    · code: O112
+    · message: Eliminate dead if (all conditions are always false)
+    · replacement: 
+    · range: 2:1  (12…62)
+```
+
+The `optimiserPasses` view shows the branch-folding pass also proving the
+condition constant on the way (`O101 Fold constant expression → {0}`).
+Applying O112 leaves:
 
 ```tcl
+set debug 0
 pool main_pool
 ```
+
+The now-dead `set debug 0` is a separate finding from the elimination
+pass (`O126` / `O109`) on the next round, not a grouped part of the O112
+rewrite — running the optimiser at the `aggressive` profile, which
+re-runs `full` to a fixpoint, is what collapses both in one go.
 
 ---
 
@@ -2679,19 +3366,24 @@ proc factorial {n acc} {
 ```
 
 The recursive `factorial` call is the last expression in the proc →
-suggest `tailcall factorial ...` (O121).
+suggest `tailcall factorial …` (O121).  `PassId::TailCall`
+(`rust/tcl-compiler/src/optimiser/tail_call.rs`) emits this, in both a
+bare and a return-substitution variant, plus `O122` (the
+loop-conversion hint) and `O123` (the accumulator-candidate hint).
 
-### O126 — Dead variable after tail position
+### O126 — unused variable assignment
 
-When a variable is assigned but only consumed by a tail-position return
-that can be eliminated, O126 removes the dead store.
+When a variable is assigned but the eliminated tail expression was its
+only consumer, the assignment becomes unused and `O126` removes it.  That
+code comes from `PassId::Elimination`, not from the tail-call pass — the
+two cooperate across optimiser rounds rather than in one rewrite.
 
 ---
 
 ## Example 20: Error recovery — unclosed bracket
 
-Demonstrates how the parser handles malformed input by injecting virtual
-tokens so downstream passes receive clean commands.
+Demonstrates how the parser handles malformed input by inserting
+zero-width **ghost tokens** so downstream passes receive clean commands.
 
 ### Source (malformed)
 
@@ -2705,59 +3397,83 @@ end of the line without a matching `]`.
 
 ### Stage 0 — Error recovery
 
-`recovery.py` runs a first-pass parse via
-`segment_commands()`.  The segmenter detects that the `CMD` token starting
-at `[` is unterminated (the character after the CMD text is not `]`).
+`segment_with_recovery(source, config, known)`
+(`rust/tcl-compiler/src/segmenter.rs`) drives this.  It parses once
+plainly, then runs
+`analyser::syntax_checks::unterminated_bracket_diagnostics` over each
+command.  That check owns the E201 heuristics: the next non-blank line
+starts with `set`, a **known command**, which signals that `]` belongs at
+the end of line 1.
 
-**Heuristic — command-break detection** (`_detect_missing_bracket_at_command`):
-The next non-blank line starts with `set` — a known command name.  This
-signals that `]` should be inserted at the end of line 1.
+`known` is a `RecoveryKnownCommands` — the active registry's names plus
+every proc, class, and alias the document itself defines — so a break
+just before a call to a user-defined proc recovers as readily as one
+before a builtin.
 
-A `VirtualToken` is created:
+Recovery is expressed as a **ghost map**, `BTreeMap<u32, u8>` from source
+offset to the byte to pretend is there:
 
-```python
-VirtualToken(
-    offset=29,        # end of "hello" on line 1
-    char="]",         # the missing delimiter
-    diagnostic=Diagnostic(
-        code="E201",
-        message='missing close-bracket',
-        range=Range(Pos(0,8,...), Pos(0,8,...)),
-        severity=Severity.ERROR,
-        fix=CodeFix(
-            description='Insert "]"',
-            ...
-        ),
-    ),
-)
+```rust
+ghosts.insert(/* offset just past "hello" */, b']');
 ```
 
-**Re-parse with virtual token:** The lexer sees the injected `]` and
-produces a clean `CMD` token.  The second parse yields two well-formed
-`SegmentedCommand` objects:
+**Re-parse with the ghosts:**
+`parsing::syntax::build::build_document_with_ghosts(source, config,
+ghosts)` re-lexes the *unmodified* source with the ghost bytes applied,
+and `segment::segments_from_document` derives the command list from the
+resulting CST.  The loop repeats — a fresh diagnostic pass can reveal
+another break — bounded at `MAX_GHOST_RECOVERY_PASSES` (32).  The second
+parse yields two well-formed `SegmentedCommand` values:
 
-```python
-# Command 1 (recovered):
-SegmentedCommand(texts=["set", "x", '[string length "hello"]'])
+```rust
+// Command 1 (recovered):
+SegmentedCommand { texts: vec!["set", "x", "[string length \"hello\"]"], .. }
 
-# Command 2 (clean):
-SegmentedCommand(texts=["set", "y", "42"])
+// Command 2 (clean):
+SegmentedCommand { texts: vec!["set", "y", "42"], .. }
 ```
 
-Both downstream passes (IR lowering, CFG, SSA, codegen) proceed on the
-clean parse.  The `E201` diagnostic is emitted to the editor so the user
-sees the error.
+Because the ghosts are applied at *lex* time rather than by editing the
+source, every span downstream still points into the real file — the
+recovered command's range covers what the user actually typed.
 
-### Error recovery heuristics
+Both downstream stages (IR lowering, CFG, SSA, codegen) proceed on the
+clean parse.  The `E201` diagnostic, with its "insert `]`" `CodeFix`, is
+returned alongside the commands and published to the editor.
 
-| Code | Condition | Heuristic |
-|------|-----------|-----------|
-| E201 | Missing `]` | `#` comment on next line, known command on next line, or `{` inside `[` |
-| E202 | Missing `"` | Newline with known command on next non-blank line |
-| E203 | Missing `}` | De-indented line starting with a known command |
-| E204 | Extra chars after `}` | Lexer warning |
-| E205 | Extra chars after `"` | Lexer warning |
-| E206 | Missing `}` for `${var` | Lexer warning |
+### The other recovery path — tail re-segmentation
+
+When no ghost applies but a token still runs to EOF,
+`segment_commands_with_recovery` takes over.  It:
+
+1. Finds the suspicious EOF-reaching token (`find_suspicious_token`) — a
+   `Cmd` token immediately, or a `Str` / `Esc` token that spans at least
+   `RECOVERY_LINE_THRESHOLD` (3) lines.
+2. Marks the last command `is_partial = true` and records
+   `partial_delimiter: Some(UnclosedDelimiter::{Brace|Bracket|Quote})`,
+   mapped from the token kind (`Str` → `Brace`, `Cmd` → `Bracket`,
+   `Esc` → `Quote`).
+3. Scans the swallowed text for the first line whose first word is a
+   known command (`find_recovery_offset`), and re-segments the source
+   from there as a fresh command stream.
+
+`UnclosedDelimiter::missing_message()` supplies the `E200` text —
+"missing close-brace", "missing close-bracket", or `missing "`.
+
+### Error recovery diagnostics
+
+| Code | Meaning |
+|------|---------|
+| E200 | Unterminated command — the parser could not tell where it ends (missing `]` / `"` / `}`) |
+| E201 | Unterminated command substitution — missing close bracket `]` |
+| E202 | Unterminated double-quoted string — missing closing `"` |
+| E203 | Unterminated braced word — missing closing `}` |
+| E204 | Extra characters after the close brace of a `${name}` reference |
+| E205 | Extra characters after the close quote in a variable name |
+| E206 | Missing close brace for a `${name}` variable reference |
+
+E204–E206 are lexer warnings lifted by the analyser rather than
+segmenter-driven recoveries.
 
 ---
 
@@ -2771,35 +3487,45 @@ unbraced expressions differ.
 The braces protect the expression from Tcl substitution — the content is
 passed verbatim to the expression parser.
 
-**Tokenisation** (`tokenise_expr()`): produces `ExprToken` stream:
+**Tokenisation** — `tcl_lexer::tokenise_expr(source, dialect)` produces a
+`Vec<ExprToken>`, each `{ kind: ExprTokenType, text: String, start: u32,
+… }`:
 
 ```
-ExprToken(VAR, "$a")
-ExprToken(OP, "+")
-ExprToken(VAR, "$b")
-ExprToken(OP, "*")
-ExprToken(NUM, "2")
+ExprToken { kind: Variable, text: "$a" }
+ExprToken { kind: Operator, text: "+"  }
+ExprToken { kind: Variable, text: "$b" }
+ExprToken { kind: Operator, text: "*"  }
+ExprToken { kind: Number,   text: "2"  }
 ```
 
-**Pratt parsing** (`_PrattParser` in
-`expr_parser.py`):
+`ExprTokenType` is `Number`, `String`, `Variable`, `Command`, `Operator`,
+`ParenOpen`, `ParenClose`, `Comma`, `Function`, `Bool`, `TernaryQ`,
+`TernaryC`, `Whitespace`, `Eof`.  The dialect argument is what admits the
+iRules word operators — they lex as `Operator` only under the iRules
+profile.
 
-The parser uses binding powers to handle precedence:
-- `*` has binding power (22, 23) — higher than `+` at (20, 21).
-- So `$b * 2` binds tighter than `$a + ...`.
+**Pratt parsing** — `tcl_syntax::expr::parser::parse_expr(source,
+dialect)` (with `parse_expr_cached` for the memoised variant).  The
+parser uses `binary_bp(op_text) -> Option<(u8, u8)>` binding powers,
+where left-associative operators get `right_bp = left_bp + 1` and
+right-associative ones get `right_bp = left_bp`:
+
+- `*` has binding power `(22, 23)` — higher than `+` at `(20, 21)`.
+- So `$b * 2` binds tighter than `$a + …`.
 
 Result:
 
-```python
-ExprBinary(
-    op=BinOp.ADD,
-    left=ExprVar(text="$a", name="a"),
-    right=ExprBinary(
-        op=BinOp.MUL,
-        left=ExprVar(text="$b", name="b"),
-        right=ExprLiteral(text="2"),
-    ),
-)
+```rust
+ExprNode::Binary {
+    op: BinOp::Add,
+    left: Box::new(ExprNode::Var { text: "$a".into(), name: "a".into(), .. }),
+    right: Box::new(ExprNode::Binary {
+        op: BinOp::Mul,
+        left: Box::new(ExprNode::Var { text: "$b".into(), name: "b".into(), .. }),
+        right: Box::new(ExprNode::Literal { text: "2".into(), .. }),
+    }),
+}
 ```
 
 ### Unbraced expression: `expr $a + $b * 2`
@@ -2808,7 +3534,7 @@ Without braces, Tcl performs variable substitution *before* the
 expression is compiled.  The segmenter sees multiple tokens:
 
 ```
-Token(VAR, "a")  Token(ESC, "+")  Token(VAR, "b")  ...
+Var "a"   Esc "+"   Var "b"   …
 ```
 
 These are concatenated into a single text `"${a} + ${b} * 2"`.
@@ -2816,76 +3542,115 @@ The expression parser receives a string with *already-substituted*
 variable references, but since it cannot know the runtime values, it
 falls back to:
 
-```python
-ExprRaw(text="${a} + ${b} * 2")
+```rust
+ExprNode::Raw { text: "${a} + ${b} * 2".into() }
 ```
 
-`ExprRaw` is the fallback — the compiler cannot statically analyse the
-expression, which is why diagnostic **W100** ("Unbraced expr body")
-warns about this pattern.  Braced expressions enable compile-time
-parsing, constant folding, and type inference.
+`ExprNode::Raw` is the universal fallback — `parse_expr` returns it on
+*any* parse error, so the pipeline never panics on a malformed
+expression.  Every consumer must treat `Raw` as "give up".  This is why
+diagnostic **`W100`** ("unbraced expression argument") warns about the
+pattern: braced expressions enable compile-time parsing, constant
+folding, and type inference; unbraced ones also risk double
+substitution, which is why `W100` escalates to an error when the
+argument provably contains a substitution.
 
 ### iRules extensions
 
-The Pratt parser also handles iRules-specific operators at the same
-precedence as their symbolic counterparts:
+The Pratt parser handles the iRules word operators at the same binding
+powers as their symbolic counterparts (verbatim from `binary_bp`):
 
-| iRules operator | Equivalent | Binding power |
-|----------------|------------|--------------|
-| `starts_with` | `eq` (prefix) | (14, 15) |
-| `ends_with` | `eq` (suffix) | (14, 15) |
-| `contains` | `eq` (substring) | (14, 15) |
-| `matches_glob` | glob match | (14, 15) |
-| `matches_regex` | regexp | (14, 15) |
-| `and` / `or` | `&&` / `\|\|` | (6,7) / (4,5) |
+| iRules operator | `BinOp` variant | Binding power |
+|-----------------|-----------------|---------------|
+| `contains`      | `Contains`      | (14, 15) |
+| `starts_with`   | `StartsWith`    | (14, 15) |
+| `ends_with`     | `EndsWith`      | (14, 15) |
+| `equals`        | `StrEquals`     | (14, 15) |
+| `matches_glob`  | `MatchesGlob`   | (14, 15) |
+| `matches_regex` | `MatchesRegex`  | (14, 15) |
+| `and`           | `WordAnd`       | (6, 7)   |
+| `or`            | `WordOr`        | (4, 5)   |
+| `not` (unary)   | `UnaryOp::WordNot` | — |
+
+(14, 15) is the `== != eq ne` tier, so all six string operators sit
+exactly where `eq` does; `and` / `or` sit exactly where `&&` / `||` do.
 
 ---
 
 ## Example 22: Lowering dispatch — `arg_roles` and command classification
 
-Shows how `_lower_command()` in
-`lowering.py` dispatches each command to
-the appropriate IR node using registry metadata.
+Shows how `Lowerer::lower_command` in
+`rust/tcl-compiler/src/lowering/mod.rs` dispatches each command to the
+appropriate IR statement using registry metadata.  **There is no
+`match cmd_name` ladder**: dispatch is on a typed `LoweringHookId` the
+registry stamps onto the spec.
 
 ### Dispatch hierarchy
 
 ```
-_lower_command(cmd)
+lower_command(cmd, namespace)
     │
-    ├─ Check lowering hook on CommandSpec → spec.lowering(lowerer, cmd)
-    │   (e.g. set → lower_set(), incr → lower_incr())
+    ├─ try_dispatch_structured_hook(cmd_name, seg, namespace)
+    │     │
+    │     ├─ registry.resolve_invocation(cmd_name, args, dialect)
+    │     │     → canonical resolution, so an alias or a dialect-specific
+    │     │       variant dispatches correctly
+    │     │
+    │     └─ match resolved.semantics.lowering_hook:
+    │           LoweringHookId::If         → lower_if()         → Statement::If
+    │           LoweringHookId::For        → lower_for()        → Statement::For
+    │           LoweringHookId::While      → lower_while()      → Statement::While
+    │           LoweringHookId::Foreach    → lower_foreach()    → Statement::Foreach
+    │           LoweringHookId::Switch     → lower_switch()     → Statement::Switch
+    │           LoweringHookId::Catch      → lower_catch()      → Statement::Catch
+    │           LoweringHookId::Try        → lower_try()        → Statement::Try
+    │           LoweringHookId::Set        → the `set` hook (table below)
+    │           LoweringHookId::Incr       → Statement::Incr
+    │           LoweringHookId::Proc       → lower_proc()       → a Procedure
+    │           LoweringHookId::When       → an iRules event-handler Procedure
+    │           LoweringHookId::NamespaceEval → a body unit
+    │           LoweringHookId::Uplevel    → Statement::UpFrame, or fall through
+    │           LoweringHookId::Eval       → Statement::Block,   or fall through
+    │           LoweringHookId::Apply      → a lambda body unit + a barrier
+    │           …                             (27 hook IDs in total)
     │
-    ├─ match cmd_name:
-    │   ├─ "proc"     → extract params, lower body, register IRProcedure
-    │   ├─ "when"     → lower iRules event handler body
-    │   ├─ "if"       → _lower_if() → IRIf with IRIfClause list
-    │   ├─ "for"      → _lower_for() → IRFor (init, cond, step, body)
-    │   ├─ "while"    → _lower_while() → IRWhile (cond, body)
-    │   ├─ "foreach"  → _lower_foreach() → IRForeach
-    │   ├─ "catch"    → _lower_catch() → IRCatch
-    │   ├─ "try"      → _lower_try() → IRTry with IRTryHandler
-    │   ├─ "switch"   → _lower_switch() → IRSwitch with IRSwitchArm
-    │   ├─ eval/uplevel/upvar → IRBarrier (defeats static analysis)
-    │   │
-    │   └─ default (fallthrough):
-    │       ├─ arg_indices_for_role(BODY) → IRBarrier (has body args)
-    │       ├─ arg_indices_for_role(VAR_NAME) → IRCall with defs
-    │       └─ else → IRCall (generic)
+    └─ lower_default(seg, namespace)
+          ├─ a body-role argument that could not be lowered → Statement::Barrier
+          ├─ ArgRole::VarWrite positions                    → Statement::Call with defs
+          └─ otherwise                                      → Statement::Call
 ```
 
-### Example: `lower_set()` — the `set` lowering hook
+Two properties fall out of dispatching on the hook ID rather than the
+name.  A spec that aliases an existing form dispatches correctly the
+moment its `lowering_hook` is stamped, with no walker change; and the
+hook ID is the canonical key the audit, LSP, and compiler-explorer
+surfaces consume.
 
-`set` has a registered lowering hook
-(`_var.py:53`).
-It pattern-matches on the second argument's token type:
+**Fall-through is the safety mechanism.**  Hooks whose form has a shape
+precondition (`Proc`, `NamespaceEval`, `Foreach`, `Lmap`, `Dict`, `When`,
+`ForeachLine`) return `None` when the precondition fails, so
+`lower_default` catches the call rather than the specialised lowerer
+crashing on it.  `Uplevel` and `Eval` do the same by value: only a
+brace-literal body is specialised, and a dynamic body
+(`uplevel 1 $body`, `eval [cmd]`) falls back to the generic
+`Call` / `Barrier` that carries the unresolved arguments.
 
-| Token type of `args[1]` | IR node produced | Example |
-|-------------------------|-----------------|---------|
-| `STR` (braced string) | `IRAssignConst` | `set x {hello}` |
-| `ESC` (decimal integer) | `IRAssignConst` | `set x 42` |
-| `CMD` wrapping `expr` | `IRAssignExpr` | `set x [expr {$a + 1}]` |
-| `VAR` or interpolated | `IRAssignValue` | `set x $y`, `set x "hi $name"` |
-| 0 args (getter) | `IRCall` | `set x` (read variable) |
+### Example: the `set` lowering hook
+
+`set` carries `lowering_hook: Some(LoweringHookId::Set)`.  The hook
+pattern-matches on the second argument's token kind:
+
+| Token kind of `args[1]` | Statement produced | Example |
+|-------------------------|--------------------|---------|
+| `Str` (braced string) | `AssignConst` | `set x {hello}` |
+| `Esc` (decimal integer) | `AssignConst` | `set x 42` |
+| `Cmd` wrapping `expr` | `AssignExpr` | `set x [expr {$a + 1}]` |
+| `Var` or interpolated | `AssignValue` | `set x $y`, `set x "hi $name"` |
+| 0 args (getter) | `Call` | `set x` (read variable) |
+
+A braced name word also sets `name_braced: true` on the produced
+statement, which is what stops `set {a($x)} v` from having its key
+substituted.
 
 ### Example: fallthrough with `arg_roles`
 
@@ -2895,48 +3660,56 @@ For a command like `regexp`:
 regexp {(\d+)} $input match submatch
 ```
 
-The registry declares `ArgRole.VAR_NAME` at arg indices 2 and 3 (the
-match variables).  The fallthrough path calls:
+The registry declares `ArgRole::VarWrite` at arg indices 2 and 3 (the
+match variables).  `lower_default` reads those positions off the resolved
+spec and produces:
 
-```python
-var_indices = arg_indices_for_role("regexp", args, ArgRole.VAR_NAME)
-# → {2, 3}  (match, submatch)
+```rust
+Statement::Call {
+    span: /* … */,
+    command: "regexp".into(),
+    canonical_command: Some("::regexp".into()),
+    args: vec![r"(\d+)".into(), "${input}".into(), "match".into(), "submatch".into()],
+    defs: vec!["match".into(), "submatch".into()],   // SSA tracks these as definitions
+    reads: vec![],
+    reads_own_defs: false,
+    safe_on_uninit: false,
+    tokens: /* … */,
+    foreach_groups: None,
+}
 ```
 
-This produces:
-
-```python
-IRCall(
-    command="regexp",
-    args=(r"(\d+)", "${input}", "match", "submatch"),
-    defs=("match", "submatch"),   # SSA tracks these as definitions
-)
-```
-
-The `defs` tuple tells the SSA builder that `regexp` defines `match` and
-`submatch`, so they get new SSA versions.
+The `defs` vector tells the SSA builder that `regexp` defines `match` and
+`submatch`, so they get new SSA versions.  Nothing in the lowerer knows
+the name `regexp` — the whole behaviour is the spec's `arg_roles`.
 
 ### Example: barrier commands
 
-Commands in `_DYNAMIC_BARRIER_COMMANDS` (e.g. `eval`, `uplevel`, `upvar`)
-always produce `IRBarrier`:
+A command whose effects cannot be modelled — a dynamic `eval` /
+`uplevel` / `upvar` — produces `Statement::Barrier`:
 
 ```tcl
 eval $script
 ```
 
-```python
-IRBarrier(
-    range=Range(...),
-    reason="dynamic command",
-    command="eval",
-    args=("${script}",),
-)
+```rust
+Statement::Barrier {
+    span: /* … */,
+    reason: /* human-readable, e.g. "dynamic command" */,
+    command: "eval".into(),
+    canonical_command: Some("::eval".into()),
+    args: vec!["${script}".into()],
+    tokens: /* … */,
+}
 ```
 
-`IRBarrier` tells all downstream passes: *stop reasoning about variable
-state here* — the command can read/write any variable, define new
-procedures, or modify the call stack.
+`Barrier` tells all downstream passes: *stop reasoning about variable
+state here* — the command can read or write any variable, define new
+procedures, or modify the call stack.  Note that this is the *fallback*:
+`eval {literal body}` is instead lowered to `Statement::Block`, whose
+body is analysed normally, and `uplevel 1 {literal body}` to
+`Statement::UpFrame`.  The barrier is only reached when the body is
+genuinely unknowable.
 
 ---
 
@@ -2958,57 +3731,73 @@ proc process {items} {
 
 ### Execution intent construction
 
-`build_execution_intent()` in
-`execution_intent.py` walks each
-`IRAssignValue` in the CFG and parses the command substitution:
+`build_function_execution_intent()` in
+`rust/tcl-compiler/src/execution_intent.rs` walks each
+`Statement::AssignValue` in the CFG, parses the command substitution, and
+classifies it through `side_effects::classify_side_effects`:
 
 **`[llength $items]`:**
 
-```python
-CommandSubstitutionIntent(
-    command="llength",
-    args=("$items",),
-    arg_categories=(SubstitutionCategory.SCALAR_VAR,),
-    side_effect=SideEffectClass.PURE,      # llength is pure
-    escape=EscapeClass.NO_ESCAPE,          # no dynamic barriers
-    shimmer_pressure=1,                     # one var arg
-)
+```rust
+CommandSubstitutionIntent {
+    command: "llength".into(),
+    args: vec!["$items".into()],
+    arg_categories: vec![SubstitutionCategory::ScalarVar],
+    side_effect: SideEffectClass::Pure,      // llength is pure
+    escape: EscapeClass::NoEscape,           // no dynamic barriers
+    shimmer_pressure: 1,                     // one var arg
+    invocation_shape: InvocationShape::CommandSubstitution,
+}
 ```
 
 **`[format "Total: %d" $count]`:**
 
-```python
-CommandSubstitutionIntent(
-    command="format",
-    args=('"Total: %d"', "$count"),
-    arg_categories=(SubstitutionCategory.LITERAL, SubstitutionCategory.SCALAR_VAR),
-    side_effect=SideEffectClass.PURE,
-    escape=EscapeClass.NO_ESCAPE,
-    shimmer_pressure=1,
-)
+```rust
+CommandSubstitutionIntent {
+    command: "format".into(),
+    args: vec!["\"Total: %d\"".into(), "$count".into()],
+    arg_categories: vec![SubstitutionCategory::Literal, SubstitutionCategory::ScalarVar],
+    side_effect: SideEffectClass::Pure,
+    escape: EscapeClass::NoEscape,
+    shimmer_pressure: 1,
+    invocation_shape: InvocationShape::CommandSubstitution,
+}
 ```
 
 **`[http::geturl $url]`:**
 
-```python
-CommandSubstitutionIntent(
-    command="http::geturl",
-    args=("$url",),
-    arg_categories=(SubstitutionCategory.SCALAR_VAR,),
-    side_effect=SideEffectClass.MAY_SIDE_EFFECT,  # network I/O
-    escape=EscapeClass.MAY_ESCAPE,                 # may throw
-    shimmer_pressure=1,
-)
+```rust
+CommandSubstitutionIntent {
+    command: "http::geturl".into(),
+    args: vec!["$url".into()],
+    arg_categories: vec![SubstitutionCategory::ScalarVar],
+    side_effect: SideEffectClass::MaySideEffect,  // network I/O
+    escape: EscapeClass::MayEscape,               // may throw
+    shimmer_pressure: 1,
+    invocation_shape: InvocationShape::CommandSubstitution,
+}
 ```
+
+`SubstitutionCategory` is `Literal`, `ScalarVar`, `ArrayVar`,
+`NestedCommand`, or `Mixed`; `SideEffectClass` is `Pure` or
+`MaySideEffect`; `EscapeClass` is `NoEscape` or `MayEscape`.  All three
+are deliberately two- or five-valued: the point is a cheap conservative
+tag, not a second effect model.
+
+The results are collected into a
+`FunctionExecutionIntent { command_substitutions: HashMap<StatementKey,
+CommandSubstitutionIntent> }`, keyed by `StatementKey = (String, usize)`
+— the block name and statement index — and looked up with
+`FunctionExecutionIntent::intent_for(block, stmt_idx)`.
 
 ### How ADCE uses execution intent
 
-`_is_adce_removable_statement()` checks the intent before removing a
-"dead" assignment:
+The elimination pass checks the intent before removing a "dead"
+assignment:
 
-- `[llength $items]` → PURE + NO_ESCAPE → **safe to remove** if `count`
-  is never read.
-- `[http::geturl $url]` → MAY_SIDE_EFFECT → **cannot remove** even if
+- `[llength $items]` → `Pure` + `NoEscape` → **safe to remove** if
+  `count` is never read.
+- `[http::geturl $url]` → `MaySideEffect` → **cannot remove** even if
   `result` is never read (the network call is observable).
 
 ---
@@ -3031,46 +3820,45 @@ proc main {a b} {
 }
 ```
 
-### Phase 1 — Local facts (`ProcLocalSummary`)
+### Phase 1 — Local facts
 
-For each procedure, the interprocedural pass builds local facts by
-walking the IR:
+`build_interprocedural_analysis(ir_module, registry, dialect,
+object_types, …)` in `rust/tcl-compiler/src/interprocedural.rs` walks the
+IR and seeds one `ProcSummary` per procedure with purely *local* facts —
+what the body itself does, before any callee is considered.  There is no
+separate `ProcLocalSummary` type in Rust; the same `ProcSummary` struct
+is filled in place and then refined.
 
-**`::helper`:**
+For `::helper`, the local seed is: no internal proc calls, no barrier, no
+global writes, and a return value that depends on the parameter `x`.
+For `::main`: `calls` contains `::helper`, and `puts` contributes a
+log-output effect write.
 
-```python
-ProcLocalSummary(
-    qualified_name="::helper",
-    params=("x",),
-    arity=Arity(1, 1),
-    calls=(),                        # no internal proc calls
-    has_barrier=False,               # no eval/uplevel
-    has_unknown_calls=False,
-    writes_global=False,
-    local_effect_reads=EffectRegion(0),   # reads only local params
-    local_effect_writes=EffectRegion(0),  # writes only local var
-    returns_constant=False,               # depends on param
-    constant_return=None,
-    return_depends_on_params=("x",),      # return value depends on x
-    return_passthrough_param=None,
-)
+Effects are compared as a coarse bitset rather than the full structured
+model — `EffectRegion` in
+`rust/tcl-compiler/src/side_effects.rs`:
+
+```rust
+bitflags! {
+    pub struct EffectRegion: u32 {
+        /// No region.
+        const NONE               = 0;
+        /// Any HTTP state (header, body, status, URI, cookie, method, HTTP/2).
+        const HTTP_STATE         = 1 << 0;
+        /// Response lifecycle (commit / redirect / respond).
+        const RESPONSE_LIFECYCLE = 1 << 1;
+        /// Global or namespace-scoped variable state.
+        const GLOBAL_STATE       = 1 << 2;
+        /// Catch-all for unknown effects.
+        const UNKNOWN_STATE      = 1 << 3;
+    }
+}
 ```
 
-**`::main`:**
-
-```python
-ProcLocalSummary(
-    qualified_name="::main",
-    params=("a", "b"),
-    arity=Arity(2, 2),
-    calls=("::helper",),            # calls helper
-    has_barrier=False,
-    has_unknown_calls=False,
-    writes_global=False,
-    local_effect_reads=EffectRegion(0),
-    local_effect_writes=EffectRegion.LOG_IO,  # puts writes to output
-)
-```
+Four bits, deliberately.  The structured `SideEffectTarget` model is the
+authoritative one; `EffectRegion` exists purely so GVN and the
+interprocedural solver can do kill checks with a bitwise AND.
+`target_to_region(target, scope)` is the projection.
 
 ### Phase 2 — Transitive closure
 
@@ -3079,43 +3867,58 @@ The solver iterates over the call graph to propagate effects:
 1. `::helper` has no callees → its summary is final.
 2. `::main` calls `::helper`:
    - `::helper` is pure → no additional effect reads/writes propagated.
-   - `::main` calls `puts` → `LOG_IO` effect write.
-   - `::main` is NOT pure (has `puts` side effect).
+   - `::main` calls `puts` → an effect write.
+   - `::main` is therefore NOT pure.
+
+`ProcSummary` keeps `calls` (the transitive set) and `direct_calls`
+(the immediate ones) separately, so a consumer can ask either question.
 
 ### Phase 3 — Constant folding eligibility
 
 `::helper` meets the criteria for `can_fold_static_calls`:
-- No barrier
-- No unknown calls
-- No global writes
+- No barrier (`has_barrier: false`)
+- No unknown calls (`has_unknown_calls: false`)
+- No global writes (`writes_global: false`)
 - Return depends only on parameters
 - Body is a single expression
 
-When the optimiser encounters `[helper 21]` with a constant argument,
-`fold_static_proc_call()` evaluates the body with `x₁ = 21` →
-`21 * 2` = `42` (O103).
+When the optimiser encounters `[helper 21]` with a constant argument, it
+evaluates the body with `x#1 = 21` → `21 * 2` = `42`, and emits **O103**.
 
 ### Final `ProcSummary`
 
-```python
-ProcSummary(
-    qualified_name="::helper",
-    params=("x",),
-    arity=Arity(1, 1),
-    calls=(),
-    has_barrier=False,
-    has_unknown_calls=False,
-    writes_global=False,
-    pure=True,
-    effect_reads=EffectRegion(0),
-    effect_writes=EffectRegion(0),
-    returns_constant=False,
-    constant_return=None,
-    return_depends_on_params=("x",),
-    return_passthrough_param=None,
-    can_fold_static_calls=True,
-)
+```rust
+ProcSummary {
+    qualified_name: "::helper".into(),
+    params: vec!["x".into()],
+    arity: Arity::exact(1),
+    calls: vec![],
+    direct_calls: vec![],
+    has_barrier: false,
+    has_unknown_calls: false,
+    writes_global: false,
+    pure: true,
+    effect_reads: EffectRegion::NONE,
+    effect_writes: EffectRegion::NONE,
+    returns_constant: false,
+    constant_return: None,
+    return_depends_on_params: vec!["x".into()],
+    return_passthrough_param: None,
+    can_fold_static_calls: true,
+    param_traits: /* HashMap<String, HashSet<ProcArgTrait>> */,
+}
 ```
+
+`constant_return` is an `Option<ConstantReturn>` —
+`Int(i64)` / `Float(f64)` / `Bool(bool)` / `Str(String)` — so a proc that
+*always* returns the same value can be folded without evaluating its body
+at all.  `param_traits` records what each parameter is used *as* (a
+`HashSet<ProcArgTrait>` per name), which is what lets a caller's argument
+be type-checked against the callee.
+
+TclOO methods get a `MethodSummary` instead, which wraps a `ProcSummary`
+as `base` and adds `class_name`, `method_kind`, the instance variables
+read and written, `calls_my`, and `calls_next`.
 
 ---
 
@@ -3145,60 +3948,79 @@ stack.  Variables set in `CLIENT_ACCEPTED` persist until the connection
 closes, so `conn_start` and `request_count` in `HTTP_REQUEST` are
 *not* read-before-set errors — they were defined in an earlier event.
 
-Without connection scope analysis, the compiler would emit false
-positives: `W103` (read before set) for `$request_count` and
-`$conn_start` in `HTTP_REQUEST`.
+Without connection-scope analysis, the compiler would emit false
+positives: **`W210`** (variable read before set) for `$request_count` and
+`$conn_start` in `HTTP_REQUEST`, and **`W211`** (variable set but never
+used) for both in `CLIENT_ACCEPTED`.
 
 ### EventVarSummary construction
 
-`_extract_event_summary()` in
-`connection_scope.py` walks
-each event's SSA blocks:
+`extract_event_summary(event, function_unit)` in
+`rust/tcl-compiler/src/connection_scope.rs` walks each event's SSA
+blocks:
 
 **CLIENT_ACCEPTED:**
 
-```python
-EventVarSummary(
-    event="CLIENT_ACCEPTED",
-    defs=frozenset({"conn_start", "request_count"}),
-    uses_before_def=frozenset(),    # no version-0 reads
-    unsets=frozenset(),
-)
+```rust
+EventVarSummary {
+    event: "CLIENT_ACCEPTED".into(),
+    defs: HashSet::from(["conn_start".into(), "request_count".into()]),
+    uses_before_def: HashSet::new(),   // no version-0 reads
+    unsets: HashSet::new(),
+}
 ```
 
 **HTTP_REQUEST:**
 
-```python
-EventVarSummary(
-    event="HTTP_REQUEST",
-    defs=frozenset({"request_count"}),      # incr defines it
-    uses_before_def=frozenset({"request_count", "conn_start"}),  # version 0
-    unsets=frozenset(),
-)
+```rust
+EventVarSummary {
+    event: "HTTP_REQUEST".into(),
+    defs: HashSet::from(["request_count".into()]),   // incr defines it
+    uses_before_def: HashSet::from([
+        "request_count".into(),
+        "conn_start".into(),
+    ]),                                              // version 0
+    unsets: HashSet::new(),
+}
 ```
 
 ### Cross-event set computation
 
-`build_connection_scope()` compares every pair of events:
+`build_connection_scope(when_procedures, …)` takes the subset of
+`CompilationUnit::procedures` whose qualified names start with
+`::when::` and compares events:
 
 - `CLIENT_ACCEPTED` defines `{conn_start, request_count}`.
 - `HTTP_REQUEST` uses-before-def `{request_count, conn_start}`.
 - Intersection: `{conn_start, request_count}` — these flow across events.
 
-```python
-ConnectionScope(
-    summaries={...},
-    cross_event_defs=frozenset({"conn_start", "request_count"}),
-    cross_event_imports=frozenset({"conn_start", "request_count"}),
-)
+```rust
+ConnectionScope {
+    summaries: /* one EventVarSummary per event */,
+    cross_event_defs: HashSet::from(["conn_start".into(), "request_count".into()]),
+    cross_event_imports: HashSet::from(["conn_start".into(), "request_count".into()]),
+    racy_static_defs: HashSet::new(),
+}
 ```
+
+The two cross-event sets are deliberately separate, because they suppress
+different diagnostics from opposite ends: `cross_event_defs` is the
+**producer** side (suppressing dead-store / unused-variable findings in
+`CLIENT_ACCEPTED`), `cross_event_imports` the **consumer** side
+(suppressing `W210` in `HTTP_REQUEST`).
+
+`racy_static_defs` is the fourth field with no counterpart in the
+suppression story: `static::` variables written outside `RULE_INIT` and
+read in another event, which *raise* a finding — **`IRULE4005`** — rather
+than suppressing one.
 
 ### Effect on diagnostics
 
-The optimiser's `PassContext` receives `cross_event_vars` when processing
-`HTTP_REQUEST`.  Dead store elimination (O109) and read-before-set
-diagnostics check whether a variable is in `cross_event_vars` before
-reporting — suppressing false positives for `conn_start` and
+The result is cached on `CompilationUnit::connection_scope` and consumed
+by the optimiser's `PassContext` and the analyser's variable checks.
+Dead-store elimination (`O109`), unused-variable (`W211`), and
+read-before-set (`W210`) all consult the cross-event sets before
+reporting — suppressing the false positives for `conn_start` and
 `request_count`.
 
 ---
@@ -3220,52 +4042,74 @@ mylib::compute 5
 
 ### `normalise_qualified_name()` — the core helper
 
-`naming.py` provides the canonical form:
+`tcl_syntax::naming` (`rust/tcl-syntax/src/naming.rs`) provides the
+canonical form.  From its own doc examples:
 
-```python
-normalise_qualified_name("helper")       → "::helper"
-normalise_qualified_name("::helper")     → "::helper"
-normalise_qualified_name("mylib::helper") → "::mylib::helper"
-normalise_qualified_name("::mylib::helper") → "::mylib::helper"
-
-# Collapsed double-colons:
-normalise_qualified_name("::::foo::::bar") → "::foo::bar"
+```rust
+assert_eq!(normalise_qualified_name("foo"),      "::foo");
+assert_eq!(normalise_qualified_name("ns::bar"),  "::ns::bar");
+assert_eq!(normalise_qualified_name("::baz"),    "::baz");
+assert_eq!(normalise_qualified_name(""),         "");
+assert_eq!(normalise_qualified_name("::::x"),    "::x");   // colon runs collapse
+assert_eq!(normalise_qualified_name("::"),       "::");
 ```
+
+Its sibling `qualify(prefix, name)` is the join used everywhere a
+namespace prefix meets a written name, and it encodes the rule that
+matters: an **absolute** `name` ignores the prefix entirely —
+`qualify("::ns", "::other::C")` is `::other::C`, never re-prefixed.
 
 ### How namespace context propagates through lowering
 
-`_lower_command()` carries a `namespace` parameter that tracks the
-current namespace:
+Every lowering entry point carries a `namespace: &str` parameter tracking
+the current namespace:
 
-1. Top-level: `namespace="::"`
-2. Inside `namespace eval mylib { ... }`:
-   - `_join_namespace("::", "mylib")` → `"::mylib"`
-   - `namespace="::mylib"` is passed to body lowering
-3. `proc helper` inside `::mylib`:
-   - `_qualify_proc_name("::mylib", "helper")` → `"::mylib::helper"`
-4. `proc compute` inside `::mylib`:
-   - `_qualify_proc_name("::mylib", "compute")` → `"::mylib::compute"`
+1. Top level: `namespace = "::"`.
+2. Inside `namespace eval mylib { … }`: the `LoweringHookId::NamespaceEval`
+   hook computes `::mylib` and threads it into body lowering; the body is
+   also recorded as a *body unit* so analysis reaches inside it.
+3. `proc helper` inside `::mylib` → `Procedure { name: "helper",
+   qualified_name: "::mylib::helper", namespace_scoped: true, .. }`.
+4. `proc compute` inside `::mylib` → `::mylib::compute`.
 
-### How interprocedural analysis resolves calls
+`Statement::Block` also carries the fully-qualified `namespace` its body
+was lowered in, so an inlined `eval` body still resolves bare calls
+against the right namespace.
 
-Inside `::mylib::compute`, the call `helper $a` is unqualified.
-`resolve_internal_call("helper", "::mylib::compute", known_procs)`:
+### How call resolution works
 
-1. Extract namespace parts from caller: `["mylib"]`
-2. Try `::mylib::helper` → found in known procs → return it.
+Inside `::mylib::compute`, the call `helper $a` is unqualified.  There is
+**one canonical algorithm** for resolving it, shared by the analyser, the
+optimiser, the bytecode VM, and the WASM runtime — see
+[command-resolution.md](contracts/command-resolution.md) for the full
+contract and its conformance-vector gate.  The helpers live in
+`tcl_syntax::naming`:
 
-If not found in `::mylib`, it would try `::helper` (global namespace),
-walking up the namespace hierarchy.
+| Helper | Role |
+|---|---|
+| `command_resolution_candidates(ns, path, name)` | the candidate list in priority order |
+| `bareword_resolution_candidates(ns, name)` | the path-free wrapper |
+| `resolve_command_with(ns, path, name, exists)` | the full rule: first candidate for which `exists` is true |
+
+For `helper` from `::mylib::compute`, the candidates are `::mylib::helper`
+then `::helper`, and the first that *exists as a command* wins.  The
+optimiser's `resolve_internal_call` is a thin wrapper over
+`resolve_command_with` against the unit's proc table.
+
+The rule is call-time, not lexical: a candidate defined later in the file
+still wins, which is why the analyser settles call sites in a
+post-walk pass rather than as it goes.
 
 ### Resulting IR module
 
-```python
-IRModule(
-    procedures={
-        "::mylib::helper": IRProcedure(name="helper", ...),
-        "::mylib::compute": IRProcedure(name="compute", ...),
-    },
-)
+```rust
+Module {
+    procedures: HashMap::from([
+        ("::mylib::helper".into(),  Procedure { name: "helper".into(),  .. }),
+        ("::mylib::compute".into(), Procedure { name: "compute".into(), .. }),
+    ]),
+    ..
+}
 ```
 
 ---
@@ -3289,136 +4133,144 @@ proc abs {n} {
 
 ### Step 1 — LVT allocation
 
-The `_Emitter` constructor creates a `LocalVarTable` from the
-parameter list:
+The emitter builds a `LocalVarTable` from the parameter list, so the
+proc's LVT is:
 
-```python
-LocalVarTable(params=("n",))
-# LVT slots: %v0 = "n"
+```
+  Local variables:
+    %v0: "n"
 ```
 
 Inside a `proc`, all variable accesses use LVT-indexed instructions
 (`loadScalar1 %v0`) instead of name-based stack operations (`loadStk`).
 
-### Step 2 — Block linearisation (`_linearise()`)
+### Step 2 — Block linearisation (`linearise()`)
 
-The emitter performs a DFS traversal from the entry block, producing a
-reverse post-order (RPO) that determines instruction layout:
+`codegen::emitter::ordering::linearise(cfg)` performs a DFS traversal
+from the entry block, producing a reverse post-order that determines
+instruction layout.  The true branch is placed immediately after the
+condition, so `jumpFalse` skips *forward* to the else block — matching
+tclsh's fall-through layout.
 
-```
-DFS visit order: entry_1 → if_then_3 → if_end_2 → exit → if_else_4
-
-RPO (reversed): entry_1, if_then_3, if_else_4, if_end_2, exit
-```
-
-The `if_then_3` (true branch) appears immediately after the condition
-so `jumpFalse` skips *forward* to `if_else_4` — matching tclsh's
-fall-through layout.
-
-For loops, `_reorder_bottom_tested()` detects back-edges and moves the
-loop body *before* the header, producing a condition-at-bottom layout:
+For loops, `ordering::reorder_bottom_tested(cfg, order)` detects
+back-edges and moves the loop body *before* the header, producing a
+condition-at-bottom layout:
 
 ```
-Before (top-tested):  header → body → jump header
+Before (top-tested):    header → body → jump header
 After  (bottom-tested): jump header → body → header (jumpTrue body)
 ```
 
 ### Step 3 — Instruction emission with labels
 
-As the emitter walks blocks, it places labels and emits instructions:
+As the emitter walks blocks in that order, it places labels and emits
+instructions.  Jump targets start as `Operand::Label(String)` — the block
+name — because the byte offset is not known until layout:
 
 ```
-_place_label("entry_1")        → label at instruction 0
-  emit(LOAD_SCALAR1, %v0)     # load n
-  emit(PUSH1, lit("0"))       # push "0"
-  emit(LT)                    # n < 0
-  emit(JUMP_FALSE4, "L_else") # → if_else_4
+label "entry_1"
+  LOAD_SCALAR1 %v0        # load n
+  PUSH1 <literal "0">
+  LT                      # n < 0
+  JUMP_FALSE4 Label("if_next_4")
 
-_place_label("if_then_3")
-  emit(LOAD_SCALAR1, %v0)     # load n
-  emit(UMINUS)                # negate
-  emit(JUMP4, "L_end")        # → if_end_2
+label "if_then_3"
+  LOAD_SCALAR1 %v0
+  UMINUS
+  JUMP4 Label("if_end_2")
 
-_place_label("L_else")        → if_else_4
-  emit(LOAD_SCALAR1, %v0)     # just return n
+label "if_next_4"
+  …                       # the else body
 
-_place_label("L_end")         → if_end_2
-  emit(DONE)
+label "if_end_2"
+  DONE
 ```
 
 ### Step 4 — Jump size optimisation (`optimise_jumps()`)
 
-`layout.py` iterates up to 10
-times, replacing 4-byte jumps with 1-byte jumps when the relative
-offset fits in [-128, 127]:
-
-```
-Pass 1:
-  JUMP_FALSE4 "L_else"  (offset: +12 bytes)
-  → fits in 1 byte → JUMP_FALSE1 "L_else"
-
-  JUMP4 "L_end"  (offset: +4 bytes)
-  → fits in 1 byte → JUMP1 "L_end"
-```
+`tcl_bytecode::layout::optimise_jumps(instrs, labels, max_iters)`,
+called with `max_iters = 10`, replaces 4-byte jumps with 1-byte jumps
+when the relative offset fits in a signed byte.  It walks a
+`&[(Op, Op)]` table of wide→narrow pairs (`JUMP4` → `JUMP1`,
+`JUMP_TRUE4` → `JUMP_TRUE1`, `JUMP_FALSE4` → `JUMP_FALSE1`, …).
 
 Shortening jumps changes instruction sizes, which changes offsets,
-which may enable more shortenings — hence the iterative approach.
+which may enable more shortenings — hence the bounded iteration.
 
 ### Step 5 — Label resolution (`resolve_layout()`)
 
-Final pass assigns concrete byte offsets:
-
-```python
-label_offsets = resolve_layout(instrs, labels)
-# {"entry_1": 0, "if_then_3": 8, "L_else": 14, "L_end": 16}
-```
-
-Jump operands are patched from label names to relative byte offsets.
+`tcl_bytecode::layout::resolve_layout(instrs, labels) ->
+HashMap<String, usize>` walks the instruction list assigning each
+`Instruction::offset` in turn, and returns the label→byte-offset map.
+`Operand::Label` operands are then patched to the relative byte offsets.
 
 ### Step 6 — Peephole optimisation
 
-`_PeepholeMixin` applies tclsh-matching rewrites:
+`rust/tcl-compiler/src/codegen/peephole.rs` applies tclsh-matching
+rewrites:
 
-1. **`_remove_trailing_pop()`**: The last statement's result stays on
-   the stack for `done` to return.  Strip `pop; done` → `done`.
-
-2. **`_fold_const_push_pop_nops()`**: Dead constant results (`push; pop`
-   pairs from folded branches) become `nop; nop; nop` — matching tclsh's
-   3-nop pattern for folded constants.
-
-3. **`_dedup_push_literals()`**: After nop-folding, surviving `push`
-   instructions may reference duplicate literal slots.  Deduplicate
-   to match tclsh's literal table interning.
+1. **`remove_trailing_pop()`** — the last statement's result stays on the
+   stack for `done` to return.  Strip `pop; done` → `done`.
+2. **`fold_const_push_pop_nops()`** — dead constant results (`push; pop`
+   pairs from folded branches) become `nop` runs, matching tclsh's
+   folded-constant pattern.
+3. **`dedup_push_literals()`** — after nop-folding, surviving `push`
+   instructions may reference duplicate literal slots; deduplicate to
+   match tclsh's literal-table interning.
+4. **`fold_tail_return_to_done()`**, **`strip_unused_start_cmd()`**,
+   **`fixup_top_level_start_cmd()`**, **`strip_nodedup_tags()`** — the
+   remaining tclsh-parity fixups.
 
 ### Step 7 — Literal table construction
 
-The `LiteralTable` interns strings as they are referenced:
+`LiteralTable::intern(value)` returns an existing slot for a repeated
+string and allocates a new one otherwise, so `"n"` referenced twice gets
+one slot.  (`LiteralTable::register` is the deliberate escape hatch: it
+always allocates, for the cases where tclsh itself emits a duplicate
+slot.)
 
-```python
-LiteralTable entries:
-  0 = "n"     (parameter name, also used in loadScalar1)
-  1 = "0"     (comparison constant)
-```
-
-Strings are deduplicated: if `"n"` is referenced twice, both get
-slot 0.
-
-### Final bytecode (matches tclsh 9.0)
+### Final bytecode
 
 ```
-  LVT:  %v0="n"
-  Literals:  0="0"
-
-  (0)  loadScalar1 %v0  # load n
-  (2)  push1 0          # "0"
-  (4)  lt               # n < 0 ?
-  (5)  jumpFalse1 +5    # jump to pc 10
-  (7)  loadScalar1 %v0  # load n (then-body)
-  (9)  uminus           # negate
-  (10) jump1 +3         # jump to pc 13
-  (12) loadScalar1 %v0  # load n (else-body)
-  (14) done
+::abs
+  ByteCode ::abs, 13 instructions, 37 bytes, 3 literals, 1 variables
+    Literals:
+      0: "0"
+      1: "set"
+      2: "n"
+    Local variables:
+      %v0: "n"
+    Instructions:
+    # entry_1:
+      (0)  loadScalar1 %v0    # var "n"
+      (2)  push1 0            # "0"
+      (4)  lt
+      (5)  jumpFalse1 +16     # pc 21
+    # if_then_3:
+      (7)  startCommand +12 1 # next cmd at pc 19, 1 cmds start here
+      (16) loadScalar1 %v0    # var "n"
+      (18) uminus
+    # cmd_end_0:
+      (19) jump1 +17          # pc 36
+    # if_next_4:
+      (21) startCommand +15 1 # next cmd at pc 36, 1 cmds start here
+      (30) push1 1            # "set"
+      (32) push1 2            # "n"
+      (34) invokeStk1 2       # set
+    # cmd_end_1:
+    # exit_5:
+    # if_end_2:
+      (36) done
 ```
+
+Two things this shows that a hand-written sketch would not.  The
+`startCommand` instructions carry the per-command error context tclsh
+uses to build `errorInfo` — they are why the offsets jump by more than
+the visible operands account for.  And the `else` body `set n` is *not*
+specialised: a one-argument `set` is a variable **read**, and the
+compiler emits a generic `invokeStk1` for it rather than an LVT load,
+because the read must go through the same name resolution `set` itself
+would use.
 
 ---
 
@@ -3440,116 +4292,113 @@ when HTTP_REQUEST {
 
 ### `classify_side_effects()` for each command
 
-`side_effects.py:561`:
+`classify_side_effects(registry, command, args, dialect,
+callee_summary)` in `rust/tcl-compiler/src/side_effects.rs`.  Each
+command's *declared* effect comes straight from its spec; the classifier
+then fills in the per-call fields (`scope`, `storage_type`, `key`,
+`subtable`, `namespace`) the declaration cannot know.
 
-**`HTTP::uri` (getter form):**
+**`HTTP::uri`** — declared on the spec as:
 
-```python
-CommandSideEffects(
-    effects=(
-        SideEffect(
-            target=SideEffectTarget.HTTP_URI,
-            reads=True,
-            writes=False,
-            storage_type=StorageType.SCALAR,
-            scope=StorageScope.EVENT,
-            connection_side=ConnectionSide.CLIENT,
-        ),
-    ),
-    pure=True,             # reading is side-effect-free
-    deterministic=True,    # same result within one event
-    dynamic_barrier=False,
-)
+```rust
+side_effects: &[SideEffect {
+    target: SideEffectTarget::HttpUri,
+    reads: true,
+    writes: false,
+    connection_side: ConnectionSide::Both,
+    dialects: None,
+}],
+taint_source: Some(TaintColour::TAINTED.union(TaintColour::PATH_PREFIXED)),
 ```
 
-**`HTTP::header replace Host "example.com"` (setter form):**
+Classified, it becomes a `CommandSideEffects` with that one read effect,
+`pure: true` (reading is side-effect-free) and `deterministic: true`
+(the same result within one event).  Note the `taint_source` colours:
+`HTTP::uri` is tainted *but* provably starts with `/`, which is what lets
+a path-prefix sink accept it.
 
-```python
-CommandSideEffects(
-    effects=(
-        SideEffect(
-            target=SideEffectTarget.HTTP_HEADER,
-            reads=False,
-            writes=True,                     # modifying a header
-            storage_type=StorageType.SCALAR,
-            scope=StorageScope.EVENT,
-            connection_side=ConnectionSide.CLIENT,
-            key="Host",                      # literal header name
-        ),
-    ),
-    pure=False,            # writing is a side effect
-    deterministic=False,
-    dynamic_barrier=False,
-)
+**`HTTP::header replace Host "example.com"`** — the parent spec declares
+a read/write `SideEffectTarget::HttpHeader`; the `replace` subcommand
+narrows it:
+
+```rust
+SubCommand {
+    name: "replace",
+    arity: Arity::new(1, 2),
+    detail: "Replace header value.",
+    synopsis: "HTTP::header replace <name> ?<string>?",
+    mutator: true,
+    credential_arg: Some(2),
+    sensitive_headers: &[
+        "authorization", "proxy-authorization",
+        "x-api-key", "x-auth-token", "x-secret",
+    ],
+    ..SubCommand::DEFAULT
+}
 ```
+
+`mutator: true` makes the classified result `pure: false`, and the
+classifier binds `key: Some("Host")` from the literal argument.
+`credential_arg` / `sensitive_headers` are the credential-exposure facts
+that only make sense on the writing subcommand — they are what let a
+check warn about `HTTP::header replace Authorization $token` without the
+checker knowing any header names itself.
 
 **`pool my_pool`:**
 
-```python
-CommandSideEffects(
-    effects=(
-        SideEffect(
-            target=SideEffectTarget.POOL_SELECTION,
-            reads=False,
-            writes=True,
-            storage_type=StorageType.SCALAR,
-            scope=StorageScope.CONNECTION,
-            connection_side=ConnectionSide.SERVER,
-        ),
-    ),
-    pure=False,
-    deterministic=False,
-)
+```rust
+side_effects: &[SideEffect {
+    target: SideEffectTarget::PoolSelection,
+    reads: false,
+    writes: true,
+    connection_side: ConnectionSide::Server,
+    dialects: None,
+}],
 ```
 
 **`log local0. "Routing $uri"`:**
 
-```python
-CommandSideEffects(
-    effects=(
-        SideEffect(
-            target=SideEffectTarget.LOG_IO,
-            reads=False,
-            writes=True,
-            storage_type=StorageType.SCALAR,
-            scope=StorageScope.GLOBAL,
-            connection_side=ConnectionSide.NONE,
-        ),
-    ),
-    pure=False,
-    deterministic=False,
-)
+```rust
+side_effects: &[SideEffect {
+    target: SideEffectTarget::LogIo,
+    reads: false,
+    writes: true,
+    connection_side: ConnectionSide::Both,
+    dialects: None,
+}],
 ```
+
+Both classify to `pure: false`, `deterministic: false`.
 
 ### How classification resolves form and subcommand
 
-The classification function follows this resolution order:
+`classify_side_effects` follows this order:
 
-1. **Interprocedural summary** — if `callee_summary` is provided (for
-   user-defined procs), use its `effect_reads`/`effect_writes` directly.
+1. **Interprocedural summary** — if `callee_summary` is `Some` (a
+   user-defined proc), classify from it and return.
+2. **Unknown command** — fall back to a conservative unknown-write.
+3. **Subcommand resolution** — for `HTTP::header replace`: look up the
+   `CommandSpec`, find the `SubCommand` named `replace`, take its
+   `mutator` flag and its `side_effects` (falling back to the parent's).
+4. **Command level** — for `HTTP::uri` with no arguments, use the
+   command's own `side_effects` and its `Traits` purity.
+5. **Argument binding** — bind literal values into `key` / `subtable`
+   where the spec identifies which argument names the resource.
 
-2. **Dynamic barriers** — `eval`, `uplevel` → `dynamic_barrier=True`,
-   all effects unknown.
-
-3. **Subcommand resolution** — for `HTTP::header replace`:
-   - Look up `CommandSpec` for `HTTP::header`.
-   - Find `SubCommand` for `replace` → `mutator=True`.
-   - Read `side_effect_hints` from the subcommand.
-
-4. **Form resolution** — for `HTTP::uri` (no args):
-   - `CommandSpec.resolve_form(args)` matches the getter form
-     (`arity=Arity(0, 0)`).
-   - Getter form has `pure=True` and `reads=True` hints.
+There is no separate "resolve the `FormSpec` by arity" step: a Rust
+`FormSpec` carries no arity or effects, so getter/setter distinctions
+that matter to analysis live on the subcommand or on
+`CommandSpec::command_forms`.
 
 ### How consumers use side effects
 
 | Consumer | Uses |
 |----------|------|
-| **GVN/CSE** | `pure=True` → result can be cached (O105) |
-| **ADCE** | `pure=True` + `NO_ESCAPE` → statement is removable |
-| **Optimiser** | `pure=False` → cannot propagate across this command |
-| **iRules flow** | `RESPONSE_LIFECYCLE` write → response-commit tracking |
-| **Taint engine** | `pure=True` → taint flows through unchanged |
+| **GVN/CSE** | pure + `EffectRegion::NONE` writes → result can be cached (O105) |
+| **ADCE** | `SideEffectClass::Pure` + `EscapeClass::NoEscape` → statement is removable |
+| **Optimiser** | impure → cannot propagate across this command |
+| **iRules flow** | `EffectRegion::RESPONSE_LIFECYCLE` write → response-commit tracking (IRULE1201/1202) |
+| **Taint engine** | pure → taint flows through unchanged |
 
 ---
 
@@ -3558,170 +4407,147 @@ The classification function follows this resolution order:
 The following table summarises all optimisation passes the compiler can
 detect, their triggers, and example patterns:
 
+The authoritative inventory is the generated
+[`docs/generated/optimisation_codes.md`](../generated/optimisation_codes.md),
+which also records each code's category and which profiles enable it.
+
 | Code | Name | Trigger | Example |
 |------|------|---------|---------|
 | O100 | Constant propagation | Variable has a known constant value | `set x 5; puts $x` → propagate `"5"` into `puts` |
 | O101 | Fold constant expression | All `expr` operands are constants | `expr {2 + 3}` → `5` |
-| O102 | Fold expr command substitution | `[expr {...}]` with constant result | `set x [expr {1}]` → `set x 1` |
+| O102 | Load forwarding | A variable has a single reaching literal definition | forward that literal to each use site |
 | O103 | Interprocedural constant fold (ICIP) | Pure proc called with all-constant args | `[double 21]` → `42` (when `proc double {n} { expr {$n * 2} }`) |
-| O104 | String build chain | `set` + `append` sequence detected | `set s ""; append s "a"; append s "b"` → `set s "ab"` |
+| O104 | String build chain | Static `set` + `append` sequence detected | `set s ""; append s "a"; append s "b"` → `set s "ab"` |
 | O105 | GVN/CSE redundancy | Same pure computation appears twice | `[HTTP::uri]` used twice → extract to variable |
-| O107 | Dead code elimination (DCE) | Unreachable code after `return`/`break` | Code after `return` is dead |
+| O106 | Loop-invariant hoisting (LICM) | A computation inside a loop does not vary per iteration | hoist it above the loop |
+| O107 | Unreachable-code elimination | A block is unreachable | code after `return` is dead |
 | O108 | Aggressive DCE (ADCE) | Statement result never used, no side effects | Pure expression whose value is discarded |
-| O109 | Dead store elimination (DSE) | Variable set but never read | `set x 42` with no use of `x` |
+| O109 | Dead store elimination (DSE) | A store is overwritten before any read reaches it | the first `set x` of two in a row |
 | O110 | Instruction combine (InstCombine) | Algebraic simplification opportunity | `expr {$x * 1}` → `expr {$x}` |
+| O111 | Brace-expression performance hint | Unbraced `expr` body (paired with W100) | `expr $a + $b` → `expr {$a + $b}` |
 | O112 | Constant condition (SCCP structure elimination) | Branch condition is compile-time constant | `if {1} {...}` → body only |
-| O113 | Strength reduction | Power/modulo with small constants | `expr {$x ** 2}` → `expr {$x * $x}` |
+| O113 | Strength reduction | Power/modulo with small constants | `expr {$x ** 2}` → `expr {$x * $x}`; `$x % 8` → `$x & 7` |
 | O114 | Incr idiom | `set x [expr {$x + N}]` pattern | → `incr x N` (specialised `incrStkImm` opcode) |
 | O115 | Nested expr unwrap | `expr {expr {…}}` double wrapping | `expr {expr {$a + $b}}` → `expr {$a + $b}` |
 | O116 | List folding | `[list a b c]` with all-constant args | `[list a b c]` → `a b c` |
 | O117 | String length zero-check | `[string length $s] == 0` | → `$s eq ""` (avoids length computation) |
 | O118 | Lindex folding | `[lindex {a b c} N]` with constant list and index | `[lindex {a b c} 1]` → `b` |
-| O119 | Multi-set packing | Multiple `set` commands with related values | Consecutive `set` calls packed into one operation |
+| O119 | Multi-set packing | Consecutive `set` literals | pack into `lassign` / `foreach` |
 | O120 | String compare eq/ne | `==`/`!=` on string-typed operands | `expr {$s == "foo"}` → `expr {$s eq "foo"}` |
 | O121 | Tail-call detection | Self-recursive call in tail position | → suggest `tailcall` for TCO |
 | O122 | Tail-recursion to loop | Fully tail-recursive proc | → rewrite as iterative `while` loop |
-| O123 | Accumulator introduction | Non-tail recursion with associative op | → introduce accumulator parameter |
+| O123 | Accumulator introduction | Non-tail recursion with associative op | → introduce accumulator parameter (hint only) |
 | O124 | Unused proc elimination | Proc defined but never called | Comment out unused `proc` (iRules only) |
-| O125 | Code sinking (LCP) | Assignment used only in one branch | Move `set` into the branch that uses it |
-| O126 | Dead store after tail position | Variable only used by eliminated tail expr | Remove the dead `set` |
+| O125 | Code sinking (LCP) | Assignment used only in one branch | Move `set` into the deepest decision block that uses it |
+| O126 | Unused variable assignment | A variable is assigned but never read | Remove the `set` |
+| O127 | Single-use inline | A variable is assigned then read exactly once | Fold the `set` into its use site |
+| O128 | End-relative index | `[expr {[llength $L] - N}]` used as an index | → `end-(N-1)` |
+| O129 | Pure-builtin fold | A pure builtin substitution with constant args | `[string length "abc"]` → `3` |
+| O130 | Lappend build chain | Static `lappend` chain | fold into a single assignment |
+
+**Profiles.**  `off` disables everything; `readability`, `standard`, and
+`full` enable progressively more passes in a single pass; `aggressive` is
+`full` re-run to a fixpoint (up to 5 iterations).  The default editor
+profile is `readability`; explicit actions (CLI, chat, MCP) default to
+`full`.
 
 ---
 
 ## How diagnostics are calculated
 
-The LSP server produces diagnostics in two phases — a fast synchronous
-phase for immediate feedback and an expensive asynchronous phase for deep
-analysis.  Understanding this architecture explains why some warnings
-appear instantly and others arrive after a brief delay.
+The native LSP server (`rust/tcl-lsp-server`) publishes diagnostics in
+**two tiers**, and — this is the part that most often surprises — the
+fast tier is usually never sent at all.
 
-### Phase 1 — Basic diagnostics (fast, synchronous)
+The deep pass is started first and **raced against a 40 ms budget**
+(`DIAGNOSTICS_FAST_TIER_BUDGET`).  If the whole pipeline finishes inside
+that budget, the deep publish is the one and only publish, so a small or
+warm file costs a single round-trip.  Only when the budget elapses with
+the deep pass still running does the server publish the reduced fast
+tier, then supersede it when the deep pass lands.  A size floor gates
+this too: a document below a minimum line count never gets a fast tier,
+because its wall-clock is dominated by one-time warm-up rather than
+per-file work.
 
-`get_basic_diagnostics()` in
-`diagnostics.py:703` runs on every
-keystroke and returns immediately.  It produces:
+Everything is salsa-memoised and currency-guarded by document version, so
+a superseding edit can never let a stale tier land after a fresh one.
 
-```
-Source text
-    │
-    ▼
-┌───────────────────────────────────────────────────┐
-│ Semantic Analysis (analyse())                      │
-│   → W100: Unbraced expr body                       │
-│   → W101: Wrong number of arguments                │
-│   → W102: Unknown command                          │
-│   → W103: Variable read before set                 │
-│   → W104: Unused variable                          │
-│   → W200+: iRules event/command warnings           │
-│   → W300+: Deprecation/style warnings              │
-└───────────────────────────────┬───────────────────┘
-                                │
-                                ▼
-┌───────────────────────────────────────────────────┐
-│ Style Checks                                       │
-│   → W111: Line exceeds configured length            │
-│   → W112: Trailing whitespace                       │
-│   → W115: Backslash-newline continuation in comment │
-│   → W120: Command used without package require      │
-└───────────────────────────────┬───────────────────┘
-                                │
-                                ▼
-                        Basic diagnostics
-                    (published immediately)
+### Tier 1 — the fast tier
+
+`publish_fast_tier` filters the per-file analyser diagnostics through
+`is_fast_tier(code)`, which is defined as **`!code.refined_by_workspace()`**
+— and `refined_by_workspace` is exactly `{W120, W123}`:
+
+```rust
+const fn is_fast_tier(code: DiagCode) -> bool {
+    !code.refined_by_workspace()
+}
 ```
 
-The semantic analyser (`analyse()`) runs over the AST and produces
-diagnostics for syntax errors, arity violations, unknown commands,
-unused variables, and read-before-set conditions.  Style checks scan
-the raw source text for formatting issues.
+That is the whole rule.  The fast tier is not "cheap checks only"; it is
+"every finding a later workspace pass cannot **retract**".  `W120`
+(command used without a `package require`) and `W123` (unresolved
+command) are held back precisely because a cross-file pass can discover
+the definition and withdraw them — showing them early would flicker.
 
-### Phase 2 — Deep diagnostics (expensive, background thread)
+Alongside those, the fast tier carries the pure source-style lints
+(`lift_source_style_diagnostics`: `W111` line length, `W112` trailing
+whitespace, `W115` backslash-newline in a comment, `W118` inconsistent
+line endings, and the decode-report findings `W107`/`W109`).  Both halves
+are lifted off the event loop with `spawn_blocking`.
 
-`get_deep_diagnostics()` in
-`diagnostics.py:883` runs in a
-background thread via `asyncio.to_thread` to avoid blocking the editor.
-It reuses the `CompilationUnit` from Phase 1 (shared IR, CFG, SSA,
-and analysis results).
+The fast tier is delivered **push-only** and never primes the pull-diagnostics
+cache, so a pull-mode client is never served the reduced set.
 
-```
-CompilationUnit (shared)
-    │
-    ├───► Optimiser (find_optimisations)
-    │     → O100–O130: All optimisation suggestions
-    │     Groups related edits (e.g. O100+O109 for propagate + dead store)
-    │
-    ├───► Shimmer detector (find_shimmer_warnings)
-    │     → S100: Value accessed as incompatible type
-    │     → S101: Implicit shimmer (int→string, etc.)
-    │     → S102: Cross-command type conflict
-    │
-    ├───► Taint engine (find_taint_warnings)
-    │     → T100: Dangerous code-execution sink
-    │     → T101: Tainted output
-    │     → T102: Option injection (tainted arg without --)
-    │     → T103: Regex injection / ReDoS
-    │     → T104: SSRF (network address sink)
-    │     → T105: Cross-interpreter code injection
-    │     → T106: Double-encoding (informational)
-    │     → IRULE1007: Collect without release (side-aware, in iRules flow analysis)
-    │     → IRULE1008: Release without collect (side-aware, in iRules flow analysis)
-    │     → IRULE3001: XSS in HTTP response body
-    │     → IRULE3002: Header/cookie injection
-    │     → IRULE3003: Log injection
-    │     → IRULE3004: Open redirect
-    │
-    ├───► iRules flow checker (find_irules_flow_warnings)
-    │     → IRULE1005: *_DATA handler without matching collect
-    │     → IRULE1006: payload access without collect
-    │     → IRULE1201: HTTP command after respond/redirect
-    │     → IRULE1202: Multiple respond/redirect on different branches
-    │     → IRULE4004: Per-request set hoistable to connection scope
-    │     → IRULE5002: drop/reject without event disable or return
-    │     → IRULE5004: DNS::return without return
-    │
-    └───► GVN/CSE (find_redundant_computations)
-          → O105: Redundant pure computation
-          → O106: Loop-invariant computation (LICM)
-```
+### Tier 2 — the deep tier
 
-### Async scheduling and cancellation
-
-The `DiagnosticScheduler` in
-`async_diagnostics.py` manages the
-lifecycle of deep diagnostic tasks:
+`run_deep_diagnostics` runs **three independent whole-file analyses
+concurrently** and joins them:
 
 ```
-  Document edit (version N)
-      │
-      ├─► Phase 1: get_basic_diagnostics()
-      │     → publish basic diagnostics immediately
-      │
-      └─► DiagnosticScheduler.schedule(uri, version=N, ...)
-            │
-            ├─► Cancel any in-flight deep task for this URI
-            │     (previous version is stale)
-            │
-            └─► asyncio.create_task(_run())
-                  │
-                  └─► asyncio.to_thread(deep_fn)    ← background thread
-                        │
-                        ▼
-                    Deep diagnostics complete
-                        │
-                        ▼
-                    publish_fn(uri, basic + deep, version=N)
-                        │
-                        ▼
-                    Editor shows full diagnostic set
+tokio::join!(
+    base,                       // the per-file analyser walk (a Shared future,
+                                //   the same one the fast tier awaited)
+    compute_compiler_diags(…),  // compiler / optimiser checks, via salsa
+    compute_project_diags(…),   // cross-file / project resolution
+)
+        │
+        ▼
+  W120 / W123 workspace refinement
+  (source-graph inheritance + cross-file call settlement)
+        │
+        ▼
+  diagnostic lifts → one authoritative, currency-guarded publish
 ```
 
-Key properties:
-- **Cancellation**: if the user types another character while deep analysis
-  is running, the stale task is cancelled and a new one starts.
-- **Version tracking**: each task carries a document version; results are
-  discarded if a newer version has been scheduled.
-- **Merge**: the final published diagnostics are `basic + deep`, ensuring
-  a consistent complete set.
+`compute_compiler_diags` calls the salsa query
+`tcl_lsp_db::compiler_check_diagnostics`, which returns a
+`CompilerDiagnostics { checks, optimisations }` built over the memoised
+`compilation_unit` and `proc_taint_solve` queries.  An unchanged
+procedure contributes neither a re-solve nor a re-check.
+
+What the deep tier adds over the fast one:
+
+| Source | Codes |
+|---|---|
+| Optimiser (`run_passes`) | `O100`–`O130` |
+| GVN / CSE | `O105` redundant pure computation, `O106` loop-invariant (LICM) |
+| Shimmer detector | `S100`–`S103`, `S110` |
+| Taint engine | `T100`–`T106`; `IRULE3001`–`3004`, `IRULE3101`–`3103` |
+| iRules flow checks | `IRULE1005`–`IRULE1008` (collect / release / payload pairing), `IRULE1201`/`1202` (respond-then-use) |
+| iRules variable/style checks | `IRULE4001`–`4005`, `IRULE5001`–`5007`, `IRULE6001` |
+| Workspace refinement | the withheld `W120` / `W123`, now settled |
+
+The concurrency has one deliberate cost: fail-fast on a base-analysis
+cancellation is given up — the compiler and cross-file passes may do a
+little wasted work before observing the same cancellation.
+
+**Degradation is explicit.**  A salsa *cancellation* returns "not
+settled", so the next edit retries.  A deterministic worker *panic* in a
+secondary pass degrades that pass to its empty fallback and **still
+publishes** the deep tier — because the fast tier may already have
+replaced the client's complete set with its reduced subset, and returning
+early would strand that reduced set as the terminal state.
 
 ### Suppression with `# noqa`
 
@@ -3732,17 +4558,20 @@ set x 42    ;# noqa: O109  — suppress dead store warning
 eval $cmd   ;# noqa: *     — suppress ALL warnings on this line
 ```
 
-The suppression map `suppressed_lines: dict[int, frozenset[str]]` is built
-during semantic analysis and checked by both Phase 1 and Phase 2 before
-emitting any diagnostic.  `# noqa: *` suppresses all codes; `# noqa: O109`
-suppresses only the specified code.
+The suppression map is `AnalysisResult::suppressed_lines:
+HashMap<i32, HashSet<String>>`, built during semantic analysis
+(`parse_noqa_line_suppressions` plus `apply_preceding_noqa` for
+directives in a preceding comment block) and checked by both tiers before
+emitting any diagnostic.  `# noqa: *` suppresses all codes;
+`# noqa: O109` suppresses only the named code.
 
 ### Grouped optimisations
 
 When the optimiser produces related edits (e.g. O100 propagates a constant
-AND O109 removes the now-dead store), they share a `group` ID.  The
-diagnostics publisher emits one primary diagnostic with the others as
-`DiagnosticRelatedInformation`:
+and O109 removes the now-dead store), they share an
+`Optimisation::group: Option<u32>` allocated by
+`PassContext::alloc_group`.  The publisher emits one primary diagnostic
+with the others as related information:
 
 ```
 Primary: O100 "Propagate constant into expression" (+1 dead store eliminated)
@@ -3756,19 +4585,17 @@ edits atomically, keeping the source consistent.
 
 For the taint example (`HTTP::header value Host` → `HTTP::respond`):
 
-1. **Phase 1** (immediate): semantic analysis finds no syntax errors.
-   Basic diagnostics are published with zero warnings.
-
-2. **Phase 2** (background):
-   - **Optimiser**: no optimisation opportunities found (the code is
-     already efficient).
-   - **Taint engine**:
-     - `ensure_compilation_unit()` → reuses shared `CompilationUnit`.
-     - `_solve_interprocedural_taints()` → propagates taint from
-       `HTTP::header value Host` through `string tolower` to
-       `HTTP::respond`.
-     - `_find_taint_sinks()` → detects `IRULE3001` on the
-       `HTTP::respond` line.
+1. The deep pass starts immediately; the per-file analyser walk finds no
+   syntax errors, so if the 40 ms budget elapses first, the fast tier
+   publishes an empty set.
+2. **Deep tier**, running concurrently:
+   - **Optimiser**: no rewrites (the code is already efficient).
+   - **Taint engine**: the memoised `proc_taint_solve` propagates taint
+     from `HTTP::header`'s `taint_source` through `string tolower`
+     (which declares no `taint_transform`, so no mitigating colour is
+     added) to `HTTP::respond`, whose `taint_output_sink` is
+     `IRULE3001`.
+   - **Cross-file**: nothing to settle.
    - **GVN**: no redundant computations.
 
 3. **Publish**: `basic_diags + deep_diags` → one `IRULE3001` warning
@@ -3783,16 +4610,16 @@ Source text  ──────────────────────�
   "set x 42"                                                        push1/storeStk/done
        │                                                                 ▲
        ▼                                                                 │
-  Token stream         SegmentedCommand        IRAssignConst         Instruction
+  Token stream         SegmentedCommand    Statement::AssignConst    Instruction
   ┌──────────┐        ┌──────────────┐        ┌───────────┐        ┌───────────┐
-  │ type:ESC │   ──►  │ texts:       │  ──►   │ name:"x"  │  ──►   │ op:PUSH1  │
-  │ text:"set"│       │  ["set",     │        │ value:"42"│        │ operands: │
-  │ start:0,0│        │   "x","42"]  │        │ range:... │        │  (0,)     │
-  │ end:0,3  │        │ single:      │        └───────────┘        └───────────┘
+  │ kind:Esc │   ──►  │ texts:       │  ──►   │ name:"x"  │  ──►   │ op:PUSH1  │
+  │ span:0..3│        │  ["set",     │        │ value:"42"│        │ operands: │
+  │ content_ │        │   "x","42"]  │        │ span:0..8 │        │  [Imm(0)] │
+  │  offset:0│        │ single:      │        └───────────┘        └───────────┘
   └──────────┘        │  [T, T, T]   │              │                    ▲
                       └──────────────┘              │                    │
                                                     ▼                    │
-                                              CFGBlock            FunctionAsm
+                                              cfg::Block          FunctionAsm
                                               ┌──────────┐       ┌───────────┐
                                               │ stmts:   │       │ literals: │
                                               │  [Assign]│       │  LitTable │
@@ -3801,21 +4628,40 @@ Source text  ──────────────────────�
                                               └──────────┘       │ instrs:   │
                                                     │            │  [Instr]  │
                                                     ▼            └───────────┘
-                                              SSABlock                ▲
+                                              SsaBlock                ▲
                                               ┌──────────┐           │
-                                              │ phis: () │           │
+                                              │ phis: [] │           │
                                               │ stmts:   │     codegen_module()
-                                              │  SSAStmt │  ────────┘
+                                              │  SsaStmt │  ────────┘
                                               │ defs:    │
-                                              │  {x: 1}  │
+                                              │  {x → 1} │
                                               └──────────┘
 ```
 
 Each stage transforms the data into a richer representation:
-1. **Tokens** — flat character-level classification (`tokens.py:33`)
-2. **SegmentedCommand** — word-level grouping with command boundaries (`command_segmenter.py:62`)
-3. **IR nodes** — typed, structured command semantics (`ir.py:609`)
-4. **CFG blocks** — explicit control flow with terminators (`cfg.py:473`)
-5. **SSA** — variable versioning with phi nodes at merge points (`ssa.py:633`)
-6. **FunctionAnalysis** — constant values, types, liveness, dead stores (`core_analyses.py:426`)
-7. **Bytecode** — executable instruction stream with literal/variable tables (`codegen/bytecode/_types.py:106`)
+
+1. **Tokens** — flat byte-level classification, spans only
+   (`rust/tcl-lexer/src/tokens.rs`)
+2. **SegmentedCommand** — word-level grouping with command boundaries
+   (`rust/tcl-compiler/src/segmenter.rs`)
+3. **`ir::Statement`** — typed, structured command semantics
+   (`rust/tcl-compiler/src/ir.rs`)
+4. **`cfg::Block`** — explicit control flow with terminators
+   (`rust/tcl-compiler/src/cfg.rs`)
+5. **SSA** — variable versioning with phi nodes at merge points
+   (`rust/tcl-compiler/src/ssa.rs`)
+6. **`FunctionAnalysis`** — constant values, types, liveness, dead stores
+   (`rust/tcl-compiler/src/analyses.rs`)
+7. **Bytecode** — executable instruction stream with literal and
+   local-variable tables (`rust/tcl-bytecode/src/lib.rs`), emitted by
+   `rust/tcl-compiler/src/codegen/`
+
+To see any of this for a script of your own:
+
+```
+cargo run -p tcl-cli --bin tcl -- explore FILE.tcl \
+    --show ir,cfg,ssa,opt,asm --text
+```
+
+`--json` emits the same views in the machine-readable explorer contract
+shape, and `--serve` opens the interactive web GUI.
