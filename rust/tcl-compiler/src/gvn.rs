@@ -1533,6 +1533,39 @@ pub fn find_loop_invariants(
     ssa: &SsaFunction,
     dialect: Option<&str>,
 ) -> Vec<RedundantComputation> {
+    find_loop_invariants_with_legality(registry, cfg, ssa, dialect, GvnLegalitySource::Legacy)
+}
+
+/// Run loop-invariance detection using one function's dispatch-stability
+/// proofs.
+///
+/// Hoisting a call out of a loop changes how many times it is dispatched, so
+/// it needs the same live-dispatch proof as reusing one: a command whose
+/// binding, traces, or interpreter policy may change inside the loop is not
+/// invariant merely because its arguments are.
+#[must_use]
+pub fn find_loop_invariants_for_function(
+    registry: &CommandRegistry,
+    function: &crate::compilation_unit::FunctionUnit,
+    dialect: Option<&str>,
+) -> Vec<RedundantComputation> {
+    let semantic = GvnSemanticFacts::from_function(function);
+    find_loop_invariants_with_legality(
+        registry,
+        &function.cfg,
+        &function.ssa,
+        dialect,
+        GvnLegalitySource::Common(semantic.as_ref()),
+    )
+}
+
+fn find_loop_invariants_with_legality(
+    registry: &CommandRegistry,
+    cfg: &CfgFunction,
+    ssa: &SsaFunction,
+    dialect: Option<&str>,
+    legality: GvnLegalitySource<'_>,
+) -> Vec<RedundantComputation> {
     let executable = reachable_from(cfg, ssa.entry);
     let mut results: Vec<RedundantComputation> = Vec::new();
     // One O(V) dominator-tree numbering serves every dominance query below.
@@ -1604,11 +1637,13 @@ pub fn find_loop_invariants(
                 // Purity gate — loop-invariance only makes sense
                 // for computations that don't otherwise touch
                 // state each iteration.
-                if statement_writes_state(registry, &stmt_ssa.statement, dialect) {
+                if statement_writes_state_for_gvn(registry, &stmt_ssa.statement, dialect, legality)
+                {
                     continue;
                 }
-                let occurrences =
-                    statement_occurrences(registry, stmt_ssa, block_name, idx, dialect, ssa);
+                let occurrences = statement_occurrences_for_gvn(
+                    registry, stmt_ssa, block_name, idx, dialect, ssa, legality,
+                );
                 for occ in occurrences {
                     if occ.variable_uses.iter().any(|name| defined.contains(name)) {
                         continue;
@@ -1660,6 +1695,26 @@ pub fn collect_function_occurrence_events(
     FxHashMap<BlockId, Vec<OccurrenceEvent>>,
     Vec<ExprOccurrence>,
 ) {
+    collect_function_occurrence_events_with_legality(
+        registry,
+        cfg,
+        ssa,
+        dialect,
+        GvnLegalitySource::Legacy,
+    )
+}
+
+/// Occurrence collection under an explicit legality source.
+fn collect_function_occurrence_events_with_legality(
+    registry: &CommandRegistry,
+    cfg: &CfgFunction,
+    ssa: &SsaFunction,
+    dialect: Option<&str>,
+    legality: GvnLegalitySource<'_>,
+) -> (
+    FxHashMap<BlockId, Vec<OccurrenceEvent>>,
+    Vec<ExprOccurrence>,
+) {
     let mut events_by_block: FxHashMap<BlockId, Vec<OccurrenceEvent>> = FxHashMap::default();
     let mut all_occurrences: Vec<ExprOccurrence> = Vec::new();
 
@@ -1673,11 +1728,13 @@ pub fn collect_function_occurrence_events(
         for idx in 0..stmt_count {
             let ir_stmt = &cfg_block.statements[idx];
             let ssa_stmt = &ssa_block.statements[idx];
-            if statement_writes_state(registry, ir_stmt, dialect) {
+            if statement_writes_state_for_gvn(registry, ir_stmt, dialect, legality) {
                 events.push(OccurrenceEvent::Kill);
                 continue;
             }
-            for occ in statement_occurrences(registry, ssa_stmt, block_name, idx, dialect, ssa) {
+            for occ in statement_occurrences_for_gvn(
+                registry, ssa_stmt, block_name, idx, dialect, ssa, legality,
+            ) {
                 all_occurrences.push(occ.clone());
                 events.push(OccurrenceEvent::Occur(occ));
             }
@@ -1825,12 +1882,45 @@ pub fn find_partial_redundancies(
     ssa: &SsaFunction,
     dialect: Option<&str>,
 ) -> Vec<RedundantComputation> {
+    find_partial_redundancies_with_legality(registry, cfg, ssa, dialect, GvnLegalitySource::Legacy)
+}
+
+/// Run partial-redundancy detection using one function's dispatch-stability
+/// proofs.
+///
+/// This is the production entry point. Like [`find_redundancies_for_function`]
+/// it never consults the legacy command-string classifier: an unavailable
+/// sidecar and every unresolved, ambiguous, declined, or unmapped site fail
+/// closed.
+#[must_use]
+pub fn find_partial_redundancies_for_function(
+    registry: &CommandRegistry,
+    function: &crate::compilation_unit::FunctionUnit,
+    dialect: Option<&str>,
+) -> Vec<RedundantComputation> {
+    let semantic = GvnSemanticFacts::from_function(function);
+    find_partial_redundancies_with_legality(
+        registry,
+        &function.cfg,
+        &function.ssa,
+        dialect,
+        GvnLegalitySource::Common(semantic.as_ref()),
+    )
+}
+
+fn find_partial_redundancies_with_legality(
+    registry: &CommandRegistry,
+    cfg: &CfgFunction,
+    ssa: &SsaFunction,
+    dialect: Option<&str>,
+    legality: GvnLegalitySource<'_>,
+) -> Vec<RedundantComputation> {
     let executable = reachable_from(cfg, ssa.entry);
     if !executable.contains(&ssa.entry) {
         return Vec::new();
     }
     let (events_by_block, all_occurrences) =
-        collect_function_occurrence_events(registry, cfg, ssa, dialect);
+        collect_function_occurrence_events_with_legality(registry, cfg, ssa, dialect, legality);
     if all_occurrences.is_empty() {
         return Vec::new();
     }
@@ -1936,8 +2026,8 @@ pub fn find_partial_redundancies_for_cu(
 ) -> Vec<RedundantComputation> {
     let mut out = Vec::new();
     for fu in cu.analysable_functions() {
-        out.extend(find_partial_redundancies(
-            registry, &fu.cfg, &fu.ssa, dialect,
+        out.extend(find_partial_redundancies_for_function(
+            registry, fu, dialect,
         ));
     }
     out
@@ -1954,7 +2044,7 @@ pub fn find_loop_invariants_for_cu(
 ) -> Vec<RedundantComputation> {
     let mut out = Vec::new();
     for fu in cu.analysable_functions() {
-        out.extend(find_loop_invariants(registry, &fu.cfg, &fu.ssa, dialect));
+        out.extend(find_loop_invariants_for_function(registry, fu, dialect));
     }
     out
 }
