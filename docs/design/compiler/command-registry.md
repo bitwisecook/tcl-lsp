@@ -22,8 +22,6 @@ Source: `rust/tcl-registry/src/spec.rs` (`CommandSpec`, `SubCommand`),
 `rust/tcl-registry/src/commands/` (per-command `spec()` modules),
 `rust/tcl-registry/src/taint.rs`
 
-## Content
-
 ### Architecture
 
 ```

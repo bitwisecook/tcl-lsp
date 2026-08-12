@@ -14,8 +14,6 @@ Source: `rust/tcl-syntax/src/expr/parser.rs` (Pratt parser),
 `rust/tcl-syntax/src/expr/ast.rs` (AST), `rust/tcl-lexer/src/expr_lexer.rs`
 (`irules_ops()` — iRules word-operator lexing)
 
-## Content
-
 ### Braced vs unbraced expressions
 
 **Braced** — `expr {$a + $b * 2}`:

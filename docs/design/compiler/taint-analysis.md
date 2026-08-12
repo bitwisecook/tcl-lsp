@@ -18,8 +18,6 @@ Source: `rust/tcl-compiler/src/taint.rs` — `TaintColour`, `TaintLattice`,
 `is_taint_source`, `taint_source_colour`, `is_sanitiser`,
 `classify_taint_sinks`, `TaintSinkInfo`
 
-## Content
-
 ### TaintLattice
 
 `TaintLattice` is a single field: a `TaintColour` bag. The `TAINTED` bit

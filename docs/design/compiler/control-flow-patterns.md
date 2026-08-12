@@ -11,8 +11,6 @@ including condition-at-bottom loops, fall-through branch ordering, and the
 
 Source: Examples 5–11 in [walkthroughs](../../../docs/design/example-script-walkthroughs.md)
 
-## Content
-
 ### `if` / `elseif` / `else`
 
 **IR**: `IRIf` with `IRIfClause` list + optional `else_body`.

@@ -19,8 +19,6 @@ Source: `rust/tcl-lexer/src/tokens.rs`,
 `rust/tcl-compiler/src/codegen/mod.rs`, `rust/tcl-bytecode/src/lib.rs`,
 `rust/tcl-compiler/src/compilation_unit.rs`
 
-## Content
-
 ### Stage 1 — Lexer types (`tokens.rs`)
 
 | Type | Purpose |

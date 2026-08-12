@@ -12,8 +12,6 @@ manages task lifecycle with cancellation and version tracking.
 Source: `rust/tcl-lsp-db/src/lib.rs`,
 `rust/tcl-lsp-server/src/lib.rs`
 
-## Content
-
 ### Phase 1 — Basic diagnostics (fast, synchronous)
 
 The basic phase runs on every keystroke and returns immediately:

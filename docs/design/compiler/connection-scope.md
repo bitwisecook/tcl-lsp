@@ -11,8 +11,6 @@ reads in `HTTP_REQUEST` are legitimate — not read-before-set errors.
 
 Source: `rust/tcl-compiler/src/connection_scope.rs`
 
-## Content
-
 ### Analysis flow
 
 ```

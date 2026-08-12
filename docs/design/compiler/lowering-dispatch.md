@@ -17,8 +17,6 @@ Source: `rust/tcl-compiler/src/lowering/mod.rs`,
 `rust/tcl-compiler/src/lowering/hooks/`,
 `rust/tcl-registry/src/hooks.rs` (`LoweringHookId`)
 
-## Content
-
 ### Dispatch hierarchy
 
 ```

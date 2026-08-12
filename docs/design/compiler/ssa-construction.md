@@ -12,8 +12,6 @@ construction.
 
 Source: `rust/tcl-compiler/src/ssa.rs` (`build_ssa`, `Phi`, `SsaBlock`, `SsaFunction`)
 
-## Content
-
 ### SSA principles
 
 - Every variable definition gets a unique `(name, version)` — the

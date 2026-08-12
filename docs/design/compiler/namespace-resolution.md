@@ -17,8 +17,6 @@ Source: `rust/tcl-syntax/src/naming.rs`,
 `rust/tcl-compiler/src/lowering/mod.rs`,
 `rust/tcl-compiler/src/interprocedural.rs`
 
-## Content
-
 ### `normalise_qualified_name()`
 
 ```rust

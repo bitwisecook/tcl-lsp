@@ -12,8 +12,6 @@ blocks, constant branches, read-before-set, and unused variables.
 Source: `rust/tcl-compiler/src/analyses.rs` / `rust/tcl-compiler/src/sccp.rs` (`analyse_function` at line 3964, `FunctionAnalysis` at line 426),
 `rust/tcl-compiler/src/types.rs`
 
-## Content
-
 ### SCCP — constant propagation
 
 The SCCP value lattice:

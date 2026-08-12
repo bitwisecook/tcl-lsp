@@ -15,8 +15,6 @@ Source: `rust/tcl-lexer/src/lexer.rs` (`Lexer`, `LexerConfig`, `tokenise_all`),
 `rust/tcl-lexer/src/tokens.rs`,
 `rust/tcl-compiler/src/segmenter.rs` (`SegmentedCommand`, `segment_commands`)
 
-## Content
-
 ### Stage 1 — Lexing
 
 The lexer scans character-by-character and produces typed tokens:

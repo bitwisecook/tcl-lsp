@@ -12,8 +12,6 @@ sequence of IR statements with no branches except at the end.
 
 Source: `rust/tcl-compiler/src/cfg.rs` (`build_cfg` at line 1447, `CFGBlock` at line 473)
 
-## Content
-
 ### Decomposition patterns
 
 **`if` / `elseif` / `else`** → fan-out with merge:

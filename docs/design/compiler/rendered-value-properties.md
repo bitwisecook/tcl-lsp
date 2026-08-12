@@ -13,8 +13,6 @@ Source: `rust/tcl-compiler/src/rendered_properties.rs`
 
 Primary consumer: `rust/tcl-compiler/src/path_concat.rs` (W201 detection).
 
-## Content
-
 ### Lattice design
 
 The analysis uses a **reduced product** of two property groups with different

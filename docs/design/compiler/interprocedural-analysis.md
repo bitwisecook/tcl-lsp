@@ -11,8 +11,6 @@ ICIP, ADCE, and taint analysis.
 
 Source: `rust/tcl-compiler/src/interprocedural.rs`
 
-## Content
-
 ### Three-phase summary construction
 
 **Phase 1 — Local facts (`ProcLocalSummary`):**

@@ -18,8 +18,6 @@ Source: `rust/tcl-compiler/src/sccp.rs` and
 `rust/tcl-compiler/src/type_infer.rs`. Optimiser consumers live under
 `rust/tcl-compiler/src/optimiser/`.
 
-## Content
-
 ### Constant folding via SCCP
 
 **Example — `expr {2 + 3}`:**

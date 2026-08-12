@@ -12,8 +12,6 @@ commands.  Every statement carries a `Span` for diagnostic mapping.
 Source: `rust/tcl-compiler/src/ir.rs`,
 `rust/tcl-compiler/src/lowering/`
 
-## Content
-
 ### IR node selection rules
 
 | Tcl pattern | IR node | Why |

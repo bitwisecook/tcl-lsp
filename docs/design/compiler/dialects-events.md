@@ -15,8 +15,6 @@ Source: `rust/tcl-dialect/src/dialect_set.rs` (`DialectSet`),
 `rust/tcl-registry/src/spec.rs` (`CommandSpec::dialects`),
 `rust/tcl-registry/src/events.rs` (`EventRequires`)
 
-## Content
-
 ### Known dialects
 
 Dialects are bits of the `DialectSet` bitflags type

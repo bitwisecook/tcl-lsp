@@ -472,7 +472,8 @@ pub enum ConstValue {
     String(String),
 }
 
-// Aggregate per-function analysis shape.
+// Aggregate per-function analysis shape.  Declared, but not part of the
+// live pipeline — see the note below.
 pub struct FunctionAnalysis {
     pub live_in: HashMap<String, HashSet<ValueKey>>,   // (see Glossary → Liveness)
     pub live_out: HashMap<String, HashSet<ValueKey>>,
@@ -487,10 +488,23 @@ pub struct FunctionAnalysis {
 }
 ```
 
-In the live pipeline these results reach consumers through the per-function
-`FunctionUnit` on the `CompilationUnit` (below), whose `sccp: SccpResult`
-carries `values`, `executable_blocks`, `executable_edges`, and
-`constant_branches` from `sccp()` (`rust/tcl-compiler/src/sccp.rs`).
+> **`FunctionAnalysis` is not on the live path.**  The struct is declared in
+> `rust/tcl-compiler/src/analyses.rs`, but nothing in the compiler builds,
+> returns, or reads one — its only construction is `::default()` inside that
+> module's own tests.  It is kept here as the shape a per-function analysis
+> aggregate would take; issue #1406 tracks the gap.
+
+What the pipeline actually produces is the per-function `FunctionUnit` on the
+`CompilationUnit` (below), built by `CompilationUnit::build_for()`
+(`rust/tcl-compiler/src/compilation_unit.rs`).  Its `sccp: SccpResult` — the
+return value of `sccp()` (`rust/tcl-compiler/src/sccp.rs`) — carries `values`,
+`executable_blocks`, `executable_edges`, and `constant_branches`; its `types`,
+`taints`, `def_use`, and `return_type` fields carry the remaining core-analysis
+results.  Liveness itself is computed where a consumer needs it rather than
+being stashed on an aggregate: `live_out_by_name()`
+(`rust/tcl-compiler/src/slot_allocation.rs`) for slot interference, and
+`liveness_dead_stores()` (`rust/tcl-compiler/src/dead_stores.rs`) for the
+`DeadStore` list.  Nothing populates the `live_in` / `live_out` fields above.
 
 #### Type lattice (`rust/tcl-compiler/src/types.rs`)
 
@@ -4238,5 +4252,5 @@ Each stage transforms the data into a richer representation:
 3. **IR nodes** — typed, structured command semantics (`rust/tcl-compiler/src/ir.rs`)
 4. **CFG blocks** — explicit control flow with terminators (`rust/tcl-compiler/src/cfg.rs`)
 5. **SSA** — variable versioning with phi nodes at merge points (`rust/tcl-compiler/src/ssa.rs`)
-6. **FunctionAnalysis** — constant values, types, liveness, dead stores (`rust/tcl-compiler/src/analyses.rs`)
+6. **FunctionUnit** — constant values, types, taints, def-use chains, per function; its `sccp: SccpResult` holds the SCCP lattice (`rust/tcl-compiler/src/compilation_unit.rs`, `rust/tcl-compiler/src/sccp.rs`).  The `FunctionAnalysis` aggregate sketched in [Stage 6](#stage-6--analysis-types-rusttcl-compilersrcanalysesrs) is declared but not on this path — see issue #1406
 7. **Bytecode** — executable instruction stream with literal/variable tables (`rust/tcl-bytecode/src/format.rs`)
