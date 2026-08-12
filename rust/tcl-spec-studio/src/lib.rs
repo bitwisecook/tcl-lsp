@@ -42,6 +42,8 @@
 //! - [`render_stub`] — draft → `# tcl-lsp: stub` block or `.tcl.stubs` file.
 //! - [`render_spectcl`] — draft → `.tclspec` spec pack, the loader's inverse.
 //! - [`infer`] — Tcl package sources → draft specs, via the real analyser.
+//! - [`sample`] — the Test tab's engine: a sample of Tcl analysed with the pack
+//!   installed, plus a per-word explanation of which spec field produced it.
 //! - [`store`] — the studio's **models**, kept away from every UI: the
 //!   immutable built-ins, the DSL-text-backed pack store, and the one
 //!   resolution facade that merges them under the shipped collision policy.
@@ -64,6 +66,7 @@ pub mod reference;
 pub mod render_rs;
 pub mod render_spectcl;
 pub mod render_stub;
+pub mod sample;
 pub mod schema;
 pub mod store;
 

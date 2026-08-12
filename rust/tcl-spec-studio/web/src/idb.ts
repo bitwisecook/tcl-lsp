@@ -39,6 +39,8 @@ export interface Session {
   open: string | null;
   /** The registry dialect the browser was pointed at. */
   dialect: string;
+  /** The Test tab's sample code — as much a part of the work as the pack. */
+  sample?: string;
 }
 
 const DB_NAME = "tcl-spec-studio";
@@ -128,6 +130,7 @@ export async function load(): Promise<Session | null> {
         source: row.source,
         open: typeof row.open === "string" ? row.open : null,
         dialect: typeof row.dialect === "string" ? row.dialect : "tcl9.0",
+        sample: typeof row.sample === "string" ? row.sample : undefined,
       });
     };
     request.onerror = () => resolve(null);

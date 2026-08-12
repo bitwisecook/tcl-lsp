@@ -80,14 +80,17 @@
 //! rebuild one per query — which is what the wasm facade's cached store does.
 
 use std::collections::{BTreeMap, BTreeSet};
+use std::hash::{Hash, Hasher};
 
 use serde_json::{Value, json};
 use tcl_compiler::parsing::syntax::build::build_document;
 use tcl_compiler::parsing::syntax::segment::segments_from_document;
+use tcl_dialect::DialectProfile;
 use tcl_lexer::{LexerConfig, SourceMap};
 use tcl_registry::CommandRegistry;
 use tcl_registry::cache::registry_for_dialect;
 use tcl_spectcl::loader::{self, HookOwner, HookSource, Notice, Pack};
+use tcl_spectcl::pack::{MergedPack, PackSet};
 
 use crate::draft::{self, Draft};
 use crate::render_spectcl;
@@ -284,6 +287,55 @@ impl PackStore {
             .iter()
             .filter(|n| n.context == prefix || n.context.starts_with(&format!("{prefix} /")))
             .collect()
+    }
+
+    /// This document as the one-file [`PackSet`] the installer takes.
+    ///
+    /// The studio edits a pack **in a browser**, where there is no file to
+    /// discover, so the set is assembled here rather than by
+    /// `tcl_spectcl::pack::load` — same `MergedPack`, same commands, at the
+    /// workspace tier a private pack really loads from. Everything downstream
+    /// (installation, the collision policy, hook specialisation) is then the
+    /// shipped code path, unchanged.
+    ///
+    /// Load notices are the store's own to report, so the set carries none.
+    #[must_use]
+    pub fn pack_set(&self) -> PackSet {
+        let name = if self.pack.name.is_empty() {
+            "pack".to_owned()
+        } else {
+            self.pack.name.clone()
+        };
+        PackSet {
+            packs: vec![MergedPack {
+                name: name.clone(),
+                dsl_version: self.pack.dsl_version.clone(),
+                tier: tcl_spectcl::Tier::Workspace,
+                files: vec![std::path::PathBuf::from(format!("{name}.tclspec"))],
+                commands: self.pack.commands.clone(),
+            }],
+            notices: Vec::new(),
+            key: self.overlay_key(),
+        }
+    }
+
+    /// The identity this document installs under in the registry cache.
+    ///
+    /// Content-derived, exactly as `tcl_spectcl::pack::load`'s key is: the same
+    /// document resolves to the same installed registry however many times it
+    /// is asked for, and an edit is a new entry. `0` is reserved by the
+    /// installer for "no packs", so a document that hashes there is nudged.
+    #[must_use]
+    pub fn overlay_key(&self) -> u64 {
+        if self.pack.commands.is_empty() {
+            return 0;
+        }
+        let mut hasher = std::collections::hash_map::DefaultHasher::new();
+        self.source.hash(&mut hasher);
+        match hasher.finish() {
+            0 => 1,
+            key => key,
+        }
     }
 
     /// The whole document, re-rendered from the derived drafts.
@@ -722,6 +774,35 @@ impl<'a> Resolution<'a> {
         self.store
     }
 
+    /// The **live registry** this merged world resolves to: the shipped one
+    /// for the dialect with the pack installed over it.
+    ///
+    /// This is the seam that makes the Test tab honest. Rather than the studio
+    /// merging two drafts and calling that "what an editor would see", the
+    /// pack goes through `tcl_spectcl::install::registry_with_packs` — the very
+    /// function the language server calls at workspace init — so the collision
+    /// policy, the vendor package gate, and hook specialisation are all the
+    /// shipped behaviour rather than a re-implementation of it.
+    ///
+    /// Cached on `(profile, key)` inside the registry cache, so repeated
+    /// queries against an unchanged document cost a lookup. An edit is a new
+    /// key and therefore a new registry: callers should debounce, which is why
+    /// the Test tab re-analyses on a settle timer rather than per keystroke.
+    #[must_use]
+    pub fn registry(&self) -> &'static CommandRegistry {
+        tcl_spectcl::install::registry_with_packs(
+            DialectProfile::by_name(self.builtins.dialect()),
+            &self.store.pack_set(),
+        )
+    }
+
+    /// The pack overlay identity [`Self::registry`] installed under — the value
+    /// `Analyser::with_pack_overlay` takes. `0` when the pack declares nothing.
+    #[must_use]
+    pub fn overlay_key(&self) -> u64 {
+        self.store.overlay_key()
+    }
+
     /// Where `name` resolves.
     ///
     /// This is `tcl_spectcl::pack::installs_over`'s rule — *shipped wins unless
@@ -923,6 +1004,13 @@ fn notices_json(notices: &[&Notice]) -> Value {
             .map(|n| json!({ "line": n.line, "context": n.context, "reason": n.message }))
             .collect(),
     )
+}
+
+/// The draft keys `d` says something about — [`fields_set`] against a
+/// brand-new command's defaults, for callers outside this module.
+#[must_use]
+pub fn fields_set_of(d: &Draft) -> Vec<String> {
+    fields_set(d, &draft::default_command_draft())
 }
 
 /// The draft keys this declaration actually said something about, sorted.

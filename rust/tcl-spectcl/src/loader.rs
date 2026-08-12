@@ -1566,6 +1566,88 @@ fn parse_handle_binding(text: &str, line: u32, log: &mut Log) -> Option<HandleBi
     })
 }
 
+/// `object_class NAME ?-superclass {…}? ?-allow-unknown? ?{ method … }?`.
+///
+/// The ratified spelling (`docs/design/spec-dsl-examples/README.md`, "Rulings
+/// on the census drafts"): `ObjectClassSpec` has four fields, three of which
+/// are one word each, so they ride on the statement rather than in the block.
+/// The `NAME` word is [`ObjectClassSpec::class_name`] and is **not** always the
+/// command name — a factory command may manufacture a differently-named class.
+/// The optional trailing block holds `method NAME { … }` rows, which reuse the
+/// `subcommand` body grammar unchanged because
+/// [`ObjectClassSpec::instance_methods`] really is `&[SubCommand]`.
+fn object_class_row(
+    stmt: &Stmt,
+    tables: &PackTables,
+    log: &mut Log,
+) -> Option<tcl_registry::spec::ObjectClassSpec> {
+    let class_name = stmt.word_text(1).to_owned();
+    if class_name.is_empty() {
+        log.say(stmt.line, "`object_class` with no class name dropped");
+        return None;
+    }
+    let mut superclasses: Vec<String> = Vec::new();
+    let mut allow_unknown_methods = false;
+    let mut body: Option<&Word> = None;
+    let words = &stmt.words;
+    let mut i = 2;
+    while i < words.len() {
+        match words[i].text.as_str() {
+            "-superclass" => superclasses = list_words(&next_text(words, &mut i)),
+            "-allow-unknown" => allow_unknown_methods = true,
+            // The one unflagged word left is the member block, and it is
+            // always last.
+            _ if words[i].braced && i + 1 == words.len() => body = Some(&words[i]),
+            other => log.unknown_flag("object_class", stmt.line, other),
+        }
+        i += 1;
+    }
+
+    let outer = log.context.clone();
+    let methods = log.scoped(format!("{outer} / object_class {class_name}"), |log| {
+        let mut methods: Vec<SubCommand> = Vec::new();
+        let Some(body) = body else {
+            return methods;
+        };
+        for stmt in block(body) {
+            if stmt.word_text(0) != "method" {
+                log.unknown_property(&stmt);
+                continue;
+            }
+            // A member row's own hooks have no owner the pack-hook binder can
+            // name today — `HookOwner::Subcommand` resolves against
+            // `spec.subcommands`, which an instance method is not in — so the
+            // declarations are collected here and reported rather than bound
+            // to the wrong table.
+            let mut hooks: Vec<HookDecl> = Vec::new();
+            let Some(method) = load_subcommand(&stmt, tables, &mut hooks, "method", log) else {
+                continue;
+            };
+            for hook in &hooks {
+                if matches!(hook.source, HookSource::Body { .. }) {
+                    log.say(
+                        stmt.line,
+                        format!(
+                            "`{}` hook body on `method {}` is not yet bindable; the field \
+                             abstains",
+                            hook.field, method.name
+                        ),
+                    );
+                }
+            }
+            methods.push(method);
+        }
+        methods
+    });
+
+    Some(tcl_registry::spec::ObjectClassSpec {
+        class_name: leak_str(&class_name),
+        instance_methods: leak_slice(methods),
+        superclasses: leak_strs(&superclasses),
+        allow_unknown_methods,
+    })
+}
+
 // ---------------------------------------------------------------------------
 // Per-argument rows — six schema keys, one statement
 // ---------------------------------------------------------------------------
@@ -2806,6 +2888,7 @@ fn apply_command_stmt(
         "binds_handle" => {
             spec.binds_handle = parse_handle_binding(&value, stmt.line, log).map(leak_one);
         }
+        "object_class" => spec.object_class = object_class_row(stmt, tables, log).map(leak_one),
         "oo_context_fact" => {
             const FACTS: &[tcl_registry::spec::OoContextFact] =
                 &[tcl_registry::spec::OoContextFact::DefiningClass];
@@ -2818,7 +2901,7 @@ fn apply_command_stmt(
 
         // --- subcommands ---------------------------------------------------
         "subcommand" => {
-            if let Some(sub) = load_subcommand(stmt, tables, &mut acc.hooks, log) {
+            if let Some(sub) = load_subcommand(stmt, tables, &mut acc.hooks, "subcommand", log) {
                 acc.subcommands.push(sub);
             }
         }
@@ -3236,16 +3319,20 @@ struct SubAcc {
     versioned_arg_values: Vec<tcl_registry::spec::VersionedArgValue>,
 }
 
+/// Read a `subcommand NAME { … }` body, or the `method NAME { … }` row of an
+/// `object_class` block — one grammar, `kind` naming which statement word
+/// spelled it so notices say `method walk` rather than `subcommand walk`.
 fn load_subcommand(
     stmt: &Stmt,
     tables: &PackTables,
     hooks: &mut Vec<HookDecl>,
+    kind: &str,
     log: &mut Log,
 ) -> Option<SubCommand> {
     let name = stmt.word_text(1).to_owned();
     let body = stmt.arg(2)?;
     let outer = log.context.clone();
-    log.scoped(format!("{outer} / subcommand {name}"), |log| {
+    log.scoped(format!("{outer} / {kind} {name}"), |log| {
         let mut sub = SubCommand {
             name: leak_str(&name),
             ..SubCommand::DEFAULT
@@ -3647,5 +3734,98 @@ mod tests {
         let demo = pack.command("demo").expect("demo loads");
         assert_eq!(demo.spec.arg_roles, &[(2, ArgRole::Body)]);
         assert!(pack.notices.iter().any(|n| n.message.contains("above the")));
+    }
+
+    /// The frozen spelling, whole: `object_class NAME ?-superclass {…}?
+    /// ?-allow-unknown? { method … }`, with `method` rows reusing the
+    /// `subcommand` body grammar.
+    #[test]
+    fn an_object_class_carries_its_name_flags_and_method_table() {
+        let pack = load_pack(
+            "speclib probe 1.0 {\n\
+             command factory {\n\
+               arity 1..\n\
+               object_class ::probe::Widget -superclass {::probe::Base ::probe::Mixin} \
+                 -allow-unknown {\n\
+                 method configure {\n\
+                   arity 1..\n\
+                   detail   {Reconfigure the widget.}\n\
+                   synopsis {$w configure ?-opt value ...?}\n\
+                   mutator\n\
+                   option -text -takes value\n\
+                 }\n\
+                 method cget { arity 1 ; detail {Read one option.} ; pure }\n\
+               }\n\
+             }\n\
+             }",
+        );
+        assert!(pack.notices.is_empty(), "{:?}", pack.notices);
+        let spec = pack.command("factory").expect("factory loads").spec;
+        let class = spec.object_class.expect("the object_class is read");
+        assert_eq!(class.class_name, "::probe::Widget");
+        assert_eq!(class.superclasses, &["::probe::Base", "::probe::Mixin"]);
+        assert!(class.allow_unknown_methods);
+
+        let names: Vec<&str> = class.instance_methods.iter().map(|m| m.name).collect();
+        assert_eq!(names, ["configure", "cget"]);
+        let configure = class.instance_method("configure").expect("by name");
+        assert_eq!(configure.detail, "Reconfigure the widget.");
+        assert_eq!(configure.synopsis, "$w configure ?-opt value ...?");
+        assert!(configure.mutator);
+        assert_eq!(configure.options.len(), 1);
+        assert_eq!(configure.options[0].name, "-text");
+        assert!(class.instance_method("cget").expect("by name").pure);
+
+        // The method table is the class's, not the command's: a factory
+        // declaring no `subcommand` rows still has none.
+        assert!(spec.subcommands.is_empty());
+    }
+
+    /// `object_class NAME` with neither flags nor a block is the documented
+    /// short form — a class known by name whose methods are not enumerated.
+    #[test]
+    fn an_object_class_may_be_a_bare_name() {
+        let pack = load_pack(
+            "speclib probe 1.0 {\n\
+             command factory { object_class ::probe::Opaque }\n\
+             }",
+        );
+        assert!(pack.notices.is_empty(), "{:?}", pack.notices);
+        let class = pack
+            .command("factory")
+            .expect("factory loads")
+            .spec
+            .object_class
+            .expect("the object_class is read");
+        assert_eq!(class.class_name, "::probe::Opaque");
+        assert!(class.instance_methods.is_empty());
+        assert!(class.superclasses.is_empty());
+        assert!(!class.allow_unknown_methods);
+    }
+
+    /// A nameless class, an unknown flag, and a non-`method` member row are
+    /// each a degradation with a notice, never a failure.
+    #[test]
+    fn a_malformed_object_class_degrades_with_a_notice() {
+        let pack = load_pack(
+            "speclib probe 1.0 {\n\
+             command nameless { object_class }\n\
+             command odd { object_class ::probe::C -mixin {::X} { subcommand s { arity 1 } } }\n\
+             }",
+        );
+        let said = |needle: &str| {
+            pack.notices
+                .iter()
+                .any(|notice| notice.message.contains(needle))
+        };
+        assert!(pack.command("nameless").expect("still loads").spec.object_class.is_none());
+        assert!(said("`object_class` with no class name dropped"));
+
+        let odd = pack.command("odd").expect("still loads").spec;
+        let class = odd.object_class.expect("the named class survives");
+        assert_eq!(class.class_name, "::probe::C");
+        assert!(class.instance_methods.is_empty());
+        assert!(said("unknown flag `-mixin` on `object_class` dropped"));
+        assert!(said("unknown property `subcommand` dropped"));
     }
 }

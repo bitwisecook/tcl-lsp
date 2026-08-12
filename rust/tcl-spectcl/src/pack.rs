@@ -178,6 +178,32 @@ pub fn load(files: &[PackFile]) -> PackSet {
         }
     }
 
+    load_sources(sources, notices)
+}
+
+/// [`load`]'s merge, taken with the source text already in hand rather than
+/// read from `file.path` on disk.
+///
+/// [`crate::bundled`]'s embedded-pack fallback is the one other caller: a
+/// standalone binary with no `specs/` directory beside it (every
+/// `tcl-lsp-server-<triple>` / `tcl-mcp-<triple>` / `tcl-<triple>` /
+/// `f5-query-<triple>` release asset, until something stages one there —
+/// the VSIX/JetBrains/Sublime bundles, a dev checkout, or
+/// `TCL_LSP_SPEC_PACK_DIR`) has the six shipped `.tclspec` sources compiled
+/// in via `include_str!` but nowhere on disk to point a [`PackFile`] at.
+/// Everything past "read the bytes" — cache lookup, `speclib` grouping,
+/// tier-shadowing, duplicate-command detection, the content key — is
+/// identical either way, so this is the one seam that seam splits on, not a
+/// second implementation of the merge.
+///
+/// `notices` carries whatever the caller already collected before sources
+/// were in hand (e.g. [`load`]'s unreadable-file notices); embedded sources
+/// never fail to "read", so [`crate::bundled`] always passes an empty vec.
+#[must_use]
+pub(crate) fn load_sources(
+    sources: Vec<(PackFile, String)>,
+    mut notices: Vec<PackNotice>,
+) -> PackSet {
     // Keyed from the bytes, before anything is parsed: the key must describe
     // the input, not what the loader made of it.
     let key = set_key(&sources);

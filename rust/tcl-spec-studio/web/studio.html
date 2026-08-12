@@ -48,6 +48,13 @@ __STYLES__
       </span>
       <datalist id="cmdOptions"></datalist>
       <button type="button" class="ghost" id="newCmd">New command</button>
+      <!-- Browser-style history over the commands visited. Defining a library
+           is constant motion between its commands; going back has to be one
+           key, not a hunt through a search box. -->
+      <span class="navbtns">
+        <button type="button" class="ghost" id="navBack" title="Back (Alt+←)" aria-label="Back to the previously opened command">◀</button>
+        <button type="button" class="ghost" id="navFwd" title="Forward (Alt+→)" aria-label="Forward to the next opened command">▶</button>
+      </span>
       <span class="status" id="status">loading the registry…</span>
     </div>
 
@@ -74,6 +81,7 @@ __STYLES__
         <div class="tabs" role="tablist">
           <button type="button" role="tab" id="tab-editor" aria-controls="pane-editor" aria-selected="true">Spec editor</button>
           <button type="button" role="tab" id="tab-dsl" aria-controls="pane-dsl" aria-selected="false">Pack DSL</button>
+          <button type="button" role="tab" id="tab-test" aria-controls="pane-test" aria-selected="false">Test</button>
           <button type="button" role="tab" id="tab-rs" aria-controls="pane-rs" aria-selected="false">Rendered .rs</button>
           <button type="button" role="tab" id="tab-stub" aria-controls="pane-stub" aria-selected="false">Tcl stub</button>
           <button type="button" role="tab" id="tab-import" aria-controls="pane-import" aria-selected="false">Import a package</button>
@@ -108,6 +116,35 @@ __STYLES__
             <div class="note info" id="liveSave" style="margin-top:.7rem">Live save is on: every edit is kept in this browser.</div>
             <div class="status" id="dslStatus"></div>
             <div id="dslReport"></div>
+          </div>
+        </section>
+
+        <!-- The Test tab. Paste Tcl that uses the built-ins plus the pack; the
+             pack is installed into a real registry and the sample goes through
+             the same analyser the language server runs, so what shows up here
+             is what an editor would show. Click any word for the deep view. -->
+        <section class="pane" id="pane-test" role="tabpanel" aria-labelledby="tab-test" hidden>
+          <p class="hint" style="margin-top:0">Write Tcl that calls your pack's commands. It is analysed with the pack <b>installed over the shipped registry</b> — the same installer and the same analyser the language server runs — so these are the diagnostics your editor would raise. Click any word to see which spec answered for it, the argument role, and the exact spec property that produced it.</p>
+          <div class="out">
+            <div class="actions">
+              <button type="button" class="primary" id="testRun">Re-run</button>
+              <button type="button" class="ghost" id="testSample">Insert a sample call</button>
+              <span class="path" id="testSummary"></span>
+            </div>
+            <textarea id="testText" class="dsl" rows="10" spellcheck="false" autocapitalize="off" autocorrect="off" aria-label="Tcl to test the pack with"></textarea>
+            <div class="status" id="testStatus"></div>
+            <div class="testsplit">
+              <div>
+                <label class="fld">What an editor sees</label>
+                <pre class="testview" id="testTokens" aria-label="The sample, tokenised"><code>—</code></pre>
+                <label class="fld">Diagnostics</label>
+                <div id="testDiags"></div>
+              </div>
+              <div class="testinspect" id="testInspect">
+                <label class="fld">Inspector</label>
+                <p class="hint" style="margin-top:0">Click a word above.</p>
+              </div>
+            </div>
           </div>
         </section>
 
@@ -192,6 +229,17 @@ __STYLES__
           </div>
         </section>
       </div>
+    </div>
+  </div>
+
+  <!-- `/` anywhere opens command search over the pack and the registry alike.
+       Keyboard first: type to narrow, ↑/↓ to move, Enter to open, Esc to
+       dismiss. -->
+  <div class="palette" id="palette" role="dialog" aria-modal="true" aria-label="Search commands" hidden>
+    <div class="box">
+      <input type="search" id="paletteInput" autocapitalize="off" autocorrect="off" spellcheck="false" placeholder="Search the pack and the registry…" aria-label="Search commands" aria-controls="paletteList">
+      <ul id="paletteList" role="listbox" aria-label="Matching commands"></ul>
+      <div class="foot"><b>↑↓</b> move · <b>Enter</b> open · <b>Esc</b> close · <b>/</b> reopens</div>
     </div>
   </div>
 

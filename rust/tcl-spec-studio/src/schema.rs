@@ -98,6 +98,10 @@ pub enum FieldKind {
     SubCommands,
     /// `&'static [SubSubCommand]`.
     SubSubCommands,
+    /// `Option<&'static ObjectClassSpec>` — a class name, its superclasses,
+    /// an unknown-method flag, and an instance-method table edited with the
+    /// subcommand schema.
+    ObjectClass,
     /// A field the studio cannot model as data — a function pointer or a
     /// reference to a `&'static` descriptor. Held (and emitted) as a verbatim
     /// Rust expression the author supplies.
@@ -138,6 +142,7 @@ impl FieldKind {
             Self::Hover => "hover",
             Self::SubCommands => "subCommands",
             Self::SubSubCommands => "subSubCommands",
+            Self::ObjectClass => "objectClass",
             Self::RustExpr { .. } => "rustExpr",
         }
     }
@@ -1028,9 +1033,7 @@ pub const COMMAND_FIELDS: &[FieldSchema] = &[
         "object_class",
         "Object class",
         ADVANCED,
-        FieldKind::RustExpr {
-            hint: "Some(&MY_CLASS)",
-        },
+        FieldKind::ObjectClass,
         "Class metadata for a factory whose `new`/`create` returns a dispatchable handle.",
     ),
     f(

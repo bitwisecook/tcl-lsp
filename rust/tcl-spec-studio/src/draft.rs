@@ -63,8 +63,8 @@ use tcl_registry::repeated::RepeatedArgLayout;
 use tcl_registry::representation::RepresentationEffect;
 use tcl_registry::side_effects::SideEffect;
 use tcl_registry::spec::{
-    BytePayloadSpec, CommandSpec, OoContextFact, OptionConstraint, SubCommand, SubSubCommand,
-    VersionedArgValue,
+    BytePayloadSpec, CommandSpec, ObjectClassSpec, OoContextFact, OptionConstraint, SubCommand,
+    SubSubCommand, VersionedArgValue,
 };
 use tcl_registry::symbol_def::SymbolDef;
 use tcl_registry::taint::{SetterConstraint, TaintColour};
@@ -411,6 +411,39 @@ fn manufacturer_method(method: &ManufacturerMethod) -> Value {
         "names_instance_at": method.names_instance_at,
         "definition_body_at": method.definition_body_at,
         "constructor_args_from": method.constructor_args_from,
+    })
+}
+
+/// Seed the `object_class` value from a live [`ObjectClassSpec`].
+///
+/// The four fields are plain data — a class name, a method table that *is*
+/// `&[SubCommand]`, superclass names, and a flag — so the draft holds the
+/// descriptor itself rather than an [`Unrecovered`] note. Each instance method
+/// is drafted with the same [`subcommand_body`] the command's own subcommands
+/// use, which is what lets the `SpecTcl` renderer write `method NAME { … }`
+/// rows in the `subcommand` body grammar the DSL reuses for them.
+fn object_class(class: Option<&'static ObjectClassSpec>, lost: &mut Unrecovered) -> Value {
+    let Some(class) = class else {
+        return Value::Null;
+    };
+    let methods: Vec<Value> = class
+        .instance_methods
+        .iter()
+        .map(|method| {
+            let mut method_lost = Unrecovered::default();
+            let mut body = subcommand_body(method, &mut method_lost);
+            for key in &method_lost.0 {
+                lost.note(key);
+            }
+            body.insert(UNRENDERABLE_KEY.to_owned(), method_lost.into_value());
+            Value::Object(body)
+        })
+        .collect();
+    json!({
+        "class_name": class.class_name,
+        "instance_methods": Value::Array(methods),
+        "superclasses": str_list(class.superclasses),
+        "allow_unknown_methods": class.allow_unknown_methods,
     })
 }
 
@@ -1389,10 +1422,7 @@ fn command_advanced(d: &mut Draft, spec: &CommandSpec, lost: &mut Unrecovered) {
         "self_receiver_words".into(),
         str_list(spec.self_receiver_words),
     );
-    d.insert(
-        "object_class".into(),
-        lost.expr("object_class", spec.object_class.is_some()),
-    );
+    d.insert("object_class".into(), object_class(spec.object_class, lost));
     d.insert(
         "defines_symbol".into(),
         spec.defines_symbol

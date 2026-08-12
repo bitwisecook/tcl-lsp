@@ -182,11 +182,6 @@ pub const GAPS: &[Gap] = &[
         kind: GapKind::DraftOpaque,
     },
     Gap {
-        key: "object_class",
-        spelling: "object_class NAME ?-superclass {…}? ?-allow-unknown? { … }",
-        kind: GapKind::DraftOpaque,
-    },
-    Gap {
         key: "body_scope",
         spelling: "body_scope NAME|{ … }",
         kind: GapKind::DraftOpaque,
@@ -1950,7 +1945,7 @@ fn command_body(out: &mut Out, ctx: &mut Ctx<'_>, draft: &Draft) {
     gap_todo(out, ctx, draft, "definition_body");
     manufacturer_rows(out, draft);
     gap_todo(out, ctx, draft, "case_list");
-    gap_todo(out, ctx, draft, "object_class");
+    object_class_block(out, ctx, draft);
     gap_todo(out, ctx, draft, "body_scope");
     if ctx.set(draft, "oo_context_facts")
         && let Some(expr) = draft["oo_context_facts"].as_str()
@@ -2001,7 +1996,7 @@ fn command_body(out: &mut Out, ctx: &mut Ctx<'_>, draft: &Draft) {
         let Some(body) = sub.as_object() else {
             continue;
         };
-        subcommand_block(out, ctx, body);
+        subcommand_block(out, ctx, body, "subcommand");
     }
 }
 
@@ -2085,13 +2080,69 @@ fn manufacturer_rows(out: &mut Out, draft: &Draft) {
     }
 }
 
-/// One `subcommand NAME { … }` block.
+/// `object_class NAME ?-superclass {…}? ?-allow-unknown? ?{ method … }?`.
+///
+/// The ratified spelling puts the class's three one-word facts on the
+/// statement and only the method table in the block, so a class with no
+/// methods of its own — `SpiceGenTcl`'s `R`, an empty subclass that inherits
+/// everything — is one row. The `method` rows are ordinary subcommand bodies:
+/// [`ObjectClassSpec::instance_methods`](tcl_registry::spec::ObjectClassSpec::instance_methods)
+/// is `&[SubCommand]`, so the same emitter writes both.
+fn object_class_block(out: &mut Out, ctx: &mut Ctx<'_>, draft: &Draft) {
+    let Some(class) = draft.get("object_class").filter(|value| !value.is_null()) else {
+        return;
+    };
+    let mut row = vec!["object_class".to_owned()];
+    let mut lost = false;
+    push_word(&mut row, &mut lost, word(str_of(&class["class_name"])));
+    let superclasses: Vec<&str> = as_array(&class["superclasses"])
+        .iter()
+        .filter_map(Value::as_str)
+        .collect();
+    if !superclasses.is_empty() {
+        push_flag(&mut row, &mut lost, "-superclass", list_word(&superclasses));
+    }
+    if class["allow_unknown_methods"].as_bool() == Some(true) {
+        row.push("-allow-unknown".to_owned());
+    }
+    let methods = as_array(&class["instance_methods"]);
+    if lost {
+        unwritable(out, "object_class");
+        return;
+    }
+    out.gap();
+    if methods.is_empty() {
+        out.row(&row, "-superclass");
+        return;
+    }
+
+    let mut scope = Ctx {
+        defaults: ctx.defaults,
+        scope: format!("{}::{}", ctx.scope, str_of(&class["class_name"])),
+        tables: ctx.tables,
+    };
+    let mut body = Out::at(out.indent + 1);
+    for method in methods {
+        let Some(method) = method.as_object() else {
+            continue;
+        };
+        subcommand_block(&mut body, &mut scope, method, "method");
+    }
+    row.push("{".to_owned());
+    out.row(&row, "-superclass");
+    out.block(&body);
+    out.line("}");
+}
+
+/// One `subcommand NAME { … }` block, or the `method NAME { … }` row of an
+/// `object_class` — `keyword` names which, since the DSL reuses the subcommand
+/// body grammar unchanged for instance methods.
 ///
 /// A subcommand saying only what its arity, detail, and synopsis are is
 /// written on one line with `;` separators, the way
 /// `irules-http-header.tclspec` writes fourteen of them.
 #[allow(clippy::too_many_lines)]
-fn subcommand_block(out: &mut Out, parent: &mut Ctx<'_>, sub: &Draft) {
+fn subcommand_block(out: &mut Out, parent: &mut Ctx<'_>, sub: &Draft, keyword: &str) {
     let name = str_of(sub.get("name").unwrap_or(&Value::Null));
     let defaults = draft::default_subcommand_draft();
     let mut ctx = Ctx {
@@ -2267,7 +2318,7 @@ fn subcommand_block(out: &mut Out, parent: &mut Ctx<'_>, sub: &Draft) {
     // A subcommand saying only its arity, detail, and synopsis goes on one
     // line — `;` separates statements exactly as a newline does.
     let one_liner = format!(
-        "subcommand {} {{ {} }}",
+        "{keyword} {} {{ {} }}",
         name_word(name),
         body.statements.join(" ; ")
     );
@@ -2282,7 +2333,7 @@ fn subcommand_block(out: &mut Out, parent: &mut Ctx<'_>, sub: &Draft) {
     let after_one_liner = out
         .statements
         .last()
-        .is_some_and(|last| last.starts_with("subcommand ") && last.ends_with('}'));
+        .is_some_and(|last| last.starts_with(&format!("{keyword} ")) && last.ends_with('}'));
     if simple && out.indent * 4 + one_liner.len() <= ONE_LINE_COLUMN {
         if !after_one_liner {
             out.gap();
@@ -2293,7 +2344,7 @@ fn subcommand_block(out: &mut Out, parent: &mut Ctx<'_>, sub: &Draft) {
     }
 
     out.gap();
-    out.line(&format!("subcommand {} {{", name_word(name)));
+    out.line(&format!("{keyword} {} {{", name_word(name)));
     out.block(&body);
     out.line("}");
 }

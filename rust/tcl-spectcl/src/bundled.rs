@@ -36,14 +36,35 @@
 //!
 //! Loading is done **once per process** and the result is cached, so the cost
 //! is one directory scan plus ~4,700 lines of Tcl parsed at first use.
+//!
+//! ## The embedded fallback
+//!
+//! [`discovery::bundled_dir`](crate::discovery::bundled_dir)'s directory scan
+//! stays the primary path — its doc comment explains why (the loader path
+//! gets exercised in production, not reserved for private packs) — and every
+//! *packaged* distribution still stages `specs/` beside the executable to
+//! take it: the VSIX, the `JetBrains` `.zip`, the Sublime package. A bare
+//! release binary has nothing beside it, though — `tcl-lsp-server-<triple>`,
+//! `tcl-mcp-<triple>`, `tcl-<triple>`, `f5-query-<triple>` are standalone
+//! executables, which is what the Zed extension downloads at runtime and
+//! what every "point an LSP client at a binary" editor
+//! (`INSTALL-editors.md`: Neovim, Emacs, Helix, Vim, Kate, Kakoune, …) is
+//! told to fetch — so without a fallback none of those carry the EDA vendor
+//! libraries at all: every `synth_design` et al. reports unknown. [`packs`]
+//! falls back to [`load_embedded`] only when
+//! [`bundled_dir`](crate::discovery::bundled_dir) finds no directory at
+//! all; a `specs/` directory that is merely empty still counts as present
+//! and is not overridden. Anything that stages `specs/` — a distribution,
+//! `TCL_LSP_SPEC_PACK_DIR`, a dev checkout — wins outright, exactly as
+//! before.
 
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::sync::OnceLock;
 
 use tcl_dialect::DialectProfile;
 use tcl_registry::registry::CommandRegistry;
 
-use crate::discovery::{DiscoveryOptions, discover};
+use crate::discovery::{DiscoveryOptions, Origin, PackFile, Tier, discover};
 use crate::pack::PackSet;
 
 /// Load the packs in `dir` as the bundled tier, ignoring every other tier.
@@ -61,25 +82,92 @@ pub fn load_from(dir: &Path) -> PackSet {
     crate::pack::load(&files)
 }
 
+/// The six shipped EDA loadables' `.tclspec` sources, compiled into the
+/// binary — see "The embedded fallback" above for why this exists.
+///
+/// The same six files `specs/` ships, by `include_str!` on the identical
+/// path the crate's own tests resolve `specs/` from — not a hand-copied
+/// second source that could drift from the on-disk one.
+const EMBEDDED_PACKS: &[(&str, &str)] = &[
+    (
+        "eda_cadence.tclspec",
+        include_str!("../../../specs/eda_cadence.tclspec"),
+    ),
+    (
+        "eda_mentor.tclspec",
+        include_str!("../../../specs/eda_mentor.tclspec"),
+    ),
+    (
+        "eda_quartus.tclspec",
+        include_str!("../../../specs/eda_quartus.tclspec"),
+    ),
+    (
+        "eda_synopsys.tclspec",
+        include_str!("../../../specs/eda_synopsys.tclspec"),
+    ),
+    (
+        "eda_xilinx.tclspec",
+        include_str!("../../../specs/eda_xilinx.tclspec"),
+    ),
+    (
+        "sdc_base.tclspec",
+        include_str!("../../../specs/sdc_base.tclspec"),
+    ),
+];
+
+/// Load [`EMBEDDED_PACKS`] as the bundled tier.
+///
+/// Goes through the exact same [`crate::pack::load_sources`] merge that a
+/// disk-backed load does — cache lookup, `speclib` grouping, tier-shadowing,
+/// the content key — so an embedded pack set behaves identically to a
+/// directory-backed one everywhere downstream; only where the bytes come
+/// from differs. The synthetic `<embedded>/…` paths stand in for the file
+/// each source would otherwise be read from — they never resolve on disk,
+/// but every notice still needs *a* path to report against.
+#[must_use]
+pub fn load_embedded() -> PackSet {
+    let sources = EMBEDDED_PACKS
+        .iter()
+        .map(|(name, text)| {
+            let file = PackFile {
+                tier: Tier::Bundled,
+                path: PathBuf::from(format!("<embedded>/{name}")),
+                origin: Origin::Bundled,
+            };
+            (file, (*text).to_owned())
+        })
+        .collect();
+    crate::pack::load_sources(sources, Vec::new())
+}
+
+/// [`packs`]'s resolution, factored out so a test can drive it with an
+/// explicit directory instead of through the process-wide cache and the
+/// ambient [`discovery::bundled_dir`](crate::discovery::bundled_dir).
+fn resolve_packs(bundled_dir: Option<PathBuf>) -> PackSet {
+    match bundled_dir {
+        Some(dir) => load_from(&dir),
+        None => load_embedded(),
+    }
+}
+
 /// The shipped loadables, discovered and loaded once for the process.
 ///
-/// Empty — not an error — when the bundled directory is absent, which is what
-/// a stripped-down install or a bare `cargo run` from a checkout looks like.
+/// Prefers a `specs/` directory
+/// ([`bundled_dir`](crate::discovery::bundled_dir)) exactly as before;
+/// falls back to [`load_embedded`] only when there is none at all — see
+/// "The embedded fallback" above.
 #[must_use]
 pub fn packs() -> &'static PackSet {
     static PACKS: OnceLock<PackSet> = OnceLock::new();
-    PACKS.get_or_init(|| match crate::discovery::bundled_dir() {
-        Some(dir) => load_from(&dir),
-        None => PackSet::default(),
-    })
+    PACKS.get_or_init(|| resolve_packs(crate::discovery::bundled_dir()))
 }
 
 /// The cached registry for `profile` with the shipped loadables installed.
 ///
 /// Drop-in for [`tcl_registry::registry_for_profile`] in any consumer that
-/// wants the vendor libraries the shipped packs carry. With no bundled
-/// directory present the pack set is empty and this *is*
-/// `registry_for_profile`, down to the same `&'static`.
+/// wants the vendor libraries the shipped packs carry — [`packs`] always has
+/// something to install, a directory-backed set or the embedded fallback,
+/// down to the same `&'static`.
 ///
 /// The bundled tier carries *all six* EDA libraries regardless of dialect —
 /// discovery cannot know which shell a document belongs to — and
@@ -166,5 +254,129 @@ mod tests {
         let set = load_from(Path::new("/no/such/bundled/dir"));
         assert!(set.is_empty());
         assert_eq!(set.key, 0);
+    }
+
+    /// The standalone-binary scenario this fallback exists for: no
+    /// `specs/` directory anywhere `bundled_dir` would find one — a bare
+    /// `tcl-lsp-server-<triple>` release asset, or the Zed extension's
+    /// runtime download of it.
+    #[test]
+    fn the_embedded_packs_carry_the_same_six_eda_vendor_libraries() {
+        let _cache = cache_guard();
+        let set = load_embedded();
+        let mut names: Vec<&str> = set.packs.iter().map(|p| p.name.as_str()).collect();
+        names.sort_unstable();
+        assert_eq!(
+            names,
+            vec![
+                "eda_cadence",
+                "eda_mentor",
+                "eda_quartus",
+                "eda_synopsys",
+                "eda_xilinx",
+                "sdc_base"
+            ],
+            "the six EDA loadables, embedded"
+        );
+        let warnings: Vec<String> = set
+            .notices
+            .iter()
+            .filter(|n| n.severity == crate::pack::Severity::Warning)
+            .map(|n| format!("{}:{} {}", n.path.display(), n.line, n.message))
+            .collect();
+        assert!(
+            warnings.is_empty(),
+            "the embedded packs must load clean:\n{}",
+            warnings.join("\n")
+        );
+    }
+
+    /// The embedded copy is `include_str!`'d from the exact same `specs/`
+    /// files the on-disk tier loads — this catches a wrong relative path or
+    /// a stale embed before it ships silently degraded packs.
+    #[test]
+    fn the_embedded_packs_are_command_for_command_identical_to_the_on_disk_copy() {
+        let _cache = cache_guard();
+        let on_disk = load_from(&repo_specs());
+        let embedded = load_embedded();
+        // The content key folds in each source's path, and the embedded
+        // fallback deliberately uses synthetic `<embedded>/…` paths (so a
+        // notice always has *something* to report against) — so the keys
+        // differ by design even though the parsed commands below are
+        // identical. What must match is the command set each source
+        // produces, not the key.
+
+        let mut on_disk_packs = on_disk.packs.clone();
+        let mut embedded_packs = embedded.packs.clone();
+        on_disk_packs.sort_by(|a, b| a.name.cmp(&b.name));
+        embedded_packs.sort_by(|a, b| a.name.cmp(&b.name));
+        for (disk_pack, emb_pack) in on_disk_packs.iter().zip(embedded_packs.iter()) {
+            assert_eq!(disk_pack.name, emb_pack.name);
+            let disk_names: Vec<&str> = disk_pack.commands.iter().map(|c| c.spec.name).collect();
+            let emb_names: Vec<&str> = emb_pack.commands.iter().map(|c| c.spec.name).collect();
+            assert_eq!(
+                disk_names, emb_names,
+                "pack `{}` command set must match between on-disk and embedded",
+                disk_pack.name
+            );
+        }
+    }
+
+    /// [`packs`]'s override contract: a `specs/` directory, when present,
+    /// always wins over the embedded fallback — a distribution, a dev
+    /// checkout, or `TCL_LSP_SPEC_PACK_DIR` must be able to override or
+    /// replace the shipped loadables, not merely add to them.
+    #[test]
+    fn an_on_disk_bundled_dir_wins_over_the_embedded_fallback() {
+        let _cache = cache_guard();
+        let set = resolve_packs(Some(repo_specs()));
+        assert!(!set.is_empty());
+        assert!(
+            set.packs
+                .iter()
+                .all(|p| p.files.iter().all(|f| !f.starts_with("<embedded>"))),
+            "an on-disk bundled dir must never resolve to the embedded paths: {:#?}",
+            set.packs
+        );
+    }
+
+    /// The other half of the same contract: with no on-disk directory at
+    /// all, [`packs`] falls back to the embedded copy rather than shipping
+    /// an empty set — the bug this fallback exists to close.
+    #[test]
+    fn no_bundled_dir_falls_back_to_the_embedded_packs() {
+        let _cache = cache_guard();
+        let set = resolve_packs(None);
+        assert!(!set.is_empty(), "the embedded fallback must not be empty");
+        assert!(
+            set.packs
+                .iter()
+                .all(|p| p.files.iter().all(|f| f.starts_with("<embedded>"))),
+            "with no bundled dir, every pack must resolve from the embedded paths: {:#?}",
+            set.packs
+        );
+    }
+
+    /// The end-to-end proof this whole module exists for: a **standalone
+    /// install** — a bare `tcl-lsp-server-<triple>` / `tcl-mcp-<triple>` /
+    /// `tcl-<triple>` / `f5-query-<triple>` binary with no `specs/` beside
+    /// it anywhere, i.e. `resolve_packs(None)` — resolves an EDA vendor
+    /// command through the normal registry path, not just as bytes parsed
+    /// into a [`PackSet`]. Before this fallback existed, `registry.get(
+    /// "synth_design")` was `None` for exactly this scenario: every
+    /// `synth_design` (and the other 370 EDA commands) reported unknown for
+    /// the Zed extension's runtime download and every "point an LSP client
+    /// at a binary" editor in `INSTALL-editors.md`.
+    #[test]
+    fn a_standalone_install_with_no_specs_directory_resolves_an_eda_command() {
+        let _cache = cache_guard();
+        let standalone = resolve_packs(None);
+        let profile = tcl_dialect::DialectProfile::by_name("xilinx-eda-tcl");
+        let registry = crate::install::registry_with_packs(profile, &standalone);
+
+        let command = registry
+            .get("synth_design")
+            .expect("a standalone install must resolve the Xilinx `synth_design` command");
+        assert_eq!(command.name, "synth_design");
     }
 }

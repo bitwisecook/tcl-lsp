@@ -305,6 +305,66 @@ textarea.dsl:focus-visible { outline: 2px solid var(--accent); outline-offset: 1
 .dslrow .where { font-family: var(--mono); color: var(--muted); white-space: nowrap; }
 .dslrow .what { overflow-wrap: anywhere; }
 
+/* The Test tab: the sample as an editor would paint it, its diagnostics, and
+   the inspector for whichever word was clicked. Every word is a real button —
+   keyboard reachable, not a click handler on a span — because "click any word"
+   has to work for someone who does not use a mouse. */
+.testsplit { display: grid; grid-template-columns: 1fr 20rem; gap: 1rem; align-items: start; margin-top: 1rem; }
+@media (max-width: 62rem) { .testsplit { grid-template-columns: 1fr; } }
+.testsplit > * { min-width: 0; }
+pre.testview { white-space: pre-wrap; overflow-wrap: anywhere; margin-bottom: 1rem; }
+.tok {
+  font: inherit; border: 0; padding: 0; background: transparent; color: inherit;
+  border-radius: 3px; border-bottom: 1px dotted color-mix(in srgb, var(--muted) 60%, transparent);
+}
+.tok:hover { background: color-mix(in srgb, var(--accent) 16%, transparent); }
+.tok[aria-pressed="true"] { background: color-mix(in srgb, var(--accent) 26%, transparent); }
+/* Head words carry their resolution: pack green, shadowed amber, unknown red —
+   the three states a spec author is actually looking for. */
+.tok.k-command { font-weight: 600; }
+.tok.o-pack, .tok.o-override { color: var(--ok-fg); }
+.tok.o-shadowed { color: var(--warn-fg); }
+.tok.o-unknown { color: var(--err-fg); }
+.tok.k-subcommand { color: var(--accent); }
+.tok.k-option, .tok.k-terminator { color: var(--muted); }
+.tok.s-error { text-decoration: underline wavy var(--err-fg); text-underline-offset: 3px; }
+.tok.s-warning { text-decoration: underline wavy var(--warn-fg); text-underline-offset: 3px; }
+.diagrow { display: flex; gap: .5rem; align-items: baseline; padding: .3rem 0; border-top: 1px solid var(--border); font-size: .82rem; }
+.diagrow:first-of-type { border-top: 0; }
+.diagrow .at { font-family: var(--mono); color: var(--muted); white-space: nowrap; }
+.diagrow .code { font-family: var(--mono); font-size: .74rem; border: 1px solid var(--border); border-radius: 999px; padding: 0 .35rem; white-space: nowrap; }
+.diagrow.error .code { border-color: var(--err-bd); color: var(--err-fg); }
+.diagrow.warning .code { border-color: var(--warn-bd); color: var(--warn-fg); }
+.diagrow .what { overflow-wrap: anywhere; }
+.testinspect { border: 1px solid var(--border); border-radius: 10px; padding: .8rem .9rem; background: var(--bg); }
+.testinspect .insprow { padding: .35rem 0; border-top: 1px solid var(--border); font-size: .82rem; }
+.testinspect .insprow:first-of-type { border-top: 0; }
+.testinspect .insprow .k { color: var(--muted); font-size: .74rem; text-transform: uppercase; letter-spacing: .03em; display: block; }
+.testinspect .insprow .v { overflow-wrap: anywhere; }
+.testinspect .insprow .v code { font-size: .8em; }
+.testinspect .actions { margin-top: .6rem; }
+
+/* Command search over the registry and the pack, opened with `/`. Keyboard
+   first: type to filter, arrows to move, Enter to open, Escape to dismiss. */
+.palette { position: fixed; inset: 0; background: rgba(0,0,0,.35); display: flex;
+  align-items: flex-start; justify-content: center; padding: 6vh 1rem; z-index: 50; }
+.palette[hidden] { display: none; }
+.palette .box { background: var(--card); border: 1px solid var(--border); border-radius: 12px;
+  box-shadow: var(--shadow); width: min(38rem, 100%); overflow: hidden; }
+.palette input[type=search] { border: 0; border-bottom: 1px solid var(--border); border-radius: 0; padding: .8rem 1rem; }
+.palette input[type=search]:focus { outline: none; }
+.palette ul { list-style: none; margin: 0; padding: 0; max-height: 50vh; overflow-y: auto; }
+.palette li button { display: flex; gap: .6rem; align-items: baseline; width: 100%; text-align: left;
+  border: 0; background: transparent; color: inherit; padding: .45rem 1rem; }
+.palette li button[aria-selected="true"] { background: color-mix(in srgb, var(--accent) 16%, transparent); }
+.palette .nm { font-family: var(--mono); font-size: .86rem; font-weight: 600; }
+.palette .sm { color: var(--muted); font-size: .78rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.palette .where { margin-left: auto; font-size: .7rem; color: var(--muted); border: 1px solid var(--border);
+  border-radius: 999px; padding: 0 .4rem; white-space: nowrap; }
+.palette .foot { color: var(--muted); font-size: .76rem; padding: .45rem 1rem; border-top: 1px solid var(--border); }
+.navbtns { display: flex; gap: .2rem; }
+.navbtns button { padding: .3rem .55rem; }
+
 /* Load a command by name. The filter narrows the list, but on a phone the
    list sits below the fold, so typing a name looked like it did nothing. This
    pairs the box with an explicit Load button (and Enter, and a native

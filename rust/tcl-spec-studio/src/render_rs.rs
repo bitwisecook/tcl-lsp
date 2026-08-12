@@ -735,6 +735,9 @@ fn field_expr(field: &FieldSchema, value: &Value, default: &Value, indent: &str)
             list_expr(as_array(value), indent, manufacturer_method_expr)?
         }
         FieldKind::SubSubCommands => list_expr(as_array(value), indent, sub_subcommand_expr)?,
+        // The descriptor is hoisted to a `static` beside the command, the way
+        // every shipped class spec is written; the field just names it.
+        FieldKind::ObjectClass => "Some(&OBJECT_CLASS)".to_owned(),
         FieldKind::Hover => {
             if value.is_null() {
                 return None;
@@ -920,6 +923,43 @@ fn const_table(
     )
 }
 
+/// The hoisted `static OBJECT_CLASS: ObjectClassSpec = …;` (and, when the
+/// instance methods are not simply the command's own subcommands, the
+/// `const OBJECT_CLASS_METHODS` table it points at), or an empty string when
+/// the draft declares no class.
+///
+/// Eleven of the thirteen shipped class specs set `instance_methods:
+/// SUBCOMMANDS` — a widget's instance methods *are* its subcommands — so that
+/// case is written the way it is written by hand rather than duplicating the
+/// table.
+fn object_class_statics(draft: &Draft, default_sub: &Draft) -> String {
+    let Some(class) = draft.get("object_class").filter(|v| !v.is_null()) else {
+        return String::new();
+    };
+    let methods = as_array(&class["instance_methods"]);
+    let subcommands = as_array(draft.get("subcommands").unwrap_or(&Value::Null));
+    let (table, methods_expr) = if methods.is_empty() {
+        (String::new(), "&[]".to_owned())
+    } else if methods == subcommands {
+        (String::new(), "SUBCOMMANDS".to_owned())
+    } else {
+        (
+            const_table("OBJECT_CLASS_METHODS", "SubCommand", methods, |m| {
+                subcommand_literal(m, default_sub, "    ")
+            }),
+            "OBJECT_CLASS_METHODS".to_owned(),
+        )
+    };
+    format!(
+        "{table}static OBJECT_CLASS: ObjectClassSpec = ObjectClassSpec {{\n    class_name: \
+         {},\n    instance_methods: {methods_expr},\n    superclasses: {},\n    \
+         allow_unknown_methods: {},\n}};\n\n",
+        rust_string(as_str(&class["class_name"])),
+        str_slice(as_array(&class["superclasses"])),
+        as_bool(&class["allow_unknown_methods"]),
+    )
+}
+
 /// The module doc line, from the draft's hover summary when it has one.
 ///
 /// The summary is free text a user typed into a textarea, so it may contain
@@ -989,6 +1029,7 @@ pub fn render(draft: &Draft) -> String {
         as_array(draft.get("subcommands").unwrap_or(&Value::Null)),
         |s| subcommand_literal(s, &default_sub, "    "),
     ));
+    out.push_str(&object_class_statics(draft, &default_sub));
 
     out.push_str("/// Command spec for `");
     out.push_str(name);

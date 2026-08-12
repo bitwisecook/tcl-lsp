@@ -370,3 +370,48 @@ pub fn pack_validate(source: &str, dialect: &str) -> String {
         to_string(&Resolution::new(builtins, store).validate())
     })
 }
+
+// ---------------------------------------------------------------------------
+// The Test tab — the pack, installed, under the real analyser
+// ---------------------------------------------------------------------------
+
+/// Analyse `sample` with `source`'s pack installed over the `dialect`
+/// registry.
+///
+/// Returns what an editor would show and how it got there: the analyser's
+/// diagnostics, the sample split into render chunks, and one token entry per
+/// word carrying its command, that command's origin (pack / shipped /
+/// shadowed), the roles the registry gives it, and **which spec property
+/// produced it**.
+///
+/// The pack rides in through `tcl_spectcl::install::registry_with_packs` and
+/// `Analyser::with_pack_overlay` — the same two seams the language server uses
+/// — so a diagnostic here is the diagnostic a user's editor would raise.
+#[wasm_bindgen]
+#[must_use]
+pub fn pack_test_analyse(source: &str, sample: &str, dialect: &str) -> String {
+    let builtins = Builtins::for_dialect(dialect);
+    with_store(source, |store| {
+        let merged = Resolution::new(builtins, store);
+        to_string(&tcl_spec_studio::sample::Bench::new(&merged).analyse(sample))
+    })
+}
+
+/// The deep-inspection view of the word covering byte `offset` of `sample`.
+///
+/// The resolved spec and where it came from, the argument's role with the
+/// declaration that produced it, the subcommand it selected if any, the
+/// diagnostics that land on it, and whether the pack declares the command (so
+/// a surface can offer to open it in the form).
+#[wasm_bindgen]
+#[must_use]
+pub fn pack_test_inspect(source: &str, sample: &str, dialect: &str, offset: usize) -> String {
+    let builtins = Builtins::for_dialect(dialect);
+    with_store(source, |store| {
+        let merged = Resolution::new(builtins, store);
+        match tcl_spec_studio::sample::Bench::new(&merged).inspect(sample, offset) {
+            Some(view) => to_string(&view),
+            None => error("no word at that position"),
+        }
+    })
+}

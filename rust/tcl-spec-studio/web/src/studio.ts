@@ -53,6 +53,9 @@ import type {
   Schema,
   StagedFile,
   StudioWasm,
+  TestInspection,
+  TestReport,
+  TestToken,
 } from "./types.js";
 
 const GITHUB_REPO = "bitwisecook/tcl-lsp";
@@ -68,8 +71,14 @@ const MAX_LISTED = 400;
 /// How many names to offer the browser's native autocomplete at once.
 const MAX_SUGGESTED = 50;
 
-const TABS = ["editor", "dsl", "rs", "stub", "import", "reference", "share"] as const;
+const TABS = ["editor", "dsl", "test", "rs", "stub", "import", "reference", "share"] as const;
 type Tab = (typeof TABS)[number];
+
+/** How many commands the `/` search offers at once. */
+const MAX_PALETTE = 60;
+
+/** The sample the Test tab starts with, before the author writes their own. */
+const SAMPLE_HINT = "# Call your pack's commands here.\n";
 
 /** How long a keystroke waits before the models are asked to catch up. */
 const SETTLE_MS = 120;
@@ -90,6 +99,18 @@ interface PackState {
   open: string | null;
 }
 
+/**
+ * Where a visited command came from, so history can reopen it the same way.
+ *
+ * The two are genuinely different actions — a pack command opens as an
+ * editable projection of the document, a registry one as reference material —
+ * and going back has to land on the one that was actually open.
+ */
+interface Visit {
+  name: string;
+  where: "pack" | "registry";
+}
+
 interface State {
   schema: Schema;
   defaultCommand: Draft;
@@ -100,6 +121,11 @@ interface State {
   files: StagedFile[];
   imported: InferredCommand[];
   pack: PackState;
+  /** The Test tab's sample code — persisted with the pack, per the design. */
+  sample: string;
+  /** The commands visited, oldest first, and where the cursor sits in them. */
+  history: Visit[];
+  historyAt: number;
 }
 
 let wasm: StudioWasm;
@@ -108,6 +134,14 @@ let editors: Record<string, Editor>;
 const rendered: { rs: Rendered | null; stub: Rendered | null } = { rs: null, stub: null };
 let renderTimer: number | undefined;
 let saveTimer: number | undefined;
+let testTimer: number | undefined;
+/** The last Test tab report, and which word (byte offset) is inspected. */
+let testReport: TestReport | null = null;
+let inspected: number | null = null;
+/** Which tab is showing — the Test tab only re-analyses while it is visible. */
+let currentTab: Tab = "editor";
+/** True while history is doing the opening, so it does not record its own moves. */
+let navigating = false;
 /**
  * Whether the draft in the form has been *edited* since it was loaded.
  *
@@ -387,6 +421,9 @@ function setPackSource(
   renderPackList();
   renderDslReport();
   if (opts.refreshForm && state.pack.open) refreshOpenCommand();
+  // The pack decides what the sample resolves to, so a document change is a
+  // test result change — but only pay for it while the tab is on screen.
+  if (currentTab === "test") scheduleTest();
   scheduleSave();
 }
 
@@ -433,6 +470,7 @@ function openPackCommand(name: string): void {
     loadDraft(view.pack, packOrigin(view), name);
     selectTab("editor");
     setStatus("status", "");
+    pushHistory({ name, where: "pack" });
     scheduleSave();
   } catch (e) {
     setStatus("status", `could not open ${name}: ${message(e)}`, "err");
@@ -646,6 +684,7 @@ function scheduleSave(): void {
       source: state.pack.source,
       open: state.pack.open,
       dialect: state.dialect,
+      sample: state.sample,
     });
   }, SAVE_MS);
 }
@@ -807,6 +846,7 @@ function openCommand(name: string): void {
         `Use “+ Add to pack” to start editing it as one of your own.`,
     );
     setStatus("status", "");
+    pushHistory({ name, where: "registry" });
   } catch (e) {
     setStatus("status", `could not load ${name}: ${String(e)}`, "err");
   }
@@ -1038,6 +1078,382 @@ function runImport(payload: { name: string; text: string }[]): void {
   );
 }
 
+/* The Test tab ----------------------------------------------------------- */
+
+// "My stuff is working" is observed, not asserted. The sample goes through the
+// wasm bench, which installs the pack into a real registry and runs the real
+// analyser over it — so nothing here decides what a word means; it only paints
+// what the merged registry answered.
+
+/** Ask the bench to re-analyse, once the keystrokes have settled. */
+function scheduleTest(): void {
+  if (testTimer !== undefined) window.clearTimeout(testTimer);
+  testTimer = window.setTimeout(runTest, SETTLE_MS);
+}
+
+/** Re-analyse the sample and repaint the tab. */
+function runTest(): void {
+  state.sample = byId<HTMLTextAreaElement>("testText").value;
+  try {
+    testReport = unwrap<TestReport>(
+      wasm.pack_test_analyse(state.pack.source, state.sample, state.dialect),
+    );
+  } catch (e) {
+    testReport = null;
+    setStatus("testStatus", `could not analyse the sample: ${message(e)}`, "err");
+    return;
+  }
+  renderTestReport();
+  scheduleSave();
+}
+
+function renderTestReport(): void {
+  const report = testReport;
+  const view = byId("testTokens");
+  const diags = byId("testDiags");
+  clear(view);
+  clear(diags);
+  if (!report) return;
+
+  const code = el("code", {});
+  for (const chunk of report.render) {
+    if (chunk.token === null) {
+      code.appendChild(document.createTextNode(chunk.text));
+      continue;
+    }
+    const token = report.tokens[chunk.token];
+    if (!token) {
+      code.appendChild(document.createTextNode(chunk.text));
+      continue;
+    }
+    code.appendChild(tokenButton(token, chunk.text));
+  }
+  view.appendChild(code);
+
+  for (const d of report.diagnostics) {
+    diags.appendChild(
+      el("div", { class: `diagrow ${d.severity}` }, [
+        el("span", { class: "at", text: `${d.line}:${d.column}` }),
+        el("span", { class: "code", text: d.code }),
+        el("span", { class: "what", text: d.message }),
+      ]),
+    );
+  }
+  if (!report.diagnostics.length) {
+    diags.appendChild(el("div", { class: "note info", text: "No diagnostics." }));
+  }
+
+  const s = report.summary;
+  byId("testSummary").textContent =
+    `${s.calls} call(s), ${s.pack_calls} into the pack` +
+    (s.unknown_commands ? `, ${s.unknown_commands} unknown` : "") +
+    ` · ${s.errors} error(s), ${s.warnings} warning(s)`;
+  setStatus(
+    "testStatus",
+    report.installed
+      ? `analysed against the ${report.dialect} registry with pack ${report.pack} installed`
+      : `analysed against the plain ${report.dialect} registry — the pack declares no commands yet`,
+    s.errors ? "err" : "ok",
+  );
+
+  // Keep whatever was being inspected selected across a re-run.
+  if (inspected !== null) inspectAt(inspected, { keepScroll: true });
+}
+
+/**
+ * Append a call to one of the pack's own commands, filled to its declared
+ * minimum arity.
+ *
+ * The point is a first keystroke that already exercises the spec: a call that
+ * satisfies the arity proves the command resolves, and deleting a word from it
+ * is the fastest way to see the arity diagnostic fire.
+ */
+function insertSampleCall(): void {
+  const name = state.pack.open ?? state.pack.view?.commands[0]?.name;
+  if (!name) {
+    setStatus("testStatus", "the pack has no commands to call yet", "err");
+    return;
+  }
+  let min = 0;
+  try {
+    const view = unwrap<PackCommandView>(wasm.pack_command(state.pack.source, name, state.dialect));
+    const arity = asRecord(asRecord(view.pack ?? {}).arity);
+    min = typeof arity.min === "number" ? arity.min : 0;
+  } catch {
+    min = 0;
+  }
+  const args = Array.from({ length: min }, (_, i) => `arg${i + 1}`).join(" ");
+  const area = byId<HTMLTextAreaElement>("testText");
+  const text = area.value.replace(/\s*$/, "");
+  area.value = `${text ? `${text}\n` : ""}${name}${args ? ` ${args}` : ""}\n`;
+  runTest();
+}
+
+/** One word of the sample, as a button carrying its resolution. */
+function tokenButton(token: TestToken, text: string): HTMLButtonElement {
+  const classes = ["tok", `k-${token.kind}`, `o-${token.origin}`];
+  if (token.severity) classes.push(`s-${token.severity}`);
+  const roles = token.roles.map((r) => r.role).join(", ");
+  return el("button", {
+    type: "button",
+    class: classes.join(" "),
+    text,
+    "aria-pressed": inspected === token.start ? "true" : "false",
+    title:
+      `${token.command} — ${token.detail}` +
+      (roles ? `\nrole: ${roles}` : "") +
+      (token.field ? `\nfrom: ${token.field}` : ""),
+    onclick: () => inspectAt(token.start),
+  });
+}
+
+/** Show the deep view of the word at byte `offset`. */
+function inspectAt(offset: number, opts: { keepScroll?: boolean } = {}): void {
+  let view: TestInspection;
+  try {
+    view = unwrap<TestInspection>(
+      wasm.pack_test_inspect(state.pack.source, state.sample, state.dialect, offset),
+    );
+  } catch {
+    inspected = null;
+    return;
+  }
+  inspected = offset;
+  if (!opts.keepScroll) {
+    for (const node of byId("testTokens").querySelectorAll<HTMLElement>(".tok")) {
+      node.setAttribute("aria-pressed", "false");
+    }
+  }
+  renderInspection(view);
+  // Re-mark the pressed token without a full repaint.
+  const report = testReport;
+  if (report) {
+    const index = report.tokens.findIndex((t) => t.start === offset);
+    const buttons = byId("testTokens").querySelectorAll<HTMLElement>(".tok");
+    buttons.forEach((node, i) => {
+      node.setAttribute("aria-pressed", i === index ? "true" : "false");
+    });
+  }
+}
+
+function renderInspection(view: TestInspection): void {
+  const panel = byId("testInspect");
+  clear(panel);
+  panel.appendChild(el("label", { class: "fld", text: "Inspector" }));
+
+  const row = (key: string, kids: Child[]): void => {
+    panel.appendChild(
+      el("div", { class: "insprow" }, [
+        el("span", { class: "k", text: key }),
+        el("span", { class: "v" }, kids),
+      ]),
+    );
+  };
+
+  row("word", [
+    el("code", { text: view.word.text }),
+    document.createTextNode(
+      ` · ${view.word.kind} · line ${view.word.line}, column ${view.word.column}` +
+        (view.word.index === 0 ? " · command head" : ` · argument ${view.word.index}`),
+    ),
+  ]);
+
+  if (view.spec) {
+    row("resolved spec", [
+      el("code", { text: view.spec.name }),
+      document.createTextNode(` — the ${view.spec.source} spec`),
+    ]);
+    if (view.spec.summary) row("summary", [document.createTextNode(view.spec.summary)]);
+    if (view.spec.synopsis) row("synopsis", [el("code", { text: view.spec.synopsis })]);
+    row("arity", [
+      el("code", { text: view.spec.arity }),
+      document.createTextNode(
+        ` · ${view.spec.subcommands} subcommand(s), ${view.spec.options} option(s)`,
+      ),
+    ]);
+    if (view.spec.required_package) {
+      row("package gate", [el("code", { text: view.spec.required_package })]);
+    }
+    if (view.spec.fields_set.length) {
+      row("fields the pack sets", [document.createTextNode(view.spec.fields_set.join(", "))]);
+    }
+  } else {
+    row("resolved spec", [
+      el("b", { text: "none" }),
+      document.createTextNode(` — ${view.role.detail}`),
+    ]);
+  }
+
+  if (view.subcommand) {
+    row("subcommand", [
+      el("code", { text: view.subcommand.name }),
+      document.createTextNode(
+        ` · arity ${view.subcommand.arity}` +
+          (view.subcommand.detail ? ` — ${view.subcommand.detail}` : ""),
+      ),
+    ]);
+  }
+
+  row("argument role", [
+    view.role.roles.length
+      ? el("code", { text: view.role.roles.map((r) => r.role).join(", ") })
+      : el("span", { text: "none" }),
+    document.createTextNode(` — ${view.role.detail}`),
+  ]);
+  for (const role of view.role.roles) {
+    if (role.doc) row(role.role, [document.createTextNode(role.doc)]);
+  }
+  row("produced by", [
+    view.role.field
+      ? el("code", { text: view.role.field })
+      : el("span", { text: "no spec property — this position is undeclared" }),
+  ]);
+
+  for (const d of view.diagnostics) {
+    row(`${d.severity} ${d.code}`, [document.createTextNode(d.message)]);
+  }
+  for (const n of view.notices) {
+    row(`loader notice (line ${n.line})`, [document.createTextNode(n.reason)]);
+  }
+
+  if (view.editable && view.spec) {
+    const name = view.spec.name;
+    panel.appendChild(
+      el("div", { class: "actions" }, [
+        el("button", {
+          type: "button",
+          class: "ghost",
+          text: `Edit ${name} →`,
+          onclick: () => openPackCommand(name),
+        }),
+      ]),
+    );
+  }
+}
+
+/* Command search and history --------------------------------------------- */
+
+// `/` anywhere opens search over both models; the arrows walk the commands
+// visited. Both are about the same thing: a pack is many commands and one
+// deliverable, so moving between them must never cost a page hunt.
+
+let paletteRows: { name: string; where: "pack" | "registry" }[] = [];
+let paletteAt = 0;
+
+function openPalette(): void {
+  const box = byId("palette");
+  box.hidden = false;
+  const input = byId<HTMLInputElement>("paletteInput");
+  input.value = "";
+  renderPalette();
+  input.focus();
+}
+
+function closePalette(): void {
+  byId("palette").hidden = true;
+}
+
+function renderPalette(): void {
+  const query = byId<HTMLInputElement>("paletteInput").value.trim().toLowerCase();
+  const packRows = (state.pack.view?.commands ?? [])
+    .filter((c) => !query || c.name.toLowerCase().includes(query))
+    .map((c) => ({ name: c.name, where: "pack" as const, summary: c.summary }));
+  const registryRows = state.index
+    .filter(
+      (e) =>
+        !query ||
+        e.name.toLowerCase().includes(query) ||
+        (e.summary ?? "").toLowerCase().includes(query),
+    )
+    .map((e) => ({ name: e.name, where: "registry" as const, summary: e.summary }));
+  const rows = [...packRows, ...registryRows].slice(0, MAX_PALETTE);
+  paletteRows = rows.map((r) => ({ name: r.name, where: r.where }));
+  paletteAt = Math.min(paletteAt, Math.max(0, rows.length - 1));
+
+  const list = byId("paletteList");
+  clear(list);
+  rows.forEach((row, i) => {
+    list.appendChild(
+      el("li", { role: "option" }, [
+        el(
+          "button",
+          {
+            type: "button",
+            "aria-selected": i === paletteAt ? "true" : "false",
+            onclick: () => choosePalette(i),
+          },
+          [
+            el("span", { class: "nm", text: row.name }),
+            el("span", { class: "sm", text: row.summary || "" }),
+            el("span", { class: "where", text: row.where === "pack" ? "pack" : state.dialect }),
+          ],
+        ),
+      ]),
+    );
+  });
+  if (!rows.length) {
+    list.appendChild(el("li", {}, [el("span", { class: "foot", text: "no match" })]));
+  }
+}
+
+function movePalette(delta: number): void {
+  if (!paletteRows.length) return;
+  paletteAt = (paletteAt + delta + paletteRows.length) % paletteRows.length;
+  const buttons = byId("paletteList").querySelectorAll<HTMLElement>("button");
+  buttons.forEach((node, i) =>
+    node.setAttribute("aria-selected", i === paletteAt ? "true" : "false"),
+  );
+  buttons[paletteAt]?.scrollIntoView({ block: "nearest" });
+}
+
+function choosePalette(index: number): void {
+  const row = paletteRows[index];
+  if (!row) return;
+  closePalette();
+  if (row.where === "pack") openPackCommand(row.name);
+  else openCommand(row.name);
+}
+
+/** Record a command as visited, unless history itself is doing the opening. */
+function pushHistory(visit: Visit): void {
+  if (navigating) return;
+  const current = state.history[state.historyAt];
+  if (current && current.name === visit.name && current.where === visit.where) return;
+  // A new move truncates whatever was ahead — the browser's own rule.
+  state.history = state.history.slice(0, state.historyAt + 1);
+  state.history.push(visit);
+  state.historyAt = state.history.length - 1;
+  renderHistoryButtons();
+}
+
+function renderHistoryButtons(): void {
+  byId<HTMLButtonElement>("navBack").disabled = state.historyAt <= 0;
+  byId<HTMLButtonElement>("navFwd").disabled = state.historyAt >= state.history.length - 1;
+}
+
+/**
+ * Step through the visited commands.
+ *
+ * Unsaved edits are not a reason to block: every keystroke is already in the
+ * document and in browser storage, so moving away loses nothing — which is
+ * exactly what the design asks for ("carried by the live-save layer rather
+ * than blocked by prompts").
+ */
+function navigate(delta: number): void {
+  const at = state.historyAt + delta;
+  const visit = state.history[at];
+  if (!visit) return;
+  state.historyAt = at;
+  navigating = true;
+  try {
+    if (visit.where === "pack") openPackCommand(visit.name);
+    else openCommand(visit.name);
+  } finally {
+    navigating = false;
+  }
+  renderHistoryButtons();
+}
+
 /* Reference ------------------------------------------------------------- */
 
 // The Reference tab renders the registry's whole vocabulary — every spec
@@ -1175,11 +1591,15 @@ function openReference(query: string): void {
 /* Tabs ------------------------------------------------------------------ */
 
 function selectTab(name: Tab): void {
+  currentTab = name;
   for (const tab of TABS) {
     const on = tab === name;
     byId(`tab-${tab}`).setAttribute("aria-selected", on ? "true" : "false");
     byId(`pane-${tab}`).hidden = !on;
   }
+  // The bench is the most expensive surface in the studio — it installs a
+  // registry and runs the analyser — so it only works while it is on screen.
+  if (name === "test") runTest();
 }
 
 /* Boot ------------------------------------------------------------------ */
@@ -1263,6 +1683,58 @@ function bindUi(): void {
   const packPicker = byId<HTMLInputElement>("dslPicker");
   byId("dslOpen").addEventListener("click", () => packPicker.click());
   packPicker.addEventListener("change", () => readPackFile(packPicker.files));
+
+  /* The Test tab. */
+
+  byId("testText").addEventListener("input", scheduleTest);
+  byId("testRun").addEventListener("click", runTest);
+  byId("testSample").addEventListener("click", insertSampleCall);
+
+  /* `/` search and history. */
+
+  byId("navBack").addEventListener("click", () => navigate(-1));
+  byId("navFwd").addEventListener("click", () => navigate(1));
+  byId("paletteInput").addEventListener("input", renderPalette);
+  byId("paletteInput").addEventListener("keydown", (event) => {
+    const key = (event as KeyboardEvent).key;
+    if (key === "ArrowDown") {
+      event.preventDefault();
+      movePalette(1);
+    } else if (key === "ArrowUp") {
+      event.preventDefault();
+      movePalette(-1);
+    } else if (key === "Enter") {
+      event.preventDefault();
+      choosePalette(paletteAt);
+    } else if (key === "Escape") {
+      event.preventDefault();
+      closePalette();
+    }
+  });
+  byId("palette").addEventListener("click", (event) => {
+    // A click on the backdrop dismisses; one inside the box does not.
+    if (event.target === byId("palette")) closePalette();
+  });
+  document.addEventListener("keydown", (event) => {
+    const key = (event as KeyboardEvent).key;
+    const target = event.target as HTMLElement | null;
+    const typing =
+      target instanceof HTMLInputElement ||
+      target instanceof HTMLTextAreaElement ||
+      target instanceof HTMLSelectElement;
+    if (key === "/" && !typing) {
+      event.preventDefault();
+      openPalette();
+      return;
+    }
+    if ((event as KeyboardEvent).altKey && key === "ArrowLeft") {
+      event.preventDefault();
+      navigate(-1);
+    } else if ((event as KeyboardEvent).altKey && key === "ArrowRight") {
+      event.preventDefault();
+      navigate(1);
+    }
+  });
 
   byId("rsPack").addEventListener("input", onDraftChanged);
   byId("stubMode").addEventListener("change", onDraftChanged);
@@ -1360,6 +1832,10 @@ async function restoreSession(): Promise<void> {
     loadIndex();
   }
   setPackSource(session.source);
+  if (typeof session.sample === "string") {
+    state.sample = session.sample;
+    byId<HTMLTextAreaElement>("testText").value = session.sample;
+  }
   byId("liveSave").textContent =
     `Restored from this browser: pack ${state.pack.view?.pack ?? ""}, ` +
     `${state.pack.view?.summary.commands ?? 0} command(s).`;
@@ -1388,6 +1864,9 @@ function boot(): void {
         files: [],
         imported: [],
         pack: { source: "", view: null, open: null },
+        sample: SAMPLE_HINT,
+        history: [],
+        historyAt: -1,
       };
 
       editors = makeEditors({
@@ -1411,6 +1890,8 @@ function boot(): void {
       loadIndex();
       renderFiles();
       buildReference();
+      byId<HTMLTextAreaElement>("testText").value = state.sample;
+      renderHistoryButtons();
       setPackSource(unwrap<PackWrite>(wasm.pack_new("mylib")).source);
       loadDraft(
         newCommandDraft(),

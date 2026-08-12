@@ -218,6 +218,115 @@ export interface PackWrite {
   error?: string;
 }
 
+/* The Test tab ------------------------------------------------------------ */
+
+/** One diagnostic the analyser raised over the sample. */
+export interface TestDiagnostic {
+  code: string;
+  severity: string;
+  message: string;
+  line: number;
+  column: number;
+  end_line: number;
+  end_column: number;
+  start: number;
+  end: number;
+}
+
+/** One word of the sample, with what the merged registry says about it. */
+export interface TestToken {
+  start: number;
+  end: number;
+  line: number;
+  column: number;
+  text: string;
+  index: number;
+  depth: number;
+  command: string;
+  origin: PackOrigin | "unknown";
+  /** `command`, `subcommand`, `option`, `option-value`, `terminator`, … */
+  kind: string;
+  /** The spec property that produced this word, when one did. */
+  field: string | null;
+  detail: string;
+  roles: { role: string; doc: string }[];
+  severity: string | null;
+}
+
+/**
+ * The sample split into chunks covering every byte, in order.
+ *
+ * Rust emits the text rather than offsets so the front-end never converts a
+ * byte index into a JavaScript string index — a conversion that breaks the
+ * moment the sample holds a character outside the BMP's ASCII range.
+ */
+export interface TestChunk {
+  text: string;
+  token: number | null;
+}
+
+/** The whole Test tab reply, from `sample::Bench::analyse`. */
+export interface TestReport {
+  dialect: string;
+  pack: string;
+  /** Whether the pack contributed anything to the registry that was used. */
+  installed: boolean;
+  render: TestChunk[];
+  tokens: TestToken[];
+  diagnostics: TestDiagnostic[];
+  summary: {
+    words: number;
+    calls: number;
+    pack_calls: number;
+    unknown_commands: number;
+    diagnostics: number;
+    errors: number;
+    warnings: number;
+  };
+  error?: string;
+}
+
+/** The deep view of one word, from `sample::Bench::inspect`. */
+export interface TestInspection {
+  word: {
+    text: string;
+    start: number;
+    end: number;
+    line: number;
+    column: number;
+    index: number;
+    depth: number;
+    kind: string;
+  };
+  call: { command: string; args: string[]; resolved: boolean };
+  spec: {
+    name: string;
+    origin: PackOrigin | "unknown";
+    source: string;
+    dialect: string;
+    summary: string;
+    synopsis: string;
+    arity: string;
+    subcommands: number;
+    options: number;
+    required_package: string | null;
+    return_type: string;
+    fields_set: string[];
+  } | null;
+  subcommand: {
+    name: string;
+    detail: string;
+    synopsis: string;
+    arity: string;
+    options: number;
+  } | null;
+  role: { roles: { role: string; doc: string }[]; field: string | null; detail: string };
+  diagnostics: TestDiagnostic[];
+  notices: PackNotice[];
+  editable: boolean;
+  error?: string;
+}
+
 /**
  * The wasm module's exports.
  *
@@ -246,6 +355,12 @@ export interface StudioWasm {
   pack_remove_command(source: string, name: string): string;
   pack_render(source: string): string;
   pack_validate(source: string, dialect: string): string;
+
+  /* The Test tab: the sample analysed with the pack installed, and the
+     per-word deep view. `offset` is a **byte** offset into `sample`, which is
+     what a token carries — never a JavaScript string index. */
+  pack_test_analyse(source: string, sample: string, dialect: string): string;
+  pack_test_inspect(source: string, sample: string, dialect: string, offset: number): string;
 }
 
 /**
