@@ -476,17 +476,37 @@ enum ElementAccess<'a> {
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 struct TraceLedger {
     widened: bool,
-    /// Whether a live registration may include a step operation, which
-    /// observes every nested command rather than only its own target.
-    step_hazard: bool,
     cells: Vec<(String, TraceCell)>,
 }
 
 impl TraceLedger {
     fn widen(&mut self) {
         self.widened = true;
-        self.step_hazard = true;
         self.cells.clear();
+    }
+
+    /// Whether a live registration may carry a step operation.
+    ///
+    /// A step trace observes every command nested inside its target rather
+    /// than only the target itself, so one live step registration anywhere
+    /// suppresses reuse everywhere. This is derived from the registrations
+    /// rather than latched: a stored flag could only ever be set, so
+    /// removing the last `enterstep` registration would leave the hazard
+    /// asserted forever and suppress reuse with no observer live.
+    fn step_hazard(&self) -> bool {
+        self.widened
+            || self.cells.iter().any(|(_, cell)| {
+                cell.unknown
+                    || cell.registrations.iter().any(|(key, range)| {
+                        range.may_be_live()
+                            && key.operations.iter().any(|operation| {
+                                matches!(
+                                    operation,
+                                    TraceOperation::EnterStep | TraceOperation::LeaveStep
+                                )
+                            })
+                    })
+            })
     }
 
     fn completely_absent(&self) -> bool {
@@ -553,7 +573,6 @@ impl TraceLedger {
             self.widen();
             return;
         }
-        self.step_hazard |= other.step_hazard;
         for (name, other_cell) in &other.cells {
             if let Some(position) = self.cells.iter().position(|(known, _)| known == name) {
                 self.cells[position].1.join(other_cell);
@@ -682,6 +701,19 @@ impl AliasLedger {
         if self.unknown || other.unknown {
             self.widen();
             return;
+        }
+        // A link present on only one predecessor may or may not exist after
+        // the join, so its target becomes unknown. This has to run in *both*
+        // directions. Weakening only the incoming side leaves a link this
+        // side already held pointing at a concrete cell, even though the
+        // other path never aliased that local — a variable operand would then
+        // be checked against the alias target's traces while a trace on the
+        // unaliased local cell went unnoticed, yielding a false proof. It
+        // would also make the result depend on predecessor visit order.
+        for (name, target) in &mut self.links {
+            if !other.links.iter().any(|(known, _)| known == name) {
+                *target = None;
+            }
         }
         for (name, target) in &other.links {
             if let Some(position) = self.links.iter().position(|(local, _)| local == name) {
@@ -1373,7 +1405,7 @@ fn domain_stable_for_subject(
         DispatchDependencyDomain::CommandBinding => state.bindings.subject_stable(subject),
         DispatchDependencyDomain::NamespaceLookup => state.namespace_lookup_stable,
         DispatchDependencyDomain::CommandTraces => {
-            !state.execution_traces.step_hazard
+            !state.execution_traces.step_hazard()
                 && !state.execution_traces.target_may_be_observed(subject)
                 && !state.command_traces.target_may_be_observed(subject)
         }
@@ -1592,15 +1624,15 @@ fn apply_scoped_region_write(
             state.bump(WorldTrack::NamespaceUnknown, site);
         }
         WorldRegionKind::ExecutionTraces => {
-            trace_region_damage(&mut state.execution_traces, subject, true);
+            trace_region_damage(&mut state.execution_traces, subject);
             state.bump(WorldTrack::ExecutionTraces, site);
         }
         WorldRegionKind::CommandTraces => {
-            trace_region_damage(&mut state.command_traces, subject, false);
+            trace_region_damage(&mut state.command_traces, subject);
             state.bump(WorldTrack::CommandTraces, site);
         }
         WorldRegionKind::VariableTraces => {
-            trace_region_damage(&mut state.variable_traces, subject, false);
+            trace_region_damage(&mut state.variable_traces, subject);
             state.bump(WorldTrack::VariableTraces, site);
         }
         WorldRegionKind::ObjectDispatch => {
@@ -1642,15 +1674,14 @@ fn record_subject_scope(ledger: &mut IdentityLedger, subject: &WorldSubjectScope
     }
 }
 
-fn trace_region_damage(ledger: &mut TraceLedger, subject: &WorldSubjectScope, execution: bool) {
+fn trace_region_damage(ledger: &mut TraceLedger, subject: &WorldSubjectScope) {
     match subject {
         WorldSubjectScope::Named(name) => {
             let name = normalise_name(name);
             if let Some(cell) = ledger.cell_mut(&name) {
+                // An unknown cell may hold a step registration, which
+                // `TraceLedger::step_hazard` derives from this flag.
                 cell.unknown = true;
-            }
-            if execution {
-                ledger.step_hazard = true;
             }
         }
         WorldSubjectScope::Wildcard => ledger.widen(),
@@ -1996,10 +2027,10 @@ fn apply_trace_transition(
             prefix,
         } => (false, target, operations, prefix),
     };
-    let (track, subject, execution) = match target {
-        TraceTarget::Variable(subject) => (WorldTrack::VariableTraces, subject, false),
-        TraceTarget::Command(subject) => (WorldTrack::CommandTraces, subject, false),
-        TraceTarget::Execution(subject) => (WorldTrack::ExecutionTraces, subject, true),
+    let (track, subject) = match target {
+        TraceTarget::Variable(subject) => (WorldTrack::VariableTraces, subject),
+        TraceTarget::Command(subject) => (WorldTrack::CommandTraces, subject),
+        TraceTarget::Execution(subject) => (WorldTrack::ExecutionTraces, subject),
     };
     if matches!(target, TraceTarget::Variable(_)) {
         // Variable trace registration vivifies its cell; removal of the last
@@ -2029,11 +2060,6 @@ fn apply_trace_transition(
         TraceOperationSet::Known(operations) => Some(operations.clone()),
         TraceOperationSet::Unknown(_) => None,
     };
-    let step = known_operations.as_ref().is_none_or(|operations| {
-        operations
-            .iter()
-            .any(|op| matches!(op, TraceOperation::EnterStep | TraceOperation::LeaveStep))
-    });
     let literal_prefix = prefix.literal().map(str::to_owned);
     let Some(cell) = ledger.cell_mut(&name) else {
         return;
@@ -2053,9 +2079,6 @@ fn apply_trace_transition(
             });
         }
         (false, None) => cell.remove_any(),
-    }
-    if adding && execution && step {
-        ledger.step_hazard = true;
     }
 }
 
@@ -2623,6 +2646,80 @@ mod tests {
             "a command-substitution operand cannot be proven inert"
         );
         assert!(!proof.satisfies(llength_dependencies()));
+    }
+
+    #[test]
+    fn an_alias_on_one_predecessor_only_loses_its_target_either_way_round() {
+        // A local aliased on one path and left alone on the other may or may
+        // not be an alias after the join, so its target must become unknown.
+        // Keeping the concrete target would check the target cell's traces
+        // while a trace on the unaliased local cell went unnoticed.
+        let with_link = |local: &str, target: Option<&str>| {
+            let mut ledger = AliasLedger::default();
+            ledger.record(local.to_owned(), target.map(str::to_owned));
+            ledger
+        };
+        let aliased = with_link("counter", Some("shared"));
+        let empty = AliasLedger::default();
+
+        let mut forward = aliased.clone();
+        forward.join(&empty);
+        let mut reverse = empty.clone();
+        reverse.join(&aliased);
+
+        assert_eq!(
+            forward, reverse,
+            "the join must not depend on predecessor visit order"
+        );
+        assert_eq!(forward.links, vec![("counter".to_owned(), None)]);
+
+        // Agreeing predecessors keep the precise target.
+        let mut agreed = aliased.clone();
+        agreed.join(&aliased);
+        assert_eq!(
+            agreed.links,
+            vec![("counter".to_owned(), Some("shared".to_owned()))]
+        );
+
+        // Disagreeing targets weaken to unknown.
+        let mut disagreed = aliased.clone();
+        disagreed.join(&with_link("counter", Some("other")));
+        assert_eq!(disagreed.links, vec![("counter".to_owned(), None)]);
+    }
+
+    #[test]
+    fn removing_the_last_step_registration_clears_the_step_hazard() {
+        // The step hazard is derived, not latched: a stored flag could only
+        // ever be set, so removing the last `enterstep` registration would
+        // suppress reuse forever with no observer live.
+        let mut ledger = TraceLedger::default();
+        let key = TraceKey {
+            operations: vec![TraceOperation::EnterStep],
+            prefix: Some("observe".to_owned()),
+        };
+        assert!(
+            !ledger.step_hazard(),
+            "an empty ledger has no step observer"
+        );
+
+        ledger.cell_mut("llength").expect("cell").add(key.clone());
+        assert!(ledger.step_hazard());
+
+        ledger.cell_mut("llength").expect("cell").remove(&key);
+        assert!(
+            !ledger.step_hazard(),
+            "the last step registration was proven removed"
+        );
+
+        // A non-step registration never raises the hazard, and an unknown
+        // cell always does.
+        ledger.cell_mut("llength").expect("cell").add(TraceKey {
+            operations: vec![TraceOperation::Enter],
+            prefix: Some("observe".to_owned()),
+        });
+        assert!(!ledger.step_hazard());
+        ledger.cell_mut("llength").expect("cell").unknown = true;
+        assert!(ledger.step_hazard());
     }
 
     #[test]
