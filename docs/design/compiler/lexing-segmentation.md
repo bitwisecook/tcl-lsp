@@ -8,58 +8,65 @@ incorrectly (wrong word boundaries, missing tokens, interpolation issues).
 
 ## Context
 
-Stage 1 (lexing) produces a flat `list[Token]` via `TclLexer.tokenise_all()`.
-Stage 2 (segmentation) groups tokens into `SegmentedCommand` objects via
+Stage 1 (lexing) produces a flat `Vec<Token>` via `Lexer::tokenise_all()`.
+Stage 2 (segmentation) groups tokens into `SegmentedCommand` values via
 `segment_commands()`.  These two stages run before any compiler logic and
 feed all downstream phases.
 
-Source: `compiler/parsing/lexer.py` (`tokenise_all` at line 1183),
-`shared/tokens.py`,
-`compiler/parsing/command_segmenter.py` (`segment_commands` at line 344)
+Source: `rust/tcl-lexer/src/lexer.rs` (`Lexer::tokenise_all`,
+`tokenise_all_with_warnings`), `rust/tcl-lexer/src/tokens.rs` (`Token`,
+`TokenType`), `rust/tcl-compiler/src/segmenter.rs` (`segment_commands`)
 
 ## Content
 
 ### Stage 1 — Lexing
 
-The lexer scans character-by-character and produces typed tokens:
+`Lexer` is an `Iterator<Item = Result<Token, LexError>>`; it scans
+character-by-character and produces typed tokens:
 
-| TokenType | Trigger | Example |
-|-----------|---------|---------|
-| `ESC` | Plain word fragment (possibly escaped) | `set`, `42`, `hello` |
-| `STR` | Braced string `{…}` | `{hello world}` |
-| `CMD` | Command substitution `[…]` | `[expr {1+2}]` |
-| `VAR` | Variable substitution `$name` | `$x`, `${arr(idx)}` |
-| `SEP` | Whitespace separator | ` `, `\t` |
-| `EOL` | End-of-line / semicolon | `\n`, `;` |
-| `EOF` | End of input | |
-| `COMMENT` | Comment to end of line | `# ...` |
-| `EXPAND` | `{*}` expansion prefix | `{*}$list` |
+| `TokenType` | Trigger | Example |
+|-------------|---------|---------|
+| `Esc` | Plain word fragment (possibly escaped) | `set`, `42`, `hello` |
+| `Str` | Braced string `{…}` (braces stripped) | `{hello world}` |
+| `Cmd` | Command substitution `[…]` (brackets stripped) | `[expr {1+2}]` |
+| `Var` | Variable substitution `$name`, `${name}`, `$arr(idx)` | `$x` |
+| `Sep` | Run of intra-command whitespace | ` `, `\t` |
+| `Eol` | End-of-line / semicolon | `\n`, `;` |
+| `Eof` | End-of-input sentinel | |
+| `Comment` | Comment from `#` to end of line | `# ...` |
+| `Expand` | `{*}` argument-expansion prefix (Tcl 8.5+) | `{*}$list` |
+
+`TokenType::name()` renders the symbolic upper-case spelling (`"ESC"`,
+`"STR"`, …) used in tooling output, so those forms still appear in explorer
+views and test fixtures.
 
 **Example** — `set x 42`:
 ```
-Token(ESC, "set")  Token(SEP, " ")  Token(ESC, "x")  Token(SEP, " ")  Token(ESC, "42")  Token(EOF, "")
+Token(Esc, "set")  Token(Sep, " ")  Token(Esc, "x")  Token(Sep, " ")  Token(Esc, "42")  Token(Eof, "")
 ```
 
 **Example** — `set y $x`:
 ```
-Token(ESC, "set")  Token(SEP, " ")  Token(ESC, "y")  Token(SEP, " ")  Token(VAR, "x")  Token(EOF, "")
+Token(Esc, "set")  Token(Sep, " ")  Token(Esc, "y")  Token(Sep, " ")  Token(Var, "x")  Token(Eof, "")
 ```
 
-Note: the `$` prefix is consumed by the lexer; `Token.text` contains the bare
+Note: the `$` prefix is consumed by the lexer; the token's text is the bare
 variable name.
 
 **Stray punctuation convention** — a standalone `}` or `]` that appears
 outside its structural role (i.e. not closing a brace-group or command
-substitution) receives `TokenType.ESC`, not a special type. Downstream
+substitution) gets `TokenType::Esc`, not a special kind. Downstream
 consumers that check for stray punctuation must test
-`tok.type is TokenType.ESC` in addition to `tok.text` to distinguish stray
-characters from structural delimiters (which are part of `STR` or `CMD`
-tokens).
+`tok.kind == TokenType::Esc` in addition to the text, to distinguish stray
+characters from structural delimiters (which are part of `Str` or `Cmd`
+tokens). `TokenType::group_closer()` reports the closer a group kind strips
+(`Str` → `}`, `Cmd` → `]`).
 
 **Line-tracking convention** — the lexer resolves line/column two ways that
-must agree: a `\n`-only line-start index (`_line_starts`, consumed by
-`_pos_at` and the red [concrete syntax tree](syntax-tree.md) overlay), and an
-incremental `line`/`col` counter advanced per character. **Only `\n` is a line
+must agree: a `\n`-only line-start index (`SourceMap` /
+`LineIndex`, `rust/tcl-lexer/src/source_map.rs` and `line_index.rs`, also
+consumed by the red [concrete syntax tree](syntax-tree.md) overlay), and an
+incremental line/column counter advanced per character. **Only `\n` is a line
 break for positions.** A lone carriage return — including a backslash-CR
 *continuation* (`\<CR>`, the old-Mac line ending) — splits the word like any
 continuation but does **not** advance the line, because the index never records
@@ -70,159 +77,185 @@ position-tracking path must keep the two mechanisms in lock-step.
 
 ### Stage 2 — Segmentation
 
-`segment_commands()` no longer runs its own hand-rolled token loop: it builds
+`segment_commands()` does not run its own hand-rolled token loop: it builds
 the canonical lossless **red-green concrete syntax tree** for the region
-(`compiler/parsing/syntax/`, see
-[syntax-tree.md](syntax-tree.md)) and *derives* the `SegmentedCommand` list from
-it.  The derivation is byte-identical to the former loop — `range`, `argv`,
-`texts`, `single_token_word`, `all_tokens`, `preceding_comment`, and
-`expand_word` all match field-for-field (verified over the real-world corpus,
-120k randomised differential cases, and nested-body anchoring) — so everything
-below describes the unchanged output shape.
+(`rust/tcl-compiler/src/parsing/syntax/`, see
+[syntax-tree.md](syntax-tree.md)) via `build::build_document`, then *derives*
+the `SegmentedCommand` list from it via `segment::segments_from_document`.
+The derivation is byte-identical to the former token loop — verified
+field-for-field against a frozen copy of that loop, preserved as an
+independent oracle in `rust/tcl-compiler/tests/differential_segment.rs`, over
+the edge-case table and the full Tcl 8.4/8.5/8.6/9.0 corpus.  The derivation
+runs in local-offset space; relocation is the caller's job, via
+`SegmentedCommand::shifted_by` (which `segment_commands_with_offset` applies).
 
-The segmenter groups tokens into commands at `EOL`/`EOF` boundaries:
+The segmenter groups tokens into commands at `Eol`/`Eof` boundaries:
 
-```python
-SegmentedCommand(
-    range=Range(start, end),
-    argv=[first_token_per_word, ...],
-    texts=["set", "x", "42"],           # concatenated text per word
-    single_token_word=[True, True, True], # True when word is one token
-    all_tokens=[...],                     # every token in the command
-)
+```rust
+pub struct SegmentedCommand {
+    /// Byte span covering the whole command.
+    pub span: Span,
+    /// Per-word representative tokens (one per argv entry).
+    pub argv: Vec<Token>,
+    /// Per-word reconstructed text.
+    pub texts: Vec<String>,
+    /// Ordered lexical fragments for every word.
+    pub word_fragments: Vec<Vec<WordFragment>>,
+    /// Whether each word is a single token.
+    pub single_token_word: Vec<bool>,
+    /// All tokens in the command (including separators).
+    pub all_tokens: Vec<Token>,
+    /// Whether the command is incomplete (unclosed delimiter).
+    pub is_partial: bool,
+    /// Which delimiter was left unclosed, when `is_partial`.
+    pub partial_delimiter: Option<UnclosedDelimiter>,
+    /// `{*}` expansion markers per word, if any word uses expansion.
+    pub expand_word: Option<Vec<bool>>,
+    /// Concatenated text of the comment line(s) immediately preceding
+    /// the command; `None` when no comment precedes.
+    pub preceding_comment: Option<String>,
+}
 ```
 
 Key fields:
-- `texts[0]` = command name, `texts[1:]` = arguments
-- `single_token_word[i]` = `True` when word `i` is a single atomic token —
+- `texts[0]` = command name, `texts[1..]` = arguments (the `name()` and
+  `args()` accessors wrap exactly this)
+- `single_token_word[i]` = `true` when word `i` is a single atomic token —
   tells the lowerer the value is a compile-time constant
-- `argv[i]` = first token of word `i` (for token-type pattern matching)
-- `expand_word[i]` = `True` when word `i` is preceded by the `{*}`
-  argument-expansion prefix (Tcl 8.5+).  `None` when no word in the
-  command uses expansion.
+- `argv[i]` = representative (first) token of word `i`, for token-kind
+  pattern matching; `arg_tokens()` is `argv[1..]`
+- `expand_word` is `Some(v)` only when *some* word in the command uses
+  expansion, and then `v[i]` is `true` for each `{*}`-prefixed word
+  (Tcl 8.5+); it is `None` otherwise, so consumers write
+  `cmd.expand_word.as_deref().unwrap_or(&[])`
+- `word_fragments[i]` is the lossless companion to the
+  `argv`/`texts` parallel arrays — new semantic IR consumers should use it
+  when substitution order within a word matters
 - Multi-token words (e.g. `"hello $name"`) are concatenated into `texts[i]`
 
 **Variable references in texts:**
-VAR tokens are wrapped in `${…}` form: `$x` → `texts[i] = "${x}"`.
+`Var` tokens are wrapped in `${…}` form: `$x` → `texts[i] == "${x}"`.
 
 ### Argument expansion `{*}` and dialect gating
 
 `{*}` is the Tcl 8.5+ argument-expansion prefix.  When enabled, the
-lexer emits a zero-width `EXPAND` token at word start, and the
-segmenter records `expand_word[i] = True` for the following word so
+lexer emits a zero-width `Expand` token at word start, and the
+segmenter records `expand_word[i] = true` for the following word so
 that downstream passes can distinguish `{*}$list` (expanded to zero or
 more runtime args) from a literal `*${list}` word.
 
-The `TclLexer.expand_syntax` flag controls whether `{*}` is recognised.
-`configure_signatures()` in
-`compiler/registry/runtime.py`
-sets the flag based on the active dialect:
+`LexerConfig::expand_syntax` (`rust/tcl-lexer/src/lexer.rs`) controls whether
+`{*}` is recognised.  Its value is dialect-derived: each `DialectProfile`
+carries a `LexerGrammar` (`rust/tcl-dialect/src/grammar.rs`) that the
+`LexerConfig` is built from.  The catalogue in
+`rust/tcl-dialect/src/profile.rs` defines four grammars:
 
-- **Enabled** for dialects in `dialects_since("tcl8.5")` — all Tcl
-  8.5 / 8.6 / 9.0 profiles and every dialect whose base Tcl version is
-  at least 8.5 (f5-iapps, f5-tmsh, EDA vendors, Expect).
-- **Disabled** for 8.4-based dialects (`tcl8.4`, `f5-irules`) because
-  `{*}` did not exist in Tcl 8.4 — the lexer must treat `{*}$x` as a
-  braced literal `{*}` concatenated with `$x`.
+| Grammar | `expand_syntax` | `irules_brace_separator` | `braced_var` |
+|---------|-----------------|--------------------------|--------------|
+| `GRAMMAR_TCL84` | `false` | `false` | `FirstClose` |
+| `GRAMMAR_TCL8X` (8.5/8.6, iApps, tmsh, Expect, EDA shells) | `true` | `false` | `FirstClose` |
+| `GRAMMAR_TCL9X` (9.x, and the permissive default) | `true` | `false` | `Tcl9Nesting` |
+| `GRAMMAR_IRULES` | `false` | `true` | `FirstClose` |
 
-Arity checks at both the analyser (`_check_proc_call_arity` in
-`analyser/_analyser/_proc.py`) and the IR layer (`_check_simple_arity` in
-`analyser/compiler_checks.py`) treat each expanded word as an
-unknown number of runtime arguments and try to refine the bound by
-constant-folding the expanded word.  Refinement requires the word to
-be **single-token** (so concatenations like `{*}$x$y` or
-`{*}{a b}$suffix` stay unrefined) and depends on the layer:
+So expansion is **disabled** for the 8.4-based grammars (`tcl8.4`,
+`f5-irules`) because `{*}` did not exist in Tcl 8.4 — the lexer must treat
+`{*}$x` as a braced literal `{*}` concatenated with `$x`.
 
-- **Analyser layer (user proc calls)** can refine
-  - braced literal lists (`{*}{a b c}` → 3, `{*}{}` → 0),
-  - pure variable references with a known constant string value
-    (`set rgb {255 255 255}; foo {*}$rgb` → 3) via the
-    `_const_strings` map.
-- **IR layer (built-in commands)** can refine
-  - braced literal lists (the segmenter strips the braces, so the
-    refinement uses the original `STR` token type to disambiguate
-    the resulting text from a variable substitution),
-  - literal `[list ...]` command substitutions via
-    `_extract_foreach_elements`.
-  IR-layer refinement does *not* yet resolve `$var` substitutions
-  back to their constant values — pure-var expansions in built-in
-  calls fall back to the `0..∞` range below.
+Arity checking is deliberately **conservative** about expansion; it does not
+try to constant-fold the expanded word.  `count_positionals(args,
+arg_expand, start)` in
+`rust/tcl-compiler/src/analyser/diagnostics/validity.rs` returns
+`(nargs_min, any_expand)`: expanded words are simply excluded from the count,
+leaving a *lower bound* on the true runtime argument count. `arity_verdict`
+then abstains where a lower bound proves nothing:
 
-When refinement succeeds the leading-options scan and the positional
-count both see the inlined elements, so E002/E003 still fire when the
-count is statically wrong (and `puts {*}{-nonewline} chan msg` is
-correctly accepted because the literal list contributes a leading
-option).  Otherwise the expanded word contributes `0..∞` arguments,
-E002 is suppressed, and E003 only fires when the non-expanded
-arguments alone exceed the signature maximum.
+- **E002** (too few) is suppressed whenever `positional_any_expand` is set —
+  the expanded word may supply the missing arguments.
+- **E003** (too many) still fires when the non-expanded arguments alone
+  exceed the signature maximum, since expansion can only add more. The
+  surplus-argument span and its delete fix are omitted under expansion
+  (`excess_positional_span` returns `None`), so the diagnostic falls back to
+  the whole-command anchor.
+- **E005** (wrong argument-count *shape* — `Arity::step` / `also_exact`) is
+  likewise suppressed under expansion: an expanded tail's final count says
+  nothing about its parity.
+
+The same abstention runs one level up: `segment_argc` returns `None` for a
+command with any expanded argument word, and `ensemble_subcommand_candidate`
+declines a `{*}`-expanded subcommand word, so the cross-file arity and
+ensemble checks skip those calls entirely.
 
 ### How segmented data feeds the compiler
 
-1. **IR lowering** reads `texts[0]` to identify the command, `argv[i].type`
-   to pattern-match on token types (e.g. `lower_set()` checks if the value
-   is `STR`, `ESC`, `CMD`, or `VAR`).
-2. **Error recovery** re-parses with virtual tokens injected, producing
-   clean `SegmentedCommand` objects.
-3. **Semantic analysis** uses `range` for diagnostic positions and
-   `all_tokens` for syntax highlighting/semantic tokens.
+1. **IR lowering** reads `texts[0]` to identify the command and `argv[i].kind`
+   to pattern-match on token kinds (e.g. `lower_set` in
+   `rust/tcl-compiler/src/lowering_hooks.rs` checks whether the value word is
+   `Str`, `Esc`, `Cmd`, or `Var`).
+2. **Error recovery** (`rust/tcl-compiler/src/analyser/recovery.rs`) mutates
+   the `SegmentedCommand` in place after segmentation — merging tokens around
+   a stray `]` into a virtual `Cmd` token, repairing a missing `{` — so
+   downstream handlers see the intended argument structure.
+3. **Semantic analysis** uses `span` for diagnostic positions and
+   `all_tokens` for syntax highlighting / semantic tokens.
 
-### Shared tokenisation memo (now the green token tree)
+### Reuse of the tokenisation
 
 The analysis pipeline lexes the same source bytes from several independent
 paths: the segmenter (`segment_commands`), the lowerer (`lower_to_ir`),
 `compiler_checks`, and `var_refs` each tokenise overlapping regions, and
 nested braced bodies are re-lexed at every level of recursion.
 
-The original per-analysis memo (`compiler/parsing/token_cache.py` /
-`tokenise_cached()` / `token_cache_scope()`) has since been **subsumed by the
-green token tree** in `compiler/parsing/green_tree.py` — see
-[green-token-tree.md](green-token-tree.md). The memo is now `green_tree`'s
-analysis-scoped intern index, with the same correctness rules:
+The green token tree is what collapses most of that duplication — see
+[green-token-tree.md](green-token-tree.md) and
+[syntax-tree.md](syntax-tree.md). In the Rust workspace the green layer
+(`rust/tcl-compiler/src/parsing/syntax/green.rs`) is genuinely
+**position-independent**: a node knows only its cached *width* and its
+children, never an absolute offset. The `red` layer overlays an anchoring
+and resolves absolute positions lazily, and `descend` lazily re-lexes braced
+bodies and `[…]` substitutions as child CSTs anchored one byte past the
+opener, so a body is tokenised once per anchoring rather than once per
+consumer.
 
-- Keyed by `(base_offset, base_line, base_col, mode, text)` → a `TokenRegion`
-  carrying `(tokens, warnings)`. The `text` is part of the key so two distinct
-  substrings lexed at the same base offset (e.g. two bodies both lexed at
-  base 0) never collide.
-- Tokens are immutable, so the cached stream is shared read-only — consumers
-  build their own derived structures and never mutate it.
-- Regions lexed with error-recovery virtual insertions are never interned
-  (the insertions are request-specific).
-- The index lives in a `contextvars.ContextVar` activated by
-  `green_tree_scope()` (reentrant), opened at `Analyser.analyse` and
-  `lower_to_ir`. It is discarded when the scope exits, so memory is bounded
-  by one analysis and lexer-affecting context (dialect, strict-quoting) is
-  stable for its lifetime.
+Two caches sit outside the tree:
 
-`var_refs` lexes at base offset 0 (it extracts position-independent variable
-names) and keeps its own text-keyed result-LRU, which shares across the SSA /
-GVN / interprocedural scanner singletons (and across documents) in a way the
-absolute-offset, per-document tree cannot. It consults `green_tree.tokenise()`
-for the leaf tokenisation but keeps that result cache.
+- `VarReferenceScanner` (`rust/tcl-compiler/src/var_refs.rs`) lexes at base
+  offset 0 — it extracts position-independent variable names — and keeps a
+  bounded LRU keyed by `(source text, scan mode)`. The mode is part of the key
+  because `scan_word` and `scan_script` can legitimately disagree about the
+  same text. Being text-keyed rather than offset-keyed, it shares hits across
+  the SSA / GVN / interprocedural passes and across documents, which a
+  per-document anchored tree cannot.
+- Cross-edit reuse is the LSP database's job, not the compiler's: `tcl-lsp-db`
+  wraps the pure compiler entry points in salsa `#[salsa::tracked]` queries
+  with dependency-tracked invalidation, so there is no manual cache eviction
+  in the compiler itself.
 
 ### Worked example — `set y $x`
 
-```python
-# Segmented:
-SegmentedCommand(
-    texts=["set", "y", "${x}"],
-    single_token_word=[True, True, True],
-    argv=[Token(ESC,"set"), Token(ESC,"y"), Token(VAR,"x")],
-)
+Segmented:
 
-# Lowered (Stage 3):
-IRAssignValue(name="y", value="${x}")
-# (not IRAssignConst — the value contains a variable substitution)
+```rust
+SegmentedCommand {
+    texts: vec!["set".into(), "y".into(), "${x}".into()],
+    single_token_word: vec![true, true, true],
+    argv: vec![/* Esc "set" */, /* Esc "y" */, /* Var "x" */],
+    ..
+}
 ```
+
+Lowered (Stage 3) to `Statement::AssignValue { name: "y", .. }` — not
+`Statement::AssignConst`, because the value contains a variable substitution.
 
 ## Decision rule
 
 - If a command is not being lowered correctly, check `single_token_word` and
-  `argv[i].type` — these drive pattern matching in lowering hooks.
-- Multi-token words (interpolated strings) have `single_token_word[i]=False`
-  and produce `IRAssignValue` (not `IRAssignConst`).
-- `is_partial=True` on a `SegmentedCommand` means it was recovered from
+  `argv[i].kind` — these drive pattern matching in the lowering hooks.
+- Multi-token words (interpolated strings) have `single_token_word[i] == false`
+  and produce `Statement::AssignValue` (not `Statement::AssignConst`).
+- `is_partial: true` on a `SegmentedCommand` means it was recovered from
   malformed input — downstream passes should still work but may have
-  degraded precision.
+  degraded precision. `partial_delimiter` says which delimiter was left
+  unclosed.
 
 ## Related docs
 

@@ -8,20 +8,26 @@ variable versioning or missing phi nodes.
 
 ## Context
 
-`build_ssa()` in `ssa.py` transforms a `CFGFunction` into an `SSAFunction`
-where every variable definition gets a unique version number.  Phi nodes are
-placed at dominance frontiers to merge definitions from different paths.
-The dominator tree and dominance frontiers are computed as part of SSA
-construction.
+`build_ssa(func, registry)` in `rust/tcl-compiler/src/ssa.rs` transforms a
+`cfg::Function` into an `SsaFunction` where every variable definition gets a
+unique version number.  Phi nodes are placed at dominance frontiers to merge
+definitions from different paths.  The dominator tree and dominance frontiers
+are computed as part of SSA construction.
 
-Source: `compiler/ssa.py` (`build_ssa` at line 1012, `SSAPhi` at line 606, `SSAFunction` at line 648)
+A pathologically large (usually generated) body trips a complexity guard and
+gets `SsaFunction::trivial` instead; the compilation-unit builder flags such a
+function so per-procedure diagnostic passes skip it.
+
+Source: `rust/tcl-compiler/src/ssa.rs` (`build_ssa`, `Phi`, `SsaStatement`,
+`SsaBlock`, `SsaFunction`)
 
 ## Content
 
 ### SSA principles
 
-- Every variable definition gets a unique `(name, version)` — the
-  `SSAValueKey`.
+- Every variable definition gets a unique `(name, version)` — `ValueKey`,
+  a `(Symbol, Version)` pair over the interned variable names
+  (`SsaFunction::var_name` resolves a `Symbol` back to its display name).
 - A variable read resolves to the version currently in scope at that
   program point.
 - At merge points (where multiple paths converge), phi nodes select the
@@ -30,7 +36,7 @@ Source: `compiler/ssa.py` (`build_ssa` at line 1012, `SSAPhi` at line 606, `SSAF
 ### Version numbering
 
 - Version 0 = read-before-set (the variable was used without being defined).
-  This triggers diagnostic W103.
+  This feeds diagnostic W210.
 - Version 1, 2, 3, ... = successive definitions in program order.
 - Inside loops, the phi node at the header produces a new version that
   merges the initial value with the loop-carried update.
@@ -58,14 +64,15 @@ dominance "ends":
 Block A dominates block B if every path from entry to B passes through A.
 The immediate dominator (`idom`) is the closest dominator.
 
-```python
-SSAFunction.idom = {
-    "entry_1": None,
-    "if_then_3": "entry_1",
-    "if_next_4": "entry_1",
-    "if_end_2": "entry_1",
-    "exit_5": "if_end_2",
-}
+`SsaFunction::idom` is a `HashMap<BlockId, Option<BlockId>>` — `None` only
+for the entry block. Rendered with block names, the example above gives:
+
+```
+entry_1   → None
+if_then_3 → entry_1
+if_next_4 → entry_1
+if_end_2  → entry_1
+exit_5    → if_end_2
 ```
 
 ### Loop phis
@@ -78,12 +85,12 @@ Loops create phi nodes at the loop header:
     branch uses: {i: 2}
 
   while_body_4:
-    IRIncr(i) → i₃ = i₂ + 1
+    Statement::Incr { name: "i", .. } → i₃ = i₂ + 1
 ```
 
 The phi merges the initial value (`i₁ = 0`) with the loop-carried update
 (`i₃`).  SCCP cannot fold loop-carried values to constants — they become
-`OVERDEFINED`.
+`Overdefined`.
 
 ### Multi-way merge (if/elseif/else)
 
@@ -100,15 +107,29 @@ Three definitions merge — the phi has three incoming edges.
 
 | Type | Fields |
 |------|--------|
-| `SSAStatement` | `statement` (original IR), `uses dict[name→version]`, `defs dict[name→version]` |
-| `SSAPhi` | `name`, `version` (produced), `incoming dict[block→version]` |
-| `SSABlock` | `phis tuple`, `statements tuple`, `entry_versions`, `exit_versions` |
-| `SSAFunction` | `blocks dict`, `idom dict`, `dominance_frontier dict`, `dominator_tree dict` |
+| `SsaStatement` | `statement: Statement` (the underlying IR), `uses: HashMap<Symbol, Version>`, `defs: HashMap<Symbol, Version>`, `may_defs: HashSet<Symbol>`, `quoted_uses: HashSet<Symbol>` |
+| `Phi` | `name: Symbol`, `version: Version` (produced), `incoming: HashMap<BlockId, Version>` |
+| `SsaBlock` | `name: String`, `phis: Vec<Phi>`, `statements: Vec<SsaStatement>`, `entry_versions`, `exit_versions` |
+| `SsaFunction` | `name`, `entry: BlockId`, `blocks: HashMap<BlockId, SsaBlock>`, `idom`, `dominance_frontier`, `dominator_tree`, plus private block-name and variable-name interners |
+
+Two refinements on `SsaStatement` matter to downstream passes:
+
+- `may_defs` is the subset of `defs` that are *synthetic* array-element
+  writes rather than writes the statement performs itself — the base refresh
+  alongside an element write (`set arr(k) v` also defs `arr`), and the
+  element fan of a dynamic-key write (`set arr($i) v` defs every known
+  `arr(*)`). Type inference **joins** across a may-def; write-sensitive
+  passes (shimmer oscillation, dead store) must not count one as a real
+  write.
+- `quoted_uses` is the subset of `uses` carried only by a brace-quoted word
+  the statement does not substitute. The use is real for liveness — the text
+  may be evaluated later — but is not a read *here*, so read-before-set must
+  ignore it.
 
 ## Decision rule
 
-- If a new IR node defines variables, ensure it appears in `defs` of the
-  `SSAStatement` so the SSA builder tracks it.
+- If a new IR node defines variables, ensure it appears in the
+  `SsaStatement`'s `defs` so the SSA builder tracks it.
 - Version 0 reads indicate potential read-before-set — check that the
   variable is legitimately undefined (not a cross-event flow in iRules).
 - Phi nodes are only placed where needed (at dominance frontiers), not at
@@ -119,20 +140,27 @@ Three definitions merge — the phi has three incoming edges.
 ### Def-use chain derivation
 
 After SSA construction, def-use chains can be built with
-`build_def_use_chains(ssa)` from `compiler/def_use.py`.
-The chains map each `SSAValueKey` to its definition site and all
-use sites, enabling precise dead-store detection and copy propagation.
+`build_def_use_chains(ssa, cfg)` from `rust/tcl-compiler/src/def_use.rs`,
+which returns a `DefUseResult`.  The chains map each `SsaValueKey` — a
+`(String, Version)` pair — to its `DefSite` and all `UseSite`s, enabling
+precise dead-store detection and copy propagation.
 
 Phi nodes participate in def-use chains in two roles:
-- **As definitions**: The phi's `(name, version)` is a `DefKind.PHI` def.
-- **As uses**: Each incoming edge `(pred_block, incoming_ver)` is a
-  `UseKind.PHI_INCOMING` use of the incoming version.
+- **As definitions**: the phi's `(name, version)` is a `DefKind::Phi` def
+  (the other kinds are `DefKind::Statement` and `DefKind::Parameter`).
+- **As uses**: each incoming edge `(pred_block, incoming_ver)` is a
+  `UseKind::PhiIncoming` use of the incoming version (the other kinds are
+  `UseKind::Operand` and `UseKind::Terminator`).
+
+A `UseSite` also carries a `class: UseClass`, so a brace-quoted use — real
+for liveness but not a read at that point — is distinguishable from an
+ordinary one.
 
 ### Memory-SSA for aliases
 
 Variables aliased via `upvar`, `global`, or `variable` are tracked by
-memory-SSA (`compiler/memory_ssa.py`).  Memory-SSA versions each
-store/load to aliased locations and builds alias sets, enabling
+memory-SSA (`rust/tcl-compiler/src/memory_ssa.rs`).  Memory-SSA versions each
+store and load to aliased locations and builds alias sets, enabling
 alias-aware optimisation and taint tracking.
 
 ### The dynamic-name barrier

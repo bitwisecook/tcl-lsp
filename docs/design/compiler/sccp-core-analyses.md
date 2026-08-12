@@ -8,35 +8,43 @@ value is marked `OVERDEFINED` when it seems constant.
 
 ## Context
 
-`analyse_function()` in `core_analyses.py` runs SCCP (Sparse Conditional
-Constant Propagation) over the SSA graph, producing a `FunctionAnalysis`
-with constant values, type information, liveness, dead stores, unreachable
-blocks, constant branches, read-before-set, and unused variables.
+SCCP (Sparse Conditional Constant Propagation) runs over the SSA graph and
+produces a `FunctionAnalysis` with constant values, type information,
+liveness, dead stores, unreachable blocks, constant branches,
+read-before-set, and unused variables.
 
-Source: `compiler/core_analyses.py` (`analyse_function` at line 3964, `FunctionAnalysis` at line 426),
-`compiler/types.py`
+Source: `rust/tcl-compiler/src/sccp.rs` (the propagation itself, plus
+`sccp_with_extra_escaping` / `sccp_with_builtin_folds`),
+`rust/tcl-compiler/src/analyses.rs` (`FunctionAnalysis`, `ConstantBranch`,
+`DeadStore`, `ReadBeforeSet`, `UnusedVariable`, `LatticeValue`),
+`rust/tcl-compiler/src/types.rs` (the type lattice)
 
 ## Content
 
 ### SCCP — constant propagation
 
-The SCCP value lattice:
+The SCCP value lattice (`analyses::LatticeValue`, tagged by
+`LatticeKind`):
 
 ```
-UNKNOWN  ──►  CONST(value)  ──►  OVERDEFINED
- (bottom)      (provably constant)    (top / multiple possible values)
+Unknown  ──►  Const(v)  ──►  ConstSet({v1, v2, …})  ──►  Overdefined
+(bottom)     (one known)     (a small set, up to        (top / varies
+                              MAX_CONSTSET_SIZE = 32)     too much)
 ```
+
+A `ConstSet` that grows past `MAX_CONSTSET_SIZE` widens automatically to
+`Overdefined`.
 
 SCCP walks the SSA graph and propagates:
-- `IRAssignConst(value="42")` → `CONST("42")`
-- `IRAssignValue(value="${x}")` where `x₁ = CONST("42")` → `CONST("42")`
-- Phi nodes: `phi(CONST("42"), CONST("42"))` → `CONST("42")`
-- Phi nodes: `phi(CONST("42"), CONST("99"))` → `OVERDEFINED`
-- Loop-carried values: always `OVERDEFINED` (value changes per iteration)
+- `Statement::AssignConst { value: "42", .. }` → `Const("42")`
+- `Statement::AssignValue { value: "${x}", .. }` where `x₁ = Const("42")` → `Const("42")`
+- Phi nodes: `phi(Const("42"), Const("42"))` → `Const("42")`
+- Phi nodes: `phi(Const("42"), Const("99"))` → `ConstSet` of the two, widening to `Overdefined` past the cap
+- Loop-carried values: `Overdefined` (value changes per iteration)
 
 **Registry builtin folds in the lattice** (issue #1134): when a caller
 supplies `BuiltinFoldInputs` (`sccp_with_builtin_folds`), an
-`IRAssignValue` whose RHS is a `[cmd args…]` command substitution is also
+`AssignValue` whose RHS is a `[cmd args…]` command substitution is also
 evaluated through the shared constant-substitution engine
 (`rust/tcl-compiler/src/const_subst.rs`) — the registry `const_fold`
 callbacks plus, when the caller proved a `TclOO` method frame, the
@@ -184,71 +192,117 @@ invisible to both gates.
 
 ### Constant branch detection
 
-When a `CFGBranch` condition evaluates to a constant:
+When a `Terminator::Branch` condition evaluates to a constant, SCCP records
+an `analyses::ConstantBranch`:
 
-```python
-ConstantBranch(
-    block="entry_1",
-    condition="$x",
-    value=True,
-    taken_target="if_then_3",
-    not_taken_target="if_next_4",
-)
+```rust
+pub struct ConstantBranch {
+    /// CFG block name containing the branch.
+    pub block: String,
+    /// Condition expression text.
+    pub condition: String,
+    /// Constant-evaluated condition result.
+    pub value: bool,
+    /// Target block when condition is true.
+    pub taken_target: String,
+    /// Target block when condition is false.
+    pub not_taken_target: String,
+}
 ```
 
 - The not-taken target is marked unreachable.
-- O112 (constant condition elimination) is triggered.
+- The constant-condition diagnostic (I230) and the optimiser's
+  constant-branch fold / DCE (O101) both consume these entries.
 
 ### Existence-check folding (`info exists` / `array exists`)
 
-`_ExistenceFolder` rewrites `[info exists X]` / `[array exists X]`
-sub-expressions in a branch condition to a `0`/`1` literal before the branch
-decision is taken, so an existence guard becomes an ordinary constant branch
-(feeding `I230` + DCE):
+`sccp::existence_constant_branches(cfg, frame, registry, …)` folds
+`[info exists X]` / `[array exists X]` branch conditions into
+`ConstantBranch` entries as a **post-pass** — SCCP itself cannot fold them,
+because the predicate is an opaque `ExprNode::Command` and SCCP carries
+neither parameter nor existence facts. The recogniser is
+`tcl_syntax::expr::ast::existence_query_var`, which matches only the simple
+two-word command-substitution form (optionally under `!`) and returns an
+`ExistenceQuery { var, negated, command }`; the `ExistenceCommand::Info` and
+`ExistenceCommand::Array` spellings are kept distinct because
+`array exists` additionally asserts the binding is an array (issue #1239).
 
-- **absent** — a use at SSA version 0 of a plain local scalar that is not a
-  parameter and not frame-escaping (`global`/`variable`/`upvar`) → fold to
-  `0`. (`array exists` also folds `0`.)
-- **present** — a use whose reaching version is a real assignment, or a
-  parameter → `info exists` folds to `1` (a scalar `set` does not prove
-  `array exists`, so that stays unfolded).
-- **`unset`** version → fold to `0`.
+The frame's own facts arrive as an `ExistenceFrame { params, object_state }`
+— built identically by the analyser (I230) and the optimiser (O101) so the
+two cannot drift:
 
-The fold is gated per function: it is disabled whenever any statement could
-create or destroy a local invisibly (any barrier/`IRBlock`/`IRUpFrame`, an
-`IRCall` with an UNKNOWN-target write, a dynamic barrier, or an inline `BODY`
-argument). Array elements (`A(k)`) and qualified names (`::ns::X`) are never
-folded. This keeps the rewrite sound for DCE/codegen.
+- **present** — a formal parameter is bound on entry, as a **scalar**:
+  `info exists` folds to true, `array exists` to false. This holds for a
+  defaulted parameter called with no argument, and a method parameter that
+  shadows an instance-variable name still folds true.
+- **absent** — a name this body never defines and never `unset`s folds to
+  false. An element guard `X(elem)` on an array the body never touches folds
+  false too (issue #1173) — the guard is decided on the array *base* name,
+  so the element key may even be dynamic.
+- `!` on the query flips the value.
+
+Abstentions: only simple local names are folded, and only in functions free
+of opaque barriers (an unknown command could `unset` or `upvar`-define the
+variable). Scope-alias locals (`global` / `variable` / `upvar` /
+`namespace upvar`) never fold, because their existence tracks the linked
+out-of-frame variable. `ExistenceFrame::object_state` — a `TclOO` method's
+`MethodDef::instance_vars` — likewise never folds either way: a class-level
+`variable x` binds the name in every method frame without creating it, and
+whether an earlier call on the same instance assigned it is not a
+per-method fact. The dynamic-name barrier
+(`rust/tcl-compiler/src/dynamic_names.rs`) gates the two directions
+independently: a dynamic write (`set $switch {}`) can define any name and
+kills the "absent" fold; a dynamic destroy (`unset $n`) can remove any name
+and kills the "present" fold.
 
 ### Unreachable blocks
 
 Blocks that are never reached (due to constant branches, code after
-`return`/`break`, etc.) are collected in `FunctionAnalysis.unreachable_blocks`.
-Taint analysis and optimisation passes skip unreachable blocks.
+`return`/`break`, etc.) are collected in
+`FunctionAnalysis::unreachable_blocks`. Taint analysis and optimisation
+passes skip unreachable blocks.
 
 ### Type lattice
 
+`types::TypeLattice` is a bounded, canonicalised **union of shapes** rather
+than a fixed four-rung chain. Its coarse classification is `TypeKind`:
+
 ```
-UNKNOWN  ──►  KNOWN(TclType)  ──►  SHIMMERED(from, to)  ──►  OVERDEFINED
+Unknown  ──►  Known (one shape)  ──►  Shimmered (2+ shapes)  ──►  Overdefined
 ```
 
-| TclType | Values |
-|---------|--------|
-| `INT` | `"42"`, `"0xFF"` |
-| `DOUBLE` | `"3.14"` |
-| `BOOLEAN` | `"true"`, `"false"`, `"1"`, `"0"` |
-| `STRING` | Any non-numeric text |
-| `LIST` | Tcl list format |
-| `DICT` | Tcl dict format |
-| `NUMERIC` | Abstract join of INT and DOUBLE |
+`Known` is a singleton union and `Shimmered` is any multi-member union — two
+*or more* differently-typed paths, not a from/to pair. The union is capped at
+`MAX_TYPE_UNION` members; past that it widens to `Overdefined`.
 
-`SHIMMERED(from_type, to_type)` tracks forced type conversions — used by
-the shimmer detector (S100–S102).
+Each member is a `TypeShape`:
+
+| `TypeShape` | Meaning |
+|-------------|---------|
+| `String` | String rep |
+| `Int` | Integer that fits an `i64` |
+| `Bignum` | Integer beyond a wide (`expr {2**64}`) |
+| `Double` | IEEE-754 double |
+| `Boolean` | Word booleans and 0/1 comparison results |
+| `Numeric` | Abstract join of the numeric tower |
+| `ByteArray` | Binary data |
+| `List(Elements)` | Tcl list, with optional element facts |
+| `Dict(Elements)` | Tcl dict, with optional facts about its values |
+| `Object(Option<Box<str>>)` | `TclOO` / snit instance, with its class when known |
+| `Channel` | I/O channel handle |
+
+`TypeShape::coarse()` projects a shape down to the registry vocabulary
+(`TclType`), and `TypeShape::from_coarse()` lifts it back structure-free.
+Purity (`typePtr == NULL`) is deliberately *not* a shape — whether an
+intrep is committed is a program-point property tracked by the commit
+dataflow (`rust/tcl-compiler/src/shimmer/commit.rs`), which is what the
+shimmer detector (S100–S102) consumes.
 
 ### Liveness analysis
 
-`live_in[block]` / `live_out[block]` — sets of `SSAValueKey` that are
-"live" (may still be read) at each block boundary.
+`FunctionAnalysis::live_in` / `live_out` are
+`HashMap<String, HashSet<ValueKey>>` — the values that are "live" (may still
+be read) at each block boundary.
 
 A value is dead if it is defined but never appears in any `live_out` set.
 Dead values trigger:
@@ -257,62 +311,69 @@ Dead values trigger:
 
 ### Dead store detection
 
-If `x₁ = "42"` and `x₁` never appears in any `uses` dict, it is a dead
-store.  SCCP marks it in `FunctionAnalysis.dead_stores`.
+If `x₁ = "42"` and `x₁` is never used, it is a dead store, recorded in
+`FunctionAnalysis::dead_stores` as `DeadStore { block, statement_index,
+variable, version }`.
 
 ### Read-before-set
 
-If a variable is read at version 0 (never defined before use), it appears
-in `FunctionAnalysis.read_before_set` → diagnostic W103.
+A variable read at version 0 (never defined before use) is recorded in
+`FunctionAnalysis::read_before_set` as `ReadBeforeSet { block,
+statement_index, variable }`, and the analyser reports it as **W210**.
 
 Existence checks are excluded: `info exists X` / `array exists X` test a
-variable rather than reading its value, so the check reference itself is never
-a read-before-set. A check also narrows the region it dominates —
-`_existence_narrowed_blocks` records, for each block, the names a dominating
-guard proves to exist (the true region of `if {[info exists X]}`, or the false
-region of a negated guard), and reads of those names there are suppressed. The
-opposite branch keeps version 0, so a read there is still flagged.
+variable rather than reading its value, so the check reference itself is
+never a read-before-set. A check also narrows the region it dominates.
+`analyser::diagnostics::helpers::collect_existence_guards(fu)` walks every
+`Terminator::Branch`, recognises the condition with `existence_query_var`,
+and returns `(var, guard_block)` pairs: a positive query guards the true
+target, a negated one the false target. `existence_exempt` then suppresses a
+read of `var` in any block dominated by `guard_block` (dominance walked over
+`SsaFunction::idom` by `block_dominated_by`). The opposite branch keeps
+version 0, so a read there is still flagged.
 
-`_existence_implications` recognises the membership idioms too, all restricted
-to a single exact (non-glob) name: `[info vars X]` / `[info locals X]`
-compared with `""` (`ne`/`eq`), `[llength [info vars X]]`, and
-`[lsearch [info vars] X] > -1` / `>= 0` / `!= -1`. `info globals` is *not*
-narrowed (it proves the global exists, not the bare-`$X` local), and unsound
-`lsearch` options (`-regexp`, `-nocase`, …) are rejected. `catch {set _ $X}`
-is recognised too: a zero (no-error) result proves the read succeeded, so the
-*false* branch knows `X` exists — the true (error) branch is ambiguous (missing
-*or* an array read as a scalar) and proves nothing. Narrowing is a runtime fact
-(the guard passed), so unlike the fold it needs no foldability gate.
+Narrowing is a runtime fact — the guard passed — so unlike the constant fold
+above it needs no foldability gate. It is also deliberately narrower than the
+fold: only the exact `[info exists X]` / `[array exists X]` command
+substitution is recognised. Membership idioms (`info vars` / `info locals`
+comparisons, `lsearch` over `info vars`, `catch {set _ $X}`) are **not**
+recognised as existence evidence.
 
-The exact-name shape test goes through `shared.naming.is_unqualified_var_name`
-(built on the lexer's `is_bare_var_name`), not a local regex.
+Several other shapes are exempted alongside the guards, in the same
+read-before-set walk (`analyser/diagnostics/dataflow.rs`): a barrier body
+that locally sets the name, a read-modify-write call that auto-creates its
+target (`lappend` / `append` — but not `unset`, whose missing-variable case
+is W213), and a use site that itself safely initialises the variable
+(`safe_on_uninit` commands, or an `incr` of its own target).
 
 ### Unused variables
 
 Variables that are defined but never read (across all versions) appear in
-`FunctionAnalysis.unused_variables` → diagnostic W104.
+`FunctionAnalysis::unused_variables` as `UnusedVariable { block,
+statement_index, variable }` → diagnostic W211. Unused formal parameters are
+tracked separately in `FunctionAnalysis::unused_params`.
 
 ### Worked example — `set x 5; if {$x < 0} {…} elseif {$x > 0} {…} else {…}`
 
-SCCP determines `x₁ = CONST("5")`:
-- `5 < 0` → `CONST(false)` → `if_then_3` unreachable
-- `5 > 0` → `CONST(true)` → `if_then_5` taken, `if_next_6` unreachable
-- `sign` resolves to `CONST("1")` (only one reachable definition)
+SCCP determines `x₁ = Const("5")`:
+- `5 < 0` → `Const(false)` → `if_then_3` unreachable
+- `5 > 0` → `Const(true)` → `if_then_5` taken, `if_next_6` unreachable
+- `sign` resolves to `Const("1")` (only one reachable definition)
 
 ### Worked example — `while {$i < 5} { incr i }`
 
-- `i₁ = CONST("0")` (before loop)
-- `i₂ = phi(i₁, i₃)` at loop header → `OVERDEFINED` (loop-carried)
+- `i₁ = Const("0")` (before loop)
+- `i₂ = phi(i₁, i₃)` at loop header → `Overdefined` (loop-carried)
 - SCCP cannot fold loop induction variables
 
 ## Decision rule
 
-- If a value should be constant but is `OVERDEFINED`, check whether a
+- If a value should be constant but is `Overdefined`, check whether a
   loop phi or barrier is widening it.
 - Pure commands can be inferred through without invalidating the lattice.
-  Impure commands force all potentially affected values to `OVERDEFINED`.
+  Impure commands force all potentially affected values to `Overdefined`.
 - Liveness is computed backward from uses to definitions — if a new IR
-  node reads variables, ensure they appear in `SSAStatement.uses`.
+  node reads variables, ensure they appear in the SSA statement's `uses`.
 - SCCP runs once per function (no iterative refinement across functions —
   that is interprocedural analysis).
 

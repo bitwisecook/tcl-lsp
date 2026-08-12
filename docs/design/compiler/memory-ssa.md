@@ -24,78 +24,122 @@ Memory-SSA makes these relationships explicit.
 
 ## Data Structure
 
-```
-MemorySSAFunction
-  alias_sets: list[AliasSet]
-  memory_ops: list[MemoryOp]
-  memory_phis: dict[BlockName, list[MemoryOp]]
+```rust
+pub struct MemorySsaFunction {
+    /// Alias sets covering this function's aliased variables.
+    pub alias_sets: Vec<AliasSet>,
+    /// Memory operations in emission order.
+    pub memory_ops: Vec<MemoryOp>,
+    /// Block-indexed memory phi nodes.
+    pub memory_phis: HashMap<String, Vec<MemoryOp>>,
+    /// Number of `MemoryOpKind::Def` ops.
+    pub count_defs: usize,
+    /// Number of `MemoryOpKind::Use` ops.
+    pub count_uses: usize,
+    /// Number of `MemoryOpKind::Clobber` ops.
+    pub count_clobbers: usize,
+    /// Whether any invocation could change an unenumerated variable-cell
+    /// identity through an unresolved or widened registry transition.
+    pub has_wildcard_aliasing: bool,
+}
 
-AliasSet
-  locations: frozenset[MemoryLocation]
-  reason: str               # "upvar", "global", "variable"
+pub struct AliasSet {
+    /// Locations merged into this set. Ordered for stable output.
+    pub locations: BTreeSet<MemoryLocation>,
+    /// Why the set was formed — e.g. `"upvar"`, `"global-cell"`,
+    /// `"namespace-cell"`, or a comma-separated sorted combination when
+    /// several detection paths merged into the same set.
+    pub reason: String,
+}
 
-MemoryLocation
-  kind: MemoryLocationKind  # LOCAL | UPVAR | GLOBAL | NAMESPACE_VAR | ARRAY_ELEMENT | UNKNOWN
-  name: str
-  qualifier: str            # namespace, caller var, or array index
+pub struct MemoryLocation {
+    /// Local | Upvar | Global | NamespaceVar | ArrayElement | InstanceVar | Unknown
+    pub kind: MemoryLocationKind,
+    /// Variable name.
+    pub name: String,
+    /// Location-specific context: the namespace (NamespaceVar), the
+    /// caller-side variable name (Upvar), or the array index text
+    /// (ArrayElement).
+    pub qualifier: String,
+}
 
-MemoryOp
-  kind: MemoryOpKind        # DEF | USE | PHI | CLOBBER
-  location: MemoryLocation
-  version: int              # memory version number
-  reaching_version: int     # for uses: which version reaches this point
-  block: BlockName
-  statement_index: int
+pub struct MemoryOp {
+    /// Def | Use | Phi | Clobber
+    pub kind: MemoryOpKind,
+    /// Location being read or written.
+    pub location: MemoryLocation,
+    /// New version assigned by this op (for Def/Phi/Clobber);
+    /// for a Use, matches the reaching version.
+    pub version: Version,
+    /// Version of memory state reaching this read (Use only).
+    pub reaching_version: Version,
+    /// Block containing the op.
+    pub block: String,
+    /// Statement index within the block (`-1` for phi).
+    pub statement_index: i32,
+}
 ```
 
 ## Alias Detection
 
-The module scans SSA statements for aliasing commands:
+Alias detection is **registry-driven**: the module never infers a
+variable-cell alias from a command spelling or a flattened argument layout.
+It resolves each statement's command tokens
+(`registry_invocation::resolve_command_tokens`), reads the declared
+`StateTransition::VariableCellAlias` facts, and turns each one into a
+`(local, target)` pair:
 
-| Command | Detection | Alias Created |
-|---------|-----------|---------------|
-| `upvar ?level? otherVar myVar` | Literal args only | `{myVar, otherVar}` |
-| `namespace upvar ns otherVar myVar` | Literal args only | `{myVar, otherVar}` |
-| `global varName` | All args | `{varName(local), varName(global)}` |
-| `variable varName` | All args | `{varName(local), varName(namespace)}` |
+| `VariableAliasTarget` | Target location | Reason string |
+|---|---|---|
+| `Global { variable }` | `Global(variable)` | `"global-cell"` |
+| `CurrentNamespace { variable }` | `NamespaceVar(variable)` | `"current-namespace-cell"` |
+| `Namespace { namespace, variable }` | `NamespaceVar(variable)` qualified by `namespace` | `"namespace-cell"` |
+| `CallerSelectedFrame { frame, variable }` | `Global(variable)` when the frame level parses as the global frame, otherwise the caller-frame alias | `"global-frame-cell"` / `"upvar"` |
 
-Dynamic `upvar` targets (e.g. `upvar 1 $param local`) are not tracked —
-the variable scan in `_detect_upvar` skips `$`-prefixed names.
+So `global v`, `variable v`, `namespace upvar ns other local`, `upvar 1
+other local`, and `upvar #0 g l` are all handled through the same path,
+selected by the registry's declared transition rather than by name.
+
+Only **literal** subjects produce a pair (`TransitionSubject::literal`):
+a dynamic target such as `upvar 1 $param local` or `global $name` yields no
+alias set. Where a transition is unresolved or widened, the function-level
+`has_wildcard_aliasing` flag is raised instead.
 
 ## Memory Versioning
 
 Memory versions increment at:
-1. **Store to aliased variable**: `DEF` operation
-2. **Clobber point**: `IRBarrier` or commands like `eval`/`uplevel`
-3. **Phi merge**: Where control flow merges and aliased variables
-   have different versions on incoming edges
+1. **Store to aliased variable**: a `Def` operation
+2. **Clobber point**: a `Statement::Barrier`, or a command that may modify
+   any aliased memory — `MemoryOp::new_clobber` uses the wildcard location
+   `Unknown("*")`
+3. **Phi merge**: where control flow merges and aliased variables have
+   different versions on incoming edges
 
-**Limitation — global version counter**: The implementation uses a single
-`version_counter` for all memory locations within a function.  When a `DEF`
-to variable `x` bumps the counter, a subsequent `USE` of unrelated variable
+**Limitation — single version counter**: the implementation uses one
+`version_counter` for all memory locations within a function.  When a `Def`
+to variable `x` bumps the counter, a subsequent `Use` of unrelated variable
 `y` records that bumped counter as its `reaching_version`.  This is correct
-for consumers that use `may_alias()` and alias sets, but any consumer relying
-on `reaching_version` for per-variable reaching-def analysis will get an
+for consumers that use `may_alias` and alias sets, but any consumer relying
+on `reaching_version` for per-variable reaching-def analysis gets an
 over-approximation.
 
-## Key Methods and Properties
+## Key Methods
 
-| Method / Property | Meaning |
-|-------------------|---------|
-| `may_alias(a, b)` | True if two variable names may refer to the same storage |
-| `aliases_for(name)` | All alias sets containing the given variable name |
-| `aliased_names` | Frozenset of all variable names involved in aliasing |
-| `total_memory_defs` | Count of `DEF` memory operations |
-| `total_memory_uses` | Count of `USE` memory operations |
-| `total_clobbers` | Count of `CLOBBER` memory operations |
+| Method | Meaning |
+|--------|---------|
+| `MemorySsaFunction::may_alias(a, b)` | True if two variable *names* may refer to the same storage |
+| `MemorySsaFunction::aliases_for(name)` | `Vec<&AliasSet>` — all alias sets containing the given variable name |
+| `MemorySsaFunction::aliased_names()` | `BTreeSet<String>` of every variable name involved in aliasing |
+| `AliasSet::may_alias(loc)` | True when a specific `MemoryLocation` is in the set |
+| `count_defs` / `count_uses` / `count_clobbers` | Pre-computed O(1) summary counts (fields, not methods) |
 
 ## Consumer Contracts
 
 | Consumer | What it reads | Benefit |
 |----------|---------------|---------|
-| GVN (O105) | `may_alias()` | CSE across alias groups |
+| GVN (O105) | `may_alias` | CSE across alias groups |
 | DSE (O109) | `alias_sets`, `memory_ops` | Dead stores through aliases |
-| LICM (O106) | `may_alias()` | Hoist loads when no aliased store in loop |
+| LICM (O106) | `may_alias` | Hoist loads when no aliased store in loop |
 | Taint analysis | `alias_sets` | Track taint through upvar/global |
 | Data-flow graph | `alias_sets` | Alias edges in visualisation |
 
@@ -103,10 +147,15 @@ over-approximation.
 
 - **Source**: `rust/tcl-compiler/src/memory_ssa.rs`, with storage places in
   `rust/tcl-compiler/src/place.rs`.
+- **Registry facts**: `StateTransition::VariableCellAlias` and
+  `VariableAliasTarget` from `rust/tcl-registry/`, resolved through
+  `rust/tcl-compiler/src/registry_invocation.rs`.
 - **Integration**: `rust/tcl-compiler/src/compilation_unit.rs` and the common
   semantic analysis sidecar.
-- **Key APIs**: `MemorySsaFunction`, alias-set construction, and the
-  `with_memory_ssa()` consumer path used by Explorer and diagnostics.
+- **Key APIs**: `build_memory_ssa`, `MemorySsaFunction`, alias-set
+  construction, and the `FunctionUnit::with_memory_ssa` /
+  `CompilationUnit::with_memory_ssa` consumer path used by the compiler
+  explorer and the diagnostic passes.
 
 ## Example
 
@@ -120,11 +169,11 @@ proc update_counter {} {
 Memory-SSA output:
 ```
 alias_sets:
-  {counter(local), counter(global)} reason=global
+  {Local(counter), Global(counter)} reason="global-cell"
 memory_ops:
-  DEF counter v1  (global declaration)
-  DEF counter v2  (set counter ...)
+  Def counter v1  (global declaration)
+  Def counter v2  (set counter …)
 ```
 
-The `may_alias("counter", "counter")` query returns `True` — both the
-local binding and global storage refer to the same variable.
+`may_alias("counter", "counter")` returns `true` — both the local binding
+and the global storage refer to the same variable.

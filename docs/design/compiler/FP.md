@@ -37,12 +37,13 @@ Each entry has a stable `FP-<FAMILY>-<NN>` id and these sections:
    to the compiler evidence below; the two must agree.
 4. **tclsh ground truth** — the exact runtime result / error / dialect notes.
 5. **Compiler evidence** — a small block of SSA / lattice / analysis output
-   pasted from `bench/fp_snippets.py --id FP-<id>`. Always shows the regen
+   reproduced by running the reproducer through the compiler explorer.
+   Always shows the regen
    command so a reviewer can re-derive it.
 6. **Why the analyser reaches that verdict** — the precise code path inside
    the analyser/compiler (file:line where the decision is made).
 7. **Tests** — names of the paired must-fire (TP) and must-stay-silent (FP)
-   tests (`tests/test_fp_<family>.py`) that consume *this exact reproducer*.
+   tests (`rust/tcl-compiler/src/analyser/diagnostics/fp/<family>.rs`) that consume *this exact reproducer*.
 
 Open findings that still false-positive today carry a passing TP test plus an
 `xfail(strict=True)` FP test so the suite signals when the gap closes.
@@ -76,7 +77,7 @@ silently breaks the verdict is caught.
 ### FP-NAB-01 — `lset` append-slot (index == length) is legal, NOT W231
 
 - **Verdict:** NOT A BUG (analyser already correct)
-- **Status:** locked in by `tests/test_fp_nab.py::test_FP_NAB_01_append_slot_silent`
+- **Status:** locked in by `rust/tcl-compiler/src/analyser/diagnostics/fp/nab.rs::fp_nab_01_append_slot_silent`
 - **Codes:** W231 (lset out-of-range)
 - **Corpus:** `tmp/tcllib-2.0/modules/struct/list.tcl` (the `lset … end+1` /
   append pattern appears throughout; the trimmed reproducer is small enough that
@@ -103,7 +104,7 @@ puts $l            ;# use post-lset binding (silences W211 on l#2)
    the index equals the current list length, the element is **appended**.
    It only errors for `index > length` or `index < 0`.  With the literal
    list of length 3, the analyser sees the precise comparison `3 > 3`
-   (the strict comparator at `analyser/checks/_bounds.py:318`) and
+   (the strict comparator at `rust/tcl-compiler/src/analyser/bounds_checks.rs:318`) and
    returns **False** → no W231.  If a regression replaced `>` with `>=`
    the same line would fire W231 and the catalog would visibly catch it.
 3. `puts $l` — uses the post-lset binding `l#2`, silencing the
@@ -127,7 +128,7 @@ non-error out-of-bounds index.)
 
 ```
 --- FP-NAB-01: lset append-slot (index == length) is legal, NOT W231
-regen: python -m bench.fp_snippets --id FP-NAB-01
+regen: save the reproducer above and run `tcl explore <file> --show ssa --show sccp`  (FP-NAB-01)
 function ::top
   block entry_1
     [0] AssignConst 'l' value='a b c'  defs={l#1}  uses={}
@@ -150,7 +151,7 @@ function ::top
 - `l#2: OVERDEFINED` — SCCP cannot fold `lset`'s result.
 - The bounds check that *would* fire here is W231; the catalog's negative
   test asserts it does **not** fire because the comparator at
-  `analyser/checks/_bounds.py:318` is strict `>`, which permits the append
+  `rust/tcl-compiler/src/analyser/bounds_checks.rs:318` is strict `>`, which permits the append
   slot.
 
 ##### Incidental noise: the W220 on `l#1`
@@ -162,20 +163,20 @@ lowering records `defs={l#2}, uses={}` for the `lset` call — it doesn't
 record `l#1` as a use, even though `lset` semantically reads-modifies-
 writes.  So `l#1` looks dead w.r.t. the rebind.  This is incidental to
 the W231 verdict (it's a separate dead-store check) and the regression
-test (`tests/test_fp_nab.py::test_FP_NAB_01_append_slot_silent`) asserts
+test (`rust/tcl-compiler/src/analyser/diagnostics/fp/nab.rs::fp_nab_01_append_slot_silent`) asserts
 only that **W231** stays silent.
 
 #### Why the analyser reaches that verdict
 
-`check_lset_index_out_of_range` (`analyser/checks/_bounds.py`) compares the
+`check_lset_index_out_of_range` (`rust/tcl-compiler/src/analyser/bounds_checks.rs`) compares the
 resolved index against the inferred list length with `>` (not `>=`), so
 `index == length` is permitted. This was confirmed-correct on audit; the verdict
 is *NOT-a-bug*, not "we deferred the fix".
 
 #### Tests
 
-- `tests/test_fp_nab.py::test_FP_NAB_01_append_slot_silent` (FP, must stay silent)
-- `tests/test_fp_nab.py::test_FP_NAB_01_real_out_of_range_fires` (TP, real
+- `rust/tcl-compiler/src/analyser/diagnostics/fp/nab.rs::fp_nab_01_append_slot_silent` (FP, must stay silent)
+- `rust/tcl-compiler/src/analyser/diagnostics/fp/nab.rs::fp_nab_01_real_out_of_range_fires` (TP, real
   `lset l 4 X` on a 3-element list does fire W231)
 
 ---
@@ -184,7 +185,7 @@ is *NOT-a-bug*, not "we deferred the fix".
 
 - **Verdict:** NOT A BUG — the severity split between W230 (lindex smell) and
   W231 (lset error) reflects real tclsh behaviour.
-- **Status:** locked in by `tests/test_fp_nab.py::test_FP_NAB_02_*`
+- **Status:** locked in by `rust/tcl-compiler/src/analyser/diagnostics/fp/nab.rs::fp_nab_02_*`
 - **Codes:** W230, W231
 - **Corpus:** `tmp/tcllib-2.0/modules/struct/list.tcl` (literal-arg
   `lindex {…} N` patterns appear across tcllib for compile-time list lookups;
@@ -203,7 +204,7 @@ return $x
 
 1. `set x [lindex {a b c} 9]` — both the list (`{a b c}`, length 3) and the
    index (`9`) are *literals on the same call*. This is exactly the form the
-   W230 syntactic check (`analyser/checks/_bounds.py:118-181`) is built for: it
+   W230 syntactic check (`rust/tcl-compiler/src/analyser/bounds_checks.rs:118-181`) is built for: it
    walks `arg_tokens[0]` as the list, splits it, then for each subsequent
    literal index checks `0 <= resolved < length`. Here `9 >= 3`, so W230 fires.
 2. Per `lindex(n)`, an out-of-range index **returns the empty string**, it does
@@ -237,7 +238,7 @@ runtime semantics.
 
 ```
 --- FP-NAB-02: lindex out-of-range returns "" — smell (W230), not an error
-regen: python -m bench.fp_snippets --id FP-NAB-02
+regen: save the reproducer above and run `tcl explore <file> --show ssa --show sccp`  (FP-NAB-02)
 function ::top
   block entry_1
     [0] AssignValue 'x' value='[lindex {a b c} 9]'  defs={x#1}  uses={}
@@ -258,18 +259,18 @@ function ::top
 
 #### Why the analyser reaches that verdict
 
-`check_list_index_out_of_range` (`analyser/checks/_bounds.py:118-181`) emits
+`check_list_index_out_of_range` (`rust/tcl-compiler/src/analyser/bounds_checks.rs:118-181`) emits
 W230 at *warning* severity (not error). It compares `resolved < 0 or resolved
 >= length`. The Phase-3 interval rewire added the dynamic, variable-routed
-path (`compiler/interval_bounds.py`) but left the W230 severity verdict
+path (`rust/tcl-compiler/src/interval_bounds.rs`) but left the W230 severity verdict
 untouched — the user-facing meaning still matches `lindex(n)` semantics.
 
 #### Tests
 
-- `tests/test_fp_nab.py::test_FP_NAB_02_lindex_oor_smell_fires` (TP, W230 fires)
-- `tests/test_fp_nab.py::test_FP_NAB_02_lindex_oor_not_w231` (FP, asserts the
+- `rust/tcl-compiler/src/analyser/diagnostics/fp/nab.rs::fp_nab_02_lindex_oor_smell_fires` (TP, W230 fires)
+- `rust/tcl-compiler/src/analyser/diagnostics/fp/nab.rs::fp_nab_02_lindex_oor_not_w231` (FP, asserts the
   *error*-tier W231 does NOT fire for this `lindex` case)
-- `tests/test_fp_nab.py::test_FP_NAB_02_lset_same_index_does_w231` (TP control,
+- `rust/tcl-compiler/src/analyser/diagnostics/fp/nab.rs::fp_nab_02_lset_same_index_does_w231` (TP control,
   the matching `lset` does fire an error-tier out-of-range diagnostic)
 
 ---
@@ -279,7 +280,7 @@ untouched — the user-facing meaning still matches `lindex(n)` semantics.
 - **Verdict:** CONFIRM-CORRECT — the original plan-doc claim that
   "recursive procs are conservatively impure" was wrong.
 - **Status:** plan section closed; locked in by
-  `tests/test_fp_nab.py::test_FP_NAB_03_recursive_proc_detected_pure`.
+  `rust/tcl-compiler/src/interprocedural.rs::fp_nab_03_recursive_arithmetic_proc_is_pure`.
 - **Corpus:** any `proc fact {n} { … fact … }`; reproducer is a textbook
   factorial.
 
@@ -301,7 +302,7 @@ proc fact {n} {
 3. `return [expr {$n * [fact [expr {$n - 1}]]}]` — the only "external" call
    is to **itself**. The interproc summary fix-point is therefore the question:
    *given that everything else `fact` calls is pure, is `fact` pure?*
-4. `analyse_interprocedural_ir` (`compiler/interprocedural.py:1029`) starts
+4. `analyse_interprocedural_ir` (`rust/tcl-compiler/src/interprocedural.rs:1029`) starts
    purity at the **optimistic** value `pure=True` for every proc lacking an
    obvious side-effect, then iteratively *intersects* with each callee's purity.
    For self-recursion the intersection is `True ∧ True = True` — the greatest
@@ -322,7 +323,7 @@ output for same input, no side-effects, no `upvar`/`global`).
 
 ```
 --- FP-NAB-03: Phase-4 interproc SCC NOT NEEDED — recursive procs are already detected pure
-regen: python -m bench.fp_snippets --id FP-NAB-03
+regen: save the reproducer above and run `tcl explore <file> --show ssa --show sccp`  (FP-NAB-03)
 function ::fact
   block entry_1
     term Branch ExprBinary(op=<BinOp.LE: '<='>, left=ExprVar(text='$n', name='n', start=0, end=1), right=ExprLiteral(text='1', start=6, end=6))
@@ -348,9 +349,9 @@ in one pass when every member is locally pure).
 
 #### Tests
 
-- `tests/test_fp_nab.py::test_FP_NAB_03_recursive_proc_detected_pure` (TP, the
+- `rust/tcl-compiler/src/interprocedural.rs::fp_nab_03_recursive_arithmetic_proc_is_pure` (TP, the
   recursive proc *is* reported pure by the interproc analysis)
-- `tests/test_fp_nab.py::test_FP_NAB_03_impure_proc_still_detected` (TP/FP
+- `rust/tcl-compiler/src/interprocedural.rs::fp_nab_03_impure_proc_still_detected` (TP/FP
   control, an impure proc using `puts` is correctly reported impure — proves
   the test isn't trivially asserting all procs pure)
 
@@ -359,7 +360,7 @@ in one pass when every member is locally pure).
 ### FP-NAB-04 — W110 / O120 `==` / `!=` on strings → `eq` / `ne` (TP)
 
 - **Verdict:** TRUE POSITIVE (style / safety rule, not a hard semantic error)
-- **Status:** locked in by `tests/test_fp_nab.py::test_FP_NAB_04_*`
+- **Status:** locked in by `rust/tcl-compiler/src/analyser/diagnostics/fp/nab.rs::fp_nab_04_*`
 - **Codes:** W110 / O120 (near-duplicate pair)
 - **Corpus:** W110=1673, O120=1515 firings; near-duplicate pair, consolidation a future policy call.
 
@@ -411,7 +412,7 @@ foot-gun.
 
 #### Why the analyser reaches that verdict
 
-`compiler/optimiser/_expr_simplify.py` (O120) and the analyser's
+`rust/tcl-compiler/src/optimiser/expr_simplify.rs` (O120) and the analyser's
 W110 emitter both detect `==`/`!=` against a string literal and
 suggest the `eq`/`ne` rewrite.  This is a *style/safety* rule, not
 a hard semantic error — the code may work today but breaks the
@@ -419,7 +420,7 @@ moment the data starts looking numeric.
 
 #### Tests
 
-- `tests/test_fp_nab.py::test_FP_NAB_04_string_eq_fires_w110_o120` (TP)
+- `rust/tcl-compiler/src/analyser/diagnostics/fp/nab.rs::fp_nab_04_string_eq_fires_w110_o120` (TP)
 
 ---
 
@@ -432,7 +433,7 @@ moment the data starts looking numeric.
   pattern list and treats the preceding word as the value.  The
   analyser still fires W304 on the braced form (conservative, slight
   over-reach); a future precision tightening could distinguish.
-- **Status:** locked in by `tests/test_fp_nab.py::test_FP_NAB_05_*`
+- **Status:** locked in by `rust/tcl-compiler/src/analyser/diagnostics/fp/nab.rs::fp_nab_05_*`
 - **Codes:** W304
 - **Corpus:** 1453 firings.
 
@@ -501,14 +502,14 @@ couldn't delete "-force": no such file or directory
 
 #### Tests
 
-- `tests/test_fp_nab.py::test_FP_NAB_05_switch_missing_dash_dash_fires_w304` (TP)
+- `rust/tcl-compiler/src/analyser/diagnostics/fp/nab.rs::fp_nab_05_switch_split_form_missing_dash_dash_fires_w304` (TP)
 
 ---
 
 ### FP-NAB-06 — W103 `open` variable arg / pipe (TP)
 
 - **Verdict:** TRUE POSITIVE
-- **Status:** locked in by `tests/test_fp_nab.py::test_FP_NAB_06_*`
+- **Status:** locked in by `rust/tcl-compiler/src/analyser/diagnostics/fp/nab.rs::fp_nab_06_*`
 - **Codes:** W103
 - **Corpus:** 398 firings.
 
@@ -540,14 +541,14 @@ The pipe is real; the command runs.
 
 #### Tests
 
-- `tests/test_fp_nab.py::test_FP_NAB_06_open_variable_pipe_fires_w103` (TP)
+- `rust/tcl-compiler/src/analyser/diagnostics/fp/nab.rs::fp_nab_06_open_variable_pipe_fires_w103` (TP)
 
 ---
 
 ### FP-NAB-07 — W313 destructive op with variable path (TP)
 
 - **Verdict:** TRUE POSITIVE
-- **Status:** locked in by `tests/test_fp_nab.py::test_FP_NAB_07_*`
+- **Status:** locked in by `rust/tcl-compiler/src/analyser/diagnostics/fp/nab.rs::fp_nab_07_*`
 - **Codes:** W313
 - **Corpus:** 95 firings.
 
@@ -567,14 +568,14 @@ but to make the caller sanitise or pin the value.
 
 #### Tests
 
-- `tests/test_fp_nab.py::test_FP_NAB_07_destructive_variable_path_fires_w313` (TP)
+- `rust/tcl-compiler/src/analyser/diagnostics/fp/nab.rs::fp_nab_07_destructive_variable_path_fires_w313` (TP)
 
 ---
 
 ### FP-NAB-08 — W212 substitution where var-name expected (TP)
 
 - **Verdict:** TRUE POSITIVE
-- **Status:** locked in by `tests/test_fp_nab.py::test_FP_NAB_08_*`
+- **Status:** locked in by `rust/tcl-compiler/src/analyser/diagnostics/fp/nab.rs::fp_nab_08_*`
 - **Codes:** W212
 - **Corpus:** 390 firings.
 
@@ -600,15 +601,15 @@ The W212 emitter correctly exempts `upvar`/`dict`/`trace`/
 
 #### Tests
 
-- `tests/test_fp_nab.py::test_FP_NAB_08_set_substituted_name_fires_w212` (TP)
-- `tests/test_fp_nab.py::test_FP_NAB_08_incr_substituted_name_fires_w212` (TP)
+- `rust/tcl-compiler/src/analyser/diagnostics/fp/nab.rs::fp_nab_08_set_substituted_name_fires_w212` (TP)
+- `rust/tcl-compiler/src/analyser/diagnostics/fp/nab.rs::fp_nab_08_incr_substituted_name_fires_w212` (TP)
 
 ---
 
 ### FP-NAB-09 — W301 uplevel multi-arg concatenation (TP)
 
 - **Verdict:** TRUE POSITIVE
-- **Status:** locked in by `tests/test_fp_nab.py::test_FP_NAB_09_*`
+- **Status:** locked in by `rust/tcl-compiler/src/analyser/diagnostics/fp/nab.rs::fp_nab_09_*`
 - **Codes:** W301
 - **Corpus:** 291 firings (logger.tcl idioms).
 
@@ -631,14 +632,14 @@ $a $b]` (which prevents re-parsing).
 
 #### Tests
 
-- `tests/test_fp_nab.py::test_FP_NAB_09_uplevel_multiarg_fires_w301` (TP)
+- `rust/tcl-compiler/src/analyser/diagnostics/fp/nab.rs::fp_nab_09_uplevel_multiarg_fires_w301` (TP)
 
 ---
 
 ### FP-NAB-10 — W002 disabled-in-dialect (TP after dialect-aware harness)
 
 - **Verdict:** TRUE POSITIVE (the prior "FP" was a harness artefact)
-- **Status:** locked in by `tests/test_fp_nab.py::test_FP_NAB_10_*`
+- **Status:** locked in by `rust/tcl-compiler/src/analyser/diagnostics/fp/nab.rs::fp_nab_10_*`
 - **Codes:** W002
 - **Corpus:** real firings (e.g. `log` disabled in some dialect contexts) are TP; the `oo::configurable` "FP" was the harness defaulting to tcl8.6 instead of tcl9.
 
@@ -659,7 +660,7 @@ sweeps — turned out to be a *harness* artefact: a raw
 `get_diagnostics(src)` uses the default dialect tcl8.6, where
 `oo::configurable` is indeed disabled.  Sweeping the corpus
 *dialect-aware* (detect `package require Tcl X.Y` / `# tcl-dialect:`
-and wrap in `dialect_scope(...)`, as the LSP does) made the
+and analyse under that dialect, as the LSP does) made the
 phantom firings disappear, confirming the diagnostic is correct.
 
 #### tclsh ground truth
@@ -673,21 +674,21 @@ a 1
 
 #### Why the analyser reaches that verdict
 
-`compiler/registry/dialect.py::dialect_scope` and the command registry
-gate availability per dialect; W002 fires only when the command isn't
+`CommandSpec::supports_dialect` (`rust/tcl-registry/src/spec.rs`) and the
+command registry gate availability per dialect; W002 fires only when the command isn't
 in the current dialect's enabled-command set.
 
 #### Tests
 
-- `tests/test_fp_nab.py::test_FP_NAB_10_dict_disabled_in_tcl_8_4_fires_w002` (TP)
-- `tests/test_fp_nab.py::test_FP_NAB_10_dict_enabled_in_tcl_9_0_silent` (FP control — same source, different dialect, silent)
+- `rust/tcl-compiler/src/analyser/diagnostics/fp/nab.rs::fp_nab_10_dict_disabled_in_tcl_8_4_fires_w002` (TP)
+- `rust/tcl-compiler/src/analyser/diagnostics/fp/nab.rs::fp_nab_10_dict_enabled_in_tcl_9_0_silent` (FP control — same source, different dialect, silent)
 
 ---
 
 ### FP-NAB-11 — W123 unresolved command (TP — real missing stubs, not analyser FPs)
 
 - **Verdict:** TRUE POSITIVE (the firings are real; the per-package stub bundle is an open *noise-reduction* optimisation, not a precision fix)
-- **Status:** locked in by `tests/test_fp_nab.py::test_FP_NAB_11_*`
+- **Status:** locked in by `rust/tcl-compiler/src/analyser/diagnostics/fp/nab.rs::fp_nab_11_*`
 - **Codes:** W123 (unknown command)
 - **Corpus:** 1761 firings — argparse, dict-extension (`dget`/`dexist`), custom widget commands.
 
@@ -743,15 +744,15 @@ a `package require argparse` (which would import its stub).
 
 #### Tests
 
-- `tests/test_fp_nab.py::test_FP_NAB_11_unresolved_argparse_fires_w123` (TP)
-- `tests/test_fp_nab.py::test_FP_NAB_11_stub_registered_command_silent` (FP control — registered command silent)
+- `rust/tcl-compiler/src/analyser/diagnostics/fp/nab.rs::fp_nab_11_unrequired_argparse_fires_w120` (TP)
+- `rust/tcl-compiler/src/analyser/diagnostics/fp/nab.rs::fp_nab_11_stub_registered_command_silent` (FP control — registered command silent)
 
 ---
 
 ### FP-NAB-12 — `is_pure_var_ref("$a(x\)y)")` handles escaped close-paren in array index (D4-F11)
 
 - **Verdict:** TRUE POSITIVE / tooling-API correctness fix (now fixed)
-- **Status:** locked in by `tests/test_fp_nab.py::test_FP_NAB_12_*`
+- **Status:** locked in by `rust/tcl-compiler/src/value_shapes.rs::fp_nab_12_escaped_paren_array_index_companions`
 - **Codes:** N/A (tooling-API audit — `is_pure_var_ref` is a shared helper consumed by W301 and the uplevel/safe-eval idioms)
 - **Corpus:** synthetic — verified vs tclsh 9.0.3
 - **Tracker:** [`review-findings-tracker.md`](review-findings-tracker.md) — entry D4-F11
@@ -786,7 +787,7 @@ The set, the read, and the printf all succeed; the index literally is `x\)y`.
 
 ```
 --- FP-NAB-12: is_pure_var_ref handles backslash-escaped close paren in array index (D4-F11)
-regen: python -m bench.fp_snippets --id FP-NAB-12
+regen: save the reproducer above and run `tcl explore <file> --show ssa --show sccp`  (FP-NAB-12)
 function ::f
   block entry_1
     [0] AssignConst 'a(x)y)' value='1'  defs={a#1}  uses={}
@@ -795,17 +796,17 @@ function ::f
   block exit_2
     term (none — fall-through exit)
 ```
-(regen: `python -m bench.fp_snippets --id FP-NAB-12`)
+(regen: `tcl explore <file> --show ssa --show sccp`)
 
 #### Why the analyser reaches that verdict
 
-`compiler/value_shapes.py:6` — `_scan_pure_var_ref` is a hand-rolled Tcl-correct parser for the three documented variable-reference forms (`$name`, `${name}`, `$arr(idx)`).  For the array form, the index scanner explicitly consumes `\<any>` as a two-character escape sequence (line 53-55) so a backslash-escaped close paren no longer terminates the index.  `is_pure_var_ref` (line 63) succeeds iff the scan consumes the entire input text.
+`rust/tcl-compiler/src/value_shapes.rs:6` — `_scan_pure_var_ref` is a hand-rolled Tcl-correct parser for the three documented variable-reference forms (`$name`, `${name}`, `$arr(idx)`).  For the array form, the index scanner explicitly consumes `\<any>` as a two-character escape sequence (line 53-55) so a backslash-escaped close paren no longer terminates the index.  `is_pure_var_ref` (line 63) succeeds iff the scan consumes the entire input text.
 
 #### Tests
 
-- `tests/test_fp_nab.py::test_FP_NAB_12_escaped_paren_array_index_is_pure_var_ref` (TP — the tooling-API call returns True on the escaped form)
-- `tests/test_fp_nab.py::test_FP_NAB_12_unescaped_paren_terminates_index` (TP control — `$a(x)y` parses as `$a(x)` followed by literal `y`, so it is NOT a single pure var ref)
-- `tests/test_ground_truth_tn_fn.py::test_TN_pure_var_ref_handles_escaped_paren_in_array_index` (ground-truth audit pair)
+- `rust/tcl-compiler/src/value_shapes.rs::fp_nab_12_escaped_paren_array_index_companions` (TP — the tooling-API call returns True on the escaped form)
+- `rust/tcl-compiler/src/value_shapes.rs::fp_nab_12_escaped_paren_array_index_companions` (TP control — `$a(x)y` parses as `$a(x)` followed by literal `y`, so it is NOT a single pure var ref)
+- `rust/tcl-compiler/src/value_shapes.rs::fp_nab_12_escaped_paren_array_index_companions` (ground-truth audit pair)
 
 ---
 
@@ -1093,7 +1094,7 @@ proc maybe_get {} {
    `$v`. No FP can land here.
 
 The analyser's fix is name-level (`existence_test_names` in
-`compiler/var_refs.py` collects names appearing inside `info exists` /
+`rust/tcl-compiler/src/var_refs.rs` collects names appearing inside `info exists` /
 `array exists` calls, recursing into EXPR / BODY scripts) and exempts those
 names from W210/W213. The exemption is a *suppression*, not a def — so a
 genuine RBS elsewhere in the proc would still fire (see the TP control).
@@ -1123,7 +1124,7 @@ can't read "v": no such variable
 
 ```
 --- FP-RBS-01: info exists / array exists is the test-before-use idiom (not W210)
-regen: python -m bench.fp_snippets --id FP-RBS-01
+regen: save the reproducer above and run `tcl explore <file> --show ssa --show sccp`  (FP-RBS-01)
 function ::maybe_get
   block entry_1
     term Branch ExprCommand(text='[info exists v]', start=0, end=14)
@@ -1148,19 +1149,19 @@ function ::maybe_get
 
 #### Why the analyser reaches that verdict
 
-`compiler/var_refs.py:existence_test_names` collects variable names appearing
+`rust/tcl-compiler/src/var_refs.rs:existence_test_names` collects variable names appearing
 as args to `info exists` / `array exists` (also descending into EXPR and BODY
-scripts so a nested `if {[info exists v] && …}` is caught). `_read_before_set`
-in `compiler/core_analyses.py` then excludes those names from its RBS set
+scripts so a nested `if {[info exists v] && …}` is caught). `emit_read_before_set_diagnostics`
+in `rust/tcl-compiler/src/analyser/diagnostics/dataflow.rs` then excludes those names from its RBS set
 (commits `9b73053`, `c5a23d5`).
 
 #### Tests
 
-- `tests/test_fp_rbs.py::test_FP_RBS_01_info_exists_guard_silent` (FP, must
+- `rust/tcl-compiler/src/analyser/diagnostics/fp/rbs.rs::fp_rbs_01_info_exists_guard_silent` (FP, must
   stay silent)
-- `tests/test_fp_rbs.py::test_FP_RBS_01_bare_unguarded_read_still_fires` (TP
+- `rust/tcl-compiler/src/analyser/diagnostics/fp/rbs.rs::fp_rbs_01_bare_unguarded_read_still_fires` (TP
   control — proves removing the `info exists` guard restores the W210)
-- `tests/test_fp_rbs.py::test_FP_RBS_01_array_exists_guard_silent` (FP
+- `rust/tcl-compiler/src/analyser/diagnostics/fp/rbs.rs::fp_rbs_01_array_exists_guard_silent` (FP
   control — `array exists` guards the same way)
 
 ---
@@ -1218,9 +1219,9 @@ proc f {} {
 3. The branch consequent `{ puts "failed: $err" }` reads `$err`. **This is
    the read SSA can't justify** without help — its def lives inside the
    opaque `[catch …]` substitution. The fix is name-level:
-   `compiler/var_refs.py:command_sub_write_names` walks the command-sub's
+   `rust/tcl-compiler/src/var_refs.rs:command_sub_write_names` walks the command-sub's
    contents and recovers literal `VAR_WRITE` targets (here, `err`), then
-   `_read_before_set` exempts those names. (Dynamic `$name`-style targets
+   `emit_read_before_set_diagnostics` exempts those names. (Dynamic `$name`-style targets
    are **excluded** from the recovery — those name a runtime variable and
    should remain visible as reads, not be confused with writes.)
 
@@ -1278,7 +1279,7 @@ mechanism, with the regexp/scan precision gap documented above.
 
 ```
 --- FP-RBS-02: catch/regexp/scan command-sub writes are not read-before-set
-regen: python -m bench.fp_snippets --id FP-RBS-02
+regen: save the reproducer above and run `tcl explore <file> --show ssa --show sccp`  (FP-RBS-02)
 function ::f
   block entry_1
     [0] Call cmd='<cond>'  defs={err#1}  uses={}
@@ -1306,7 +1307,7 @@ function ::f
   flag anything in this proc.
 
 If you remove the `command_sub_write_names` recovery (delete the
-`statement_cmd_sub_write_names` call in `_read_before_set`), the `err#1` def
+`statement_cmd_sub_write_names` call in `emit_read_before_set_diagnostics`), the `err#1` def
 disappears, the `uses={err#1}` becomes `uses={}` with `err` unresolved, and
 W210 returns. The TP control test asserts that an *unrelated* read (`$other`)
 still fires correctly — the fix is precision-recovery, not blanket
@@ -1314,22 +1315,22 @@ suppression.
 
 #### Why the analyser reaches that verdict
 
-`compiler/var_refs.py:command_sub_write_names` (recurses nested subs;
+`rust/tcl-compiler/src/var_refs.rs:command_sub_write_names` (recurses nested subs;
 excludes dynamic `$name`-style targets), exposed as
-`ssa.statement_cmd_sub_write_names`, then consumed by `_read_before_set` in
-`compiler/core_analyses.py`. Companion `command_sub_write_names_in_expr`
+`ssa.statement_cmd_sub_write_names`, then consumed by `emit_read_before_set_diagnostics` in
+`rust/tcl-compiler/src/analyser/diagnostics/dataflow.rs`. Companion `command_sub_write_names_in_expr`
 covers the version inside `[expr {[catch …]}]` expressions (commit
 `6ae85f4`).
 
 #### Tests
 
-- `tests/test_fp_rbs.py::test_FP_RBS_02_catch_msg_var_silent` (FP, the
+- `rust/tcl-compiler/src/analyser/diagnostics/fp/rbs.rs::fp_rbs_02_catch_msg_var_silent` (FP, the
   classic `[catch {…} err]; puts $err` shape)
-- `tests/test_fp_rbs.py::test_FP_RBS_02_unrelated_read_still_fires` (TP
+- `rust/tcl-compiler/src/analyser/diagnostics/fp/rbs.rs::fp_rbs_02_unrelated_read_still_fires` (TP
   control, `$other` (no cmd-sub write target) still fires W210)
-- `tests/test_fp_rbs.py::test_FP_RBS_02_regexp_match_var_silent` (FP,
+- `rust/tcl-compiler/src/analyser/diagnostics/fp/rbs.rs::fp_rbs_02_regexp_match_var_silent` (FP,
   `[regexp … -> k v]; puts $k$v` analogue)
-- `tests/test_fp_rbs.py::test_FP_RBS_02_scan_output_silent` (FP, `scan` output
+- `rust/tcl-compiler/src/analyser/diagnostics/fp/rbs.rs::fp_rbs_02_scan_output_silent` (FP, `scan` output
   analogue)
 
 ---
@@ -1367,7 +1368,7 @@ proc f {fp} {
    substitution*. To keep default bytecode codegen byte-identical to tclsh
    (which inline-compiles `while` with a literal-braced condition but treats
    command-sub conditions as opaque), the lowerer keeps such loops as an
-   IRBarrier rather than fully expanding them into the CFG. Without the fix,
+   `Statement::Barrier` rather than fully expanding them into the CFG. Without the fix,
    that opacity hid the implicit `line` def made by `[gets $fp line]`. tclsh:
 
    ```
@@ -1388,7 +1389,7 @@ proc f {fp} {
    cleanly. No W210.
 
 The fix (commit `e319c3a`) introduced `body_write_names` in
-`compiler/var_refs.py` to balance the existing read recovery: it walks the
+`rust/tcl-compiler/src/var_refs.rs` to balance the existing read recovery: it walks the
 loop body's IR collecting literal `VAR_WRITE` targets (also `foreach`/`lmap`
 loop vars), and the analyser exposes those as the barrier's effective defs.
 
@@ -1411,12 +1412,12 @@ No error, no warning. The body runs each iteration, reading the just-written
 
 ```
 --- FP-RBS-03: frozen-loop bodies (while/for with cmd-sub condition) — body writes recovered
-regen: python -m bench.fp_snippets --id FP-RBS-03
+regen: save the reproducer above and run `tcl explore <file> --show ssa --show sccp`  (FP-RBS-03)
 function ::f
   block entry_1
     term Goto
   block while_header_2
-    phi  SSAPhi(name='line', version=1, incoming={'entry_1': 0, 'while_body_3': 2})
+    phi  `Phi`(name='line', version=1, incoming={'entry_1': 0, 'while_body_3': 2})
     [0] Call cmd='<cond>'  defs={line#2}  uses={}
     term Branch ExprBinary(op=<BinOp.GE: '>='>, left=ExprCommand(text='[gets $fp line]', start=0, end=14), right=ExprLiteral(text='0', start=19, end=19))
   block while_body_3
@@ -1444,15 +1445,15 @@ function ::f
 
 #### Why the analyser reaches that verdict
 
-`compiler/var_refs.py:body_write_names` walks the loop body's IR collecting
+`rust/tcl-compiler/src/var_refs.rs:body_write_names` walks the loop body's IR collecting
 literal `VAR_WRITE` targets and `foreach`/`lmap`/`for` loop-binders, exposed
 on the barrier's effective defs. The `<cond>` cmd-sub gets the same treatment
 via `command_sub_write_names` (the FP-RBS-02 mechanism).
 
 #### Tests
 
-- `tests/test_fp_rbs.py::test_FP_RBS_03_frozen_while_body_silent` (FP)
-- `tests/test_fp_rbs.py::test_FP_RBS_03_genuine_unset_in_body_still_fires`
+- `rust/tcl-compiler/src/analyser/diagnostics/fp/rbs.rs::fp_rbs_03_frozen_while_body_silent` (FP)
+- `rust/tcl-compiler/src/analyser/diagnostics/fp/rbs.rs::fp_rbs_03_genuine_unset_in_body_still_fires`
   (TP control — a variable that's *only* read in the body, never written
   anywhere, still fires W210)
 
@@ -1537,7 +1538,7 @@ proc ::ns::get {name key} {
 
 The fix has two parts:
 
-- `_qualified_variable_alias_tails` (in `_read_before_set`) collects the
+- `_qualified_variable_alias_tails` (in `emit_read_before_set_diagnostics`) collects the
   static tails of every `variable X::Y` declaration and exempts the tail from
   the RBS set.
 - The namespace-membership skip was broadened from `name.startswith('::')` to
@@ -1565,7 +1566,7 @@ still the literal `children`.
 
 ```
 --- FP-RBS-04: qualified variable aliases (variable ${name}::tail) — local name is the tail
-regen: python -m bench.fp_snippets --id FP-RBS-04
+regen: save the reproducer above and run `tcl explore <file> --show ssa --show sccp`  (FP-RBS-04)
 function ::ns::get
   block entry_1
     [0] Call cmd='variable'  defs={{name}::graphAttr#1}  uses={name#0}
@@ -1591,14 +1592,14 @@ function ::ns::get
   `{name}::graphAttr` is a qualified `variable` declaration whose static tail
   is `graphAttr`, and exempts the tail from the RBS set.
 
-Strip the fix (remove the tail-exemption in `_read_before_set`) and the
+Strip the fix (remove the tail-exemption in `emit_read_before_set_diagnostics`) and the
 analyser would emit W210 here because `defs={{name}::graphAttr#1}` does not
 introduce a `graphAttr#X` def — the qualified-form def goes to a completely
 different SSA name.
 
 #### Why the analyser reaches that verdict
 
-`_read_before_set` in `compiler/core_analyses.py` calls
+`emit_read_before_set_diagnostics` in `rust/tcl-compiler/src/analyser/diagnostics/dataflow.rs` calls
 `_qualified_variable_alias_tails` to collect tails from every `variable …`
 declaration whose first arg contains `::`; those tails are unioned into the
 suppressed-names set alongside the FP-RBS-01 existence-test names. The
@@ -1608,11 +1609,11 @@ also stay silent.
 
 #### Tests
 
-- `tests/test_fp_rbs.py::test_FP_RBS_04_qualified_alias_silent` (FP, the
+- `rust/tcl-compiler/src/analyser/diagnostics/fp/rbs.rs::fp_rbs_04_qualified_alias_silent` (FP, the
   `variable ${name}::tail` shape)
-- `tests/test_fp_rbs.py::test_FP_RBS_04_static_qualified_alias_silent` (FP
+- `rust/tcl-compiler/src/analyser/diagnostics/fp/rbs.rs::fp_rbs_04_static_qualified_alias_silent` (FP
   control — the `variable ::ns::tail` *static-namespace* form works too)
-- `tests/test_fp_rbs.py::test_FP_RBS_04_unrelated_tail_still_fires` (TP
+- `rust/tcl-compiler/src/analyser/diagnostics/fp/rbs.rs::fp_rbs_04_unrelated_tail_still_fires` (TP
   control — a read of a *different* tail name (one not declared as a
   qualified alias) must still fire W210)
 
@@ -1622,7 +1623,7 @@ also stay silent.
 
 - **Verdict:** FALSE POSITIVE (W210) — `namespace upvar ns src alias` legally
   links `alias` in the caller frame but no lowering hook records it as an
-  IRCall def, so the analyser sees `alias` as undefined and flags every read.
+  `Statement::Call` def, so the analyser sees `alias` as undefined and flags every read.
 - **Status:** **OPEN** — the fix in isolation is mechanical (a
   `lower_namespace_upvar` hook on `"namespace"` returning `None` for non-`upvar`
   subcommands), but it cascades into the shimmer pass: marking the alias as a
@@ -1684,8 +1685,8 @@ proc tester {} {
    does.
 
 The contrast with **`upvar`** (which works correctly) is the giveaway:
-`compiler/lowering_hooks/_var.py:lower_upvar` registers the alias-name pair
-as an IRCall def for `upvar`'s arg-pairs. There is no symmetric
+`rust/tcl-compiler/src/lowering_hooks.rs:lower_upvar` registers the alias-name pair
+as an `Statement::Call` def for `upvar`'s arg-pairs. There is no symmetric
 `lower_namespace_upvar`. `namespace upvar`'s dispatched command is `namespace`,
 not `upvar`, and the existing `namespace` dispatch handles `namespace eval` /
 `namespace export` / etc. but doesn't recognise `namespace upvar`'s alias-write
@@ -1710,7 +1711,7 @@ No error. `alias` exists in the proc's local frame after the
 
 ```
 --- FP-RBS-05: namespace upvar alias-not-a-def (OPEN; ~39 W210 still false-positive)
-regen: python -m bench.fp_snippets --id FP-RBS-05
+regen: save the reproducer above and run `tcl explore <file> --show ssa --show sccp`  (FP-RBS-05)
 function ::tester
   block entry_1
     [0] Call cmd='namespace'  defs={}  uses={}
@@ -1736,22 +1737,22 @@ the fix-landing receipt.
 #### Why the analyser produces the FP
 
 The `namespace` dispatch (handled inline by the IR lowerer rather than via
-a hook in `compiler/lowering_hooks/`) only recognises a subset of subcommands
-that need IR shape — `namespace eval` (becomes an IRBlock),
+a hook in `rust/tcl-compiler/src/lowering_hooks.rs`) only recognises a subset of subcommands
+that need IR shape — `namespace eval` (becomes a `Statement::Block`),
 `namespace export` (no defs), etc. `namespace upvar`'s alias-write shape is
-unrecognised, so the call is left as a bare `IRCall(defs=[])`.
+unrecognised, so the call is left as a bare `Statement::Call` with an empty `defs`.
 
-The companion `upvar` handler in `compiler/lowering_hooks/_var.py` does this
+The companion `upvar` handler in `rust/tcl-compiler/src/lowering_hooks.rs` does this
 correctly: it registers `(target, alias)` pairs as defs. A
 `lower_namespace_upvar` hook with the same shape — but recognising the
 `(ns, name, alias, [name alias …])` triplet pattern — would fix RBS.
 
 #### Tests
 
-- `tests/test_fp_rbs.py::test_FP_RBS_05_alias_used_no_error_at_runtime` (TP
+- `rust/tcl-compiler/src/analyser/diagnostics/fp/rbs.rs::fp_rbs_05_*` (TP
   proxy — the *runtime* behaviour is safe; this passes today as a sanity
   check, not as a fix-witness)
-- `tests/test_fp_rbs.py::test_FP_RBS_05_namespace_upvar_silent` (FP,
+- `rust/tcl-compiler/src/analyser/diagnostics/fp/rbs.rs::fp_rbs_05_namespace_upvar_silent` (FP,
   **`xfail(strict=True)`** — currently fires W210; flips to a failure when the
   `lower_namespace_upvar` hook lands, prompting the xfail removal)
 
@@ -1816,8 +1817,8 @@ proc f {sock} {
 FP-RBS-02's mechanism (`command_sub_write_names`) handled `[catch …]` at the
 command-arg level (`if {[catch …]} …`), but expr bodies need a separate
 walk because their arg-role is EXPR, not BODY. The fix (commit `6ae85f4`)
-adds `command_texts_in_expr_node` in `compiler/expr_ast.py` to walk
-IRAssignExpr/IRExprEval/IRReturn expr ASTs collecting embedded
+adds `command_texts_in_expr_node` in `rust/tcl-syntax/src/expr/ast.rs` to walk
+`Statement::AssignExpr`/`Statement::ExprEval`/`Statement::Return` expr ASTs collecting embedded
 `[command-sub]` text, so the same `command_sub_write_names` recovery applies
 to writes inside expr bodies.
 
@@ -1840,7 +1841,7 @@ No error, `tmp` always reads correctly in the `|| $tmp …` subexpression.
 
 ```
 --- FP-RBS-06: catch's output-var inside an expr body is written during expr eval
-regen: python -m bench.fp_snippets --id FP-RBS-06
+regen: save the reproducer above and run `tcl explore <file> --show ssa --show sccp`  (FP-RBS-06)
 function ::f
   block entry_1
     [0] AssignExpr 'eof'  defs={eof#1}  uses={tmp#0}
@@ -1859,22 +1860,22 @@ function ::f
   exempting it from the RBS set.
 
 Strip the extension (delete the `command_texts_in_expr_node` call from
-`statement_cmd_sub_write_names` for IRAssignExpr) and W210 returns
+`statement_cmd_sub_write_names` for `Statement::AssignExpr`) and W210 returns
 immediately on `tmp`.
 
 #### Why the analyser reaches that verdict
 
-`compiler/expr_ast.py:command_texts_in_expr_node` walks IRAssignExpr,
-IRExprEval and IRReturn expression ASTs collecting embedded command
-substitutions; `compiler/var_refs.py:command_sub_write_names` then recovers
+`rust/tcl-syntax/src/expr/ast.rs:command_texts_in_expr_node` walks `Statement::AssignExpr`,
+`Statement::ExprEval` and `Statement::Return` expression ASTs collecting embedded command
+substitutions; `rust/tcl-compiler/src/var_refs.rs:command_sub_write_names` then recovers
 literal `VAR_WRITE` targets from each, fed into the suppressed-names set in
-`_read_before_set`. The same scaffolding handles `[regexp …]` /
+`emit_read_before_set_diagnostics`. The same scaffolding handles `[regexp …]` /
 `[scan …]` inside expr bodies.
 
 #### Tests
 
-- `tests/test_fp_rbs.py::test_FP_RBS_06_catch_inside_expr_silent` (FP)
-- `tests/test_fp_rbs.py::test_FP_RBS_06_unrelated_inside_expr_still_fires`
+- `rust/tcl-compiler/src/analyser/diagnostics/fp/rbs.rs::fp_rbs_06_catch_inside_expr_silent` (FP)
+- `rust/tcl-compiler/src/analyser/diagnostics/fp/rbs.rs::fp_rbs_06_unrelated_inside_expr_still_fires`
   (TP control — an unrelated `$other` inside the same expr still fires)
 
 ---
@@ -1883,7 +1884,7 @@ literal `VAR_WRITE` targets from each, fed into the suppressed-names set in
 
 - **Verdict:** FALSE POSITIVE (W210 + missed coverage) — a
   `namespace eval [computed] { … }` whose name was a command-sub or interpolation
-  was treated as a fully opaque IRBlock barrier; the inner `proc` bodies were
+  was treated as a fully opaque `Statement::Block` barrier; the inner `proc` bodies were
   never analysed, so their *parameters* leaked as undefined names and every
   `$param` read inside fired W210.
 - **Status:** FIXED (commit `cb14411`). Corpus delta: **−110 W210 FPs** on the
@@ -1946,7 +1947,7 @@ proc trace_on {service} {
 
 The fix (commit `cb14411`): when the body is a *static braced script*, the
 lowerer inline-compiles it (lifting `proc`s into their own scope) using the
-enclosing namespace as a best-effort name. The original IRCall for
+enclosing namespace as a best-effort name. The original `Statement::Call` for
 `namespace eval` is preserved (`source_args` / `source_tokens` retained) so
 codegen still emits the dynamic call → bytecode stays byte-identical to
 tclsh. Only the analyser sees through the opacity.
@@ -1968,7 +1969,7 @@ No error; `who` reads correctly as a parameter inside `greet`.
 
 ```
 --- FP-RBS-07: dynamically-named namespace eval bodies are still analysed (inner procs not opaque)
-regen: python -m bench.fp_snippets --id FP-RBS-07
+regen: save the reproducer above and run `tcl explore <file> --show ssa --show sccp`  (FP-RBS-07)
 function ::greet
   block entry_1
     term Return hello ${who}
@@ -1986,11 +1987,11 @@ function ::greet
 
 #### Why the analyser reaches that verdict
 
-The IR lowerer (in `compiler/lowering.py` / the `namespace eval` handler)
+The IR lowerer (in `rust/tcl-compiler/src/lowering/mod.rs` / the `namespace eval` handler)
 detects a static-braced body under a computed namespace name and inline-
 compiles it as a normal namespace-eval scope, lifting nested `proc`s into
 the compilation unit. `source_args` and `source_tokens` are kept on the
-original IRCall so the codegen path is unchanged (bytecode identity).
+original `Statement::Call` so the codegen path is unchanged (bytecode identity).
 
 The companion fix (`9f15e05`, see FP-RBS-08) handles the dynamic-namespace-
 *name* read recovery — once the body was analysed, the previously-invisible
@@ -1998,9 +1999,9 @@ The companion fix (`9f15e05`, see FP-RBS-08) handles the dynamic-namespace-
 
 #### Tests
 
-- `tests/test_fp_rbs.py::test_FP_RBS_07_dynamic_ns_eval_inner_param_silent`
+- `rust/tcl-compiler/src/analyser/diagnostics/fp/rbs.rs::fp_rbs_07_dynamic_ns_eval_inner_param_silent`
   (FP, the canonical logger pattern)
-- `tests/test_fp_rbs.py::test_FP_RBS_07_static_ns_eval_still_works` (FP
+- `rust/tcl-compiler/src/analyser/diagnostics/fp/rbs.rs::fp_rbs_07_static_ns_eval_still_works` (FP
   control — the static-namespace form was never broken)
 
 ---
@@ -2013,7 +2014,7 @@ The companion fix (`9f15e05`, see FP-RBS-08) handles the dynamic-namespace-
   *target* started with `$`, so the alias-def was discarded and the local
   `var` looked completely unused.
 - **Status:** FIXED (commit `9f15e05`). Companion fix: `namespace eval $ns
-  {…}`'s `$ns` name is now scanned for reads via `IRBlock` use-extraction.
+  {…}`'s `$ns` name is now scanned for reads via `Statement::Block` use-extraction.
 - **Codes:** W210, W220 (dead store on the alias write), W211 (unused
   variable)
 - **Corpus:** `tmp/tcllib-2.0/modules/irc/picoirc.tcl:68-69`
@@ -2096,7 +2097,7 @@ No error. The alias works as advertised; `set var 99` writes the caller's
 
 ```
 --- FP-RBS-08: upvar with a dynamic target (upvar 1 $name var) is a real alias-def
-regen: python -m bench.fp_snippets --id FP-RBS-08
+regen: save the reproducer above and run `tcl explore <file> --show ssa --show sccp`  (FP-RBS-08)
 function ::f
   block entry_1
     [0] Call cmd='upvar'  defs={var#1}  uses={name#0}
@@ -2119,15 +2120,15 @@ function ::f
 
 #### Why the analyser reaches that verdict
 
-`compiler/lowering_hooks/_var.py:lower_upvar` records each `(target, alias)`
-pair as an IRCall def for the alias name. The companion
+`rust/tcl-compiler/src/lowering_hooks.rs:lower_upvar` records each `(target, alias)`
+pair as an `Statement::Call` def for the alias name. The companion
 `upvar_local_declaration_indices` helper (consumed by the escaping-name
 collector that drives `_is_externally_mutable`) gained an
 `allow_dynamic_target` flag so the escaping path opts in. The memory-SSA
 and definition callers keep their strict literal-target matching because
 they need a resolved name; this path only needs to know an alias exists.
 
-Companion: `compiler/ir.py:IRBlock` use-extraction now reads `source_args[1]`
+Companion: `Statement::Block` use-extraction (`rust/tcl-compiler/src/ir.rs`) now reads `source_args[1]`
 so `namespace eval $ns {…}`'s `$ns` is recovered as a read of `ns` (was
 invisible pre-fix — would have looked unused).
 
@@ -2235,7 +2236,7 @@ proc f {n} {
 #### Per-line reasoning
 
 1. `switch -- $n { a { … } b { … } }` — `switch` selects one body to run.
-   In the analyser's IR, each arm's body is an IRBlock that's analysed for
+   In the analyser's IR, each arm's body is an `Statement::Block` that's analysed for
    reads but, pre-fix, didn't have its inner defs surfaced into the
    surrounding scope's def set when computing read-before-set across the
    arm.
@@ -2276,13 +2277,13 @@ No error. Both arms run to completion with their captures.
 
 ```
 --- FP-RBS-09: for-init + regexp/cmd-sub captures inside un-lowered switch arms
-regen: python -m bench.fp_snippets --id FP-RBS-09
+regen: save the reproducer above and run `tcl explore <file> --show ssa --show sccp`  (FP-RBS-09)
 function ::f
   block entry_1
     term Branch ExprBinary(op=<BinOp.STR_EQ: 'eq'>, left=ExprRaw(text='${n}'), right=ExprLiteral(text='a', start=0, end=0))
   block switch_end_2
-    phi  SSAPhi(name='j', version=4, incoming={'for_end_11': 2, 'if_end_12': 0, 'switch_default_3': 0})
-    phi  SSAPhi(name='v', version=1, incoming={'for_end_11': 0, 'if_end_12': 2, 'switch_default_3': 0})
+    phi  `Phi`(name='j', version=4, incoming={'for_end_11': 2, 'if_end_12': 0, 'switch_default_3': 0})
+    phi  `Phi`(name='v', version=1, incoming={'for_end_11': 0, 'if_end_12': 2, 'switch_default_3': 0})
     term Goto
   block switch_default_3
     term Goto
@@ -2297,7 +2298,7 @@ function ::f
   block switch_next_7
     term Goto
   block for_header_8
-    phi  SSAPhi(name='j', version=2, incoming={'switch_arm_body_4': 1, 'for_step_10': 3})
+    phi  `Phi`(name='j', version=2, incoming={'switch_arm_body_4': 1, 'for_step_10': 3})
     term Branch ExprBinary(op=<BinOp.LT: '<'>, left=ExprVar(text='$j', name='j', start=0, end=1), right=ExprLiteral(text='3', start=5, end=5))
   block for_body_9
     [0] Call cmd='puts'  defs={}  uses={j#2}
@@ -2332,7 +2333,7 @@ function ::f
 
 #### Why the analyser reaches that verdict
 
-`_free_reads_in_ir_script` (in `compiler/core_analyses.py`) computes the
+`free_reads_in_script` (in `rust/tcl-compiler/src/ssa.rs`) computes the
 def set used to filter the read-before-set candidates emitted by un-lowered
 script analysis. Pre-fix it only included direct top-level
 `VAR_WRITE` defs; the fix adds `_collapsed_extra_defs` which folds in
@@ -2340,10 +2341,10 @@ for-init / for-next `set` targets and condition command-sub write-targets.
 
 #### Tests
 
-- `tests/test_fp_rbs.py::test_FP_RBS_09_for_init_in_switch_arm_silent` (FP)
-- `tests/test_fp_rbs.py::test_FP_RBS_09_regexp_capture_in_switch_arm_silent`
+- `rust/tcl-compiler/src/analyser/diagnostics/fp/rbs.rs::fp_rbs_09_for_init_in_switch_arm_silent` (FP)
+- `rust/tcl-compiler/src/analyser/diagnostics/fp/rbs.rs::fp_rbs_09_regexp_capture_in_switch_arm_silent`
   (FP)
-- `tests/test_fp_rbs.py::test_FP_RBS_09_genuine_unset_in_arm_still_fires`
+- `rust/tcl-compiler/src/analyser/diagnostics/fp/rbs.rs::fp_rbs_09_genuine_unset_in_arm_still_fires`
   (TP control — a variable that's never written *anywhere* in the proc still
   fires W210, proving the def-recovery is targeted)
 
@@ -2353,7 +2354,7 @@ for-init / for-next `set` targets and condition command-sub write-targets.
 
 - **Verdict:** FALSE POSITIVE (W214 + W210) — `eval { … $x … }` evaluates the
   braced body in the current scope, so `$x` is a real read of the local.
-  Pre-fix the body was an opaque IRBlock and `x` looked unused (W214) and
+  Pre-fix the body was an opaque `Statement::Block` and `x` looked unused (W214) and
   any body-only var looked read-before-set (W210).
 - **Status:** FIXED (commit `6f69c86`). Recovery is suppress-only and
   name-level (`_extra_local_reads` + `_block_local_reads`, exposed as
@@ -2416,18 +2417,18 @@ the body in the **target namespace** (`::ns`), where `$x` resolves to
 from inside the namespace-eval body.
 
 The recovery this entry locks in therefore applies ONLY to plain
-`eval { ... }` (`IRBlock.caller_scope=True`).  For
+`eval { ... }` (a caller-scoped `Statement::Block`).  For
 `namespace eval ns { ... }` (`caller_scope=False`) the body's reads are
 deliberately skipped — recovering them would wrongly suppress a real
 unused-parameter / read-before-set finding.  See
-`compiler/core_analyses.py::_block_local_reads` (early-return on
+the block-local read collection in `rust/tcl-compiler/src/analyser/diagnostics/dataflow.rs` (early-return on
 `not stmt.caller_scope`).
 
 #### Compiler evidence
 
 ```
 --- FP-RBS-10: eval / namespace eval literal-body reads are recovered
-regen: python -m bench.fp_snippets --id FP-RBS-10
+regen: save the reproducer above and run `tcl explore <file> --show ssa --show sccp`  (FP-RBS-10)
 function ::f
   block entry_1
     [0] Block  defs={}  uses={}
@@ -2439,7 +2440,7 @@ function ::f
 ```
 
 - **`[0] Block defs={} uses={}`** — the eval body is preserved as an
-  IRBlock; the SSA-visible defs/uses are intentionally empty (the body
+  `Statement::Block`; the SSA-visible defs/uses are intentionally empty (the body
   isn't flattened into the CFG, just analysed name-level for reads/writes).
 - **`read_before_set: (none)`** — yet no W210, and crucially **no W214
   on `x`** (which is what would surface if the analyser missed the body's
@@ -2453,7 +2454,7 @@ immediately appear in the W214 output.
 
 #### Why the analyser reaches that verdict
 
-`compiler/var_refs.py:_block_local_reads` and `_extra_local_reads` walk
+`rust/tcl-compiler/src/var_refs.rs:_block_local_reads` and `_extra_local_reads` walk
 the eval/`namespace eval` body's token stream collecting bare `$var` reads,
 exposed via the public `ssa.statement_read_names`. The unused-variable and
 read-before-set checks query this name set as a suppression layer
@@ -2462,9 +2463,9 @@ without forcing IR/SSA shape changes).
 
 #### Tests
 
-- `tests/test_fp_rbs.py::test_FP_RBS_10_eval_body_param_silent` (FP, the
+- `rust/tcl-compiler/src/analyser/diagnostics/fp/rbs.rs::fp_rbs_10_eval_body_param_silent` (FP, the
   eval-body `$x` read keeps `x` from showing as W214)
-- `tests/test_fp_rbs.py::test_FP_RBS_10_genuine_unused_still_fires` (TP
+- `rust/tcl-compiler/src/analyser/diagnostics/fp/rbs.rs::fp_rbs_10_genuine_unused_still_fires` (TP
   control — a parameter that's truly never read still fires W214)
 
 ---
@@ -2472,7 +2473,7 @@ without forcing IR/SSA shape changes).
 ### FP-RBS-11 — Qualified-builtin loops (`::foreach`, `::lmap`, `::for`, `::while`)
 
 - **Verdict:** FALSE POSITIVE (W210) — qualified spellings of the loop
-  built-ins were left as opaque IRCall barriers, so the analyser missed both
+  built-ins were left as opaque `Statement::Call` barriers, so the analyser missed both
   the loop-var binders (`k`, `v`) and the body's defs/reads.
 - **Status:** FIXED (commit `2f67c93`, analysis-only path). Corpus delta:
   **−29 W210 FPs**. Note the lowering-side fix was reverted because it
@@ -2515,14 +2516,14 @@ proc f {dict} {
    The loop binds `k` to each odd-index element and `v` to the next, then
    runs the body. Both are local-scope writes — exactly like bare `foreach`.
 
-   The pre-fix bug: lowering dispatch in `compiler/lowering.py` keyed on
+   The pre-fix bug: lowering dispatch in `rust/tcl-compiler/src/lowering/mod.rs` keyed on
    bare command names (`case "foreach"`), so the qualified spelling
-   `::foreach` never matched — it was lowered as a generic IRCall barrier.
+   `::foreach` never matched — it was lowered as a generic `Statement::Call` barrier.
    Without recognising it as a loop, neither `k`/`v` nor the body's reads
    were surfaced. The body's `$k` and `$v` then fired W210.
 
 The analysis-only fix (commit `2f67c93`): extend the un-lowered-loop
-recovery inside `_read_before_set` to also recognise `::foreach`/`::lmap`
+recovery inside `emit_read_before_set_diagnostics` to also recognise `::foreach`/`::lmap`
 heads, recover the loop vars + body writes name-level. Same W210 win,
 without changing the IR shape and without exposing the body to
 E002/shimmer/SCCP.
@@ -2545,7 +2546,7 @@ Both qualified forms run identically to their bare counterparts.
 
 ```
 --- FP-RBS-11: qualified-builtin loops (::foreach / ::lmap / ::for / ::while)
-regen: python -m bench.fp_snippets --id FP-RBS-11
+regen: save the reproducer above and run `tcl explore <file> --show ssa --show sccp`  (FP-RBS-11)
 function ::f
   block entry_1
     [0] InterpBoundary  defs={}  uses={}
@@ -2565,13 +2566,13 @@ function ::f
   `v#0` are sentinel "before-any-def" reads — exactly what would normally
   fire W210.
 - **`read_before_set: (none)`** — but no RBS is emitted, because
-  `_read_before_set` recognises the `::foreach` barrier as a loop-form and
+  `emit_read_before_set_diagnostics` recognises the `::foreach` barrier as a loop-form and
   exempts the loop-var binders + body-write targets name-level (commit
   `2f67c93`).
 
 #### Why the analyser reaches that verdict
 
-`_read_before_set` in `compiler/core_analyses.py` walks IRBarrier statements
+`emit_read_before_set_diagnostics` in `rust/tcl-compiler/src/analyser/diagnostics/dataflow.rs` walks `Statement::Barrier` statements
 matching the loop-builtin name set (including qualified `::foreach` /
 `::lmap` / `::for` / `::while`) and recovers the loop vars from the
 canonical loop-builtin shape, name-level exempting them from the RBS set.
@@ -2580,10 +2581,10 @@ body-write mechanism, here applied through the qualified path).
 
 #### Tests
 
-- `tests/test_fp_rbs.py::test_FP_RBS_11_qualified_foreach_silent` (FP)
-- `tests/test_fp_rbs.py::test_FP_RBS_11_qualified_for_silent` (FP control —
+- `rust/tcl-compiler/src/analyser/diagnostics/fp/rbs.rs::fp_rbs_11_qualified_foreach_silent` (FP)
+- `rust/tcl-compiler/src/analyser/diagnostics/fp/rbs.rs::fp_rbs_11_qualified_for_silent` (FP control —
   the `::for` shape works the same way)
-- `tests/test_fp_rbs.py::test_FP_RBS_11_genuine_unset_in_body_still_fires`
+- `rust/tcl-compiler/src/analyser/diagnostics/fp/rbs.rs::fp_rbs_11_genuine_unset_in_body_still_fires`
   (TP — a body-read of a never-bound var still fires W210)
 
 ---
@@ -2591,7 +2592,7 @@ body-write mechanism, here applied through the qualified path).
 ### FP-RBS-12 — regexp/scan output-var conditional defs reach both reviewer cases (D1-4)
 
 - **Verdict:** TRUE POSITIVE (precision-gap closure)
-- **Status:** locked in by `tests/test_fp_rbs.py::test_FP_RBS_12_*`
+- **Status:** locked in by `rust/tcl-compiler/src/analyser/diagnostics/fp/rbs.rs::fp_rbs_12_*`
 - **Codes:** W210 (read-before-set)
 - **Corpus:** synthetic — verified vs tclsh 9.0.3
 - **Tracker:** [`review-findings-tracker.md`](review-findings-tracker.md) — entry D1-4
@@ -2640,7 +2641,7 @@ done
 
 ```
 --- FP-RBS-12: regexp/scan output vars: conditional defs reach both reviewer cases (D1-4)
-regen: python -m bench.fp_snippets --id FP-RBS-12
+regen: save the reproducer above and run `tcl explore <file> --show ssa --show sccp`  (FP-RBS-12)
 function ::f
   block entry_1
     [0] Call cmd='regexp'  defs={->#1, v#1}  uses={}
@@ -2657,19 +2658,19 @@ function ::f
   read_before_set
     ReadBeforeSet(block='if_then_3', statement_index=0, variable='v')
 ```
-(regen: `python -m bench.fp_snippets --id FP-RBS-12`)
+(regen: `tcl explore <file> --show ssa --show sccp`)
 
 The `read_before_set` row pins the verdict: the `$v` read in `if_then_3` is reported even though `regexp` produced a `v#1` def — the post-pass detects that the regexp pattern is provably non-matching and treats the def as unreached.
 
 #### Why the analyser reaches that verdict
 
-`compiler/core_analyses.py:3250-` (the `provably_unset` post-pass in `_read_before_set`) — when a `regexp` / `scan` call has both literal pattern and literal input, the analyser runs Python's `re` (or the `scan_provably_no_match` predicate) to determine whether the match is provably impossible.  When it is, the output vars are marked `provably_unset` and subsequent reads — including reads in same-statement embedded conditions — fire W210.  D4-F1 closure for `scan_provably_no_match` is the conservative-bail piece (see [FP-STY-10](#fp-sty-10)).
+`rust/tcl-compiler/src/analyser/diagnostics/dataflow.rs::emit_provably_unset_w210` — when a `regexp` / `scan` call has both literal pattern and literal input, `regexp_scan_no_match` decides whether the match is provably impossible: `regexp_literal_no_match` for a metachar-free literal pattern, `scan_predicate::scan_provably_no_match` for `scan`.  When it is, the output vars are marked `provably_unset` and subsequent reads — including reads in same-statement embedded conditions — fire W210.  D4-F1 closure for `scan_provably_no_match` is the conservative-bail piece (see [FP-STY-10](#fp-sty-10)).
 
 #### Tests
 
-- `tests/test_fp_rbs.py::test_FP_RBS_12_regexp_unconditional_read_after_no_match_fires` (TP — reviewer case A)
-- `tests/test_fp_rbs.py::test_FP_RBS_12_regexp_in_negated_if_arm_fires` (TP — reviewer case B)
-- `tests/test_fp_rbs.py::test_FP_RBS_12_regexp_match_arm_read_silent` (TN control — read only on the match arm)
+- `rust/tcl-compiler/src/analyser/diagnostics/fp/rbs.rs::fp_rbs_12_regexp_unconditional_read_after_no_match_fires` (TP — reviewer case A)
+- `rust/tcl-compiler/src/analyser/diagnostics/fp/rbs.rs::fp_rbs_12_regexp_in_negated_if_arm_fires` (TP — reviewer case B)
+- `rust/tcl-compiler/src/analyser/diagnostics/fp/rbs.rs::fp_rbs_12_regexp_match_arm_read_silent` (TN control — read only on the match arm)
 
 ---
 
@@ -3176,7 +3177,7 @@ doesn't over-suppress.
 ### FP-DS-01 — incr/append/lappend inside cmd-sub: read-modify-write keeps init live
 
 - **Verdict:** FALSE POSITIVE (now fixed)
-- **Status:** locked in by `tests/test_fp_ds.py::test_FP_DS_01_*`
+- **Status:** locked in by `rust/tcl-compiler/src/analyser/diagnostics/fp/ds.rs::fp_ds_01_*`
 - **Codes:** W220, W211
 - **Corpus:** anything with an accumulator-in-cmd-sub idiom (tcllib's `foreach j … { lappend r [incr i $j] }` shape recurs throughout the lists / structures modules).
 
@@ -3213,14 +3214,14 @@ r=1 3 6 i=6
 
 ```
 --- FP-DS-01: incr/append/lappend inside cmd-sub: read-modify-write keeps init live
-regen: python -m bench.fp_snippets --id FP-DS-01
+regen: save the reproducer above and run `tcl explore <file> --show ssa --show sccp`  (FP-DS-01)
 function ::f
   block entry_1
     [0] AssignConst 'i' value='0'  defs={i#1}  uses={}
     term Goto
   block foreach_header_2
-    phi  SSAPhi(name='j', version=1, incoming={'entry_1': 0, 'foreach_body_3': 2})
-    phi  SSAPhi(name='r', version=1, incoming={'entry_1': 0, 'foreach_body_3': 2})
+    phi  `Phi`(name='j', version=1, incoming={'entry_1': 0, 'foreach_body_3': 2})
+    phi  `Phi`(name='r', version=1, incoming={'entry_1': 0, 'foreach_body_3': 2})
     [0] Call cmd='foreach'  defs={j#2}  uses={}
     term Branch ExprRaw(text='<foreach_has_next>')
   block foreach_body_3
@@ -3233,19 +3234,19 @@ function ::f
 
 #### Why the analyser reaches that verdict
 
-`command_sub_read_modify_write_names` in `compiler/var_refs.py` recognises `incr` / `append` / `lappend` targets nested in command substitutions and treats them as reads of the prior version.  `_dead_store` / `_unused` then keep `i` live.
+`command_sub_read_modify_write_names` in `rust/tcl-compiler/src/var_refs.rs` recognises `incr` / `append` / `lappend` targets nested in command substitutions and treats them as reads of the prior version.  `emit_dead_stores_and_unused` then keeps `i` live.
 
 #### Tests
 
-- `tests/test_fp_ds.py::test_FP_DS_01_init_kept_live_by_cmdsub_incr` (FP)
-- `tests/test_fp_ds.py::test_FP_DS_01_genuine_dead_store_still_fires` (TP)
+- `rust/tcl-compiler/src/analyser/diagnostics/fp/ds.rs::fp_ds_01_init_kept_live_by_cmdsub_incr` (FP)
+- `rust/tcl-compiler/src/analyser/diagnostics/fp/ds.rs::fp_ds_01_genuine_dead_store_still_fires` (TP)
 
 ---
 
 ### FP-DS-02 — reads inside [expr {...}] command-sub recovered as real uses
 
 - **Verdict:** FALSE POSITIVE (now fixed)
-- **Status:** locked in by `tests/test_fp_ds.py::test_FP_DS_02_*`
+- **Status:** locked in by `rust/tcl-compiler/src/analyser/diagnostics/fp/ds.rs::fp_ds_02_*`
 - **Codes:** W220, W211
 - **Corpus:** any `incr i [expr {…}]` or `return [expr {… $v …}]` idiom where the only read of a feeding `set` lives inside an expr command substitution (tcllib's iteration helpers across `lazyseq`, `struct::list`).
 
@@ -3282,7 +3283,7 @@ i=5
 
 ```
 --- FP-DS-02: reads inside [expr {...}] command-sub recovered as real uses
-regen: python -m bench.fp_snippets --id FP-DS-02
+regen: save the reproducer above and run `tcl explore <file> --show ssa --show sccp`  (FP-DS-02)
 function ::f
   block entry_1
     [0] AssignConst 'w' value='5'  defs={w#1}  uses={}
@@ -3294,19 +3295,19 @@ function ::f
 
 #### Why the analyser reaches that verdict
 
-`statement_cmd_sub_read_names` walks `IRAssignExpr` / `IRExprEval` / `IRReturn` value-expression ASTs collecting variable reads under cmd-sub barriers.  Combined with FP-DS-01 (read-modify-write recovery) the feeding `set w 5` stays live.
+`statement_cmd_sub_read_names` walks `Statement::AssignExpr` / `ExprEval` / `Return` value expressions collecting variable reads under cmd-sub barriers.  Combined with FP-DS-01 (read-modify-write recovery) the feeding `set w 5` stays live.
 
 #### Tests
 
-- `tests/test_fp_ds.py::test_FP_DS_02_expr_cmdsub_read_keeps_def_live` (FP)
-- `tests/test_fp_ds.py::test_FP_DS_02_no_expr_cmdsub_read_still_fires` (TP)
+- `rust/tcl-compiler/src/analyser/diagnostics/fp/ds.rs::fp_ds_02_expr_cmdsub_read_keeps_def_live` (FP)
+- `rust/tcl-compiler/src/analyser/diagnostics/fp/ds.rs::fp_ds_02_no_expr_cmdsub_read_still_fires` (TP)
 
 ---
 
 ### FP-DS-03 — eval {literal-body} reads recovered (eval runs in caller scope)
 
 - **Verdict:** FALSE POSITIVE (now fixed)
-- **Status:** locked in by `tests/test_fp_ds.py::test_FP_DS_03_*`
+- **Status:** locked in by `rust/tcl-compiler/src/analyser/diagnostics/fp/ds.rs::fp_ds_03_*`
 - **Codes:** W220, W211
 - **Corpus:** anywhere `eval {literal body}` is used as a cheap macro form (event-handler dispatch idioms, dialect-specific wrappers).
 
@@ -3326,7 +3327,7 @@ proc f {} {
 1. `set x 1` — assigns version 1 of `x`.
 2. `eval {puts $x}` — the braced body is a literal string; eval re-parses and runs it in the **caller** scope.  `$x` is a read of the local `x`.
 
-Pre-fix the eval body was an opaque IRCall barrier; reads inside it weren't projected to the caller, so `set x 1` looked dead / unused.
+Pre-fix the eval body was an opaque `Statement::Call` barrier; reads inside it weren't projected to the caller, so `set x 1` looked dead / unused.
 
 #### tclsh ground truth
 
@@ -3340,7 +3341,7 @@ The braced body re-enters the parser at run time and `$x` refers to the caller-s
 
 ```
 --- FP-DS-03: eval {literal-body} reads recovered (eval runs in caller scope)
-regen: python -m bench.fp_snippets --id FP-DS-03
+regen: save the reproducer above and run `tcl explore <file> --show ssa --show sccp`  (FP-DS-03)
 function ::f
   block entry_1
     [0] AssignConst 'x' value='1'  defs={x#1}  uses={}
@@ -3353,19 +3354,19 @@ function ::f
 
 #### Why the analyser reaches that verdict
 
-`eval_body_read_names` in `compiler/var_refs.py` walks literal `eval {…}` and `namespace eval ns {…}` bodies recovering reads (including those nested inside `[expr {…}]` and `[set y …]`).  `_dead_store` / `_unused` consume the recovered name set.
+`eval_body_read_names` in `rust/tcl-compiler/src/var_refs.rs` walks literal `eval {…}` and `namespace eval ns {…}` bodies recovering reads (including those nested inside `[expr {…}]` and `[set y …]`).  `emit_dead_stores_and_unused` consumes the recovered name set.
 
 #### Tests
 
-- `tests/test_fp_ds.py::test_FP_DS_03_eval_body_read_kept_live` (FP)
-- `tests/test_fp_ds.py::test_FP_DS_03_eval_body_without_read_still_fires` (TP)
+- `rust/tcl-compiler/src/analyser/diagnostics/fp/ds.rs::fp_ds_03_eval_body_read_kept_live` (FP)
+- `rust/tcl-compiler/src/analyser/diagnostics/fp/ds.rs::fp_ds_03_eval_body_without_read_still_fires` (TP)
 
 ---
 
 ### FP-DS-04 — traced variables excluded from dead-store / unused (soundness)
 
 - **Verdict:** FALSE POSITIVE (soundness fix)
-- **Status:** locked in by `tests/test_fp_ds.py::test_FP_DS_04_*`
+- **Status:** locked in by `rust/tcl-compiler/src/analyser/diagnostics/fp/ds.rs::fp_ds_04_*`
 - **Codes:** W220, W211
 - **Corpus:** any callback-driven Tcl code (Tk binding handlers, EDA testbench dispatchers, tcllib's `notifier` patterns).
 
@@ -3400,7 +3401,7 @@ The callback fires as part of `set x 1`'s evaluation.
 
 ```
 --- FP-DS-04: traced variables excluded from dead-store / unused (soundness)
-regen: python -m bench.fp_snippets --id FP-DS-04
+regen: save the reproducer above and run `tcl explore <file> --show ssa --show sccp`  (FP-DS-04)
 function ::f
   block entry_1
     [0] InterpBoundary  defs={}  uses={}
@@ -3414,20 +3415,20 @@ function ::f
 
 #### Why the analyser reaches that verdict
 
-`compiler/var_refs.py` collects `traced_var_names` from `trace add variable` and the Tcl-8.4 `trace variable` form.  `_dead_store` and `_unused` exempt the traced names entirely.
+`rust/tcl-compiler/src/var_refs.rs` collects `traced_var_names` from `trace add variable` and the Tcl-8.4 `trace variable` form.  `emit_dead_stores_and_unused` exempts the traced names entirely.
 
 #### Tests
 
-- `tests/test_fp_ds.py::test_FP_DS_04_traced_var_no_w220` (FP, 8.5+ form)
-- `tests/test_fp_ds.py::test_FP_DS_04_84_form_also_excluded` (FP, 8.4 form)
-- `tests/test_fp_ds.py::test_FP_DS_04_untraced_unrelated_var_still_fires` (TP control)
+- `rust/tcl-compiler/src/analyser/diagnostics/fp/ds.rs::fp_ds_04_traced_var_no_w220` (FP, 8.5+ form)
+- `rust/tcl-compiler/src/analyser/diagnostics/fp/ds.rs::fp_ds_04_84_form_also_excluded` (FP, 8.4 form)
+- `rust/tcl-compiler/src/analyser/diagnostics/fp/ds.rs::fp_ds_04_untraced_unrelated_var_still_fires` (TP control)
 
 ---
 
-### FP-DS-05 — CFGReturn read is a real use ($x kept live by `return $x`)
+### FP-DS-05 — `Terminator::Return` read is a real use ($x kept live by `return $x`)
 
 - **Verdict:** FALSE POSITIVE (now fixed)
-- **Status:** locked in by `tests/test_fp_ds.py::test_FP_DS_05_return_read_counts`
+- **Status:** locked in by `rust/tcl-compiler/src/analyser/diagnostics/fp/ds.rs::fp_ds_05_return_read_counts`
 - **Codes:** W220, W211
 - **Corpus:** every proc that returns a freshly-bound value (`set r [doThing]; return $r`) — extremely common.
 
@@ -3444,7 +3445,7 @@ proc f {} {
 #### Per-line reasoning
 
 1. `set x 1` — assigns version 1 of `x`.
-2. `return $x` — the CFGReturn terminator's value expression reads `$x`.
+2. `return $x` — the `Terminator::Return` terminator's value expression reads `$x`.
 
 Pre-fix the terminator-level read wasn't projected back into the variable use-set, so `set x 1` looked like a dead store with no consumer.
 
@@ -3459,8 +3460,8 @@ Pre-fix the terminator-level read wasn't projected back into the variable use-se
 #### Compiler evidence
 
 ```
---- FP-DS-05: CFGReturn read is a real use ($x kept live by `return $x`)
-regen: python -m bench.fp_snippets --id FP-DS-05
+--- FP-DS-05: `Terminator::Return` read is a real use ($x kept live by `return $x`)
+regen: save the reproducer above and run `tcl explore <file> --show ssa --show sccp`  (FP-DS-05)
 function ::f
   block entry_1
     [0] AssignConst 'x' value='1'  defs={x#1}  uses={}
@@ -3470,11 +3471,11 @@ function ::f
 
 #### Why the analyser reaches that verdict
 
-Use-set building in `compiler/var_refs.py` includes CFGReturn value-expression reads when constructing the per-block uses map.  `_dead_store` reads from this map and recognises the terminator-level use.
+Use-set building in `rust/tcl-compiler/src/var_refs.rs` includes `Terminator::Return` value-expression reads when constructing the per-block uses map.  `emit_dead_stores_and_unused` reads from this map and recognises the terminator-level use.
 
 #### Tests
 
-- `tests/test_fp_ds.py::test_FP_DS_05_return_read_counts` (FP)
+- `rust/tcl-compiler/src/analyser/diagnostics/fp/ds.rs::fp_ds_05_return_read_counts` (FP)
 
 ---
 
@@ -3517,7 +3518,7 @@ Different keys are different slots.
 
 ```
 --- FP-DS-06: array-element dead-store distinction: $a(k) write is not killed by $a(j) write
-regen: python -m bench.fp_snippets --id FP-DS-06
+regen: save the reproducer above and run `tcl explore <file> --show ssa --show sccp`  (FP-DS-06)
 function ::f
   block entry_1
     [0] AssignConst 'a(k)' value='1'  defs={a#1}  uses={}
@@ -3531,19 +3532,19 @@ function ::f
 
 #### Why the analyser reaches that verdict
 
-`compiler/place.py`'s `overlap()` relation: two ARRAY_ELEM Places overlap iff they share name + a non-disjoint key set.  Literal `k` and `j` are disjoint → no overlap → no kill → first write stays alive.  See `analyser/_analyser/_diag_var_lifecycle.py` for the W220 check that consumes the Place model.
+`rust/tcl-compiler/src/place.rs`'s `overlap()` relation: two ARRAY_ELEM Places overlap iff they share name + a non-disjoint key set.  Literal `k` and `j` are disjoint → no overlap → no kill → first write stays alive.  See `rust/tcl-compiler/src/analyser/diagnostics/dataflow.rs` for the W220 check that consumes the Place model.
 
 #### Tests
 
-- `tests/test_fp_ds.py::test_FP_DS_06_array_elem_writes_distinct` (FP)
-- `tests/test_fp_ds.py::test_FP_DS_06_same_element_overwrite_still_fires` (OPEN xfail — flips when must-alias kills land)
+- `rust/tcl-compiler/src/analyser/diagnostics/fp/ds.rs::fp_ds_06_array_elem_writes_distinct` (FP)
+- `rust/tcl-compiler/src/analyser/diagnostics/fp/ds.rs::fp_ds_06_same_element_overwrite_fires_w220` (OPEN xfail — flips when must-alias kills land)
 
 ---
 
-### FP-DS-07 — namespace-eval body scope survives an inline/factory IRBlock rebuild
+### FP-DS-07 — namespace-eval body scope survives an inline/factory `Statement::Block` rebuild
 
 - **Verdict:** TRUE POSITIVE (genuinely-unused parameter) + paired FP guard
-- **Status:** locked in by `tests/test_fp_ds.py::test_FP_DS_07_*`
+- **Status:** locked in by `rust/tcl-compiler/src/analyser/diagnostics/fp/ds.rs::fp_ds_07_*`
 - **Codes:** W214 (paired with W220 — same caller-scope gate)
 - **Corpus:** synthetic (no clean-corpus instance — needs a factory/uplevel candidate *and* an
   unqualified caller-param read inside the same `namespace eval` body; corpus delta 0). tclsh-verified.
@@ -3566,13 +3567,13 @@ A `namespace eval ns {…}` body runs in `ns`, not the caller frame, so the unqu
 there is **not** a use of `g`'s parameter — Tcl resolves it in `::ns` (and errors `can't read
 "x"` when `::ns::x` is unset).  The parameter `x` is therefore genuinely unused → W214.
 
-The IRBlock carrying this distinction sets `caller_scope=False` (so the body→caller read
-recovery at `place_bridge.py` / `core_analyses.py` is *not* applied).  But the inline-uplevel
-and factory-specialise passes **rebuild** that IRBlock whenever its body changes — here `reset`
+The `Statement::Block` carrying this distinction sets `caller_scope=False` (so the body→caller read
+recovery at `rust/tcl-compiler/src/place_bridge.rs` / `rust/tcl-compiler/src/analyser/diagnostics/dataflow.rs` is *not* applied).  But the inline-uplevel
+and factory-specialise passes **rebuild** that `Statement::Block` whenever its body changes — here `reset`
 is an uplevel-passthrough candidate, so `inline_uplevel` splices its body and reconstructs the
 block.  The rebuild copied range/body/namespace/source_args/source_tokens by hand and silently
 dropped `caller_scope` back to its `True` default, re-enabling the recovery and **falsely
-suppressing** the W214.  The fix rebuilds via `dataclasses.replace(stmt, body=new_body)` so the
+suppressing** the W214.  The fix rebuilds the statement with only its body replaced, so the
 flag (and any future field) is preserved.
 
 The paired FP control: a **plain** `eval {…}` body *does* run in the caller frame, so `$x`
@@ -3590,8 +3591,8 @@ hello hi                                  ;# plain eval runs in g's frame — $x
 #### Compiler evidence
 
 ```
---- FP-DS-07: namespace-eval body scope survives an inline/factory IRBlock rebuild
-regen: python -m bench.fp_snippets --id FP-DS-07
+--- FP-DS-07: namespace-eval body scope survives an inline/factory `Statement::Block` rebuild
+regen: save the reproducer above and run `tcl explore <file> --show ssa --show sccp`  (FP-DS-07)
 function ::g
   block entry_1
     [0] Block  defs={}  uses={}
@@ -3605,23 +3606,23 @@ hoisted as a caller use) is exactly what keeps `x` reportable as unused.
 
 #### Why the analyser reaches that verdict
 
-`compiler/inline_uplevel.py` and `compiler/passes/specialise_factories.py` rebuild the
-`namespace eval` IRBlock with `dataclasses.replace(stmt, body=new_body)`, preserving
+`rust/tcl-compiler/src/inline_uplevel.rs` and `rust/tcl-compiler/src/specialise_factories.rs` rebuild the
+`namespace eval` `Statement::Block` with only its body swapped, preserving
 `caller_scope=False`, so the post-rebuild `read_places` / `_block_local_reads` gates leave the
 body's unqualified reads unrecovered — and the unused-parameter pass still sees `x` as unused.
 
 #### Tests
 
-- `tests/test_fp_ds.py::test_FP_DS_07_ns_eval_param_unused_through_rebuild_fires` (TP)
-- `tests/test_fp_ds.py::test_FP_DS_07_plain_eval_body_read_is_caller_use_silent` (FP)
-- analyser-path coverage: `tests/test_checks.py::TestNamespaceEvalBodyScope`
+- `rust/tcl-compiler/src/analyser/diagnostics/fp/ds.rs::fp_ds_07_ns_eval_param_unused_through_rebuild_fires` (TP)
+- `rust/tcl-compiler/src/analyser/diagnostics/fp/ds.rs::fp_ds_07_plain_eval_body_read_is_caller_use_silent` (FP)
+- analyser-path coverage: `rust/tcl-compiler/tests/checks.rs::TestNamespaceEvalBodyScope`
 
 ---
 
 ### FP-DS-08 — `dict with` key-aware suppression on the return-terminator path (D3-P1 / D4-F3)
 
 - **Verdict:** TRUE POSITIVE (precision-gap closure) — earlier suppression was over-broad on the return arm
-- **Status:** locked in by `tests/test_fp_ds.py::test_FP_DS_08_*`
+- **Status:** locked in by `rust/tcl-compiler/src/analyser/diagnostics/fp/ds.rs::fp_ds_08_*`
 - **Codes:** W210 (read-before-set)
 - **Corpus:** synthetic — verified vs tclsh 9.0.3
 - **Tracker:** [`review-findings-tracker.md`](review-findings-tracker.md) — entries D3-P1, D4-F3
@@ -3637,7 +3638,7 @@ proc f {} { set d {}; dict with d {}; return $missing }
 1. `set d {}` — `d` is bound to the empty dict literal.  SCCP knows the value statically.
 2. `dict with d {}` — Tcl unpacks the dict's keys as local variables in the current scope.  Since the dict is empty, NO keys are unpacked; the local namespace gains nothing.
 3. `return $missing` — reads a variable named `missing`.  Nothing in the proc ever defined it, and the empty `dict with` couldn't have created it either.  tclsh errors at runtime.
-4. Pre-fix the statement-use path of `_read_before_set` already had the key-aware logic (only the keys the literal dict actually unpacks exempt reads), but the `CFGReturn` arm used a blanket "any dict-with in the function suppresses any return-path read".  D4-F3 closure mirrors the key-aware check into the return arm.
+4. Pre-fix the statement-use path of `emit_read_before_set_diagnostics` already had the key-aware logic (only the keys the literal dict actually unpacks exempt reads), but the return-terminator arm used a blanket "any dict-with in the function suppresses any return-path read".  D4-F3 closure mirrors the key-aware check into the return arm.
 
 #### tclsh ground truth (9.0.3 — confirmed by execution)
 
@@ -3653,7 +3654,7 @@ The empty `dict with` unpacks no keys, and `missing` is genuinely never defined.
 
 ```
 --- FP-DS-08: dict with key-aware suppression on the return-terminator path (D3-P1/D4-F3)
-regen: python -m bench.fp_snippets --id FP-DS-08
+regen: save the reproducer above and run `tcl explore <file> --show ssa --show sccp`  (FP-DS-08)
 function ::f
   block entry_1
     [0] AssignConst 'd' value=''  defs={d#1}  uses={}
@@ -3667,29 +3668,29 @@ function ::f
   read_before_set
     ReadBeforeSet(block='entry_1', statement_index=-1, variable='missing')
 ```
-(regen: `python -m bench.fp_snippets --id FP-DS-08`)
+(regen: `tcl explore <file> --show ssa --show sccp`)
 
 The `read_before_set` row pins the verdict: the return-terminator's `$missing` read is reported even though a `dict with` is in scope, because the (empty) literal dict's keys don't include `missing`.
 
 #### Why the analyser reaches that verdict
 
-`compiler/core_analyses.py:3237` — the `CFGReturn` arm of `_read_before_set` now consults `_dict_with_known_keys` and `_dict_with_any_unknown` the same way the statement-use arm does: if the dict shape is fully known and the name isn't a literal key, the suppression doesn't apply and the read is reported.
+`rust/tcl-compiler/src/analyser/diagnostics/dataflow.rs` — the return-terminator arm of the read-before-set walk now consults the `dict_with_known_keys` / `dict_with_any_unknown` state (`rust/tcl-compiler/src/analyser/diagnostics/helpers.rs`) the same way the statement-use arm does: if the dict shape is fully known and the name isn't a literal key, the suppression doesn't apply and the read is reported.
 
 #### Tests
 
-- `tests/test_fp_ds.py::test_FP_DS_08_empty_dict_with_return_missing_fires` (TP)
-- `tests/test_fp_ds.py::test_FP_DS_08_known_key_dict_with_return_var_silent` (TN — literal dict has the key)
-- `tests/test_fp_ds.py::test_FP_DS_08_unknown_dict_with_return_var_silent` (TN — unknown dict shape stays conservatively silent)
-- `tests/test_ground_truth_tn_fn.py::test_TP_W210_empty_dict_with_return_missing_var`
-- `tests/test_ground_truth_tn_fn.py::test_TN_known_key_dict_with_return_var`
-- `tests/test_ground_truth_tn_fn.py::test_TN_unknown_dict_with_return_var`
+- `rust/tcl-compiler/src/analyser/diagnostics/fp/ds.rs::fp_ds_08_empty_dict_with_return_missing_fires` (TP)
+- `rust/tcl-compiler/src/analyser/diagnostics/fp/ds.rs::fp_ds_08_known_key_dict_with_return_var_silent` (TN — literal dict has the key)
+- `rust/tcl-compiler/src/analyser/diagnostics/fp/ds.rs::fp_ds_08_unknown_dict_with_return_var_silent` (TN — unknown dict shape stays conservatively silent)
+- `rust/tcl-compiler/src/analyser/diagnostics/fp/ds.rs::fp_ds_08_empty_dict_with_return_missing_fires`
+- `rust/tcl-compiler/src/analyser/diagnostics/fp/ds.rs::fp_ds_08_known_key_dict_with_return_var_silent`
+- `rust/tcl-compiler/src/analyser/diagnostics/fp/ds.rs::fp_ds_08_unknown_dict_with_return_var_silent`
 
 ---
 
 ### FP-DS-09 — interprocedural literal-dict propagation feeds the dict-with key check (D3-P2)
 
 - **Verdict:** TRUE POSITIVE (precision-gap closure) — interproc literal-arg propagation
-- **Status:** locked in by `tests/test_fp_ds.py::test_FP_DS_09_*`
+- **Status:** locked in by `rust/tcl-compiler/src/analyser/diagnostics/fp/ds.rs::fp_ds_09_*`
 - **Codes:** W210 (read-before-set)
 - **Corpus:** synthetic — verified vs tclsh 9.0.3
 - **Tracker:** [`review-findings-tracker.md`](review-findings-tracker.md) — entry D3-P2
@@ -3706,7 +3707,7 @@ f {}
 1. `proc f {d}` — `d` is a parameter; its in-callee value comes entirely from the call sites.
 2. `dict with d { return $missing }` — unpacks `d`'s keys as locals, then returns `$missing`.  Whether this errors depends on whether `d` has a `missing` key.
 3. `f {}` — the call site passes the empty dict literal.  Interprocedural propagation makes the callee's `d#0` provably `CONST('')`.
-4. With `d#0 = CONST('')`, the dict-with key harvester registers NO keys; `_read_before_set` therefore doesn't exempt `missing`; the body's read fires W210.
+4. With `d#0 = CONST('')`, the dict-with key harvester registers NO keys; `emit_read_before_set_diagnostics` therefore doesn't exempt `missing`; the body's read fires W210.
 5. Two-part closure: (a) `_collect_call_site_constants` builds a per-callee literal-arg map (only when ALL callers agree on the literal value); `_compile_source_inner` seeds the callee's SCCP lattice with `param_constants={(p,0): CONST(v)}`.  (b) The SCCP barrier-widening pass preserves version-0 entries (param-entry values are by construction the from-outside value, never re-written in the body), so the CONST survives the barrier.
 
 #### tclsh ground truth (9.0.3 — confirmed by execution)
@@ -3725,7 +3726,7 @@ The first call errors (empty dict, no `missing` key); the second succeeds (key p
 
 ```
 --- FP-DS-09: interproc literal-dict propagation feeds dict-with key check (D3-P2)
-regen: python -m bench.fp_snippets --id FP-DS-09
+regen: save the reproducer above and run `tcl explore <file> --show ssa --show sccp`  (FP-DS-09)
 function ::f
   block entry_1
     [0] InterpBoundary  defs={}  uses={}
@@ -3739,24 +3740,24 @@ function ::f
   read_before_set
     ReadBeforeSet(block='entry_1', statement_index=1, variable='missing')
 ```
-(regen: `python -m bench.fp_snippets --id FP-DS-09`)
+(regen: `tcl explore <file> --show ssa --show sccp`)
 
 `d#0: CONST('')` is the load-bearing fact — interproc propagation from the call site `f {}` seeded the lattice; the dict-with key check then exempts no names; `$missing` is reported.
 
 #### Why the analyser reaches that verdict
 
-- `compiler/core_analyses.py:3978` — `_collect_call_site_constants(ir_module)` builds the per-callee literal-arg dictionary (skipped when any call site has a non-literal in the same slot, so mixed callers fall back to conservative).
-- `compiler/core_analyses.py:1257-1289` — `param_constants` parameter to the SCCP driver seeds `(name, 0)` lattice entries with the agreed-CONST values before fixpoint.
-- `compiler/core_analyses.py:2910` — the SCCP barrier-widening refinement preserves version-0 entries (param-entry values never re-written in the function body), so the CONST survives the barrier through to the dict-with key-aware check.
+- `rust/tcl-compiler/src/unit_scope.rs::collect_call_site_constants` builds the per-callee literal-arg dictionary (skipped when any call site has a non-literal in the same slot, so mixed callers fall back to conservative).
+- `rust/tcl-compiler/src/sccp.rs` — the `param_constants` parameter to the SCCP driver seeds `(name, 0)` lattice entries with the agreed-CONST values before fixpoint.
+- `rust/tcl-compiler/src/sccp.rs` — the SCCP barrier-widening refinement preserves version-0 entries (param-entry values never re-written in the function body), so the CONST survives the barrier through to the dict-with key-aware check.
 
 #### Tests
 
-- `tests/test_fp_ds.py::test_FP_DS_09_interproc_empty_dict_fires` (TP)
-- `tests/test_fp_ds.py::test_FP_DS_09_interproc_key_present_silent` (TN — caller passes key)
-- `tests/test_fp_ds.py::test_FP_DS_09_interproc_mixed_callers_conservative_silent` (TN — mixed callers fall back to conservative)
-- `tests/test_ground_truth_tn_fn.py::test_TP_W210_interproc_dict_with_empty_arg_unpacks_no_keys`
-- `tests/test_ground_truth_tn_fn.py::test_TN_interproc_dict_with_key_present_silent`
-- `tests/test_ground_truth_tn_fn.py::test_TN_interproc_mixed_callers_conservative`
+- `rust/tcl-compiler/src/analyser/diagnostics/fp/ds.rs::fp_ds_09_interproc_empty_dict_fires` (TP)
+- `rust/tcl-compiler/src/analyser/diagnostics/fp/ds.rs::fp_ds_09_interproc_key_present_silent` (TN — caller passes key)
+- `rust/tcl-compiler/src/analyser/diagnostics/fp/ds.rs::fp_ds_09_interproc_mixed_callers_conservative_silent` (TN — mixed callers fall back to conservative)
+- `rust/tcl-compiler/src/analyser/diagnostics/fp/ds.rs::fp_ds_09_interproc_empty_dict_fires`
+- `rust/tcl-compiler/src/analyser/diagnostics/fp/ds.rs::fp_ds_09_interproc_key_present_silent`
+- `rust/tcl-compiler/src/analyser/diagnostics/fp/ds.rs::fp_ds_09_interproc_mixed_callers_conservative_silent`
 
 ---
 
@@ -3886,7 +3887,7 @@ determinism property of the phi-join (no PYTHONHASHSEED flake).
 ### FP-SH-01 — OVERDEFINED values do not trigger shimmer (conservative suppression)
 
 - **Verdict:** FALSE POSITIVE (conservative suppression)
-- **Status:** locked in by `tests/test_fp_sh.py::test_FP_SH_01_*`
+- **Status:** locked in by `rust/tcl-compiler/src/analyser/diagnostics/fp/sh.rs::fp_sh_01_*`
 - **Codes:** S100, S101, S102
 - **Corpus:** any code that consumes an unknown-command return (the bulk of integration glue and event-handler bodies).
 
@@ -3916,7 +3917,7 @@ N/A (this is a static-analysis precision decision, not a runtime check)
 
 ```
 --- FP-SH-01: OVERDEFINED values do not trigger shimmer (conservative suppression)
-regen: python -m bench.fp_snippets --id FP-SH-01
+regen: save the reproducer above and run `tcl explore <file> --show ssa --show sccp`  (FP-SH-01)
 function ::top
   block entry_1
     [0] AssignValue 'x' value='[unknownCmd]'  defs={x#1}  uses={}
@@ -3928,19 +3929,19 @@ function ::top
 
 #### Why the analyser reaches that verdict
 
-`compiler/shimmer.py`'s entry filter skips values whose `LatticeKind` is `OVERDEFINED` or `UNKNOWN`.  See also the `force-OVERDEFINED-for-escaping` rule in `compiler/core_analyses.py` that pushes values to OVERDEFINED on call-out — the same sound-but-imprecise tradeoff at the call-graph boundary.
+`rust/tcl-compiler/src/shimmer/mod.rs`'s entry filter skips values whose `LatticeKind` is `OVERDEFINED` or `UNKNOWN`.  See also the escaping-set widening in `rust/tcl-compiler/src/sccp.rs` (`sccp_with_extra_escaping`) that pushes values to OVERDEFINED on call-out — the same sound-but-imprecise tradeoff at the call-graph boundary.
 
 #### Tests
 
-- `tests/test_fp_sh.py::test_FP_SH_01_overdefined_silent` (FP)
-- `tests/test_fp_sh.py::test_FP_SH_01_string_arith_still_fires` (TP control)
+- `rust/tcl-compiler/src/analyser/diagnostics/fp/sh.rs::fp_sh_01_overdefined_silent` (FP)
+- `rust/tcl-compiler/src/analyser/diagnostics/fp/sh.rs::fp_sh_01_string_arith_still_fires` (TP control)
 
 ---
 
 ### FP-SH-02 — scope-alias declarations typed OVERDEFINED (not STRING) — kills shimmer FPs
 
 - **Verdict:** FALSE POSITIVE (now fixed)
-- **Status:** locked in by `tests/test_fp_sh.py::test_FP_SH_02_*`
+- **Status:** locked in by `rust/tcl-compiler/src/analyser/diagnostics/fp/sh.rs::fp_sh_02_*`
 - **Codes:** S100, S101, S102
 - **Corpus:** every proc using `variable` / `global` / `upvar` to expose a namespace or caller variable (extremely common in tcllib's namespace-eval modules).
 
@@ -3972,7 +3973,7 @@ N/A — static precision decision; runtime would show whatever intrep the namesp
 
 ```
 --- FP-SH-02: scope-alias declarations typed OVERDEFINED (not STRING) — kills shimmer FPs
-regen: python -m bench.fp_snippets --id FP-SH-02
+regen: save the reproducer above and run `tcl explore <file> --show ssa --show sccp`  (FP-SH-02)
 function ::f
   block entry_1
     [0] Call cmd='variable'  defs={v#1}  uses={}
@@ -3983,19 +3984,19 @@ function ::f
 
 #### Why the analyser reaches that verdict
 
-`compiler/core_analyses.py` types the def from `variable` / `global` / `upvar` as TypeLattice.OVERDEFINED instead of STRING.  This was commit `adfc6d84` in the parser/compiler-algorithms branch.
+the type inference (`rust/tcl-compiler/src/type_infer.rs`) types the def from `variable` / `global` / `upvar` as `TypeLattice::overdefined()` instead of a known `String` shape.  This was commit `adfc6d84` in the parser/compiler-algorithms branch.
 
 #### Tests
 
-- `tests/test_fp_sh.py::test_FP_SH_02_variable_alias_no_shimmer` (FP)
-- `tests/test_fp_sh.py::test_FP_SH_02_global_alias_no_shimmer` (FP — global)
+- `rust/tcl-compiler/src/analyser/diagnostics/fp/sh.rs::fp_sh_02_variable_alias_no_shimmer` (FP)
+- `rust/tcl-compiler/src/analyser/diagnostics/fp/sh.rs::fp_sh_02_global_alias_no_shimmer` (FP — global)
 
 ---
 
 ### FP-SH-03 — phi joins are hash-seed-independent (deterministic shimmer)
 
 - **Verdict:** DETERMINISM PROPERTY (now fixed)
-- **Status:** locked in by `tests/test_fp_sh.py::test_FP_SH_03_*`
+- **Status:** locked in by `rust/tcl-compiler/src/analyser/diagnostics/fp/sh.rs::fp_sh_03_*`
 - **Codes:** S100, S101, S102
 - **Corpus:** loop-merged values across the corpus (the historical flake source was tcllib's `struct::set` accumulators).
 
@@ -4029,15 +4030,15 @@ N/A — determinism property of the analyser, not Tcl semantics.
 
 ```
 --- FP-SH-03: phi joins are hash-seed-independent (deterministic shimmer)
-regen: python -m bench.fp_snippets --id FP-SH-03
+regen: save the reproducer above and run `tcl explore <file> --show ssa --show sccp`  (FP-SH-03)
 function ::f
   block entry_1
     [0] AssignConst 'x' value='0'  defs={x#1}  uses={}
     [1] AssignConst 'i' value='0'  defs={i#1}  uses={}
     term Goto
   block for_header_2
-    phi  SSAPhi(name='i', version=2, incoming={'entry_1': 1, 'for_step_4': 3})
-    phi  SSAPhi(name='x', version=2, incoming={'entry_1': 1, 'for_step_4': 3})
+    phi  `Phi`(name='i', version=2, incoming={'entry_1': 1, 'for_step_4': 3})
+    phi  `Phi`(name='x', version=2, incoming={'entry_1': 1, 'for_step_4': 3})
     term Branch ExprBinary(op=<BinOp.LT: '<'>, left=ExprVar(text='$i', name='i', start=0, end=1), right=ExprVar(text='$n', name='n', start=5, end=6))
   block for_body_3
     term Branch ExprBinary(op=<BinOp.GT: '>'>, left=ExprVar(text='$i', name='i', start=0, end=1), right=ExprLiteral(text='5', start=5, end=5))
@@ -4047,7 +4048,7 @@ function ::f
   block for_end_5
     term Return [expr {$x + 1}]
   block if_end_6
-    phi  SSAPhi(name='x', version=3, incoming={'if_next_8': 4, 'if_then_7': 5})
+    phi  `Phi`(name='x', version=3, incoming={'if_next_8': 4, 'if_then_7': 5})
     term Goto
   block if_then_7
     [0] AssignConst 'x' value='1'  defs={x#5}  uses={}
@@ -4065,19 +4066,19 @@ function ::f
 
 #### Why the analyser reaches that verdict
 
-`compiler/core_analyses.py` sorts phi-source type entries by a canonical key before reducing the join.  The fix was commit `b08f2c47` (`Make SSA type-propagation phi joins deterministic`).
+the type inference (`rust/tcl-compiler/src/type_infer.rs`) reduces phi-source type entries in a canonical order before joining.  The fix was commit `b08f2c47` (`Make SSA type-propagation phi joins deterministic`).
 
 #### Tests
 
-- `tests/test_fp_sh.py::test_FP_SH_03_phi_join_deterministic` (FP)
-- `tests/test_fp_sh.py::test_FP_SH_03_genuine_phi_string_int_still_fires` (smoke / OVERDEFINED path)
+- `rust/tcl-compiler/src/analyser/diagnostics/fp/sh.rs::fp_sh_03_phi_join_deterministic` (FP)
+- `rust/tcl-compiler/src/analyser/diagnostics/fp/sh.rs::fp_sh_03_genuine_phi_string_int_still_fires` (smoke / OVERDEFINED path)
 
 ---
 
 ### FP-SH-04 — hex/binary integer literals typed as INT (not STRING)
 
 - **Verdict:** FALSE POSITIVE (now fixed)
-- **Status:** locked in by `tests/test_fp_sh.py::test_FP_SH_04_*`
+- **Status:** locked in by `rust/tcl-compiler/src/analyser/diagnostics/fp/sh.rs::fp_sh_04_*`
 - **Codes:** S100, S101, S102
 - **Corpus:** `tmp/tcl9.0.3/library/cookiejar/idna.tcl` (and every other hex-heavy module — DES, AES, blowfish, CRC tables).
 
@@ -4100,11 +4101,11 @@ proc f {} {
 1. `set n 0x80` — the literal `0x80` is a Tcl hex integer (recognised by `Tcl_GetIntFromObj` on first numeric use).  Its intrep is INT.
 2. The for-loop `incr n` increments an integer.  `n` stays INT across iterations.
 
-Pre-fix `_literal_type` in `compiler/core_analyses.py` only matched `_DECIMAL_INT_RE` (decimal digits only) and fell through to STRING for hex (`0x...`) and binary (`0b...`) prefix forms.  The `set n 0x80` then propagated STRING; `incr n` (which expects INT) fired S101 every iteration — "intrep string but incr expects int".
+Pre-fix the literal typing (`literal_type`, now `rust/tcl-compiler/src/type_infer.rs`) only matched decimal digits and fell through to STRING for hex (`0x...`) and binary (`0b...`) prefix forms.  The `set n 0x80` then propagated STRING; `incr n` (which expects INT) fired S101 every iteration — "intrep string but incr expects int".
 
 In reality the hex literal is INT and the loop is clean.
 
-Fix: extend `_literal_type` to recognise `_HEX_INT_RE` (`^[+-]?0[xX][0-9a-fA-F]+$`) and `_BIN_INT_RE` (`^[+-]?0[bB][01]+$`) as INT before falling through to STRING.  Tcl 9 dropped the legacy "leading-0 means octal" rule, so leading-0 forms are NOT recognised — dialect-dependent and error-prone; users should write `0o...` explicitly which can be added if the corpus shows it.
+Fix: route the literal through the shared integer-spelling grammar so hex (`0x…`) and binary (`0b…`) forms classify as an integer before falling through to `String`.  Tcl 9 dropped the legacy "leading-0 means octal" rule, so leading-0 forms are NOT recognised — dialect-dependent and error-prone; users should write `0o...` explicitly which can be added if the corpus shows it.
 
 #### tclsh ground truth
 
@@ -4117,25 +4118,36 @@ Hex literal converts to int 128 on first numeric use; incr makes it 129; no erro
 
 #### Compiler evidence
 
-The `_literal_type` helper:
+The `literal_type` helper (`rust/tcl-compiler/src/type_infer.rs`):
 
-```python
-def _literal_type(text: str) -> TypeLattice:
-    stripped = text.strip()
-    if _DECIMAL_INT_RE.fullmatch(stripped):
-        return TypeLattice.of(TclType.INT)
-    if _HEX_INT_RE.fullmatch(stripped) or _BIN_INT_RE.fullmatch(stripped):
-        return TypeLattice.of(TclType.INT)
-    if _FLOAT_RE.fullmatch(stripped):
-        return TypeLattice.of(TclType.DOUBLE)
-    if stripped.lower() in _BOOL_LITERALS:
-        return TypeLattice.of(TclType.BOOLEAN)
-    return TypeLattice.of(TclType.STRING)
+```rust
+/// Classify a literal string as its Tcl intrep type (set-statement context).
+fn literal_type(text: &str) -> TypeLattice {
+    let s = text.trim();
+    if let Some(shape) = int_literal_shape(s) {
+        return TypeLattice::of_shape(shape);
+    }
+    if looks_like_float(s) {
+        return TypeLattice::of(TclType::Double);
+    }
+    // Case-insensitive boolean check (full spellings — the literal
+    // classifier's would-commit convention; prefixes commit only at use).
+    if tcl_syntax::boolean::is_boolean_full_word(s) {
+        return TypeLattice::of(TclType::Boolean);
+    }
+    TypeLattice::of(TclType::String)
+}
 ```
+
+`int_literal_shape` is the shared integer-spelling grammar, so the decimal,
+hex, and binary forms all classify as an integer here (and the tower rung —
+`Int` vs `Bignum` — follows the magnitude).  The sibling `expr_literal_type`
+additionally accepts `0o…` octal, which stays `String` in set-statement
+context because its canonical stringified intrep differs from the source text.
 
 #### Why the analyser reaches that verdict
 
-`compiler/core_analyses.py::_literal_type` recognises hex/binary prefix forms as INT.  Concrete tcllib pattern from `cookiejar/idna.tcl`:
+`rust/tcl-compiler/src/type_infer.rs::literal_type` recognises hex/binary prefix forms as `Int`.  Concrete tcllib pattern from `cookiejar/idna.tcl`:
 
 ```tcl
 variable initial_n 0x80
@@ -4147,16 +4159,16 @@ Pre-fix the hex literal propagated STRING through `set n $initial_n`, so `incr n
 
 #### Tests
 
-- `tests/test_fp_sh.py::test_FP_SH_04_hex_literal_increment_no_shimmer` (FP)
-- `tests/test_fp_sh.py::test_FP_SH_04_binary_literal_increment_no_shimmer` (FP — `0b...` form)
-- `tests/test_fp_sh.py::test_FP_SH_04_genuine_string_increment_still_fires` (TP control)
+- `rust/tcl-compiler/src/analyser/diagnostics/fp/sh.rs::fp_sh_04_hex_literal_increment_no_shimmer` (FP)
+- `rust/tcl-compiler/src/analyser/diagnostics/fp/sh.rs::fp_sh_04_binary_literal_increment_no_shimmer` (FP — `0b...` form)
+- `rust/tcl-compiler/src/analyser/diagnostics/fp/sh.rs::fp_sh_04_genuine_string_increment_still_fires` (TP control)
 
 ---
 
 ### FP-SH-05 — destructure foreach (`foreach VARS LIST break`) excluded from loop body types
 
 - **Verdict:** FALSE POSITIVE (now fixed)
-- **Status:** locked in by `tests/test_fp_sh.py::test_FP_SH_05_*`
+- **Status:** locked in by `rust/tcl-compiler/src/analyser/diagnostics/fp/sh.rs::fp_sh_05_*`
 - **Codes:** S102 (and indirectly S101)
 - **Corpus:** `tmp/tcllib-2.0/modules/grammar_me/me_cpucore.tcl` (the canonical site; the destructure idiom predates `lassign` and pervades pre-8.5 tcllib modules).
 
@@ -4184,7 +4196,7 @@ proc f {state} {
 
 Pre-fix: the destructure foreach IS a CFG loop (header + body block + back-edge).  Its var binding (STRING, from the list-element-typed foreach binding) was added to the function-wide `loop_body_types` map.  When the main loop's S102 check queried `loop_body_types[sv]`, it got `{STRING, LIST}` — the union across ALL loop blocks in the proc, including the destructure.  Cardinality 2 → oscillates=True → S102 fired on the main loop's `sv` phi even though there's no real per-iter oscillation (the destructure ran once).
 
-Fix: detect "destructure foreach" blocks — an SSA block whose first statement is `IRCall(command="foreach"|"lmap")` and whose foreach body block contains only `IRCall(command="break")`.  Exclude those blocks from the `in_loop` check in `_build_shimmer_name_index`, so their var bindings don't pollute `loop_body_types`.
+Fix: detect "destructure foreach" blocks — a CFG block whose only statement is a `break` call — and exclude them when collecting per-loop body types, so their one-time var bindings do not pollute a sibling loop's oscillation check.
 
 #### tclsh ground truth
 
@@ -4199,44 +4211,49 @@ The destructure runs once; `sv` is bound to the fourth element.  No iteration.
 
 #### Compiler evidence
 
-`compiler/shimmer.py::_destructure_foreach_blocks` produces the exclusion set:
+`rust/tcl-compiler/src/shimmer/thunking.rs::destructure_foreach_blocks`
+produces the exclusion set:
 
-```python
-def _destructure_foreach_blocks(ssa: SSAFunction, cfg) -> set[str]:
-    destructure: set[str] = set()
-    for bname, block in cfg.blocks.items():
-        ssa_block = ssa.blocks.get(bname)
-        if not block.statements:
-            continue
-        first = block.statements[0]
-        if not isinstance(first, IRCall) or first.command not in ("foreach", "lmap"):
-            continue
-        # body block (successor) must contain only an IRCall(break).
-        for succ in <successors of block>:
-            succ_stmts = cfg.blocks[succ].statements
-            if len(succ_stmts) == 1 and isinstance(succ_stmts[0], IRCall) and succ_stmts[0].command == "break":
-                destructure.add(bname)
-                break
-    return destructure
+```rust
+/// Foreach-header blocks whose body is a single `break` — the destructure
+/// idiom (`foreach {a b c} $l break`), a one-time multi-assign whose bindings
+/// must not count as per-iteration loop-body types.  Detected by a
+/// block-shape heuristic.
+pub(super) fn destructure_foreach_blocks(cfg: &CfgFunction) -> HashSet<String> {
+    let mut out = HashSet::new();
+    for block in cfg.blocks.values() {
+        if block.statements.len() == 1
+            && let Statement::Call { command, .. } = &block.statements[0]
+            && command == "break"
+        {
+            out.insert(block.name.clone());
+        }
+    }
+    out
+}
 ```
+
+The Rust shape test is simpler than the original two-level one: it keys on the
+*body* block being exactly a single `break` call, rather than walking from the
+`foreach` / `lmap` header to its successor.
 
 Sample impact (me_cpucore.tcl alone): S101 113→82 (−31), S102 48→29 (−19) after this fix; sample S102 across six tcllib files dropped from 161 → 93 (−42%).
 
 #### Why the analyser reaches that verdict
 
-`compiler/shimmer.py::_build_shimmer_name_index` (with the `cfg` parameter) computes `destructure_blocks` via `_destructure_foreach_blocks(ssa, cfg)` and replaces `in_loop = bn in loop_blocks` with `in_loop = bn in loop_blocks and bn not in destructure_blocks`.
+`rust/tcl-compiler/src/shimmer/thunking.rs` computes the set once via `destructure_foreach_blocks(cfg)` and threads it through `per_loop_body_types`, which skips any loop block in it — so a destructure binding never joins a sibling loop's body-type set.
 
 #### Tests
 
-- `tests/test_fp_sh.py::test_FP_SH_05_destructure_foreach_no_s102` (FP)
-- `tests/test_fp_sh.py::test_FP_SH_05_real_iter_foreach_still_fires` (TP control — a real multi-iter foreach with body that oscillates types still fires S102)
+- `rust/tcl-compiler/src/analyser/diagnostics/fp/sh.rs::fp_sh_05_destructure_foreach_no_s102` (FP)
+- `rust/tcl-compiler/src/analyser/diagnostics/fp/sh.rs::fp_sh_05_real_iter_foreach_still_fires` (TP control — a real multi-iter foreach with body that oscillates types still fires S102)
 
 ---
 
 ### FP-SH-06 — per-loop body_types (sibling loops do not pollute each other)
 
 - **Verdict:** FALSE POSITIVE (now fixed)
-- **Status:** locked in by `tests/test_fp_sh.py::test_FP_SH_06_*`
+- **Status:** locked in by `rust/tcl-compiler/src/analyser/diagnostics/fp/sh.rs::fp_sh_06_*`
 - **Codes:** S102
 - **Corpus:** tcllib procs with multiple sibling loops sharing local names (`tmp/tcllib-2.0/modules/grammar_me/me_cpucore.tcl`, DES, tepam, graphops, docstrip, exif).
 
@@ -4263,13 +4280,15 @@ proc f {items} {
 
 Pre-fix: `loop_body_types` was a function-wide map `name → union of body types across ALL loop blocks in the proc`.  For `$x`, the function-wide set was `{STRING, LIST}`.  When checking either loop, the oscillates predicate
 
-```python
-oscillates = bool(entry_types & all_body_types) or len(all_body_types) >= 2
-```
+"the body re-introduces the entry type, or produces two or more conflicting
+types of its own"
 
-evaluated to True (`len({STRING, LIST}) >= 2`) — S102 fired on both loops' phi for `$x`, even though neither loop alone oscillates.
+evaluated true (the union `{String, List}` has two members) — S102 fired on
+both loops' phi for `$x`, even though neither loop alone oscillates.
 
-Fix: build `per_header_body_types: dict[loop_header → dict[name → set[TclType]]]` using the natural loop forest (`compiler.loops.build_loop_forest`).  Each loop contributes only its OWN blocks' body types.  At `_find_thunking`'s emission point, look up `per_header_body_types[bn].get(phi.name, set())` instead of the function-wide map.
+Fix: compute the body-type map **per loop header**, from that loop's own
+natural-loop block set only, and consult it at the phi's own header instead of
+a function-wide map.
 
 #### tclsh ground truth
 
@@ -4285,46 +4304,51 @@ Each loop runs to completion; `$x` ends as whatever the last loop body left it. 
 
 #### Compiler evidence
 
-The per-loop map is built in `compiler/shimmer.py::_find_thunking`:
+The per-loop map is built inside the S102 walk in
+`rust/tcl-compiler/src/shimmer/thunking.rs`, once per loop header:
 
-```python
-forest = build_loop_forest(cfg, ssa, executable_blocks)
-destructure_set = _destructure_foreach_blocks(ssa, cfg)
-per_header_body_types: dict[str, dict[str, set[TclType]]] = {}
-for loop in forest.loops:
-    per_loop_types: dict[str, set[TclType]] = {}
-    for lbn in loop.blocks:
-        if lbn in destructure_set:
-            continue
-        # collect KNOWN intrep types for defs in THIS loop only
-    per_header_body_types[loop.header] = per_loop_types
+```rust
+// Per-loop body types for *this* loop only (sibling loops must not
+// pollute the oscillation check).
+let this_loop = natural_loop_blocks(block_name, &preds, &loop_blocks);
+let per_loop = per_loop_body_types(
+    block_name,
+    &this_loop,
+    &destructure,
+    ssa,
+    types,
+    &empty_by_name,
+);
+
+for phi in &ssa_block.phis {
+    if let Some(warning) = classify_thunking_phi(&ctx, phi, &this_loop, &per_loop) {
+        out.push(warning);
+    }
+}
 ```
 
-And the emission point uses it:
-
-```python
-per_loop = per_header_body_types.get(bn, {}).get(phi.name, set())
-all_body_types = body_types | per_loop
-oscillates = bool(entry_types & all_body_types) or len(all_body_types) >= 2
-```
+`per_loop_body_types` collects the KNOWN, non-empty intreps each name is
+*defined as* inside that loop's blocks, skipping the destructure-foreach
+blocks; `classify_thunking_phi` then decides the verdict from the phi's own
+entry-versus-body incomings plus that map.
 
 Sample impact (six tcllib files): S102 93→30 (−68%).  me_cpucore.tcl: 29→3 S102 (−90%).
 
 #### Why the analyser reaches that verdict
 
-`compiler/shimmer.py::_find_thunking` (S102 emission) uses `per_header_body_types[bn]` (per the loop the phi belongs to) instead of the function-wide `loop_body_types` map.  Function-wide `loop_body_types` is still computed (kept for S100/S101 paths which aren't yet refactored to per-loop — diminishing returns there since per-phi `body_types` already filters most pollution).
+`rust/tcl-compiler/src/shimmer/thunking.rs` (S102 emission) passes each loop header its own `per_loop_body_types` map — scoped to the natural loop the phi belongs to — rather than a function-wide one.  The S100/S101 paths keep the coarser view, since their per-phi body types already filter most of the pollution.
 
 #### Tests
 
-- `tests/test_fp_sh.py::test_FP_SH_06_sibling_loops_no_s102` (FP)
-- `tests/test_fp_sh.py::test_FP_SH_06_real_oscillation_within_one_loop_still_fires` (TP control)
+- `rust/tcl-compiler/src/analyser/diagnostics/fp/sh.rs::fp_sh_06_sibling_loops_no_s102` (FP)
+- `rust/tcl-compiler/src/analyser/diagnostics/fp/sh.rs::fp_sh_06_real_oscillation_within_one_loop_still_fires` (TP control)
 
 ---
 
 ### FP-SH-07 — expr-context shimmers detected for standalone expr/if/while/for (D5-SH-EXPR)
 
 - **Verdict:** TRUE POSITIVE / precision FN (now fixed)
-- **Status:** locked in by `tests/test_fp_sh.py::test_FP_SH_07_*`
+- **Status:** locked in by `rust/tcl-compiler/src/analyser/diagnostics/fp/sh.rs::fp_sh_07_*`
 - **Codes:** S100 (use-site shimmer), S101 (loop variant)
 - **Corpus:** synthetic — verified vs tclsh 9.0.3
 - **Tracker:** [`review-findings-tracker.md`](review-findings-tracker.md) — entry D5-SH-EXPR
@@ -4336,7 +4360,7 @@ proc f {} {
     set s [string trim "5"]
     # $s is STRING-typed; the if-condition is an expr context that
     # promotes $s to INT.  Pre-fix the analyser only walked
-    # IRAssignExpr, so this site was missed.
+    # `Statement::AssignExpr`, so this site was missed.
     if {$s + 1} { puts yes }
 }
 ```
@@ -4344,9 +4368,9 @@ proc f {} {
 #### Per-line reasoning
 
 1. `set s [string trim "5"]` — `s` is KNOWN STRING-typed.
-2. `if {$s + 1} { ... }` — the expr `$s + 1` lives on `CFGBranch.condition` of the if-terminator (NOT in an `IRAssignExpr` statement).  Pre-fix `_find_expr_shimmers` only iterated `IRAssignExpr` bodies, so the terminator was never examined.
+2. `if {$s + 1} { ... }` — the expr `$s + 1` lives on `Terminator::Branch`'s `condition` (NOT in a `Statement::AssignExpr`).  Pre-fix the expr-shimmer walk only iterated `AssignExpr` bodies, so the terminator was never examined.
 3. Tcl evaluates the if-condition with the same numeric-coercion rules as `expr`; `$s + 1` triggers `Tcl_GetIntFromObj($s)` which silently converts the STRING intrep to INT.  A genuine shimmer site that should be reported.
-4. Post-fix `_find_expr_shimmers` walks: (a) `IRAssignExpr` bodies (unchanged), (b) `IRExprEval` statement bodies (standalone `expr {...}`), and (c) `CFGBranch.condition` on each block's terminator (covers if/while/for conditions).  The SSA uses for the terminator come from the block's `exit_versions`.
+4. Post-fix the walk covers: (a) `Statement::AssignExpr` bodies (unchanged), (b) `Statement::ExprEval` bodies (standalone `expr {...}`), and (c) `Terminator::Branch`'s `condition` on each block's terminator (covers if/while/for conditions).  The SSA uses for the terminator come from the block's `exit_versions`.
 
 #### tclsh ground truth (9.0.3 — confirmed by execution)
 
@@ -4366,7 +4390,7 @@ The if-condition lex-promoted `$s` from STRING to INT — a real shimmer.
 
 ```
 --- FP-SH-07: expr-context shimmers also detected for standalone expr/if/while/for (D5-SH-EXPR)
-regen: python -m bench.fp_snippets --id FP-SH-07
+regen: save the reproducer above and run `tcl explore <file> --show ssa --show sccp`  (FP-SH-07)
 function ::f
   block entry_1
     [0] AssignValue 's' value='[string trim "5"]'  defs={s#1}  uses={}
@@ -4375,30 +4399,30 @@ function ::f
   types
     s#1: STRING
 ```
-(regen: `python -m bench.fp_snippets --id FP-SH-07`)
+(regen: `tcl explore <file> --show ssa --show sccp`)
 
 #### Why the analyser reaches that verdict
 
-`compiler/shimmer.py` — `_find_expr_shimmers`:
+`rust/tcl-compiler/src/shimmer/mod.rs` — `_find_expr_shimmers`:
 
-- Iterates IRAssignExpr (existing) AND IRExprEval (new) statements with `ssa_stmt.uses` as the in-scope versions.
-- After per-statement processing, examines `block.terminator` — if it's a `CFGBranch`, walks `term.condition` using `ssa_block.exit_versions` as the in-scope SSA versions.
+- Iterates `Statement::AssignExpr` (existing) AND `Statement::ExprEval` (new) statements with `ssa_stmt.uses` as the in-scope versions.
+- After per-statement processing, examines `block.terminator` — if it's a `Terminator::Branch`, walks its `condition` using `ssa_block.exit_versions` as the in-scope SSA versions.
 - All three call paths funnel through `_emit_expr_shimmer_warnings` which calls `_collect_expr_shimmers` and de-dups by `(range, var_name)` within the block.
 - The terminator's `range` is preferred; falls back to the last statement's range if the terminator's range is None.
 
 #### Tests
 
-- `tests/test_fp_sh.py::test_FP_SH_07_if_condition_shimmer_fires` (TP, `if {$s + 1}`)
-- `tests/test_fp_sh.py::test_FP_SH_07_while_condition_shimmer_fires` (TP, `while {$s + 1}`)
-- `tests/test_fp_sh.py::test_FP_SH_07_standalone_expr_shimmer_fires` (TP, `expr {$s + 1}` result dropped)
-- `tests/test_fp_sh.py::test_FP_SH_07_pure_numeric_if_no_shimmer` (TN, `if {1 + 1}`)
+- `rust/tcl-compiler/src/analyser/diagnostics/fp/sh.rs::fp_sh_07_if_condition_shimmer_fires` (TP, `if {$s + 1}`)
+- `rust/tcl-compiler/src/analyser/diagnostics/fp/sh.rs::fp_sh_07_while_condition_shimmer_fires` (TP, `while {$s + 1}`)
+- `rust/tcl-compiler/src/analyser/diagnostics/fp/sh.rs::fp_sh_07_standalone_expr_shimmer_fires` (TP, `expr {$s + 1}` result dropped)
+- `rust/tcl-compiler/src/analyser/diagnostics/fp/sh.rs::fp_sh_07_pure_numeric_if_no_shimmer` (TN, `if {1 + 1}`)
 
 ---
 
 ### FP-SH-08 — `==`/`!=` falsely flagged as numeric shimmer when both operands non-numeric (D5-SH-EQ)
 
 - **Verdict:** FALSE POSITIVE (now fixed)
-- **Status:** locked in by `tests/test_fp_sh.py::test_FP_SH_08_*`
+- **Status:** locked in by `rust/tcl-compiler/src/analyser/diagnostics/fp/sh.rs::fp_sh_08_*`
 - **Codes:** S100 (use-site shimmer)
 - **Corpus:** synthetic — verified vs tclsh 9.0.3
 - **Tracker:** [`review-findings-tracker.md`](review-findings-tracker.md) — entry D5-SH-EQ
@@ -4439,7 +4463,7 @@ can't use non-numeric string "hello" as left operand of "+"
 
 ```
 --- FP-SH-08: ==/!= falsely flagged as numeric shimmer when both operands non-numeric (D5-SH-EQ)
-regen: python -m bench.fp_snippets --id FP-SH-08
+regen: save the reproducer above and run `tcl explore <file> --show ssa --show sccp`  (FP-SH-08)
 function ::f
   block entry_1
     [0] AssignValue 's' value='[string trim hello]'  defs={s#1}  uses={}
@@ -4452,22 +4476,35 @@ function ::f
     s#1: STRING
     y#1: BOOLEAN
 ```
-(regen: `python -m bench.fp_snippets --id FP-SH-08`)
+(regen: `tcl explore <file> --show ssa --show sccp`)
 
 #### Why the analyser reaches that verdict
 
-`compiler/shimmer.py`:
+`rust/tcl-compiler/src/shimmer/mod.rs`:
 
-- `_CONDITIONAL_NUMERIC_OPS = frozenset({BinOp.EQ, BinOp.NE})` — partitioned out of `_NUMERIC_OPS`.
-- `_collect_expr_shimmers` checks the conditional set separately: only when `_operand_looks_numeric(left, ...) or _operand_looks_numeric(right, ...)` does the per-operand `_check_operand_shimmer` run.  Otherwise both operands are silently accepted (tclsh's string-compare short-circuit).
-- `_operand_looks_numeric` accepts: `ExprLiteral` (parser-validated numeric), `ExprString` whose stripped text parses as a number/boolean, `ExprVar` whose KNOWN SSA type is INT/DOUBLE/NUMERIC/BOOLEAN, or `ExprVar` whose SCCP CONST value parses as a number.
-- `_find_expr_shimmers` now takes `values=fu.analysis.values` and threads it through.
+The Rust design went further than this entry's original fix and dropped the
+sibling-operand gate entirely (see the addendum below):
+
+- `collect_expr_shimmers` flags the *string* comparison family
+  (`BinOp::StrEq | StrNe | StrLt | StrLe | StrGt | StrGe`) via
+  `check_string_operand` on each operand, and never offers a rewrite to the
+  numeric equivalent — `eq`/`ne`/`lt`/… always compare string
+  representations, so the two families disagree wherever the string forms
+  don't order the same way as the numbers they denote.
+- The numeric comparisons — both ordering (`<`/`<=`/`>`/`>=`) and equality
+  (`==`/`!=`) — are **not** flagged at all. C Tcl probes each operand with
+  `GetNumberFromObj` without generating a string rep, and falls back to a
+  string comparison (both intreps kept) when either operand is non-numeric;
+  an operand's intrep is replaced only when its own string happens to parse
+  as a number, which a static type cannot prove.
+- `BinOp::In` / `Ni` keep their own `check_list_operand` arm.
+- The S102 flip-flop detector still catches genuinely alternating intreps.
 
 #### Tests
 
-- `tests/test_fp_sh.py::test_FP_SH_08_eq_both_non_numeric_no_shimmer` (FP)
-- `tests/test_fp_sh.py::test_FP_SH_08_eq_with_numeric_literal_still_fires` (TP, `$s == "5"` with $s STRING)
-- `tests/test_fp_sh.py::test_FP_SH_08_add_still_fires` (TP control, `$s + 0` — always numeric)
+- `rust/tcl-compiler/src/analyser/diagnostics/fp/sh.rs::fp_sh_08_eq_both_non_numeric_no_shimmer` (FP)
+- `rust/tcl-compiler/src/analyser/diagnostics/fp/sh.rs::fp_sh_08_eq_with_numeric_literal_stays_silent` (TP, `$s == "5"` with $s STRING)
+- `rust/tcl-compiler/src/analyser/diagnostics/fp/sh.rs::fp_sh_08_add_still_fires` (TP control, `$s + 0` — always numeric)
 
 **Addendum (compiler deep review):** the `_operand_looks_numeric` gate was
 itself a verified false-positive class. C Tcl's numeric probe is
@@ -4488,7 +4525,7 @@ it has no string fallback), and
 ### FP-SH-09 — byte array case-folded / re-encoded by a string op corrupts high bytes (S110)
 
 - **Verdict:** TRUE POSITIVE (new correctness diagnostic)
-- **Status:** locked in by `tests/test_fp_sh.py::test_FP_SH_09_*`
+- **Status:** locked in by `rust/tcl-compiler/src/analyser/diagnostics/fp/sh.rs::fp_sh_09_*`
 - **Codes:** S110
 - **Corpus:** plain-Tcl binary handling — `binary format`/`binary decode` data run through `string` / `encoding convertto` before being scanned back.
 
@@ -4529,7 +4566,7 @@ expected byte sequence but character 2 was 'Ŷ' (U+000178)
 
 ```
 --- FP-SH-09: byte array case-folded / re-encoded by a string op corrupts high bytes (S110)
-regen: python -m bench.fp_snippets --id FP-SH-09
+regen: save the reproducer above and run `tcl explore <file> --show ssa --show sccp`  (FP-SH-09)
 function ::top
   block entry_1
     [0] AssignValue 'ba' value='[binary format c* {128 195 255}]'  defs={ba#1}  uses={}
@@ -4542,7 +4579,7 @@ function ::top
 
 #### Why the analyser reaches that verdict
 
-`compiler/shimmer.py`'s `_find_byte_array_corruption` tracks byte provenance
+`rust/tcl-compiler/src/shimmer/mod.rs`'s `_find_byte_array_corruption` tracks byte provenance
 per SSA value.  `[binary format …]` (return type BYTEARRAY) marks `ba` BINARY;
 `string toupper` is in `_CASE_FOLD_STRING_SUBS`, so the BINARY operand fires
 S110 at the `string toupper` use site.  Case folding and `encoding convertto`
@@ -4552,15 +4589,15 @@ when the result reaches a byte sink (see FP-SH-10).
 
 #### Tests
 
-- `tests/test_fp_sh.py::test_FP_SH_09_toupper_byte_array_fires` (TP)
-- `tests/test_fp_sh.py::test_FP_SH_09_toupper_plain_string_silent` (FP control — no byte source)
+- `rust/tcl-compiler/src/shimmer/byte_array.rs::plain_tcl_toupper_case_fold_fires` (TP)
+- `rust/tcl-compiler/src/shimmer/byte_array.rs::toupper_plain_string_silent` (FP control — no byte source)
 
 ---
 
 ### FP-SH-10 — `*::payload` round-trip: string-coerced binary written back corrupts it (S110)
 
 - **Verdict:** TRUE POSITIVE (new correctness diagnostic; iRules)
-- **Status:** locked in by `tests/test_fp_sh.py::test_FP_SH_10_*`
+- **Status:** locked in by `rust/tcl-compiler/src/shimmer/byte_array.rs::tests`
 - **Codes:** S110
 - **Corpus:** F5 iRules payload rewrites — the single most common binary-safety bug (F5 KB K22406348, and the `HTTP::payload replace` man-page warning).
 
@@ -4603,7 +4640,7 @@ the argument "will be interpreted as a byte array … you should first run
 
 ```
 --- FP-SH-10: *::payload round-trip: string-coerced binary written back corrupts it (S110)
-regen: python -m bench.fp_snippets --id FP-SH-10
+regen: save the reproducer above and run `tcl explore <file> --show ssa --show sccp`  (FP-SH-10)
 function ::when::HTTP_REQUEST_DATA
   block entry_1
     [0] AssignValue 'original_data' value='[HTTP::payload]'  defs={original_data#1}  uses={}
@@ -4621,7 +4658,7 @@ type lattice.)
 
 #### Why the analyser reaches that verdict
 
-`compiler/shimmer.py`'s `_find_byte_array_corruption` marks `original_data`
+`rust/tcl-compiler/src/shimmer/mod.rs`'s `_find_byte_array_corruption` marks `original_data`
 BINARY from the `HTTP::payload` getter (`registry.byte_array_payload_commands()`),
 propagates DAMAGED through the interpolation, and emits S110 at the
 `HTTP::payload replace` sink because the data argument is DAMAGED.  A
@@ -4631,16 +4668,16 @@ value without mutating `$v`).
 
 #### Tests
 
-- `tests/test_fp_sh.py::test_FP_SH_10_payload_roundtrip_fires` (TP)
-- `tests/test_fp_sh.py::test_FP_SH_10_clean_payload_writeback_silent` (FP control — no string coercion)
-- `tests/test_fp_sh.py::test_FP_SH_10_binary_scan_fix_silent` (FP control — documented re-binarify fix)
+- `rust/tcl-compiler/src/shimmer/byte_array.rs::tcp_payload_string_replace_roundtrip_fires` (TP)
+- `rust/tcl-compiler/src/shimmer/byte_array.rs::clean_payload_writeback_silent` (FP control — no string coercion)
+- `rust/tcl-compiler/src/shimmer/byte_array.rs::binary_scan_rebinarify_fix_silent` (FP control — documented re-binarify fix)
 
 ---
 
 ### FP-SH-11 — `*::payload replace` data-arg layout is per-protocol, not always index 3 (S110)
 
 - **Verdict:** TRUE POSITIVE (S110 coverage gap; iRules)
-- **Status:** locked in by `tests/test_fp_sh.py::test_FP_SH_11_*`
+- **Status:** locked in by `rust/tcl-compiler/src/shimmer/byte_array.rs::tests`
 - **Codes:** S110
 - **Corpus:** non-TCP/HTTP payload rewrites — MQTT, DIAMETER, GTP `replace` sinks (PR #656 added S110; PR #658 review flagged the missed layouts).
 
@@ -4676,7 +4713,7 @@ value and clears S110, exactly as for the index-3 sinks.
 
 ```
 --- FP-SH-11: *::payload replace data-arg layout is per-protocol, not always index 3 (S110)
-regen: python -m bench.fp_snippets --id FP-SH-11
+regen: save the reproducer above and run `tcl explore <file> --show ssa --show sccp`  (FP-SH-11)
 function ::when::MQTT_MESSAGE
   block entry_1
     [0] AssignValue 'p' value='[MQTT::payload]'  defs={p#1}  uses={}
@@ -4692,19 +4729,19 @@ function ::when::MQTT_MESSAGE
 
 #### Why the analyser reaches that verdict
 
-`compiler/shimmer.py`'s `_payload_replace_data_index` derives the data-operand
+`rust/tcl-compiler/src/shimmer/mod.rs`'s `_payload_replace_data_index` derives the data-operand
 position from `registry.byte_array_payload_layouts()` (a `BytePayloadSpec` per
 command) instead of hardcoding 3, so MQTT/DIAMETER (index 1) and GTP (index 3,
 shifted to 5 by `-message`) are all checked.  New payload commands stay correct
-by declaring their layout in `dialects/f5/irules/*__payload.py` — no change to
-`shimmer.py` is needed.
+by declaring their layout in `rust/tcl-registry/src/commands/irules/*__payload.rs` — no change to
+`rust/tcl-compiler/src/shimmer/` is needed.
 
 #### Tests
 
-- `tests/test_fp_sh.py::test_FP_SH_11_mqtt_payload_layout_fires` (TP — index-1 MQTT sink)
-- `tests/test_fp_sh.py::test_FP_SH_11_gtp_message_flag_shift_fires` (TP — GTP `-message` index-5 shift)
-- `tests/test_fp_sh.py::test_FP_SH_11_binary_scan_fix_silent` (FP control — documented re-binarify fix)
-- `tests/test_fp_sh.py::test_FP_SH_11_gtp_offset_not_data_silent` (FP control — clean offset at the old index 3)
+- `rust/tcl-lsp-server/tests/e2e/irules.rs::mqtt_payload_roundtrip_fires_s110` (TP — index-1 MQTT sink)
+- `rust/tcl-compiler/src/shimmer/byte_array.rs::registry_resolution_matches_legacy_hardcoded_sets` (TP — GTP `-message` index-5 shift)
+- `rust/tcl-lsp-server/tests/e2e/irules.rs::binary_scan_fix_silent` (FP control — documented re-binarify fix)
+- `rust/tcl-compiler/src/shimmer/byte_array.rs::registry_resolution_matches_legacy_hardcoded_sets` (FP control — clean offset at the old index 3)
 
 ---
 
@@ -5498,7 +5535,7 @@ analysed, instance vars are exempt from RBS).
 ### FP-OBJ-01 — snit self-references ($self/$type/$selfns/$win) — not stray non-literal commands
 
 - **Verdict:** FALSE POSITIVE (now fixed, snit modelling)
-- **Status:** locked in by `tests/test_fp_obj.py::test_FP_OBJ_01_*`
+- **Status:** locked in by `rust/tcl-compiler/src/analyser/diagnostics/fp/obj.rs::fp_obj_01_*`
 - **Codes:** W307
 - **Corpus:** every snit::type / snit::widget body that uses self-dispatch — pt::*, struct::*, grammar::*, tklib megawidget patterns.
 
@@ -5506,7 +5543,7 @@ analysed, instance vars are exempt from RBS).
 
 ```tcl
 # Bench placeholder: snit modelling sits outside the per-proc snapshot.
-# The FP-OBJ-01 verdict is locked in by tests/test_fp_obj.py only.
+# The FP-OBJ-01 verdict is locked in by rust/tcl-compiler/src/analyser/diagnostics/fp/obj.rs only.
 proc f {} { return ok }
 ```
 
@@ -5536,7 +5573,7 @@ I am ::T
 
 ```
 --- FP-OBJ-01: snit self-references ($self/$type/$selfns/$win) — not stray non-literal commands
-regen: python -m bench.fp_snippets --id FP-OBJ-01
+regen: save the reproducer above and run `tcl explore <file> --show ssa --show sccp`  (FP-OBJ-01)
 function ::f
   block entry_1
     term Return ok
@@ -5544,19 +5581,19 @@ function ::f
 
 #### Why the analyser reaches that verdict
 
-`dialects/tcllib/snit.py` defines the SNIT_RESERVED constant `{self, type, selfns, win, hull, ...}`.  `analyser/_analyser/_diag_var_command.py` exempts those names when the enclosing scope is a snit type / widget body.
+`rust/tcl-registry/src/definer.rs` defines the SNIT_RESERVED constant `{self, type, selfns, win, hull, ...}`.  `rust/tcl-compiler/src/analyser/diagnostics/var_command.rs` exempts those names when the enclosing scope is a snit type / widget body.
 
 #### Tests
 
-- `tests/test_fp_obj.py::test_FP_OBJ_01_self_dispatch_no_w307` (FP, all 4 self-refs)
-- `tests/test_fp_obj.py::test_FP_OBJ_01_self_ref_outside_snit_still_w307` (TP — same names in vanilla proc still warn)
+- `rust/tcl-compiler/src/analyser/diagnostics/fp/obj.rs::fp_obj_01_snit_self_references_no_w307` (FP, all 4 self-refs)
+- `rust/tcl-compiler/src/analyser/diagnostics/fp/obj.rs::fp_obj_01_self_ref_outside_snit_still_w307` (TP — same names in vanilla proc still warn)
 
 ---
 
 ### FP-OBJ-02 — snit::widgetadaptor $hull dispatch — widgetadaptor delegation idiom
 
 - **Verdict:** FALSE POSITIVE (now fixed, snit modelling)
-- **Status:** locked in by `tests/test_fp_obj.py::test_FP_OBJ_02_widgetadaptor_hull_no_w307`
+- **Status:** locked in by `rust/tcl-compiler/src/analyser/diagnostics/fp/obj.rs::fp_obj_02_widgetadaptor_hull_no_w307`
 - **Codes:** W307
 - **Corpus:** every `snit::widgetadaptor` body (tklib's adaptor widgets, BWidget-based components).
 
@@ -5583,7 +5620,7 @@ proc f {} { return ok }
 
 ```
 --- FP-OBJ-02: snit::widgetadaptor $hull dispatch — widgetadaptor delegation idiom
-regen: python -m bench.fp_snippets --id FP-OBJ-02
+regen: save the reproducer above and run `tcl explore <file> --show ssa --show sccp`  (FP-OBJ-02)
 function ::f
   block entry_1
     term Return ok
@@ -5591,18 +5628,18 @@ function ::f
 
 #### Why the analyser reaches that verdict
 
-`SNIT_RESERVED` in `dialects/tcllib/snit.py` includes `hull`.  Same dispatch-check exemption as FP-OBJ-01.
+`SNIT_RESERVED` in `rust/tcl-registry/src/definer.rs` includes `hull`.  Same dispatch-check exemption as FP-OBJ-01.
 
 #### Tests
 
-- `tests/test_fp_obj.py::test_FP_OBJ_02_widgetadaptor_hull_no_w307` (FP)
+- `rust/tcl-compiler/src/analyser/diagnostics/fp/obj.rs::fp_obj_02_widgetadaptor_hull_no_w307` (FP)
 
 ---
 
 ### FP-OBJ-03 — snit component dispatch ($myexporter export ...) — instance-var method dispatch
 
 - **Verdict:** FALSE POSITIVE (now fixed, snit body inventory)
-- **Status:** locked in by `tests/test_fp_obj.py::test_FP_OBJ_03_*`
+- **Status:** locked in by `rust/tcl-compiler/src/analyser/diagnostics/fp/obj.rs::fp_obj_03_*`
 - **Codes:** W307
 - **Corpus:** tcllib's parsers (`pt::*`), grammar engines (`grammar::*`), and aggregate types (`struct::*`) heavily use this idiom.
 
@@ -5634,7 +5671,7 @@ The component name resolves to the exporter object at run time.
 
 ```
 --- FP-OBJ-03: snit component dispatch ($myexporter export ...) — instance-var method dispatch
-regen: python -m bench.fp_snippets --id FP-OBJ-03
+regen: save the reproducer above and run `tcl explore <file> --show ssa --show sccp`  (FP-OBJ-03)
 function ::f
   block entry_1
     term Return ok
@@ -5642,20 +5679,20 @@ function ::f
 
 #### Why the analyser reaches that verdict
 
-`dialects/tcllib/snit.py` records the type's `variable` / `component` / `option` / `typevariable` declarations into a `BodyInventory` keyed on type name.  The W307 check exempts dispatches whose target name is in that inventory when the enclosing scope is the type body.
+`rust/tcl-registry/src/definer.rs` records the type's `variable` / `component` / `option` / `typevariable` declarations into a `BodyInventory` keyed on type name.  The W307 check exempts dispatches whose target name is in that inventory when the enclosing scope is the type body.
 
 #### Tests
 
-- `tests/test_fp_obj.py::test_FP_OBJ_03_component_dispatch_no_w307` (FP, component)
-- `tests/test_fp_obj.py::test_FP_OBJ_03_constructor_dispatch_no_w307` (FP, constructor)
-- `tests/test_fp_obj.py::test_FP_OBJ_03_typemethod_dispatch_no_w307` (FP, typevariable in typemethod)
+- `rust/tcl-compiler/src/analyser/diagnostics/fp/obj.rs::fp_obj_03_component_dispatch_no_w307` (FP, component)
+- `rust/tcl-compiler/src/analyser/diagnostics/fp/obj.rs::fp_obj_03_constructor_dispatch_no_w307` (FP, constructor)
+- `rust/tcl-compiler/src/analyser/diagnostics/fp/obj.rs::fp_obj_03_typemethod_dispatch_no_w307` (FP, typevariable in typemethod)
 
 ---
 
 ### FP-OBJ-04 — namespaced-factory provenance: set t [::struct::tree] — object handle
 
 - **Verdict:** FALSE POSITIVE (now fixed, analyser-only provenance) — **shape-based heuristic**, not a Tcl-semantic guarantee.  See the "Known precision gap" note below.
-- **Status:** locked in by `tests/test_fp_obj.py::test_FP_OBJ_04_*`
+- **Status:** locked in by `rust/tcl-compiler/src/analyser/diagnostics/fp/obj.rs::fp_obj_04_*`
 - **Codes:** W307
 - **Corpus:** tcllib's factory idiom is pervasive: `::struct::tree`, `::struct::matrix`, `::struct::queue`, `pt::rde`, `grammar::*` etc.
 
@@ -5688,7 +5725,7 @@ root
 
 ```
 --- FP-OBJ-04: namespaced-factory provenance: set t [::struct::tree] — object handle
-regen: python -m bench.fp_snippets --id FP-OBJ-04
+regen: save the reproducer above and run `tcl explore <file> --show ssa --show sccp`  (FP-OBJ-04)
 function ::f
   block entry_1
     [0] AssignValue 't' value='[::struct::tree mytree]'  defs={t#1}  uses={}
@@ -5702,7 +5739,7 @@ function ::f
 
 #### Why the analyser reaches that verdict
 
-`analyser/_analyser/_diag_var_command.py` tags vars from namespaced cmd-sub assignments as `ObjectProvenance.NAMESPACED_FACTORY`.  `analyser/_analyser/_diag_var_command.py` exempts dispatches on those vars within the same proc.  The bare-name cmd-sub case (no `::`) is NOT tagged — see `test_FP_OBJ_04_bare_unknown_command_still_w307`.
+`rust/tcl-compiler/src/analyser/diagnostics/var_command.rs` tags vars from namespaced cmd-sub assignments as `ObjectProvenance.NAMESPACED_FACTORY`.  `rust/tcl-compiler/src/analyser/diagnostics/var_command.rs` exempts dispatches on those vars within the same proc.  The bare-name cmd-sub case (no `::`) is NOT tagged — see `test_FP_OBJ_04_bare_unknown_command_still_w307`.
 
 #### Known precision gap (open)
 
@@ -5728,18 +5765,18 @@ that work flips the xfail and prompts its own removal.
 
 #### Tests
 
-- `tests/test_fp_obj.py::test_FP_OBJ_04_namespaced_factory_no_w307` (FP, `::struct::tree`)
-- `tests/test_fp_obj.py::test_FP_OBJ_04_short_namespace_form_no_w307` (FP, `struct::matrix`)
-- `tests/test_fp_obj.py::test_FP_OBJ_04_bare_unknown_command_still_w307` (TP — bare-name still warns)
-- `tests/test_fp_obj.py::test_FP_OBJ_04_factory_does_not_leak_across_procs` (TP — per-proc scoping)
-- `tests/test_fp_obj.py::test_FP_OBJ_04_namespaced_string_returning_proc_precision_gap` (OPEN-FP, xfail strict)
+- `rust/tcl-compiler/src/analyser/diagnostics/fp/obj.rs::fp_obj_04_namespaced_factory_no_w307` (FP, `::struct::tree`)
+- `rust/tcl-compiler/src/analyser/diagnostics/fp/obj.rs::fp_obj_04_short_namespace_form_no_w307` (FP, `struct::matrix`)
+- `rust/tcl-compiler/src/analyser/diagnostics/fp/obj.rs::fp_obj_04_bare_unknown_command_still_w307` (TP — bare-name still warns)
+- `rust/tcl-compiler/src/analyser/diagnostics/fp/obj.rs::fp_obj_04_factory_does_not_leak_across_procs` (TP — per-proc scoping)
+- `rust/tcl-compiler/src/analyser/diagnostics/fp/obj.rs::fp_obj_04_namespaced_string_returning_user_proc_fires_w307` (OPEN-FP, xfail strict)
 
 ---
 
 ### FP-OBJ-05 — snit instance dispatch (set o [Foo create %AUTO%]; $o m) — typed OBJECT
 
 - **Verdict:** FALSE POSITIVE (now fixed, snit instance provenance)
-- **Status:** locked in by `tests/test_fp_obj.py::test_FP_OBJ_05_*`
+- **Status:** locked in by `rust/tcl-compiler/src/analyser/diagnostics/fp/obj.rs::fp_obj_05_*`
 - **Codes:** W307, W308
 - **Corpus:** every local snit type used in tests / examples / integration glue.
 
@@ -5777,7 +5814,7 @@ The result of `Counter create %AUTO%` is an object command name.
 
 ```
 --- FP-OBJ-05: snit instance dispatch (set o [Foo create %AUTO%]; $o m) — typed OBJECT
-regen: python -m bench.fp_snippets --id FP-OBJ-05
+regen: save the reproducer above and run `tcl explore <file> --show ssa --show sccp`  (FP-OBJ-05)
 function ::use
   block entry_1
     [0] AssignValue 'a' value='[Counter create %AUTO%]'  defs={a#1}  uses={}
@@ -5791,21 +5828,21 @@ function ::use
 
 #### Why the analyser reaches that verdict
 
-`dialects/tcllib/snit.py` builds the type's create-form receiver: any `[Foo create ARGS]` or `[Foo ARGS]` (the create-shorthand) where `Foo` is a registered snit type produces an instance-typed value.  Receiver dispatches inherit the exemption.
+`rust/tcl-registry/src/definer.rs` builds the type's create-form receiver: any `[Foo create ARGS]` or `[Foo ARGS]` (the create-shorthand) where `Foo` is a registered snit type produces an instance-typed value.  Receiver dispatches inherit the exemption.
 
 #### Tests
 
-- `tests/test_fp_obj.py::test_FP_OBJ_05_snit_create_auto_no_w307` (FP, %AUTO%)
-- `tests/test_fp_obj.py::test_FP_OBJ_05_snit_create_named_no_w307` (FP, named)
-- `tests/test_fp_obj.py::test_FP_OBJ_05_snit_create_shorthand_no_w307` (FP, shorthand)
-- `tests/test_fp_obj.py::test_FP_OBJ_05_snit_instance_no_w308` (FP, W308 exempt)
+- `rust/tcl-compiler/src/analyser/diagnostics/fp/obj.rs::fp_obj_05_snit_create_auto_no_w307` (FP, %AUTO%)
+- `rust/tcl-compiler/src/analyser/diagnostics/fp/obj.rs::fp_obj_05_snit_create_named_no_w307` (FP, named)
+- `rust/tcl-compiler/src/analyser/diagnostics/fp/obj.rs::fp_obj_05_snit_create_shorthand_no_w307` (FP, shorthand)
+- `rust/tcl-compiler/src/analyser/diagnostics/fp/obj.rs::fp_obj_05_snit_instance_no_w308` (FP, W308 exempt)
 
 ---
 
 ### FP-OBJ-06 — snit private proc body is analysed (not silently dropped)
 
 - **Verdict:** CONFIRM-CORRECT (snit body analysis depth)
-- **Status:** locked in by `tests/test_fp_obj.py::test_FP_OBJ_06_private_proc_body_analysed`
+- **Status:** locked in by `rust/tcl-compiler/src/analyser/diagnostics/fp/obj.rs::fp_obj_06_private_proc_body_analysed`
 - **Codes:** W216 (used as a positive marker)
 - **Corpus:** any snit type with internal helper procs (struct::matrix, struct::graph internal helpers).
 
@@ -5838,7 +5875,7 @@ foo(foo)  # ${a} substitutes to the value of a, then literal "(foo)" is appended
 
 ```
 --- FP-OBJ-06: snit private proc body is analysed (not silently dropped)
-regen: python -m bench.fp_snippets --id FP-OBJ-06
+regen: save the reproducer above and run `tcl explore <file> --show ssa --show sccp`  (FP-OBJ-06)
 function ::f
   block entry_1
     term Return ok
@@ -5846,18 +5883,18 @@ function ::f
 
 #### Why the analyser reaches that verdict
 
-`dialects/tcllib/snit.py` registers inner `proc` declarations with the analyser pipeline; the body is compiled and walked through every check.  This entry exists to lock the contract — a refactor that silently drops the body would catch the W216 disappearance.
+`rust/tcl-registry/src/definer.rs` registers inner `proc` declarations with the analyser pipeline; the body is compiled and walked through every check.  This entry exists to lock the contract — a refactor that silently drops the body would catch the W216 disappearance.
 
 #### Tests
 
-- `tests/test_fp_obj.py::test_FP_OBJ_06_private_proc_body_analysed` (TP / depth lock-in)
+- `rust/tcl-compiler/src/analyser/diagnostics/fp/obj.rs::fp_obj_06_private_proc_body_analysed` (TP / depth lock-in)
 
 ---
 
 ### FP-OBJ-07 — cmd-sub namespaced ensemble `[ns_func]::method` is dispatch, not stray word
 
 - **Verdict:** FALSE POSITIVE (now fixed)
-- **Status:** locked in by `tests/test_fp_obj.py::test_FP_OBJ_07_*`
+- **Status:** locked in by `rust/tcl-compiler/src/analyser/diagnostics/fp/obj.rs::fp_obj_07_*`
 - **Codes:** W307 (unresolved command / stray non-literal command word)
 - **Corpus:** tcllib http/ftpd dispatch idiom and namespace-factory ensembles.
 
@@ -5908,15 +5945,15 @@ suppression matches the regex/shape:
 
 #### Tests
 
-- `tests/test_fp_obj.py::test_FP_OBJ_07_cmdsub_namespaced_ensemble_no_w307` (FP)
-- `tests/test_fp_obj.py::test_FP_OBJ_07_bare_cmdsub_dispatch_still_fires` (TP control — `[cmd] $arg` with no literal method tail still fires)
+- `rust/tcl-compiler/src/analyser/diagnostics/fp/obj.rs::fp_obj_07_cmdsub_namespaced_ensemble_no_w307` (FP)
+- `rust/tcl-compiler/src/analyser/diagnostics/fp/obj.rs::fp_obj_07_bare_cmdsub_dispatch_still_fires` (TP control — `[cmd] $arg` with no literal method tail still fires)
 
 ---
 
 ### FP-OBJ-08 — W307 suppressed on eval-substituted dispatch (W101 covers it)
 
 - **Verdict:** FALSE POSITIVE / dedup with W101
-- **Status:** locked in by `tests/test_fp_obj.py::test_FP_OBJ_08_*`
+- **Status:** locked in by `rust/tcl-compiler/src/analyser/diagnostics/fp/obj.rs::fp_obj_08_*`
 - **Codes:** W307, W101 (the dedup target)
 - **Corpus:** tcllib `eval $cmd $args` dispatch glue.
 
@@ -5958,8 +5995,8 @@ W307's pre-fire filter checks whether the call site is an `eval`-family form and
 
 #### Tests
 
-- `tests/test_fp_obj.py::test_FP_OBJ_08_eval_substituted_dispatch_no_w307` (FP — W307 suppressed)
-- `tests/test_fp_obj.py::test_FP_OBJ_08_eval_substituted_dispatch_still_fires_w101` (TP control — W101 must still fire)
+- `rust/tcl-compiler/src/analyser/diagnostics/fp/obj.rs::fp_obj_08_eval_substituted_dispatch_no_w307` (FP — W307 suppressed)
+- `rust/tcl-compiler/src/analyser/diagnostics/fp/obj.rs::fp_obj_08_eval_substituted_dispatch_still_fires_w101` (TP control — W101 must still fire)
 
 ---
 
@@ -5970,7 +6007,7 @@ W307's pre-fire filter checks whether the call site is an `eval`-family form and
   local is strong evidence that the user designed it as an object
   handle, but isn't proof; a typo-named pseudo-handle dispatched twice
   by accident would also escape.
-- **Status:** locked in by `tests/test_fp_obj.py::test_FP_OBJ_09_*`
+- **Status:** locked in by `rust/tcl-compiler/src/analyser/diagnostics/fp/obj.rs::fp_obj_09_*`
 - **Codes:** W307 (non-literal command word)
 - **Corpus:** tcllib `struct::graph` users (graphops.tcl, etc.).
 
@@ -5997,8 +6034,8 @@ Fix: track per-proc dispatch counts in the pre-pass over
 
 #### Tests
 
-- `tests/test_fp_obj.py::test_FP_OBJ_09_multi_dispatch_local_no_w307` (FP)
-- `tests/test_fp_obj.py::test_FP_OBJ_09_single_dispatch_unknown_still_fires` (TP control — one dispatch isn't enough)
+- `rust/tcl-compiler/src/analyser/diagnostics/fp/obj.rs::fp_obj_09_multi_dispatch_local_no_w307` (FP)
+- `rust/tcl-compiler/src/analyser/diagnostics/fp/obj.rs::fp_obj_09_single_dispatch_unknown_still_fires` (TP control — one dispatch isn't enough)
 
 ---
 
@@ -6009,7 +6046,7 @@ Fix: track per-proc dispatch counts in the pre-pass over
   whose key matches the callback-naming convention is *very likely* a
   registered callback slot; the suppression can mask a typo in a non-
   callback array key that happens to match the heuristic.
-- **Status:** locked in by `tests/test_fp_obj.py::test_FP_OBJ_10_*`
+- **Status:** locked in by `rust/tcl-compiler/src/analyser/diagnostics/fp/obj.rs::fp_obj_10_*`
 - **Codes:** W307
 - **Corpus:** tcllib HTTP / IRC / async state-machine modules.
 
@@ -6039,8 +6076,8 @@ key is either:
 
 #### Tests
 
-- `tests/test_fp_obj.py::test_FP_OBJ_10_dash_prefixed_array_key_callback_no_w307` (FP)
-- `tests/test_fp_obj.py::test_FP_OBJ_10_suffix_keyed_callback_no_w307` (FP)
+- `rust/tcl-compiler/src/analyser/diagnostics/fp/obj.rs::fp_obj_10_dash_prefixed_array_key_callback_no_w307` (FP)
+- `rust/tcl-compiler/src/analyser/diagnostics/fp/obj.rs::fp_obj_10_suffix_keyed_callback_no_w307` (FP)
 
 ---
 
@@ -6052,7 +6089,7 @@ key is either:
   isn't a namespaced object factory, the transitive propagation
   inherits the same false-negative; closing the FP-OBJ-04 gap (per-
   proc return-type lattice) would close this one too.
-- **Status:** locked in by `tests/test_fp_obj.py::test_FP_OBJ_11_*`
+- **Status:** locked in by `rust/tcl-compiler/src/analyser/diagnostics/fp/obj.rs::fp_obj_11_*`
 - **Codes:** W307
 - **Corpus:** tcllib `struct::graphops` (88 → 0 W307 firings cleared).
 
@@ -6096,7 +6133,7 @@ The returned value IS the object handle; dispatch works as expected.
 
 #### Why the analyser reaches that verdict
 
-The interproc fixpoint at `compiler/interprocedural.py` tags procs whose
+The interproc fixpoint at `rust/tcl-compiler/src/interprocedural.rs` tags procs whose
 return value is itself an object handle (direct `return [factory]`,
 indirect `return $X` where X transitively traces to a factory).
 W307 suppresses dispatch on locals assigned from object-returning
@@ -6104,15 +6141,15 @@ user procs.
 
 #### Tests
 
-- `tests/test_fp_obj.py::test_FP_OBJ_11_factory_dispatch_no_w307` (FP, direct factory chain)
-- `tests/test_fp_obj.py::test_FP_OBJ_11_transitive_factory_no_w307` (FP, two-step factory chain — fixpoint propagation)
+- `rust/tcl-compiler/src/analyser/diagnostics/fp/obj.rs::fp_obj_11_factory_dispatch_no_w307` (FP, direct factory chain)
+- `rust/tcl-compiler/src/analyser/diagnostics/fp/obj.rs::fp_obj_11_transitive_factory_no_w307` (FP, two-step factory chain — fixpoint propagation)
 
 ---
 
 ### FP-OBJ-12 — W307 fires on `[<cmd-sub>] run` in a method body (D3-P3 / D4-F5)
 
 - **Verdict:** TRUE POSITIVE (precision-gap closure)
-- **Status:** locked in by `tests/test_fp_obj.py::test_FP_OBJ_12_*`
+- **Status:** locked in by `rust/tcl-compiler/src/analyser/diagnostics/fp/obj.rs::fp_obj_12_*`
 - **Codes:** W307 (non-literal command name)
 - **Corpus:** synthetic — verified vs tclsh 9.0.3 / TclOO 1.x
 - **Tracker:** [`review-findings-tracker.md`](review-findings-tracker.md) — entries D3-P3, D4-F5
@@ -6145,7 +6182,7 @@ invalid command name "notACommand"
 
 ```
 --- FP-OBJ-12: W307 cmd-sub in method body fires when not known OBJECT return (D3-P3/D4-F5)
-regen: python -m bench.fp_snippets --id FP-OBJ-12
+regen: save the reproducer above and run `tcl explore <file> --show ssa --show sccp`  (FP-OBJ-12)
 function ::top
   block entry_1
     [0] InterpBoundary  defs={}  uses={}
@@ -6154,27 +6191,27 @@ function ::top
   block exit_2
     term (none — fall-through exit)
 ```
-(regen: `python -m bench.fp_snippets --id FP-OBJ-12`)
+(regen: `tcl explore <file> --show ssa --show sccp`)
 
 The top-level `oo::class create` is the SSA entry; the analyser's class-extraction pass reads `C`'s method bodies separately and applies the W307 check to each dispatch site there.
 
 #### Why the analyser reaches that verdict
 
-`analyser/_analyser/_diag_var_command.py` — the cmd-sub-as-command path no longer carries the `in_method` blanket suppression.  Only `my`/`self`-prefixed dispatches with a known OBJECT return type (via `known_classes`) get suppressed; everything else falls through to the standard W307 emission.
+`rust/tcl-compiler/src/analyser/diagnostics/var_command.rs` — the cmd-sub-as-command path no longer carries the `in_method` blanket suppression.  Only `my`/`self`-prefixed dispatches with a known OBJECT return type (via `known_classes`) get suppressed; everything else falls through to the standard W307 emission.
 
 #### Tests
 
-- `tests/test_fp_obj.py::test_FP_OBJ_12_format_in_method_fires` (TP)
-- `tests/test_fp_obj.py::test_FP_OBJ_12_known_class_new_in_method_silent` (TN control — `[D new]` is a known factory)
-- `tests/test_ground_truth_tn_fn.py::test_TP_W307_format_in_method_fires`
-- `tests/test_ground_truth_tn_fn.py::test_TN_W307_known_class_new_in_method_silent`
+- `rust/tcl-compiler/src/analyser/diagnostics/fp/obj.rs::fp_obj_12_format_in_method_fires` (TP)
+- `rust/tcl-compiler/src/analyser/diagnostics/fp/obj.rs::fp_obj_12_known_class_new_in_method_silent` (TN control — `[D new]` is a known factory)
+- `rust/tcl-compiler/src/analyser/diagnostics/fp/obj.rs::fp_obj_12_format_in_method_fires`
+- `rust/tcl-compiler/src/analyser/diagnostics/fp/obj.rs::fp_obj_12_known_class_new_in_method_silent`
 
 ---
 
 ### FP-OBJ-13 — W307 fires on `[my plain] run` where `plain` returns a literal (D3-P4)
 
 - **Verdict:** TRUE POSITIVE (precision-gap closure)
-- **Status:** locked in by `tests/test_fp_obj.py::test_FP_OBJ_13_*`
+- **Status:** locked in by `rust/tcl-compiler/src/analyser/diagnostics/fp/obj.rs::fp_obj_13_*`
 - **Codes:** W307 (non-literal command name)
 - **Corpus:** synthetic — verified vs tclsh 9.0.3 / TclOO 1.x
 - **Tracker:** [`review-findings-tracker.md`](review-findings-tracker.md) — entry D3-P4
@@ -6211,7 +6248,7 @@ invalid command name "notACommand"
 
 ```
 --- FP-OBJ-13: W307 [my plain] with literal-return method body fires (D3-P4)
-regen: python -m bench.fp_snippets --id FP-OBJ-13
+regen: save the reproducer above and run `tcl explore <file> --show ssa --show sccp`  (FP-OBJ-13)
 function ::top
   block entry_1
     [0] InterpBoundary  defs={}  uses={}
@@ -6220,27 +6257,27 @@ function ::top
   block exit_2
     term (none — fall-through exit)
 ```
-(regen: `python -m bench.fp_snippets --id FP-OBJ-13`)
+(regen: `tcl explore <file> --show ssa --show sccp`)
 
 The class-extraction pass inspects `plain`'s body, detects the single-statement `return <literal>` shape, and uses that fact to override the self-dispatch OBJECT heuristic at the `[my plain]` callsite in `m`.
 
 #### Why the analyser reaches that verdict
 
-`analyser/_analyser/_diag_var_command.py` — the `[my <method>]` self-dispatch suppression checks whether the resolved method's body is a single-statement `return <literal>` (no cmd-subs / variables); if so, the return is typed STRING and W307 fires.  Compound bodies stay suppressed via the conservative self-dispatch path.
+`rust/tcl-compiler/src/analyser/diagnostics/var_command.rs` — the `[my <method>]` self-dispatch suppression checks whether the resolved method's body is a single-statement `return <literal>` (no cmd-subs / variables); if so, the return is typed STRING and W307 fires.  Compound bodies stay suppressed via the conservative self-dispatch path.
 
 #### Tests
 
-- `tests/test_fp_obj.py::test_FP_OBJ_13_my_method_returns_literal_fires` (TP)
-- `tests/test_fp_obj.py::test_FP_OBJ_13_my_method_returns_object_silent` (TN control — compound body stays suppressed)
-- `tests/test_ground_truth_tn_fn.py::test_TP_W307_my_method_returns_plain_literal`
-- `tests/test_ground_truth_tn_fn.py::test_TN_W307_my_method_returns_object_silent`
+- `rust/tcl-compiler/src/analyser/diagnostics/fp/obj.rs::fp_obj_13_my_method_returns_literal_fires` (TP)
+- `rust/tcl-compiler/src/analyser/diagnostics/fp/obj.rs::fp_obj_13_my_method_returns_object_silent` (TN control — compound body stays suppressed)
+- `rust/tcl-compiler/src/analyser/diagnostics/fp/obj.rs::fp_obj_13_my_method_returns_literal_fires`
+- `rust/tcl-compiler/src/analyser/diagnostics/fp/obj.rs::fp_obj_13_my_method_returns_object_silent`
 
 ---
 
 ### FP-OBJ-14 — registered `::ns::cmd` with non-OBJECT return overrides the `::`-prefix factory heuristic (D3-P5 PARTIAL)
 
 - **Verdict:** TRUE POSITIVE (precision-gap PARTIAL closure — registry-coverage limited)
-- **Status:** locked in by `tests/test_fp_obj.py::test_FP_OBJ_14_*`
+- **Status:** locked in by `rust/tcl-compiler/src/analyser/diagnostics/fp/obj.rs::fp_obj_14_*`
 - **Codes:** W307 (non-literal command name)
 - **Corpus:** synthetic — verified vs tclsh 9.0.3
 - **Tracker:** [`review-findings-tracker.md`](review-findings-tracker.md) — entry D3-P5 (🔄 PARTIAL)
@@ -6279,7 +6316,7 @@ invalid command name "notACommand"
 
 ```
 --- FP-OBJ-14: W307 namespaced user proc with non-object return overrides factory heuristic (D3-P5 partial / D4-F6)
-regen: python -m bench.fp_snippets --id FP-OBJ-14
+regen: save the reproducer above and run `tcl explore <file> --show ssa --show sccp`  (FP-OBJ-14)
 function ::f
   block entry_1
     [0] AssignValue 'x' value='[::pkg::plain]'  defs={x#1}  uses={}
@@ -6288,13 +6325,13 @@ function ::f
   block exit_2
     term (none — fall-through exit)
 ```
-(regen: `python -m bench.fp_snippets --id FP-OBJ-14`)
+(regen: `tcl explore <file> --show ssa --show sccp`)
 
 `x#1` is assigned the cmd-sub value of `[::pkg::plain]`; the dispatch `${x}` at index 1 is the W307 site.  The user-proc-override path consults the interproc fixpoint, sees `::pkg::plain` is NOT object-returning, and lets W307 fire.
 
 #### Why the analyser reaches that verdict
 
-`analyser/_analyser/_diag_var_command.py:527-559` — `_is_object_returning_command_head` for `::`-prefixed names:
+`rust/tcl-compiler/src/analyser/diagnostics/var_command.rs:527-559` — `_is_object_returning_command_head` for `::`-prefixed names:
 
 1. If the qualified name is in `result.all_procs` (user proc), defer to the fixpoint (`object_returning_procs` membership).  The fixpoint classifies `::pkg::plain` as NOT object-returning, so this path returns `False` (override the heuristic, fire W307).
 2. Else lookup `REG_W307.get_any(cmd_head)` for a registered command spec; if `spec.return_type` is set and not `TclType.OBJECT`, return `False` (override).
@@ -6302,16 +6339,16 @@ function ::f
 
 #### Tests
 
-- `tests/test_fp_obj.py::test_FP_OBJ_14_namespaced_user_proc_non_object_return_fires` (TP)
-- `tests/test_fp_obj.py::test_FP_OBJ_14_namespaced_known_object_factory_silent` (TN — known OBJECT-returning class command)
-- `tests/test_fp_obj.py::test_FP_OBJ_14_unregistered_external_namespaced_still_silent` (deferred-coverage TN — `::pkg::plain` with no proc or spec visible)
+- `rust/tcl-compiler/src/analyser/diagnostics/fp/obj.rs::fp_obj_14_namespaced_user_proc_non_object_return_fires` (TP)
+- `rust/tcl-compiler/src/analyser/diagnostics/fp/obj.rs::fp_obj_14_namespaced_known_object_factory_silent` (TN — known OBJECT-returning class command)
+- `rust/tcl-compiler/src/analyser/diagnostics/fp/obj.rs::fp_obj_14_unregistered_external_namespaced_still_silent` (deferred-coverage TN — `::pkg::plain` with no proc or spec visible)
 
 ---
 
 ### FP-OBJ-15 — `[NotAClass new]` no longer suppressed; bare-name `new`-subcommand factory heuristic removed (D3-P6 / D4-F6)
 
 - **Verdict:** TRUE POSITIVE (precision-gap closure)
-- **Status:** locked in by `tests/test_fp_obj.py::test_FP_OBJ_15_*`
+- **Status:** locked in by `rust/tcl-compiler/src/analyser/diagnostics/fp/obj.rs::fp_obj_15_*`
 - **Codes:** W307 (non-literal command name)
 - **Corpus:** synthetic — verified vs tclsh 9.0.3 / TclOO 1.x
 - **Tracker:** [`review-findings-tracker.md`](review-findings-tracker.md) — entries D3-P6, D4-F6
@@ -6341,7 +6378,7 @@ invalid command name "NotAClass"
 
 ```
 --- FP-OBJ-15: W307 bare-name [NotAClass new] no longer suppressed (D3-P6/D4-F6)
-regen: python -m bench.fp_snippets --id FP-OBJ-15
+regen: save the reproducer above and run `tcl explore <file> --show ssa --show sccp`  (FP-OBJ-15)
 function ::f
   block entry_1
     [0] AssignValue 'x' value='[NotAClass new]'  defs={x#1}  uses={}
@@ -6350,27 +6387,27 @@ function ::f
   block exit_2
     term (none — fall-through exit)
 ```
-(regen: `python -m bench.fp_snippets --id FP-OBJ-15`)
+(regen: `tcl explore <file> --show ssa --show sccp`)
 
 `x#1` is assigned the cmd-sub value of `[NotAClass new]`; the dispatch `${x}` at index 1 is the W307 site.  Without the bare-`new` heuristic, the analyser can't type `x` as OBJECT and emits W307.
 
 #### Why the analyser reaches that verdict
 
-`analyser/_analyser/_diag_var_command.py` — `_is_object_returning_command_head` no longer treats `<bareName> new` as OBJECT-returning unconditionally.  Only `<bareName>` in `_oo_class_tails` / `_oo_class_qnames` (known TclOO classes) triggers the OBJECT typing.
+`rust/tcl-compiler/src/analyser/diagnostics/var_command.rs` — `_is_object_returning_command_head` no longer treats `<bareName> new` as OBJECT-returning unconditionally.  Only `<bareName>` in `_oo_class_tails` / `_oo_class_qnames` (known TclOO classes) triggers the OBJECT typing.
 
 #### Tests
 
-- `tests/test_fp_obj.py::test_FP_OBJ_15_unknown_class_new_fires` (TP)
-- `tests/test_fp_obj.py::test_FP_OBJ_15_known_oo_class_new_silent` (TN control — `[C new]` where C IS an oo::class)
-- `tests/test_ground_truth_tn_fn.py::test_TP_W307_unknown_class_new_does_not_suppress`
-- `tests/test_ground_truth_tn_fn.py::test_TN_W307_known_tclOO_class_new_silent`
+- `rust/tcl-compiler/src/analyser/diagnostics/fp/obj.rs::fp_obj_15_unknown_class_new_fires` (TP)
+- `rust/tcl-compiler/src/analyser/diagnostics/fp/obj.rs::fp_obj_15_known_oo_class_new_silent` (TN control — `[C new]` where C IS an oo::class)
+- `rust/tcl-compiler/src/analyser/diagnostics/fp/obj.rs::fp_obj_15_unknown_class_new_fires`
+- `rust/tcl-compiler/src/analyser/diagnostics/fp/obj.rs::fp_obj_15_known_oo_class_new_silent`
 
 ---
 
 ### FP-OBJ-16 — composed `${ns}::tail` ensemble lookup runs unconditionally (D4-F7)
 
 - **Verdict:** FALSE POSITIVE (now fixed)
-- **Status:** locked in by `tests/test_fp_obj.py::test_FP_OBJ_16_*`
+- **Status:** locked in by `rust/tcl-compiler/src/analyser/diagnostics/fp/obj.rs::fp_obj_16_*`
 - **Codes:** W307 (non-literal command name)
 - **Corpus:** synthetic — verified vs tclsh 9.0.3
 - **Tracker:** [`review-findings-tracker.md`](review-findings-tracker.md) — entry D4-F7
@@ -6407,7 +6444,7 @@ mypkg
 
 ```
 --- FP-OBJ-16: W307 ${ns}::tail composed ensemble lookup runs unconditionally (D4-F7)
-regen: python -m bench.fp_snippets --id FP-OBJ-16
+regen: save the reproducer above and run `tcl explore <file> --show ssa --show sccp`  (FP-OBJ-16)
 function ::f
   block entry_1
     [0] AssignValue 'ns' value='mypkg'  defs={ns#1}  uses={}
@@ -6418,27 +6455,27 @@ function ::f
   values (SCCP lattice)
     ns#1: CONST('mypkg')
 ```
-(regen: `python -m bench.fp_snippets --id FP-OBJ-16`)
+(regen: `tcl explore <file> --show ssa --show sccp`)
 
 `ns#1: CONST('mypkg')` is the load-bearing fact — the composed-name lookup uses this to assemble `mypkg::dowork` and resolves it to the known proc.
 
 #### Why the analyser reaches that verdict
 
-`analyser/_analyser/_diag_var_command.py` — the composed-ensemble check assembles `<sccp-resolved prefix>::<tail>` for every `${prefix}::tail` dispatch and looks the result up in `all_procs` / `known_classes` / `REGISTRY`.  When the SCCP value is a single CONST and the resolution succeeds, the dispatch is reclassified as not-a-non-literal-command and W307 is suppressed.
+`rust/tcl-compiler/src/analyser/diagnostics/var_command.rs` — the composed-ensemble check assembles `<sccp-resolved prefix>::<tail>` for every `${prefix}::tail` dispatch and looks the result up in `all_procs` / `known_classes` / `REGISTRY`.  When the SCCP value is a single CONST and the resolution succeeds, the dispatch is reclassified as not-a-non-literal-command and W307 is suppressed.
 
 #### Tests
 
-- `tests/test_fp_obj.py::test_FP_OBJ_16_const_prefix_resolves_to_known_proc_silent` (FP)
-- `tests/test_fp_obj.py::test_FP_OBJ_16_const_prefix_unknown_proc_fires` (TP control — composed name doesn't resolve)
-- `tests/test_ground_truth_tn_fn.py::test_TN_namespaced_ensemble_resolved_known_proc`
-- `tests/test_ground_truth_tn_fn.py::test_TP_namespaced_ensemble_composed_unknown`
+- `rust/tcl-compiler/src/analyser/diagnostics/fp/obj.rs::fp_obj_16_const_prefix_resolves_to_known_proc_silent` (FP)
+- `rust/tcl-compiler/src/analyser/diagnostics/fp/obj.rs::fp_obj_16_const_prefix_unknown_proc_fires` (TP control — composed name doesn't resolve)
+- `rust/tcl-compiler/src/analyser/state.rs::w307_namespaced_ensemble_composed_name_resolution`
+- `rust/tcl-compiler/src/analyser/state.rs::w307_namespaced_ensemble_composed_name_resolution`
 
 ---
 
 ### FP-OBJ-17 — `array set state {-command notACommand}` literal-element harvester (D3-P7)
 
 - **Verdict:** TRUE POSITIVE (precision-gap closure)
-- **Status:** locked in by `tests/test_fp_obj.py::test_FP_OBJ_17_*`
+- **Status:** locked in by `rust/tcl-compiler/src/analyser/diagnostics/fp/obj.rs::fp_obj_17_*`
 - **Codes:** W307 (non-literal command name)
 - **Corpus:** synthetic — verified vs tclsh 9.0.3
 - **Tracker:** [`review-findings-tracker.md`](review-findings-tracker.md) — entry D3-P7
@@ -6468,7 +6505,7 @@ invalid command name "notACommand"
 
 ```
 --- FP-OBJ-17: W307 array set literal-element harvester for callback array (D3-P7)
-regen: python -m bench.fp_snippets --id FP-OBJ-17
+regen: save the reproducer above and run `tcl explore <file> --show ssa --show sccp`  (FP-OBJ-17)
 function ::f
   block entry_1
     [0] Call cmd='array'  defs={state#1}  uses={}
@@ -6479,27 +6516,27 @@ function ::f
   values (SCCP lattice)
     state#1: OVERDEFINED
 ```
-(regen: `python -m bench.fp_snippets --id FP-OBJ-17`)
+(regen: `tcl explore <file> --show ssa --show sccp`)
 
 The literal-element harvester runs alongside the SCCP pass; the per-key CONSTSET evidence is consulted by the W307 emitter (not by the per-name SCCP lattice rendered here).  `state(-command)` is registered as `"notACommand"` and the W307 check overrides the callback-key suppression.
 
 #### Why the analyser reaches that verdict
 
-`analyser/_analyser/_diag_var_command.py` — the `array set <var> {key value …}` literal harvester runs at the call-site; for each `key value` pair, it records `var(key) -> CONST(value)` in the per-proc CONSTSET map.  The W307 check, before applying the callback-key suppression, consults the CONSTSET for the array-element place and overrides the suppression when the literal value isn't a known command.
+`rust/tcl-compiler/src/analyser/diagnostics/var_command.rs` — the `array set <var> {key value …}` literal harvester runs at the call-site; for each `key value` pair, it records `var(key) -> CONST(value)` in the per-proc CONSTSET map.  The W307 check, before applying the callback-key suppression, consults the CONSTSET for the array-element place and overrides the suppression when the literal value isn't a known command.
 
 #### Tests
 
-- `tests/test_fp_obj.py::test_FP_OBJ_17_callback_array_holds_noncommand_fires` (TP)
-- `tests/test_fp_obj.py::test_FP_OBJ_17_callback_array_holds_known_command_silent` (TN control — value IS a known command)
-- `tests/test_ground_truth_tn_fn.py::test_TP_W307_callback_array_holds_noncommand`
-- `tests/test_ground_truth_tn_fn.py::test_TN_W307_callback_array_holds_known_command`
+- `rust/tcl-compiler/src/analyser/diagnostics/fp/obj.rs::fp_obj_17_callback_array_holds_noncommand_fires` (TP)
+- `rust/tcl-compiler/src/analyser/diagnostics/fp/obj.rs::fp_obj_17_callback_array_holds_known_command_silent` (TN control — value IS a known command)
+- `rust/tcl-compiler/src/analyser/diagnostics/fp/obj.rs::fp_obj_17_callback_array_holds_noncommand_fires`
+- `rust/tcl-compiler/src/analyser/diagnostics/fp/obj.rs::fp_obj_17_callback_array_holds_known_command_silent`
 
 ---
 
 ### FP-OBJ-18 — `dict with` key-value pair harvester for interproc-propagated callback (D3-P8)
 
 - **Verdict:** TRUE POSITIVE (precision-gap closure)
-- **Status:** locked in by `tests/test_fp_obj.py::test_FP_OBJ_18_*`
+- **Status:** locked in by `rust/tcl-compiler/src/analyser/diagnostics/fp/obj.rs::fp_obj_18_*`
 - **Codes:** W307 (non-literal command name)
 - **Corpus:** synthetic — verified vs tclsh 9.0.3
 - **Tracker:** [`review-findings-tracker.md`](review-findings-tracker.md) — entry D3-P8 (builds on D3-P2 / FP-DS-09)
@@ -6531,7 +6568,7 @@ invalid command name "notACommand"
 
 ```
 --- FP-OBJ-18: W307 dict-with key-value pair harvester for interproc callback (D3-P8)
-regen: python -m bench.fp_snippets --id FP-OBJ-18
+regen: save the reproducer above and run `tcl explore <file> --show ssa --show sccp`  (FP-OBJ-18)
 function ::f
   block entry_1
     [0] InterpBoundary  defs={}  uses={}
@@ -6543,20 +6580,20 @@ function ::f
     cmd#0: OVERDEFINED
     d#0: CONST('cmd notACommand')
 ```
-(regen: `python -m bench.fp_snippets --id FP-OBJ-18`)
+(regen: `tcl explore <file> --show ssa --show sccp`)
 
 `d#0: CONST('cmd notACommand')` is the load-bearing fact — interproc propagation from `f {cmd notACommand}` seeded the lattice.  The dict-with key-value harvester reads this, registers `cmd -> notACommand` as CONSTSET evidence, and the W307 check overrides the callback-shape suppression.
 
 #### Why the analyser reaches that verdict
 
-`analyser/_analyser/_diag_var_command.py` + `compiler/core_analyses.py` (the interproc literal-arg propagation from FP-DS-09) — the W307 emitter consults the per-key CONSTSET map populated by the dict-with key-value harvester; when the value for a callback-shaped local isn't a known command, the suppression is overridden.
+`rust/tcl-compiler/src/analyser/diagnostics/var_command.rs` + `rust/tcl-compiler/src/unit_scope.rs` (the interproc literal-arg propagation from FP-DS-09) — the W307 emitter consults the per-key CONSTSET map populated by the dict-with key-value harvester; when the value for a callback-shaped local isn't a known command, the suppression is overridden.
 
 #### Tests
 
-- `tests/test_fp_obj.py::test_FP_OBJ_18_interproc_dict_with_noncommand_fires` (TP)
-- `tests/test_fp_obj.py::test_FP_OBJ_18_interproc_dict_with_known_command_silent` (TN control)
-- `tests/test_ground_truth_tn_fn.py::test_TP_W307_interproc_dict_with_unpacks_non_command`
-- `tests/test_ground_truth_tn_fn.py::test_TN_interproc_dict_with_unpacks_known_command_silent`
+- `rust/tcl-compiler/src/analyser/diagnostics/fp/obj.rs::fp_obj_18_interproc_dict_with_noncommand_fires` (TP)
+- `rust/tcl-compiler/src/analyser/diagnostics/fp/obj.rs::fp_obj_18_interproc_dict_with_known_command_silent` (TN control)
+- `rust/tcl-compiler/src/analyser/diagnostics/fp/obj.rs::fp_obj_18_interproc_dict_with_noncommand_fires`
+- `rust/tcl-compiler/src/analyser/diagnostics/fp/obj.rs::fp_obj_18_interproc_dict_with_known_command_silent`
 - Cross-link: [FP-DS-09](#fp-ds-09) (the underlying interproc dict propagation).
 
 ---
@@ -6627,7 +6664,7 @@ exception-edge inheritance into try handlers.
 ### FP-RCH-01 — while 1 { break }: break-after is reachable (not O107 dead code)
 
 - **Verdict:** FALSE POSITIVE (now fixed)
-- **Status:** locked in by `tests/test_fp_rch.py::test_FP_RCH_01_*`
+- **Status:** locked in by `rust/tcl-compiler/src/analyser/diagnostics/fp/rch.rs::fp_rch_01_*`
 - **Codes:** O107
 - **Corpus:** every event-loop / consumer that uses `while 1 { wait_for_work; if {$done} break }` — extremely common.
 
@@ -6661,7 +6698,7 @@ after
 
 ```
 --- FP-RCH-01: while 1 { break }: break-after is reachable (not O107 dead code)
-regen: python -m bench.fp_snippets --id FP-RCH-01
+regen: save the reproducer above and run `tcl explore <file> --show ssa --show sccp`  (FP-RCH-01)
 function ::f
   block entry_1
     term Goto
@@ -6685,20 +6722,20 @@ function ::f
 
 #### Why the analyser reaches that verdict
 
-`compiler/core_analyses.py` (or `compiler/optimiser/_helpers.py` — see the reachability worklist) treats `break` / `continue` as CFG edges into their enclosing loop's exit / latch block when feeding reachability.  The bytecode lowering still emits the jump as a statement so default-bytecode codegen stays tclsh-identical.
+the SCCP reachability worklist (`rust/tcl-compiler/src/sccp.rs`, or `rust/tcl-compiler/src/optimiser/helpers/`) treats `break` / `continue` as CFG edges into their enclosing loop's exit / latch block when feeding reachability.  The bytecode lowering still emits the jump as a statement so default-bytecode codegen stays tclsh-identical.
 
 #### Tests
 
-- `tests/test_fp_rch.py::test_FP_RCH_01_while1_break_after_reachable` (FP, while)
-- `tests/test_fp_rch.py::test_FP_RCH_01_for_true_break_reachable` (FP, for-true)
-- `tests/test_fp_rch.py::test_FP_RCH_01_nested_loop_break_reachable` (FP, nested)
+- `rust/tcl-compiler/src/analyser/diagnostics/fp/rch.rs::fp_rch_01_while1_break_after_reachable` (FP, while)
+- `rust/tcl-compiler/src/analyser/diagnostics/fp/rch.rs::fp_rch_01_for_true_break_reachable` (FP, for-true)
+- `rust/tcl-compiler/src/analyser/diagnostics/fp/rch.rs::fp_rch_01_nested_loop_break_reachable` (FP, nested)
 
 ---
 
 ### FP-RCH-02 — try handler body is reachable (analysis-only exception edges)
 
 - **Verdict:** FALSE POSITIVE (now fixed)
-- **Status:** locked in by `tests/test_fp_rch.py::test_FP_RCH_02_*`
+- **Status:** locked in by `rust/tcl-compiler/src/analyser/diagnostics/fp/rch.rs::fp_rch_02_*`
 - **Codes:** O107
 - **Corpus:** every `try`/`on error`/`on ok` use across the corpus — error-handling wrappers in tcllib's `fileutil`, iRules error logging.
 
@@ -6734,7 +6771,7 @@ Pre-fix the handler block had no CFG predecessor edge from the body — it was a
 
 ```
 --- FP-RCH-02: try handler body is reachable (analysis-only exception edges)
-regen: python -m bench.fp_snippets --id FP-RCH-02
+regen: save the reproducer above and run `tcl explore <file> --show ssa --show sccp`  (FP-RCH-02)
 function ::f
   block entry_1
     term Goto
@@ -6756,19 +6793,19 @@ function ::f
 
 #### Why the analyser reaches that verdict
 
-`compiler/ssa.py` adds exception edges from the try body to each handler block during SSA construction.  The edges are tagged 'analysis-only' so codegen ignores them and default-bytecode lowering stays tclsh-identical.
+`rust/tcl-compiler/src/ssa.rs` adds exception edges from the try body to each handler block during SSA construction.  The edges are tagged 'analysis-only' so codegen ignores them and default-bytecode lowering stays tclsh-identical.
 
 #### Tests
 
-- `tests/test_fp_rch.py::test_FP_RCH_02_handler_body_reachable` (FP)
-- `tests/test_fp_rch.py::test_FP_RCH_02_handler_var_not_unset` (FP — handler-bound `e` is defined)
+- `rust/tcl-compiler/src/analyser/diagnostics/fp/rch.rs::fp_rch_02_handler_body_reachable` (FP)
+- `rust/tcl-compiler/src/analyser/diagnostics/fp/rch.rs::fp_rch_02_handler_var_not_unset` (FP — handler-bound `e` is defined)
 
 ---
 
 ### FP-RCH-03 — on ok inherits body-defined SSA versions (no W210 on body-set var)
 
 - **Verdict:** FALSE POSITIVE (now fixed)
-- **Status:** locked in by `tests/test_fp_rch.py::test_FP_RCH_03_on_ok_reads_body_var`
+- **Status:** locked in by `rust/tcl-compiler/src/analyser/diagnostics/fp/rch.rs::fp_rch_03_on_ok_reads_body_var`
 - **Codes:** W210
 - **Corpus:** `try { set v [doThing] } on ok {} { use $v }` is the common-case fallback for ensuring a body completed before consuming its result.
 
@@ -6802,7 +6839,7 @@ Fix: the ok-path exception edge feeds the body's last-version map into the handl
 
 ```
 --- FP-RCH-03: on ok inherits body-defined SSA versions (no W210 on body-set var)
-regen: python -m bench.fp_snippets --id FP-RCH-03
+regen: save the reproducer above and run `tcl explore <file> --show ssa --show sccp`  (FP-RCH-03)
 function ::f
   block entry_1
     term Goto
@@ -6822,19 +6859,19 @@ function ::f
 
 #### Why the analyser reaches that verdict
 
-`compiler/ssa.py`'s phi placement for try-handler blocks consults the body's exit-version map for the ok edge; on-error inherits the pre-try state (since the body may not have set the var before erroring).
+`rust/tcl-compiler/src/ssa.rs`'s phi placement for try-handler blocks consults the body's exit-version map for the ok edge; on-error inherits the pre-try state (since the body may not have set the var before erroring).
 
 #### Tests
 
-- `tests/test_fp_rch.py::test_FP_RCH_03_on_ok_reads_body_var` (FP)
-- `tests/test_fp_rch.py::test_FP_RCH_03_on_ok_unset_var_still_fires` (smoke / no-crash control)
+- `rust/tcl-compiler/src/analyser/diagnostics/fp/rch.rs::fp_rch_03_on_ok_reads_body_var` (FP)
+- `rust/tcl-compiler/src/analyser/diagnostics/fp/rch.rs::fp_rch_03_on_ok_unset_var_still_fires` (smoke / no-crash control)
 
 ---
 
 ### FP-RCH-04 — genuine infinite-loop (no break) -> code after IS unreachable (TP control)
 
 - **Verdict:** TRUE POSITIVE (control)
-- **Status:** locked in by `tests/test_fp_rch.py::test_FP_RCH_04_infinite_loop_dead_code_fires`
+- **Status:** locked in by `rust/tcl-compiler/src/analyser/diagnostics/fp/rch.rs::fp_rch_04_infinite_loop_dead_code_fires`
 - **Codes:** O107
 - **Corpus:** genuine infinite-loop antipatterns (typically a regression / leftover during development).
 
@@ -6865,7 +6902,7 @@ This control test ensures the FP-RCH-01 fix doesn't blanket-suppress all post-lo
 
 ```
 --- FP-RCH-04: genuine infinite-loop (no break) -> code after IS unreachable (TP control)
-regen: python -m bench.fp_snippets --id FP-RCH-04
+regen: save the reproducer above and run `tcl explore <file> --show ssa --show sccp`  (FP-RCH-04)
 function ::f
   block entry_1
     term Goto
@@ -6887,7 +6924,7 @@ With no `break` to feed an edge into the loop-exit block, the SCCP-pruned consta
 
 #### Tests
 
-- `tests/test_fp_rch.py::test_FP_RCH_04_infinite_loop_dead_code_fires` (TP)
+- `rust/tcl-compiler/src/analyser/diagnostics/fp/rch.rs::fp_rch_04_infinite_loop_dead_code_fires` (TP)
 
 ---
 
@@ -6904,7 +6941,7 @@ the check loses value.  T102 (option injection) uses taint colours
 ### FP-INJ-01 — uplevel 1 $body (bare var) is the safe idiom — NOT W301
 
 - **Verdict:** FALSE POSITIVE (now fixed)
-- **Status:** locked in by `tests/test_fp_inj.py::test_FP_INJ_01_*`
+- **Status:** locked in by `rust/tcl-compiler/src/analyser/diagnostics/fp/inj.rs::fp_inj_01_*`
 - **Codes:** W301
 - **Corpus:** every callback-passing API in tcllib (`fileutil::traverse`, `htmlparse::*`, snit's `delegate`-via-uplevel patterns).
 
@@ -6936,7 +6973,7 @@ hi
 
 ```
 --- FP-INJ-01: uplevel 1 $body (bare var) is the safe idiom — NOT W301
-regen: python -m bench.fp_snippets --id FP-INJ-01
+regen: save the reproducer above and run `tcl explore <file> --show ssa --show sccp`  (FP-INJ-01)
 function ::f
   block entry_1
     [0] InterpBoundary  defs={}  uses={}
@@ -6948,19 +6985,19 @@ function ::f
 
 #### Why the analyser reaches that verdict
 
-`analyser/checks/_domain.py` walks the second-arg word: a single `WordSubst` whose source is a single `$var` (no surrounding quoted text) is the safe form; any quoted-text + `$var` mixture is the risky form.
+`rust/tcl-compiler/src/analyser/diagnostics/security.rs` walks the second-arg word: a single `WordSubst` whose source is a single `$var` (no surrounding quoted text) is the safe form; any quoted-text + `$var` mixture is the risky form.
 
 #### Tests
 
-- `tests/test_fp_inj.py::test_FP_INJ_01_bare_var_no_w301` (FP)
-- `tests/test_fp_inj.py::test_FP_INJ_01_quoted_interpolation_still_w301` (TP)
+- `rust/tcl-compiler/src/analyser/diagnostics/fp/inj.rs::fp_inj_01_bare_var_no_w301` (FP)
+- `rust/tcl-compiler/src/analyser/diagnostics/fp/inj.rs::fp_inj_01_quoted_interpolation_still_w301` (TP)
 
 ---
 
 ### FP-INJ-02 — eval [list ...] is safe — list-canonical form, NOT W101
 
 - **Verdict:** FALSE POSITIVE (now fixed)
-- **Status:** locked in by `tests/test_fp_inj.py::test_FP_INJ_02_*`
+- **Status:** locked in by `rust/tcl-compiler/src/analyser/diagnostics/fp/inj.rs::fp_inj_02_*`
 - **Codes:** W101
 - **Corpus:** every dynamic-call wrapper in tcllib (`namespace ensemble` setup, dispatcher patterns).
 
@@ -6992,7 +7029,7 @@ The list-quoted form passes `$varname` and `$value` as exactly-one-word each, no
 
 ```
 --- FP-INJ-02: eval [list ...] is safe — list-canonical form, NOT W101
-regen: python -m bench.fp_snippets --id FP-INJ-02
+regen: save the reproducer above and run `tcl explore <file> --show ssa --show sccp`  (FP-INJ-02)
 function ::top
   block entry_1
     [0] InterpBoundary  defs={}  uses={}
@@ -7004,20 +7041,20 @@ function ::top
 
 #### Why the analyser reaches that verdict
 
-`analyser/checks/_domain.py` recognises the canonical-safe cmd-sub set (sourced from the command registry).  Any `eval [CANONICAL_SAFE_CMD …]` is exempt.
+`rust/tcl-compiler/src/analyser/diagnostics/security.rs` recognises the canonical-safe cmd-sub set (sourced from the command registry).  Any `eval [CANONICAL_SAFE_CMD …]` is exempt.
 
 #### Tests
 
-- `tests/test_fp_inj.py::test_FP_INJ_02_eval_list_clean` (FP, `eval [list …]`)
-- `tests/test_fp_inj.py::test_FP_INJ_02_eval_linsert_clean` (FP, `eval [linsert …]`)
-- `tests/test_fp_inj.py::test_FP_INJ_02_eval_string_concat_still_w101` (TP control)
+- `rust/tcl-compiler/src/analyser/diagnostics/fp/inj.rs::fp_inj_02_eval_list_clean` (FP, `eval [list …]`)
+- `rust/tcl-compiler/src/analyser/diagnostics/fp/inj.rs::fp_inj_02_eval_linsert_clean` (FP, `eval [linsert …]`)
+- `rust/tcl-compiler/src/analyser/diagnostics/fp/inj.rs::fp_inj_02_eval_string_concat_still_w101` (TP control)
 
 ---
 
 ### FP-INJ-03 — T102 suppression: HTTP::uri PATH_PREFIXED -> no option injection
 
 - **Verdict:** FALSE POSITIVE (now fixed, taint colour suppression)
-- **Status:** locked in by `tests/test_fp_inj.py::test_FP_INJ_03_*`
+- **Status:** locked in by `rust/tcl-compiler/src/analyser/diagnostics/fp/inj.rs::fp_inj_03_*`
 - **Codes:** T102
 - **Corpus:** every iRule that consumes `HTTP::uri` / `HTTP::path` (most iRules in any production deployment).
 
@@ -7045,7 +7082,7 @@ No path-anchored value can start with `-`, so `regexp` cannot misinterpret it as
 
 ```
 --- FP-INJ-03: T102 suppression: HTTP::uri PATH_PREFIXED -> no option injection
-regen: python -m bench.fp_snippets --id FP-INJ-03
+regen: save the reproducer above and run `tcl explore <file> --show ssa --show sccp`  (FP-INJ-03)
 function ::top
   block entry_1
     [0] AssignValue 'uri' value='[HTTP::uri]'  defs={uri#1}  uses={}
@@ -7059,21 +7096,21 @@ function ::top
 
 #### Why the analyser reaches that verdict
 
-`compiler/taint/_sinks.py:_check_t102` consults the value's taint colour set; values with `PATH_PREFIXED` are exempt.  The source assignments tag the colour in `compiler/taint/_api.py`'s seed step.
+`rust/tcl-compiler/src/taint.rs:_check_t102` consults the value's taint colour set; values with `PATH_PREFIXED` are exempt.  The source assignments tag the colour in `rust/tcl-compiler/src/taint.rs`'s seed step.
 
 #### Tests
 
-- `tests/test_fp_inj.py::test_FP_INJ_03_http_uri_no_t102` (FP)
-- `tests/test_fp_inj.py::test_FP_INJ_03_http_path_no_t102` (FP)
-- `tests/test_fp_inj.py::test_FP_INJ_03_path_prefixed_copy_suppresses` (FP — colour propagates)
-- `tests/test_fp_inj.py::test_FP_INJ_03_literal_non_dash_prefix_no_t102` (FP — fixed non-dash prefix)
+- `rust/tcl-compiler/src/analyser/diagnostics/fp/inj.rs::fp_inj_03_http_uri_no_t102` (FP)
+- `rust/tcl-compiler/src/analyser/diagnostics/fp/inj.rs::fp_inj_03_http_path_no_t102` (FP)
+- `rust/tcl-compiler/src/analyser/diagnostics/fp/inj.rs::fp_inj_03_path_prefixed_copy_suppresses` (FP — colour propagates)
+- `rust/tcl-compiler/src/analyser/diagnostics/fp/inj.rs::fp_inj_03_literal_non_dash_prefix_no_t102` (FP — fixed non-dash prefix)
 
 ---
 
 ### FP-INJ-04 — T102 TP control: literal '-' prefix [HTTP::path] still warns
 
 - **Verdict:** TRUE POSITIVE (control)
-- **Status:** locked in by `tests/test_fp_inj.py::test_FP_INJ_04_*`
+- **Status:** locked in by `rust/tcl-compiler/src/analyser/diagnostics/fp/inj.rs::fp_inj_04_*`
 - **Codes:** T102
 - **Corpus:** combine-iRule patterns that rewrite paths with a literal prefix — common in URL canonicalisation rules.
 
@@ -7101,7 +7138,7 @@ That's an option-LIKE string a careless consumer could misinterpret.
 
 ```
 --- FP-INJ-04: T102 TP control: literal '-' prefix [HTTP::path] still warns
-regen: python -m bench.fp_snippets --id FP-INJ-04
+regen: save the reproducer above and run `tcl explore <file> --show ssa --show sccp`  (FP-INJ-04)
 function ::top
   block entry_1
     [0] AssignValue 'foo' value='-[HTTP::path]'  defs={foo#1}  uses={}
@@ -7115,19 +7152,19 @@ function ::top
 
 #### Why the analyser reaches that verdict
 
-`compiler/taint/_path_concat.py` clears PATH_PREFIXED when a literal `-` prefix is prepended; T102's suppression no longer applies.  Generic (non-PATH_PREFIXED) tainted data also still fires (see `test_FP_INJ_04_generic_taint_still_warns`).
+`rust/tcl-compiler/src/path_concat.rs` clears PATH_PREFIXED when a literal `-` prefix is prepended; T102's suppression no longer applies.  Generic (non-PATH_PREFIXED) tainted data also still fires (see `test_FP_INJ_04_generic_taint_still_warns`).
 
 #### Tests
 
-- `tests/test_fp_inj.py::test_FP_INJ_04_dash_prefix_still_warns` (TP)
-- `tests/test_fp_inj.py::test_FP_INJ_04_generic_taint_still_warns` (TP, generic taint)
+- `rust/tcl-compiler/src/analyser/diagnostics/fp/inj.rs::fp_inj_04_dash_prefix_still_warns` (TP)
+- `rust/tcl-compiler/src/analyser/diagnostics/fp/inj.rs::fp_inj_04_generic_taint_still_warns` (TP, generic taint)
 
 ---
 
 ### FP-INJ-05 — eval "$cmd $x" -> W101 with code-action rewrite to eval [list ...]
 
 - **Verdict:** TRUE POSITIVE (with code-action)
-- **Status:** locked in by `tests/test_fp_inj.py::test_FP_INJ_05_*`
+- **Status:** locked in by `rust/tcl-compiler/src/analyser/diagnostics/fp/inj.rs::fp_inj_05_*`
 - **Codes:** W101
 - **Corpus:** any dynamic-command-build pattern using string-concat to assemble the call (legacy Tcl idioms before `eval [list …]` was popularised).
 
@@ -7156,7 +7193,7 @@ W101 fires; the LSP code-action rewrites the call to the safe form `eval [list p
 
 ```
 --- FP-INJ-05: eval "$cmd $x" -> W101 with code-action rewrite to eval [list ...]
-regen: python -m bench.fp_snippets --id FP-INJ-05
+regen: save the reproducer above and run `tcl explore <file> --show ssa --show sccp`  (FP-INJ-05)
 function ::top
   block entry_1
     [0] AssignValue 'x' value='foo'  defs={x#1}  uses={}
@@ -7169,12 +7206,12 @@ function ::top
 
 #### Why the analyser reaches that verdict
 
-`analyser/checks/_domain.py` fires W101 for double-quoted string-form eval; the matching code-action (`server/features/code_actions.py`) extracts the command name + args from the quoted-form parse and emits the `eval [list …]` replacement.
+`rust/tcl-compiler/src/analyser/diagnostics/security.rs` fires W101 for double-quoted string-form eval; the matching code-action (`rust/tcl-lsp-core/src/code_actions.rs`) extracts the command name + args from the quoted-form parse and emits the `eval [list …]` replacement.
 
 #### Tests
 
-- `tests/test_fp_inj.py::test_FP_INJ_05_eval_string_fires_w101` (TP, fires)
-- `tests/test_fp_inj.py::test_FP_INJ_05_code_action_rewrites_to_eval_list` (TP, code-action contract — the rewrite text is exercised more thoroughly in `tests/test_checks.py::TestEvalInjection`)
+- `rust/tcl-compiler/src/analyser/diagnostics/fp/inj.rs::fp_inj_05_eval_string_fires_w101` (TP, fires)
+- `rust/tcl-lsp-server/tests/e2e/code_actions.rs::test_eval_string_to_list_action` (TP, code-action contract — the rewrite text is exercised more thoroughly in `rust/tcl-compiler/tests/checks.rs::TestEvalInjection`)
 
 ---
 
@@ -7184,13 +7221,13 @@ function ::top
 Phase-3 interval-domain entries: dynamic lindex / lset / string index /
 expr divide that's *provably* out-of-range / divide-by-zero against the
 tracked interval lattice.  The broader corpus lives in
-`tests/test_interval_bounds.py` (~30 tests covering escape sequences,
+`rust/tcl-compiler/tests/intervals.rs` (~30 tests covering escape sequences,
 Unicode, guard narrowing, etc.); these are the curated FP.md must-keeps.
 
 ### FP-BND-01 — W231 lset dynamic out-of-range loop index ($j > length) fires
 
 - **Verdict:** TRUE POSITIVE (Phase-3 dynamic bounds)
-- **Status:** locked in by `tests/test_fp_bnd.py::test_FP_BND_01_loop_index_past_append_slot_fires`
+- **Status:** locked in by `rust/tcl-compiler/src/analyser/diagnostics/fp/bnd.rs::fp_bnd_01_loop_index_past_append_slot_fires`
 - **Codes:** W231
 - **Corpus:** typo'd loop ranges past the list length (the bug that motivated Phase 3 — found by inspection in tcllib's `struct::list`).
 
@@ -7223,14 +7260,14 @@ list index out of range
 
 ```
 --- FP-BND-01: W231 lset dynamic out-of-range loop index ($j > length) fires
-regen: python -m bench.fp_snippets --id FP-BND-01
+regen: save the reproducer above and run `tcl explore <file> --show ssa --show sccp`  (FP-BND-01)
 function ::f
   block entry_1
     [0] AssignConst 'l' value='a b c'  defs={l#1}  uses={}
     [1] AssignConst 'j' value='4'  defs={j#1}  uses={}
     term Goto
   block for_header_2
-    phi  SSAPhi(name='j', version=2, incoming={'entry_1': 1, 'for_step_4': 3})
+    phi  `Phi`(name='j', version=2, incoming={'entry_1': 1, 'for_step_4': 3})
     term Branch ExprBinary(op=<BinOp.LT: '<'>, left=ExprVar(text='$j', name='j', start=0, end=1), right=ExprLiteral(text='9', start=5, end=5))
   block for_body_3
     [0] Call cmd='lset'  defs={l#2}  uses={j#2, v#0}
@@ -7252,18 +7289,18 @@ function ::f
 
 #### Why the analyser reaches that verdict
 
-`compiler/interval_bounds.py` consumes the SSA interval lattice for `j` and the literal list-length for `l`; emits the W231 finding via `analyser/_analyser/_diag_interval_bounds.py`.  The check uses `>` (not `>=`) to permit the append slot (FP-BND-02 / FP-NAB-01).
+`rust/tcl-compiler/src/interval_bounds.rs` consumes the SSA interval lattice for `j` and the literal list-length for `l`; emits the W231 finding via `rust/tcl-compiler/src/analyser/diagnostics/dataflow.rs`.  The check uses `>` (not `>=`) to permit the append slot (FP-BND-02 / FP-NAB-01).
 
 #### Tests
 
-- `tests/test_fp_bnd.py::test_FP_BND_01_loop_index_past_append_slot_fires` (TP)
+- `rust/tcl-compiler/src/analyser/diagnostics/fp/bnd.rs::fp_bnd_01_loop_index_past_append_slot_fires` (TP)
 
 ---
 
 ### FP-BND-02 — W231 dynamic append-slot ($j == length) IS silent (FP guard)
 
 - **Verdict:** FALSE POSITIVE (FP guard)
-- **Status:** locked in by `tests/test_fp_bnd.py::test_FP_BND_02_*`
+- **Status:** locked in by `rust/tcl-compiler/src/analyser/diagnostics/fp/bnd.rs::fp_bnd_02_*`
 - **Codes:** W231
 - **Corpus:** every lset-append idiom (struct::list, struct::matrix's column-add helpers).
 
@@ -7282,7 +7319,7 @@ proc f {v} {
 
 `lset l $j $v` with `set j 3` against `l = {a b c}` is the **dynamic append slot**: `j == length` is legal lset (it appends).  The dynamic check must mirror the literal-index path's `> length` (not `>= length`) comparison.
 
-Pre-fix the dynamic check used `>=` and fired W231 for the append slot.  Fix: `interval_bounds.py`'s lset entry uses `> length` so the append slot stays silent — parallel to FP-NAB-01.
+Pre-fix the dynamic check used `>=` and fired W231 for the append slot.  Fix: `rust/tcl-compiler/src/interval_bounds.rs`'s lset entry uses `> length` so the append slot stays silent — parallel to FP-NAB-01.
 
 #### tclsh ground truth
 
@@ -7295,7 +7332,7 @@ a b c X
 
 ```
 --- FP-BND-02: W231 dynamic append-slot ($j == length) IS silent (FP guard)
-regen: python -m bench.fp_snippets --id FP-BND-02
+regen: save the reproducer above and run `tcl explore <file> --show ssa --show sccp`  (FP-BND-02)
 function ::f
   block entry_1
     [0] AssignConst 'l' value='a b c'  defs={l#1}  uses={}
@@ -7310,19 +7347,19 @@ function ::f
 
 #### Why the analyser reaches that verdict
 
-`compiler/interval_bounds.py` uses strict `>` in the lset OOR comparison; matches the literal-arg check in `analyser/checks/_bounds.py`.
+`rust/tcl-compiler/src/interval_bounds.rs` uses strict `>` in the lset OOR comparison; matches the literal-arg check in `rust/tcl-compiler/src/analyser/bounds_checks.rs`.
 
 #### Tests
 
-- `tests/test_fp_bnd.py::test_FP_BND_02_dynamic_append_slot_silent` (FP)
-- `tests/test_fp_bnd.py::test_FP_BND_02_in_range_dynamic_silent` (FP control)
+- `rust/tcl-compiler/src/analyser/diagnostics/fp/bnd.rs::fp_bnd_02_dynamic_append_slot_silent` (FP)
+- `rust/tcl-compiler/src/analyser/diagnostics/fp/bnd.rs::fp_bnd_02_in_range_dynamic_silent` (FP control)
 
 ---
 
 ### FP-BND-03 — W232 string index past end ($i >= length) fires (string smell)
 
 - **Verdict:** TRUE POSITIVE (Phase-3 dynamic bounds)
-- **Status:** locked in by `tests/test_fp_bnd.py::test_FP_BND_03_*`
+- **Status:** locked in by `rust/tcl-compiler/src/analyser/diagnostics/fp/bnd.rs::fp_bnd_03_*`
 - **Codes:** W232
 - **Corpus:** string-extraction patterns where the index is past the source string (off-by-one bugs caught in tcllib's `textutil::*` modules).
 
@@ -7357,7 +7394,7 @@ No error — just an empty result.
 
 ```
 --- FP-BND-03: W232 string index past end ($i >= length) fires (string smell)
-regen: python -m bench.fp_snippets --id FP-BND-03
+regen: save the reproducer above and run `tcl explore <file> --show ssa --show sccp`  (FP-BND-03)
 function ::f
   block entry_1
     [0] AssignValue 's' value='hello'  defs={s#1}  uses={}
@@ -7369,21 +7406,21 @@ function ::f
 
 #### Why the analyser reaches that verdict
 
-`compiler/interval_bounds.py` tracks `string_length_map[ssa_version]` for each literal-set + `string` builtin; W232 fires when `i ∈ [length, +∞)`.  Backslash-escape resolution mirrors tclsh's character-count behaviour (see `tests/test_interval_bounds.py::TestDynamicStringIndex` for the escape-handling edge cases).
+`rust/tcl-compiler/src/interval_bounds.rs` tracks `string_length_map[ssa_version]` for each literal-set + `string` builtin; W232 fires when `i ∈ [length, +∞)`.  Backslash-escape resolution mirrors tclsh's character-count behaviour (see `rust/tcl-compiler/tests/intervals.rs::TestDynamicStringIndex` for the escape-handling edge cases).
 
 #### Tests
 
-- `tests/test_fp_bnd.py::test_FP_BND_03_string_index_past_end_fires` (TP)
-- `tests/test_fp_bnd.py::test_FP_BND_03_idx_equals_length_fires` (TP, idx == length is also OOR)
-- `tests/test_fp_bnd.py::test_FP_BND_03_in_range_silent` (FP control)
-- `tests/test_fp_bnd.py::test_FP_BND_03_unknown_string_silent` (FP control, unknowns)
+- `rust/tcl-compiler/src/analyser/diagnostics/fp/bnd.rs::fp_bnd_03_string_index_past_end_fires` (TP)
+- `rust/tcl-compiler/src/analyser/diagnostics/fp/bnd.rs::fp_bnd_03_idx_equals_length_fires` (TP, idx == length is also OOR)
+- `rust/tcl-compiler/src/analyser/diagnostics/fp/bnd.rs::fp_bnd_03_in_range_silent` (FP control)
+- `rust/tcl-compiler/src/analyser/diagnostics/fp/bnd.rs::fp_bnd_03_unknown_string_silent` (FP control, unknowns)
 
 ---
 
 ### FP-BND-04 — W233 division by a provably-zero divisor (constant $d=0) fires
 
 - **Verdict:** TRUE POSITIVE (Phase-3 deep finding)
-- **Status:** locked in by `tests/test_fp_bnd.py::test_FP_BND_04_*`
+- **Status:** locked in by `rust/tcl-compiler/src/analyser/diagnostics/fp/bnd.rs::fp_bnd_04_*`
 - **Codes:** W233
 - **Corpus:** off-by-one or zero-init bugs in arithmetic expressions (typical: forgotten loop-variable init).
 
@@ -7416,7 +7453,7 @@ divide by zero
 
 ```
 --- FP-BND-04: W233 division by a provably-zero divisor (constant $d=0) fires
-regen: python -m bench.fp_snippets --id FP-BND-04
+regen: save the reproducer above and run `tcl explore <file> --show ssa --show sccp`  (FP-BND-04)
 function ::f
   block entry_1
     [0] AssignConst 'd' value='0'  defs={d#1}  uses={}
@@ -7427,22 +7464,22 @@ function ::f
 
 #### Why the analyser reaches that verdict
 
-`compiler/intervals.py`'s expression evaluator detects division and modulo with `divisor.contains_zero()`; the deep-finding pass at `analyser/_analyser/_diag_interval_bounds.py` consumes the proof.
+`rust/tcl-compiler/src/intervals.rs`'s expression evaluator detects division and modulo with `divisor.contains_zero()`; the deep-finding pass at `rust/tcl-compiler/src/analyser/diagnostics/dataflow.rs` consumes the proof.
 
 #### Tests
 
-- `tests/test_fp_bnd.py::test_FP_BND_04_const_zero_divisor_fires` (TP, const variable)
-- `tests/test_fp_bnd.py::test_FP_BND_04_literal_div_zero_fires` (TP, literal 1/0)
-- `tests/test_fp_bnd.py::test_FP_BND_04_literal_mod_zero_fires` (TP, literal 5%0)
-- `tests/test_fp_bnd.py::test_FP_BND_04_nonzero_divisor_silent` (FP control)
-- `tests/test_fp_bnd.py::test_FP_BND_04_unknown_divisor_silent` (FP control, unknown)
+- `rust/tcl-compiler/src/analyser/diagnostics/fp/bnd.rs::fp_bnd_04_const_zero_divisor_fires` (TP, const variable)
+- `rust/tcl-compiler/src/analyser/diagnostics/fp/bnd.rs::fp_bnd_04_literal_div_zero_fires` (TP, literal 1/0)
+- `rust/tcl-compiler/src/analyser/diagnostics/fp/bnd.rs::fp_bnd_04_literal_mod_zero_fires` (TP, literal 5%0)
+- `rust/tcl-compiler/src/analyser/diagnostics/fp/bnd.rs::fp_bnd_04_nonzero_divisor_silent` (FP control)
+- `rust/tcl-compiler/src/analyser/diagnostics/fp/bnd.rs::fp_bnd_04_unknown_divisor_silent` (FP control, unknown)
 
 ---
 
 ### FP-BND-05 — W233 FP guard: dead ternary arm / short-circuit `1 || 1/0` is silent
 
 - **Verdict:** FALSE POSITIVE (FP guard, short-circuit semantics)
-- **Status:** locked in by `tests/test_fp_bnd.py::test_FP_BND_05_*`
+- **Status:** locked in by `rust/tcl-compiler/src/analyser/diagnostics/fp/bnd.rs::fp_bnd_05_*`
 - **Codes:** W233
 - **Corpus:** defensive programming idioms — `expr {$d != 0 ? $x / $d : 0}` and friends.
 
@@ -7481,7 +7518,7 @@ W233 must respect short-circuit semantics; firing in any of these positions woul
 
 ```
 --- FP-BND-05: W233 FP guard: dead ternary arm / short-circuit `1 || 1/0` is silent
-regen: python -m bench.fp_snippets --id FP-BND-05
+regen: save the reproducer above and run `tcl explore <file> --show ssa --show sccp`  (FP-BND-05)
 function ::f
   block entry_1
     term Return [expr {0 ? 1/0 : 7}]
@@ -7489,21 +7526,21 @@ function ::f
 
 #### Why the analyser reaches that verdict
 
-`compiler/intervals.py`'s expression-AST walker honours short-circuit semantics for `?:` / `&&` / `||` — it doesn't evaluate the unreachable operand.  The `if`-guard case is covered by SCCP branch pruning.
+`rust/tcl-compiler/src/intervals.rs`'s expression-AST walker honours short-circuit semantics for `?:` / `&&` / `||` — it doesn't evaluate the unreachable operand.  The `if`-guard case is covered by SCCP branch pruning.
 
 #### Tests
 
-- `tests/test_fp_bnd.py::test_FP_BND_05_dead_ternary_arm_silent` (FP, ternary)
-- `tests/test_fp_bnd.py::test_FP_BND_05_short_circuit_or_silent` (FP, ||)
-- `tests/test_fp_bnd.py::test_FP_BND_05_short_circuit_and_silent` (FP, &&)
-- `tests/test_fp_bnd.py::test_FP_BND_05_guard_excludes_zero_silent` (FP, if-guard)
+- `rust/tcl-compiler/src/analyser/diagnostics/fp/bnd.rs::fp_bnd_05_dead_ternary_arm_silent` (FP, ternary)
+- `rust/tcl-compiler/src/analyser/diagnostics/fp/bnd.rs::fp_bnd_05_short_circuit_or_silent` (FP, ||)
+- `rust/tcl-compiler/src/analyser/diagnostics/fp/bnd.rs::fp_bnd_05_short_circuit_and_silent` (FP, &&)
+- `rust/tcl-compiler/src/analyser/diagnostics/fp/bnd.rs::fp_bnd_05_guard_excludes_zero_silent` (FP, if-guard)
 
 ---
 
 ### FP-BND-06 — W233 fires when a non-integer constant guard forces the lazy arm
 
 - **Verdict:** TRUE POSITIVE (forced-arm guaranteed divide-by-zero) + paired FP guards
-- **Status:** locked in by `tests/test_fp_bnd.py::test_FP_BND_06_*`
+- **Status:** locked in by `rust/tcl-compiler/src/analyser/diagnostics/fp/bnd.rs::fp_bnd_06_*`
 - **Codes:** W233
 - **Corpus:** synthetic edge cases (no clean-corpus instance — a guaranteed `1/0` behind a
   constant-true guard is a bug clean libraries don't contain; corpus delta 0). tclsh-verified.
@@ -7520,7 +7557,7 @@ proc f {} {
 
 #### Per-line reasoning
 
-The forced-arm walk (`compiler/interval_bounds.py::_walk_eager`) decides whether a lazy
+The forced-arm walk (`rust/tcl-compiler/src/interval_bounds.rs::walk_eager`) decides whether a lazy
 operand is *guaranteed to run* by resolving its guard to a constant.  It originally used an
 int-only, case-sensitive helper (`intervals._literal_int`), so non-integer constant guards
 were treated as non-constant — the arm stayed "maybe-dead" and a guaranteed error in it was
@@ -7556,7 +7593,7 @@ divide by zero
 
 ```
 --- FP-BND-06: W233 fires when a non-integer constant guard forces the lazy arm
-regen: python -m bench.fp_snippets --id FP-BND-06
+regen: save the reproducer above and run `tcl explore <file> --show ssa --show sccp`  (FP-BND-06)
 function ::f
   block entry_1
     term Return [expr {1.0 && 1/0}]
@@ -7565,18 +7602,18 @@ function ::f
 #### Why the analyser reaches that verdict
 
 `_walk_eager` now resolves the guard with `expr_ast._const_bool` (True/False/None; floats +
-case-insensitive bools + unary fold), and `compiler/parsing/expr_lexer.py` recognises bool
+case-insensitive bools + unary fold), and `rust/tcl-lexer/src/expr_lexer.rs` recognises bool
 keywords case-insensitively so a capitalised bool reaches the AST as a literal.  `None` (not
 statically decidable) still leaves the arm skipped — the unchanged safe path.
 
 #### Tests
 
-- `tests/test_fp_bnd.py::test_FP_BND_06_float_guard_forces_arm_fires` (TP, float)
-- `tests/test_fp_bnd.py::test_FP_BND_06_uppercase_bool_guard_forces_arm_fires` (TP, case-insensitive bool)
-- `tests/test_fp_bnd.py::test_FP_BND_06_unary_constant_guard_forces_arm_fires` (TP, unary)
-- `tests/test_fp_bnd.py::test_FP_BND_06_false_constant_guard_short_circuits_silent` (FP, constant-false)
-- `tests/test_fp_bnd.py::test_FP_BND_06_nonconstant_guard_silent` (FP, non-constant)
-- broader edge coverage in `tests/test_interval_bounds.py::TestDivideByZero`
+- `rust/tcl-compiler/src/analyser/diagnostics/fp/bnd.rs::fp_bnd_06_float_guard_forces_arm_fires` (TP, float)
+- `rust/tcl-compiler/src/analyser/diagnostics/fp/bnd.rs::fp_bnd_06_uppercase_bool_guard_forces_arm_fires` (TP, case-insensitive bool)
+- `rust/tcl-compiler/src/analyser/diagnostics/fp/bnd.rs::fp_bnd_06_unary_constant_guard_forces_arm_fires` (TP, unary)
+- `rust/tcl-compiler/src/analyser/diagnostics/fp/bnd.rs::fp_bnd_06_false_constant_guard_short_circuits_silent` (FP, constant-false)
+- `rust/tcl-compiler/src/analyser/diagnostics/fp/bnd.rs::fp_bnd_06_nonconstant_guard_silent` (FP, non-constant)
+- broader edge coverage in `rust/tcl-compiler/tests/intervals.rs::TestDivideByZero`
 
 ---
 
@@ -7592,7 +7629,7 @@ or paren-only churn that produced thousands of corpus FPs (O110).
 ### FP-OPT-01 — O110 InstCombine: whitespace-only / paren-preservation / commutative reorder
 
 - **Verdict:** FALSE POSITIVE (now fixed; four sub-fixes)
-- **Status:** locked in by `tests/test_fp_opt.py::test_FP_OPT_01_*`
+- **Status:** locked in by `rust/tcl-compiler/src/analyser/diagnostics/fp/opt.rs::fp_opt_01_*`
 - **Codes:** O110 (Canonicalise expression / InstCombine)
 - **Corpus:** the four sub-fixes brought corpus O110 from **3641 → ~700-900** (-75 to -80%).
 
@@ -7618,7 +7655,7 @@ set x [expr {2 + $a}]
    on the ``expression_args`` / ``expr_substitutions`` paths drops
    whitespace-only rewrites.
 2. **Branch-folding whitespace**: the same guard applies to the
-   ``_branch_folding.py`` path so ``if {$x<0}`` no longer fires.
+   ``rust/tcl-compiler/src/optimiser/branch_folding.rs`` path so ``if {$x<0}`` no longer fires.
 3. **Paren preservation**: ``($a << 1) & 0xff`` keeps its parens per CERT
    EXP00-C — mixed bitwise/shift expressions cling to explicit precedence
    for reader clarity even when the parens are technically redundant.
@@ -7637,28 +7674,28 @@ it'd be wrong to apply.
 
 #### Why the analyser reaches that verdict
 
-- ``compiler/optimiser/_propagation.py`` — ``_strip_ws`` guard on
+- ``rust/tcl-compiler/src/optimiser/propagation.rs`` — ``_strip_ws`` guard on
   expression_args / expr_substitutions paths.
-- ``compiler/optimiser/_branch_folding.py`` — same ``_strip_ws`` guard.
-- ``compiler/optimiser/_expr_simplify.py`` — paren preservation for mixed
+- ``rust/tcl-compiler/src/optimiser/branch_folding.rs`` — same ``_strip_ws`` guard.
+- ``rust/tcl-compiler/src/optimiser/expr_simplify.rs`` — paren preservation for mixed
   bitwise/shift.
-- ``compiler/optimiser/_expr_simplify.py`` — commutative-reorder
+- ``rust/tcl-compiler/src/optimiser/expr_simplify.rs`` — commutative-reorder
   suppression when the swap yields no further fold.
 
 #### Tests
 
-- `tests/test_fp_opt.py::test_FP_OPT_01_whitespace_only_no_o110` (FP)
-- `tests/test_fp_opt.py::test_FP_OPT_01_branch_folding_whitespace_no_o110` (FP)
-- `tests/test_fp_opt.py::test_FP_OPT_01_paren_preserved_no_o110` (FP)
-- `tests/test_fp_opt.py::test_FP_OPT_01_commutative_reorder_no_o110` (FP)
-- `tests/test_fp_opt.py::test_FP_OPT_01_genuine_simplification_still_fires` (TP, `x + 0` → `x`)
+- `rust/tcl-compiler/src/analyser/diagnostics/fp/opt.rs::fp_opt_01_whitespace_only_no_o110` (FP)
+- `rust/tcl-compiler/src/analyser/diagnostics/fp/opt.rs::fp_opt_01_branch_folding_whitespace_no_o110` (FP)
+- `rust/tcl-compiler/src/analyser/diagnostics/fp/opt.rs::fp_opt_01_paren_preserved_no_o110` (FP)
+- `rust/tcl-compiler/src/analyser/diagnostics/fp/opt.rs::fp_opt_01_commutative_reorder_no_o110` (FP)
+- `rust/tcl-compiler/src/analyser/diagnostics/fp/opt.rs::fp_opt_01_genuine_simplification_still_fires` (TP, `x + 0` → `x`)
 
 ---
 
 ### FP-OPT-02 — O116 fold-const-list-command: empty `[list]` folds to `{}`, not `""`
 
 - **Verdict:** TRUE POSITIVE / quick-fix correctness bug (now fixed)
-- **Status:** locked in by `tests/test_fp_opt.py::test_FP_OPT_02_*`
+- **Status:** locked in by `rust/tcl-compiler/src/analyser/diagnostics/fp/opt.rs::fp_opt_02_*`
 - **Codes:** O116 (Fold constant list command)
 - **Corpus:** 346 corpus firings now apply cleanly.
 
@@ -7720,20 +7757,20 @@ empty-list literal).  Pre-fix it carried ``''``.
 
 #### Why the analyser reaches that verdict
 
-`compiler/optimiser/_helpers.py::_try_fold_list_command` returns ``"{}"``
+`rust/tcl-compiler/src/optimiser/helpers/::_try_fold_list_command` returns ``"{}"``
 (not ``""``) when ``cmd_texts == ["list"]`` — see the inline comment
 about the source-position requirement.
 
 #### Tests
 
-- `tests/test_fp_opt.py::test_FP_OPT_02_empty_list_quick_fix_uses_braces` (TP/correctness)
+- `rust/tcl-compiler/src/analyser/diagnostics/fp/opt.rs::fp_opt_02_empty_list_quick_fix_uses_braces` (TP/correctness)
 
 ---
 
 ### FP-OPT-03 — O106 LICM purity: outer-pure / inner-impure expression NOT hoistable
 
 - **Verdict:** FALSE POSITIVE (now fixed)
-- **Status:** locked in by `tests/test_fp_opt.py::test_FP_OPT_03_*`
+- **Status:** locked in by `rust/tcl-compiler/src/analyser/diagnostics/fp/opt.rs::fp_opt_03_*`
 - **Codes:** O106 (Hoist loop-invariant computation)
 - **Corpus:** `tmp/tcllib-2.0/modules/clay/build/test.tcl:686` (`[format %04d [incr testnum]]`).
 
@@ -7777,22 +7814,22 @@ The same logic applies to ``[read $fh 512]`` (per-call channel consumption).
 
 #### Why the analyser reaches that verdict
 
-`compiler/gvn.py::_is_pure_command` recurses into
+`rust/tcl-compiler/src/gvn.rs::is_pure_command` recurses into
 ``ExprCommand`` argument subtrees; any inner impure command marks the
 whole expression impure.  ``_parse_cmd_token`` re-wraps CMD-sub arg
 pieces in ``[...]`` so the recursion sees them.
 
 #### Tests
 
-- `tests/test_fp_opt.py::test_FP_OPT_03_inner_impure_blocks_licm` (FP)
-- `tests/test_fp_opt.py::test_FP_OPT_03_outer_pure_inner_pure_still_fires` (TP control)
+- `rust/tcl-compiler/src/analyser/diagnostics/fp/opt.rs::fp_opt_03_inner_impure_blocks_licm` (FP)
+- `rust/tcl-compiler/src/analyser/diagnostics/fp/opt.rs::fp_opt_03_outer_pure_inner_pure_still_fires` (TP control)
 
 ---
 
 ### FP-OPT-04 — O109/O126 dead-store/unused: call-by-name through user procs is a real use
 
 - **Verdict:** FALSE POSITIVE (now fixed)
-- **Status:** locked in by `tests/test_fp_opt.py::test_FP_OPT_04_*`
+- **Status:** locked in by `rust/tcl-compiler/src/analyser/diagnostics/fp/opt.rs::fp_opt_04_*`
 - **Codes:** O109 (dead store), O126 (remove unused), W211/W220 (analyser equivalents)
 - **Corpus:** `tmp/tcllib-2.0/modules/asn/asn.tcl` and similar `upvar`-using modules.
 
@@ -7826,11 +7863,11 @@ proc decode {data} {
 Fix: the call-by-name suppression already on W211/W220 (commit
 extending ``ProcDef.param_traits`` consumers) was extended to the
 optimiser's DCE pass — both layers now share
-``compiler/proc_arg_traits.py``.  Also extended to literal-name args
+``rust/tcl-compiler/src/analyser/param_traits.rs``.  Also extended to literal-name args
 inside ``[…]`` substitutions (the dominant tcllib shape:
 ``set len [asnPeekTag data tag type dummy]``) — the scanner walks
-``IRAssignValue.value`` raw text, ``IRAssignExpr`` /
-``IRExprEval`` / ``IRReturn`` expr trees for nested ``ExprCommand``
+``Statement::AssignValue``'s raw value text, and the ``AssignExpr`` /
+``ExprEval`` / ``Return`` expression trees for nested ``ExprCommand``
 nodes, and applies the same suppression.
 
 #### tclsh ground truth
@@ -7854,7 +7891,7 @@ reads them after the call.
 
 #### Why the analyser reaches that verdict
 
-`compiler/proc_arg_traits.py::collect_call_by_name_reads` is consulted
+`rust/tcl-compiler/src/interprocedural.rs::collect_call_by_name_reads` is consulted
 by both the analyser's W211/W220 emitters and the optimiser's O109/O126
 emitters; it returns the set of caller-local names passed by literal to
 a callee with VAR_READ/VAR_WRITE traits.  Sample tcllib asn.tcl: W211
@@ -7862,15 +7899,15 @@ firings 2→0.
 
 #### Tests
 
-- `tests/test_fp_opt.py::test_FP_OPT_04_call_by_name_suppresses_dead_store` (FP)
-- `tests/test_fp_opt.py::test_FP_OPT_04_genuine_dead_store_still_fires` (TP control)
+- `rust/tcl-compiler/src/analyser/diagnostics/fp/opt.rs::fp_opt_04_call_by_name_suppresses_dead_store` (FP)
+- `rust/tcl-compiler/src/analyser/diagnostics/fp/opt.rs::fp_opt_04_genuine_dead_store_still_fires` (TP control)
 
 ---
 
 ### FP-OPT-05 — O126 unused-assign elimination must NOT delete an RHS with observable side effects (D2-O126)
 
 - **Verdict:** TRUE POSITIVE / soundness fix (now fixed)
-- **Status:** locked in by `tests/test_fp_opt.py::test_FP_OPT_05_*`
+- **Status:** locked in by `rust/tcl-compiler/src/analyser/diagnostics/fp/opt.rs::fp_opt_05_*`
 - **Codes:** O126 (remove unused) and the W211/W220 analyser equivalents
 - **Corpus:** synthetic — verified vs tclsh 9.0.3
 - **Tracker:** [`review-findings-tracker.md`](review-findings-tracker.md) — entry D2-O126
@@ -7886,7 +7923,7 @@ proc f {} { set unused [puts side]; puts done }
 1. `set unused [puts side]` — the assignment IS unused (nobody reads `unused`).  But the RHS `[puts side]` prints `side` to stdout — a real, observable side effect.
 2. `puts done` — prints `done`.
 3. tclsh runs the original and prints `side` then `done`; deleting the assignment (pre-fix O126 behaviour) silently dropped the `puts side` and the optimised program printed only `done`.  That's a real soundness bug.
-4. D2-O126 closure: the purity gate `_assignment_safe_to_delete` consults `_word_has_observable_side_effect` / `_expr_has_observable_side_effect` (compiler/optimiser/_elimination.py).  Any RHS whose command is in the side-effect set (puts, file I/O, channel ops, exec, etc.) blocks the deletion.
+4. D2-O126 closure: the purity gate `_assignment_safe_to_delete` consults `_word_has_observable_side_effect` / `_expr_has_observable_side_effect` (rust/tcl-compiler/src/optimiser/elimination.rs).  Any RHS whose command is in the side-effect set (puts, file I/O, channel ops, exec, etc.) blocks the deletion.
 
 #### tclsh ground truth (9.0.3 — confirmed by execution)
 
@@ -7903,7 +7940,7 @@ Pre-fix optimised version produced only `done`.
 
 ```
 --- FP-OPT-05: O126 must NOT delete an RHS with observable side effects (D2-O126)
-regen: python -m bench.fp_snippets --id FP-OPT-05
+regen: save the reproducer above and run `tcl explore <file> --show ssa --show sccp`  (FP-OPT-05)
 function ::f
   block entry_1
     [0] AssignValue 'unused' value='[puts side]'  defs={unused#1}  uses={}
@@ -7914,27 +7951,27 @@ function ::f
   unused_variables
     UnusedVariable(block='entry_1', statement_index=0, variable='unused')
 ```
-(regen: `python -m bench.fp_snippets --id FP-OPT-05`)
+(regen: `tcl explore <file> --show ssa --show sccp`)
 
 The analysis still records `unused` as an unused-variable (W211 / O126 candidate); the optimiser then declines to emit O126 because the RHS purity gate refuses.
 
 #### Why the analyser reaches that verdict
 
-`compiler/optimiser/_elimination.py:30-115` — `_word_has_observable_side_effect`, `_expr_has_observable_side_effect`, and `_assignment_safe_to_delete` walk the RHS text/expr, recognise command words that are known impure (`puts`, `exec`, file I/O, channel ops, etc.), and refuse the deletion when any impure command is present.
+`rust/tcl-compiler/src/optimiser/elimination.rs:30-115` — `_word_has_observable_side_effect`, `_expr_has_observable_side_effect`, and `_assignment_safe_to_delete` walk the RHS text/expr, recognise command words that are known impure (`puts`, `exec`, file I/O, channel ops, etc.), and refuse the deletion when any impure command is present.
 
 #### Tests
 
-- `tests/test_fp_opt.py::test_FP_OPT_05_o126_preserves_puts_side_effect` (TP — optimiser must NOT fire O126)
-- `tests/test_fp_opt.py::test_FP_OPT_05_o126_pure_rhs_still_fires` (TP control — pure RHS like `[list 1 2 3]` IS safe to delete)
-- `tests/test_ground_truth_tn_fn.py::test_TP_optimiser_O126_preserves_puts_side_effect`
-- `tests/test_ground_truth_tn_fn.py::test_TP_optimiser_O126_keeps_for_pure_RHS`
+- `rust/tcl-compiler/src/analyser/diagnostics/fp/opt.rs::fp_opt_05_o126_preserves_puts_side_effect` (TP — optimiser must NOT fire O126)
+- `rust/tcl-compiler/src/analyser/diagnostics/fp/opt.rs::fp_opt_05_o126_pure_rhs_still_fires` (TP control — pure RHS like `[list 1 2 3]` IS safe to delete)
+- `rust/tcl-compiler/src/analyser/diagnostics/fp/opt.rs::fp_opt_05_o126_preserves_puts_side_effect`
+- `rust/tcl-compiler/src/analyser/diagnostics/fp/opt.rs::fp_opt_05_o126_pure_rhs_still_fires`
 
 ---
 
 ### FP-OPT-06 — O100/O109/O127: command-substitution writes are SSA kills (D2-O100)
 
 - **Verdict:** TRUE POSITIVE / soundness fix (now fixed; one root cause across three codes)
-- **Status:** locked in by `tests/test_fp_opt.py::test_FP_OPT_06_*`
+- **Status:** locked in by `rust/tcl-compiler/src/analyser/diagnostics/fp/opt.rs::fp_opt_06_*`
 - **Codes:** O100 (constant propagation), O109 (dead-store elimination), O127 (load-forwarding)
 - **Corpus:** synthetic — verified vs tclsh 9.0.3
 - **Tracker:** [`review-findings-tracker.md`](review-findings-tracker.md) — entries D2-O100, D2-O109, D2-O127
@@ -7968,7 +8005,7 @@ Pre-fix optimised version produced `a` then `b`.
 
 ```
 --- FP-OPT-06: O100/O109/O127: cmd-sub writes are SSA kills (D2-O100)
-regen: python -m bench.fp_snippets --id FP-OPT-06
+regen: save the reproducer above and run `tcl explore <file> --show ssa --show sccp`  (FP-OPT-06)
 function ::f
   block entry_1
     [0] AssignValue 'x' value='a'  defs={x#1}  uses={}
@@ -7982,25 +8019,25 @@ function ::f
     x#1: CONST('a')
     y#1: OVERDEFINED
 ```
-(regen: `python -m bench.fp_snippets --id FP-OPT-06`)
+(regen: `tcl explore <file> --show ssa --show sccp`)
 
 `x#1` still shows `CONST('a')` in the static lattice (SCCP can't model the runtime mutation), but the optimiser's `kill_sites` map invalidates `x` at the `[append x b]` site, so no `puts a` propagation rewrite is emitted.
 
 #### Why the analyser reaches that verdict
 
-`compiler/optimiser/_manager.py:208-225` — `statement_cmd_sub_write_names` (from `compiler.ssa`) returns the set of variable names that any cmd-sub in the statement writes to.  Those names are appended to `kill_sites` for the statement; the propagation pass consults `kill_sites` and refuses to propagate values across the kill.
+`rust/tcl-compiler/src/optimiser/manager.rs:208-225` — `statement_cmd_sub_write_names` (from `compiler.ssa`) returns the set of variable names that any cmd-sub in the statement writes to.  Those names are appended to `kill_sites` for the statement; the propagation pass consults `kill_sites` and refuses to propagate values across the kill.
 
 #### Tests
 
-- `tests/test_fp_opt.py::test_FP_OPT_06_o100_does_not_propagate_past_cmd_sub_write` (TP)
-- `tests/test_ground_truth_tn_fn.py::test_TP_optimiser_O100_does_not_propagate_past_cmd_sub_write`
+- `rust/tcl-compiler/src/analyser/diagnostics/fp/opt.rs::fp_opt_06_o100_does_not_propagate_past_cmd_sub_write` (TP)
+- `rust/tcl-compiler/src/analyser/diagnostics/fp/opt.rs::fp_opt_06_o100_does_not_propagate_past_cmd_sub_write`
 
 ---
 
 ### FP-OPT-07 — O126 extends `_assignment_safe_to_delete` to interproc purity summaries (D2-O126-FU)
 
 - **Verdict:** TRUE POSITIVE / precision follow-up to D2-O126 (now fixed)
-- **Status:** locked in by `tests/test_fp_opt.py::test_FP_OPT_07_*`
+- **Status:** locked in by `rust/tcl-compiler/src/analyser/diagnostics/fp/opt.rs::fp_opt_07_*`
 - **Codes:** O126 (remove unused) and the W211/W220 analyser equivalents
 - **Corpus:** synthetic — verified vs tclsh 9.0.3
 - **Tracker:** [`review-findings-tracker.md`](review-findings-tracker.md) — entry D2-O126-FU
@@ -8016,7 +8053,7 @@ proc f {} { set unused [add 1 2]; puts done }
 
 1. `proc add {a b} { expr {$a + $b} }` — arithmetic-only body, no I/O, no observable state mutation.  The interprocedural fixpoint marks `add` as `pure=True`.
 2. `proc f {}` — `set unused [add 1 2]` has an unused LHS and a pure RHS.  D2-O126 (the base purity gate) refused to delete because the RHS was a user-proc call and the gate didn't know about interproc purity.
-3. D2-O126-FU closure: `optimise_elimination_passes` now builds `interproc_pure = frozenset(qname for qname, summary in ... if summary.pure)` and threads it through to `_word_has_observable_side_effect` / `_expr_has_observable_side_effect` / `_assignment_safe_to_delete`.  When the RHS command is in `interproc_pure`, deletion is allowed.
+3. D2-O126-FU closure: the elimination pass builds an `interproc_pure: HashSet<String>` of the qualified user-proc names the interprocedural summaries prove pure, and threads it through the observable-side-effect / safe-to-delete predicates (`rust/tcl-compiler/src/optimiser/elimination.rs`).  When the RHS command is in `interproc_pure`, deletion is allowed; the lookup tries both the bare and `::`-qualified spellings.
 4. Counter-example: when `add` were `puts $a; expr {$a + $b}`, the interproc fixpoint would mark `add` as `pure=False`, the gate would refuse, and O126 would correctly not fire.
 
 #### tclsh ground truth (9.0.3 — confirmed by execution)
@@ -8034,7 +8071,7 @@ done
 
 ```
 --- FP-OPT-07: O126 extends to pure user-proc RHS via interproc purity (D2-O126-FU)
-regen: python -m bench.fp_snippets --id FP-OPT-07
+regen: save the reproducer above and run `tcl explore <file> --show ssa --show sccp`  (FP-OPT-07)
 function ::f
   block entry_1
     [0] AssignValue 'unused' value='[add 1 2]'  defs={unused#1}  uses={}
@@ -8045,29 +8082,29 @@ function ::f
   unused_variables
     UnusedVariable(block='entry_1', statement_index=0, variable='unused')
 ```
-(regen: `python -m bench.fp_snippets --id FP-OPT-07`)
+(regen: `tcl explore <file> --show ssa --show sccp`)
 
 The unused-variable record is still produced; with `interproc_pure={"::add"}` the optimiser's `_assignment_safe_to_delete` accepts the deletion and emits O126.
 
 #### Why the analyser reaches that verdict
 
-`compiler/optimiser/_elimination.py` — `optimise_elimination_passes` constructs `interproc_pure` from the `InterprocSummary.pure==True` set and passes it down through `_word_has_observable_side_effect` (line 30-95) and `_expr_has_observable_side_effect` (line 96-115) into `_assignment_safe_to_delete`.
+`rust/tcl-compiler/src/optimiser/elimination.rs` — `optimise_elimination_passes` constructs `interproc_pure` from the `InterprocSummary.pure==True` set and passes it down through `_word_has_observable_side_effect` (line 30-95) and `_expr_has_observable_side_effect` (line 96-115) into `_assignment_safe_to_delete`.
 
-TclOO `method` purity (`ClassDef.method_purity`) is NOT yet wired; method calls still go through `IRCall my <method>` which `classify_side_effects` treats as impure — a follow-up if needed.
+TclOO `method` purity (`ClassDef.method_purity`) is NOT yet wired; method calls still go through a `Statement::Call` of `my <method>` which `classify_side_effects` treats as impure — a follow-up if needed.
 
 #### Tests
 
-- `tests/test_fp_opt.py::test_FP_OPT_07_pure_user_proc_rhs_is_deleted` (TP)
-- `tests/test_fp_opt.py::test_FP_OPT_07_impure_user_proc_rhs_preserved` (TN control)
-- `tests/test_ground_truth_tn_fn.py::test_TP_O126_pure_user_proc_RHS_is_deleted`
-- `tests/test_ground_truth_tn_fn.py::test_TN_O126_impure_user_proc_RHS_preserved`
+- `rust/tcl-compiler/src/analyser/diagnostics/fp/opt.rs::fp_opt_07_pure_user_proc_rhs_is_deleted` (TP)
+- `rust/tcl-compiler/src/analyser/diagnostics/fp/opt.rs::fp_opt_07_impure_user_proc_rhs_preserved` (TN control)
+- `rust/tcl-compiler/src/analyser/diagnostics/fp/opt.rs::fp_opt_07_pure_user_proc_rhs_is_deleted`
+- `rust/tcl-compiler/src/analyser/diagnostics/fp/opt.rs::fp_opt_07_impure_user_proc_rhs_preserved`
 
 ---
 
 ### FP-OPT-08 — O109/O126 overlap filter: `segment_commands` + EXPR/BODY descent (D4-F10)
 
 - **Verdict:** TRUE POSITIVE / cleanup that fixes corner-case unsoundness (now fixed)
-- **Status:** locked in by `tests/test_fp_opt.py::test_FP_OPT_08_*`
+- **Status:** locked in by `rust/tcl-compiler/src/analyser/diagnostics/fp/opt.rs::fp_opt_08_*`
 - **Codes:** O109 (dead-store elimination), O126 (remove unused)
 - **Corpus:** synthetic — verified vs tclsh 9.0.3
 - **Tracker:** [`review-findings-tracker.md`](review-findings-tracker.md) — entry D4-F10
@@ -8089,7 +8126,7 @@ proc f {} {
 1. `set a 1` — `a` is `1`.  SCCP folds it; O112 will eventually rewrite the outer `if {$a} { … }` into the inner `if {$b} { puts X }` (constant-true branch).
 2. `set b 0` — `b` is `0`.  SCCP folds it too; if the outer rewrite happens first, the surviving statement is `if {$b} { puts X }` — which still references `$b`.
 3. The overlap filter must therefore NOT let O109/O126 delete `set b 0` (because the O112 replacement still uses `$b`).  Pre-fix the filter extracted the LHS of the proposed deletion via `text.split(None, 2)`, which fell over on braced/quoted words, escaped whitespace, qualified `::set` spellings, etc.  And the var-reference scanner that finds `$b` in the surviving replacement only looked at top-level VAR tokens — it missed `$b` inside an `if`-condition EXPR-role arg.
-4. D4-F10 closure: (a) the LHS extraction now uses `segment_commands(text)` + `normalise_var_name` (compiler/optimiser/_manager.py:436-461); (b) the var scanner enables `recurse_into_script_roles=True` + `recurse_into_expr_roles=True` (line 419-426) so it descends into `if`/`while`/`for` condition + body words.
+4. D4-F10 closure: (a) the LHS extraction now uses `segment_commands(text)` + `normalise_var_name` (rust/tcl-compiler/src/optimiser/manager.rs:436-461); (b) the var scanner enables `recurse_into_script_roles=True` + `recurse_into_expr_roles=True` (line 419-426) so it descends into `if`/`while`/`for` condition + body words.
 
 #### tclsh ground truth (9.0.3 — confirmed by execution)
 
@@ -8105,7 +8142,7 @@ Pre-fix the optimiser could delete `set b 0` and then leave `if {$b} { puts X }`
 
 ```
 --- FP-OPT-08: O109/O126 overlap filter: segment_commands + EXPR/BODY descent (D4-F10)
-regen: python -m bench.fp_snippets --id FP-OPT-08
+regen: save the reproducer above and run `tcl explore <file> --show ssa --show sccp`  (FP-OPT-08)
 function ::f
   block entry_1
     [0] AssignConst 'a' value='1'  defs={a#1}  uses={}
@@ -8127,25 +8164,25 @@ function ::f
   block exit_8
     term (none — fall-through exit)
 ```
-(regen: `python -m bench.fp_snippets --id FP-OPT-08`)
+(regen: `tcl explore <file> --show ssa --show sccp`)
 
 `if_then_3` branches on `$b` (the EXPR-role condition); the recurse-into-EXPR var scanner catches this `$b` reference and blocks O109/O126 from deleting `set b 0`.
 
 #### Why the analyser reaches that verdict
 
-`compiler/optimiser/_manager.py:419-465` — the `VarReferenceScanner` for O112 replacements is constructed with `recurse_into_script_roles=True, recurse_into_expr_roles=True` (line 421-425), so it walks into the EXPR-role `if`-condition.  The overlap filter (line 440-464) uses `segment_commands(text)` to extract the proposed deletion's LHS — Tcl-parser-correct instead of `split(None, 2)`.
+`rust/tcl-compiler/src/optimiser/manager.rs:419-465` — the `VarReferenceScanner` for O112 replacements is constructed with `recurse_into_script_roles=True, recurse_into_expr_roles=True` (line 421-425), so it walks into the EXPR-role `if`-condition.  The overlap filter (line 440-464) uses `segment_commands(text)` to extract the proposed deletion's LHS — Tcl-parser-correct instead of `split(None, 2)`.
 
 #### Tests
 
-- `tests/test_fp_opt.py::test_FP_OPT_08_nested_if_constant_chain_does_not_delete_inner_var` (TP — confirms the optimised source doesn't break the inner if)
-- `tests/test_fp_opt.py::test_FP_OPT_08_unrelated_set_still_eligible_for_o126` (TN control — when no surviving replacement references the var, the deletion is still allowed)
+- `rust/tcl-compiler/src/analyser/diagnostics/fp/opt.rs::fp_opt_08_nested_if_constant_chain_does_not_delete_inner_var` (TP — confirms the optimised source doesn't break the inner if)
+- `rust/tcl-compiler/src/analyser/diagnostics/fp/opt.rs::fp_opt_08_unrelated_set_still_eligible_for_o126` (TN control — when no surviving replacement references the var, the deletion is still allowed)
 
 ---
 
 ### FP-OPT-09 — O110 identity/annihilator drops require provably-numeric operand (D5-O110)
 
 - **Verdict:** TRUE POSITIVE / soundness fix (now fixed)
-- **Status:** locked in by `tests/test_fp_opt.py::test_FP_OPT_09_*`
+- **Status:** locked in by `rust/tcl-compiler/src/analyser/diagnostics/fp/opt.rs::fp_opt_09_*`
 - **Codes:** O110 (canonicalise expression / InstCombine)
 - **Corpus:** synthetic — verified vs tclsh 9.0.3
 - **Tracker:** [`review-findings-tracker.md`](review-findings-tracker.md) — entry D5-O110
@@ -8189,7 +8226,7 @@ The pre-rewrite ERRORS; the post-rewrite SILENTLY SUCCEEDS — the rewrite is un
 
 ```
 --- FP-OPT-09: O110 identity/annihilator drops require provably-numeric operand (D5-O110)
-regen: python -m bench.fp_snippets --id FP-OPT-09
+regen: save the reproducer above and run `tcl explore <file> --show ssa --show sccp`  (FP-OPT-09)
 function ::f
   block entry_1
     [0] AssignExpr 'y'  defs={y#1}  uses={x#0}
@@ -8200,27 +8237,27 @@ function ::f
   types
     y#1: NUMERIC
 ```
-(regen: `python -m bench.fp_snippets --id FP-OPT-09`)
+(regen: `tcl explore <file> --show ssa --show sccp`)
 
 `x#0` is the entry version (param) and carries no type lattice entry — the predicate falls back to "not provably numeric" and the rewrite is skipped.
 
 #### Why the analyser reaches that verdict
 
-`compiler/optimiser/_expr_simplify.py` — `_simplify_expr_node` and `_simplify_to_fixpoint` now take `ssa_uses` and `types` kwargs threaded from `_instcombine_expr` through `optimise_expression_args` / `optimise_expr_substitutions` / `optimise_branch_conditions`.  Each identity/annihilator rewrite that drops an operand calls `_is_provably_numeric_expr_node(operand, ssa_uses=ssa_uses, types=types)` and bails when it returns False.
+`rust/tcl-compiler/src/optimiser/expr_simplify.rs` — `_simplify_expr_node` and `_simplify_to_fixpoint` now take `ssa_uses` and `types` kwargs threaded from `_instcombine_expr` through `optimise_expression_args` / `optimise_expr_substitutions` / `optimise_branch_conditions`.  Each identity/annihilator rewrite that drops an operand calls `_is_provably_numeric_expr_node(operand, ssa_uses=ssa_uses, types=types)` and bails when it returns False.
 
 For literals the predicate is trivially True (the parser only emits ExprLiteral for int/float/boolean); for SCCP-substituted ExprString it parses the text; for ExprVar it looks up the SSA type lattice at the use site.  Strength-reduction rewrites (`x ** 2` → `x * x`, `x % (2^N)` → `x & (2^N - 1)`) keep `x` as an operand on both sides, so error semantics are preserved without a guard.
 
 #### Tests
 
-- `tests/test_fp_opt.py::test_FP_OPT_09_unknown_type_param_blocks_identity_rewrite` (TP)
-- `tests/test_fp_opt.py::test_FP_OPT_09_provably_numeric_var_still_fires` (TN control)
+- `rust/tcl-compiler/src/analyser/diagnostics/fp/opt.rs::fp_opt_09_unknown_type_param_blocks_identity_rewrite` (TP)
+- `rust/tcl-compiler/src/analyser/diagnostics/fp/opt.rs::fp_opt_09_provably_numeric_var_still_fires` (TN control)
 
 ---
 
 ### FP-OPT-10 — O114 set/expr -> incr requires SSA-known INT type on the loop var (D5-O114)
 
 - **Verdict:** TRUE POSITIVE / soundness fix (now fixed)
-- **Status:** locked in by `tests/test_fp_opt.py::test_FP_OPT_10_*`
+- **Status:** locked in by `rust/tcl-compiler/src/analyser/diagnostics/fp/opt.rs::fp_opt_10_*`
 - **Codes:** O114 (use `incr` instead of `set`/`expr`)
 - **Corpus:** synthetic — verified vs tclsh 9.0.3
 - **Tracker:** [`review-findings-tracker.md`](review-findings-tracker.md) — entry D5-O114
@@ -8239,7 +8276,7 @@ foo 1.5
 
 1. `proc foo {x}` — parameter `x` has UNKNOWN type at entry; SCCP can't prove `x` is an integer.
 2. `set x [expr {$x + 1}]` — the syntactic shape matches the O114 idiom (set-self-plus-integer-literal), but `expr {$x + 1}` on a float silently promotes (tclsh: `foo 1.5` → `2.5`), while `incr x` errors with `expected integer but got "1.5"`.  The rewrite turns successful execution into a runtime error.
-3. D5-O114 closure: `optimise_incr_idioms` now takes `analysis` and, before calling `_try_incr_idiom`, checks `analysis.types[(var, ver)].tcl_type is TclType.INT` for the variable's SSA use version.  Only INT is accepted — DOUBLE, NUMERIC (the join of INT and DOUBLE), BOOLEAN, OBJECT and unknown are all conservatively refused.  `_try_incr_idiom` itself gained a `var_is_int=False` default kwarg that bails fast.
+3. D5-O114 closure: the O114 incr-idiom recogniser now consults the type lattice before rewriting, requiring the variable's SSA use version to be a KNOWN `TclType::Int`.  Only `Int` is accepted — `Double`, `Numeric` (the join of the two), `Boolean`, `Object`, and unknown are all conservatively refused.
 4. Counter-example: `for {set x 0} {$x < $n} {incr x} { set x [expr {$x + 1}]; puts $x }` — the for-loop initialiser + `incr` typecheck `x` as INT (OVERDEFINED value at the use site but KNOWN INT type); the rewrite fires correctly.
 
 #### tclsh ground truth (9.0.3 — confirmed by execution)
@@ -8263,7 +8300,7 @@ The pre-rewrite SUCCEEDS with a float result; the post-rewrite ERRORS — not be
 
 ```
 --- FP-OPT-10: O114 set/expr -> incr requires SSA-known INT type on the loop var (D5-O114)
-regen: python -m bench.fp_snippets --id FP-OPT-10
+regen: save the reproducer above and run `tcl explore <file> --show ssa --show sccp`  (FP-OPT-10)
 function ::foo
   block entry_1
     [0] AssignExpr 'x'  defs={x#1}  uses={x#0}
@@ -8274,28 +8311,28 @@ function ::foo
   types
     x#1: NUMERIC
 ```
-(regen: `python -m bench.fp_snippets --id FP-OPT-10`)
+(regen: `tcl explore <file> --show ssa --show sccp`)
 
 `x#0` is the param entry version with no type lattice entry — the predicate falls back to "not INT" and the rewrite is skipped.
 
 #### Why the analyser reaches that verdict
 
-`compiler/optimiser/_pattern_recognition.py::optimise_incr_idioms` now accepts the `analysis` arg from `compiler/optimiser/_manager.py:197` and, for each candidate `set X [expr {$X + N}]`, looks up the SSA use version of `X` in `ssa_block.statements[idx].uses` and checks `analysis.types[(X, ver)].tcl_type is TclType.INT` (and `kind is TypeKind.KNOWN`).  Only INT passes the gate.  `_try_incr_idiom` in `compiler/optimiser/_helpers.py` short-circuits to None when `var_is_int=False`.
+`rust/tcl-compiler/src/optimiser/pattern_recognition.rs` (`try_incr_idiom`) reads the analysis from the pass context and, for each candidate `set X [expr {$X + N}]`, looks up the SSA use version of `X` in the block's statement `uses` and requires `types[(X, ver)]` to be `TypeKind::Known` with `TclType::Int`.  Only `Int` passes the gate; anything else short-circuits to no rewrite.
 
 DOUBLE, NUMERIC, BOOLEAN, OBJECT — and the more common UNKNOWN/OVERDEFINED — are all refused.  This is conservative on purpose: only INT guarantees `incr`'s arithmetic semantics match `expr`'s.
 
 #### Tests
 
-- `tests/test_fp_opt.py::test_FP_OPT_10_unknown_type_param_blocks_incr_rewrite` (TP)
-- `tests/test_fp_opt.py::test_FP_OPT_10_provably_int_var_still_fires` (TN control)
-- `tests/test_optimiser_coverage.py::TestO114IncrIdiom::test_no_incr_on_unknown_type_param` (TP)
+- `rust/tcl-compiler/src/analyser/diagnostics/fp/opt.rs::fp_opt_10_unknown_type_param_blocks_incr_rewrite` (TP)
+- `rust/tcl-compiler/src/analyser/diagnostics/fp/opt.rs::fp_opt_10_provably_int_var_still_fires` (TN control)
+- `rust/tcl-compiler/tests/optimiser_coverage.rs::TestO114IncrIdiom::test_no_incr_on_unknown_type_param` (TP)
 
 ---
 
 ### FP-OPT-11 — O120 ==/!= → eq/ne requires at-least-one provably-non-numeric operand (D5-O120)
 
 - **Verdict:** TRUE POSITIVE / soundness fix (now fixed)
-- **Status:** locked in by `tests/test_fp_opt.py::test_FP_OPT_11_*`
+- **Status:** locked in by `rust/tcl-compiler/src/analyser/diagnostics/fp/opt.rs::fp_opt_11_*`
 - **Codes:** O120 (prefer `eq`/`ne` over `==`/`!=` for string comparison)
 - **Corpus:** synthetic — verified vs tclsh 9.0.3
 - **Tracker:** [`review-findings-tracker.md`](review-findings-tracker.md) — entry D5-O120
@@ -8325,9 +8362,8 @@ proc f {raw} {
    on **both** operands; falls through to **string** compare iff at
    least one operand fails to parse.  So the rewrite `==` → `eq` is
    sound iff we can prove at least one operand cannot parse as a number.
-4. **D5-O120 closure:** `_rewrite_eq_ne_string_compare_node` now
-   requires **at least one** operand to satisfy
-   `_is_provably_non_numeric_expr_node`, defined as:
+4. **D5-O120 closure:** the rewrite now requires **at least one** operand
+   to be provably non-numeric, defined as:
    - `ExprString` literal AND text fails `_is_numeric_string_value`, OR
    - `ExprVar` AND SCCP CONST value is a non-numeric string.
 
@@ -8364,7 +8400,7 @@ proc f {raw} {
 
 ```
 --- FP-OPT-11: O120 ==/!= -> eq/ne requires at-least-one provably-non-numeric operand (D5-O120)
-regen: python -m bench.fp_snippets --id FP-OPT-11
+regen: save the reproducer above and run `tcl explore <file> --show ssa --show sccp`  (FP-OPT-11)
 function ::f
   block entry_1
     [0] AssignValue 'a' value='[string trim $raw]'  defs={a#1}  uses={raw#0}
@@ -8384,7 +8420,7 @@ function ::f
   types
     a#1: STRING
 ```
-(regen: `python -m bench.fp_snippets --id FP-OPT-11`)
+(regen: `tcl explore <file> --show ssa --show sccp`)
 
 `a#1` is typed STRING (correct internal-rep tracking) but its SCCP
 value is OVERDEFINED — no proof the runtime string is non-numeric.
@@ -8393,8 +8429,8 @@ the rewrite is correctly refused.
 
 #### Why the analyser reaches that verdict
 
-`compiler/optimiser/_expr_simplify.py::_rewrite_eq_ne_string_compare_node`
-now calls `_is_provably_non_numeric_expr_node` on each side and gates
+the O120 `eq`/`ne` rewrite (`rust/tcl-compiler/src/optimiser/helpers/expr_simplify.rs::try_eq_ne_string_compare_simplify_expr`)
+now requires a provably-non-numeric operand on at least one side and gates
 the rewrite on `left_non_num or right_non_num`.  The predicate inspects
 literal text OR SCCP CONST values — KNOWN STRING type alone is
 rejected (the previously-unsound shortcut).  `_try_eq_ne_string_compare_simplify_expr`
@@ -8407,17 +8443,17 @@ rewrite remains sound regardless of `$a`'s runtime value.
 
 #### Tests
 
-- `tests/test_fp_opt.py::test_FP_OPT_11_numeric_like_literal_string_typed_var_no_rewrite` (TP, must NOT rewrite)
-- `tests/test_fp_opt.py::test_FP_OPT_11_non_numeric_literal_still_rewrites` (TN, `$a == "hello"` MUST rewrite)
-- `tests/test_optimiser.py::TestStringCompareEqNe::test_numeric_like_literal_NOT_rewritten_for_string_typed_var` (TP)
-- `tests/test_optimiser.py::TestStringCompareEqNe::test_var_vs_var_from_string_producers_NOT_rewritten` (TP)
+- `rust/tcl-compiler/src/analyser/diagnostics/fp/opt.rs::fp_opt_11_numeric_like_literal_string_typed_var_no_rewrite` (TP, must NOT rewrite)
+- `rust/tcl-compiler/src/analyser/diagnostics/fp/opt.rs::fp_opt_11_non_numeric_literal_still_rewrites` (TN, `$a == "hello"` MUST rewrite)
+- `rust/tcl-compiler/tests/optimiser.rs::TestStringCompareEqNe::test_numeric_like_literal_NOT_rewritten_for_string_typed_var` (TP)
+- `rust/tcl-compiler/tests/optimiser.rs::TestStringCompareEqNe::test_var_vs_var_from_string_producers_NOT_rewritten` (TP)
 
 ---
 
 ### FP-OPT-12 — TclOO method purity wired into O126 (SF-2 FIXED)
 
 - **Verdict:** FIXED — method-body lowering landed; the wired O126 gate now fires
-- **Status:** locked in by `tests/test_fp_opt.py::test_FP_OPT_12_*`
+- **Status:** locked in by `rust/tcl-compiler/src/analyser/diagnostics/fp/opt.rs::fp_opt_12_*`
 - **Codes:** O126 (unused-assign elimination, RHS-purity gated)
 - **Corpus:** synthetic — verified vs tclsh 9.0.3
 - **Tracker:** [`review-findings-tracker.md`](review-findings-tracker.md) — entry SF-2
@@ -8447,7 +8483,7 @@ oo::class create C {
 #### Per-line reasoning
 
 1. The D2-O126-FU closure already builds `interproc_pure` from `ctx.interproc.procedures`, so `set unused [pure_helper]` (user-proc form) folds today.
-2. SF-2 extends the same pattern to TclOO methods: `interproc_pure_methods = {qn for qn, summary in ctx.interproc.methods.items() if summary.pure}`.  `ctx.interproc.methods` is now populated: lowering lifts `oo::class create` / `oo::define` method bodies to `IRMethodDef` entries, `compile_source` lowers those to per-method `FunctionUnit`s in `CompilationUnit.methods`, and `analyse_interprocedural_ir` summarises them into `InterproceduralAnalysis.methods`.
+2. SF-2 extends the same pattern to TclOO methods: `interproc_pure_methods = {qn for qn, summary in ctx.interproc.methods.items() if summary.pure}`.  `ctx.interproc.methods` is now populated: lowering lifts `oo::class create` / `oo::define` method bodies to `MethodDef` entries, the compilation-unit builder lowers those to per-method `FunctionUnit`s in `CompilationUnit::methods`, and the interprocedural pass summarises them into `InterproceduralAnalysis::methods`.
 3. The recursive scanner in `_word_has_observable_side_effect` / `_expr_has_observable_side_effect` recognises `my <method>` and asks `_method_pure(enclosing_class, method_name, interproc_pure_methods)`.  The optimiser iterates method bodies (`CompilationUnit.methods`) with the owning class as `enclosing_class`, so this path is now active.
 4. Method purity is conservative-sound: a method is pure iff its own body has no observable side effect AND every *proc* it calls is pure; a `my <other_method>` / `next` self-dispatch surfaces as an unknown call and forces the method impure (false negatives only — the optimiser never deletes on an unproven peer method).
 
@@ -8468,7 +8504,7 @@ Deleting the `set unused [pure_helper]` line leaves observable behaviour unchang
 
 ```
 --- FP-OPT-12: TclOO method purity wired into O126 (SF-2 PARTIAL)
-regen: python -m bench.fp_snippets --id FP-OPT-12
+regen: save the reproducer above and run `tcl explore <file> --show ssa --show sccp`  (FP-OPT-12)
 function ::m
   block entry_1
     [0] AssignValue 'unused' value='[pure_helper]'  defs={unused#1}  uses={}
@@ -8477,13 +8513,13 @@ function ::m
   block exit_2
     term (none — fall-through exit)
 ```
-(regen: `python -m bench.fp_snippets --id FP-OPT-12`)
+(regen: `tcl explore <file> --show ssa --show sccp`)
 
 The user-proc form folds via D2-O126-FU.  The TclOO form now folds too: lowering populates `cu.ir_module.methods` / `cu.methods` with the method bodies, the interproc summary proves `::C::pure_helper` pure, and the optimiser deletes the `set unused [my pure_helper]` line inside `m`.
 
 #### Why the analyser reaches that verdict
 
-`compiler/optimiser/_elimination.py`:
+`rust/tcl-compiler/src/optimiser/elimination.rs`:
 
 - `optimise_elimination_passes` builds `interproc_pure_methods` alongside the existing `interproc_pure`, plus a placeholder `enclosing_class: str | None = None` (today the pass only runs over top-level + user procs, never method bodies).
 - `_word_has_observable_side_effect` recognises `my <method>` / `::my <method>` cmd-subs and consults `_method_pure(enclosing_class, cmd_args[0], interproc_pure_methods)`.
@@ -8492,9 +8528,9 @@ The user-proc form folds via D2-O126-FU.  The TclOO form now folds too: lowering
 
 #### Tests
 
-- `tests/test_fp_opt.py::test_FP_OPT_12_pure_user_proc_via_my_dispatch_handled_at_word_level` (TP wiring, user-proc analogue)
-- `tests/test_fp_opt.py::test_FP_OPT_12_impure_user_proc_still_blocks` (TN control)
-- `tests/test_fp_opt.py::test_FP_OPT_12_tcloo_method_body_not_yet_lowered_partial` (PARTIAL pin)
+- `rust/tcl-compiler/src/analyser/diagnostics/fp/opt.rs::fp_opt_12_pure_user_proc_via_my_dispatch_handled_at_word_level` (TP wiring, user-proc analogue)
+- `rust/tcl-compiler/src/analyser/diagnostics/fp/opt.rs::fp_opt_12_impure_user_proc_still_blocks` (TN control)
+- `rust/tcl-compiler/src/analyser/diagnostics/fp/opt.rs::fp_opt_12_tcloo_pure_method_rhs_deleted` (PARTIAL pin)
 
 ---
 
@@ -8513,7 +8549,7 @@ happen.
 ### FP-TNT-01 — T100 direct-operand expr filter
 
 - **Verdict:** FALSE POSITIVE (now fixed)
-- **Status:** locked in by `tests/test_fp_tnt.py::test_FP_TNT_01_*`
+- **Status:** locked in by `rust/tcl-compiler/src/analyser/diagnostics/fp/tnt.rs::fp_tnt_01_*`
 - **Codes:** T100 (tainted → numeric/type-coercion sink)
 - **Corpus:** tcllib blowfish.tcl:525, http.tcl:4338, mime.tcl:1962 (and similar).
 
@@ -8599,7 +8635,7 @@ injected command.
 
 #### Why the analyser reaches that verdict
 
-`compiler/taint/_sinks.py` walks the ExprNode AST via
+`rust/tcl-compiler/src/taint.rs` walks the ExprNode AST via
 ``_direct_expr_operand_names`` and collects ExprVar names that are
 NOT inside any ExprCommand subtree.  T100 only fires when the
 tainted name is in that set, so the value reaches Tcl's numeric
@@ -8607,16 +8643,16 @@ coercion path.
 
 #### Tests
 
-- `tests/test_fp_tnt.py::test_FP_TNT_01_cmd_sub_arg_position_no_t100` (FP)
-- `tests/test_fp_tnt.py::test_FP_TNT_01_direct_operand_still_fires` (TP, `expr {$data + 1}`)
-- `tests/test_fp_tnt.py::test_FP_TNT_01_function_arg_direct_operand_still_fires` (TP, `abs($data)`)
+- `rust/tcl-compiler/src/analyser/diagnostics/fp/tnt.rs::fp_tnt_01_cmd_sub_arg_position_no_t100` (FP)
+- `rust/tcl-compiler/src/analyser/diagnostics/fp/tnt.rs::fp_tnt_01_direct_operand_still_fires` (TP, `expr {$data + 1}`)
+- `rust/tcl-compiler/src/analyser/diagnostics/fp/tnt.rs::fp_tnt_01_function_arg_direct_operand_still_fires` (TP, `abs($data)`)
 
 ---
 
 ### FP-TNT-02 — T101 puts channel-vs-output filter
 
 - **Verdict:** FALSE POSITIVE (now fixed)
-- **Status:** locked in by `tests/test_fp_tnt.py::test_FP_TNT_02_*`
+- **Status:** locked in by `rust/tcl-compiler/src/analyser/diagnostics/fp/tnt.rs::fp_tnt_02_*`
 - **Codes:** T101 (tainted → output sink)
 - **Corpus:** tcllib imap4.tcl (3 firings cleared).
 
@@ -8659,22 +8695,22 @@ the destination file handle.
 
 #### Why the analyser reaches that verdict
 
-`compiler/taint/_sinks.py` (puts sink hint) restricts T101 emission to
+`rust/tcl-compiler/src/taint.rs` (puts sink hint) restricts T101 emission to
 the trailing positional arg.  Channel-id and switch positions are
 ignored.
 
 #### Tests
 
-- `tests/test_fp_tnt.py::test_FP_TNT_02_channel_id_position_no_t101` (FP)
-- `tests/test_fp_tnt.py::test_FP_TNT_02_content_arg_still_fires` (TP, `puts $data`)
-- `tests/test_fp_tnt.py::test_FP_TNT_02_content_with_channel_still_fires` (TP, `puts $chan $data` — chan filtered, data fires)
+- `rust/tcl-compiler/src/analyser/diagnostics/fp/tnt.rs::fp_tnt_02_channel_id_position_no_t101` (FP)
+- `rust/tcl-compiler/src/analyser/diagnostics/fp/tnt.rs::fp_tnt_02_content_arg_still_fires` (TP, `puts $data`)
+- `rust/tcl-compiler/src/analyser/diagnostics/fp/tnt.rs::fp_tnt_02_content_with_channel_still_fires` (TP, `puts $chan $data` — chan filtered, data fires)
 
 ---
 
 ### FP-TNT-03 — eval/uplevel/interp eval LIST_CANONICAL suppression unsound (D5-T100/T105)
 
 - **Verdict:** TRUE POSITIVE / security FN (now fixed)
-- **Status:** locked in by `tests/test_fp_tnt.py::test_FP_TNT_03_*`
+- **Status:** locked in by `rust/tcl-compiler/src/analyser/diagnostics/fp/tnt.rs::fp_tnt_03_*`
 - **Codes:** T100 (taint -> code-exec), T105 (taint -> cross-interpreter eval)
 - **Corpus:** synthetic — verified vs tclsh 9.0.3
 - **Tracker:** [`review-findings-tracker.md`](review-findings-tracker.md) — entry D5-T100, D5-T105
@@ -8727,7 +8763,7 @@ EXECUTED
 
 ```
 --- FP-TNT-03: eval/uplevel/interp eval LIST_CANONICAL suppression unsound (D5-T100/T105)
-regen: python -m bench.fp_snippets --id FP-TNT-03
+regen: save the reproducer above and run `tcl explore <file> --show ssa --show sccp`  (FP-TNT-03)
 function ::top
   block entry_1
     [0] AssignValue 'raw' value='[gets stdin]'  defs={raw#1}  uses={}
@@ -8737,34 +8773,34 @@ function ::top
   block exit_2
     term (none — fall-through exit)
 ```
-(regen: `python -m bench.fp_snippets --id FP-TNT-03`)
+(regen: `tcl explore <file> --show ssa --show sccp`)
 
 The eval statement's args are `('[list $raw]',)`; `_eval_arg_protected_by_list_literal` parses the cmd-sub, sees the first element is `$raw` (not a pure literal), returns False -> T100 fires.
 
 #### Why the analyser reaches that verdict
 
-`compiler/taint/_sinks.py`:
+`rust/tcl-compiler/src/taint.rs`:
 
 - `_eval_arg_protected_by_list_literal(arg, var_name)` — parses *arg* as a `[list ...]` cmd-sub.  Suppresses only when (a) the inner cmd is `list`, (b) the first list element is a pure literal (no `$` / `[` / `{*}`), (c) the head is in `REGISTRY.specs_by_name`, and (d) the tainted var appears only at list-index >= 1.
 - `_should_suppress_t100(stmt, var_name, taint)` — for `eval`/`uplevel`/`::eval`/`::uplevel`, ignores `taint_sink_safe_colours` and delegates to `_eval_stmt_protected_by_list_literal`.
 - `_should_suppress_sink_warning(code="T105", ...)` — same delegation for `interp eval` / `interp invokehidden`.
-- `dialects/tcl/eval.py` and `dialects/tcl/uplevel.py` — `taint_sink_safe_colour=LIST_CANONICAL` removed.
+- `rust/tcl-registry/src/commands/tcl/eval_.rs` and `rust/tcl-registry/src/commands/tcl/uplevel_.rs` — `taint_sink_safe_colour=LIST_CANONICAL` removed.
 
 #### Tests
 
-- `tests/test_fp_tnt.py::test_FP_TNT_03_eval_list_tainted_head_fires_t100` (TP, `eval [list $raw]`)
-- `tests/test_fp_tnt.py::test_FP_TNT_03_eval_list_literal_head_no_t100` (TN, `eval [list puts $raw]`)
-- `tests/test_fp_tnt.py::test_FP_TNT_03_uplevel_list_tainted_head_fires_t100` (TP, `uplevel [list $raw]`)
-- `tests/test_fp_tnt.py::test_FP_TNT_03_eval_list_via_var_still_fires` (TP, propagation defeats suppression)
-- `tests/test_fp_tnt.py::test_FP_TNT_03_interp_eval_list_tainted_head_fires_t105` (TP, T105)
-- `tests/test_fp_tnt.py::test_FP_TNT_03_interp_eval_list_literal_head_no_t105` (TN, T105)
+- `rust/tcl-compiler/src/analyser/diagnostics/fp/tnt.rs::fp_tnt_03_eval_list_tainted_head_fires_t100` (TP, `eval [list $raw]`)
+- `rust/tcl-compiler/src/analyser/diagnostics/fp/tnt.rs::fp_tnt_03_eval_list_literal_head_no_t100` (TN, `eval [list puts $raw]`)
+- `rust/tcl-compiler/src/analyser/diagnostics/fp/tnt.rs::fp_tnt_03_uplevel_list_tainted_head_fires_t100` (TP, `uplevel [list $raw]`)
+- `rust/tcl-compiler/src/analyser/diagnostics/fp/tnt.rs::fp_tnt_03_eval_list_via_var_still_fires` (TP, propagation defeats suppression)
+- `rust/tcl-compiler/src/analyser/diagnostics/fp/tnt.rs::fp_tnt_03_interp_eval_list_tainted_head_fires_t105` (TP, T105)
+- `rust/tcl-compiler/src/analyser/diagnostics/fp/tnt.rs::fp_tnt_03_interp_eval_list_literal_head_no_t105` (TN, T105)
 
 ---
 
 ### FP-TNT-04 — late `--` doesn't protect earlier option candidates (D5-T102)
 
 - **Verdict:** TRUE POSITIVE / security FN (now fixed)
-- **Status:** locked in by `tests/test_fp_tnt.py::test_FP_TNT_04_*`
+- **Status:** locked in by `rust/tcl-compiler/src/analyser/diagnostics/fp/tnt.rs::fp_tnt_04_*`
 - **Codes:** T102 (option-injection via tainted input)
 - **Corpus:** synthetic — verified vs tclsh 9.0.3
 - **Tracker:** [`review-findings-tracker.md`](review-findings-tracker.md) — entry D5-T102
@@ -8811,7 +8847,7 @@ wrong # args: should be "regexp ?-option ...? exp string ?matchVar? ?subMatchVar
 
 ```
 --- FP-TNT-04: late `--` doesn't protect earlier option candidates (D5-T102)
-regen: python -m bench.fp_snippets --id FP-TNT-04
+regen: save the reproducer above and run `tcl explore <file> --show ssa --show sccp`  (FP-TNT-04)
 function ::top
   block entry_1
     [0] AssignValue 'pat' value='[gets stdin]'  defs={pat#1}  uses={}
@@ -8820,27 +8856,27 @@ function ::top
   block exit_2
     term (none — fall-through exit)
 ```
-(regen: `python -m bench.fp_snippets --id FP-TNT-04`)
+(regen: `tcl explore <file> --show ssa --show sccp`)
 
 #### Why the analyser reaches that verdict
 
-`compiler/taint/_sinks.py`:
+`rust/tcl-compiler/src/taint.rs`:
 
 - `_option_terminator_index` (replaces `_has_option_terminator`) — returns the first index of `--` >= `scan_start` instead of a bool.  Unused at the classification step now; kept for future use.
 - `_classify_sink` — always emits T102 when the command has an option-terminator profile.  Per-var protection is handled below by the `_option_scan_region` filter, which already stops at the first `--` so positions before it remain candidates and positions after it are outside the region.
 
 #### Tests
 
-- `tests/test_fp_tnt.py::test_FP_TNT_04_late_terminator_does_not_protect_tainted_var` (TP, `regexp $pat -- subject`)
-- `tests/test_fp_tnt.py::test_FP_TNT_04_early_terminator_protects_tainted_var` (TN, `regexp -- $pat subject`)
-- `tests/test_fp_tnt.py::test_FP_TNT_04_no_terminator_fires` (TP control, no `--`)
+- `rust/tcl-compiler/src/analyser/diagnostics/fp/tnt.rs::fp_tnt_04_late_terminator_does_not_protect_tainted_var` (TP, `regexp $pat -- subject`)
+- `rust/tcl-compiler/src/analyser/diagnostics/fp/tnt.rs::fp_tnt_04_early_terminator_protects_tainted_var` (TN, `regexp -- $pat subject`)
+- `rust/tcl-compiler/src/analyser/diagnostics/fp/tnt.rs::fp_tnt_04_no_terminator_fires` (TP control, no `--`)
 
 ---
 
 ### FP-TNT-05 — T104 honours registry network-address arg positions (D5-T104)
 
 - **Verdict:** FALSE POSITIVE (precision) (now fixed)
-- **Status:** locked in by `tests/test_fp_tnt.py::test_FP_TNT_05_*`
+- **Status:** locked in by `rust/tcl-compiler/src/analyser/diagnostics/fp/tnt.rs::fp_tnt_05_*`
 - **Codes:** T104 (SSRF via tainted network address)
 - **Corpus:** synthetic — verified vs tclsh 9.0.3
 - **Tracker:** [`review-findings-tracker.md`](review-findings-tracker.md) — entry D5-T104
@@ -8859,10 +8895,10 @@ http::geturl http://example.com -headers $hdr
 
 #### Per-line reasoning
 
-1. `dialects/stdlib/http_.py` declares `taint_network_sink_args=(0,)` for `http::geturl` — only positional[0] is the network address.
-2. `dialects/tcl/socket_.py` declares `taint_network_sink_args=(0, 1)` for `socket` — host + port positions.
+1. `rust/tcl-registry/src/commands/stdlib/http__geturl.rs` declares `taint_network_sink_args=(0,)` for `http::geturl` — only positional[0] is the network address.
+2. `rust/tcl-registry/src/commands/tcl/socket_.rs` declares `taint_network_sink_args=(0, 1)` for `socket` — host + port positions.
 3. Pre-fix `TaintSinkInfo` collapsed `taint_network_sink_args` into a single `is_network_sink: bool`; the per-var loop fired T104 on ANY tainted var in the statement.  That's the precision bug: `$hdr` in `http::geturl URL -headers $hdr` falsely fired even though it can't drive SSRF.
-4. Post-fix the dataclass exposes the position tuple as `network_sink_args: tuple[int, ...] | None`; the per-var filter restricts T104 to vars whose arg index is in that tuple (empty tuple `()` keeps the whole-statement-scan semantics for iRules `connect`).
+4. Post-fix the spec exposes the positions as `taint_network_sink_args: Option<&'static [u8]>`; the per-var filter restricts T104 to vars whose argument index is in that slice (`Some(&[])` keeps the whole-statement-scan semantics for iRules `connect`, and `None` means the command is not a network sink).
 
 #### tclsh ground truth (9.0.3 — confirmed by execution)
 
@@ -8881,7 +8917,7 @@ The URL is positional[0]; `$hdr` is consumed by the variadic `args` as an option
 
 ```
 --- FP-TNT-05: T104 honours registry network-address arg positions (D5-T104)
-regen: python -m bench.fp_snippets --id FP-TNT-05
+regen: save the reproducer above and run `tcl explore <file> --show ssa --show sccp`  (FP-TNT-05)
 function ::top
   block entry_1
     [0] AssignValue 'hdr' value='[gets stdin]'  defs={hdr#1}  uses={}
@@ -8890,22 +8926,22 @@ function ::top
   block exit_2
     term (none — fall-through exit)
 ```
-(regen: `python -m bench.fp_snippets --id FP-TNT-05`)
+(regen: `tcl explore <file> --show ssa --show sccp`)
 
 `$hdr` appears at arg index 2 in this statement; `taint_network_sink_args=(0,)` for `http::geturl`, so the position filter rejects it and T104 stays silent.
 
 #### Why the analyser reaches that verdict
 
-- `compiler/registry/taint_sink_info.py` — `TaintSinkInfo.is_network_sink: bool` replaced with `network_sink_args: tuple[int, ...] | None`.  Docstring documents the None / empty-tuple / non-empty semantics.
-- `compiler/registry/command_registry.py::classify_taint_sinks` — propagates the tuple instead of collapsing to bool.
-- `compiler/taint/_sinks.py::_classify_sink` — still emits T104 when the spec marks the command as a network sink (`network_sink_args is not None`).
-- `compiler/taint/_sinks.py::_find_taint_sinks` — adds `t104_addr_idxs` cache (same shape as T101/T102 region caches) and rejects per-var emissions when `len(t104_addr_idxs) > 0` and none of the var's arg indexes are in the tuple.  Empty tuple bypasses the filter (whole-statement scan).
+- `rust/tcl-registry/src/spec.rs` — the boolean network-sink flag was replaced with `taint_network_sink_args: Option<&'static [u8]>`, whose doc comment records the `None` / `Some(&[])` / non-empty semantics.
+- `rust/tcl-registry/src/taint.rs::classify_taint_sinks` — propagates the tuple instead of collapsing to bool.
+- `rust/tcl-compiler/src/taint.rs::classify_sink` — still emits T104 when the spec marks the command as a network sink (`network_sink_args is not None`).
+- `rust/tcl-compiler/src/taint.rs` — the T104 sink walk caches the declared network-address argument indices and rejects a per-var emission when that slice is non-empty and none of the variable's argument indices is in it.  An empty slice bypasses the filter (whole-statement scan).
 
 #### Tests
 
-- `tests/test_fp_tnt.py::test_FP_TNT_05_tainted_url_fires_t104` (TP, URL at positional[0])
-- `tests/test_fp_tnt.py::test_FP_TNT_05_tainted_header_value_no_t104` (FP suppressed, `-headers $hdr`)
-- `tests/test_fp_tnt.py::test_FP_TNT_05_socket_tainted_host_and_port_fire` (TP control, socket(0,1))
+- `rust/tcl-compiler/src/analyser/diagnostics/fp/tnt.rs::fp_tnt_05_tainted_url_fires_t104` (TP, URL at positional[0])
+- `rust/tcl-compiler/src/analyser/diagnostics/fp/tnt.rs::fp_tnt_05_tainted_header_value_no_t104` (FP suppressed, `-headers $hdr`)
+- `rust/tcl-compiler/src/analyser/diagnostics/fp/tnt.rs::fp_tnt_05_socket_tainted_host_and_port_fire` (TP control, socket(0,1))
 
 ---
 
@@ -8920,7 +8956,7 @@ TP cases firing.
 ### FP-STY-01 — W001 Tk geometry-manager shortcut form (`grid .x` / `pack .x` / `place .x`)
 
 - **Verdict:** FALSE POSITIVE (now fixed)
-- **Status:** locked in by `tests/test_fp_sty.py::test_FP_STY_01_*`
+- **Status:** locked in by `rust/tcl-compiler/src/analyser/diagnostics/fp/sty.rs::fp_sty_01_*`
 - **Codes:** W001 (unknown subcommand)
 - **Corpus:** every Tk script using the geometry-manager shortcut form.
 
@@ -8952,17 +8988,17 @@ a Tk path) and exempt it from W001.
 
 #### Tests
 
-- `tests/test_fp_sty.py::test_FP_STY_01_grid_pathname_no_w001` (FP)
-- `tests/test_fp_sty.py::test_FP_STY_01_pack_pathname_no_w001` (FP)
-- `tests/test_fp_sty.py::test_FP_STY_01_place_pathname_no_w001` (FP)
-- `tests/test_fp_sty.py::test_FP_STY_01_genuine_unknown_subcommand_still_fires` (TP, `grid bogus .x`)
+- `rust/tcl-compiler/src/analyser/diagnostics/fp/sty.rs::fp_sty_01_grid_pathname_no_w001` (FP)
+- `rust/tcl-compiler/src/analyser/diagnostics/fp/sty.rs::fp_sty_01_pack_pathname_no_w001` (FP)
+- `rust/tcl-compiler/src/analyser/diagnostics/fp/sty.rs::fp_sty_01_place_pathname_no_w001` (FP)
+- `rust/tcl-compiler/src/analyser/diagnostics/fp/sty.rs::fp_sty_01_genuine_unknown_subcommand_still_fires` (TP, `grid bogus .x`)
 
 ---
 
 ### FP-STY-02 — W306 escaped `\[` / `\$` in quoted regexp patterns
 
 - **Verdict:** FALSE POSITIVE (now fixed)
-- **Status:** locked in by `tests/test_fp_sty.py::test_FP_STY_02_*`
+- **Status:** locked in by `rust/tcl-compiler/src/analyser/diagnostics/fp/sty.rs::fp_sty_02_*`
 - **Codes:** W306 (literal-expected substitution)
 
 #### Reproducer
@@ -9024,7 +9060,7 @@ substitution occurred.
 ### FP-STY-03 — W104 usage / template notation exempt (`?optarg?`, `<placeholder>`, `...`)
 
 - **Verdict:** FALSE POSITIVE (now fixed; corpus 165 → 144)
-- **Status:** locked in by `tests/test_fp_sty.py::test_FP_STY_03_*`
+- **Status:** locked in by `rust/tcl-compiler/src/analyser/diagnostics/fp/sty.rs::fp_sty_03_*`
 - **Codes:** W104 (string-concat list building)
 
 #### Reproducer
@@ -9048,17 +9084,17 @@ list-building still fires.
 
 #### Tests
 
-- `tests/test_fp_sty.py::test_FP_STY_03_optarg_question_marks_no_w104` (FP)
-- `tests/test_fp_sty.py::test_FP_STY_03_placeholder_angle_no_w104` (FP)
-- `tests/test_fp_sty.py::test_FP_STY_03_ellipsis_no_w104` (FP)
-- `tests/test_fp_sty.py::test_FP_STY_03_genuine_list_building_still_fires` (TP)
+- `rust/tcl-compiler/src/analyser/diagnostics/fp/sty.rs::fp_sty_03_optarg_question_marks_no_w104` (FP)
+- `rust/tcl-compiler/src/analyser/diagnostics/fp/sty.rs::fp_sty_03_placeholder_angle_no_w104` (FP)
+- `rust/tcl-compiler/src/analyser/diagnostics/fp/sty.rs::fp_sty_03_ellipsis_no_w104` (FP)
+- `rust/tcl-compiler/src/analyser/diagnostics/fp/sty.rs::fp_sty_03_genuine_list_building_still_fires` (TP)
 
 ---
 
 ### FP-STY-04 — W126 non-channel value: lassign destructure type-inference fix
 
 - **Verdict:** FALSE POSITIVE (now fixed; corpus 4 → 0)
-- **Status:** locked in by `tests/test_fp_sty.py::test_FP_STY_04_*`
+- **Status:** locked in by `rust/tcl-compiler/src/analyser/diagnostics/fp/sty.rs::fp_sty_04_*`
 - **Codes:** W126 (non-channel value in channel arg)
 
 #### Reproducer
@@ -9085,14 +9121,14 @@ The list type only applies to a captured-rest binding
 
 #### Tests
 
-- `tests/test_fp_sty.py::test_FP_STY_04_lassign_destructure_channels_no_w126` (FP)
+- `rust/tcl-compiler/src/analyser/diagnostics/fp/sty.rs::fp_sty_04_lassign_destructure_channels_no_w126` (FP)
 
 ---
 
 ### FP-STY-05 — W302 catch fire-and-forget (bare + subcommand-aware split)
 
 - **Verdict:** FALSE POSITIVE (now fixed; 239 corpus firings cleared)
-- **Status:** locked in by `tests/test_fp_sty.py::test_FP_STY_05_*`
+- **Status:** locked in by `rust/tcl-compiler/src/analyser/diagnostics/fp/sty.rs::fp_sty_05_*`
 - **Codes:** W302 (catch without result variable)
 - **Corpus:** ftp.tcl 35, comm.tcl 19, http.tcl 16, etc.
 
@@ -9137,16 +9173,16 @@ result variable to know if they succeeded.
 
 #### Why the analyser reaches that verdict
 
-`analyser/compiler_checks.py::_FIRE_AND_FORGET_BARE` +
+`rust/tcl-compiler/src/compiler_checks.rs::_FIRE_AND_FORGET_BARE` +
 `_FIRE_AND_FORGET_SUBCOMMANDS` define the exempt sets; the W302
 emitter consults both before firing.
 
 #### Tests
 
-- `tests/test_fp_sty.py::test_FP_STY_05_bare_close_fire_and_forget_no_w302` (FP)
-- `tests/test_fp_sty.py::test_FP_STY_05_ensemble_close_fire_and_forget_no_w302` (FP)
-- `tests/test_fp_sty.py::test_FP_STY_05_constructive_subcommand_still_fires` (TP, `chan configure`)
-- `tests/test_fp_sty.py::test_FP_STY_05_user_call_still_fires` (TP, user proc)
+- `rust/tcl-compiler/src/analyser/diagnostics/fp/sty.rs::fp_sty_05_bare_close_fire_and_forget_no_w302` (FP)
+- `rust/tcl-compiler/src/analyser/diagnostics/fp/sty.rs::fp_sty_05_ensemble_close_fire_and_forget_no_w302` (FP)
+- `rust/tcl-compiler/src/analyser/diagnostics/fp/sty.rs::fp_sty_05_constructive_subcommand_still_fires` (TP, `chan configure`)
+- `rust/tcl-compiler/src/analyser/diagnostics/fp/sty.rs::fp_sty_05_user_call_still_fires` (TP, user proc)
 
 ---
 
@@ -9161,7 +9197,7 @@ emitter consults both before firing.
 > `fp_sty_06_oid_chain_no_w124` (W124 only).
 
 - **Verdict:** FALSE POSITIVE (now fixed)
-- **Status:** locked in by `tests/test_fp_sty.py::test_FP_STY_06_*` (Python-era;
+- **Status:** locked in by `rust/tcl-compiler/src/analyser/diagnostics/fp/sty.rs::fp_sty_06_*` (Python-era;
   the current Rust suite is `fp/sty.rs::fp_sty_06_oid_chain_no_w124`)
 - **Codes:** W122 (retired), W124 (IPv4-shaped literal with out-of-range octet)
 - **Corpus:** LDAP / SNMP OID literals across tcllib (`ldap`, `asn`, etc.).
@@ -9189,15 +9225,15 @@ OIDs are arbitrary integer sequences; they have no IPv4 semantics.
 
 #### Tests
 
-- `tests/test_fp_sty.py::test_FP_STY_06_oid_chain_no_w122_w124` (FP, both codes)
-- `tests/test_fp_sty.py::test_FP_STY_06_real_ipv4_shaped_still_fires` (TP, 4-component dotted)
+- `rust/tcl-compiler/src/analyser/diagnostics/fp/sty.rs::fp_sty_06_oid_chain_no_w124` (FP, both codes)
+- `rust/tcl-compiler/src/analyser/diagnostics/fp/sty.rs::fp_sty_06_real_ipv4_shaped_still_fires` (TP, 4-component dotted)
 
 ---
 
 ### FP-STY-07 — W120 package self-call (file is the provider)
 
 - **Verdict:** FALSE POSITIVE (now fixed)
-- **Status:** locked in by `tests/test_fp_sty.py::test_FP_STY_07_*`
+- **Status:** locked in by `rust/tcl-compiler/src/analyser/diagnostics/fp/sty.rs::fp_sty_07_*`
 - **Codes:** W120 (command used without `package require`)
 - **Corpus:** msgcat self-calls 2→0, fileutil/mime similar.
 
@@ -9224,15 +9260,15 @@ been removed.)
 
 #### Tests
 
-- `tests/test_fp_sty.py::test_FP_STY_07_provider_self_call_no_w120` (FP)
-- `tests/test_fp_sty.py::test_FP_STY_07_no_provide_still_fires` (TP)
+- `rust/tcl-compiler/src/analyser/diagnostics/fp/sty.rs::fp_sty_07_provider_self_call_no_w120` (FP)
+- `rust/tcl-compiler/src/analyser/diagnostics/fp/sty.rs::fp_sty_07_no_provide_still_fires` (TP)
 
 ---
 
 ### FP-STY-08 — W214 empty-body proc stubs
 
 - **Verdict:** FALSE POSITIVE (now fixed)
-- **Status:** locked in by `tests/test_fp_sty.py::test_FP_STY_08_*`
+- **Status:** locked in by `rust/tcl-compiler/src/analyser/diagnostics/fp/sty.rs::fp_sty_08_*`
 - **Codes:** W214 (unused proc parameter)
 - **Corpus:** tcllib `grammar_fa/faop.tcl` declares 14 such empty-body procs as the FA algebra API.
 
@@ -9260,15 +9296,15 @@ variable.  Detect via param name starting + ending with `"`.
 
 #### Tests
 
-- `tests/test_fp_sty.py::test_FP_STY_08_empty_body_stub_no_w214` (FP)
-- `tests/test_fp_sty.py::test_FP_STY_08_non_empty_body_unused_param_still_fires` (TP)
+- `rust/tcl-compiler/src/analyser/diagnostics/fp/sty.rs::fp_sty_08_empty_body_stub_no_w214` (FP)
+- `rust/tcl-compiler/src/analyser/diagnostics/fp/sty.rs::fp_sty_08_non_empty_body_unused_param_still_fires` (TP)
 
 ---
 
 ### FP-STY-09 — W214 dispatcher needs arity-compatible peer (D3-P9 / D4-F4)
 
 - **Verdict:** TRUE POSITIVE (precision-gap closure) — earlier suppression was over-broad
-- **Status:** locked in by `tests/test_fp_sty.py::test_FP_STY_09_*`
+- **Status:** locked in by `rust/tcl-compiler/src/analyser/diagnostics/fp/sty.rs::fp_sty_09_*`
 - **Codes:** W214 (unused proc parameter)
 - **Corpus:** synthetic — verified vs tclsh 9.0.3
 - **Tracker:** [`review-findings-tracker.md`](review-findings-tracker.md) — entries D3-P9, D4-F4
@@ -9299,7 +9335,7 @@ The peers ignore `token` at runtime — no error — but the diagnostic is a cod
 
 ```
 --- FP-STY-09: W214 dispatcher needs arity-compatible peer (D3-P9/D4-F4)
-regen: python -m bench.fp_snippets --id FP-STY-09
+regen: save the reproducer above and run `tcl explore <file> --show ssa --show sccp`  (FP-STY-09)
 function ::n::a
   block entry_1
     [0] Call cmd='puts'  defs={}  uses={ctx#0}
@@ -9307,25 +9343,25 @@ function ::n::a
   block exit_2
     term (none — fall-through exit)
 ```
-(regen: `python -m bench.fp_snippets --id FP-STY-09`)
+(regen: `tcl explore <file> --show ssa --show sccp`)
 
 #### Why the analyser reaches that verdict
 
-`analyser/checks/_param.py` — the W214 dispatcher-protocol suppression now compares dispatcher arity (from `var_command_sites`, populated with each site's positional arg count) to peer arity.  Sites with `dispatcher_arity < peer_arity` are filtered out before the "≥1 compatible dispatcher" check; a peer family with no surviving dispatcher gets no suppression and W214 fires on each member's unused params.
+`rust/tcl-compiler/src/analyser/diagnostics/dataflow.rs` — the W214 dispatcher-protocol suppression now compares dispatcher arity (from `var_command_sites`, populated with each site's positional arg count) to peer arity.  Sites with `dispatcher_arity < peer_arity` are filtered out before the "≥1 compatible dispatcher" check; a peer family with no surviving dispatcher gets no suppression and W214 fires on each member's unused params.
 
 #### Tests
 
-- `tests/test_fp_sty.py::test_FP_STY_09_arity_incompatible_dispatcher_does_not_suppress` (TP — W214 fires 3x on `token`)
-- `tests/test_fp_sty.py::test_FP_STY_09_arity_compatible_dispatcher_suppresses` (TN control — 2-arg dispatcher correctly suppresses)
-- `tests/test_ground_truth_tn_fn.py::test_TP_W307_unrelated_dispatcher_does_not_suppress_peer_family` (audit pair; test name says W307 but asserts on W214 — read the body)
-- `tests/test_ground_truth_tn_fn.py::test_TN_W307_protocol_compatible_dispatcher_suppresses_peer_family` (audit pair)
+- `rust/tcl-compiler/src/analyser/diagnostics/fp/sty.rs::fp_sty_09_arity_incompatible_dispatcher_does_not_suppress` (TP — W214 fires 3x on `token`)
+- `rust/tcl-compiler/src/analyser/diagnostics/fp/sty.rs::fp_sty_09_arity_compatible_dispatcher_suppresses` (TN control — 2-arg dispatcher correctly suppresses)
+- `rust/tcl-compiler/src/analyser/diagnostics/fp/rbs.rs::fp_rbs_dispatch_protocol_requires_dispatcher_evidence` (audit pair; test name says W307 but asserts on W214 — read the body)
+- `rust/tcl-compiler/src/analyser/diagnostics/fp/rbs.rs::fp_rbs_dispatch_protocol_requires_dispatcher_evidence` (audit pair)
 
 ---
 
 ### FP-STY-10 — `scan_provably_no_match` soundness: `%n` always succeeds, `Inf` / format whitespace (D4-F1)
 
 - **Verdict:** FALSE POSITIVE (now fixed; four sub-fixes)
-- **Status:** locked in by `tests/test_fp_sty.py::test_FP_STY_10_*`
+- **Status:** locked in by `rust/tcl-compiler/src/analyser/diagnostics/fp/sty.rs::fp_sty_10_*`
 - **Codes:** W210 (read-before-set) — fires on scan output vars when the scan provably can't consume input
 - **Corpus:** synthetic — verified vs tclsh 9.0.3
 - **Tracker:** [`review-findings-tracker.md`](review-findings-tracker.md) — entry D4-F1
@@ -9365,7 +9401,7 @@ All three succeed; pre-fix the analyser fired W210 on each.
 
 ```
 --- FP-STY-10: scan_provably_no_match soundness: %n / Inf / format whitespace (D4-F1)
-regen: python -m bench.fp_snippets --id FP-STY-10
+regen: save the reproducer above and run `tcl explore <file> --show ssa --show sccp`  (FP-STY-10)
 function ::f
   block entry_1
     [0] Call cmd='scan'  defs={n#1}  uses={}
@@ -9375,29 +9411,29 @@ function ::f
     term (none — fall-through exit)
   read_before_set: (none)
 ```
-(regen: `python -m bench.fp_snippets --id FP-STY-10`)
+(regen: `tcl explore <file> --show ssa --show sccp`)
 
 #### Why the analyser reaches that verdict
 
-`compiler/scan_format.py:193` — `scan_provably_no_match`.  The directive-kind table maps `%n` to `"always"` (line ~70-80), which causes the predicate to short-circuit to `False` (i.e. the scan CAN match, so we cannot prove no-match) — output vars are recorded as defined.  The float-kind acceptance set now includes `Inf`/`Infinity`/`NaN`; the whitespace set includes `\r\f\v`; and any `\\`/`$`/`[` in the raw input string triggers a conservative bail.
+`rust/tcl-compiler/src/scan_predicate.rs:193` — `scan_provably_no_match`.  The directive-kind table maps `%n` to `"always"` (line ~70-80), which causes the predicate to short-circuit to `False` (i.e. the scan CAN match, so we cannot prove no-match) — output vars are recorded as defined.  The float-kind acceptance set now includes `Inf`/`Infinity`/`NaN`; the whitespace set includes `\r\f\v`; and any `\\`/`$`/`[` in the raw input string triggers a conservative bail.
 
 #### Tests
 
-- `tests/test_fp_sty.py::test_FP_STY_10_scan_percent_n_on_empty_input_silent` (FP)
-- `tests/test_fp_sty.py::test_FP_STY_10_scan_float_accepts_inf_silent` (FP)
-- `tests/test_fp_sty.py::test_FP_STY_10_scan_format_whitespace_cr_silent` (FP)
-- `tests/test_fp_sty.py::test_FP_STY_10_scan_genuine_no_match_still_fires` (TP control)
-- `tests/test_ground_truth_tn_fn.py::test_TN_scan_percent_n_on_empty_input`
-- `tests/test_ground_truth_tn_fn.py::test_TN_scan_float_accepts_inf`
-- `tests/test_ground_truth_tn_fn.py::test_TN_scan_format_whitespace_includes_cr_ff_vt`
-- `tests/test_ground_truth_tn_fn.py::test_TP_scan_genuine_no_match_still_fires`
+- `rust/tcl-compiler/src/analyser/diagnostics/fp/sty.rs::fp_sty_10_scan_percent_n_on_empty_input_silent` (FP)
+- `rust/tcl-compiler/src/analyser/diagnostics/fp/sty.rs::fp_sty_10_scan_float_accepts_inf_silent` (FP)
+- `rust/tcl-compiler/src/analyser/diagnostics/fp/sty.rs::fp_sty_10_scan_format_whitespace_cr_silent` (FP)
+- `rust/tcl-compiler/src/analyser/diagnostics/fp/sty.rs::fp_sty_10_scan_genuine_no_match_still_fires` (TP control)
+- `rust/tcl-compiler/src/analyser/diagnostics/fp/sty.rs::fp_sty_10_scan_percent_n_on_empty_input_silent`
+- `rust/tcl-compiler/src/analyser/diagnostics/fp/sty.rs::fp_sty_10_scan_float_accepts_inf_silent`
+- `rust/tcl-compiler/src/analyser/diagnostics/fp/sty.rs::fp_sty_10_scan_format_whitespace_cr_silent`
+- `rust/tcl-compiler/src/analyser/diagnostics/fp/sty.rs::fp_sty_10_scan_genuine_no_match_still_fires`
 
 ---
 
 ### FP-STY-11 — variadic var-write resolver for `scan` / `lassign` / `binary scan` (D4-F2)
 
 - **Verdict:** FALSE POSITIVE (now fixed)
-- **Status:** locked in by `tests/test_fp_sty.py::test_FP_STY_11_*`
+- **Status:** locked in by `rust/tcl-compiler/src/analyser/diagnostics/fp/sty.rs::fp_sty_11_*`
 - **Codes:** W210 (read-before-set) on variadic var-args past slot 18
 - **Corpus:** synthetic — verified vs tclsh 9.0.3
 - **Tracker:** [`review-findings-tracker.md`](review-findings-tracker.md) — entry D4-F2
@@ -9434,7 +9470,7 @@ All 20 vars are defined; reading `v19` succeeds.
 
 ```
 --- FP-STY-11: variadic var-write resolver for scan/lassign/binary scan (D4-F2)
-regen: python -m bench.fp_snippets --id FP-STY-11
+regen: save the reproducer above and run `tcl explore <file> --show ssa --show sccp`  (FP-STY-11)
 function ::f
   block entry_1
     [0] Call cmd='scan'  defs={v0#1, v1#1, v2#1, v3#1, v4#1, v5#1, v6#1, v7#1, v8#1, v9#1, v10#1, v11#1, v12#1, v13#1, v14#1, v15#1, v16#1, v17#1, v18#1, v19#1}  uses={}
@@ -9442,34 +9478,34 @@ function ::f
   block exit_2
     term (none — fall-through exit)
 ```
-(regen: `python -m bench.fp_snippets --id FP-STY-11`)
+(regen: `tcl explore <file> --show ssa --show sccp`)
 
 Every var from `v0` through `v19` shows up as a def of the `scan` call — the resolver classified all 20 var slots as VAR_WRITE.
 
 #### Why the analyser reaches that verdict
 
-- `dialects/tcl/scan.py:46` — `_scan_arg_roles` walks the actual args list, counts `%`-directives in the format, and emits VAR_WRITE for the trailing var-arg slots.
-- `dialects/tcl/lassign.py:47` — `_lassign_arg_roles` marks all positional args after the list arg as VAR_WRITE.
-- `dialects/tcl/binary.py:105` — inline lambda computes the var-arg slot set from the actual call.
+- `rust/tcl-registry/src/commands/tcl/scan_.rs:46` — `_scan_arg_roles` walks the actual args list, counts `%`-directives in the format, and emits VAR_WRITE for the trailing var-arg slots.
+- `rust/tcl-registry/src/commands/tcl/lassign.rs:47` — `_lassign_arg_roles` marks all positional args after the list arg as VAR_WRITE.
+- `rust/tcl-registry/src/commands/tcl/binary_.rs:105` — inline lambda computes the var-arg slot set from the actual call.
 
 Each is wired through `CommandSpec.arg_role_resolver`, which the registry consults in preference to the static `arg_roles` map.
 
 #### Tests
 
-- `tests/test_fp_sty.py::test_FP_STY_11_scan_20_vars_no_false_w210` (FP)
-- `tests/test_fp_sty.py::test_FP_STY_11_lassign_many_vars_no_false_w210` (FP)
-- `tests/test_fp_sty.py::test_FP_STY_11_binary_scan_many_vars_no_false_w210` (FP)
-- `tests/test_fp_sty.py::test_FP_STY_11_scan_fewer_specifiers_than_vars_still_fires` (TP control)
-- `tests/test_ground_truth_tn_fn.py::test_TN_scan_with_more_than_18_vars_no_false_w210`
-- `tests/test_ground_truth_tn_fn.py::test_TN_lassign_with_many_vars_no_false_w210`
-- `tests/test_ground_truth_tn_fn.py::test_TN_binary_scan_with_many_vars_no_false_w210`
+- `rust/tcl-compiler/src/analyser/diagnostics/fp/sty.rs::fp_sty_11_scan_20_vars_no_false_w210` (FP)
+- `rust/tcl-compiler/src/analyser/diagnostics/fp/sty.rs::fp_sty_11_lassign_many_vars_no_false_w210` (FP)
+- `rust/tcl-compiler/src/analyser/diagnostics/fp/sty.rs::fp_sty_11_binary_scan_many_vars_no_false_w210` (FP)
+- `rust/tcl-compiler/src/analyser/diagnostics/fp/sty.rs::fp_sty_11_scan_fewer_specifiers_than_vars_still_fires` (TP control)
+- `rust/tcl-compiler/src/analyser/diagnostics/fp/sty.rs::fp_sty_11_scan_20_vars_no_false_w210`
+- `rust/tcl-compiler/src/analyser/diagnostics/fp/sty.rs::fp_sty_11_lassign_many_vars_no_false_w210`
+- `rust/tcl-compiler/src/analyser/diagnostics/fp/sty.rs::fp_sty_11_binary_scan_many_vars_no_false_w210`
 
 ---
 
 ### FP-STY-12 — W216 / W212 braced indirect-array-element idiom `${var}(idx)`
 
 - **Verdict:** FALSE POSITIVE (now fixed; double-fire W216 + W212 cleared)
-- **Status:** locked in by `tests/test_fp_sty.py::test_FP_STY_12_*`
+- **Status:** locked in by `rust/tcl-compiler/src/analyser/diagnostics/fp/sty.rs::fp_sty_12_*`
 - **Codes:** W216 (broken brace-form array ref), W212 (substitution where
   var-name expected)
 - **Corpus:** Tcl 9.0 stdlib `http.tcl` — `set ${token}(status) eof`,
@@ -9534,32 +9570,32 @@ can't read "arr": variable is array
 
 #### Why the analyser reaches that verdict
 
-- `shared/naming.py::is_braced_indirect_array_ref` recognises the
+- `rust/tcl-syntax/src/naming.rs::is_braced_indirect_array_ref` recognises the
   `${name}(idx)` shape (brace-form var name + parenthesised index).
-- W216: `analyser/_analyser/_diag_brace_then_paren.py` — `_varname_word_indices`
+- W216: `rust/tcl-compiler/src/analyser/diagnostics/usage.rs` — `_varname_word_indices`
   computes which command words are variable-name positions; Pattern (1) is
   suppressed when the `${name}(idx)` word starts at one of those offsets.
   Value-position matches still fire.
-- W212: `analyser/checks/_style.py::check_name_vs_value` skips the arg when
+- W212: `rust/tcl-compiler/src/analyser/diagnostics/usage.rs::emit_w212_name_vs_value` skips the arg when
   `is_braced_indirect_array_ref(written)` holds; bare `$x` / `$arr(idx)` /
   index-less `${x}` foot-guns still fire.
 
 #### Tests
 
-- `tests/test_fp_sty.py::test_FP_STY_12_set_indirect_array_no_w216_w212` (FP)
-- `tests/test_fp_sty.py::test_FP_STY_12_info_exists_indirect_no_w216_w212` (FP)
-- `tests/test_fp_sty.py::test_FP_STY_12_unset_indirect_no_w216` (FP)
-- `tests/test_fp_sty.py::test_FP_STY_12_vwait_incr_append_lappend_indirect_no_w216` (FP variants)
-- `tests/test_fp_sty.py::test_FP_STY_12_value_position_still_fires_w216` (TP)
-- `tests/test_fp_sty.py::test_FP_STY_12_bare_dollar_name_still_fires_w212` (TP)
-- `tests/test_fp_sty.py::test_FP_STY_12_index_less_brace_still_fires_w212` (TP)
+- `rust/tcl-compiler/src/analyser/diagnostics/fp/sty.rs::fp_sty_12_set_indirect_array_no_w216_w212` (FP)
+- `rust/tcl-compiler/src/analyser/diagnostics/fp/sty.rs::fp_sty_12_info_exists_indirect_no_w216_w212` (FP)
+- `rust/tcl-compiler/src/analyser/diagnostics/fp/sty.rs::fp_sty_12_unset_indirect_no_w216` (FP)
+- `rust/tcl-compiler/src/analyser/diagnostics/fp/sty.rs::fp_sty_12_vwait_incr_append_lappend_indirect_no_w216` (FP variants)
+- `rust/tcl-compiler/src/analyser/diagnostics/fp/sty.rs::fp_sty_12_value_position_still_fires_w216` (TP)
+- `rust/tcl-compiler/src/analyser/diagnostics/fp/sty.rs::fp_sty_12_bare_dollar_name_still_fires_w212` (TP)
+- `rust/tcl-compiler/src/analyser/diagnostics/fp/sty.rs::fp_sty_12_index_less_brace_still_fires_w212` (TP)
 
 ---
 
 ### FP-STY-13 — W113 redefining an overridable Tcl library procedure
 
 - **Verdict:** FALSE POSITIVE (now fixed)
-- **Status:** locked in by `tests/test_fp_sty.py::test_FP_STY_13_*`
+- **Status:** locked in by `rust/tcl-compiler/src/analyser/diagnostics/fp/sty.rs::fp_sty_13_*`
 - **Codes:** W113 (procedure shadows built-in command)
 - **Corpus:** Tcl 9.0 stdlib itself — `init.tcl` (`proc unknown`,
   `proc auto_execok`, `proc auto_load`, `proc tcl_findLibrary`),
@@ -9604,23 +9640,23 @@ Overriding `unknown` is not only legal — it is the intended extension hook.
 
 #### Why the analyser reaches that verdict
 
-`analyser/_analyser/_proc.py` defines `_OVERRIDABLE_LIBRARY_PROCS`; the W113
+`rust/tcl-compiler/src/analyser/handlers.rs` defines `_OVERRIDABLE_LIBRARY_PROCS`; the W113
 shadow check clears `shadow_name` when the proc name is in that set, after the
 existing namespace-qualified exemption.
 
 #### Tests
 
-- `tests/test_fp_sty.py::test_FP_STY_13_unknown_override_no_w113` (FP)
-- `tests/test_fp_sty.py::test_FP_STY_13_library_procs_no_w113` (FP variants)
-- `tests/test_fp_sty.py::test_FP_STY_13_c_builtin_still_fires_w113` (TP, `set`/`puts`)
-- `tests/test_fp_sty.py::test_FP_STY_13_non_bytecompiled_c_command_still_fires_w113` (TP, `clock`/`after`/`socket`/`glob`)
+- `rust/tcl-compiler/src/analyser/diagnostics/fp/sty.rs::fp_sty_13_unknown_override_no_w113` (FP)
+- `rust/tcl-compiler/src/analyser/diagnostics/fp/sty.rs::fp_sty_13_library_procs_no_w113` (FP variants)
+- `rust/tcl-compiler/src/analyser/diagnostics/fp/sty.rs::fp_sty_13_c_builtin_still_fires_w113` (TP, `set`/`puts`)
+- `rust/tcl-compiler/src/analyser/diagnostics/fp/sty.rs::fp_sty_13_non_bytecompiled_c_command_still_fires_w113` (TP, `clock`/`after`/`socket`/`glob`)
 
 ---
 
 ### FP-STY-14 — W105 single bare-variable body is a script reference, not an inline block
 
 - **Verdict:** FALSE POSITIVE (now fixed)
-- **Status:** locked in by `tests/test_fp_sty.py::test_FP_STY_14_*`
+- **Status:** locked in by `rust/tcl-compiler/src/analyser/diagnostics/fp/sty.rs::fp_sty_14_*`
 - **Codes:** W105 (unbraced code-block argument) — fired at **Error** severity
 - **Corpus:** Tcl 9.0 stdlib + tcllib — `eval $cmd` (auto.tcl, package.tcl),
   `proc $fakeName $arglist $body` (auto.tcl dynamic proc), `namespace eval ::
@@ -9677,25 +9713,24 @@ single-bare-var body must not be flagged.
 
 #### Why the analyser reaches that verdict
 
-`analyser/checks/_style.py::check_unbraced_body` calls the new
-`_word_is_single_var` helper: it counts the content tokens spanned by the body
+`rust/tcl-compiler/src/analyser/diagnostics/usage.rs::emit_w105_unbraced_body` uses a single-var helper: it counts the content tokens spanned by the body
 word and skips W105 when the word is exactly one `VAR` token.  Composite /
 quoted bodies keep their existing `Error`-severity W105.
 
 #### Tests
 
-- `tests/test_fp_sty.py::test_FP_STY_14_eval_single_var_body_no_w105` (FP)
-- `tests/test_fp_sty.py::test_FP_STY_14_callback_dispatch_body_no_w105` (FP)
-- `tests/test_fp_sty.py::test_FP_STY_14_dynamic_proc_and_after_no_w105` (FP variants)
-- `tests/test_fp_sty.py::test_FP_STY_14_quoted_interpolated_body_still_fires` (TP)
-- `tests/test_fp_sty.py::test_FP_STY_14_composite_body_still_fires` (TP)
+- `rust/tcl-compiler/src/analyser/diagnostics/fp/sty.rs::fp_sty_14_eval_single_var_body_no_w105` (FP)
+- `rust/tcl-compiler/src/analyser/diagnostics/fp/sty.rs::fp_sty_14_callback_dispatch_body_no_w105` (FP)
+- `rust/tcl-compiler/src/analyser/diagnostics/fp/sty.rs::fp_sty_14_dynamic_proc_and_after_no_w105` (FP variants)
+- `rust/tcl-compiler/src/analyser/diagnostics/fp/sty.rs::fp_sty_14_quoted_interpolated_body_still_fires` (TP)
+- `rust/tcl-compiler/src/analyser/diagnostics/fp/sty.rs::fp_sty_14_composite_body_still_fires` (TP)
 
 ---
 
 ### FP-STY-15 — lexer: `$` before a closing `"` merged the quoted word with the next (E002 / E205 / W306)
 
 - **Verdict:** FALSE POSITIVE (lexer correctness bug; now fixed)
-- **Status:** locked in by `tests/test_fp_sty.py::test_FP_STY_15_*`
+- **Status:** locked in by `rust/tcl-compiler/src/analyser/diagnostics/fp/sty.rs::fp_sty_15_*`
 - **Codes:** E002 (too few arguments), E205 (extra characters after
   close-quote), W306 (substitution-in-literal regex pattern) — E002/E205 fired
   at **Error** severity on valid Tcl
@@ -9752,25 +9787,26 @@ string match "abc$" $x
 
 #### Why the analyser reaches that verdict
 
-`compiler/parsing/lexer.py::_parse_string` — the `newword` branch that opens a
-new quoted string now requires `not self.insidequote`, so the closing `"` after
-a tail `$` is no longer misread as an opening quote.
+`rust/tcl-lexer/src/lexer.rs` — the `'"' if self.is_newword()` arm that opens a
+new quoted string is reachable only on the `else` side of the lexer's
+`if self.in_quote` split, so the closing `"` after a tail `$` can never be
+misread as an opening quote.
 
 #### Tests
 
-- `tests/test_fp_sty.py::test_FP_STY_15_regsub_dollar_anchor_no_errors` (FP)
-- `tests/test_fp_sty.py::test_FP_STY_15_string_match_dollar_anchor_no_arity` (FP)
-- `tests/test_fp_sty.py::test_FP_STY_15_dollar_quote_word_boundary_lexes` (FP, token-level)
-- `tests/test_fp_sty.py::test_FP_STY_15_regex_end_anchor_no_w306` (FP)
-- `tests/test_fp_sty.py::test_FP_STY_15_live_var_in_quoted_pattern_still_w306` (TP)
-- `tests/test_tcl_corner_cases.py::TestDollarBeforeCloseQuote` (token-level FP/variants)
+- `rust/tcl-compiler/src/analyser/diagnostics/fp/sty.rs::fp_sty_15_regsub_dollar_anchor_no_errors` (FP)
+- `rust/tcl-compiler/src/analyser/diagnostics/fp/sty.rs::fp_sty_15_string_match_dollar_anchor_no_arity` (FP)
+- `rust/tcl-compiler/src/analyser/diagnostics/fp/sty.rs::fp_sty_15_*` (FP, token-level)
+- `rust/tcl-compiler/src/analyser/diagnostics/fp/sty.rs::fp_sty_15_regex_end_anchor_no_w306` (FP)
+- `rust/tcl-compiler/src/analyser/diagnostics/fp/sty.rs::fp_sty_15_live_var_in_quoted_pattern_still_w306` (TP)
+- token-level coverage of the trailing-`$`-before-close-quote shape in `rust/tcl-lexer/src/lexer.rs` (`mod tests`)
 
 ---
 
 ### FP-STY-16 — W201 manual-path-concat fires on prose / protocol / display strings
 
 - **Verdict:** FALSE POSITIVE (now fixed for the literal-whitespace class)
-- **Status:** locked in by `tests/test_fp_sty.py::test_FP_STY_16_*`
+- **Status:** locked in by `rust/tcl-compiler/src/analyser/diagnostics/fp/sty.rs::fp_sty_16_*`
 - **Codes:** W201 (manual path concatenation — use `[file join]`)
 - **Corpus:** Tcl 9.0 stdlib `http.tcl` (`set …(bypass) "CONNECT $host:$port
   HTTP/1.1"`), `tcltest.tcl` (`set msg "Usage: [file tail …] script "`) — any
@@ -9818,8 +9854,8 @@ is not a path separator.
 
 #### Why the analyser reaches that verdict
 
-`compiler/rendered_properties.py` sets `RenderedProperties.HAS_LITERAL_SPACE`
-on a top-level `SEP` token; `compiler/taint/_path_concat.py` skips W201 when
+`rust/tcl-compiler/src/rendered_properties.rs` sets `RenderedProperties.HAS_LITERAL_SPACE`
+on a top-level `SEP` token; `rust/tcl-compiler/src/path_concat.rs` skips W201 when
 the assigned value carries that bit.
 
 #### Tests
@@ -9830,11 +9866,11 @@ diagnostic that the packaged server does *not* surface through
 lsp_e2e / VS Code server path).  The authoritative W201 surface is therefore
 the in-process analyser, exercised here:
 
-- `tests/test_fp_sty.py::test_FP_STY_16_http_request_line_no_w201` (FP)
-- `tests/test_fp_sty.py::test_FP_STY_16_usage_message_no_w201` (FP)
-- `tests/test_fp_sty.py::test_FP_STY_16_prose_with_path_no_w201` (FP)
-- `tests/test_fp_sty.py::test_FP_STY_16_genuine_path_concat_still_fires` (TP)
-- `tests/test_fp_sty.py::test_FP_STY_16_path_with_command_sub_still_fires` (TP, internal spaces don't suppress)
+- `rust/tcl-compiler/src/analyser/diagnostics/fp/sty.rs::fp_sty_16_http_request_line_no_w201` (FP)
+- `rust/tcl-compiler/src/analyser/diagnostics/fp/sty.rs::fp_sty_16_usage_message_no_w201` (FP)
+- `rust/tcl-compiler/src/analyser/diagnostics/fp/sty.rs::fp_sty_16_prose_with_path_no_w201` (FP)
+- `rust/tcl-compiler/src/analyser/diagnostics/fp/sty.rs::fp_sty_16_genuine_path_concat_still_fires` (TP)
+- `rust/tcl-compiler/src/analyser/diagnostics/fp/sty.rs::fp_sty_16_path_with_command_sub_still_fires` (TP, internal spaces don't suppress)
 
 ---
 
@@ -10079,21 +10115,21 @@ rounds were closed in the same pass.
 
 | # | Gap | Closure | Test |
 |---|---|---|---|
-| G1 | regexp no-match path: `v` stays unset; `puts $v` after a provably non-matching pattern should fire W210 | SCCP-driven match analysis -- post-process `_read_before_set` to detect regexp/scan with bare-literal pattern + input, use Python `re` (regexp) or %d simulator (scan) to prove no-match | `tests/test_fp_rbs.py::test_FP_RBS_02_regexp_provably_no_match_fires_w210` |
-| G2 | scan no-match path: same root cause | Same machinery, scan-specific %d simulator | `tests/test_fp_rbs.py::test_FP_RBS_02_scan_provably_no_match_fires_w210` |
-| G3 | OBJ-04 namespaced proc returning plain string | Distinguish user-proc calls from builtin/namespaced builtins; user procs only become factory sources when the fixpoint proves them object-returning | `tests/test_fp_obj.py::test_FP_OBJ_04_namespaced_string_returning_user_proc_fires_w307` |
-| G4 | OBJ-04 mixed-return wrapper | Require ALL feasible return values (not just the LAST observed) to be namespaced cmd-subs | `tests/test_fp_obj.py::test_FP_OBJ_04_mixed_return_wrapper_fires_w307` |
-| G5 | OBJ-09 multi-dispatch ignores SCCP CONST | SCCP-says-not-a-command override on the heuristic suppressions | `tests/test_fp_obj.py::test_FP_OBJ_09_const_string_multi_dispatch_fires_w307` |
-| G6 | OBJ-10 callback-suffix ignores SCCP CONST | Same SCCP override + array-element base-name lookup | `tests/test_fp_obj.py::test_FP_OBJ_10_const_string_callback_suffix_fires_w307` |
-| G7 | OBJ-10 dash-prefix ignores SCCP CONST | Same as G6 | `tests/test_fp_obj.py::test_FP_OBJ_10_const_string_dash_prefix_fires_w307` |
-| G8 | OBJ-07 namespaced ensemble ignores SCCP const-prefix | Compose prefix + ``::tail`` and check registry / user-proc / class tables | `tests/test_fp_obj.py::test_FP_OBJ_07_namespaced_ensemble_const_prefix_fires_w307` |
-| G9 | dict with whole-proc suppression | Walk back to the most recent IRAssignConst literal value; use its keys as the suppression set (empty dict → no suppression) | `tests/test_fp_rbs.py::test_FP_dict_with_does_not_suppress_unrelated_missing_var` |
-| G10 | W214 dispatch-protocol from peer count alone | Require BOTH ≥3 peer procs AND at least one variable-command dispatch site (the "dispatcher evidence") | `tests/test_fp_rbs.py::test_FP_dispatch_protocol_requires_dispatcher_evidence` |
-| G11 | Call-by-name VAR_READ trait conflated with caller-frame alias | New `ProcArgTrait.DYNAMIC_NAME_LOCAL` distinct from VAR_READ/VAR_WRITE; caller-side suppression only honours the genuine upvar-alias traits | `tests/test_fp_rbs.py::test_FP_call_by_name_info_exists_dynamic_target_not_caller_read` |
-| G12 | W304 fires on safe braced-switch form | Special-case the 2-arg `switch STRING { ... }` shape | `tests/test_fp_nab.py::test_FP_NAB_05_braced_switch_form_should_not_fire_w304` |
-| G13 | W304 lexical "currently resolves to" crosses proc boundaries | Stop the backward scan at any `proc` whose param list contains the search variable | `tests/test_fp_nab.py::test_FP_NAB_05_w304_lexical_does_not_cross_proc_boundary` |
-| G14 | `namespace upvar ns src alias` -- `alias` not recorded as a def, false W210 | Add `arg_role_resolver` to the `namespace upvar` subcommand spec marking local-alias positions as `ArgRole.VAR_WRITE` | `tests/test_fp_rbs.py::test_FP_RBS_05_namespace_upvar_silent` |
-| G15 | Same-element ARRAY_ELEM dead-store not detected -- `set a(k) 1; set a(k) 2` doesn't fire | New `_must_alias_killed_in_block` helper: literal-key Place equality comparison + intra-block must-alias kill detection | `tests/test_fp_ds.py::test_FP_DS_06_same_element_overwrite_fires_w220` |
+| G1 | regexp no-match path: `v` stays unset; `puts $v` after a provably non-matching pattern should fire W210 | SCCP-driven match analysis -- post-process `emit_read_before_set_diagnostics` to detect regexp/scan with bare-literal pattern + input, use Python `re` (regexp) or %d simulator (scan) to prove no-match | `rust/tcl-compiler/src/analyser/diagnostics/fp/rbs.rs::fp_rbs_02_regexp_provably_no_match_fires_w210` |
+| G2 | scan no-match path: same root cause | Same machinery, scan-specific %d simulator | `rust/tcl-compiler/src/analyser/diagnostics/fp/rbs.rs::fp_rbs_02_scan_provably_no_match_fires_w210` |
+| G3 | OBJ-04 namespaced proc returning plain string | Distinguish user-proc calls from builtin/namespaced builtins; user procs only become factory sources when the fixpoint proves them object-returning | `rust/tcl-compiler/src/analyser/diagnostics/fp/obj.rs::fp_obj_04_namespaced_string_returning_user_proc_fires_w307` |
+| G4 | OBJ-04 mixed-return wrapper | Require ALL feasible return values (not just the LAST observed) to be namespaced cmd-subs | `rust/tcl-compiler/src/analyser/diagnostics/fp/obj.rs::fp_obj_04_mixed_return_wrapper_fires_w307` |
+| G5 | OBJ-09 multi-dispatch ignores SCCP CONST | SCCP-says-not-a-command override on the heuristic suppressions | `rust/tcl-compiler/src/analyser/diagnostics/fp/obj.rs::fp_obj_09_const_string_multi_dispatch_fires_w307` |
+| G6 | OBJ-10 callback-suffix ignores SCCP CONST | Same SCCP override + array-element base-name lookup | `rust/tcl-compiler/src/analyser/diagnostics/fp/obj.rs::fp_obj_10_const_string_callback_suffix_fires_w307` |
+| G7 | OBJ-10 dash-prefix ignores SCCP CONST | Same as G6 | `rust/tcl-compiler/src/analyser/diagnostics/fp/obj.rs::fp_obj_10_const_string_dash_prefix_fires_w307` |
+| G8 | OBJ-07 namespaced ensemble ignores SCCP const-prefix | Compose prefix + ``::tail`` and check registry / user-proc / class tables | `rust/tcl-compiler/src/analyser/diagnostics/fp/obj.rs::fp_obj_07_namespaced_ensemble_const_prefix_fires_w307` |
+| G9 | dict with whole-proc suppression | Walk back to the most recent `Statement::AssignConst` literal value; use its keys as the suppression set (empty dict → no suppression) | `rust/tcl-compiler/src/analyser/diagnostics/fp/rbs.rs::fp_rbs_dict_with_does_not_suppress_unrelated_missing_var` |
+| G10 | W214 dispatch-protocol from peer count alone | Require BOTH ≥3 peer procs AND at least one variable-command dispatch site (the "dispatcher evidence") | `rust/tcl-compiler/src/analyser/diagnostics/fp/rbs.rs::fp_rbs_dispatch_protocol_requires_dispatcher_evidence` |
+| G11 | Call-by-name VAR_READ trait conflated with caller-frame alias | New `ProcArgTrait.DYNAMIC_NAME_LOCAL` distinct from VAR_READ/VAR_WRITE; caller-side suppression only honours the genuine upvar-alias traits | `rust/tcl-compiler/src/analyser/diagnostics/fp/rbs.rs::fp_rbs_call_by_name_info_exists_dynamic_target_not_caller_read` |
+| G12 | W304 fires on safe braced-switch form | Special-case the 2-arg `switch STRING { ... }` shape | `rust/tcl-compiler/src/analyser/diagnostics/fp/nab.rs::fp_nab_05_braced_switch_form_should_not_fire_w304` |
+| G13 | W304 lexical "currently resolves to" crosses proc boundaries | Stop the backward scan at any `proc` whose param list contains the search variable | `rust/tcl-compiler/src/analyser/diagnostics/fp/nab.rs::fp_nab_05_w304_lexical_does_not_cross_proc_boundary` |
+| G14 | `namespace upvar ns src alias` -- `alias` not recorded as a def, false W210 | Add `arg_role_resolver` to the `namespace upvar` subcommand spec marking local-alias positions as `ArgRole.VAR_WRITE` | `rust/tcl-compiler/src/analyser/diagnostics/fp/rbs.rs::fp_rbs_05_namespace_upvar_silent` |
+| G15 | Same-element ARRAY_ELEM dead-store not detected -- `set a(k) 1; set a(k) 2` doesn't fire | New `_must_alias_killed_in_block` helper: literal-key Place equality comparison + intra-block must-alias kill detection | `rust/tcl-compiler/src/analyser/diagnostics/fp/ds.rs::fp_ds_06_same_element_overwrite_fires_w220` |
 
 Plus a paired catalog message fix: T100's diagnostic message text was
 changed from "possible code injection" to "numeric coercion may
@@ -10106,7 +10142,7 @@ covered by W101).
 The naive "treat all regexp/scan VAR_WRITE as conditional" approach
 breaks Tcl idioms like ``regexp -- \\$WordBreakRE(after) abc result;
 return \\$result`` (Tcl 9 init.tcl word.tcl), so the closure is
-*precise*: a post-pass in `_read_before_set` scans for regexp/scan
+*precise*: a post-pass in `emit_read_before_set_diagnostics` scans for regexp/scan
 calls where the pattern + input are bare literals (no substitution),
 runs Python's `re` for regexp (or a conservative %d-only simulator
 for scan), and only marks the output vars provably-unset when the
@@ -10149,8 +10185,8 @@ must-alias fixes.
 
 - One commit per family (PR slice). Each commit adds:
   1. New `FP-<FAMILY>-NN` entries in this file with the seven sections above.
-  2. The matching evidence-generator entries in `bench/fp_snippets.py`.
-  3. The paired TP/FP tests in `tests/test_fp_<family>.py`.
+  2. A regenerated compiler-evidence block for the reproducer (`tcl explore <file> --show ssa --show sccp`).
+  3. The paired TP/FP tests in `rust/tcl-compiler/src/analyser/diagnostics/fp/<family>.rs`.
 - The reproducer in this file **is** the test source string — copy-pasted, not
   re-typed. This guarantees doc and test stay in lock-step.
 - Compiler evidence blocks must be regenerated via `bench.fp_snippets`; never

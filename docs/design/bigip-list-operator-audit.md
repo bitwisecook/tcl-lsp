@@ -4,9 +4,9 @@ This page enumerates every list-valued property in the registry that
 ships **without** a `list_operators` entry — and classifies what each
 case means for `tmsh modify` emission.
 
-The classification drives the curated override layer in
-`dialects/f5/bigip/registry/specs/_base.py::_FORCE_REPLACE_ALL_WITH`,
-which re-applies the right operators after every spec regeneration.
+The classification is what decides each property's `list_operators`
+value in the generated BIG-IP spec data
+(`rust/tcl-registry/src/bigip/data/*.rs`).
 
 ## Why this matters
 
@@ -18,18 +18,21 @@ operator on every list-valued field:
 tmsh modify ltm virtual /Common/v { rules replace-all-with { /Common/r1 } }
 ```
 
-The registry's `list_operators` field tells the renderer which
-operators a property accepts.  An empty set means the renderer
+`BigipPropertySpec::list_operators: &'static [&'static str]`
+(`rust/tcl-registry/src/bigip/mod.rs`) tells the renderer which
+operators a property accepts, and `is_list_valued()` is simply
+"that slice is non-empty".  An empty slice means the renderer
 falls through to a bare `<prop> { ... }` body — silently
 producing scripts the device refuses.
 
 ## tmsh_list — needs `replace-all-with`
 
 These are real list properties: a `tmsh modify` of the parent
-object must use `replace-all-with` for the full-body write.  The
-curated override layer pins `list_operators = {"add", "delete",
-"replace-all-with"}` on every entry below; the renderer then
-emits `<prop> replace-all-with { ... }` automatically.
+object must use `replace-all-with` for the full-body write.  Every
+entry below carries
+`list_operators: &["add", "delete", "replace-all-with"]`; the
+renderer (`rust/tcl-bigip/src/tmsh_emit.rs`) then emits
+`<prop> replace-all-with { ... }` automatically.
 
 - `gtm listener.rules`
 - `gtm listener-doh-proxy.rules`
@@ -74,10 +77,10 @@ Examples:
 
 These need per-property inspection against the device.  Some are
 real lists (e.g. `cm device.unicast-address`, `gtm link.cost-
-segments`); others may be generator artifacts.  The override layer
-leaves them alone until classified — the worst case is a silent
-emission gap on these specific properties, with the rest of the
-catalogue covered.
+segments`); others may be generator artifacts.  They are left with
+an empty `list_operators` until classified — the worst case is a
+silent emission gap on these specific properties, with the rest of
+the catalogue covered.
 
 Tracked as a follow-up.  Sample of the 66 uncertain entries:
 
@@ -95,21 +98,24 @@ Tracked as a follow-up.  Sample of the 66 uncertain entries:
 
 ## Regenerating the audit
 
-Run:
+Walk the generated catalogue and print every list-typed property with
+no operators:
 
-```python
-python3 -c "
-from dialects.f5.bigip.registry.data import PROPERTY_SPECS_BY_TYPE
-for (m, o), props in sorted(PROPERTY_SPECS_BY_TYPE.items()):
-    for n, p in props.items():
-        if p.value_type == 'list' and not p.list_operators:
-            print(f'{m} {o}.{n}')
-"
+```rust
+use tcl_registry::bigip::{ValueKind, data::all_specs};
+
+for spec in all_specs() {
+    for prop in spec.properties {
+        if prop.value_type == ValueKind::List && !prop.is_list_valued() {
+            println!("{} .{}", spec.kind_spec.kind, prop.name);
+        }
+    }
+}
 ```
 
-Any new entry that lands in the `tmsh_list` bucket needs to be
-added to `_FORCE_REPLACE_ALL_WITH` in
-`dialects/f5/bigip/registry/specs/_base.py`.  A test
-(`test_force_replace_all_with_pins_known_list_properties`) walks
-the allowlist and asserts every entry resolves to an actual
-property in the catalogue, so stale entries trip CI.
+Any new entry that lands in the `tmsh_list` bucket needs
+`list_operators: &["add", "delete", "replace-all-with"]` on its
+`BigipPropertySpec` in `rust/tcl-registry/src/bigip/data/*.rs` —
+which is generated data, so the classification belongs in whatever
+regenerates it, not in a hand edit that the next regeneration
+discards.
