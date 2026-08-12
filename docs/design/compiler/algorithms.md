@@ -165,25 +165,22 @@ propagation), `rust/tcl-compiler/src/taint.rs`.
 reverse-postorder and the SCCP executable-block/edge sets so unreachable code is
 not analysed.  Tcl barriers act as ⊤-introducing transfer functions.
 
-## Per-proc dependency fingerprint (incremental memoization)
+## Per-proc incremental memoization
 
 **Basis.** Not a single classic paper — the standard incremental/demand-driven
-recomputation idea (recompute a unit only when its inputs change), with the
-*dependency fingerprint* playing the role of the unit's input summary.
+recomputation idea: recompute a unit only when its inputs change.
 
-**Where.** `rust/tcl-compiler/src/compilation_unit.rs` (`dependency_fingerprint` — an
-experimental foundation, **not wired into any cache**; the per-proc
-`FunctionUnit` reuse that shipped keys on body + stub + CFG-context + position +
-known-classes fingerprints in `document_state._build_proc_cache`, not on this
-dependency fingerprint. Wiring it in is risk-gated by the incremental≡full
-golden test).
+**Where.** `rust/tcl-compiler/src/compilation_unit.rs`; the salsa-backed
+query layer in `rust/tcl-lsp-db/src/lib.rs`.
 
-**Adaptation.** A proc's fingerprint is the over-approximate set of external
-symbols it references — invoked command names (including inside `[...]`
-substitutions in nested control-flow bodies) and `::`-qualified globals — so a
-proc's *local* diagnostics need recomputing only when its body hash or that set
-changes.  Over-approximation is the safe bias: a missing dependency can force
-extra recomputation but never serve a stale result.
+**Adaptation.** The unit of reuse is the per-proc `FunctionUnit`, keyed on the
+proc's body, its inline stubs, its CFG context, its start position, and the
+known-classes fingerprint.  Cross-proc invalidation rides the context
+fingerprint.  Every key component is an over-approximation, which is the safe
+bias: a key that changes more often than strictly necessary forces extra
+recomputation, but can never serve a stale result.  The hard contract on any
+change here is that incremental analysis must equal a full rebuild
+byte-for-byte.
 
 ---
 

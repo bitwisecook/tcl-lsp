@@ -13,9 +13,9 @@ Stage 2 (segmentation) groups tokens into `SegmentedCommand` objects via
 `segment_commands()`.  These two stages run before any compiler logic and
 feed all downstream phases.
 
-Source: `compiler/parsing/lexer.py` (`tokenise_all` at line 1183),
-`shared/tokens.py`,
-`compiler/parsing/command_segmenter.py` (`segment_commands` at line 344)
+Source: `rust/tcl-lexer/src/lexer.rs` (`tokenise_all` at line 1183),
+`rust/tcl-lexer/src/tokens.rs`,
+`rust/tcl-compiler/src/segmenter.rs` (`segment_commands` at line 344)
 
 ## Content
 
@@ -115,7 +115,7 @@ more runtime args) from a literal `*${list}` word.
 
 The `TclLexer.expand_syntax` flag controls whether `{*}` is recognised.
 `configure_signatures()` in
-`compiler/registry/runtime.py`
+`rust/tcl-registry/src/registry.rs`
 sets the flag based on the active dialect:
 
 - **Enabled** for dialects in `dialects_since("tcl8.5")` — all Tcl
@@ -173,9 +173,9 @@ paths: the segmenter (`segment_commands`), the lowerer (`lower_to_ir`),
 `compiler_checks`, and `var_refs` each tokenise overlapping regions, and
 nested braced bodies are re-lexed at every level of recursion.
 
-The original per-analysis memo (`compiler/parsing/token_cache.py` /
+The original per-analysis memo (`rust/tcl-lexer/src/lexer.rs` /
 `tokenise_cached()` / `token_cache_scope()`) has since been **subsumed by the
-green token tree** in `compiler/parsing/green_tree.py` — see
+green token tree** in `rust/tcl-lexer/src/lexer.rs` — see
 [green-token-tree.md](green-token-tree.md). The memo is now `green_tree`'s
 analysis-scoped intern index, with the same correctness rules:
 

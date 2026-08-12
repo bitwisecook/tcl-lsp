@@ -8,7 +8,7 @@ value is marked `OVERDEFINED` when it seems constant.
 
 ## Context
 
-`analyse_function()` in `core_analyses.py` runs SCCP (Sparse Conditional
+`analyse_function()` in `analyses.rs` runs SCCP (Sparse Conditional
 Constant Propagation) over the SSA graph, producing a `FunctionAnalysis`
 with constant values, type information, liveness, dead stores, unreachable
 blocks, constant branches, read-before-set, and unused variables.

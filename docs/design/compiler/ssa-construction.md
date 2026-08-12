@@ -8,7 +8,7 @@ variable versioning or missing phi nodes.
 
 ## Context
 
-`build_ssa()` in `ssa.py` transforms a `CFGFunction` into an `SSAFunction`
+`build_ssa()` in `ssa.rs` transforms a `CFGFunction` into an `SSAFunction`
 where every variable definition gets a unique version number.  Phi nodes are
 placed at dominance frontiers to merge definitions from different paths.
 The dominator tree and dominance frontiers are computed as part of SSA

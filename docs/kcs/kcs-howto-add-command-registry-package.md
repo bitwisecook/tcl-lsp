@@ -19,226 +19,121 @@ hints, call-graph integration) — the same way `tcllib` is wired in?
   shipped registry rather than declared per-project via
   [stubs](kcs-howto-annotate-commands-with-stubs.md).
 - You can enumerate the package's commands (names, arities, argument
-  shapes) from upstream docs.
-- You have a checkout of the repo and can run `make ci-fast` + the
-  Python test suite locally.
+  shapes) from upstream docs. Read the real manual page for each
+  command — a generic `cmd subcommand ?arg ...?` synopsis hides
+  subcommands with materially different argument shapes.
+- You have a checkout and can run `make prep-pr`.
 
 ## Answer
 
-The registry pattern is one Python file per package (or per
-namespace within a package), each file declaring one `CommandDef`
-subclass per command. The classes register themselves via a
-`@register` decorator at import time; the package's `__init__.py`
-exposes a `<pkg>_command_specs()` factory that
-`CommandRegistry.build_default()` (or `load_dialect_specs()`) calls.
+The registry lives in the `tcl-registry` crate. The pattern is one Rust
+file per command, each exposing a `spec()` function that returns a
+`CommandSpec`, and a `mod.rs` per package that lists the modules and
+collects their specs.
 
-This walkthrough uses `sqlite3` — the same package used as the
-running stub example elsewhere — as a concrete target.
+This walkthrough uses `sqlite3` — the same package used as the running
+stub example elsewhere — as a concrete target.
 
 ### 1. Decide the home
 
-Pick the directory under `dialects/` that matches the
-package's distribution shape:
+Pick the directory under `rust/tcl-registry/src/commands/` that matches
+the package's distribution shape:
 
-| Distribution shape | Folder | Loader |
-|---|---|---|
-| Bundled with Tcl core | `dialects/tcl/` | always available |
-| Standard library package (Tk, http, msgcat, …) | `dialects/stdlib/` | gated by `package require` |
-| tcllib package | `dialects/tcllib/` | gated by `package require` |
-| Dialect-specific (iRules, iApps, EDA vendors, Expect) | `dialects/f5/irules/`, `dialects/f5/iapps/`, `dialects/eda/`, `dialects/expect/` | loaded on dialect activation |
-| Standalone C extension (sqlite3, tdom, …) | `dialects/stdlib/` (alongside Tk and friends) | gated by `package require` |
+| Distribution shape | Folder |
+|---|---|
+| Bundled with the Tcl core | `tcl/` |
+| Standard library package (Tk, http, msgcat, …) | `stdlib/` |
+| tcllib package | `tcllib/` |
+| Dialect-specific (iRules, iApps, EDA vendors, Expect, itcl) | `irules/`, `iapps/`, `eda_*/`, `expect/`, `itcl/` |
+| Standalone C extension (sqlite3, tdom, …) | `stdlib/` |
 
 `sqlite3` is a standalone C extension that needs `package require
-sqlite3`, so it belongs under `dialects/stdlib/`.
+sqlite3`, so it belongs under `stdlib/`.
 
-### 2. Create the package module
+### 2. Add one module per command
 
-Add `dialects/stdlib/sqlite3_.py` (the trailing
-underscore matches the convention used for module names that would
-otherwise clash with the standard library or built-ins):
+Create `rust/tcl-registry/src/commands/stdlib/sqlite3.rs`. Follow the
+shape of an existing neighbour such as `msgcat__mc.rs` — a package
+namespace is spelled with a double underscore in the filename. Each
+module exposes a single `spec()`:
 
-```python
-"""sqlite3 — SQLite Tcl bindings."""
+```rust
+//! `sqlite3` command.
+use crate::prelude::*;
 
-from __future__ import annotations
-
-from compiler.registry._base import CommandDef
-from compiler.registry.models import (
-    CommandSpec,
-    FormKind,
-    FormSpec,
-    HoverSnippet,
-    SubCommand,
-    ValidationSpec,
-)
-from compiler.registry.signatures import ArgRole, Arity
-from compiler.side_effects import (
-    ConnectionSide,
-    SideEffect,
-    SideEffectTarget,
-)
-from ._base import register
-
-_SOURCE = "sqlite3 Tcl bindings"
-_PACKAGE = "sqlite3"
-_BODY = frozenset({ArgRole.BODY})
-
-
-@register
-class Sqlite3Command(CommandDef):
-    """The factory command — ``sqlite3 dbName ?path? ?options?``
-    creates the instance command ``dbName``."""
-
-    name = "sqlite3"
-
-    @classmethod
-    def spec(cls) -> CommandSpec:
-        return CommandSpec(
-            name=cls.name,
-            required_package=_PACKAGE,
-            hover=HoverSnippet(
-                summary="Open or create a SQLite database and create an instance command.",
-                synopsis=("sqlite3 dbName ?path? ?-create boolean? ?-readonly boolean? ...",),
-                source=_SOURCE,
-                examples="sqlite3 db :memory:",
-                return_value="The name of the new instance command.",
-            ),
-            forms=(
-                FormSpec(
-                    kind=FormKind.DEFAULT,
-                    synopsis="sqlite3 dbName ?path? ?options...?",
-                ),
-            ),
-            validation=ValidationSpec(arity=Arity(1)),
-            side_effect_hints=(
-                SideEffect(target=SideEffectTarget.FILE_IO, writes=True),
-            ),
-        )
+pub fn spec() -> CommandSpec {
+    CommandSpec {
+        name: "sqlite3",
+        required_package: Some("sqlite3"),
+        arity: Arity::at_least(1),
+        hover: Some(HoverSnippet { /* summary, synopsis, … */ }),
+        side_effects: SIDE_EFFECTS,
+        ..CommandSpec::DEFAULT
+    }
+}
 ```
 
-That gives `sqlite3` itself a real spec: hover docs, completion, arity
-check, and a side-effect classification. But it does not yet model
-`db eval` / `db transaction` / `db function` callbacks — those live on
-the *instance command*, which is created dynamically. See section 4.
+Spread `..CommandSpec::DEFAULT` rather than filling every field — the
+struct is wide and the defaults are the neutral answer.
 
-### 3. Wire it into the loader
+### 3. Wire it into the package
 
-Add the module to `dialects/stdlib/__init__.py`:
+Add a `mod sqlite3;` line and a `sqlite3::spec(),` entry to the package's
+`mod.rs` collector. Nothing else registers it; the collector is the only
+list.
 
-```python
-from . import sqlite3_  # noqa: F401
-```
+### 4. Model the instance command
 
-and confirm the existing `stdlib_command_specs()` factory walks the
-shared `_REGISTRY` list — no other change is needed; the `@register`
-decorator does the work.
+`sqlite3 db :memory:` creates a command named `db`. The instance name is
+user-chosen, so a fixed spec cannot name it. Declare the binding as
+registry data instead — a `HandleBindingSpec` hung off the creating
+command's `binds_handle` field says which argument names the variable
+that receives the handle and which says its class. Never add a walker
+arm that matches the command name; the whole point of the binding spec
+is that every spelling C Tcl resolves to the same command resolves the
+same way.
 
-If you're adding a new dialect rather than a package, follow the
-existing pattern in `command_registry.py:99` — add an entry to
-`_DIALECT_LOADER_SPECS` so `load_dialect_specs()` can find your
-factory.
+### 5. Add the metadata that drives other analyses
 
-### 4. Model instance-command callbacks
-
-`sqlite3 db :memory:` creates a command named `db`. The instance name
-is user-chosen, so we can't put a literal `db` spec in the registry —
-the registry only knows fixed names. There are two strategies:
-
-**Strategy A — handle it at the analyser level.** Detect `sqlite3
-$name ?path?` invocations and synthesise an instance command with the
-right signature into the per-analysis overlay. This is similar in
-spirit to how `oo::class create Foo` is recognised. It requires a
-small lowering hook in `compiler/lowering_hooks/` that watches
-for `sqlite3` calls and registers `$name` with a `SubcommandSig`
-overlay carrying the `eval` / `transaction` / `function` /
-`onecolumn` / `cache` subcommands. The overlay shape mirrors the
-existing built-in ensemble commands (`dict`, `string`, `info`).
-
-**Strategy B — ship a sqlite-extras file users opt into.** If the
-canonical instance name is conventional (`db` in many sqlite
-projects), expose a helper that registers the well-known names via
-`stub_signature_scope` automatically when `package require sqlite3`
-is seen. Lower correctness ceiling but no lowering-hook needed.
-
-Strategy A is what the existing `tcloo` / `snit` integrations use
-for class-created instance commands; Strategy B is a stop-gap. For
-sqlite3 the recommended long-term path is A; until then users can
-continue to use [stubs](kcs-howto-annotate-commands-with-stubs.md)
-to declare their instance command shapes.
-
-### 5. Add side-effect, taint, and type metadata
-
-`CommandSpec` carries optional fields that drive other analyses:
-
-```python
-return CommandSpec(
-    name="sqlite3::dbName::eval",
-    required_package=_PACKAGE,
-    forms=(...),
-    validation=ValidationSpec(arity=Arity(1, 3)),
-    arg_roles={2: _BODY},
-    side_effect_hints=(
-        SideEffect(target=SideEffectTarget.FILE_IO, reads=True, writes=True),
-    ),
-    evaluates_code=True,            # script arg is treated as Tcl code
-    creates_dynamic_barrier=True,   # callback body crosses analysis boundary
-)
-```
+`CommandSpec` carries optional fields that other passes read:
 
 | Field | What it drives |
 |---|---|
-| `arg_roles` / `arg_role_resolver` | Where script bodies, variables, channels, patterns live. Feeds the call-graph scanner, var-usage analyser, and lexer. |
-| `validation.arity` | Arity diagnostics (W101 / E120). |
-| `side_effect_hints` | Purity propagation, dead-store elimination, IRule taint flow. |
-| `evaluates_code` | Marks the command as a script-runner like `eval` / `uplevel`. |
-| `creates_dynamic_barrier` | Signals analysis boundary for SSA / variable-escape. |
-| `assigns_variable_at` | Variable-write detection for commands like `set`, `lassign`. |
-| `creates_scope_alias` | Upvar-style aliasing. |
-| `const_fold` | A callable that constant-folds the command at compile time. |
-| `taint_hints()` (class method) | Per-command taint flow, declared via override on `CommandDef`. |
-| `tcllib_package` / `required_package` | Gates the command on a matching `package require`. |
+| `arg_roles` / `arg_role_resolver` | Where script bodies, variables, channels, and patterns live. Feeds the call-graph scanner, the variable-usage analyser, and semantic highlighting. |
+| `arity` | Arity diagnostics. |
+| `side_effects` | Purity propagation, dead-store elimination, iRule taint flow. |
+| `binds_handle` | Object-handle binding (see step 4). |
+| `required_package` | Gates the command on a matching `package require`. |
 
-The full field reference is in `compiler/registry/models.py`
-and the design notes in `docs/design/compiler/command-registry.md`.
+A subcommand that takes a script needs an explicit `ArgRole::Body` on
+that `SubCommand` entry — it is never inferred from arity or synopsis
+text. If the script evaluates in a *different* interpreter from the
+caller's, classify it as a cross-interpreter sink rather than a
+same-interpreter one.
+
+The full field reference is in the [command registry design
+doc](../design/compiler/command-registry.md).
 
 ### 6. Add tests
 
-Each new package gets a focused test file under `tests/`:
+Unit tests live beside the code, in the package's `mod.rs` or the command
+module itself. Assert the spec is reachable by name, that its arity and
+argument roles are what the manual page says, and — for a command with a
+script argument — that a body actually recurses.
 
-```python
-# tests/test_registry_sqlite3.py
-from compiler.registry import REGISTRY
+### 7. Refresh the generated editor assets
 
-def test_sqlite3_factory_registered():
-    spec = REGISTRY.get_any("sqlite3")
-    assert spec is not None
-    assert spec.required_package == "sqlite3"
-
-def test_arity_diagnostic_fires_on_zero_args():
-    # ... call the analyser, assert W101 raised
-```
-
-End-to-end coverage (call graph, hover, completion) belongs in
-`tests/test_semantic_graph.py`, `tests/test_hover.py`, and
-`tests/test_completion.py` respectively — extend those rather than
-duplicating fixtures.
-
-### 7. Refresh derived caches
-
-After running, `make snapshot-wasm-parity` updates the WASM parity
-baseline to acknowledge the new commands. `make gen-editor-settings`
-regenerates the per-editor diagnostic catalogues. Commit both
-alongside the registry change — CI will fail if they're stale.
+The registry is the source of truth for several generated files. Run
+`make generate` and `make gen-editor-settings`, then commit the results
+alongside the registry change — the drift gates in `make xtask-check`
+fail if they are stale.
 
 ## How to tell it worked
 
-- `python -c "from compiler.registry import REGISTRY; print(REGISTRY.get_any('sqlite3'))"`
-  returns a `CommandSpec`, not `None`.
 - A Tcl file containing `package require sqlite3` followed by
-  `sqlite3 db :memory:` no longer raises the W123 "unresolved command"
-  diagnostic on `sqlite3`.
-- Hovering `sqlite3` in VS Code shows the synopsis from the
-  `HoverSnippet`.
+  `sqlite3 db :memory:` no longer draws an unresolved-command diagnostic
+  on `sqlite3`.
+- Hovering `sqlite3` shows the synopsis from your `HoverSnippet`.
 - `tcl callgraph` on a sqlite-using file shows edges into row callbacks
   *without* a `# tcl-lsp: stub` block in the source — the registry now
   knows the command shape directly.
@@ -249,5 +144,4 @@ alongside the registry change — CI will fail if they're stale.
   — the lighter-weight, per-project alternative when registry inclusion
   isn't warranted.
 - [Command registry design doc](../design/compiler/command-registry.md)
-- [CommandSpec field reference](../GLOSSARY.md#commandspec)
 - [KCS index](README.md)

@@ -50,5 +50,5 @@ Add `# noqa: W201` at the end of the offending line.
 
 - [KCS codes index](README.md)
 - [Diagnostics feature](../features/kcs-feature-diagnostics.md)
-- [taint](../../GLOSSARY.md#taint)
+- [taint](../../GLOSSARY.md#taint-analysis)
 - Related codes: `W200`, `W104`

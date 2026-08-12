@@ -22,7 +22,7 @@ Later passes disagree on command/argument interpretation, especially around subs
   - emitted IR node shape,
   - fallback shape for ambiguous/dynamic inputs,
   - range source and limitations.
-- Add tests in `tests/test_ir_lowering.py` and downstream pass tests for the same script shape.
+- Add unit tests alongside `rust/tcl-compiler/src/lowering/` and downstream pass tests for the same script shape.
 
 ## Related files
 

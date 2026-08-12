@@ -33,9 +33,8 @@ Two independent causes, both about *whose* frame a write lands in.
 and every call site consults that summary. A level that lands on the direct
 caller (`upvar 1`, `uplevel 1`) is emphatically *not* transitive through an
 ordinary call — `worker`'s `upvar 1` reaches `wrapper`'s frame, not
-`wrapper`'s caller's — so the summary stopped there. But a level that lands
-*past* the caller travels one hop further along an ordinary call, and that
-hop was missing:
+`wrapper`'s caller's — so the summary stops there. A level that lands *past*
+the caller does travel one hop further along an ordinary call:
 
 ```tcl
 proc setUp2  {var} { uplevel 2 [list set $var 99] }
@@ -55,16 +54,15 @@ author meant. The substitution is the whole idiom, not a slip.
 
 ## Answer
 
-Both false reports are fixed — no configuration change or workaround is
-needed. Update to a build containing the fix.
-
-To confirm the fix is present, put the three-frame example above in a file
-and check the Problems view. Before the fix: one `W210` on `return $answer`
-and one `W212` on the `[list set $var 99]` word. After the fix: nothing.
+Neither shape draws a report. The summary carries a level that lands past
+the direct caller one hop further along an ordinary call, and `W212` does not
+ask its question inside a `[list …]`-built script at all. If you see either
+report on the three-frame example above, you are on a build older than the
+fix — update, and both go.
 
 ## What still reports
 
-Neither check was switched off:
+Neither check is switched off:
 
 ```tcl
 proc setLocally {var} { set $var 99 }     ;# W212 — written by hand

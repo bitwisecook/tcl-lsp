@@ -1,4 +1,4 @@
-# KCS: execution-intent model (Phase 2)
+# KCS: execution-intent model
 
 ## Symptom
 
@@ -26,8 +26,8 @@ For command substitutions (`set x [cmd ...]`), intent records:
 
 ## Practical use in this repo
 
-- `shimmer.py` uses intent as the fast path for command-substitution shimmer checks.
-- `optimiser.py` uses side-effect/escape intent to decide whether dead command-substitution stores are removable.
+- `shimmer/` uses intent as the fast path for command-substitution shimmer checks.
+- `optimiser/` uses side-effect/escape intent to decide whether dead command-substitution stores are removable.
 
 ## Related files
 

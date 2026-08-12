@@ -106,7 +106,7 @@ MESSAGE)? OFFSET COUNT NEW_VALUE` (index 3, shifted to 5 by the optional flag)
 all differ. The data position is therefore declared per command in the registry
 (`BytePayloadSpec` on `CommandSpec.byte_array_payload`) and read back via
 `byte_array_payload_layouts()`, so the pass stays correct for new payload
-commands without editing `shimmer.py`.
+commands without editing `shimmer/`.
 
 ## Why provenance, not the type lattice
 
@@ -168,9 +168,9 @@ convertto`) stay enabled everywhere.
 Python reference implementation:
 
 - `rust/tcl-compiler/src/shimmer/` — `_find_byte_array_corruption`, `_payload_replace_data_index`, and helpers
-- `compiler/registry/runtime.py` — `byte_array_payload_commands`, `byte_array_payload_layouts`
-- `compiler/registry/models.py` — `BytePayloadSpec`, `CommandSpec.byte_array_payload`
-- `dialects/f5/irules/*__payload.py` — `byte_array_payload=True` (default index-3 layout) or `=BytePayloadSpec(...)`
+- `rust/tcl-registry/src/registry.rs` — `byte_array_payload_commands`, `byte_array_payload_layouts`
+- `rust/tcl-registry/src/spec.rs` — `BytePayloadSpec`, `CommandSpec.byte_array_payload`
+- `rust/tcl-registry/src/commands/irules/*__payload.rs` — `byte_array_payload=True` (default index-3 layout) or `=BytePayloadSpec(...)`
 
 Rust port (see [`../rust/s110-byte-array-corruption-port.md`](../rust/s110-byte-array-corruption-port.md)):
 

@@ -16,7 +16,7 @@ consumers can query properties without re-lexing).
 
 Source: `rust/tcl-compiler/src/rendered_properties.rs`
 
-Primary consumer: `rust/tcl-compiler/src/taint.rs_path_concat.py` (W201 detection).
+Primary consumer: `rust/tcl-compiler/src/path_concat.rs` (W201 detection).
 
 ## Content
 
@@ -132,7 +132,7 @@ SCCP  →  Type propagation  →  Rendered properties  →  Taint propagation
 
 ### W201 integration
 
-The `_find_path_concat_warnings()` function in `_path_concat.py` uses
+The `_find_path_concat_warnings()` function in `path_concat.rs` uses
 rendered properties for detection and taint colours for suppression:
 
 **Detection** (both required):
@@ -146,11 +146,11 @@ rendered properties for detection and taint colours for suppression:
 
 ### Adding a new property
 
-1. Add the flag to `RenderedProperties(Flag)` in `rendered_properties.py`
+1. Add the flag to `RenderedProperties(Flag)` in `rendered_properties.rs`
 2. Add it to `_MAY_MASK` or `_MUST_MASK` depending on join semantics
 3. Set it in `_evaluate_rendered_props_for_value()` and/or
    `_evaluate_rendered_props_for_const()`
-4. Add tests in `tests/test_rendered_properties.py`
+4. Add unit tests in `rust/tcl-compiler/src/rendered_properties.rs`
 5. Consume it in the downstream pass
 
 ## Resolution

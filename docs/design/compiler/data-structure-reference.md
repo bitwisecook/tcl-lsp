@@ -13,18 +13,18 @@ dataclasses.  All types live under `compiler/`, `analyser/`, or `shared/` and ar
 unless noted.  Understanding the shapes at each boundary is essential for
 adding new analyses or debugging data-flow issues.
 
-Source: `shared/tokens.py`,
-`compiler/parsing/command_segmenter.py`,
+Source: `rust/tcl-lexer/src/tokens.rs`,
+`rust/tcl-compiler/src/segmenter.rs`,
 `rust/tcl-compiler/src/ir.rs`,
 `rust/tcl-compiler/src/cfg.rs`,
 `rust/tcl-compiler/src/ssa.rs`,
 `rust/tcl-compiler/src/analyses.rs` / `rust/tcl-compiler/src/sccp.rs`,
-`compiler/codegen/bytecode/_types.py`,
+`rust/tcl-compiler/src/codegen/mod.rs`,
 `rust/tcl-compiler/src/compilation_unit.rs`
 
 ## Content
 
-### Stage 1 — Lexer types (`tokens.py`)
+### Stage 1 — Lexer types (`tokens.rs`)
 
 | Type | Purpose |
 |------|---------|
@@ -35,7 +35,7 @@ Source: `shared/tokens.py`,
 - `ESC` = plain word fragment, `STR` = braced string `{…}`, `CMD` = command
   substitution `[…]`, `VAR` = variable `$name`.
 
-### Stage 2 — Segmenter types (`command_segmenter.py`)
+### Stage 2 — Segmenter types (`segmenter.rs`)
 
 | Type | Purpose |
 |------|---------|
@@ -45,7 +45,7 @@ Source: `shared/tokens.py`,
 - `single_token_word[i]` = `True` when word `i` is one atomic token (no
   interpolation) — important for constant tracking.
 
-### Stage 3 — IR types (`ir.py`)
+### Stage 3 — IR types (`ir.rs`)
 
 | Type | When used |
 |------|-----------|
@@ -70,7 +70,7 @@ Source: `shared/tokens.py`,
 
 Every IR node carries a `Range` for precise diagnostic mapping.
 
-### Expression AST (`expr_ast.py`)
+### Expression AST (`rust/tcl-syntax/src/expr/ast.rs`)
 
 | Type | Example |
 |------|---------|
@@ -82,7 +82,7 @@ Every IR node carries a `Range` for precise diagnostic mapping.
 | `ExprCommand` | `[clock seconds]` |
 | `ExprRaw` | Fallback for unparseable expressions |
 
-### Stage 4 — CFG types (`cfg.py`)
+### Stage 4 — CFG types (`cfg.rs`)
 
 | Type | Purpose |
 |------|---------|
@@ -93,7 +93,7 @@ Every IR node carries a `Range` for precise diagnostic mapping.
 | `CFGFunction` | `entry` block name, `blocks dict`, `loop_nodes` |
 | `CFGModule` | `top_level` + `procedures dict` |
 
-### Stage 5 — SSA types (`ssa.py`)
+### Stage 5 — SSA types (`ssa.rs`)
 
 | Type | Purpose |
 |------|---------|
@@ -103,7 +103,7 @@ Every IR node carries a `Range` for precise diagnostic mapping.
 | `SSABlock` | `phis tuple`, `statements tuple`, `entry_versions`, `exit_versions` |
 | `SSAFunction` | `blocks dict`, `idom dict`, `dominance_frontier dict`, `dominator_tree dict` |
 
-### Stage 6 — Analysis types (`core_analyses.py`, `types.py`)
+### Stage 6 — Analysis types (`analyses.rs`, `types.rs`)
 
 | Type | Purpose |
 |------|---------|
@@ -122,14 +122,14 @@ Every IR node carries a `Range` for precise diagnostic mapping.
 | `FunctionAsm` | `name`, `literals`, `lvt`, `instructions`, `labels` |
 | `ModuleAsm` | `top_level` + `procedures dict` |
 
-### Orchestration (`compilation_unit.py`)
+### Orchestration (`compilation_unit.rs`)
 
 | Type | Purpose |
 |------|---------|
 | `FunctionUnit` | `cfg` + `ssa` + `analysis` + `execution_intent` per function (also built per TclOO method) |
 | `CompilationUnit` | `source`, `ir_module`, `cfg_module`, `top_level FunctionUnit`, `procedures dict`, `interproc`, `methods dict` (per-method `FunctionUnit`s), `connection_scope` |
 
-`compile_source()` at `compilation_unit.py:376` orchestrates all stages and
+`compile_source` (`rust/tcl-compiler/src/compilation_unit.rs`) orchestrates all stages and
 returns a `CompilationUnit`.
 
 ## Decision rule

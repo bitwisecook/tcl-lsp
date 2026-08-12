@@ -42,9 +42,7 @@ The diagnostics layer is the contract boundary for code-family mapping and suppr
 
 ## Test anchors
 
-- `tests/test_diagnostics.py`
-- `tests/test_diagnostic_phases.py`
-- `tests/test_async_diagnostics.py`
+- `rust/tcl-lsp-server/tests/e2e/` — the LSP diagnostic end-to-end suites.
 
 ## Related KCS notes
 

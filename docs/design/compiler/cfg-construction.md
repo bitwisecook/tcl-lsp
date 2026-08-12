@@ -8,7 +8,7 @@ incorrect block connectivity or missing edges.
 
 ## Context
 
-`build_cfg()` in `cfg.py` transforms an `IRModule` into a `CFGModule` by
+`build_cfg()` in `cfg.rs` transforms an `IRModule` into a `CFGModule` by
 decomposing structured IR into basic blocks with explicit terminators
 (`CFGGoto`, `CFGBranch`, `CFGReturn`).  Each block is a straight-line
 sequence of IR statements with no branches except at the end.

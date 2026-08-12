@@ -46,5 +46,5 @@ Toggle the optimiser profile in your editor settings. See the [optimiser feature
 
 - [KCS codes index](README.md)
 - [Optimiser feature](../features/kcs-feature-optimiser.md)
-- [Unused-procs analysis](../../GLOSSARY.md#unused-procs)
+- [Unused-procs analysis](../../GLOSSARY.md#unused-procs-elimination)
 - Related codes: `O126`, `O127`

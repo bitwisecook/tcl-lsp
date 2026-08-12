@@ -5,7 +5,7 @@
 
 ## Applies to
 
-tcl-lsp CLI (bytecode VM)
+tcl-lsp CLI
 
 ## Question
 
@@ -23,11 +23,6 @@ the parity scoreboard?
   (the same skill builds it) — it is the C oracle the VM is scored against.
 - `timeout` (coreutils) must be on `PATH`; the sweep runs each file under it so
   a hang or native-stack overflow can't stall the whole run.
-
-> The retired Python sweep (`scripts/tcltest_sweep/`, `tests/external/
-> run_tcl9_tests.py`, `aggregate.py`, `measure_perf.py`) and its
-> `uv run pytest` workflow have been removed — this is the Rust-native
-> replacement.
 
 ## Answer
 

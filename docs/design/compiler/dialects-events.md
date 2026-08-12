@@ -14,9 +14,9 @@ Dialects partition command availability.  Every `CommandSpec` has an optional
 commands are further restricted by event context — `EventRequires` declares
 transport, profile, and connection-side requirements.
 
-Source: `compiler/registry/dialects.py`,
-`compiler/registry/models.py`,
-`compiler/registry/namespace_models.py`
+Source: `rust/tcl-registry/src/dialects.rs`,
+`rust/tcl-registry/src/spec.rs`,
+`rust/tcl-registry/src/spec.rs`
 
 ## Content
 
@@ -41,9 +41,9 @@ KNOWN_DIALECTS = frozenset({
 ### Dialect base versions
 
 Each non-standard dialect is based on a specific Tcl runtime version.
-`DIALECT_BASE_VERSION` in `dialects.py` maps each dialect to its base.
+`DIALECT_BASE_VERSION` in `dialects.rs` maps each dialect to its base.
 
-**Rust port note**: `dialects.py` and `dialects_since()` below are the
+**Rust port note**: `dialects.rs` and `dialects_since()` below are the
 retired Python implementation's names, kept here because the *table* of
 base versions is still the source of truth. The Rust workspace has no
 `dialects_since()` — per-command dialect gating uses the `DialectSet`
@@ -100,7 +100,7 @@ Dialects not in `DIALECT_BASE_VERSION` (e.g. `f5-bigip`) are never
 included -- safe default for non-Tcl contexts.
 
 **Contract**: when adding a new dialect, add its entry to
-`DIALECT_BASE_VERSION` in `dialects.py` so `dialects_since()` resolves
+`DIALECT_BASE_VERSION` in `dialects.rs` so `dialects_since()` resolves
 correctly.
 
 ### Dialect filtering
@@ -202,7 +202,7 @@ and only an explicitly stricter dialect policy can request IRULE1004.
   listing dialect names.  Example: `safe_on_uninit=dialects_since("tcl8.5")`
   for `incr`.
 - When adding a new dialect, add it to both `KNOWN_DIALECTS` and
-  `DIALECT_BASE_VERSION` in `dialects.py`.
+  `DIALECT_BASE_VERSION` in `dialects.rs`.
 - If IRULE1001 fires incorrectly, check that the event's `EventProps`
   includes the required profiles and transport.
 

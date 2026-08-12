@@ -355,27 +355,3 @@ runtime/
 .github/workflows/ci.yml  rust job + rust-gate (cargo tests + native lsp_e2e)
 Makefile                  rust-build/test/lint/format; check-rust; test-rust
 ```
-
-## Surfaces that are not implemented
-
-Current state, not a plan — these are the places where a surface exists but the
-behaviour behind it does not, so a change nearby should not assume it works:
-
-- **Bytecode codegen**: the statement-position (result-discarded) forms of
-  `string` / `regexp` / `lindex` / `lreplace` fall back to the generic path; the
-  value-position inline forms exist.
-- **Formatter**: the docstring rewriter is unimplemented — its configuration
-  flags are carried through `formatting::config` but the engine does not consume
-  them.
-- **`f5-query`**: the SSH/scp fetch transport is unimplemented (`--transport
-  rest` works; the SSH path parses, then errors with exit 2), and
-  `registry-dump --section commands` is unimplemented.
-- **`tcl-irule-test`**: `LiveSession` does not implement the `event dispatch` or
-  `class match` handlers (`tcl-irule-test/src/session.rs`).
-- **Per-item analysis**: `file_body_cache_eligible` conservatively disqualifies
-  bodies touching `namespace` / `interp` / `rename` / OO / `apply` / nested
-  procs, so those files re-lower whole-module on every edit — see
-  [`design/rust/incremental-analysis.md`](design/rust/incremental-analysis.md).
-- **WASM codegen and the bytecode VM** are the two largest incomplete surfaces;
-  their capability ladder and per-opcode state are tracked separately in
-  [`design/runtime/runtime-execution-gaps.md`](design/runtime/runtime-execution-gaps.md).

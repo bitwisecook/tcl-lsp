@@ -37,29 +37,29 @@ flowchart TD
     VREC --> SEG
     REC -- no --> SPLIT{{"Pipeline splits"}}
 
-    SPLIT --> ANA["<b>Semantic Analyser</b><br/>Analyser.analyse()"]
+    SPLIT --> ANA["<b>Semantic Analyser</b><br/>Analyser::analyse()"]
     SPLIT --> LOW["<b>IR Lowering</b><br/>lower_to_ir()"]
 
-    LOW -->|IRModule| CFG["<b>CFG Construction</b><br/>build_cfg_function()"]
+    LOW -->|ir::Module| CFG["<b>CFG Construction</b><br/>build_cfg_function()"]
     CFG -->|CFGFunction| SSA["<b>SSA Construction</b><br/>build_ssa()"]
-    SSA -->|SSAFunction| CORE["<b>Core Analyses</b><br/>analyse_function()"]
-    LOW -->|IRModule| IPA["<b>Interprocedural Analysis</b><br/>analyse_interprocedural_ir()"]
+    SSA -->|SsaFunction| CORE["<b>Core Analyses</b><br/>sccp / type_infer / taint"]
+    LOW -->|ir::Module| IPA["<b>Interprocedural Analysis</b><br/>build_interprocedural_analysis()"]
 
     CORE -->|FunctionAnalysis| CU["<b>CompilationUnit</b>"]
     IPA -->|InterproceduralAnalysis| CU
     CFG --> CU
 
-    CU --> OPT["<b>Optimiser</b><br/>find_optimisations()"]
-    CU --> TAINT["<b>Taint Analysis</b><br/>find_taint_warnings()"]
+    CU --> OPT["<b>Optimiser</b><br/>optimise_unit()"]
+    CU --> TAINT["<b>Taint Analysis</b><br/>find_taint_warnings_for_cu()"]
     CU --> SHIM["<b>Shimmer Detection</b><br/>find_shimmer_warnings()"]
-    CU --> GVN["<b>GVN / CSE</b><br/>find_redundant_computations()"]
-    CU --> IFLOW["<b>iRules Flow</b><br/>find_irules_flow_warnings()"]
+    CU --> GVN["<b>GVN / CSE</b><br/>gvn.rs"]
+    CU --> IFLOW["<b>iRules Flow</b><br/>irules_checks.rs"]
     CU --> ANA
 
     CFG --> CGEN["<b>Bytecode Codegen</b><br/>codegen_module()"]
     CGEN -->|"ModuleAsm"| ASMTXT["Assembly text"]
 
-    ANA -->|AnalysisResult| DIAG["<b>Diagnostics Provider</b><br/>get_diagnostics()"]
+    ANA -->|AnalysisResult| DIAG["<b>Diagnostics Provider</b><br/>compiler_checks.rs"]
     OPT -->|"Optimisation list"| DIAG
     TAINT -->|"TaintWarning list"| DIAG
     SHIM -->|"ShimmerWarning list"| DIAG
@@ -229,7 +229,7 @@ CFG/SSA-informed diagnostics such as unreachable-code and dead-store warnings.
 
 ### 5. IR Lowering
 
-**File:** `compiler/lowering.py` — function `lower_to_ir()`
+**File:** `rust/tcl-compiler/src/lowering/mod.rs` — `lower_to_ir()`
 
 Converts segmented commands into a structured Intermediate Representation.
 Each Tcl command maps to a typed IR node.
@@ -237,15 +237,15 @@ Each Tcl command maps to a typed IR node.
 ```mermaid
 flowchart LR
     SRC["source text"] --> LOW["lower_to_ir()"]
-    LOW --> MOD["IRModule"]
+    LOW --> MOD["ir::Module"]
 
-    subgraph IRModule
+    subgraph ir::Module
         direction TB
-        TL["top_level: IRScript"]
-        PD["procedures: dict[str, IRProcedure]"]
+        TL["top_level: ir::Script"]
+        PD["procedures: Map&lt;String, Procedure&gt;"]
     end
 
-    MOD --- IRModule
+    MOD --- ir::Module
 ```
 
 #### IR node hierarchy
@@ -294,46 +294,46 @@ classDiagram
     class IRIf {
         +Range range
         +tuple~IRIfClause~ clauses
-        +IRScript|None else_body
+        +ir::Script|None else_body
     }
     class IRFor {
         +Range range
-        +IRScript init
+        +ir::Script init
         +ExprNode condition
-        +IRScript next
-        +IRScript body
+        +ir::Script next
+        +ir::Script body
     }
     class IRWhile {
         +Range range
         +ExprNode condition
-        +IRScript body
+        +ir::Script body
     }
     class IRForeach {
         +Range range
         +tuple iterators
-        +IRScript body
+        +ir::Script body
     }
     class IRCatch {
         +Range range
-        +IRScript body
+        +ir::Script body
         +str|None result_var
     }
     class IRTry {
         +Range range
-        +IRScript body
+        +ir::Script body
         +tuple~IRTryHandler~ handlers
-        +IRScript|None finally_body
+        +ir::Script|None finally_body
     }
     class IRSwitch {
         +Range range
         +str subject
         +tuple~IRSwitchArm~ arms
     }
-    class IRScript {
+    class ir::Script {
         +tuple~IRStatement~ statements
     }
-    class IRModule {
-        +IRScript top_level
+    class ir::Module {
+        +ir::Script top_level
         +dict procedures
     }
 
@@ -351,8 +351,8 @@ classDiagram
     IRStatement <|-- IRCatch
     IRStatement <|-- IRTry
     IRStatement <|-- IRSwitch
-    IRScript --* IRStatement
-    IRModule --* IRScript
+    ir::Script --* IRStatement
+    ir::Module --* ir::Script
 ```
 
 Key design decisions:
@@ -366,20 +366,20 @@ Key design decisions:
 
 ### 6. Control Flow Graph
 
-**File:** `compiler/cfg.py` — function `build_cfg_function()`
+**File:** `rust/tcl-compiler/src/cfg_builder/mod.rs` — `build_cfg_function()`
 
 Flattens structured IR (`IRIf`, `IRFor`, `IRSwitch`, etc.) into basic blocks
 with explicit control-flow edges.
 
 ```mermaid
 flowchart TD
-    IR["IRScript"] --> BUILD["build_cfg_function()"]
+    IR["ir::Script"] --> BUILD["build_cfg_function()"]
     BUILD --> FN["CFGFunction"]
 
     subgraph CFGFunction
         direction TB
         EN["entry: str"]
-        BL["blocks: dict[str, CFGBlock]"]
+        BL["blocks: Map&lt;BlockId, Block&gt;"]
         LN["loop_nodes: dict"]
     end
 
@@ -427,7 +427,7 @@ flowchart TD
 
 ### 7. SSA Construction
 
-**File:** `compiler/ssa.py` — function `build_ssa()`
+**File:** `rust/tcl-compiler/src/ssa.rs` — `build_ssa()`
 
 Converts the CFG to Static Single-Assignment form, where every variable is
 defined exactly once.  Phi nodes are inserted at control-flow merge points.
@@ -455,7 +455,7 @@ Key types:
 
 ### 8. Core Analyses
 
-**File:** `compiler/core_analyses.py` — function `analyse_function()`
+**Modules:** `rust/tcl-compiler/src/sccp.rs`, `type_infer.rs`, `taint.rs`, `dead_stores.rs` — result types in `analyses.rs` (`FunctionAnalysis`)
 
 Runs the main dataflow passes over the SSA graph:
 
@@ -497,13 +497,13 @@ unreachable, enabling dead-code detection.
 
 ### 9. Interprocedural Analysis
 
-**File:** `compiler/interprocedural.py` — function `analyse_interprocedural_ir()`
+**File:** `rust/tcl-compiler/src/interprocedural.rs` — `build_interprocedural_analysis()`
 
 Builds conservative procedure summaries across the entire module:
 
 ```mermaid
 flowchart TD
-    IR["IRModule"] --> IPA["analyse_interprocedural_ir()"]
+    IR["ir::Module"] --> IPA["build_interprocedural_analysis()"]
     IPA --> SUM["ProcSummary per procedure"]
 
     subgraph ProcSummary
@@ -533,7 +533,7 @@ and the taint analysis uses them for cross-procedure taint propagation.
 
 ### 10. Compilation Unit
 
-**File:** `compiler/compilation_unit.py` — function `compile_source()`
+**File:** `rust/tcl-compiler/src/compilation_unit.rs` — `CompilationUnit::build_for()`
 
 `CompilationUnit` remains the shared artefact boundary for IR/CFG/SSA/interprocedural
 facts consumed across diagnostics and downstream passes. For operational contracts,
@@ -543,20 +543,20 @@ cache semantics, and regression anchors, use:
 
 ```mermaid
 flowchart TD
-    SRC["source text"] --> CS["compile_source()"]
+    SRC["source text"] --> CS["CompilationUnit::build_for()"]
 
-    CS --> LOW["lower_to_ir() → IRModule"]
+    CS --> LOW["lower_to_ir() → ir::Module"]
     LOW --> CFG_T["build_cfg_function(::top)"]
     LOW --> CFG_P["build_cfg_function() per proc"]
     CFG_T --> SSA_T["build_ssa()"]
     CFG_P --> SSA_P["build_ssa()"]
-    SSA_T --> ANA_T["analyse_function()"]
-    SSA_P --> ANA_P["analyse_function()"]
+    SSA_T --> ANA_T["core dataflow analyses"]
+    SSA_P --> ANA_P["core dataflow analyses"]
 
     ANA_T --> TU["FunctionUnit (top-level)"]
     ANA_P --> PU["FunctionUnit per proc"]
 
-    LOW --> IPA["analyse_interprocedural_ir()"]
+    LOW --> IPA["build_interprocedural_analysis()"]
     PU --> IPA
 
     TU --> CU["CompilationUnit"]
@@ -567,10 +567,10 @@ flowchart TD
     subgraph CompilationUnit
         direction TB
         S["source"]
-        IM["ir_module: IRModule"]
+        IM["ir_module: ir::Module"]
         CM["cfg_module: CFGModule"]
         TL["top_level: FunctionUnit"]
-        PR["procedures: dict[str, FunctionUnit]"]
+        PR["procedures: Map&lt;String, FunctionUnit&gt;"]
         IP["interproc: InterproceduralAnalysis"]
         CO["connection_scope: ConnectionScope|None"]
     end
@@ -606,29 +606,29 @@ flowchart LR
 
 ### 12. Diagnostics Provider
 
-**File:** `server/features/diagnostics.py` — function `get_diagnostics()`
+**Modules:** `rust/tcl-compiler/src/analyser/diagnostics/` (per-family emitters) and `compiler_checks.rs` (the downstream-pass aggregation)
 
-`get_diagnostics()` is the policy boundary that merges analyser + pass findings,
-applies suppression/disable rules, and converts to LSP diagnostics. Integration
-contracts now live in:
+The aggregation layer is the policy boundary that merges analyser and pass
+findings, applies suppression / disable rules, and converts to LSP
+diagnostics. Integration contracts live in:
 
 - [diagnostics-integration.md](compiler/diagnostics-integration.md)
 - [async-diagnostics-tiering.md](compiler/async-diagnostics-tiering.md)
 
 ```mermaid
 flowchart TD
-    SRC["source text"] --> GD["get_diagnostics()"]
+    SRC["source text"] --> GD["compiler_checks.rs"]
 
-    GD --> CS["compile_source() → CU"]
-    GD --> AN["analyse() → AnalysisResult"]
+    GD --> CS["CompilationUnit::build_for() → CU"]
+    GD --> AN["Analyser::analyse() → AnalysisResult"]
 
     GD --> STYLE["Style checks<br/>W111 line length<br/>W112 trailing whitespace<br/>W115 comment continuation"]
 
-    CS --> OPT["find_optimisations()"]
-    CS --> SHIM["find_shimmer_warnings()"]
-    CS --> TAINT["find_taint_warnings()"]
-    CS --> GVN["find_redundant_computations()"]
-    CS --> IFLOW["find_irules_flow_warnings()"]
+    CS --> OPT["optimiser::manager::optimise_unit()"]
+    CS --> SHIM["shimmer::find_shimmer_warnings()"]
+    CS --> TAINT["taint::find_taint_warnings_for_cu()"]
+    CS --> GVN["gvn.rs"]
+    CS --> IFLOW["irules_checks.rs"]
 
     AN --> FILT["Filter & suppress"]
     OPT --> FILT
@@ -644,7 +644,7 @@ flowchart TD
 
 ### 13. Bytecode Assembly Backend
 
-**File:** `compiler/codegen/bytecode/_emitter.py` — functions `codegen_function()`, `codegen_module()`
+**File:** `rust/tcl-compiler/src/codegen/emitter/mod.rs` — `codegen_function()`, `codegen_module()`
 
 Takes a pre-SSA `CFGModule` and emits assembly text matching the format
 produced by `tcl::unsupported::disassemble` in Tcl 9.0.2.
@@ -672,7 +672,7 @@ implementation.
 
 ### 14. Async Diagnostic Scheduler
 
-**File:** `server/async_diagnostics.py` — class `DiagnosticScheduler`
+**File:** `rust/tcl-lsp-server/src/lib.rs` — the tiered diagnostic scheduler
 
 Tiered publishing and cancellation rules are maintained in:
 
@@ -683,9 +683,9 @@ flowchart TD
     EDIT["Document edit"] --> BASIC["<b>Tier 1: Basic</b><br/>Lexer/parser errors (E-codes)<br/>Analysis warnings (W-codes)<br/>Style checks"]
     BASIC -->|"Publish immediately"| ED["Editor"]
 
-    EDIT --> DEEP["<b>Tier 2: Deep</b><br/>asyncio.to_thread()"]
+    EDIT --> DEEP["<b>Tier 2: Deep</b><br/>background worker"]
 
-    subgraph "Background thread"
+    subgraph "Background worker"
         direction TB
         OPT["Optimiser (O100–O130)"]
         SHIM["Shimmer (S100–S102)"]
@@ -759,32 +759,33 @@ consumer must treat it as opaque and conservative.
 
 | File | Responsibility |
 |------|---------------|
-| `compiler/parsing/lexer.py` | Tokenisation with position tracking |
-| `shared/tokens.py` | Token, SourcePosition, TokenType definitions |
-| `compiler/parsing/command_segmenter.py` | Command segmentation and chunking |
-| `compiler/parsing/recovery.py` | Virtual token injection for unclosed delimiters |
-| `compiler/parsing/expr_lexer.py` | Expression tokenisation |
-| `compiler/parsing/expr_parser.py` | Expression parsing to ExprNode AST |
-| `shared/tcl_subst.py` | Tcl backslash substitution helpers |
-| `analyser/_analyser/__init__.py` | Semantic analysis, scope tracking |
-| `analyser/checks/` | Best-practice and security checks (W-series) |
-| `analyser/irules_checks.py` | iRules-specific checks (IRULE-series) |
-| `analyser/semantic_model.py` | AnalysisResult, Diagnostic, Scope, ProcDef |
-| `compiler/ir.py` | IR node definitions |
-| `compiler/lowering.py` | IR construction from token stream |
-| `compiler/cfg.py` | Control flow graph construction |
-| `compiler/ssa.py` | SSA form construction |
-| `compiler/core_analyses.py` | SCCP, liveness, type inference |
-| `compiler/compilation_unit.py` | Pipeline orchestration and caching |
-| `compiler/interprocedural.py` | Call graph and procedure summaries |
-| `compiler/optimiser/` | Optimisation passes (O100–O130) |
-| `compiler/gvn.py` | Global value numbering / CSE / PRE / LICM (O105–O106) |
-| `compiler/taint/` | Taint analysis for untrusted I/O (T100–T106) |
-| `compiler/shimmer.py` | Type representation issue detection (S100–S102) |
-| `compiler/irules_flow.py` | iRules control-flow checks |
-| `compiler/codegen/` | Tcl VM bytecode assembly backend |
-| `compiler/side_effects.py` | Command side-effect classification |
-| `compiler/types.py` | Type lattice definitions |
-| `server/async_diagnostics.py` | Background diagnostic scheduler (tiered publishing) |
-| `server/features/diagnostics.py` | LSP diagnostic aggregation |
-| `analyser/semantic_graph.py` | Call/symbol/data-flow graph queries |
+| `rust/tcl-lexer/src/lexer.rs` | Tokenisation |
+| `rust/tcl-lexer/src/tokens.rs` | `Token` / `TokenType` definitions |
+| `rust/tcl-lexer/src/span.rs`, `source_map.rs`, `line_index.rs` | Byte spans and offset → line/column resolution |
+| `rust/tcl-lexer/src/substitution.rs` | Tcl backslash substitution helpers |
+| `rust/tcl-lexer/src/expr_lexer.rs` | Expression tokenisation |
+| `rust/tcl-compiler/src/segmenter.rs` | Command segmentation, chunking, and recovery |
+| `rust/tcl-compiler/src/parsing/syntax/` | The lossless red-green concrete syntax tree |
+| `rust/tcl-syntax/src/expr/` | Expression parsing (`parser.rs`), AST (`ast.rs`), operators, and folding |
+| `rust/tcl-compiler/src/analyser/` | Semantic analysis, scope tracking, per-command handlers |
+| `rust/tcl-compiler/src/analyser/diagnostics/` | Diagnostic emitters by family — `usage.rs`, `security.rs`, `validity.rs`, `dataflow.rs`, `version_gate.rs`, … |
+| `rust/tcl-compiler/src/analyser/diagnostics/fp/` | False-positive suppression rules |
+| `rust/tcl-compiler/src/irules_checks.rs` | iRules-specific checks (IRULE series) |
+| `rust/tcl-compiler/src/ir.rs` | IR node definitions (`Module`, `Script`) |
+| `rust/tcl-compiler/src/lowering/` | IR construction from the token stream |
+| `rust/tcl-compiler/src/cfg.rs`, `cfg_builder/` | Control-flow graph construction |
+| `rust/tcl-compiler/src/ssa.rs`, `memory_ssa.rs`, `state_ssa.rs` | SSA form construction |
+| `rust/tcl-compiler/src/sccp.rs`, `type_infer.rs`, `dead_stores.rs` | SCCP, type inference, dead-store detection |
+| `rust/tcl-compiler/src/analyses.rs` | Core analysis result types (`FunctionAnalysis`, the lattices) |
+| `rust/tcl-compiler/src/compilation_unit.rs` | Pipeline orchestration and caching |
+| `rust/tcl-compiler/src/interprocedural.rs` | Call graph and procedure summaries |
+| `rust/tcl-compiler/src/optimiser/` | Optimisation passes (O100–O130) and the pass manager |
+| `rust/tcl-compiler/src/gvn.rs` | Global value numbering / CSE / PRE / LICM (O105–O106) |
+| `rust/tcl-compiler/src/taint.rs`, `taint_interproc.rs` | Taint analysis for untrusted I/O (T100–T106) |
+| `rust/tcl-compiler/src/shimmer/` | Type-representation issue detection (S100–S102) |
+| `rust/tcl-compiler/src/codegen/` | Tcl VM bytecode assembly backend |
+| `rust/tcl-compiler/src/side_effects.rs` | Command side-effect classification |
+| `rust/tcl-compiler/src/types.rs` | Type lattice definitions |
+| `rust/tcl-compiler/src/compiler_checks.rs` | Downstream-pass aggregation into diagnostics |
+| `rust/tcl-lsp-server/src/lib.rs` | Tiered diagnostic scheduling and LSP publishing |
+| `rust/tcl-lsp-core/src/graphs.rs` | Call / symbol / data-flow graph queries |

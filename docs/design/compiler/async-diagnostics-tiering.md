@@ -39,8 +39,7 @@ This split is coordinated by `DiagnosticScheduler`, while `get_diagnostics()` pr
 
 ## Test anchors
 
-- `tests/test_diagnostic_phases.py`
-- `tests/test_diagnostics.py`
+- `rust/tcl-lsp-server/tests/e2e/` — the LSP diagnostic end-to-end suites.
 
 
 ## Discoverability

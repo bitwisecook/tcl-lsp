@@ -19,7 +19,7 @@ After CU assembly, specialised passes consume shared facts and emit typed findin
 4. **No duplicate semantics**
    - If two passes can flag the same issue shape, define canonical ownership and related-info linking rather than duplicate emissions.
 5. **Shared word/value-shape helpers**
-   - Passes should use shared helper modules for Tcl word/value parsing (`value_shapes.py`, `var_refs.py`) instead of embedding pass-local mini-parsers.
+   - Passes should use shared helper modules for Tcl word/value parsing (`value_shapes.rs`, `var_refs.rs`) instead of embedding pass-local mini-parsers.
 
 ## File-path anchors
 

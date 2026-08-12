@@ -15,11 +15,11 @@ model which sanitisation properties hold.  Interprocedural propagation extends
 taint tracking across procedure boundaries.
 
 Source: `rust/tcl-compiler/src/taint.rs` —
-`_lattice.py`,
-`_sinks.py`,
-`_propagation.py`,
-`_api.py`,
-`compiler/registry/taint_hints.py`
+`taint.rs`,
+`taint.rs`,
+`taint.rs`,
+`taint.rs`,
+`rust/tcl-registry/src/taint.rs`
 
 ## Content
 
@@ -70,7 +70,7 @@ Some commands transform taint colours:
 - `b64encode` on tainted data: adds `B64_ENCODED` colour.
 - `HTML::encode` on tainted data: adds `HTML_ESCAPED` colour.
 
-`_derive_transform_colours()` in `_propagation.py` applies these transforms.
+`_derive_transform_colours()` in `taint.rs` applies these transforms.
 
 ### Interprocedural taint propagation
 

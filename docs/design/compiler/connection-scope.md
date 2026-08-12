@@ -66,7 +66,7 @@ Both suppress the warning if the variable flows across events.
 
 ## Decision rule
 
-- If a new event type is added to iRules, no changes to `connection_scope.py`
+- If a new event type is added to iRules, no changes to `connection_scope.rs`
   are needed — the analysis is event-name agnostic.
 - If a variable is `unset` in one handler, it is removed from `cross_event_defs`
   for downstream events.

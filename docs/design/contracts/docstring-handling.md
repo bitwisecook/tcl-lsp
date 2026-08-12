@@ -1,4 +1,4 @@
-# KCS: Proc docstring handling
+# Proc docstring handling
 
 ## Summary
 
@@ -37,20 +37,27 @@ Plain-prose docstrings (no tags) are also supported and displayed verbatim.
 
 ## Shared docstring module
 
-All parsing and rendering lives in `tooling/formatter/docstring.py`:
+All parsing and rendering lives in one consumer-agnostic module,
+`rust/tcl-lsp-core/src/formatting/docstring.rs`:
 
-- `parse_docstring(text) -> DocstringInfo` -- parse raw comment text
-- `render_markdown(info) -> str` -- render for LSP hover display
-- `render_comment_block(info, ...) -> str` -- render as Tcl `#` comment
-- `generate_stub(proc_name, params, ...) -> str` -- generate a template
-- `extract_body_docstring(body) -> str` -- extract from proc body
+- `parse_docstring(text) -> DocstringInfo` — parse raw comment text
+- `render_comment_block(info, …)` — render back to Tcl `#` comment lines
+  (Doxygen or plain style, with optional decoration)
+- `generate_stub_for_proc(…)` — generate a stub from a `ProcDef`
+- `resolve_tag_style(name)` — map the setting string to `DocstringTagStyle`
 
-The `DocstringInfo` dataclass provides structured access:
-`brief`, `description`, `params: list[ParamDoc]`, `returns`.
+`DocstringInfo` carries `brief`, `description`, `params: Vec<ParamDoc>`, and
+`returns`. Decoration-only rule lines (`# ......`, `# ----`) are recognised by
+their character set (`DECORATION_CHARS`) and skipped when parsing description
+text, so they never leak into the rendered hover.
 
-## Formatter configuration
+## Configuration
 
-Five settings control docstring formatting (under `tclLsp.formatting.*`):
+Five settings live under `tclLsp.formatting.*`. They split by consumer:
+`docstringTagStyle` and the `docstringDecoration*` fields drive the stub
+generator's *content*; `docstringStyle` drives the code action's *placement*.
+The formatter itself never rewrites an existing docstring, so none of these
+affect a plain format pass — only the explicit generate-docstring action.
 
 | Setting | Values | Default | Purpose |
 |---------|--------|---------|---------|
@@ -60,8 +67,10 @@ Five settings control docstring formatting (under `tclLsp.formatting.*`):
 | `docstringDecorationChar` | `.`, `-`, `=`, `*`, `~` | `.` | Border character |
 | `docstringDecorationWidth` | 20-120 | 70 | Border width |
 
-Settings are defined in `FORMATTER_SETTINGS_CATALOGUE` in
-`tooling/formatter/config.py` and code-generated into editor extensions.
+They are declared once on `FormatterConfig`
+(`rust/tcl-lsp-core/src/formatting/config.rs`, with `DocstringStyle` and
+`DocstringTagStyle`) and code-generated into the editor extensions by
+`cargo xtask gen-editor-settings`.
 
 ## Code action
 
@@ -69,8 +78,8 @@ A "Generate docstring for 'name'" source action is offered when the cursor
 is on a `proc` definition that has no docstring.  It inserts a doxygen-style
 stub with `@param` tags for each parameter.
 
-The resolved `docstringStyle` setting (#1314) gates both *whether* and
-*where* this action fires, in the native Rust LSP server
+The resolved `docstringStyle` setting gates both *whether* and
+*where* this action fires, in the LSP server
 (`rust/tcl-lsp-server`, `Backend::resolved_docstring_style` ->
 `tcl_lsp_core::code_actions::code_actions_in_program`):
 
@@ -94,19 +103,21 @@ Three tools expose docstring operations:
 - **`read_proc_docs`** -- extract structured docs from all procs
 - **`update_docstrings`** -- add stubs to all undocumented procs
 
-The `_proc_to_dict` serialiser includes a `doc_structured` field with
-the parsed `DocstringInfo` when a proc has documentation.
-
-## CLI commands
-
-`ai/claude/tcl_ai.py` adds:
-
-- `proc-docs <file>` -- JSON output of all proc documentation
-- `generate-docstring <file> --proc name` -- print docstring stub
-- `update-docstrings <file>` -- print source with stubs added
+All three are registered in `rust/tcl-mcp/src/tools.rs` and serialise a proc's
+parsed `DocstringInfo` alongside its signature.
 
 ## Comment bleed prevention
 
-`_last_comment` is saved before and restored after proc body analysis in
-the analyser, preventing comments inside one proc's body from leaking to
-the next proc.
+The analyser saves and restores its pending-comment state around a proc body
+walk, so a comment inside one proc's body cannot become the docstring of the
+next proc.
+
+## Key files
+
+| File | Role |
+|---|---|
+| `rust/tcl-lsp-core/src/formatting/docstring.rs` | parsing, rendering, stub generation |
+| `rust/tcl-lsp-core/src/formatting/config.rs` | `DocstringStyle`, `DocstringTagStyle`, the five settings |
+| `rust/tcl-lsp-server/src/lib.rs` | `Backend::resolved_docstring_style`, the code-action wiring |
+| `rust/tcl-mcp/src/tools.rs` | the three MCP docstring tools |
+| `rust/tcl-lsp-server/tests/e2e/code_actions.rs`, `e2e/hover.rs` | over-the-wire coverage |

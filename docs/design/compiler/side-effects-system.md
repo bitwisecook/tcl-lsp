@@ -307,8 +307,8 @@ SideEffect(
 ## File-path anchors
 
 - `side_effects.rs` — the effect enums, `classify_side_effects`, trace composition, and the `EffectRegion` bridge
-- `compiler/registry/models.py` — `CommandSpec.side_effect_hints`, `SubCommand.side_effect_hints`
-- `compiler/registry/command_registry.py` — `REGISTRY.side_effect_hints()` lookup
+- `rust/tcl-registry/src/spec.rs` — `CommandSpec.side_effect_hints`, `SubCommand.side_effect_hints`
+- `rust/tcl-registry/src/registry.rs` — `REGISTRY.side_effect_hints()` lookup
 - `ir.rs` — `CommandTrace`, the module's traced-command set, and the dynamic-trace flag
 - `lowering/` — `trace add`/`trace remove execution` capture
 - `gvn.rs` — GVN consumer (threads the module's traced commands)
@@ -316,7 +316,7 @@ SideEffect(
 - `irules_checks.rs` — response-commit and drop-command derivation
 - `execution_intent.rs` — purity consumer
 - `sccp.rs` — purity consumer
-- `rust/tcl-compiler/src/optimiser/_propagation.py` — load-forwarding consumer (threads `traced_commands` via `ctx.ir_module`)
+- `rust/tcl-compiler/src/optimiser/propagation.rs` — load-forwarding consumer (threads `traced_commands` via `ctx.ir_module`)
 
 ## Failure modes
 

@@ -15,7 +15,7 @@ How do I bulk-readdress virtual servers into a new subnet?
 
 - A `bigip.conf` / SCF text file (e.g. extracted from a UCS with `f5 extract`).
 - The target network in CIDR form, for example `192.168.9.0/24`.
-- The `f5` CLI on your `PATH`; in dev, `python -m tooling.f5.main` works the same way.
+- The `f5` CLI on your `PATH`; in a checkout, `cargo run -p f5-cli --` works the same way.
 
 ## Answer
 

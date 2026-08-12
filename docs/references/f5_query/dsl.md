@@ -370,19 +370,23 @@ PathRefs cross module boundaries: `.net.self[].vlan.tag` walks
 `.ltm.virtual[].pool.members[].address` walks the existing
 `virtual → pool → member → address` chain — same auto-deref engine.
 
-`apm.*`, `security.*`, `sys.*`, `cm.*`, `pem.*`, `auth.*`, `vcmp.*`,
-`cli.*`, `api-protection.*`, `asm.*`, `ilx.*`, `wom.*`, and
-`analytics.*` are all projected and navigable — `_MODULE_KINDS` in
-`projection.py` enumerates the supported kinds per module.  Any TMSH
-stanza the parser sees but no typed projection covers still lands in
-`cfg.generic_objects` with full byte ranges and is reachable via
+`ltm.*`, `gtm.*`, and `security.*` are projected and navigable — the
+`LTM_KINDS` / `GTM_KINDS` / `SECURITY_KINDS` tables (looked up via
+`module_kinds()`) in
+[`projection.rs`](../../../rust/tcl-bigip-query/src/projection.rs)
+enumerate the supported kinds per module.  Any TMSH stanza the parser
+sees but no typed projection covers still lands in the source's
+generic-object fallback with full byte ranges and is reachable via
 source-level operations (`rename_partition` cascades, `--scf` selection
 through grep / a real SCF concatenation), but is not navigable from
-the DSL.
+the DSL. Other modules (`apm.*`, `sys.*`, `cm.*`, `pem.*`, `auth.*`,
+`vcmp.*`, `cli.*`, `api-protection.*`, `asm.*`, `ilx.*`, `wom.*`,
+`analytics.*`) are not yet covered by a typed projection.
 
-The full per-kind field map lives in `_KIND_FIELD_MAPS` in
-`projection.py`; that table is the single source of truth for which
-field names are valid and how they map to dataclass attributes.
+The per-kind field construction lives in `project_fields()` and its
+per-kind helpers (`project_virtual`, `project_pool`, …) in the same
+file; those functions are the single source of truth for which field
+names are valid and how they map to the typed `tcl-bigip` model.
 
 ## Addressing
 
@@ -422,9 +426,10 @@ From highest to lowest:
 ### Identity-field writes
 
 Assigning to `.name` or `."full-path"` auto-routes through
-`dialects.f5.bigip.rewrite.rename_object`, which rewrites the object's header
-and every reference to it (configuration properties, iRule body
-command arguments, pool-member addresses).  A line of the form
+[`rewrite::rename_object`](../../../rust/tcl-bigip-query/src/rewrite.rs),
+which rewrites the object's header and every reference to it
+(configuration properties, iRule body command arguments, pool-member
+addresses).  A line of the form
 
 ```
 renamed /Common/old -> /Common/new (N occurrence(s))
@@ -468,21 +473,34 @@ between unified diff, stdout, and in-place write based on flags.
 
 ## Builtins
 
-Builtin functions are registered through the `@_register(...)`
-decorator in `builtins.py`.  Each registration captures the
-signature(s), summary, category, examples, arity bounds, and whether
-it is a special form (evaluator-driven, like `select` / `map`).
+Builtin functions are registered by calling `plain(...)` / `ctx(...)`
+/ `ctx_broadcast(...)` / `special(...)` inside a module's
+`registrations()` function — see
+[`builtins/mod.rs`](../../../rust/tcl-bigip-query/src/builtins/mod.rs)
+(`registrations()` collects every submodule's list, plus
+`special::registrations()` and, when the `probes` feature is enabled,
+`probes::registrations()`). Each registration captures the name,
+category, arity bounds, and whether it is a special form
+(evaluator-driven, like `select` / `map`) or needs the evaluator
+context (`ctx`, e.g. `refs` / `rename`). Unlike the retired Python
+registry, the Rust `BuiltinSpec` deliberately does **not** carry
+prose (summary / signatures / examples) — that content lives only in
+the hand-maintained [`builtins.md`](builtins.md), so there is no
+automated check that every builtin is documented there.
 
 The same registry feeds:
 
-- runtime dispatch in `evaluator._eval_call`;
-- the `--help-builtins` action in `tooling/f5/verbs/query.py`;
-- the test that asserts every builtin has at least one example and
-  one signature.
+- runtime dispatch via [`builtins::lookup`](../../../rust/tcl-bigip-query/src/builtins/mod.rs);
+- the `--help-builtins [NAME]` / `--help-manual` catalogue
+  (`format_catalogue`), which prints name / category / arity / flags
+  only — see [`builtins.md`](builtins.md) or run
+  `f5 query --help-builtins NAME` for the full prose.
 
-To add a builtin, drop a new `@_register(...)` decorator on a Python
-function in `builtins.py`.  No other plumbing is required — the help
-text and dispatch table both pick it up automatically.
+To add a builtin, add a `plain(...)` (or `ctx(...)` / `special(...)`)
+entry to the relevant submodule's `registrations()` function and
+implement the function it names. Then hand-write the corresponding
+entry in [`builtins.md`](builtins.md) — nothing keeps the two in sync
+automatically.
 
 ### Categories
 
@@ -504,7 +522,8 @@ text and dispatch table both pick it up automatically.
 - **stream** — `keys`, `values`, `first`, `last`, `count`, `unique`,
   `sort`, `any`, `all`, `select` (special form), `map` (special form)
 - **value** — `length`, `kind`, `path`, `defined`, `type`, `str`
-- **graph** — `refs`, `referenced_by` (forwards to `dialects.f5.bigip.grep`)
+- **graph** — `refs`, `referenced_by` (backed by `tcl_bigip::graph`, the
+  same edge model `f5 grep` walks)
 
 ### Rename verb integration
 
@@ -562,10 +581,11 @@ builtins cover them:
   change it.
 
 All address builtins share a single tokeniser
-(`_split_destination` in `builtins.py`) that returns
-`(partition, address, route_domain, port)`.  Adding new partition or
-RD-aware operations means dispatching that tuple and re-joining via
-`_rebuild_destination` — no ad-hoc string slicing.
+(`split_destination` in
+[`builtins/net.rs`](../../../rust/tcl-bigip-query/src/builtins/net.rs))
+that returns `(partition, address, route_domain, port)`.  Adding new
+partition or RD-aware operations means dispatching that tuple and
+re-joining via `rebuild_destination` — no ad-hoc string slicing.
 
 ## iRule sub-tree (v1)
 
@@ -574,9 +594,11 @@ RD-aware operations means dispatching that tuple and re-joining via
 - `.body` — the raw Tcl source.
 - `.refs.pools[]` / `.refs.persists[]` / `.refs.data-groups[]` — the
   list of object references extracted by
-  `dialects.f5.bigip.irules_refs.extract_irules_object_references`.  These
-  are the same edges `f5 grep` walks, so the two verbs always agree on
-  what an iRule "uses".
+  `tcl_irules::extract_irules_object_references` (via
+  `rule_refs_value` in
+  [`projection.rs`](../../../rust/tcl-bigip-query/src/projection.rs)).
+  These are the same edges `f5 grep` walks, so the two verbs always
+  agree on what an iRule "uses".
 
 Writes inside an iRule body are restricted to those reference slots
 in v1, and they happen via the same `rename_object` text engine so
@@ -660,12 +682,12 @@ source.  Cross-file behaviour comes in two shapes:
 
 The CLI verb exposes four kinds of help:
 
-- `f5 query --help` — argparse summary plus example block.
+- `f5 query --help` — clap-generated summary plus example block.
 - `f5 query --help-dsl` — grammar reference (this document, abridged).
 - `f5 query --help-builtins [NAME]` — function catalogue (generated
   from the registry).
 - `f5 query --help-examples` — cookbook of common one-liners
-  (generated from `examples.py`).
+  (generated from `examples.rs`).
 
 The same content powers the KCS feature note and the design doc, so
 end-users get one consistent surface whether they read the terminal,

@@ -47,11 +47,11 @@ No offset — RULE_INIT ordering does not require tie-breaking.
 
 There are two independent priority extraction paths:
 
-1. **Compiler path** — `lowering.py` parses `when EVENT priority N { body }`
+1. **Compiler path** — `lowering/` parses `when EVENT priority N { body }`
    during IR lowering and stores `base_priority` on `IRProcedure`. Consumed by
    `rust/tcl-diagram/src/data.rs` for diagram data.
 
-2. **Lightweight lexer path** — `_find_when_bodies()` in `irules_flow.py`
+2. **Lightweight lexer path** — `_find_when_bodies()` in `irules_checks.rs`
    re-parses the same syntax directly from source. Consumed by
    `extract_event_order()` and `extract_rule_init_vars()`.
 

@@ -7,7 +7,7 @@ into the correct IR node, or needs to add lowering support for a new command.
 
 ## Context
 
-`_lower_command()` in `lowering.py` dispatches each command through a hierarchy:
+`_lower_command()` in `lowering/` dispatches each command through a hierarchy:
 registered lowering hooks → match/case on command name → fallthrough via
 `arg_roles`.  The dispatch produces specific IR nodes (`IRAssignConst`,
 `IRAssignExpr`, `IRIf`, etc.) rather than generic `IRCall` wherever possible.
@@ -45,7 +45,7 @@ _lower_command(cmd)
 
 ### Lowering hooks — `lower_set()` example
 
-`set` has a registered lowering hook (`lowering_hooks/_var.py:53`).  It
+`set` has a registered lowering hook (`rust/tcl-compiler/src/lowering_hooks.rs`).  It
 pattern-matches on the second argument's token type:
 
 | Token type of `args[1]` | IR node produced | Example |
@@ -165,7 +165,7 @@ runtime interpreter handles the full Tcl specification; the compiler only
 inlines what it can prove is safe.
 
 Functions that return `None` to signal "I cannot handle this" (e.g.
-`_parse_subst_template()` in `compiler/codegen/bytecode/_helpers.py`) are not
+`_parse_subst_template()` in `rust/tcl-compiler/src/codegen/helpers.rs`) are not
 incomplete — they are conservative by design. Missing escape forms are an
 optimisation limitation, not a correctness bug.
 

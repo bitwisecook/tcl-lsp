@@ -17,10 +17,10 @@ iRules, iApps, EDA, Expect) are loaded lazily on first access for that
 dialect.  Registry metadata drives IR lowering, SCCP, GVN, taint,
 side-effects, diagnostics, and code completion.
 
-Source: `compiler/registry/models.py`,
-`compiler/registry/_base.py`,
-`compiler/registry/signatures.py`,
-`compiler/registry/taint_hints.py`
+Source: `rust/tcl-registry/src/spec.rs`,
+`rust/tcl-registry/src/command_table.rs`,
+`rust/tcl-registry/src/spec.rs`,
+`rust/tcl-registry/src/taint.rs`
 
 ## Content
 
@@ -50,7 +50,7 @@ CommandDef subclass (per command)
 ### CommandDef -- defining a command
 
 Each dialect (`tcl/`, `irules/`, `iapps/`, `tk/`) has its own `_REGISTRY`
-list and `@register` decorator (created by `make_registry()` in `_base.py`).
+list and `@register` decorator (created by `make_registry()` in `command_table.rs`).
 
 ```python
 @register
@@ -1077,7 +1077,7 @@ dialect strings:
 | `frozenset({"tcl8.5", "tcl8.6", ...})` | Safe only in listed dialects |
 
 For version-dependent behaviour, use `dialects_since()` from
-`compiler/registry/dialects.py`:
+`rust/tcl-registry/src/dialects.rs`:
 
 ```python
 from ..dialects import dialects_since
@@ -1104,7 +1104,7 @@ Registry spec (safe_on_uninit)
 ```
 
 No command names or dialect names appear in the compiler or analyser --
-all knowledge lives in the registry specs and `dialects.py`.
+all knowledge lives in the registry specs and `dialects.rs`.
 
 ### Lazy dialect loading
 
@@ -1123,7 +1123,7 @@ tcllib).  Dialect-specific packs are loaded on demand:
    indexes are updated.
 4. **Invalidation** -- trait indexes and all derived caches (command names,
    event commands, legality, filtered registries) are rebuilt.  The
-   `_on_specs_loaded` callback notifies `runtime.py` to clear its
+   `_on_specs_loaded` callback notifies `registry.rs` to clear its
    `@lru_cache` functions, rebuild role/type hints, and merge taint hints.
 
 **Contract**: any new public `CommandRegistry` method that takes a
@@ -1327,7 +1327,7 @@ is what that looks like from the outside.
 - To add a new command: create a `CommandDef` subclass in the appropriate
   dialect package, implement `spec()`, and use `@register`.  For a new
   dialect pack, add an entry to `_DIALECT_LOADER_SPECS` and
-  `_DIALECT_TO_LOADERS` in `command_registry.py`.
+  `_DIALECT_TO_LOADERS` in `registry.rs`.
 - To add taint tracking: implement `taint_hints()` on the `CommandDef`.
 - To add special lowering: set `lowering` on the `CommandSpec` or `SubCommand`.
 - If arity validation fails to fire, check that `ValidationSpec.arity` is
@@ -1338,7 +1338,7 @@ is what that looks like from the outside.
   or `dialects_since("tcl8.X")` for version-gated behaviour.  Never
   hardcode dialect names in the compiler or analyser.
 - When adding a new dialect, add it to `DIALECT_BASE_VERSION` in
-  `dialects.py` so version-dependent traits resolve correctly.
+  `dialects.rs` so version-dependent traits resolve correctly.
 
 ## Related docs
 

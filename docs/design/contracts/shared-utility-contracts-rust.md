@@ -211,6 +211,7 @@ helper without reading the rationale:
 ## Discoverability
 
 - [KCS index](../README.md)
-- [core-lsp-shared-utility.md](core-lsp-shared-utility.md)
+- [project-layout.md](project-layout.md) — the crate boundaries these
+  ownership rules sit inside.
 - [family-b-routing.md](../family-b-routing.md) — the runtime seam this
   crate layering serves.

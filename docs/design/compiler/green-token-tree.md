@@ -1,40 +1,24 @@
 # Green token tree and incremental reparse
 
-> **Status:** All five phases are implemented and shipped. The flat memo has
-> been subsumed by `compiler/parsing/green_tree.py` (phases 1–2); the segmenter,
-> `compiler_checks`, and `var_refs` consume it, with `compiler_checks`
-> descending command substitutions and bodies through the tree. Incremental
-> reparse from edit-range inference lives in `compiler/parsing/incremental.py`
-> (phases 3–4). Unterminated descended regions are tagged `NodeKind.ERROR`
-> (phase 5). Tracking issue: #477.
->
-> **Phase-2 deviations from the original design, and why.** Two design
-> assumptions collided with codebase realities and were reconciled:
->
-> 1. *`var_refs` does not route through the per-document tree.* It lexes at
->    base 0 precisely so its text-keyed result-LRU (frozensets of variable
->    names) shares across different occurrences of the same body text and
->    across documents — sharing a per-document, absolutely-anchored tree
->    cannot reproduce. Its LRU already prevents re-tokenising repeated text,
->    so it consults the green-tree leaf primitive (`tokenise`) but keeps its
->    own result cache. The "two anchorings collapse to one" win in limit (1)
->    below is therefore *parity with the flat memo*, not a reduction: a body
->    is still lexed once at its absolute offset (shared by segmenter +
->    `compiler_checks` + lowerer via the tree) and once at base 0 by
->    `var_refs` (covered by its LRU).
-> 2. *Tokens keep absolute positions; nodes carry a `width`.* The design's
->    relative-width-only model would make offset-shifting O(path), but
->    `Token.start.offset` is read as absolute by every one of the ~16
->    position-sensitive consumers, so converting to relative positions is
->    infeasible byte-identically. Nodes store `width` for locating and
->    shifting regions (phase 4); leaves keep absolute-anchored tokens and the
->    unchanged tail is offset-shifted on edit (arithmetic, far cheaper than
->    re-lexing) rather than resolved lazily.
+The lossless, context-aware token tree that replaces "re-lex on demand" in the
+analysis pipeline, and the incremental reparse that lets a single edit
+re-tokenise only the affected region.
 
-This document specifies the lossless, context-aware token tree that replaces
-the "re-lex on demand" model in the analysis pipeline, and the incremental
-reparse that lets a single edit re-tokenise only the affected region. It is
-the design lock-in for the remaining phases of issue #477.
+Two design constraints shape the implementation and are easy to try to
+"fix" wrongly:
+
+- **Tokens keep absolute positions; nodes carry a `width`.** A
+  rust-analyzer-style relative-width model would make offset-shifting O(path),
+  but `Token.start.offset` is read as absolute by every position-sensitive
+  consumer, so relative positions cannot be adopted byte-identically. Nodes
+  store `width` for locating and shifting regions; leaves keep
+  absolute-anchored tokens, and the unchanged tail is offset-shifted on edit
+  (arithmetic, far cheaper than re-lexing) rather than resolved lazily.
+- **`var_refs` does not route through the per-document tree.** It lexes at
+  base 0 precisely so its text-keyed result cache (frozen sets of variable
+  names) shares across different occurrences of the same body text and across
+  documents — which a per-document, absolutely-anchored tree cannot reproduce.
+  It consults the tree's leaf primitive but keeps its own result cache.
 
 ## Why
 
@@ -45,14 +29,10 @@ expressions use a separate tokeniser). Because of this, the pipeline cannot
 flatten the document once and reuse one stream everywhere — historically each
 subsystem re-lexed the bytes it cared about, in the mode it needed.
 
-Phase 1 (shipped, then subsumed by phase 2 — see
-[lexing-segmentation.md](lexing-segmentation.md#shared-tokenisation-memo-now-the-green-token-tree))
-introduced a per-analysis memo (the former `compiler/parsing/token_cache.py`
-module, now removed and folded into `green_tree.py`), keyed by
-`(base_offset, base_line, base_col, insidequote, text)`. It cut
-`TclLexer.get_token` calls roughly in half on the trigger corpus and gave a
-~22% analysis speed-up with byte-identical output. Its limits — and the
-reasons the tree is needed — were:
+A flat per-analysis memo keyed by
+`(base_offset, base_line, base_col, insidequote, text)` cuts token production
+roughly in half on the trigger corpus, but it is only the degenerate form of
+the tree. Its limits are why the tree exists:
 
 1. **Two anchorings of the same bytes don't share.** A proc body is lexed at
    its *absolute* offset by the lowerer and `compiler_checks`, and again at
@@ -83,7 +63,7 @@ incremental reparse that fixes (2).
 
 **Non-goals**
 
-- Replacing the expression tokeniser (`compiler/parsing/expr_lexer.py`). Expression
+- Replacing the expression tokeniser (`rust/tcl-lexer/src/expr_lexer.rs`). Expression
   regions are attached to the tree as opaque `expr`-mode nodes whose contents
   are produced by the existing Pratt path; the tree owns *where* an expression
   is, not *how* it parses.
@@ -94,15 +74,8 @@ incremental reparse that fixes (2).
 
 ## A. The green tree node model
 
-> **Implementation note.** The original design here was a rust-analyzer-style
-> green tree (relative widths + a cursor resolving absolute positions on
-> demand). That was *not* implemented, because `Token` positions are read as
-> absolute by every position-sensitive consumer (see the status note); the
-> shipped `TokenRegion` therefore stores **absolute** positions and a `width`
-> for shifting. The description below reflects the implementation.
-
 A `TokenRegion` owns the tokenisation of one region, tagged with its `Mode`.
-Concretely (`compiler/parsing/green_tree.py`):
+Concretely (`rust/tcl-lexer/src/lexer.rs`):
 
 ```
 TokenRegion
@@ -122,7 +95,7 @@ Key properties:
   absolute (anchored at the node's `base_offset` / `base_line` / `base_col`),
   matching every consumer's expectation. `width = len(text)` is what the
   incremental layer uses to locate the edited region and offset-shift the
-  unchanged tail (phases 3–4); there is no cursor.
+  unchanged tail; there is no cursor.
 - **Lazy descent, not interior child nodes.** A node does not eagerly hold
   interior `TokenRegion` children; instead `descend(token)` re-lexes an opaque
   `{…}` / `[…]` leaf on demand and memoises the child in `_descended`. Sharing
@@ -171,36 +144,32 @@ region returns the already-built node. The per-node `_descended` map is the
 primary structure for nesting; the intern index is what lets the three
 consumers meet on one node.
 
-## How the tree subsumed the flat memo
+## The tree is the tokenisation memo
 
-The flat tokenisation memo (the former `token_cache` module) was the
-degenerate form of this tree: a dict from `(anchoring, text)` to a leaf token
-stream. It has been replaced by `green_tree.py`: `tokenise()` is the
-leaf-construction primitive, the ContextVar-scoped intern index (above) plus
-the per-node `_descended` map is the memo, and `green_tree_scope()` replaces
-the former `token_cache_scope()` at `Analyser.analyse` / `lower_to_ir`. No
-consumer calls `TclLexer` directly except the node builder. (Persisting one
-tree per `DocumentState` across edits is phase 4.)
+The tree subsumes what would otherwise be a flat tokenisation memo — a map from
+`(anchoring, text)` to a leaf token stream. `tokenise` is the leaf-construction
+primitive; the intern index above, plus each node's descended-children map, is
+the memo. No consumer calls the lexer directly except the node builder.
 
-## Consumer migration
+## Consumers
 
-| Consumer | Today | With the tree |
-|---|---|---|
-| `command_segmenter._segment_raw` | iterates a (memoised) flat token list, builds `SegmentedCommand`s | walks the root node's `script`-mode children; `SegmentedCommand` is produced from tree nodes, preserving today's fields |
-| `compiler_checks._process_text` / `_recurse_body_arguments` | re-lexes each body via the memo | `descend()`s the body node and walks it |
-| `var_refs` | lexes at base 0 via the memo | descends body/expr nodes; reads name leaves |
-| `lower_to_ir` / `_lower_script` | `segment_commands(body)` | segments from the already-built body subtree |
+| Consumer | How it reads the tree |
+|---|---|
+| segmenter | walks the root node's `script`-mode children; `SegmentedCommand` is produced from tree nodes |
+| `compiler_checks` | descends the body node and walks it |
+| `var_refs` | descends body/expr nodes and reads name leaves (through the leaf primitive, at base 0) |
+| lowering | segments from the already-built body subtree |
 
 `SegmentedCommand`'s public shape (`argv`, `texts`, `single_token_word`,
 `all_tokens`, `range`, `expand_word`, `is_partial`) is preserved so the lowerer
-and analysers are untouched. The tree changes *how* segments are produced, not
-their contract.
+and analysers see one contract regardless of how the segments were produced.
+The tree changes *how* segments are produced, not their contract.
 
-## C. Edit-range inference — *shipped*
+## C. Edit-range inference
 
 pygls is configured for **FULL** text sync, so `did_change`
 (`rust/tcl-lsp-server/src/lib.rs`) receives the entire new source, not edit ranges.
-`infer_edit_range(old, new)` (`compiler/parsing/incremental.py`) recovers the
+`infer_edit_range(old, new)` (`rust/tcl-compiler/src/parsing/syntax/build.rs`) recovers the
 changed span by a common-prefix / common-suffix diff:
 
 ```
@@ -215,7 +184,7 @@ edits collapse to one enclosing span — correct, just less selective.
 `old_end`. The inference runs in `DocumentState` (where both revisions are in
 hand), not in `did_change`.
 
-## D. Incremental tree update — *shipped*
+## D. Incremental tree update
 
 The update is realised at the **top-level-command (chunk) granularity** the
 rest of the pipeline already caches at, rather than by mutating a persistent
@@ -230,7 +199,7 @@ new_source, edit)` rebuilds the chunk list for the new source:
    at/after `old_end` sit on lines strictly below the edit, so shifting their
    tokens/ranges by `(offset_delta, line_delta)` is exact — columns are
    unchanged because those tokens are on later lines. Shifting is integer
-   arithmetic via `compiler/parsing/token_positions.py`, far cheaper than
+   arithmetic via `rust/tcl-lexer/src/ranges.rs`, far cheaper than
    re-lexing.
 3. **Window re-segmentation.** Only the span from one byte past the previous
    command's last character through the *first* post-edit command is
@@ -264,9 +233,9 @@ boundary validation — returns `None`, and the caller re-segments fully. The
 delimiter-unbalancing ones that exercise the fallback) is the guard against
 offset/column/comment drift.
 
-## E. Error-recovery nodes — *shipped*
+## E. Error-recovery nodes
 
-`segment_with_recovery` (`compiler/parsing/recovery.py`) parses twice on
+`segment_with_recovery` (`rust/tcl-compiler/src/analyser/syntax_checks.rs`) parses twice on
 unterminated delimiters, injecting `VirtualToken`s (E201/E202/E203) on the
 second pass; that recovery mechanism is **preserved unchanged** — it remains
 the authority for top-level recovery and virtual-token insertions stay
@@ -297,17 +266,17 @@ for future tooling (e.g. structural diagnostics).
 
 ## Validation
 
-The bar is unchanged and strict:
+The bar is strict:
 
 - **Byte-identical diagnostics** on the trigger corpus (`wcswidth.tcl`,
   `http.tcl`, `filetypes.tcl`) and the 800+-file real-world differential, plus
-  the full `make test-rust` suite green at each phase.
-- **Mode-correctness + ERROR-node tests:** `tests/test_green_tree.py` asserts
+  the full `make test-rust` suite green.
+- **Mode-correctness + ERROR-node tests:** the lexer's own unit tests assert
   region modes, descent anchoring, intern sharing, and that unterminated
   `{...}` / `[...]` descents are tagged `NodeKind.ERROR` (terminated ones
   `BRACED` / `BRACKETED`).
 - **Property test — incremental equals full.** *Shipped*
-  (`tests/test_incremental_reparse.py`). For random source + random edit, the
+  (`rust/tcl-compiler/src/parsing/syntax/build.rs`). For random source + random edit, the
   incrementally-rebuilt chunk list must equal a from-scratch
   `segment_top_level_chunks`: same chunk count, offsets, hashes, and every
   command's tokens / ranges / texts / `preceding_comment` / partial flags.
@@ -316,33 +285,8 @@ The bar is unchanged and strict:
   drift.
 - **`SemanticTokensDelta` parity:** because the rebuilt chunk list is
   byte-identical to a full pass, the existing semantic-token chunk cache and
-  delta path are unaffected (covered by `tests/test_semantic_tokens_delta.py`).
+  delta path are unaffected (covered by `rust/tcl-lsp-core/src/semantic_tokens.rs`).
 
-> Note for contributors: validate with `make test-rust` (parallel, excludes the
-> pyvm `test_vm_*_test.py` tcltest suite), **not** a bare `pytest tests/` — the
-> latter runs the Tcl tcltest corpus through the Python bytecode VM
-> single-threaded and is ~15× slower for no extra coverage of this subsystem.
-
-## Phase mapping (issue #477)
-
-1. **Shared tokenisation memo** — *shipped, then subsumed by phase 2.*
-2. **Green token tree** — *shipped.* `green_tree.py`; sections A–B; lazy
-   memoised descent + intern index; segmenter and `compiler_checks` migrated,
-   `var_refs` on the leaf primitive.
-3. **Edit-range inference** — *shipped.* `incremental.infer_edit_range`;
-   section C; prefix/suffix diff in `DocumentState`.
-4. **Incremental tree update** — *shipped.*
-   `incremental.incremental_top_level_chunks`; section D; verbatim prefix +
-   offset-shifted suffix + re-segmented window with boundary validation; wired
-   into both `DocumentState._segment_chunks` paths and consumed by the existing
-   chunk/proc caches.
-5. **Error-recovery nodes** — *shipped.* Section E; `NodeKind.ERROR` tagging in
-   `green_tree.descend` / `descend_token`, live in `compiler_checks`; the
-   `recovery.py` virtual-token mechanism preserved as the recovery authority.
-
-Phase 2 is pure throughput (no LSP behaviour change). Phases 3–4 deliver the
-per-keystroke win by not re-tokenising the unchanged prefix/suffix on each
-edit. Phase 5 gives the tree a lossless representation of malformed regions.
 
 ## Risks
 
@@ -358,20 +302,20 @@ edit. Phase 5 gives the tree a lossless representation of malformed regions.
 
 ## Pointers
 
-- Green tree (phases 1–2): `compiler/parsing/green_tree.py`
-- Incremental reparse (phases 3–4): `compiler/parsing/incremental.py`
-- Offset-shift helpers (phase 4): `compiler/parsing/token_positions.py`
-- Lexer / modes: `compiler/parsing/lexer.py`,
-  `compiler/parsing/expr_lexer.py`,
-  `shared/tokens.py`
-- Segmentation: `compiler/parsing/command_segmenter.py`
-- Recovery: `compiler/parsing/recovery.py`
+- Green tree: `rust/tcl-lexer/src/lexer.rs`
+- Incremental reparse: `rust/tcl-compiler/src/parsing/syntax/build.rs`
+- Offset-shift helpers: `rust/tcl-lexer/src/ranges.rs`
+- Lexer / modes: `rust/tcl-lexer/src/lexer.rs`,
+  `rust/tcl-lexer/src/expr_lexer.rs`,
+  `rust/tcl-lexer/src/tokens.rs`
+- Segmentation: `rust/tcl-compiler/src/segmenter.rs`
+- Recovery: `rust/tcl-compiler/src/analyser/syntax_checks.rs`
 - Re-lexing consumers: `rust/tcl-compiler/src/compiler_checks.rs`,
   `rust/tcl-compiler/src/var_refs.rs`
 - Pipeline: `rust/tcl-compiler/src/lowering/`
 - LSP sync / caches: `rust/tcl-lsp-server/src/lib.rs`,
   `rust/tcl-lsp-db/src/lib.rs`,
-  `shared/document_buffer.py`
+  `rust/tcl-lsp-db/src/lib.rs`
 
 ## Related docs
 
@@ -384,7 +328,7 @@ edit. Phase 5 gives the tree a lossless representation of malformed regions.
   because ~80 consumers read `Token.start.offset` as absolute. The CST is built
   *alongside*, verified byte-identical, and adopted incrementally; it rides this
   tree's `tokenise` memo for the leaf lexing.
-- [lexing-segmentation.md](lexing-segmentation.md) — current lexer/segmenter
-  contract and the shipped memo.
+- [lexing-segmentation.md](lexing-segmentation.md) — the lexer/segmenter
+  contract and the tokenisation memo.
 - [error-recovery.md](error-recovery.md) — ghost delimiter injection.
 - [compiler-pipeline-overview.md](compiler-pipeline-overview.md) — stage map.

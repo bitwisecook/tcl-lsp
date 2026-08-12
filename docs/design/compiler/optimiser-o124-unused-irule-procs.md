@@ -166,9 +166,9 @@ also controls O124.
 
 ## File-path anchors
 
-- `rust/tcl-compiler/src/optimiser/_unused_procs.py` — pass implementation
-- `rust/tcl-compiler/src/optimiser/_manager.py` — wired as module-level pass
-- `rust/tcl-compiler/src/optimiser/_types.py` — O124 priority (10, highest)
+- `rust/tcl-compiler/src/optimiser/unused_procs.rs` — pass implementation
+- `rust/tcl-compiler/src/optimiser/manager.rs` — wired as module-level pass
+- `rust/tcl-compiler/src/optimiser/profiles.rs` — O124 priority (10, highest)
 - `rust/tcl-compiler/src/interprocedural.rs` — call graph used by the pass
 - `rust/tcl-lsp-server/src/lib.rs` — O124 in `_ALL_OPTIMISATION_CODES`
 - `editors/vscode/package.json` — VS Code toggle
@@ -176,8 +176,7 @@ also controls O124.
 
 ## Test anchors
 
-- `tests/test_optimiser.py::TestUnusedIruleProcs` — 17 tests
-- `tests/test_optimiser_coverage.py::TestO124UnusedIruleProcs` — 13 tests
+- `rust/tcl-compiler/src/optimiser/unused_procs.rs` unit tests
 
 ## Failure modes
 

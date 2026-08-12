@@ -39,8 +39,8 @@ This path runs frequently during editing, so incremental proc reuse (`proc_cache
 
 ## Test anchors
 
-- `tests/test_compilation_cache.py`
-- `tests/test_diagnostics.py`
+- `rust/tcl-compiler/src/compilation_unit.rs` unit tests.
+- `rust/tcl-lsp-server/tests/e2e/` — the LSP diagnostic end-to-end suites.
 
 
 ## Discoverability
