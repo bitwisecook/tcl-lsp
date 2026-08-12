@@ -71,6 +71,14 @@ pub const DSL_VERSION: &str = "1.0";
 /// a `\`, matching the ports' own wrapping.
 const WRAP_COLUMN: usize = 92;
 
+/// Column the one-line `subcommand NAME { … }` form is allowed to reach.
+///
+/// Wider than [`WRAP_COLUMN`] because that is what the ports do:
+/// `irules-http-header.tclspec` writes fourteen subcommands as one line each,
+/// the longest of them 111 columns, and breaking those into five-line blocks
+/// would cost the file its one-screen shape for nothing.
+const ONE_LINE_COLUMN: usize = 112;
+
 // ---------------------------------------------------------------------------
 // Why a field did not survive
 // ---------------------------------------------------------------------------
@@ -1935,7 +1943,7 @@ fn subcommand_block(out: &mut Out, parent: &mut Ctx<'_>, sub: &Draft) {
             .statements
             .iter()
             .any(|line| line.ends_with('{') || line.contains('\n') || line.starts_with('#'));
-    if simple && out.indent * 4 + one_liner.len() <= WRAP_COLUMN {
+    if simple && out.indent * 4 + one_liner.len() <= ONE_LINE_COLUMN {
         out.line(&one_liner);
         out.losses.extend(body.losses);
         return;
@@ -2058,7 +2066,9 @@ mod tests {
             (1, Some(2), 0, None, "arity 1..2"),
             (1, None, 0, None, "arity 1.."),
             (0, Some(2), 0, None, "arity ..2"),
-            (0, None, 0, None, "arity .."),
+            // `arity ..` on its own is the default and is never emitted, so
+            // the unbounded spelling is only visible with a modifier.
+            (0, None, 2, None, "arity .. -step 2"),
             (3, None, 2, None, "arity 3.. -step 2"),
             (3, None, 2, Some(2), "arity 3.. -step 2 -also 2"),
         ] {
@@ -2075,14 +2085,24 @@ mod tests {
         }
     }
 
+    /// A braced word is the only faithful spelling, so text braces cannot hold
+    /// has none at all — the quoted form keeps its backslashes and normalises
+    /// `$x` to `${x}` on the way through the CST.
     #[test]
-    fn prose_that_braces_cannot_hold_takes_the_quoted_form() {
-        assert_eq!(braced("plain text"), "{plain text}");
-        assert_eq!(braced("a {nested} word"), "{a {nested} word}");
-        // A lone opening brace, and a trailing backslash, both need quoting.
-        assert_eq!(braced("a { lone"), "\"a { lone\"");
-        assert_eq!(braced("trailing\\"), "\"trailing\\\\\"");
-        assert_eq!(braced("$x [y]"), "{$x [y]}");
+    fn only_a_braced_word_carries_prose_verbatim() {
+        assert_eq!(braced("plain text").as_deref(), Some("{plain text}"));
+        assert_eq!(
+            braced("a {nested} word").as_deref(),
+            Some("{a {nested} word}")
+        );
+        // `$` and `[` are literal inside braces, so they need nothing.
+        assert_eq!(braced("$x [y]").as_deref(), Some("{$x [y]}"));
+        // A lone opening brace, a trailing backslash, and a backslash-newline
+        // (the one substitution Tcl still performs inside braces) have no
+        // faithful spelling at all.
+        assert_eq!(braced("a { lone"), None);
+        assert_eq!(braced("trailing\\"), None);
+        assert_eq!(braced("wrapped \\\nline"), None);
     }
 
     #[test]

@@ -1015,6 +1015,7 @@ The Tcl worlds a spec can be scoped to: the core versions 8.4 through 9.1, and t
 | `bpf` | BPF |
 | `f5-tmsh` | F5 tmsh |
 | `f5-bigip` | F5 BIG-IP config |
+| `spectcl` | SpecTcl spec packs |
 
 ### Form kinds
 
