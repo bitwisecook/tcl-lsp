@@ -1765,8 +1765,8 @@ mod tests {
     #[test]
     fn o126_preserved_for_impure_command_sub_rhs() {
         // `set unused [puts hi]` discards the result but still prints —
-        // the assignment must NOT be deleted (was a latent FP: the Rust
-        // O126 fired unconditionally on dead chains).
+        // the assignment must NOT be deleted (a latent FP: O126 would
+        // otherwise fire unconditionally on dead chains).
         let opts = crate::optimiser::optimise(
             "proc ::f {} { set unused [puts hi]; return 1 }",
             &registry(),

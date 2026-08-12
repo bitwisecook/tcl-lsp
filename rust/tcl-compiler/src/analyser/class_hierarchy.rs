@@ -462,7 +462,7 @@ impl ClassHierarchy {
 /// (confirmed against tclsh 9.0.4).
 ///
 /// `body_span` follows this project's general delimited-word convention
-/// (`docs/kcs/kcs-issue-highlight-drops-closing-delimiter.md`): for
+/// (`docs/design/contracts/lexing.md`): for
 /// non-empty content the span covers the opening delimiter through the
 /// *last inner character*, excluding the closer (e.g. `{ }`'s span slices
 /// to `"{ "`, two bytes); for genuinely empty content the span instead

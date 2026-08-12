@@ -1,7 +1,7 @@
 # KCS: IRULE3102 — Why does the analyser warn about an HTTP getter without -normalized?
 
 > **Audience:** User
-> **Type:** Issue
+> **Type:** Diagnostic
 
 ## Applies to
 
@@ -45,7 +45,7 @@ if {[string match "*admin*" [HTTP::path -normalized]]} {
 
 ## How to suppress
 
-Add `# noqa: IRULE3102` at the end of the offending line.
+Add `# noqa: IRULE3102` on the line **above** the offending command.
 
 ## Related
 

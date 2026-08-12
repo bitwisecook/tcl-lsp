@@ -16,11 +16,9 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! Native port of `tests/lsp_e2e/test_definition_e2e.py`.
-//!
-//! Go-to-definition, end-to-end against the packaged server. Ported from the
-//! `test_definition.py` cases plus the VS Code `definition.test.ts` scenario
-//! (navigate from a call site to the proc).
+//! Go-to-definition, end-to-end against the packaged server. Covers the plain
+//! Tcl and `TclOO` cases plus the VS Code `definition.test.ts` scenario (navigate
+//! from a call site to the proc).
 
 use crate::common::helpers::*;
 use crate::common::{Lsp, unique_uri};
@@ -118,8 +116,9 @@ fn recursive_call_navigates_to_definition() {
             .expect("target line present"),
     )
     .unwrap();
-    // Python: 'puts "fib(10) = ['.index("[") + 1 — '[' is the last char, so
-    // its index is len-1 and col is len.
+    // `[` is the last character of the prefix, so the prefix length is the
+    // column just past it — the first character of the `fib` call inside the
+    // command substitution.
     let col = u32::try_from("puts \"fib(10) = [".len()).unwrap();
     let result = lsp.definition(&uri, line, col);
     let locs = locations(&result);

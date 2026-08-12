@@ -1,7 +1,7 @@
 # KCS: W135 — Why does the analyser say this command needs a newer package version?
 
 > **Audience:** User
-> **Type:** Issue
+> **Type:** Diagnostic
 
 ## Applies to
 
@@ -54,7 +54,7 @@ A `try`'s `finally` script is the one exception: it always runs, whatever the bo
 
 ## How to suppress
 
-Add `# noqa: W135` at the end of the offending line.
+Add `# noqa: W135` on the line **above** the offending command.
 
 ## Related
 

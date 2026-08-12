@@ -1,4 +1,4 @@
-# KCS: Configuration File Reference
+# Configuration file reference
 
 ## Summary
 
@@ -25,13 +25,20 @@ Setting `$XDG_CONFIG_HOME` always takes precedence on every platform.
 
 ### How platform is detected
 
-- **MSYS2**: `sys.platform == "msys"`, or `sys.platform == "win32"` with the
-  `MSYSTEM` environment variable set (e.g. `MSYSTEM=UCRT64`).  Treated as a
-  POSIX environment — uses XDG conventions.
-- **Cygwin**: `sys.platform == "cygwin"`.  Uses XDG conventions.
-- **WSL2**: Reports `sys.platform == "linux"`.  Uses XDG conventions.
-- **Native Windows**: `sys.platform == "win32"` without `MSYSTEM`.  Uses
-  `%APPDATA%`.
+`tcl_lsp_core::tcl_install::user_config_path` resolves the path; its pure core
+`config_path_for` takes the environment values and platform flags as
+arguments, so the precedence is testable without mutating the process
+environment. The order is:
+
+1. `$XDG_CONFIG_HOME` when set and non-empty — on **every** platform.
+2. Native Windows (`cfg!(target_os = "windows")` **and** `MSYSTEM` unset) →
+   `%APPDATA%`.
+3. macOS → `~/Library/Application Support/`.
+4. Otherwise → `~/.config/`.
+
+An MSYS2 or Cygwin shell is identified by `MSYSTEM` being set and is treated as
+a POSIX environment, so it takes the XDG branch rather than `%APPDATA%`. WSL2
+is an ordinary Linux target and needs no special case.
 
 ## Project-level config file
 
@@ -55,7 +62,8 @@ directly at its root.
 Settings are applied in layers — later sources override earlier ones.
 The full chain, from lowest priority to highest:
 
-1. **Built-in defaults** — hardcoded in `FeatureConfig` and `FormatterConfig`.
+1. **Built-in defaults** — the `Default` impls on the server's feature config
+   and `FormatterConfig`.
 2. **Global config file** — `~/.config/tcl-lsp/config.ini` (or the
    platform equivalent).  Loaded once on server initialisation.
 3. **Editor settings** — received via `workspace/didChangeConfiguration`
@@ -108,10 +116,18 @@ non-default values are written, keeping the file minimal.
 This lets you configure in one editor and have the same defaults apply
 in all others.  Editor-specific overrides still take precedence.
 
-## File Format
+## File format
 
-Standard INI format (Python `configparser`).  Boolean values accept
-`true`/`false`/`yes`/`no`/`1`/`0`/`on`/`off`.
+Standard INI. Comment lines start with `#` or `;`; keys before any section
+header are ignored; indented continuation lines are joined with a newline, so
+a multi-line value (such as `generic_variable_patterns`) works as it does under
+`configparser`. Boolean values accept `true`/`false`, `yes`/`no`, `1`/`0`, and
+`on`/`off`.
+
+Both files are parsed by `settings_from_ini` into the **same JSON shape** the
+editor delivers a `tclLsp` section as, so a file layer is applied by exactly
+the same code that applies the editor layer — there is no second settings
+interpreter to drift.
 
 ## Sections
 
@@ -176,7 +192,7 @@ Toggle individual LSP features.  All default to `true`.
 | `brace_style` | string | `k_and_r` | Brace placement style |
 | `max_line_length` | int | `120` | Hard line length limit |
 | `goal_line_length` | int | `100` | Soft wrapping target |
-| ... | | | See `FormatterConfig` for all keys |
+| … | | | every field of `FormatterConfig` is a key |
 
 ### `[style]`
 
@@ -210,18 +226,19 @@ line_length = 100
 
 ## Implementation
 
-- Global + project config loading: `shared/user_config.py`
-  (`load_user_config`, `load_project_config`, `merge_settings_layers`)
-- Platform detection: `_config_dir()` and `_is_posix_compat_windows()`
-- Layer storage: `server/state.py`
-  (`global_config_settings`, `editor_config_settings`, `project_config_settings`)
-- Layer merge + apply: `server/settings.py` (`_merged_settings`,
-  `_apply_merged_settings_now`)
-- Server integration: `server/workspace_init.py` → `on_initialized()`
-  loads global and project layers before any analysis runs
-- File-level directive parser: `analyser/_analyser/_utils.py`
-  (`parse_file_suppression`)
-- Per-document suppression filter: `server/features/diagnostics.py`
-  (`_is_suppressed`)
-- Export command: `server/server.py` → `_export_config()`
-- CLI config: `tooling/tcl/main.py` → `_config_file_paths()`
+| Concern | Where |
+|---|---|
+| INI parsing, layer sections, deep merge | `rust/tcl-lsp-server/src/config_ini.rs` — `settings_from_ini`, `Layer`, `merge_settings` |
+| Config-path resolution | `rust/tcl-lsp-core/src/tcl_install.rs` — `user_config_path`, `project_config_path`, `config_path_for`, `library_paths_from_ini` |
+| Layer application | `rust/tcl-lsp-server/src/lib.rs` — `Backend::apply_global_config`, and the folder-scoped overlay `Backend::resolved_feature_toggles` |
+| Effective-config query | `rust/tcl-lsp-server/src/lib.rs` — `get_effective_config_command` |
+| Inline / file-level suppression | `rust/tcl-compiler/src/analyser/utils.rs` — `parse_noqa_line_suppressions`, `apply_preceding_noqa` |
+| Formatter settings schema | `rust/tcl-lsp-core/src/formatting/config.rs` |
+| Editor-settings generation | `cargo xtask gen-editor-settings` / `gen-vscode-package` |
+
+## Discoverability
+
+- [Config precedence contract](config-precedence.md) — *why* the layers are
+  ordered this way.
+- [Dialect detection](dialect-detection.md)
+- [How do I turn a diagnostic off?](../../kcs/kcs-howto-suppress-diagnostics.md)

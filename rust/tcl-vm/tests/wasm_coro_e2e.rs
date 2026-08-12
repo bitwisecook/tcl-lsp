@@ -16,12 +16,12 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! VM coroutines execute on **wasm32** (`RUST_ISSUE_008`, phase 4).
+//! VM coroutines execute on **wasm32**.
 //!
 //! The bytecode VM's coroutines are pure data (a frozen `Vec<Frame>` + saved
-//! flow — no OS threads, no `unsafe`), so they are wasm-portable "for free": the
-//! plan's preferred path to wasm coroutines is *the VM running on wasm32*, not
-//! asyncify. This test proves it end to end.
+//! flow — no OS threads, no `unsafe`), so they are wasm-portable "for free":
+//! the path to wasm coroutines is *the VM running on wasm32*, not asyncify.
+//! This test proves it end to end.
 //!
 //! It generates a tiny `cdylib` that links this workspace's `tcl-vm` +
 //! `tcl-compiler`, compiles a few coroutine scripts and returns their integer
@@ -262,7 +262,7 @@ fn vm_coroutines_run_on_wasm32() {
 }
 
 /// The **shipped** VM-on-wasm cdylib (`rust/tcl-vm-wasm`) — the primary wasm
-/// compile target (`RUST_ISSUE_008` piece 1) — builds to wasm32 and runs coroutine
+/// compile target — builds to wasm32 and runs coroutine
 /// scripts through its `tcl_alloc`/`tcl_eval`/`tcl_dealloc` ABI under Node,
 /// returning the tclsh-9.0.4 oracle values. The generated-crate test above proves
 /// the raw capability; this pins the product crate, its ABI, and `verify.mjs`

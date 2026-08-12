@@ -1,7 +1,7 @@
 # KCS: E005 — Why does the analyser say a command has the wrong argument shape?
 
 > **Audience:** User
-> **Type:** Issue
+> **Type:** Diagnostic
 
 ## Applies to
 
@@ -96,7 +96,7 @@ Complete the pair (or pairs) so the argument count fits the command's shape.
 
 ## How to suppress
 
-Add `# noqa: E005` at the end of the offending line.
+Add `# noqa: E005` on the line **above** the offending command.
 
 ## Related
 

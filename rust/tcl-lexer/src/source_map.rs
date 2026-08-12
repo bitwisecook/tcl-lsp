@@ -32,7 +32,7 @@
 //! borrowed slice (zero-sized to own) and the line index is a
 //! `Box<[u32]>` that clones in one allocation.
 //!
-//! See `docs/rust-rewrite.md` for the broader "source map threaded
+//! See `docs/design/rust/engineering-guide.md` for the broader "source map threaded
 //! throughout" design.
 
 use crate::line_index::LineIndex;

@@ -361,8 +361,8 @@ mod tests {
 
     #[test]
     fn diagnostics_range_correctly_through_brace_chain() {
-        // With `}{`, the analyser used to mis-attribute the `$x` read to the
-        // `if` line; formatting first fixes the span. The var read is on the
+        // With `}{`, analysing the raw source mis-attributes the `$x` read to
+        // the `if` line; formatting first fixes the span. The var read is on the
         // `pool $x` line, so the W210 finding must NOT carry the `if` line.
         let json = analyze_irule("when HTTP_REQUEST {\n  if { 1 }{\n    pool $x\n  }\n}");
         assert!(json.contains("W210"), "expected W210: {json}");

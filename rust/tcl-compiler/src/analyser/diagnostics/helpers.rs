@@ -543,7 +543,7 @@ impl UndefSuppression {
     /// Like [`Self::suppresses`] but **without** the unknown-shape blanket —
     /// only alias tails, dict vars, and *provably-unpacked* keys suppress.
     /// Used on statement reads inside a `dict with` body, where an
-    /// unknown-shape dict (e.g. an interprocedurally-empty literal Rust's
+    /// unknown-shape dict (e.g. an interprocedurally-empty literal
     /// SCCP cannot yet resolve) must still fire so a genuine missing-key read
     /// is not hidden.
     pub(super) fn suppresses_strict(&self, name: &str) -> bool {

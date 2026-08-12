@@ -3,14 +3,13 @@
 This document is the shared reference for the BIG-IP `explain_flow`
 analyser. It is loaded by:
 
-- the `explain_flow` MCP tool (`ai/mcp/tcl_mcp_server.py`), and
+- the `explain_flow` MCP tool (`rust/tcl-mcp/src/bigip.rs`), and
 - the Claude `explain-flow` skill (`ai/claude/skills/explain-flow/`).
 
-The underlying Python lives in `dialects/f5/bigip/explain_flow.py` and is
-imported unchanged by both the MCP tool and the
-`f5 explain-flow` CLI verb (`tooling/f5/verbs/explain_flow.py`).
-Keep this file in sync with `report_to_mcp_dict` — it is the contract
-the LLM consumes.
+Both sit over one implementation, the `f5 explain-flow` verb
+(`rust/f5-cli/src/commands/explain_flow.rs`), which the MCP tool reaches
+through `f5_cli::explain_flow_value`. Keep this file in sync with the
+shape that function returns — it is the contract the LLM consumes.
 
 ## What the compact MCP shape looks like
 

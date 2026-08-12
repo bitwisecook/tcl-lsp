@@ -1,7 +1,7 @@
-# KCS: W131 — why does my editor say the lockfile is out of sync?
+# KCS: W131 — why is the lockfile out of sync?
 
 > **Audience:** User
-> **Type:** Issue
+> **Type:** Diagnostic
 
 ## Applies to
 
@@ -9,25 +9,30 @@ all-editors, diagnostic, tclpkg
 
 ## Profiles
 
-default
+Reserved — see Status.
 
 ## Question
 
-Why does my editor report W131 on `tclpkg.tcl`?
+What will W131 report about `tclpkg.tcl` and `tclpkg.lock`?
+
+## Status
+
+W131 is specified in the diagnostic registry but is not yet emitted by
+the analyser. No editor or CLI surface currently reports it, and there
+is no `tclLsp.diagnostics.W131` setting to toggle. This page describes
+the check as designed, for when it ships.
 
 ## Why
 
-The manifest has changed since the lockfile was last written. The two
-files no longer agree on the dependency set, so builds may not be
-reproducible.
+The manifest has changed since the lockfile was last written. If the
+two files disagree on the dependency set, builds are not reproducible
+until `tcl pkg install` re-syncs them.
 
-## Symptoms
+## Intended message
 
-- Yellow squiggle on the `package` line of `tclpkg.tcl`.
-- Problems panel: "tclpkg.lock is out of sync with tclpkg.tcl — run
-  'tcl pkg install'."
+"tclpkg.lock is out of sync with tclpkg.tcl — run 'tcl pkg install'."
 
-## Example that triggers it
+## Example that would trigger it
 
 Edit `tclpkg.tcl` to add or remove a `require` line, then save without
 running `tcl pkg install`.
@@ -37,10 +42,6 @@ running `tcl pkg install`.
 ```sh
 tcl pkg install
 ```
-
-## How to suppress
-
-`tclLsp.diagnostics.W131: false`
 
 ## Related
 

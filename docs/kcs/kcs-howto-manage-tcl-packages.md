@@ -3,6 +3,10 @@
 > **Audience:** User
 > **Type:** How-To
 
+## Applies to
+
+tcl-lsp CLI
+
 ## Question
 
 How do I add, install, and lock Tcl package dependencies for my project?

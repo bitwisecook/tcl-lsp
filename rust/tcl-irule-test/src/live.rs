@@ -25,7 +25,7 @@
 //! an iRule, fires events, and reads back the pool/node decisions, captured
 //! logs, and assertion results — entirely in-process, no `tclsh` subprocess.
 //!
-//! The simulation itself is the ~500 KB of Tcl under `tooling/irule_test/tcl/`
+//! The simulation itself is the ~500 KB of Tcl under `rust/tcl-irule-test/tcl/`
 //! (orchestrator + TMM shim + command mocks); the driver sources those files in
 //! the same order `runner.tcl` does, then exposes a thin Rust API over the
 //! `::orch::` command surface.
@@ -121,7 +121,7 @@ pub struct LiveSession {
 impl LiveSession {
     /// Stand a session up: build a VM, source the orchestrator framework from
     /// `lib_dir`, and run `::orch::init`. `lib_dir` is the directory holding
-    /// `orchestrator.tcl` (i.e. `tooling/irule_test/tcl/`).
+    /// `orchestrator.tcl` (i.e. `rust/tcl-irule-test/tcl/`).
     ///
     /// # Errors
     /// [`SessionError::MissingLib`] if `lib_dir` or a required file is absent,
@@ -145,7 +145,7 @@ impl LiveSession {
     }
 
     /// Stand a session up against the framework Tcl embedded in the binary
-    /// (no on-disk `tooling/irule_test/tcl/` checkout needed). The bundled
+    /// (no on-disk `rust/tcl-irule-test/tcl/` checkout needed). The bundled
     /// directory is materialised for the lifetime of the call and removed
     /// afterwards — its contents are sourced into the VM, so nothing is lost.
     ///
@@ -572,9 +572,9 @@ mod tests {
 
     #[test]
     fn configured_tmm_select_auto_survives_reset() {
-        // `::orch::test` runs `reset` before every body, and
-        // `reset` previously forced `_tmm_select_mode` back to "manual",
-        // clobbering a configured `-tmm_select auto`. Capture the live mode
+        // `::orch::test` runs `reset` before every body, and that `reset` must
+        // not force `_tmm_select_mode` back to "manual" and so clobber a
+        // configured `-tmm_select auto`. Capture the live mode
         // from inside a test body (i.e. after that reset) and prove it's still
         // "auto" so `run_http_request` takes the fakeCMP auto path.
         let mut s = LiveSession::new(&lib_dir()).expect("session");

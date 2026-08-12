@@ -20,17 +20,9 @@ all-editors, analyser
 
 Selection ranges are computed from the AST, expanding from the innermost expression outward through arguments, commands, blocks, procs, and namespaces.
 
-## File-path anchors
-
-- `server/features/selection_range.py`
-
 ## Failure modes
 
 - Selection jumps over syntactic levels after AST changes.
-
-## Test anchors
-
-- `tests/test_selection_range.py`
 
 ## Example
 

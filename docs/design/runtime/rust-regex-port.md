@@ -45,6 +45,8 @@ src/exec.rs     The matcher. Two phases mirroring the C's DFA + cdissect split:
                 path that threads capture state.
 src/lib.rs      Public API: `Regex::compile`, `nsub()`, `info()`, `exec()`,
                 plus the typed `InfoFlag` / `Info` surface.
+src/cmd_core.rs The `cmd-core`-feature adapter: `AreEngine`, the
+                `tcl_cmd_core::regex::RegexEngine` impl both runtimes drive.
 ```
 
 ## Why reachable-set + dissection (not backtracking) for the core
@@ -121,6 +123,7 @@ The shim is where the impedance mismatch lives, by design: the safe-Rust API
 speaks `&[u32]` codepoints, typed `ErrorCode`/`InfoFlag`, and half-open
 `Span`s; the shim converts to/from the C `regex_t` (opaque `re_guts` =
 `Box<Regex>`), the `regmatch_t[]` of `size_t` pairs with the `(size_t)-1`
-non-participation sentinel, and integer `REG_*` codes. `tcl-regex` itself stays
-`#![forbid(unsafe)]`; all the raw-pointer work is in the shim, in the one crate
-(`runtime/rust`) that is allowed `unsafe`.
+non-participation sentinel, and integer `REG_*` codes. `tcl-regex` itself
+inherits the workspace's `unsafe_code = "forbid"` lint; all the raw-pointer
+work is in the shim, in one of the few crates that opts out of that lint
+(`runtime/rust`).

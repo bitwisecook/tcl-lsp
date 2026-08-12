@@ -16,8 +16,6 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! Native port of `tests/lsp_e2e/test_irules_e2e.py`.
-//!
 //! F5 iRules dialect features, end-to-end against a dedicated server.
 //!
 //! These run against an iRules-dedicated server (`Lsp::irules`) rather than the
@@ -51,7 +49,7 @@ fn hover(lsp: &mut Lsp, uri: &str, line: u32, ch: u32) -> String {
     hover_text(&lsp.hover(uri, line, ch))
 }
 
-/// Build a synthetic diagnostic (`_diag` in the pytest suite).
+/// Build a synthetic diagnostic.
 fn diag(code: &str, message: &str, start: (u32, u32), end: (u32, u32)) -> Value {
     json!({
         "range": {
@@ -131,7 +129,7 @@ fn source_actions(actions: &Value) -> Vec<Value> {
         .unwrap_or_default()
 }
 
-/// The set of `code` strings on a diagnostics array (`_irules_codes`).
+/// The set of `code` strings on a diagnostics array.
 fn irules_codes(diags: &[Value]) -> std::collections::BTreeSet<String> {
     diags
         .iter()
@@ -153,7 +151,7 @@ fn code_str(d: &Value) -> String {
 }
 
 /// Decode semantic tokens for an iRule and map their type index to the legend
-/// name (`_irules_typed`).
+/// name.
 fn irules_typed(lsp: &mut Lsp, uri: &str) -> Vec<(SemToken, String)> {
     let legend: Vec<String> =
         lsp.initialize_result()["capabilities"]["semanticTokensProvider"]["legend"]["tokenTypes"]
@@ -1225,7 +1223,7 @@ fn constant_in_http_sink_is_silent() {
 // S110 byte-array corruption on the wire (F5 KB K22406348).
 
 /// Open `source` and poll the version-1 publish until the deep marker lands,
-/// returning the final (basic + deep) diagnostics (`_deep_diags`).
+/// returning the final (basic + deep) diagnostics.
 fn deep_diags_for(lsp: &mut Lsp, source: &str, marker: &str) -> Vec<Value> {
     let uri = unique_uri("irule");
     lsp.open_ready_lang(&uri, source, "tcl-irule");

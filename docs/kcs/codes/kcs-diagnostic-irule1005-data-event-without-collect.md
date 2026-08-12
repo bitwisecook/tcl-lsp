@@ -1,7 +1,7 @@
 # KCS: IRULE1005 — Why does the analyser flag a data event without a collect call?
 
 > **Audience:** User
-> **Type:** Issue
+> **Type:** Diagnostic
 
 ## Applies to
 
@@ -53,7 +53,7 @@ event names, aliases, or commands assembled with `eval`.
 
 ## How to suppress
 
-Add `# noqa: IRULE1005` at the end of the offending line.
+Add `# noqa: IRULE1005` on the line **above** the offending command.
 
 ## Related
 

@@ -25,10 +25,6 @@ VS Code
 
 Runtime validation complements static analysis by executing the code in a real Tcl interpreter. This catches issues that static analysis cannot detect, such as runtime type errors or missing packages.
 
-## File-path anchors
-
-- `editors/vscode/src/runtimeValidation.ts`
-
 ## Failure modes
 
 - tclsh not found on PATH.

@@ -1,7 +1,7 @@
 # KCS: W302 — Does catch without a result variable hide errors?
 
 > **Audience:** User
-> **Type:** Issue
+> **Type:** Diagnostic
 
 ## Applies to
 
@@ -77,7 +77,7 @@ Tcl reads as a `catch` of the script `result`.
 
 ## How to suppress
 
-Add `# noqa: W302` at the end of the offending line.
+Add `# noqa: W302` on the line **above** the offending command.
 
 ## Related
 

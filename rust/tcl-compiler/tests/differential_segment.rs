@@ -18,9 +18,9 @@
 
 //! Differential harness: CST-derived segmenter vs the token-loop oracle.
 //!
-//! `CST-PORT` strip 5 verification.  The canonical red-green CST
+//! The canonical red-green CST
 //! (`parsing::syntax::{build,red,segment}`) must derive a
-//! `SegmentedCommand` list **byte-identical** to the current token-loop
+//! `SegmentedCommand` list **byte-identical** to the token-loop
 //! `segment_commands_local` (the oracle), field-for-field, plus:
 //!
 //! - **losslessness** — the CST's reconstructed text equals the source;
@@ -29,9 +29,8 @@
 //!   parity, since each CST `all_tokens` entry is a red `to_token()`).
 //!
 //! Verified over a crafted edge-case table and, when present, the
-//! `tmp/tcl{8.4,8.5,8.6,9.0}` source corpus.  The harness is the gate the
-//! task requires green *before* the segmenter's internals are flipped to
-//! the CST; it stays as a permanent regression net afterwards.
+//! `tmp/tcl{8.4,8.5,8.6,9.0}` source corpus.  The harness is a permanent
+//! regression net over the two derivations.
 
 use std::collections::HashSet;
 use std::fs;
@@ -299,7 +298,7 @@ fn recovery_known_commands_smoke() {
 ///
 /// Lifted verbatim from `rust/tcl-compiler/src/segmenter.rs` as it stood
 /// before the token loop was replaced with the CST derivation.  Kept here
-/// as the **independent reference** the CST port is differentially
+/// as the **independent reference** the CST derivation is differentially
 /// validated against: comparing
 /// the production segmenter (now CST-backed) against the live
 /// `segment_commands_local` would be a tautology, so this frozen copy

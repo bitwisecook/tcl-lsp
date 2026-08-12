@@ -1,7 +1,7 @@
 # KCS: T102 — Why does the analyser warn about tainted data in option position?
 
 > **Audience:** User
-> **Type:** Issue
+> **Type:** Diagnostic
 
 ## Applies to
 
@@ -43,7 +43,7 @@ Add `--` before the argument to end option parsing.
 
 ## How to suppress
 
-Add `# noqa: T102` at the end of the offending line.
+Add `# noqa: T102` on the line **above** the offending command.
 
 ## Related
 

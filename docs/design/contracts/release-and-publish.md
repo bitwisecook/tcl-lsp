@@ -1,13 +1,8 @@
-# KCS: Release and publish — the four-layer model
+# Release and publish — the four-layer model
 
-## Symptom
-
-A new contributor opens the Makefile, sees `publish-vsix` next to a CI
-workflow that builds VSIX files, and wonders where publishing actually
-happens.  Or someone adds a marketplace `secrets.VSCE_PAT` as a plain
-*repository* secret — available to every workflow run — not realising
-the maintainer requires every publish secret to be an **Environment**
-secret reachable only by a protected, manually-approved publish job.
+Where publishing actually happens, and why the marketplace credentials are
+Environment secrets reachable only by a protected, manually-approved job
+rather than plain repository secrets available to every workflow run.
 
 ## Invariant
 
@@ -226,9 +221,9 @@ stored, is a design conversation: it requires updating this contract and
 - [`scripts/release/publish_jetbrains_upload.sh`](../../../scripts/release/publish_jetbrains_upload.sh) —
   uploads the released JetBrains `.zip` to the Marketplace REST API
   (invoked by the CI publish job; reuses `jetbrains_token.sh`).
-- `.github/actions/setup-build/action.yml`
-  and [`.github/actions/sign-and-upload/action.yml`](../../../.github/actions/sign-and-upload/action.yml) —
-  composite actions for the CI build/sign tail.
+- [`.github/actions/sign-and-upload/action.yml`](../../../.github/actions/sign-and-upload/action.yml) —
+  the composite action for the CI build/sign tail (the only composite action
+  in the tree).
 - [`scripts/release/`](../../../scripts/release/) — every script that
   takes a marketplace credential or pushes to a marketplace.
 - [`scripts/release/publish_verify.sh`](../../../scripts/release/publish_verify.sh) —

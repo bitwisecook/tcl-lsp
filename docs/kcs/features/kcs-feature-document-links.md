@@ -60,11 +60,6 @@ highlighting; an editor paints a link range in one flat link colour, so
 underlining all of it would hide the colouring of `file`, `join`, and
 `$currentDir` (issue #775).
 
-## File-path anchors
-
-- `rust/tcl-lsp-core/src/document_links.rs`
-- `rust/tcl-compiler/src/auto_path_eval.rs` — the shared path evaluator
-
 ## Failure modes
 
 - **No link on a computed path.** The path is outside the evaluator's
@@ -96,13 +91,6 @@ underlining all of it would hide the colouring of `file`, `join`, and
   is offered even when the path itself resolves.
 - **No link on a relative path in an unsaved file.** There is no
   document directory to resolve against until the file is saved.
-
-## Test anchors
-
-- `rust/tcl-lsp-core/src/document_links.rs` — unit tests
-- `rust/tcl-lsp-core/tests/lsp_lens_links_symbols.rs`
-- `rust/tcl-lsp-server/tests/e2e/semantic_tokens.rs` — the link range
-  never spans more than one semantic token
 
 ## Example
 

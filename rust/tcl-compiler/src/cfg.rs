@@ -176,7 +176,7 @@ impl Block {
 /// Metadata about a loop in the CFG.
 ///
 /// Maps from the loop's exit block name to its entry block name and
-/// the original `IRFor` statement. Used by loop analyses and the
+/// the original `Statement::For` node. Used by loop analyses and the
 /// bottom-tested loop rewriter in codegen.
 #[derive(Debug, Clone, PartialEq)]
 pub struct LoopNode {

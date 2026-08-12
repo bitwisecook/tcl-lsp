@@ -1,6 +1,6 @@
-# Tk widget instance-command typing — design
+# Tk widget instance-command typing
 
-Status: **active**. This note records how a Tk/ttk widget's *instance*
+How a Tk/ttk widget's *instance*
 command (`.t instate …`, `$w tag configure …`, `$listbox curselection`) gets
 resolved back to the widget class that created it, so the registry's real
 `SubCommand` table for that widget becomes reachable from highlighting,
@@ -12,17 +12,16 @@ question ("what does this receiver dispatch to?"), different identity model.
 
 `ttk::treeview .t` creates a *new* Tcl command named `.t` whose subcommands
 (`instate`, `tag`, …) are exactly the registry's `ttk::treeview` `CommandSpec`
-subcommands — but nothing connects the two. `.t instate {selected} { … }`
-and `$w tag configure hidden -foreground grey` get no subcommand-aware
-highlighting, hover, completion, or arity/unknown-subcommand diagnostics
-today, for any widget whose `CommandSpec.subcommands` is non-empty
-(`treeview`, `notebook`, `listbox`, `text`, `canvas`, `entry`, …).
+subcommands. Without something connecting the two, `.t instate {selected}
+{ … }` and `$w tag configure hidden -foreground grey` get no subcommand-aware
+highlighting, hover, completion, or arity / unknown-subcommand diagnostics,
+for any widget whose `CommandSpec::subcommands` is non-empty (`treeview`,
+`notebook`, `listbox`, `text`, `canvas`, `entry`, …).
 
 `tcloo-object-typing.md`'s own corpus evidence (`experiments/tcloo_diag`)
-found this is not a corner case: of 8241 unresolved `$var` receivers, 71%
+shows this is not a corner case: of 8241 unresolved `$var` receivers, 71%
 are "unbound", **dominated by snit `$self`/components and Tk widget paths
-(`$win.c`) — not TclOO**. Snit's `$self` has since landed. Tk widget paths
-are the largest remaining untracked category.
+(`$win.c`) — not TclOO**.
 
 ## Why this needs its own model, not TclOO's
 
@@ -56,79 +55,71 @@ Two consequences:
   for a widget instance needs no class-hierarchy walk — the widget's own
   spec **is** the answer.
 
-That second point means the registry-side fix is a **self-referential**
-binding: the object class a widget's constructor creates is the constructor
+That second point means the registry-side binding is **self-referential**:
+the object class a widget's constructor creates is the constructor
 command's own spec, not a separate class. `ObjectClassSpec::instance_methods`
 and `CommandSpec::subcommands` are already the same type
 (`&'static [SubCommand]`), so a widget's `ObjectClassSpec` can point at the
 literal same `SUBCOMMANDS` static its own `CommandSpec::subcommands` uses —
 zero duplication, zero drift risk, and `CommandRegistry::instance_method`
-resolves it with **no code changes**.
+resolves it with no widget-specific code at all.
 
-## Existing machinery this reuses (verified on this branch)
+## Machinery this reuses
 
 - `CommandSpec::creates_instance_at: Option<u8>` + `CommandSpec::object_class:
-  Option<&'static ObjectClassSpec>` (`rust/tcl-registry/src/spec.rs`) already
-  exist and are already registry-driven, not hardcoded — used today by
-  `report::report`, `struct::graph`/`struct::tree` (`tcl-registry/src/commands/tcllib/`)
-  and `ticklecharts`. Zero Tk widget files populate them.
+  Option<&'static ObjectClassSpec>` (`rust/tcl-registry/src/spec.rs`) are
+  registry-driven, not hardcoded — also used by `report::report`,
+  `struct::graph` / `struct::tree` (`tcl-registry/src/commands/tcllib/`) and
+  `ticklecharts`.
 - `Analyser::record_registry_factory_instance`
-  (`rust/tcl-compiler/src/analyser/commands.rs`) already reads these two
-  fields generically for *any* command and writes the bareword name into
+  (`rust/tcl-compiler/src/analyser/commands.rs`) reads those two fields
+  generically for *any* command and writes the bareword name into
   `AnalysisResult::instance_classes: HashMap<String, String>` and
   `AnalysisResult::created_instance_commands: HashSet<String>` — the same
   sets TclOO's `CLASS create NAME` idiom feeds. `is_plain_created_name`
-  already accepts a leading `.` (only rejects `%`, `$[]{}() "` and empty).
+  accepts a leading `.` (it rejects only `%`, `$[]{}() "` and empty).
   **Tk widget constructors are syntactically identical to the tcllib
-  `struct::graph g` shape** (positional name, no `new`/`create` keyword) —
-  so bareword tracking needs *zero new analyser code*, only registry data.
+  `struct::graph g` shape** (positional name, no `new`/`create` keyword), so
+  bareword tracking is registry data, not analyser code.
 - `definition.rs::receiver_instance_class` + `created_instance_commands`
-  already resolve a **bareword** receiver's class and are already consumed
-  by go-to-definition, find-references, and (via the same shared resolver)
-  hover's entry point — proven by the existing test
+  resolve a **bareword** receiver's class, and are consumed by
+  go-to-definition, find-references, and — through the same shared resolver
+  and its offset-aware wrapper `receiver_instance_class_at` — hover and
+  completion. Pinned by
   `definition_resolves_bare_created_instance_command_method` (`Dog create
-  rex` → `rex bark` jumps to the method). Only `obj_method_hover_text`
-  itself needs extending (it only renders from `analysis.all_classes` —
-  user classes — never the registry).
-- `semantic_tokens.rs::insert_object_method_overrides` handles `$var`
-  (via `object_types::object_handle_classes`) and `[cmd]` receivers, but its
-  receiver-token match has a bare `_ => Vec::new()` arm — bareword heads
-  never reach a lookup. This is the literal gap the golden fixture pins:
-  `"named_object", // TODO(phase-3): resolve via created_instance_commands`.
-- `completion.rs` has **no** bareword path and **no** registry-class path at
-  all (`strip_instance_var` only accepts `$`/`${...}`; `oo_method_completions`
-  reads only `analysis.all_classes`).
+  rex` → `rex bark` jumps to the method).
+- `semantic_tokens.rs::insert_object_method_overrides` handles `$var` (via
+  `object_types::object_handle_classes`), `[cmd]`, and bareword receivers.
 - `validity.rs`'s W001 (`emit_w001_unknown_subcommand`) and E002/E003
-  (`emit_arity_diagnostics`) both resolve `cmd_name` fresh via
+  (`emit_arity_diagnostics`) resolve `cmd_name` fresh via
   `registry.get_for_dialect` on every call, with no notion of a
-  variable-tracked class. **The `.`-prefix bail-out at `validity.rs:653-662`
-  is unrelated to this gap** — it guards `<ensemble> .path` (`grid .w`,
-  `entry .e`), i.e. an argument that's a path being *created*, not a command
-  head being dispatched. `.t instate …` already silently abstains today via
-  the ordinary "no registry spec literally named `.t`" path
-  (`validity.rs:637-641`), not the dot-check. So no existing bail-out needs
-  removing — a *new* resolution step is what's missing.
-- TclOO's own W308 (unknown method) / E001 (bare dispatch) / E002-E003
-  (method arity) in `var_command.rs` is the template for how to add a
-  **sound**, ambiguity-abstaining diagnostic on top of a class-tracking map:
-  it only fires when the receiver's class set has exactly one member
+  variable-tracked class. **The `.`-prefix bail-out in `validity.rs` is
+  unrelated to this model** — it guards `<ensemble> .path` (`grid .w`,
+  `entry .e`), an argument that is a path being *created*, not a command
+  head being dispatched. `.t instate …` reaches the ordinary "no registry
+  spec literally named `.t`" path instead, which is where the widget
+  resolution step hooks in.
+- TclOO's own W308 (unknown method) / E001 (bare dispatch) / E002–E003
+  (method arity) in `var_command.rs` is the template for a **sound**,
+  ambiguity-abstaining diagnostic over a class-tracking map: it fires only
+  when the receiver's class set has exactly one member
   (`class_names.len() == 1`), never on `{*}`-expanded calls, and reuses
-  `validity::arity_verdict`/`shift_arity` so wording matches the ordinary
+  `validity::arity_verdict` / `shift_arity` so wording matches the ordinary
   registry-command diagnostics.
-- `object_types.rs`'s `harvest_unit` already reads `creates_instance_at`/
+- `object_types.rs`'s `harvest_unit` reads `creates_instance_at` /
   `object_class` generically for its own (unsound, highlight-only,
-  doc-level-union) `$var` tracking — extending it to widgets needs no new
-  matching logic, only the same registry data.
+  doc-level-union) `$var` tracking, so widgets need no new matching logic
+  there either.
 - `type_infer.rs` **deliberately never lattice-types factory-return values**
   (`type_infer.rs:222-228`): doing so would leak one call's class onto a
   same-named variable in another proc via `var_command::aggregate_object_types`'s
   object-insensitive aggregation (this is the FP-OBJ-04 regression the
   comment names explicitly). Factory-return provenance is kept in the
   syntactic, highlight-only `object_types::object_handle_classes` map
-  instead. **This fix follows the same discipline**: widget constructors are
+  instead. **This model follows the same discipline**: widget constructors are
   not added to the SSA type lattice.
 
-## What's genuinely new (as shipped)
+## The model
 
 1. **Registry data** (~34 widget-constructor `CommandSpec`s under
    `rust/tcl-registry/src/commands/tk/`): each gets
@@ -142,42 +133,43 @@ resolves it with **no code changes**.
    stays `None`): there is nothing to dispatch against yet, but the
    binding is still useful for definition/references/W123 suppression via
    `record_registry_factory_instance`'s existing `cmd_name` fallback.
-2. **`tk_checks.rs`'s hardcoded `WIDGET_COMMANDS` list** replaced by
-   `Analyser::is_widget_command`, a registry query
-   (`creates_instance_at.is_some() && required_package == Some("Tk")`).
-   Not optional cleanup: the hardcoded list had already drifted from the
-   registry — it named `"ttk::scrollbar"` and `"ttk::labelframe"`, neither
-   of which has a registered `CommandSpec` on this branch. One source of
-   truth removes the drift class, not just this instance of it.
-3. **Everything downstream of `creates_instance_at`/`object_class` needed
-   zero new tracking code** — `commands.rs::record_registry_factory_instance`
-   and `object_types.rs::harvest_unit` already read these two fields
-   generically (built for tcllib factories), so both the bareword case
+2. **Widget-command identity is a registry query**, not a name list:
+   `Analyser::is_widget_command` (`analyser/tk_checks.rs`) asks
+   `creates_instance_at.is_some() && required_package == Some("Tk")`. A
+   hardcoded list is not an option here — the previous one had drifted to
+   naming `ttk::scrollbar` and `ttk::labelframe`, neither of which has a
+   registered `CommandSpec`. One source of truth removes the drift class,
+   not just one instance of it.
+3. **Nothing downstream of `creates_instance_at` / `object_class` is
+   widget-specific.** `commands.rs::record_registry_factory_instance` and
+   `object_types.rs::harvest_unit` read those two fields generically (they
+   were built for the tcllib factories), so both the bareword case
    (`ttk::treeview .t` then `.t instate …`) and the `set w [ctor .path]`
    return-value-capture case (`commands.rs::registry_factory_class_from_subst`,
-   likewise already generic) work from registry data alone. Proven directly
-   by tests added to `object_types.rs` and `commands.rs`, with no
-   production-code change in either file for this part.
-4. **Bareword receiver support in `insert_object_method_overrides`**
-   (`semantic_tokens.rs`): a new `TokenType::Esc` match arm that queries the
-   *same* `object_classes: &ObjectClassMap` parameter the existing `$var`
-   arm already reads (point 3 means it already contains widget bareword
-   bindings) — no new parameter threading. Also closes the golden fixture's
-   long-standing bareword TODO for the *registry* case; the separate
-   `named_object` pure-user-TclOO-class case (`C create obj; obj mrun`)
-   is unaffected and correctly stays `Abstain` (`object_types.rs` has no
-   `all_classes` access, by design — see Non-goals).
-5. **`obj_method_hover_text` gains a registry fallback**: when
-   `analysis.all_classes.get(class)` misses, try
-   `registry.instance_method(class, method)` before giving up. Required a
-   new `registry: Option<&CommandRegistry>` parameter (already available at
-   the one call site).
-6. **`completion.rs` gains both**: bareword-receiver detection, via
-   `crate::definition::receiver_instance_class` (the exact function
-   go-to-definition/hover already share — not a new resolver), and a new
-   `registry_method_completions` alongside the renamed, registry-aware
-   `method_completions` (formerly the user-class-only `oo_method_completions`).
-7. **A new widget-instance diagnostic module**,
+   likewise generic) fall out of the registry data alone.
+4. **Bareword receivers in `insert_object_method_overrides`**
+   (`semantic_tokens.rs`): a `TokenType::Esc` match arm queries the *same*
+   `object_classes: &ObjectClassMap` parameter the `$var` arm reads — point 3
+   means it already carries widget bareword bindings, so no extra parameter
+   is threaded. The separate `named_object` pure-user-TclOO-class case
+   (`C create obj; obj mrun`) is a different question and correctly stays
+   `Abstain`: `object_types.rs` has no `all_classes` access, by design (see
+   Deliberate abstentions).
+5. **`obj_method_hover_text` has a registry fallback**: when
+   `analysis.all_classes.get(class)` misses, it tries
+   `registry.instance_method(class, method)` before giving up. The
+   `registry: Option<&CommandRegistry>` parameter is `Option` so the
+   fallback is not a hard dependency.
+6. **`completion.rs` resolves bareword receivers** through
+   `crate::definition::receiver_instance_class_at` — the offset-aware
+   wrapper over the exact resolver go-to-definition and hover share, not a
+   parallel one. There is a single completion entry point,
+   `method_completions`; the registry path is a *fallback inside*
+   `method_items`, which calls `registry_method_items(registry, class_q)`
+   when `analysis.all_classes` does not know the class. A registry-modelled
+   class models no class/instance distinction, so `MethodBucket` is moot on
+   that path.
+7. **The widget-instance diagnostic module**,
    `analyser/diagnostics/widget_command.rs`, structurally parallel to
    `var_command.rs`'s `TclOO` W308/E001/E002-E003 trio but two-phase like
    `tk_checks.rs`'s own TK1001 flush (not inline): `validity.rs`'s
@@ -190,26 +182,26 @@ resolves it with **no code changes**.
    `resolves_when_widget_created_after_the_proc_that_uses_it_is_defined`.
    Reuses the W001/E002/E003 codes (an unknown-subcommand / arity problem,
    not a new diagnostic class) and `validity::arity_verdict` for identical
-   wording to every other arity check. `configure`/`cget` are treated as
-   universally valid and never arity-checked (see Non-goals) since no
-   widget spec declares them.
-8. **`instance_classes` collision-safety, scoped to the registry-driven
-   binding sites only.** The diagnostic in (7) cannot safely trust
-   `instance_classes`' existing whole-file, last-write-wins contract (two
-   different procs could legitimately create two *different* widget
-   classes under the same literal path, e.g. `.t`) — that would repeat the
-   exact class of bug `docs/design/tcloo-object-typing.md` and the
+   wording to every other arity check. `configure` / `cget` are treated as
+   universally valid and never arity-checked (see Deliberate abstentions)
+   since no widget spec declares them.
+8. **`instance_classes` collision-safety, at the registry-driven binding
+   sites only.** The diagnostic in (7) cannot safely trust
+   `instance_classes`' whole-file, last-write-wins contract: two different
+   procs may legitimately create two *different* widget classes under the
+   same literal path, e.g. `.t`. Trusting it would repeat exactly the class
+   of bug [`tcloo-object-typing.md`](tcloo-object-typing.md) and the
    `FP-OBJ-04` precedent (`experiments/`, `fp/obj.rs`) warn against for
    interprocedural unions. `Analyser::bind_registry_instance_class`
-   (`commands.rs`) makes exactly the two registry-driven insertion sites
-   inside `record_registry_factory_instance` collision-aware: a name bound
-   to two different classes anywhere in the file is dropped from
-   `instance_classes` and tracked in the new
-   `AnalysisResult::ambiguous_instance_names`, never re-added. The `TclOO`
-   user-class binding sites in `record_instance_creation` (Patterns A/B)
-   are untouched, keeping their long-documented best-effort contract
-   exactly as before — this is a narrow, additive safety improvement, not
-   a semantic change to the shared field.
+   (`commands.rs`) makes the two registry-driven insertion sites inside
+   `record_registry_factory_instance` collision-aware: a name bound to two
+   different classes anywhere in the file is dropped from
+   `instance_classes`, recorded in
+   `AnalysisResult::ambiguous_instance_names`, and never re-added. The
+   `TclOO` user-class binding sites in `record_instance_creation` (Patterns
+   A/B) deliberately do **not** go through it — they keep their documented
+   best-effort contract, so this is a narrow guarantee at two call sites
+   rather than a semantic change to the shared field.
 
 ## Interpreter domains (issue #1141)
 
@@ -243,26 +235,30 @@ tclsh 9.0.4: a command created inside `child eval { … }` never appears in the
 parent's `info commands`, and a widget-creation command *is* how a widget
 path becomes a command.
 
-Before #1141 the analyser held one flat, file-wide `tk_created_widgets` /
-`tk_geometry` pair, so both diagnostics were decided across every
-interpreter at once — a false TK1001 (a parent-side `pack` "conflicting"
-with a child-side `grid`) and a missed TK1002 (a parent created in one
-interpreter vouching for a child widget in another).
+A single file-wide accumulator would therefore decide both diagnostics across
+every interpreter at once, producing a false TK1001 (a parent-side `pack`
+"conflicting" with a child-side `grid`) and a missed TK1002 (a parent created
+in one interpreter vouching for a child widget in another).
 
-The fix keys the accumulator by **interpreter domain**
-(`Analyser::tk_domains: BTreeMap<String, TkDomainState>` in
-`analyser/tk_checks.rs`), reusing the campaign's existing synthetic-key
-mechanism rather than inventing a parallel one:
+The accumulator is instead keyed by **interpreter domain**
+(`Analyser::tk_domains: BTreeMap<String, TkDomainState>`, declared in
+`analyser/state.rs` with the state type and logic in
+`analyser/tk_checks.rs`), reusing the existing synthetic-key mechanism rather
+than a parallel one:
 
 - The domain identity is the same `@interp@<path>[#<epoch>]` name
-  `isolate_interp_eval_body` (`analyser/handlers.rs`) already mints for the
-  synthetic scope a child body's procs and variables home under — the one
-  place both `interp eval PATH { … }` and the handle form `NAME eval { … }`
-  pass through.  The main interpreter is the empty key.
-- That helper now pushes an `InterpFrame { key, domain, resolved }` rather
-  than a bare path string, so any analyser state that models per-interpreter
-  runtime state can ask "which interpreter am I in?" without a second,
-  drift-prone notion of interpreter identity.
+  `interp_domain_name` mints and `isolate_interp_eval_body`
+  (`analyser/handlers.rs`) uses for the synthetic scope a child body's procs
+  and variables home under — the one place both `interp eval PATH { … }` and
+  the handle form `NAME eval { … }` pass through.  The main interpreter is
+  the empty key.
+- That helper pushes an `InterpFrame { key, domain, resolved }` rather than a
+  bare path string, so any analyser state that models per-interpreter runtime
+  state can ask "which interpreter am I in?" without a second, drift-prone
+  notion of interpreter identity.  `key` is the path qualified against the
+  enclosing frames (`s`, `s t`); `domain` is the synthetic identity; `resolved`
+  is `false` once this frame *or any frame enclosing it* targeted a path that
+  could not be resolved statically.
 - Folding the deletion *epoch* into the identity means `interp delete c;
   interp create c` genuinely ends the hierarchy: the recreated child starts
   empty, as it does in C.
@@ -310,7 +306,7 @@ is recorded here rather than fixed because the map's collision-dropping
 already fails closed, unlike the TK1001/TK1002 accumulators, which failed
 *open* in both directions.
 
-## Deliberately deferred / abstained (with reasons)
+## Deliberate abstentions
 
 Consistent with this codebase's stated philosophy — *"prefer silence over a
 wrong narrowing at every stage"* (`tcloo-object-typing.md`) and *"the
@@ -321,12 +317,10 @@ following are explicit non-goals, not accidental gaps:
   constructor called separately, possibly on `.t` directly rather than via
   `$w`)** needs a two-hop fact (constant-propagate `$w` to the literal `.t`,
   then look up `.t`'s creating class) that SCCP's existing `LatticeValue::Const`
-  could in principle supply. Left out of this change's first landing: the
-  dominant real-world shape is direct bareword reuse or
-  `set w [ctor .path]` capture (both covered), and bridging SCCP output into
-  the widget-path map is a self-contained follow-up that doesn't block
-  those two. No false positive results from leaving it out — the receiver
-  simply stays unresolved, exactly like today.
+  could in principle supply. It is not wired: the dominant real-world shape
+  is direct bareword reuse or `set w [ctor .path]` capture, both of which
+  are covered. Nothing false-positives as a result — the receiver simply
+  stays unresolved.
 - **`rename`** of a widget's instance command (`rename .t .oldT`) breaks the
   association — `instance_classes` is keyed on the name observed at
   creation time. Tcl itself allows this (the C-level widget survives; only
@@ -340,16 +334,15 @@ following are explicit non-goals, not accidental gaps:
   **receiver typing**: `instance_classes` is still whole-file and
   name-keyed, not interpreter-keyed — see
   [Interpreter domains](#interpreter-domains-issue-1141) for why that is
-  fail-closed here and therefore left as a follow-up.  The *window
-  hierarchy* half (TK1001 / TK1002) is no longer deferred: it is keyed by
-  interpreter domain as of issue #1141.
+  fail-closed here.  The *window hierarchy* half (TK1001 / TK1002) is not
+  an abstention: it is keyed by interpreter domain.
 - **Interprocedural flow for diagnostics** (a widget path passed as a proc
   argument, `proc configureWidget {w} { $w instate … }`): the diagnostic's
   receiver resolution is whole-file (via `instance_classes`), not
   proc-scoped like `var_command.rs`'s own TclOO tracking — but made *sound*
   for that wider scope by collision-dropping (item 8 above) rather than by
   narrowing the scope. A widget path threaded through a proc parameter
-  therefore *does* get diagnosed today (unlike TclOO's `$obj` parameters,
+  therefore *does* get diagnosed (unlike TclOO's `$obj` parameters,
   which `var_command.rs` never resolves at all), as long as its literal
   creation-time name is never reused for a different widget class
   elsewhere in the file. `object_types.rs`'s separate proc-parameter
@@ -370,25 +363,23 @@ following are explicit non-goals, not accidental gaps:
   widget creation is always a direct call to a real, statically-named
   registry command, never reached through the `unknown` fallback or
   auto-loading, and namespace-qualification of the *constructor* command
-  name (as opposed to the widget path it creates) is already handled by the
-  shared `tcl_syntax::naming` resolver this change does not touch.
-- **`class_lattice.rs`** (the unshipped TclOO class-*set* lattice
-  prototype) is not graduated or extended by this change. Widget-path
-  identity is string-keyed with no MRO, so it does not need the prototype's
-  machinery; wiring it up for TclOO generally is a separate, larger,
-  unrelated decision this issue does not require.
+  name (as opposed to the widget path it creates) is handled by the shared
+  `tcl_syntax::naming` resolver.
+- **`class_lattice.rs`**, the TclOO class-*set* lattice prototype, is not
+  part of this model. Widget-path identity is string-keyed with no MRO, so
+  it does not need the prototype's machinery.
 
 ## Consumer summary
 
-| Consumer | Bareword | `$var` (constructor return) | Registry-class rendering |
+| Consumer | Bareword (`ttk::treeview .t` → `.t instate`) | `$var` (constructor return) | Registry-class rendering |
 |---|---|---|---|
-| go-to-definition / references | already worked (existing `receiver_instance_class`) | already worked (`registry_factory_class_from_subst` was already generic) | n/a (jumps to registry doc, not source) |
-| hover | already resolved the receiver; needed a registry fallback (item 5) | same | item 5 |
-| semantic tokens | new bareword arm (item 4) | already worked via `object_types.rs`'s existing generic `creates_instance_at` read | already worked (`registry.instance_method`) |
-| completion | new (item 6) | new (item 6) | new (item 6) |
-| diagnostics (W001/E002/E003) | new (item 7), whole-file + collision-safe (item 8) | new (item 7), same | new (item 7) |
+| go-to-definition / references | `receiver_instance_class` | `registry_factory_class_from_subst` | n/a — jumps to the registry doc, not to source |
+| hover | `receiver_instance_class`, then `obj_method_hover_text` | same | `registry.instance_method` fallback (item 5) |
+| semantic tokens | `TokenType::Esc` arm of `insert_object_method_overrides` (item 4) | `object_types.rs`'s generic `creates_instance_at` read | `registry.instance_method` |
+| completion | `receiver_instance_class_at` → `method_completions` (item 6) | same | `registry_method_items` fallback inside `method_items` |
+| diagnostics (W001/E002/E003) | `widget_command.rs`, whole-file + collision-safe (items 7–8) | same | same |
 
-## Testing (as shipped)
+## Testing
 
 - **Registry** (`tcl-registry/tests/registry_commands.rs`):
   `tk_widget_constructors_declare_creates_instance_at` (all 34 widgets) and
@@ -403,13 +394,13 @@ following are explicit non-goals, not accidental gaps:
   (highlight-only map); `bareword_widget_constructor_binds_instance_class` /
   `var_captured_widget_constructor_binds_instance_class` /
   `simple_widget_without_subcommands_still_binds_instance_class`
-  (`instance_classes`/`created_instance_commands`) — all pass with zero
-  production-code changes beyond the registry data, proving item 3 above.
-- **Semantic tokens** (`tcl-lsp-core/src/semantic_tokens.rs`): two new rows
-  (`widget_bareword`, `widget_var_captured`) in the shared
-  `TCLOO_DISPATCH_CASES` golden fixture table, run by the existing
-  `tcloo_dispatch_pattern_fixture` test alongside every prior TclOO/snit/itcl
-  case (unchanged pass/abstain verdicts).
+  (`instance_classes` / `created_instance_commands`). These hold with no
+  widget-specific production code in either file, which is what item 3 above
+  asserts.
+- **Semantic tokens** (`tcl-lsp-core/src/semantic_tokens.rs`): the
+  `widget_bareword` and `widget_var_captured` rows in the shared
+  `TCLOO_DISPATCH_CASES` golden fixture table, run by
+  `tcloo_dispatch_pattern_fixture` alongside every TclOO / snit / itcl case.
 - **Hover** (`hover.rs`): `obj_method_hover_fires_for_bareword_widget`,
   `obj_method_hover_fires_for_var_captured_widget`,
   `obj_method_hover_none_for_widget_without_registry` (no panic without a
@@ -420,12 +411,11 @@ following are explicit non-goals, not accidental gaps:
   soundness proof `bareword_completion_does_not_leak_unrelated_variable_class`
   (an unrelated `set b [Bar new]` must not make bareword `b` complete as
   `Bar`).
-- **`tk_checks.rs`**: all 9 pre-existing TK1001/TK1002/TK1003 tests stay
-  green unchanged, plus two new ones —
-  `tk1002_fires_for_ttk_and_listbox_constructors` (coverage beyond the one
-  widget the old suite happened to test) and
+- **`tk_checks.rs`**: the TK1001/TK1002/TK1003 suite, including
+  `tk1002_fires_for_ttk_and_listbox_constructors` (coverage across widget
+  families, not one widget) and
   `unknown_command_is_never_treated_as_a_widget_constructor` (the
-  registry-driven query cannot drift the way the old hardcoded list did).
+  registry-driven query cannot drift the way a hardcoded list would).
 - **Widget diagnostics** (`analyser/diagnostics/widget_command.rs`, 11
   tests): positive W001/E002/E003 firing for both bareword and `$var`
   receivers; silence for a known subcommand and for `configure`/`cget`;
@@ -436,14 +426,10 @@ following are explicit non-goals, not accidental gaps:
   two-phase design is load-bearing, not stylistic, by constructing exactly
   the "proc defined before, called after" case a naive single pass would
   get wrong; `{*}`-expansion abstention; and
-  `tcloo_dispatch_is_unaffected` — a plain `$obj method` dispatch keeps
-  firing `var_command.rs`'s W308, never this module's W001.
-- **Regression baseline**: the full existing `cargo test -p tcl-compiler
-  --lib` suite (4133 tests after the additions above, 0 failures) and
-  `cargo test -p tcl-registry` (320 tests, 0 failures) both stay green,
-  plus a clean `cargo check --workspace` across all ~40 crates.
+  `tcloo_dispatch_is_unaffected` — a plain `$obj method` dispatch fires
+  `var_command.rs`'s W308, never this module's W001.
 - **Interpreter domains** (issue #1141), `tk_checks.rs`'s
-  `tests::interp_domains` module — 19 cases covering TP/FP/TN/FN in both
+  `tests::interp_domains` module — 20 cases covering TP/FP/TN/FN in both
   directions: the false TK1001 across isolated interpreters and the true
   same-interpreter one; the missed TK1002 in both directions (parent only in
   the child, parent only in the parent) and the same-domain true negative;
@@ -454,7 +440,7 @@ following are explicit non-goals, not accidental gaps:
   unresolved-target widening (both that it abstains, and that it does not
   fall silent when the parent exists nowhere at all).  End-to-end coverage of
   the published diagnostics is in
-  `rust/tcl-lsp-server/tests/e2e/tk_dialect.rs` (6 further cases, including
+  `rust/tcl-lsp-server/tests/e2e/tk_dialect.rs` (15 further cases, including
   the literal `dialog1.tcl` shape from the audit).
 
 ## Sources

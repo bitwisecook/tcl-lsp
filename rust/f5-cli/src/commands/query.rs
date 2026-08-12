@@ -541,7 +541,6 @@ fn load_side_inputs(
 }
 
 /// Load a single side-input file, threading the collision-tracking state.
-/// Port of the body of `_load_side_input`.
 // Threads the loader's mutable collision-tracking state positionally; a struct
 // would just re-wrap these one-shot parameters.
 #[allow(clippy::too_many_arguments)]

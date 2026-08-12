@@ -16,8 +16,6 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! Native port of `tests/lsp_e2e/test_edit_tracking_stress_e2e.py`.
-//!
 //! Stress tests that punish the server's open-document edit tracking. The server
 //! advertises *incremental* sync, so every keystroke arrives as a range edit the
 //! server splices into its own buffer. A bug anywhere on that path — a UTF-16
@@ -32,14 +30,13 @@
 //! of the apply-change algorithm ([`TextMirror`]) lives here, local to this file,
 //! and exists only so a divergence between it and the server is a failure.
 //!
-//! The `random.Random(seed)` fixtures from the pytest source are driven by the
-//! project's canonical reproducible generator ([`crate::common::Rng`], the `xorshift64*`
-//! the `tcl-fuzz` crate uses) seeded with the same explicit seeds — the seeds are
-//! kept because a stress test wants reproducible replay. The oracle
-//! (mirror-vs-server equivalence) validates the server for *any* edit sequence,
-//! so the exact byte-for-byte reproduction of Python's Mersenne Twister stream is
-//! not load-bearing — a deterministic, hostile mix of
-//! insert/delete/replace/newline/astral edits is.
+//! The randomised edit sequences come from the project's canonical reproducible
+//! generator ([`crate::common::Rng`], the `xorshift64*` the `tcl-fuzz` crate
+//! uses), seeded with explicit constants so a failure replays exactly. The
+//! particular random stream is not load-bearing — the oracle validates the
+//! server for *any* edit sequence, so what matters is only that the mix stays
+//! deterministic and hostile: insert, delete, replace, newline, and astral
+//! edits.
 
 use crate::common::helpers::*;
 use crate::common::{Lsp, Rng, unique_uri};
@@ -49,7 +46,7 @@ use std::fmt::Write as _;
 use std::time::Duration;
 
 // --------------------------------------------------------------------------- #
-// Client-side text mirror (native port of tests/lsp_e2e/_textmirror.py).
+// Client-side text mirror.
 // --------------------------------------------------------------------------- #
 
 /// Length of `s` in UTF-16 code units (astral chars count as two).
@@ -163,8 +160,8 @@ fn random_edit(mirror: &TextMirror, rng: &mut Rng) -> Edit {
         "\u{1f600}",
     ];
     let text = &mirror.text;
-    let n = text.len(); // byte length (matches the Python offset space closely enough
-    // for ASCII seeds; astral chars only enter via the fixed snippets)
+    let n = text.len(); // byte length; random offsets are snapped to a char
+    // boundary below, and astral chars only enter via the fixed snippets
     let kind = rng.random();
     if n == 0 || kind < 0.45 {
         // Insertion at a random byte offset on a char boundary.
@@ -202,7 +199,7 @@ fn char_boundary(text: &str, off: usize) -> usize {
 }
 
 // --------------------------------------------------------------------------- #
-// Oracle helpers (native port of the pytest module-level assertions).
+// Oracle helpers.
 // --------------------------------------------------------------------------- #
 
 /// The semantic-tokens legend (`tokenTypes`, `tokenModifiers`) advertised by the

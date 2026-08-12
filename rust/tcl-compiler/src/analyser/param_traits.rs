@@ -35,7 +35,7 @@
 //!   with `VarRead`; refines it so caller-side dead-store / unused
 //!   suppression does **not** treat a literal-name call arg as
 //!   consumed (the callee uses the string to name its *own* local,
-//!   not a caller-frame alias).  Mirrors `proc_arg_traits.py`.
+//!   not a caller-frame alias).
 //!
 //! Two passes are exposed:
 //!
@@ -883,7 +883,7 @@ fn push_leading_ident<'a>(content: &'a str, out: &mut Vec<&'a str>) {
 /// the call site as consuming the caller's variable) plus
 /// [`ProcArgTrait::VarRead`] (the param's string *is* read).  Never
 /// `VarWrite` — only an ``upvar``-aliased write-back is a genuine
-/// caller-frame write.  Mirrors `proc_arg_traits.py`.
+/// caller-frame write.
 fn mark_dynamic_name_local(set: &mut HashSet<ProcArgTrait>) {
     set.insert(ProcArgTrait::DynamicNameLocal);
     set.insert(ProcArgTrait::VarRead);
@@ -1305,7 +1305,7 @@ fn handle_after<'a>(
 /// `VarWrite`).  Emitting [`ProcArgTrait::DynamicNameLocal`] (+
 /// `VarRead`) rather than `VarWrite` keeps caller-side dead-store /
 /// unused-variable suppression from silencing the caller's literal
-/// arg — matches `proc_arg_traits.py` (PR #498 / #499 finding 6).
+/// arg (PR #498 / #499 finding 6).
 fn handle_variadic_var_write<'a>(
     args: &[String],
     param_set: &HashSet<&'a str>,
@@ -1650,8 +1650,7 @@ mod tests {
     fn lassign_records_dynamic_name_local() {
         // `lassign {1 2} $a $b` names CALLEE-LOCAL output vars via the
         // params' values — DynamicNameLocal (+ VarRead), NOT VarWrite
-        // (which would imply a caller-frame alias).  Matches
-        // `proc_arg_traits.py`.
+        // (which would imply a caller-frame alias).
         let traits = infer(&["a", "b"], "lassign {1 2} $a $b");
         for p in ["a", "b"] {
             assert_trait(&traits, p, ProcArgTrait::DynamicNameLocal);

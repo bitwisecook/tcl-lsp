@@ -148,7 +148,7 @@ so the audit query still gets the response body + peer cert.  The
 | "expiry date of every cert on the device" | ``.sys["file-ssl-cert"][] \| { name, expires: x509_from_config(.).not_after }`` |
 | "every cert expiring within 30 days" | ``.sys["file-ssl-cert"][] \| x509_from_config(.) \| select(.not_after < "2026-06-15") \| .subject`` |
 | "expiry date of every device-trust cert" | ``.cm.cert[] \| { name, expires: x509_from_config(.).not_after }`` |
-| "verify the cert each VS serves matches its `sys file ssl-cert`" | walk ``.ltm.virtual[]`` → ``.profiles[]`` → client-ssl profile → ``cert-key-chain`` → ``sys file ssl-cert``, compare with ``tls_handshake(host, port).peer_cert`` via ``x509_eq``.  See [`kcs-howto-audit-server-certs-with-query.md`](../../../docs/kcs/kcs-howto-audit-server-certs-with-query.md) for the full pattern. |
+| "verify the cert each VS serves matches its `sys file ssl-cert`" | walk ``.ltm.virtual[]`` → ``.profiles[]`` → client-ssl profile → ``cert-key-chain`` → ``sys file ssl-cert``, compare with ``tls_handshake(host, port).peer_cert`` via ``x509_eq``.  See [`kcs-howto-audit-server-certs-with-query.md`](../../../../docs/kcs/kcs-howto-audit-server-certs-with-query.md) for the full pattern. |
 | "find every endpoint with an expired cert" | ``.ltm.virtual[] \| { vs: .name, probe: tls_handshake(.destination.host, .destination.port) } \| select(.probe.reason.kind == "expired")`` |
 | "find every endpoint using a self-signed cert" | ``select(.probe.reason.kind == "self_signed")`` after a ``tls_handshake`` walk |
 
@@ -165,7 +165,7 @@ matching:
 | User asks | Query |
 |---|---|
 | "would this HTTP monitor mark the member up?" | ``.ltm.monitor.http[$mon] as $m \| url_get($url + $m.send) \| .body[0:5120] \| test($m.recv)`` |
-| "find monitors whose ``recv`` pattern is past the 5,120-byte read window" | walk ``.body`` vs ``.body[0:5120]`` for each monitor (full pattern in [`kcs-howto-reproduce-http-monitor-with-query.md`](../../../docs/kcs/kcs-howto-reproduce-http-monitor-with-query.md)) |
+| "find monitors whose ``recv`` pattern is past the 5,120-byte read window" | walk ``.body`` vs ``.body[0:5120]`` for each monitor (full pattern in [`kcs-howto-reproduce-http-monitor-with-query.md`](../../../../docs/kcs/kcs-howto-reproduce-http-monitor-with-query.md)) |
 
 When the user wants the full audit recipe (multi-tier, cross-
 device, find broken cert pushes), point them at the two KCS

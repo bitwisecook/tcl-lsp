@@ -1,7 +1,7 @@
 # KCS: IRULE1202 — Why does the analyser flag multiple respond or redirect calls?
 
 > **Audience:** User
-> **Type:** Issue
+> **Type:** Diagnostic
 
 ## Applies to
 
@@ -41,7 +41,7 @@ if {$cond} { HTTP::respond 403 } else { pool fallback_pool }
 
 ## How to suppress
 
-Add `# noqa: IRULE1202` at the end of the offending line.
+Add `# noqa: IRULE1202` on the line **above** the offending command.
 
 ## Related
 

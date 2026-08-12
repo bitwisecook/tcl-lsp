@@ -320,7 +320,7 @@ fn handle_barrier(
     registry: &tcl_registry::CommandRegistry,
 ) {
     use crate::var_escape::types::{Barrier, BarrierKind};
-    // Any IRBarrier means the codegen can dispatch to the
+    // Any Statement::Barrier means the codegen can dispatch to the
     // interpreter; the proc prologue must push a frame so the
     // fallback sees locals.
     state.record_fallback();
@@ -343,7 +343,7 @@ fn handle_barrier(
     }
 }
 
-/// Reconstitute an IRBarrier-style view of an eval-shape
+/// Reconstitute a `Statement::Barrier`-style view of an eval-shape
 /// `Statement::Block` for the escape walk.
 fn synthesise_eval_args(block_tokens: Option<&crate::ir::CommandTokens>) -> Vec<String> {
     block_tokens

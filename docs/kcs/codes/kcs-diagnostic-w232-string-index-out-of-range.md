@@ -1,7 +1,7 @@
 # KCS: W232 — Why does the analyser warn about a string index that is out of range?
 
 > **Audience:** User
-> **Type:** Issue
+> **Type:** Diagnostic
 
 ## Applies to
 
@@ -52,7 +52,7 @@ be shorter than expected.
 
 ## How to suppress
 
-Add `# noqa: W232` at the end of the offending line.
+Add `# noqa: W232` on the line **above** the offending command.
 
 ## Related
 

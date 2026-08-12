@@ -18,9 +18,9 @@
 
 //! `tk_layout` — extract a Tk widget tree from source for preview rendering.
 //!
-//! A faithful port of `dialects/tk/dialect/extract.py`: a line-based heuristic
-//! scan (not a full Tcl parse) that builds a JSON widget hierarchy with types,
-//! geometry-manager assignments, visual options, and pack/grid conflict notes.
+//! A line-based heuristic scan (not a full Tcl parse) that builds a JSON widget
+//! hierarchy with types, geometry-manager assignments, visual options, and
+//! pack/grid conflict notes.
 
 use std::collections::HashMap;
 

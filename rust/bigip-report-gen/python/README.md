@@ -54,7 +54,7 @@ parser in Python.
 > This Python package is deliberately kept as the demonstration of using the
 > BIG-IP query engine as a **library** (via PyO3). The same generator, ported to
 > Rust and compiled to WebAssembly so it runs entirely in the browser, lives in
-> [`../rust`](../rust) + [`../../bigip-report-wasm`](../../bigip-report-wasm);
+> [`../rust`](../rust) + [`../wasm`](../wasm);
 > the two are kept at feature parity.
 
 This crate is **excluded** from the Cargo workspace (like `editors/zed`): PyO3's

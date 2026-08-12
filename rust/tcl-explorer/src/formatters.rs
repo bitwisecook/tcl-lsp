@@ -114,7 +114,11 @@ pub fn range_dict(span: Span, line_index: &LineIndex, source: &str) -> Value {
     })
 }
 
-/// Short name for an IR statement kind — `IR*` class name.
+/// Short name for an IR statement kind.
+///
+/// The returned `IR*` strings are the explorer's stable wire labels for
+/// [`Statement`] variants, not Rust type names; the JSON schema, the
+/// snapshot fixtures, and the web UI all key off them.
 #[must_use]
 pub fn stmt_kind(stmt: &Statement) -> &'static str {
     match stmt {

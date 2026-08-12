@@ -18,7 +18,6 @@
 
 //! NAB family — not-a-bug / confirm-correct audits. Mostly TP confirmations
 //! that a real hazard still fires, plus a few FP guards.
-//! Pairs to the §NAB entries in `docs/design/compiler/FP.md`.
 //!
 //! Two NAB entries test internal APIs rather than diagnostics and are
 //! covered as structure tests elsewhere (not here):

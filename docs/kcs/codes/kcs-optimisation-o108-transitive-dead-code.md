@@ -1,7 +1,7 @@
 # KCS: O108 — Eliminate transitively dead code
 
 > **Audience:** User
-> **Type:** Functionality
+> **Type:** Optimisation
 
 ## Applies to
 

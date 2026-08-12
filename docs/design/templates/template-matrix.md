@@ -1,43 +1,60 @@
-# KCS: <ownership matrix topic>
+# <What the matrix maps, in a noun phrase>
 
-## Symptom
+<Lead paragraph, with no heading above it. Say which pipeline stage and
+which fact families the matrix covers, and what goes wrong without it —
+for example, that overlapping consumers duplicate diagnostics or break a
+downstream assumption when no explicit ownership map exists. Two or
+three sentences.
+[`../compiler/pass-fact-ownership-matrix.md`](../compiler/pass-fact-ownership-matrix.md)
+is the worked example.>
 
-<Where ownership confusion creates regressions or duplication.>
+## Contracts
 
-## Operational context
+<The ownership rules the matrix enforces. Three is the usual shape: who
+owns a fact, what a consumer may and may not do with it, and what a
+producer change obliges. Delete this section if the table alone carries
+the contract.>
 
-<Which pipeline stage/fact families are covered.>
+1. **<One primary owner per fact family.>** <What that means here.>
+2. **<Consumers do not redefine producer semantics.>** <What that means
+   here.>
+3. **<Ownership changes require cross-pass validation.>** <What that
+   means here.>
 
-## Decision rules / contracts
+## <Owner> → <fact> → <consumer>
 
-1. <Primary owner rule>
-2. <Consumer behaviour rule>
-3. <Change-management rule>
+<State the path root once above the table — "All paths are relative to
+`rust/<crate>/src/` unless stated otherwise" — so the cells stay short.
+The entry-point column names real functions or types; check each against
+the source.>
 
-## <Entity> -> <fact> -> <consumer> matrix
-
-| Owner | Facts | Consumers | Anchors |
+| Owner | Primary facts produced | Typical consumers | Entry points |
 |---|---|---|---|
-| `...` | `...` | `...` | `...` |
-
-## File-path anchors
-
-- `<package>/...` (compiler/, analyser/, dialects/, server/, tooling/, shared/, ai/)
-- `server/...`
-- `<package>/...` (compiler/, analyser/, dialects/, server/, tooling/, shared/, ai/)
-- `server/...`
+| `<module>/` | <facts> | <consumers> | `<fn_name>` |
+| `<module>.rs` | <facts> | <consumers> | `<fn_name>` |
 
 ## Failure modes
+
+<What goes wrong when ownership drifts — two passes emitting overlapping
+findings, a consumer assuming an invariant a refactor dropped, an
+aggregator treating a derived fact as canonical.>
 
 - <Failure mode 1>
 - <Failure mode 2>
 
 ## Test anchors
 
-- `tests/...`
-- `tests/...`
+<The tests that catch an ownership regression. Delete this section
+rather than guess.>
 
-## Discoverability
+- `rust/<crate>/tests/<file>.rs` — <what it guards>
 
-- [compiler KCS index](../compiler/README.md)
-- related note: `../compiler/<note>.md`
+## Related docs
+
+<`## Related docs` is the closing-pointer heading used under
+`docs/design/compiler/`. Use `## Discoverability` instead if the page is
+filed under `docs/design/contracts/`.>
+
+- [compiler design index](../compiler/README.md)
+- <neighbouring doc, with a clause saying what it answers that this one
+  does not>

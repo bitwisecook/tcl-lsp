@@ -18,8 +18,9 @@
 
 //! Structured AST for Tcl `[expr]` expressions.
 //!
-//! Replaces the opaque `String` representation used in `IRAssignExpr.expr`,
-//! `IRIfClause.condition`, `IRFor.condition`, and `CFGBranch.condition`.
+//! Replaces the opaque `String` representation used in the compiler's
+//! `Statement::AssignExpr.expr`, `IfClause.condition`,
+//! `Statement::For.condition`, and `Terminator::Branch.condition`.
 //! Parsed once at lowering time, then walked by downstream analyses
 //! (SSA, SCCP, type inference, shimmer).
 //!
@@ -706,7 +707,8 @@ pub struct ExistenceQuery {
 
 /// Recognise an `[info exists X]` / `[array exists X]` existence-query
 /// condition.  Used to inject guarded-region read narrowing
-/// (`cfg_lower::lower_if`), suppress the existence-query word's W210 read,
+/// (`analyser::diagnostics::helpers::collect_existence_guards`), suppress
+/// the existence-query word's W210 read,
 /// and fold the predicate to a constant (analyser I230).
 ///
 /// Only the simple two-/three-word command-substitution form is matched

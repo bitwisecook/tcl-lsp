@@ -16,16 +16,13 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! Native port of `tests/lsp_e2e/test_recovery_e2e.py`.
-//!
 //! Error-recovery correctness contract — end-to-end against the packaged server.
 //!
 //! This suite is deliberately **implementation-agnostic**: it asserts the
-//! *observable* recovery behaviour over the LSP protocol, never a Python internal
-//! or a Python-specific diagnostic code. It is the contract the recovery engine
-//! must satisfy in *any* implementation — Python before the port, Rust now — so
-//! the same assertions run unchanged against the native server to prove the port
-//! is correct.
+//! *observable* recovery behaviour over the LSP protocol, never a server
+//! internal or an implementation-specific diagnostic code. It is the contract
+//! the recovery engine must satisfy in *any* implementation, so a rewrite of
+//! the engine can be held to it unchanged.
 //!
 //! The stable contracts (each a property any correct recovery must have):
 //!
@@ -64,8 +61,7 @@ const RECOVERY_WORDS: &[&str] = &[
     "extra characters",
 ];
 
-/// A diagnostic's `code`, normalised to a `String` (stringifying non-strings),
-/// mirroring Python's `str(d.get("code"))`.
+/// A diagnostic's `code`, normalised to a `String` (stringifying non-strings).
 fn code_str(d: &Value) -> String {
     match d.get("code") {
         Some(Value::String(s)) => s.clone(),
@@ -74,7 +70,7 @@ fn code_str(d: &Value) -> String {
     }
 }
 
-/// The set of `code` strings carried by `diags` (mirrors Python `_codes`).
+/// The set of `code` strings carried by `diags`.
 fn codes(diags: &[Value]) -> BTreeSet<String> {
     diags.iter().map(code_str).collect()
 }
@@ -88,7 +84,7 @@ fn message(d: &Value) -> String {
 }
 
 /// Whether `d` is a recovery error: a code in the family, or an error-severity
-/// diagnostic whose message uses recovery vocabulary (mirrors `_is_recovery_error`).
+/// diagnostic whose message uses recovery vocabulary.
 fn is_recovery_error(d: &Value) -> bool {
     let code = code_str(d);
     if RECOVERY_CODES.contains(&code.as_str()) {
@@ -99,15 +95,14 @@ fn is_recovery_error(d: &Value) -> bool {
     sev == Some(1) && RECOVERY_WORDS.iter().any(|w| msg.contains(w))
 }
 
-/// Whether any diagnostic is a recovery error (mirrors `_has_recovery_error`).
+/// Whether any diagnostic is a recovery error.
 fn has_recovery_error(diags: &[Value]) -> bool {
     diags.iter().any(is_recovery_error)
 }
 
 /// The identity tuple of a diagnostic (code, start/end line/char, message),
-/// rendered to a stable string — mirrors Python `_diag_identity`, used to detect
-/// exact duplicates. (Serialised to a `String` because `serde_json::Value` is
-/// not `Ord`/`Hash`.)
+/// rendered to a stable string, used to detect exact duplicates. (Serialised to
+/// a `String` because `serde_json::Value` is not `Ord`/`Hash`.)
 fn diag_identity(d: &Value) -> String {
     let rng = d.get("range").cloned().unwrap_or(Value::Null);
     let start = rng.get("start").cloned().unwrap_or(Value::Null);
@@ -123,8 +118,7 @@ fn diag_identity(d: &Value) -> String {
     )
 }
 
-/// The `tokenTypes` legend from the server's `initialize` result (mirrors
-/// `_legend`).
+/// The `tokenTypes` legend from the server's `initialize` result.
 fn legend(lsp: &Lsp) -> Vec<String> {
     lsp.initialize_result()["capabilities"]["semanticTokensProvider"]["legend"]["tokenTypes"]
         .as_array()
@@ -136,8 +130,8 @@ fn legend(lsp: &Lsp) -> Vec<String> {
         .unwrap_or_default()
 }
 
-/// A semantic token with its resolved type name (mirrors `_typed`): decode the
-/// delta encoding, then map each token's numeric type through the legend.
+/// A semantic token with its resolved type name: decode the delta encoding,
+/// then map each token's numeric type through the legend.
 struct TypedToken {
     line: i64,
     length: i64,
@@ -160,8 +154,7 @@ fn typed(lsp: &mut Lsp, uri: &str) -> Vec<TypedToken> {
         .collect()
 }
 
-/// The symbol names (depth-first) of a document-symbol result (mirrors
-/// `_symbol_names`).
+/// The symbol names (depth-first) of a document-symbol result.
 fn symbol_name_list(syms: &Value) -> Vec<String> {
     flatten_symbols(syms)
         .iter()

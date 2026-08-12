@@ -39,7 +39,7 @@ use crate::ssa::{SsaFunction, UseClass, Version};
 /// How a variable definition was produced.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum DefKind {
-    /// Ordinary assignment (`set`, `incr`, `IRAssignConst`, …).
+    /// Ordinary assignment (`set`, `incr`, `Statement::AssignConst`, …).
     Statement,
     /// Phi node at a control-flow merge point.
     Phi,

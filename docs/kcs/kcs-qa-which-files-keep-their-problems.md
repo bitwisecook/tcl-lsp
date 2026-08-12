@@ -41,4 +41,3 @@ fault: collect the **Tcl LSP** output channel log and open an issue.
 - [Glossary](../GLOSSARY.md)
 - [Why diagnostics appear progressively](kcs-qa-why-diagnostics-appear-progressively.md)
 - [Suppressing diagnostics](kcs-howto-suppress-diagnostics.md)
-- [Duplicate diagnostics](kcs-issue-duplicate-diagnostics.md)

@@ -16,8 +16,6 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! Native port of `tests/lsp_e2e/test_unicode_positions_e2e.py`.
-//!
 //! Exact UTF-16 column correctness across providers — the byte-vs-UTF-16 bug
 //! class. Each test places the token of interest AFTER multibyte (and astral —
 //! emoji, 2 UTF-16 units) characters on its line, so a byte/scalar confusion
@@ -31,8 +29,7 @@ use crate::common::{Lsp, unique_uri};
 use std::collections::BTreeSet;
 use std::time::Duration;
 
-/// UTF-16 code-unit column where `token` first starts in `line` (mirrors the
-/// pytest `_utf16_col`).
+/// UTF-16 code-unit column where `token` first starts in `line`.
 fn utf16_col(line: &str, token: &str) -> u32 {
     let idx = line.find(token).expect("token in line");
     // `len_utf16` is 1 or 2, so the conversion is always exact.
@@ -42,14 +39,13 @@ fn utf16_col(line: &str, token: &str) -> u32 {
         .sum()
 }
 
-/// The (wrong) UTF-8 byte column — what a byte-column regression would use
-/// (mirrors the pytest `_byte_col`).
+/// The (wrong) UTF-8 byte column — what a byte-column regression would use.
 fn byte_col(line: &str, token: &str) -> u32 {
     u32::try_from(line.find(token).expect("token in line")).expect("byte column fits u32")
 }
 
 /// The scalar (code-point) index of `token` in `line` — what a scalar-count
-/// confusion would use (Python `str.index`).
+/// confusion would use.
 fn scalar_col(line: &str, token: &str) -> u32 {
     let idx = line.find(token).expect("token in line");
     u32::try_from(line[..idx].chars().count()).expect("scalar column fits u32")
@@ -190,10 +186,9 @@ fn final_state_wins_after_rapid_replaces() {
         version += 1;
     }
     // The final content defines `epsilon`; its call on line 1 must resolve to
-    // the definition on line 0 — proving the latest change won. The Python
-    // suite relies on the shared server processing the queued changes; here we
-    // settle on the final version so the analysis snapshot is up to date before
-    // the definition request.
+    // the definition on line 0 — proving the latest change won. We settle on the
+    // final version first, so the analysis snapshot is up to date before the
+    // definition request.
     let final_version = version - 1;
     lsp.await_diagnostics_version(&uri, Some(final_version), Duration::from_secs(30));
     let defs = starts(&lsp.definition(&uri, 1, 0));

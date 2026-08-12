@@ -1,7 +1,7 @@
 # KCS: E101 — Why does the analyser flag a missing opening brace after `switch`?
 
 > **Audience:** User
-> **Type:** Issue
+> **Type:** Diagnostic
 
 ## Applies to
 
@@ -44,7 +44,7 @@ Wrap the entire set of cases in braces so the parser recognises them as a single
 
 ## How to suppress
 
-Add `# noqa: E101` at the end of the offending line.
+Add `# noqa: E101` on the line **above** the offending command.
 
 ## Related
 

@@ -57,8 +57,8 @@ bitflags! {
         const BPF       = 1 << 13;
         /// Tcl 9.1
         const TCL91     = 1 << 14;
-        /// F5 tmsh scripting (the tmsh shell's Tcl 8.5 host — first-class
-        /// in Milestone 6 of the dialect-profile refactor, D8)
+        /// F5 tmsh scripting (the tmsh shell's Tcl 8.5 host — a first-class
+        /// dialect profile of its own, D8)
         const TMSH      = 1 << 15;
         /// F5 BIG-IP configuration (`bigip.conf` — a config surface with
         /// no Tcl command surface of its own; the bit exists for profile
@@ -103,15 +103,15 @@ bitflags! {
         /// top by the LSP, not by this dialect set.
         const TK_AND_TCL = Self::ALL_TCL.bits() | Self::TK.bits();
 
-        // `NON_IRULES_OPERATORS` (every dialect except iRules/Tk/BPF) was
-        // retired in Milestone 5 of the dialect-profile refactor. iRules
-        // availability is now fully explicit per spec: every command carries
-        // an explicit `dialects` group (universal `dialects: None` was
-        // eliminated registry-wide), with the `IRULES` bit present iff iRules
-        // enables it — so a K36322151-banned command such as `exec` is just
-        // `ALL_TCL` and never intersects the bare `IRULES` mask. The only
-        // remaining profile-level exclusion is `Traits::OPERATOR_COMMAND` +
-        // `operators_as_commands` for the math-operator heads.
+        // `NON_IRULES_OPERATORS` (every dialect except iRules/Tk/BPF) has
+        // been retired. iRules availability is fully explicit per spec:
+        // every command carries an explicit `dialects` group (universal
+        // `dialects: None` was eliminated registry-wide), with the `IRULES`
+        // bit present iff iRules enables it — so a K36322151-banned command
+        // such as `exec` is just `ALL_TCL` and never intersects the bare
+        // `IRULES` mask. The only remaining profile-level exclusion is
+        // `Traits::OPERATOR_COMMAND` + `operators_as_commands` for the
+        // math-operator heads.
     }
 }
 
@@ -121,9 +121,9 @@ bitflags! {
 /// order. This
 /// is the single source of truth for the explorer's dialect dropdown and
 /// the CLI's `--dialect` choices. Every name here resolves to its own
-/// [`DialectSet::parse`] flag (`f5-tmsh` / `f5-bigip` gained their bits
-/// when Milestone 6 made them first-class, D8; `tk` parses to the
-/// grammar-layer `TK` bit but is a library pin, not a profile — §7.2).
+/// [`DialectSet::parse`] flag (`f5-tmsh` / `f5-bigip` carry their own bits
+/// as first-class profiles, D8; `tk` parses to the grammar-layer `TK` bit
+/// but is a library pin, not a profile — §7.2).
 pub const KNOWN_DIALECTS: &[&str] = &[
     "bpf",
     "cadence-eda-tcl",

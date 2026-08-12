@@ -1835,14 +1835,14 @@ impl Analyser {
     /// Lowers the proc body to IR, then walks the resulting
     /// top-level [`Statement`]s looking for:
     ///
-    /// - `IRSwitch` whose subject is `$<first_param>` (or
+    /// - `Statement::Switch` whose subject is `$<first_param>` (or
     ///   `${first_param}`) — exact arms become explicit
     ///   dispatch targets; glob/regexp modes flip
     ///   ``has_pattern_dispatch``.  ``string tolower`` /
     ///   ``string toupper`` in the subject sets
     ///   ``case_insensitive``.
-    /// - `IRCall` / `IRBarrier` whose command name matches one
-    ///   of [`CHAIN_TARGETS`] — sets ``chains_original``.
+    /// - `Statement::Call` / `Statement::Barrier` whose command name
+    ///   matches one of [`CHAIN_TARGETS`] — sets ``chains_original``.
     /// - ``exec`` calls — set ``has_exec``.
     /// - ``auto_load`` calls — set ``has_auto_load``.
     ///

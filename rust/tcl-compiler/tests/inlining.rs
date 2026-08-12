@@ -162,7 +162,7 @@ fn summary_for<'a>(
 }
 
 // ===========================================================================
-// test_inline_decision.py — proc classification
+// Proc classification
 // ===========================================================================
 
 // --- TestStatementCount ----------------------------------------------------
@@ -295,7 +295,7 @@ fn classify_missing_summary_is_never() {
 }
 
 // ===========================================================================
-// test_inline_pass.py — the inline transform
+// The inline transform
 // ===========================================================================
 
 // --- TestEmptyBodySplice ---------------------------------------------------
@@ -927,7 +927,7 @@ fn namespace_eval_body_is_opaque_barrier_not_a_block() {
 }
 
 // ===========================================================================
-// test_inline_gvn.py — inlining ↔ GVN interaction
+// Inlining ↔ GVN interaction
 // ===========================================================================
 //
 // The GVN pass itself has no public integration entry point. The single
@@ -958,7 +958,7 @@ fn gvn_shared_allowlist_user_call_is_opaque() {
 }
 
 // ===========================================================================
-// test_inline_uplevel.py — whole-callee uplevel-passthrough inlining
+// Whole-callee uplevel-passthrough inlining
 // ===========================================================================
 
 // --- TestPassthroughRecognition --------------------------------------------

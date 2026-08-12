@@ -1,7 +1,7 @@
 # KCS: W120 — Why does the analyser want a package require?
 
 > **Audience:** User
-> **Type:** Issue
+> **Type:** Diagnostic
 
 ## Applies to
 
@@ -133,7 +133,7 @@ both are classified behaviour-hardening, and you accept them one at a time.
 
 ## How to suppress
 
-Add `# noqa: W120` at the end of the offending line.
+Add `# noqa: W120` on the line **above** the offending command.
 
 ## Related
 

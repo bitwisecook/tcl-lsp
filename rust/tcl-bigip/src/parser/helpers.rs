@@ -312,9 +312,8 @@ pub fn parse_list_block(braced: &str) -> Vec<String> {
         let name_start = pos;
         // A record key may be double-quoted because it contains spaces (a
         // data-group key like `"Mozilla/5.0 (Windows)"`); scan the whole quoted
-        // run as one key instead of splitting it on the inner space.
-        // The list-body scan used to be unquote-aware even
-        // though header tokenising is.
+        // run as one key instead of splitting it on the inner space, matching
+        // the unquoting the header tokeniser already does.
         let name = if bytes[pos] == b'"' {
             pos += 1;
             let content_start = pos;

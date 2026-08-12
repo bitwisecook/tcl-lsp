@@ -28,8 +28,8 @@
 //!   byte-for-byte.
 //! - **Faithful-but-not-golden**: the live network probes (`dns`, `rev_dns`,
 //!   `ping`, `portping`, `traceroute`, `socket_get`, `tls_handshake`, the
-//!   `url_*` HTTP family). These do real I/O with a structure / output shape
-//!   matching the reference output, but are not asserted byte-for-byte against
+//!   `url_*` HTTP family). These do real I/O with a stable, documented
+//!   structure / output shape, but are not asserted byte-for-byte against
 //!   live results (the test env has no reliable network).
 //!
 //! Every network probe is gated by `ctx.probes_enabled` (the `--enable-probes`

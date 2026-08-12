@@ -98,8 +98,6 @@ descending registry-resolved `ArgRole::Body` arguments.
 
 ## Test anchors
 
-- `rust/tcl-lsp-core/src/refactor/extract_proc.rs` (unit suite)
-- `rust/tcl-lsp-server/tests/e2e/code_actions.rs`
 - `editors/vscode/src/test/refactorActions.test.ts`
 
 ## Discoverability

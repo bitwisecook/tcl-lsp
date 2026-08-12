@@ -154,7 +154,7 @@ fn graph_snapshots_are_wellformed_and_deterministic() {
 #[test]
 fn snapshot_dialect_serialisation_covers_every_primitive_bit() {
     // Codex review on PR #938: the hand-maintained dialect-name table
-    // missed the Milestone 6 TMSH/BIGIP bits, so `registry-dump` reported
+    // missed the TMSH/BIGIP bits, so `registry-dump` reported
     // the shared tmsh:: specs (tagged IAPPS|TMSH) as f5-iapps-only — the
     // shape again. The serialisation now derives from
     // `DialectSet::member_names`, so a spec's entry must name every

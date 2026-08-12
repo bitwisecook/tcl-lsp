@@ -1,19 +1,13 @@
-# KCS: Project layout contracts
+# Project layout contracts
 
-## Symptom
-
-A change is hard to place because the boundaries between the language
-pipeline, the analyser, the LSP protocol surface, and the developer
-tools are unclear.
-
-## Operational context
+Where a change belongs. This names the boundaries between the language
+pipeline, the analyser, the LSP protocol surface, and the developer tools, so
+a change lands in the layer that owns it.
 
 The product is a **Rust workspace** (see
 [`Cargo.toml`](../../../Cargo.toml) `[workspace] members`).  Every crate
 lives under `rust/`.  Python has been fully retired on this branch — the
-old seven-concern Python layout (`shared/ compiler/ analyser/ server/
-dialects/ tooling/ ai/`) is gone; its roles are now filled by Rust
-crates.  The crate dependency direction runs from the leaf value types
+crate dependency direction runs from the leaf value types
 up to the binaries, and is enforced by cargo's own dependency graph.
 
 | Crate | Role |
@@ -121,9 +115,15 @@ dependency graph (a crate can only use what it declares in
 
 ## Test anchors
 
-- `rust/tcl-lsp-server/tests/*_e2e.rs` — native LSP end-to-end suite.
-- `rust/tcl-lsp-server/tests/registry_contract_e2e.rs` — registry
-  contract coverage over the live front-end.
+- `rust/tcl-lsp-server/tests/e2e.rs` and its `e2e/` module tree — the native
+  LSP end-to-end suite, one module per feature area plus an
+  `issue<N>_*` module per pinned regression.
+- `rust/tcl-lsp-server/tests/e2e/commands.rs` — the workspace
+  `executeCommand` handlers, including the registry-backed ones, driven
+  end-to-end against the packaged server.
+- `rust/tcl-lsp-server/tests/*_smoke.rs` — per-feature smoke suites
+  (completion, definition, hover, folding, inlay hints, signature help,
+  document symbols, diagnostics delivery).
 
 ## Discoverability
 

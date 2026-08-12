@@ -1244,8 +1244,8 @@ impl Analyser {
                 // `::tk::tk::setdef` was never demoted to the global
                 // `::tk::setdef` the call really reaches, and find-references
                 // from the declaration missed the site).  An unusual spelling
-                // with no recorded candidates keeps the old behaviour: the
-                // settled name is the sole candidate.
+                // with no recorded candidates falls back to the settled
+                // name as the sole candidate.
                 None => {
                     settle_prebuilt_candidates(inv, resolved, &known_ctx);
                     continue;

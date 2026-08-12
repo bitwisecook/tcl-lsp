@@ -16,14 +16,11 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! Native port of `tests/lsp_e2e/test_rename_e2e.py`.
-//!
-//! Rename, end-to-end against the packaged server. Full-parity port of the
-//! request/response cases. An invalid or unsafe rename comes back as a `null`
-//! `WorkspaceEdit` on the live wire (the `on_rename` handler returns `None`), so
-//! the safety cases assert the result carries no edits. `prepareRename` is
-//! registered server-side and returns a `{range, placeholder}` (or `null` to
-//! reject).
+//! Rename, end-to-end against the packaged server. An invalid or unsafe rename
+//! comes back as a `null` `WorkspaceEdit` on the live wire (the `on_rename`
+//! handler returns `None`), so the safety cases assert the result carries no
+//! edits. `prepareRename` is registered server-side and returns a
+//! `{range, placeholder}` (or `null` to reject).
 
 // Test column math indexes tiny in-memory sources; a `find`/`len` result
 // always fits u32, so the pedantic truncation the lint warns of can't occur.

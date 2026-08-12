@@ -1,7 +1,7 @@
 # KCS: W110 — Why should I use eq/ne instead of ==/!= for strings?
 
 > **Audience:** User
-> **Type:** Issue
+> **Type:** Diagnostic
 
 ## Applies to
 
@@ -41,7 +41,7 @@ Use `eq` for equality and `ne` for inequality when comparing strings.
 
 ## How to suppress
 
-Add `# noqa: W110` at the end of the offending line.
+Add `# noqa: W110` on the line **above** the offending command.
 
 ## Related
 

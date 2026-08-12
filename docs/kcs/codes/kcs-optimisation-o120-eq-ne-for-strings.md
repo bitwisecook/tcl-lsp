@@ -1,7 +1,7 @@
 # KCS: O120 — Prefer eq/ne for string comparisons
 
 > **Audience:** User
-> **Type:** Functionality
+> **Type:** Optimisation
 
 ## Applies to
 

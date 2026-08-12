@@ -1,7 +1,7 @@
 # KCS: W308 — Why does the analyser flag an unknown method on my object?
 
 > **Audience:** User
-> **Type:** Issue
+> **Type:** Diagnostic
 
 ## Applies to
 
@@ -225,7 +225,7 @@ oo::class create Point {
 
 ## How to suppress
 
-Add `# noqa: W308` at the end of the offending line.
+Add `# noqa: W308` on the line **above** the offending command.
 
 ## Related
 

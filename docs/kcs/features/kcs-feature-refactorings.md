@@ -56,21 +56,9 @@ The extract-to-datagroup refactoring automatically detects value types:
 
 ## Operational context
 
-All refactorings are implemented as pure functions in `tooling/refactoring/` that accept source text and return edit objects. The LSP code actions layer, MCP server, and Claude AI skills all consume these functions identically, ensuring consistent behaviour across all surfaces.
+Every refactoring is a pure function that accepts source text and returns edit objects. The LSP code-actions layer, the MCP server, and the Claude Code skills all call the same functions, so a refactoring behaves identically on every surface.
 
 The AI-enhanced data-group tool (`suggest_datagroup_extractions`) returns structured context including pattern type, inferred value type, CIDR detection, body shape analysis (identical/set_mapping/return_mapping/complex), and confidence level (high/medium/low). This enables an LLM to make intelligent decisions about naming, consolidation across events, and coverage.
-
-## File-path anchors
-
-- `tooling/refactoring/__init__.py`
-- `tooling/refactoring/_extract_variable.py`
-- `tooling/refactoring/_inline_variable.py`
-- `tooling/refactoring/_if_to_switch.py`
-- `tooling/refactoring/_switch_to_dict.py`
-- `tooling/refactoring/_brace_expr.py`
-- `tooling/refactoring/_extract_datagroup.py`
-- `server/features/code_actions.py`
-- `ai/mcp/tcl_mcp_server.py`
 
 ## Refusals
 
@@ -81,10 +69,6 @@ A refactoring that finds its subject but cannot preserve behaviour is offered **
 - Refactoring produces code with different semantics (e.g. inlining a variable whose value has side effects).
 - Data-group type inference guesses wrong (e.g. string that looks like an integer).
 - if-to-switch misidentifies the equality chain (e.g. mixed operators).
-
-## Test anchors
-
-- `tests/test_refactoring.py`
 
 ## Example
 

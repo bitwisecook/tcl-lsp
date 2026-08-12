@@ -20,12 +20,11 @@
 //!
 //! Opens a verifying TLS connection via `rustls` and reports the negotiated
 //! `{protocol, cipher, peer_cert, alpn_selected, verify_status, error}` plus a
-//! `reason` sub-object. Shapes match the reference impl. Documented gaps:
+//! `reason` sub-object.
 //!
-//! - The reference retries a verification failure with verification disabled so
-//!   the audit query still gets the peer cert; here a verification failure is
-//!   reported (`verify_status` / `reason.kind`) with the cert captured when the
-//!   handshake reached the certificate message, else `null`.
+//! A verification failure is reported (`verify_status` / `reason.kind`) rather
+//! than retried with verification disabled; the peer cert is captured when the
+//! handshake reached the certificate message, else `null`.
 
 use std::net::{TcpStream, ToSocketAddrs};
 use std::sync::Arc;

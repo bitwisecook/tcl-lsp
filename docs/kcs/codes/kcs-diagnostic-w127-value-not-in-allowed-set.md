@@ -1,7 +1,7 @@
 # KCS: W127 — Why does the analyser flag a value that is not in the command's allowed set?
 
 > **Audience:** User
-> **Type:** Issue
+> **Type:** Diagnostic
 
 ## Applies to
 
@@ -51,7 +51,7 @@ HTTP::version -string "1.2"
 
 ## How to suppress
 
-Add `# noqa: W127` at the end of the offending line.
+Add `# noqa: W127` on the line **above** the offending command.
 
 ## Related
 

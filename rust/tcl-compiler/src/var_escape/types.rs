@@ -205,7 +205,7 @@ bitflags! {
         /// Codegen needs the eval fallback for this proc — a
         /// definite interpreter dispatch (barrier-shaped).
         const HAS_FALLBACK           = 0b0100;
-        /// A non-frameless `IRCall` with a statically resolvable
+        /// A non-frameless `Statement::Call` with a statically resolvable
         /// command word was seen. The interprocedural pass decides
         /// whether this reaches the eval fallback.
         const HAS_CALL_FALLBACK      = 0b1000;
@@ -385,8 +385,8 @@ impl ProcEscapeSummary {
     }
 
     /// True if the intraprocedural pass saw a non-frameless
-    /// `IRCall` with a statically resolvable command word. Whether
-    /// that reaches the eval fallback depends on whether the
+    /// `Statement::Call` with a statically resolvable command word.
+    /// Whether that reaches the eval fallback depends on whether the
     /// callee is a compiled proc — only the interprocedural pass
     /// can tell.
     #[must_use]

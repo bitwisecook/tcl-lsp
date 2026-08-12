@@ -1,7 +1,7 @@
 # KCS: IRULE1002 — Why does the analyser flag an unknown event name?
 
 > **Audience:** User
-> **Type:** Issue
+> **Type:** Diagnostic
 
 ## Applies to
 
@@ -45,7 +45,7 @@ when HTTP_REQUEST {
 
 ## How to suppress
 
-Add `# noqa: IRULE1002` at the end of the offending line.
+Add `# noqa: IRULE1002` on the line **above** the offending command.
 
 ## Related
 

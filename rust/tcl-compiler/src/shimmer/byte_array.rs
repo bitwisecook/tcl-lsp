@@ -49,7 +49,7 @@
 //! data ([`ByteArrayEffect`], return types, [`BytePayloadSpec`]); this pass
 //! never matches a command or subcommand by name.
 //!
-//! See `docs/design/rust/s110-byte-array-corruption-port.md`.
+//! See `docs/design/compiler/byte-array-corruption.md`.
 //!
 //! [`CommandSpec::byte_array_payload`]: tcl_registry::CommandSpec::byte_array_payload
 

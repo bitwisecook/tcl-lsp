@@ -41,31 +41,12 @@ applied while scanning the index — it bounds the work, not merely the payload
 — and the scan is document-major, so a truncated answer is a prefix of the
 workspace rather than a prefix of one symbol table.
 
-## File-path anchors
-
-- `rust/tcl-lsp-core/src/workspace_symbols.rs` — the wire contract: symbol
-  kinds, the query match, the result cap
-- `rust/tcl-lsp-core/src/workspace_index.rs` — `WorkspaceIndex::symbols_matching`,
-  the scan itself
-- `rust/tcl-lsp-server/src/lib.rs` — the `workspace/symbol` handler, which
-  resolves each hit's byte span against its document's source
-
 ## Failure modes
 
 - Results up to one diagnostics publish behind the buffer for a document being
   edited.
 - A hit is dropped when its document can be neither read from the open buffers
   nor from disk (a file deleted since it was indexed).
-
-## Test anchors
-
-- `rust/tcl-lsp-core/src/workspace_symbols.rs` — unit tests for kinds,
-  containers, the query match, the unopened-document case, and the cap
-- `rust/tcl-lsp-core/tests/lsp_edit_workspace.rs` — `workspace_symbols_*`
-- `rust/tcl-lsp-server/src/lib.rs` — `workspace_symbol_finds_a_symbol_in_an_unopened_indexed_file`,
-  `workspace_symbol_caps_its_answer`
-- `rust/tcl-lsp-server/tests/e2e/structure.rs`,
-  `rust/tcl-lsp-server/tests/e2e/document_symbols.rs`
 
 ## Example
 

@@ -452,10 +452,10 @@ impl CoroContext {
     }
 }
 
-/// A registered command. `Builtin` and the `Alias` redirect today; `Proc {
-/// params, body }` (user procs, T1.5) and `External { table_index, client_data }`
-/// (extension commands via `Tcl_CreateObjCommand`, §4.6/§13.2, Track 2) are the
-/// next variants.
+/// A registered command. `External { table_index, client_data }` — extension
+/// commands registered through `Tcl_CreateObjCommand` — is the one variant the
+/// C-extension ABI still wants; see `docs/design/runtime/c-extension-abi.md`
+/// §13.
 ///
 /// `Clone` but not `Copy`: the dispatch lookup clones the small handle out of the
 /// command table (a fn-pointer copy for `Builtin`; the target name + frozen

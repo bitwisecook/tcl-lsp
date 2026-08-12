@@ -1,7 +1,17 @@
 # Runtime namespace tree
 
-Status: **design / pre-implementation**. Implementers: see the per-
-phase migration table at the bottom before writing code.
+The namespace tree in the WASM runtime (`runtime/rust/src/namespace.rs`):
+parent/child links, per-namespace command and variable tables, explicit path
+and export lists — so that command and variable resolution matches Tcl 9
+semantics. Section numbers here are cited from the runtime source
+(`namespace.rs`, `cmd_namespace.rs`, `cmd_var.rs`, `vars.rs`, `frame.rs`), so
+keep them stable.
+
+The *contract* the tree implements is
+[`../contracts/command-resolution.md`](../contracts/command-resolution.md)
+(commands, conformance-vector gated) and
+[`../contracts/runtime-variable-frame-model.md`](../contracts/runtime-variable-frame-model.md)
+(variables).
 
 Source of truth for the C semantics we're mirroring is Tcl 9.0.3 in
 `tmp/tcl9.0.3/.git` — read with `git -C tmp/tcl9.0.3 show HEAD:generic/<file>`.
@@ -11,37 +21,32 @@ All C-file citations in this doc use that source.
 
 ### Goal
 
-Give the runtime a real namespace tree — parent / child links, per-
-namespace command and variable tables, explicit path and export lists
-— so command and variable resolution matches Tcl 9 semantics
-(`tclNamesp.c:Tcl_FindCommand`, `tclVar.c:TclObjLookupVarEx`) instead
-of the current FQN-string fallbacks in `runtime/rust/src/cmd_proc.rs`
-(suffix-scan in `proc_lookup`) and `runtime/rust/src/namespace.rs`
-(flat FQN-keyed hash; globals live in the root namespace's variable
-table).
+A real namespace tree — parent / child links, per-namespace command and
+variable tables, explicit path and export lists — so command and variable
+resolution matches Tcl 9 semantics (`tclNamesp.c:Tcl_FindCommand`,
+`tclVar.c:TclObjLookupVarEx`) rather than any flat fully-qualified-name
+keying.
 
 Correctness first: a tcltest-shaped bundle (`proc $varName {args}
 body` created inside a factory, then invoked by FQN or unqualified
 name, possibly through `namespace import`, possibly from inside
-`namespace eval`) should resolve the same way `tclsh 9.0` does.
+`namespace eval`) resolves the same way `tclsh 9.0` does.
 
 ### Non-goals
 
-- **Not** a general OO / Itcl scaffold. We cover only the `namespace`
-  built-in, `global`, `variable`, `upvar`, and the resolution paths
-  those use.
+- **Not** a general OO / Itcl scaffold. This document covers the `namespace`
+  built-in, `global`, `variable`, `upvar`, and the resolution paths those use.
+  TclOO is its own subsystem (`cmd_oo.rs`) layered on the same tree.
 - **Not** any bytecode-level caching (`ResolvedCmdName`,
-  `resolverEpoch` on compiled bodies). Our bodies are either compiled
-  to WASM (resolution happens at lowering time, see P2/P6) or
-  re-parsed per call (fixed by P9's parse cache). The `cmdRefEpoch`
-  analogue we add in P5.3 is purely for path-cache invalidation of
-  runtime lookups — no bytecode invalidation.
-- **Not** safe interps, custom resolvers, ensemble dispatch, variable
-  traces, or command deletion handlers. See §4 for the full deferred
-  list.
-- **Not** a change to the compiler's FQN mangling. Compiled procs
-  keep their existing `::ns::name` mangled symbols; the new tree is
-  what `proc_lookup` walks at runtime.
+  `resolverEpoch` on compiled bodies). Bodies are either compiled
+  to WASM (resolution happens at lowering time) or re-parsed per call, and
+  there is no runtime resolution cache at all — so there is nothing to
+  invalidate and no `cmdRefEpoch` analogue.
+- **Not** custom resolvers. Ensembles, traces, safe interpreters, and
+  namespace deletion are all implemented, but elsewhere — see §4 for where.
+- **Not** a change to the compiler's FQN mangling. Compiled procs keep their
+  `::ns::name` mangled symbols; the tree is what `Namespaces::resolve` walks at
+  runtime.
 
 ## 2. C Tcl 9 reference model
 
@@ -91,15 +96,17 @@ One per proc / built-in / imported redirect.  Mirror fields:
 | Field | Type | Purpose |
 |---|---|---|
 | `nsPtr` | `Namespace *` | home ns (entry lives in `nsPtr->cmdTable`) |
-| `objProc` | `Tcl_ObjCmdProc *` | C entry point (WASM: runtime function index) |
-| `objClientData` | `void *` | for imports: `ImportedCmdData *`; for compiled procs: our `proc_buf` bucket base |
+| `objProc` | `Tcl_ObjCmdProc *` | C entry point |
+| `objClientData` | `void *` | type-dependent payload — for imports, `ImportedCmdData *` |
 | `importRefPtr` | `ImportRef *` | head of back-list of importing cmds |
 | `flags` | `int` | `CMD_DYING` / `CMD_DEAD` / `CMD_VIA_RESOLVER` / `CMD_REDEF_IN_PROGRESS` |
 
-Skipped: `hPtr` (we key by bucket, not hash-entry pointer), `refCount`,
-`cmdEpoch`, `compileProc` (our compile is ahead-of-time), `proc`
+Skipped: `hPtr` (the `BTreeMap` key is the identity here), `refCount`,
+`cmdEpoch`, `compileProc` (this compile is ahead-of-time), `proc`
 (string-based), `clientData` (string-based), `deleteProc` + `deleteData`,
-`tracePtr`, `nreProc`.
+`tracePtr`, `nreProc`. The mirror is the `Command` enum of §3, where the
+payload each variant needs is in the variant rather than behind a flags-tagged
+`void *`.
 
 ### `ImportRef` + `ImportedCmdData` (`tclInt.h:1804`, `:1823`)
 
@@ -136,28 +143,28 @@ Flag bits we care about (all from `tclInt.h:757-790`):
 | `VAR_ARRAY_ELEMENT` | `0x1000` | entry is one element of an array |
 
 Skipped: every `VAR_TRACED_*` bit, `VAR_SEARCH_ACTIVE`, `VAR_RESOLVED`,
-`VAR_ARGUMENT`, `VAR_TEMPORARY`, `VAR_IS_ARGS` (compiled-local bits —
-the Rust runtime handles locals via frame-local alias slots, not
-`Var` structs).
+`VAR_ARGUMENT`, `VAR_TEMPORARY`, `VAR_IS_ARGS` (compiled-local bits — a
+WASM-compiled proc's locals are native locals, and an interpreted proc's
+are ordinary `Var` cells in the frame's `VarTable`, so neither needs a
+compiled-local classification on the cell).
 
 ### `CallFrame` (`tclInt.h:1275`)
 
-Per-proc-invocation frame.  Our existing `runtime/rust/src/frame.rs`
-already covers the local-var + alias slice (`ALIAS_GLOBAL`,
-`ALIAS_EXT` descriptors stand in for `VAR_LINK`).  The one field we
-add in P1.3 is `nsPtr` — which namespace is "current" while this
-frame is on the stack.  Today we simulate it with `ns_set`/`ns_restore`
-around an FQN string; after P1.3 we save / restore a `Namespace *`.
+Per-proc-invocation frame.  `runtime/rust/src/frame.rs` covers the
+local-var + alias slice (`Var::Link` stands in for `VAR_LINK`).  The one
+field mirrored from `CallFrame` is `nsPtr` — which namespace is "current"
+while this frame is on the stack — carried as `Frame::ns` (an `NsId`).
 
 ### Key resolution entry points (`tclNamesp.c`)
 
 - `TclGetNamespaceForQualName` (`:2272`) — given a (possibly
   qualified) name + context ns, walk child tables until we hit the
   simple name.  Returns `(containing_ns, simple_name)` pair *plus* an
-  alternate "search-from-global" pair.  This is what `ns_resolve_qualified`
-  in §5 mirrors.
-- `Tcl_FindCommand` (`:2631`) — unqualified lookup order.  This is
-  what `proc_lookup` gets flipped to in P2.2 / P2.3 / P5.2.
+  alternate "search-from-global" pair.  `Namespaces::home_of`'s qualifier
+  walk (§5.2) is the analogue, with the alternate search folded into the
+  same fall-through chain.
+- `Tcl_FindCommand` (`:2631`) — unqualified lookup order.  This is what
+  `Namespaces::resolve` mirrors.
 - `Tcl_Export` (`:1454`) — record patterns on `exportArrayPtr`.
 - `Tcl_Import` / `DoImport` (`:1653` / `:1793`) — walk source
   `cmdTable`, match patterns, create redirect cmd in importer,
@@ -170,243 +177,184 @@ around an FQN string; after P1.3 we save / restore a `Namespace *`.
 
 ## 3. Runtime analogue
 
-The design model below is what the Rust runtime realises in
-`runtime/rust/src/namespace.rs` (`Namespace` / `Namespaces`),
-`cmd_proc.rs`, and `frame.rs`.  The original sketch was written against
-a WASM-linear-memory allocator that never frees, with every sub-table a
-12-byte-header hash table; treat the `u32` handles below as the design's
-addressing model (the Rust port uses owned data structures for the same
-shape).
+The Rust realisation is an **arena**: `Namespaces` owns `arena: Vec<Namespace>`
+and every reference between namespaces is an `NsId` (an index), never a
+pointer. The global namespace `::` is always index 0 (`GLOBAL`). No `Rc`, no
+parent pointers, no address arithmetic — which is both `wasm32`-friendly and
+what makes the borrow discipline tractable, since a namespace can refer to
+another while the arena is borrowed.
 
-### `Namespace` struct
+### `Namespace`
 
-```
-// design realised in runtime/rust/src/namespace.rs
-
-// child_table, cmd_table, var_table are hash tables keyed by simple name
-
-/// child_table, cmd_table, var_table bucket sizes.  All three use the
-/// same 12-byte header + 4-byte value (a u32 handle into
-/// ns_arena / cmd_arena / var_arena).  Keeping them all 16 bytes means
-/// the three ``Table(16)`` instantiations share the same layout.
-const NS_BUCKET_SIZE: u32 = 16;
-const ChildTable = ht.Table(NS_BUCKET_SIZE);
-const CmdTable = ht.Table(NS_BUCKET_SIZE);
-const VarTable = ht.Table(NS_BUCKET_SIZE);
-
-pub const Namespace = extern struct {
-    /// Simple (unqualified) name.  Pointer + length into ns_arena.
-    /// Zero-length for the root ns.
-    name_ptr: u32,
-    name_len: u32,
-
-    /// ``::``-prefixed FQN, lazily materialised from the parent chain
-    /// on first read.  Zero until computed.
-    full_name_ptr: u32,
-    full_name_len: u32,
-
-    /// Enclosing namespace.  Zero for root.  All other Namespace*
-    /// fields store absolute byte addresses (u32) matching our
-    /// ``alloc`` contract in obj.rs.
-    parent: u32,
-
-    /// Sub-tables.  Each Table manages its own backing buffer.
-    child_table: ChildTable,
-    cmd_table: CmdTable,
-    var_table: VarTable,
-
-    /// ``namespace export`` patterns.  Pointer into ns_arena to an
-    /// array of (pattern_ptr, pattern_len) u32 pairs.  P4.1 fills
-    /// this in.  Zero while unused.
-    export_patterns: u32,
-    export_pattern_count: u32,
-
-    /// ``namespace path`` — array of Namespace* (u32).  P5.1 fills
-    /// this in.  Zero while unused.
-    path_array: u32,
-    path_len: u32,
-
-    /// Bumped whenever a command is added, deleted, or imported into
-    /// this ns.  Path lookups cache ``(target_ns, target_ns.cmd_ref_epoch)``
-    /// and re-resolve when the recorded epoch no longer matches.
-    cmd_ref_epoch: u32,
-
-    /// Head of the back-list of ``NamespacePathEntry`` nodes whose
-    /// target is this ns.  When cmd_ref_epoch bumps, we walk this
-    /// list to bump every dependent namespace's epoch too.  P5.3.
-    path_source_head: u32,
-
-    /// NS_DYING | NS_DEAD | NS_TEARDOWN.  P1 leaves this at 0 (no
-    /// deletion path yet).
-    flags: u32,
-};
+```rust
+struct Namespace {
+    /// Simple (unqualified) name; the global namespace's is empty.
+    name: Vec<u8>,
+    parent: Option<NsId>,
+    children: BTreeMap<Vec<u8>, NsId>,
+    commands: BTreeMap<Vec<u8>, Command>,
+    /// `namespace path` — namespaces searched for unqualified commands.
+    path: Vec<NsId>,
+    /// `namespace export` patterns, matched with `string match` glob.
+    exports: Vec<Vec<u8>>,
+    /// The namespace's own variable table.
+    vars: VarTable,
+    /// `namespace unknown` handler (a command prefix); `None` ⇒ inherit the
+    /// interpreter default.
+    unknown: Option<Vec<u8>>,
+}
 ```
 
-Child / cmd / var bucket payload is a single `u32` that is one of:
-- a `*Namespace` handle (child table)
-- a `*Command` handle (cmd table)
-- a `*Var` handle (var table)
+Four fields of C's `Namespace` have no counterpart, deliberately:
 
-### `Command` struct
+- **`fullName`** is not stored. `qualified_name(ns)` walks the `parent` chain
+  and builds it on demand — a namespace's FQN is derivable, and caching it
+  would need invalidation that nothing else here needs.
+- **`cmdRefEpoch`** and **`commandPathSourceList`** are absent because there is
+  no resolution cache. `resolve` walks the live tables on every lookup, so a
+  command added or removed anywhere is visible immediately, with no
+  bookkeeping and no cascade.
+- **`flags`** (`NS_DYING` / `NS_DEAD` / `NS_TEARDOWN`) is absent: a deleted
+  namespace is removed from its parent's `children` map and its arena slot is
+  emptied, so there is no dying-but-reachable state to describe.
 
-```
-pub const Command = extern struct {
-    /// Home namespace.  Zero only during construction.
-    ns: u32,
+`BTreeMap` (not `HashMap`) throughout, for the same reason `frame.rs` uses it:
+deterministic iteration order, so `info commands` / `info vars` /
+`namespace children` listings are stable run to run — which an oracle-diffed
+port needs — with no external dependency.
 
-    /// For compiled procs: the bucket base in cmd_proc.rs's
-    /// ``proc_table``.  For imported redirects: a ``*ImportedCmdData``
-    /// (discriminated by ``flags & CMD_IMPORTED``).
-    client_data: u32,
+### `Command`
 
-    /// WASM function index (compiled procs) or 0 (interpreted / imported).
-    func_idx: u32,
+A table entry is the `Command` enum from `interp.rs`, not a struct with a flags
+word. Its variants and their dispatch are tabulated in
+[`rename-alias.md`](rename-alias.md) §2. Two consequences shape this document:
 
-    /// Head of the back-list of importers.  ImportRef node chain.
-    import_ref_head: u32,
+- **The home namespace is not stored on the command.** A command's namespace
+  *is* the arena slot whose `commands` map holds it, so `rename` moving an
+  entry between maps is the whole of "changing its home". (One place notices:
+  a `Command::Proc` carries its own `ns` and `fqn`, fixed at definition time
+  for `info frame` provenance — see §8.1.)
+- **`namespace import` is a `Command::Imported { source }` entry** holding the
+  source's FQN as bytes, re-resolved at global on every dispatch. There is no
+  `ImportedCmdData` / `ImportRef` pair and no back-list of importers. The
+  operations C uses the back-list for are done by scanning instead: a source
+  rename walks the tree rewriting matching `source` fields
+  (`retarget_imports`), and `namespace forget` finds redirects with
+  `imported_in(ns)` and drops them with `remove_in`. Both are cold paths.
 
-    /// CMD_DYING | CMD_DEAD | CMD_IMPORTED.  We reuse the C bit values
-    /// for ease of porting; CMD_IMPORTED is our synthetic flag in the
-    /// unused-by-C 0x80 slot.
-    flags: u32,
-};
+### `Var`
 
-pub const CMD_IMPORTED: u32 = 0x80;
-pub const CMD_DYING: u32 = 0x01;
-pub const CMD_DEAD: u32 = 0x40;
-```
+The variable cell is the `Var` enum in `frame.rs` — `Scalar` / `Array` /
+`Link` — described in [`memory-management.md`](memory-management.md) MM-B and
+[`../contracts/runtime-variable-frame-model.md`](../contracts/runtime-variable-frame-model.md).
+The C flag bits map onto the enum discriminant (`VAR_ARRAY` → `Array`,
+`VAR_LINK` → `Link`) rather than onto a flags word; `VAR_CONSTANT` is a
+separate `consts` set on the table, and `VAR_IN_HASHTABLE` /
+`VAR_ARRAY_ELEMENT` / `VAR_DEAD_HASH` describe C's hash-entry mechanics and
+have no analogue.
 
-### `Var` struct
-
-```
-pub const Var = extern struct {
-    /// VAR_ARRAY | VAR_LINK | VAR_CONSTANT | VAR_NAMESPACE_VAR etc.
-    /// Matches C bit values (tclInt.h:757-790).
-    flags: u32,
-
-    /// Tagged by flags.  For scalars: TclObj handle.  For VAR_ARRAY:
-    /// *ArrayVarTable (reuses hash_table.Table(16)).  For VAR_LINK:
-    /// absolute address of target Var.
-    value: u32,
-};
-
-pub const VAR_ARRAY: u32 = 0x1;
-pub const VAR_LINK: u32 = 0x2;
-pub const VAR_IN_HASHTABLE: u32 = 0x4;
-pub const VAR_NAMESPACE_VAR: u32 = 0x80;
-pub const VAR_ARRAY_ELEMENT: u32 = 0x1000;
-pub const VAR_CONSTANT: u32 = 0x10000;
-```
-
-### `ImportRef` + `ImportedCmdData`
-
-```
-pub const ImportedCmdData = extern struct {
-    real_cmd: u32,   // *Command — the source
-    self_cmd: u32,   // *Command — the redirect (this command)
-};
-
-pub const ImportRef = extern struct {
-    imported_cmd: u32, // *Command — redirect in importing ns
-    next: u32,         // *ImportRef — singly-linked list head at realCmd.import_ref_head
-};
-```
-
-### `NamespacePathEntry`
-
-```
-pub const NamespacePathEntry = extern struct {
-    target_ns: u32,    // *Namespace — what we resolve through
-    creator_ns: u32,   // *Namespace — whose path_array[i] this is
-    prev: u32,         // *NamespacePathEntry — doubly-linked on target_ns.path_source_head
-    next: u32,
-};
-```
+Critically, a `Link` is **path-resolved**, not a pointer: it holds
+`{ home: VarHome, name, elem }`, where `VarHome` is either a frame level or a
+namespace id. C's `linkPtr` would dangle if the target table reallocated; a
+path cannot.
 
 ### Call frames
 
-`runtime/rust/src/frame.rs` gets one new field appended to its
-per-frame header (outside the bucket array): `ns: u32` — the
-`*Namespace` that was current when the frame was pushed.  P1.3 wires
-this; until then frames carry no ns pointer and the current-ns state
-lives in the compiler-emitted `tcl_ns_set` / `tcl_ns_restore` global.
+`Frame` carries `ns: NsId` — the namespace that was current when the frame was
+pushed — alongside its `VarTable`, its logical `level`, its invoking `words`,
+and an `is_proc` flag distinguishing a proc call frame from a `namespace
+eval` / `inscope` frame. `InterpState::current_ns` is the live current
+namespace; `uplevel` and `namespace eval` both save it, set it, and restore it
+around the body, and a frame pop restores it from the frame beneath.
 
-## 4. Deferred / omitted
+## 4. Structures C carries that this tree does not
 
-Every item is tracked here so later PRs can revisit without guessing
-why it was skipped.  "Defer" means we'll add it if a user-visible
-correctness bug is traced to it; "omit" means we believe it's
-unreachable from the supported surface.
+"Omit" means the structure is unreachable from the supported surface, not that
+it is pending. Where behaviour C attaches to one of these structures *is*
+implemented, it is implemented differently — the pointer below says where.
 
-### Refcounting / cleanup (**omit**)
+### Namespace lifecycle bookkeeping (**omit the bookkeeping, not the behaviour**)
 
 C Tcl uses `refCount`, `activationCount`, `NS_DYING` / `NS_DEAD`,
-`deleteProc`, `earlyDeleteProc`, `VarInHash.refCount`, `Command.refCount`,
-`Command.cmdEpoch`.  The runtime never deletes namespaces or commands,
-so there is no `free` symmetry to mirror.  `flags` is
-carried on `Namespace` + `Command` for code structure parity, but
-`NS_DYING` / `CMD_DYING` bits stay zero.
+`deleteProc`, `earlyDeleteProc`, `VarInHash.refCount`, `Command.refCount`, and
+`Command.cmdEpoch` to sequence a namespace teardown that can be re-entered by
+the very code it is tearing down. None of them is carried: there is no `flags`
+word on either `Namespace` or `Command`, because Rust ownership sequences the
+teardown instead — a removed entry is moved out of its map, so nothing can
+observe a half-dead one.
 
-Consequence: `namespace delete` is a no-op in the runtime; we simply
-leave the ns in place.  The compiler already can't encounter a
-delete-then-recreate-same-name pattern on compiled procs (mangling
-handles it), and tcltest itself never deletes namespaces.
+`namespace delete` **is** implemented (`cmd_namespace.rs::ns_delete`, mirroring
+C's `NamespaceDeleteCmd`): it deletes each named namespace with its children,
+commands, and variables, errors on a missing namespace, and destroys any object
+living in that namespace — running its destructor while the namespace is still
+intact, as C's `ObjectNamespaceDeleted` does. Deletion goes **by namespace id**
+(`delete_namespace_by_id`, over `descendant_ids`) rather than by name,
+specifically so variable unset traces fire as the namespace is torn down.
 
-### Variable traces (**defer**)
+### Variable and command traces
 
-Every `VAR_TRACED_*` bit, `CommandTrace`, `Tcl_TraceVar2`.  These
-touch every var-write site; adding them before the tree settles
-would blow up the diff.  Revisit after Phase 3 is stable; if a
-bundled test requires traces, that's the trigger.
+Implemented, but not as `VAR_TRACED_*` bits on the cell. Both runtimes keep
+interpreter-level trace tables keyed by the *resolved* variable or command
+identity and fire from their access and dispatch chokepoints — see
+[`trace-implementation.md`](trace-implementation.md) and the firing contract in
+[`../contracts/variable-trace-dispatch-and-introspection.md`](../contracts/variable-trace-dispatch-and-introspection.md).
 
-### Custom resolvers (**defer**)
+### Ensembles
+
+Implemented in `runtime/rust/src/ensemble.rs` — the `ens sub …` → target
+redirect with `-map`, `-prefix`, `-subcommands`, and `-unknown`, modelled on
+C's `tclEnsemble.c`. `EnsembleConfig` and the subcommand-resolution and
+error-wording rules are the pure half; the dispatch trampoline lives on the
+interpreter, reached through the `Command::Ensemble` table entry.
+
+### Child and safe interpreters
+
+Implemented — see [`child-interp.md`](child-interp.md) for the per-interpreter
+state (its own namespace arena, hidden-command table, children map) and
+[`rename-alias.md`](rename-alias.md) for `interp alias`. The interpreter
+carries a `hidden` command table, which is what a safe interpreter hides the
+dangerous commands into.
+
+### Per-namespace `unknown` (`unknownHandlerPtr`)
+
+Implemented — `namespace unknown` is a real subcommand
+(`cmd_namespace.rs::ns_unknown`) backed by the `Namespace::unknown` field, and
+handlers are per-namespace and **not** inherited by children; the global
+namespace's handler is the interpreter-wide default and beats the plain
+`::unknown` proc. See
+[`../contracts/command-resolution.md`](../contracts/command-resolution.md).
+
+### Custom resolvers (**omit**)
 
 `Tcl_SetNamespaceResolvers`, `Tcl_AddInterpResolver`, `cmdResProc`,
 `varResProc`, `compiledVarResProc`, `ResolverScheme`,
-`resolverEpoch`.  No test in the current corpus uses them.  If we
-need them later the hook point is at the top of `ns_find_command`
-before the context-ns table check — same position as C's
+`resolverEpoch`.  No test in the current corpus uses them.  If they are
+needed later the hook point is at the top of `Namespaces::home_of`,
+before the context-namespace table check — the same position as C's
 `Tcl_FindCommand:2678`.
-
-### Ensembles (**defer**)
-
-`Tcl_Ensemble`, `tclEnsemble.c`.  Our current partial-ensemble
-support (`namespace ensemble create` compiles to a dispatch helper
-in the compiler) stays as-is.  A real runtime ensemble layer can
-hang off `Namespace.ensembles` when we need it; irrelevant to the
-correctness of command lookup.
-
-### Safe interps / interp aliases (**omit**)
-
-`Tcl_CreateSlave`, `Tcl_CreateAlias`, `Tcl_HideCommand`, the hidden
-command table.  We're single-interp by design (one WASM module).
-
-### `unknownHandlerPtr` (**defer**)
-
-Per-ns `unknown` override (TIP 181).  Deferred; the global
-`unknown` proc still runs through the normal resolution chain and
-works fine.
 
 ### Compiled-local `Var`s (**omit by construction**)
 
 The `VAR_ARGUMENT` / `VAR_TEMPORARY` / `VAR_IS_ARGS` / `VAR_RESOLVED`
 flags describe compiled procedure locals, which in C live in a
-per-frame `Var *` array.  Our WASM-compiled procs use native
-locals; interpreted procs use `frame.rs` alias slots.  Neither
-goes through a `Var` struct, so these bits are never read or
-written.
+per-frame `Var *` array.  WASM-compiled procs use native locals bound to
+name-addressable cells through `tcl_codegen_local_bind`; interpreted procs use
+the frame's `VarTable` directly. Neither carries a flags word, so these bits
+are never read or written.
 
 ### `nsId` / `interp` (**omit**)
 
-`nsId` is a monotonic counter used by debug tooling and `[namespace
-code]` serialisation.  We can regenerate from `parent` chain + name
-if ever needed; no current consumer.  `interp` is the enclosing
-`Tcl_Interp *`, irrelevant in single-interp world.
+`nsId` is a monotonic counter used by debug tooling and `[namespace code]`
+serialisation; the arena index serves the same addressing purpose and the FQN
+is regenerable from the `parent` chain, so it has no consumer here.  `interp`
+is the enclosing `Tcl_Interp *`; the runtime's per-interpreter state is held on
+the interpreter itself ([`child-interp.md`](child-interp.md)), and each
+interpreter owns a whole arena rather than each namespace pointing back at one.
 
 ### `resolverEpoch` / bytecode invalidation (**omit**)
 
 C Tcl bumps this when resolution rules change so existing bytecode
-re-compiles.  Our compiled code is AOT WASM — recompilation happens
+re-compiles.  Compiled code here is AOT WASM — recompilation happens
 by re-running the toolchain, not at runtime.
 
 ### `clientData` / `deleteProc` on namespaces (**omit**)
@@ -415,394 +363,322 @@ User-ns state hooks.  No in-tree user.
 
 ### `exportLookupEpoch` (**omit**)
 
-Cache-coherence counter for TIP-112 `info commands` filtering.  We
-don't implement TIP-112 enumeration at runtime; `info commands` goes
-through `each()` on the cmd table.
+Cache-coherence counter for TIP-112 `info commands` filtering.  Export
+matching is recomputed on demand from `Namespace::exports`
+(`is_exported` / `exported_commands`), and `info commands` reads
+`command_names` live, so there is no cache to keep coherent.
 
-### `commandPathSourceList` on the *source* ns (**partial**)
+### `cmdRefEpoch` / `commandPathSourceList` (**omit**)
 
-We keep the back-list (P5.3) but use it only for `cmd_ref_epoch`
-invalidation, not for actual path-entry rewriting.  Path entries
-point at their target by `u32` address and the target is
-never freed, so there's no dangling-pointer problem to solve.
+Both exist in C to invalidate cached path lookups. There is no lookup cache
+here: `resolve` walks the current namespace, then each `path` entry, then
+global, on every call. The back-list has nothing to invalidate and the epoch
+has nothing to stamp.
 
 ## 5. Resolution algorithms
 
-Two primitives, both modelled on `tclNamesp.c`.  Pseudocode uses
-snake_case names; treat `*Namespace` / `*Command` as `u32`
-handles throughout.
+Two resolvers, one for commands and one for variables. They are deliberately
+*not* the same function: commands fall through a search chain until they find
+an existing binding, variables commit at namespace level. Both are modelled on
+`tclNamesp.c` / `tclVar.c`.
 
-### 5.1 `ns_resolve_qualified(cxt, name) -> (target_ns, simple_name, alt_ns)`
+### 5.1 Name splitting
 
-Mirror of `TclGetNamespaceForQualName` (`tclNamesp.c:2272`).  Given
-a possibly-qualified name like `::a::b::cmd` or `a::b::cmd` or just
-`cmd`, return the *containing* namespace and the simple trailing
-name.  The `alt_ns` slot is the C code's "alternate search from
-global" — populated only when `cxt != root` and the name is not
-`::`-anchored.
+`tcl_syntax::naming` supplies the shared written-name split used by both
+resolvers: `qualifier_segments` splits on `::` runs, `is_qualified` reports
+whether a name contains one, and `ends_with_separator` catches the edge case
+that shapes both resolvers —
 
-```
-fn ns_resolve_qualified(cxt: *Namespace, name: []const u8)
-    -> (target_ns: *Namespace, simple_name: []const u8, alt_ns: ?*Namespace)
-{
-    // 1. Anchor.  ``::``-prefixed starts at root; else at cxt.
-    var ns = cxt;
-    var s = name;
-    if (s starts with "::") {
-        ns = ns_root();
-        s = strip_leading_colons(s);          // skip all subsequent ':'
-        if (s.len == 0) {
-            return (ns_root(), "", null);     // ``::`` alone is root itself
-        }
+**a name ending in a separator run names the empty-string `{}` entry** in the
+qualified namespace, with *every* segment treated as a namespace component.
+With `proc {} {} {}` defined, both `::` and `:::` dispatch it (tclsh 8.6/9.0
+pinned, issue #934), and `rename foo x::` binds `::x::{}`. Handling this in the
+shared splitter is what keeps `home_of`, `var_home`, `rename`, and the ensemble
+name split agreeing about what a written name means.
+
+### 5.2 Command resolution — `Namespaces::home_of` / `resolve`
+
+`resolve(current, name)` is the single command resolver (the command-binding
+contract's A1/A2). It calls `home_of(current, name)` for the
+`(namespace, simple name)` the name binds in, then clones the handle out of
+that namespace's table.
+
+`home_of` splits the name into a simple tail and zero or more qualifier
+segments (§5.1), then defines one probe:
+
+```rust
+// Walk the qualifier segments down from `base`, then require the command.
+let find_under = |base: NsId| -> Option<NsId> {
+    let mut ns = base;
+    for part in ns_parts {
+        ns = *self.arena[ns].children.get(*part)?;
     }
-    var alt: ?*Namespace = if (ns == ns_root()) null else ns_root();
-
-    // 2. Walk child tables.  Each iteration consumes one ``::``
-    //    separator; the trailing component becomes simple_name.
-    while (true) {
-        const (head, rest) = split_once(s, "::");
-        if (rest == null) {
-            return (ns, head, alt);           // head is the simple name
-        }
-        // Descend one level in the primary path.
-        ns = ns.child_table.find(head) orelse return (null, head, null);
-        // Mirror the descent on the alt path — but only while alt is
-        // still valid.  Once alt misses, drop it.
-        if (alt) |a| {
-            alt = a.child_table.find(head);
-        }
-        s = rest;
-    }
-}
+    self.arena[ns].commands.contains_key(simple).then_some(ns)
+};
 ```
 
-Notes:
-- The C code also has flags (`TCL_FIND_ONLY_NS`, `TCL_CREATE_NS_IF_UNKNOWN`,
-  `TCL_GLOBAL_ONLY`, `TCL_NAMESPACE_ONLY`).  We expose `find-only` vs
-  `create` via two wrappers (`ns_resolve_qualified` / `ns_resolve_qualified_creating`)
-  rather than a flag word.
-- We drop `altNsPtrPtr` mid-walk as soon as the alt path diverges,
-  matching `Tcl_FindCommand`'s "alt only useful if it still points
-  somewhere real" contract.
+and applies it in order:
 
-### 5.2 `ns_find_command(cxt, name) -> ?*Command`
+1. **Absolute** (`name` starts with `::`) — `find_under(GLOBAL)` only. No
+   fall-through: an absolute name either binds where it says or misses.
+2. Otherwise, **the current namespace**: `find_under(current)`.
+3. Then **each namespace on `current`'s `namespace path`**, in order.
+4. Then **the global namespace**, when `current` is not already global.
+5. Miss — the caller raises `invalid command name` (and `unknown` runs later).
 
-Mirror of `Tcl_FindCommand` (`tclNamesp.c:2631`).  This is the
-function `proc_lookup` in `cmd_proc.rs` becomes once P2/P5 are
-done.
+Two things follow that are worth stating plainly, because they differ from a
+naive reading of C:
 
-```
-fn ns_find_command(cxt: *Namespace, name: []const u8) -> ?*Command {
-    // [Deferred in P1-P5] custom resolver hook goes here.
+- **The chain is existence-checked at every step**, not namespace-checked.
+  `find_under` only reports a hit when the command is actually present, so a
+  qualifier that resolves to a real namespace with no such command keeps
+  searching rather than committing to that namespace.
+- **A relative qualified name uses the same chain.** `a::b::cmd` from `::ctx`
+  is tried as `::ctx::a::b::cmd`, then under each `namespace path` entry, then
+  as `::a::b::cmd`. C reaches the global namespace for this case through
+  `TclGetNamespaceForQualName`'s alternate-search slot rather than through the
+  path; the runtime folds both into the one chain, which additionally lets a
+  `namespace path` entry serve a partially-qualified name.
 
-    // A. If qualified OR name starts with ``::``, do the FQN walk.
-    if (name starts with "::" or name contains "::") {
-        const (target, simple, alt) = ns_resolve_qualified(cxt, name);
-        if (target) |t| {
-            if (t.cmd_table.find(simple)) |c| return c;
-        }
-        if (alt) |a| {                        // only when cxt != root
-            if (a.cmd_table.find(simple)) |c| return c;
-        }
-        return null;
-    }
+`resolve_fqn(current, name)` is the same walk returning the canonical
+fully-qualified name instead of the handle — the key that command and
+execution traces are registered under, so a trace addresses the same binding
+`resolve` (and `rename` / `delete`) hits.
 
-    // B. Unqualified: context ns first.
-    if (cxt.cmd_table.find(name)) |c| return c;
+Deliberate C-parity gaps: no `NS_DEAD` check (nothing is dying-but-reachable,
+§4), no `CMD_VIA_RESOLVER` (no resolvers, §4), and no `cmdEpoch` rehash (there
+is no cache to stale).
 
-    // C. [Added by P5.2] commandPathArray walk.
-    for (entry of cxt.path_array[0..cxt.path_len]) {
-        const t = entry.target_ns orelse continue;
-        if (t.cmd_table.find(name)) |c| return c;
-    }
+### 5.3 Variable resolution
 
-    // D. Root ns fallback.
-    if (cxt != ns_root()) {
-        if (ns_root().cmd_table.find(name)) |c| return c;
-    }
-    return null;
-}
-```
+The variable resolver is `vars.rs`, modelled on `tclVar.c:TclLookupSimpleVar`.
+It is one classification plus one link walk.
 
-Per-step C precedent:
-- A: `Tcl_FindCommand:2668-2790` — the `commandPathLength!=0` branch
-  plus the else-branch that does `TclGetNamespaceForQualName` with
-  both `nsPtr[0]` and `nsPtr[1]`.
-- B / D: same function, the two-slot `nsPtr[2]` search array.
-- C: the `for (i=0; i<cxt->commandPathLength; i++)` loop in between.
+**Classification.** A name is a *namespace variable* when it is qualified
+(contains `::`) **or** there is no active proc frame — the global scope, or a
+`namespace eval` body. Otherwise it is a *frame-local* variable. So:
 
-Deliberate C-parity gaps:
-- We don't check `NS_DEAD` — nothing dies in our world (§4).
-- We don't bump `CMD_VIA_RESOLVER` — no resolvers (§4).
-- We don't rehash on `cmdEpoch` — compiled procs have stable bucket
-  addresses and interpreted bodies re-resolve every call anyway.
+1. **Qualified** (`::a::b::x`) → namespace `::a::b`, simple tail `x`, absolute
+   when `::`-led and relative to the current namespace otherwise. The
+   namespace must already exist: a write into a missing one raises `can't set
+   "…": parent namespace doesn't exist`, while a read or unset simply misses.
+2. **Unqualified, inside a proc** → the current frame's local table.
+3. **Unqualified, at global or `namespace eval` scope** → the current
+   namespace's variable table. The global frame and the global namespace share
+   one table, so `set x` and `set ::x` at top level are the same variable, and
+   a level-0 frame target is canonicalised to `VarHome::Namespace(GLOBAL)` at
+   the link site.
 
-### 5.3 Variable resolution (P3)
+`Namespaces::var_home` performs the qualified split, and it is deliberately
+**not** `home_of`: variable resolution has no existence-checked fall-through,
+so it commits to the first namespace the qualifier resolves to rather than
+continuing to search. That asymmetry is the C behaviour.
 
-Follows exactly the same shape — `ns_resolve_qualified` to find the
-containing ns, then walk into `var_table`.  The frame-local alias
-bit already present in `frame.rs` (`ALIAS_GLOBAL` / `ALIAS_EXT`)
-maps cleanly to C's `VAR_LINK`: a local whose value is the absolute
-address of a `Var` in some ns's `var_table` is a `VAR_LINK`
-equivalent.  P3.3 wires `variable` / `global` to populate that
-exact shape.
+**The link walk.** `global`, `variable`, and `upvar` all install the same
+shape: a `Var::Link { home, name, elem }` in the current home table. Resolution
+follows links to a concrete `Place` (a table, a simple name, and an optional
+array element), bounded by `LINK_LIMIT` so a pathological alias cycle cannot
+spin forever. Because the link stores a *path* rather than a pointer, the
+target may be created after the link (C's lazy `upvar` behaviour), and a target
+table reallocating cannot dangle it.
 
-## 6. Per-phase migration order
+`variable` also uses a self-link as its declared-but-undefined marker: a `Link`
+whose `name` equals its own key and has no element is exactly the undefined
+`Var` that the first write turns into a real `Scalar` or `Array`.
 
-Phases P1→P5 of the runtime plan map directly onto this design.
-Each row is a separate PR, 100-300 LOC, with `make prep-pr` green at
-every commit.  Source: `/root/.claude/plans/plan-out-and-fix-floofy-gadget.md`.
+**One dialect switch lives here.** Tcl 8.x resolves an unqualified variable at
+namespace scope to the *global* variable when the namespace has none but the
+global namespace does; 9.0 removed that fallback (TIP 278,
+`TCL_NAMESPACE_ONLY`). `Namespaces::ns_var_global_fallback` defaults to the 9.0
+behaviour and is flipped by an 8.x embedding through
+`Interp::set_runtime_version`.
 
-| Sub-PR | What changes (files) | Observable behaviour |
-|---|---|---|
-| P1.1 | `docs/design/runtime/namespace-tree.md` (this doc) | None |
-| P1.2 | new `runtime/rust/src/namespace.rs` — `Namespace` struct, `root_ns`, `ns_root()`, `ns_lookup(parent, name)`, `ns_create(parent, name)` | None — no existing caller uses it yet |
-| P1.3 | `interp.rs` — `tcl_ns_set` / `tcl_ns_restore` stash a `*Namespace` instead of an FQN string; `frame.rs` frame header gains `ns: u32` | `[namespace current]` still returns the same FQN string (materialised from the struct) |
-| P1.4 | `namespace.rs` — `ns_resolve_qualified` and tests against fixture FQNs | None — internal API |
-| P2.1 | `cmd_proc.rs` — `proc_register` dual-writes: still hits the flat `proc_table`, AND also inserts a `Command` into `current_ns.cmd_table` | None; reads still flat |
-| P2.2 | `cmd_proc.rs` — `proc_lookup` tries `ns_find_command(current_ns, name)` first, then the flat table's suffix-scan hack as fallback | Bundles with `namespace eval` blocks start resolving through the tree; nothing that worked before breaks |
-| P2.3 | `cmd_proc.rs` — delete the suffix-scan fallback in `proc_lookup` | Any caller that relied on suffix-matching now has to qualify — no tests currently do |
-| P2.4 | `cmd_proc.rs` — delete flat `proc_table` entirely; `proc_register` writes only to `cmd_table`; the 4-slot LRU cache in `proc_lookup` is rebuilt against the new walk | Bucket ABI unchanged; compiled procs unaffected |
-| P3.1 | `namespace.rs` — `Var` struct + `Namespace.var_table` lookup helpers; root ns's `var_table` becomes the new storage for globals | None; the globals API still owns the public API |
-| P3.2 | the globals API — `global_set` / `global_get` / `global_exists` forward to `root_ns.var_table` | None |
-| P3.3 | `interp.rs` — `variable` / `global` write `VAR_LINK` entries into the current frame pointing at `Var`s inside the target ns `var_table`; test-frames also exercise `upvar` through this path | `variable x` inside a `namespace eval` now resolves to the right ns's var, matching tclsh |
-| P3.4 | the globals API — removed; the few remaining direct callers migrate to `namespace.rs` helpers | Internal-only; no ABI change to the compiler |
-| P4.1 | `namespace.rs` — `ns_export(ns, pattern)` appends to `export_patterns` | `namespace export` works; `namespace import` still stubs |
-| P4.2 | `namespace.rs` — `ns_import(dest, src_pat)` walks source `cmd_table`, matches patterns, inserts redirect `Command`s with `ImportedCmdData` in dest `cmd_table` | `namespace import ::src::*` resolves calls into the source ns |
-| P4.3 | `namespace.rs` — every import inserts an `ImportRef` node into the source command's `import_ref_head` | Internal; sets up invalidation |
-| P4.4 | `namespace.rs` — `namespace forget pattern` walks redirects and removes matching entries (plus unlinks from `import_ref_head`) | `namespace forget` actually un-imports |
-| P5.1 | `namespace.rs` — `Namespace.path_array` + `Namespace.path_source_head`; `[namespace path]` builtin populates + splices entries | `[namespace path {a b}]` sets the path; lookups don't use it yet |
-| P5.2 | `cmd_proc.rs` / `namespace.rs` — `ns_find_command` consults `path_array` between context-ns and root | Resolution uses the path; matches tclsh on `namespace path` cases |
-| P5.3 | `namespace.rs` — `cmd_ref_epoch` bumped in `ns_add_command` / `ns_remove_command` + cascaded through `path_source_head`; LRU in `proc_lookup` keyed partly on the source ns's epoch | Invalidation correctness; no observable change unless a cached entry points at a stale cmd |
+## 6. Implementation map
 
-The compiled `tcl-runtime` wasm artefact is no longer checked in —
-`shared.runtime_wasm.runtime_wasm_path()` locates it and builds it on
-first call when missing (the Rust runtime's Cargo build under
-`runtime/rust/`), so downstream bundle tests pick up the right binary
-on a fresh checkout without anyone manually committing it.
+| Concern | Where |
+|---|---|
+| `Namespace` / `Namespaces`, the arena, tree lookup and create (`ensure_namespace`, `find_namespace`, `children`, `parent`, `qualified_name`) | `runtime/rust/src/namespace.rs` |
+| Current namespace (`InterpState::current_ns`) and its save/restore around `namespace eval` / `inscope` / `uplevel` | `runtime/rust/src/interp.rs` |
+| Per-frame namespace, `VarTable`, `Var`, `Link`, `VarHome` | `runtime/rust/src/frame.rs` |
+| The command resolver (`home_of`, `resolve`, `resolve_fqn`, `command_home_ns`) | `runtime/rust/src/namespace.rs` |
+| The variable resolver (classification + link walk) | `runtime/rust/src/vars.rs`, with `var_home` / `var_table` in `namespace.rs` |
+| The `namespace` ensemble's subcommands | `runtime/rust/src/cmd_namespace.rs` |
+| `variable` / `global` / `upvar` / `array` | `runtime/rust/src/cmd_var.rs`, `cmd_array.rs` |
+| Export patterns, import redirects, `namespace forget` | `runtime/rust/src/namespace.rs` (`export`, `is_exported`, `exported_commands`, `imported_in`, `remove_in`, `retarget_imports`) |
+| `namespace path` | `runtime/rust/src/namespace.rs` (`set_path`, `path`) |
+
+Two invariants that fall out of the layout and are easy to break:
+
+- **The global frame's variable table *is* the global namespace's**, so a
+  level-0 frame target is canonicalised to `VarHome::Namespace(GLOBAL)` at the
+  link site rather than kept as a frame reference.
+- **Resolution reads live tables, never a cache.** Any future cache has to be
+  invalidated on every table mutation *and* every `namespace path` change;
+  until one demonstrably pays for itself, the absence of a cache is the
+  correctness argument.
+
+The compiled `tcl-runtime` WASM artefact is not checked in; it is built from
+`runtime/rust/` on demand, so a fresh checkout picks up the right binary
+without anyone committing one.
 
 ## 7. Rust API surface
 
-Everything lives in `runtime/rust/src/namespace.rs`.  Function signatures
-use `u32` for `*Namespace` / `*Command` / `*Var` (linear-memory
-addresses, consistent with the rest of the runtime).  `[]const u8`
-means `(ptr, len)` pair — the slice ABI the other runtime
-modules already use.
+Everything lives in `runtime/rust/src/namespace.rs`, on `impl Namespaces`.
+`NsId` is a `usize` arena index; `GLOBAL` is `0`. Names are `&[u8]` throughout
+— the runtime's strings are bytes, not `str`.
 
-### Core tree (P1.2)
+### Core tree
 
-```
-/// Return the root (global) namespace.  Always non-zero after the
-/// module is loaded.
-pub fn ns_root() u32;
-
-/// Find a direct child of ``parent`` with simple name ``name``.
-/// Returns 0 if not found.
-pub fn ns_lookup(parent: u32, name: []const u8) u32;
-
-/// Find-or-create.  Creates ``name`` as a child of ``parent`` if
-/// missing; otherwise returns the existing one.  New namespaces
-/// start with empty child/cmd/var tables.
-pub fn ns_create(parent: u32, name: []const u8) u32;
+```rust
+pub fn new() -> Namespaces;
+pub fn ensure_namespace(&mut self, current: NsId, qualified: &[u8]) -> NsId;
+pub fn find_namespace(&self, current: NsId, qualified: &[u8]) -> Option<NsId>;
+pub fn parent(&self, ns: NsId) -> Option<NsId>;
+pub fn children(&self, ns: NsId) -> Vec<NsId>;
+pub fn descendant_ids(&self, ns: NsId) -> Vec<NsId>;
+pub fn qualified_name(&self, ns: NsId) -> Vec<u8>;
+pub fn delete_namespace(&mut self, current: NsId, qualified: &[u8]) -> bool;
+pub fn delete_namespace_by_id(&mut self, ns: NsId);
 ```
 
-### Current-ns stash (P1.3)
+### Command table
 
-```
-/// Current namespace for the innermost active frame — equivalent to
-/// ``iPtr->varFramePtr->nsPtr`` in C.  Defaults to ``ns_root()``.
-pub fn ns_current() u32;
-
-/// Compiler-emitted prologue: save the current ns and switch to
-/// ``target``.  Returns the saved handle so ``tcl_ns_restore`` can
-/// restore it.  Replaces the string-based stash that's there today.
-#[no_mangle] pub extern "C" fn tcl_ns_set(target: u32) -> u32;
-
-/// Restore the previously-stashed ns.
-#[no_mangle] pub extern "C" fn tcl_ns_restore(saved: u32);
-```
-
-### FQN walker (P1.4)
-
-```
-pub const QualifiedResult = struct {
-    target_ns: u32,            // 0 if any child-table step missed
-    simple_ptr: u32,           // start of the trailing simple name
-    simple_len: u32,
-    alt_ns: u32,               // 0 if no alt path (cxt == root, or diverged)
-};
-
-pub fn ns_resolve_qualified(
-    cxt: u32,
-    name_ptr: u32,
-    name_len: u32,
-) QualifiedResult;
-
-/// Same but creates any missing intermediate namespaces.  Used by
-/// ``namespace eval ::new::inner { ... }``.
-pub fn ns_resolve_qualified_creating(
-    cxt: u32,
-    name_ptr: u32,
-    name_len: u32,
-) QualifiedResult;
+```rust
+/// Register under a (possibly qualified) name, rooted at global,
+/// creating intermediate namespaces.
+pub fn register(&mut self, name: &[u8], command: Command);
+/// Register under a simple name in a specific namespace.
+pub fn bind(&mut self, ns: NsId, name: &[u8], command: Command);
+/// The one resolver (§5.2) — returns a *clone* of the handle.
+pub fn resolve(&self, current: NsId, name: &[u8]) -> Option<Command>;
+/// The same walk, returning the canonical FQN (the trace key).
+pub fn resolve_fqn(&self, current: NsId, name: &[u8]) -> Option<Vec<u8>>;
+/// Rebind in place where the name actually resolves (ensemble reconfigure).
+pub fn rebind_resolved(&mut self, current: NsId, name: &[u8], command: Command) -> bool;
+pub fn delete(&mut self, current: NsId, name: &[u8]) -> bool;
+pub fn rename(&mut self, current: NsId, old: &[u8], new: &[u8]) -> RenameOutcome;
+pub fn command_names(&self, ns: NsId) -> Vec<&[u8]>;
+pub fn which_command(&self, current: NsId, name: &[u8]) -> Option<Vec<u8>>;
+pub fn command_origin(&self, current: NsId, name: &[u8]) -> Option<Vec<u8>>;
 ```
 
-### Command table (P2)
+### Variable table
 
-```
-/// Insert or update a command in ``ns.cmd_table``.  Bumps
-/// ``cmd_ref_epoch`` on ns and cascades through ``path_source_head``
-/// (P5.3).  Returns the bucket base.
-pub fn ns_add_command(ns: u32, name: []const u8) u32;
-
-/// Walk the full resolution chain: context → path → root.
-/// Returns 0 if not found.
-pub fn ns_find_command(cxt: u32, name: []const u8) u32;
+```rust
+pub(crate) fn var_home(&self, current: NsId, name: &[u8]) -> Option<(NsId, Vec<u8>)>;
+pub(crate) fn var_table(&self, ns: NsId) -> &VarTable;
+pub(crate) fn var_table_mut(&mut self, ns: NsId) -> &mut VarTable;
+pub(crate) fn var_names(&self, ns: NsId) -> Vec<Vec<u8>>;
+pub(crate) fn const_names(&self, ns: NsId) -> Vec<Vec<u8>>;
+pub(crate) fn which_variable(&self, current: NsId, name: &[u8]) -> Option<Vec<u8>>;
 ```
 
-### Variable table (P3)
+Link following is not here — it crosses tables (frames and namespaces both) and
+so belongs to the `vars.rs` coordinator, which borrows both owners from the
+interpreter.
 
-```
-pub fn ns_var_find(ns: u32, name: []const u8) u32;
-pub fn ns_var_create(ns: u32, name: []const u8) u32;
+### Import / export
 
-/// Follow VAR_LINK chains to the terminal Var.
-pub fn var_resolve_link(v: u32) u32;
-```
-
-### Import / export (P4)
-
-```
-pub fn ns_export(ns: u32, pattern: []const u8) void;
-pub fn ns_import(dest: u32, src_pat: []const u8) void;
-pub fn ns_forget(dest: u32, src_pat: []const u8) void;
-
-/// True if ``name`` matches any of ``ns.export_patterns`` using
-/// ``string match`` semantics (we already have a Tcl glob
-/// implementation in value_ops.rs).
-pub fn ns_export_matches(ns: u32, name: []const u8) bool;
+```rust
+pub fn export(&mut self, ns: NsId, pattern: &[u8]);
+pub fn clear_exports(&mut self, ns: NsId);
+pub fn exports(&self, ns: NsId) -> &[Vec<u8>];
+pub fn exported_commands(&self, ns: NsId) -> Vec<Vec<u8>>;
+pub fn is_exported(&self, ns: NsId, name: &[u8]) -> bool;
+/// `(local name, source FQN)` for every `Command::Imported` in `ns`.
+pub fn imported_in(&self, ns: NsId) -> Vec<(Vec<u8>, Vec<u8>)>;
+pub fn remove_in(&mut self, ns: NsId, name: &[u8]) -> bool;
+/// Follow a source rename through every redirect that named it.
+pub fn retarget_imports(&mut self, old_fqn: &[u8], new_fqn: &[u8]);
 ```
 
-### Path (P5)
+`namespace import` itself lives in `cmd_namespace.rs::ns_import`: it splits the
+pattern into a source-namespace qualifier and a glob tail, resolves the source
+namespace (`unknown namespace in import pattern "…"` on a miss), refuses
+importing a namespace into itself, and installs a `Command::Imported` for each
+exported command that matches. Re-importing the *same* command from the *same*
+source is a silent no-op (C's `TclGetOriginalCommand` re-import check); only a
+clobber of a *different* command is a conflict.
 
-```
-pub fn ns_set_path(ns: u32, targets: []const u32) void;
-pub fn ns_get_path(ns: u32) []const u32;
+### Path and unknown handler
 
-/// Called by ns_add_command to invalidate every ns that lists
-/// ``ns`` on its path.  Internal to namespace.rs.
-fn cmd_ref_epoch_bump(ns: u32) void;
-```
-
-### Iteration helpers
-
-The existing `hash_table.Table(N).each(ctx, visit)` already covers
-`info commands` / `info vars` enumeration.  `namespace.rs` exposes
-thin wrappers so callers don't need to know the table layout:
-
-```
-pub fn ns_each_command(ns: u32, ctx: anytype, comptime visit: fn (@TypeOf(ctx), u32) void) void;
-pub fn ns_each_variable(ns: u32, ctx: anytype, comptime visit: fn (@TypeOf(ctx), u32) void) void;
-pub fn ns_each_child(ns: u32, ctx: anytype, comptime visit: fn (@TypeOf(ctx), u32) void) void;
+```rust
+pub fn set_path(&mut self, ns: NsId, path: Vec<NsId>);
+pub fn path(&self, ns: NsId) -> &[NsId];
+pub(crate) fn unknown_handler(&self, ns: NsId) -> Option<&[u8]>;
+pub(crate) fn set_unknown_handler(&mut self, ns: NsId, handler: &[u8]);
 ```
 
-### What `cmd_proc.rs` / the globals API keep exporting
+### Iteration
 
-Unchanged ABI for existing callers:
+There are no visitor helpers: `command_names`, `var_names`, `proc_names`,
+`const_names`, `children`, and `descendant_ids` each return an owned or
+borrowed listing directly, which is what `info commands` / `info vars` /
+`namespace children` need and what `BTreeMap` makes cheap and ordered.
 
-- `proc_register` / `proc_register_compiled` / `proc_lookup` / the
-  `proc_get_*` accessors — the compiler-emitted code still uses
-  them verbatim.  Implementation flips underneath per the P2 table.
-- `global_set` / `global_get` / `global_exists` — forwarded to
-  `root_ns.var_table` in P3.2, removed in P3.4.
+## 8. Settled design points
 
-## 8. Open questions
+These were open questions while the tree was being built. Each is now
+answered by the code; the numbering is kept so older references still land.
 
-Points where the C source is ambiguous, where we diverge, or where
-the design is under-specified and a later phase will have to settle.
+### 8.1 Compiler-side FQN vs runtime resolution
 
-### 1. Compiler-side FQN vs runtime resolution
+A qualified name given to `register` is rooted at global and creates its
+intermediate namespaces, so a compiled `::tcltest::test` lands in `::tcltest`
+under the simple key `test`. It is **not** additionally inserted into the
+global table under a mangled name: callers either pass an FQN (which resolves
+through the qualifier walk) or a simple name plus context (which resolves
+through the chain of §5.2). There is exactly one entry per command.
 
-The compiler already mangles compiled procs to their FQN (e.g. a
-`proc` inside `namespace eval ::tcltest { ... }` emits a symbol for
-`::tcltest::test`).  Once P2 lands, `ns_add_command` will insert
-that same proc into `::tcltest.cmd_table` under simple name `test`.
+The one place a command remembers its own name is `ProcDef { ns, fqn }`, fixed
+at definition time and used for `info frame` provenance — not for dispatch. A
+consequence is that renaming a proc across namespaces in this runtime moves its
+table entry without re-homing its `ProcDef`; the bytecode VM re-homes it (see
+[`rename-alias.md`](rename-alias.md) §7).
 
-Question: do we also insert the mangled symbol into `root.cmd_table`
-for backward-compat with existing callers that pass the FQN
-directly?  The resolution chain handles `::tcltest::test` correctly
-(FQN walk hits the right ns), so we shouldn't need to — but it
-means the current flat-table "find by mangled name" fast path no
-longer exists.  Verify in P2.2 that every caller either passes a
-FQN (which resolves through the walker) or a simple name + context
-ns (which resolves through B/C/D of §5.2).
+### 8.2 Per-frame vs per-interp current namespace
 
-### 2. Per-frame vs per-interp current-ns
+Both. `InterpState::current_ns` is the live value every resolver reads, and
+`Frame::ns` records what was current when each frame was pushed. `namespace
+eval` / `inscope` and `uplevel` save `current_ns`, set it, and restore it
+around the body; a frame pop restores it from the frame beneath. Nothing reads
+the current namespace from a position where the frame has already popped.
 
-C Tcl stores the current ns on `varFramePtr->nsPtr` — it's part of
-the call frame and is restored naturally when the frame pops.  Our
-current `tcl_ns_set` / `tcl_ns_restore` pair is compiler-emitted and
-*surrounds* the frame (not inside it), which breaks cleanly only if
-the runtime never needs the current ns between frame pop and
-`ns_restore`.  P1.3 moves the pointer onto the frame header
-alongside the alias slots — verify no code reads `ns_current()`
-from a position where the frame has already popped.
+### 8.3 Unqualified name containing `::` (partial qualification)
 
-### 3. Unqualified name contains `::` (partial qualification)
+Settled in favour of the uniform chain — see §5.2. `a::b` from `::ctx` is tried
+under `::ctx`, then under each `namespace path` entry, then under global, and
+each attempt requires the command to exist rather than merely the namespace.
 
-Given `a::b` called from `::ctx`, C starts the FQN walk at `::ctx`
-and does *not* fall back to global if the walk misses — `Tcl_FindCommand`
-uses `TCL_NAMESPACE_ONLY` for the context probe, then separately
-tries global.  Our §5.2 pseudocode matches that (we walk from both
-`cxt` and `root`), but the interaction with `commandPathArray` is
-subtle: the path walks should also use `TCL_NAMESPACE_ONLY`
-anchoring on each path member.  Verify with a fixture test in P5.2
-that `path a; path a::b` beats `path a; b` when both exist.
+### 8.4 Chained `namespace import`
 
-### 4. Back-list invariants across `namespace import`
+`Command::Imported` stores the source FQN as written at import time, and
+dispatch re-resolves it. Importing an already-imported command therefore
+produces a redirect naming the *intermediate*, which re-resolves through the
+intermediate's own redirect on each call — the chain is followed at dispatch
+rather than collapsed at import. `command_origin` walks the chain to report
+`namespace origin`.
 
-When a source cmd is imported into N namespaces, we accumulate N
-`ImportRef` nodes on the source's `import_ref_head` list.  If the
-source itself is an import (a redirect), what does `namespace import
-::mid::x` do?  In C, `DoImport` follows the `ImportedCmdData.realCmdPtr`
-chain to the original and threads the new redirect into *that* list.
-We should do the same in P4.2 — but record in the design that
-chained imports always point at the terminal real cmd, not the
-intermediate.
+### 8.5 `variable` on an FQN
 
-### 5. `variable` on an FQN
+`variable ::a::b::x` addresses `::a::b` through `var_home`, which requires the
+namespace to exist (§5.3), stores into that namespace's `VarTable`, and
+installs a `Var::Link` with `home: VarHome::Namespace` in the current frame.
 
-`variable ::a::b::x` declares (and optionally initialises) a
-namespace variable in `::a::b`, regardless of the current ns.  P3.3
-must use `ns_resolve_qualified_creating` (not `_creating` would be
-wrong — the ns must exist), then insert into that target's
-`var_table`, then create the `VAR_LINK` entry in the current frame.
-Confirm against `tclVar.c:Tcl_VariableObjCmd`.
+### 8.6 `upvar` into a namespace variable
 
-### 6. `upvar` into a namespace var
+The same `Link { home, name, elem }` shape covers it, with `VarHome::Namespace`
+as the home. Because the link is a path rather than a pointer, the target
+variable need not exist when `upvar` runs — it is created by the first write
+through the alias, which is C's lazy behaviour.
 
-`upvar 1 ::ns::v local` creates a frame-local alias pointing at a
-ns-scoped var.  Our `frame.rs` `ALIAS_EXT` descriptor
-currently supports `KIND_GLOBAL_NAMED` (global by name) and
-`KIND_FRAME_VAR` (another frame).  P3.3 may need a
-`KIND_NS_VAR` (target ns + simple name) if the ns var doesn't yet
-exist at `upvar` time — or we can follow C's approach and lazily
-create the ns var on `upvar`, keeping only the `VAR_LINK`-to-Var
-shape on the frame side.
+### 8.7 `namespace current` inside `uplevel`
 
-### 7. `[namespace current]` inside `uplevel`
+`eval_uplevel` sets `current_ns` to the *target frame's* namespace for the
+duration of the body and restores it afterwards, so `namespace eval ::a {
+uplevel #0 { namespace current } }` reports `::`.
 
-`uplevel` temporarily makes an outer frame's ns the current ns for
-the duration of the body.  Today `frame_depth_stash` / `frame_depth_restore`
-handle the frame-depth part; after P1.3 they also need to adjust
-`ns_current()`.  P1.3 should include a test that
-`namespace eval ::a { uplevel #0 { namespace current } }` returns
-`::`.
+### 8.8 `namespace which`
 
-### 8. `namespace which`
-
-`namespace which -command foo` exposes the exact resolution the
-runtime would do.  Once §5.2 is live, `namespace which` becomes a
-one-liner (`ns_find_command` → build the FQN from `target.ns` +
-simple name).  Not scheduled for P1-P5 but trivial to add once the
-tree is in; flag for P5 closeout.
+Implemented — `Namespaces::which_command` / `which_variable`, described in
+[`command-introspection.md`](command-introspection.md) §5.

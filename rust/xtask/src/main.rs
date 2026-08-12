@@ -236,7 +236,7 @@ enum Command {
 
     /// Dump every firing of one or more diagnostic/optimisation codes across
     /// a corpus, dialect-aware, grouped by message shape — the false-positive
-    /// audit harness (issue #1316; `docs/design/compiler/fp-audit-todo.md`).
+    /// audit harness (issue #1316; `docs/design/compiler/fp-sweep.md`).
     FpSweep {
         /// Diagnostic/optimisation code to sweep (repeatable, e.g. `--code
         /// W111 --code W112`).

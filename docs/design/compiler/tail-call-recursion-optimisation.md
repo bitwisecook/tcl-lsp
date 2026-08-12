@@ -1,10 +1,9 @@
-# KCS: Tail-call and recursion optimisation (O121–O123)
+# Tail-call and recursion optimisation (O121–O123)
 
-## Symptom
-
-Tcl procs use direct self-recursion where an iterative form or `tailcall` would be more efficient. Stack depth grows linearly with input size, risking `too many nested evaluations` errors.
-
-## Operational context
+How the three self-recursion passes decide what is in tail position, which of
+them fires for a given proc, and how priority resolves an overlap. Between
+them they rewrite self-recursion to `tailcall` or to a loop, or hint that an
+accumulator parameter would make it tail-recursive.
 
 Three related passes detect and transform self-recursive patterns:
 
@@ -16,7 +15,7 @@ Three related passes detect and transform self-recursive patterns:
 
 O122 subsumes O121 — when a proc is fully tail-recursive (all self-calls are in tail position), O122 fires with higher priority and O121 is suppressed by the non-overlapping selection mechanism. When only some self-calls are in tail position, O121 fires for the tail calls and O123 may fire for non-tail calls.
 
-## Decision rules / contracts
+## When each code fires
 
 1. **Tail position** — a self-call is in tail position if it is the last statement in the proc body, or the last statement in every branch of an `if`/`elseif`/`else` or `switch` at the end of the body. Calls inside `expr`, `catch`, `try`, loops, or nested command substitutions are never in tail position.
 
@@ -26,9 +25,9 @@ O122 subsumes O121 — when a proc is fully tail-recursive (all self-calls are i
 
 4. **O123 fires when** — exactly one non-tail self-call appears embedded in a return value (e.g. inside an `expr` or nested command substitution). This is a hint-only diagnostic; no source rewrite is produced. The hint indicates the recursion could be made tail-recursive by introducing an accumulator parameter. Doubly-recursive patterns (two or more self-calls in the same expression) are excluded.
 
-5. **Priority** — `_OPT_PRIORITY` assigns O122=6, O121=5, O123=5. The non-overlapping selection prefers O122 over O121 when both cover the same range.
+5. **Priority** — `opt_priority` (`rust/tcl-compiler/src/optimiser/mod.rs`) returns 6 for O122 and 5 for O121 and O123. `select_non_overlapping` prefers O122 over O121 when both cover the same range.
 
-6. **`hint_only` contract** — O123 sets `hint_only=True` on its `Optimisation`, which causes `apply_optimisations` to skip it during source rewriting while still emitting it as a diagnostic.
+6. **`hint_only` contract** — O123 sets `hint_only: true` on its `Optimisation`, which causes `apply_optimisations` to skip it during source rewriting while still emitting it as a diagnostic.
 
 ## Examples
 
@@ -118,7 +117,7 @@ proc factorial {n} {
 
 O123 emits: *"Non-tail recursion in factorial could be eliminated by introducing an accumulator parameter and using tailcall."*
 
-No source rewrite is produced (`hint_only=True`).
+No source rewrite is produced (`hint_only: true`).
 
 ### Fibonacci — doubly recursive (no optimisation fires)
 
@@ -138,22 +137,22 @@ Neither O121 nor O122 fires because neither call is in tail position. O123 does 
 
 ## File-path anchors
 
-- `compiler/optimiser/_tail_call.py` — pass implementation
-- `compiler/optimiser/_types.py` — `_OPT_PRIORITY` entries, `hint_only` field
-- `compiler/optimiser/_manager.py` — pass invocation, `hint_only` skip in `apply_optimisations`
-- `compiler/optimiser/_helpers.py` — hint-only separation in `_select_non_overlapping_optimisations`
+- `rust/tcl-compiler/src/optimiser/tail_call.rs` — pass implementation
+- `rust/tcl-compiler/src/optimiser/mod.rs` — `opt_priority`, the `Optimisation` struct's `hint_only` field
+- `rust/tcl-compiler/src/optimiser/manager.rs` — pass invocation, `hint_only` skip in `apply_optimisations`
+- `rust/tcl-compiler/src/optimiser/helpers/select.rs` — hint-only separation in `select_non_overlapping`
 
 ## Failure modes
 
 - Range drift if `body_source` does not exactly match the text between proc body braces.
-- False negative if a new control-flow IR node (beyond `IRIf`/`IRSwitch`) is added without updating tail-position walking.
+- False negative if a new control-flow statement (beyond `Statement::If` / `Statement::Switch`) is added without updating tail-position walking.
 - `lassign` rewrite produces incorrect results if parameter default values change effective arity at runtime.
 
-## Test anchors
+## Tests
 
-- `tests/test_optimiser.py::TestTailCallOptimisation`
+- `rust/tcl-compiler/src/optimiser/tail_call.rs` unit tests
 
-## Discoverability
+## See also
 
 - [compiler KCS index](README.md)
 - [pass/fact ownership matrix](../../../docs/design/compiler/pass-fact-ownership-matrix.md)

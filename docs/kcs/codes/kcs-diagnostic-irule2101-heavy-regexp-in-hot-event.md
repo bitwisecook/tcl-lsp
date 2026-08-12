@@ -1,7 +1,7 @@
 # KCS: IRULE2101 — Why does the analyser hint about a heavy regexp in a high-frequency event?
 
 > **Audience:** User
-> **Type:** Issue
+> **Type:** Diagnostic
 
 ## Applies to
 
@@ -33,7 +33,7 @@ The analyser reports **`IRULE2101`** because `regexp` is used in a hot event pat
 
 ## Fix
 
-Use `string match` or a [data-group](../../GLOSSARY.md#data-group) lookup:
+Use `string match` or a [data-group](../features/kcs-feature-refactor-extract-datagroup.md) lookup:
 
 ```tcl
 when HTTP_REQUEST {
@@ -45,7 +45,7 @@ when HTTP_REQUEST {
 
 ## How to suppress
 
-Add `# noqa: IRULE2101` at the end of the offending line.
+Add `# noqa: IRULE2101` on the line **above** the offending command.
 
 ## Related
 

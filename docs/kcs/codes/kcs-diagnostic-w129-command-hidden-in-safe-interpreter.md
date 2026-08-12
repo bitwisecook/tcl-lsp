@@ -1,7 +1,7 @@
 # KCS: W129 — Command is hidden in a safe interpreter
 
 > **Audience:** User
-> **Type:** Issue
+> **Type:** Diagnostic
 
 ## Applies to
 
@@ -86,15 +86,8 @@ that interpreter.
 A command reached only through an unresolvable dynamic value (`{*}$cmdList`,
 or `set cmd source; $cmd b.tcl`) is not flagged — its identity cannot be
 proven statically, and this diagnostic prefers a missed warning over a
-false one. See the
-[contributor-level note on the bracket-indirection fix](../kcs-issue-w129-safe-interp-hidden-command-via-bracket-indirection.md)
-for the full list of indirection shapes this check follows (and the ones it
-deliberately does not).
+false one.
 
 The hidden set is exactly the list above. Tcl's control-transfer commands
 — `break`, `continue`, `yield`, `yieldto`, and `tailcall` — are **not**
-hidden by `interp create -safe` and must never draw this warning. Builds
-before the trait-flag fix did flag them, because the registry flag for
-"hidden in a safe interpreter" collided with the flag for "transfers
-control"; see
-[the note on that false positive](../kcs-issue-w129-false-positive-on-control-transfer-commands.md).
+hidden by `interp create -safe` and never draw this warning.

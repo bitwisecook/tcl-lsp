@@ -93,7 +93,7 @@ pub struct ConnectionScope {
 /// qualified names start with ``::when::``.
 ///
 /// **Branch-condition vars.**  A dedicated branch-condition scan
-/// (walking `CFGBranch::condition`) is omitted — branch-condition
+/// (walking `Terminator::Branch.condition`) is omitted — branch-condition
 /// vars at version 0 are already part of the SSA statement uses,
 /// so the sweep is rarely load-bearing.
 #[must_use]

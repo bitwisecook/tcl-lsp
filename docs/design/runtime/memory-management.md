@@ -1,383 +1,165 @@
-# Tcl-WASM runtime: memory-management design
+# WASM runtime: memory management
 
-## Problem statement
+The WASM runtime is the Rust crate `tcl-runtime` (`runtime/rust/`). Its object
+lifecycle lives in `runtime/rust/src/obj.rs` and allocates through Rust's
+global allocator. This document fixes the **refcount discipline** every
+reference holder in that runtime follows, and the leak-detection machinery that
+enforces it.
 
-The WASM runtime allocates TclObjs and their string buffers on
-the wasm linear memory.  The runtime is now the Rust crate
-`tcl-runtime` (`runtime/rust/`), whose object lifecycle lives in
-`runtime/rust/src/obj.rs` and allocates through Rust's global
-allocator.  The three structural defects below motivated the
-refcount discipline that is the substance of this document.  The
-Rust runtime inherits none of the allocator-coherence defects (#1)
-because it never bump-allocates; the refcount discipline (#2, #3,
-and Phase MM-B) still applies:
+The per-export ownership rows are
+[`refcount-contract.md`](refcount-contract.md); the C-API surface's rows are
+[`c-api-ownership-contract.md`](c-api-ownership-contract.md).
 
-1. **Heap incoherence with wasi-libc.**  The
-   vendored Spencer regex engine (since removed — the ARE engine is
-   now the pure-Rust `tcl-regex` crate) called `MALLOC`/`FREE` which
-   bind to wasi-libc's dlmalloc.  dlmalloc's heap starts at `__heap_base`
-   and grows upward.  A bump allocator started at a fixed offset
-   (originally 64 KB, then 17 MB after the Phase 1.3 data-segment
-   fix) and *also* grew upward.  On heavy regex workloads —
-   `regexp.test` compiles thousands of regex_t — wasi-libc's heap
-   eventually crossed the bump base and the two consumers stomped on
-   each other's free-list metadata.  Symptom: ``out of bounds memory
-   access at <text-bytes-as-pointer>`` deep in `c.malloc.malloc`.
-   The Rust runtime's regex is the pure-Rust `tcl-regex` crate
-   (driven by `runtime/rust/src/cmd_regex.rs`), so this
-   cross-allocator hazard cannot recur.
+## MM-B — the refcount discipline
 
-2. **Refcount infrastructure must be used consistently.**  Each
-   TclObj carries a refcount field; `runtime/rust/src/obj.rs`
-   provides `incr_ref_count` / `decr_ref_count` (exported over the
-   C ABI as `Tcl_IncrRefCount` / `Tcl_DecrRefCount`), with
-   `decr_ref_count` freeing the object when the count reaches zero.
-   The hazard was that only a couple of
-   call sites actually retained/released, so the frame, proc,
-   namespace, and dispatch layers held TclObj references without
-   retaining them and every freshly-allocated TclObj was effectively
-   immortal — release was never called, the refcount never dropped
-   to zero, so the buffer was never freed.  Phase MM-B makes
-   retain/release consistent across every reference holder.
+**Every TclObj reference holder explicitly retains and releases.** Once that
+holds, refcount-driven `free` is the canonical lifetime mechanism, leaks
+become impossible, and the borrow-versus-own ambiguity has one answer: *if you
+hold a reference, you took a retain.*
 
-3. **Borrow vs own ambiguity.**  Some TclObjs own their buffer
-   (`OBJ_STR_CAP > 0`) and the buffer must be freed when the
-   TclObj dies.  Other TclObjs borrow their buffer from a parent
-   script source or from a sibling TclObj (`OBJ_STR_CAP == 0`).
-   The ownership flag is set correctly at construction but the
-   *lifetime relationship* between borrower and lender is not
-   tracked.  Phase 1.3 surfaced this when parser-borrowed words
-   stored in proc bodies went stale because their lender (the
-   outer script) was released first.
+Every site falls into one of four categories, and each carries a one-line
+comment stating which:
 
-This document records how #1 was resolved and plans the staged
-refcount solution for #2 and #3 that the Rust runtime follows.
+- **creates** a TclObj — refcount 0 at birth (`obj.rs` constructors return the
+  `fresh_zero` C-API object), so the first holder retains;
+- **stores** an existing TclObj into a slot it did not allocate — must retain;
+- **evicts** an existing TclObj from a slot — must release;
+- **transfers ownership** across an API boundary — one side retains, the other
+  releases, stated at the boundary.
 
-## Phase MM-B — finish refcounting
+### The store shape
 
-The retain/release audit below defines the discipline the Rust
-runtime implements.  File citations point at the Rust module that
-now owns each subsystem.
-
-Goal: every TclObj reference holder explicitly retains and
-releases.  Once that's true, refcount-driven `free` is the
-canonical lifetime mechanism, leaks become impossible, and the
-borrow-vs-own ambiguity gets a clear answer ("if you hold a
-reference, you took a retain").
-
-### B.1 — Audit retain/release call sites
-
-For each subsystem, list every place that:
-- *creates* a TclObj (refcount = 1 at birth, no retain needed)
-- *stores* an existing TclObj into a field/slot it didn't allocate
-  (must retain)
-- *evicts* an existing TclObj from a field/slot (must release)
-- *transfers ownership* across an API boundary (caller releases,
-  callee retains, or vice versa)
-
-Subsystems to audit:
-- `frame.rs` — frame locals (the frame entries hold TclObj
-  pointers; bind/unbind of locals must retain/release)
-- `cmd_proc.rs` / `interp.rs` — proc table (params + body slots;
-  proc registration must retain, proc unregistration must release)
-- `namespace.rs` — namespace var table (a scalar store into a slot
-  must release the prior occupant, retain the new value)
-- `interp.rs` — eval loop (parser-produced word TclObjs need
-  refcount management across dispatch, especially for words that
-  get stored elsewhere via `set` / `proc` / `lappend` / etc.)
-- `codegen_abi.rs` — compiled-proc host-bridge call paths (caller
-  passes a TclObj; callee may store; clear ownership rule needed)
-- `cmd_*.rs` — every command handler that returns or stores a
-  TclObj
-- `list.rs` / `dict.rs` / `value_ops.rs` — list, dict, string-buffer
-  ops that hold internal refs to element TclObjs
-
-Each site gets a one-line comment stating its retain/release
-contract.
-
-### B.2 — Make `var_set_scalar` retain/release
-
-The simplest high-leverage fix.  A scalar-store that overwrites its
-slot without releasing the prior occupant leaks:
+Every slot store has the same shape: retain the incoming value, then release
+the one it displaces. The order matters — retain-before-release is what makes
+a self-store (`set x $x`) safe when the two are the same object.
 
 ```rust
-fn set_scalar(slot: &mut Var, new: *mut TclObj) {
-    // ...
-    slot.value = new;          // overwrite; old value leaks
+// VarTable::store_scalar, the Var::Scalar arm (frame.rs).
+Some(Var::Scalar(slot)) => {
+    unsafe {
+        obj::incr_ref_count(obj);
+        obj::decr_ref_count(*slot);
+    }
+    *slot = obj;
+    Ok(())
 }
 ```
 
-After — retain the incoming value, release the one it displaces:
+A cell is the `Var` enum, not a struct with a nullable value field: `Scalar`
+owns **+1** of one object, `Array` owns **+1** of each element, and `Link` (an
+`upvar`/`global`/`variable` alias, resolved by path rather than by pointer)
+owns nothing at all. `store_elem` is the same shape over the element map, and
+`InterpState`'s result slot is the same shape again in `set_obj_result`.
 
-```rust
-fn set_scalar(slot: &mut Var, new: *mut TclObj) {
-    // ...
-    let old = slot.value;
-    slot.value = new;
-    incr_ref_count(new);
-    if !old.is_null() { decr_ref_count(old); }
-}
-```
+`VarTable` releases on `Drop`, matching C's `TclFreeVar`, so a dropped frame or
+namespace cannot leak and every refcount move stays visible to the counters.
+There is no hand-written per-frame cleanup path to forget.
 
-Same shape applies to frame-local set (`frame.rs`), `dict` set
-(`dict.rs`), list element set (`list.rs`), etc.
+One deliberate exception to "+1 per holder": a TIP 508 array default
+(`array default set`) is pinned with **+2**. The extra reference makes every
+read of the default see a *shared* object, so a read-modify-write
+(`lappend`/`append`/`dict set`) copies instead of mutating the stored default
+in place.
 
-### B.3 — Make proc parameter binding retain
+### Proc parameter binding
 
-The proc-call path (`interp.rs`) binds each parameter to its
-argument word:
+The proc-call path binds each parameter to its argument word, so the frame
+entry holds a reference to that word. The caller may release the words array
+after dispatch; the frame's hold keeps the value alive. This is correct *by
+construction* once the local-set path retains — it needs no separate rule.
 
-```rust
-frame.local_set(param_name, words[arg_idx]);
-```
+### MM-B.6 — borrowed bytes and the stale-slab hazard
 
-The frame entry now holds a reference to `words[arg_idx]`.  The
-caller may release `words[]` after dispatch; the frame's hold must
-keep the value alive.  After the B.2 fix to the local-set path, this
-becomes correct automatically (the local set retains).
+The hazard this rule exists to prevent: something holds a `(ptr, len)` into a
+buffer it does not own, the owner is freed, the allocator reissues the slab,
+and the borrow reads someone else's data. The runtime closes it structurally
+in three places rather than by convention.
 
-### B.4 — Make eval_command release words[] after dispatch
+**A TclObj always owns its string rep.** `set_owned_string` frees the previous
+buffer and allocates a fresh NUL-terminated one, copying the bytes in; every
+constructor path (`new_string_obj`, `new_string_bytes`, each type's
+`update_string_proc`) goes through it. There is no zero-capacity
+"points at someone else's buffer" mode for a TclObj to be in, so the implicit
+unlinked borrow cannot be constructed.
 
-After `eval_command` finishes a command, the parser-produced
-`words[]` array goes out of scope.  Each entry must be released
-once.  Exception: if the result is one of the words (e.g. `set x
-$y` returns `$y`), the *result* keeps a retain via the return
-value — release the others, leave the result alone.
+**Releasing the argv after dispatch needs no aliasing scan.** A command that
+makes one of its argument words the result does so through `set_obj_result`,
+which takes an *independent* `+1` before releasing the slot's prior occupant.
+The eval loop can therefore release every argv element unconditionally after
+`dispatch` returns — the result's own reference is not one of the ones being
+dropped. No result-aliases-a-word scan, no deferred free queue, and no
+special case for the `{*}`-expansion path.
 
-**Status:** staged in `execute_parsed_command` (both fast and
-slow paths) but currently DISABLED.  See B.6 for the blocker.
+**There is no parse cache to invalidate.** The parser's `WordPart::Text` /
+`Variable` / `Command` borrow `&'s [u8]` straight from the source script, and a
+`Text` run whose escapes had to be decoded owns its bytes as `Cow::Owned`.
+Because the parse tree is lifetime-bound to the script it was parsed from, a
+pointer-keyed cache outliving its buffer is a compile error rather than a
+runtime hazard, and `parse.rs` is `#![forbid(unsafe_code)]`.
 
-### B.5 — Per-store-site retain/release
+The structures that used to be listed here as borrow sites all hold owned
+copies now, which is why they need no discipline of their own:
 
-Done in this commit:
-- B.5a: `array_set` / `ar_insert` value slot
-- B.5d: `frame_set_argv` + `frame_pop` argv release
-- `eval_return` / `eval_proc_call_bucket` `return_val` slot
-
-Not done (and not needed — list/dict store as strings, not
-TclObj refs):
-- list element setters (`tcl_cmd_list_insert` /
-  `tcl_cmd_list_replace` / `tcl_cmd_list_set`) — rebuild the
-  list as a fresh string TclObj
-- `dict_set` — rebuilds the dict as a fresh string TclObj
-
-### B.6 — Pointer-borrow audit (BLOCKER for B.4)
-
-Original symptom: cmdIL.test trapped with `site=146 <binary
-garbage>` when B.4 was enabled.  Audit candidates (each holds
-a borrowed (ptr, len) into a TclObj's buffer):
-
-- `proc_table[].name_ptr` / `.name_len` — currently a heap-
-  copied buffer in `alloc_command`, not a TclObj ref, so
-  appears safe.  Verified.
-- `tcl_ns_export_patterns` — each pattern stored as raw
-  `(ptr, len)`.  If the pattern came from a TclObj that was
-  released, the pattern bytes go stale.  Audit pending.
-- `tcl_alias_*` descriptor structs — alias source / target
-  command names.  Fixed: `alias_alloc` retains each prefix
-  TclObj (commit 1ddb903).
-- `subst_flagged` pieces buffer — borrowed (ptr, len) into
-  source TclObjs across the concat pass.  Fixed: source TclObjs
-  are retained in a `retained_objs` scratch until the concat
-  completes (commit 9c7e4ad).
-- `parse_cache` entries — **identified as the cmdIL trap
-  source.**  The cache stores token offsets keyed on
-  `(body_ptr, body_len)`.  Under B.4 a body buffer can be
-  freed and its slab reissued by libc malloc; a subsequent
-  lookup with the recycled `(body_ptr, body_len)` pair returns
-  a stale slab whose tokens point into freed memory.  See the
-  parse-cache lookup path (now `runtime/rust/src/parse.rs`).
-- `tcl_diag.current_eval_ptr` — recorded for trap context.
-  Set per `eval_script` call but might point to a script
-  whose owner is releasing.  Audit pending — not currently a
-  blocker for cmdIL once parse_cache is contained.
-- `frame_argv[]` for `info level 0` — fixed in B.5d but
-  similar shape for `info level -N` if implemented.
-
-For each, the fix is the same: either retain the source TclObj
-for the duration the (ptr, len) is held, or copy the bytes
-into a fresh owned buffer at storage time.
-
-**B.6 status (this commit): MM-B.4 ON, both lifetime bugs fixed.**
-
-Two distinct bugs were diagnosed and resolved:
-
-1. **parse_cache stale slabs** (cmdIL.test site=146 garbage):
-   the cache was keyed on `(body_ptr, body_len)` but had no
-   invalidation hook.  Under B.4 a body buffer can be freed and
-   its slab reissued by libc malloc; a subsequent `lookup` then
-   returned a stale slab with tokens pointing into freed memory.
-   Fix: `hash_table` gained tombstone support (`TOMBSTONE = 1`,
-   `find` skips them, `try_insert_header` reuses them,
-   `delete_at` marks live entries) and `parse_cache` got a new
-   `invalidate_for_buffer(buf_ptr)` that walks every bucket and
-   tombstones any entry whose `body_ptr` matches.  `tcl_obj.
-   release_now` calls this hook immediately before `free_sized`.
-
-2. **Dispatch result aliasing a word** (parseOld.test site=146,
-   trap message bytes were the obj's own refcount field showing
-   through):  `execute_parsed_command`'s post-dispatch release
-   loop unconditionally ran `release(result)` after retaining
-   it once and releasing each word.  When `result` aliased one
-   of the words (a builtin returning a word verbatim — `return
-   $x`, `set foo` reading-back, etc.), the word-release loop
-   already decremented `result.rc`; the trailing release pushed
-   it to 0, queueing the obj for free while the caller still
-   held the handle.  The handle was then drained between
-   statements and the slab reissued — leaving the caller with
-   `str_ptr` pointing at the obj's own (now-recycled) slot,
-   which displayed as the obj's refcount field bytes
-   (`\x85\x00\x00\x00`) when the trap message was rendered.
-   Fix: scan `word_objs` for `result` and only retain if it
-   aliases.  The retain exactly cancels the word-release
-   decrement; non-aliased results keep their original rc.
-   Both fast and slow ({*}-expansion) paths apply the same
-   pattern.
-
-Verification:
-- `tests/test_wasm_real_tcl.py`: 395/395 (no regression).
-- `parseOld.test`: reaches summary line (Total 158, Passed 18).
-- `cmdIL.test`: traps cleanly at `source: file not found`
-  (helper-file issue, not memory).
-- `lrange.test`: was `run-trap`, now reaches summary (18 P /
-  1748 F of 1766).
-- `lreplace.test`: was `run-trap`, now reaches summary (43 P /
-  3536 F of 3579).
-- `reg*/regexpComp/reg.test` continue to not OOM.
-- ReleaseFast build: 2.57 MB.
-
-### B.7 — Track "shared buffer" relationships explicitly (future)
-
-Today an `OBJ_STR_CAP == 0` TclObj points into someone else's
-buffer with no link to the lender.  Add a hidden `OBJ_LENDER`
-field that stores the lender's TclObj address (or 0 for a
-data-segment / static-string borrow).  Borrowing TclObj's
-construction takes a retain on the lender; the borrowing
-TclObj's `release_now` releases the lender.
-
-Enables things like `obj_new_string_borrow(parent, off, len)` —
-parser word creation — to set up the lender link automatically.
-Avoids the Phase 1.3 corruption because the lender chain is
-explicit and ref-counted.
-
-Optional: this whole story can be skipped if B.6 fully copies
-borrowed bytes at every store site, but that's wasteful for
-the dispatch fast path.  B.7 is the perf-friendly version.
-
-## Phase MM-C — debug-only leak detection
-
-The leak-check counters live in `runtime/rust/src/counters.rs`
-(exposed over the C ABI in `capi.rs` as the `tcl_test_*` surface).
-They are thread-local, so the native `cargo test` runner is
-race-free.  When enabled:
-- object allocation bumps `obj_alloced`.
-- the object free path bumps `obj_freed` (and `double_free` if an
-  already-zero-refcount object is released).
-- `tcl_test_finalize` (called by tests after the last work item)
-  asserts the residual (`counters::finalize`) is zero.
-- a non-zero residual flags the leak; pairing it with per-subsystem
-  probes (MM-E) localises the offending subsystem.
-
-The production wasm build gates this instrumentation behind a
-`leak-check` cargo feature — zero runtime cost on the hot path.
-
-## Phase MM-D — performance recovery
-
-After MM-A's libc-malloc switch, per-call alloc cost is ~100 ns.
-For workloads where this matters:
-
-- **Reuse via a size-class free-list.**  Add a size-class reuse
-  pool in `obj.rs`: on free, push the freed TclObj header / small
-  buffer onto a per-size-class free list for the four most-common
-  size classes (32, 48, 64, 96 — the TclObj header + small-string
-  cases); on alloc, pop from that class's list before falling
-  through to the global allocator.  Each push/pop is a couple of
-  stores + a load — much cheaper than a general allocation.  Bound
-  the lists at 256 entries each so a regex stress-test doesn't pin
-  too much memory in the recycler.
-
-- **Inline-string optimisation.**  TclObjs whose string fits in
-  ≤ 23 bytes can store the bytes inline (in the
-  `OBJ_INT_CACHE` + `OBJ_STR_PTR` fields) instead of allocating
-  a separate buffer.  Halves alloc count for a typical Tcl
-  workload (many short identifiers, command names, integer-
-  string-conversion results).
-
-- **Per-arena allocators for short-lived buffers.**  Parser
-  scratch (token arrays, sub_buf for `subst`), regex
-  intermediate state (UTF-8 decode buffers, `pmatch_buf`) — all
-  live for one command's worth of time.  An arena that resets
-  on `eval_command` boundaries reclaims them in O(1).
-
-These are independent and can land separately; each should come
-with a microbench delta in its commit message.
-
-## Phase MM-E — test infrastructure
-
-- **`make leakcheck`** — runs the wasm test suite under MM-C's
-  leak-detection mode; CI gate fails on any regression.
-- **`scripts/probe_alloc_pattern.py`** — instruments a single
-  test bundle to log every alloc/free with type tag + caller
-  PC; produces a histogram of leak hotspots when MM-C reports a
-  non-zero residual.  Useful for narrowing audits without
-  recompiling the runtime.
-
-## Acceptance gates per phase
-
-| Phase | Gate |
+| Site | What it actually holds |
 |---|---|
-| MM-A | 395 wasm tests pass; `regexp.test` no longer hits cross-allocator corruption (may still trap on other reasons but not the dlmalloc-vs-bump signature) |
-| MM-B | leak counter (under MM-C) reads 0 after each in-scope tcltest run |
-| MM-C | `make leakcheck` is a CI gate |
-| MM-D | per-op microbench rows for `set` / `incr` / `expr` recover within 10 % of the pre-MM-A bump-allocator numbers |
-| MM-E | leak hotspots show up as actionable per-subsystem entries in CI output |
+| namespace export patterns | `Namespace::exports: Vec<Vec<u8>>` — owned byte copies |
+| alias descriptors | `Command::Alias { target: Vec<u8>, prefix: Vec<Vec<u8>> }` — owned byte copies, no TclObj reference |
+| the `subst` concat pass | builds a fresh `Vec<u8>`; the single-substitution fast path returns the *object* with an owning `+1` |
+| the frame argv used by `info level` | `Frame::words: Vec<Vec<u8>>` — owned byte copies, dropped with the frame |
 
-## Sequencing
+## What the Rust runtime does not inherit
 
-```
-MM-A (this commit) ────┬─→ MM-B (audit + retain/release fixes)
-                       │     │
-                       │     ↓
-                       └─→ MM-C (leak detection) ←──┘
-                                  │
-                                  ↓
-                              MM-D (perf recovery)
-                                  │
-                                  ↓
-                              MM-E (test infra)
-```
+Two structural hazards from earlier designs cannot recur here, and it is worth
+recording why so they are not reintroduced:
 
-MM-A is unblocking — the crashes it eliminates were blocking
-reg* and any future regex-heavy tcltest run.  MM-B and MM-C
-are correctness-only; they're necessary before we can claim
-"no leaks" but the runtime works without them today (everything
-just leaks, bounded by tcltest workload size).  MM-D and MM-E
-are quality-of-life on top.
+1. **Allocator incoherence.** A bump allocator growing upward from a fixed
+   offset, alongside wasi-libc's dlmalloc growing upward from `__heap_base`,
+   eventually collide and stomp each other's free-list metadata — which
+   presents as an out-of-bounds access deep inside `malloc`. The Rust runtime
+   never bump-allocates, and its regex engine is the pure-Rust `tcl-regex`
+   crate (`runtime/rust/src/cmd_regex.rs`) rather than a C engine calling
+   `MALLOC`/`FREE`, so there is only one allocator. The one C-shaped
+   allocation surface left — `c_alloc.rs`, which supplies `malloc`/`free`/
+   `realloc` to the libtommath archive on freestanding `wasm32-unknown` —
+   forwards to Rust's global allocator, storing the size in a 16-byte header
+   ahead of the user pointer because C's `free` does not carry Rust's layout.
+   It is a shim over the same allocator, not a second one.
+2. **Implicit shared buffers.** A TclObj with zero string capacity points into
+   someone else's buffer with no link back to the lender. Either copy at every
+   store site, or make the lender link explicit and refcounted (the borrowing
+   object retains the lender at construction and releases it on its own
+   release). What must not happen is an implicit borrow with no link, which is
+   how the borrow outlives the lender. This runtime takes the first option
+   unconditionally — see MM-B.6.
 
-## Out of scope
+## MM-C — leak detection
 
-- Tracing GC.  Refcounting is sufficient for Tcl's value model
-  (no mutable shared structures with cycles in normal workloads;
-  the few cyclic cases — recursive list-of-lists — already
-  use explicit `unset` to break cycles).  GC would be a
-  much larger architectural change.
-- Generation-aware allocator.  TclObjs typically have very
-  short lives (one statement) or very long lives (a proc body
-  for the lifetime of the proc registration).  A bump arena per
-  command boundary (Phase MM-D's third bullet) captures the
-  short-lived case without needing generations.
+Leak-check counters live in `runtime/rust/src/counters.rs`, exposed over the C
+ABI in `capi.rs` as the `tcl_test_*` surface (`tcl_test_reset_counters`,
+`tcl_test_alloc_count`, `tcl_test_double_free_count`, `tcl_test_finalize`).
+They make every refcount move observable, which is what turns the discipline
+above from a convention into something a test can assert: a balanced
+round-trip leaves `tcl_test_finalize` at zero, and
+`tcl_test_double_free_count` must be zero after any correct run.
 
-## Risks
+Six counters are tracked: objects allocated and freed, string buffers
+allocated and freed, releases of an already-zero-refcount object, and whether
+the allocator has hit OOM. They are unconditional — the `leak-check` feature
+gate that would compile them out of a production WASM build is not wired, so
+the hot path pays for them on every target.
 
-- **MM-B audit miss.**  If we forget to retain at one site, the
-  refcount drops to zero prematurely and we free a still-
-  referenced obj.  Surfaces as use-after-free on the next read
-  of the freed obj's bytes.  Mitigation: MM-C's leak detector
-  paired with a "double-free counter" that increments when
-  `release_now` is called on an already-zero refcount.
-- **Performance regression.**  MM-A makes every alloc go through
-  libc.  Microbenches will show 2-5× per-op cost.  MM-D
-  (free-list reuse + inline strings + arena scratch) should
-  recover most of it; if it doesn't, we may revisit the
-  allocator routing — perhaps a "regex calls malloc, everything
-  else uses bump" hybrid with explicit reservation.
+The counters are **thread-local**, not process-global. The production runtime
+is a single-threaded WASM reactor, where per-thread and global are the same
+thing; thread-local is what makes the native `cargo test` build correct under
+parallel test execution, since each test thread checks its own counts instead
+of racing another test's `reset`.
+
+## Cross-references
+
+- [`refcount-contract.md`](refcount-contract.md) — per-export ownership rows.
+- [`c-api-ownership-contract.md`](c-api-ownership-contract.md) — the C-API
+  surface's ownership and error categories.
+- [`../contracts/runtime-variable-frame-model.md`](../contracts/runtime-variable-frame-model.md)
+  — the cell model whose slots this discipline governs.
+- [`../compiler/var-escape-analysis.md`](../compiler/var-escape-analysis.md) —
+  the compile-side proof.

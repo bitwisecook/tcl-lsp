@@ -66,18 +66,6 @@ import`, when a user `proc unknown` has a dynamic dispatch shape, and when
 name. In all of those the set of available commands and packages is genuinely
 unknowable, and a wrong warning on working code is worse than a missing one.
 
-## File-path anchors
-
-- `rust/tcl-lsp-server/src/lib.rs` — `settle_call_against_workspace`,
-  `settle_cross_file_calls`, `cross_file_arity_diagnostics`,
-  `compute_source_inheritance`
-- `rust/tcl-lsp-core/src/source_graph.rs` — `descendant_requires`,
-  `ancestor_requires`
-- `rust/tcl-lsp-core/src/workspace_index.rs` — `WorkspaceProc::arity`,
-  `workspace_command_exists_for_call`
-- `rust/tcl-compiler/src/analyser/handlers.rs` — `handle_source_command`,
-  `note_external_unit_command_moved`
-
 ## Failure modes
 
 - A cross-file call is reported as an unknown command while
@@ -94,8 +82,6 @@ unknowable, and a wrong warning on working code is worse than a missing one.
 
 ## Test anchors
 
-- `rust/tcl-lsp-server/tests/e2e/issue1331_crossfile_diagnostics.rs`
-- `rust/tcl-lsp-core/src/source_graph.rs` (`descendant_requires_*`)
 - `editors/vscode/src/test/crossFileDiagnostics.test.ts`
 
 ## Discoverability

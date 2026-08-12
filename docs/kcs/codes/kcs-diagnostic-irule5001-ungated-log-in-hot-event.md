@@ -1,7 +1,7 @@
 # KCS: IRULE5001 — Why does the analyser warn about an ungated log in a high-frequency event?
 
 > **Audience:** User
-> **Type:** Issue
+> **Type:** Diagnostic
 
 ## Applies to
 
@@ -45,7 +45,7 @@ when HTTP_REQUEST {
 
 ## How to suppress
 
-Add `# noqa: IRULE5001` at the end of the offending line.
+Add `# noqa: IRULE5001` on the line **above** the offending command.
 
 ## Related
 

@@ -24,11 +24,10 @@ editor, or everywhere?
 
 ## Answer
 
-The [Tcl Language Server](../GLOSSARY.md#lsp) gives you five places to
-turn a code off. Pick the **smallest scope** that solves your problem.
-The list below runs from most specific to least specific, which is
-also the precedence order: a match found higher in the list always
-wins.
+The Tcl Language Server gives you five places to turn a code off. Pick
+the **smallest scope** that solves your problem. The list below runs
+from most specific to least specific, which is also the precedence
+order: a match found higher in the list always wins.
 
 ### 1. One command — inline `# noqa`
 

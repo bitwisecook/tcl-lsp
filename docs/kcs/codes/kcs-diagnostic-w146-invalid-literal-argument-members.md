@@ -63,7 +63,7 @@ argument count. A substituted or malformed operation list is left unchecked.
 
 ## How to suppress
 
-Add `# noqa: W146` at the end of the offending line.
+Add `# noqa: W146` on the line **above** the offending command.
 
 ## Related
 

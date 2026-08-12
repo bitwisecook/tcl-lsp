@@ -18,7 +18,6 @@
 
 //! INJ family — injection / style (W301 uplevel, W101 eval-injection, T102
 //! option-injection taint).
-//! Pairs to `tests/test_fp_inj.py` and the §INJ entries in `docs/design/compiler/FP.md`.
 //!
 //! Most T102 cases here are iRules-dialect (`HTTP::uri` / `HTTP::path` taint
 //! sources), so they run under the `f5-irules` dialect rather than the

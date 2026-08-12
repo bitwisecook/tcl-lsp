@@ -1,7 +1,7 @@
 # KCS: IRULE4005 — Why does the analyser warn about a race on a static variable?
 
 > **Audience:** User
-> **Type:** Issue
+> **Type:** Diagnostic
 
 ## Applies to
 
@@ -47,7 +47,7 @@ when HTTP_REQUEST { log local0. "count: $static::count" }
 
 ## How to suppress
 
-Add `# noqa: IRULE4005` at the end of the offending line.
+Add `# noqa: IRULE4005` on the line **above** the offending command.
 
 ## Related
 

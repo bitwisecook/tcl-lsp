@@ -1,4 +1,4 @@
-# KCS: Shimmer reference behaviour and validation
+# Shimmer reference behaviour
 
 ## What we mean by shimmer
 
@@ -9,6 +9,21 @@ A Tcl object can be used as different semantic types over time (string, list, in
 - A one-off mismatch at a use site is informative (S100).
 - Repeated mismatch in loops is more expensive and should be elevated (S101).
 - Oscillation patterns across loop iterations are the strongest signal (S102).
+
+Two further codes sit in the same module but answer different questions:
+
+- **S103** — mutation of a **potentially shared** value. Not a
+  representation change at all: C Tcl duplicates a shared value before
+  writing it, so `lappend` / `lset` / `dict set` on a value with refcount ≥ 2
+  is an O(n) whole-value copy every call. Detected by `shimmer::sharing`,
+  severity Hint. It is a deliberate under-approximation: it fires only where
+  the pass can see *both* holders, starting from a same-block pure-copy
+  assignment (`set b $a`).
+- **S110** — a **correctness** shimmer, distinct from the S100/S101/S102
+  performance family: a byte array forced through a character-string
+  operation and written back to a byte sink silently re-encodes every byte
+  `>= 0x80`. Detected by `shimmer::byte_array`; see
+  [byte-array-corruption.md](../compiler/byte-array-corruption.md).
 
 ## Mapping to C Tcl 9.0.3 functions
 
@@ -27,9 +42,18 @@ Each detector diagnostic maps to specific C functions that trigger `FreeInternal
 | LIST ↔ DICT oscillation | Bidirectional `SetListFromAny` / `SetDictFromAny` | `tclListObj.c`, `tclDictObj.c` |
 | BOOLEAN → INT promotion | `TclGetIntFromObj` (cheap path) | `tclObj.c` |
 
-### Numeric subtype hierarchy
+### Numeric interchangeability
 
-BOOLEAN → INT promotion is **not** flagged because it matches Tcl 9.0's O(1) conversion path. The `_is_numeric_compatible` function implements: BOOLEAN ⊆ INT ⊆ NUMERIC, DOUBLE ⊆ NUMERIC.
+BOOLEAN → INT promotion is **not** flagged because it matches Tcl 9.0's O(1)
+conversion path. `shimmer::hints::is_numeric_compatible(current, expected)`
+implements this as a **symmetric equivalence class**, not a subtype
+hierarchy: `Boolean`, `Int`, and `Numeric` are mutually interchangeable in
+arithmetic and boolean contexts, in either direction, and no intrep
+conversion is needed between any pair of them.
+
+`Double` is deliberately **not** in that class. A `Double` is compatible only
+with itself, so reading a double-typed value where an int is expected (or
+vice versa) is still a shimmer.
 
 ### When shimmering does NOT occur
 
@@ -56,8 +80,11 @@ lattice plus the SCCP constant lattice:
 A use is suppressed only when the pure value is a **valid instance** of the
 required type — a well-formed list (`Tcl_SplitList` succeeds), an even-length
 list for a dict, or a parseable number — so a genuine runtime error (`incr` on
-`hello`) still fires. This is what fixed issue #940 (`foreach $bracedList`); see
-`docs/design/compiler/FP.md` §FP-SH-21.
+`hello`) still fires. `foreach $bracedList` (issue #940) is the anchor case,
+pinned as `FP-SH-21` in
+`rust/tcl-compiler/src/analyser/diagnostics/fp/sh.rs`. The
+`cargo xtask fp-sweep` harness ([fp-sweep.md](../compiler/fp-sweep.md)) is
+what a shimmer-emitter change is measured against before it lands.
 
 #### The committed-intrep dataflow (first-use commit)
 
@@ -85,9 +112,10 @@ dataflow over the SCCP-executable blocks, shared by the use-site, expr, and
   `shimmer::first_use_commitments_for_cu` — hover renders
   "string (first used as: list)" at the creation site.
 
-## Reference validation status
+## Where the command-level knowledge lives
 
-C source analysis completed against Tcl 9.0.3. The `arg_types` shimmer hints
+The mapping above is validated against the Tcl 9.0.3 C sources. The `arg_types`
+shimmer hints
 carried on each `CommandRegistry` `CommandSpec`/`SubCommand` (see
 `rust/tcl-registry/src/commands/**`) correctly map Tcl commands to their
 underlying `Tcl_Get*FromObj` calls — command-level shimmer knowledge lives
@@ -125,10 +153,7 @@ argument that is a bare variable name rather than a `$`-prefixed read
 alias, since `incr`'s own canonical name bypasses this path via the
 dedicated `Statement::Incr` node.
 
-## Fixture scenarios
-
-The Python-era `tests/fixtures/shimmer/` corpus was retired along with the
-Python implementation. Coverage today lives in:
+## Coverage
 
 - Unit tests co-located with each shimmer module (`rust/tcl-compiler/src/shimmer/*.rs`) and in `rust/tcl-compiler/tests/checks.rs`.
 - TP/FP/TN/FN regression fixtures in `rust/tcl-compiler/src/analyser/diagnostics/fp/sh.rs` (the `FP-SH-NN` series).
@@ -137,6 +162,11 @@ Python implementation. Coverage today lives in:
 
 ## Cross-links
 
-- Implementation: `rust/tcl-compiler/src/shimmer/` (`hints.rs`, `use_site.rs`, `thunking.rs`, `byte_array.rs`, `phi.rs`, `graph.rs`, `span.rs`).
+- Implementation: `rust/tcl-compiler/src/shimmer/` — `mod.rs` (the
+  per-unit entry points), `hints.rs` (registry hints, numeric
+  compatibility, the uncommitted-first-conversion rule), `use_site.rs`,
+  `expr.rs`, `commit.rs` (the committed-intrep dataflow), `thunking.rs`,
+  `sharing.rs` (S103), `byte_array.rs` (S110), `phi.rs`, `graph.rs`,
+  `span.rs`.
 - Registry data: `rust/tcl-registry/src/commands/**` (`arg_types` on each `CommandSpec`/`SubCommand`).
 - Suppression: `rust/tcl-compiler/src/analyser/utils.rs` (`parse_noqa_line_suppressions`, `apply_preceding_noqa`), consumed by `lift_compiler_diagnostics` in `rust/tcl-lsp-server/src/lib.rs`.

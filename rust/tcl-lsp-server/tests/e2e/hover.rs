@@ -16,24 +16,17 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! Native port of `tests/lsp_e2e/test_hover_e2e.py` (full parity, all 37 tests).
-//!
-//! Full-parity port of `tests/test_hover.py` (the in-process provider tests)
-//! onto the live JSON-RPC surface: open a document, wait for analysis, ask
-//! `textDocument/hover` at a position, assert on the rendered markdown. The
-//! iRules-dialect cases open the document with the `tcl-irule` language id (and
-//! an `.irule` URI) so the server resolves the F5 command pack — the wire
-//! equivalent of the in-process `configure_signatures(dialect="f5-irules")`.
-//!
-//! The white-box test that `_infer_var_type` / `_infer_var_taint` agree on the
-//! cached vs recomputed path has no JSON-RPC surface and stays in
-//! `tests/test_hover.py`.
+//! Hover, end-to-end against the packaged server: open a document, wait for
+//! analysis, ask `textDocument/hover` at a position, assert on the rendered
+//! markdown. The iRules-dialect cases open the document with the `tcl-irule`
+//! language id (and an `.irule` URI) so the server resolves the F5 command
+//! pack.
 
 use crate::common::helpers::{hover_text, starts, symbol_names};
 use crate::common::{Lsp, unique_uri};
 use serde_json::json;
 
-/// Hover text at a position (`_hover` in the pytest suite).
+/// Hover text at a position.
 fn hover(lsp: &mut Lsp, uri: &str, line: u32, ch: u32) -> String {
     hover_text(&lsp.hover(uri, line, ch))
 }

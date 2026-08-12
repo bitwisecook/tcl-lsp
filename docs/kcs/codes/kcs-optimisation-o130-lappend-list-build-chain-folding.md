@@ -1,7 +1,7 @@
 # KCS: O130 — Fold static lappend list build chains into a single assignment
 
 > **Audience:** User
-> **Type:** Functionality
+> **Type:** Optimisation
 
 ## Applies to
 

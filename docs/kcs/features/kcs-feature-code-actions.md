@@ -55,24 +55,15 @@ what it returns from, breaks out of, or binds against. The set is registry
 trait data, not a hand-maintained list, so a newly declared command is
 gated automatically.
 
-## File-path anchors
-
-- `server/features/code_actions.py`
-
 ## Failure modes
 
 - Code action produces invalid code.
 - Inline proc is offered on, or withheld from, the wrong command because a
-  registry trait is mis-declared. A flag collision once made every
-  safe-interpreter-hidden command read as frame-sensitive, silently
-  withholding the action from `file`, `exec`, `open`, and seven others —
-  see
-  [the note on that false positive](../kcs-issue-w129-false-positive-on-control-transfer-commands.md).
+  registry trait is mis-declared. The action declines any call whose head is
+  frame-sensitive — a command that terminates a block, transfers control,
+  creates a scope alias, or creates a barrier — so a trait declared on the
+  wrong command silently withholds it.
 - Safe-fix classification incorrect (destructive fix marked as safe).
-
-## Test anchors
-
-- `tests/test_code_actions.py`
 
 ## Screenshots
 

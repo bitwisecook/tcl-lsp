@@ -1683,8 +1683,7 @@ impl ScopedBodyRegion {
 ///
 /// Holds the full field set the analyser can produce. Fields that
 /// no emitter populates default to empty / `None` — they're carried
-/// in the shape so the `PyO3` binding can serialise the complete
-/// result dict.
+/// in the shape so a consumer can serialise the complete result.
 #[derive(Debug, Clone, Default, PartialEq)]
 pub struct AnalysisResult {
     /// Root scope tree (`::`).

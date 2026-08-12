@@ -23,12 +23,11 @@
 //! the `&'static DialectProfile` is threaded from there, so consumers stop
 //! re-parsing dialect strings per query.
 //!
-//! This is the compositional model of `docs/design/dialect-profile-model.md`
-//! landing milestone by milestone: identity (Milestone 1), the availability
-//! axis — masks, load layers, grammar unions (Milestone 2) —
-//! and the behaviour/runtime axis — base versions, octal policy, expr
-//! grammar, lexer grammar, the per-dialect predicates (Milestone 3). The
-//! versioned-library axis follows.
+//! This is the compositional model of `docs/design/dialect-profile-model.md`:
+//! identity, the availability axis — masks, load layers, grammar unions —
+//! the behaviour/runtime axis — base versions, octal policy, expr grammar,
+//! lexer grammar, the per-dialect predicates — and the versioned-library
+//! axis.
 
 use crate::dialect_set::DialectSet;
 use crate::grammar::{BracedVarStyle, LexerGrammar};
@@ -158,9 +157,8 @@ pub struct DialectProfile {
     /// The registry command packs `load_dialect` applies for this profile,
     /// in order. The plain Tcl versions carry their own version bit (a
     /// spec-less "pack" that records the version on the registry's
-    /// `loaded_dialects`); empty only for the config-only dialects that
-    /// have no pack yet (`f5-tmsh`, `f5-bigip` — first-class in
-    /// Milestone 6).
+    /// `loaded_dialects`); empty only for the permissive fallback profile,
+    /// which loads no pack at all.
     pub base_layers: &'static [DialectSet],
     /// Coarse over-approximating union for **static** grammars only
     /// (tree-sitter / tmLanguage first-paint highlighting). Deliberately
@@ -204,7 +202,7 @@ pub struct DialectProfile {
     pub expr_grammar_base: Option<TclVersion>,
     /// The dialect-derived lexing grammar (`{*}` expansion, the iRules
     /// `}{` separator, the `${…}` delimiting rule). The single source
-    /// `LexerConfig::for_dialect` reads (Milestone 3) — derived from
+    /// `LexerConfig::for_dialect` reads — derived from
     /// `runtime_base` (8.x → first-close, 9.x → nesting) plus the
     /// per-dialect quirks.
     pub grammar: LexerGrammar,
@@ -230,7 +228,7 @@ pub struct DialectProfile {
     /// share one version decision rather than interpreting a dialect name.
     pub vm_runtime_version: TclVersion,
 
-    // AXIS C: versioned libraries (§7.1, D5 — Milestone 6).
+    // AXIS C: versioned libraries (§7.1, D5).
     /// The library packages this profile models, each with its version pin
     /// (§7 "Libraries" column). An **ambient** pin is part of the modelled
     /// runtime (the F5 surfaces, an EDA shell's tool commands): no
@@ -241,7 +239,7 @@ pub struct DialectProfile {
     /// versioned requires raise floors, never lower them below the pin.
     pub libraries: &'static [LibraryPin],
 
-    // AXIS D: out-of-registry vendor knowledge (§5.4 — Milestone 8).
+    // AXIS D: out-of-registry vendor knowledge (§5.4).
     /// Lower-case substring terms that select this dialect's entries in
     /// the KCS help index (`tcl help --dialect`). Empty = no filtering
     /// (the permissive fallback). Resolution through the catalog means
@@ -254,12 +252,11 @@ pub struct DialectProfile {
 /// [`KNOWN_DIALECTS`](crate::KNOWN_DIALECTS) (sorted) order.
 ///
 /// Mask and behaviour values follow the per-dialect table in
-/// `docs/design/dialect-profile-model.md` §7. Interim values that the
-/// milestone plan tightens later are commented at the entry.
+/// `docs/design/dialect-profile-model.md` §7.
 static CATALOG: [DialectProfile; 16] = [
     // bpf embeds a genuine Tcl 9.0 (design doc D7): 9.0 runtime semantics —
     // decimal leading zeros, 9.0 expr grammar, the nesting `${…}` rule —
-    // and, since Milestone 6, the precise `TCL90|BPF` availability mask:
+    // and the precise `TCL90|BPF` availability mask:
     // 9.0-core plus the bpf surface resolve; 8.x-only relics (removed at
     // the 9.0 boundary) are correctly unknown.
     DialectProfile {
@@ -341,7 +338,7 @@ static CATALOG: [DialectProfile; 16] = [
     },
     // Expect embeds Tcl 8.6 — including the 8.x first-close `${…}` rule,
     // which the old string-keyed lexer table missed (it fell through to
-    // the modern-9.x default; Milestone 3 flips it).
+    // the modern-9.x default).
     DialectProfile {
         name: "expect",
         aliases: &[],
@@ -368,8 +365,8 @@ static CATALOG: [DialectProfile; 16] = [
     },
     // f5-bigip is a config parser, not a Tcl surface; it has no command
     // pack, no Tcl runtime (behaviour axis inert — §11.1), and no expr
-    // grammar. First-class since Milestone 6 (D8) as *identity only*: the
-    // bare `BIGIP` bit keys the profile and its versioned schema library —
+    // grammar. It is first-class as *identity only* (D8): the bare
+    // `BIGIP` bit keys the profile and its versioned schema library —
     // BIG-IP config documents route to the tcl-bigip validator, never the
     // Tcl analyser, so this mask is not a Tcl-availability surface.
     DialectProfile {
@@ -398,7 +395,8 @@ static CATALOG: [DialectProfile; 16] = [
     },
     // iApps run a real Tcl 8.5.13 *host* interpreter (not the TMM sandbox):
     // full 8.5 core (dict, lassign, apply) plus the iApp surface; nothing
-    // disabled. `TCL85|IAPPS` is the W123/W002 fix Milestone 2 landed.
+    // disabled. `TCL85|IAPPS` is the mask that keeps the embedded 8.5
+    // core free of W123/W002 false positives.
     DialectProfile {
         name: "f5-iapps",
         aliases: &[],
@@ -458,11 +456,11 @@ static CATALOG: [DialectProfile; 16] = [
         help_terms: &["irules", "irule", "f5", "big-ip", "tmm", "event"],
     },
     // f5-tmsh runs on a Tcl 8.5 base (behaviour axis: octal, 8.5 expr
-    // grammar, the 8.x first-close `${…}` rule — a Milestone 3 flip). It
-    // first-class since Milestone 6 (D8): the tmsh shell hosts a Tcl 8.5
-    // interpreter plus the `tmsh::` surface (shared spec data with iApps,
-    // tagged `IAPPS|TMSH`). The 8.5 base means no TclOO and no 8.6+/9.x
-    // core — the §7.2 reverse-regression this milestone budgets.
+    // grammar, the 8.x first-close `${…}` rule). It is first-class (D8):
+    // the tmsh shell hosts a Tcl 8.5 interpreter plus the `tmsh::` surface
+    // (shared spec data with iApps, tagged `IAPPS|TMSH`). The 8.5 base
+    // means no TclOO and no 8.6+/9.x core — the §7.2 reverse-regression
+    // this model accepts.
     DialectProfile {
         name: "f5-tmsh",
         aliases: &[],
@@ -909,8 +907,8 @@ impl DialectProfile {
     /// [`Self::runtime_base`] is a real `V8_4`) so versioned const-folds
     /// keep returning the dialect-invariant subset there until the
     /// optimiser/SCCP output is verified against real 8.4/8.5/8.6
-    /// interpreters (design doc §12 Milestone 3 guardrail). The modelled
-    /// runtime is `runtime_base`; this accessor is the *fold* policy.
+    /// interpreters. The modelled runtime is `runtime_base`; this accessor
+    /// is the *fold* policy.
     #[must_use]
     pub fn const_fold_version(&self) -> Option<TclVersion> {
         TclVersion::from_dialect(Some(self.name))
@@ -1292,8 +1290,8 @@ mod tests {
 
     #[test]
     fn first_class_vendor_masks_are_precise() {
-        // Milestone 6 (D7/D8) made the last interim masks precise. f5-tmsh:
-        // the tmsh shell's 8.5 host plus its own surface.
+        // The first-class vendor masks are precise (D7/D8). f5-tmsh: the
+        // tmsh shell's 8.5 host plus its own surface.
         assert_eq!(
             DialectProfile::by_name("f5-tmsh").availability_mask,
             DialectSet::TCL85 | DialectSet::TMSH
@@ -1333,7 +1331,7 @@ mod tests {
         assert_eq!(p.grammar_union, DialectSet::IRULES);
     }
 
-    // Behaviour axis (Milestone 3) — the §7.1 derivation rules as
+    // Behaviour axis — the §7.1 derivation rules as
     // invariants, so the hand-laid table can never drift from the model.
 
     fn all_with_fallback() -> impl Iterator<Item = &'static DialectProfile> {
@@ -1387,7 +1385,7 @@ mod tests {
     #[test]
     fn version_ceiling_tracks_the_signature_base() {
         // §7: the option-gating ceiling is the signature base everywhere —
-        // including the Milestone 6 first-class profiles (f5-tmsh V8_5;
+        // including the first-class vendor profiles (f5-tmsh V8_5;
         // f5-bigip has neither, being a non-Tcl surface). Only the
         // permissive fallback stays unceilinged by design.
         for p in all_with_fallback() {
@@ -1479,10 +1477,9 @@ mod tests {
         // §11.2: the hand-filled tcloo bool must agree with what the mask
         // resolves for `oo::*` (gated ~TCL86_PLUS) — otherwise hover and
         // the oo handler would contradict each other. Documented exception:
-        // f5-bigip has NO Tcl surface (tcloo false is the model truth,
-        // §7) while its availability mask stays interim-permissive until
-        // Milestone 6 makes it first-class — the mask side of the
-        // invariant tightens there.
+        // f5-bigip has NO Tcl surface at all (tcloo false is the model
+        // truth, §7), so it is asserted directly rather than through the
+        // mask-derived invariant.
         for p in all_with_fallback() {
             if p.name == "f5-bigip" {
                 assert!(!p.tcloo, "f5-bigip has no Tcl surface at all");
@@ -1548,7 +1545,7 @@ mod tests {
 
     #[test]
     fn expect_and_tmsh_lex_braced_vars_with_the_8x_rule() {
-        // The Milestone 3 flip the old string-keyed lexer table missed:
+        // The 8.x rule the old string-keyed lexer table missed:
         // expect (8.6) and f5-tmsh (8.5) are 8.x runtimes, so `${a{b}c}`
         // names `a{b` — not the Tcl 9 nesting read.
         for name in ["expect", "f5-tmsh"] {
@@ -1567,7 +1564,7 @@ mod tests {
 
     #[test]
     fn const_fold_version_stays_bit_identical_to_from_dialect() {
-        // Milestone 3 guardrail (§12): versioned const-folds keep the
+        // The const-fold guardrail: versioned const-folds keep the
         // exact `TclVersion::from_dialect` behaviour — plain versioned Tcl
         // resolves, every vendor dialect (iRules included, despite its
         // modelled V8_4 runtime) stays None until tclsh-verified.

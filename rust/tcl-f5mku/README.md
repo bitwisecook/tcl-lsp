@@ -23,5 +23,5 @@ false` — for a decrypt-only, entropy-free build).
 
 Shared by the `f5 encrypt-secrets` / `decrypt-secrets` CLI verbs
 ([`f5-cli`](../f5-cli)) and the in-browser BIG-IP report generator
-([`tcl-bigip-report`](../bigip-report/rust) / [`bigip-report-wasm`](../bigip-report-wasm)),
+([`tcl-bigip-report`](../bigip-report-gen/rust) / [`bigip-report-wasm`](../bigip-report-gen/wasm)),
 which uses it to reveal encrypted secrets in a report.

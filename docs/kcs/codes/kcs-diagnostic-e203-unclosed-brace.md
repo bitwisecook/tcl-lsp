@@ -1,7 +1,7 @@
 # KCS: E203 — Why does the analyser flag an unterminated brace group?
 
 > **Audience:** User
-> **Type:** Issue
+> **Type:** Diagnostic
 
 ## Applies to
 
@@ -43,7 +43,7 @@ Add the missing `}` to terminate the brace group so the parser can continue proc
 
 ## How to suppress
 
-Add `# noqa: E203` at the end of the offending line.
+Add `# noqa: E203` on the line **above** the offending command.
 
 ## Related
 

@@ -1,9 +1,8 @@
-# Type tracking — comprehensive value-type model (design)
+# Type tracking — the value-type model
 
-Status: **in progress** — this document is the contract for the type-tracking
-redesign started against issue #940's follow-up work. Each claim in the oracle
-corpus below is tclsh-verified (8.6.14; 9.0 differences noted where known) and
-must be locked in by a test when the corresponding phase lands.
+The contract for how the compiler models Tcl value types. Every claim in the
+oracle corpus below is tclsh-verified (8.6.14, with 9.0 differences noted where
+known) and locked in by a test.
 
 ## Goals
 
@@ -147,56 +146,66 @@ would not.
 | List-op passes | no element facts (object `element_class` only) | `lindex` fold on `Exact` elements, `llength` on `Exact(n)`, guard specialisation on `Uniform` |
 | W126/W307/W308 | single type | must-policy over unions (fewer FPs on merged paths) |
 
-## Phasing
+## The model, part by part
 
-1. **P1 — commit dataflow (shimmer-local)** ✅ **landed**:
-   `shimmer::commit` (`CommitState` must/may pass over SCCP-executable
-   blocks); the use-site / expr / `incr` detectors consult it (second
-   conversions fire with the committed from-type, merges fire only when every
-   path pays, loop re-thunks are S101 with the steady-state rep);
-   `first_use_commitments_for_cu` feeds hover's
-   "string (first used as: list)". Locked in by `shimmer/commit.rs` unit
-   tests, FP-SH-22, and the `commit_dataflow_*` lsp_e2e suite.
-2. **P2 — TypeShape + unions** ✅ **landed**: `TypeLattice` is a bounded
-   canonical union of `TypeShape`s (`bounded_set::BoundedSet`, cap
-   `MAX_TYPE_UNION`); 3+-way merges stay tracked (phi reports every member,
-   hover/inlay render full unions), `Shimmered` survives as the ≥2-member
-   classification, numeric members collapse per the tower, and W126 runs a
-   must-policy over members. SCCP's `ConstSet` and the class lattice keep
-   their own storage deliberately — their dedup is not plain equality
-   (`cv_eq` numeric cross-equality; sorted persistent sets) — documented in
-   `bounded_set.rs`.
-3. **P3 — container element inference** ✅ **landed**: registry facts
-   (`ReturnElements` on `list`/`dict create`/`lindex`/`dict get`/`lrange`,
-   `VarElementsEffect` on `lappend`/`dict set/append/lappend`,
-   `VarWriteTyping::ElementsOf` on `lassign`/`foreach`/`lmap`) drive
-   `type_infer`'s element machinery — the old object-only
-   `collection_element_class` / `container_retrieval_object_type`
-   command-name matches are deleted. Pure/value-unknown element positions
-   stay agnostic (`None`) so FP-SH-17's pins hold; committed sources carry
-   real shapes (`[list [expr {2**20}] x]` is `List<Numeric, ?>`, and
-   `lassign` of an object list types its targets).
-4. **P4 — bignum-exact folding** ✅ **landed**: `TclValue::Big` over
-   `num-bigint` folds `2**64` / `i64::MAX + 1` / `1 << 63` to C's exact
-   values (demote-when-fits; SCCP carries a bignum as its canonical decimal
-   string so chained folds re-parse exactly). The operator semantics live
-   once in `tcl_syntax::number_tower` (`BigIntOps` backend trait), and every
-   backend is pinned by the shared, generic
-   `number_tower::conformance::assert_backend` corpus: the compiler and the
-   **VM** (`tcl_vm::expr`, adopted — beyond-i128 operands, `dict incr`
-   promotion, and the exact `int()`/`wide()`/`entier()`/`abs()`/`double()`
-   windows included) run it over `num-bigint`, and the faithful runtime
-   runs it over the **real libtommath `mp_int`** (`runtime/rust`'s
-   `TowerMp` adapter) — backend swappable with zero semantic drift, now
-   proven by one test per backend rather than by review.
-   Float edges are oracle-pinned (`tcl_expr_eval::float_edge_oracle_table`):
-   NaN comparisons are IEEE-unordered values while NaN operands/results in
-   arithmetic decline (C errors), `Inf` propagates, signed zero and
-   denormals round-trip, `isqrt` is exact at the f64-rounding edge, and an
-   inexact bignum→double contamination declines rather than bet on rounding
-   parity.
+### Commit dataflow (shimmer-local)
 
-### P5 — arrays as per-constant-key scalars ✅ **landed**
+`shimmer::commit` (`CommitState` must/may pass over SCCP-executable
+blocks); the use-site / expr / `incr` detectors consult it (second
+conversions fire with the committed from-type, merges fire only when every
+path pays, loop re-thunks are S101 with the steady-state rep);
+`first_use_commitments_for_cu` feeds hover's
+"string (first used as: list)". Locked in by `shimmer/commit.rs` unit
+tests, FP-SH-22, and the `commit_dataflow_*` lsp_e2e suite.
+
+### `TypeShape` and unions
+
+`TypeLattice` is a bounded
+canonical union of `TypeShape`s (`bounded_set::BoundedSet`, cap
+`MAX_TYPE_UNION`); 3+-way merges stay tracked (phi reports every member,
+hover/inlay render full unions), `Shimmered` survives as the ≥2-member
+classification, numeric members collapse per the tower, and W126 runs a
+must-policy over members. SCCP's `ConstSet` and the class lattice keep
+their own storage deliberately — their dedup is not plain equality
+(`cv_eq` numeric cross-equality; sorted persistent sets) — documented in
+`bounded_set.rs`.
+
+### Container element inference
+
+Registry facts
+(`ReturnElements` on `list`/`dict create`/`lindex`/`dict get`/`lrange`,
+`VarElementsEffect` on `lappend`/`dict set/append/lappend`,
+`VarWriteTyping::ElementsOf` on `lassign`/`foreach`/`lmap`) drive
+`type_infer`'s element machinery — the old object-only
+`collection_element_class` / `container_retrieval_object_type`
+command-name matches are deleted. Pure/value-unknown element positions
+stay agnostic (`None`) so FP-SH-17's pins hold; committed sources carry
+real shapes (`[list [expr {2**20}] x]` is `List<Numeric, ?>`, and
+`lassign` of an object list types its targets).
+
+### Bignum-exact folding
+
+`TclValue::Big` over
+`num-bigint` folds `2**64` / `i64::MAX + 1` / `1 << 63` to C's exact
+values (demote-when-fits; SCCP carries a bignum as its canonical decimal
+string so chained folds re-parse exactly). The operator semantics live
+once in `tcl_syntax::number_tower` (`BigIntOps` backend trait), and every
+backend is pinned by the shared, generic
+`number_tower::conformance::assert_backend` corpus: the compiler and the
+**VM** (`tcl_vm::expr`, adopted — beyond-i128 operands, `dict incr`
+promotion, and the exact `int()`/`wide()`/`entier()`/`abs()`/`double()`
+windows included) run it over `num-bigint`, and the faithful runtime
+runs it over the **real libtommath `mp_int`** (`runtime/rust`'s
+`TowerMp` adapter) — backend swappable with zero semantic drift, now
+proven by one test per backend rather than by review.
+Float edges are oracle-pinned (`tcl_expr_eval::float_edge_oracle_table`):
+NaN comparisons are IEEE-unordered values while NaN operands/results in
+arithmetic decline (C errors), `Inf` propagates, signed zero and
+denormals round-trip, `isqrt` is exact at the f64-rounding edge, and an
+inexact bignum→double contamination declines rather than bet on rounding
+parity.
+
+### Arrays as per-constant-key scalars
 
 A Tcl array is a collection of *variables*, not a value; the oracle corpus
 ("array elements behave as independent scalars") fixes the design. Each
@@ -205,8 +214,8 @@ its own SSA variable (`naming::element_var_name`; the def/use scanners,
 expr AST, lowering `Call` defs, and `def_use` terminator reads all report
 element-qualified names), so it types, folds, and shimmer-checks as the
 independent scalar it is — per-element hover, per-element SCCP constants,
-and the *same*-element loop oscillation now a true S102 (the pre-P5
-conflation exclusion was a forced false negative there).
+and the *same*-element loop oscillation a true S102 (conflating elements
+onto the base would force a false negative there).
 
 A dynamic key (`arr($i)`) stays on the conflated base, and its write
 **fans** as `SsaStatement::may_defs` over the array's known elements:
@@ -240,7 +249,8 @@ catalogue + lsp_e2e where user-visible).
 ## Cross-links
 
 - `docs/design/contracts/shimmer-reference-behaviour.md` — shimmer contract.
-- `docs/design/compiler/FP.md` §FP-SH-21 — pure-first-conversion catalogue.
+- `rust/tcl-compiler/src/analyser/diagnostics/fp/sh.rs` — the paired
+  pure-first-conversion regression tests.
 - `docs/design/contracts/numeric-tower-and-expr-semantics.md` — expr numeric
   semantics.
 - `rust/tcl-compiler/src/shimmer/hints.rs` — `is_pure_intrep` /

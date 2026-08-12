@@ -1,10 +1,10 @@
 # Contract: canonical parser & the AOT/interpret boundary
 
-> **Status:** First-principles design contract (v2 / "if starting over").
-> The semantic boundary a from-scratch AOT compiler + runtime must agree on
-> *before* either is written. As-built notes:
-> [parsing.md](parsing.md), [lexing.md](lexing.md), the WASM codegen pipeline
-> under [../compiler/](../compiler/), and the red/green CST work.
+> The semantic boundary the AOT compiler and the runtime agree on: what one
+> grammar owns, and where "I can compile this" ends and "I must interpret
+> this" begins. As-built notes: [parsing.md](parsing.md),
+> [lexing.md](lexing.md), and the WASM codegen pipeline under
+> [../compiler/](../compiler/).
 
 ## The two non-negotiable ideas
 
@@ -85,9 +85,15 @@ byte-identical:
 * the result string and the return code + options dict
   (`-errorcode`, `-errorinfo`, `-errorstack`, `-level`);
 * the `errorInfo` traceback text, including the "invoked from within …"
-  vs. "while executing …" distinction (which depends on whether the failing
-  command was itself a bytecode-compiled sub-command — see the
-  `transparent_error` mechanism in the as-built runtime);
+  vs. "while executing …" distinction. In the as-built runtime that is the
+  `Interp::error_info` accumulator plus the `error_logged` flag (C's
+  `ERR_ALREADY_LOGGED`): the *first* frame logged selects "while executing",
+  `error_logged` stops the same bytecode frame being re-logged, and it is
+  cleared at a real frame boundary — a nested `eval` / `subst`, a proc or
+  control body — so the enclosing command contributes its own "invoked from
+  within" frame. `error_line` (C's `iPtr->errorLine`) carries the innermost
+  logged command's 1-based source line, which is what the `(procedure … line
+  N)` and `("while" body line N)` frames report;
 * `info script` and `info level`/`info frame` *command* content;
 * the order and arguments of variable/command/execution trace callbacks.
 
@@ -102,11 +108,11 @@ with `info script` set to FILE and relative paths resolved against it."
 `unknown`/`auto_load`/`tclIndex` are a lazy command-discovery layer on top.
 All of it is "interpret code discovered at runtime, from a filesystem."
 
-**Design rule:** put the filesystem and module discovery behind one VFS +
-loader interface so a constrained host (WASI: no writable fs, no real stat)
-is a *missing implementation of a defined interface*, not a missing design.
-The current runtime classifies these as `deferred-wasi` precisely because the
-interface boundary was not drawn first.
+**Design rule:** the filesystem and module discovery sit behind one VFS +
+loader interface, so a constrained host (WASI: no writable fs, no real stat)
+is a *missing implementation of a defined interface* rather than a missing
+design. Capabilities a backend genuinely lacks are declared as such — see
+[../runtime/backend-constraints.md](../runtime/backend-constraints.md).
 
 ## Contract vs. incompatible-by-design
 

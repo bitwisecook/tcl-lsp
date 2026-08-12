@@ -65,7 +65,7 @@ time.
 
 ## How to suppress
 
-Add `# noqa: E006` at the end of the offending line.
+Add `# noqa: E006` on the line **above** the offending command.
 
 ## Related
 

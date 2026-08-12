@@ -1,7 +1,7 @@
-# KCS: W130 — why does my editor say a package is not in the lockfile?
+# KCS: W130 — why is a package not in the lockfile?
 
 > **Audience:** User
-> **Type:** Issue
+> **Type:** Diagnostic
 
 ## Applies to
 
@@ -9,25 +9,32 @@ all-editors, diagnostic, tclpkg
 
 ## Profiles
 
-default
+Reserved — see Status.
 
 ## Question
 
-Why does my editor report W130 on a `require` line in `tclpkg.tcl`?
+What will W130 report about `tclpkg.tcl` and `tclpkg.lock`?
+
+## Status
+
+W130 is specified in the diagnostic registry but is not yet emitted by
+the analyser. No editor or CLI surface currently reports it, and there
+is no `tclLsp.diagnostics.W130` setting to toggle. This page describes
+the check as designed, for when it ships.
 
 ## Why
 
-The manifest declares a dependency, but the lockfile does not contain a
-matching entry. The resolver has not run since the dependency was added, so
-packages will not be available at runtime.
+The manifest declares a dependency, but the lockfile has no matching
+entry. If the resolver has not run since the dependency was added,
+`tcl pkg install` needs to run before the package is available at
+runtime.
 
-## Symptoms
+## Intended message
 
-- Yellow squiggle on a `require` or `dev-require` line in `tclpkg.tcl`.
-- Problems panel shows: "tclpkg.tcl requires package but it is not in
-  tclpkg.lock — run 'tcl pkg install'."
+"tclpkg.tcl requires package but it is not in tclpkg.lock — run 'tcl
+pkg install'."
 
-## Example that triggers it
+## Example that would trigger it
 
 ```tcl
 package myapp
@@ -35,8 +42,8 @@ version 1.0.0
 require json 1.3.5
 ```
 
-The analyser reports **W130** on the `require json 1.3.5` line when
-`tclpkg.lock` does not contain an entry for `json`.
+If `tclpkg.lock` has no entry for `json`, W130 would report on the
+`require json 1.3.5` line.
 
 ## Fix
 
@@ -44,14 +51,8 @@ The analyser reports **W130** on the `require json 1.3.5` line when
 tcl pkg install
 ```
 
-This runs the MVS resolver, writes `tclpkg.lock`, and materialises
+This runs the resolver, writes `tclpkg.lock`, and materialises
 packages into `lib/`.
-
-## How to suppress
-
-Disable via editor settings: `tclLsp.diagnostics.W130: false`. This
-diagnostic is on by default because an out-of-sync lockfile is almost
-always unintentional.
 
 ## Related
 

@@ -406,8 +406,7 @@ impl Analyser {
     /// [`Self::emit_cfg_ssa_diagnostics`] build and the per-item incremental
     /// path's memoised shell unit — so the fact is produced exactly once per
     /// analysis and never merged per grafted body (`analyser/per_item.rs`
-    /// pins that with the same reasoning).  No consumer reads it in this PR;
-    /// the five dispatch sites and semantic tokens migrate in C5b.
+    /// pins that with the same reasoning).
     fn produce_object_handle_facts(
         &mut self,
         cu: &crate::compilation_unit::CompilationUnit,
