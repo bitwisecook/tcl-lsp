@@ -26,10 +26,33 @@
 //! (`rust/tcl-compiler/src/codegen/wasm/backend.rs`) emits `call`s to. The
 //! reference set is the retiring Python `compiler/codegen/wasm/_imports.py`.
 //!
+//! ## The prebuilt-argv tier
+//!
+//! The general backend's **normal** path for a leaf command evaluates the words
+//! itself and hands this ABI a complete argv, so the runtime resolves and
+//! dispatches the command without re-lexing, re-parsing, or re-substituting the
+//! source:
+//!
+//! ```text
+//! frame = tcl_codegen_call_frame_alloc(bytes, 4);   ;; argv + completion storage
+//!         tcl_obj_new_string_owned(off, len)        ;; a literal word
+//!         tcl_codegen_var_get(off, len)             ;; a $scalar word
+//!         tcl_codegen_var_get_element(…)            ;; a $arr(key) word
+//!         tcl_codegen_word_concat(parts, count)     ;; a compound word
+//!         tcl_invoke_argv(argv, argc, completion);  ;; …dispatch on the code…
+//!         tcl_obj_release(word) per slot; tcl_codegen_call_frame_free(frame)
+//! ```
+//!
+//! `docs/design/compiler/wasm-codegen.md` describes the frame layout and the
+//! single cleanup path the emitter uses so an abrupt completion cannot leak.
+//!
 //! ## The eval-fallback tier
 //!
-//! The backend's current tier boxes each leaf command / condition as a Tcl
-//! string in the module's data section and hands it to the runtime to interpret:
+//! A word shape the emitter cannot prove — `{*}` expansion, backslash
+//! substitution, a computed variable name — keeps its whole statement on the
+//! older tier, which boxes the command / condition as a Tcl string in the
+//! module's data section and hands it to the runtime to interpret. Conditions
+//! always take this path:
 //!
 //! ```text
 //! command   :  code = tcl_eval_code(tcl_obj_new_string(off, len)); …dispatch on code…
@@ -70,6 +93,7 @@
 
 use core::cell::Cell;
 use core::ptr;
+#[cfg(target_arch = "wasm32")]
 use core::sync::atomic::{AtomicUsize, Ordering};
 use std::alloc::{alloc, dealloc, handle_alloc_error, Layout};
 use std::collections::HashMap;
@@ -139,11 +163,46 @@ const _: () = {
     );
 };
 
-/// Number of live frames allocated through the compiler transport boundary.
-///
-/// This intentionally tracks only raw transient frames, not Tcl objects; test
-/// code uses it to prove that every generated cleanup path balances allocation.
+// Number of live frames allocated through the compiler transport boundary.
+//
+// This intentionally tracks only raw transient frames, not Tcl objects; test
+// code uses it to prove that every generated cleanup path balances allocation.
+//
+// Per-thread on native, for the same reason `crate::counters` is: the parallel
+// `cargo test` build must not let one test's frames show up in another test's
+// ledger. WASM keeps a plain global — it is single-threaded, and the bare
+// wasip1 cdylib has no TLS bootstrap (see `CURRENT_INTERP` below).
+#[cfg(not(target_arch = "wasm32"))]
+thread_local! {
+    static CODEGEN_CALL_FRAMES_OUTSTANDING: Cell<usize> = const { Cell::new(0) };
+}
+#[cfg(target_arch = "wasm32")]
 static CODEGEN_CALL_FRAMES_OUTSTANDING: AtomicUsize = AtomicUsize::new(0);
+
+fn call_frame_allocated() {
+    #[cfg(not(target_arch = "wasm32"))]
+    CODEGEN_CALL_FRAMES_OUTSTANDING.with(|frames| frames.set(frames.get().saturating_add(1)));
+    #[cfg(target_arch = "wasm32")]
+    CODEGEN_CALL_FRAMES_OUTSTANDING.fetch_add(1, Ordering::SeqCst);
+}
+
+fn call_frame_released() {
+    #[cfg(not(target_arch = "wasm32"))]
+    CODEGEN_CALL_FRAMES_OUTSTANDING.with(|frames| frames.set(frames.get().saturating_sub(1)));
+    #[cfg(target_arch = "wasm32")]
+    CODEGEN_CALL_FRAMES_OUTSTANDING.fetch_sub(1, Ordering::SeqCst);
+}
+
+fn call_frames_outstanding() -> usize {
+    #[cfg(not(target_arch = "wasm32"))]
+    {
+        CODEGEN_CALL_FRAMES_OUTSTANDING.with(Cell::get)
+    }
+    #[cfg(target_arch = "wasm32")]
+    {
+        CODEGEN_CALL_FRAMES_OUTSTANDING.load(Ordering::SeqCst)
+    }
+}
 
 /// Live frame layouts, keyed by their exact returned shared-memory address.
 ///
@@ -196,7 +255,7 @@ pub extern "C" fn tcl_codegen_call_frame_alloc(bytes: i32, align: i32) -> *mut u
         handle_alloc_error(layout);
     }
     lock_call_frame_layouts().insert(frame.addr(), layout);
-    CODEGEN_CALL_FRAMES_OUTSTANDING.fetch_add(1, Ordering::SeqCst);
+    call_frame_allocated();
     frame
 }
 
@@ -222,16 +281,20 @@ pub unsafe extern "C" fn tcl_codegen_call_frame_free(frame: *mut u8) -> i32 {
     };
     // SAFETY: upheld by this function's contract.
     unsafe { dealloc(frame, layout) };
-    CODEGEN_CALL_FRAMES_OUTSTANDING.fetch_sub(1, Ordering::SeqCst);
+    call_frame_released();
     0
 }
 
-/// Return the number of outstanding compiler transport call frames.
+/// Return the number of outstanding compiler transport call frames on this
+/// thread.
 ///
-/// This is a diagnostic/test boundary rather than an allocation mechanism.
+/// This is a diagnostic/test boundary rather than an allocation mechanism. A
+/// generated module is single-threaded, so "this thread" is the whole program
+/// there; the native test build keeps a per-thread ledger so parallel tests do
+/// not observe each other's frames.
 #[no_mangle]
 pub extern "C" fn tcl_codegen_call_frame_outstanding() -> i32 {
-    i32::try_from(CODEGEN_CALL_FRAMES_OUTSTANDING.load(Ordering::SeqCst)).unwrap_or(i32::MAX)
+    i32::try_from(call_frames_outstanding()).unwrap_or(i32::MAX)
 }
 
 /// Convert the shared semantic completion to its object-handle ABI form.
@@ -572,6 +635,95 @@ pub unsafe extern "C" fn tcl_codegen_var_get(name_ptr: *const u8, name_len: i32)
         return ptr::null_mut();
     };
     // SAFETY: variable storage owns the existing reference; the stack claims one.
+    unsafe { obj::incr_ref_count(value) };
+    value
+}
+
+/// Read one Tcl array element as an owned generated-word value.
+///
+/// This is the array-element half of the compiled word-evaluation surface:
+/// [`tcl_codegen_var_get`] reads a variable under its exact name (the scalar a
+/// `${a(b)}` spelling names), while this reads `name(key)` as the element
+/// access a `$name(key)` spelling means. The compiler already split the two,
+/// so the runtime never re-parses a variable reference here.
+///
+/// Fires `name`'s read traces first, exactly as the interpreted `$name(key)`
+/// substitution does. A read-trace error, a missing array, or a missing
+/// element sets the interpreter error and returns null; generated code treats
+/// null as an aborting Tcl error for the enclosing command.
+///
+/// # Safety
+/// Both ranges must be readable shared linear memory.
+#[no_mangle]
+pub unsafe extern "C" fn tcl_codegen_var_get_element(
+    name_ptr: *const u8,
+    name_len: i32,
+    key_ptr: *const u8,
+    key_len: i32,
+) -> *mut TclObj {
+    let interp = current_interp();
+    if interp.is_null() {
+        return ptr::null_mut();
+    }
+    let name = unsafe { input_bytes(name_ptr, name_len) };
+    let key = unsafe { input_bytes(key_ptr, key_len) };
+    // SAFETY: the bootstrap installed a live current interpreter.
+    let interp = unsafe { &mut *interp };
+    if interp.fire_read_trace(name, Some(key)).is_some() {
+        return ptr::null_mut();
+    }
+    let Some(value) = interp.var_get_elem(name, key) else {
+        let msg = interp.read_miss_msg(name, Some(key));
+        interp.set_error(&msg);
+        return ptr::null_mut();
+    };
+    // SAFETY: the array cell owns the existing reference; the stack claims one.
+    unsafe { obj::incr_ref_count(value) };
+    value
+}
+
+/// Join `count` evaluated word parts into one owned Tcl value.
+///
+/// This is the runtime half of compiled compound-word evaluation: a quoted or
+/// concatenated Tcl word evaluates each part and joins their string
+/// representations, so the emitter hands over the already-evaluated parts
+/// rather than performing string work itself.
+///
+/// `parts` is **borrowed**: the caller keeps its owned reference to each part
+/// and releases them on its own cleanup path. The returned value carries one
+/// caller-owned reference. A null part yields null so generated code can treat
+/// it as an aborting error; a zero `count` yields an owned empty value.
+///
+/// # Safety
+/// For a positive `count`, `parts` must point to `count` readable pointers,
+/// each null or a live `TclObj` the caller keeps alive for the call.
+#[no_mangle]
+pub unsafe extern "C" fn tcl_codegen_word_concat(
+    parts: *const *mut TclObj,
+    count: i32,
+) -> *mut TclObj {
+    let Ok(count) = usize::try_from(count) else {
+        return ptr::null_mut();
+    };
+    let joined = if count == 0 {
+        Vec::new()
+    } else {
+        if parts.is_null() {
+            return ptr::null_mut();
+        }
+        // SAFETY: the caller guarantees `count` readable pointers.
+        let words = unsafe { core::slice::from_raw_parts(parts, count) };
+        if words.iter().any(|word| word.is_null()) {
+            return ptr::null_mut();
+        }
+        let mut joined = Vec::new();
+        for &word in words {
+            joined.extend_from_slice(&obj_bytes(word));
+        }
+        joined
+    };
+    let value = new_string_bytes(&joined);
+    // SAFETY: a generated operand-stack value owns one reference.
     unsafe { obj::incr_ref_count(value) };
     value
 }
@@ -1413,6 +1565,265 @@ mod tests {
             assert!(tcl_codegen_call_frame_alloc(0, 4).is_null());
             assert!(tcl_codegen_call_frame_alloc(8, 3).is_null());
         }
+    }
+
+    /// Model the frame an emitted leaf statement allocates: `slots` owned
+    /// object slots followed by `completions` completion records.
+    ///
+    /// This mirrors `codegen::wasm::leaf_invoke`'s layout, so the round-trip
+    /// tests below exercise the same allocation, adoption, and release order
+    /// the emitted module performs. The emitter's byte offsets are the wasm32
+    /// ones fixed in `tcl-runtime-api`; a native test frame uses the host's own
+    /// pointer width for the same shape.
+    struct CompiledFrame {
+        base: *mut u8,
+        slots: usize,
+    }
+
+    impl CompiledFrame {
+        const STRIDE: usize = core::mem::size_of::<*mut TclObj>();
+        const ALIGN: usize =
+            if core::mem::align_of::<TclCompletionAbi>() > core::mem::align_of::<*mut TclObj>() {
+                core::mem::align_of::<TclCompletionAbi>()
+            } else {
+                core::mem::align_of::<*mut TclObj>()
+            };
+
+        fn new(slots: usize, completions: usize) -> Self {
+            let objects = slots * Self::STRIDE;
+            let completion_base = objects.next_multiple_of(Self::ALIGN);
+            let bytes = completion_base + completions * core::mem::size_of::<TclCompletionAbi>();
+            let base = tcl_codegen_call_frame_alloc(
+                i32::try_from(bytes).expect("test frame fits i32"),
+                i32::try_from(Self::ALIGN).expect("test frame alignment fits i32"),
+            );
+            assert!(!base.is_null());
+            let frame = Self { base, slots };
+            // The emitted prologue nulls every object slot so the single
+            // cleanup path can release them null-safely.
+            for slot in 0..slots {
+                frame.store(slot, ptr::null_mut());
+            }
+            frame
+        }
+
+        fn slot_ptr(&self, slot: usize) -> *mut *mut TclObj {
+            assert!(slot < self.slots);
+            // SAFETY: `slot` is inside the allocation this frame owns.
+            unsafe { self.base.add(slot * Self::STRIDE).cast::<*mut TclObj>() }
+        }
+
+        fn store(&self, slot: usize, value: *mut TclObj) {
+            // SAFETY: the slot is inside this frame's allocation.
+            unsafe { self.slot_ptr(slot).write(value) };
+        }
+
+        fn load(&self, slot: usize) -> *mut TclObj {
+            // SAFETY: every slot was written by `new` before any read.
+            unsafe { self.slot_ptr(slot).read() }
+        }
+
+        fn completion(&self, index: usize) -> *mut TclCompletionAbi {
+            let base = (self.slots * Self::STRIDE).next_multiple_of(Self::ALIGN);
+            // SAFETY: completion storage follows the object slots.
+            unsafe {
+                self.base
+                    .add(base + index * core::mem::size_of::<TclCompletionAbi>())
+                    .cast::<TclCompletionAbi>()
+            }
+        }
+
+        /// The emitted epilogue: release every object slot, then free the frame.
+        fn release(self) {
+            for slot in 0..self.slots {
+                // SAFETY: each slot is null or one owned reference.
+                unsafe { tcl_obj_release(self.load(slot)) };
+            }
+            // SAFETY: the frame came from the matching allocator.
+            assert_eq!(unsafe { tcl_codegen_call_frame_free(self.base) }, 0);
+        }
+    }
+
+    /// Run one compiled invocation exactly as the emitter lays it out: dispatch
+    /// the argv run starting at `argv_slot`, stash the code, and adopt the
+    /// completion's owned result and options into their frame slots.
+    unsafe fn compiled_invoke(
+        frame: &CompiledFrame,
+        argv_slot: usize,
+        argc: usize,
+        completion: usize,
+        result_slot: usize,
+        options_slot: usize,
+    ) -> i32 {
+        let out = frame.completion(completion);
+        // SAFETY: the argv run and completion record are inside the frame.
+        unsafe {
+            tcl_invoke_argv(
+                frame.slot_ptr(argv_slot).cast_const(),
+                i32::try_from(argc).expect("test argc fits i32"),
+                out,
+            );
+            frame.store(result_slot, (*out).result);
+            frame.store(options_slot, (*out).options);
+            (*out).code
+        }
+    }
+
+    /// `$a(b)` reads the array element, fires its read traces, and hands
+    /// generated code exactly one releasable reference.
+    #[test]
+    fn var_get_element_reads_an_array_element() {
+        leak_free(|| unsafe {
+            let interp = tcl_runtime_create_interp();
+            tcl_runtime_set_current_interp(interp);
+            assert_eq!(tcl_eval_code(box_str(b"set a(b) element")), 0);
+
+            let value = tcl_codegen_var_get_element(b"a".as_ptr(), 1, b"b".as_ptr(), 1);
+            assert!(!value.is_null());
+            assert_eq!(obj_bytes(value), b"element");
+            tcl_obj_release(value);
+
+            // A missing element reports the C-faithful read error, not a scalar
+            // miss on a name that happens to contain parentheses.
+            assert!(tcl_codegen_var_get_element(b"a".as_ptr(), 1, b"z".as_ptr(), 1).is_null());
+            assert_eq!(
+                (*interp).result_bytes(),
+                b"can't read \"a(z)\": no such element in array"
+            );
+
+            tcl_runtime_set_current_interp(ptr::null_mut());
+            tcl_runtime_delete_interp(interp);
+        });
+    }
+
+    /// `tcl_codegen_word_concat` borrows its parts and returns one owned join.
+    #[test]
+    fn word_concat_borrows_its_parts() {
+        leak_free(|| unsafe {
+            let interp = tcl_runtime_create_interp();
+            tcl_runtime_set_current_interp(interp);
+            let parts = [owned_word(b"hi "), owned_word(b"world")];
+            let counts = parts.map(|part| (*part).ref_count);
+
+            let joined = tcl_codegen_word_concat(parts.as_ptr(), 2);
+            assert_eq!(obj_bytes(joined), b"hi world");
+            assert_eq!((*joined).ref_count, 1);
+            assert_eq!(parts.map(|part| (*part).ref_count), counts);
+            tcl_obj_release(joined);
+
+            let empty = tcl_codegen_word_concat(ptr::null(), 0);
+            assert_eq!(obj_bytes(empty), b"");
+            tcl_obj_release(empty);
+            assert!(tcl_codegen_word_concat(ptr::null(), 1).is_null());
+
+            release_words(&parts);
+            tcl_runtime_set_current_interp(ptr::null_mut());
+            tcl_runtime_delete_interp(interp);
+        });
+    }
+
+    /// The whole compiled leaf-statement shape — allocate one frame, evaluate
+    /// every word into it, dispatch, adopt the completion, release everything —
+    /// balances its allocations and leaves no outstanding call frame.
+    #[test]
+    fn compiled_leaf_statement_round_trip_is_leak_free() {
+        let frames_before = tcl_codegen_call_frame_outstanding();
+        leak_free(|| unsafe {
+            let interp = tcl_runtime_create_interp();
+            tcl_runtime_set_current_interp(interp);
+            assert_eq!(tcl_eval_code(box_str(b"set value abc")), 0);
+
+            // `string length $value`: three argv slots, then the root result
+            // and options, and one completion record.
+            let frame = CompiledFrame::new(5, 1);
+            frame.store(0, tcl_obj_new_string_owned(b"string".as_ptr(), 6));
+            frame.store(1, tcl_obj_new_string_owned(b"length".as_ptr(), 6));
+            frame.store(2, tcl_codegen_var_get(b"value".as_ptr(), 5));
+            assert!(!frame.load(2).is_null());
+
+            let code = compiled_invoke(&frame, 0, 3, 0, 3, 4);
+            assert_eq!(code, 0);
+            assert_eq!(obj_bytes(frame.load(3)), b"3");
+            frame.release();
+
+            tcl_runtime_set_current_interp(ptr::null_mut());
+            tcl_runtime_delete_interp(interp);
+        });
+        assert_eq!(tcl_codegen_call_frame_outstanding(), frames_before);
+    }
+
+    /// A nested `[…]` word adopts the inner completion's owned result as the
+    /// outer word's value; both invocations share one frame and one cleanup.
+    #[test]
+    fn compiled_nested_word_round_trip_is_leak_free() {
+        let frames_before = tcl_codegen_call_frame_outstanding();
+        leak_free(|| unsafe {
+            let interp = tcl_runtime_create_interp();
+            tcl_runtime_set_current_interp(interp);
+
+            // `string length [string tolower ABC]`:
+            //   slots 0..2  outer argv (slot 2 receives the nested result)
+            //   slot  3     outer options, slot 4 outer result
+            //   slots 5..7  nested argv, slot 8 nested options
+            let frame = CompiledFrame::new(9, 2);
+            frame.store(0, tcl_obj_new_string_owned(b"string".as_ptr(), 6));
+            frame.store(1, tcl_obj_new_string_owned(b"length".as_ptr(), 6));
+            frame.store(5, tcl_obj_new_string_owned(b"string".as_ptr(), 6));
+            frame.store(6, tcl_obj_new_string_owned(b"tolower".as_ptr(), 7));
+            frame.store(7, tcl_obj_new_string_owned(b"ABC".as_ptr(), 3));
+
+            assert_eq!(compiled_invoke(&frame, 5, 3, 1, 2, 8), 0);
+            assert_eq!(obj_bytes(frame.load(2)), b"abc");
+            assert_eq!(compiled_invoke(&frame, 0, 3, 0, 4, 3), 0);
+            assert_eq!(obj_bytes(frame.load(4)), b"3");
+            frame.release();
+
+            tcl_runtime_set_current_interp(ptr::null_mut());
+            tcl_runtime_delete_interp(interp);
+        });
+        assert_eq!(tcl_codegen_call_frame_outstanding(), frames_before);
+    }
+
+    /// The abrupt-completion paths are the ones that can leak: the statement
+    /// leaves part-way through word evaluation, or the invocation itself
+    /// completes `error` / `break` / `return`. Every one still runs the single
+    /// cleanup path, so the counters and the frame ledger both balance.
+    #[test]
+    fn compiled_abrupt_completions_release_every_partial_word() {
+        let frames_before = tcl_codegen_call_frame_outstanding();
+        leak_free(|| unsafe {
+            let interp = tcl_runtime_create_interp();
+            tcl_runtime_set_current_interp(interp);
+
+            // A missing variable aborts mid-argv: two words are already owned
+            // by the frame and the third read failed.
+            let frame = CompiledFrame::new(5, 1);
+            frame.store(0, tcl_obj_new_string_owned(b"string".as_ptr(), 6));
+            frame.store(1, tcl_obj_new_string_owned(b"length".as_ptr(), 6));
+            frame.store(2, tcl_codegen_var_get(b"missing".as_ptr(), 7));
+            assert!(frame.load(2).is_null(), "the read must report an error");
+            frame.release();
+
+            // `error`, `break`, and `return` all complete through the same
+            // adopt-then-release path before the emitted dispatch branches.
+            for (command, expected) in [(&b"error"[..], 1), (&b"break"[..], 3), (&b"return"[..], 2)]
+            {
+                let frame = CompiledFrame::new(3, 1);
+                frame.store(
+                    0,
+                    tcl_obj_new_string_owned(
+                        command.as_ptr(),
+                        i32::try_from(command.len()).expect("test word fits i32"),
+                    ),
+                );
+                assert_eq!(compiled_invoke(&frame, 0, 1, 0, 1, 2), expected);
+                frame.release();
+            }
+
+            tcl_runtime_set_current_interp(ptr::null_mut());
+            tcl_runtime_delete_interp(interp);
+        });
+        assert_eq!(tcl_codegen_call_frame_outstanding(), frames_before);
     }
 
     /// The argv constructor transfers exactly one owned reference, which is

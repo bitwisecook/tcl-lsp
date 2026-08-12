@@ -46,6 +46,7 @@ pub struct CodegenAbiImport {
 const I32: &[CodegenAbiValueType] = &[CodegenAbiValueType::I32];
 const I32_I32: &[CodegenAbiValueType] = &[CodegenAbiValueType::I32; 2];
 const I32_I32_I32: &[CodegenAbiValueType] = &[CodegenAbiValueType::I32; 3];
+const I32_I32_I32_I32: &[CodegenAbiValueType] = &[CodegenAbiValueType::I32; 4];
 const NONE: &[CodegenAbiValueType] = &[];
 
 /// Compiler/runtime code-generation imports.
@@ -65,6 +66,10 @@ pub enum CodegenAbiImportId {
     ObjectRetain,
     /// Release one Tcl object owned reference.
     ObjectRelease,
+    /// Read one Tcl array element as an owned generated-word value.
+    VarGetElement,
+    /// Join evaluated word parts into one owned Tcl value.
+    WordConcat,
 }
 
 impl CodegenAbiImportId {
@@ -113,6 +118,18 @@ impl CodegenAbiImportId {
                 name: "tcl_obj_release",
                 parameters: I32,
                 results: NONE,
+            },
+            Self::VarGetElement => CodegenAbiImport {
+                module: "tcl",
+                name: "tcl_codegen_var_get_element",
+                parameters: I32_I32_I32_I32,
+                results: I32,
+            },
+            Self::WordConcat => CodegenAbiImport {
+                module: "tcl",
+                name: "tcl_codegen_word_concat",
+                parameters: I32_I32,
+                results: I32,
             },
         }
     }
