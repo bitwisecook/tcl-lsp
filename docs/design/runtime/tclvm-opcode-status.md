@@ -1,20 +1,29 @@
 # TCLVM opcode status — C Tcl 9.0 instruction coverage
 
 > **Goal:** the bytecode VM (`rust/tcl-vm`) executes the **same opcode set** as
-> the C Tcl 9.0 bytecode engine (`tmp/tcl9.0.3/generic/tclExecute.c`,
+> the C Tcl 9.0 bytecode engine (`tmp/tcl9.0.4/generic/tclExecute.c`,
 > `tclCompile.c` `InstructionDesc`). This is the binary-compatibility checklist:
 > all 191 C Tcl 9.0 instructions, ticked off as the VM implements them. Match
 > C Tcl semantics exactly (operands, stack effect, error behaviour).
 
 ## Legend
 
-- `[x]` — executed by `tcl-vm` (`exec.rs`).
+- `[x]` — executed by `tcl-vm` (`exec.rs`); a trailing `(note N)` marks a
+  documented partial or deliberate divergence, listed under **Notes** below.
 - `[~]` — present in the `tcl-bytecode` `Op` enum (the codegen can emit it) but
   **not yet executed** by the VM.
 - `[ ]` — **not yet in** the `Op` enum (needs adding to `tcl-bytecode` first,
   matching the C Tcl mnemonic/operands).
-Status (auto-countable): **98 executed · 39 enum-only · 54 missing · 191 total**.
+Status (auto-countable): **191 executed · 0 enum-only · 0 missing · 191 total**.
 Keep this in sync when adding opcodes — update the row and the count.
+
+The coverage was last rebuilt from source (not incremented) against Tcl 9.0.4:
+`tclInstructionTable[]` ordering, operand widths, and per-instruction semantics
+were audited instruction-by-instruction; the `opcode_family_partition_total`
+test (`rust/tcl-bytecode/src/lib.rs`) keeps every enum variant routed to
+exactly one mnemonic family and size class, and
+`rust/tcl-vm/tests/opcode_c_parity.rs` + `opcode_catch_parity.rs` pin the
+C-semantics contracts.
 
 ## Instructions (C Tcl 9.0 `InstructionDesc` order)
 
@@ -26,30 +35,30 @@ Keep this in sync when adding opcodes — update the row and the count.
 - [x] `strcat`
 - [x] `invokeStk1`
 - [x] `invokeStk4`
-- [~] `evalStk`
-- [x] `exprStk`
+- [x] `evalStk`
+- [x] `exprStk` (note 6)
 - [x] `loadScalar1`
 - [x] `loadScalar4`
-- [ ] `loadScalarStk`
+- [x] `loadScalarStk`
 - [x] `loadArray1`
-- [ ] `loadArray4`
+- [x] `loadArray4`
 - [x] `loadArrayStk`
 - [x] `loadStk`
 - [x] `storeScalar1`
 - [x] `storeScalar4`
-- [ ] `storeScalarStk`
+- [x] `storeScalarStk`
 - [x] `storeArray1`
-- [ ] `storeArray4`
+- [x] `storeArray4`
 - [x] `storeArrayStk`
 - [x] `storeStk`
 - [x] `incrScalar1`
-- [ ] `incrScalarStk`
-- [ ] `incrArray1`
-- [ ] `incrArrayStk`
+- [x] `incrScalarStk`
+- [x] `incrArray1`
+- [x] `incrArrayStk`
 - [x] `incrStk`
 - [x] `incrScalar1Imm`
-- [ ] `incrScalarStkImm`
-- [ ] `incrArray1Imm`
+- [x] `incrScalarStkImm`
+- [x] `incrArray1Imm`
 - [x] `incrArrayStkImm`
 - [x] `incrStkImm`
 - [x] `jump1`
@@ -81,10 +90,10 @@ Keep this in sync when adding opcodes — update the row and the count.
 - [x] `tryCvtToNumeric`
 - [x] `break`
 - [x] `continue`
-- [~] `beginCatch4`
-- [~] `endCatch`
-- [~] `pushResult`
-- [~] `pushReturnCode`
+- [x] `beginCatch4` (note 1)
+- [x] `endCatch` (note 1)
+- [x] `pushResult` (note 1)
+- [x] `pushReturnCode` (note 1)
 - [x] `streq`
 - [x] `strneq`
 - [x] `strcmp`
@@ -94,128 +103,186 @@ Keep this in sync when adding opcodes — update the row and the count.
 - [x] `list`
 - [x] `listIndex`
 - [x] `listLength`
-- [~] `appendScalar1`
-- [ ] `appendScalar4`
-- [ ] `appendArray1`
-- [ ] `appendArray4`
-- [ ] `appendArrayStk`
-- [~] `appendStk`
-- [~] `lappendScalar1`
-- [ ] `lappendScalar4`
-- [ ] `lappendArray1`
-- [ ] `lappendArray4`
-- [ ] `lappendArrayStk`
-- [~] `lappendStk`
-- [~] `lindexMulti`
+- [x] `appendScalar1`
+- [x] `appendScalar4`
+- [x] `appendArray1`
+- [x] `appendArray4`
+- [x] `appendArrayStk`
+- [x] `appendStk`
+- [x] `lappendScalar1`
+- [x] `lappendScalar4`
+- [x] `lappendArray1`
+- [x] `lappendArray4`
+- [x] `lappendArrayStk`
+- [x] `lappendStk`
+- [x] `lindexMulti`
 - [x] `over`
-- [~] `lsetList`
-- [~] `lsetFlat`
-- [x] `returnImm`
+- [x] `lsetList`
+- [x] `lsetFlat`
+- [x] `returnImm` (note 2)
 - [x] `expon`
-- [~] `expandStart`
-- [~] `expandStkTop`
-- [~] `invokeExpanded`
+- [x] `expandStart`
+- [x] `expandStkTop`
+- [x] `invokeExpanded`
 - [x] `listIndexImm`
 - [x] `listRangeImm`
-- [x] `startCommand`
+- [x] `startCommand` (note 7)
 - [x] `listIn`
 - [x] `listNotIn`
-- [~] `pushReturnOpts`
+- [x] `pushReturnOpts` (note 1)
 - [x] `returnStk`
-- [~] `dictGet`
-- [~] `dictSet`
-- [~] `dictUnset`
-- [~] `dictIncrImm`
-- [~] `dictAppend`
-- [~] `dictLappend`
-- [ ] `dictFirst`
-- [ ] `dictNext`
-- [ ] `dictUpdateStart`
-- [ ] `dictUpdateEnd`
+- [x] `dictGet`
+- [x] `dictSet`
+- [x] `dictUnset`
+- [x] `dictIncrImm`
+- [x] `dictAppend`
+- [x] `dictLappend`
+- [x] `dictFirst`
+- [x] `dictNext`
+- [x] `dictUpdateStart`
+- [x] `dictUpdateEnd`
 - [x] `jumpTable`
-- [~] `upvar`
-- [~] `nsupvar`
-- [ ] `variable`
-- [~] `syntax`
-- [~] `reverse`
-- [~] `regexp`
+- [x] `upvar`
+- [x] `nsupvar`
+- [x] `variable`
+- [x] `syntax` (note 2)
+- [x] `reverse`
+- [x] `regexp`
 - [x] `existScalar`
-- [ ] `existArray`
-- [ ] `existArrayStk`
+- [x] `existArray`
+- [x] `existArrayStk`
 - [x] `existStk`
 - [x] `nop`
-- [ ] `returnCodeBranch`
-- [ ] `unsetScalar`
-- [ ] `unsetArray`
-- [ ] `unsetArrayStk`
+- [x] `returnCodeBranch`
+- [x] `unsetScalar`
+- [x] `unsetArray`
+- [x] `unsetArrayStk`
 - [x] `unsetStk`
-- [ ] `dictExpand`
-- [ ] `dictRecombineStk`
-- [ ] `dictRecombineImm`
-- [~] `dictExists`
+- [x] `dictExpand`
+- [x] `dictRecombineStk` (note 3)
+- [x] `dictRecombineImm` (note 3)
+- [x] `dictExists`
 - [x] `verifyDict`
-- [~] `strmap`
+- [x] `strmap`
 - [x] `strfind`
 - [x] `strrfind`
 - [x] `strrangeImm`
 - [x] `strrange`
-- [ ] `yield`
-- [ ] `coroName`
-- [~] `tailcall`
-- [ ] `currentNamespace`
-- [ ] `infoLevelNumber`
-- [ ] `infoLevelArgs`
-- [ ] `resolveCmd`
-- [ ] `tclooSelf`
-- [ ] `tclooClass`
-- [ ] `tclooNamespace`
-- [ ] `tclooIsObject`
-- [ ] `arrayExistsStk`
-- [x] `arrayExistsImm`
-- [ ] `arrayMakeStk`
-- [ ] `arrayMakeImm`
-- [~] `invokeReplace`
+- [x] `yield`
+- [x] `coroName`
+- [x] `tailcall`
+- [x] `currentNamespace`
+- [x] `infoLevelNumber`
+- [x] `infoLevelArgs`
+- [x] `resolveCmd`
+- [x] `tclooSelf` (note 5)
+- [x] `tclooClass`
+- [x] `tclooNamespace`
+- [x] `tclooIsObject`
+- [x] `arrayExistsStk` (note 8)
+- [x] `arrayExistsImm` (note 8)
+- [x] `arrayMakeStk`
+- [x] `arrayMakeImm`
+- [x] `invokeReplace`
 - [x] `listConcat`
-- [ ] `expandDrop`
+- [x] `expandDrop`
 - [x] `foreach_start`
 - [x] `foreach_step`
 - [x] `foreach_end`
-- [ ] `lmap_collect`
+- [x] `lmap_collect` (note 9)
 - [x] `strtrim`
 - [x] `strtrimLeft`
 - [x] `strtrimRight`
-- [~] `concatStk`
-- [x] `strcaseUpper`
-- [x] `strcaseLower`
-- [x] `strcaseTitle`
-- [~] `strreplace`
-- [ ] `originCmd`
-- [ ] `tclooNext`
-- [ ] `tclooNextClass`
-- [ ] `yieldToInvoke`
-- [~] `numericType`
+- [x] `concatStk`
+- [x] `strcaseUpper` (note 10)
+- [x] `strcaseLower` (note 10)
+- [x] `strcaseTitle` (note 10)
+- [x] `strreplace`
+- [x] `originCmd`
+- [x] `tclooNext` (note 5)
+- [x] `tclooNextClass` (note 5)
+- [x] `yieldToInvoke`
+- [x] `numericType`
 - [x] `tryCvtToBoolean`
-- [~] `strclass`
-- [~] `lappendList`
-- [~] `lappendListArray`
-- [~] `lappendListArrayStk`
-- [~] `lappendListStk`
-- [ ] `clockRead`
-- [ ] `dictGetDef`
+- [x] `strclass`
+- [x] `lappendList`
+- [x] `lappendListArray`
+- [x] `lappendListArrayStk`
+- [x] `lappendListStk`
+- [x] `clockRead` (note 11)
+- [x] `dictGetDef`
 - [x] `strlt`
 - [x] `strgt`
 - [x] `strle`
 - [x] `strge`
 - [x] `lreplace4`
-- [ ] `constImm`
-- [ ] `constStk`
+- [x] `constImm`
+- [x] `constStk`
+
 ## Notes
 
-- The `Op` enum also carries dialect-only opcodes (`irule*`) that are **not**
-  C Tcl instructions; they are intentionally outside this checklist.
-- `foreach_start`/`foreach_step`/`foreach_end`/`lmap_collect` need the
-  `ForeachInfo` aux (loop-var groups) carried on the instruction + the implicit
-  start→step / step→body jumps (`tclExecute.c` INST_FOREACH_*); see the VM
-  milestone notes.
+Numbered notes referenced from rows above — the documented partials and
+deliberate divergences; everything else matches C per the parity suites.
+
+1. **Exception ranges.** `beginCatch4` opens a *live* in-frame catch range
+   only when the instruction carries the out-of-band handler label
+   (`Instruction::catch_target` — the analogue of C's
+   `ExceptionRange.catchOffset`, kept off the operand so the 4-byte operand
+   retains C's range-index meaning and the disassembly stays byte-stable).
+   `emit_catch_inline` wires it, making the compiled value-position `catch`'s
+   error path executable; a label-less `beginCatch4` is *decorative* — the
+   C-faithful reference shape for constructs the VM protects via its
+   activation stack instead (`dict for`/`dict map`/`try` epilogues).
+   `pushResult`/`pushReturnCode`/`pushReturnOpts` read the absorbed
+   completion (result / numeric code / full options dict, with
+   `errorInfo`/`errorCode` published exactly as `finish_catch` does).
+2. **`returnImm`/`syntax` operand semantics are VM-local.** Our codegen pushes
+   `result` then `options` (options on top) and encodes an immediate code as
+   `level 0`, where C pushes options *under* the result and compiles a plain
+   `return` as `(code 0, level 1)`. Realigning is a compiler-identity change
+   (peephole `done` folding, tclsh byte comparison), tracked as follow-up.
+   `returnStk` **is** C-exact: result on top, options applied via the `return`
+   command's option machinery, `TCL_OK` outcomes continue execution.
+3. **`dictRecombineImm`/`dictRecombineStk` ignore the key path** — the
+   compiled `dict with` writeback handles a top-level dict variable only, not
+   a nested `dict with d k {…}` path (pre-existing in the `Imm` form; the
+   `Stk` form mirrors it so the two cannot drift).
+4. *(retired — `lindexMulti`/`listIndex` now implement `TclLindexList`/
+   `TclLindexFlat` via the runtime `lindex` core.)*
+5. **TclOO context test** is "an OO frame is on the VM's call stack" (the
+   `next`/`self` commands' existing rule), slightly looser than C's
+   `FRAME_IS_METHOD` — a plain proc *called from* a method still counts.
+   Opcode and command surfaces agree with each other.
+6. **`exprStk` invalid-expression fallback**: an unparsable runtime expression
+   currently evaluates to its own source text instead of C's compile error
+   (`Vm::eval_expr`; interacts with the shimmer contract —
+   `docs/design/contracts/shimmer-reference-behaviour.md`). Follow-up.
+7. **`startCommand`** is inert (its length/cmd-count operands are carried for
+   disassembly parity; the VM needs no interp-epoch recheck).
+8. **`arrayExistsImm`/`arrayExistsStk` skip C's `TclCheckArrayTraces`** — the
+   VM records `array` trace ops but fires only read/write/unset traces
+   anywhere, so the opcodes stay consistent with the VM's `array exists`.
+9. **`lmap_collect`** keeps the accumulator in the VM's loop state
+   (`ForeachState.accum`) where C uses a compiler temp local; observable
+   behaviour matches.
+10. **Case-mapping ops** use Unicode *simple* (per-char) mappings like C's
+    `Tcl_UniCharToUpper` (`ß` stays `ß`), including C's byte-length guard and
+    the Georgian Mtavruli titlecase exception; known residual: `İ` (U+0130)
+    stays `İ` where C's table lowercases to `i` (Rust exposes no 1:1 simple
+    mapping for it).
+11. **`clockRead 0` (clicks) returns microseconds** — the same
+    `host.clock().now_micros()` backend the VM's `clock clicks` uses, so
+    opcode and command agree (C uses `TclpGetWideClicks`).
+
+- The `Op` enum also carries opcodes that are **not** C Tcl instructions and
+  are intentionally outside this checklist: the `irule*` dialect operators
+  (all nine now executed — they are emitted for iRules expressions), and five
+  extras (`land`/`lor`/`lnot`/`strreverse`/`strrepeat`); `land`/`lor` are
+  never emitted and have no dispatch arms (dead), the other three are
+  executed VM conveniences.
 - Variable opcodes come in `Scalar1/Scalar4/ScalarStk/Array1/Array4/ArrayStk/Stk`
-  families — the VM should cover each family member C Tcl emits.
+  families — every family member C Tcl emits is covered.
+- `foreach_start`/`foreach_step`/`foreach_end` carry the `ForeachInfo` aux
+  (loop-var groups) out-of-band on the instruction (`foreach_vars`), and
+  `dictUpdateStart`/`dictUpdateEnd` their `DictUpdateInfo` analogue
+  (`dict_vars`), keeping operand bytes C-shaped.
