@@ -274,9 +274,10 @@ the family's emitter verbs. No `open`, `exec`, `source`, `socket`,
 cap; exceeding either is an abstention.
 
 Hooks run per call site, so they are the one part of a pack whose cost is
-not "identical to compiled-in". The mitigation is the cache the registry
-already has: a hook's answer is keyed on the literal word list and the
-context dict, which is what a repeated call site actually varies.
+not "identical to compiled-in". Shipped packs keep native pointers, so
+only pack-declared commands pay it, and the answer is memoisable by
+(command, word-shape) — the key spec-packs.md's hot-path budget assumes.
+The body is compiled to bytecode once at pack load, not per call.
 
 ## Clause grammars, declaratively
 
@@ -329,18 +330,19 @@ what a private Expect-like command needs.
   role / colour / hook names: **dropped with a logged notice**, the rest
   of the spec loads. New server + old pack works; old server + new pack
   degrades.
-- A pack may not set the compiler-internal hooks (`lowering_hook`,
-  `codegen_hook`, `inline_codegen_hook`, `analyser_hook`,
-  `semantic_operation`, `bpf_op`) unless it is a shipped pack; from a
-  user pack they are dropped with a notice. They are in the DSL because
-  the shipped registry must round-trip through it, not because a private
-  library should reach them.
+- A pack may **name** any of the closed native-hook catalogues
+  (`lowering_hook`, `codegen_hook`, `inline_codegen_hook`,
+  `analyser_hook`, `semantic_operation`, `bpf_op`) — bucket 2 of
+  spec-packs.md's hook plan: a pack reuses named hooks, it cannot add to
+  them. Naming a *lowering* or *codegen* hook is reported at load, since
+  it changes how the compiler translates the command rather than what the
+  editor knows about it.
 - `command NAME -override { … }` claims a name a shipped spec already
   has; without it, shipped wins and the collision is reported.
 
 ## What a pack cannot author
 
-Four fields are **excluded** outright, and three more are
+Four fields are **excluded** outright, and four more are
 **reference-only**. Every one is in the coverage matrix with its reason;
 the summary is:
 
@@ -349,8 +351,36 @@ the summary is:
 | `command_forms`, `subcommand_forms` | per-form bundles of arity/roles/options/hooks. `forms` covers the getter/setter split; a command needing the structured form is deep enough in the compiler to be a contribution. |
 | `completion` | the Tcl completion-code contract is a proof obligation the optimiser relies on. A wrong value is unsound, not imprecise. |
 | `dispatch_dependencies` | specialisation-proof machinery whose meaning is defined by the optimiser; `fields.md` itself says "leave unset". |
-| `definition_body`, `body_scope`, `data_collection`, `bpf_op` | shared named descriptors, referenced by name exactly as spec-packs.md specifies. A private definer grammar is a contribution candidate. |
+| `definition_body`, `body_scope`, `data_collection`, `bpf_op` | shared named descriptors, referenced by name — the boundary spec-packs.md's bucket 2 draws. See the caveat below. |
 | the `resolver` of `world_effects` / `state_transitions` | a function producing typed transition facts. The surrounding plain data *is* authorable; only the resolver is `-native`, `none`, or a derivation keyword. |
+
+### The definer-grammar caveat
+
+`definition_body` and `body_scope` being reference-only is the one place
+this sketch is knowingly behind
+[`tricky-surfaces.md`](tricky-surfaces.md), which requires a private
+definer grammar and says `body_scope` "must be expressible from day one"
+— the DSL will use one for its own editing experience. Nothing in the
+data blocks it: `DefinitionBodyGrammar`'s fourteen fields and
+`ScopedCommandEnv` are plain data that `coverage.rs` already enumerates.
+None of the nine ports needs an inline form (every one references a
+shipped grammar), so none was designed — designing it without a port to
+drive it is exactly the mistake this exercise exists to avoid. The shape
+it wants is a pack-level `descriptor definition_body NAME { … }` whose
+body is `member` rows in the same style as `manufacturer` and `option`:
+
+```tcl
+descriptor definition_body mylib-type {
+    family Snit                          ;# or a private family word
+    member method -name 0 -params 1 -body 2
+    member option -name 0 -default 1 -visibility flag-keyed
+    implicit_vars {self type options}
+    member_body_command install -binds-handle {…}
+}
+```
+
+Porting `snit__type.rs` together with `SNIT_GRAMMAR` is the work that
+should settle it.
 
 ## Ambiguities resolved, and roads not taken
 
@@ -412,6 +442,36 @@ lone `{` needs the quoted form and a backslash — ordinary Tcl quoting,
 but it is the one place the format will bite an author writing about
 Tcl syntax. *Rejected:* a heredoc form. It buys one rare case and costs
 the property that a pack is an ordinary Tcl script.
+
+## Fidelity of the ports
+
+What each port loses, if anything, against its `.rs`.
+
+| port | fidelity | what is missing |
+|---|---|---|
+| `lsort` | **complete** | — |
+| `foreach` | **complete** | the resolver's `u8::try_from` guard becomes the loader's index cap, which is the same behaviour stated once instead of per hook |
+| `switch` | **complete** | — |
+| `if` | **complete, and smaller** | two hook functions (~110 lines of Rust) become a three-line grammar; the derived walk agrees with `walk_if` on its whole test matrix |
+| `string` (4 subcommands) | **near-complete** | `string is`'s `const_fold_versioned` stays `-native`. Its Rust is a version-aware classifier (per-class availability floors, 8.x/9.x magnitude caps, radix prefixes, digit separators, ambiguous-form bail-outs); a Tcl body would be a re-implementation, not a port. `length` / `map` / `range` port fully — but see the note below. |
+| `oo::class` | **partial** | the three subcommands' `state_transitions` resolvers stay `-native`: they emit typed `CommandBinding::Define` + `ObjectDispatch::Create` facts, and the DSL has no vocabulary for constructing transition facts. Everything around them (composition, argument shape, widening rules, effect coverage, commit) is data and ports. `arg_role_resolver` is *removed*, derived from the `manufacturer` rows. |
+| `uri::geturl` + `http::geturl` | **complete** | — |
+| `HTTP::header` | **complete** | including the shipped spec's `credential_arg 2` on `insert`, which reads like an off-by-one against a 2-argument subcommand and is carried verbatim rather than silently fixed |
+| `upvar` | **near-complete** | `state_transitions.resolver` becomes `from-frame-effect`. That is a *derivation claim*, not a transcription: it asserts that the alias facts `upvar_state_transitions` produces are exactly determined by `AliasPairs` + `ArityParity`. Reading the Rust, they are — but an implementation must prove it, not assume it. |
+
+**The const-fold porting hazard.** A Tcl hook body inherits the *hook
+interpreter's* Tcl semantics, and the registry's folders deliberately
+under-approximate Tcl. `const_fold::split_list` is documented as a
+fold-safety splitter that bails on any backslash or bare brace so the
+optimiser only folds provably-simple lists; a Tcl body using `llength` /
+`string map` gets the real, more permissive list grammar and would fold
+*more* than the shipped folder does — changing optimiser output while
+looking like a faithful port. `string map`'s port re-adds the backslash
+guard by hand and says so in a comment. A residual gap remains for a
+mapping containing a bare `"`. Any equivalence gate must therefore
+compare *folder outputs over a corpus*, not just spec fields; this is the
+one place where "the DSL says the same thing" is not the same as "the DSL
+does the same thing".
 
 ## Coverage matrix
 
