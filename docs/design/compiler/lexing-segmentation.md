@@ -116,21 +116,23 @@ segmenter records `expand_word[i] = True` for the following word so
 that downstream passes can distinguish `{*}$list` (expanded to zero or
 more runtime args) from a literal `*${list}` word.
 
-The `TclLexer.expand_syntax` flag controls whether `{*}` is recognised.
-`configure_signatures()` in
-`rust/tcl-registry/src/registry.rs`
-sets the flag based on the active dialect:
+The `expand_syntax` field of `LexerConfig`
+(`rust/tcl-lexer/src/lexer.rs`) controls whether `{*}` is recognised.  It
+is populated from the active dialect's `LexerGrammar`
+(`rust/tcl-dialect/src/profile.rs`):
 
-- **Enabled** for dialects in `dialects_since("tcl8.5")` — all Tcl
-  8.5 / 8.6 / 9.0 profiles and every dialect whose base Tcl version is
+- **Enabled** by `GRAMMAR_TCL8X` and `GRAMMAR_TCL9X` — all Tcl
+  8.5 / 8.6 / 9.x profiles and every dialect whose base Tcl version is
   at least 8.5 (f5-iapps, f5-tmsh, EDA vendors, Expect).
-- **Disabled** for 8.4-based dialects (`tcl8.4`, `f5-irules`) because
-  `{*}` did not exist in Tcl 8.4 — the lexer must treat `{*}$x` as a
-  braced literal `{*}` concatenated with `$x`.
+- **Disabled** by `GRAMMAR_TCL84` and `GRAMMAR_IRULES` (`tcl8.4`,
+  `f5-irules`) because `{*}` did not exist in Tcl 8.4 — the lexer must
+  treat `{*}$x` as a braced literal `{*}` concatenated with `$x`.
 
-Arity checks at both the analyser (`_check_proc_call_arity` in
-`rust/tcl-compiler/src/analyser/handlers.rs`) and the IR layer (`_check_simple_arity` in
-`rust/tcl-compiler/src/compiler_checks.rs`) treat each expanded word as an
+Arity checks at both the analyser (user-proc call sites) and the IR layer
+(`check_simple_arity` in
+`rust/tcl-compiler/src/analyser/diagnostics/validity.rs`, which takes the
+command's `arg_expand` flags alongside its argument words) treat each
+expanded word as an
 unknown number of runtime arguments and try to refine the bound by
 constant-folding the expanded word.  Refinement requires the word to
 be **single-token** (so concatenations like `{*}$x$y` or
