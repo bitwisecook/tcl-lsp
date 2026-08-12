@@ -744,8 +744,10 @@ fn collect_direct_calls(
     let mut direct_calls = BTreeMap::new();
     let mut declined_callees = BTreeSet::new();
     // `None` is a poison fact: at least one selected call supplied an actual
-    // whose type was not proved. `TypeLattice::Unknown` is lattice bottom, so
-    // joining it directly would incorrectly preserve another call's fact.
+    // whose type was not proved, or the callee has an unselected caller (see
+    // the declined-callee sweep below). `TypeLattice::Unknown` is lattice
+    // bottom, so joining it directly would incorrectly preserve another call's
+    // fact.
     let mut propagated: HashMap<(String, usize), Option<TypeLattice>> = HashMap::new();
     for (caller_name, function) in function_units(unit) {
         let bindings = analyse_command_binding(&function.cfg, registry, &[]);
@@ -788,6 +790,16 @@ fn collect_direct_calls(
                 declined_callees.insert(callee_name);
             }
             direct_calls.insert(site.id, decision);
+        }
+    }
+    // A declined candidate still calls its callee, with actuals no selected
+    // site carries.  Propagated facts are a join over the selected sites only,
+    // so for such a callee they describe a caller set that is not the whole
+    // one — the same poison state as a selected call whose actual type was
+    // never proved.
+    for (key, fact) in &mut propagated {
+        if declined_callees.contains(&key.0) {
+            *fact = None;
         }
     }
     DirectCollection {
@@ -1579,6 +1591,29 @@ mod tests {
 
     const ADD: &str =
         "proc add {b c} { return [expr {$b+$c}] }\nset d 2\nset e 4\nputs [add $d $e]\n";
+
+    #[test]
+    fn a_declined_caller_poisons_propagated_actual_types() {
+        // `::p` is reached by a selected top-level call passing an integer and
+        // by a declined call (exceptional control flow) passing a string.  The
+        // propagated join covers the selected site alone, so without poisoning
+        // it narrows the parameter to `Int` — while the caller-scope constant
+        // for the very same slot is the declined site's `abc`.  A materialised
+        // slot must not be selected from that contradiction.
+        let plan = plan(
+            "proc p {x} { return [expr {$x + 1}] }\n\
+             proc risky {} { try { p abc } on error {} {} }\n\
+             set d 7\nputs [p $d]\n",
+            enabled(),
+        );
+        assert!(plan.has_declined_direct_call_to("::p"));
+        for (id, decision) in plan.materialisable_slots() {
+            assert!(
+                id.function != "::p" || matches!(decision, MaterialisableSlotDecision::Declined(_)),
+                "an unselected caller must leave `::p`'s parameter unproved: {decision:?}"
+            );
+        }
+    }
 
     #[test]
     fn passes_are_off_by_default() {
