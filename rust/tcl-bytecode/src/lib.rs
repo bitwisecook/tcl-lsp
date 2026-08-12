@@ -415,19 +415,55 @@ pub enum Op {
     /// `clockRead <which>` — push a wall-clock reading: `0` clicks,
     /// `1` microseconds, `2` milliseconds, `3` seconds.
     CLOCK_READ,
+    /// `yield` — suspend the running coroutine, yielding the value on top of
+    /// the stack; the resume value replaces it. Outside a coroutine this is the
+    /// error `yield can only be called in a coroutine` (C `INST_YIELD`).
+    YIELD,
+    /// `yieldToInvoke` — suspend the running coroutine and, once it is parked,
+    /// run the command list on top of the stack in the *resuming* context; its
+    /// result replaces the list (the `yieldto` builtin's handoff, C
+    /// `INST_YIELD_TO_INVOKE`).
+    YIELD_TO_INVOKE,
+    /// `coroName` — push the fully-qualified name of the current coroutine's
+    /// command, or the empty string outside a coroutine (C
+    /// `INST_COROUTINE_NAME`).
+    CORO_NAME,
+    /// `tclooSelf` — push the current object's command name (`self` /
+    /// `self object`). Outside a method: `self may only be called from inside a
+    /// method` (C `INST_TCLOO_SELF`).
+    TCLOO_SELF,
+    /// `tclooClass` — pop an object's command name and push its class's command
+    /// name (`info object class`, C `INST_TCLOO_CLASS`).
+    TCLOO_CLASS,
+    /// `tclooNamespace` — pop an object's command name and push its instance
+    /// namespace (`info object namespace`, C `INST_TCLOO_NS`).
+    TCLOO_NS,
+    /// `tclooIsObject` — pop a name and push whether it names a `TclOO` object
+    /// (`info object isa object`). Never errors (C `INST_TCLOO_IS_OBJECT`).
+    TCLOO_IS_OBJECT,
+    /// `tclooNext <numWords>` — invoke the next implementation on the method
+    /// chain (`next`). The operand counts the words on the stack: the first is
+    /// the `next` command word itself (C's `skip = 1`), the rest are the
+    /// arguments (C `INST_TCLOO_NEXT`).
+    TCLOO_NEXT,
+    /// `tclooNextClass <numWords>` — [`TCLOO_NEXT`](Op::TCLOO_NEXT) for
+    /// `nextto`: of the `numWords` stack words the first is the command word and
+    /// the second names the class to resume from (C's `skip = 2`, C
+    /// `INST_TCLOO_NEXT_CLASS`).
+    TCLOO_NEXT_CLASS,
 }
 
 impl Op {
     /// Disassembly mnemonic.
     ///
     /// The opcode→mnemonic table is a flat 1:1 map partitioned into cohesive
-    /// per-family helpers (stack/control, arithmetic, string, list/var, and
-    /// the dict/misc remainder) so no single function carries the whole table.
-    /// Each helper returns `Some` only for the opcodes it owns; exactly one
-    /// helper matches each opcode. The `opcode_family_partition_total` test
-    /// exhaustively matches every `Op` variant, so any newly added opcode that
-    /// is not routed into a family helper is caught at test-compile time rather
-    /// than reaching the final `unreachable!`.
+    /// per-family helpers (stack/control, arithmetic, string, list/var,
+    /// coroutine/`TclOO`, and the dict/misc remainder) so no single function
+    /// carries the whole table. Each helper returns `Some` only for the opcodes
+    /// it owns; exactly one helper matches each opcode. The
+    /// `op_family_routing_and_size` test spot-checks every routing branch, so a
+    /// newly added opcode that is not routed into a family helper is caught
+    /// before it reaches the final `unreachable!`.
     #[must_use]
     pub const fn mnemonic(self) -> &'static str {
         if let Some(m) = self.mnemonic_core() {
@@ -437,6 +473,8 @@ impl Op {
         } else if let Some(m) = self.mnemonic_string() {
             m
         } else if let Some(m) = self.mnemonic_list_var() {
+            m
+        } else if let Some(m) = self.mnemonic_coro_oo() {
             m
         } else {
             self.mnemonic_dict_misc()
@@ -622,6 +660,22 @@ impl Op {
         })
     }
 
+    /// Coroutine (`yield`/`yieldto`/`coroName`) and `TclOO` mnemonics.
+    const fn mnemonic_coro_oo(self) -> Option<&'static str> {
+        Some(match self {
+            Self::YIELD => "yield",
+            Self::YIELD_TO_INVOKE => "yieldToInvoke",
+            Self::CORO_NAME => "coroName",
+            Self::TCLOO_SELF => "tclooSelf",
+            Self::TCLOO_CLASS => "tclooClass",
+            Self::TCLOO_NS => "tclooNamespace",
+            Self::TCLOO_IS_OBJECT => "tclooIsObject",
+            Self::TCLOO_NEXT => "tclooNext",
+            Self::TCLOO_NEXT_CLASS => "tclooNextClass",
+            _ => return None,
+        })
+    }
+
     /// Stack-variable, dict, upvar and remaining mnemonics.
     const fn mnemonic_dict_misc(self) -> &'static str {
         match self {
@@ -794,6 +848,9 @@ impl Op {
                 | Self::EXPAND_START
                 | Self::INVOKE_EXPANDED
                 | Self::EXPAND_DROP
+                | Self::YIELD
+                | Self::YIELD_TO_INVOKE
+                | Self::CORO_NAME
         )
     }
 
@@ -867,6 +924,10 @@ impl Op {
                 | Self::INFO_LEVEL_ARGS
                 | Self::RESOLVE_CMD
                 | Self::ORIGIN_CMD
+                | Self::TCLOO_SELF
+                | Self::TCLOO_CLASS
+                | Self::TCLOO_NS
+                | Self::TCLOO_IS_OBJECT
         )
     }
 
@@ -909,6 +970,8 @@ impl Op {
             | Self::STR_MATCH
             | Self::REGEXP
             | Self::CLOCK_READ
+            | Self::TCLOO_NEXT
+            | Self::TCLOO_NEXT_CLASS
             | Self::STR_CLASS => 2,
 
             // 3-byte: opcode + 2 1-byte operands
@@ -1362,13 +1425,14 @@ mod tests {
     #[test]
     fn op_family_routing_and_size() {
         // Spot-check one opcode from each `mnemonic_*` family so every routing
-        // branch (core / arith / string / list_var / dict_misc) is exercised
-        // and none reaches the `unreachable!` fallback; plus one representative
-        // per size class for `size`/`is_one_byte`.
+        // branch (core / arith / string / list_var / coro_oo / dict_misc) is
+        // exercised and none reaches the `unreachable!` fallback; plus one
+        // representative per size class for `size`/`is_one_byte`.
         assert_eq!(Op::PUSH1.mnemonic(), "push1");
         assert_eq!(Op::ADD.mnemonic(), "add");
         assert_eq!(Op::STR_EQ.mnemonic(), "streq");
         assert_eq!(Op::LIST.mnemonic(), "list");
+        assert_eq!(Op::YIELD.mnemonic(), "yield");
         assert_eq!(Op::DICT_GET.mnemonic(), "dictGet");
         // size classes
         assert!(Op::ADD.is_one_byte());
@@ -1422,6 +1486,15 @@ mod tests {
             (Op::DICT_GET_DEF, "dictGetDef", 5),
             (Op::DICT_RECOMBINE_STK, "dictRecombineStk", 1),
             (Op::EXPAND_DROP, "expandDrop", 1),
+            (Op::YIELD, "yield", 1),
+            (Op::YIELD_TO_INVOKE, "yieldToInvoke", 1),
+            (Op::CORO_NAME, "coroName", 1),
+            (Op::TCLOO_SELF, "tclooSelf", 1),
+            (Op::TCLOO_CLASS, "tclooClass", 1),
+            (Op::TCLOO_NS, "tclooNamespace", 1),
+            (Op::TCLOO_IS_OBJECT, "tclooIsObject", 1),
+            (Op::TCLOO_NEXT, "tclooNext", 2),
+            (Op::TCLOO_NEXT_CLASS, "tclooNextClass", 2),
         ] {
             assert_eq!(op.mnemonic(), mnemonic, "mnemonic of {op:?}");
             assert_eq!(op.size(), size, "size of {op:?}");
@@ -1460,6 +1533,13 @@ mod tests {
             Op::CONST_STK,
             Op::CLOCK_READ,
             Op::DICT_GET_DEF,
+            // The coroutine/`TclOO` ops name nothing in the LVT: the
+            // `tclooNext`/`tclooNextClass` operand is a stack word count.
+            Op::TCLOO_NEXT,
+            Op::TCLOO_NEXT_CLASS,
+            Op::YIELD,
+            Op::CORO_NAME,
+            Op::TCLOO_SELF,
         ] {
             assert!(!op.is_lvt_op(), "{op:?} has no LVT operand");
         }

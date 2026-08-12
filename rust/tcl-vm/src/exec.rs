@@ -859,6 +859,36 @@ fn un(f: &mut Frame, op: UnaryOp) -> Result<(), Completion<Value>> {
     }
 }
 
+/// Take the top `imm0(instr)` stack words, deepest first — the operand-counted
+/// word list an invocation-shaped opcode (`tclooNext`/`tclooNextClass`) consumes.
+/// `mnemonic` names the opcode in the underflow error.
+fn take_words(
+    f: &mut Frame,
+    instr: &Instruction,
+    mnemonic: &str,
+) -> Result<Vec<Value>, Completion<Value>> {
+    let count = usize::try_from(imm0(instr)).unwrap_or(0);
+    if count == 0 || f.stack.len() < count {
+        return Err(err(format!("{mnemonic}: stack underflow")));
+    }
+    Ok(f.stack.split_off(f.stack.len() - count))
+}
+
+/// An iRules-dialect binary operator (`IRULE_*`): the operands are on the stack
+/// left-then-right, exactly as [`bin`]/[`cmp`] take them, and the semantics come
+/// from the shared [`expr::irule_binary`].
+fn irule(f: &mut Frame, op: BinOp) -> Result<(), Completion<Value>> {
+    let b = pop(f);
+    let a = pop(f);
+    match expr::irule_binary(op, &a, &b) {
+        Ok(v) => {
+            f.stack.push(v);
+            Ok(())
+        }
+        Err(e) => Err(err(e.message)),
+    }
+}
+
 /// The Tcl `wrong # args` usage message for a proc.
 fn proc_usage(proc: &ProcDef) -> String {
     // `proc.name` is the VM's unrooted key: construction-inverse tail
@@ -2787,6 +2817,24 @@ impl Vm {
                 }));
             }
 
+            // -- iRules dialect operators --
+            // The F5 word operators (`contains`/`starts_with`/`ends_with`/
+            // `equals`/`matches_glob`/`matches_regex`/`and`/`or`/`not`), which
+            // `Op::from_binop`/`from_unaryop` emit for an iRules expression.
+            // They have no C Tcl counterpart; the semantics live in `expr` next
+            // to the standard operators, and reuse the same glob matcher, ARE
+            // engine and string comparison the equivalent commands do. Operands
+            // arrive left-then-right (subject below, needle/pattern on top).
+            Op::IRULE_CONTAINS => try_op!(irule(f, BinOp::Contains)),
+            Op::IRULE_STARTS_WITH => try_op!(irule(f, BinOp::StartsWith)),
+            Op::IRULE_ENDS_WITH => try_op!(irule(f, BinOp::EndsWith)),
+            Op::IRULE_EQUALS => try_op!(irule(f, BinOp::StrEquals)),
+            Op::IRULE_MATCHES_GLOB => try_op!(irule(f, BinOp::MatchesGlob)),
+            Op::IRULE_MATCHES_REGEX => try_op!(irule(f, BinOp::MatchesRegex)),
+            Op::IRULE_WORD_AND => try_op!(irule(f, BinOp::WordAnd)),
+            Op::IRULE_WORD_OR => try_op!(irule(f, BinOp::WordOr)),
+            Op::IRULE_WORD_NOT => try_op!(un(f, UnaryOp::WordNot)),
+
             // -- string ops (inline; char-based, mirroring the reference VM) --
             Op::STR_LEN => {
                 let s = pop(f).to_str();
@@ -3609,6 +3657,82 @@ impl Vm {
                 f.stack.push(Value::int(wide));
             }
 
+            // -- coroutines (C `INST_YIELD` / `INST_YIELD_TO_INVOKE` /
+            // `INST_COROUTINE_NAME`) --
+            // The compiled `yield`/`yieldto` record their suspend request through
+            // the very core the builtins use (`cmd_coro::request_*`, boundary
+            // checks included) and then drain it into the `Tick::Suspend` the
+            // builtin path gets from `dispatch_words`. C pops the yielded value
+            // and pushes the resume value in its place (`pc++; cleanup = 1;
+            // TEBC_YIELD()`), which is exactly what popping here plus `resume`'s
+            // delivered-value push does.
+            Op::YIELD => {
+                let value = pop(f);
+                if let Err(c) = crate::cmd_coro::request_yield(self, value) {
+                    return Tick::Return(c);
+                }
+                if let Some(req) = self.coro.pending.take() {
+                    return Tick::Suspend(req);
+                }
+            }
+            // TOS is the command list to run in the resuming context; `resume`
+            // runs it there and its result lands where the list was.
+            Op::YIELD_TO_INVOKE => {
+                let words = match pop(f).as_list() {
+                    Ok(w) => w,
+                    Err(e) => return Tick::Return(err(e.message)),
+                };
+                if let Err(c) = crate::cmd_coro::request_yieldto(self, &words) {
+                    return Tick::Return(c);
+                }
+                if let Some(req) = self.coro.pending.take() {
+                    return Tick::Suspend(req);
+                }
+            }
+            Op::CORO_NAME => {
+                f.stack.push(crate::cmd_coro::current_coroutine(self));
+            }
+
+            // -- TclOO (C's "start of TclOO support instructions" block) --
+            // Each routes through the core its command form uses: `self object`,
+            // `info object class`/`namespace`/`isa object`, `next`, `nextto`. The
+            // context checks are the opcodes' own, since C's compiled forms report
+            // "X may only be called from inside a method" where the command forms
+            // report an unresolvable command name.
+            Op::TCLOO_SELF => match crate::cmd_oo::current_object_name(self) {
+                Some(name) => f.stack.push(name),
+                None => {
+                    return Tick::Return(err("self may only be called from inside a method"));
+                }
+            },
+            Op::TCLOO_IS_OBJECT => {
+                let name = pop(f);
+                f.stack
+                    .push(Value::bool(crate::cmd_oo::is_object(self, &name)));
+            }
+            Op::TCLOO_CLASS => {
+                let name = pop(f);
+                match crate::cmd_oo::object_key(self, &name) {
+                    Ok(key) => {
+                        let v = crate::cmd_oo::object_class_name(self, &key);
+                        f.stack.push(v);
+                    }
+                    Err(c) => return Tick::Return(c),
+                }
+            }
+            Op::TCLOO_NS => {
+                let name = pop(f);
+                match crate::cmd_oo::object_key(self, &name) {
+                    Ok(key) => {
+                        let v = crate::cmd_oo::object_namespace_name(self, &key);
+                        f.stack.push(v);
+                    }
+                    Err(c) => return Tick::Return(c),
+                }
+            }
+            Op::TCLOO_NEXT => try_op!(self.tcloo_next(f, instr, false)),
+            Op::TCLOO_NEXT_CLASS => try_op!(self.tcloo_next(f, instr, true)),
+
             other => {
                 return Tick::Return(err(format!(
                     "opcode {} not implemented in tcl-vm",
@@ -3618,6 +3742,43 @@ impl Vm {
         }
 
         Tick::Continue
+    }
+
+    /// The `tclooNext` / `tclooNextClass` opcodes (`nextto` when `nextto` is set).
+    ///
+    /// The operand counts *all* the words C pushed, the first being the
+    /// `next`/`nextto` command word itself (C's `skip`), so the arguments are
+    /// `words[1..]` — which for `nextto` still starts with the class, exactly what
+    /// its core expects. The method-context check is the opcode's own: C's
+    /// compiled forms report "`next` may only be called from inside a method"
+    /// where the command forms report an unresolvable command name.
+    fn tcloo_next(
+        &mut self,
+        f: &mut Frame,
+        instr: &Instruction,
+        nextto: bool,
+    ) -> Result<(), Completion<Value>> {
+        let (mnemonic, verb) = if nextto {
+            ("tclooNextClass", "nextto")
+        } else {
+            ("tclooNext", "next")
+        };
+        let words = take_words(f, instr, mnemonic)?;
+        if !crate::cmd_oo::in_method(self) {
+            return Err(err(format!(
+                "{verb} may only be called from inside a method"
+            )));
+        }
+        let args = &words[1..];
+        let res = if nextto {
+            crate::cmd_oo::cmd_nextto(self, args)
+        } else {
+            crate::cmd_oo::cmd_next(self, args)
+        };
+        // `deliver_sync` pushes the result on `OK` and hands the completion back
+        // otherwise; the chained method runs on the native stack, so there is
+        // never a `Tick` to propagate from here.
+        Self::deliver_sync(f, res).map(|_| ())
     }
 
     /// Dispatch a fully-assembled command word list. Returns `Some(Tick::Call)`

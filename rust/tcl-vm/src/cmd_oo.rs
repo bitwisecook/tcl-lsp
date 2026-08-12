@@ -1523,14 +1523,33 @@ fn cmd_my(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     oo_invoke(vm, &obj, &method, rest, false, &invoked)
 }
 
+/// The object a method frame reports as `self` — its command name (C's
+/// `TclOOObjectName`).
+fn frame_object_name(fr: &OoFrame) -> Value {
+    Value::string(display(&fr.object))
+}
+
+/// The running method's object as `self` / `self object` reports it — `None`
+/// outside a method. The `tclooSelf` opcode's core.
+pub(crate) fn current_object_name(vm: &Vm) -> Option<Value> {
+    vm.oo.call_stack.last().map(frame_object_name)
+}
+
+/// Whether a method invocation is running — the context `self`/`next`/`nextto`
+/// (and their opcodes) need.
+pub(crate) fn in_method(vm: &Vm) -> bool {
+    !vm.oo.call_stack.is_empty()
+}
+
 fn cmd_self(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     let Some(fr) = vm.oo.call_stack.last() else {
         return err("invalid command name \"self\"");
     };
+    let self_name = frame_object_name(fr);
     let obj = fr.object.clone();
     let sub = args.first().map(|v| v.to_str().to_string());
     match sub.as_deref() {
-        None | Some("object") => ok(Value::string(display(&obj))),
+        None | Some("object") => ok(self_name),
         Some("namespace") => {
             let ns = vm.oo.objects.get(&obj).map(|o| o.ns.clone()).unwrap_or(obj);
             ok(Value::string(display(&ns)))
@@ -1566,7 +1585,11 @@ fn cmd_self(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     }
 }
 
-fn cmd_next(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
+/// `next ?arg…?` — run the next implementation on the method chain. Also the
+/// `tclooNext` opcode's core (which checks the method context itself, so it can
+/// report C's `INST_TCLOO_NEXT` message instead of the command's
+/// `invalid command name`).
+pub(crate) fn cmd_next(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     let Some(fr) = vm.oo.call_stack.last() else {
         return err("invalid command name \"next\"");
     };
@@ -1601,7 +1624,9 @@ fn cmd_next(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     )
 }
 
-fn cmd_nextto(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
+/// `nextto class ?arg…?` — resume the method chain at `class`. Also the
+/// `tclooNextClass` opcode's core (see [`cmd_next`]).
+pub(crate) fn cmd_nextto(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     let Some(fr) = vm.oo.call_stack.last() else {
         return err("invalid command name \"nextto\"");
     };
@@ -2110,6 +2135,43 @@ impl OoState {
     }
 }
 
+/// Whether `name` (as written at the call site) resolves to a `TclOO` object —
+/// `info object isa object` and the `tclooIsObject` opcode, neither of which
+/// ever errors.
+pub(crate) fn is_object(vm: &Vm, name: &Value) -> bool {
+    vm.oo.objects.contains_key(&vm.qualify_name(&name.to_str()))
+}
+
+/// Resolve an object *command name* to its canonical registry key, or C's
+/// `… does not refer to an object` error. The lookup `info object` and the
+/// `tclooClass`/`tclooNamespace` opcodes share, so the compiled and dispatched
+/// forms resolve and complain identically.
+pub(crate) fn object_key(vm: &Vm, name: &Value) -> Result<String, Completion<Value>> {
+    let key = vm.qualify_name(&name.to_str());
+    if vm.oo.objects.contains_key(&key) {
+        Ok(key)
+    } else {
+        Err(err(format!(
+            "{} does not refer to an object",
+            display(&key)
+        )))
+    }
+}
+
+/// The class command name of the object `key` (`info object class`, the
+/// `tclooClass` opcode). `key` must be a resolved object key — see
+/// [`object_key`].
+pub(crate) fn object_class_name(vm: &Vm, key: &str) -> Value {
+    Value::string(display(&vm.oo.objects[key].class))
+}
+
+/// The instance namespace of the object `key` (`info object namespace`, the
+/// `tclooNamespace` opcode). `key` must be a resolved object key — see
+/// [`object_key`].
+pub(crate) fn object_namespace_name(vm: &Vm, key: &str) -> Value {
+    Value::string(display(&vm.oo.objects[key].ns))
+}
+
 /// `info object subcommand object ?arg…?`.
 pub(crate) fn info_object(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     let Some((sub, rest)) = args.split_first() else {
@@ -2126,10 +2188,10 @@ pub(crate) fn info_object(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
             "wrong # args: should be \"info object {sub} object ?arg ...?\""
         ));
     };
-    let obj = vm.qualify_name(&obj_arg.to_str());
-    if !vm.oo.objects.contains_key(&obj) {
-        return err(format!("{} does not refer to an object", display(&obj)));
-    }
+    let obj = match object_key(vm, obj_arg) {
+        Ok(k) => k,
+        Err(c) => return c,
+    };
     let extra = &rest[1..];
     match sub.as_ref() {
         "class" => {
@@ -2137,10 +2199,10 @@ pub(crate) fn info_object(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
                 let c = vm.qualify_name(&cls.to_str());
                 ok(Value::bool(vm.oo.is_a(&obj, &c)))
             } else {
-                ok(Value::string(display(&vm.oo.objects[&obj].class)))
+                ok(object_class_name(vm, &obj))
             }
         }
-        "namespace" => ok(Value::string(display(&vm.oo.objects[&obj].ns))),
+        "namespace" => ok(object_namespace_name(vm, &obj)),
         "creationid" => ok(Value::int(
             i64::try_from(vm.oo.objects[&obj].creation_id).unwrap_or(0),
         )),
@@ -2226,9 +2288,10 @@ fn info_object_isa(vm: &mut Vm, rest: &[Value]) -> Completion<Value> {
     };
     let kind = kind.to_str().to_string();
     let obj = vm.qualify_name(&obj_arg.to_str());
-    // `isa object` on a non-object is a plain false, not an error.
+    // `isa object` on a non-object is a plain false, not an error — the same
+    // test the `tclooIsObject` opcode this form compiles to performs.
     if kind == "object" {
-        return ok(Value::bool(vm.oo.objects.contains_key(&obj)));
+        return ok(Value::bool(is_object(vm, obj_arg)));
     }
     if !vm.oo.objects.contains_key(&obj) {
         return ok(Value::bool(false));

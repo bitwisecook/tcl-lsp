@@ -25,9 +25,12 @@
 //! **frozen activation stack (`Vec<Frame>`) plus a saved per-flow context**
 //! ([`ParkedFlow`]) — pure data, no OS threads, no `unsafe`.
 //!
-//! - `yield` is a builtin that records a [`YieldReq`] in [`CoroSystem::pending`];
-//!   the trampoline's `dispatch_words` turns it into a `Tick::Suspend` that
-//!   freezes the stack (mirroring how `tailcall` becomes `Tick::Tailcall`).
+//! - `yield` is a builtin that records a [`YieldReq`] in [`CoroSystem::pending`]
+//!   (via [`request_yield`]); the trampoline's `dispatch_words` turns it into a
+//!   `Tick::Suspend` that freezes the stack (mirroring how `tailcall` becomes
+//!   `Tick::Tailcall`). The compiled `yield`/`yieldToInvoke` opcodes record the
+//!   same request through the same core and drain it themselves, so the
+//!   boundary checks and the suspend machinery cannot drift between the two.
 //! - [`resume`] swaps the coroutine's flow in ([`Vm::swap_flow`]), pushes the
 //!   resume value where `yield`'s result belongs, drives until the next suspend
 //!   or completion, then swaps the resumer's flow back.
@@ -414,30 +417,48 @@ fn teardown_coro(vm: &mut Vm, fqn: &str) {
     }
 }
 
+/// Record a `yield` request — the core the `yield` builtin and the `YIELD`
+/// opcode share. Checks the yield boundary first, so a rejected yield leaves
+/// [`CoroSystem::pending`] untouched; on success the caller (the builtin's
+/// dispatch, or the opcode arm itself) drains the request into a
+/// `Tick::Suspend`.
+pub(crate) fn request_yield(vm: &mut Vm, value: Value) -> Result<(), Completion<Value>> {
+    check_yieldable(vm, "yield")?;
+    vm.coro.pending = Some(YieldReq::Yield(value));
+    Ok(())
+}
+
+/// Record a `yieldto` request (`words` is `command arg…`) — the core the
+/// `yieldto` builtin and the `YIELD_TO_INVOKE` opcode share. See
+/// [`request_yield`].
+pub(crate) fn request_yieldto(vm: &mut Vm, words: &[Value]) -> Result<(), Completion<Value>> {
+    if words.is_empty() {
+        return Err(err("wrong # args: should be \"yieldto command ?arg ...?\""));
+    }
+    check_yieldable(vm, "yieldto")?;
+    vm.coro.pending = Some(YieldReq::YieldTo(words.to_vec()));
+    Ok(())
+}
+
 /// `yield ?value?` — suspend the current coroutine.
 fn cmd_yield(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     if args.len() > 1 {
         return err("wrong # args: should be \"yield ?value?\"");
     }
-    if let Err(e) = check_yieldable(vm, "yield") {
-        return e;
-    }
     let value = args.first().cloned().unwrap_or_else(Value::empty);
-    vm.coro.pending = Some(YieldReq::Yield(value));
-    ok(Value::empty())
+    match request_yield(vm, value) {
+        Ok(()) => ok(Value::empty()),
+        Err(e) => e,
+    }
 }
 
 /// `yieldto command ?arg ...?` — suspend, then resume runs `command args` in the
 /// resumer's context.
 fn cmd_yieldto(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
-    if args.is_empty() {
-        return err("wrong # args: should be \"yieldto command ?arg ...?\"");
+    match request_yieldto(vm, args) {
+        Ok(()) => ok(Value::empty()),
+        Err(e) => e,
     }
-    if let Err(e) = check_yieldable(vm, "yieldto") {
-        return e;
-    }
-    vm.coro.pending = Some(YieldReq::YieldTo(args.to_vec()));
-    ok(Value::empty())
 }
 
 /// Reject a `yield`/`yieldto` that is not in a coroutine, or that sits across a

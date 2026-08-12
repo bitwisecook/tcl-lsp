@@ -16,20 +16,28 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! Per-opcode parity tests for the variable/array/dict/introspection
-//! instructions the compiler does not (yet) emit.
+//! Per-opcode parity tests for the variable/array/dict/introspection,
+//! coroutine and `TclOO` instructions the compiler does not (yet) emit, plus
+//! the iRules dialect operators it does.
 //!
 //! Each test hand-assembles a [`FunctionAsm`] — the artifact `tcl-compiler`'s
 //! `codegen_module` produces — and runs it through [`Vm::run_function`], so the
 //! opcode under test is exercised directly rather than through whatever
 //! sequence codegen happens to choose. Expectations are pinned to
 //! `tclExecute.c`'s `TEBCresume` cases (stack order, result value, error
-//! message) for Tcl 9.0.4.
+//! message) for Tcl 9.0.4; the iRules operators, which have no C counterpart,
+//! are pinned against the core commands they are defined in terms of.
+//!
+//! The opcodes that only mean something *inside* a coroutine or a method call
+//! (`yield`, `yieldToInvoke`, `tclooSelf`, `tclooNext`, …) run through
+//! [`vm_with_seeded_proc`], which installs a hand-built stream as a real proc's
+//! compiled body so a `coroutine`/method call reaches it.
 
 use std::collections::HashMap;
 
 use tcl_bytecode::{
-    FunctionAsm, Instruction, LiteralTable, LocalVarTable, Op, Operand, bytecode_imm, layout,
+    FunctionAsm, Instruction, LiteralTable, LocalVarTable, ModuleAsm, Op, Operand, bytecode_imm,
+    layout,
 };
 use tcl_vm::{Code, Completion, Value, Vm};
 
@@ -867,6 +875,488 @@ fn str_map_matches_string_map_command() {
     a.push("ab").push("X").push("abcab").op(Op::STR_MAP, &[]);
     let c = run(&mut vm, a);
     assert_eq!(ok_str(&c), cmd);
+}
+
+// -- iRules dialect operators ------------------------------------------------
+
+/// The dialect string tests (`contains` / `starts_with` / `ends_with` /
+/// `equals`), both outcomes each. The operands sit on the stack subject-first
+/// with the needle on top — the order `Op::from_binop` codegen pushes a binary
+/// expression's operands in (left, then right), the same as `Op::ADD`'s.
+#[test]
+fn irule_string_tests_both_outcomes() {
+    for (op, subject, operand, want) in [
+        (Op::IRULE_CONTAINS, "foobar", "oob", "1"),
+        (Op::IRULE_CONTAINS, "foobar", "bop", "0"),
+        // Every string contains the empty one.
+        (Op::IRULE_CONTAINS, "foobar", "", "1"),
+        (Op::IRULE_CONTAINS, "", "x", "0"),
+        (Op::IRULE_STARTS_WITH, "foobar", "foo", "1"),
+        (Op::IRULE_STARTS_WITH, "foobar", "bar", "0"),
+        (Op::IRULE_ENDS_WITH, "foobar", "bar", "1"),
+        (Op::IRULE_ENDS_WITH, "foobar", "foo", "0"),
+        (Op::IRULE_EQUALS, "foobar", "foobar", "1"),
+        // `equals` is the word spelling of `eq`: case-sensitive, and a *string*
+        // comparison even when both operands look numeric.
+        (Op::IRULE_EQUALS, "foobar", "FOOBAR", "0"),
+        (Op::IRULE_EQUALS, "1", "1.0", "0"),
+    ] {
+        let mut a = Asm::new();
+        a.push(subject).push(operand).op(op, &[]);
+        let (_, c) = run_fresh(a);
+        assert_eq!(ok_str(&c), want, "{} {subject} {operand}", op.mnemonic());
+    }
+}
+
+/// `matches_glob` is a case-sensitive `string match`; `matches_regex` runs the
+/// Tcl 9 ARE engine (the `[[:<:]]` word edge proves it is the real engine, not a
+/// look-alike), also case-sensitive — neither dialect operator has a `-nocase`
+/// form.
+#[test]
+fn irule_glob_and_regex_matching() {
+    for (op, subject, pattern, want) in [
+        (Op::IRULE_MATCHES_GLOB, "foobar", "foo*", "1"),
+        (Op::IRULE_MATCHES_GLOB, "foobar", "*bar", "1"),
+        (Op::IRULE_MATCHES_GLOB, "foobar", "f?obar", "1"),
+        (Op::IRULE_MATCHES_GLOB, "foobar", "foo", "0"),
+        (Op::IRULE_MATCHES_GLOB, "foobar", "FOO*", "0"),
+        (Op::IRULE_MATCHES_REGEX, "foobar", "o+b", "1"),
+        (Op::IRULE_MATCHES_REGEX, "foobar", "^foo", "1"),
+        (Op::IRULE_MATCHES_REGEX, "foobar", "^bar", "0"),
+        (Op::IRULE_MATCHES_REGEX, "foobar", "FOO", "0"),
+        (Op::IRULE_MATCHES_REGEX, "foobar", "[[:<:]]bar", "0"),
+        (Op::IRULE_MATCHES_REGEX, "foo bar", "[[:<:]]bar", "1"),
+    ] {
+        let mut a = Asm::new();
+        a.push(subject).push(pattern).op(op, &[]);
+        let (_, c) = run_fresh(a);
+        assert_eq!(ok_str(&c), want, "{} {subject} {pattern}", op.mnemonic());
+    }
+}
+
+/// An uncompilable regex is an error, not a silent `0` — the same engine
+/// message the compiled `regexp` opcode reports for the same pattern (both drive
+/// the shared ARE core).
+#[test]
+fn irule_matches_regex_rejects_a_bad_pattern() {
+    let mut a = Asm::new();
+    a.push("foobar").push("[").op(Op::IRULE_MATCHES_REGEX, &[]);
+    let (_, c) = run_fresh(a);
+    assert_eq!(err_str(&c), "brackets [] not balanced");
+
+    // `Op::REGEXP` takes its operands the other way round (pattern under the
+    // string) and `TCL_REG_ADVANCED` as its flags operand.
+    let mut a = Asm::new();
+    a.push("[").push("foobar").op(Op::REGEXP, &[3]);
+    let (_, regexp_op) = run_fresh(a);
+    assert_eq!(err_str(&regexp_op), err_str(&c));
+}
+
+/// `and` / `or` reduce Tcl truthiness (the boolean words included) to `1`/`0`.
+#[test]
+fn irule_word_and_or_truth_table() {
+    for (op, left, right, want) in [
+        (Op::IRULE_WORD_AND, "1", "1", "1"),
+        (Op::IRULE_WORD_AND, "1", "0", "0"),
+        (Op::IRULE_WORD_AND, "0", "1", "0"),
+        (Op::IRULE_WORD_AND, "0", "0", "0"),
+        (Op::IRULE_WORD_AND, "true", "yes", "1"),
+        (Op::IRULE_WORD_AND, "2", "-1", "1"),
+        (Op::IRULE_WORD_OR, "1", "1", "1"),
+        (Op::IRULE_WORD_OR, "1", "0", "1"),
+        (Op::IRULE_WORD_OR, "0", "1", "1"),
+        (Op::IRULE_WORD_OR, "0", "0", "0"),
+        (Op::IRULE_WORD_OR, "no", "off", "0"),
+    ] {
+        let mut a = Asm::new();
+        a.push(left).push(right).op(op, &[]);
+        let (_, c) = run_fresh(a);
+        assert_eq!(ok_str(&c), want, "{} {left} {right}", op.mnemonic());
+    }
+}
+
+/// The shared tree-walk coerces `and`/`or`'s right operand only when the left
+/// does not already decide the result; with both operands on the stack the
+/// opcode reproduces that, so a junk right operand errors in exactly the cases
+/// the walker treats as an error.
+#[test]
+fn irule_word_logic_short_circuits_its_coercion() {
+    for (op, left, want) in [
+        (Op::IRULE_WORD_AND, "0", "0"),
+        (Op::IRULE_WORD_OR, "1", "1"),
+    ] {
+        let mut a = Asm::new();
+        a.push(left).push("zzz").op(op, &[]);
+        let (_, c) = run_fresh(a);
+        assert_eq!(
+            ok_str(&c),
+            want,
+            "{} decided by the left operand",
+            op.mnemonic()
+        );
+    }
+    for (op, left) in [(Op::IRULE_WORD_AND, "1"), (Op::IRULE_WORD_OR, "0")] {
+        let mut a = Asm::new();
+        a.push(left).push("zzz").op(op, &[]);
+        let (_, c) = run_fresh(a);
+        assert_eq!(
+            err_str(&c),
+            "expected boolean value but got \"zzz\"",
+            "{} must coerce the right operand",
+            op.mnemonic()
+        );
+    }
+    // A junk *left* operand always errors, whatever the operator.
+    let mut a = Asm::new();
+    a.push("zzz").push("1").op(Op::IRULE_WORD_AND, &[]);
+    let (_, c) = run_fresh(a);
+    assert_eq!(err_str(&c), "expected boolean value but got \"zzz\"");
+}
+
+/// `not` is the word spelling of `!`: it shares the boolean coercion and reports
+/// its own spelling in the operand error.
+#[test]
+fn irule_word_not_negates_truthiness() {
+    for (v, want) in [
+        ("1", "0"),
+        ("0", "1"),
+        ("yes", "0"),
+        ("off", "1"),
+        ("7", "0"),
+    ] {
+        let mut a = Asm::new();
+        a.push(v).op(Op::IRULE_WORD_NOT, &[]);
+        let (_, c) = run_fresh(a);
+        assert_eq!(ok_str(&c), want, "not {v}");
+    }
+    let mut a = Asm::new();
+    a.push("zzz").op(Op::IRULE_WORD_NOT, &[]);
+    let (_, c) = run_fresh(a);
+    assert_eq!(
+        err_str(&c),
+        "cannot use non-numeric string \"zzz\" as operand of \"not\""
+    );
+}
+
+/// Each dialect operator agrees with the core command it is defined in terms of,
+/// so the opcodes cannot drift from `[string first]` / `[string equal]` /
+/// `[string match]` / `[regexp]`.
+#[test]
+fn irule_operators_agree_with_the_core_commands() {
+    let mut vm = Vm::new();
+    vm.set_compiler(Box::new(compiler::svc()));
+    for (op, subject, operand, cmd) in [
+        (
+            Op::IRULE_CONTAINS,
+            "foobar",
+            "oob",
+            "expr {[string first oob foobar] >= 0}",
+        ),
+        (
+            Op::IRULE_CONTAINS,
+            "foobar",
+            "bop",
+            "expr {[string first bop foobar] >= 0}",
+        ),
+        (
+            Op::IRULE_EQUALS,
+            "foobar",
+            "FOOBAR",
+            "string equal foobar FOOBAR",
+        ),
+        (
+            Op::IRULE_EQUALS,
+            "foobar",
+            "foobar",
+            "string equal foobar foobar",
+        ),
+        (
+            Op::IRULE_MATCHES_GLOB,
+            "foobar",
+            "f?o*",
+            "string match f?o* foobar",
+        ),
+        (
+            Op::IRULE_MATCHES_REGEX,
+            "foobar",
+            "o+b",
+            "regexp {o+b} foobar",
+        ),
+    ] {
+        let want = vm
+            .eval_source(cmd)
+            .expect("compiles")
+            .result
+            .to_str()
+            .to_string();
+        let mut a = Asm::new();
+        a.push(subject).push(operand).op(op, &[]);
+        let c = run(&mut vm, a);
+        assert_eq!(ok_str(&c), want, "{} vs [{cmd}]", op.mnemonic());
+    }
+}
+
+// -- yield / yieldToInvoke / coroName ----------------------------------------
+
+/// Run `body` as the compiled body of a global proc `p`.
+///
+/// The seam is the pre-compiled-body cache: `cmd_proc` takes the module-supplied
+/// assembly for the first definition of a name, so seeding `p` here (under the
+/// VM's own registration key — `p`, unrooted) and then defining it from source
+/// gives a proc whose body is this hand-built stream. That is the only way to
+/// reach an opcode from *inside* a coroutine or a method call, which is where the
+/// coroutine and `TclOO` opcodes live.
+fn vm_with_seeded_proc(body: Asm) -> Vm {
+    let mut procedures = HashMap::new();
+    procedures.insert("p".to_string(), body.build());
+    let module = ModuleAsm {
+        top_level: Asm::new().build(),
+        procedures,
+    };
+    let mut vm = Vm::new();
+    vm.set_compiler(Box::new(compiler::svc()));
+    assert_eq!(vm.run_module(&module).code, Code::Ok, "seeding failed");
+    vm.eval_source("proc p {} {this body is replaced by the seeded one}")
+        .expect("proc defines");
+    vm
+}
+
+/// Evaluate `src`, asserting it compiled, and return its completion.
+fn eval(vm: &mut Vm, src: &str) -> Completion<Value> {
+    vm.eval_source(src).expect("compiles")
+}
+
+/// `coroName` pushes the empty string outside a coroutine (C
+/// `INST_COROUTINE_NAME` pushes a fresh empty object when there is no
+/// `corPtr`) and the running coroutine's fully-qualified command name inside
+/// one.
+#[test]
+fn coro_name_outside_and_inside_a_coroutine() {
+    let mut a = Asm::new();
+    a.op(Op::CORO_NAME, &[]);
+    let (_, c) = run_fresh(a);
+    assert_eq!(ok_str(&c), "");
+
+    // Inside: the seeded body pushes `coroName` and yields it, so the
+    // `coroutine` command's result *is* what the opcode pushed.
+    let mut body = Asm::new();
+    body.op(Op::CORO_NAME, &[]).op(Op::YIELD, &[]);
+    let mut vm = vm_with_seeded_proc(body);
+    let c = eval(&mut vm, "coroutine c p");
+    assert_eq!(ok_str(&c), "::c");
+}
+
+/// Outside a coroutine both suspend opcodes report C's `INST_YIELD` /
+/// `INST_YIELD_TO_INVOKE` message (C also sets errorcode
+/// `TCL COROUTINE ILLEGAL_YIELD`), and nothing is left pending afterwards.
+#[test]
+fn yield_opcodes_outside_a_coroutine_match_c() {
+    let mut a = Asm::new();
+    a.push("v").op(Op::YIELD, &[]);
+    let (mut vm, c) = run_fresh(a);
+    assert_eq!(err_str(&c), "yield can only be called in a coroutine");
+
+    let mut a = Asm::new();
+    a.push("list a").op(Op::YIELD_TO_INVOKE, &[]);
+    let c = run(&mut vm, a);
+    assert_eq!(err_str(&c), "yieldto can only be called in a coroutine");
+
+    // The rejected requests left no suspend armed: a following push still runs
+    // to completion in this same VM.
+    let mut a = Asm::new();
+    a.push("after");
+    let c = run(&mut vm, a);
+    assert_eq!(ok_str(&c), "after");
+}
+
+/// In a coroutine the `yield` opcode suspends: the yielded value comes out of
+/// the resume command, and the value the next resume delivers replaces it on the
+/// operand stack (C's `pc++; cleanup = 1; TEBC_YIELD()`), so it becomes the
+/// body's result.
+#[test]
+fn yield_opcode_suspends_and_takes_the_resume_value() {
+    let mut body = Asm::new();
+    body.push("yielded").op(Op::YIELD, &[]);
+    let mut vm = vm_with_seeded_proc(body);
+    assert_eq!(ok_str(&eval(&mut vm, "coroutine c p")), "yielded");
+    assert_eq!(ok_str(&eval(&mut vm, "c resumed")), "resumed");
+    // The body ran off its end, so the coroutine command is gone.
+    assert_eq!(ok_str(&eval(&mut vm, "info commands c")), "");
+}
+
+/// The `yield` opcode keeps the yield-boundary check: reached across a host
+/// re-entry (here an `TclOO` method call) it is C Tcl's
+/// `cannot yield: C stack busy`, exactly as the builtin is.
+#[test]
+fn yield_opcode_still_rejects_a_yield_across_a_host_re_entry() {
+    let mut body = Asm::new();
+    body.push("v").op(Op::YIELD, &[]);
+    let mut vm = vm_with_seeded_proc(body);
+    eval(&mut vm, "oo::class create C {method m {} {p}}\nC create o");
+    let c = eval(&mut vm, "coroutine c o m");
+    assert_eq!(err_str(&c), "cannot yield: C stack busy");
+}
+
+/// `yieldToInvoke` parks the coroutine and runs the popped command list in the
+/// *resuming* context, whose result the resumer receives; the next resume's
+/// arguments come back as a list, replacing the list on the stack.
+#[test]
+fn yield_to_invoke_runs_the_command_list_in_the_resumer() {
+    let mut body = Asm::new();
+    body.push("list a b").op(Op::YIELD_TO_INVOKE, &[]);
+    let mut vm = vm_with_seeded_proc(body);
+    assert_eq!(ok_str(&eval(&mut vm, "coroutine c p")), "a b");
+    assert_eq!(ok_str(&eval(&mut vm, "c x y")), "x y");
+}
+
+// -- TclOO -------------------------------------------------------------------
+
+/// `tclooIsObject` never errors: `0` for a name that is not an object, `1` for a
+/// real one — the test `info object isa object` (the form C compiles to this
+/// opcode) performs.
+#[test]
+fn tcloo_is_object_reports_without_erroring() {
+    let mut vm = Vm::new();
+    vm.set_compiler(Box::new(compiler::svc()));
+    eval(&mut vm, "oo::class create C {}\nC create o");
+    for (name, want) in [("o", "1"), ("C", "1"), ("junk", "0"), ("", "0")] {
+        let mut a = Asm::new();
+        a.push(name).op(Op::TCLOO_IS_OBJECT, &[]);
+        let c = run(&mut vm, a);
+        assert_eq!(ok_str(&c), want, "tclooIsObject {name}");
+        let cmd = eval(&mut vm, &format!("info object isa object {{{name}}}"));
+        assert_eq!(ok_str(&cmd), want, "info object isa object {name}");
+    }
+}
+
+/// `tclooClass` / `tclooNamespace` report exactly what `info object class` /
+/// `info object namespace` do (the command forms C compiles to them).
+#[test]
+fn tcloo_class_and_namespace_match_info_object() {
+    let mut vm = Vm::new();
+    vm.set_compiler(Box::new(compiler::svc()));
+    eval(&mut vm, "oo::class create C {}\nC create o");
+    for (op, cmd) in [
+        (Op::TCLOO_CLASS, "info object class o"),
+        (Op::TCLOO_NS, "info object namespace o"),
+    ] {
+        let want = ok_str(&eval(&mut vm, cmd));
+        let mut a = Asm::new();
+        a.push("o").op(op, &[]);
+        let c = run(&mut vm, a);
+        assert_eq!(ok_str(&c), want, "{} vs [{cmd}]", op.mnemonic());
+    }
+    // The class of a class is its metaclass.
+    let mut a = Asm::new();
+    a.push("C").op(Op::TCLOO_CLASS, &[]);
+    let c = run(&mut vm, a);
+    assert_eq!(ok_str(&c), "::oo::class");
+}
+
+/// A name that is not an object is the shared lookup error (C's
+/// `%s does not refer to an object`), identical to the command form's.
+#[test]
+fn tcloo_class_and_namespace_reject_a_non_object() {
+    let mut vm = Vm::new();
+    vm.set_compiler(Box::new(compiler::svc()));
+    for (op, cmd) in [
+        (Op::TCLOO_CLASS, "info object class junk"),
+        (Op::TCLOO_NS, "info object namespace junk"),
+    ] {
+        let want = err_str(&eval(&mut vm, cmd));
+        let mut a = Asm::new();
+        a.push("junk").op(op, &[]);
+        let c = run(&mut vm, a);
+        assert_eq!(err_str(&c), want, "{} vs [{cmd}]", op.mnemonic());
+        assert!(
+            want.ends_with("does not refer to an object"),
+            "C's lookup message: {want}"
+        );
+    }
+}
+
+/// Outside a method the compiled forms report C's `INST_TCLOO_*` messages — not
+/// the `invalid command name` the *command* forms give, since in C `self` /
+/// `next` / `nextto` are only resolvable inside an object's namespace.
+#[test]
+fn tcloo_self_next_and_nextto_outside_a_method() {
+    let mut a = Asm::new();
+    a.op(Op::TCLOO_SELF, &[]);
+    let (_, c) = run_fresh(a);
+    assert_eq!(err_str(&c), "self may only be called from inside a method");
+
+    let mut a = Asm::new();
+    a.push("next").op(Op::TCLOO_NEXT, &[1]);
+    let (_, c) = run_fresh(a);
+    assert_eq!(err_str(&c), "next may only be called from inside a method");
+
+    let mut a = Asm::new();
+    a.push("nextto").push("C").op(Op::TCLOO_NEXT_CLASS, &[2]);
+    let (_, c) = run_fresh(a);
+    assert_eq!(
+        err_str(&c),
+        "nextto may only be called from inside a method"
+    );
+}
+
+/// `tclooSelf` pushes the current object's command name (C's
+/// `TclOOObjectName`), the value `self` / `self object` reports.
+#[test]
+fn tcloo_self_pushes_the_current_object() {
+    let mut body = Asm::new();
+    body.op(Op::TCLOO_SELF, &[]);
+    let mut vm = vm_with_seeded_proc(body);
+    // `m` reaches the opcode (through the seeded proc); `n` asks the command.
+    eval(
+        &mut vm,
+        "oo::class create C {\nmethod m {} {p}\nmethod n {} {self object}\n}\nC create o",
+    );
+    let via_opcode = ok_str(&eval(&mut vm, "o m"));
+    assert_eq!(via_opcode, "::o");
+    assert_eq!(via_opcode, ok_str(&eval(&mut vm, "o n")));
+}
+
+/// `tclooNext` / `tclooNextClass` invoke the next implementation on the method
+/// chain through the `next` / `nextto` cores. The operand counts *all* the words
+/// C pushes — the command word itself first (C's `skip`), then the arguments,
+/// which for `nextto` start with the class.
+#[test]
+fn tcloo_next_and_next_class_invoke_the_chain() {
+    let classes = "oo::class create B {method m {} {return base}}\n\
+                   oo::class create D {superclass B\nmethod m {} {p}}\n\
+                   D create o";
+    let mut body = Asm::new();
+    body.push("next").op(Op::TCLOO_NEXT, &[1]);
+    let mut vm = vm_with_seeded_proc(body);
+    eval(&mut vm, classes);
+    assert_eq!(ok_str(&eval(&mut vm, "o m")), "base");
+
+    let mut body = Asm::new();
+    body.push("nextto").push("B").op(Op::TCLOO_NEXT_CLASS, &[2]);
+    let mut vm = vm_with_seeded_proc(body);
+    eval(&mut vm, classes);
+    assert_eq!(ok_str(&eval(&mut vm, "o m")), "base");
+}
+
+/// At the end of the chain `tclooNext` reports the core's
+/// `no next <kind> implementation` (C's `INST_TCLOO_NEXT` message for the same
+/// state), and a zero word count is rejected rather than read off an empty
+/// stack.
+#[test]
+fn tcloo_next_at_the_end_of_the_chain_and_underflow() {
+    let mut body = Asm::new();
+    body.push("next").op(Op::TCLOO_NEXT, &[1]);
+    let mut vm = vm_with_seeded_proc(body);
+    eval(&mut vm, "oo::class create B {method m {} {p}}\nB create o");
+    assert_eq!(
+        err_str(&eval(&mut vm, "o m")),
+        "no next method implementation"
+    );
+
+    let mut a = Asm::new();
+    a.op(Op::TCLOO_NEXT, &[0]);
+    let (_, c) = run_fresh(a);
+    assert_eq!(err_str(&c), "tclooNext: stack underflow");
 }
 
 /// A `tcl-compiler`-backed compile service, so the tests that need real Tcl

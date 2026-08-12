@@ -673,19 +673,85 @@ pub fn unary(op: UnaryOp, v: &Value) -> Result<Value, TclError> {
         },
         // `!` accepts any boolean (incl. numbers and the boolean words); a NaN or
         // non-numeric non-boolean is the operand error (not "expected boolean").
-        Not => {
+        // The iRules dialect's `not` is the word spelling of the same operator
+        // (`Op::IRULE_WORD_NOT`), so it shares the coercion and only differs in
+        // the spelling it reports for a bad operand.
+        Not | WordNot => {
+            let spelling = if matches!(op, WordNot) { "not" } else { "!" };
             if matches!(
                 number::parse_whole(v.to_str().trim()),
                 Some(Number::Nan { .. })
             ) {
-                return Err(unary_operand_err(v, "!"));
+                return Err(unary_operand_err(v, spelling));
             }
             match v.as_bool() {
                 Ok(b) => Ok(Value::bool(!b)),
-                Err(_) => Err(unary_operand_err(v, "!")),
+                Err(_) => Err(unary_operand_err(v, spelling)),
             }
         }
-        WordNot => Err(TclError::new("unsupported operator")),
+    }
+}
+
+/// Apply an iRules-dialect binary operator to two already-evaluated operands
+/// (`left` is the subject, `right` the needle/pattern/right-hand side — the
+/// order `Op::from_binop` codegen pushes them in).
+///
+/// One home for the dialect operator semantics, shared by the `IRULE_*` opcodes
+/// and available to any tree-walking consumer that gains dialect support (the
+/// shared walker routes them to `ExprOps::binary_other`). The string tests reuse
+/// the same helpers the equivalent core commands do — `string match`'s glob
+/// matcher, the `regexp` ARE engine, and this module's string comparison — so
+/// the dialect operators cannot drift from `[string match]` / `[regexp]` /
+/// `[string equal]`.
+pub(crate) fn irule_binary(op: BinOp, left: &Value, right: &Value) -> Result<Value, TclError> {
+    use BinOp::{
+        Contains, EndsWith, MatchesGlob, MatchesRegex, StartsWith, StrEquals, WordAnd, WordOr,
+    };
+    // `and`/`or` are boolean tests, not string ones — they never render an
+    // operand.
+    match op {
+        WordAnd => return word_and(left, right).map(Value::bool),
+        WordOr => return word_or(left, right).map(Value::bool),
+        _ => {}
+    }
+    let (subject, operand) = (left.to_str(), right.to_str());
+    let truth = match op {
+        Contains => subject.contains(&*operand),
+        StartsWith => subject.starts_with(&*operand),
+        EndsWith => subject.ends_with(&*operand),
+        // `equals` is the word spelling of `eq`: always a string comparison.
+        StrEquals => compare(BinOp::StrEq, left, right)?,
+        // Case-sensitive `string match` / `regexp` — the dialect operators have
+        // no `-nocase` form.
+        MatchesGlob => tcl_syntax::glob::string_match(&operand, &subject),
+        MatchesRegex => {
+            crate::cmd_regexp::regexp_matches(&operand, &subject, false).map_err(TclError::new)?
+        }
+        _ => return Err(TclError::new("unsupported operator")),
+    };
+    Ok(Value::bool(truth))
+}
+
+/// The iRules `and` word operator over two already-evaluated operands.
+///
+/// The shared tree-walk coerces the right operand only when the left does not
+/// already decide the result; these reproduce that with both operands in hand
+/// (as the opcode form has them), so a non-boolean right operand is an error in
+/// exactly the cases the walker treats as one.
+fn word_and(left: &Value, right: &Value) -> Result<bool, TclError> {
+    if left.as_bool()? {
+        right.as_bool()
+    } else {
+        Ok(false)
+    }
+}
+
+/// The iRules `or` word operator — see [`word_and`].
+fn word_or(left: &Value, right: &Value) -> Result<bool, TclError> {
+    if left.as_bool()? {
+        Ok(true)
+    } else {
+        right.as_bool()
     }
 }
 
