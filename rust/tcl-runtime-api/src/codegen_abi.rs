@@ -155,6 +155,10 @@ pub enum CodegenAbiImportId {
     /// The i32 result is ABI status; the output holds the owned completion
     /// triple on every non-null output path, matching [`Self::InvokeArgv`].
     InvokeIntrinsicArgv,
+    /// Read one Tcl array element as an owned generated-word value.
+    VarGetElement,
+    /// Join evaluated word parts into one owned Tcl value.
+    WordConcat,
 }
 
 impl CodegenAbiImportId {
@@ -199,6 +203,18 @@ impl CodegenAbiImportId {
             Self::InvokeIntrinsicArgv => {
                 tcl_import("tcl_intrinsic_invoke_argv", I32_I32_I32_I32, I32)
             }
+            Self::VarGetElement => CodegenAbiImport {
+                module: "tcl",
+                name: "tcl_codegen_var_get_element",
+                parameters: I32_I32_I32_I32,
+                results: I32,
+            },
+            Self::WordConcat => CodegenAbiImport {
+                module: "tcl",
+                name: "tcl_codegen_word_concat",
+                parameters: I32_I32,
+                results: I32,
+            },
         }
     }
 }

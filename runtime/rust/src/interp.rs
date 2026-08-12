@@ -4125,6 +4125,19 @@ impl Interp {
         self.reset_error_stack.set(true);
     }
 
+    /// Publish an error's trace **if** it has unwound past the outermost
+    /// evaluation, leaving `::errorInfo`/`::errorCode` set for an uncaught one.
+    ///
+    /// [`eval_script_mode`](Self::eval_script_mode) applies this at the end of
+    /// the eval loop. Compiled code that dispatches a command directly, without
+    /// entering that loop, has no other place to do it, so it calls this and the
+    /// depth policy stays in one place rather than being restated per caller.
+    pub(crate) fn publish_error_if_uncaught(&mut self) {
+        if self.eval_depth.get() == 0 {
+            self.publish_error();
+        }
+    }
+
     /// Publish the accumulated trace to the `::errorInfo`/`::errorCode` globals
     /// and reset the accumulator for the next error. Called when the error is
     /// caught (`catch`) or reaches the outermost eval.

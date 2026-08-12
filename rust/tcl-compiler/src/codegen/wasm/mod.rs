@@ -28,6 +28,7 @@
 mod backend;
 mod encoding;
 mod ir;
+mod leaf_invoke;
 mod pipeline;
 mod semantic_plan;
 

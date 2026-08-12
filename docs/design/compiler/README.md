@@ -191,6 +191,13 @@ User-facing compiler troubleshooting and how-tos live in
   runtime ABI at the compiler-to-interpreter boundary.
 - [wasm-extensions.md](wasm-extensions.md) — the `wasm_stdlib` Cargo feature
   and how the Rust runtime embeds optional Tcl scripts.
+- [wasm-target-surfaces.md](wasm-target-surfaces.md) — WASI vs in-browser
+  WASM: the capability matrix, browser-target build/wiring gaps, the
+  proposed host-import surface, and measured module sizes.
+- [aot-command-priority.md](aot-command-priority.md) — real-corpus census
+  (issue #1181) ranking which Tcl commands the AOT WASM compiler should
+  emit directly next, with a breadth-weighted tiering and what is already
+  covered versus what cannot be direct.
 
 ## Related KCS how-tos
 

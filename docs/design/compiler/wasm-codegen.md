@@ -162,11 +162,115 @@ emitted; this slice has no in-activation guard or deoptimisation edge.
 Until executable IR covers the complete Tcl surface, a typed decline invokes
 general structured mode in the same `WasmEmitter`. It preserves structured
 control flow, direct Tcl-object operations where its established proofs permit
-them, and exact source-span runtime evaluation otherwise. The decline changes
-typed input to one emitter; it does not select another implementation. This
-keeps runtime-evaluation compatibility working while making remaining semantic
-coverage observable. It does not imply package-driven extension selection or
-linking.
+them, compiled prebuilt-argv invocation for every leaf command whose words it
+can evaluate, and exact source-span runtime evaluation only for what is left.
+The decline changes typed input to one emitter; it does not select another
+implementation. This keeps runtime-evaluation compatibility working while
+making remaining semantic coverage observable. It does not imply
+package-driven extension selection or linking.
+
+## The general tier's leaf-command path
+
+Inside general structured mode, the **normal** path for a leaf
+`Statement::Call` is compiled word evaluation followed by `tcl_invoke_argv`.
+Source-span `tcl_eval_code` is the last-resort fallback, reached only when a
+word shape declines.
+
+Selection is per statement and stays registry-driven. `tcl-registry` resolves
+the statement's structured words to an `InvocationFacts` snapshot; the
+resulting `SemanticOperationId` keys a `BackendRegistry` selection over the
+`PrebuiltArgvInvocation` region, and the registered `BackendPlanKind::GenericInvoke`
+selector returns either a complete `WasmLeafInvokePlan` or one typed
+`WasmLeafInvokeDecline`. The emitter never inspects a command name, and a
+command the registry cannot resolve still selects under
+`SemanticOperationId::Invoke` through the registry's generic fallback. This
+needs no binding, trace, or rename proof: the runtime performs its ordinary
+command resolution on the argv it is handed, so aliases, `rename`, ensembles,
+`unknown`, TclOO, and execution traces all behave exactly as they do for
+interpreted Tcl. Only the *words* require proof.
+
+### Word shapes that compile
+
+- a bare literal word;
+- a braced literal word, whose value is its unsubstituted content;
+- a `$var` scalar read;
+- a `$arr(key)` element read with a statically known key;
+- a `[nested command]` word — recursively the same argv invocation, whose
+  completion result becomes the enclosing word's value; and
+- a quoted or otherwise compound word, whose parts are evaluated left to right
+  and joined by the runtime.
+
+Everything else declines with a typed reason and keeps the whole statement on
+the source-span fallback: `{*}` expansion, any word carrying backslash
+substitution, a computed variable name or array key, a command substitution
+that is not exactly one complete command, an opaque recovery word, and word
+nesting past the planner's recursion cap.
+
+Two Tcl spellings share one compatibility text: `$a(b)` and `${a(b)}` both
+render as `${a(b)}`, yet the first is an array-element access and the second
+names a scalar. The planner separates them from the recorded lexical extent —
+a `${…}` reference is exactly two bytes longer than its name, a `$…` reference
+exactly one — and emits `tcl_codegen_var_get_element` or `tcl_codegen_var_get`
+accordingly.
+
+### Frame layout and the single cleanup path
+
+One statement allocates one transient call frame:
+
+```text
+[ object slots : N * 4 bytes  ]   every owned value the statement creates
+[ completions  : M * 12 bytes ]   one TclCompletionAbi per invocation
+```
+
+An invocation's argv is the contiguous run of object slots holding its words,
+so `tcl_invoke_argv` receives a pointer directly into the frame. A nested
+command substitution shares the same frame; its completion result is adopted
+into the enclosing word's own slot and its options into a slot of its own.
+
+Ownership is the hard part, because completion dispatch can branch out of the
+middle of a statement. The emitted shape makes that impossible to leak:
+
+1. the prologue allocates the frame and writes null to every object slot;
+2. the whole statement sits inside one `block`; a failed word read or an
+   abrupt nested completion records the code and branches to its end;
+3. after the block — on **every** path — each object slot is released
+   (`tcl_obj_release` is null-safe) and the frame is freed; and
+4. only then does the completion dispatch run and possibly `br`/`return`.
+
+Because cleanup precedes every branch, there is exactly one release path and no
+exit can leave an owned word, an adopted completion handle, or a frame behind.
+`tcl_codegen_call_frame_outstanding` and the runtime's allocation counters
+prove it in `runtime/rust`'s round-trip suite, including the mid-statement
+error, `break`, and `return` cases.
+
+### Relationship to the whole-function `GenericInvoke` plan
+
+`semantic_plan.rs`'s `WasmGenericInvokePlan` and this per-statement path are
+**not** the same selection, and must not be allowed to become two
+implementations of one thing. The whole-function plan is an *export-contract*
+decision: it fires only when the entire function is a single all-literal
+invocation, and it exports `::top` with the full completion-triple signature so
+the caller receives `(code, result, options)`. The per-statement path lowers a
+statement inside an ordinary `() -> ()` `::top` and consumes the completion
+itself.
+
+What they do share — argv assembly, `tcl_invoke_argv`, and the owned
+result/options release discipline — is currently written twice
+(`finish_semantic_invoke` versus `emit_invoke_node`). The per-statement path is
+also strictly the broader of the two: it proves variable, nested-command, and
+compound words that the whole-function plan declines. Consolidating so the
+whole-function plan builds a `WasmLeafInvokePlan` and reuses the same emission,
+forwarding the adopted handles instead of releasing them, is the intended
+direction; until that lands, a change to one ownership sequence must be
+mirrored in the other.
+
+### What the fallback still costs
+
+Source-span evaluation re-lexes, re-parses, re-substitutes, and dispatches the
+original text at run time. The compiled path skips all of that, at the price of
+the `while executing` context `eval` would add to `-errorinfo` for the
+statement itself. Conditions are unchanged: `if`/`while`/`for` guards still go
+through `tcl_expr_bool` over their source text.
 
 Standalone `_start`, interpreter creation, and optional standard-library
 initialisation currently select `General` with the explicit
@@ -209,6 +313,8 @@ Relevant modules:
 - `tcl-compiler/src/codegen/wasm/pipeline.rs` — sole entry and plan evidence;
 - `tcl-compiler/src/codegen/wasm/semantic_plan.rs` — non-emitting executable-IR
   plan validation;
+- `tcl-compiler/src/codegen/wasm/leaf_invoke.rs` — non-emitting per-statement
+  prebuilt-argv planning, frame layout, and typed word declines;
 - `tcl-compiler/src/codegen/wasm/backend.rs` — the sole module emitter for
   generic, guarded-intrinsic, sealed-native, and general structured modes;
 - `tcl-compiler/src/codegen/wasm/ir.rs` — shared target IR and encoders;

@@ -44,14 +44,23 @@
 //!    persisted in the real runtime.
 //!
 //! The cases cover a direct variable store, an interpreted fallback procedure,
-//! and the direct numeric `add` procedure. The final case proves the linked
+//! and the direct numeric `add` procedure. That last one proves the linked
 //! generated function binds Tcl-visible parameters, adds through the numeric
 //! tower, and writes `6` through the real WASI stdout path.
+//!
+//! [`compiled_argv_invocations_run_against_the_real_runtime`] then covers the
+//! general tier's normal leaf-command path — every word shape it compiles,
+//! runtime dispatch following a `rename`, and an abrupt completion that stops
+//! the script — and
+//! [`compiled_argv_balances_allocations_in_the_real_runtime`] proves that path
+//! balances its allocations in the real runtime, including when it leaves
+//! part-way through argv construction.
 //!
 //! Heavy + gated: it builds `runtime/rust` to wasm (cached after the first run)
 //! and shells out to the `wasmtime` CLI. It skips cleanly when either is
 //! unavailable, mirroring the other wasm tests.
 
+use std::fmt::Write as _;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
@@ -150,6 +159,31 @@ fn native_wide_int_link_probe_uses_the_shared_i64_descriptor_signature() {
 /// performed after the live interpreter exists and before generated code runs.
 /// This lets the whole-program tests prove a guarded emission declines into its
 /// retained generic argv fallback under a renamed or traced command.
+/// Escape bytes for a WAT string literal.
+///
+/// A WAT string may not contain a raw newline, quote, or backslash — a
+/// multi-line setup script interpolated verbatim makes `wasmtime` reject the
+/// module with `invalid character in string`. Every escape here decodes back to
+/// exactly one byte, so a caller may still use the *unescaped* length as the
+/// data segment's byte count.
+fn wat_escape(source: &str) -> String {
+    let mut escaped = String::with_capacity(source.len());
+    for byte in source.bytes() {
+        match byte {
+            b'\n' => escaped.push_str("\\n"),
+            b'\r' => escaped.push_str("\\r"),
+            b'\t' => escaped.push_str("\\t"),
+            b'"' => escaped.push_str("\\\""),
+            b'\\' => escaped.push_str("\\\\"),
+            0x20..=0x7e => escaped.push(byte as char),
+            other => {
+                let _ = write!(escaped, "\\{other:02x}");
+            }
+        }
+    }
+    escaped
+}
+
 fn semantic_invoke_bootstrap_wat(expected_code: i32, setup: Option<&str>) -> String {
     let create = CodegenAbiImportId::RuntimeCreateInterp.descriptor().name;
     let set_current = CodegenAbiImportId::RuntimeSetCurrentInterp
@@ -165,7 +199,7 @@ fn semantic_invoke_bootstrap_wat(expected_code: i32, setup: Option<&str>) -> Str
                     "    (local.set $setup_result (call $eval (call $box (i32.const 0x170000) (i32.const {}))))\n    (call $rel (local.get $setup_result))\n",
                     source.len()
                 ),
-                format!("  (data (i32.const 0x170000) \"{source}\")\n"),
+                format!("  (data (i32.const 0x170000) \"{}\")\n", wat_escape(source)),
             )
         },
     );
@@ -176,6 +210,7 @@ fn semantic_invoke_bootstrap_wat(expected_code: i32, setup: Option<&str>) -> Str
   (import "tcl" "{set_current}" (func $setcur (param i32)))
   (import "tcl" "{object_new_string}" (func $box (param i32 i32) (result i32)))
   (import "tcl" "{object_release}" (func $rel (param i32)))
+  (import "tcl" "tcl_eval" (func $eval (param i32) (result i32)))
   (import "tcl" "Tcl_GetStringFromObj" (func $getstr (param i32 i32) (result i32)))
   (import "tcl" "tcl_codegen_call_frame_outstanding" (func $frames (result i32)))
   (import "user" "::top" (func $top (result i32 i32 i32)))
@@ -202,6 +237,42 @@ fn semantic_invoke_bootstrap_wat(expected_code: i32, setup: Option<&str>) -> Str
     (if (i32.ne (call $frames) (i32.const 0)) (then unreachable)))
 {setup_data})"#,
     )
+}
+
+/// Run `::top` repeatedly and prove the compiled leaf-command path balances its
+/// allocations: no outstanding transient call frame, and no residual growth
+/// across identical runs.
+///
+/// The first `::top` is a warm-up — it creates the interpreter state a compiled
+/// statement touches for the first time. Every later run is allocation-neutral
+/// unless the generated cleanup path leaks, so the residual must not move.
+/// `tcl_test_finalize` is also required to be positive, so a counter surface
+/// that read back as zero would fail loudly instead of passing vacuously.
+fn leak_bootstrap_wat() -> String {
+    r#"(module
+  (import "tcl" "memory" (memory 1))
+  (import "tcl" "tcl_runtime_create_interp" (func $create (result i32)))
+  (import "tcl" "tcl_runtime_set_current_interp" (func $setcur (param i32)))
+  (import "tcl" "tcl_codegen_call_frame_outstanding" (func $frames (result i32)))
+  (import "tcl" "tcl_test_finalize" (func $residual (result i64)))
+  (import "tcl" "tcl_test_double_free_count" (func $doubles (result i64)))
+  (import "user" "::top" (func $top))
+  (export "memory" (memory 0))
+  (func (export "_start")
+    (local $interp i32) (local $before i64)
+    (local.set $interp (call $create))
+    (call $setcur (local.get $interp))
+    (call $top)
+    (if (i32.ne (call $frames) (i32.const 0)) (then unreachable))
+    (local.set $before (call $residual))
+    (if (i64.le_s (local.get $before) (i64.const 0)) (then unreachable))
+    (call $top)
+    (call $top)
+    (if (i64.ne (call $residual) (local.get $before)) (then unreachable))
+    (if (i64.ne (call $doubles) (i64.const 0)) (then unreachable))
+    (if (i32.ne (call $frames) (i32.const 0)) (then unreachable)))
+)"#
+    .to_owned()
 }
 
 fn have_wasmtime() -> bool {
@@ -259,17 +330,96 @@ fn build_reserved_runtime() -> Option<PathBuf> {
 
 /// Emit `program`, link it against the real `runtime`, run its `::top`, then
 /// evaluate `query` against the same interp and return the printed result.
-fn run_real_link(runtime: &Path, program: &str, query: &str) -> String {
-    run_real_link_with_options(
-        runtime,
-        program,
-        query,
-        WasmCompileOptions::runtime_linked(),
-    )
+/// Compile `program` through the general structured tier, asserting it really
+/// took that tier (a whole-function semantic plan would export a different
+/// `::top` signature than these bootstraps import).
+fn compile_general(program: &str) -> Vec<u8> {
+    let registry = CommandRegistry::build_default();
+    let unit = CompilationUnit::build_for_dialect(program, &registry, false, "tcl9.0");
+    // Constant pool in the reserved gap so it does not hit the runtime's stack.
+    let mut output = compile_wasm(&unit, &registry, WasmCompileOptions::runtime_linked());
+    assert!(
+        matches!(output.plan, WasmCodegenPlan::General { .. }),
+        "expected the general structured tier for {program:?}, got {:?}",
+        output.plan
+    );
+    output.to_bytes()
 }
 
+/// Link and run a module that must have taken the general structured tier.
+///
+/// `tag` names this case's scratch files. Cases in different tests run
+/// concurrently, so a shared file name would let one run load another's module.
+fn run_real_link(runtime: &Path, tag: &str, program: &str, query: &str) -> String {
+    run_link_bytes(runtime, tag, &compile_general(program), program, query)
+}
+
+/// Compile under the analysis tier, proving the module really reaches the
+/// runtime through each of `required_calls` before anyone runs it.
+///
+/// The proof is the point, and it is not ceremony. `runtime_linked()` leaves
+/// every semantic pass disabled, so without an explicit
+/// [`SemanticOptimisationPassId::LegacyAnalysisSpecialisation`] the whole script
+/// lowers to `tcl_eval_code(<source span>)` — which produces exactly the same
+/// observable results as the compiled path, because it *is* the same
+/// interpreter. A behavioural assertion cannot tell the two apart, so these
+/// cases silently exercised source evaluation until this helper existed.
+///
+/// Requiring the module to merely *import* a symbol would not fix it: the
+/// analysis tier adds its whole import set whether or not any statement uses
+/// it. So this resolves each import's own index and demands a real `call` to
+/// it in the emitted body.
+fn compile_argv_analysed(program: &str, required_calls: &[&str]) -> Vec<u8> {
+    let registry = CommandRegistry::build_default();
+    let unit = CompilationUnit::build_for_dialect(program, &registry, false, "tcl9.0");
+    let mut output = compile_wasm(
+        &unit,
+        &registry,
+        WasmCompileOptions::runtime_linked()
+            .with_semantic_optimisation(SemanticOptimisationPassId::LegacyAnalysisSpecialisation),
+    );
+    assert!(
+        matches!(output.plan, WasmCodegenPlan::General { .. }),
+        "expected the general structured tier for {program:?}, got {:?}",
+        output.plan
+    );
+    let indices: Vec<(&str, usize)> = required_calls
+        .iter()
+        .map(|name| {
+            let index = output
+                .module
+                .imports
+                .iter()
+                .position(|import| import.name == *name)
+                .unwrap_or_else(|| panic!("the analysis tier imports {name}"));
+            (*name, index)
+        })
+        .collect();
+    let wat = output.module.to_wat();
+    for (name, index) in indices {
+        let call = format!("call {index}");
+        assert!(
+            wat.lines().any(|line| line.trim() == call),
+            "{program:?} must call {name}; without it this case proves nothing \
+             about the compiled path:\n{wat}"
+        );
+    }
+    output.to_bytes()
+}
+
+/// Link and run a module that must have reached the dispatcher through a
+/// compiled argv rather than source evaluation. See [`compile_argv_analysed`].
+fn run_real_link_argv(runtime: &Path, tag: &str, program: &str, query: &str) -> String {
+    let bytes = compile_argv_analysed(program, &["tcl_invoke_argv"]);
+    run_link_bytes(runtime, tag, &bytes, program, query)
+}
+
+/// Link and run a module compiled under caller-chosen options. Unlike
+/// [`run_real_link`] this asserts nothing about the selected plan — the point
+/// of passing options is usually to select a *different* one.
 fn run_real_link_with_options(
     runtime: &Path,
+    tag: &str,
     program: &str,
     query: &str,
     options: WasmCompileOptions,
@@ -278,11 +428,21 @@ fn run_real_link_with_options(
     let unit = CompilationUnit::build_for_dialect(program, &registry, false, "tcl9.0");
     // Constant pool in the reserved gap so it does not hit the runtime's stack.
     let user_bytes = compile_wasm(&unit, &registry, options).to_bytes();
+    run_link_bytes(runtime, tag, &user_bytes, program, query)
+}
 
+/// Compose the three modules, run them under wasmtime, and return stdout.
+fn run_link_bytes(
+    runtime: &Path,
+    tag: &str,
+    user_bytes: &[u8],
+    program: &str,
+    query: &str,
+) -> String {
     let tmp = std::env::temp_dir();
-    let user = tmp.join("tcl_real_link_user.wasm");
-    let boot = tmp.join("tcl_real_link_boot.wat");
-    std::fs::write(&user, &user_bytes).expect("write user module");
+    let user = tmp.join(format!("tcl_real_link_user_{tag}.wasm"));
+    let boot = tmp.join(format!("tcl_real_link_boot_{tag}.wat"));
+    std::fs::write(&user, user_bytes).expect("write user module");
     std::fs::write(&boot, bootstrap_wat(query)).expect("write bootstrap");
 
     let out = Command::new("wasmtime")
@@ -514,11 +674,156 @@ fn emitted_modules_run_against_the_real_runtime() {
             "6\n2",
         ),
     ];
-    for (program, query, expected) in cases {
+    for (index, (program, query, expected)) in cases.into_iter().enumerate() {
         assert_eq!(
-            run_real_link(&runtime, program, query),
+            run_real_link(&runtime, &format!("mixed{index}"), program, query),
             expected,
             "program {program:?}, query {query:?}"
+        );
+    }
+}
+
+/// The general tier's compiled prebuilt-argv path, running in the **real**
+/// interpreter: each case's words are evaluated by the emitted module and
+/// dispatched through the runtime's ordinary command resolution, and the side
+/// effect is read back through the same interpreter afterwards.
+#[test]
+fn compiled_argv_invocations_run_against_the_real_runtime() {
+    if !have_wasmtime() {
+        eprintln!("wasmtime CLI unavailable; skipping the real link");
+        return;
+    }
+    let Some(runtime) = build_reserved_runtime() else {
+        eprintln!("could not build the wasm32 runtime; skipping the real link");
+        return;
+    };
+
+    // (program run by `::top`, the query the bootstrap then evaluates, expected).
+    let cases = [
+        // Literal words only: a compiled argv reaches the real dispatcher.
+        (
+            "lappend out alpha\nlappend out beta\n",
+            "set out",
+            "alpha beta",
+        ),
+        // A braced word keeps its unsubstituted value; the runtime's `catch`
+        // evaluates it, so a contained error stays contained.
+        (
+            "catch {error boom} msg\nlappend out $msg\n",
+            "set out",
+            "boom",
+        ),
+        // A `$var` scalar read feeding a `[nested command]` word.
+        (
+            "set greeting world\nlappend log [string toupper $greeting]\n",
+            "set log",
+            "WORLD",
+        ),
+        // A quoted compound word alongside a nested invocation.
+        (
+            "set name world\nlappend out \"hi $name\" [string length $name]\n",
+            "set out",
+            "{hi world} 5",
+        ),
+        // A `$arr(key)` element read, with the array built by a compiled argv.
+        (
+            "array set cfg {mode fast}\nlappend out $cfg(mode)\n",
+            "set out",
+            "fast",
+        ),
+        // Runtime dispatch is genuinely runtime dispatch: a renamed command
+        // resolves to its new name, which no compile-time binding could know.
+        (
+            "proc original {x} {return got:$x}\nrename original renamed\nlappend out [renamed value]\n",
+            "set out",
+            "got:value",
+        ),
+        // Abrupt completion mid-script: the second statement errors, so the
+        // third never runs — proving the compiled path propagates the code
+        // after it has released its words and freed its frame.
+        (
+            "lappend out first\nstring index\nlappend out second\n",
+            "set out",
+            "first",
+        ),
+    ];
+    for (index, (program, query, expected)) in cases.into_iter().enumerate() {
+        assert_eq!(
+            run_real_link_argv(&runtime, &format!("argv{index}"), program, query),
+            expected,
+            "program {program:?}, query {query:?}"
+        );
+    }
+}
+
+/// The compiled path leaks nothing in the real runtime: after repeated runs the
+/// residual allocation count is unchanged, no double free was recorded, and no
+/// transient call frame is outstanding — including for a statement that leaves
+/// through the abrupt-completion branch.
+#[test]
+fn compiled_argv_balances_allocations_in_the_real_runtime() {
+    if !have_wasmtime() {
+        eprintln!("wasmtime CLI unavailable; skipping the real link");
+        return;
+    }
+    let Some(runtime) = build_reserved_runtime() else {
+        eprintln!("could not build the wasm32 runtime; skipping the real link");
+        return;
+    };
+
+    for (tag, program) in [
+        // Every word shape, all side-effect free so repeated runs are neutral.
+        (
+            "words",
+            "set greeting hello\nset cfg(mode) fast\nstring toupper $greeting\n\
+             string length [string trim {  padded  }]\nstring equal \"hi $greeting\" hi\n\
+             lindex {a b c} 1\n",
+        ),
+        // A missing variable aborts part-way through argv construction: the
+        // words already built must still be released.
+        (
+            "abort-mid-word",
+            "string toupper [string tolower $definitely_missing_variable]\nstring length abc\n",
+        ),
+        // The invocation itself completes abruptly inside a loop, so the
+        // completion dispatch branches out after the cleanup runs.
+        (
+            "abort-in-loop",
+            "set go 1\nwhile {$go} {string index\nlappend never x}\nstring length abc\n",
+        ),
+    ] {
+        let tmp = std::env::temp_dir();
+        let user = tmp.join(format!("tcl_real_leak_user_{tag}.wasm"));
+        let boot = tmp.join(format!("tcl_real_leak_boot_{tag}.wat"));
+        // The frame-alloc requirement is what keeps this honest: under source
+        // evaluation no transient frame is ever allocated, so the outstanding
+        // count the bootstrap checks would balance at zero and the case would
+        // pass while proving nothing about the compiled path's ownership.
+        std::fs::write(
+            &user,
+            compile_argv_analysed(
+                program,
+                &["tcl_invoke_argv", "tcl_codegen_call_frame_alloc"],
+            ),
+        )
+        .expect("write user module");
+        std::fs::write(&boot, leak_bootstrap_wat()).expect("write bootstrap");
+        let out = Command::new("wasmtime")
+            .arg("run")
+            .arg("--preload")
+            .arg(format!("tcl={}", runtime.display()))
+            .arg("--preload")
+            .arg(format!("user={}", user.display()))
+            .arg(&boot)
+            .output()
+            .expect("run wasmtime");
+        let _ = std::fs::remove_file(&user);
+        let _ = std::fs::remove_file(&boot);
+        assert!(
+            out.status.success(),
+            "`{tag}` did not balance its allocations:\n--- stdout ---\n{}\n--- stderr ---\n{}",
+            String::from_utf8_lossy(&out.stdout),
+            String::from_utf8_lossy(&out.stderr),
         );
     }
 }
@@ -624,7 +929,13 @@ fn sealed_native_i64_add_runs_and_trace_registration_falls_back() {
         WasmCodegenPlan::General { .. }
     ));
     assert_eq!(
-        run_real_link_with_options(&runtime, &traced, "set d", native_i64_add_options()),
+        run_real_link_with_options(
+            &runtime,
+            "native_i64_add",
+            &traced,
+            "set d",
+            native_i64_add_options()
+        ),
         "6\n2"
     );
 }
