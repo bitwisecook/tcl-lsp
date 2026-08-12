@@ -274,10 +274,17 @@ which is 75× slower). The design consequences are binding:
   are all misses).
 - **Folders and predicate gates run on the VM freely** — bounded,
   off the interactive path, contractually pure.
-- Two VM work items fall out and are tracked upstream: **command-limit
-  fuel is stored but not enforced** (load-bearing for the containment
-  guarantee above), and the proc-body compile cache misses on
-  qualified-name keying, forcing recompiles.
+- **The VM boundary itself is on the table** (#1373): building the
+  extension interface is the occasion to give `tcl-vm` the first-class
+  embedder APIs it lacks — a public `Vm::invoke_command`,
+  invoke-by-handle over pre-compiled function handles with no per-call
+  `FunctionAsm` clone, enforced command-limit fuel (load-bearing for
+  the containment guarantee above), and the qualified-name
+  compile-cache fix. The engine implementations of the interface drive
+  these improvements rather than shimming around the gaps; the
+  measured floors above are the *before* numbers, and the registry's
+  shape-keyed caching stays regardless — it clears budget even if the
+  VM never gets faster.
 
 ## Compatibility policy
 
