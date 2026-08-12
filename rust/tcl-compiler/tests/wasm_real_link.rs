@@ -354,6 +354,66 @@ fn run_real_link(runtime: &Path, tag: &str, program: &str, query: &str) -> Strin
     run_link_bytes(runtime, tag, &compile_general(program), program, query)
 }
 
+/// Compile under the analysis tier, proving the module really reaches the
+/// runtime through each of `required_calls` before anyone runs it.
+///
+/// The proof is the point, and it is not ceremony. `runtime_linked()` leaves
+/// every semantic pass disabled, so without an explicit
+/// [`SemanticOptimisationPassId::LegacyAnalysisSpecialisation`] the whole script
+/// lowers to `tcl_eval_code(<source span>)` — which produces exactly the same
+/// observable results as the compiled path, because it *is* the same
+/// interpreter. A behavioural assertion cannot tell the two apart, so these
+/// cases silently exercised source evaluation until this helper existed.
+///
+/// Requiring the module to merely *import* a symbol would not fix it: the
+/// analysis tier adds its whole import set whether or not any statement uses
+/// it. So this resolves each import's own index and demands a real `call` to
+/// it in the emitted body.
+fn compile_argv_analysed(program: &str, required_calls: &[&str]) -> Vec<u8> {
+    let registry = CommandRegistry::build_default();
+    let unit = CompilationUnit::build_for_dialect(program, &registry, false, "tcl9.0");
+    let mut output = compile_wasm(
+        &unit,
+        &registry,
+        WasmCompileOptions::runtime_linked()
+            .with_semantic_optimisation(SemanticOptimisationPassId::LegacyAnalysisSpecialisation),
+    );
+    assert!(
+        matches!(output.plan, WasmCodegenPlan::General { .. }),
+        "expected the general structured tier for {program:?}, got {:?}",
+        output.plan
+    );
+    let indices: Vec<(&str, usize)> = required_calls
+        .iter()
+        .map(|name| {
+            let index = output
+                .module
+                .imports
+                .iter()
+                .position(|import| import.name == *name)
+                .unwrap_or_else(|| panic!("the analysis tier imports {name}"));
+            (*name, index)
+        })
+        .collect();
+    let wat = output.module.to_wat();
+    for (name, index) in indices {
+        let call = format!("call {index}");
+        assert!(
+            wat.lines().any(|line| line.trim() == call),
+            "{program:?} must call {name}; without it this case proves nothing \
+             about the compiled path:\n{wat}"
+        );
+    }
+    output.to_bytes()
+}
+
+/// Link and run a module that must have reached the dispatcher through a
+/// compiled argv rather than source evaluation. See [`compile_argv_analysed`].
+fn run_real_link_argv(runtime: &Path, tag: &str, program: &str, query: &str) -> String {
+    let bytes = compile_argv_analysed(program, &["tcl_invoke_argv"]);
+    run_link_bytes(runtime, tag, &bytes, program, query)
+}
+
 /// Link and run a module compiled under caller-chosen options. Unlike
 /// [`run_real_link`] this asserts nothing about the selected plan — the point
 /// of passing options is usually to select a *different* one.
@@ -689,7 +749,7 @@ fn compiled_argv_invocations_run_against_the_real_runtime() {
     ];
     for (index, (program, query, expected)) in cases.into_iter().enumerate() {
         assert_eq!(
-            run_real_link(&runtime, &format!("argv{index}"), program, query),
+            run_real_link_argv(&runtime, &format!("argv{index}"), program, query),
             expected,
             "program {program:?}, query {query:?}"
         );
@@ -735,7 +795,18 @@ fn compiled_argv_balances_allocations_in_the_real_runtime() {
         let tmp = std::env::temp_dir();
         let user = tmp.join(format!("tcl_real_leak_user_{tag}.wasm"));
         let boot = tmp.join(format!("tcl_real_leak_boot_{tag}.wat"));
-        std::fs::write(&user, compile_general(program)).expect("write user module");
+        // The frame-alloc requirement is what keeps this honest: under source
+        // evaluation no transient frame is ever allocated, so the outstanding
+        // count the bootstrap checks would balance at zero and the case would
+        // pass while proving nothing about the compiled path's ownership.
+        std::fs::write(
+            &user,
+            compile_argv_analysed(
+                program,
+                &["tcl_invoke_argv", "tcl_codegen_call_frame_alloc"],
+            ),
+        )
+        .expect("write user module");
         std::fs::write(&boot, leak_bootstrap_wat()).expect("write bootstrap");
         let out = Command::new("wasmtime")
             .arg("run")
