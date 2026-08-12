@@ -118,14 +118,14 @@ fn condition_text(node: &ExprNode) -> String {
     diagram_safe_operators(&truncate(&render_expr(node), 80))
 }
 
-/// `_is_notable_assign`: an assignment worth showing captures a command
-/// substitution.
+/// An assignment worth showing captures a command substitution.
 fn is_notable_assign(value: &str) -> bool {
     value.contains('[')
 }
 
-/// Build an `action` flow node (shared by `IRCall` / `IRBarrier`). Mirrors the
-/// label / args construction in both `_walk_statement` action branches.
+/// Build an `action` flow node (shared by `Statement::Call` /
+/// `Statement::Barrier`). Mirrors the label / args construction in both
+/// `walk_statement` action branches.
 fn action_node(display: &str, args: &[String]) -> Value {
     let arg_strs: Vec<String> = args
         .iter()
@@ -251,8 +251,8 @@ fn walk_call(
     proc_names: &HashSet<&str>,
     registry: &CommandRegistry,
 ) -> Option<Value> {
-    // Matching is on `IRCall.canonical_command` (the stamped
-    // namespace-qualified form). The Rust lowerer only stamps it for
+    // Matching is on `Statement::Call.canonical_command` (the stamped
+    // namespace-qualified form). The lowerer only stamps it for
     // alias / namespace resolution, leaving plain calls `None`; for
     // those the source spelling *is* the canonical (modulo a leading
     // `::`, which `is_diagram_action` / the registry strip), so fall

@@ -1,12 +1,10 @@
-# KCS: execution-intent model (Phase 2)
+# Execution intent model
 
-## Symptom
+The per-function intent facts recorded for command substitutions — invocation
+shape, substitution kind, side-effect and escape class, and shimmer pressure —
+and how a consumer reads them instead of re-parsing substitution text.
 
-Passes repeatedly parse command-substitution text to infer runtime intent (shape, substitution kind, and risk), leading to drift and duplicated heuristics.
-
-## Context
-
-`CompilationUnit` now carries `FunctionExecutionIntent` facts per function, built once from CFG statements during `compile_source()`.
+`CompilationUnit` carries `FunctionExecutionIntent` facts per function, built once from CFG statements during `compile_source()`.
 
 ## Current intent facets
 
@@ -26,12 +24,12 @@ For command substitutions (`set x [cmd ...]`), intent records:
 
 ## Practical use in this repo
 
-- `shimmer.py` uses intent as the fast path for command-substitution shimmer checks.
-- `optimiser.py` uses side-effect/escape intent to decide whether dead command-substitution stores are removable.
+- `shimmer/` uses intent as the fast path for command-substitution shimmer checks.
+- `optimiser/` uses side-effect/escape intent to decide whether dead command-substitution stores are removable.
 
 ## Related files
 
-- `compiler/execution_intent.py`
-- `compiler/compilation_unit.py`
-- `compiler/shimmer.py`
-- `compiler/optimiser/`
+- `rust/tcl-compiler/src/execution_intent.rs`
+- `rust/tcl-compiler/src/compilation_unit.rs`
+- `rust/tcl-compiler/src/shimmer/`
+- `rust/tcl-compiler/src/optimiser/`

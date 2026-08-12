@@ -46,9 +46,9 @@ use tcl_lexer::{LineIndex, Span};
 /// LSP `SymbolKind` values used by the document-symbol provider.
 ///
 /// The wire form ([`Self::as_str`]) is the LSP enum's identifier
-/// (`"Function"`, `"Method"`, …) rather than its numeric value —
-/// `lsprotocol` accepts both forms via `SymbolKind[name]`, and the
-/// string is easier to read in dumps and tests than `12`.
+/// (`"Function"`, `"Method"`, …) rather than its numeric value: the
+/// string is easier to read in dumps and tests than `12`, and it is
+/// mapped to the numeric value on the way out.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum SymbolKind {
     /// `proc` definition.
@@ -88,7 +88,7 @@ pub enum SymbolKind {
 }
 
 impl SymbolKind {
-    /// Identifier name as used by `lsprotocol.types.SymbolKind`.
+    /// Identifier name of the LSP `SymbolKind` enum member.
     #[must_use]
     pub fn as_str(self) -> &'static str {
         match self {

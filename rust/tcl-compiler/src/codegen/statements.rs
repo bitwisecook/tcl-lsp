@@ -361,7 +361,7 @@ impl CodegenCtx<'_> {
                 } else {
                     // No preserved tokens (synthetic UpFrame) — nothing to
                     // dispatch; mark it rather than silently dropping a body.
-                    self.emit_comment(Op::NOP, vec![], "unhandled: IRUpFrame (no tokens)");
+                    self.emit_comment(Op::NOP, vec![], "unhandled: Statement::UpFrame (no tokens)");
                 }
             }
 

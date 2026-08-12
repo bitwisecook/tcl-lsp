@@ -30,8 +30,8 @@
 //!
 //! [`CONVERTIBLE_CODES`]/[`conversion_for`] are `pub` (re-exported at the
 //! crate root) so `tcl-mcp`'s `find-legacy` MCP tool can share this table
-//! instead of hand-duplicating it in `tcl-mcp/diagnostics.json` — the two
-//! used to carry byte-identical copies of the same 6 codes and hint strings.
+//! instead of hand-duplicating the 6 codes and their hint strings in
+//! `tcl-mcp/diagnostics.json`.
 
 use serde::Serialize;
 use tcl_cli_support::{

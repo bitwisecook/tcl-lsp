@@ -16,10 +16,10 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! Residual-coverage port for several under-covered `tcl-compiler` analysis
+//! Residual coverage for several under-covered `tcl-compiler` analysis
 //! files.  This suite deliberately targets the *remaining* uncovered branches
-//! that the existing ports (`analyser_port`, `checks_port`, `core_analyses_port`,
-//! `fp_depth_port`, `inlining_port`, `dataflow_port`, `optimiser_*`) and the
+//! that the existing suites (`analyser.rs`, `checks.rs`, `core_analyses.rs`,
+//! `fp_depth.rs`, `inlining.rs`, `dataflow.rs`, `optimiser_*`) and the
 //! in-crate unit tests already miss:
 //!
 //!   * `src/scan_predicate.rs` — every `scan`/format-string conversion
@@ -28,7 +28,7 @@
 //!     `pub`) and end-to-end through the W210 read-before-set surface.
 //!   * `src/auto_path_eval.rs` — the `lappend auto_path` mini-evaluator: the
 //!     `[file join]` / `[file dirname]` / `[info script]` idioms, the tokeniser
-//!     quirks (brace groups, quoted words, the `{[}`-as-open-bracket case,
+//!     quirks (brace groups, quoted words, braced-`[` as a literal,
 //!     unterminated delimiters), and the POSIX path helpers.
 //!   * `src/place_bridge.rs` — the place/SSA-bridge def/read resolution: dict
 //!     paths, must-alias kills, braced-literal data words, upvar aliases,
@@ -39,7 +39,7 @@
 //!     branch / loop-node statement variants the existing shift test misses.
 //!   * `src/inlining/mod.rs` — `classify_proc` / `inline_module` decline reasons
 //!     (size limits, recursion, side-effects, non-namespace-invariant calls,
-//!     globals, `{*}` expansion) the `inlining_port` misses.
+//!     globals, `{*}` expansion) `inlining.rs` misses.
 //!   * `src/analyser/diagnostics/fp/rch.rs` — the reachability (O107) FP
 //!     suppressor carve-outs: code after `return` / `break` / `continue` /
 //!     `error`, constant-false guards, and the various unreachable-region shapes,
@@ -478,10 +478,10 @@ fn auto_path_normpath_collapses_dotdot_and_dot() {
 
 #[test]
 fn auto_path_normpath_double_slash_preserved() {
-    // POSIX `os.path.normpath` preserves EXACTLY two leading slashes and
+    // POSIX `normpath` preserves EXACTLY two leading slashes and
     // collapses three-or-more to one (a deliberate POSIX-specific rule; tclsh's
     // own `file` command differs across 8.6/9.0, so this is the documented
-    // Rust/POSIX behaviour, asserted structurally).
+    // POSIX behaviour, asserted structurally).
     assert_eq!(
         evaluate_auto_path_expr("//net/share", None).as_deref(),
         Some("//net/share"),
@@ -569,12 +569,14 @@ fn auto_path_tokeniser_brace_group_and_bracket_quirk() {
         evaluate_auto_path_expr("{/lib}", None).as_deref(),
         Some("/lib"),
     );
-    // The documented `{[}`-as-open-bracket quirk: a brace word whose content is
-    // exactly `[` reads as an open bracket in `parse`, so `{[} info script ]`
-    // parses as a command substitution `[info script]`.
+    // A braced `[` is a literal `[`, not an open bracket — Tcl performs no
+    // substitution inside braces.  The string-token tokeniser used to lose
+    // that distinction and mis-read `{[} info script ]` as the command
+    // substitution `[info script]`; with typed word tokens it is a literal
+    // `[` followed by trailing words, which the expression parser rejects.
     assert_eq!(
-        evaluate_auto_path_expr("{[} info script ]", Some("/proj/x.tcl")).as_deref(),
-        Some("/proj/x.tcl"),
+        evaluate_auto_path_expr("{[} info script ]", Some("/proj/x.tcl")),
+        None,
     );
 }
 
@@ -1128,7 +1130,7 @@ fn inline_classify_small_pure_leaf_is_always_large_is_count_dependent() {
 #[test]
 fn inline_count_statements_try_and_switch() {
     // `count_statements` walks Try (body + handlers + finally) and Switch (arm +
-    // default bodies) — the variants the inlining_port's count tests skip.
+    // default bodies) — the variants `inlining.rs`'s count tests skip.
     let module = module_for(
         "proc ::f {} {\n try { set a 1 } on error {e} { set b 2 } finally { set c 3 }\n switch -- $a { 1 { set d 4 } default { set e 5 } }\n}\n",
     );

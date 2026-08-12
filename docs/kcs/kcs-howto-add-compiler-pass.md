@@ -79,4 +79,3 @@ existing one?
 - [Compiler pipeline overview](../design/compiler/compiler-pipeline-overview.md)
 - [Downstream pass contracts](../design/compiler/downstream-pass-contracts.md)
 - [Pass-fact ownership matrix](../design/compiler/pass-fact-ownership-matrix.md)
-- [How do I debug an IR/CFG/SSA diagnostic?](kcs-howto-ir-cfg-ssa-diagnostics.md)

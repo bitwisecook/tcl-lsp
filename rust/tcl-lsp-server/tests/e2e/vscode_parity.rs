@@ -16,15 +16,13 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! Native port of `tests/lsp_e2e/test_vscode_parity_e2e.py`.
-//!
 //! End-to-end regression coverage for the VS Code parity gaps. Every test here
-//! corresponds to a VS Code extension test that failed against the native Rust
-//! server (the extension suite exercises the packaged server over the full LSP
-//! protocol, but the backend-neutral `lsp_e2e` suite previously did not cover
-//! these paths — so a Rust-only regression slipped through green). Each test
-//! drives the *same* server behaviour directly over JSON-RPC so the gap is
-//! caught here too, without needing the VS Code test host.
+//! corresponds to a VS Code extension test that failed against the server: the
+//! extension suite exercises the packaged server over the full LSP protocol,
+//! and these paths had no coverage on the raw-protocol side, so a regression
+//! could slip through green here. Each test drives the *same* server behaviour
+//! directly over JSON-RPC so the gap is caught without needing the VS Code test
+//! host.
 //!
 //! Grouped by the fix area:
 //!   * diagnostics — W100 inside command substitutions, W216 brace-then-paren
@@ -42,8 +40,7 @@ use serde_json::{Value, json};
 use std::collections::BTreeSet;
 use std::time::Duration;
 
-/// The sorted set of `code` strings carried by `diags` (mirrors Python
-/// `_codes`).
+/// The sorted set of `code` strings carried by `diags`.
 fn codes(diags: &[Value]) -> Vec<String> {
     let mut out: Vec<String> = diags
         .iter()
@@ -76,7 +73,7 @@ fn message(d: &Value) -> &str {
     d.get("message").and_then(Value::as_str).unwrap_or("")
 }
 
-/// The `label`s of a completion result (mirrors Python `_labels`).
+/// The `label`s of a completion result.
 fn labels(result: &Value) -> Vec<String> {
     completion_labels(result)
 }
@@ -89,8 +86,7 @@ fn range(start: (u32, u32), end: (u32, u32)) -> Value {
     })
 }
 
-/// Every edit carried by a code action's `WorkspaceEdit` (mirrors Python
-/// `_edits_of`).
+/// Every edit carried by a code action's `WorkspaceEdit`.
 fn edits_of(action: &Value) -> Vec<Value> {
     let mut out = Vec::new();
     let edit = action.get("edit").cloned().unwrap_or(Value::Null);
@@ -311,8 +307,8 @@ fn test_folding_toggle_suppresses_ranges() {
     let mut lsp = Lsp::tcl();
     let uri = unique_uri("tcl");
     lsp.open_ready(&uri, "proc f {} {\n  set x 1\n  set y 2\n}\n");
-    // present by default (Python asserts the raw result is truthy — a non-empty
-    // `FoldingRange[]`; these use `startLine`/`endLine`, not position `Range`s).
+    // Present by default: a non-empty `FoldingRange[]` (these carry
+    // `startLine`/`endLine`, not position `Range`s).
     assert!(
         lsp.folding_range(&uri)
             .as_array()
@@ -443,9 +439,8 @@ fn test_optimiser_code_override_does_not_leak() {
         &uri,
         |c| c["line_length"] == json!(81),
     );
-    // (Python enters and immediately exits the config_session, restoring the
-    // profile; here each test owns its server, so re-assert the default profile
-    // to mirror the restore.)
+    // Restore the default profile, so the assertion below observes the
+    // optimiser back in its enabled state rather than the edited one.
     lsp.apply_configuration_settle(
         json!({ "optimiser": { "enabled": true }, "formatting": { "lineLength": 82 } }),
         &uri,

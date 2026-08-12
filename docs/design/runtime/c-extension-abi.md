@@ -1,10 +1,19 @@
 # C Tcl extension → WASM ABI
 
-Status: **design proposed, mechanism spike-validated.** The end-to-end
-mechanism was proven by throwaway spikes (since removed) covering static link,
-dynamic side-module load, and a six-extension compile-check, all green. This
-document is the durable contract those spikes stood in for — **do not derive
-the shape from spike code**; derive it from here.
+The ABI by which an **unmodified** C Tcl extension — one that `#include`s
+`<tcl.h>` and calls `Tcl_CreateObjCommand`, `Tcl_GetStringFromObj`, … — is
+compiled to WebAssembly and linked against the runtime and the compiled user
+code, with no per-extension shim.
+
+> **Implementation state.** This is a *design contract*, and the surface it
+> describes is not shipped: the repository contains no authored `tcl.h` /
+> `tclOO.h` / `tclTomMath.h`, and `runtime/rust/src/capi.rs` exports only a
+> small subset of the C-API. The mechanism (static link, dynamic side-module
+> load, a six-extension compile-check) was proven end to end by throwaway
+> spikes that have since been removed, so **do not derive the shape from spike
+> code** — derive it from this document. The per-function ownership and
+> error-path categories live in
+> [`c-api-ownership-contract.md`](c-api-ownership-contract.md).
 
 Companion docs: [`memory-management.md`](memory-management.md),
 [`refcount-contract.md`](refcount-contract.md),
@@ -96,16 +105,35 @@ Tcl 9.0:
 - `tclTomMath.h` — the `mp_*` bignum API.
 
 These are the *only* shim. They are written once, by the runtime author, not
-per extension.
+per extension. None of the three exists yet: `runtime/rust/include/` currently
+holds one header, `tcl_regex_capi.h`, which is the §10 regex shim's own
+C surface and not part of this ABI.
 
 ### 4.2 `Tcl_Obj` layout
 
 `Tcl_Obj` is `#[repr(C)]` with the exact field order `tcl.h` declares
 (`refCount`, `bytes`, `length`, `typePtr`, `internalRep`), because extensions
-read `objPtr->refCount` / `objPtr->bytes` directly through macros. On `wasm32`
-the layout is `{ i32, i32, i32, i32, <8-byte union> }` (24 bytes, 8-aligned).
-`internalRep` is a union sized/aligned to match (8 bytes); core-API extensions
-never touch its variants.
+read `objPtr->refCount` / `objPtr->bytes` directly through macros. This half
+*is* shipped: `runtime/rust/src/obj.rs` declares
+
+```rust
+#[repr(C)]
+pub struct TclObj {
+    pub ref_count: TclSize,          // Tcl_Size — ptrdiff_t
+    pub bytes: *mut c_char,
+    pub length: TclSize,
+    pub type_ptr: *const TclObjType,
+    pub internal_rep: u64,
+}
+```
+
+On `wasm32` that is `{ i32, ptr, i32, ptr, 8 bytes }`, 8-aligned. `internalRep`
+is C's 8-byte `Tcl_ObjInternalRep` union; the Rust side keeps it as a raw `u64`
+and reinterprets it for the `wide` / `double` variants, since core-API
+extensions never touch the others. `TclObjType` is the same shape as C's
+registered type descriptor, with the four `free`/`dup`/`updateString`/
+`setFromAny` procs typed to match `tcl.h`, so an extension's own `Tcl_ObjType`
+slots in unchanged.
 
 `bytes` is the object's UTF-8 **string representation**. A byte-array object
 instead stores its exact raw payload in an `internalRep` allocation with the
@@ -173,7 +201,7 @@ load-time-registered command can be resolved.
 
 Compile the extension `.c` to a WASM object with clang + wasi-sdk;
 link it with the runtime's objects via `wasm-ld` into a single module. Same model as
-`core/compiler/codegen/wasm_link.py`'s whole-program link. Simplest deployment;
+the compiler's whole-program WASM link. Simplest deployment;
 proves API compatibility, Rust↔C wasm interop, and the §4.5 callback. This was
 spike-validated (spike since removed).
 
@@ -336,9 +364,11 @@ a *runtime-internal* C component, not a user extension, so it is exempt from the
   shared-table index for function `X`. So the loader's GOT path is small and
   tied to the (rare) stubs-introspection / address-of-runtime-symbol pattern,
   not to extension size — it is **not** a blocker, just a finite list to wire.
-- **Refcount ownership across the boundary.** Define and document the
-  caller/callee `+1` rules for every API entry point (extends
-  `refcount-contract.md` to the C API surface).
+- **Refcount ownership across the boundary.** The caller/callee `+1` rules per
+  entry point are
+  [`c-api-ownership-contract.md`](c-api-ownership-contract.md); what remains is
+  encoding those categories in the `runtime/rust/` implementations and gating
+  on them.
 - **Faithful struct fidelity.** Ship the full versioned `Tcl_ChannelType` /
   `Tcl_Filesystem` / `Tcl_ObjType` bodies (the spike carries only the fields the
   probes touch).
@@ -347,95 +377,45 @@ a *runtime-internal* C component, not a user extension, so it is exempt from the
   and command tables map onto child interps.
 - **Threads in WASM.** The threading API maps onto wasm threads or a
   cooperative shim; decide per deployment.
-- **Sequencing.** This work is gated behind the rest of the Rust migration
-  (the runtime is the last component to port); the durable artifact is *this
-  ABI + the headers*, which are reusable whichever language the runtime lands in.
+The durable artefact is *this ABI plus the headers*, which is reusable
+whichever language the runtime is written in.
 
-## 12. Spike evidence
+## 12. The extension corpus this ABI is held to
 
-Executable proof was provided by throwaway spikes (since removed):
+The reference corpus is the nine in-tree Tcl 9.0.3 dltest extensions
+(`pkga`–`pkge`, `pkgt`, `pkgua`, `pkgπ`, `pkgooa`) plus two synthetic probes.
+Between them they exercise every part of the surface that is easy to
+under-specify:
 
-| Spike | Proves | Run |
-|---|---|---|
-| `compile-check/` | 6 extensions (4 real dltest + 2 synthetic) compile unmodified vs the headers | `compile-check/check.sh` |
-| `static-link/` | Model A: extension + Rust runtime in one wasm, full call loop | `static-link/run.sh` |
-| `dynamic-link/` | Model B: PIC side module loaded at runtime into shared memory/table | `dynamic-link/run.sh` |
+- `pkgua` — the hash-table API, thread-local data, the load/unload protocol,
+  `Tcl_SetVar2`, `Tcl_DeleteCommandFromToken`;
+- `pkgπ` — non-ASCII init-function naming;
+- `pkgooa` — stubs introspection, and with it the only GOT-relocation pattern
+  in the corpus (§11);
+- the synthetic probes — static `Tcl_ObjType` / `Tcl_ChannelType` /
+  `Tcl_Filesystem` tables of function pointers.
 
-All three are green. They are throwaway; this document is the artifact to build
-the production runtime against.
+`embtest.c` is deliberately excluded: it *embeds* Tcl (`main()` +
+`Tcl_FindExecutable`), which is the opposite of extending it.
 
-The compile-check corpus is now the nine in-tree Tcl 9.0.3 dltest extensions
-(`pkga`–`pkge`, `pkgt`, `pkgua`, `pkgπ`, `pkgooa`) plus the two synthetic
-probes. `embtest.c` is excluded — it *embeds* Tcl (`main()` +
-`Tcl_FindExecutable`), the opposite of extending it. `pkgua` adds the hash-table
-API, thread-local data, the load/unload protocol, and `Tcl_SetVar2` /
-`Tcl_DeleteCommandFromToken`; `pkgπ` adds non-ASCII init-function naming.
+## 13. The unproven seam
 
-## 13. Planned next steps (scoped, not yet done)
+One seam in §4.6 has never been exercised against the real product: a Tcl
+script compiled by `tcl_compiler::codegen::wasm` calling an
+**extension-registered** command and dispatching into that extension. Every
+demonstration so far used a hand-written driver as the stand-in for compiled
+user code.
 
-Two items are scoped here so the context survives; neither is a blocker for the
-decision, both are required before shipping.
+Half of what it needs is now in place. Compiled code reaching an arbitrary
+runtime command through the live command table is shipped: `tcl_invoke_argv`
+(`codegen_abi.rs`) takes a prebuilt argv from generated code and routes it
+through the same `Interp::dispatch` interpreted Tcl uses, so namespaces,
+`unknown`, aliases, ensembles, and TclOO all resolve identically. A compiled
+script therefore already reaches any command the table holds, without the
+lookup needing an addition.
 
-### 13.1 The C-API ownership / error contract
-
-> **Status: contract + gate landed** (impl pending). The contract doc
-> [`c-api-ownership-contract.md`](c-api-ownership-contract.md) annotates all 81
-> shipped C-API functions with an ownership + error-path category (fixing the
-> `fresh_zero` rc=0-on-creation convention), and
-> `scripts/check_c_api_ownership.py` (`make check-c-api-ownership`, in
-> `_prep-pr-checks-noty`) rejects any un-annotated C-API export. Remaining: encode
-> the categories in the `runtime/rust/` impls and extend the gate to the real
-> `#[no_mangle] extern "C"` exports.
-
-**Why.** The spikes leak every `Tcl_Obj` and only return `TCL_OK`, so the
-refcount-ownership and error protocols — the contracts that make extensions
-leak-free and correct — are entirely unspecified in our artifacts. This is the
-single largest remaining *design* gap.
-
-**Deliverable.** A contract doc (sibling to `refcount-contract.md`) that, for
-every public C-API function we ship, states its refcount category
-(callee-consumes / callee-borrows / returns-owned-`+1` / returns-borrowed) and
-its error-path behaviour (`errorCode`/`errorInfo`/`Tcl_SetErrorCode`/return
-codes), plus a parity-style gate that rejects a new C-API export lacking an
-ownership annotation.
-
-**Approach.** Transcribe from Tcl's documented rules (`tmp/tcl9.0.3/doc/*.3` —
-`Tcl_Obj.3`, `Tcl_SetObjResult.3`, …; e.g. `Tcl_NewObj` returns refCount 0,
-`Tcl_SetObjResult` consumes a `+1`, list-append borrows), enumerate the shipped
-surface, annotate each, and encode the categories in the runtime
-implementation. Map onto the existing `refcount-contract.md` ownership
-vocabulary.
-
-**Effort / risk.** Moderate (~50–100 functions; rules are documented, so this is
-transcribe-and-enforce, not discovery). Risk is low conceptually but demands
-exhaustiveness — one wrong category leaks or double-frees.
-
-**Acceptance.** Every shipped C-API function carries an ownership category; a
-round-trip extension (`Tcl_NewObj` → `Tcl_IncrRefCount` → `Tcl_SetObjResult` →
-`Tcl_DecrRefCount`) shows zero residual under the `-Dleak-check` counter.
-
-### 13.2 Real-compiler dispatch spike
-
-**Why.** The spikes used a hand-written driver as a stand-in for "compiled user
-code". The one seam not yet proven against the actual product is: a Tcl script
-compiled by `core/compiler/codegen/wasm/` calling an *extension-registered*
-command and dispatching into the extension.
-
-**Deliverable.** An end-to-end run where a compiled `.tcl` that calls `foo a b`
-resolves `foo` — registered by a loaded C extension — through the runtime's
-dynamic command dispatch into the extension, and returns its result.
-
-**Approach.** Reuse the existing compiled-module + runtime harness
-(`tests/test_wasm_real_tcl.py`); add the extension as a side module (the
-`dynamic-link` loader) or static link; have `Foo_Init` register `foo` in the
-runtime's command table; run a compiled script that reaches `foo` via the
-eval-fallback / command-table lookup path (the same path unknown commands take
-today). Confirms §4.6 with real compiled code.
-
-**Effort / risk.** Small–moderate. Risk: medium — depends on the runtime
-exposing a "register external command (name → shared-table index)" entry that
-the compiled-code dispatch consults; this spike may surface that the
-command-table lookup needs a small addition.
-
-**Acceptance.** A compiled `.tcl` calling an extension command returns the
-extension's result under `wasmtime`.
+What is missing is the registration side: there is no `Tcl_CreateObjCommand`
+export and no `Command` variant holding a shared-table function index, so
+nothing can put an extension's `Tcl_ObjCmdProc` into that table for
+`tcl_invoke_argv` to find. Proving the seam means adding both, then having
+`Foo_Init` register `foo` and a compiled script call it.

@@ -92,9 +92,8 @@ impl ProcArgTrait {
     /// Stable lower-case wire form
     /// (`"passthrough"`, `"used_in_condition"`,
     /// `"forwarded_to_callee"`, `"var_read"`, `"var_write"`,
-    /// `"unused"`). Consumers (`PyO3` bindings, native LSP server)
-    /// materialise traits using this form rather than re-implementing
-    /// the mapping.
+    /// `"unused"`). Consumers materialise traits using this form
+    /// rather than re-implementing the mapping.
     #[must_use]
     pub const fn as_str(self) -> &'static str {
         match self {

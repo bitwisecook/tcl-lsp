@@ -1056,8 +1056,8 @@ fn o107_dead_code_in_false_branch() {
     assert!(!out.contains("puts dead"));
     assert!(out.contains("puts alive"));
 
-    // Code after `return` in a proc: must not crash (Rust may or may not emit
-    // O107). Assert only that optimisation completes (proc preserved).
+    // Code after `return` in a proc: must not crash (O107 may or may not be
+    // emitted). Assert only that optimisation completes (proc preserved).
     let after_ret = "proc foo {} {\n    return 1\n    puts never\n}\n";
     let _ = opt_codes(after_ret, TCL); // no panic
 }
@@ -1181,7 +1181,7 @@ fn o110_logical_identities() {
 #[test]
 fn o110_whitespace_noise_suppressed() {
     // Whitespace-only differences must NOT fire O110 (the user's spacing is not a
-    // defect). All confirmed no-O110 in Rust.
+    // defect). All confirmed no-O110.
     for src in [
         "set v [expr {$x-1}]",
         "set v [expr {$x*$y}]",

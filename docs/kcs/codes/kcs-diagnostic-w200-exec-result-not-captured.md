@@ -1,7 +1,7 @@
 # KCS: W200 — Why does the analyser warn about an uncaptured exec result?
 
 > **Audience:** User
-> **Type:** Issue
+> **Type:** Diagnostic
 
 ## Applies to
 
@@ -41,7 +41,7 @@ Capture the result in a variable, or redirect output explicitly if you genuinely
 
 ## How to suppress
 
-Add `# noqa: W200` at the end of the offending line.
+Add `# noqa: W200` on the line **above** the offending command.
 
 ## Related
 

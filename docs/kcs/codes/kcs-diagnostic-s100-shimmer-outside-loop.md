@@ -1,7 +1,7 @@
 # KCS: S100 — Why does the analyser warn about a shimmer outside a loop?
 
 > **Audience:** User
-> **Type:** Issue
+> **Type:** Diagnostic
 
 ## Applies to
 

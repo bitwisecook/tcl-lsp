@@ -1,4 +1,4 @@
-# KCS: compiler — event handler priority model
+# Event handler priority model
 
 ## Summary
 
@@ -9,69 +9,93 @@ from file order).
 
 ## Problem
 
-iRules allow multiple `when EVENT` handlers for the same event. BigIP executes
+iRules allow multiple `when EVENT` handlers for the same event. BIG-IP executes
 them in priority order (lowest first). When two handlers share the same
-priority, file order breaks the tie. Previously the codebase stored a single
-`priority` integer, which conflated the declared value with the implicit ordering.
-Splitting into base + offset makes disambiguation explicit.
+priority, file order breaks the tie. Base priority and offset are separate
+values so the declared priority is never conflated with the implicit
+file-order tie-break.
 
 ## Data model
 
 ### `Procedure::base_priority` (`rust/tcl-compiler/src/ir.rs`)
 
-```rust
-/// BIG-IP handler priority (0..2^32-1, default 500).
-pub base_priority: u32,
+`pub base_priority: u32` — the declared priority from
+`when EVENT priority N { body }`, defaulting to 500. Set during lowering
+(`rust/tcl-compiler/src/lowering/`). Does **not** carry an offset — a single
+`Procedure` does not know about sibling handlers.
+
+### Event-order entries (`rust/tcl-explorer/src/serialise.rs`)
+
+`serialise_event_order` emits one JSON object per handler:
+
+```json
+{
+  "event": "HTTP_REQUEST",
+  "base_priority": 500,
+  "priority_offset": 0,
+  "multiplicity": "...",
+  "range": { "...": "..." }
+}
 ```
 
-The declared priority from `when EVENT priority N { body }`, set during
-lowering (`rust/tcl-compiler/src/lowering/mod.rs`). Does **not** carry an
-offset — a single `Procedure` does not know about sibling handlers. Sibling
-handlers for the same event are instead disambiguated by the qualified name:
-the first is `::when::EVENT`, subsequent ones are `::when::EVENT#1`,
-`::when::EVENT#2`, … (`when_event_name` strips the `#N` suffix back off).
+`priority_offset` is 0 for the first handler at a given base priority and
+increments by 1 for each subsequent tie. It is computed after sorting each
+event's handlers by `(priority, file_index)`. Entries are emitted grouped by
+event, in the canonical order `EventRegistry::order_events` gives, and
+`multiplicity` is that event's `EventRegistry::event_multiplicity` class
+(`init`, `per_request`, …). Only `when` commands whose last word is a braced
+block are collected.
 
-### Explorer `eventOrder` entries (`rust/tcl-explorer/src/serialise.rs`)
+### `RuleInitExport` / `RuleInitVarDef`
 
-There is no standalone entry struct — `serialise_event_order` builds the JSON
-rows directly. Each row carries `event`, `base_priority`, `priority_offset`,
-`multiplicity`, and `range`. The offset is computed after sorting each event's
-handlers by `(priority, file_index)`: it resets to 0 whenever the priority
-changes and increments by 1 for each further handler at the same priority.
+> **Not part of the live path.** Neither type exists in the Rust tree, and
+> there is no `extract_rule_init_vars` function; nothing carries a
+> `base_priority` for cross-file RULE_INIT variable tracking. Issue #1406
+> tracks the gap.
+
+The design they describe: both would carry a `base_priority` for cross-file
+RULE_INIT variable tracking, with no offset — RULE_INIT ordering does not
+require tie-breaking.
+
+What exists today is per-document only. `Procedure::base_priority`
+(above) carries the declared priority for each `when` handler, and
+`static::` variables written by `when RULE_INIT` are tracked by
+`ConnectionScope` (`rust/tcl-compiler/src/connection_scope.rs`), built by
+`build_connection_scope()` from the `::when::*` procedures of a single
+`CompilationUnit` — its `racy_static_defs` is the RULE_INIT-aware half, and it
+never spans files.
 
 ## Extraction paths
 
 There are two independent priority extraction paths:
 
-1. **Compiler path** — `Lowerer::lower_when` parses `when EVENT priority N
-   { body }` during IR lowering and stores `base_priority` on `Procedure`.
-   A missing or non-integer priority word keeps the 500 default. Consumed by
+1. **Compiler path** — `lowering/mod.rs` parses `when EVENT priority N
+   { body }` during IR lowering and stores `base_priority` on the
+   `Procedure` it registers under `::when::EVENT` (or `::when::EVENT#n` for a
+   repeat handler). The priority word is read only when the command has at
+   least four words, `args[1]` is literally `priority`, and `args[2]` parses
+   as a `u32`; anything else keeps the 500 default. Consumed by
    `rust/tcl-diagram/src/data.rs` for diagram data.
 
-2. **Lightweight segmenter path** — `serialise_event_order` re-scans the same
-   syntax straight from source with `segment_commands`, requiring the body word
-   to be a braced block (`TokenType::Str`). It never builds IR.
-
-Both paths order events through `EventRegistry::order_events` and label them
-with `EventRegistry::event_multiplicity`
-(`rust/tcl-registry/src/events.rs`).
+2. **Lightweight segmenter path** — `serialise_event_order`
+   (`rust/tcl-explorer/src/serialise.rs`) segments the source directly and
+   reads `when EVENT priority N` from the words, without building a
+   `CompilationUnit`. It parses the priority as `i64`, so this path accepts
+   values the compiler path would reject.
 
 ## JSON serialisation
 
 - **Diagram data** (`rust/tcl-diagram/src/data.rs`): emits `"priority"` as
-  `base_priority`, or `null` when it equals the 500 default.
-- **Explorer event order** (`rust/tcl-explorer/src/serialise.rs`): emits
-  `"base_priority"` and `"priority_offset"` as separate fields; the explorer's
-  tree view (`rust/tcl-explorer/src/view_tree.rs`) sorts on their sum.
+  `base_priority` or `null` when equal to 500.
+- **Explorer event order** (`rust/tcl-explorer/src/serialise.rs`): emits `"base_priority"`
+  and `"priority_offset"`.
 
 ## File-path anchors
 
-- `rust/tcl-compiler/src/ir.rs` — `Procedure::base_priority`, `when_event_name`
-- `rust/tcl-compiler/src/lowering/mod.rs` — priority extraction during lowering
-- `rust/tcl-registry/src/events.rs` — `EventRegistry::order_events`, `event_multiplicity`
+- `rust/tcl-compiler/src/ir.rs` — `Procedure::base_priority`
+- `rust/tcl-compiler/src/lowering/` — priority extraction during lowering
 - `rust/tcl-diagram/src/data.rs` — diagram consumer
-- `rust/tcl-explorer/src/serialise.rs` — `serialise_event_order` JSON serialisation
-- `rust/tcl-explorer/src/view_tree.rs` — explorer tree consumer
-- `rust/tcl-explorer/src/serialise.rs` — `mod tests`, the `event_order_*` cases
-  (`event_order_orders_when_handlers_by_firing_order`,
-  `event_order_tie_break_increments_offset`)
+- `rust/tcl-explorer/src/serialise.rs` — `serialise_event_order`, and its
+  unit tests covering priority and offset
+- `rust/tcl-explorer/src/view_tree.rs` — the explorer view that sorts on
+  `base_priority + priority_offset`

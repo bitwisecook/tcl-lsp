@@ -1,35 +1,35 @@
-# `f5 query` output contract — renderers, builtins, and input formats
+# `f5 query` extension registries — renderers, builtins, and input formats
 
-The query engine (`rust/tcl-bigip-query`) carries three extension surfaces:
-**output renderers**, **DSL builtin functions**, and **side-input parsers**.
-Each is a static, in-tree registry built into the crate; the `f5 query` verb
-in `rust/f5-cli` and the PyO3 binding in `rust/bigip-report-gen/python` both
-consult the same registries, so the three surfaces behave identically
-whichever front-end drives them.
+The query engine carries three registries: output **renderers**, DSL
+**builtin** functions, and side-input **format** parsers. Each is a static,
+compile-time catalogue in `rust/tcl-bigip-query`, so a lookup is
+allocation-free and the whole set is enumerable for `--help-*` without
+running anything.
 
-This doc fixes the contracts: what each registry entry must do, what the
-engine guarantees, and how errors propagate.
-
-> **No runtime plugin loading.** There is no decorator API, no
-> user-plugin directory, and no entry-point discovery. Every renderer,
-> builtin, and input format is a Rust function compiled into the crate.
-> Extending a surface means adding an entry to the matching registry and
-> rebuilding. An earlier Python implementation loaded user plugins from an
-> XDG directory; that engine is retired, and the `--help-plugins` action
-> that listed them no longer exists.
+This document fixes the contracts: what each shape must do, what the engine
+guarantees, where the registrations live, and how errors propagate.
 
 ## Registry layout
 
-| Module | Role |
+| File | Role |
 |---|---|
-| `renderers` | `RendererSpec`, the static renderer registry, `lookup`, `list_renderers`, `render`. |
-| `renderers::{gantt, ascii_blocks, mermaid}` | The three built-in renderers. |
-| `inputs` | `InputFormatSpec`, `InputSpec`, `list_input_formats`, `is_registered`, `parse_input`. |
-| `builtins` | `BuiltinSpec`, the `Builtin` dispatch enum, `lookup`, `all_specs`, `format_catalogue`. |
-| `special` | Dispatch for the special-form builtins, against the unevaluated AST. |
-| `output` | `render` / `render_with_opts` — the built-in output modes, falling through to the renderer registry for anything else. |
+| `renderers/mod.rs` | `RendererSpec`, the `REGISTRY` const, `lookup`, `list_renderers`, `render`. |
+| `renderers/gantt.rs` | The `gantt` renderer — ASCII timeline. |
+| `renderers/ascii_blocks.rs` | The `ascii-blocks` renderer — Unicode line-art tree. |
+| `renderers/mermaid.rs` | The `mermaid` renderer — Mermaid diagram. |
+| `builtins/mod.rs` | `BuiltinSpec`, the `REGISTRY` `OnceLock`, `lookup`, `all_specs`. |
+| `builtins/*.rs` | The builtins themselves, one module per category. |
+| `special.rs` | The special-form builtins (`select`, `map`, `if`, `as`, the `paths` / `getpath` family). |
+| `inputs.rs` | `InputFormatSpec`, `InputSpec`, `list_input_formats`, `parse_input` and the per-format parsers. |
+| `output.rs` | `render(values, mode)` — falls through to the renderer registry on a mode that is not a built-in output shape. |
 
-## Renderer contract
+Everything is `const` or `OnceLock`-initialised. There is no dynamic
+registration, no plugin discovery, and no user-supplied code path: the set
+of renderers, builtins, and input formats is fixed at compile time, which
+is what lets the engine run in a WASM console with no filesystem and no
+loader.
+
+## `RendererSpec`
 
 ```rust
 type RenderFn = fn(&[Value], &BTreeMap<String, String>) -> Result<String, QueryError>;
@@ -44,112 +44,70 @@ pub struct RendererSpec {
 ```
 
 - `name` — the lookup key used by `lookup`, `render`, and the CLI's
-  `-R` / `--render NAME` flag. Convention: lowercase, dash-separated
+  `-R / --render NAME` flag. Convention: lowercase, dash-separated
   (`ascii-blocks`, not `AsciiBlocks` or `ascii_blocks`).
 - `summary` — the one-line description `--help-renderers` prints.
-- `accepts` — a free-text shape hint, also printed by `--help-renderers`.
-  The registry does **not** enforce it; it is documentation, not
-  validation.
-- `details` — optional multi-paragraph prose, surfaced verbatim by
+- `accepts` — a short free-text shape hint ("stream of `ObjectRef`", "rows
+  of `(timestamp, label, state)`"). The registry **does not enforce** it;
+  it is documentation, not validation.
+- `details` — optional multi-paragraph prose surfaced verbatim by
   `--help-renderers`.
 - `impl_fn` — the renderer itself.
 
-A renderer must be:
+`REGISTRY` is sorted by name at definition time, so `list_renderers()` and
+the registered-names list in the unknown-renderer error are both already
+sorted.
 
-- **Pure.** It must not print, must not write files, and must not mutate
-  its values. The CLI dispatches it once per source file.
-- **Total over its declared shape.** If `accepts` names a shape, every
-  legal instance of that shape must render.
-- **Tolerant of unknown shapes.** When the values do not match `accepts`,
-  prefer a reasonable fallback over an error. The `mermaid` renderer's
-  chain mode is the model. Reserve `QueryError::Renderer` for input that
-  genuinely cannot be rendered — a required key missing from a dict the
-  renderer documented as mandatory, for instance.
-- **Self-validating over its options.** Options arrive as raw strings from
-  `--render-opt KEY=VALUE`. The renderer parses, type-checks, and clamps
-  them itself, and raises `QueryError::Renderer` with a message the CLI can
-  prefix with `error:`.
+## Renderer contract
 
-The return value is a single string written verbatim to stdout.
-Conventionally it ends with a newline so multi-file runs stack cleanly.
+A renderer is `fn(&[Value], &BTreeMap<String, String>) -> Result<String, QueryError>`.
 
-`REGISTRY` is kept sorted by name at definition time, so `list_renderers`
-and the "registered: …" list in the unknown-renderer error are both sorted.
+1. **Take the values as they come.** The engine hands over whatever the
+   query produced. A renderer that needs a particular shape validates it
+   and returns `QueryError::Renderer` with a message naming the shape it
+   expected — it never panics on a shape mismatch.
+2. **Read options from the map, never from the environment.** Options
+   arrive from `--render-opt key=value`; a `BTreeMap` keeps iteration
+   order stable so error messages and help text are deterministic.
+   Unknown keys are ignored rather than rejected, so a shared option name
+   across renderers stays harmless.
+3. **Return text, not bytes, and do not print.** The caller owns stdout
+   and file routing.
+4. **Be pure.** A renderer does no I/O and consults no network. Anything
+   needing live data is a probe builtin, not a renderer.
 
-### The built-in renderers
+The three built-in renderers show the range:
 
-| Name | Accepts | Options |
+| Renderer | Accepts | Options |
 |---|---|---|
-| `ascii-blocks` | a `{title, rows}` dict, or a list of them | `style` (`rounded` default, `square`, `ascii`), `min-width` (default 12) |
-| `gantt` | rows of `(timestamp, label, state)` — a TSV string, 3-tuples, or dicts | `unit-minutes` (a positive divisor of 60, default 5), `year` |
-| `mermaid` | any ordered stream | `direction` (`LR` default, `RL`, `TB`, `BT`), `reverse`, `max-depth` |
+| `ascii-blocks` | a `{title, rows}` dict or a list of them | `style=rounded\|square\|ascii` |
+| `gantt` | rows of `(timestamp, label, state)` as a TSV string, 3-tuples, or dicts | `unit-minutes=N` (a divisor of 60) |
+| `mermaid` | a stream of `ObjectRef` (BIG-IP graph mode) or any ordered stream (chain mode) | `max-depth=N`, `reverse=true` |
 
-`mermaid` renders a left-to-right chain of nodes. It also carries an
-ObjectRef graph mode, but that mode is unreachable today: no source map is
-threaded into `output::render`, because the renderer runs after the query
-has completed and the CLI dispatch path holds no sources by then. Its
-options are still validated, and the renderer falls back to chain mode
-rather than erroring. For the reference graph, use
-`f5 graph --format mermaid`, which owns the source text it walks.
+`mermaid`'s ObjectRef mode reuses the same engine as
+`f5 graph --format mermaid`, walking the reference graph from each
+`ObjectRef` seed. Its generic mode renders the values as a left-to-right
+chain of nodes, which suits an ad-hoc `{stage, next}` projection.
 
-## Output-mode dispatch
-
-`output::render_with_opts(values, mode, opts)` is the single dispatch point.
-The built-in modes — `auto`, `scf`, `raw`, `paths`, `json`, `table`, and
-`table-lineart` — ignore `opts`. Any other mode falls through to
-`renderers::lookup`, so `--render NAME` needs no separate code path in the
-verb; it simply sets the mode. An unrecognised mode returns
-`QueryError::Renderer("unknown output mode: …")`.
+`gantt` renders one row per distinct label, with `v` for a DOWN
+transition, `^` for UP, and `#` for the spans the label was down.
 
 ## Error mapping
 
-Every caller-visible failure is a `QueryError` variant:
-`Lex`, `Parse`, `Eval`, `Edit`, `Builtin`, and `Renderer`. `Lex` and
-`Parse` carry a source offset and display as `{message} at offset {offset}`;
-the rest are a bare message.
+`render(name, values, opts)` looks the name up and dispatches. An
+unregistered name produces
 
-The CLI prints `error: {e}` to stderr and exits `2` for any of them. The
-PyO3 binding maps every one to the Python `QueryError` exception with the
-same message text, so a script sees exactly what the CLI would have
-printed.
+```
+unknown renderer '<name>' (registered: ascii-blocks, gantt, mermaid)
+```
 
-## CLI integration
+as a `QueryError::Renderer`, listing every registered name so a typo is
+self-correcting. Any error the renderer itself raises propagates
+unchanged, so the CLI maps all of them to `error:` uniformly.
 
-`f5 query` (alias `f5 q`) exposes:
-
-1. `--render NAME` / `-R NAME` — dispatch through the renderer registry.
-   Overrides the output-mode flags (`--scf`, `--raw`, `--paths-only`,
-   `--json`, `--table`, `--table-lineart`).
-2. `--render-opt KEY=VALUE` — repeatable, parsed into a flat map and
-   forwarded to the renderer. A duplicate key takes the last value; an
-   entry with no `=`, or an empty key, is an error.
-3. `--input KIND NAME=PATH` — the generic side-input flag, dispatched
-   through the input-format registry. The typed `--input-json`,
-   `--input-jsonl`, `--input-csv`, and `--input-f5log` shorthands remain.
-4. `--help-renderers`, `--help-inputs`, `--help-builtins [NAME]`,
-   `--help-dsl`, `--help-examples`, and `--help-manual` — catalogue
-   actions that print and exit. The builtins catalogue is generated from
-   the registry metadata (name, category, arity, and flags), so it stays
-   in step with the registry by construction.
-
-### Side-input name dedup
-
-Every `--input*` flag routes through one shared binder, which refuses a
-`$NAME` already claimed by a prior side input, and refuses a URI already
-loaded as a positional or side input. So
-`--input-json routes=a.json --input yaml routes=b.yaml` fails fast rather
-than silently rebinding `$routes`. The check covers every typed-versus-typed
-and typed-versus-generic combination because all flags share the binder.
-
-## Builtin contract
+## `BuiltinSpec`
 
 ```rust
-pub enum Builtin {
-    Plain(fn(&[Value]) -> Result<Value, QueryError>),
-    Ctx(fn(&[Value], &mut EvalContext) -> Result<Value, QueryError>),
-    Special,
-}
-
 pub struct BuiltinSpec {
     pub name: &'static str,
     pub category: &'static str,
@@ -163,30 +121,41 @@ pub struct BuiltinSpec {
 }
 ```
 
-The registry is a `OnceLock<HashMap<&str, BuiltinSpec>>` built on first
-lookup from the per-family modules (`string`, `regex_str`, `math`, `net`,
-`graph`, `rename`, `time_dt`, `value2`, `encoding`, `files`,
-`inputs_load`, `f5profile`, and `extras`), plus the special forms and the
-feature-gated network probes. `all_specs` returns them sorted by
-`(category, name)`, which is the order `--help-builtins` prints.
+The five behaviour knobs are the whole contract between a builtin and the
+evaluator:
 
-The dispatch flags:
+- `min_args` / `max_args` — a strict arity check the evaluator performs
+  before dispatch, so no builtin re-implements arity errors.
+- `special_form` — the builtin receives the AST nodes rather than
+  evaluated values, so it controls when and whether each argument is
+  evaluated. This is how `select`, `map`, `if`, and `as` get their
+  short-circuit and iteration semantics. Special forms live in
+  `special.rs`.
+- `with_ctx` — the builtin receives the `EvalContext`, which is the only
+  route to the root, the edit plan, the merge state, the probe gate, and
+  the host reader hooks.
+- `stream_aware` — the builtin handles stream semantics itself rather than
+  having the dispatch unwrap streams for it.
+- `broadcasts` — whether stream arguments broadcast element-wise. This is
+  the scalar default. A `with_ctx` builtin normally skips broadcast;
+  `refs` and `referenced_by` are the deliberate exception, broadcasting
+  *and* taking `ctx` for the config.
 
-- `stream_aware` — the builtin receives the whole stream as one argument
-  rather than element-wise.
-- `special_form` — dispatched by `special` against the unevaluated AST, so
-  the builtin drives its own rebinding of the current value (`select`,
-  `map`).
-- `with_ctx` — receives the `EvalContext`, for builtins that queue
-  cascading edits or need the active root.
-- `broadcasts` — whether a stream argument broadcasts element-wise. This
-  is the scalar default; `with_ctx` builtins normally opt out, with
-  `refs` / `referenced_by` the exception.
+`lookup(name)` is the evaluator's dispatch hook; `all_specs()` returns
+every builtin sorted by `(category, name)` for `--help-builtins`. The
+category vocabulary orders that help output: stream, string, math, time,
+path, rename, net, graph, value.
 
-Builtins raise `QueryError::Builtin` for argument-type mistakes, which the
-CLI maps to `error:` uniformly.
+A plain builtin raises `QueryError::Builtin` for an argument-type mistake,
+so the CLI maps every one of them to `error:` uniformly.
 
-## Input-format contract
+An operator that needs short-circuit evaluation should almost always be a
+special-form builtin rather than a new AST node — that is the cheap
+extension point. A true new infix operator (`a <op> b`) needs lexer,
+parser, and precedence-table changes, an order of magnitude more work than
+the function form `op(a, b)` a builtin already gives you.
+
+## `InputFormatSpec`
 
 ```rust
 pub struct InputFormatSpec {
@@ -194,51 +163,69 @@ pub struct InputFormatSpec {
     pub summary: &'static str,
     pub details: &'static str,
 }
-
-pub struct InputSpec {
-    pub kind: String,
-    pub csv_headers: Option<Vec<String>>,
-}
 ```
 
-`parse_input(source, uri, spec)` turns a side-input file's text into a
-`Value` the DSL can navigate: a list becomes an iterable stream under
-`$name[]`, and a dict navigates with `$name.field`. `uri` is carried for
-error messages. `csv_headers` is the only per-format option the CLI
-exposes, set from `--input-csv NAME=PATH:hdr1,hdr2,…`.
+`list_input_formats()` returns the catalogue sorted by name — `csv`,
+`f5log`, `json`, `jsonl` — for `--help-inputs`. `zone` parses DNS zone
+files through the same dispatcher.
 
-Five formats are registered: `csv`, `f5log`, `json`, `jsonl`, and `zone`.
-An unknown kind raises a `QueryError` naming every registered format,
-which is far more useful than a bare "unknown" when the user has typed
-`--input jzon`.
+An `InputSpec` is what a *call site* passes: `kind` names the format, and
+`csv_headers` carries the one per-format knob the CLI exposes
+(`--input-csv NAME=PATH:hdr1,hdr2,…`, which skips header-row discovery so
+every line of the source is treated as data).
 
-## Python binding surface
+`parse_input(source, uri, spec)` dispatches to the format's parser, each
+of which returns a `Value` tree the DSL navigates with native
+dict/list semantics:
 
-`rust/bigip-report-gen/python` exposes the engine to Python as the
-`f5report` package (native module `f5report._engine`). `query()` runs an
-expression against in-memory `(uri, text)` sources and converts engine
-values to native Python objects — an object reference becomes a dict of
-`kind` / `full-path` / `fields`, a path reference becomes its full-path
-string, and a stream becomes a list. The binding is read-only: a mutating
-expression raises `QueryError` rather than rewriting anything.
+- **json** — a single document.
+- **jsonl** — NDJSON. Blank lines are skipped; a per-line error carries
+  its line number.
+- **csv** — a list of row objects. The header is auto-detected from row 1
+  unless `csv_headers` overrides it; extra columns land in an `extra`
+  list, and missing columns become the empty string.
+- **f5log** — F5 syslog, one object per event, against the eight-value
+  syslog severity vocabulary.
 
-Renderers are not exposed to Python. Rendered output is a CLI surface; a
-script that wants a chart either calls `f5 query --render …` or formats the
-returned values itself. See
-[the scripting how-to](../kcs/kcs-howto-script-against-f5-query-from-python.md).
+Every parser reports a bad document as a `QueryError` naming the format
+and the position, so a malformed side-input never surfaces as an
+unhelpful evaluation error deep in the query.
 
-## Open questions / future work
+## CLI integration
 
-- **Reachable ObjectRef mermaid mode.** Threading the source map into
-  `output::render` would let the `mermaid` renderer build the reference
-  graph in place, instead of deferring to `f5 graph --format mermaid`.
-- **Multi-file mermaid.** One diagram per source URI, with cross-file
-  edges inside a subgraph, is the natural follow-on for `--merge` mode.
-- **APM-policy renderer.** `ascii-blocks` is the scaffold for a future
-  TMUI-style APM policy view; that work can reuse its box renderer rather
-  than reimplementing the tree walker.
-- **Custom operators.** True infix operators (`a <op> b`) would need
-  lexer, parser, and precedence-table changes — an order of magnitude more
-  work than the function-form `op(a, b)` builtins already cover. The
-  builtin registry stays the recommended extension point for anything
-  operator-shaped.
+| Flag | Effect |
+|---|---|
+| `-R / --render NAME` | Route the query's values through the named renderer instead of `--output`'s mode. |
+| `--render-opt KEY=VALUE` | Add one entry to the renderer's option map; repeatable. |
+| `--help-renderers` | Print every `RendererSpec`'s name, summary, accepts hint, and details. |
+| `--help-builtins [NAME]` | Print the builtin catalogue, or one builtin's entry. |
+| `--input-{json,jsonl,csv,f5log} NAME=PATH` | Bind `$NAME` to a side-input parsed with that format. |
+
+A side input participates in the multi-file source count — a single config
+plus one side input renders with a per-file banner — but never iterates as
+the primary `.` input.
+
+## Adding to a registry
+
+**A renderer:** add a module under `renderers/`, add its `RendererSpec` to
+`REGISTRY` in name order, and give it a real `accepts` hint and `details`
+so `--help-renderers` documents it without a second edit.
+
+**A builtin:** add the implementation to the category module it belongs to
+under `builtins/`, register its `BuiltinSpec`, and set the behaviour knobs
+deliberately — most builtins want the plain scalar defaults. A special
+form goes in `special.rs` instead.
+
+**An input format:** add the parser to `inputs.rs`, add its arm to
+`parse_input`, and add its `InputFormatSpec` to `list_input_formats` in
+name order.
+
+In every case, add a regression test in the crate's own tests, because the
+`--help-*` output is part of the CLI's observable surface.
+
+## Related
+
+- [`f5-query-engine-internals.md`](f5-query-engine-internals.md) — the
+  engine these registries plug into.
+- [`f5-cli-architecture.md`](f5-cli-architecture.md) — verb registry and
+  command dispatch.

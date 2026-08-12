@@ -1,12 +1,8 @@
-# KCS: Taint analysis — sources, sinks, colours, and interprocedural propagation
+# Taint analysis — sources, sinks, colours, and interprocedural propagation
 
-## Symptom
-
-A contributor needs to understand how the taint engine tracks untrusted data
-from HTTP inputs to dangerous sinks, how taint colours model sanitisation, or
-needs to add taint rules for a new command.
-
-## Context
+How the taint engine tracks untrusted data from its sources to dangerous
+sinks, how taint colours model sanitisation, and where to add taint rules for
+a command.
 
 The taint engine tracks whether values originate from untrusted sources (user
 input) and whether they reach dangerous sinks (XSS, injection, SSRF).
@@ -14,125 +10,138 @@ input) and whether they reach dangerous sinks (XSS, injection, SSRF).
 model which sanitisation properties hold.  Interprocedural propagation extends
 taint tracking across procedure boundaries.
 
-Source: `rust/tcl-compiler/src/taint.rs` (the lattice, propagation, and sink
-checks), `rust/tcl-compiler/src/taint_interproc.rs` (procedure summaries and
-their fixpoint), `rust/tcl-registry/src/taint.rs` (the colour set and the
-source / sanitiser / sink tables)
-
-## Content
+Source: `rust/tcl-compiler/src/taint.rs` — `TaintColour`, `TaintLattice`,
+`propagate_taints`, `find_taint_warnings` / `find_taint_warnings_for_cu`,
+`classify_network_interp_sinks`, `emit_double_encode_warnings`,
+`find_destructive_file_warnings`, `find_setter_constraint_warnings`;
+`rust/tcl-registry/src/taint.rs` — `TaintColour`, `SetterConstraint`,
+`is_taint_source`, `taint_source_colour`, `is_sanitiser`,
+`classify_taint_sinks`, `TaintSinkInfo`
 
 ### TaintLattice
 
-`TaintLattice` is a one-field struct — a bag of colours — not a three-rung
-chain:
+`TaintLattice` is a single field: a `TaintColour` bag. The `TAINTED` bit
+says "may be tainted"; every other bit is a proven mitigation.
 
 ```rust
-pub struct TaintLattice {
-    /// Bag of colours. `TAINTED` membership means "may be tainted".
-    pub colours: TaintColour,
-}
+TaintLattice::clean()                                    // no TAINTED bit set
+TaintLattice::tainted()                                  // tainted, no mitigation proven
+TaintLattice::tainted().with(TaintColour::URL_ENCODED)   // tainted, but URI-encoded
 ```
 
-- `TaintLattice::clean()` — no taint, no mitigations proven.
-- `TaintLattice::tainted()` — the bare `TAINTED` bit, no mitigations.
-- `is_tainted()` — whether the `TAINTED` bit is present.
-- `with(colour)` adds a mitigation; `sanitised()` clears `TAINTED` while
-  keeping the mitigations.
-
-`TaintLattice::join(other)` implements the lattice join: taint is
-**may-have** (union of the `TAINTED` bit), mitigations are **must-have**
-(intersection). A clean operand is the join *identity*, not an annihilator —
-treating it as one would strip proven-safe colours from the other side and
-re-fire T102.
+- `clean()`: literal or constant — definitely safe.
+- Tainted with mitigation colours: tainted but with known safety properties.
+- `tainted()`: tainted with no safety guarantees.
+- Join: `TaintLattice::join` unions the taint bits (may-have) and
+  intersects the mitigation colours (must-have) across operands that
+  actually carry taint. A clean operand is the join identity, so it never
+  dilutes the other operand's mitigations.
 
 ### TaintColour flags
 
-`TaintColour` is a registry-owned `bitflags!` set (`u32`), so spec data can
-name colours and the compiler re-exports it rather than keeping a parallel
-copy:
+`TaintColour` is a `bitflags` set over `u32`. The canonical definition is
+`rust/tcl-registry/src/taint.rs`, so spec data (`taint_transform`,
+`taint_double_encode_colour`, `taint_sink_safe_colour`) can name colours.
+`rust/tcl-compiler/src/taint.rs` declares its own bitflags with the same bit
+layout, and `reg_colour` bridges the two with `TaintColour::from_bits_truncate`.
 
 | Flag | Meaning |
 |------|---------|
-| `TAINTED` | Value is attacker-controlled |
-| `PATH_PREFIXED` | Always starts with `/` (`HTTP::uri`, `HTTP::path`) |
-| `NON_DASH_PREFIXED` | Provably starts with a non-`-` literal |
-| `CRLF_FREE` | Proven to contain no CR/LF characters |
-| `SHELL_ATOM` | Token-safe atom (no shell metachar splitting) |
+| `TAINTED` | May be tainted — the one non-mitigation bit |
+| `CRLF_FREE` | No carriage return or linefeed characters |
+| `URL_ENCODED` | URI-encoded (percent-encoding) |
+| `HTML_ESCAPED` | HTML entity-escaped |
 | `LIST_CANONICAL` | Canonical Tcl list representation |
-| `REGEX_LITERAL` | Regex-escaped literal payload |
-| `PATH_NORMALISED` | Path has been normalised (no raw traversal form) |
-| `PATH_BOUNDED` | Normalised path verified within an intended directory |
-| `HEADER_TOKEN_SAFE` | Valid HTTP header-token charset |
-| `HTML_ESCAPED` | HTML-escaped text context |
-| `URL_ENCODED` | URL-encoded text context |
-| `IP_ADDRESS` | IPv4 or IPv6 address |
-| `PORT` | Integer 0–65535 |
-| `FQDN` | Fully qualified domain name |
-| `PATH_JOINED` | Assembled via `[file join]` (portable, not canonicalised) |
-| `CHANNEL` | I/O channel handle (`open`, `socket`, `chan create`, `HSL::open`) |
+| `SHELL_ATOM` | Safe as a single shell word |
+| `REGEX_LITERAL` | Regex-quoted literal |
+| `PATH_PREFIXED` / `PATH_NORMALISED` / `PATH_BOUNDED` | Path-shape mitigations |
+| `NON_DASH_PREFIXED` | Cannot be read as an option flag |
+| `HEADER_TOKEN_SAFE` | Safe as an HTTP header token |
+| `IP_ADDRESS` / `PORT` / `FQDN` | Validated network-address shapes |
+| `PATH_JOINED` | Assembled by `[file join]` — **registry-side only** |
+| `CHANNEL` | A channel handle — **registry-side only** |
 
-Colours compose with `|` (bitwise OR) and join by `&` (intersection).
-`augment_source_colours` adds the conservative implications: `PATH_PREFIXED`
-implies `NON_DASH_PREFIXED`; any of `IP_ADDRESS` / `PORT` / `FQDN` implies
-`NON_DASH_PREFIXED | CRLF_FREE | SHELL_ATOM`.
+The compiler's mirror stops at bit 14 (`FQDN`). `PATH_JOINED` (bit 15) and
+`CHANNEL` (bit 16) exist only in the registry's set, and `reg_colour`'s
+`from_bits_truncate` drops them, so a spec declaring
+`taint_transform: Some(TaintColour::PATH_JOINED)` — `file join` does — yields
+no colour on the compiler side.
+
+Colours compose with `|` (bitwise OR); mitigations join by `&`
+(intersection).
+
+Named masks on the compiler's `TaintColour`: `ALL` (every mirrored bit),
+`T102_SAFE` (`PATH_PREFIXED | NON_DASH_PREFIXED | IP_ADDRESS | PORT | FQDN`),
+`CRLF_SAFE` (`CRLF_FREE | IP_ADDRESS | PORT | FQDN`), and `REDIRECT_SAFE`
+(`PATH_PREFIXED | PATH_NORMALISED`).
 
 ### Source and sink classification
 
-Both are **registry-driven** — the compiler matches no command names.
+**Sources** — `tcl_registry::taint::is_taint_source` accepts four kinds of
+evidence, all registry data:
 
-**Sources**: `tcl_registry::taint::is_taint_source` /
-`taint_source_colour` cover the trait-driven sources (`gets`, `read`,
-`exec`, `socket`), the subcommand sources (`chan gets`, `chan read`,
-`encoding convertfrom`), each spec's own `taint_source: Option<TaintColour>`
-(e.g. `HTTP::header` declares `Some(TaintColour::TAINTED)`), the iRules
-`UNNORMALISED_HTTP_GETTER` trait, and the iRules namespace-prefix fallback
-`IRULES_TAINT_SOURCE_PREFIXES` (`HTTP::`, `URI::`, `IP::`, `TCP::`, `UDP::`,
-`SSL::`, `STREAM::`).
+- `Traits::TAINT_SOURCE` on the `CommandSpec` (`gets`, `read`, `exec`,
+  `socket`);
+- `Traits::UNNORMALISED_HTTP_GETTER` on the `CommandSpec` (`HTTP::uri`,
+  `HTTP::path`, `HTTP::query`);
+- `Traits::TAINT_SOURCE` on a resolved `SubCommand` (`chan gets`,
+  `chan read`, `encoding convertfrom`) — resolved prefix-aware, so an
+  abbreviation cannot dodge it;
+- the registry's dialect-agnostic taint-source index
+  (`CommandRegistry::taint_source`), which holds the iRules namespace getters
+  (`HTTP::header`, `HTTP::cookie`, `IP::client_addr`, …) with each spec's own
+  `taint_source` colour.
 
-**Sinks**: `taint::classify_sink` delegates to
-`tcl_registry::taint::classify_taint_sinks`, which reads `Traits::TAINT_SINK`
-/ `Traits::EVALUATES_CODE` plus each spec's declared output / log sink code:
-- Code execution: `eval`, `uplevel`, `subst`, `expr`, `exec` → T100
-- Output: `puts` → T101
-- HTTP response body → IRULE3001 (XSS)
-- Headers/cookies → IRULE3002 (injection)
-- Log output → IRULE3003 (log injection)
-- Redirect → IRULE3004 (open redirect)
-- Network address (`taint_network_sink_args`) → T104 (SSRF)
-- Cross-interpreter (`taint_interp_eval_subcommands`) → T105
+`taint_source_colour` returns the colour the source stamps, augmented with
+derived safety properties.
 
-Sink and source classification key off
-`Statement::canonical_command_or_source`, so a call through a
-`rename`d or `interp alias`ed name resolves to whatever it now denotes, and
-a namespace-scoped user `proc` shadowing a builtin is not misclassified as
-that builtin (`shadowed_builtin_names`).
+**Sinks**: classified by `tcl_registry::taint::classify_taint_sinks`, which
+returns a `TaintSinkInfo` built from the spec's declared sink fields —
+`taint_output_sink` (narrowed by `taint_output_sink_subcommands`),
+`taint_log_sink`, `taint_network_sink_args`, and
+`taint_interp_eval_subcommands` — plus a trait-driven `is_code_sink` from
+`Traits::TAINT_SINK | Traits::EVALUATES_CODE`. The most specific fact wins: a
+command with a declared sink code uses that code, and only a command with no
+declared code falls back to the T100 code-execution classification.
+
+- Code execution: `eval`, `exec`, `uplevel`, `subst`, unbraced `expr` → T100
+- Output: `puts` (`taint_output_sink = "T101"`) → T101
+- HTTP response body: `HTTP::respond` → IRULE3001 (XSS)
+- Headers/cookies: `HTTP::header` / `HTTP::cookie` insert/replace forms →
+  IRULE3002 (injection)
+- Log output: `log` (`taint_log_sink = "IRULE3003"`) → IRULE3003 (log injection)
+- Redirect: `HTTP::redirect` → IRULE3004 (open redirect)
+- Network address: any spec with `taint_network_sink_args`, at exactly the
+  positional slots it names → T104 (SSRF)
+- Cross-interpreter eval: `taint_interp_eval_subcommands` → T105
+
+`classify_taint_sinks` is called with an empty dialect set from the compiler
+side, so a sink the active profile bans (`exec` under `f5-irules`) keeps its
+classification if it appears in source anyway.
 
 ### Taint transforms
 
-A spec's `taint_transform: Option<TaintColour>` (on the command or on a
-matching subcommand) is stamped onto the tainted result during propagation by
-`taint::transform_colour` — `uri::encode` ⇒ `URL_ENCODED`, and so on. A
-command with no transform (e.g. `string tolower`) passes taint through
-unchanged: it is not a sanitiser.
+`transform_colour` in `rust/tcl-compiler/src/taint.rs` reads the command's
+`taint_transform` colour from the registry, preferring a resolved
+subcommand's transform over the bare command's:
 
-`taint_double_encode_colour` drives T106: a value that re-enters a command
-whose double-encode colour it already carries (`uri::encode [uri::encode
-$x]`) is flagged by `emit_double_encode_warnings`.
-`taint_sink_safe_colour` is the colour that suppresses a given sink.
-`tcl_registry::taint::is_sanitiser` covers the fixed-numeric-return
-sanitisers (`string length`, `string is integer`, …), which clear `TAINTED`
-outright.
+- `URI::encode` on tainted data: adds `URL_ENCODED | CRLF_FREE`.
+- `HTML::encode` / `HTML::escape` / `htmlencode` on tainted data: adds
+  `HTML_ESCAPED | CRLF_FREE`.
+- `file normalize` adds `PATH_NORMALISED`; `file join` declares
+  `PATH_JOINED`, which the compiler's mirror truncates away (see above).
 
-Two further conservative widenings: a `trace add variable` /
-`trace variable` target is forced fully tainted module-wide
-(`apply_module_variable_traces`), because a runtime handler can rewrite the
-value invisibly.
+A command with *no* registry classification at all — not a source, sanitiser,
+transform, or passthrough — is not a no-op: `TaintLattice::shape_unproven`
+keeps the `TAINTED` bit but strips the `T102_SAFE` shape colours, because an
+arbitrary transformation (`string tolower`, `lindex [split …]`) cannot be
+assumed to preserve a "cannot start with `-`" proof.
 
 ### Interprocedural taint propagation
 
-`solve_interprocedural_taints` (`rust/tcl-compiler/src/taint_interproc.rs`)
-extends taint tracking across procedure
-boundaries using `ProcTaintSummary` objects:
+`solve_interprocedural_taints`
+(`rust/tcl-compiler/src/taint_interproc.rs`) extends taint tracking across
+procedure boundaries using `ProcTaintSummary` values:
 1. Analyse each procedure in isolation.
 2. For each call site, propagate caller taints into callee parameters.
 3. Propagate callee return taint back to the caller's result variable.
@@ -213,45 +222,47 @@ set lower [string tolower $host]
 HTTP::respond 200 content "<h1>$lower</h1>"
 ```
 
-1. `HTTP::header value` is a taint source (its spec declares
-   `taint_source: Some(TaintColour::TAINTED)`) → `host` carries `TAINTED`
-   with no mitigations.
-2. `string tolower $host` declares no `taint_transform` and is not a
-   sanitiser → the colours pass through unchanged, so `lower` still carries
-   bare `TAINTED`.
-3. `HTTP::respond`'s body argument is a sink → `IRULE3001` ("XSS: tainted
-   value in HTTP response body").
+1. `HTTP::header` is a taint source (registry taint-source index) → `host`
+   carries `TAINTED` with its declared source colour.
+2. `string tolower $host` carries no registry taint classification, so the
+   taint survives and `shape_unproven` strips the `T102_SAFE` shape colours →
+   `lower` is still tainted.
+3. `HTTP::respond` declares `taint_output_sink = "IRULE3001"` → `IRULE3001`
+   ("Tainted data in HTTP response body").
 
 ### Diagnostic codes
 
+Every code below is a `DiagCode` variant in
+`rust/tcl-core-types/src/diag_code.rs`; the iRules ones are spelled
+`DiagCode::Irule3001` in Rust and `"IRULE3001"` in their string form.
+
 | Code | Category |
 |------|----------|
-| T100 | Dangerous code-execution sink |
-| T101 | Tainted output |
+| T100 | Dangerous code-execution sink (`eval` / `uplevel` / `subst` / unbraced `expr` / `exec`; also braced-`expr` operands for type coercion) |
+| T101 | Tainted output (`puts`) |
 | T102 | Option injection (tainted arg without `--`) |
-| T103 | Regex injection / ReDoS |
+| T103 | Regex injection / ReDoS (internal) |
 | T104 | SSRF (network address sink) |
-| T105 | Cross-interpreter code injection |
-| T106 | Double-encoding (informational) |
-| T200 | Reserved (migrated to IRULE1007 — collect without release) |
-| T201 | Reserved (migrated to IRULE1008 — release without collect) |
-| IRULE3001 | XSS in HTTP response body |
+| T105 | Cross-interpreter code injection (`interp eval` / `invokehidden`) |
+| T106 | Double-encoding (internal) |
+| IRULE1007 | Collection without its registered release on the same connection side |
+| IRULE1008 | `*::release` without a matching `*::collect` on the same connection side |
+| IRULE3001 | Tainted data in HTTP response body |
 | IRULE3002 | Header/cookie injection |
 | IRULE3003 | Log injection |
-| IRULE3004 | Open redirect |
+| IRULE3004 | Open redirect (`HTTP::redirect`) |
 
 ## Decision rule
 
-- To add taint tracking for a new command, put the fact in the **registry
-  spec**, not in the compiler: `taint_source: Some(TaintColour::…)` for a
-  source, `Traits::TAINT_SINK` plus the spec's declared sink code for a sink.
-  `classify_sink` has no per-command branch to add a case to.
-- To add a new sanitiser: set `taint_transform: Some(TaintColour::…)` on the
-  spec (or the matching subcommand) so `transform_colour` stamps it, or make
-  it a fixed-numeric-return sanitiser that `is_sanitiser` recognises.
-- Taint colours join by intersection — if any tainted path is unsanitised,
-  the colour is lost at the merge point. A *clean* path is the join
-  identity and does not strip colours.
+- To add taint tracking for a new command: set `taint_source: Some(colour)`
+  on its `CommandSpec` for sources, or set the relevant `taint_*_sink*`
+  fields (read by `classify_taint_sinks`) for sinks.
+- To add a new sanitiser: set `taint_transform: Some(colour)` on the
+  sanitising command's spec — `transform_colour` stamps it onto the result.
+  A colour above bit 14 will not reach the compiler until its mirror gains
+  the bit.
+- Taint colours join by intersection — if any path is unsanitised, the colour
+  is lost at the merge point.
 
 ## Related docs
 

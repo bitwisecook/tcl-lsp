@@ -1,7 +1,7 @@
 # KCS: W216 — Why does the analyser flag `${arr}(...)` or `${arr($foo)}`?
 
 > **Audience:** User
-> **Type:** Issue
+> **Type:** Diagnostic
 
 ## Applies to
 
@@ -57,7 +57,7 @@ puts ${funny name($foo)}     ;# W216
 
 ## How to suppress
 
-Add `# noqa: W216` at the end of the offending line. (Suppress only when you genuinely want the documented "no substitution" semantics — almost never.)
+Add `# noqa: W216` on the line **above** the offending command. (Suppress only when you genuinely want the documented "no substitution" semantics — almost never.)
 
 ## Related
 

@@ -1,7 +1,7 @@
 # KCS: W201 — Why not build file paths with / or \ manually?
 
 > **Audience:** User
-> **Type:** Issue
+> **Type:** Diagnostic
 
 ## Applies to
 
@@ -44,11 +44,11 @@ The quick fix replaces exactly the concatenated value, and is offered only when 
 
 ## How to suppress
 
-Add `# noqa: W201` at the end of the offending line.
+Add `# noqa: W201` on the line **above** the offending command.
 
 ## Related
 
 - [KCS codes index](README.md)
 - [Diagnostics feature](../features/kcs-feature-diagnostics.md)
-- [taint](../../GLOSSARY.md#taint)
+- [taint](../../GLOSSARY.md#taint-analysis)
 - Related codes: `W200`, `W104`

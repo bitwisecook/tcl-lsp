@@ -650,14 +650,12 @@ fn build_assertion(cmd: &str, args: &[String]) -> Vec<String> {
 
 /// Build request-setup lines based on path conditions (`_build_request_setup`).
 fn build_request_setup(event_name: &str, conditions: &[&Value]) -> Vec<String> {
-    // The alternation used to hardcode a bare "matches", which never
-    // matched real iRules syntax at all — the actual word operators are
-    // `matches_glob`/`matches_regex` (`tcl_syntax::expr::ast::BinOp`'s
-    // `MatchesGlob`/`MatchesRegex`), so a condition like
-    // `HTTP::uri matches_glob "/api/*"` silently fell through to the
-    // bare-value fallback below (or no hint at all) instead of extracting
-    // "/api/*". Derived from `BinOp` rather than hand-typed again so this
-    // can't drift a second time.
+    // The word operators real iRules use are `matches_glob`/`matches_regex`
+    // (`tcl_syntax::expr::ast::BinOp`'s `MatchesGlob`/`MatchesRegex`), never a
+    // bare "matches", so a condition like `HTTP::uri matches_glob "/api/*"`
+    // must yield "/api/*" rather than falling through to the bare-value
+    // fallback below. Derived from `BinOp` rather than hand-typed so the
+    // spelling cannot drift.
     let uri_ops = [
         tcl_syntax::expr::ast::BinOp::StrEq.as_str(),
         tcl_syntax::expr::ast::BinOp::StartsWith.as_str(),
@@ -1028,11 +1026,10 @@ mod tests {
         json!({"kind": "if", "condition": condition})
     }
 
-    /// The URI-hint regex used to hardcode a bare "matches" alternative,
-    /// which never matches real iRules syntax — the actual word operators
-    /// are `matches_glob`/`matches_regex`. A condition using either used to
-    /// fall straight through to the "/" default instead of extracting the
-    /// real pattern.
+    /// The URI hint must recognise the real iRules word operators
+    /// `matches_glob`/`matches_regex` — a bare "matches" alternative matches
+    /// nothing — and extract the pattern instead of falling through to the
+    /// "/" default.
     #[test]
     fn uri_hint_extracts_matches_glob_and_matches_regex() {
         let cond = if_cond(r#"[HTTP::uri] matches_glob "/api/*""#);

@@ -89,8 +89,6 @@ argument positions from `ArgRole::VarWrite`.
 
 ## Test anchors
 
-- `rust/tcl-lsp-core/src/refactor/inline_proc.rs` (unit suite)
-- `rust/tcl-lsp-server/tests/e2e/code_actions.rs`
 - `editors/vscode/src/test/refactorActions.test.ts`
 
 ## Discoverability

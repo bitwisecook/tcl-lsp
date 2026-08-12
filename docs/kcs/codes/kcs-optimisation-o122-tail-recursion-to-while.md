@@ -1,7 +1,7 @@
 # KCS: O122 — Convert tail-recursive proc to iterative while loop
 
 > **Audience:** User
-> **Type:** Functionality
+> **Type:** Optimisation
 
 ## Applies to
 
@@ -51,5 +51,5 @@ Toggle the optimiser profile in your editor settings. See the [optimiser feature
 
 - [KCS codes index](README.md)
 - [Optimiser feature](../features/kcs-feature-optimiser.md)
-- [Tail-call analysis](../../GLOSSARY.md#tail-call)
+- [Tail-call analysis](../../GLOSSARY.md#tail-call-optimisation)
 - Related codes: `O121`, `O123`

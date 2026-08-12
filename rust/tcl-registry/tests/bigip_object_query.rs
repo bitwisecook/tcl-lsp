@@ -18,7 +18,7 @@
 
 //! Differential tests for the BIG-IP object-registry query layer.
 //!
-//! Asserts the Rust `kind_for_header` / `candidate_kinds_for_key` /
+//! Asserts `kind_for_header` / `candidate_kinds_for_key` /
 //! `candidate_kinds_for_section_item` reproduce the registry resolution exactly,
 //! over a captured golden registry (every header in the registry, plus every
 //! property name per container, probed across several sections).
@@ -27,7 +27,7 @@
 //! `kind_for_header` (the structural header→kind map), `candidate_kinds_for_key`,
 //! and `candidate_kinds_for_section_item` must all match the golden **exactly** —
 //! every probe, no exceptions. The registry **data** (`bigip/data`) is
-//! regenerated from the reconciled `OBJECT_SPECS`, so there is no data drift to pin.
+//! generated, so there is no data drift to pin.
 
 use std::collections::BTreeSet;
 

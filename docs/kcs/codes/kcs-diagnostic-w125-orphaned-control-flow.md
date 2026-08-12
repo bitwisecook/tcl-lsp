@@ -1,7 +1,7 @@
 # KCS: W125 — Why does the analyser flag an orphaned control-flow keyword?
 
 > **Audience:** User
-> **Type:** Issue
+> **Type:** Diagnostic
 
 ## Applies to
 
@@ -50,7 +50,7 @@ backslash continuation to join the lines.
 
 ## How to suppress
 
-Add `# noqa: W125` at the end of the offending line.
+Add `# noqa: W125` on the line **above** the offending command.
 
 ## Related
 

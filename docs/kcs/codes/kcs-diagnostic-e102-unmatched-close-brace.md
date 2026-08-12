@@ -1,7 +1,7 @@
 # KCS: E102 — Why does the analyser flag an unmatched closing brace?
 
 > **Audience:** User
-> **Type:** Issue
+> **Type:** Diagnostic
 
 ## Applies to
 
@@ -50,7 +50,7 @@ correct it by hand.
 
 ## How to suppress
 
-Add `# noqa: E102` at the end of the offending line.
+Add `# noqa: E102` on the line **above** the offending command.
 
 ## Related
 

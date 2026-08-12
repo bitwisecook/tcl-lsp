@@ -1,10 +1,20 @@
-# KCS: Command registry infrastructure
+# Command registry infrastructure
 
-## Symptom
+How command metadata reaches the compiler: what a `CommandSpec` declares,
+how definitions are registered per dialect, and which passes consume the
+result. Read this when adding a command definition, or when arity, taint,
+or purity information is not reaching a downstream pass.
 
-A contributor needs to add a new command definition, understand how
-`CommandSpec` metadata feeds the compiler, or debug why arity/taint/purity
-information is not reaching a downstream pass.
+Every Tcl command is defined in its own module under
+`rust/tcl-registry/src/commands/<dialect>/<name>.rs`, which exposes a
+single `pub fn spec() -> CommandSpec` returning a struct literal.  Each
+dialect's `mod.rs` collects those into a `Vec<CommandSpec>` from one
+`<dialect>_command_specs()` function, and `CommandRegistry` merges the
+vectors into a unified lookup table.  Core specs (Tcl, stdlib, tcllib)
+are always present; dialect-specific packs (Tk, iRules, iApps, EDA,
+Expect) are loaded lazily on first access for that dialect.  Registry
+metadata drives IR lowering, SCCP, GVN, taint, side-effects,
+diagnostics, and code completion.
 
 ## Context
 
@@ -34,7 +44,7 @@ plus the per-fact modules beside them (`arg_role.rs`, `traits.rs`,
 ```
 commands/<pack>/<command>.rs :: spec() -> CommandSpec
     |
-    +-> traits: Traits                       (one bitflag set, not ~35 bools)
+    +-> traits: Traits                       (one u128 bitset over Trait)
     |
     +-> arity: Arity                         (overall argument-count bounds)
     |
@@ -52,17 +62,17 @@ commands/<pack>/<command>.rs :: spec() -> CommandSpec
     +-> dialects, lifecycle, event_requires, deprecated_replacement, ...
 ```
 
-Two structural differences from the retired Python model are worth stating,
-because they change how a spec is read as well as written:
+Two structural points are worth stating up front, because they change how a
+spec is read as well as written:
 
-- **Behaviour is a bitflag set, not a field per fact.** `Traits` replaced
-  roughly thirty-five individual booleans (`pure`, `cse_candidate`,
-  `creates_dynamic_barrier`, `has_loop_body`, `is_control_flow`,
-  `defines_procedure`, `creates_scope_alias`, `unsafe`, `taint_sink`, …).
-  They are now `Traits::PURE`, `Traits::CSE_CANDIDATE`, and so on, set as a
-  union on the spec's `traits` field.
-- **Arity is a field, not a nested `ValidationSpec`.** `CommandSpec::arity`
-  carries the overall constraint directly.
+- **Behaviour is one bitflag set, not a field per fact.** Every behavioural
+  flag lives in `traits: Traits`, a `u128` bitset over the `Trait` enum
+  (`rust/tcl-registry/src/traits.rs`), set as a union
+  (`Traits::PURE | Traits::CSE_CANDIDATE`). A bit that is not named is unset,
+  and `CommandRegistry` exposes membership queries over the set rather than
+  one accessor per flag.
+- **Arity is a field.** `CommandSpec::arity` carries the overall constraint
+  directly.
 
 ### Defining a command
 
@@ -116,7 +126,7 @@ dialect, so one command may have several specs — see the note on
 | Field | Type | Default | Purpose |
 |-------|------|---------|---------|
 | `name` | `&'static str` | *(required)* | Command name (e.g. `"lappend"`, `"dict"`) |
-| `dialects` | `Option<DialectSet>` | `None` | Which dialects have this command.  `None` = all dialects |
+| `dialects` | `Option<DialectSet>` | `None` | Which dialects have this command.  `None` = all dialects.  `DialectSet` is a `bitflags` set (`rust/tcl-dialect/src/dialect_set.rs`) with composite constants such as `ALL_TCL` and `TCL85_PLUS`, combined with `union` / `\|` |
 | `required_package` | `Option<&'static str>` | `None` | Only show in completions when this package has been `package require`d |
 | `tcllib_package` | `Option<&'static str>` | `None` | Tcllib package that provides this command (per-document activation) |
 | `warn_missing_import` | `bool` | `true` | Whether W120 fires when used without `package require`.  `false` for Tk commands (auto-loaded by `wish`) |
@@ -129,14 +139,14 @@ dialect, so one command may have several specs — see the note on
 |-------|------|---------|---------|
 | `hover` | `Option<HoverSnippet>` | `None` | Man-page summary, synopsis, snippet, and examples for hover/signature help |
 | `forms` | `&'static [FormSpec]` | `&[]` | Invocation forms (getter vs setter variants).  See FormSpec section |
-| `arity` | `Arity` | unbounded | Overall arity constraint, counted after the command name.  Drives W101 (wrong number of arguments) |
+| `arity` | `Arity` | `Arity::any()` | Overall arity constraint, counted after the command name.  Drives W101 (wrong number of arguments) |
 
 #### Subcommands
 
 | Field | Type | Default | Purpose |
 |-------|------|---------|---------|
-| `subcommands` | `&'static [SubCommand]` | `&[]` | Ensemble subcommand registry.  See SubCommand section |
-| `allow_unknown_subcommands` | `bool` | `false` | Suppress W102 for unrecognised subcommands (e.g. user-defined `oo::class` methods) |
+| `subcommands` | `&'static [SubCommand]` | `&[]` | Ensemble subcommand table, keyed by each entry's own `name`.  See SubCommand section |
+| `allow_unknown_subcommands` | `bool` | `false` | Suppress W001 (unknown subcommand) for unrecognised subcommands (e.g. user-defined `oo::class` methods) |
 | `prefix_matching` | `PrefixMatching` | `Enabled` | Whether this spec's keyword tables honour unique-prefix abbreviation (`Tcl_GetIndexFromObj`) or only exact spellings (`TCL_INDEX_STRICT`) |
 | `implementation_namespace` | `Option<&'static str>` | `None` | Namespace the ensemble's subcommands are also individually callable under |
 | `default_form_first_word` | `Option<DefaultFormFirstWord>` | `None` | Value shape a non-subcommand first word may take to select the command's *default* form (`after 200 ...` — an integer first word is a delay, not an unknown subcommand). Matched via the canonical `tcl-syntax` number parser, so every Tcl integer spelling works |
@@ -201,6 +211,7 @@ execution trace is absent.
 | `literal_argument_validator` | `Option<LiteralArgumentValidator>` | `None` | Registry callback for literal argument relationships or collection members whose legal domain depends on surrounding words. It returns Valid, Invalid with an optional replacement Tcl value, or a typed Abstain. |
 | `arg_types` | `&'static [(u8, ArgTypeHint)]` | `&[]` | Per-argument type expectations (e.g. `Int`, `List`).  Drives shimmer detection |
 | `return_type` | `Option<TclType>` | `None` | Return type of the command |
+| `completion` | `Option<CompletionDescriptor>` | `None` | Tcl *completion-code* semantics: which return codes (`CompletionCodeDomain::Exact` / `Any`) the call can complete with, and its result / return-options payload obligations.  A resolved subcommand or invocation form may supply a more specific descriptor; `None` stays conservative |
 | `body_kind` | `BodyKind` | `Plain` | Whether body arguments run in the caller's frame or a separate definition context |
 
 #### Variable assignment
@@ -209,7 +220,7 @@ execution trace is absent.
 |-------|------|---------|---------|
 | `assigns_variable_at` | `Option<u8>` | `None` | Arg index of the variable this command writes to (e.g. 0 for `set varName value`) |
 | `var_write_typing` | `VarWriteTyping` | `ReturnValue` | How the type-inference pass types the variable(s) this command *writes*, distinct from `return_type` (which types the value it *returns*).  See below |
-| `safe_on_uninit` | `Option<DialectSet>` | `None` | Whether the command safely creates an uninitialised variable.  `None` = not safe (W210 fires).  `Some(set)` = safe in exactly those dialects — `Some(DialectSet::ALL_TCL)` for `append` / `lappend`, `Some(DialectSet::TCL85_PLUS)` for version-gated behaviour (`incr` is safe in 8.5+ but errors in 8.4 and iRules) |
+| `safe_on_uninit` | `Option<DialectSet>` | `None` | Whether the command safely creates an uninitialised variable.  `None` = not safe (W210 fires); `Some(_)` = safe.  **The dialect set is currently inert**: every consumer tests only `is_some()`, so a version-gated spelling such as `Some(DialectSet::TCL85_PLUS)` does not actually restrict anything (`incr` is safe in 8.5+ but errors in 8.4 and iRules — the set does not yet express that).  The field's doc comment defines `Some(empty)` as "safe in all dialects", while shipped specs spell the all-dialects case `Some(DialectSet::ALL_TCL)`; both reach the same consumers.  Wiring the set through is an open gap |
 | `inferred_storage_type` | `Option<StorageType>` | `None` | Inferred type for the target variable: `Dict`, `List`, or `Array` |
 | `Traits::DEFINES_PROCEDURE` | trait bit | unset | Command defines a procedure (proc, method, etc.) |
 | `defines_command_at` | `Option<u8>` | `None` | Argument index (0-based, after the command name) whose *literal* value becomes a callable command name once the call runs — `coroutine NAME cmd ?arg …?` binds `NAME` (`TclNRCoroutineObjCmd`, `tclBasic.c`).  Lighter than `creates_instance_at` (no `object_class` method dispatch); consumed generically by the analyser so later calls to the name don't draw W123.  The subcommand-level twin lives on `SubCommand` (`interp create ?-safe? ?--? ?name?`, index relative to the word after the subcommand); an option flag (leading `-`) or dynamic word at the index is never recorded, and a missing name is auto-generated at run time |
@@ -384,8 +395,8 @@ The class's `new` / `create` constructor returns an object handle of
   `set VAR [Class new|create …]` provenance so a variable is known to hold an
   instance of `class_name`; it follows scalar and array-element handles across
   the top level, procedures, and method bodies.  This is *provenance*, not the
-  object→class dispatch *lattice* prototyped in
-  [`../tcloo-mro-lattice.md`](../tcloo-mro-lattice.md), which measured as a
+  object→class dispatch *lattice* described in
+  [`../name-resolution.md`](../name-resolution.md) §5.6, which measured as a
   negative on real `TclOO` corpora (factory-return receivers dominate the ⊤
   bucket); an un-provenanced (proc-parameter) receiver is deliberately left to
   the generic shape-based option highlighting rather than resolved unsoundly.
@@ -577,9 +588,9 @@ install axis using ::verticalAxis $win.a   ;# snit component install
 set     axis      [::verticalAxis $win.a]  ;# snit bare-word construction
 ```
 
-Both used to be recognised by matching the command word in the LSP's
-handle scan. They are now registry data
-(`rust/tcl-registry/src/handle_binding.rs`):
+Both are recognised from registry data
+(`rust/tcl-registry/src/handle_binding.rs`), not by matching the command word
+in the LSP's handle scan:
 
 ```rust
 pub struct HandleBindingSpec {
@@ -1047,10 +1058,12 @@ usually a missing subcommand entry or an unset hook ID, not a missing branch.
 
 ### OptionSpec and option terminators
 
-`OptionSpec(name, takes_value, detail)` declares `-flag` switches.
-`OptionSpec(name="--")` on a `SubCommand` or `FormSpec` declares `--` support;
+`OptionSpec { name, value, detail, dialects, aliases, lifecycle, min_abbrev }`
+declares `-flag` switches; `value` is an `OptionValue` saying whether the
+flag consumes a following word.  An `OptionSpec` whose `name` is `"--"`,
+on a `CommandSpec`, `SubCommand`, or `CommandForm`, declares `--` support;
 W304 ("use `--` before dynamic pattern") is derived automatically via
-`CommandRegistry.resolve_option_terminator()`.
+`CommandRegistry::resolve_option_terminator`.
 
 ### Keyword abbreviations -- one resolver for every prefix spelling
 
@@ -1265,7 +1278,7 @@ for the dialect it asked about.
 | Side effects | `side_effects`, plus `pure` / `mutator` on forms and subcommands |
 | Diagnostics | arity and clause shape; literal validators; option constraints; lifecycle/version gates; representation effects; event and safety contracts |
 | Code actions | registry-owned lifecycle and literal-validation edit plans; the generic analyser contributes only source spans and LSP conversion |
-| Completions | `arg_values`, `keyword_completions`, `options` |
+| Completions | `arg_values`, `versioned_arg_values`, `options` |
 
 ### Resolution order across the three levels
 
@@ -1454,7 +1467,6 @@ rename/alias-awareness for one diagnostic.
 by-name lookup, and every consumer above resolves *before* calling it. A
 consumer added later that queries the registry on raw head text re-opens the
 gap for itself; the `apply`-lambda reproduction in the
-[`apply`-lambda-body KCS note](../../kcs/kcs-issue-apply-lambda-body-not-highlighted-via-list-quoting.md)
 is what that looks like from the outside.
 
 ## Decision rule

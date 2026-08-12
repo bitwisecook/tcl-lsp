@@ -73,7 +73,7 @@ impl Write for Capture {
 }
 
 /// Compile and run `src`; return `(ok, result-string, captured-stdout)`.
-fn run(src: &str) -> (bool, String, String) {
+fn run_for_version(src: &str, version: tcl_dialect::TclVersion) -> (bool, String, String) {
     let registry = CommandRegistry::build_default();
     let ir = lower_to_ir(src, &registry);
     let cfg = build_cfg_codegen(&ir, false);
@@ -81,6 +81,7 @@ fn run(src: &str) -> (bool, String, String) {
 
     let buf = Rc::new(RefCell::new(Vec::new()));
     let mut vm = Vm::with_output(Box::new(Capture(Rc::clone(&buf))));
+    vm.set_runtime_version(version);
     vm.set_compiler(Box::new(CompilerSvc {
         registry: CommandRegistry::build_default(),
     }));
@@ -92,6 +93,10 @@ fn run(src: &str) -> (bool, String, String) {
         completion.result.to_str().to_string(),
         out,
     )
+}
+
+fn run(src: &str) -> (bool, String, String) {
+    run_for_version(src, tcl_dialect::TclVersion::V9_0)
 }
 
 /// Assert a script runs OK and its result value equals `want`.
@@ -145,6 +150,19 @@ fn string_basics_index_range_repeat() {
     res_eq("string cat foo bar baz", "foobarbaz");
     res_eq("string cat", "");
     res_eq("string cat a", "a");
+}
+
+#[test]
+fn compiled_string_length_uses_the_selected_runtime_character_model() {
+    let script = "string length A😀B";
+    assert_eq!(
+        run_for_version(script, tcl_dialect::TclVersion::V8_6).1,
+        "4"
+    );
+    assert_eq!(
+        run_for_version(script, tcl_dialect::TclVersion::V9_0).1,
+        "3"
+    );
 }
 
 /// `string repeat` with a non-integer count -> canonical coercion error.

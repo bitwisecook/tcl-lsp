@@ -3504,6 +3504,12 @@ struct IndexedDiagnosticFacts {
     classes: HashSet<String>,
     links: Vec<core_workspace_index::WorkspaceCommandLink>,
     sources: Vec<core_workspace_index::WorkspaceSource>,
+    /// Raw path-constant write facts: a constants-only edit (`set dir /a` →
+    /// `/b`) changes which child a computed `source` resolves to — and which
+    /// values sourced children import — while the source rows themselves
+    /// compare equal, so the constants are resolution-relevant exactly as
+    /// the rows are (issue #1368 review).
+    path_constants: Vec<tcl_compiler::auto_path_eval::PathConstantWrite>,
     package_requires: Vec<core_workspace_index::WorkspacePackageRequire>,
     package_provides: Vec<core_workspace_index::WorkspacePackageProvide>,
     package_ifneededs: Vec<core_workspace_index::WorkspacePackageIfneeded>,
@@ -3533,6 +3539,7 @@ impl IndexedDiagnosticFacts {
                 .filter(|source| source.uri == uri)
                 .cloned()
                 .collect(),
+            path_constants: index.path_constant_assignments(uri).to_vec(),
             package_requires: index
                 .package_requires()
                 .filter(|require| require.uri == uri)
@@ -3556,6 +3563,26 @@ impl IndexedDiagnosticFacts {
         }
     }
 
+    /// The documents this one sourced **before** the edit — resolved from
+    /// the captured rows *and the captured constants*, so a computed path
+    /// reconstructs the edge it actually had (issue #1370 review).  Call on
+    /// the pre-edit capture; the post-edit consumers come from
+    /// [`source_diagnostic_consumers`] against the live index.
+    fn stale_source_consumers(
+        &self,
+        index: &core_workspace_index::WorkspaceIndex,
+        uri: &str,
+    ) -> HashSet<String> {
+        source_diagnostic_consumers_with_sources(
+            index,
+            uri,
+            Some(ReplacedSources {
+                rows: &self.sources,
+                constants: &self.path_constants,
+            }),
+        )
+    }
+
     fn change_to(&self, newer: &Self) -> IndexedDiagnosticChange {
         let mut command_names: HashSet<String> = self
             .procs
@@ -3574,6 +3601,7 @@ impl IndexedDiagnosticFacts {
         IndexedDiagnosticChange {
             command_names,
             source_or_package_changed: self.sources != newer.sources
+                || self.path_constants != newer.path_constants
                 || self.package_requires != newer.package_requires
                 || self.package_provides != newer.package_provides
                 || self.package_ifneededs != newer.package_ifneededs
@@ -3629,6 +3657,15 @@ fn source_diagnostic_consumers(
     source_diagnostic_consumers_with_sources(index, changed_uri, None)
 }
 
+/// The replacement rows plus the constants they resolved under **when they
+/// were live** — the pre-replacement capture.  Folding an old row with the
+/// post-edit constants would reconstruct an edge the old document never had
+/// (issue #1368 review), so the old facts travel together.
+struct ReplacedSources<'a> {
+    rows: &'a [core_workspace_index::WorkspaceSource],
+    constants: &'a [tcl_compiler::auto_path_eval::PathConstantWrite],
+}
+
 /// [`source_diagnostic_consumers`] with one document's source rows replaced.
 /// The publish path uses this after the atomic index replacement to recover
 /// the pre-change graph without scanning the workspace before every ordinary
@@ -3636,7 +3673,7 @@ fn source_diagnostic_consumers(
 fn source_diagnostic_consumers_with_sources(
     index: &core_workspace_index::WorkspaceIndex,
     changed_uri: &str,
-    replacement: Option<&[core_workspace_index::WorkspaceSource]>,
+    replacement: Option<ReplacedSources<'_>>,
 ) -> HashSet<String> {
     fn closure(
         initial: &str,
@@ -3666,17 +3703,26 @@ fn source_diagnostic_consumers_with_sources(
     }
 
     let mut edges = workspace_source_edges(index);
-    if let Some(sources) = replacement {
+    if let Some(replaced) = replacement {
         edges.retain(|edge| edge.parent != changed_uri);
-        edges.extend(sources.iter().filter_map(|source| {
-            resolve_source_edge(&source.uri, &source.raw_path, source.is_literal).map(|child| {
-                tcl_lsp_core::source_graph::RunEdge {
-                    parent: source.uri.clone(),
-                    child,
-                    at: source.range.start(),
-                    enclosing_body: source.enclosing_body,
-                    kind: tcl_lsp_core::source_graph::RunEdgeKind::Source,
-                }
+        edges.extend(replaced.rows.iter().filter_map(|source| {
+            // Old rows fold with the old constants.  Imports are the one
+            // best-effort input: the pre-edit import view is not
+            // reconstructible once the index has moved, and using the
+            // current one can only vary which *stale* child gets a refresh.
+            resolve_source_edge(
+                &source.uri,
+                &source.raw_path,
+                source.is_literal,
+                replaced.constants,
+                &index.imported_path_constants_for(&source.uri),
+            )
+            .map(|child| tcl_lsp_core::source_graph::RunEdge {
+                parent: source.uri.clone(),
+                child,
+                at: source.range.start(),
+                enclosing_body: source.enclosing_body,
+                kind: tcl_lsp_core::source_graph::RunEdgeKind::Source,
             })
         }));
     }
@@ -3778,11 +3824,7 @@ async fn publish_diagnostics_result(
             let change = before.change_to(&after);
             let mut consumers = command_diagnostic_consumers(&index, &change.command_names);
             if change.source_or_package_changed {
-                consumers.extend(source_diagnostic_consumers_with_sources(
-                    &index,
-                    delivery.uri.as_str(),
-                    Some(&before.sources),
-                ));
+                consumers.extend(before.stale_source_consumers(&index, delivery.uri.as_str()));
                 consumers.extend(source_diagnostic_consumers(&index, delivery.uri.as_str()));
             }
             (change, consumers)
@@ -5896,8 +5938,8 @@ impl Backend {
             // iApp sublanguage, so it analyses as `f5-iapps` rather than
             // falling through to the default Tcl dialect.
             "tcl-iapp" | "f5-iapps" | "tcl-apl" => "f5-iapps",
-            // First-class since Milestone 6 (D8/D7): tmsh scripts and the
-            // bpf framework dialect analyse under their own profiles.
+            // First-class profiles (D8/D7): tmsh scripts and the bpf
+            // framework dialect analyse under their own profiles.
             "tcl-tmsh" | "f5-tmsh" => "f5-tmsh",
             "tcl-bpf" | "bpf" => "bpf",
             "tcl-expect" | "expect" => "expect",
@@ -16199,6 +16241,13 @@ impl LanguageServer for Backend {
         // path resolves through the same evaluator the source graph uses
         // instead of being fabricated from raw text (issue #1140 idx 41).
         let home = std::env::var("HOME").ok();
+        // The document's imported constants (issue #1368), so a link through
+        // a value an ancestor document assigns resolves exactly as the same
+        // line resolves for navigation.
+        let imported = {
+            let index = self.workspace_index.read().await;
+            index.imported_path_constants_for(uri.as_str())
+        };
         // Pure-CPU segmentation on a worker so a parser panic is contained
         // as a JSON-RPC error.
         let (text, dialect) = (doc.text.clone(), doc.dialect.clone());
@@ -16207,6 +16256,7 @@ impl LanguageServer for Backend {
                 &text,
                 &dialect,
                 &core_document_links::LinkContext {
+                    imported_constants: Some(&imported),
                     workspace_root: workspace_root.as_deref(),
                     home: home.as_deref(),
                     script_path: doc_path.as_deref(),
@@ -19716,9 +19766,10 @@ fn compute_inherited_requires(
 ///
 /// **One** construction of the edge list, shared by everything that walks the
 /// graph, so the *same* `source` statements are followed everywhere.  In
-/// particular it uses [`resolve_source_edge`] — the three-argument resolver
-/// with the statically-foldable computed-path tier (`[file join [file dirname
-/// [info script]] x.tcl]`) — not the literals-only [`resolve_source_uri`]:
+/// particular it uses [`resolve_source_edge`] — the resolver with the
+/// statically-foldable computed-path tier (`[file join [file dirname
+/// [info script]] x.tcl]`, chained through the parent's single-assignment
+/// constants) — not the literals-only [`resolve_source_uri`]:
 /// issue #1332 is precisely a report that the common computed idiom was
 /// invisible, and having two resolvers behind two callers is how that
 /// divergence happened.
@@ -19728,14 +19779,19 @@ fn workspace_source_edges(
     index
         .sources()
         .filter_map(|s| {
-            resolve_source_edge(&s.uri, &s.raw_path, s.is_literal).map(|child| {
-                tcl_lsp_core::source_graph::RunEdge {
-                    parent: s.uri.clone(),
-                    child,
-                    at: s.range.start(),
-                    enclosing_body: s.enclosing_body,
-                    kind: tcl_lsp_core::source_graph::RunEdgeKind::Source,
-                }
+            resolve_source_edge(
+                &s.uri,
+                &s.raw_path,
+                s.is_literal,
+                index.path_constant_assignments(&s.uri),
+                &index.imported_path_constants_for(&s.uri),
+            )
+            .map(|child| tcl_lsp_core::source_graph::RunEdge {
+                parent: s.uri.clone(),
+                child,
+                at: s.range.start(),
+                enclosing_body: s.enclosing_body,
+                kind: tcl_lsp_core::source_graph::RunEdgeKind::Source,
             })
         })
         .collect()
@@ -19787,7 +19843,13 @@ fn compute_source_inheritance(
     let mut unresolvable_source = false;
     let mut own_edges: Vec<tcl_lsp_core::source_graph::RunEdge> = Vec::new();
     for src in &analysis.source_targets {
-        match resolve_source_edge(uri_str, &src.raw_path, src.is_literal) {
+        match resolve_source_edge(
+            uri_str,
+            &src.raw_path,
+            src.is_literal,
+            &analysis.path_constant_assignments,
+            &index.imported_path_constants_for(uri_str),
+        ) {
             Some(child) if index.contains_document(&child) => {
                 own_edges.push(tcl_lsp_core::source_graph::RunEdge {
                     parent: uri_str.to_owned(),
@@ -19904,24 +19966,64 @@ fn resolve_source_uri(parent_uri: &str, raw_path: &str) -> Option<String> {
 /// end up with an empty order and answer a different question from the rest.
 fn new_workspace_index() -> core_workspace_index::WorkspaceIndex {
     let mut index = core_workspace_index::WorkspaceIndex::new();
-    index.set_source_resolver(resolve_source_edge);
+    index.set_source_resolver(resolve_source_edge, fold_document_constants);
     index
+}
+
+/// The [`core_workspace_index::ConstantFolder`] this server installs: the
+/// shared chain fold, with the document URI's filesystem path standing in
+/// for `[info script]`.  A URI outside the filesystem folds path-blind
+/// (literal constants still carry; `[info script]` idioms abstain).
+fn fold_document_constants(
+    uri: &str,
+    writes: &[tcl_compiler::auto_path_eval::PathConstantWrite],
+    imported: &HashMap<String, String>,
+) -> HashMap<String, String> {
+    let parsed = Uri::from_str(uri).ok();
+    let path = parsed.as_ref().and_then(Uri::to_file_path);
+    tcl_compiler::auto_path_eval::fold_constant_assignments_with_imports(
+        writes,
+        path.as_deref().and_then(std::path::Path::to_str),
+        imported,
+    )
 }
 
 /// [`resolve_source_uri`] extended with the M9 stage-9.2 computed-path tier:
 /// a literal resolves as before; a computed path is statically folded through
-/// [`tcl_compiler::auto_path_eval::evaluate_auto_path_expr`] (`[file join …]`
-/// / `[file dirname [info script]]` forms, with the parent file standing in
-/// for `[info script]`) and resolved when the fold succeeds.  Anything the
-/// folder cannot prove returns `None` — never a guess.
-fn resolve_source_edge(parent_uri: &str, raw_path: &str, is_literal: bool) -> Option<String> {
+/// [`tcl_compiler::auto_path_eval::evaluate_auto_path_expr_with_constants`]
+/// (`[file join …]` / `[file dirname [info script]]` forms, with the parent
+/// file standing in for `[info script]`) and resolved when the fold succeeds.
+/// Anything the folder cannot prove returns `None` — never a guess.
+///
+/// `raw_constants` is the parent document's raw single-assignment `set`
+/// facts ([`AnalysisResult::path_constant_assignments`], carried by the
+/// index), chain-folded here — where the parent's own path is known — so a
+/// `source [file join $sourceDir x.tcl]` behind `set sourceDir [file join
+/// $dir src]` resolves as an edge exactly as it resolves as a document link
+/// (issue #775: the link resolved, go-to-definition through the same line
+/// did not — one expression, two answers).
+fn resolve_source_edge(
+    parent_uri: &str,
+    raw_path: &str,
+    is_literal: bool,
+    raw_constants: &[tcl_compiler::auto_path_eval::PathConstantWrite],
+    imported: &HashMap<String, String>,
+) -> Option<String> {
     if is_literal {
         return resolve_source_uri(parent_uri, raw_path);
     }
     let parent = Uri::from_str(parent_uri).ok()?;
     let parent_path = parent.to_file_path()?;
-    let folded =
-        tcl_compiler::auto_path_eval::evaluate_auto_path_expr(raw_path, parent_path.to_str())?;
+    let constants = tcl_compiler::auto_path_eval::fold_constant_assignments_with_imports(
+        raw_constants,
+        parent_path.to_str(),
+        imported,
+    );
+    let folded = tcl_compiler::auto_path_eval::evaluate_auto_path_expr_with_constants(
+        raw_path,
+        parent_path.to_str(),
+        &constants,
+    )?;
     let child = tcl_lsp_core::source_graph::resolve_source_target(parent_path.as_ref(), &folded);
     canonical_file_uri(&child).map(|u| u.as_str().to_owned())
 }
@@ -20579,14 +20681,23 @@ fn document_auto_path_dirs(uri: &Uri, analysis: &AnalysisResult) -> Vec<PathBuf>
     let Some(file_path) = uri.to_file_path() else {
         return Vec::new();
     };
+    // The document's own single-assignment constants, chain-folded, so the
+    // corpus idiom `set libDir [file join $dir lib]; lappend auto_path
+    // $libDir` contributes its directory (issue #775) instead of nothing.
+    let constants = tcl_compiler::auto_path_eval::fold_constant_assignments(
+        &analysis.path_constant_assignments,
+        file_path.to_str(),
+    );
     let mut dirs: Vec<PathBuf> = Vec::new();
     for entry in &analysis.auto_path_entries {
         if dirs.len() >= DOCUMENT_AUTO_PATH_DIR_CAP {
             break;
         }
-        for folded in
-            tcl_compiler::auto_path_eval::evaluate_auto_path_entry(entry, file_path.to_str())
-        {
+        for folded in tcl_compiler::auto_path_eval::evaluate_auto_path_entry_with_constants(
+            entry,
+            file_path.to_str(),
+            &constants,
+        ) {
             if dirs.len() >= DOCUMENT_AUTO_PATH_DIR_CAP {
                 break;
             }
@@ -22093,6 +22204,61 @@ mod tests {
             stable.change_to(&IndexedDiagnosticFacts::capture(&index, lib.as_str())),
             IndexedDiagnosticChange::default(),
             "a body-only edit changes no cross-file diagnostic fact",
+        );
+    }
+
+    /// **A constants-only edit is a source-graph change** (issue #1370
+    /// review). Retargeting `set dir /a` to `/b` leaves the `source [file
+    /// join $dir x.tcl]` row byte-identical, so comparing rows alone reports
+    /// "nothing changed" and neither the old child nor the new one is
+    /// rescheduled — both were stale.  The captured constants must move the
+    /// needle, and the old rows must reconstruct the **old** edge from the
+    /// old constants, not the post-edit ones.
+    #[test]
+    fn a_constants_only_edit_reschedules_both_children() {
+        let parent = Uri::from_file_path("/proj/parent.tcl").unwrap();
+        let old_child = Uri::from_file_path("/proj/a/x.tcl").unwrap();
+        let new_child = Uri::from_file_path("/proj/b/x.tcl").unwrap();
+        let parent_before = "set dir /proj/a\nsource [file join $dir x.tcl]\n";
+        let mut index = ws_index(&[
+            (&parent, parent_before),
+            (&old_child, "proc a_helper {} {}\n"),
+            (&new_child, "proc b_helper {} {}\n"),
+        ]);
+        let before = IndexedDiagnosticFacts::capture(&index, parent.as_str());
+        let edited = Analyser::new()
+            .analyse("set dir /proj/b\nsource [file join $dir x.tcl]\n", "tcl8.6")
+            .clone();
+        index.replace_document(parent.as_str(), &edited);
+        let after = IndexedDiagnosticFacts::capture(&index, parent.as_str());
+        let change = before.change_to(&after);
+        assert_eq!(
+            before.sources, after.sources,
+            "precondition: the source row text is untouched by this edit",
+        );
+        assert!(
+            change.source_or_package_changed,
+            "the constant moved, so the resolved graph moved",
+        );
+
+        // The old edge, reconstructed from the old constants.
+        let stale = source_diagnostic_consumers_with_sources(
+            &index,
+            parent.as_str(),
+            Some(ReplacedSources {
+                rows: &before.sources,
+                constants: &before.path_constants,
+            }),
+        );
+        assert!(
+            stale.contains(old_child.as_str()),
+            "the child that is no longer sourced must be refreshed: {stale:?}",
+        );
+        // The new edge, from the current index.
+        let fresh = source_diagnostic_consumers(&index, parent.as_str());
+        assert!(
+            fresh.contains(new_child.as_str()),
+            "the newly sourced child must be refreshed: {fresh:?}",
         );
     }
 

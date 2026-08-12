@@ -17,7 +17,6 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 //! SH family — shimmer (S100/S101/S102) FP/TP catalogue.
-//! Pairs to `tests/test_fp_sh.py` and the §SH entries in FP.md.
 
 use super::{D, codes, fires};
 
@@ -298,13 +297,13 @@ fn fp_sh_06_real_oscillation_within_one_loop_still_fires() {
 }
 
 // ---------------------------------------------------------------------------
-// FP-SH-07 — `_find_expr_shimmers` covers standalone expr/if/while/for
+// FP-SH-07 — `find_expr_shimmers` covers standalone expr/if/while/for
 // expr contexts (D5-SH-EXPR)
 // ---------------------------------------------------------------------------
 
 /// FP-SH-07 TP: `if {$s + 1}` — expr in if-cond promotes $s from STRING to
-/// INT.  Pre-fix `_find_expr_shimmers` only walked `IRAssignExpr`, missing the
-/// CFGBranch.condition expr.
+/// INT.  `find_expr_shimmers` walks `Terminator::Branch.condition` as well
+/// as `Statement::AssignExpr`, so the if-condition expr is covered.
 #[test]
 fn fp_sh_07_if_condition_shimmer_fires() {
     let src = r#"proc f {} { set s [string trim "5"]; if {$s + 1} { puts yes } }"#;

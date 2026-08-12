@@ -52,20 +52,11 @@ The single-use `$timeout` variable is inlined to its value `30`, and the `set ti
 
 The refactoring uses the semantic model to count references. It only fires when there is exactly one read site (excluding the definition itself). The raw source text of the value token is preserved — including quotes and braces — so the inlined value is syntactically identical to the original.
 
-## File-path anchors
-
-- `tooling/refactoring/_inline_variable.py`
-- `server/features/code_actions.py`
-
 ## Failure modes
 
 - Variable used more than once (returns `None` — not offered).
 - Variable read via `[set var]` form (returns `None` — too complex to inline safely).
 - Value expression has side effects that should only execute once.
-
-## Test anchors
-
-- `tests/test_refactoring.py::TestInlineVariable`
 
 ## Samples
 

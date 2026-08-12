@@ -61,15 +61,6 @@ The callers of a classmethod are listed by their qualified names —
 `::util::helper` for a proc, `::Factory::build` for a method — so the two
 kinds read consistently in the same list.
 
-## File-path anchors
-
-- `rust/tcl-lsp-core/src/call_hierarchy.rs`
-- `rust/tcl-lsp-core/src/references.rs` (`scan_my_method_sites` — the
-  shared `my`-dispatch matcher call hierarchy, Find References, rename,
-  and the code lens all resolve through — and
-  `find_obj_method_call_sites`, the shared bare `ClassName <method>`
-  classmethod-dispatch scanner)
-
 ## Failure modes
 
 - Missing edges when procs are called via variable indirection
@@ -84,24 +75,6 @@ kinds read consistently in the same list.
   a sibling file is not an incoming edge. itcl's two-word `Factory make`
   is object creation (`ClassName instanceName`), not a dispatch, and is
   correctly never an edge.
-
-## Test anchors
-
-- `rust/tcl-lsp-core/src/call_hierarchy.rs` (`mod tests`, including
-  `outgoing_calls_does_not_conflate_method_and_classmethod_sharing_a_name`,
-  `outgoing_calls_separate_same_named_instance_method_and_classmethod`,
-  `outgoing_calls_from_proc_reach_bare_class_dispatch`,
-  `classmethod_incoming_covers_lambda_and_namespace_eval_bodies`,
-  `classmethod_incoming_names_proc_callers_qualified`,
-  `incoming_calls_for_an_itcl_class_proc_find_colon_qualified_dispatch`,
-  `outgoing_calls_from_an_itcl_class_proc_reach_the_sibling_class_proc`,
-  `itcl_two_word_object_creation_is_not_a_call_hierarchy_edge`,
-  and `prepare_resolves_classmethod_over_same_named_method_by_cursor`)
-- `rust/tcl-lsp-server/tests/e2e/navigation_extras.rs`
-  (`method_incoming_and_outgoing_calls_match_my_dispatch`,
-  `method_outgoing_calls_nested_in_control_flow`,
-  `classmethod_incoming_and_outgoing_calls_match_bare_class_dispatch`,
-  `bare_dispatch_on_a_same_named_proc_is_not_a_classmethod_edge`)
 
 ## Example
 

@@ -16,8 +16,6 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! Native port of `tests/lsp_e2e/test_diagnostics_e2e.py`.
-//!
 //! Push diagnostics, end-to-end against the packaged server. The server
 //! advertises no pull provider, so these assert on the `publishDiagnostics` the
 //! server pushes after analysis, keyed by version.
@@ -28,7 +26,7 @@ use serde_json::Value;
 use std::collections::BTreeSet;
 use std::time::Duration;
 
-/// The set of `code` strings carried by `diags` (mirrors Python `_codes`).
+/// The set of `code` strings carried by `diags`.
 fn codes(diags: &[Value]) -> BTreeSet<String> {
     diags
         .iter()
@@ -45,7 +43,7 @@ fn has_code(diags: &[Value], code: &str) -> bool {
     codes(diags).contains(code)
 }
 
-/// The set of start lines for diagnostics carrying `code` (mirrors `_on_line`).
+/// The set of start lines for diagnostics carrying `code`.
 fn on_line(diags: &[Value], code: &str) -> BTreeSet<i64> {
     diags
         .iter()
@@ -4305,10 +4303,10 @@ fn consumer_rename_resolves_through_a_real_workspace_folder_m8() {
     let _ = std::fs::remove_dir_all(&root);
 }
 
-// -- Dialect-profile availability (dialect-profile-model.md, Milestone 2):
-// vendor dialects resolve their embedded Tcl core end-to-end — server →
+// -- Dialect-profile availability (dialect-profile-model.md): vendor
+// dialects resolve their embedded Tcl core end-to-end — server →
 // JSON-RPC → publishDiagnostics — via the composed (version|vendor) profile
-// masks; the version ladder and the subtractive iRules view still hold.
+// masks; the version ladder and the restricted iRules view still hold.
 
 #[test]
 fn iapps_embedded_85_core_is_clean_end_to_end() {
@@ -4356,8 +4354,8 @@ fn expect_embedded_86_core_is_clean_end_to_end() {
 
 #[test]
 fn irules_banned_commands_still_flag_end_to_end() {
-    // The subtractive iRules profile is unchanged by the composed-mask fix:
-    // banned 8.4 core still draws W002 in a `when` handler.
+    // The iRules profile is unchanged by the composed-mask fix: 8.4 core
+    // that carries no `IRULES` bit still draws W002 in a `when` handler.
     let mut lsp = Lsp::tcl();
     let uri = unique_uri("irule");
     let diags = lsp.open_ready_lang(
@@ -4374,7 +4372,7 @@ fn irules_banned_commands_still_flag_end_to_end() {
 
 #[test]
 fn argument_dsl_rung_gates_format_and_string_is_end_to_end() {
-    // Milestone 7 (§6): the argument mini-languages validate against the
+    // §6: the argument mini-languages validate against the
     // dialect's effective Tcl version. iRules embed Tcl 8.4.6, so the
     // 8.6-introduced `format %b` and the 9.0-introduced `string is dict`
     // both flag; the same source is clean on a 9.0 host.
@@ -4405,7 +4403,7 @@ fn argument_dsl_rung_gates_format_and_string_is_end_to_end() {
 
 #[test]
 fn tmsh_first_class_gates_both_directions_end_to_end() {
-    // Milestone 6 (D8): a tmsh document analyses under TCL85|TMSH — the
+    // D8: a tmsh document analyses under TCL85|TMSH — the
     // tmsh:: surface and the 8.5 core are clean, while 8.6-core draws the
     // §7.2 reverse-regression diagnostic.
     let mut lsp = Lsp::tcl();
@@ -4431,7 +4429,7 @@ fn tmsh_first_class_gates_both_directions_end_to_end() {
 
 #[test]
 fn bpf_first_class_admits_90_core_end_to_end() {
-    // Milestone 6 (D7): bpf = TCL90|BPF — 9.0-era core (lmap, dict) is
+    // D7: bpf = TCL90|BPF — 9.0-era core (lmap, dict) is
     // real, and the bpf surface resolves.
     let mut lsp = Lsp::tcl();
     let uri = unique_uri("bpf");
@@ -4445,10 +4443,10 @@ fn bpf_first_class_admits_90_core_end_to_end() {
 
 #[test]
 fn irules_subcommands_named_like_banned_commands_are_clean_end_to_end() {
-    // Milestone 5 retag FP-fix: `DNS::header cd` (the DNS Checking-Disabled
-    // flag) and `IP::stats in` (inbound stats) are real iRules subcommands
-    // whose names collide with the banned `cd` command and the `in`
-    // operator spelling. The old bulk name-keyed tagging hid them and drew
+    // `DNS::header cd` (the DNS Checking-Disabled flag) and `IP::stats in`
+    // (inbound stats) are real iRules subcommands whose names collide with
+    // the banned `cd` command and the `in` operator spelling. The old bulk
+    // name-keyed tagging hid them and drew
     // spurious availability/subcommand diagnostics; exclusion is keyed on
     // the resolved spec now, never on a bare name.
     let mut lsp = Lsp::tcl();

@@ -1,7 +1,7 @@
 # KCS: W143 — Direct call into a private `::tcl::` implementation namespace
 
 > **Audience:** User
-> **Type:** Issue
+> **Type:** Diagnostic
 
 ## Applies to
 
@@ -89,7 +89,7 @@ performs exactly this rewrite whenever the rewrite is legal — see
 
 ## How to suppress
 
-Add `# noqa: W143` at the end of the offending line.
+Add `# noqa: W143` on the line **above** the offending command.
 
 ## Notes
 

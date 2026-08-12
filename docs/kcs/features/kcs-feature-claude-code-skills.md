@@ -77,12 +77,6 @@ In Claude Code, type the skill name:
 
 Skills call the native `tcl-mcp` MCP tools for analysis, then use AI to interpret results and generate code. The agentic create/fix skills iterate until LSP diagnostics are clean.
 
-## File-path anchors
-
-- `ai/claude/skills/`
-- `scripts/tcl-mcp` — launcher for the native MCP server the skills call
-- `rust/tcl-mcp/` — the native MCP server crate
-
 ## Failure modes
 
 - The `tcl-mcp` binary cannot be found or built (see `scripts/tcl-mcp`).

@@ -1,7 +1,7 @@
 # KCS: W136 — Why does the analyser say this option needs a newer package version?
 
 > **Audience:** User
-> **Type:** Issue
+> **Type:** Diagnostic
 
 ## Applies to
 
@@ -45,7 +45,7 @@ A `package require` inside a branch that may not be taken does not raise the flo
 
 ## How to suppress
 
-Add `# noqa: W136` at the end of the offending line.
+Add `# noqa: W136` on the line **above** the offending command.
 
 ## Related
 

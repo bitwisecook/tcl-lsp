@@ -1,7 +1,7 @@
 # KCS: IRULE1006 — Why does the analyser flag payload access without a collect call?
 
 > **Audience:** User
-> **Type:** Issue
+> **Type:** Diagnostic
 
 ## Applies to
 
@@ -54,7 +54,7 @@ argument prevents it from selecting the MQTT form.
 
 ## How to suppress
 
-Add `# noqa: IRULE1006` at the end of the offending line.
+Add `# noqa: IRULE1006` on the line **above** the offending command.
 
 ## Related
 

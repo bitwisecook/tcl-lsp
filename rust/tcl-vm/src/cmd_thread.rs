@@ -16,8 +16,7 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! A real, shared-nothing `thread` package for the bytecode VM
-//! (`RUST_ISSUE_008`, phase 3).
+//! A real, shared-nothing `thread` package for the bytecode VM.
 //!
 //! True OS-thread parallelism *without* making [`Value`]/[`Vm`] `Send`. Tcl
 //! threading is **shared-nothing**: an interpreter is confined to one thread and

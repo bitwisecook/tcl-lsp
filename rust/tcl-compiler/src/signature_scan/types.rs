@@ -18,10 +18,7 @@
 
 //! Public record types emitted by the signature scanner.
 //!
-//! Spans are [`tcl_lexer::Span`]; the `PyO3` binding in
-//! `rust/tcl-lsp-rust/src/signature_scan.rs` flattens them to
-//! `(start, end)` `u32` tuples for the materialiser on the Python
-//! side.
+//! Spans are [`tcl_lexer::Span`].
 
 use std::collections::BTreeMap;
 

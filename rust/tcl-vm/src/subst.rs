@@ -197,8 +197,8 @@ pub fn subst_command(
     Ok(out)
 }
 
-/// Resumable state for a **yieldable** `subst` command activation
-/// (`RUST_ISSUE_008`): the template, the scan cursor, the output accumulated so
+/// Resumable state for a **yieldable** `subst` command activation:
+/// the template, the scan cursor, the output accumulated so
 /// far, and the three substitution switches. It lives on the `subst` frame (see
 /// `crate::exec`), so it freezes with a suspended coroutine and resumes after
 /// each `[…]` completes. Backslash / `$…` runs never yield, so they are scanned

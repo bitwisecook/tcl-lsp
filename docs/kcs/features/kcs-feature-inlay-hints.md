@@ -33,17 +33,9 @@ types without modifying the source code. The two families map to the LSP
 `InlayHintKind` values: type hints are `Type`, parameter-name hints are
 `Parameter`. Enabling one does not enable the other.
 
-## File-path anchors
-
-- `server/features/inlay_hints.py`
-
 ## Failure modes
 
 - Hints positioned incorrectly after document edits.
-
-## Test anchors
-
-- `tests/test_inlay_hints.py`
 
 ## Screenshots
 

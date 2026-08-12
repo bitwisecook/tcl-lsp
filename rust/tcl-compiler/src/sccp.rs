@@ -26,6 +26,7 @@
 use std::collections::{BTreeSet, HashMap, HashSet};
 
 use rustc_hash::FxHashSet;
+use tcl_dialect::StringCharacterModel;
 use tcl_registry::CommandRegistry;
 
 use crate::analyses::{ConstValue, LatticeValue, MAX_CONSTSET_SIZE};
@@ -1823,7 +1824,13 @@ fn try_fold_cmd_subst<S1: std::hash::BuildHasher, S2: std::hash::BuildHasher>(
                 && let Some(raw) = sub_rest
                 && let Some(s) = resolve_const_string(raw.trim(), uses, values, ssa)
             {
-                let len = i64::try_from(s.chars().count()).unwrap_or(i64::MAX);
+                // `string length` counts UTF-16 code units on Tcl 8 and
+                // Unicode scalars on Tcl 9, so the fold uses the selected
+                // dialect's model. With no selected release the count survives
+                // only where both models agree, which is every string with no
+                // supplementary character.
+                let count = StringCharacterModel::count_for(policy.characters, &s)?;
+                let len = i64::try_from(count).unwrap_or(i64::MAX);
                 return Some(LatticeValue::Const(ConstValue::Int(len)));
             }
         }
@@ -2883,6 +2890,50 @@ mod tests {
         let stmt = assign_value_stmt(&mut ssa, "n", "[string length \"hello\"]", 1);
         assert_eq!(
             evaluate_def(&stmt, &HashMap::new(), &ssa, FoldPolicy::default()),
+            LatticeValue::Const(ConstValue::Int(5))
+        );
+    }
+
+    #[test]
+    fn string_length_fold_counts_in_the_selected_dialects_character_model() {
+        // U+1D11E is one Tcl 9 scalar but two Tcl 8 `Tcl_UniChar` units, so the
+        // compile-time fold must answer as the selected runtime would — and
+        // decline when no release is selected, leaving the width ambiguous.
+        let mut ssa = bare_ssa();
+        let stmt = assign_value_stmt(&mut ssa, "n", "[string length \"\u{1D11E}\"]", 1);
+        let fold = |dialect| {
+            evaluate_def(
+                &stmt,
+                &HashMap::new(),
+                &ssa,
+                FoldPolicy::for_dialect(Some(false), dialect),
+            )
+        };
+        assert_eq!(
+            fold(Some("tcl9.0")),
+            LatticeValue::Const(ConstValue::Int(1))
+        );
+        assert_eq!(
+            fold(Some("tcl8.6")),
+            LatticeValue::Const(ConstValue::Int(2))
+        );
+        assert_eq!(
+            fold(None),
+            LatticeValue::Overdefined,
+            "no selected release leaves a supplementary width ambiguous"
+        );
+
+        // A string both models count identically still folds with no selected
+        // release — declining those would drop an ordinary optimisation.
+        let mut ssa = bare_ssa();
+        let ascii = assign_value_stmt(&mut ssa, "n", "[string length \"hello\"]", 1);
+        assert_eq!(
+            evaluate_def(
+                &ascii,
+                &HashMap::new(),
+                &ssa,
+                FoldPolicy::for_dialect(Some(false), None)
+            ),
             LatticeValue::Const(ConstValue::Int(5))
         );
     }

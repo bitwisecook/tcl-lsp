@@ -1,16 +1,15 @@
-# KCS: Compilation unit contracts and incremental cache
+# Compilation unit contracts and incremental cache
 
-## Symptom
-
-A compiler change appears correct in an isolated pass, but diagnostics become stale, inconsistent between top-level and proc scopes, or noticeably slower after repeated edits.
-
-## Operational context
+What a pass may assume about the `CompilationUnit` it consumes, and the
+per-procedure cache that keeps repeated edits cheap. Read this before adding a
+pass input, so that diagnostics stay consistent between top-level and
+procedure scopes as a document is edited.
 
 `compile_source()` is the compiler pipeline integration boundary for editor features. It builds one `CompilationUnit` containing IR, CFG, SSA/core facts, and interprocedural summaries reused by diagnostics and downstream passes.
 
 This path runs frequently during editing, so incremental proc reuse (`proc_cache`) is part of the contract, not an optional optimisation detail.
 
-## Decision rules / contracts
+## What a pass may assume
 
 1. **Single-source-of-truth artefact**
    - New pass inputs should come from `CompilationUnit` / `FunctionUnit` facts before introducing any pass-local parse/lower pipeline.
@@ -25,10 +24,10 @@ This path runs frequently during editing, so incremental proc reuse (`proc_cache
 
 ## File-path anchors
 
-- `compiler/compilation_unit.py` (`compile_source`, `CompilationUnit`, `FunctionUnit`)
-- `compiler/interprocedural.py` (`analyse_interprocedural_ir`)
-- `server/features/diagnostics.py` (`get_diagnostics`, CU consumption)
-- `analyser/_analyser/__init__.py` (CU-assisted semantic diagnostics)
+- `rust/tcl-compiler/src/compilation_unit.rs` (`compile_source`, `CompilationUnit`, `FunctionUnit`)
+- `rust/tcl-compiler/src/interprocedural.rs` (`analyse_interprocedural_ir`)
+- `rust/tcl-lsp-db/src/lib.rs` (`get_diagnostics`, CU consumption)
+- `rust/tcl-compiler/src/analyser/` (CU-assisted semantic diagnostics)
 
 ## Failure modes
 
@@ -37,13 +36,13 @@ This path runs frequently during editing, so incremental proc reuse (`proc_cache
 - Interprocedural summaries stale relative to per-proc updates, leading to incorrect O103/T-series outcomes.
 - Missing top-level/proc parity causing diagnostics that only work in one scope.
 
-## Test anchors
+## Tests
 
-- `tests/test_compilation_cache.py`
-- `tests/test_diagnostics.py`
+- `rust/tcl-compiler/src/compilation_unit.rs` unit tests.
+- `rust/tcl-lsp-server/tests/e2e/` — the LSP diagnostic end-to-end suites.
 
 
-## Discoverability
+## See also
 
 - [compiler KCS index](README.md)
 - [compiler architecture overview](../../../docs/design/compiler-architecture.md)

@@ -30,9 +30,9 @@ extension sets `editor.stickyScroll.defaultModel` to
 the folding provider without data blanks sticky scroll while the rest
 of the extension keeps working.
 
-1. Update the extension to 2.1.16 or later. Older versions could answer
+1. Update the extension to 2.1.16 or later. Earlier versions can answer
    a folding request with an empty list — for example when
-   `editor.folding` was switched off — and VS Code treats an empty
+   `editor.folding` is switched off — and VS Code treats an empty
    folding answer as final: sticky scroll shows nothing rather than
    falling back to its indentation heuristic.
 2. Check you have not set `tclLsp.features.folding` to `false`

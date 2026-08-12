@@ -1,7 +1,7 @@
 # KCS: W116 — Why does the analyser warn about a stub shadowing a built-in?
 
 > **Audience:** User
-> **Type:** Issue
+> **Type:** Diagnostic
 
 ## Applies to
 
@@ -41,7 +41,7 @@ Give the stub a distinct name that does not collide with any built-in.
 
 ## How to suppress
 
-Add `# noqa: W116` at the end of the offending line.
+Add `# noqa: W116` on the line **above** the offending command.
 
 ## Related
 

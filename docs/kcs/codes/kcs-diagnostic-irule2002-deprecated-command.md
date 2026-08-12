@@ -1,7 +1,7 @@
 # KCS: IRULE2002 — Why does the analyser flag a deprecated iRules command?
 
 > **Audience:** User
-> **Type:** Issue
+> **Type:** Diagnostic
 
 ## Applies to
 
@@ -39,7 +39,7 @@ Replace the deprecated command with its modern equivalent, as indicated by the d
 
 ## How to suppress
 
-Add `# noqa: IRULE2002` at the end of the offending line.
+Add `# noqa: IRULE2002` on the line **above** the offending command.
 
 ## Related
 

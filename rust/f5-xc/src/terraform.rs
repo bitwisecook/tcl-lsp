@@ -18,8 +18,7 @@
 
 //! Render an [`XCTranslationResult`] as Terraform HCL (volterra provider):
 //! `volterra_origin_pool`, `volterra_http_loadbalancer`, and
-//! `volterra_service_policy` resources. Hand-rolled string formatting — a
-//! faithful port of `dialects/f5/xc/terraform.py`.
+//! `volterra_service_policy` resources. Hand-rolled string formatting.
 
 use std::fmt::Write as _;
 

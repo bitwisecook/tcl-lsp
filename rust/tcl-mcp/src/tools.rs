@@ -587,8 +587,7 @@ fn find_legacy(args: &Value) -> Value {
     let sm = SourceMap::new(source);
     // Shared with `tcl-cli`'s `find-legacy` verb (`tcl_cli::CONVERTIBLE_CODES`/
     // `conversion_for`) rather than a second hand-duplicated copy of the same
-    // 6-code table — the two used to be byte-identical but independently
-    // maintained.
+    // 6-code table.
     let patterns: Vec<Value> = analysis
         .diagnostics
         .iter()
@@ -609,11 +608,9 @@ fn find_legacy(args: &Value) -> Value {
 mod find_legacy_tests {
     use super::*;
 
-    /// The MCP `find-legacy` tool had no test at all before this — the
-    /// convertible-code/conversion-hint table it reads used to be a private
-    /// copy in this crate's own `diagnostics.json`; now it comes from
-    /// `tcl_cli` directly, so this is also a regression guard against that
-    /// convergence silently losing the conversion hint.
+    /// The convertible-code/conversion-hint table the MCP `find-legacy` tool
+    /// reads comes straight from `tcl_cli`, so this also guards against the
+    /// shared table silently losing the conversion hint.
     #[test]
     fn reports_unbraced_expr_with_its_conversion_hint() {
         let source = "proc check {a b} {\n    set total [expr $a + $b]\n    return $total\n}\n";

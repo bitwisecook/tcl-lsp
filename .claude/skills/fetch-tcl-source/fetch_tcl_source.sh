@@ -123,25 +123,42 @@ fetch_version() {
     trap "rm -f '$tmp_tarball'" RETURN
 
     echo "  Downloading tcl ${full} source tarball ..."
+    local got_tarball=0
     local attempt
     for attempt in 1 2 3 4; do
         if curl -fsSL --connect-timeout 15 --max-time 600 \
                -o "$tmp_tarball" "$url"; then
+            got_tarball=1
             break
         fi
         if [[ $attempt -lt 4 ]]; then
             local wait=$((2 ** attempt))
             echo "    Retry $attempt (waiting ${wait}s) ..."
             sleep "$wait"
-        else
-            echo "  ERROR: Failed to download tcl ${full} after 4 attempts" >&2
-            return 1
         fi
     done
 
-    echo "  Extracting to tcl${full}/ ..."
-    mkdir -p "$target_dir"
-    tar -xzf "$tmp_tarball" -C "$target_dir" --strip-components=1
+    # Fall back to a shallow tag clone when the codeload CDN is unreachable.
+    # Some sandboxed environments route outbound HTTPS through a proxy that
+    # serves `github.com` but rejects `codeload.github.com` with a 403, which
+    # exhausts every retry above and leaves the session with no Tcl sources —
+    # and therefore no `libtommath`, so `runtime/rust` silently builds without
+    # the numeric tower.  `git clone` goes through the same proxy happily.
+    if [[ $got_tarball -eq 0 ]]; then
+        echo "    Tarball unavailable; falling back to a shallow git clone of ${tag} ..."
+        if git clone -q --depth 1 --branch "$tag" \
+               "https://github.com/tcltk/tcl" "$target_dir" 2>/dev/null; then
+            rm -rf "$target_dir/.git"
+        else
+            echo "  ERROR: Failed to download tcl ${full} (tarball and git clone)" >&2
+            rm -rf "$target_dir"
+            return 1
+        fi
+    else
+        echo "  Extracting to tcl${full}/ ..."
+        mkdir -p "$target_dir"
+        tar -xzf "$tmp_tarball" -C "$target_dir" --strip-components=1
+    fi
 
     if [[ -d "$target_dir/generic" ]] && [[ -d "$target_dir/tests" ]]; then
         local test_count

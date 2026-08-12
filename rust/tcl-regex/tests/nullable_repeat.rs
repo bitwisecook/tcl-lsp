@@ -48,7 +48,7 @@ fn g(re: &str, subject: &str) -> Vec<Option<(usize, usize)>> {
 #[test]
 fn empty_iterations_count_toward_min() {
     // Bug 1: a positive `min` over a nullable operand must be satisfiable by
-    // empty iterations — these patterns match (they used to report no match).
+    // empty iterations, so every pattern here matches.
     assert_eq!(g("()+", ""), vec![Some((0, 0)), Some((0, 0))]);
     assert_eq!(g("(a?)+", ""), vec![Some((0, 0)), Some((0, 0))]);
     assert_eq!(g("(){3}", ""), vec![Some((0, 0)), Some((0, 0))]);

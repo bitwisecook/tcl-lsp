@@ -25,8 +25,11 @@
 //! `docs/design/runtime/rename-alias.md` for the as-built contract and
 //! `docs/design/contracts/command-alias-resolution.md` for the binding rules.
 //!
-//! Single-interp scope only: alias source/target interpreter paths must be `{}`
-//! (the empty string). Child interpreters + cross-interp aliases are deferred.
+//! An alias whose source and target interpreter paths are both `{}` binds
+//! within one interpreter; a child-side alias naming the parent binds as
+//! `Command::ParentAlias`, dispatched through the parent `Weak` under
+//! `CROSS_INTERP_DEPTH`. Querying a child alias, and a non-empty alias
+//! *target* path, are not implemented.
 //!
 //! See `list.rs` for the module-level `not_unsafe_ptr_arg_deref` rationale.
 #![allow(clippy::not_unsafe_ptr_arg_deref)]
@@ -71,9 +74,11 @@ fn rename(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
 
 // -- interp ----------------------------------------------------------------
 
-/// `interp alias` / `interp aliases` (single-interp forms). Other `interp`
-/// subcommands (`create`, `eval`, `hide`, …) need child-interp infrastructure
-/// and trap here.
+/// The `interp` ensemble. `alias`, `aliases`, `create`, `delete`, `eval`,
+/// `exists`, `hide`, `expose`, `hidden`, `invokehidden`, `issafe`,
+/// `marktrusted`, `recursionlimit`, `bgerror`, `debug`, and `limit` dispatch
+/// here; `cancel`, `share`, `target`, and `transfer` are named in the option
+/// list but have no arm (issue #1412).
 fn interp_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     if argv.len() < 2 {
         return interp.wrong_args(b"interp cmd ?arg ...?");

@@ -4186,7 +4186,7 @@ mod canonicalisation_matrix {
     #[test]
     fn w211_set_bare_and_qualified_both_fire() {
         // Both bare `set y 1` and qualified `::set y 1` canonicalise to the W211
-        // path (this equality DOES hold in Rust).
+        // path.
         assert_eq!(count("proc f {} { set y 1 }", D, "W211"), 1);
         assert_eq!(count("proc f {} { ::set y 1 }", D, "W211"), 1);
     }

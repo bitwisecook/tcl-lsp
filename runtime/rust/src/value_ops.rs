@@ -38,7 +38,7 @@
 use std::rc::Rc;
 
 use tcl_syntax::number::{self, Number};
-use tcl_syntax::value::{ValueError, ValueOps};
+use tcl_syntax::value::{string_char_len, ValueError, ValueOps};
 
 use crate::interp::{obj_bytes, Interp};
 use crate::list;
@@ -106,6 +106,10 @@ impl ValueOps for Interp {
 
     fn as_str(&mut self, v: &*mut TclObj) -> Rc<str> {
         bytes_to_str(&obj_bytes(*v))
+    }
+
+    fn char_len(&mut self, v: &*mut TclObj) -> usize {
+        string_char_len(&bytes_to_str(&obj_bytes(*v)), self.runtime_version())
     }
 
     fn as_int(&mut self, v: &*mut TclObj) -> Result<i64, ValueError> {

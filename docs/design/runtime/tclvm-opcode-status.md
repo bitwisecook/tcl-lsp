@@ -1,20 +1,29 @@
-# TCLVM opcode status — C Tcl 9.0 instruction coverage
+# VM opcode coverage — the C Tcl 9.0 instruction set
 
-> **Goal:** the bytecode VM (`rust/tcl-vm`) executes the **same opcode set** as
-> the C Tcl 9.0 bytecode engine (`tmp/tcl9.0.3/generic/tclExecute.c`,
-> `tclCompile.c` `InstructionDesc`). This is the binary-compatibility checklist:
-> all 191 C Tcl 9.0 instructions, ticked off as the VM implements them. Match
-> C Tcl semantics exactly (operands, stack effect, error behaviour).
+Binary compatibility means the bytecode VM (`rust/tcl-vm`) executes the **same
+opcode set** as the C Tcl 9.0 bytecode engine
+(`tmp/tcl9.0.3/generic/tclExecute.c`, `tclCompile.c`'s `InstructionDesc`), with
+matching operands, stack effect, and error behaviour. This is the inventory of
+where each of the 191 instructions currently stands.
+
+Coverage: **145 executed · 7 enum-only · 39 absent · 191 total**. It is
+maintained by hand — adding an opcode means updating its row and the count in
+the same change. The rows are checked against the `Op` enum in
+`rust/tcl-bytecode/src/lib.rs` and the dispatch arms in
+`rust/tcl-vm/src/exec.rs`.
 
 ## Legend
 
-- `[x]` — executed by `tcl-vm` (`exec.rs`).
-- `[~]` — present in the `tcl-bytecode` `Op` enum (the codegen can emit it) but
-  **not yet executed** by the VM.
-- `[ ]` — **not yet in** the `Op` enum (needs adding to `tcl-bytecode` first,
-  matching the C Tcl mnemonic/operands).
-Status (auto-countable): **98 executed · 39 enum-only · 54 missing · 191 total**.
-Keep this in sync when adding opcodes — update the row and the count.
+- `[x]` — executed by `tcl-vm` (`exec.rs` has a dispatch arm for it).
+- `[~]` — present in the `tcl-bytecode` `Op` enum, so codegen can emit it, but
+  **not executed** by the VM.
+- `[ ]` — **not in** the `Op` enum; it has to be added to `tcl-bytecode` first,
+  matching the C Tcl mnemonic and operands.
+
+Two `[x]` rows deserve their caveat up front: `beginCatch4` and `endCatch`
+share the no-op arm with `nop` and `startCommand`. They dispatch without
+error, but the VM does not drive `catch` through an exception-range stack the
+way C's engine does, so an emitter cannot rely on them to establish one.
 
 ## Instructions (C Tcl 9.0 `InstructionDesc` order)
 
@@ -26,7 +35,7 @@ Keep this in sync when adding opcodes — update the row and the count.
 - [x] `strcat`
 - [x] `invokeStk1`
 - [x] `invokeStk4`
-- [~] `evalStk`
+- [x] `evalStk`
 - [x] `exprStk`
 - [x] `loadScalar1`
 - [x] `loadScalar4`
@@ -81,9 +90,9 @@ Keep this in sync when adding opcodes — update the row and the count.
 - [x] `tryCvtToNumeric`
 - [x] `break`
 - [x] `continue`
-- [~] `beginCatch4`
-- [~] `endCatch`
-- [~] `pushResult`
+- [x] `beginCatch4`
+- [x] `endCatch`
+- [x] `pushResult`
 - [~] `pushReturnCode`
 - [x] `streq`
 - [x] `strneq`
@@ -94,65 +103,65 @@ Keep this in sync when adding opcodes — update the row and the count.
 - [x] `list`
 - [x] `listIndex`
 - [x] `listLength`
-- [~] `appendScalar1`
-- [ ] `appendScalar4`
-- [ ] `appendArray1`
-- [ ] `appendArray4`
+- [x] `appendScalar1`
+- [x] `appendScalar4`
+- [x] `appendArray1`
+- [x] `appendArray4`
 - [ ] `appendArrayStk`
 - [~] `appendStk`
-- [~] `lappendScalar1`
-- [ ] `lappendScalar4`
-- [ ] `lappendArray1`
-- [ ] `lappendArray4`
+- [x] `lappendScalar1`
+- [x] `lappendScalar4`
+- [x] `lappendArray1`
+- [x] `lappendArray4`
 - [ ] `lappendArrayStk`
 - [~] `lappendStk`
-- [~] `lindexMulti`
+- [x] `lindexMulti`
 - [x] `over`
-- [~] `lsetList`
-- [~] `lsetFlat`
+- [x] `lsetList`
+- [x] `lsetFlat`
 - [x] `returnImm`
 - [x] `expon`
-- [~] `expandStart`
-- [~] `expandStkTop`
-- [~] `invokeExpanded`
+- [x] `expandStart`
+- [x] `expandStkTop`
+- [x] `invokeExpanded`
 - [x] `listIndexImm`
 - [x] `listRangeImm`
 - [x] `startCommand`
 - [x] `listIn`
 - [x] `listNotIn`
-- [~] `pushReturnOpts`
+- [x] `pushReturnOpts`
 - [x] `returnStk`
-- [~] `dictGet`
-- [~] `dictSet`
-- [~] `dictUnset`
-- [~] `dictIncrImm`
-- [~] `dictAppend`
-- [~] `dictLappend`
-- [ ] `dictFirst`
-- [ ] `dictNext`
-- [ ] `dictUpdateStart`
-- [ ] `dictUpdateEnd`
+- [x] `dictGet`
+- [x] `dictSet`
+- [x] `dictUnset`
+- [x] `dictIncrImm`
+- [x] `dictAppend`
+- [x] `dictLappend`
+- [x] `dictFirst`
+- [x] `dictNext`
+- [x] `dictUpdateStart`
+- [x] `dictUpdateEnd`
 - [x] `jumpTable`
-- [~] `upvar`
-- [~] `nsupvar`
+- [x] `upvar`
+- [x] `nsupvar`
 - [ ] `variable`
-- [~] `syntax`
-- [~] `reverse`
-- [~] `regexp`
+- [x] `syntax`
+- [x] `reverse`
+- [x] `regexp`
 - [x] `existScalar`
 - [ ] `existArray`
 - [ ] `existArrayStk`
 - [x] `existStk`
 - [x] `nop`
 - [ ] `returnCodeBranch`
-- [ ] `unsetScalar`
-- [ ] `unsetArray`
+- [x] `unsetScalar`
+- [x] `unsetArray`
 - [ ] `unsetArrayStk`
 - [x] `unsetStk`
-- [ ] `dictExpand`
+- [x] `dictExpand`
 - [ ] `dictRecombineStk`
-- [ ] `dictRecombineImm`
-- [~] `dictExists`
+- [x] `dictRecombineImm`
+- [x] `dictExists`
 - [x] `verifyDict`
 - [~] `strmap`
 - [x] `strfind`
@@ -161,7 +170,7 @@ Keep this in sync when adding opcodes — update the row and the count.
 - [x] `strrange`
 - [ ] `yield`
 - [ ] `coroName`
-- [~] `tailcall`
+- [x] `tailcall`
 - [ ] `currentNamespace`
 - [ ] `infoLevelNumber`
 - [ ] `infoLevelArgs`
@@ -174,29 +183,29 @@ Keep this in sync when adding opcodes — update the row and the count.
 - [x] `arrayExistsImm`
 - [ ] `arrayMakeStk`
 - [ ] `arrayMakeImm`
-- [~] `invokeReplace`
+- [x] `invokeReplace`
 - [x] `listConcat`
 - [ ] `expandDrop`
 - [x] `foreach_start`
 - [x] `foreach_step`
 - [x] `foreach_end`
-- [ ] `lmap_collect`
+- [x] `lmap_collect`
 - [x] `strtrim`
 - [x] `strtrimLeft`
 - [x] `strtrimRight`
-- [~] `concatStk`
+- [x] `concatStk`
 - [x] `strcaseUpper`
 - [x] `strcaseLower`
 - [x] `strcaseTitle`
-- [~] `strreplace`
+- [x] `strreplace`
 - [ ] `originCmd`
 - [ ] `tclooNext`
 - [ ] `tclooNextClass`
 - [ ] `yieldToInvoke`
-- [~] `numericType`
+- [x] `numericType`
 - [x] `tryCvtToBoolean`
-- [~] `strclass`
-- [~] `lappendList`
+- [x] `strclass`
+- [x] `lappendList`
 - [~] `lappendListArray`
 - [~] `lappendListArrayStk`
 - [~] `lappendListStk`
@@ -211,11 +220,34 @@ Keep this in sync when adding opcodes — update the row and the count.
 - [ ] `constStk`
 ## Notes
 
-- The `Op` enum also carries dialect-only opcodes (`irule*`) that are **not**
-  C Tcl instructions; they are intentionally outside this checklist.
-- `foreach_start`/`foreach_step`/`foreach_end`/`lmap_collect` need the
-  `ForeachInfo` aux (loop-var groups) carried on the instruction + the implicit
-  start→step / step→body jumps (`tclExecute.c` INST_FOREACH_*); see the VM
-  milestone notes.
-- Variable opcodes come in `Scalar1/Scalar4/ScalarStk/Array1/Array4/ArrayStk/Stk`
-  families — the VM should cover each family member C Tcl emits.
+- The `Op` enum also carries opcodes that are **not** C Tcl instructions and are
+  intentionally outside this inventory: the nine dialect-only `IRULE_*`
+  opcodes, plus `LAND`, `LOR`, `STR_REPEAT`, and `STR_REVERSE` (C Tcl builds
+  those from jumps or command calls rather than dedicated instructions).
+- `not` maps onto the enum's `LNOT`. The enum also has a separate `NOT`
+  variant, which no row here claims.
+- Variable opcodes come in `Scalar1` / `Scalar4` / `ScalarStk` / `Array1` /
+  `Array4` / `ArrayStk` / `Stk` families; every family member C Tcl emits needs
+  covering, not just one representative. The remaining absences are
+  concentrated in the `…Stk` members (`loadScalarStk`, `storeScalarStk`,
+  `incrScalarStk`, `existArrayStk`, `unsetArrayStk`, …) and in the
+  coroutine / TclOO / introspection instructions (`yield`, `coroName`,
+  `yieldToInvoke`, `tcloo*`, `currentNamespace`, `infoLevel*`, `resolveCmd`,
+  `originCmd`), which the VM implements at the command level rather than as
+  bytecode.
+- The seven enum-only opcodes are cases where the emitter has a name to target
+  but the VM has no arm: `pushReturnCode`, `strmap`, `appendStk`, `lappendStk`,
+  `lappendListStk`, `lappendListArray`, and `lappendListArrayStk`. Six of them
+  are emitted by nothing. `pushReturnCode` is the exception — the compiler's
+  control-flow codegen emits it — so a body that reaches it raises the VM's
+  catch-all, `opcode pushReturnCode not implemented in tcl-vm`, at run time
+  rather than at codegen time.
+
+## Cross-references
+
+- [`rust-vm-tier-parity.md`](rust-vm-tier-parity.md) — the generated per-stem
+  tcltest scoreboard.
+- [`tcl-test-tiers.md`](tcl-test-tiers.md) — the capability ladder the
+  scoreboard groups by.
+- [`../contracts/vm-bytecode-test-boundary.md`](../contracts/vm-bytecode-test-boundary.md)
+  — identity versus behaviour at this boundary.

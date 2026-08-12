@@ -1,7 +1,7 @@
 # KCS: W114 â€” Why is a nested [expr] inside an expression redundant?
 
 > **Audience:** User
-> **Type:** Issue
+> **Type:** Diagnostic
 
 ## Applies to
 
@@ -44,7 +44,7 @@ The quick fix replaces the nested `[expr {...}]` with its body in parentheses â€
 
 ## How to suppress
 
-Add `# noqa: W114` at the end of the offending line.
+Add `# noqa: W114` on the line **above** the offending command.
 
 ## Related
 

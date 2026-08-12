@@ -636,9 +636,10 @@ file; this call falls through to the 'unknown' handler."
             // Only pure assignments are reportable as "set but never used".
             // A variable written by a command (`scan` / `binary scan` /
             // `regexp -> capture`, etc.) or a barrier is a command output the
-            // user may legitimately ignore; `IRCall` / `IRBarrier` defs are
-            // skipped.  This is deliberate policy, not a gap: a destructuring
-            // writer's surplus output (`binary scan $d H2H* type rest` with
+            // user may legitimately ignore; `Statement::Call` /
+            // `Statement::Barrier` defs are skipped.  This is deliberate
+            // policy, not a gap: a destructuring writer's surplus output
+            // (`binary scan $d H2H* type rest` with
             // `rest` unread) is how Tcl spells "ignore the remainder" — there
             // is no `_` placeholder — so flagging it would punish the idiom
             // (review-2 audit, S5).
@@ -1703,7 +1704,7 @@ file; this call falls through to the 'unknown' handler."
     /// - Otherwise → I230 with the generic
     ///   ``"Branch condition '...' is constant"`` message.
     ///
-    /// Severity is mapped to ``Hint`` because the Rust
+    /// Severity is mapped to ``Hint`` because the
     /// [`Severity`] enum has no ``Info`` variant — ``Hint`` is
     /// the closest non-actionable level.
     pub(super) fn emit_constant_branch_diagnostics(
@@ -2081,6 +2082,9 @@ file; this call falls through to the 'unknown' handler."
             &fu.ssa,
             &fu.sccp.values,
             &executable,
+            tcl_dialect::DialectProfile::by_name(self.dialect())
+                .runtime_base
+                .map(tcl_dialect::TclVersion::string_character_model),
         );
         for f in findings {
             if f.span.is_empty() {

@@ -1869,8 +1869,7 @@ mod tests {
         // TP: hex/octal/binary/underscore-separated forms are real Tcl
         // numbers (tclsh: 0x1a==26, 0o17==15, 0b101==5, 1_000==1000) — the
         // shared `tcl_syntax::number` grammar accepts them even though
-        // Rust's own `str::parse::<i64>/<f64>` (the previous
-        // implementation) rejects all four.
+        // Rust's own `str::parse::<i64>/<f64>` rejects all four.
         for text in ["0x1a", "0o17", "0b101", "1_000", "\"0x1a\""] {
             assert!(is_numeric_string(text), "{text:?} should be numeric");
         }

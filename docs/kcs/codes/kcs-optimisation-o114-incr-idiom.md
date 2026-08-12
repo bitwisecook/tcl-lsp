@@ -1,7 +1,7 @@
 # KCS: O114 — Recognise incr idiom
 
 > **Audience:** User
-> **Type:** Functionality
+> **Type:** Optimisation
 
 ## Applies to
 

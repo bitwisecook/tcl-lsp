@@ -1,7 +1,7 @@
 # KCS: IRULE4004 — Why does the analyser warn about a constant set in a per-request event?
 
 > **Audience:** User
-> **Type:** Issue
+> **Type:** Diagnostic
 
 ## Applies to
 
@@ -45,7 +45,7 @@ when RULE_INIT {
 
 ## How to suppress
 
-Add `# noqa: IRULE4004` at the end of the offending line.
+Add `# noqa: IRULE4004` on the line **above** the offending command.
 
 ## Related
 

@@ -16,8 +16,6 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! Native port of `tests/lsp_e2e/test_tcl91_e2e.py`.
-//!
 //! Tcl 9.1 dialect support, end-to-end over LSP. Oracle: C Tcl 9.1b0 source. The
 //! dialect is pinned with a `# tcl-dialect: tcl9.1` directive (server-side source
 //! detection), and behaviour is observed through completion + diagnostics.

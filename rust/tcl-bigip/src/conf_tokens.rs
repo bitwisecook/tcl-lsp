@@ -33,11 +33,10 @@
 //! **disjoint sub-tokens** rather than a specific token overlaid on a generic
 //! one.
 //!
-//! That overlay is exactly what the retired Python implementation did — it
-//! appended its BIG-IP matches on top of the tokens the Tcl collector had
-//! already produced, yielding 65 overlapping pairs in `bigip_base.conf` alone
-//! (`'Common':string` *and* `'Common':partition` on the same span).  It must
-//! not come back.
+//! Overlaying is the failure mode this design rules out: appending BIG-IP
+//! matches on top of tokens a generic Tcl collector has already produced
+//! yields overlapping pairs — `'Common':string` *and* `'Common':partition`
+//! on the same span.  It must not come back.
 
 use std::sync::LazyLock;
 
@@ -942,8 +941,9 @@ mod tests {
         }
     }
 
-    /// Tcl escape widths are not uniform: this lexer used to assume every escape
-    /// was two bytes, so `\x41` came out as an escape `\x` plus a string `41`.
+    /// Tcl escape widths are not uniform, so the lexer cannot assume every
+    /// escape is two bytes — that would split `\x41` into an escape `\x` plus
+    /// a string `41`.
     #[test]
     fn escape_widths_follow_tcl() {
         let t = toks("ltm x /C/m {\n    recv \"a\\x41b\\U0001F600c\\101d\"\n}\n");

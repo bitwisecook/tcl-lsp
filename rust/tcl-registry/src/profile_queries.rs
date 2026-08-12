@@ -22,10 +22,11 @@
 //! this one, so it cannot know about [`CommandSpec`] / [`CommandRegistry`].
 //! This extension trait gives the profile its availability API (design doc
 //! §5.1) at the registry layer: **every** availability consumer resolves
-//! commands through these methods so the subtractive iRules disable list
-//! (§9) is applied uniformly after the mask query — a bare mask query
-//! (`get_for_dialect` alone) would silently re-admit the banned commands
-//! once the Milestone 5 data retag lands.
+//! commands through these methods, so the mask query and the profile-level
+//! operator-head exclusion (§9) are applied uniformly. iRules availability
+//! is fully explicit in each spec's `dialects` group, so a sandbox-banned
+//! command such as `exec` simply never carries the `IRULES` bit; there is
+//! no subtractive disable list left to bypass.
 
 use tcl_dialect::{DialectProfile, DialectSet};
 

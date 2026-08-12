@@ -79,37 +79,12 @@ directory.  Resolution is recursive with circular-include protection.
 the `f5-iapps` and `f5-tmsh` dialects with hover documentation and arity
 validation.
 
-## File-path anchors
-
-- `dialects/f5/bigip/apl_parser.py` — APL tokeniser
-- `dialects/f5/bigip/apl_model.py` — structured APL model, #include resolution
-- `dialects/f5/bigip/iapp_vars.py` — iApp variable reference extraction
-- `dialects/f5/bigip/iapp_diagnostics.py` — cross-file diagnostic validation
-- `dialects/f5/iapps/` — tmsh:: command registry (individual tmsh__*.py modules)
-- `server/features/_semantic_tokens/` — `_collect_apl_tokens()`, embedded Tcl
-- `server/server.py` — `_is_apl_source()`, `_publish_apl_diagnostics()`
-- `server/workspace/scanner.py` — APL model caching, sibling file discovery
-- `editors/vscode/package.json` — `tcl-apl` language registration and colours
-- `editors/vscode/apl-language-configuration.json` — editor behaviour
-- `editors/zed/languages/apl/config.toml` — Zed APL language registration
-- `editors/jetbrains/src/main/resources/META-INF/plugin.xml` — JetBrains file type
-- `editors/neovim/tcl_lsp.lua` — Neovim filetype mapping
-- `editors/sublime-text/APL.sublime-syntax` — Sublime Text APL syntax
-- `editors/sublime-text/LSP-Tcl.sublime-settings` — Sublime APL semantic tokens
-
 ## Failure modes
 
 - APL-specific tokens not emitted when `is_apl=False` (language detection miss).
 - Cross-file diagnostics not triggered when files are in different directories.
 - `#include` resolution fails if the included file uses a different encoding.
 - New APL keywords not recognised after spec changes.
-
-## Test anchors
-
-- `tests/test_apl_parser.py` — APL tokeniser unit tests
-- `tests/test_apl_model.py` — structured model, #include resolution,
-  variable mapping, cross-file diagnostic tests
-- `tests/test_semantic_tokens.py::TestAplSemanticTokens` — semantic token tests
 
 ## Example
 

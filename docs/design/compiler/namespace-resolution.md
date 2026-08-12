@@ -1,12 +1,8 @@
-# KCS: Namespace resolution
+# Namespace resolution
 
-## Symptom
-
-A contributor needs to understand how qualified names (`::foo::bar`) are
-normalised and resolved through the compilation pipeline, or is debugging
-why a procedure call is not matched to its definition.
-
-## Context
+How qualified names such as `::foo::bar` are normalised and resolved through
+the pipeline, and how a bareword call is matched to the procedure that defines
+it.
 
 Tcl uses `::` as the namespace separator with `::` as the global namespace.
 `normalise_qualified_name()` canonicalises names, and lowering propagates
@@ -20,8 +16,6 @@ function.
 Source: `rust/tcl-syntax/src/naming.rs`,
 `rust/tcl-compiler/src/lowering/mod.rs`,
 `rust/tcl-compiler/src/interprocedural.rs`
-
-## Content
 
 ### `normalise_qualified_name()`
 

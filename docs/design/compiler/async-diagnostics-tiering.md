@@ -1,10 +1,8 @@
-# KCS: Async diagnostics tiering and cancellation
+# Async diagnostics tiering and cancellation
 
-## Symptom
-
-Editor diagnostics feel laggy or flicker because deep passes race with fresh edits and publish stale results.
-
-## Operational context
+How diagnostics are split into a fast tier and a deep background tier, and the
+cancellation and version rules that stop a slow pass from publishing results
+for an edit the user has already moved past.
 
 Diagnostics are published in two tiers:
 
@@ -13,7 +11,7 @@ Diagnostics are published in two tiers:
 
 This split is coordinated by `DiagnosticScheduler`, while `get_diagnostics()` provides unified aggregation contracts.
 
-## Decision rules / contracts
+## Tiering and cancellation rules
 
 1. **Fast-first publishing**
    - Tier 1 should avoid high-latency passes and return quickly after edits.
@@ -26,9 +24,9 @@ This split is coordinated by `DiagnosticScheduler`, while `get_diagnostics()` pr
 
 ## File-path anchors
 
-- `server/async_diagnostics.py` (`DiagnosticScheduler`)
-- `server/features/diagnostics.py` (`get_diagnostics`, phase-aware collection)
-- `server/workspace/document_state.py` (document version + CU cache interactions)
+- `rust/tcl-lsp-server/src/lib.rs` (`DiagnosticScheduler`)
+- `rust/tcl-lsp-db/src/lib.rs` (`get_diagnostics`, phase-aware collection)
+- `rust/tcl-lsp-db/src/lib.rs` (document version + CU cache interactions)
 
 ## Failure modes
 
@@ -37,13 +35,12 @@ This split is coordinated by `DiagnosticScheduler`, while `get_diagnostics()` pr
 - Inconsistent suppression between quick and deep diagnostics.
 - Excessive cancellation churn causing repeated heavy recomputation.
 
-## Test anchors
+## Tests
 
-- `tests/test_diagnostic_phases.py`
-- `tests/test_diagnostics.py`
+- `rust/tcl-lsp-server/tests/e2e/` — the LSP diagnostic end-to-end suites.
 
 
-## Discoverability
+## See also
 
 - [compiler KCS index](README.md)
 - [compiler architecture overview](../../../docs/design/compiler-architecture.md)

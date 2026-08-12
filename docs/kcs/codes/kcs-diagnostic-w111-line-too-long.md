@@ -1,7 +1,7 @@
 # KCS: W111 — Why does the analyser flag long lines?
 
 > **Audience:** User
-> **Type:** Issue
+> **Type:** Diagnostic
 
 ## Applies to
 
@@ -43,7 +43,7 @@ Break the line using backslash-newline continuation.
 
 ## How to suppress
 
-Add `# noqa: W111` at the end of the offending line.
+Add `# noqa: W111` on the line **above** the offending command.
 
 ## Related
 

@@ -190,9 +190,8 @@ fn collect_rename_edits(
 
     // 2. Variable-target command arguments (def sites: `set x`, `global a`).
     // No registry is available in this identifier-renaming pass, so the
-    // known-command universe is empty — matches the old `registry: None`
-    // behaviour (the recovery diagnostics are discarded below anyway; only
-    // the segmented command shapes matter here).
+    // known-command universe is empty (the recovery diagnostics are discarded
+    // below anyway; only the segmented command shapes matter here).
     let (cmds, _) = segment_with_recovery(
         source,
         LexerConfig::default(),

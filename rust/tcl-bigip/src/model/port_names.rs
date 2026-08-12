@@ -18,9 +18,8 @@
 
 //! BIG-IP mcpd service-name → port-number table.
 //!
-//! Generated from `dialects/f5/bigip/data/scf_port_names.csv` (the canonical
-//! mcpd service-name table). /
-//! `port_names.name_to_port`. Keys are pre-lowercased; lookup is binary search.
+//! The canonical mcpd service-name table. Keys are pre-lowercased; lookup is
+//! binary search.
 
 /// Sorted `(lowercase service name, port number)` pairs.
 #[rustfmt::skip]

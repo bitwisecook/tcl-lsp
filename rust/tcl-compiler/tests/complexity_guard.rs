@@ -45,7 +45,7 @@
 //! These are compiler-internal *structural* facts, so each is asserted directly
 //! on the crate's public API — no `tclsh` ground truth is involved.
 //!
-//!   * The **block-count** half is exercised on a hand-rolled `CFGFunction`
+//!   * The **block-count** half is exercised on a hand-rolled `cfg::Function`
 //!     chain, calling `is_complexity_guarded` / `build_ssa` directly:
 //!     [`chain_cfg`] builds a straight-line chain as a
 //!     [`tcl_compiler::cfg::Function`], and the assertions use

@@ -113,6 +113,23 @@ fetch_with_retry() {
     return 1
 }
 
+# Cleanup handler for the installers' `local tmpdir` scratch directories.
+#
+# Bash `RETURN` traps are *global* unless `set -o functrace` is in effect, so a
+# trap set inside one installer also fires when the **next** function returns —
+# by which point that installer's `local tmpdir` is out of scope and `set -u`
+# aborts the whole hook with `tmpdir: unbound variable`.  That defeats
+# `run_step`, whose entire purpose is to isolate a failing step so the
+# remaining ones still run: one failed download took out every later step
+# (Tcl sources, tcllib, test tools).  Guard on the variable being set, and
+# deregister the trap once it has run so it cannot fire a second time.
+cleanup_tmpdir() {
+    if [ -n "${tmpdir:-}" ]; then
+        rm -rf "$tmpdir"
+    fi
+    trap - RETURN
+}
+
 # ---------------------------------------------------------------------------
 # 4. Wasmtime — pinned release from GitHub.
 # ---------------------------------------------------------------------------
@@ -133,7 +150,7 @@ install_wasmtime() {
     local url="https://github.com/bytecodealliance/wasmtime/releases/download/v${WASMTIME_VERSION}/${tarball}"
     local tmpdir
     tmpdir="$(mktemp -d)"
-    trap 'rm -rf "$tmpdir"' RETURN
+    trap cleanup_tmpdir RETURN
 
     echo "session-start: fetching wasmtime v${WASMTIME_VERSION}"
     if ! fetch_with_retry "$url" "${tmpdir}/${tarball}"; then
@@ -193,7 +210,7 @@ install_binaryen() {
     local url="https://github.com/WebAssembly/binaryen/releases/download/version_${BINARYEN_VERSION}/${tarball}"
     local tmpdir
     tmpdir="$(mktemp -d)"
-    trap 'rm -rf "$tmpdir"' RETURN
+    trap cleanup_tmpdir RETURN
 
     echo "session-start: fetching binaryen v${BINARYEN_VERSION}"
     if ! fetch_with_retry "$url" "${tmpdir}/${tarball}"; then
@@ -256,7 +273,7 @@ install_wasi_sdk() {
     local base="https://github.com/WebAssembly/wasi-sdk/releases/download/wasi-sdk-${major}"
     local tmpdir
     tmpdir="$(mktemp -d)"
-    trap 'rm -rf "$tmpdir"' RETURN
+    trap cleanup_tmpdir RETURN
 
     echo "session-start: fetching wasi-sdk ${WASI_SDK_VERSION}"
     if ! fetch_with_retry "${base}/${tarball}" "${tmpdir}/${tarball}"; then
@@ -264,20 +281,25 @@ install_wasi_sdk() {
         return 1
     fi
 
-    # wasi-sdk publishes a SHA256SUMS asset alongside the tarballs; verify
-    # against it. (A hardcoded pin like binaryen/wasmtime above is a follow-up.)
-    # Fail closed: if the sidecar can't be fetched, or lists no entry for this
-    # tarball, treat the artifact as unverified and refuse it rather than
-    # silently installing.
-    if ! fetch_with_retry "${base}/SHA256SUMS" "${tmpdir}/SHA256SUMS"; then
-        echo "session-start: failed to fetch wasi-sdk SHA256SUMS; refusing to install unverified." >&2
-        return 1
-    fi
+    # The wasi-sdk releases publish no SHA-256 sidecar: the `SHA256SUMS` asset
+    # this step used to fetch returns 404, which failed the step closed and
+    # meant wasi-sdk never installed (so `runtime/rust/build.rs` silently built
+    # every wasm artefact without the libtommath numeric tower).  Pin the
+    # hashes here alongside the version, exactly as wasmtime and binaryen above
+    # do; re-compute them when bumping WASI_SDK_VERSION.  Still fail closed: an
+    # arch with no pin is refused rather than installed unverified.
     local expected actual
-    expected="$(awk -v f="$tarball" '{ n=$2; sub(/^\*/,"",n); if (n==f) { print $1; exit } }' "${tmpdir}/SHA256SUMS")"
+    case "$sdk_arch" in
+        x86_64)
+            expected="52640dde13599bf127a95499e61d6d640256119456d1af8897ab6725bcf3d89c" ;;
+        arm64)
+            expected="47fccad8b2498f2239e05e1115c3ffc652bf37e7de2f88fb64b2d663c976ce2d" ;;
+        *)
+            expected="" ;;
+    esac
     actual="$(sha256sum "${tmpdir}/${tarball}" | awk '{print $1}')"
     if [ -z "$expected" ]; then
-        echo "session-start: wasi-sdk SHA256SUMS has no entry for ${tarball}; refusing to install unverified." >&2
+        echo "session-start: no pinned wasi-sdk sha256 for ${sdk_arch}; refusing to install unverified." >&2
         return 1
     fi
     if [ "$actual" != "$expected" ]; then
@@ -379,7 +401,7 @@ install_rust() {
 
         local tmpdir
         tmpdir="$(mktemp -d)"
-        trap 'rm -rf "$tmpdir"' RETURN
+        trap cleanup_tmpdir RETURN
 
         local rustup_url="https://static.rust-lang.org/rustup/dist/${rust_arch}/rustup-init"
 

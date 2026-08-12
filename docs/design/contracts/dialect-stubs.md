@@ -1,55 +1,40 @@
-# KCS: Dialect command stubs
+# Dialect command stubs
 
 ## Purpose
 
 Dialect stubs let users declare command signatures for unknown dialect
-extensions so the analyser stops reporting them as unresolved and reads
-their arguments with the right roles, without a full registry entry.
-This is essential for EDA tools (Synopsys, Cadence, Xilinx), custom
-frameworks, and any Tcl extension that adds commands the LSP does not
-know about.
-
-The stub language is deliberately narrower than `CommandSpec`: it has no
-subcommands, options, types, hooks, or side-effect classification, and
-stub names are **not** offered in completion.  A command that needs any
-of that belongs in the registry proper — see the [command registry field
-reference](../compiler/command-registry.md).
+extensions so the LSP provides completion, diagnostics, and semantic
+understanding without a full registry entry.  This is essential for
+EDA tools (Synopsys, Cadence, Xilinx), custom frameworks, and any Tcl
+extension that adds commands the LSP does not know about.
 
 ## Delivery mechanisms
 
-### External stub files
+### Workspace sidecar files
 
-`<dialect>.tcl.stubs` files contain stub definitions, one per line.
-No `#` prefix is needed.  Comments start with `#`.
+A `<dialect>.tcl.stubs` file contains stub definitions, one per line, with no
+`#` prefix; `#` starts a comment. `scan_sidecar_stubs` walks up from the
+analysed document to the nearest such file for the active dialect.
+
+Sidecar declarations participate in resolution exactly like inline ones, but
+are flagged `from_sidecar` — their spans are synthetic, so they can never
+produce a source-positioned shadow diagnostic in the document being analysed.
+The incremental analyser also gates on sidecar readability, because a sidecar
+signature affects every document under it.
 
 ```
-# synopsys-eda-tcl.tcl.stubs
+# synopsys.tcl.stubs
 stub foreach_in_collection {varName:var collection body:body} -loop
 stub get_cells {?-hierarchical? ?-filter? pattern:pattern} -pure
 stub sizeof_collection {collection} -pure
 stub expr-func sizeof 1
 ```
 
-`<dialect>` is the **dialect profile name** the document is analysed under
-(`tcl8.6`, `f5-irules`, `synopsys-eda-tcl`, … — the `KNOWN_DIALECTS`
-vocabulary), not the name of the library being described.  A file named
-after the library is never found.
-
-The analysed file's own directory is searched first, then each ancestor
-directory in turn, and the **nearest** `<dialect>.tcl.stubs` wins — a
-workspace root can ship a broad bundle while a nested project overrides
-it.  The sidecar is normalised into the inline grammar before parsing, so
-there is exactly one parser; declarations that came from a sidecar are
-flagged as such and never carry a source-positioned diagnostic, because
-their spans do not belong to the analysed document.
-
 ### Inline stubs
 
 Stub blocks are bracketed by `# tcl-lsp: stubs-begin` and
 `# tcl-lsp: stubs-end` markers.  Multiple blocks per file are supported.
-Stubs outside a block are ignored.  Inside a block the `tcl-lsp:` prefix
-is optional, and the `stubs-begin` / `stubs-end` / `stub` keywords are
-matched case-insensitively.
+Stubs outside a block are ignored.
 
 ```tcl
 # tcl-lsp: stubs-begin
@@ -66,26 +51,24 @@ matched case-insensitively.
 stub <command-name> {arg1:role arg2 ?optArg:role?} ?flags...?
 ```
 
-The braced argument list is **required** — a bare `stub NAME` is
-rejected.  A declaration whose `:role` annotation is not one of the roles
-below is dropped whole rather than being partially honoured.  Two
-declarations for the same command name are last-one-wins.
-
 ### Argument roles
 
-| Role | Meaning |
-|------|---------|
-| `body` | Tcl script body (recursively analysed) |
-| `expr` | Expression (expr sub-language) |
-| `var` | Variable name written by the command |
-| `var_read` | Variable name read without modification |
-| `name` | Symbolic name (proc, namespace, design name) |
-| `pattern` | Pattern or regex |
-| `channel` | Channel identifier |
-| `value` | Generic value (default when no role given) |
+Each role word maps to one registry `ArgRole` through
+`StubOverlay::parse_role`. An unrecognised word is **not** an error — it falls
+through to `Value`, so a typo silently degrades to the generic role rather
+than rejecting the stub.
 
-Each maps onto the registry's own `ArgRole` enum at overlay-construction
-time, so every downstream query is typed rather than string-keyed.
+| Role | `ArgRole` | Meaning |
+|------|---|---------|
+| `body` | `Body` | Tcl script body (recursively analysed) |
+| `expr` | `Expr` | Expression (expr sub-language) |
+| `var` | `VarWrite` | Variable name written by the command |
+| `var_read` | `VarRead` | Variable name read without modification |
+| `name` | `Name` | Symbolic name (proc, namespace, design name) |
+| `pattern` | `Pattern` | Pattern or regex |
+| `channel` | `Channel` | Channel identifier |
+| `command_prefix` | `CommandPrefix` | A command prefix invoked as a callback |
+| `value` | `Value` | Generic value — the default, and the fallback for any unknown word |
 
 ### Optional arguments
 
@@ -93,23 +76,18 @@ Wrap in `?...?` to mark as optional: `?-filter?`, `?count:value?`.
 
 ### Flags
 
-Flags are recorded as a bit set on the parsed declaration.  Each names a
-registry concept, but a stub records the *claim* only — it does not build
-a `CommandSpec`, and **no pass currently branches on a stub flag**.  The
-flags are parsed, carried on the declaration and the overlay, and exposed
-for inspection; the argument roles and the declared name are what change
-analysis today.
+The trailing flag set is parsed into the analyser-side `StubFlags` bitflags
+(`analyser/types.rs`) and carried into the overlay as `StubSigFlags`
+(`stub_overlay.rs`), whose bits stand for the registry-side `Traits`:
 
-| Flag | Registry counterpart |
-|------|----------------------|
-| `-barrier` | `Traits::CREATES_DYNAMIC_BARRIER` |
-| `-loop` | `Traits::HAS_LOOP_BODY` |
-| `-pure` | `Traits::PURE` |
-| `-mutator` | `SubCommand::mutator` |
-| `-unsafe` | `Traits::UNSAFE` |
-| `-scope_alias` | `Traits::CREATES_SCOPE_ALIAS` |
-
-Unrecognised flag tokens are ignored rather than rejecting the stub.
+| Flag | Meaning |
+|---|---|
+| `-barrier` | creates a dynamic barrier |
+| `-loop` | has a loop body |
+| `-pure` | no side effects |
+| `-mutator` | mutates its target |
+| `-unsafe` | unsafe in a safe interpreter |
+| `-scope_alias` | creates a scope alias |
 
 ## Expression stubs
 
@@ -130,115 +108,60 @@ stub expr-op starts_with 2
 
 ## Data model
 
-Two shapes, in two crates.  The analyser keeps the **source-level**
-record, which retains the span of the comment line for diagnostics:
+`StubCommandDef` / `StubArgDef` / `StubExprDef`
+(`rust/tcl-compiler/src/analyser/types.rs`) are the analyser-side records:
+name, parsed argument list, the span of the declaring comment line, a
+`StubFlags` bitflag set, and the `from_sidecar` marker. They are collected onto
+`AnalysisResult` and keep their spans so diagnostics can point at the
+declaration.
 
-```rust
-pub struct StubArgDef {
-    pub name: String,
-    pub role: String,      // "body" / "expr" / "var" / … ; "value" by default
-    pub optional: bool,
-}
+## The registry overlay
 
-pub struct StubCommandDef {
-    pub name: String,
-    pub args: Vec<StubArgDef>,
-    pub range: Span,
-    pub flags: StubFlags,  // bitflags: BARRIER / LOOP / PURE / MUTATOR / UNSAFE / SCOPE_ALIAS
-    pub from_sidecar: bool,
-}
+A stub is a **per-document** declaration, so it must not pollute the
+`CommandRegistry` that every document in a workspace shares — mutating the
+global registry per analysis call would also defeat the interning and caching
+the registry relies on. Instead, `tcl_registry::stub_overlay::StubOverlay` is
+a per-document overlay rebuilt on each `analyse()` call. Consumers consult the
+registry first, then the overlay.
 
-pub struct StubExprDef {
-    pub name: String,
-    pub kind: String,      // "function" or "operator"
-    pub arity: u32,
-    pub range: Span,
-    pub from_sidecar: bool,
-}
-```
+Two properties of that design are load-bearing:
 
-The registry keeps the **semantic** overlay, which drops the span and
-canonicalises each role to the typed `ArgRole`:
+- **Roles are typed at overlay-construction time.** The source string
+  (`"body"`, `"var"`, …) is canonicalised to `ArgRole` through
+  `StubOverlay::parse_role` once, so every subsequent query is typed and no
+  consumer re-parses a role word.
+- **The overlay is fingerprinted.** `StubOverlay::fingerprint` is a stable
+  64-bit hash of its contents, included in the compilation-unit and
+  interprocedural-summary cache keys, so editing a stub invalidates exactly
+  the cached entries that depended on the previous stub set.
 
-```rust
-pub struct StubArg  { pub name: String, pub role: ArgRole, pub optional: bool }
-pub struct StubSig  { pub name: String, pub args: Vec<StubArg>, pub flags: StubSigFlags }
-pub struct StubOverlay { /* BTreeMap<String, StubSig> */ }
-```
-
-`StubFlags` and `StubSigFlags` share a bit layout by design, so the
-conversion is a straight bit copy.
-
-Stubs are stored on the analyser's `AnalysisResult` as
-`stub_commands: Vec<StubCommandDef>` and
-`stub_expr_defs: Vec<StubExprDef>`, and the derived `StubOverlay` lives on
-the analyser for the duration of one `analyse()` call.
-
-### Why an overlay rather than the registry
-
-Stubs are per-document declarations.  Merging them into the shared
-`CommandRegistry` would leak one document's declarations into every other
-document in the workspace and defeat the registry's caching and interning.
-Consumers therefore query the registry first and the overlay second, and
-the overlay is rebuilt per analysis.
-
-`StubOverlay::fingerprint` gives a stable 64-bit hash of the overlay's
-contents (order-independent, because the map is sorted).  The
-compilation-unit and interprocedural-summary caches include it in their
-keys, so editing a stub invalidates exactly the entries that depended on
-the previous stub set.
-
-## What stubs change
-
-- The declared name stops drawing W123 ("unresolved command"), and it
-  joins the known-command universe the unclosed-delimiter recovery
-  consults.
-- Argument roles feed proc-argument-trait inference, the call graph, and
-  variable-usage analysis, so a `body` argument is recursively analysed.
-- A stub *suppresses* the registry arity and subcommand diagnostics
-  (E001 / E002 / E003) for a name that shadows a built-in — the stub is
-  treated as a redefinition whose real shape the analyser cannot check.
-  A stub does **not** introduce arity checking of its own.
-- The LSP watches `**/*.tcl.stubs` and invalidates every tracked analysis
-  when a sidecar changes, because any file may inherit its nearest
-  ancestor sidecar.
-
-What stubs do **not** change: completion offers no stub-declared name,
-and no pass branches on a stub flag.
+The overlay is what feeds parameter-trait inference, role lookup, scope-alias
+detection, and barrier detection for stubbed commands.
 
 ## Parsing
 
-`scan_source_for_stubs(source)` performs a line-based pre-scan of the
-source text before lexing.  It finds the `stubs-begin` / `stubs-end`
-markers and parses every declaration between them, returning the command
-and expression declarations separately.
+`tcl_compiler::analyser::utils::scan_source_for_stubs(source)` is a line-based
+pre-scan run before lexing: it finds the begin/end markers and parses every
+stub definition between them. `scan_sidecar_stubs` does the same for the
+nearest `<dialect>.tcl.stubs` ancestor file.
 
-`scan_sidecar_stubs(file_path, dialect)` walks from the file's directory
-upwards for the nearest `<dialect>.tcl.stubs`, adapts it into the inline
-grammar, and parses it with the same scanner.  `has_sidecar_stubs` is the
-cheap existence probe the incremental analyser uses to decide whether it
-must fall back to a full analysis.
+## Stub generation
 
-`build_stub_overlay(defs)` converts the parsed records into the registry
-overlay.
+The spec studio renders a `CommandSpec` back out as a stub line
+(`rust/tcl-spec-studio/src/render_stub.rs`), in either the inline
+`# tcl-lsp: stubs-begin` form or a standalone sidecar file. The stub language
+is narrower than a full spec, so **what a stub cannot carry is emitted as a
+comment beside it** rather than dropped — see
+[command-spec-studio.md](command-spec-studio.md). Roles map through the
+inverse of `StubOverlay::parse_role`, so a rendered stub parses back to the
+roles the draft declared.
 
-## Authoring stubs from a spec
-
-The [command spec studio](command-spec-studio.md) renders a draft
-`CommandSpec` as either an inline stubs block or a standalone
-`<dialect>.tcl.stubs` file.  Because the stub language carries strictly
-less than a spec, anything it cannot express is emitted as a comment
-beside the stub rather than dropped silently.
-
-## Files
+## Key files
 
 | File | Purpose |
-|------|---------|
-| `rust/tcl-compiler/src/analyser/utils.rs` | Stub parser (inline + sidecar), `scan_source_for_stubs`, `scan_sidecar_stubs`, `scan_stub_command_names` |
-| `rust/tcl-compiler/src/analyser/types.rs` | `StubCommandDef`, `StubExprDef`, `StubArgDef`, `StubFlags`, `build_stub_overlay` |
-| `rust/tcl-compiler/src/analyser/state.rs` | Per-analysis overlay construction |
-| `rust/tcl-compiler/src/analyser/param_traits.rs` | Overlay-aware role resolution |
-| `rust/tcl-registry/src/stub_overlay.rs` | `StubOverlay`, `StubSig`, `StubArg`, `StubSigFlags` |
-| `rust/tcl-spec-studio/src/render_stub.rs` | Spec → stub renderer |
-| `samples/synopsys.tcl.stubs` | Example external stubs file (illustrative content; rename to `synopsys-eda-tcl.tcl.stubs` for the loader to pick it up) |
-| `samples/dialect_stubs_inline_example.tcl` | Example inline stubs |
+|---|---|
+| `rust/tcl-compiler/src/analyser/utils.rs` | `scan_source_for_stubs`, `scan_sidecar_stubs` |
+| `rust/tcl-compiler/src/analyser/types.rs` | `StubCommandDef`, `StubArgDef`, `StubExprDef`, `StubFlags` |
+| `rust/tcl-registry/src/stub_overlay.rs` | `StubOverlay`, `StubSig`, `StubSigFlags`, `StubArg`, `parse_role`, `fingerprint` |
+| `rust/tcl-spec-studio/src/render_stub.rs` | stub rendering |
+| `samples/` | example sidecar and inline stub files |

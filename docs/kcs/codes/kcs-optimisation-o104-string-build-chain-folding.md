@@ -1,7 +1,7 @@
 # KCS: O104 — Fold static string build chains
 
 > **Audience:** User
-> **Type:** Functionality
+> **Type:** Optimisation
 
 ## Applies to
 

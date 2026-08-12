@@ -21,30 +21,31 @@ quick-start lives in
 
 ```
 rust/tcl-bigip-query/src/
-  lib.rs             # public API: run_query, QueryOptions, QueryResult
-  errors.rs          # error hierarchy (lex / parse / eval / edit / builtin)
-  value.rs           # runtime value model
-  lexer.rs           # tokeniser
-  ast.rs             # AST node types
-  parser.rs          # recursive-descent parser
-  projection.rs      # lazy projection over a parsed BigipConfig
-  builtins/          # the builtin function library, one module per family
-                     # (string, math, net, time_dt, regex_str, graph, files, …)
-  special.rs         # special-form builtins (select, map, the paths family, …)
-  eval.rs            # walks the AST against a root value
-  edit_plan.rs       # collects, routes, and applies query-driven source edits
-  rewrite.rs         # token-bounded source rewriter (the rename half)
-  output.rs          # renders evaluator output for the verb
-  renderers/         # pluggable output renderers
-  jsonfmt.rs         # canonical JSON serialisation of values
-  inputs.rs          # structured-input parsers for side-inputs
-  probes.rs, probes/ # live network-probe layer
-  architecture.rs    # multi-device tier relationships
-  runner.rs          # high-level orchestration used by the CLI verb
-  grammar.rs         # plain-text grammar for --help-dsl
-  examples.rs        # worked-example cookbook for --help-examples
-  manual.rs          # grammar + builtins + cookbook for --help-manual
-rust/f5-cli/src/     # the `f5-query` binary: CLI plumbing and help actions
+  lib.rs              # crate root — re-exports the public API
+  errors.rs           # QueryError hierarchy (lex / parse / eval / edit / builtin)
+  value.rs            # runtime value model: ObjectRef, PathRef, Stream, scalars
+  lexer.rs            # hand-rolled tokeniser
+  ast.rs              # AST node types
+  parser.rs           # recursive-descent parser
+  projection.rs       # BigipConfig → navigable Container tree
+  eval.rs             # walks the AST, collects edits, returns values
+  builtins/           # plain + stream builtin function library (mod.rs + submodules)
+  special.rs          # special-form builtins (select / map / paths / getpath / …)
+  probes.rs           # network-probe + X.509 builtins (refs / referenced_by
+                       # forward into tcl-bigip's grep/graph support)
+  edit_plan.rs         # routes identity writes through rewrite::rename_object,
+                       # detects conflicts, applies bottom-up
+  rewrite.rs          # token-bounded rename engine used by edit_plan and the
+                       # rename* builtins
+  output.rs           # auto / scf / raw / paths / json renderers
+  runner.rs           # high-level orchestration used by the CLI verb
+  grammar.rs          # plain-text grammar for --help-dsl
+  manual.rs           # combined --help-manual surface (grammar + builtins + examples)
+  examples.rs         # worked-example cookbook for --help-examples
+  architecture.rs     # multi-device architecture / tier detection
+  inputs.rs           # side-input parsers (--input-json / -jsonl / -csv / -f5log)
+rust/f5-cli/src/commands/query.rs
+                     # clap plumbing + help actions for the `f5 query` verb
 ```
 
 ## Grammar
@@ -134,11 +135,11 @@ Deliberate divergences:
 | Regex test | `test("pat")` builtin | `["~pat"]` subscript form, **and** `match()` builtin (jq's `match()` returns match objects; ours returns boolean — equivalent to jq's `test()`) |
 | Identifier hyphens | quoted only | bareword (`source-address-translation`) |
 | Object literals `{...}` | yes | yes — `{name, dest: .destination}` bareword keys desugar to `key: .key`; stream-valued fields broadcast element-wise into one row per item |
-| `expr as $x \| body` | yes | yes — streams iterate (one body call per item), plain Python lists (from an explicit `[...]` collector) bind once.  Right-associative so `.a[] as $x \| .b \| $x.c + ...` keeps `$x` bound across subsequent pipe stages |
+| `expr as $x \| body` | yes | yes — streams iterate (one body call per item), plain lists (from an explicit `[...]` collector) bind once.  Right-associative so `.a[] as $x \| .b \| $x.c + ...` keeps `$x` bound across subsequent pipe stages |
 | `$name` variable | yes (let-binding only) | also names each loaded source — `$ltm`, `$gtm`, ... — for cross-config queries.  Auto-named from filename stem; `--name N=PATH` overrides |
 | String interpolation `"\(.x)"` | yes | not present in v1 |
 | Optional path suffix `?` | yes | yes for path steps (`.foo?`, `.items[]?`, `.[expr]?`); `try-catch` is still absent |
-| `//` / `try-catch` / `reduce` / `foreach` / `paths` / `getpath` / `setpath` / `del` / `to_entries` / `from_entries` | yes | not present in v1 — practical query language, not a jq subset |
+| `//` / `try-catch` / `reduce` / `foreach` | yes | not present — practical query language, not a jq subset. (`paths` / `leaf_paths` / `getpath` / `setpath` / `del` / `delpaths` / `to_entries` / `from_entries` **are** implemented — see the `value` category in [`builtins.md`](builtins.md).) |
 | Truthiness (`select`, `and`, `or`, `if`) | only `false` and `null` are falsey | also: empty string, empty list/stream, empty `PathRef`, numeric `0`, `null` (broader falsey set; closer to "empty / zero / absent" than jq's strict definition) |
 | Assignment + pipe | `path \|= f` binds tight via custom precedence | `\|=` is a pipe-stage trailing operator, so `a \| b \|= c` parses as `a \| (b \|= c)` |
 | `--format` flag | not applicable | `--format scf` (default) emits the rewritten config; `--format tmsh` emits a `tmsh modify` script suitable for piping to a live device.  Refused with `--in-place` (would silently overwrite SCF with a different file format) |
@@ -153,8 +154,10 @@ each VS, update its destination".
 
 ## Value model
 
-The runtime is mostly plain Python values (`str`, `int`, `float`,
-`bool`, `None`, `list`).  Three wrapper types carry extra information:
+The runtime value is the [`Value`](../../../rust/tcl-bigip-query/src/value.rs)
+enum: the plain scalar/container variants (`Str`, `Int`, `Float`, `Bool`,
+`Null`, `List`, `Object`) plus three wrapper variants that carry extra
+information:
 
 ### `ObjectRef`
 
@@ -187,7 +190,9 @@ value per line versus a single JSON array.
 ## Tree shape
 
 The DSL exposes the parsed `BigipConfig` as a nested mapping, with one
-top-level child per recognised module:
+top-level child per recognised module. Only `ltm`, `gtm`, and
+`security` currently have a **typed** projection (see the coverage
+note below); their shape is:
 
 ```
 .ltm
@@ -224,118 +229,10 @@ top-level child per recognised module:
                                 .actions[].target
                                            .verb
                                            .pool   (path-ref → ltm pool)
-.net
-  .route["/Common/default_gw"].network
-                              .gw
-                              .pool          (path-ref → ltm pool)
-  .vlan["/Common/external"].tag
-                           .interfaces[]
-  .self["/Common/198.51.100.5"].address
-                               .vlan         (path-ref → net vlan)
-                               .traffic-group
-                               .allow-service[]
-  .route-domain["/Common/0"].id
-                            .vlans[]         (path-refs → net vlan)
-  .port-list["/Common/web_ports"].ports[]
-  .interface["1.1"].media-fixed
-  .dns-resolver["/Common/r1"].route-domain   (path-ref → net route-domain)
-                              .forward-zones[]
-  .tunnels-tunnel["/Common/t1"].profile      (path-ref → ltm profile)
-                               .local-address
-                               .remote-address
-                               .description
-  .stp["/Common/cist"].interfaces[]
-.sys
-  .dns[].name-servers[]                    (singleton; one entry)
-  .ntp[].servers[]                         (singleton; one entry)
-  .snmp[].agent-addresses[]                (singleton; one entry)
-        .communities[]
-  .global-settings[].hostname              (singleton; one entry)
-  .provision["ltm"].level
-  .folder["/Common"].traffic-group
-  .file-ssl-cert["/Common/f5.crt"].source-path
-                                  .cache-path
-  .file-ssl-key["/Common/f5.key"].source-path
-                                 .passphrase
-  .management-route["/Common/default"].gateway
-                                      .network
-```
-
-Singletons (``sys.dns``, ``sys.ntp``, ``sys.snmp``,
-``sys.global-settings``) have no full-path — they're stored under
-the empty-string key, so ``.sys.dns[]`` streams the one entry and
-``.sys.dns[""]`` is an exact lookup.
-
-```
-.security
-  .firewall-port-list["/Common/web"].ports[]
-  .firewall-rule-list["/Common/rl1"].rules[]
-  .firewall-config-entity-id["/Common/id1"].entity-id
-  .ip-intelligence-policy["/Common/ip-intel"].name
-  .protocol-inspection-compliance-map["/Common/m1"].insp-id
-                                                   .key-type
-                                                   .value-type
-  .protocol-inspection-compliance-objects["/Common/o1"].insp-id
-                                                       .type
-  .device-id-attribute["/Common/att01"].id
-.apm
-  .access-policy["/Common/p1"].start-item       (path-ref → policy-item)
-                              .default-ending  (path-ref → policy-item)
-                              .items[]         (path-refs → policy-item)
-  .policy-item["/Common/i1"].caption
-                            .color
-                            .item-type
-                            .agents[]          (path-refs → policy-agent)
-  .policy-agent["/Common/a1"].agent-type
-                             .customization-group
-  .customization-source["/Common/cs"].name
-  .oauth-db-instance["/Common/oauthdb"].description
-  .ssh-security-config["/Common/cfg"].ciphers[]
-                                     .hmacs[]
-                                     .kex-methods[]
-  .default-report[].report-name              (singleton; one entry)
-                   .user
-```
-
-PathRefs auto-deref from ``access-policy`` into the referenced
-``policy-item`` and from ``policy-item.agents[]`` into the matching
-``policy-agent`` — chained queries like
-``.apm.access-policy[].start-item.caption`` walk
-``access-policy → policy-item → caption`` in one step.
-
-```
-.cm
-  .cert["/Common/dtca.crt"].cache-path
-                           .checksum
-                           .revision
-  .key["/Common/dtca.key"].cache-path
-                          .checksum
-  .device["/Common/host1"].hostname
-                          .management-ip
-                          .version
-                          .cert            (path-ref → cm cert)
-                          .key             (path-ref → cm key)
-  .device-group["/Common/dg1"].auto-sync
-                              .devices[]   (path-refs → cm device)
-  .traffic-group["/Common/tg1"].unit-id
-  .trust-domain["/Common/Root"].ca-cert    (path-ref → cm cert)
-                               .ca-cert-bundle
-                               .ca-key     (path-ref → cm key)
-                               .ca-devices[] (path-refs → cm device)
-                               .trust-group (path-ref → cm device-group)
-                               .guid
-                               .status
-```
-
-PathRefs from ``cm device.cert`` / ``cm device.key`` and from every
-``cm trust-domain`` reference auto-deref into the target object —
-``.cm.trust-domain[].trust-group.devices`` walks
-``trust-domain → device-group → devices[]`` end-to-end.
-
-```
 .gtm
   .datacenter["/Common/dc1"].contact
                             .location
+                            .prober-pool     (path-ref; target kind not itself navigable)
   .server["/Common/s1"].datacenter         (path-ref → gtm datacenter)
                        .monitor
                        .product
@@ -351,9 +248,28 @@ PathRefs from ``cm device.cert`` / ``cm device.key`` and from every
                         .aliases[]
                         .pool-lb-mode
                         .last-resort-pool  (path-ref → gtm pool)
-  .prober-pool["/Common/pp"].members[]     (path-refs → gtm server)
-  .region["/Common/r1"].region-members[]
-  .rule["/AS3/app/r1"].body
+  .listener["/Common/l1"].address
+                         .port
+                         .pool             (path-ref → gtm pool)
+                         .rules[]
+.security
+  .firewall-policy["/Common/fp1"].rules[]
+                                 .rule-lists[]
+  .firewall-rule-list["/Common/rl1"].rules[].action
+                                            .source
+                                            .destination
+  .firewall-address-list["/Common/al1"].addresses[]
+                                       .address-lists[]
+                                       .fqdns[]
+  .firewall-port-list["/Common/web"].ports[]
+  .nat-policy["/Common/np1"].rules[]
+                            .rule-lists[]
+  .nat-source-translation["/Common/nst1"].type
+                                         .addresses[]
+                                         .ports[]
+  .nat-destination-translation["/Common/ndt1"].type
+                                              .addresses[]
+                                              .ports[]
 ```
 
 ``gtm pool a|aaaa|cname|mx|srv|naptr`` and ``gtm wideip <type>`` are
@@ -362,24 +278,33 @@ the DNS record kind.  PathRefs from ``wideip.pools[]`` /
 ``last-resort-pool`` deref into the unified ``gtm pool`` so
 ``.gtm.wideip[].pools[].ttl`` walks the full chain.
 
-PathRefs cross module boundaries: `.net.self[].vlan.tag` walks
-`net self → net vlan → tag` in one chain, and
-`.ltm.virtual[].pool.members[].address` walks the existing
-`virtual → pool → member → address` chain — same auto-deref engine.
+`.ltm.virtual[].pool.members[].address` walks the
+`virtual → pool → member → address` chain in one step — PathRefs
+auto-deref on field access whenever the target kind is itself
+projected.
 
-`apm.*`, `security.*`, `sys.*`, `cm.*`, `pem.*`, `auth.*`, `vcmp.*`,
-`cli.*`, `api-protection.*`, `asm.*`, `ilx.*`, `wom.*`, and
-`analytics.*` are all projected and navigable — `_MODULE_KINDS` in
-`projection.py` enumerates the supported kinds per module.  Any TMSH
-stanza the parser sees but no typed projection covers still lands in
-`cfg.generic_objects` with full byte ranges and is reachable via
-source-level operations (`rename_partition` cascades, `--scf` selection
-through grep / a real SCF concatenation), but is not navigable from
-the DSL.
+`ltm.*`, `gtm.*`, and `security.*` are projected and navigable — the
+`LTM_KINDS` / `GTM_KINDS` / `SECURITY_KINDS` tables (looked up via
+`module_kinds()`) in
+[`projection.rs`](../../../rust/tcl-bigip-query/src/projection.rs)
+enumerate the exact set of kinds covered per module (e.g. `gtm`
+covers `datacenter` / `server` / `pool` / `wideip` / `listener` —
+notably **not** `prober-pool`, `region`, or `rule`). Any TMSH stanza
+the parser sees but no typed projection covers still lands in the
+source's generic-object fallback with full byte ranges and is
+reachable via source-level operations (`rename_partition` cascades,
+`--scf` selection through grep / a real SCF concatenation), but is
+not navigable from the DSL. `net.*`, `sys.*`, `apm.*`, `cm.*`,
+`pem.*`, `auth.*`, `vcmp.*`, `cli.*`, `api-protection.*`, `asm.*`,
+`ilx.*`, `wom.*`, and `analytics.*` currently have **no** typed
+projection at all — `.net.self[]`, `.sys.dns`, `.apm.access-policy`,
+`.cm.device`, and similar paths from earlier (Python-era) revisions
+of this document are not reachable today.
 
-The full per-kind field map lives in `_KIND_FIELD_MAPS` in
-`projection.py`; that table is the single source of truth for which
-field names are valid and how they map to dataclass attributes.
+The per-kind field construction lives in `project_fields()` and its
+per-kind helpers (`project_virtual`, `project_pool`, …) in the same
+file; those functions are the single source of truth for which field
+names are valid and how they map to the typed `tcl-bigip` model.
 
 ## Addressing
 
@@ -419,9 +344,10 @@ From highest to lowest:
 ### Identity-field writes
 
 Assigning to `.name` or `."full-path"` auto-routes through
-`dialects.f5.bigip.rewrite.rename_object`, which rewrites the object's header
-and every reference to it (configuration properties, iRule body
-command arguments, pool-member addresses).  A line of the form
+[`rewrite::rename_object`](../../../rust/tcl-bigip-query/src/rewrite.rs),
+which rewrites the object's header and every reference to it
+(configuration properties, iRule body command arguments, pool-member
+addresses).  A line of the form
 
 ```
 renamed /Common/old -> /Common/new (N occurrence(s))
@@ -465,21 +391,34 @@ between unified diff, stdout, and in-place write based on flags.
 
 ## Builtins
 
-Builtin functions are registered through the `@_register(...)`
-decorator in `builtins.py`.  Each registration captures the
-signature(s), summary, category, examples, arity bounds, and whether
-it is a special form (evaluator-driven, like `select` / `map`).
+Builtin functions are registered by calling `plain(...)` / `ctx(...)`
+/ `ctx_broadcast(...)` / `special(...)` inside a module's
+`registrations()` function — see
+[`builtins/mod.rs`](../../../rust/tcl-bigip-query/src/builtins/mod.rs)
+(`registrations()` collects every submodule's list, plus
+`special::registrations()` and, when the `probes` feature is enabled,
+`probes::registrations()`). Each registration captures the name,
+category, arity bounds, and whether it is a special form
+(evaluator-driven, like `select` / `map`) or needs the evaluator
+context (`ctx`, e.g. `refs` / `rename`). Unlike the retired Python
+registry, the Rust `BuiltinSpec` deliberately does **not** carry
+prose (summary / signatures / examples) — that content lives only in
+the hand-maintained [`builtins.md`](builtins.md), so there is no
+automated check that every builtin is documented there.
 
 The same registry feeds:
 
-- runtime dispatch in `evaluator._eval_call`;
-- the `--help-builtins` action in `tooling/f5/verbs/query.py`;
-- the test that asserts every builtin has at least one example and
-  one signature.
+- runtime dispatch via [`builtins::lookup`](../../../rust/tcl-bigip-query/src/builtins/mod.rs);
+- the `--help-builtins [NAME]` / `--help-manual` catalogue
+  (`format_catalogue`), which prints name / category / arity / flags
+  only — see [`builtins.md`](builtins.md) or run
+  `f5 query --help-builtins NAME` for the full prose.
 
-To add a builtin, drop a new `@_register(...)` decorator on a Python
-function in `builtins.py`.  No other plumbing is required — the help
-text and dispatch table both pick it up automatically.
+To add a builtin, add a `plain(...)` (or `ctx(...)` / `special(...)`)
+entry to the relevant submodule's `registrations()` function and
+implement the function it names. Then hand-write the corresponding
+entry in [`builtins.md`](builtins.md) — nothing keeps the two in sync
+automatically.
 
 ### Categories
 
@@ -501,7 +440,8 @@ text and dispatch table both pick it up automatically.
 - **stream** — `keys`, `values`, `first`, `last`, `count`, `unique`,
   `sort`, `any`, `all`, `select` (special form), `map` (special form)
 - **value** — `length`, `kind`, `path`, `defined`, `type`, `str`
-- **graph** — `refs`, `referenced_by` (forwards to `dialects.f5.bigip.grep`)
+- **graph** — `refs`, `referenced_by` (backed by `tcl_bigip::graph`, the
+  same edge model `f5 grep` walks)
 
 ### Rename verb integration
 
@@ -514,7 +454,7 @@ The CLI surface (positional `old new path`, `--write` / `--in-place` /
 unified-diff default, stderr "renamed X -> Y (N occurrence(s))"
 summary, exit 1 on zero-match warning) is preserved exactly.
 
-The `EditOp.strict` flag (default `True`) distinguishes
+The `EditOp.strict` flag (default `true`) distinguishes
 DSL-driven identity assignments (`.x["/Common/y"].name = "z"`,
 strict — raises on zero-match because the user named the object
 explicitly) from search-and-replace style renames driven by the
@@ -559,10 +499,11 @@ builtins cover them:
   change it.
 
 All address builtins share a single tokeniser
-(`_split_destination` in `builtins.py`) that returns
-`(partition, address, route_domain, port)`.  Adding new partition or
-RD-aware operations means dispatching that tuple and re-joining via
-`_rebuild_destination` — no ad-hoc string slicing.
+(`split_destination` in
+[`builtins/net.rs`](../../../rust/tcl-bigip-query/src/builtins/net.rs))
+that returns `(partition, address, route_domain, port)`.  Adding new
+partition or RD-aware operations means dispatching that tuple and
+re-joining via `rebuild_destination` — no ad-hoc string slicing.
 
 ## iRule sub-tree (v1)
 
@@ -571,9 +512,11 @@ RD-aware operations means dispatching that tuple and re-joining via
 - `.body` — the raw Tcl source.
 - `.refs.pools[]` / `.refs.persists[]` / `.refs.data-groups[]` — the
   list of object references extracted by
-  `dialects.f5.bigip.irules_refs.extract_irules_object_references`.  These
-  are the same edges `f5 grep` walks, so the two verbs always agree on
-  what an iRule "uses".
+  `tcl_irules::extract_irules_object_references` (via
+  `rule_refs_value` in
+  [`projection.rs`](../../../rust/tcl-bigip-query/src/projection.rs)).
+  These are the same edges `f5 grep` walks, so the two verbs always
+  agree on what an iRule "uses".
 
 Writes inside an iRule body are restricted to those reference slots
 in v1, and they happen via the same `rename_object` text engine so
@@ -589,16 +532,17 @@ the iRule parser exports byte-level ranges for every token.
   otherwise.
 - `scf` — every value rendered as an SCF stanza (with header).  When
   no stanza slot is available, scalars route through the same
-  `_scalar_str` formatter the `raw` mode uses (one canonical scalar
-  formatter, not bare `str()` — bools render as `true` / `false`,
-  `None` as `null`, `PathRef` as its full-path); object / list /
-  stream values that aren't scalars are refused with a clear error
-  asking for `--paths-only` / `--json` instead.
+  `scalar_str` formatter (in
+  [`output.rs`](../../../rust/tcl-bigip-query/src/output.rs)) the
+  `raw` mode uses (one canonical scalar formatter — bools render as
+  `true` / `false`, `Null` as `null`, `PathRef` as its full-path);
+  object / list / stream values that aren't scalars are refused with
+  a clear error asking for `--paths-only` / `--json` instead.
 - `raw` — one scalar per line, no quoting.  Same scalar formatter as
   `scf`.
 - `paths` — print the full-path of each object or path-ref.
-- `json` — `json.dumps([...], indent=2)`, with objects serialised as
-  `{"kind", "full-path", "fields"}` maps.
+- `json` — 2-space-indented JSON (`jsonfmt::to_pretty`), with objects
+  serialised as `{"kind", "full-path", "fields"}` maps.
 
 ## CLI flags that affect output
 
@@ -657,12 +601,12 @@ source.  Cross-file behaviour comes in two shapes:
 
 The CLI verb exposes four kinds of help:
 
-- `f5 query --help` — argparse summary plus example block.
+- `f5 query --help` — clap-generated summary plus example block.
 - `f5 query --help-dsl` — grammar reference (this document, abridged).
 - `f5 query --help-builtins [NAME]` — function catalogue (generated
   from the registry).
 - `f5 query --help-examples` — cookbook of common one-liners
-  (generated from `examples.py`).
+  (generated from `examples.rs`).
 
 The same content powers the KCS feature note and the design doc, so
 end-users get one consistent surface whether they read the terminal,

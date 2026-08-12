@@ -148,36 +148,6 @@ of the dynamic dispatch rather than a misleading command highlight (issue
 #797). The words *after* the head (the method and its `-option` pairs) are
 still highlighted by the object-method / generic passes above.
 
-## File-path anchors
-
-- `rust/tcl-lsp-core/src/semantic_tokens.rs` — `insert_option_and_subcommand_overrides`
-  (registry options), `insert_object_method_overrides` (object methods, incl.
-  `collection_head_element_classes` for `[dict get …]` receivers and
-  `user_class_provides_method` / `insert_user_configure_options` for user
-  classes), `insert_generic_option_overrides` (fallback), `head_is_computed` +
-  `collect_script` (computed heads are tokenised, not painted as command tokens)
-- `rust/tcl-compiler/src/object_types.rs` — `object_handle_classes` /
-  `object_collection_classes` (handle & collection → class provenance)
-- `rust/tcl-compiler/src/type_infer.rs`, `rust/tcl-compiler/src/types.rs` —
-  container element-typing in the SSA lattice (`TypeLattice::element_class`)
-- `rust/tcl-compiler/src/object_types.rs` — object-handle → class provenance
-- `rust/tcl-registry/src/spec.rs` — `ObjectClassSpec`
-- `rust/tcl-registry/src/commands/ticklecharts/mod.rs` — the ticklecharts pack
-- `rust/tcl-registry/src/commands/tk/*.rs` — every widget-constructor
-  `CommandSpec` sets `creates_instance_at`; the 9 with a real subcommand
-  table (`ttk__treeview.rs`, `ttk__notebook.rs`, `listbox.rs`, `text.rs`,
-  `canvas.rs`, `entry.rs`, `menu.rs`, `panedwindow.rs`, `spinbox.rs`)
-  additionally set a self-referential `object_class`
-- `rust/tcl-compiler/src/analyser/commands.rs` — `record_registry_factory_instance`
-  (registry-driven `instance_classes`/`created_instance_commands` binding,
-  covers both Tk widgets and tcllib factories), `bind_registry_instance_class`
-  (collision-safe insertion)
-- `rust/tcl-compiler/src/analyser/diagnostics/widget_command.rs` — the
-  widget-instance W001/E002/E003 diagnostic (`docs/design/tk-widget-instance-typing.md`)
-- `rust/tcl-lsp-core/src/hover.rs` — `obj_method_hover_text`'s registry fallback
-- `rust/tcl-lsp-core/src/completion.rs` — `method_completions`,
-  `registry_method_completions`
-
 ## Failure modes
 
 - A `-option` on an unmodelled object method is highlighted by shape only, so
@@ -208,7 +178,6 @@ still highlighted by the object-method / generic passes above.
 
 ## Test anchors
 
-- `rust/tcl-lsp-core/src/semantic_tokens.rs` — `unknown_head_options_classified_generically`,
   `generic_option_scan_stops_at_double_dash`, `object_method_options_resolve_via_registry`,
   `direct_constructor_dispatch_resolves_method`, `command_substitution_head_recurses_not_command_token`,
   `variable_command_head_is_a_variable`, `computed_command_head_does_not_overlap`,
@@ -218,32 +187,22 @@ still highlighted by the object-method / generic passes above.
   `my_self_call_resolves`, `snit_self_call_resolves`, `snit_install_component_dispatch_resolves`,
   `snit_bare_constructor_dispatch_resolves`, `snit_typemethod_call_does_not_type_handle`,
   `my_configure_property_options_resolve`, `proc_return_object_dispatch_resolves`
-- `rust/tcl-compiler/src/object_types.rs` — `collection_of_objects_is_tracked`,
   `collection_class_bridges_across_methods`, `spicegentcl_configurable_device_shape_resolves`,
   `interproc_param_from_object_arg_is_a_handle`, `interproc_param_flows_through_call_chain`,
   `aliasing_copies_handle_class`, `constructor_param_typed_from_object_arg`,
   `instance_var_from_constructor_param_bridges_methods`, `snit_named_constructor_types_handle`
-- `rust/tcl-compiler/src/signature_scan/handlers.rs` — `handle_snit_type_records_class`
 - `rust/tcl-lsp-db/src/lib.rs` — `cross_file_object_dispatch_resolves_via_project_index`
-- `rust/tcl-compiler/src/lowering/mod.rs` — `lowers_oo_configurable_class_body`
-- `rust/tcl-compiler/src/type_infer.rs` — `dict_of_objects_retrieval_types_element`,
   `list_of_objects_lindex_types_element`, `heterogeneous_object_collection_drops_element_class`
-- `rust/tcl-compiler/src/object_types.rs` — `scalar_handle_from_constructor`,
   `bareword_widget_path_is_a_handle`, `var_captured_widget_path_is_a_handle`
 - `rust/tcl-registry/src/commands/ticklecharts/mod.rs` — `chart_factory_and_methods_resolve`
-- `rust/tcl-registry/tests/registry_commands.rs` —
   `tk_widget_constructors_declare_creates_instance_at`,
   `tk_widgets_with_subcommands_self_reference_their_object_class`
-- `rust/tcl-compiler/src/analyser/commands.rs` —
   `bareword_widget_constructor_binds_instance_class`,
   `var_captured_widget_constructor_binds_instance_class`,
   `simple_widget_without_subcommands_still_binds_instance_class`
-- `rust/tcl-lsp-core/src/hover.rs` — `obj_method_hover_fires_for_bareword_widget`,
   `obj_method_hover_fires_for_var_captured_widget`
-- `rust/tcl-lsp-core/src/completion.rs` — `widget_bareword_completion_offers_subcommands`,
   `widget_var_captured_completion_offers_subcommands`,
   `bareword_completion_does_not_leak_unrelated_variable_class`
-- `rust/tcl-compiler/src/analyser/diagnostics/widget_command.rs` — 11 tests
   covering W001/E002/E003 firing and abstention, including
   `abstains_when_receiver_is_ambiguous_across_procs` and
   `resolves_when_widget_created_after_the_proc_that_uses_it_is_defined`

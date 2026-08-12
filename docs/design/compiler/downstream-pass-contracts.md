@@ -1,14 +1,12 @@
-# KCS: Downstream pass contracts (optimiser/taint/shimmer/gvn/irules-flow)
+# Downstream pass contracts (optimiser/taint/shimmer/gvn/irules-flow)
 
-## Symptom
-
-A pass update introduces duplicate or contradictory diagnostics, code-family drift, or non-deterministic output ordering across runs.
-
-## Operational context
+What a specialised pass may assume about the facts it consumes and what it must
+guarantee about the findings it emits — code families, ranges, ordering, and
+ownership where two passes can flag the same issue.
 
 After CU assembly, specialised passes consume shared facts and emit typed findings. `get_diagnostics()` then applies suppression and LSP conversion. This stage changes frequently as new warning families and optimisation heuristics are added.
 
-## Decision rules / contracts
+## What a pass may assume, and must guarantee
 
 1. **CU-first inputs**
    - Pass entrypoints should accept `CompilationUnit` (or CU-derived function facts) and avoid private lowering/SSA rebuilds.
@@ -19,18 +17,18 @@ After CU assembly, specialised passes consume shared facts and emit typed findin
 4. **No duplicate semantics**
    - If two passes can flag the same issue shape, define canonical ownership and related-info linking rather than duplicate emissions.
 5. **Shared word/value-shape helpers**
-   - Passes should use shared helper modules for Tcl word/value parsing (`value_shapes.py`, `var_refs.py`) instead of embedding pass-local mini-parsers.
+   - Passes should use shared helper modules for Tcl word/value parsing (`value_shapes.rs`, `var_refs.rs`) instead of embedding pass-local mini-parsers.
 
 ## File-path anchors
 
-- `compiler/optimiser/` (`find_optimisations`)
-- `compiler/taint/` (`find_taint_warnings`)
-- `compiler/shimmer.py` (`find_shimmer_warnings`)
-- `compiler/gvn.py` (`find_redundant_computations`)
-- `compiler/irules_flow.py` (`find_irules_flow_warnings`)
-- `compiler/value_shapes.py`
-- `compiler/var_refs.py`
-- `server/features/diagnostics.py` (pass aggregation and suppression)
+- `rust/tcl-compiler/src/optimiser/` (`find_optimisations`)
+- `rust/tcl-compiler/src/taint.rs` (`find_taint_warnings`)
+- `shimmer/` (`find_shimmer_warnings_for_cu`)
+- `gvn.rs`
+- `irules_checks.rs`
+- `value_shapes.rs`
+- `var_refs.rs`
+- `rust/tcl-lsp-db/src/lib.rs` (pass aggregation and suppression)
 
 ## Failure modes
 
@@ -43,18 +41,13 @@ After CU assembly, specialised passes consume shared facts and emit typed findin
 
 - [kcs-pass-fact-ownership-matrix.md](../../../docs/design/compiler/pass-fact-ownership-matrix.md)
 
-## Test anchors
+## Tests
 
-- `tests/test_optimiser.py`
-- `tests/test_taint.py`
-- `tests/test_shimmer.py`
-- `tests/test_gvn.py`
-- `tests/test_irules_checks.py`
-- `tests/test_diagnostics.py`
-- `tests/test_compiler_helpers.py`
+The unit tests colocated with each producer module above, plus the LSP
+end-to-end diagnostic suites in `rust/tcl-lsp-server/tests/e2e/`.
 
 
-## Discoverability
+## See also
 
 - [compiler KCS index](README.md)
 - [compiler architecture overview](../../../docs/design/compiler-architecture.md)

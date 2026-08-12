@@ -1,7 +1,7 @@
 # KCS: IRULE4002 — Why does the analyser warn about a generic static variable name?
 
 > **Audience:** User
-> **Type:** Issue
+> **Type:** Diagnostic
 
 ## Applies to
 
@@ -41,7 +41,7 @@ set static::myirule_debug 0
 
 ## How to suppress
 
-Add `# noqa: IRULE4002` at the end of the offending line.
+Add `# noqa: IRULE4002` on the line **above** the offending command.
 
 ## Related
 

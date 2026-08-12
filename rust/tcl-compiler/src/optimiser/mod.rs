@@ -442,8 +442,7 @@ impl PassId {
 ///   [`pattern_recognition::run`] — O114 incr-idiom + O119 multi-set
 ///   packing hint + O104 string-build chain hint (canonical
 ///   allocation per `docs/generated/optimisation_codes.md`;
-///   earlier Rust commits emitted O122 here, colliding with
-///   `tail_call`).
+///   O122 belongs to `tail_call`, not here).
 /// - [`PassId::TailCall`] → [`tail_call::run`] — O121 (bare +
 ///   return-subst variants) + O122 loop-conversion hint + O123
 ///   accumulator-candidate hint.

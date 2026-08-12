@@ -37,9 +37,10 @@ use tcl_registry::{
     CompletionDescriptor, DispatchDependencies, DispatchDependencyDomain, EffectFootprint,
     InvocationFacts, SemanticOperationId, StateTransitionKnowledge,
 };
+use tcl_runtime_api::guard::{GuardDomain, GuardDomains};
 
 use crate::representation_plan::{
-    BoundaryPlan, GuardCondition, GuardDomain, GuardedPlan, OwnershipLedger, SuspensionPlan,
+    BoundaryPlan, GuardCondition, GuardedPlan, OwnershipLedger, SuspensionPlan,
 };
 use crate::target_contract::{
     LegalisationRequirements, RequirementFailure, RuntimeService, TargetContract, TargetFamily,
@@ -160,10 +161,10 @@ where
 
 /// Type-erased view of a validated common guard plan.
 pub trait GuardSelectionPlan: std::fmt::Debug + Sync {
-    /// Epoch conditions protecting the plan's fast path.
-    fn guards(&self) -> &[GuardCondition];
+    /// Offline runtime guard request protecting the plan's fast path.
+    fn guard(&self) -> &GuardCondition;
 
-    /// Whether the guard set is non-empty and in canonical order.
+    /// Whether the runtime guard request covers at least one domain.
     fn is_satisfied(&self) -> bool;
 }
 
@@ -224,13 +225,13 @@ impl DispatchStabilityEvidence<'_> {
         self.status
     }
 
-    /// Guarded fast/slow plan supplying dispatch epoch checks, when used.
+    /// Guarded fast/slow plan supplying a runtime guard request, when used.
     #[must_use]
     pub const fn guards(&self) -> Option<&dyn GuardSelectionPlan> {
         self.guards
     }
 
-    /// Closed-world dispatch proof, when used instead of epoch guards.
+    /// Closed-world dispatch proof, when used instead of runtime guards.
     #[must_use]
     pub const fn closed_world(&self) -> Option<&ClosedWorldDispatchProof> {
         self.closed_world
@@ -242,16 +243,12 @@ where
     Fast: std::fmt::Debug + Sync,
     Slow: std::fmt::Debug + Sync,
 {
-    fn guards(&self) -> &[GuardCondition] {
-        self.guards()
+    fn guard(&self) -> &GuardCondition {
+        self.guard()
     }
 
     fn is_satisfied(&self) -> bool {
-        !self.guards().is_empty()
-            && self
-                .guards()
-                .windows(2)
-                .all(|pair| pair[0].domain() < pair[1].domain())
+        !self.guard().domains().is_empty()
     }
 }
 
@@ -266,15 +263,27 @@ fn guard_domain(dependency: DispatchDependencyDomain) -> GuardDomain {
     }
 }
 
+/// Canonical runtime guard domains required by registry dispatch dependencies.
+///
+/// Common guarded planners and backend proof validation share this mapping so
+/// binding, namespace, trace, and interpreter invalidation cannot acquire
+/// subtly different guard sets in individual optimisation passes.
+#[must_use]
+pub fn guard_domains_for_dispatch(dependencies: DispatchDependencies) -> GuardDomains {
+    dependencies
+        .iter()
+        .fold(GuardDomains::EMPTY, |domains, dependency| {
+            domains.with(guard_domain(dependency))
+        })
+}
+
 fn guards_cover_dispatch(
     dependencies: DispatchDependencies,
-    guarded_domains: &[GuardDomain],
+    guarded_domains: GuardDomains,
 ) -> bool {
-    dependencies.iter().all(|dependency| {
-        guarded_domains
-            .binary_search(&guard_domain(dependency))
-            .is_ok()
-    })
+    dependencies
+        .iter()
+        .all(|dependency| guarded_domains.contains(guard_domain(dependency)))
 }
 
 fn closed_world_covers_dispatch(
@@ -389,12 +398,8 @@ impl<'a> SelectionFacts<'a> {
     {
         let plan: &'a (dyn GuardSelectionPlan + 'a) = plan;
         let satisfied = self.invocation.is_some_and(|invocation| {
-            let mut guarded_domains: Vec<_> =
-                plan.guards().iter().map(GuardCondition::domain).collect();
-            guarded_domains.sort_unstable();
-            guarded_domains.dedup();
             plan.is_satisfied()
-                && guards_cover_dispatch(invocation.dispatch_dependencies, &guarded_domains)
+                && guards_cover_dispatch(invocation.dispatch_dependencies, plan.guard().domains())
         });
         self.dispatch = DispatchStabilityEvidence {
             status: if satisfied {
@@ -670,6 +675,24 @@ pub enum SelectionProofFailure {
     DispatchStability(ProofStatus),
 }
 
+impl SelectionProofFailure {
+    /// Stable Explorer/API spelling for one failed common proof obligation.
+    #[must_use]
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::InvocationFactsUnavailable => "invocation-facts-unavailable",
+            Self::OperationMismatch => "operation-mismatch",
+            Self::UnknownStateTransitions => "unknown-state-transitions",
+            Self::WorldBarrier => "world-barrier",
+            Self::IncompleteArgumentRoles => "incomplete-argument-roles",
+            Self::Boundary(_) => "boundary",
+            Self::Ownership(_) => "ownership",
+            Self::Suspension(_) => "suspension",
+            Self::DispatchStability(_) => "dispatch-stability",
+        }
+    }
+}
+
 /// The result of one selector building an immutable plan payload.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum SelectorDecision<Plan, Decline = SelectorDeclineReason> {
@@ -891,7 +914,7 @@ impl<Plan, Context, Decline> BackendRegistry<Plan, Context, Decline> {
                 continue;
             }
 
-            let semantic_failures = Self::semantic_failures(candidate.order.kind, &input);
+            let semantic_failures = specialisation_proof_failures(candidate.order.kind, &input);
             if !semantic_failures.is_empty() {
                 attempts.push(
                     candidate.attempt(SelectorAttemptFailure::SemanticProofs(semantic_failures)),
@@ -998,68 +1021,6 @@ impl<Plan, Context, Decline> BackendRegistry<Plan, Context, Decline> {
         }
     }
 
-    fn semantic_failures(
-        kind: BackendPlanKind,
-        input: &SelectionInput<'_>,
-    ) -> Vec<SelectionProofFailure> {
-        if !matches!(
-            kind,
-            BackendPlanKind::Direct | BackendPlanKind::RuntimeIntrinsic
-        ) || input.region() == SelectionRegion::OffloadBoundary
-        {
-            return Vec::new();
-        }
-
-        let facts = input.facts();
-        let Some(invocation) = facts.invocation() else {
-            return vec![SelectionProofFailure::InvocationFactsUnavailable];
-        };
-        let mut failures = Vec::new();
-        if invocation.operation != input.operation() {
-            failures.push(SelectionProofFailure::OperationMismatch);
-        }
-        if !invocation.state_transitions.is_declared() {
-            failures.push(SelectionProofFailure::UnknownStateTransitions);
-        }
-        if invocation.effects.requires_world_barrier() {
-            failures.push(SelectionProofFailure::WorldBarrier);
-        }
-        if !invocation.arg_roles_complete {
-            failures.push(SelectionProofFailure::IncompleteArgumentRoles);
-        }
-        Self::require_plan_proof(
-            facts.boundary().status(),
-            SelectionProofFailure::Boundary,
-            &mut failures,
-        );
-        Self::require_plan_proof(
-            facts.ownership().status(),
-            SelectionProofFailure::Ownership,
-            &mut failures,
-        );
-        Self::require_plan_proof(
-            facts.suspension().status(),
-            SelectionProofFailure::Suspension,
-            &mut failures,
-        );
-        Self::require_plan_proof(
-            facts.dispatch().status(),
-            SelectionProofFailure::DispatchStability,
-            &mut failures,
-        );
-        failures
-    }
-
-    fn require_plan_proof(
-        status: ProofStatus,
-        failure: fn(ProofStatus) -> SelectionProofFailure,
-        failures: &mut Vec<SelectionProofFailure>,
-    ) {
-        if !status.permits_specialisation() {
-            failures.push(failure(status));
-        }
-    }
-
     fn unmet_requirements(
         &self,
         kind: BackendPlanKind,
@@ -1078,6 +1039,75 @@ impl<Plan, Context, Decline> BackendRegistry<Plan, Context, Decline> {
             unmet.push(RequirementFailure::Runtime(service));
         }
         unmet
+    }
+}
+
+/// Apply the target-independent proof obligations used by
+/// [`BackendRegistry`] before a direct or runtime-intrinsic selector runs.
+///
+/// Common semantic planners use this same entry point when constructing
+/// proof-bearing candidates, rather than maintaining a second approximation
+/// of the backend registry's legality rules.
+#[must_use]
+pub fn specialisation_proof_failures(
+    kind: BackendPlanKind,
+    input: &SelectionInput<'_>,
+) -> Vec<SelectionProofFailure> {
+    if !matches!(
+        kind,
+        BackendPlanKind::Direct | BackendPlanKind::RuntimeIntrinsic
+    ) || input.region() == SelectionRegion::OffloadBoundary
+    {
+        return Vec::new();
+    }
+
+    let facts = input.facts();
+    let Some(invocation) = facts.invocation() else {
+        return vec![SelectionProofFailure::InvocationFactsUnavailable];
+    };
+    let mut failures = Vec::new();
+    if invocation.operation != input.operation() {
+        failures.push(SelectionProofFailure::OperationMismatch);
+    }
+    if !invocation.state_transitions.is_declared() {
+        failures.push(SelectionProofFailure::UnknownStateTransitions);
+    }
+    if invocation.effects.requires_world_barrier() {
+        failures.push(SelectionProofFailure::WorldBarrier);
+    }
+    if !invocation.arg_roles_complete {
+        failures.push(SelectionProofFailure::IncompleteArgumentRoles);
+    }
+    require_plan_proof(
+        facts.boundary().status(),
+        SelectionProofFailure::Boundary,
+        &mut failures,
+    );
+    require_plan_proof(
+        facts.ownership().status(),
+        SelectionProofFailure::Ownership,
+        &mut failures,
+    );
+    require_plan_proof(
+        facts.suspension().status(),
+        SelectionProofFailure::Suspension,
+        &mut failures,
+    );
+    require_plan_proof(
+        facts.dispatch().status(),
+        SelectionProofFailure::DispatchStability,
+        &mut failures,
+    );
+    failures
+}
+
+fn require_plan_proof(
+    status: ProofStatus,
+    failure: fn(ProofStatus) -> SelectionProofFailure,
+    failures: &mut Vec<SelectionProofFailure>,
+) {
+    if !status.permits_specialisation() {
+        failures.push(failure(status));
     }
 }
 
@@ -1268,6 +1298,30 @@ mod tests {
                 )
                 .with_closed_world_dispatch(dispatch),
         )
+    }
+
+    #[test]
+    fn runtime_guard_domains_cover_registry_dispatch_dependencies() {
+        let dependencies = DispatchDependencies::from_domains(&[
+            DispatchDependencyDomain::CommandBinding,
+            DispatchDependencyDomain::NamespaceLookup,
+            DispatchDependencyDomain::CommandTraces,
+            DispatchDependencyDomain::InterpreterPolicy,
+            DispatchDependencyDomain::ObjectDispatch,
+            DispatchDependencyDomain::UnknownHandling,
+        ]);
+        let complete = GuardDomains::one(GuardDomain::CommandEnvironment)
+            .with(GuardDomain::Namespace)
+            .with(GuardDomain::CommandTrace)
+            .with(GuardDomain::Interpreter)
+            .with(GuardDomain::ObjectDispatch)
+            .with(GuardDomain::UnknownHandling);
+
+        assert!(guards_cover_dispatch(dependencies, complete));
+        assert!(!guards_cover_dispatch(
+            dependencies,
+            GuardDomains::one(GuardDomain::CommandEnvironment)
+        ));
     }
 
     #[test]

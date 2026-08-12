@@ -139,6 +139,27 @@ fn enumerate_ensemble_subcommands(tclsh: &str, ensembles: &[&str]) -> HashMap<St
         .collect()
 }
 
+/// Return whether an ensemble accepts a concrete subcommand spelling.
+///
+/// Tcl can retain deprecated compatibility spellings without advertising
+/// them in the ensemble's "must be ..." error.  In particular, Tcl 9.0.4
+/// accepts `interp slaves` but lists only the preferred `children` spelling.
+/// A wrong-arity (or other non-dispatch) error therefore proves that the
+/// subcommand resolved; only the ensemble's own unknown-option shapes mean it
+/// is absent.
+fn ensemble_accepts_subcommand(tclsh: &str, ensemble: &str, subcommand: &str) -> bool {
+    let script = format!(
+        "if {{[catch {{{ensemble} {subcommand}}} e]}} {{\n\
+         \x20 set unknown [expr {{[string match {{unknown *subcommand*}} $e] ||\n\
+         \x20                     [string match {{bad option *: must be *}} $e]}}]\n\
+         \x20 puts -nonewline [expr {{!$unknown}}]\n\
+         }} else {{\n\
+         \x20 puts -nonewline 1\n\
+         }}\n"
+    );
+    run_tcl(tclsh, &script).is_some_and(|out| out.trim() == "1")
+}
+
 /// Ensembles whose subcommand tables span the 8.6/9.0 boundary. Their C-level
 /// subcommand sets are the ground truth; the registry's per-subcommand dialect
 /// gating must reproduce exactly which are present in each version.
@@ -202,8 +223,11 @@ fn registry_subcommand_dialect_gating_matches_tclsh_8_6_and_9_0() {
                 continue;
             };
             audited += 1;
-            let want86 = s86.contains(sub);
-            let want90 = s90.contains(sub);
+            // The advertised table is canonical, but C Tcl may also accept a
+            // hidden compatibility spelling. Probe only when the spelling is
+            // absent from the table so the common path stays cheap.
+            let want86 = s86.contains(sub) || ensemble_accepts_subcommand(&t86, ens, sub);
+            let want90 = s90.contains(sub) || ensemble_accepts_subcommand(&t90, ens, sub);
             if got86 != want86 {
                 mismatches.push(format!(
                     "`{ens} {sub}`: registry available-in-8.6={got86}, tclsh8.6 says {want86}"

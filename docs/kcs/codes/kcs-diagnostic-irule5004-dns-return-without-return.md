@@ -1,7 +1,7 @@
 # KCS: IRULE5004 — Why does the analyser warn about DNS::return without return?
 
 > **Audience:** User
-> **Type:** Issue
+> **Type:** Diagnostic
 
 ## Applies to
 
@@ -44,7 +44,7 @@ when DNS_REQUEST { DNS::return "1.2.3.4"; return }
 
 ## How to suppress
 
-Add `# noqa: IRULE5004` at the end of the offending line.
+Add `# noqa: IRULE5004` on the line **above** the offending command.
 
 ## Related
 

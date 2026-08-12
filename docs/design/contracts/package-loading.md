@@ -1,12 +1,10 @@
 # Package loading contracts
 
-## Symptom
-
-Completions, hover, or diagnostics are missing for package-gated commands
-(stdlib, tcllib, Tk), or cross-file navigation silently drops procs from
-resolved packages. iRules procs from other files are not found.
-
-## Operational context
+How a `package require` becomes a set of visible commands and reachable procs.
+This layer decides whether package-gated commands (stdlib, tcllib, Tk) reach
+completions, hover, and diagnostics, and whether cross-file navigation finds
+procs from a resolved package or from another iRules file, so read it before
+changing what a `package require` pulls in.
 
 The package loading system sits between the analyser (which detects
 `package require` statements) and the LSP features (which filter commands
@@ -44,9 +42,7 @@ per-dialect spec packs, never as name-matching in a consumer (see
    *provides* a package needn't *require* it. `package ifneeded` is not a
    require.
 3. Each `SignaturePackageRequire` carries the name, the optional version, an
-   `exact` flag set when the call carried `-exact` (issue #1090 — the flag
-   used to be parsed and dropped by both recorders), its
-   source span, and a `conditional` flag set when the require sits inside a
+   `exact` flag set when the call carried `-exact`, its source span, and a `conditional` flag set when the require sits inside a
    guarded branch, so version inference does not promote a guarded
    `package require Tcl 8.6` to an unconditional minimum. "Guarded" is
    registry-driven, not a command-name list: the analyser raises

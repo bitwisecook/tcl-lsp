@@ -28,9 +28,9 @@
 //! so the struct must be `#[repr(C)]` with the exact field order
 //! `tcl.h` declares — `{ refCount, bytes, length, typePtr, internalRep }`. On
 //! `wasm32` that is `{ isize, ptr, isize, ptr, <8-byte union> }`. This is the
-//! single canonical obj model for the port (the codegen's 32-byte
-//! handle/tagged-immediate layout is a separate codegen detail; the Rust
-//! port serves the same `tcl_*`/`obj_*` codegen primitives over the
+//! single canonical obj model for the runtime (the codegen's 32-byte
+//! handle/tagged-immediate layout is a separate codegen detail; the runtime
+//! serves the same `tcl_*`/`obj_*` codegen primitives over the
 //! ABI-faithful struct, with the immediate/inline-string optimisations layered
 //! on later — see T1.5/S6).
 //!

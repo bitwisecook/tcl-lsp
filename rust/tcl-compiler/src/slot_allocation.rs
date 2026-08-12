@@ -78,9 +78,8 @@ fn make_scanner() -> VarReferenceScanner {
 
 /// Names read by a block's terminator (branch condition / return value).
 ///
-/// Mirrors `compiler/slot_allocation.py::_terminator_read_names`. These reads
-/// occur *after* every statement in the block, so they must be in the live set
-/// when the backward walk starts — otherwise a value used only in a
+/// These reads occur *after* every statement in the block, so they must be in
+/// the live set when the backward walk starts — otherwise a value used only in a
 /// `return` / `if` (e.g. a parameter passed straight to `return [expr {$x +
 /// $y}]`) would never appear live and would wrongly coalesce.
 fn terminator_read_names(
@@ -131,8 +130,7 @@ fn stmt_def_names(stmt: &SsaStatement, ssa: &SsaFunction) -> HashSet<String> {
 /// A name is in `use[b]` if some statement (or the branch terminator) reads it
 /// before any in-block statement (re)defines it — an *upward-exposed* use, the
 /// only kind a predecessor's value can reach. `def[b]` is every name written in
-/// the block (phi targets included). This mirrors
-/// `core_analyses._block_use_def`, collapsed to names.
+/// the block (phi targets included).
 fn block_use_def(
     cfg: &cfg::Function,
     ssa: &SsaFunction,
@@ -196,7 +194,7 @@ fn block_use_def(
 /// (live_out[b] − def[b])`. Because slots are per-name, this works directly on
 /// names rather than SSA `(name, version)` keys — phi renaming across an edge
 /// is a no-op once versions are dropped, so the per-name result equals the
-/// name-collapse of `core_analyses._liveness`'s SSA-version `live_out`.
+/// name-collapse of an SSA-version-keyed `live_out`.
 ///
 /// Iterates a worklist in reverse-reverse-postorder (i.e. exit-first) until the
 /// fixpoint settles; on `live_in[b]` change, only `b`'s predecessors are
@@ -281,9 +279,9 @@ fn add_clique(graph: &mut Interference, live: &HashSet<String>) {
 /// Build the undirected interference graph over variable **names**, at
 /// instruction granularity.
 ///
-/// Mirrors `compiler/slot_allocation.py::build_interference`. For each block we
-/// seed the live set from its `live_out` plus the terminator's own reads, add
-/// that as an interference clique, then walk the block's statements
+/// For each block we seed the live set from its `live_out` plus the
+/// terminator's own reads, add that as an interference clique, then walk
+/// the block's statements
 /// **backwards** — recording the simultaneously-live names at every point as a
 /// clique and updating `live = (live − defs) ∪ uses`. Phi targets defined at
 /// the block head are folded in last. Instruction granularity is what lets two
@@ -342,9 +340,9 @@ pub fn build_interference<S1: std::hash::BuildHasher, S2: std::hash::BuildHasher
 /// Assign each variable name a slot index, reusing slots between names whose
 /// live ranges do not interfere (greedy interference-graph colouring).
 ///
-/// Mirrors `compiler/slot_allocation.py::coalesce_slots`. `params` are coloured
-/// first, in order, so they occupy slots `0..n-1` (an emitter could keep
-/// incoming-argument slots stable); since parameters are live on entry they
+/// `params` are coloured first, in order, so they occupy slots `0..n-1` (an
+/// emitter could keep incoming-argument slots stable); since parameters are
+/// live on entry they
 /// mutually interfere and thus never share a slot. The remaining names are
 /// coloured by descending interference degree (most-constrained first — the
 /// usual greedy heuristic), each taking the lowest slot not used by an
@@ -408,8 +406,7 @@ pub fn coalesce_slots<S1: std::hash::BuildHasher, S2: std::hash::BuildHasher>(
 
 /// Number of distinct slots a coalescing uses (0 for an empty mapping).
 ///
-/// Mirrors `compiler/slot_allocation.py::slot_count`: `max(slot) + 1`, or 0 if
-/// the mapping is empty.
+/// `max(slot) + 1`, or 0 if the mapping is empty.
 #[must_use]
 pub fn slot_count(mapping: &SlotMapping) -> usize {
     mapping.values().copied().max().map_or(0, |m| m + 1)

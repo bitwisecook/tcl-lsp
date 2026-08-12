@@ -81,15 +81,15 @@
 //!     counterpart (a well-behaved loop yields sound, non-bottom intervals) is
 //!     covered instead.
 //!
-//! ## Bug found and FIXED
+//! ## `{*}` expansion and list length
 //!
 //! `set l [list {*}{a b}]` expands at runtime to a 2-element list, so `lindex $l
-//! 1` is in range (tclsh: `set l [list {*}{a b}]; llength $l` → 2). Rust's
-//! `list_command_length` computed length **1** — the segmenter strips the `{*}`
-//! expansion prefix, leaving the single arg `"a b"`, so the per-arg
-//! `starts_with("{*}")` guard never tripped — firing a false-positive W230. It
-//! now bails whenever the command text contains `{*}` (length unknown); the
-//! repro asserts the corrected behaviour (no W230).
+//! 1` is in range (tclsh: `set l [list {*}{a b}]; llength $l` → 2). A per-arg
+//! `starts_with("{*}")` guard cannot see this: the segmenter strips the `{*}`
+//! expansion prefix, leaving the single arg `"a b"`, and a naive length of
+//! **1** would fire a false-positive W230. `list_command_length` therefore
+//! bails whenever the command text contains `{*}` (length unknown); the repro
+//! below pins that (no W230).
 
 use tcl_compiler::analyser::Analyser;
 use tcl_compiler::cfg::Terminator;
@@ -692,18 +692,18 @@ mod unreachable_bounds_suppressed {
 // List-expansion length.
 //
 // `[list {*}{...}]` expands at runtime, so its element count is not the arg
-// count.  FIXED — `list_command_length` now bails on any `{*}` expansion.
+// count — `list_command_length` bails on any `{*}` expansion.
 // ===========================================================================
 mod list_expansion_length {
     use super::*;
 
-    // FIXED: `set l [list {*}{a b}]` expands to a 2-element list, so `lindex $l 1`
+    // `set l [list {*}{a b}]` expands to a 2-element list, so `lindex $l 1`
     // is IN range and must NOT fire W230 — tclsh:
     //   `set l [list {*}{a b}]; llength $l` → 2 (8.6 + 9.0), `lindex $l 1` → "b".
-    // Rust's `list_command_length` previously computed length 1 (the segmenter
-    // strips the `{*}` prefix, so the single arg `"a b"` never tripped the
-    // per-arg `starts_with("{*}")` bail-out) and fired a false W230. It now bails
-    // whenever the command text contains `{*}`, treating the length as unknown.
+    // A per-arg `starts_with("{*}")` bail-out cannot catch this (the segmenter
+    // strips the `{*}` prefix, so the single arg `"a b"` never trips it), so
+    // `list_command_length` bails whenever the command text contains `{*}`,
+    // treating the length as unknown.
     #[test]
     fn list_expansion_does_not_false_fire() {
         // l = {a b} (length 2 after expansion); index 1 is valid.
@@ -776,7 +776,7 @@ mod interval_fixpoint_soundness {
 // ===========================================================================
 // compute_intervals (lattice surface, end-to-end).
 //
-// These port directly through the public `compute_intervals`. The constant
+// These drive the public `compute_intervals` directly. The constant
 // values are Tcl-grounded; the widened loop-bound shape is structural.
 // ===========================================================================
 mod compute_intervals_suite {

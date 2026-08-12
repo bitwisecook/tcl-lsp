@@ -92,8 +92,9 @@ per-editor matrix.
 
 3. Install the **LSP** package from Package Control
 
-The server source in `server/`, `compiler/`, `analyser/`, and `tooling/explorer/`
-is used directly from the repository — no build step needed.
+The plugin itself needs no build step. Language-server features additionally
+need the `tcl-lsp-server` binary on `PATH` (see
+[`INSTALL-editors.md`](../../INSTALL-editors.md)).
 
 ## What the plugin provides
 

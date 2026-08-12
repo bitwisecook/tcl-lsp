@@ -360,8 +360,8 @@ mod tests {
     }
 
     /// `draw` is backend-agnostic, so render it into a [`TestBackend`] buffer
-    /// (no terminal needed) and assert the chrome is present — a smoke test that
-    /// the Ratatui/Termina migration didn't break the layout.
+    /// (no terminal needed) and assert the chrome is present — a smoke test for
+    /// the overall layout.
     #[test]
     fn draw_renders_chrome_into_test_backend() {
         let mut app = app("proc add {a b} { expr {$a + $b} }\nputs [add 1 2]");

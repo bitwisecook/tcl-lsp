@@ -1,7 +1,7 @@
 # KCS: IRULE4001 — Why does the analyser warn about writing a static variable outside RULE_INIT?
 
 > **Audience:** User
-> **Type:** Issue
+> **Type:** Diagnostic
 
 ## Applies to
 
@@ -45,7 +45,7 @@ when RULE_INIT {
 
 ## How to suppress
 
-Add `# noqa: IRULE4001` at the end of the offending line.
+Add `# noqa: IRULE4001` on the line **above** the offending command.
 
 ## Related
 

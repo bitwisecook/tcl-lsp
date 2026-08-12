@@ -80,7 +80,7 @@ impl CfgEscapeResult {
         self.flags.has_fallback()
     }
 
-    /// True if a non-frameless `IRCall` with a statically
+    /// True if a non-frameless `Statement::Call` with a statically
     /// resolvable command word was seen.
     #[must_use]
     pub fn has_call_fallback(&self) -> bool {
@@ -142,7 +142,7 @@ impl CfgState {
         self.flags.has_fallback()
     }
 
-    /// True if a non-frameless `IRCall` with a statically
+    /// True if a non-frameless `Statement::Call` with a statically
     /// resolvable command word was seen.
     #[must_use]
     pub fn has_call_fallback(&self) -> bool {
@@ -261,7 +261,7 @@ impl CfgState {
         self.flags.insert(EscapeFlags::HAS_FALLBACK);
     }
 
-    /// Record a non-frameless `IRCall` with a static command word.
+    /// Record a non-frameless `Statement::Call` with a static command word.
     pub fn record_call_fallback(&mut self) {
         self.flags.insert(EscapeFlags::HAS_CALL_FALLBACK);
     }

@@ -1120,6 +1120,22 @@ impl<'a> Planner<'a> {
                             conservative_region_intents(),
                             Vec::new(),
                         ))),
+                        ExecutableInstruction::EvaluateWord {
+                            word, completion, ..
+                        } if word_evaluation_runs_commands(word) => {
+                            // A word containing a command substitution (or an
+                            // opaque fragment that may hide one) runs arbitrary
+                            // commands during argv evaluation.  Without this
+                            // barrier a closed outer invocation such as a pure
+                            // list query would hide a nested `rename` from the
+                            // world graph.
+                            Ok(Some((
+                                block.id,
+                                *completion,
+                                conservative_region_intents(),
+                                Vec::new(),
+                            )))
+                        }
                         _ => Ok(None),
                     }
                 }?;
@@ -1534,6 +1550,28 @@ fn conservative_region_intents() -> Vec<(WorldStateIntentKind, WorldRegion)> {
     ]
 }
 
+/// Whether evaluating one source word may execute nested commands.
+///
+/// Variable substitutions are deliberately excluded: a variable read can
+/// only run code through a live variable trace, which the contents analysis
+/// ([`crate::dispatch_proof`]) discharges or fails closed on explicitly.
+fn word_evaluation_runs_commands(word: &crate::ir::WordExpr) -> bool {
+    use crate::ir::{WordExpr, WordPart};
+    match word {
+        WordExpr::Literal { .. } | WordExpr::BracedLiteral { .. } | WordExpr::Variable { .. } => {
+            false
+        }
+        WordExpr::CommandSubstitution { .. } | WordExpr::Opaque { .. } => true,
+        WordExpr::Template { parts, .. } => parts.iter().any(|part| {
+            matches!(
+                part,
+                WordPart::CommandSubstitution { .. } | WordPart::Opaque { .. }
+            )
+        }),
+        WordExpr::Expand { word, .. } => word_evaluation_runs_commands(word),
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 enum Symbol {
     Initial,
@@ -1579,7 +1617,7 @@ fn block_id(index: usize) -> Result<BlockId, WorldStateSsaDecline> {
         .map_err(|_| WorldStateSsaDecline::BlockIdOverflow { block: index })
 }
 
-fn successors_of(terminator: &ExecutableTerminator) -> Vec<usize> {
+pub(crate) fn successors_of(terminator: &ExecutableTerminator) -> Vec<usize> {
     match terminator {
         ExecutableTerminator::Goto(target) => vec![target.index()],
         ExecutableTerminator::Branch {
@@ -1605,9 +1643,9 @@ fn successors_of(terminator: &ExecutableTerminator) -> Vec<usize> {
 /// Retaining these bits prevents an `OK`-only transition from becoming an
 /// unconditional precise definition after target deduplication.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
-struct EdgeCompletion {
-    ok: bool,
-    abrupt: bool,
+pub(crate) struct EdgeCompletion {
+    pub(crate) ok: bool,
+    pub(crate) abrupt: bool,
 }
 
 fn transition_edge_kind(
@@ -1628,7 +1666,10 @@ fn transition_edge_kind(
     }
 }
 
-fn edge_completion(terminator: &ExecutableTerminator, successor: usize) -> EdgeCompletion {
+pub(crate) fn edge_completion(
+    terminator: &ExecutableTerminator,
+    successor: usize,
+) -> EdgeCompletion {
     let ExecutableTerminator::CompletionSwitch { cases, default, .. } = terminator else {
         return EdgeCompletion::default();
     };

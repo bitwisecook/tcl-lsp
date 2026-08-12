@@ -1,7 +1,7 @@
 # KCS: O111 — Brace expression performance hints
 
 > **Audience:** User
-> **Type:** Functionality
+> **Type:** Optimisation
 
 ## Applies to
 

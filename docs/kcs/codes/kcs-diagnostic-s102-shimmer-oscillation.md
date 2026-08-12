@@ -1,7 +1,7 @@
 # KCS: S102 — Why does the analyser warn about shimmer oscillation?
 
 > **Audience:** User
-> **Type:** Issue
+> **Type:** Diagnostic
 
 ## Applies to
 

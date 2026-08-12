@@ -1,7 +1,7 @@
 # KCS: IRULE1008 — Why does the analyser flag a release call without a matching collect?
 
 > **Audience:** User
-> **Type:** Issue
+> **Type:** Diagnostic
 
 ## Applies to
 
@@ -42,7 +42,7 @@ when CLIENT_DATA { TCP::release }
 
 ## How to suppress
 
-Add `# noqa: IRULE1008` at the end of the offending line.
+Add `# noqa: IRULE1008` on the line **above** the offending command.
 
 ## Related
 

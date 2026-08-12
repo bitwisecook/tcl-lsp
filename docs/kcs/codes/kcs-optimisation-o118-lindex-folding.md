@@ -1,7 +1,7 @@
 # KCS: O118 — Fold constant lindex to element
 
 > **Audience:** User
-> **Type:** Functionality
+> **Type:** Optimisation
 
 ## Applies to
 

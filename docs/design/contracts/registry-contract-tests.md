@@ -1,55 +1,55 @@
 # Registry contract & behaviour tests
 
 This contract describes how the command registry and the iRules
-event / profile / object graphs are tested, with the registry acting as
-both the *generator of inputs* and the *oracle for expected outputs*.
-The contract is the front-end's observable behaviour, not any host API —
-which is what let the Python-era suite be retired without losing the
-contract itself.
+event / profile / object graphs are tested **through the front-ends**,
+with the registry acting as both the *generator of inputs* and the *oracle for
+expected outputs*. The contract is the front-end's **observable behaviour**,
+not any internal API.
 
-## What runs today
+## Behavioural sweeps
 
-The behavioural sweep and presence checks read the in-process registry
-directly in `rust/tcl-registry/tests/registry_sweep.rs` and
-`rust/tcl-registry/tests/registry_commands.rs`:
+The registry generates real Tcl scripts and iRules, feeds them to the
+front-ends, and asserts the actual analysis. Each generated case pairs a
+source with the diagnostic codes it must and must not raise.
 
-- **Accessor sweep** (`sweep_every_command_every_accessor`) — every
-  command in every dialect is run through every registry accessor, with
-  arity self-consistency (`assert_arity_consistent`), dialect-set nesting
-  between a command, its forms, and its subcommands, and trait-membership
-  self-consistency asserted per spec.
-- **Contract tests** (`registry_commands.rs`) — the consumer-visible
-  keyword sets (dispatch keywords, method-context commands, and friends)
-  are asserted equal to the trait-carrying specs, per dialect, so a spec
-  edit cannot silently change a consumer surface.
-- **Front-end surfaces** — the CLI verbs (`command-info`, `diag`,
-  `registry-dump`) and the LSP `executeCommand` registry handlers are
-  exercised by the native end-to-end suites under
-  `rust/tcl-lsp-server/tests/`.
+| Category | Generated input | Oracle |
+|---|---|---|
+| **Arity** | a call of every plain-positional command with too few / too many / exactly-min arguments | E002 / E003 fire; a valid call is clean |
+| **Subcommands** | every ensemble called bare, with a bogus subcommand, and with a real one | E001 / W001 fire; a real subcommand is clean |
+| **Event scoping** | `when EVENT { command }` for every iRules command | IRULE1001 fires iff the command is used outside its valid events; any-event commands never warn; an unknown event is IRULE1002 |
+| **Event graph** | an iRule with many `when` blocks in scrambled order | returned in the registry's canonical firing order |
 
-## The retired Python layers (history)
+Each generated predicate is only trustworthy if it was validated against the
+live front-end before being relied on — a generator that produces cases the
+front-end never flags proves nothing. The event-scoping valid-event set comes
+from the `command-info` surface, so that sweep links two front-end surfaces
+through the registry.
 
-The Python era drove the same contract from the outside: generators under
-`tests/registry_contract/` produced a call of every command with too few /
-too many / valid arguments, every ensemble with bogus and real
-subcommands, and `when EVENT { command }` for every iRules command, then
-asserted the diagnostic codes through the real `tcl diag` / `f5 irule`
-front-ends. The generated predicates were validated empirically before
-being trusted (e.g. the event-scoping predicate held for 120/120 sampled
-commands).
+## Presence
 
-A presence safety-net of golden CSVs pinned every command, event,
-profile, and object. Both layers compared the live registry against a
-Python-derived oracle, so they were retired with Python; presence is now
-asserted directly against the in-process registry by the sweeps above.
+Presence is asserted **directly against the in-process registry** — no JSON
+wire, no golden dump to regenerate — in
+`rust/tcl-registry/tests/registry_commands.rs` and
+`rust/tcl-registry/tests/registry_sweep.rs`.
+
+A golden-CSV safety net is deliberately *not* used. Comparing the live
+registry against a committed dump only ever restates what the dump was
+generated from, and every registry edit turns into a two-file change with no
+added signal.
 
 ## Deterministic resolution
 
-A few command names are overloaded across dialects (e.g. `link` in core
-Tcl 9 versus tcllib's `ooutil`). `CommandRegistry::get` returns the
-last-registered spec, so order-sensitive consumers resolve through
-`DialectProfile::resolve_command` (the most dialect-specific visible
-spec), and whole-grammar generators ask over `CommandRegistry::specs`
-instead of any single-spec lookup. The sweeps deliberately use the same
-resolution path the analyser uses, so the tested surface and the shipped
-behaviour stay self-consistent within a run.
+A few command names are overloaded across dialects — `event` is a subcommand
+ensemble in core Tcl but a bare command in f5-iRules. Resolution must not
+depend on registration order, which varies with load history: the most
+dialect-specific spec wins. The behavioural generators deliberately use the
+same lookup path the analyser uses, so the generated input and the front-end
+stay self-consistent within a run.
+
+## Front-end surfaces
+
+The native front-ends expose the CLI verbs — `tcl command-info` and
+`tcl diag` (`rust/tcl-cli`), plus `f5 irule event-info` and
+`f5 irule event-order` (`rust/f5-cli/src/commands/irule.rs`) — and the LSP
+`executeCommand` registry handlers. The LSP-driven surface is exercised by
+the e2e suite under `rust/tcl-lsp-server/tests/`.

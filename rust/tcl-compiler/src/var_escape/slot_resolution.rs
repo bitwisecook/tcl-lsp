@@ -718,9 +718,10 @@ mod tests {
     fn dynamic_assign_value_name_disables_whole_proc() {
         // Lowering may produce ``Statement::AssignValue { name:
         // "$varname", .. }`` directly when the source ``set
-        // $varname v`` doesn't get re-routed through an ``IRCall``.
-        // Without this guard the slot map could include locals
-        // that the dynamic write may target at runtime.
+        // $varname v`` doesn't get re-routed through a
+        // ``Statement::Call``.  Without this guard the slot map
+        // could include locals that the dynamic write may target
+        // at runtime.
         let s = ProcEscapeSummary::default();
         let body = script_with(vec![
             assign_const("x", "1"),

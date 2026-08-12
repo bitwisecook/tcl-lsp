@@ -47,13 +47,10 @@
 //! yet covered: the generated BIG-IP object model
 //! ([`tcl_bigip::model::gen`]) currently keeps both as untyped
 //! [`tcl_bigip::model::BigipMinimalObject`]s (identity + description only,
-//! no properties preserved), and that generator's Python source has been
-//! retired from this branch (see `AGENTS.md` "Python has been fully
-//! retired"), so there is no generator left to run to add the fields.
-//! Extending the model by hand — bypassing the `@generated … do not edit`
-//! banner with no generator to keep it honest — was judged higher-risk than
-//! shipping without it; a follow-up should either restore codegen for these
-//! two kinds or add hand-maintained parsing, then extend [`RULES`].
+//! no properties preserved), so a rule has no fields to read. Extending
+//! those `@generated … do not edit` files by hand was judged higher-risk
+//! than shipping without the checks; a follow-up should give the two kinds
+//! typed fields, then extend [`RULES`].
 //!
 //! A source that is only a partial `bigip.conf` (no `auth password-policy`
 //! block, no UCS filestore, no `/etc/shadow`) naturally yields

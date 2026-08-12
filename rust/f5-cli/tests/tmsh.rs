@@ -18,11 +18,8 @@
 
 //! CLI-level tests for the `f5 tmsh` verb (SCF → tmsh emit engine).
 //!
-//! The golden/snapshot-comparison tests that used to live here (checking
-//! Rust output against goldens captured from the original Python
-//! implementation) have been removed now that the Rust implementation is
-//! the source of truth. What remains is argument-validation behaviour,
-//! asserted against literal expected values rather than external fixtures.
+//! These cover argument-validation behaviour, asserted against literal
+//! expected values rather than external fixtures.
 
 use std::path::PathBuf;
 use std::process::Command;

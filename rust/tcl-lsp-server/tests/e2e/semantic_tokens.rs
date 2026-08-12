@@ -16,8 +16,6 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! Native port of `tests/lsp_e2e/test_semantic_tokens_e2e.py`.
-//!
 //! Semantic tokens, end-to-end against the packaged server. A fresh document is
 //! opened per case and `textDocument/semanticTokens/full` is requested once,
 //! then the delta-encoded `data` is decoded and the legend (advertised in
@@ -29,7 +27,7 @@ use crate::common::{Lsp, unique_uri};
 
 use serde_json::Value;
 
-/// A decoded token with its resolved type-name (like the pytest `_typed`).
+/// A decoded token with its resolved type-name.
 #[derive(Debug, Clone)]
 struct TypedToken {
     line: i64,
@@ -1296,26 +1294,106 @@ fn test_imported_tcltest_test_structure_recognised() {
 fn test_source_command_substitution_argument_is_tokenised() {
     // Issue #775: a command substitution in `source`'s argument is highlighted
     // as a command sequence (locks the rust-branch behaviour).
+    //
+    // The whole sequence, in order, not spot checks on two words: the point of
+    // the issue is that the argument reads as *code*, and that claim is only
+    // as strong as the weakest word in it.  `join` in particular has to be the
+    // subcommand keyword rather than the `join` list command that shares its
+    // spelling — a lookup that goes through `file`'s ensemble, so getting it
+    // right is evidence the substitution was resolved and not merely lexed.
     let mut lsp = Lsp::tcl();
     let lg = legend(&lsp);
+    let mods = modifiers(&lsp);
     let src = "source [file join $currentDir testUtilities.tcl]\n";
     let uri = open_doc(&mut lsp, src);
     let tokens = typed(&mut lsp, &lg, &uri);
+    let actual: Vec<(&str, &str)> = tokens
+        .iter()
+        .map(|t| (covered(src, t), t.ttype.as_str()))
+        .collect();
     assert_eq!(
-        tokens
-            .iter()
-            .find(|t| covered(src, t) == "file")
-            .map(|t| t.ttype.clone())
-            .as_deref(),
-        Some("function"),
-        "the [file join …] substitution must be tokenised: {tokens:?}",
+        actual,
+        vec![
+            ("source", "keyword"),
+            ("file", "function"),
+            ("join", "keyword"),
+            ("$currentDir", "variable"),
+            ("testUtilities.tcl", "string"),
+        ],
+        "the [file join …] substitution must tokenise as a command sequence",
     );
+    // `file` and `join` resolve to the built-in ensemble, not to user code —
+    // the modifier an editor colours differently from a local proc call.
+    let library = modifier_bit(&mods, "defaultLibrary");
+    for word in ["file", "join"] {
+        let tok = tokens
+            .iter()
+            .find(|t| covered(src, t) == word)
+            .unwrap_or_else(|| panic!("no token covers {word:?}"));
+        assert!(
+            tok.modifiers & library != 0,
+            "`{word}` must carry defaultLibrary: {tok:?}",
+        );
+    }
+}
+
+#[test]
+fn test_document_link_never_spans_more_than_one_semantic_token() {
+    // Issue #775, the second time.  Correct semantic tokens (the test above)
+    // are not enough to make the argument *look* highlighted: an editor paints
+    // a document-link range in one flat link colour plus an underline, so a
+    // link spanning `file join $currentDir esd_pulse_circuit.tcl` erases every
+    // token boundary inside it and the whole substitution reads as one word —
+    // exactly what the reporter's screenshots show, both times.
+    //
+    // The token assertions above passed throughout that, which is why they did
+    // not hold the fix.  This is the property that actually failed: a link may
+    // cover at most one token, because covering two means hiding the boundary
+    // between them.  Stated over links in general, so it also holds for
+    // `package require` and for whatever gains a link next.
+    let mut lsp = Lsp::tcl();
+    let lg = legend(&lsp);
+    let src = "package require tcltest\n\
+               set currentDir [file dirname [info script]]\n\
+               source [file join $currentDir esd_pulse_circuit.tcl]\n\
+               source helper.tcl\n";
+    let uri = open_doc(&mut lsp, src);
+    let tokens = typed(&mut lsp, &lg, &uri);
+    let links = lsp.document_links(&uri);
+    let links = links.as_array().expect("documentLink array");
     assert!(
-        tokens
-            .iter()
-            .any(|t| covered(src, t) == "$currentDir" && t.ttype == "variable"),
-        "the variable inside source's argument must be a variable: {tokens:?}",
+        !links.is_empty(),
+        "expected links to assert about: {links:?}"
     );
+    for link in links {
+        let range = &link["range"];
+        let (line, start, end) = (
+            range["start"]["line"].as_i64().expect("start line"),
+            range["start"]["character"].as_i64().expect("start char"),
+            range["end"]["character"].as_i64().expect("end char"),
+        );
+        assert_eq!(
+            line,
+            range["end"]["line"].as_i64().expect("end line"),
+            "a source/package link is single-line: {link}",
+        );
+        let overlapping: Vec<&str> = tokens
+            .iter()
+            .filter(|t| t.line == line && t.char < end && t.char + t.length > start)
+            .map(|t| covered(src, t))
+            .collect();
+        assert!(
+            overlapping.len() <= 1,
+            "link over {:?} covers {} semantic tokens ({overlapping:?}) — an editor \
+             paints it as one flat run, hiding every boundary inside it: {link}",
+            src.split('\n')
+                .nth(usize::try_from(line).unwrap())
+                .unwrap_or("")
+                .get(usize::try_from(start).unwrap()..usize::try_from(end).unwrap())
+                .unwrap_or(""),
+            overlapping.len(),
+        );
+    }
 }
 
 #[test]
@@ -1591,12 +1669,12 @@ fn test_apl_presentation_uses_the_apl_token_set() {
     assert!(has("# a comment", "comment"), "{tokens:?}");
 
     // The validator name is split out of its quotes rather than overlaid on
-    // the string, which is how the retired Python implementation did it.
+    // the string.
     assert!(has("IpAddress", "aplValidator"), "{tokens:?}");
 
     // A quoted value after a field-type keyword is a string, never the field's
-    // name — the Python version's `\S+` name group swallowed the opening quote
-    // and emitted `"Welcome` as a field name overlapping the string.
+    // name: a name group that matched non-whitespace greedily would swallow the
+    // opening quote and emit `"Welcome` as a field name overlapping the string.
     assert!(
         !tokens
             .iter()

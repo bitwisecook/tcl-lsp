@@ -15,7 +15,7 @@ flowchart LR
     SEG --> IR["3. IR Lowering<br/>Module"]
     IR --> CFG["4. CFG<br/>CfgModule"]
     CFG --> SSA["5. SSA<br/>SsaFunction"]
-    SSA --> ANA["6. Core Analyses<br/>FunctionAnalysis"]
+    SSA --> ANA["6. Core Analyses<br/>FunctionUnit"]
     ANA --> SP["7. Specialised Passes"]
     SP --> CG["8. Codegen<br/>FunctionAsm"]
 
@@ -29,7 +29,7 @@ flowchart LR
 
 ## Alphabetic index
 
-[AST](#ast) · [Basic block](#basic-block) · [CFG](#cfg) · [Codegen](#codegen) · [CommandSpec](#commandspec) · [Constant folding](#constant-folding) · [CSE](#cse) · [Data-flow graph](#data-flow-graph) · [DCE](#dce) · [Def-use chains](#def-use-chains) · [dialect](#dialect) · [Dominator / idom](#dominator--idom) · [Dominance frontier](#dominance-frontier) · [Escape tag](#escape-tag) · [Execution intent](#execution-intent) · [FormSpec](#formspec) · [Frame-only var](#frame-only-var) · [GVN](#gvn) · [ICIP](#icip) · [Interpreter domain](#interpreter-domain) · [InstCombine](#instcombine) · [IPA](#ipa) · [IR](#ir) · [Lattice](#lattice) · [LCP](#lcp) · [Lexing](#lexing) · [LICM](#licm) · [Liveness](#liveness) · [Lowering](#lowering) · [LVT](#lvt) · [Memory-SSA](#memory-ssa) · [Phi node (φ)](#phi-node-φ) · [Rendered-value properties](#rendered-value-properties) · [salsa](#salsa) · [SCCP](#sccp) · [Shimmer](#shimmer) · [Side-effects](#side-effects) · [Source edge](#source-edge) · [Special variable](#special-variable) · [SSA](#ssa) · [SSA value key](#ssa-value-key) · [Strength reduction](#strength-reduction) · [SubCommand](#subcommand) · [Symbol-definer command](#symbol-definer-command) · [Tail-call optimisation](#tail-call-optimisation) · [Taint analysis](#taint-analysis) · [Taint colour](#taint-colour) · [Taint sink](#taint-sink) · [Taint source](#taint-source) · [Type inference](#type-inference) · [Unused procs elimination](#unused-procs-elimination) · [Value provenance](#value-provenance) · [ValueOps](#valueops) · [Var-escape analysis](#var-escape-analysis)
+[AST](#ast) · [Barrier](#barrier) · [Basic block](#basic-block) · [CFG](#cfg) · [Codegen](#codegen) · [CommandSpec](#commandspec) · [Compilation unit](#compilation-unit) · [Constant folding](#constant-folding) · [CSE](#cse) · [Data-flow graph](#data-flow-graph) · [DCE](#dce) · [Def-use chains](#def-use-chains) · [dialect](#dialect) · [Dispatch-stability proof](#dispatch-stability-proof) · [Dominance frontier](#dominance-frontier) · [Dominator / idom](#dominator--idom) · [Escape tag](#escape-tag) · [Execution intent](#execution-intent) · [FormSpec](#formspec) · [Frame-only var](#frame-only-var) · [GVN](#gvn) · [ICIP](#icip) · [InstCombine](#instcombine) · [Interpreter domain](#interpreter-domain) · [IPA](#ipa) · [IR](#ir) · [Lattice](#lattice) · [LCP](#lcp) · [Lexing](#lexing) · [LICM](#licm) · [Liveness](#liveness) · [Lowering](#lowering) · [LVT](#lvt) · [Memory-SSA](#memory-ssa) · [Pattern recognition](#pattern-recognition) · [Phi node (φ)](#phi-node-φ) · [Rendered-value properties](#rendered-value-properties) · [salsa](#salsa) · [SCCP](#sccp) · [Shimmer](#shimmer) · [Side-effects](#side-effects) · [Source edge](#source-edge) · [Special variable](#special-variable) · [SSA](#ssa) · [SSA value key](#ssa-value-key) · [Strength reduction](#strength-reduction) · [SubCommand](#subcommand) · [Symbol-definer command](#symbol-definer-command) · [Tail position](#tail-position) · [Tail-call optimisation](#tail-call-optimisation) · [Taint analysis](#taint-analysis) · [Taint colour](#taint-colour) · [Taint sink](#taint-sink) · [Taint source](#taint-source) · [Trace](#trace) · [Type inference](#type-inference) · [Unused procs elimination](#unused-procs-elimination) · [Value provenance](#value-provenance) · [ValueOps](#valueops) · [Var-escape analysis](#var-escape-analysis) · [World-state contents lattice](#world-state-contents-lattice)
 
 ---
 
@@ -104,14 +104,18 @@ KCS tag: `lexing`.
 
 ## Phase 2 — Segmentation and error recovery
 
-No new terms — this phase produces `SegmentedCommand` objects and
-`VirtualToken` injections (see [Example 20](design/example-script-walkthroughs.md#example-20-error-recovery--unclosed-bracket)).
+No new terms — this phase produces `SegmentedCommand` objects and *ghost*
+byte injections (see [Example 20](design/example-script-walkthroughs.md#example-20-error-recovery--unclosed-bracket)).
+There is no distinct token type for an injected delimiter: `segment_with_recovery()`
+(`rust/tcl-compiler/src/segmenter.rs`) accumulates a `ghosts: BTreeMap<u32, u8>`
+mapping a source offset to the byte inserted there, and re-lexes through
+`build_document_with_ghosts`.
 
 ```mermaid
 flowchart LR
     SRC["Malformed source"] --> P1["First parse"]
     P1 -->|"unclosed delimiter"| HEUR["Heuristic match"]
-    HEUR --> VT["VirtualToken injection"]
+    HEUR --> VT["ghost byte injection"]
     VT --> P2["Second parse"]
     P2 --> CLEAN["Clean SegmentedCommand list"]
     P2 --> DIAG["E201–E206 diagnostics"]
@@ -223,6 +227,24 @@ classDiagram
     IRStatement <|-- IRWhile
     IRStatement <|-- IRFor
 ```
+
+See also: [IR types and lowering](design/compiler/ir-types-lowering.md).
+KCS tag: `lowering`.
+
+### Barrier
+
+The IR statement that stands in for a command whose runtime effects
+defeat static analysis. `eval`, `uplevel`, and `upvar` can name and
+rewrite arbitrary variables, and a control-flow command whose body or
+option words are not literal — `if` with a non-literal body, `switch`
+with a computed arm list, `catch` with a dynamic body — cannot be
+lowered to structured IR at all. Lowering emits a barrier in their
+place, carrying the original command name, its argument texts, and a
+human-readable reason. SCCP widens the values it is tracking to
+`Overdefined` at a barrier, and load forwarding (`O102`) refuses to
+carry a literal past one, because the command could have reassigned
+the name in between. Defined as `Statement::Barrier` in
+`tcl_compiler::ir`.
 
 See also: [IR types and lowering](design/compiler/ir-types-lowering.md).
 KCS tag: `lowering`.
@@ -525,8 +547,15 @@ KCS tag: `sccp`.
 ### Liveness
 
 A dataflow analysis that determines which SSA values are "live" (may
-still be read) at each program point.  Results are in
-`FunctionAnalysis.live_in / live_out` (`tcl_compiler::analyses`).
+still be read) at each program point.  Liveness is computed where a
+consumer needs it rather than stashed on a per-function aggregate:
+`live_out_by_name()` (`rust/tcl-compiler/src/slot_allocation.rs`) for slot
+interference, and `liveness_dead_stores()`
+(`rust/tcl-compiler/src/dead_stores.rs`) for the `DeadStore` list, both
+reading the `FunctionUnit` that `CompilationUnit::build_for()` builds.  The
+`FunctionAnalysis.live_in / live_out` fields (`tcl_compiler::analyses`) are
+declared but not on the live path — nothing populates them; issue #1406
+tracks the gap.
 
 ```mermaid
 flowchart LR
@@ -658,6 +687,28 @@ store elimination. Implemented in `tcl_compiler::side_effects`.
 See also: [Side-effects system](design/compiler/side-effects-system.md).
 KCS tag: `side-effects`.
 
+### Trace
+
+A Tcl callback attached to a variable (`trace add variable NAME ops
+HANDLER`, or the deprecated `trace variable` / `vdelete` spellings)
+that runs arbitrary script on every read, write, or unset of that
+name. A read handler can run any command and a write handler can
+rewrite the value being stored, so a use of a traced name is never
+equivalent to its last literal assignment. Lowering records two
+whole-module facts — `Module::traced_variables`, the literal names a
+trace targets anywhere in the module, and
+`Module::has_dynamic_variable_trace`, set when the target name is
+itself computed, which forces every variable to be treated as traced.
+SCCP, the propagation optimiser, and taint all consult them before
+forwarding a value or dropping a store. Membership is registry-driven
+(`Traits::ESTABLISHES_VARIABLE_TRACE`), never a hardcoded command
+list. The flow-sensitive counterpart, which marks only the accesses
+that follow the installing call, is the alias / observability lattice
+in `tcl_compiler::var_observability`.
+
+See also: [Constant folding and type inference](design/compiler/constant-folding-type-inference.md)
+and [variable-trace dispatch](design/contracts/variable-trace-dispatch-and-introspection.md).
+
 ### Special variable
 
 An interpreter-, `init.tcl`-, or platform-provided global that behaves
@@ -708,7 +759,7 @@ makes the site unprovable, the sound abstention. Drives the
 constant-`$cmd` dispatch settlement: navigation anchors at the dispatch
 head, while rename rewrites the defining literals.
 
-See also: [Resolution soundness](design/resolution-soundness-945.md).
+See also: [Name resolution](design/name-resolution.md).
 
 ---
 
@@ -721,7 +772,7 @@ path is a fresh domain). Evaluation bodies home under the synthetic
 `@interp@<path>` namespace, unrepresentable in real Tcl, so a parent
 namespace of the same name can never collide.
 
-See also: [Resolution soundness](design/resolution-soundness-945.md).
+See also: [Name resolution](design/name-resolution.md).
 
 ---
 
@@ -736,6 +787,31 @@ safe interpreter) contributes no edge.
 ---
 
 ## Phase 7 — Interprocedural analysis and specialised passes
+
+### Compilation unit
+
+Every compiled artefact for one source document, held in a single
+value. The unit carries the source text, the lowered [IR](#ir) module,
+the module [CFG](#cfg), and one **function unit** per top-level body,
+procedure, `TclOO` method, and `apply` / `namespace eval` body. Each
+function unit in turn carries that function's CFG, [SSA](#ssa) form,
+[def-use chains](#def-use-chains), and the core-analysis lattices
+([SCCP](#sccp), [types](#type-inference), [taints](#taint-analysis),
+and [rendered-value properties](#rendered-value-properties)). The
+[interprocedural summary](#ipa) and the caller-scope facts hang off the
+unit as a whole. A pass reads what it needs from the unit rather than
+re-lexing or re-lowering, and the unit is also the scope the
+interprocedural passes reason about — "every call site" means every
+call site in this unit, which is why [unit linkage](#unit-linkage)
+exists to say when that is not the whole story. Defined as
+`CompilationUnit` (and `FunctionUnit`) in
+`tcl_compiler::compilation_unit`, built by
+`CompilationUnit::build_with_options`; the language server takes one
+per document from the [salsa](#salsa) `compilation_unit` query in
+`tcl-lsp-db`.
+
+See also: [Compilation unit contracts](design/compiler/compilation-unit-contracts.md)
+and [Compilation unit scope](design/compiler/compilation-unit-scope.md).
 
 ### Unit linkage
 
@@ -792,8 +868,14 @@ KCS tag: `ipa`.
 
 Interprocedural Constant/Inline Propagation — evaluates procedure calls
 with known constant arguments at compile time and replaces the call with
-the result.  Reported as `O103`.  See `optimise_static_proc_calls()` in
-`tcl_compiler::optimiser::propagation`.
+the result.  Reported as `O103`.  The foldability facts come from the
+callee's [`ProcSummary`](#ipa) — `can_fold_static_calls` and
+`constant_return` in `tcl_compiler::interprocedural`.  Two sites in
+`tcl_compiler::optimiser::propagation` consume them:
+`try_o103_proc_fold()` rewrites a `[proc …]` command substitution
+inside another call's arguments, and `try_fold_static_proc_call()`
+handles the bare statement form, which stays hint-only because folding
+`::answer` to `42` there would leave an invalid command name.
 
 ```mermaid
 flowchart LR
@@ -835,10 +917,13 @@ KCS tag: `licm`.
 ### Tail-call optimisation
 
 A family of transformations that turn a proc's recursive tail call into a
-`tailcall` bytecode (`O121`), or fully iterative code when every call
-is a tail call (`O122`). The pass uses CFG dominance to verify that
-the call is reached on every exit path and that no work happens after
-it. `O123` is an accumulator-introduction hint for procs that are
+`tailcall` command (`O121`), or fully iterative code when every call
+is a tail call (`O122`). The pass walks the IR structurally and visits
+only the [tail positions](#tail-position) of a proc body, so a call
+with any work left to do after it is never a candidate. `O121` is
+suppressed on dialects whose base Tcl version predates `tailcall`
+(Tcl 8.6, TIP 327) — `f5-irules` and `tcl8.4` / `tcl8.5` profiles
+among them. `O123` is an accumulator-introduction hint for procs that are
 almost but not quite tail-recursive. Implemented in
 `tcl_compiler::optimiser::tail_call`.
 
@@ -852,6 +937,21 @@ flowchart TD
     style TC fill:#e8f5e9
     style WL fill:#e8f5e9
 ```
+
+See also: [Tail-call recursion optimisation](design/compiler/tail-call-recursion-optimisation.md).
+KCS tag: `tail-call`.
+
+### Tail position
+
+The place in a proc body where a call is the last thing the body runs:
+the final statement of the body, or the final statement of every branch
+of an `if` / `elseif` / `else` or `switch` that ends it. A `return`
+whose value is a single command substitution counts as well, so
+`return [f $n]` is a tail call but `return [a][b]` is not. A call
+anywhere else — inside `expr`, `catch`, `try`, a loop body, or a nested
+command substitution — is not in tail position, and `O121` / `O122`
+leave it alone. The walk that collects them is `collect_tail_sites` in
+`tcl_compiler::optimiser::tail_call`.
 
 See also: [Tail-call recursion optimisation](design/compiler/tail-call-recursion-optimisation.md).
 KCS tag: `tail-call`.
@@ -895,6 +995,23 @@ Implemented in `tcl_compiler::optimiser::propagation`.
 See also: [Optimisation passes](design/compiler/optimisation-passes.md).
 KCS tag: `strength-reduce`.
 
+### Pattern recognition
+
+The optimiser pass that matches a whole source idiom rather than a
+single expression, and rewrites it to the shorter form Tcl already
+provides: `set x [expr {$x + 1}]` becomes `incr x` (`O114`), length
+arithmetic in an index argument becomes `end` / `end-N` (`O128`), a
+write-only `set` plus `append` / `lappend` build chain collapses into
+one literal `set` (`O104`, `O130`), and three or more contiguous
+constant `set`s suggest a single `lassign` (`O119`, hint-only). Each
+rewrite is gated on the variable being provably safe to fold — an
+`O114` rewrite needs every SSA version of the name to be an integer,
+because `expr` promotes a float operand where `incr` raises an error.
+Implemented in `tcl_compiler::optimiser::pattern_recognition`.
+
+See also: [Optimisation passes](design/compiler/optimisation-passes.md).
+KCS tag: `pattern`.
+
 ### GVN
 
 Global Value Numbering — an optimisation that detects redundant
@@ -909,6 +1026,8 @@ KCS tag: `gvn`.
 Common Subexpression Elimination — detects when the same pure computation
 is evaluated more than once and suggests extracting it to a variable.
 Part of the GVN pass, reported as `O105`.  See `tcl_compiler::gvn`.
+Reusing a *command* result additionally requires a
+[dispatch-stability proof](#dispatch-stability-proof).
 
 ```mermaid
 flowchart TD
@@ -921,6 +1040,56 @@ flowchart TD
 
 See also: [Optimisation passes](design/compiler/optimisation-passes.md).
 KCS tag: `cse`.
+
+### Dispatch-stability proof
+
+The typed, per-call-site evidence that Tcl's mutable dispatch machinery cannot
+change *which* command an invocation runs, and cannot observe it running.
+Produced by `tcl_compiler::dispatch_proof` as a `SiteDispatchProof`, which
+records the registry dispatch-dependency domains proven stable at that site,
+the [world-state contents lattice](#world-state-contents-lattice) versions the
+value key must pin, and whether every operand word is admissible.  Without a
+complete proof [GVN](#gvn) declines to report a repeated command as
+[CSE](#cse), because a referentially transparent result is not the same thing
+as an observationally removable call — an execution trace, `rename`, alias,
+ensemble, `unknown` handler, or interpreter-policy change makes the second call
+visible.
+
+See also: [Dispatch-stability proofs](design/compiler/dispatch-stability-proof.md).
+KCS tag: `gvn`.
+
+### World-state contents lattice
+
+The bounded abstract state that a dispatch-stability proof is read from: a
+forward dataflow [lattice](#lattice) over the executable semantic graph that
+tracks, per dispatch domain, whether the domain provably still holds its
+declared entry contents and has no live observer.  Command bindings and
+`TclOO` dispatch use changed-subject ledgers, traces use saturating
+registration-count intervals per target, namespace lookup, namespace
+`unknown`, and interpreter policy use stability flags, and variable aliases use
+a link ledger.  Every ledger is bounded and widens to top on overflow; unknown
+and dynamic transitions widen conservatively.  Entry contents come from an
+explicit `DispatchEntryAssumption` contract, never from a "nothing was seen in
+this file" heuristic.  Implemented in `tcl_compiler::dispatch_proof`, alongside
+the world-state SSA versioning in `tcl_compiler::world_state_ssa`.
+
+```mermaid
+flowchart BT
+    ENTRY["entry contract<br/>(contents asserted)"]
+    PART["partly changed<br/>(named subjects, counted traces)"]
+    TOP["widened<br/>(top — nothing proven)"]
+    ENTRY --> PART --> TOP
+
+    style ENTRY fill:#e8f5e9
+    style PART fill:#e1f5fe
+    style TOP fill:#ffcdd2
+```
+
+> Contents flow upward.  A join keeps the weaker side, so a trace live on
+> either predecessor blocks reuse after the merge.
+
+See also: [Dispatch-stability proofs](design/compiler/dispatch-stability-proof.md).
+KCS tag: `dataflow`.
 
 ### DCE
 

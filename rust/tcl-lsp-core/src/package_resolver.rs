@@ -44,14 +44,14 @@
 //! `package ifneeded` source targets and the `auto_index` proc→file mappings
 //! from index-file *content* (tokenised with the real Tcl lexer, so nested
 //! `[file join $dir x]` / quoted / braced forms are handled structurally, not
-//! by regex). [`auto_qualify`] is a faithful port of the name-qualification
+//! by regex). [`auto_qualify`] faithfully implements the name-qualification
 //! rules. [`PackageResolver`] ties them together over a set of search paths
 //! (an `auto_path`), resolving `package require` and auto-loaded command names
 //! to the files C Tcl would load.
 //!
 //! The differential tests in this module verify the output against a real
 //! `tclsh` (`auto_qualify`, and `pkg_mkIndex` / `auto_mkindex`-generated index
-//! files) so the port cannot silently drift from C Tcl.
+//! files) so this module cannot silently drift from C Tcl.
 //!
 //! [`tclPkgUnknown`]: https://www.tcl-lang.org/man/tcl/TclCmd/package.htm
 //! [`auto_load_index`]: https://www.tcl-lang.org/man/tcl/TclCmd/library.htm
@@ -179,15 +179,14 @@ pub struct AutoIndexEntry {
 }
 
 // ---------------------------------------------------------------------------
-// Tokeniser-based word/command walking (mirrors resolver.py helpers).
+// Tokeniser-based word/command walking.
 // ---------------------------------------------------------------------------
 
 /// Tokenise `text` and group tokens into commands of words.
 ///
 /// Each command is a `Vec` of words; each word is the run of adjacent
 /// non-separator tokens between `Sep` / `Eol` boundaries (so `a$b[c]` is one
-/// word). `{*}` expansion markers and comments are word/command boundaries,
-/// matching `resolver.py::_walk_command_words`.
+/// word). `{*}` expansion markers and comments are word/command boundaries.
 pub(super) fn walk_command_words(text: &str) -> Vec<Vec<Vec<Token>>> {
     let tokens = Lexer::new(text).tokenise_all().unwrap_or_default();
     let mut commands: Vec<Vec<Vec<Token>>> = Vec::new();
@@ -226,7 +225,7 @@ pub(super) fn walk_command_words(text: &str) -> Vec<Vec<Vec<Token>>> {
 ///
 /// For a `[...]` command-substitution word the lexer's `Cmd` token excludes
 /// the closing `]` from its span, so this returns `[list …` (no trailing
-/// bracket) — exactly as `resolver.py::_word_raw` did.
+/// bracket).
 pub(super) fn word_raw<'t>(text: &'t str, word: &[Token]) -> &'t str {
     let start = word[0].span.start() as usize;
     let end = word[word.len() - 1].span.end() as usize;
@@ -235,7 +234,7 @@ pub(super) fn word_raw<'t>(text: &'t str, word: &[Token]) -> &'t str {
 
 /// The inner script text of `word` if it is a single wrapper word
 /// (`[...]` command substitution, `{...}` braced literal, or `"..."` quoted
-/// word); `None` for a bare word. Mirrors `resolver.py::_word_unwrap`.
+/// word); `None` for a bare word.
 pub(super) fn word_unwrap(text: &str, word: &[Token]) -> Option<String> {
     if word.len() == 1 {
         let tok = word[0];
@@ -265,8 +264,7 @@ pub(super) fn word_unwrap(text: &str, word: &[Token]) -> Option<String> {
 
 /// Extract the package-relative filename from a `source` argument word.
 ///
-/// Accepts the two structural forms real index files use, via the tokeniser
-/// (mirrors `resolver.py::_source_filename`):
+/// Accepts the two structural forms real index files use, via the tokeniser:
 ///
 /// * `[file join $dir X …]` — path components after `$dir` joined by `/`.
 /// * `$dir/X` — the path tail after a bare `$dir/` prefix.
@@ -328,7 +326,7 @@ const MAX_SOURCE_TARGET_SCAN_DEPTH: tcl_core_types::RecursionLimit =
 
 /// Walk `commands` collecting `source <arg>` targets that exist under
 /// `pkg_dir` (per `exists`), descending into `[...]` / `{...}` / `"..."`
-/// wrapper words. Mirrors `resolver.py::_collect_source_targets`.
+/// wrapper words.
 ///
 /// `depth` is the nesting level of this call (0 at the top); past
 /// [`MAX_SOURCE_TARGET_SCAN_DEPTH`] this stops descending into wrapper
@@ -373,7 +371,7 @@ fn collect_source_targets(
 
 /// A package version token's accepted *format*: digits/dots with an optional
 /// alpha/beta suffix (`1.0`, `2.1`, `1.0b1`). A narrow gate on an
-/// already-tokenised word, matching `resolver.py`'s `_VERSION_RE`.
+/// already-tokenised word.
 fn is_version_word(word: &str) -> bool {
     let (head, suffix) = match word.find(['a', 'b']) {
         Some(i) => (&word[..i], &word[i..]),
@@ -500,7 +498,7 @@ pub fn parse_pkg_index(
 ///   followed by `NAME FILE` lines.
 ///
 /// `index_dir` is the directory the index lives in; `exists` gates referenced
-/// files (pass `|p| p.is_file()`), matching `auto_index.py`.
+/// files (pass `|p| p.is_file()`).
 pub fn parse_tcl_index(
     content: &str,
     index_dir: &Path,

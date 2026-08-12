@@ -360,7 +360,7 @@ struct BodyWord {
 /// * [`ArgRole::LambdaLiteral`] — `apply`'s `{argList body ?ns?}` two- or
 ///   three-element list, where only element 1 is code.  It is split with
 ///   [`tcl_compiler::lambda_literal::split_lambda_literal`], the same
-///   splitter every other migrated consumer uses (issue #1000).  Treating
+///   splitter every other consumer uses (issue #1000).  Treating
 ///   the whole literal as one body instead reads `argList` as a command
 ///   name and swallows the real body, which is why no refactor code action
 ///   fired inside an `apply` lambda.  Only a `{braced}` body element is

@@ -7,13 +7,12 @@ other runtime modules) can reason about lifetime without reading
 the implementation. The runtime is the Rust crate `tcl-runtime`
 (`runtime/rust/`).
 
-> Status: **scaffolding** — categories and conventions are fixed;
-> the per-subsystem rows fill in incrementally as the audit proceeds
-> against the Rust runtime (`runtime/rust/`). The `cargo xtask
-> refcount-contract` lint that once flagged exports missing a row
-> walked the runtime's exports and was **retired** (see
-> [Lint script](#lint-script) below); the rows
-> are maintained by hand for now.
+> **Coverage.** The categories and conventions below are complete and binding.
+> The per-subsystem rows are maintained **by hand**: there is no automated gate
+> that flags an export with no row, so a new export needs its row added in the
+> same change. Where a subsystem's rows are not yet written out, the section
+> says so — an absent row is a gap in this document, never permission to
+> invent a convention at the call site.
 
 ## Categories
 
@@ -31,21 +30,27 @@ record:
     function takes ownership and is responsible for either
     storing the handle (taking the +1 into a slot) or releasing
     it.
+  - `adopted` — the caller passes a **fresh `rc 0`** object it never
+    retained; the function takes responsibility for freeing it. This
+    is the codegen convention for `tcl_obj_new_string` feeding
+    `tcl_eval` / `tcl_eval_code` / `tcl_expr_bool`, and it is
+    distinct from `consumed`, where the caller *did* hold a +1.
   - `passthrough_returned` — argument is conceptually `borrowed`
     but the function may also choose to return the same handle
     as its result. When that happens the caller's +1 implicitly
-    becomes the +1 the caller holds for the result. The
-    aliasing-aware retain/release in the Rust eval loop
-    (`interp.rs`; the pattern was first worked out in commit
-    `43a12cb2`) is the canonical example.
+    becomes the +1 the caller holds for the result. No export in the
+    current surface is in this category: the eval loop's
+    result-aliases-a-word case is handled instead by `set_obj_result`
+    taking an independent +1 (`memory-management.md` MM-B.6), so the
+    argv release needs no aliasing awareness.
 
 - **Return** — what the caller can assume about the result handle:
   - `owned` — the caller gets a +1 they must eventually release
     (or transfer into a slot).
   - `borrowed` — the caller does not own the result; reading it
     is fine but the caller must not release it.
-  - `null_or_owned` — `0` means "no value" (callers test `!= 0`);
-    any non-zero result is `owned`.
+  - `null_or_owned` — `null` means "no value" (callers test for it);
+    any non-null result is `owned`.
   - `void` — no handle returned.
 
 - **Internal storage** — does the function store the input handle
@@ -54,7 +59,7 @@ record:
   store.
 
 - **Notes** — anomalies, fast paths that depend on `rc == 1`,
-  cross-references to MM-B audit commits, etc.
+  cross-references to the MM-B discipline, etc.
 
 ## Conventions
 
@@ -62,147 +67,126 @@ record:
   `tcl_*`, or used by the WASM codegen via the import table, needs
   a row.
 - Helpers reachable only from inside the runtime (no `extern "C"`
-  export) do not need rows but should follow the same convention
-  internally.
-- Fast paths that mutate the input in place (`tcl_cmd_lappend`'s
-  in-place append, `tcl_cmd_append`'s buffer growth) are
-  flagged: the rc==1 check is the predicate today, and any compile-side
-  optimisation must preserve that ownership contract.
+  export) do not need rows but must follow the same convention
+  internally. Their discipline is
+  [`memory-management.md`](memory-management.md) MM-B — the store shape,
+  `VarTable`'s release-on-`Drop`, and the ownership of `Var::Scalar` /
+  `Var::Array` cells.
+- A **null-safe** export is marked as such: `Tcl_IncrRefCount`,
+  `Tcl_DecrRefCount`, `tcl_obj_release`, and `tcl_obj_retain` all
+  accept null and do nothing (or return it unchanged), so an ABI
+  composition that propagates a failure as null stays sound.
+- Constructors follow the `fresh_zero` convention: every `Tcl_New*Obj`
+  returns `rc 0` and the caller takes the first `Tcl_IncrRefCount`.
+  The two codegen-facing constructors deliberately differ from each
+  other on this point, and the difference is load-bearing — see the
+  `tcl_obj_new_string` / `tcl_obj_new_string_owned` rows.
 
 ## Subsystems
 
-The contract is organised by source file. Each subsection
-mirrors a module under `runtime/rust/src/`.
+The contract is organised by source file. Each subsection mirrors a module
+under `runtime/rust/src/` that actually carries `#[no_mangle]` exports; the
+rest of the runtime is internal and covered by the convention above.
 
-### `obj.rs` — object lifecycle and primitives
+### `capi.rs` — the C Tcl API slice
 
-| Function | Args | Return | Storage | Notes |
-|---|---|---|---|---|
-| `Tcl_NewWideIntObj(value)` | (n/a) | `owned` | none | Fresh obj; caller-owned. Rust constructors follow the `fresh_zero` (rc=0) convention — the caller takes the first `Tcl_IncrRefCount`. |
-| `Tcl_NewDoubleObj(value)` | (n/a) | `owned` | none | Fresh obj; caller-owned. |
-| `Tcl_NewStringObj(data_ptr, length)` | (n/a) | `owned` | copies/owns the bytes | Fresh obj; caller-owned. |
-| `obj_get_int(obj)` | `borrowed` | (i64) | none | Reads cached int rep. |
-| `obj_get_float(obj)` | `borrowed` | (f64) | none | Reads cached float rep. |
-| `incr_ref_count(obj)` (C-ABI `Tcl_IncrRefCount`) | `borrowed` | `void` | (n/a) | Increments rc by 1. **Null-safe**: returns early on obj == null. |
-| `decr_ref_count(obj)` (C-ABI `Tcl_DecrRefCount`) | `consumed` | `void` | (n/a) | Decrements rc by 1; frees immediately at rc→0 (bumps the double-free counter if called on an already-zero obj). **Null-safe**. |
-| `tcl_obj_drain_pending()` | (n/a) | `void` | (n/a) | Drains the runtime-internal deferred-free queue (eval-loop aliasing case). Only safe at outermost `tcl_eval` depth. |
-| OOM flag access (`counters::oom` / reset) | (n/a) | bool / void | (n/a) | No refcount interaction. |
-
-### `frame.rs` — proc-local frame slots
+The obj-lifecycle and result slice of `tcl.h`, exported for extensions
+(`c-extension-abi.md` §4.3). The remainder of the C surface is not exported yet.
 
 | Function | Args | Return | Storage | Notes |
 |---|---|---|---|---|
-| `frame_push()` | (n/a) | i32 (frame idx) | (n/a) | Frame entry; no obj refs yet. |
-| `frame_pop()` | (n/a) | `void` | releases every slot's value | MM-B.3 retain/release on each slot. Idempotent for slots already at 0. |
-| `frame_local_set_at(idx, value)` | idx `u32`, value `borrowed` | i32 (= value) | retains value into slot, releases prior occupant | MM-B.3 commit `fe68d410`. |
-| `frame_local_at(idx)` | idx `u32` | `borrowed` | (n/a) | Returns the slot's current value without retain. Caller must retain if it stores elsewhere. |
-| `var_set` / `var_resolve` / `var_exists` | (TBD) | (TBD) | (TBD) | Audit pending. |
-| `frame_set_argv(argv)` / `frame_get_argv()` | (TBD) | (TBD) | (TBD) | MM-B.5d retain/release; audit pending. |
+| `Tcl_NewObj()` | (n/a) | `owned` (`rc 0`) | none | Fresh empty-string object. |
+| `Tcl_NewStringObj(bytes, length)` | (n/a) | `owned` (`rc 0`) | copies/owns the bytes | `length < 0` means `strlen`; `bytes` may be null when `length == 0`. |
+| `Tcl_NewWideIntObj(value)` | (n/a) | `owned` (`rc 0`) | none | Pure int object; string rep generated on demand. |
+| `Tcl_NewDoubleObj(value)` | (n/a) | `owned` (`rc 0`) | none | |
+| `Tcl_NewBooleanObj(value)` | (n/a) | `owned` (`rc 0`) | none | 0/1 int object. |
+| `Tcl_IncrRefCount(obj)` | `borrowed` | `void` | (n/a) | **Null-safe.** |
+| `Tcl_DecrRefCount(obj)` | `consumed` | `void` | (n/a) | Frees immediately at `rc → 0`; bumps the double-free counter if called on an already-zero object. **Null-safe.** |
+| `Tcl_SetObjResult(interp, resultObjPtr)` | `resultObjPtr` `borrowed` | `void` | retains into the interp's result slot, releases the prior occupant | The independent +1 here is what makes the eval loop's unconditional argv release safe. |
+| `Tcl_GetObjResult(interp)` | (n/a) | `borrowed` | (n/a) | The interp keeps its +1; valid until the result is replaced. |
+| `Tcl_GetStringFromObj(objPtr, lengthPtr)` | `borrowed` | borrowed `char*` | (n/a) | Shimmers on demand. The pointer is into the object's own owned buffer and dies with it. Writes the byte length through `lengthPtr` when non-null. |
+| `Tcl_GetString(objPtr)` | `borrowed` | borrowed `char*` | (n/a) | As above with no length out-param. |
+| `tcl_runtime_create_interp()` | (n/a) | owning `*mut Interp` | (n/a) | Not in `tcl.h` — the host entry point until `Tcl_CreateInterp` lands. Boxes the `Rc` handle so C has a stable owning pointer. |
+| `tcl_runtime_delete_interp(interp)` | `consumed` | `void` | (n/a) | Reclaims the box, running `Drop` once; releases the interp's hold on its result. **Null-safe.** |
+| `tcl_test_reset_counters()` / `tcl_test_alloc_count()` / `tcl_test_double_free_count()` / `tcl_test_finalize()` | (n/a) | `void` / i64 | (n/a) | The leak-check surface (MM-C). No refcount interaction. |
 
-### `namespace.rs` — namespace var tables
+### `codegen_abi.rs` — the compiled-module host bridge
 
-| Function | Args | Return | Storage | Notes |
-|---|---|---|---|---|
-| `global_set(name, value)` | name `borrowed`, value `borrowed` | i32 (= value) | retains value, releases prior global value | MM-B.2 (commit `fe68d410`). |
-| `global_get(name)` | name `borrowed` | `borrowed` (or 0) | (n/a) | Returns the global table's current value without retain. |
-| `global_exists(name)` | name `borrowed` | `owned` (TclObj wrapping 0/1) | (n/a) | Returns a fresh int obj. Caller-owned. |
-| `var_set_scalar(v_addr, obj_handle)` | obj_handle `borrowed` | `void` | retains, releases prior | MM-B.2. Internal helper used by `global_set`. |
-
-### `cmd_proc.rs` / `interp.rs` — proc table
-
-| Function | Args | Return | Storage | Notes |
-|---|---|---|---|---|
-| `proc_register(name, params, body)` | all `borrowed` | i32 (status) | retains owned-copy of params + body into proc-table slot | Promotes borrowing TclObjs to owning copies via `ensure_owned`. |
-| `proc_set_body_source(name, body)` | name `borrowed`, body `borrowed` | i32 | retains body; releases prior body | Commit `82c0b4ae` fixed prior leak. |
-| `proc_register_compiled(...)` | name `borrowed` | i32 | stores raw name in sidecar (not a TclObj ref) | Compiled procs only; func_idx is a wasm function-table index. |
-
-(Other proc-table queries — `proc_get_n_params`, `proc_get_args_tail`,
-`proc_get_export_name` — are pure readers, all args `borrowed`,
-return primitive types.)
-
-### `interp.rs` — eval loop
+The import table an emitted WASM module links against. It evaluates against a
+**current interp** installed by the bootstrap, not an interp argument.
 
 | Function | Args | Return | Storage | Notes |
 |---|---|---|---|---|
-| `tcl_eval(script)` | `borrowed` (retained for the call's duration) | `null_or_owned` | (n/a) | Drains pending-free queue at outermost depth. |
-| `eval_command(words)` (internal) | each word `borrowed`, alias-aware retain on result | `passthrough_returned` | (n/a) | MM-B.4 release loop after dispatch. |
+| `tcl_runtime_set_current_interp(interp)` | raw pointer, not retained | `void` | module-level current-interp cell | Null clears it. Every other export here no-ops or reports failure when it is null. |
+| `tcl_runtime_init_library()` | (n/a) | i32 (0 ok) | (n/a) | C's `Tcl_Init` equivalent: sources `$TCL_LIBRARY/init.tcl` (the embedded-stdlib VFS on the `wasm_stdlib` build). Returns 1 with no current interp. |
+| `tcl_obj_new_string(ptr, len)` | copied bytes | `owned` (`rc 0`) | none | **Not retained.** Its consumer (`tcl_eval` / `tcl_eval_code` / `tcl_expr_bool`) *adopts* and frees it. |
+| `tcl_obj_new_string_owned(ptr, len)` | copied bytes | `owned` (`+1`) | none | The argv constructor for generic invocation. Deliberately unlike `tcl_obj_new_string`: `tcl_invoke_argv` **borrows** argv words, so generated cleanup must release this reference itself. |
+| `tcl_value_new_string(ptr, len)` | copied bytes | `owned` (`+1`) | none | The generated operand stack owns one reference per value. |
+| `tcl_value_release(value)` | `consumed` | `void` | (n/a) | Releases one operand-stack reference. |
+| `tcl_obj_retain(obj)` | `borrowed` | `owned` (a new `+1` on the same object) | (n/a) | **Null-safe** (returns null unchanged). Used to forward a completion result while releasing the private completion storage. |
+| `tcl_obj_release(obj)` | `consumed` | `void` | (n/a) | **Null-safe.** |
+| `tcl_codegen_frame_push()` / `tcl_codegen_frame_pop()` | (n/a) | `void` | pushes/pops a real Tcl variable frame | The frame's `VarTable` releases every cell on `Drop`; no per-slot cleanup in the emitter. |
+| `tcl_codegen_local_bind(slot, name_ptr, name_len, value)` | `value` `consumed` | i32 (0 ok) | stores into the named cell (which retains) | Associates the compiled slot index with the name-addressable cell, then stores. Releases the operand-stack reference on every path, including the error path. |
+| `tcl_codegen_local_set(slot, value)` | `value` `consumed` | i32 (0 ok) | stores into the bound cell | Releases the operand-stack reference even when the slot is unbound. |
+| `tcl_codegen_local_get(slot)` | (n/a) | `null_or_owned` | (n/a) | Fires read traces first; null on an unbound slot, a failed trace, or a read miss (with the interp error set). |
+| `tcl_codegen_var_set(name_ptr, name_len, value)` | `value` `consumed` | i32 (0 ok) | stores into the named cell | The by-name form; same release discipline. |
+| `tcl_codegen_var_get(name_ptr, name_len)` | name bytes | `null_or_owned` | (n/a) | |
+| `tcl_codegen_expr_add(left, right)` | both `consumed` | `null_or_owned` | (n/a) | Consumes both operand-stack references on **every** path, including the error and null-argument paths, and returns a fresh `+1`. Without the `have_tommath` backend it consumes the operands and reports `arithmetic support is not available`. |
+| `tcl_codegen_puts(value)` | `consumed` | i32 (0 ok) | (n/a) | Dispatches the runtime's own `puts`, then releases the operand-stack reference. |
+| `tcl_codegen_proc_register(name, params, body)` | byte ranges, no handles | i32 (0 ok) | defines a `Command::Proc` | Registers source metadata without evaluating `proc`. The body object is fresh and dropped after `define_proc` takes its own copy. |
+| `tcl_eval(script)` | `script` `adopted` (`rc 0`, freed here) | `owned` (`+1` on the interp result) | (n/a) | Completion codes are discarded — use `tcl_eval_code` when they matter. With no current interp it returns an owned empty string rather than null, so the misuse path stays leak-safe. |
+| `tcl_eval_code(script)` | `script` `adopted` | i32 completion code | (n/a) | Returns 0/1/2/3/4 or a `return -code N` value; the result stays the interp's own (borrowed), so the emitter has nothing to release. Reports 0 with no current interp. |
+| `tcl_expr_bool(expr)` | `expr` `adopted` | i32 | (n/a) | The condition primitive for emitted control flow. Yields `0` on an expression error, with no current interp, or in a build without the numeric tower. |
+| `tcl_invoke_argv(argv, argc, out)` | every argv word `borrowed`; `out` writable `TclCompletionAbi` | i32 ABI status; on a write, `out.result` and `out.options` are each `owned` | normal interpreter result/error state only | Retains each argv word for the dispatch only, then releases those temporaries. Dispatches the prebuilt argv through the same `Interp::dispatch` as interpreted Tcl — namespaces, `unknown`, aliases, ensembles, TclOO — with no parsing or substitution. A Tcl error is `out.code == 1`; a negative return is a malformed ABI call. |
+| `tcl_completion_release(out)` | `out.result` + `out.options` `consumed` | `void` | clears the output storage | Releases both handles exactly once and zeroes the fields. Idempotent on already-reset storage; mixing it with individual `tcl_obj_release` calls is not sound. |
+| `tcl_codegen_call_frame_alloc(bytes, align)` | validated positive layout | owned transient frame pointer | shared linear memory | Records the exact layout, increments the diagnostic outstanding-frame count. Frames are distinct and survive re-entrant command callbacks. |
+| `tcl_codegen_call_frame_free(frame)` | `frame` consumed once | i32 status | shared linear memory | Looks up the authoritative layout; unknown, forged, or repeated pointers fail without dereference or deallocation. Must run after the argv objects and completion output are released. |
+| `tcl_codegen_call_frame_outstanding()` | (n/a) | i32 | (n/a) | Diagnostic counter; no refcount interaction. |
 
-### `cmd_control.rs` / `cmd_error.rs` — error handling
+### `regex_capi.rs` — the ARE engine's C shim
 
-| Function | Args | Return | Storage | Notes |
-|---|---|---|---|---|
-| `tcl_cmd_error(msg)` | `borrowed` | `void` | sets `error_msg` global to msg (no retain — relies on caller's hold for the duration of the catch frame) | Outside catch, traps via `@trap()`. |
-| `catch_enter()` / `catch_leave()` | (n/a) | i32 | (n/a) | Catch-depth counter. |
-| `catch_result()` | (n/a) | `borrowed` | (n/a) | Reads `error_msg`; valid until the next command. |
+`TclReComp` / `TclReExec` / `TclReFree` / `TclReError` re-export the pure-Rust
+`tcl-regex` engine over the C ABI. They deal in compiled-regex handles and byte
+ranges, not `TclObj`, so no row carries a refcount category: the only rule is
+that a handle from `TclReComp` is freed exactly once by `TclReFree`.
 
-### `list.rs` / `cmd_list.rs` — list operations
+### `c_alloc.rs` — libtommath's allocator
 
-| Function | Args | Return | Storage | Notes |
-|---|---|---|---|---|
-| `tcl_cmd_list_length(list)` | `borrowed` | `owned` (fresh int obj) | none | |
-| `tcl_cmd_lappend(current, value)` | `current` `borrowed`, `value` `borrowed` | `owned` (often == current via fast path) | (n/a) | **Fast path**: if `rc(current) == 1` AND owns its buffer, mutates in place and returns `current`. Slow path returns fresh obj. The rc==1 predicate is sensitive to compile-side ownership discipline (S2). |
-| `tcl_cmd_list_index(list, idx)` | both `borrowed` | `owned` (fresh `obj_new_string_copy`) | none | |
-| (other list funcs — TBD) | | | | |
+`malloc` / `calloc` / `realloc` / `free`, compiled only for freestanding
+`wasm32-unknown` with the tommath backend. Raw bytes, no `TclObj`; they forward
+to Rust's global allocator with a 16-byte size header (see
+[`memory-management.md`](memory-management.md)).
 
-### `value_ops.rs` / `cmd_string.rs` — string operations
+### Internal entry points
 
-(TBD — audit pending. The salient one is `tcl_cmd_append` which
-has a similar rc==1 fast path to `tcl_cmd_lappend`.)
+`frame.rs`, `namespace.rs`, `vars.rs`, `interp.rs`, `list.rs`, `dict.rs`, and
+the `cmd_*.rs` handlers export nothing over the C ABI, so they have no rows
+here. Their discipline is uniform and stated once in
+[`memory-management.md`](memory-management.md) MM-B: a builtin receives its
+`argv` as `borrowed` and returns a `Code`, publishing any result through
+`set_result` / `set_obj_result` (which retains independently); a cell store
+retains the incoming value and releases the displaced one; and a `VarTable`
+releases everything it owns on `Drop`.
 
-### `dict.rs` — dict operations
+## Known gap: no automated enforcement
 
-(TBD — audit pending.)
+No gate mechanically checks that every `#[no_mangle] extern "C"` export has a
+row here, or that a row's claimed category matches the code. A new export can
+therefore ship undocumented, and a changed ownership category can silently
+diverge from its row — which is exactly the ambiguity this document exists to
+remove.
 
-### `cmd_array.rs` — array (Tcl array, not list) operations
-
-| Function | Args | Return | Storage | Notes |
-|---|---|---|---|---|
-| `array_set(arr, key, value)` | all `borrowed` | i32 | retains value, releases prior | MM-B.5a (commit `fe68d410`). |
-| `array_get(arr, key)` | both `borrowed` | `borrowed` | (n/a) | |
-
-### `cmd_regex.rs`
-
-(TBD — one of the capture-storage paths retains the captured value
-(`incr_ref_count`) so it outlives the match struct; audit the
-remaining `-inline`/`-indices` storage paths.)
-
-### `cmd_*.rs` — per-command handlers
-
-(TBD — these all consume `borrowed` args and return `owned` or
-`null_or_owned`. Specific anomalies need rows.)
-
-### `codegen_abi.rs` — host bridge
-
-| Function | Args | Return | Storage | Notes |
-|---|---|---|---|---|
-| `dispatch(bucket, words)` | each word `borrowed` | `null_or_owned` | (n/a) | Calls `call_compiled_proc` (host bridge); the host receives borrowed handles and returns owned. |
-| `tcl_codegen_call_frame_alloc(bytes, align)` | validated positive layout | owned transient frame | shared linear memory | Every successful allocation records its exact layout in the runtime, increments the diagnostic outstanding-frame count, and has one `tcl_codegen_call_frame_free`. Frames are distinct and survive re-entrant command callbacks. |
-| `tcl_codegen_call_frame_free(frame)` | `frame` consumed once | i32 status | shared linear memory | The runtime looks up the authoritative allocation layout. Unknown, forged, or repeated pointers fail without dereference or deallocation. A successful free occurs after argv objects and the completion output release, and decrements the outstanding-frame count. |
-| `tcl_obj_new_string_owned(ptr, len)` | copied bytes | `owned` Tcl object (`+1`) | object heap | Constructor for prebuilt argv words. `tcl_invoke_argv` borrows this reference, so generated cleanup releases it afterwards. |
-| `tcl_invoke_argv(argv, argc, out)` | every argv word `borrowed` (caller holds `+1`); `out` writable `TclCompletionAbi` storage | i32 ABI status; on every write `out.result` + `out.options` are each `owned` | normal interpreter result/error state only | Retains every argv word only for the dispatch, then releases those temporary refs. Dispatches the full prebuilt argv through normal namespace/unknown/alias/TclOO resolution without source parsing or substitution. A Tcl error is `out.code == 1`; a negative status is a malformed ABI call. |
-| `tcl_obj_retain(obj)` | `borrowed` live object | a new `owned` (`+1`) reference | object heap | Generated completion transport retains result/options for its caller before releasing its private completion storage. |
-| `tcl_completion_release(out)` | `out.result` + `out.options` `consumed` | `void` | clears output storage | Releases both completion handles exactly once and zeroes the fields. A repeated call on the reset storage is idempotent; mixing it with individual `tcl_obj_release` calls is not. |
-
-### `cmd_chan.rs` / `cmd_fs.rs` / `cmd_clock.rs` — stdio + filesystem + clock
-
-(TBD — most are pure consumers; no obj storage.)
-
-## Lint script
-
-**Retired.** The `cargo xtask refcount-contract` lint (S0.1 deliverable) and
-the even earlier Python `scripts/check/refcount_contract.py` it had been ported
-from have both been removed.
-No automated gate enforces this contract today: the rows above are
-maintained by hand against the Rust runtime (`runtime/rust/`). The
-refcount **discipline** they document still applies in full — only
-the tool that mechanically checked for missing rows is gone.
+Closing it means a check that walks the runtime's exports (they are
+enumerable from `runtime/rust/src/capi.rs`, `codegen_abi.rs`, `regex_capi.rs`,
+and `c_alloc.rs`), diffs them against the rows above, and fails on either
+direction. The same shape would serve
+[`c-api-ownership-contract.md`](c-api-ownership-contract.md), which has the
+identical gap.
 
 ## Cross-references
 
-- Runtime memory-management plan and audit history:
-  [`memory-management.md`](memory-management.md).
+- Runtime refcount discipline: [`memory-management.md`](memory-management.md).
+- The C-API surface's ownership rows:
+  [`c-api-ownership-contract.md`](c-api-ownership-contract.md).
 - Compile-side proof and ownership contract:
   [`../compiler/var-escape-analysis.md`](../compiler/var-escape-analysis.md).
-- The `MM-B` audit commits (`fe68d410`, `1ddb903d`, `9c7e4add`,
-  `48a7138b`, `43a12cb2`) provide the historical basis for many
-  of the rows above.

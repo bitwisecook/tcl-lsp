@@ -1,39 +1,27 @@
-# KCS: Tcl 9.0.3 corner cases for variable handling
+# KCS: How does Tcl 9 handle variable-name corner cases?
 
-> **Audience:** Developer
-> **Type:** Reference
+> **Audience:** Contributor
+> **Type:** Q&A
 
 ## Applies to
 
-analyser, lexer, completion, diagnostics
+all-editors, analyser, lexing, diagnostic
 
-## Profiles
+## Question
 
-default
+Which spellings of a variable reference does real Tcl 9 accept, what does
+each one resolve to, and where do the bare and braced forms differ?
 
-## Purpose
+## Answer
 
-This document records the *empirically observed* behaviour of real
-Tcl 9.0.3 (built from `tmp/tcl9.0.3/` and run as `tclsh`) on a wide
-range of variable-handling corner cases.  It is the **source of truth**
-that our analyser, lexer, and completion provider should match.  Every
-finding is reproducible via `tests/data/tcl_probes_full.tcl`.
+The tables below record the behaviour of real Tcl 9, observed by running
+each spelling through `tclsh`. They are the behaviour the analyser, the
+lexer, and the completion provider match. Use them when deciding whether
+the analyser is right, when triaging a "looks like a bug" report, or when
+adding a diagnostic that reasons about variable names.
 
-Use this document when deciding whether the analyser's behaviour is
-correct, when triaging a "looks like a bug" report, or when adding new
-diagnostics.
-
-## How to reproduce
-
-Build `tclsh` from the bundled Tcl 9.0.3 source:
-
-```sh
-cd tmp/tcl9.0.3/unix && ./configure --prefix=/tmp/tcl9-local && make tclsh
-LD_LIBRARY_PATH=$PWD ./tclsh ../../../tests/data/tcl_probes_full.tcl
-```
-
-The probe file's last line prints a `PROBE SUMMARY: N pass, …` so you
-can spot regressions if the version of Tcl ever changes.
+To check a spelling yourself, build a 9.0 `tclsh` with the
+`fetch-tcl-source` skill and run the spelling through it directly.
 
 ## Findings
 
@@ -202,21 +190,9 @@ Quoted-arg parsing applies backslash substitution **left-to-right**, scanning ea
 | `set {back\slash} 1` | `back\slash` (10 bytes) | `62 61 63 6b 5c 73 6c 61 73 68` | braces preserve literally |
 | `set {back\\\slash} 1` | `back\\\slash` (12 bytes) | `62 61 63 6b 5c 5c 5c 73 6c 61 73 68` | braces preserve literally -- 3 in, 3 out |
 
-**Key takeaway:** in a *quoted* arg, three source backslashes collapse to **one** runtime byte; in a *braced* arg, every byte survives.  Verified empirically against tclsh 9.0.3 by setting the var, then dumping `set $name` and inspecting the resulting bytes -- see `tests/data/tcl_probes_definitive.tcl` §A.
+**Key takeaway:** in a *quoted* arg, three source backslashes collapse to **one** runtime byte; in a *braced* arg, every byte survives.
 
-## Known divergences in our analyser/lexer
-
-### `${...}` form -- aligned with Tcl 9.0.3 since 78d7437
-
-`compiler/parsing/lexer.py::_parse_var` previously read chars until the
-first `}`, treating backslashes as literal.  This PR updates the
-brace-form scan to mirror Tcl 9.0.3's `Tcl_ParseVarName` exactly:
-inner `{...}` are tracked with brace-depth counting, and `\X`
-consumes 2 chars (so `\}` does NOT close).  No remaining
-divergence in this area; the regression tests in
-`tests/test_parser_edge_cases.py::TestBracedVarSpecialChars` and
-`tests/test_tcl_corner_cases.py::TestBraceVarSubstitution` pin the
-new behaviour.
+## Which of these the analyser reports
 
 ### `${arr}(idx)` analyser scope
 
@@ -238,6 +214,8 @@ W215 alerts the user; see [W215](codes/kcs-diagnostic-w215-variable-name-unreach
 
 - [W215 KCS](codes/kcs-diagnostic-w215-variable-name-unreachable-via-substitution.md)
 - [W216 KCS](codes/kcs-diagnostic-w216-broken-brace-array-element-reference.md)
+- [How does Tcl parse a list?](kcs-qa-how-tcl-parses-lists.md)
+- [KCS index](README.md)
 - Tcl(n) man page §"Variable substitution"
-- `tclParse.c::Tcl_ParseVarName` (Tcl 9.0.3 source)
-- `tests/data/tcl_probes_full.tcl` (machine-runnable probe set)
+- `tclParse.c::Tcl_ParseVarName` in the Tcl 9 C source — the ground truth
+  the brace-form scan mirrors.

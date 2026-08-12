@@ -1258,7 +1258,7 @@ explorer-build: explorer-wasm $(MERMAID_JS) ## Build the compiler-explorer GUI b
 TCL_VM_WASM_DIR := $(ROOT)rust/tcl-vm-wasm
 
 .PHONY: tcl-vm-wasm
-tcl-vm-wasm: ## Build the bytecode VM as a self-contained wasm32 cdylib (the primary wasm compile target, RUST_ISSUE_008)
+tcl-vm-wasm: ## Build the bytecode VM as a self-contained wasm32 cdylib (the primary wasm compile target)
 	@rustup target list --installed 2>/dev/null | grep -q wasm32-unknown-unknown \
 		|| rustup target add wasm32-unknown-unknown
 	@echo "==> Building tcl-vm-wasm (VM + compiler → wasm32-unknown-unknown cdylib, no imports/WASI)"

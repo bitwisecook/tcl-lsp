@@ -16,18 +16,15 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! Native port of `tests/lsp_e2e/test_config_e2e.py`.
-//!
 //! Effective-config + per-feature toggles, end-to-end against the packaged
 //! server. Drives the `workspace/configuration` path: `getEffectiveConfig` must
 //! expose a resolved `features` map (plus dialect, line length, optimiser
 //! switch), a disabled provider must return empty/None, the optimiser master
 //! switch must round-trip, and formatting must honour the request's indent width.
 //!
-//! Each Rust test owns its server, so pytest's `config_session` *cleanup* (undo
-//! the change so the shared session server isn't polluted) is moot. But its
-//! *behavioural* round-trip — disable a feature, then re-enable it and assert the
-//! provider recovers — is a real contract (config re-pull works both
+//! Each test owns its server, so a config change leaves no shared state to
+//! undo. The *behavioural* round-trip — disable a feature, then re-enable it and
+//! assert the provider recovers — is a real contract (config re-pull works both
 //! directions), so it is exercised explicitly here via a second
 //! `apply_configuration_settle` back to the enabled state.
 
@@ -209,9 +206,8 @@ fn disabling_feature_suppresses_its_provider(feature: &str) {
         "{feature}: provider must return empty/None when disabled, got {disabled}"
     );
 
-    // Re-enable and settle; the provider must recover (the config re-pull works
-    // both directions). Mirrors pytest's post-`config_session` "provider did not
-    // recover after re-enable" assertion.
+    // Re-enable and settle; the provider must recover, proving the config
+    // re-pull works in both directions.
     let feat = feature.to_owned();
     lsp.apply_configuration_settle(json!({ "features": { feature: true } }), &uri, move |c| {
         feature_enabled(c, &feat)
@@ -287,8 +283,7 @@ fn optimiser_disable_round_trips() {
         "{off}"
     );
 
-    // Round-trip: re-enable and settle — the optimiser switch flips back on
-    // (pytest's post-`config_session` "# Restored." assertion).
+    // Round-trip: re-enable and settle — the optimiser switch flips back on.
     let on_again =
         lsp.apply_configuration_settle(json!({ "optimiser": { "enabled": true } }), &uri, |c| {
             c.get("optimiser_enabled") == Some(&Value::Bool(true))
@@ -356,8 +351,7 @@ fn four_space_indent() {
 //
 // A feature flipped off and back on leaves no sticky state: across repeated
 // disable→re-enable cycles the provider works, goes empty while off, and works
-// again once re-enabled — never stuck off. (pytest ran this on a shared server
-// via `config_session`; here one per-test server drives the cycle directly.)
+// again once re-enabled — never stuck off.
 
 #[test]
 fn repeated_cycles_keep_provider_working() {

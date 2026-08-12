@@ -32,8 +32,9 @@
 //! `docs/design/common-runtime-emitter-architecture.md` §4d and the red-team
 //! findings):
 //!
-//! 1. **Char-correct strings.** [`ValueOps::as_str`] yields a UTF-8 `Rc<str>`,
-//!    and all downstream indexing is by **character**, matching `tclsh`. A
+//! 1. **Char-correct strings.** [`ValueOps::as_str`] yields a UTF-8 `Rc<str>`.
+//!    Tcl 8 character operations use UTF-16-style code units while Tcl 9 uses
+//!    Unicode scalars; [`string_char_len`] centralises that release split. A
 //!    byte-oriented runtime conforms inside its own impl; the seam never exposes
 //!    byte offsets. Byte-exact commands (`append`, `binary`) use the parallel
 //!    [`ValueOps::as_bytes`]/[`ValueOps::new_bytes`] rung instead.
@@ -49,6 +50,27 @@
 //! a plain `From`.
 
 use std::rc::Rc;
+
+use tcl_dialect::TclVersion;
+
+/// Count the release-defined Tcl characters in a UTF-8 string value.
+///
+/// Rust strings cannot contain unpaired UTF-16 surrogates, but every Unicode
+/// scalar has the same width C Tcl assigns it: one Tcl 9 character, and one or
+/// two Tcl 8 `Tcl_UniChar` units depending on whether it is supplementary.
+///
+/// **Counting is the only versioned string operation.** Character *indexing*
+/// (`string index`, `range`, `first`, `last`, …) addresses Unicode scalars in
+/// both runtimes whatever the dialect, so on Tcl 8 a string holding a
+/// supplementary character has a length that disagrees with those indices.
+/// That case is unsupported, deliberately rather than accidentally: reproducing
+/// it needs a value layer that can hold an unpaired surrogate, and anything
+/// less approximates. See the Tcl 8 supplementary-character boundary in
+/// `docs/design/compiler/semantic-aot-optimisation.md`.
+#[must_use]
+pub fn string_char_len(value: &str, version: TclVersion) -> usize {
+    version.string_character_model().count(value)
+}
 
 /// A value-coercion / list-parse failure — the closed set Tcl reports with
 /// canonical messages, independent of any runtime's value or error type.
@@ -151,7 +173,10 @@ pub trait ValueOps {
     /// (`Tcl_GetString`). Always valid UTF-8 — the seam never exposes bytes.
     fn as_str(&mut self, v: &Self::Value) -> Rc<str>;
 
-    /// The character length (`string length` — counts code points, not bytes).
+    /// The character length for this runtime's selected Tcl release.
+    ///
+    /// Stateless adapters default to Tcl 9 scalar counting. Runtime adapters
+    /// with a selectable release override this using [`string_char_len`].
     fn char_len(&mut self, v: &Self::Value) -> usize {
         self.as_str(v).chars().count()
     }
@@ -399,6 +424,13 @@ mod tests {
         assert_eq!(o.char_len(&v), 5);
         let ascii = o.new_str("abc");
         assert_eq!(o.char_len(&ascii), 3);
+    }
+
+    #[test]
+    fn release_length_distinguishes_supplementary_characters() {
+        let value = "A\u{1f600}B";
+        assert_eq!(string_char_len(value, TclVersion::V8_6), 4);
+        assert_eq!(string_char_len(value, TclVersion::V9_0), 3);
     }
 
     #[test]

@@ -1,7 +1,7 @@
 # KCS: O107 — Eliminate unreachable dead code
 
 > **Audience:** User
-> **Type:** Functionality
+> **Type:** Optimisation
 
 ## Applies to
 

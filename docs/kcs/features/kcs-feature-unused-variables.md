@@ -223,26 +223,11 @@ unused / read-before-set hint:
   inlined `eval` body, and names written by an out-var command are all counted
   as uses.
 
-## File-path anchors
-
-- `rust/tcl-compiler/src/analyser/diagnostics/dataflow.rs` — `emit_unused_variable_diagnostics` (W211), `emit_dead_store_diagnostics` (W220), `emit_read_before_set_diagnostics` (W210)
-- `rust/tcl-compiler/src/analyser/diagnostics/helpers.rs` — `globals_written_by_procs` / `globals_read_by_procs` cross-scope global suppression, `build_undef_suppression`
-- `rust/tcl-compiler/src/optimiser/elimination.rs` — `scan_scope_aliases` (upvar/global/variable/trace aliasing), O126/O109 elimination
-- `rust/tcl-compiler/src/connection_scope.rs` — iRules cross-event variable tracking
-- `rust/tcl-lsp-server/src/lib.rs` — `settings_severity_overrides` / `apply_severity_overrides` (per-code severity override)
-
 ## Failure modes
 
 - W211 not emitted when a variable appears used only in unreachable code — SCCP executable-block analysis handles this correctly.
 - O126/O109 remove a `set` whose command substitution had side effects — only pure assignments are eligible for removal.
 - `uplevel 0 {…}` (evaluate in the *current* frame) is treated as a separate frame, so a variable used only inside its body may still be flagged. Rare; tracked as a residual (`uplevel #0` and `uplevel 1` correctly denote a different frame).
-
-## Test anchors
-
-- `rust/tcl-compiler/tests/unused_var_tricky_features.rs` — TP/FP/TN suite across upvar, cross-scope globals, namespaces, TclOO, traces, `eval`, `args`, `::mathop`
-- `rust/tcl-compiler/tests/alias_scoping.rs` — upvar/global/variable aliasing lifecycle
-- `rust/tcl-compiler/src/analyser/diagnostics/fp/{rbs,ds}.rs` — FP precision catalogue for read-before-set / dead-store
-- `rust/tcl-compiler/tests/analyser.rs` — W214 unused parameter tests
 
 ## Discoverability
 

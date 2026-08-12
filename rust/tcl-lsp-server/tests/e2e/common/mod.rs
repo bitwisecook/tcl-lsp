@@ -18,17 +18,17 @@
 
 //! Shared end-to-end harness for the native `tcl-lsp-server` binary.
 //!
-//! The native port of the former `tests/lsp_e2e/` pytest suite. Each test
-//! spawns the real `tcl-lsp-server` binary (via `CARGO_BIN_EXE_tcl-lsp-server`),
-//! talks LSP JSON-RPC to it over stdio, and asserts on the responses — exactly
-//! what an editor does. A background reader thread parses framed messages,
+//! Each test spawns the real `tcl-lsp-server` binary (via
+//! `CARGO_BIN_EXE_tcl-lsp-server`), talks LSP JSON-RPC to it over stdio, and
+//! asserts on the responses — exactly what an editor does. A background reader
+//! thread parses framed messages,
 //! routing responses to blocked requests, buffering notifications (with a
 //! condvar so `await_*` can wait), and auto-answering server-initiated requests
 //! (`workspace/configuration`) so the server never blocks.
 //!
-//! This mirrors `tests/lsp_e2e/harness.py`'s `LspServerClient`: same request /
-//! notify / `open_ready` / `await_diagnostics` / `await_log` contract, same XDG
-//! isolation, same per-section configuration reply.
+//! The client offers a request / notify / `open_ready` / `await_diagnostics` /
+//! `await_log` contract, XDG isolation per server, and a per-section reply to
+//! `workspace/configuration`.
 //!
 //! Not every helper is used by every test file, so `#![allow(dead_code)]` at the
 //! module level keeps unused-in-this-binary helpers from warning (each
@@ -71,7 +71,7 @@ use std::time::{Duration, Instant};
 
 use serde_json::{Value, json};
 
-/// Default per-request timeout, matching the pytest harness (`timeout=30.0`).
+/// Default per-request timeout.
 const DEFAULT_TIMEOUT: Duration = Duration::from_secs(30);
 /// Longer default for `initialize` / `request` without an explicit deadline.
 const REQUEST_TIMEOUT: Duration = Duration::from_mins(1);
@@ -359,9 +359,8 @@ impl LatencyBudget {
 /// integration-test binary (each binary is its own process).
 static URI_COUNTER: AtomicU64 = AtomicU64::new(0);
 
-/// A fresh, unique `file://` URI — the native analogue of pytest's
-/// `uri_factory`. Version-tagged diagnostics never collide because the path is
-/// unique per call.
+/// A fresh, unique `file://` URI. Version-tagged diagnostics never collide
+/// because the path is unique per call.
 pub fn unique_uri(suffix: &str) -> String {
     let n = URI_COUNTER.fetch_add(1, Ordering::Relaxed);
     format!("file:///e2e/{}_{n}.{suffix}", std::process::id())
@@ -370,8 +369,7 @@ pub fn unique_uri(suffix: &str) -> String {
 /// A reproducible `xorshift64*` PRNG — the same generator the `tcl-fuzz` crate
 /// uses (`rust/tcl-fuzz/src/rng.rs`), so seeded stress tests stay deterministic
 /// without pulling the `rand` crate into the workspace. Identical seeds yield
-/// identical streams. The `random`/`randint`/`choice` surface mirrors Python's
-/// `random.Random`, easing ports of seeded pytest fixtures.
+/// identical streams.
 pub struct Rng {
     state: u64,
 }
@@ -484,8 +482,8 @@ pub struct Lsp {
 
 impl Lsp {
     /// Spawn + initialise a server whose `workspace/configuration` reply enables
-    /// only linked editing (the default-editor contract the pytest `lsp_server`
-    /// fixture pins).
+    /// only linked editing — the default-editor contract every plain Tcl test
+    /// runs against.
     pub fn tcl() -> Self {
         Self::with_config(json!({ "features": { "linkedEditingRange": true } }))
     }
@@ -867,7 +865,7 @@ impl Lsp {
 
     /// Open `text` and block until its analysis snapshot is ready, returning the
     /// published diagnostics. Waits on both the version-tagged diagnostics and
-    /// the per-URI `workspace_state.update` log line (see the pytest docstring).
+    /// the per-URI `workspace_state.update` log line.
     pub fn open_ready(&mut self, uri: &str, text: &str) -> Vec<Value> {
         self.open_ready_lang(uri, text, "tcl")
     }
@@ -1587,7 +1585,7 @@ impl Lsp {
     /// this client returns for `workspace/configuration` and notify
     /// `didChangeConfiguration` so the server re-pulls. Returns the resolved
     /// config for `""`. Because each test owns its server, there is no shared
-    /// state to restore (unlike pytest's `config_session`).
+    /// state to restore.
     /// Change what this client answers `workspace/configuration` with, without
     /// telling the server.  For tests that drive the notification themselves —
     /// e.g. a burst, where the point is to count how many pulls the server
@@ -1611,8 +1609,8 @@ impl Lsp {
     }
 
     /// Apply `config`, then poll `getEffectiveConfig` for `settle_uri` until
-    /// `predicate` holds (the deterministic barrier pytest's
-    /// `apply_configuration(settle=...)` provides). Returns the settled config.
+    /// `predicate` holds — a deterministic barrier, so the caller never races
+    /// the asynchronous re-pull. Returns the settled config.
     pub fn apply_configuration_settle(
         &mut self,
         config: Value,

@@ -1,81 +1,96 @@
-# KCS: LSP feature providers (non-diagnostics)
+# LSP feature providers (non-diagnostics)
 
-## Symptom
+What the non-diagnostic language features — hover, completion, rename,
+references, symbols, and semantic tokens — may assume, and where their
+behaviour lives. Read it when one of them regresses even though parsing and
+diagnostics still look correct.
 
-A language feature (hover, completion, rename, references, symbols, semantic tokens, etc.) regresses even though parsing and diagnostics still look correct.
+Feature providers live in `rust/tcl-lsp-core`, one module per feature, and are
+**pure**: they take a document analysis (plus, where needed, the workspace
+index and a registry) and return a result. The transport, the
+`ServerCapabilities` advertised at `initialize`, and every client-specific
+adaptation live in `rust/tcl-lsp-server`
+([project-layout.md](project-layout.md) rule 4).
 
-## Operational context
-
-LSP features are implemented as focused providers under `server/features/`, each consuming shared semantic and compiler facts. Behaviour consistency depends on shared symbol resolution and workspace state.
+That split is what lets the same providers back the LSP, the `tcl` CLI verbs,
+and the MCP tool surface without three copies of the behaviour.
 
 ## Decision rules / contracts
 
-1. Feature providers should consume shared resolution/fact helpers instead of duplicating lookup logic.
-2. Provider responses must be deterministic for unchanged document + workspace state.
-3. Cross-feature behaviour changes should be validated across at least one navigation + one edit feature.
-4. BIG-IP config (`bigip*.conf`) feature overlays must remain context-aware:
-   semantic tokens should add BIG-IP value categories without regressing Tcl tokenisation, and definition should resolve cross-object references via the shared BIG-IP object registry (`dialects/f5/bigip/object_registry.py`) rather than hardcoded per-provider maps.
-5. BIG-IP object and reference mappings are maintained in the in-repo registry catalogue (`dialects/f5/bigip/registry/`) and consumed through the registry facade (`dialects/f5/bigip/object_registry.py`).
-5. Proc-oriented features must use shared proc-reference matching (`analyser/proc_lookup.py`) so definition/references/rename/call hierarchy/signature help stay precedence-consistent.
-6. Package suggestions and iRules event-context inference must use shared helpers (`package_suggestions.py`, `irules_context.py`) to avoid action/command drift and insertion-line regressions.
+1. **Providers consume shared resolution, they never re-derive it.** A
+   provider that needs to know what a call reaches asks the shared resolver,
+   not a local name match — see [command-resolution.md](command-resolution.md)
+   for the algorithm and its consumers, and
+   [cross-file-diagnostics.md](cross-file-diagnostics.md) for the single
+   cross-document lookup (`settle_call_against_workspace`) that navigation and
+   diagnostics both go through. Two lookups is how go-to-definition and W123
+   end up contradicting each other about one name.
+2. **Provider responses are deterministic** for an unchanged document plus
+   workspace state.
+3. A cross-feature change is validated across at least one navigation feature
+   and one edit feature. Rename and find-references in particular must agree
+   on the same site set — a rename that edits ranges references does not
+   report is a corruption, not a cosmetic difference.
+4. **Registry data, never per-provider name lists.** Which commands take
+   bodies, which arguments name variables or commands, which subcommands
+   exist, and which package owns a command are all `CommandSpec` facts. A
+   provider matching on a command name is a review defect.
+5. **BIG-IP overlays stay context-aware.** Semantic tokens add BIG-IP value
+   categories on `bigip*.conf` without regressing Tcl tokenisation, and
+   definition resolves cross-object references through the shared BIG-IP
+   object model (`rust/tcl-bigip`) rather than a per-provider map. The overlay
+   must not activate on ordinary Tcl.
+6. **Shared helpers for shared questions.** Proc-reference matching
+   (`definition::resolve_called_proc`), iRules enclosing-event context
+   (`irules_context.rs`), and package-suggestion ranking
+   (`tcl_compiler::text::rank_containment_suggestions`) each have exactly one
+   implementation, so definition / references / rename / call hierarchy /
+   signature help stay precedence-consistent and code actions rank the same
+   way the server command does.
 
 ## File-path anchors
 
-- `server/features/completion.py`
-- `server/features/hover.py`
-- `server/features/definition.py`
-- `server/features/references.py`
-- `server/features/rename.py`
-- `server/features/_semantic_tokens/`
-- `server/features/call_hierarchy.py`
-- `server/features/document_symbols.py`
-- `server/features/document_links.py`
-- `server/features/folding.py`
-- `server/features/selection_range.py`
-- `server/features/signature_help.py`
-- `server/features/code_actions.py`
-- `server/features/inlay_hints.py`
-- `server/features/workspace_symbols.py`
-- `server/features/symbol_resolution.py`
-- `server/features/package_suggestions.py`
-- `server/features/irules_context.py`
-- `analyser/proc_lookup.py`
-- `dialects/f5/bigip/object_registry.py`
-- `dialects/f5/bigip/registry/data.py`
-- `dialects/f5/bigip/registry/specs/`
+Providers (`rust/tcl-lsp-core/src/`):
+
+| Feature | Module |
+|---|---|
+| completion | `completion.rs`, `snippets.rs` |
+| hover | `hover.rs` |
+| definition / declaration / implementation / type definition | `definition.rs`, `declaration.rs`, `implementation.rs`, `type_definition.rs` |
+| references, rename | `references.rs`, `rename.rs`, `rename_safety.rs`, `namespace_rename.rs`, `linked_editing_range.rs` |
+| symbols | `document_symbols.rs`, `workspace_symbols.rs`, `namespace_symbol.rs` |
+| semantic tokens | `semantic_tokens.rs` |
+| call / type hierarchy | `call_hierarchy.rs`, `type_hierarchy.rs`, `caller_frame.rs` |
+| folding, selection range, document links | `folding.rs`, `selection_range.rs`, `document_links.rs` |
+| signature help, inlay hints, code lens | `signature_help.rs`, `inlay_hints.rs`, `code_lens.rs` |
+| code actions, refactors | `code_actions.rs`, `refactor/`, `file_ops.rs` |
+| formatting, minification | `formatting/`, `minify.rs` |
+| TclOO | `oo_body.rs`, `oo_dispatch.rs` |
+| iRules / BIG-IP | `irules_context.rs`, `irules_object_refs.rs`, `bigip.rs` |
+| workspace state | `workspace_index.rs`, `source_graph.rs`, `package_resolver.rs` |
+
+Transport and wiring: `rust/tcl-lsp-server/src/lib.rs`.
 
 ## Failure modes
 
-- Completion/hover diverge because one provider bypasses shared symbol-resolution rules.
-- Rename updates incomplete ranges while references still resolve correctly.
-- Semantic tokens or symbol providers drift after parser/scope changes.
-- BIG-IP-specific overlays stop activating (or over-highlight unrelated Tcl files).
+- Completion and hover diverge because one provider bypasses the shared
+  resolution rules.
+- Rename updates a range set that find-references does not report.
+- Semantic tokens or symbol providers drift after a parser or scope change.
+- A BIG-IP overlay stops activating, or over-highlights unrelated Tcl.
+- A provider grows a command-name list that the registry already answers.
 
 ## Test anchors
 
-- `tests/test_completion.py`
-- `tests/test_hover.py`
-- `tests/test_definition.py`
-- `tests/test_bigip_object_registry.py`
-- `tests/test_references.py`
-- `tests/test_rename.py`
-- `tests/test_semantic_tokens.py`
-- `tests/test_call_hierarchy.py`
-- `tests/test_document_symbols.py`
-- `tests/test_document_links.py`
-- `tests/test_folding.py`
-- `tests/test_selection_range.py`
-- `tests/test_signature_help.py`
-- `tests/test_code_actions.py`
-- `tests/test_inlay_hints.py`
-- `tests/test_workspace_symbols.py`
-- `tests/test_proc_lookup_lsp_features.py`
-- `tests/test_package_suggestions.py`
-- `tests/test_irules_context.py`
+- Per-provider unit tests co-located in each `tcl-lsp-core` module.
+- `rust/tcl-lsp-server/tests/e2e/` — the over-the-wire suite, one module per
+  feature area.
+- `editors/vscode/src/test/` — the rendered outcome in a real client.
 
 ## Discoverability
 
-- [KCS index](../../../docs/design/README.md)
-- [LSP diagnostics publication](../../../docs/design/contracts/lsp-diagnostics-publication.md)
-- [workspace/indexing contracts](../../../docs/design/contracts/workspace-indexing.md)
-- [shared utility contracts](../../../docs/design/contracts/shared-utility-contracts-rust.md)
+- [Design doc index](../README.md)
+- [LSP diagnostics publication](lsp-diagnostics-publication.md)
+- [workspace/indexing contracts](workspace-indexing.md)
+- [cross-file diagnostics](cross-file-diagnostics.md)
+- [shared utility contracts](shared-utility-contracts-rust.md)

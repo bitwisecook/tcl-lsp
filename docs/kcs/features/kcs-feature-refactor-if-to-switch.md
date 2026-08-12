@@ -77,21 +77,12 @@ The if/elseif chain is collapsed into a `switch -exact` with a `default` clause 
 
 The refactoring parses each branch's test expression looking for `$var eq "value"` or `$var == "value"` patterns. All branches must test the same variable with an equality operator. Branches using `ne` or `!=` are rejected. An `else` clause becomes `default`.
 
-## File-path anchors
-
-- `tooling/refactoring/_if_to_switch.py`
-- `server/features/code_actions.py`
-
 ## Failure modes
 
 - Branches test different variables (returns `None`).
 - Branch uses `ne` / `!=` (returns `None`).
 - Single branch only (returns `None` — not useful as a switch).
 - Complex test expressions beyond simple equality.
-
-## Test anchors
-
-- `tests/test_refactoring.py::TestIfToSwitch`
 
 ## Samples
 

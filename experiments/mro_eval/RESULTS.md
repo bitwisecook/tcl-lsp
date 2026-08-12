@@ -1,7 +1,7 @@
 # mro_eval — TclOO class-lattice dispatch resolver: results
 
 Experiment for the two-halves TclOO model (MRO graph + object→class
-lattice). Design: `docs/design/tcloo-mro-lattice.md`. Prototype:
+lattice). Design: `docs/design/name-resolution.md` §5.6. Prototype:
 `rust/tcl-compiler/src/analyser/class_lattice.rs` (not wired into shipping
 diagnostics). Harness: `rust/tcl-compiler/examples/mro_eval.rs`.
 
@@ -43,7 +43,7 @@ marginal value of each layer.
 
 - **⊤-rate** — `Abstain` sites / all `$obj method` sites. The make-or-break
   number: if it is high, the lattice buys little. Broken down by the ⊤
-  taxonomy (`docs/design/tcloo-mro-lattice.md`).
+  taxonomy (`docs/design/name-resolution.md` §5.6).
 - **Resolution split** — of the *resolved* (non-⊤) sites, `method-known`
   (class + method both found) vs `method-unknown` (class named, method not
   — the W308 candidate).

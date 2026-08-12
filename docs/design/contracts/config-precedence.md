@@ -25,9 +25,12 @@ The merge is per-key inside each section: a higher layer that sets
 `[optimiser] disabled = O109` still inherits `[optimiser] profile =
 readability` from a lower layer.
 
-Implementation: `server/settings.py:_merged_settings`
-calls `merge_settings_layers(global, editor, project)`; the last layer
-wins for any key it sets.
+Implementation: `config_ini::merge_settings`
+(`rust/tcl-lsp-server/src/config_ini.rs`) deep-merges the three layers, later
+winning, sections merged key by key. Each file layer is parsed by
+`settings_from_ini` into the same JSON shape the editor's
+`workspace/configuration` payload has, so `Backend::apply_global_config`
+applies a file layer through exactly the code that applies the editor layer.
 
 ## Why project wins over editor
 
@@ -124,13 +127,11 @@ see it silently ignored because it happens to equal the schema
 default. The least-surprising rule is the declarative one: **higher
 layer wins, full stop.**
 
-The one place we already deviate is `dialect` itself — see
-`_DIALECT_SCHEMA_DEFAULT` and
-[dialect-detection.md](dialect-detection.md). That deviation exists
-specifically because VS Code's per-file workspace-folder echo of the
-schema-default `tcl8.6` was blocking the iRules / iApps file-extension
-auto-switch. It is scoped to one key and one direction, and we have
-no plans to generalise it.
+The one place we deviate is `dialect` itself — see
+[dialect-detection.md](dialect-detection.md). VS Code's per-file
+workspace-folder echo of the schema-default `tcl8.6` would otherwise block the
+iRules / iApps file-extension auto-switch. The deviation is scoped to one key
+and one direction, and is deliberately not generalised.
 
 ## Why the two files have different names
 
@@ -153,10 +154,9 @@ layer it occupies. The cost is a small one-time learning of two
 filenames; the benefit is that "I'll just copy this over" never has
 silent side effects.
 
-Implementation: filename constants live in
-`shared/user_config.py`
-(`_config_path()` → `config.ini`, `PROJECT_CONFIG_FILENAME` →
-`.tcl-lsp.ini`). Do not unify them.
+Implementation: the two paths are resolved by
+`tcl_lsp_core::tcl_install::user_config_path` (→ `config.ini`) and
+`project_config_path` (→ `.tcl-lsp.ini`). Do not unify them.
 
 The same safeguard is applied at the **section** level for top-level
 keys (`dialect`, `extraCommands`, `libraryPaths`):
@@ -168,13 +168,12 @@ keys (`dialect`, `extraCommands`, `libraryPaths`):
 - A `[global]` block in the project file (or `[project]` in the
   global file) is logged at warning level and ignored.
 
-The double safeguard means a user who both copies the file AND
-forgets to rename the section is still caught: the wrong location
-ignores the file, and the wrong section name within the file ignores
-the keys. The implementation lives in
-`shared/user_config.py::get_all_settings`
-behind a `kind` parameter that callers set to `"global"` or
-`"project"` based on which file they loaded.
+The double safeguard means a user who both copies the file AND forgets to
+rename the section is still caught: the wrong location ignores the file, and
+the wrong section name within the file ignores the keys. The implementation is
+`config_ini::Layer`, which the caller sets to `Global` or `Project` from which
+file it loaded; `Layer::top_section` is the only place the two section names
+appear.
 
 ## Escape hatch (not implemented)
 
@@ -195,24 +194,22 @@ which returns the resolved per-folder values the analyser will use
 for a given URI. The server also logs `Loaded user config from <path>`
 and `Loaded project config from <path>` on every load.
 
-**Contract: every value the command reports for a URI resolves through
-the same chain the code acting on that URI uses.** The command is not a
-dump of process-global state — it answers "what is in effect *here*",
-and a client is entitled to treat it as a barrier: once it reports a
-value, a request issued afterwards is answered under that value.
+**Contract: every value the command reports for a URI resolves through the
+same chain the code acting on that URI uses.** The command is not a dump of
+process-global state — it answers "what is in effect *here*", and a client is
+entitled to treat it as a barrier: once it reports a value, a request issued
+afterwards is answered under that value.
 
-The `features` map broke that contract until issue #1295. Each provider
-gate (`Backend::feature_enabled` and its default-off siblings) consults
-the deepest workspace folder containing the URI before falling back to
-the process-global toggles, but the command reported the global map
-alone. In a multi-root workspace a folder-scoped
-`tclLsp.features.*` override was therefore invisible in the report while
-being fully in effect in the behaviour, and a client polling the command
-to know a toggle had landed was waiting on a different fact from the one
-the provider would act on. Both now go through
-`Backend::resolved_feature_toggles`, which is the single place the
-folder-over-global overlay is performed — a folder overrides exactly the
-keys it sets and leaves the rest of the global set alone.
+The `features` map is the one that makes this non-trivial. Each provider gate
+(`Backend::feature_enabled` and its default-off siblings) consults the deepest
+workspace folder containing the URI before falling back to the process-global
+toggles. Reporting the global map alone would make a folder-scoped
+`tclLsp.features.*` override invisible in the report while fully in effect in
+the behaviour — and a client polling the command to learn that a toggle had
+landed would be waiting on a different fact from the one the provider acts on.
+Both therefore go through `Backend::resolved_feature_toggles`, the single
+place the folder-over-global overlay is performed: a folder overrides exactly
+the keys it sets and leaves the rest of the global set alone.
 
 ## Related
 

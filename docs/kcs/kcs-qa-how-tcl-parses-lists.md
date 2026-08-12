@@ -83,5 +83,5 @@ begins on the following line.
 
 - [KCS index](README.md)
 - [KCS: Why does the analyser warn that a variable name is not reachable via $-substitution? (W215)](codes/kcs-diagnostic-w215-variable-name-unreachable-via-substitution.md)
-- [KCS: Tcl 9.0.3 corner cases for variable handling](kcs-tcl-corner-cases.md)
+- [How does Tcl 9 handle variable-name corner cases?](kcs-tcl-corner-cases.md)
 - [Glossary](../GLOSSARY.md)

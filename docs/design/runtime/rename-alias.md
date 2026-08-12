@@ -1,58 +1,82 @@
 # Runtime rename + interp alias
 
-Status: **shipped** in the rename-alias wave.  Extends the namespace
-tree from
-[`namespace-tree.md`](namespace-tree.md) with the Tcl 9 semantics for
-``rename`` and ``interp alias`` (single-interp scope).  Source of
-truth for the C semantics is ``tmp/tcl9.0.3/generic/tclBasic.c``
-(``TclRenameCommand``) and ``tmp/tcl9.0.3/generic/tclInterp.c``
-(``AliasCreate`` / ``AliasDelete``).
+The Tcl 9 semantics for ``rename`` and ``interp alias`` in the WASM runtime
+(`runtime/rust`), built on the namespace tree from
+[`namespace-tree.md`](namespace-tree.md).  Source of truth for the C semantics
+is ``tmp/tcl9.0.3/generic/tclBasic.c`` (``TclRenameCommand``) and
+``tmp/tcl9.0.3/generic/tclInterp.c`` (``AliasCreate`` / ``AliasDelete``).
+
+The command-layer *contract* this implements — and its compiler-side
+consequences — is
+[`../contracts/command-binding-and-aliasing.md`](../contracts/command-binding-and-aliasing.md);
+the static, editor-facing slice is
+[`../contracts/command-alias-resolution.md`](../contracts/command-alias-resolution.md).
 
 ## 1. Scope
 
 In:
 
-- ``rename`` — same-ns, cross-ns, imported-redirect, rename-with-
-  importers, rename-to-empty (delete).
+- ``rename`` — same-ns, cross-ns, rename-of-an-import-source,
+  rename-to-empty (delete).
 - ``interp alias`` — create / query / delete, with frozen prefix
-  args.  Single-interp: target interp path is always ``{}``.
-- Alias dispatch trampoline wired into the proc-first fast path so
-  aliases are transparent to callers.  Resolution is by *stored
-  target name* on each dispatch, anchored at the global namespace
-  — this lazily observes deletion of the target but does NOT
-  follow ``rename`` of the target (the stored name stops
+  args.  The *target* interpreter path must always be ``{}`` (the
+  interpreter running the ``interp alias`` command); a non-empty
+  target path raises ``only single-interp aliases (empty
+  interpreter paths) are supported``.  The *source* path may name a
+  child, which installs a child→parent alias (§4.5).
+- ``interp aliases ?path?`` — every alias command's name in the
+  addressed interpreter.
+- Alias dispatch trampoline wired into the one command-dispatch
+  switch so aliases are transparent to callers.  Resolution is by
+  *stored target name* on each dispatch, anchored at the global
+  namespace — this lazily observes deletion of the target but does
+  NOT follow ``rename`` of the target (the stored name stops
   resolving).  Matches C Tcl's semantics.
 
-Out (deferred):
+Covered by sibling documents:
 
-- Child interpreters + cross-interp aliases (``interp alias child
-  newName parent oldName``).  Needs child-interp infrastructure.
-- ``interp hide`` / ``interp expose``.  Shipped in the
-  command-introspection wave — see
+- Child interpreters and the rest of the ``interp`` ensemble —
+  [`child-interp.md`](child-interp.md).
+- ``interp hide`` / ``interp expose`` —
   [`command-introspection.md`](command-introspection.md).
-- Command trace invalidation on rename — no trace infra yet.
-- Command deletion handlers — same.
+- Command traces firing on rename and delete —
+  [`trace-implementation.md`](trace-implementation.md).
 
-## 2. Command struct reuse
+## 2. The `Command` handle
 
-The existing 40-byte ``Command`` struct in
-`cmd_proc.rs` already
-reserved the ``OFF_PARAMS_OBJ`` slot at offset 12 for type-dependent
-payloads:
+There is no flags word and no type-punned payload slot.  A command
+table entry is the `Command` enum in `interp.rs`, and each redirect
+kind is its own variant carrying exactly the data that kind needs:
 
-| flags                     | params_obj payload            |
-|---------------------------|-------------------------------|
-| (interpreted proc)        | ``TclObj*`` holding params    |
-| ``CMD_IMPORTED`` (0x80)   | ``*ImportedCmdData``          |
-| ``CMD_ALIAS`` (0x100)     | ``*AliasRec``                 |
+| Variant | Payload | Dispatch |
+|---|---|---|
+| `Builtin(BuiltinFn)` | a native Rust fn pointer | call it |
+| `Proc(Rc<ProcDef>)` | params, body, defining `NsId`, FQN, source provenance | push a frame, run the body |
+| `Alias { target, prefix }` | target name + frozen prefix words | §4.2 |
+| `ParentAlias { target, prefix }` | same, but the target runs in the parent interp | §4.5 |
+| `Imported { source }` | the source command's FQN | re-resolve `source` at global, forward argv unchanged |
+| `Ensemble(EnsembleConfig)` | the subcommand map | map `argv[1]` to a target prefix |
+| `ChildInterp(name)` | the child's name | route the subcommand into the child |
+| `OoObject(fqn)` | the object/class FQN | route to `cmd_oo` |
 
-The dispatcher discriminates by ``flags``:
+`Command` is `Clone` but not `Copy`, and that is load-bearing:
+`Namespaces::resolve` hands back a **clone** of the handle, so the
+dispatcher holds no borrow on the command table and a command is free
+to mutate the table it was found in (`rename` inside a proc, an alias
+whose target deletes the alias).
 
-- ``proc_lookup`` unwraps ``CMD_IMPORTED`` to the terminal source
-  Command before returning — imports stay transparent to callers.
-- ``eval_proc_call_bucket`` checks ``CMD_ALIAS`` before falling
-  into the generic proc-body path.  Aliases are NOT unwrapped so
-  queries like ``interp alias {} foo`` can introspect the redirect.
+Two consequences differ from a flags-and-payload layout:
+
+- **Imports are not unwrapped at lookup.**  `resolve` returns the
+  `Imported` handle itself; `Interp::invoke` re-resolves `source`
+  anchored at global on every call and forwards the caller's argv
+  unchanged.  The redirect is transparent to the *caller* but is
+  still a distinct table entry, which is what lets `namespace forget`
+  find it and what lets a source rename retarget it (§3.3).
+- **Aliases are not unwrapped either**, for the same reason plus one
+  more: `interp alias {} foo` has to introspect the redirect, and
+  `alias_info` does exactly that — resolve the name and match
+  `Command::Alias`.
 
 ## 3. ``rename``
 
@@ -60,180 +84,220 @@ The dispatcher discriminates by ``flags``:
 
 | Form                              | Behaviour                                                                                     |
 |-----------------------------------|-----------------------------------------------------------------------------------------------|
-| ``rename old new``                | Move the Command from ``old_ns.cmd_table`` to ``new_ns.cmd_table`` under the simple ``new``.  |
-| ``rename old ""``                 | Delete ``old``.  For ``CMD_IMPORTED`` Commands, also splice out of the source's ImportRef list.  For non-imported Commands, walk the Command's ``import_ref_head`` list and deactivate every redirect. |
-| ``rename foo foo``                | No-op (self-rename).                                                                          |
-| ``rename return X``               | Hardcoded built-in — rejected with ``can't rename "return": built-in command``.               |
+| ``rename old new``                | Move the `Command` out of the namespace where ``old`` *resolves* and insert it under ``new`` (relative to the current namespace, absolute when ``::``-led). |
+| ``rename old ""``                 | Delete ``old``: drop the table entry, tear down a suspended coroutine of that name, remove the command's traces. |
+| ``rename foo foo``                | No-op — remove then reinsert under the same key.                                              |
+| ``rename nosuch x``               | ``can't rename "nosuch": command doesn't exist``.                                              |
 
-### 3.2 Hash-table tombstones
+Any command may be renamed, builtins included: C Tcl has no protected
+list at this layer, and `rename ::return ::myreturn` succeeds on real
+tclsh (8.6.16 / 9.0.4-pinned), so the runtime does not refuse it either.
 
-The runtime's open-addressed hash-table primitive
-doesn't support bucket removal (adding tombstones would require
-probe-chain rewriting).  Both ``rename`` and ``namespace forget``
-use the same trick: keep the bucket populated but zero its
-``OFF_HANDLE`` value, so subsequent ``ns_cmd_find`` calls return 0
-without breaking the probe chain for adjacent entries.
+### 3.2 Where ``old`` and ``new`` resolve
 
-`tcl_ns.ns_cmd_clear` is the
-canonical entry point; ``rename_command`` uses it to retire the
-source name after inserting at the target.
+Both names go through the same written-name split the resolver uses, so
+`rename` retires exactly the binding `resolve` would have hit — not a
+same-namespace guess.  `Namespaces::rename` calls `home_of(current,
+old)` to find the owning namespace and simple key, removes it, then
+splits `new`: absolute when it starts with ``::``, otherwise relative to
+the current namespace, creating any intermediate namespaces on the way.
 
-### 3.3 Compiled-proc caveat (retired)
+One edge case is pinned rather than incidental: a `new` ending in a
+separator run names the empty-string ``{}`` command in the full
+qualifier chain — `rename foo x::` binds ``::x::{}`` and `rename bar ::`
+binds the global ``{}`` command (tclsh 8.6/9.0-pinned, issue #934).
+The command table is a `BTreeMap<Vec<u8>, Command>` per namespace, so
+removal is a real removal; there are no tombstones and no probe chains
+to preserve.
 
-Earlier waves special-cased compiled procs: ``rename_command``
-detected ``func_idx != 0`` and skipped the Command's name-slot
-update so ``tcl_dispatch.dispatch`` could continue reading the
-registration-time export name.  The trade-off was that
-``proc_get_name_ptr`` consumers saw the original name while
-``info commands`` saw the renamed key — a minor parity gap.
+### 3.3 What follows the command
 
-The command-introspection wave replaced the exception with a
-sidecar at ``Command[36..39]`` (``OFF_EXPORT_NAME_BUCKET``):
-``proc_register_compiled`` stashes the registration-time FQN
-there, and the host-bridge dispatcher reads the sidecar first
-(falling back to the live name slot when it's zero).  Rename
-now rewrites the live name slot uniformly for both interpreted
-and compiled procs; the sidecar keeps dispatch anchored.  See
-[`command-introspection.md`](command-introspection.md) §4 for
-the full sidecar contract.
+`Interp::rename_command` is the layer above the table operation, and it
+carries four things across the move:
 
-### 3.4 Built-in protection list
+- **Command traces** fire *before* the mutation (C's `TclRenameCommand`
+  semantics — the command still exists under its old name during the
+  callback), with both names fully qualified: `rename` ops get
+  ``old new``, the delete form gets ``old {}``.  Afterwards the trace
+  list is moved to the new FQN, or dropped on delete.
+- **`namespace import` redirects** are retargeted.  In C an imported
+  command holds the source's command *token*, so renaming the source
+  keeps every import working and `namespace origin` reports the
+  source's **new** name (tclsh 8.6.16 / 9.0.4-pinned).  This runtime
+  stores the source by name, so `Namespaces::retarget_imports` walks
+  the tree and rewrites every `Imported { source }` matching the old
+  FQN.  Deletion is deliberately *not* retargeted: a deleted source
+  leaves the import dangling with ``invalid command name``, also pinned.
+- **Coroutines.**  A `rename $coro {}` runs `cmd_coro::on_command_deleted`
+  first, so the suspended worker is torn down rather than orphaned.
+- **TclOO objects.**  When the OO registry is non-empty, a renamed or
+  deleted object command updates (or is removed from) it.
 
-A small hardcoded set is refused: ``return`` and ``error``.
-Matches the spirit of Tcl 9's ``TclProtectedCommandsList`` without
-wiring trace machinery.  Rationale: tcltest occasionally
-``rename error`` as a local shim — the error message is the most
-user-visible way to surface "we don't support this yet".
+A delete-trace callback may itself delete the command — by deleting the
+object's namespace, say.  C captured the command token before the
+callback, so the deletion still succeeds; the runtime reproduces that by
+treating "existed at entry, gone now, ``new`` empty" as a normal delete
+rather than reporting ``command doesn't exist``.
+
+### 3.4 No protected-command list
+
+`Namespaces::rename` is the pure table operation and refuses nothing.
+The `rename` builtin above it refuses nothing either.  This is the
+tclsh-pinned behaviour described in §3.1: renaming a builtin, including
+``return`` and ``error``, succeeds.  C's ``TclProtectedCommandsList``
+is not mirrored — the pin is the observed tclsh result, not the C data
+structure.
 
 ### 3.5 Invalidation
 
-``ns_cmd_put`` and ``ns_cmd_clear`` each bump the target ns's
-``cmd_ref_epoch`` and cascade through ``path_source_head``, so
-path-based invalidation is covered by the existing P5.3 wiring.
-The proc-lookup LRU in ``cmd_proc.rs`` is additionally wiped
-wholesale on any rename via ``lru_invalidate_all``; this is coarse
-but rename is cold-path enough that the 4-entry wipe is free.
+Nothing to invalidate.  Resolution is a live `BTreeMap` walk on every
+dispatch — there is no per-namespace command-reference epoch, no
+resolver cache, and no proc-lookup LRU in this runtime, so a rename is
+observable on the very next resolve with no bookkeeping.  The one
+cache-shaped structure that does exist is the command-FQN ⇆ `CommandId`
+arena (`InterpState::cmd_arena`), and it is a name interner, not a
+binding cache: ids map to FQNs, and the FQN is re-resolved when a
+`dispatch_id` invokes it.
 
 ## 4. ``interp alias``
 
-### 4.1 AliasRec layout
+### 4.1 The alias record
 
-```
-pub const AliasRec = extern struct {
-    target_name_ptr: u32,   // FQN of target command (heap-copied)
-    target_name_len: u32,
-    n_prefix: u32,
-    prefix_args_addr: u32,  // packed array of TclObj* (u32 each)
-};
+```rust
+Command::Alias {
+    target: Vec<u8>,      // the target command's name, as written
+    prefix: Vec<Vec<u8>>, // the frozen prefix words
+}
 ```
 
-Stored via ``Command.params_obj`` (offset 12).  Flag bit
-``CMD_ALIAS = 0x100`` distinguishes alias redirects from
-``CMD_IMPORTED`` (0x80) and interpreted procs (flags = 0).  The
-0x100 slot was chosen because no C Tcl Command flag occupies it;
-future slots stay free for other redirect types (hide, ensemble,
-…) as we need them.
+That is the whole record.  It is stored in the command table like any
+other binding, via `Namespaces::register`, so a qualified alias name is
+rooted at global and creates its intermediate namespaces; an unqualified
+one binds at global (aliases are interpreter-wide, matching C, which
+registers them in the interp's alias table rather than a namespace).
+
+`Namespaces::alias_names` is what `interp aliases` reads: it scans every
+namespace for `Alias` and `ParentAlias` entries and returns global ones
+under their simple name, namespaced ones fully qualified.
 
 ### 4.2 Dispatch
 
-`tcl_interp.dispatch_alias`
-is called from ``eval_proc_call_bucket`` when a resolved Command
-has ``CMD_ALIAS`` set.  The trampoline:
+`Interp::dispatch_alias` runs when `invoke` matches `Command::Alias`:
 
-1. Synthesises a new argv ``[target_name, *prefix_args, *caller_tail]``.
-2. Caps total length at ``parse.MAX_WORDS`` — overlong argv
-   triggers an explicit error rather than truncation.
-3. Resolves the stored target name on each dispatch, anchored at
-   the global namespace (``TCL_EVAL_INVOKE``-style).  By-string
-   resolution observes *deletion* of the target lazily (next
-   dispatch after ``rename target {}`` raises "unknown command:
-   <target>"), but it does NOT track ``rename`` of the target —
-   the stored name stops resolving once the Command has moved to
-   its new cmd_table key.  Matches C Tcl semantics.
-4. Recurses through ``eval_proc_call_bucket`` with the resolved
-   target bucket, so compiled-proc / host-bridge / interpreted-body
-   paths all work uniformly.
-
-A missing target (deleted after the alias was created) surfaces
-as ``unknown command: <target>`` at dispatch time, matching Tcl's
-"alias is lazily bound" behaviour.  A cleared alias (``AliasRec``
-with ``target_name_len == 0``) surfaces as ``unknown command:
-<alias_name>`` so the failure attributes back to the caller's
-site rather than the alias target.
+1. Resolve the stored `target` **by name, anchored at the global
+   namespace** (`resolve(GLOBAL, target)`), on every dispatch.
+2. On a miss, raise ``invalid command name "<target>"`` — the alias is
+   lazily bound, so a target deleted after the alias was created fails
+   here, and a target *renamed* after the alias was created also fails
+   here, because the stored name simply stops resolving.  Both match C.
+3. Synthesise ``[target, *prefix, *caller_tail]`` as a fresh owned argv
+   (each element `+1`; released as a block after the call).  There is
+   no word-count ceiling — the argv is a `Vec`.
+4. `invoke` the resolved handle.  Alias-of-alias chains fall out
+   naturally: the resolved target may itself be an `Alias`, and the
+   recursion terminates when it resolves to something else.
 
 ### 4.3 Create / query / delete
 
-Built-in dispatcher in ``tcl_interp.eval_interp`` recognises:
+`cmd_alias.rs` implements the ``alias`` and ``aliases`` subcommands of
+the `interp` ensemble; the rest of the ensemble
+(``create``/``eval``/``delete``/``hide``/``expose``/``invokehidden``/…)
+is live too and is documented in [`child-interp.md`](child-interp.md).
 
 | Form                                           | Action                                            |
 |------------------------------------------------|---------------------------------------------------|
-| ``interp alias {} new {} target ?arg…?``       | Allocate AliasRec, insert CMD_ALIAS Command      |
-| ``interp alias {} new``                        | Return ``target ?arg…?`` as a space-separated list |
-| ``interp alias {} new {}``                     | Clear AliasRec + ``ns_cmd_clear`` the slot       |
-| ``interp aliases {}``                          | Tcl list of every ``CMD_ALIAS`` command in the tree |
-
-Other ``interp`` subcommands (``create``, ``hide``, ``expose``,
-``eval``, ``slaves``, …) fall back to the trapping stub in
-``builtins.rs`` (``unsupported command: interp``).
+| ``interp alias {} new {} target ?arg…?``       | Register `Command::Alias`; result is ``new``      |
+| ``interp alias {} new``                        | Result is the ``target ?arg…?`` list; ``alias "new" not found`` if it is not an alias |
+| ``interp alias {} new {}``                     | Delete the binding; empty result                  |
+| ``interp aliases ?path?``                      | Tcl list of every alias name in the addressed interp |
 
 ### 4.4 Performance
 
-Alias dispatch is warm-path (tcltest's cross-test thunks all hit
-it).  Current cost:
+Alias dispatch is warm-path (tcltest's cross-test thunks all hit it).
+The cost is one `resolve` walk to find the target by name, one `Vec`
+build for the synthesised argv, and one `invoke` recursion — the enum
+match that selects the trampoline is free.
 
-- One ``read_i32`` to check ``CMD_ALIAS``.
-- One ``ns_find_command`` walk to resolve the target by name.
-- One ``memcpy`` of caller argv tail into ``new_words``.
-- One recursion into ``eval_proc_call_bucket``.
+By-name resolution on every dispatch is not an oversight to be
+optimised away: it is exactly what makes the alias observe target
+deletion lazily, which is the C semantics.  Any future cached-target
+slot has to be invalidated on every table mutation to stay correct, so
+it is deliberately not taken on speculation.
 
-If ``bench_wasm_runtime.py`` flags the by-name resolution as a
-hotspot, the ``AliasRec`` can grow a cached target-Command slot
-+ ``target_ns.cmd_ref_epoch`` snapshot for O(1) dispatch on the
-fast path.  Not shipped yet — waiting on a real bench regression.
+### 4.5 Child→parent aliases
+
+``interp alias childPath name {} target ?arg…?`` installs a
+`Command::ParentAlias` in the *child*'s table.  `dispatch_parent_alias`
+upgrades the child's `Weak` parent handle, builds the same
+``[target, *prefix, *caller_tail]`` argv, and dispatches it **through
+the parent handle** — a plain nested native call, mirroring C's
+``Tcl_EvalObjv(parentInterp, …)`` on one shared C stack.  The parent's
+result is copied back into the child and the completion code
+propagates.
+
+Two guards sit on that path:
+
+- Invoking a parent alias from the root interpreter (no parent to
+  upgrade) errors with ``cannot invoke a parent alias from the root
+  interpreter``.
+- `CROSS_INTERP_DEPTH` bounds the nesting; exceeding
+  `MAX_CROSS_INTERP_DEPTH` raises ``too many nested cross-interpreter
+  calls``.  The recursion itself is sound by construction — each interp
+  is an `Rc<InterpState>` reached through a cloned handle with
+  per-field interior mutability, so a re-entry shares state rather than
+  aliasing a `&mut` — and the counter only caps native-stack growth.
+
+Two forms are not implemented: querying a child alias
+(``interp alias childPath name`` reports ``querying a child alias is
+not yet supported``), and any non-empty *target* path, which reports
+the ``only single-interp aliases`` error from §1.
 
 ## 5. Compiler surface
 
-The compiler codegen now routes both ``rename`` and ``interp``
-through the eval fallback rather than the pre-wired stub table:
+The compiler has no per-command table entry for ``rename`` or
+``interp``, and no stub that traps them.  Both are ordinary commands
+that reach the runtime through generic dispatch.
 
-- ``rename`` was previously in ``_SCOPE_NOP_COMMANDS`` (compiled as a
-  no-op).  Removed — it now emits an ``eval`` call the runtime
-  handles via the ``rename`` built-in.
-- ``interp`` was previously in ``_CMD_RUNTIME`` pointing at the
-  trapping ``tcl_cmd_interp_cmd`` stub.  Removed — the interpreter's
-  ``interp`` built-in handles the alias forms; other ``interp``
-  subcommands still trap via ``tcl_env_stubs``.
-
-These are the only compiler-side changes in this wave.
+What the compiler does instead is *reason about them*:
+`tcl_compiler::command_binding::scan_module_command_mutations` builds a
+whole-module summary of every command-table transition a script
+performs — ``rename``, ``interp alias``, ``namespace import``, and the
+dynamic forms.  `ModuleCommandMutations::trusts` then gates builtin
+assumptions and `trusts_proc_binding` gates direct procedure calls, per
+name.  A transition with literal arguments distrusts only the names it
+names; an unbounded one sets the wildcard state and distrusts every
+binding, which makes the selector fall back to generic argv dispatch
+against the live runtime table.
 
 ## 6. Test strategy
 
-Three layers, each live:
+Two layers:
 
-1. **Direct runtime tests** exercise the primitives through dedicated
-   WASM exports ``tcl_test_rename`` / ``tcl_test_alias_create``:
-   - `tests/runtime/test_tcl_rename.py`
-   - `tests/runtime/test_tcl_alias.py`
+1. **Unit tests co-located with the implementation** —
+   `runtime/rust/src/cmd_alias.rs`'s own `mod tests` exercises alias create /
+   query / delete and the dispatch trampoline directly against a live
+   interpreter.
+2. **Upstream `.test` coverage** (``rename.test``, the single-interp subset of
+   ``interp.test``) runs through the tcltest harness; where it sits on the
+   capability ladder is [`tcl-test-tiers.md`](tcl-test-tiers.md), and the
+   per-stem numbers are [`rust-vm-tier-parity.md`](rust-vm-tier-parity.md).
 
-2. **End-to-end Tcl → WASM → runtime tests** in
-   `tests/test_wasm_execution.py::TestRenameAndAlias`
-   cover the compile-to-WASM + interpret-at-runtime integration.
+## 7. Implementation map
 
-3. **Upstream tests** (``rename.test``, ``interp.test`` single-
-   interp subset) are out of scope for this wave's initial drop —
-   the direct + E2E layers pin the semantics; upstream coverage
-   is the next natural expansion.
+| Piece | Where |
+|---|---|
+| `rename` and the `interp` ensemble entry point | `runtime/rust/src/cmd_alias.rs` |
+| `Command` enum, `dispatch_alias`, `dispatch_parent_alias`, `rename_command` | `runtime/rust/src/interp.rs` |
+| The table operations (`Namespaces::rename` / `delete` / `register` / `resolve` / `retarget_imports` / `alias_names`) | `runtime/rust/src/namespace.rs` |
+| Command traces fired on rename and delete | `runtime/rust/src/cmd_trace.rs` |
 
-## 7. Ship summary
-
-- Rename + alias logic in ``cmd_misc.rs`` (rename) and
-  ``cmd_alias.rs`` (alias).
-- One extension to ``namespace.rs``: ``ns_cmd_clear`` helper +
-  exposure of ``bump_cmd_ref_epoch`` / ``link_import_ref`` /
-  ``unlink_import_ref``.
-- New flag bit ``CMD_ALIAS = 0x100`` on ``Command``.
-- Wired dispatch trampoline in ``tcl_interp.eval_proc_call_bucket``.
-- Wired ``rename`` / ``interp alias`` built-ins in
-  ``interp.rs``.
-- Compiler fallback updates in
-  ``compiler/codegen/wasm/_imports.py``.
+The bytecode VM (`rust/tcl-vm`) implements the same two commands with a
+comparable `Command` enum (`Alias(Rc<Vec<Value>>)` and a `CrossAlias`
+carrying an `InterpId`), and goes further on two points C Tcl also
+covers: it refuses a rename onto an existing name
+(``can't rename to "X": command already exists``), and it runs C's
+``TclPreventAliasLoop`` check on both alias creation and rename,
+restoring the command under its old key when the move would close an
+alias cycle.  It also re-homes a renamed proc — the `ProcDef`'s
+namespace and name follow the move, so ``namespace current`` inside the
+body reports the destination.

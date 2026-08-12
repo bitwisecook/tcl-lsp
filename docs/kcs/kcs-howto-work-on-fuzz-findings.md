@@ -1,111 +1,94 @@
-# KCS: How do I work on a differential-fuzzer finding?
+# KCS: How do I triage and fix a differential-fuzzer finding?
 
 > **Audience:** Contributor
 > **Type:** How-To
 
 ## Applies to
 
-Claude skill
+tcl-lsp CLI
 
 ## Question
 
-The differential fuzzer has recorded a divergence. How do I triage it,
-fix it, and confirm it is gone?
+The differential fuzzer recorded a divergence between two engines. How do
+I decide whether it is a real bug, find the root cause, fix it in the
+right layer, and confirm it is closed?
 
 ## Before you start
 
-The fuzzer is the `tcl-fuzz` crate, driven with
-`cargo run -q -p tcl-fuzz -- <command>`. It runs each generated Tcl
-program through a **pair** of engines and records every divergence. The
-engines are `tclvm` (our bytecode virtual machine), `tclsh` (a reference C
-Tcl interpreter on your `PATH`), and `runtime-rust` (the tree-walking
-interpreter under `runtime/rust`). The default pair is `tclvm` as subject
-against `tclsh` as reference.
-
-Findings live under `fuzz-findings/` by default (`--findings DIR` moves
-it). Each is one JSON record plus the generated script, keyed by the seed
-that produced it, so any finding replays exactly. A non-default pair is
-namespaced in its own sub-directory, so two pairs never collide on a seed.
-
-The `fuzz-findings` Claude skill wraps all of this and is the quickest way
-to drive it.
+- The fuzzer lives in `rust/tcl-fuzz`. Build it once with
+  `cargo build -p tcl-fuzz`.
+- A reference `tclsh` on your `PATH`, at a version that matches the
+  engine you are testing.
+- The `fuzz-findings` skill drives the tool for you and carries the full
+  command reference, including how to build the `runtime-rust` engine.
 
 ## Answer
 
-### 1. See what has diverged
-
-```bash
-cargo run -q -p tcl-fuzz -- summary
-```
-
-The summary groups the registry by category: `stdout_mismatch` (the
-engines printed different output), `status_mismatch` (they disagreed on
-whether the script failed), `error_text_mismatch` (both failed but worded
-it differently — only recorded when a campaign passes
-`--compare-error-text`), and `timeout` (the subject hung).
-
-### 2. Replay the seed
-
-```bash
-cargo run -q -p tcl-fuzz -- replay 1772893252
-```
-
-This regenerates the script and prints both engines' stdout and stderr
-side by side. Add the same `--subject` and `--reference` the finding was
-recorded under if it did not come from the default pair.
-
-### 3. Rule out a version difference before anything else
+### 1. Check the versions before you believe the finding
 
 A divergence is evidence of a bug **only when both engines speak the same
-release of Tcl**. Tcl 9.0 added string-comparison operators and several
-maths functions that 8.6 rejects outright, and it removed a namespace
-variable fallback that 8.6 had. Each finding records both engines'
-versions and a skew flag, and every campaign prints the two releases
-before it starts. Treat every finding from a skewed run as suspect until
-the version difference is ruled out.
+version of Tcl**. `lt`/`gt`/`le`/`ge`, `isfinite()`/`isinf()`/`isnan()`,
+and the namespace-scope global fallback for relative variable names all
+differ deliberately between 8.6 and 9.0. Every campaign prints both
+engines' releases before it starts and warns when they differ, and every
+finding records the reference version, the subject version, and whether
+they were skewed. Read those first.
 
-To run version-matched against an older reference, pin the subject with
-`--subject-tcl-version`. Only the engines that accept a version flag can
-be pinned; pinning any other subject is refused rather than silently
-ignored.
+### 2. Classify by category
 
-### 4. Fix it as early in the pipeline as you can
+A finding's category is the verdict that produced it:
 
-A fault caught while compiling is better than one that only appears when
-the script runs, because the user sees it in the editor immediately. Work
-outwards from the earliest stage that could have caught it: structural
-rejection during [lowering](../GLOSSARY.md), then a diagnostic so the
-language server reports it, then the runtime check in the command
-implementation. Not every fix needs all three, but a
-statically detectable structural error should always also produce a
-diagnostic.
+| Category | Meaning | What it usually means |
+|---|---|---|
+| `stdout_mismatch` | The engines produced different output | A real semantic divergence — trace it. |
+| `status_mismatch` | The engines disagreed on error versus success | The subject is too permissive or too strict. |
+| `error_text_mismatch` | Both errored, but the stderr text differed | Only recorded on request; often just wording. |
+| `timeout` | The subject hung | Expensive input, or a genuine non-termination. |
 
-### 5. Confirm the fix, then pin it
+### 3. Replay the seed to get a minimal reproducer
 
-There is no "fixed" flag in the registry. A finding is fixed when its seed
-stops reproducing, so rebuild and replay it — the engines should now
-agree:
+Findings are keyed by their generating seed, so they replay exactly.
+Replay prints both engines' output side by side including stderr. Cut the
+script down to the smallest expression or command that still diverges.
 
-```bash
-cargo build -p tcl-vm
-cargo run -q -p tcl-fuzz -- replay 1772893252
-```
+### 4. Verify what C Tcl actually does
 
-Then add a regression test in the crate that owns the fix, using the
-minimal reproducer rather than the whole generated script, and name the
-seed in a comment so the next reader can replay it.
+Use the `test-results` skill to look up the reference tests for the
+command family, and search the upstream test sources under `tmp/` for the
+exact error message text you are trying to match.
+
+### 5. Fix as early in the pipeline as possible
+
+A bug caught while analysing is better than one that only surfaces at run
+time, because the user gets the feedback in the editor before running
+anything. In order of preference:
+
+1. **Lowering.** Reject a malformed structure so nothing downstream sees
+   it.
+2. **Diagnostics.** Report the same structure as an error, so the editor
+   shows a squiggle.
+3. **The runtime.** Validate at run time so the engine rejects it too,
+   with the error message C Tcl uses.
+
+Not every fix needs all three layers. But if a structural error is
+statically detectable, it **must** also produce a diagnostic.
+
+### 6. Pin it with a regression test
+
+Add a test next to the code you changed, naming the seed it came from, and
+assert the error message text — not just that an error occurred. Matching
+C Tcl's wording is the point.
 
 ## How to tell it worked
 
-`replay` prints no divergence, and a fresh campaign over the same pair
-does not record the seed again:
-
-```bash
-cargo run -q -p tcl-fuzz -- run --iterations 5000 --verbose
-cargo run -q -p tcl-fuzz -- summary
-```
+Replay the seed. The two engines agree, and the finding no longer
+reproduces. There is no separate "fixed" flag to set: the registry
+de-duplicates by seed, and a finding is closed when its seed stops
+diverging.
 
 ## Related
 
 - [KCS index](README.md)
 - [Glossary](../GLOSSARY.md)
+- [How do I run the C tcltest suite through the bytecode VM?](kcs-howto-run-tcltest-bundles.md)
+  — the systematic parity sweep the fuzzer complements.

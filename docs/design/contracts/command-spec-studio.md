@@ -57,7 +57,7 @@ review habit.
 
 ### Invariant: the schema covers every spec field
 
-`tests/schema_coverage.rs` reads `tcl-registry/src/spec.rs` at compile time
+`rust/tcl-spec-studio/tests/schema_coverage.rs` reads `tcl-registry/src/spec.rs` at compile time
 (via `include_str!`), extracts the field list from the `CommandSpec::DEFAULT`
 and `SubCommand::DEFAULT` initialisers, and compares it against the schema in
 both directions. A field added to the registry without a schema entry fails
@@ -161,11 +161,11 @@ box in that row rather than an entry under Advanced, and its
 `__unrenderable` key is `draft::OPTION_HOOK_KEY` (`options.arity_hook`)
 instead of a field name. Both the form's warning list and the renderer's
 `TODO` resolve that key against the `options` array, so they name the exact
-options still missing a hook — `return`'s `-errorstack` is the registry's
-live example — and both clear once every hook holds an expression. Before
-this, the whole `options` field was reported unreadable even though only one
-option's arity was, and the note could never clear because the filled-in
-check only understood string-valued fields.
+options still missing a hook — `return`'s `-errorstack` is the registry's live
+example — and both clear once every hook holds an expression. Reporting the
+whole `options` field as unreadable instead would be wrong (only one option's
+arity is) and the note could never clear, because a filled-in check that only
+understands string-valued fields never sees the hook arrive.
 
 ## Renderer contract
 
@@ -194,7 +194,7 @@ Four rules the output must satisfy, each of which a real bug violated:
 
 ### Verifying the output compiles
 
-`tests/render_sweep.rs` renders every command in every browsable dialect and
+`rust/tcl-spec-studio/tests/render_sweep.rs` renders every command in every browsable dialect and
 asserts the structural invariants. Those assertions cannot prove the result is
 valid Rust — all four bugs above passed them. The real check is to render the
 specs into the registry and build it; the procedure is documented at the top
@@ -249,12 +249,10 @@ step with the registry, and
 studio's descriptive catalogue covers exactly the registry's declared flags,
 in order.
 
-This previously needed a workaround. `Traits` was a `bitflags` `u64` holding
-65 flags, with `SAFE_INTERP_HIDDEN` and `TRANSFERS_CONTROL` both spelled
-`1 << 61` — the same flag at run time (issue #1031) — so `trait_keys` had to
-deduplicate by bit *value* to avoid rendering a spec that claimed a trait its
-author never set. The registry now derives each bit from an enum discriminant,
-so two flags cannot share one and the deduplication is gone.
+Each trait bit is derived from an enum discriminant, so two flags cannot
+collide on one bit and `trait_keys` needs no deduplication by bit value — a
+hand-numbered `1 << N` table can silently give two traits the same bit, and the
+studio would then render a spec claiming a trait its author never set.
 
 ## Publishing
 

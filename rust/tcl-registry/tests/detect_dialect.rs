@@ -16,8 +16,7 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! Port of `tests/test_detect_dialect.py` — content-based dialect detection
-//! (`compiler.registry.dialect.detect_dialect_from_source`).
+//! Content-based dialect detection (`detect_dialect_from_source`).
 //!
 //! Detection priority: `# tcl-dialect:` directive (first 5 lines) > shebang
 //! (first line) > `package require Tcl <x.y>` (first 30 lines). All assertions
@@ -115,7 +114,7 @@ fn directive_beyond_scan_window() {
     assert_eq!(detect(&s), None);
 }
 
-// --- extra coverage beyond the pytest: package-require path + shebang edges ---
+// --- package-require path + shebang edges ---
 
 #[test]
 fn package_require_tcl_version() {

@@ -1,59 +1,96 @@
-# KCS: Command registry and event model contracts
+# Command registry and event model contracts
 
-## Symptom
+What `rust/tcl-registry` declares and who depends on it: command signatures,
+dialect availability, argument roles, event validation and flow metadata, and
+type/taint hints. The analyser, the optimiser, the runtimes, the LSP
+providers, and the CLI/MCP surfaces all read the same specs, so a command this
+layer calls unknown is unknown everywhere, and an event-ordering fact it gets
+wrong drifts through every consumer at once.
 
-Known commands/events are flagged as unknown (or vice versa), event ordering checks drift, or command metadata-dependent features regress.
+Specs are organised as per-dialect packs under
+`rust/tcl-registry/src/commands/`: `tcl`, `stdlib`, `tcllib`, `tk`, `itcl`,
+`expect`, `irules`, `iapps`, `bpf`, `ticklecharts`, and `argparse`.
 
-## Operational context
-
-`rust/tcl-registry/` is the central contract layer for command signatures, dialect roles, event validation/flow metadata, and type/taint hints consumed across analysis and LSP features. Command knowledge lives on `CommandSpec` (and its attached descriptor types); the iRules event, profile, and protocol-namespace graphs live alongside it in the same crate.
+`sdc_base` and the five EDA vendor libraries are **not** among them: they ship
+as bundled `.tclspec` loadables under `specs/`, loaded by `tcl-spectcl` and
+layered into the per-profile registry at workspace scope
+([spec-packs.md](../spec-packs.md), [eda-library-packages.md](../eda-library-packages.md)).
+The contracts below apply to a loaded pack's specs exactly as they do to a
+compiled-in one — the loader builds the same `CommandSpec`.
 
 ## Decision rules / contracts
 
-1. Command metadata belongs on `CommandSpec` and the registry's lookup layer, not in scattered hardcoded sets. A consumer that needs a new fact about a command gets a new spec field (or a typed hook ID it can dispatch on), never a `match cmd_name { … }` arm.
-2. Event validity/ordering rules should be centralized in the event registry and flow-chain definitions.
-3. Consumers should query registry APIs rather than duplicating command/event classification logic.
-4. Parser/recovery known-command lookups must go through the shared helper in the analyser (`recovery_known_commands`, returning a `RecoveryKnownCommands`), which unions `CommandRegistry::command_names()` with the document's own definitions and the caller-supplied extra-command set. Dialect-agnostic existence questions use `CommandRegistry::known_in_any_dialect`, which is built from the same per-pack spec functions the registry itself loads.
-5. When BIG-IP source data introduces profile aliases (`MSSQL`, `RADIUS_AAA`, `SIPSESSION`, `DIAMETERSESSION`, etc.), keep the shared profile/event/namespace tables aligned rather than hardcoding alias fixes in a consumer.
-6. `VALID DURING` in BIG-IP command manpages is the source of truth for iRules command legality; avoid synthetic profile requirements unless some event in the shared model can actually satisfy them.
-7. Utility/control iRules prefixes (`ILX`, `CRYPTO`, `X509`, `PROFILE`, etc.) still need `ProtocolNamespaceSpec` entries even when they are not profile-backed; represent them with an empty `profiles` set instead of leaving the namespace table incomplete.
-8. `ProfileRegistry::expand_profile_stack` must round-trip every registered `ProfileSpec`; shared TLS helpers such as `PERSIST` belong in a shared TLS bucket instead of being dropped from the effective stack.
-9. When a protocol namespace is profile-backed and all of its enabling profiles share one layer or side, keep `ProtocolNamespaceSpec.layer` and `ProtocolNamespaceSpec.side` aligned with that profile metadata.
+1. **Command metadata lives on the `CommandSpec`, never in a scattered
+   hardcoded set.** Arity, subcommands, options, argument roles, traits,
+   lifecycle, owning package, shimmer hints, and side effects are all spec
+   fields. A consumer matching on a command name is a review defect — the fix
+   is to add or extend the declaration.
+2. **Event validity and ordering are centralised** in the event registry and
+   its flow definitions (`events.rs`, `event_facts/`), not re-derived per
+   consumer.
+3. Consumers query registry APIs rather than duplicating classification
+   logic. `CommandRegistry` owns lookup, dialect masking, and visibility;
+   `ProfileQueries` owns profile-aware availability
+   ([namespace-model.md](namespace-model.md)).
+4. **`VALID DURING` in the BIG-IP command manpages is the source of truth**
+   for iRules command legality. Do not invent a synthetic profile requirement
+   that no event in the shared model can actually satisfy.
+5. When BIG-IP source data introduces a profile alias (`MSSQL`, `RADIUS_AAA`,
+   `SIPSESSION`, `DIAMETERSESSION`, …), align the shared profile / event /
+   namespace tables rather than patching the alias in one consumer.
+6. **Every protocol-namespace prefix gets a row**, including the ones that are
+   not profile-backed (`ILX`, `CRYPTO`, `URI`, `X509`, `PROFILE`, …), with an
+   empty `profiles` set. An absent row and an unconditionally-available row
+   are different facts.
+7. Where a protocol namespace is profile-backed and all its enabling profiles
+   share one layer or side, keep `ProtocolNamespaceSpec`'s `layer` and `side`
+   aligned with that profile metadata.
+8. **Spec data is reload-safe.** A spec describes a command; it does not reach
+   into compiler internals such as codegen or the optimiser
+   ([project-layout.md](project-layout.md) rule 3).
+9. **The registry is both the generator of test inputs and the oracle for the
+   expected outputs** — see [registry-contract-tests.md](registry-contract-tests.md).
 
 ## File-path anchors
 
-- `rust/tcl-registry/src/spec.rs` — `CommandSpec`, `SubCommand`, `OptionSpec`
-- `rust/tcl-registry/src/registry.rs` — `CommandRegistry` and its query surface
-- `rust/tcl-registry/src/commands/` — the per-dialect spec packs
-- `rust/tcl-registry/src/arity.rs`, `arg_role.rs`, `forms.rs` — signature shape
-- `rust/tcl-registry/src/events.rs` — `EventRegistry`, `EventProps`, `FlowChain`, `EventRequires`
-- `rust/tcl-registry/src/event_facts/` — generated event fact tables
-- `rust/tcl-registry/src/profiles.rs` — `ProfileSpec`, `ProtocolNamespaceSpec`, `StackModification`, `ProfileRegistry`
-- `rust/tcl-registry/src/taint.rs` — taint colours and transforms
-- `rust/tcl-registry/src/types.rs` — the type lattice hints specs carry
-- `rust/tcl-compiler/src/analyser/utils.rs` — `recovery_known_commands` / `RecoveryKnownCommands`
+- `rust/tcl-registry/src/spec.rs` — `CommandSpec`, `SubCommand`, and the
+  nested descriptor types.
+- `rust/tcl-registry/src/registry.rs`, `command_table.rs`,
+  `command_snapshot.rs` — lookup, masking, visibility, snapshots.
+- `rust/tcl-registry/src/commands/` — the per-dialect spec packs.
+- `rust/tcl-registry/src/dialects.rs`, `version.rs`, `version_range.rs`,
+  `lifecycle.rs` — dialect and release-axis gating.
+- `rust/tcl-registry/src/arg_role.rs`, `traits.rs`, `arity.rs`, `forms.rs`,
+  `hover.rs` — the per-argument and per-command vocabularies.
+- `rust/tcl-registry/src/events.rs`, `event_facts/`,
+  `event_descriptions.rs` — the iRules event model.
+- `rust/tcl-registry/src/profiles.rs`, `profile_queries.rs`,
+  `profile_defaults/` — profiles and protocol namespaces.
+- `rust/tcl-registry/src/taint.rs`, `types.rs` — taint and type hints.
+- `rust/tcl-registry/src/stub_overlay.rs` — the per-document user-stub overlay
+  ([dialect-stubs.md](dialect-stubs.md)).
 
 ## Failure modes
 
-- Per-feature hardcoded command lists diverge from registry truth.
-- Event flow diagnostics regress after event-chain updates without central validation.
-- Registry hint changes (taint/type) unintentionally alter downstream diagnostics.
+- A per-feature hardcoded command list diverging from registry truth.
+- Event-flow diagnostics regressing after an event-chain update, because the
+  change bypassed central validation.
+- A taint or type hint change silently altering downstream diagnostics.
+- A protocol namespace left out of the table entirely, so its commands read as
+  unknown rather than unconditionally available.
 
 ## Test anchors
 
-- `rust/tcl-registry/tests/registry_commands.rs` — curated, C-Tcl-anchored command/dialect/subcommand facts
-- `rust/tcl-registry/tests/registry_sweep.rs` — broad accessor/data sweep over every command in every dialect plus the BIG-IP object specs
-- `rust/tcl-registry/tests/dialect_profile.rs` — dialect profile and event/profile graph behaviour
-- `rust/tcl-compiler/src/analyser/irules_event_checks.rs` — iRules event-scoping and ordering diagnostics (IRULE1001 / IRULE1002) and their unit tests
-- `rust/tcl-compiler/tests/irules_spec_examples_self_consistent.rs` — every iRules spec's own examples analysed clean
-- `rust/tcl-compiler/tests/irules_event_context.rs` — event-context threading through the analyser
-- `rust/tcl-compiler/tests/recovery_positions.rs` — the recovery paths that consume the known-command helper
+- `rust/tcl-registry/tests/registry_commands.rs` — presence and shape of every
+  declared command.
+- `rust/tcl-registry/tests/registry_sweep.rs` — the registry-wide sweep.
+- `rust/tcl-compiler/tests/checks.rs` — analyser behaviour driven by spec data.
 
 ## Discoverability
 
-- [KCS index](../../../docs/design/README.md)
-- [Command registry field reference](../../../docs/design/compiler/command-registry.md)
-- [Registry contract tests](../../../docs/design/contracts/registry-contract-tests.md)
-- [LSP feature providers](../../../docs/design/contracts/lsp-feature-providers.md)
-- [shared utility contracts](../../../docs/design/contracts/shared-utility-contracts-rust.md)
-- [compiler pass/fact ownership matrix](../../../docs/design/compiler/pass-fact-ownership-matrix.md)
+- [Design doc index](../README.md)
+- [command registry field reference](../compiler/command-registry.md)
+- [registry contract tests](registry-contract-tests.md)
+- [namespace models per dialect](namespace-model.md)
+- [command spec studio](command-spec-studio.md)
+- [shared utility contracts](shared-utility-contracts-rust.md)

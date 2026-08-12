@@ -1,7 +1,7 @@
 # KCS: O101 — Fold constant integer expressions
 
 > **Audience:** User
-> **Type:** Functionality
+> **Type:** Optimisation
 
 ## Applies to
 

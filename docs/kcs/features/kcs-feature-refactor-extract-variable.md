@@ -50,20 +50,11 @@ The `[string totitle $name]` expression is extracted into `$title`, and the orig
 
 The refactoring inserts a `set var expr` line before the line containing the selection, then replaces the selected span with `$var`. Edits are applied bottom-to-top by offset so the insertion does not shift the replacement position.
 
-## File-path anchors
-
-- `tooling/refactoring/_extract_variable.py`
-- `server/features/code_actions.py`
-
 ## Failure modes
 
 - Extracting an expression with side effects changes evaluation order.
 - Selection spans multiple statements (returns `None`).
 - Empty or whitespace-only selection (returns `None`).
-
-## Test anchors
-
-- `tests/test_refactoring.py::TestExtractVariable`
 
 ## Samples
 

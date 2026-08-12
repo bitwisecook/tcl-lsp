@@ -30,9 +30,9 @@
 //! it does not handle, so the caller falls back (and owns the unknown-subcommand
 //! message, whose option list differs per runtime).
 //!
-//! Sharing also fixed a VM bug: `array unset a` with no pattern must remove the
-//! **whole array** (not iterate-and-unset each element, which left an empty
-//! array behind).
+//! `array unset a` with no pattern removes the **whole array** — not
+//! iterate-and-unset over each element, which would leave an empty array
+//! behind.
 //!
 //! Semantics verified against tclsh 9.0.
 

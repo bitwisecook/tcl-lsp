@@ -98,8 +98,7 @@ impl Root {
     }
 
     /// Build a BIG-IP-backed root — `.` resolves to the synthetic
-    /// `<root>` container over the parsed *config*. Port of the BIG-IP
-    /// branch of `values.Root`.
+    /// `<root>` container over the parsed *config*.
     #[must_use]
     pub fn bigip(
         uri: impl Into<String>,

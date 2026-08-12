@@ -1,7 +1,7 @@
 # KCS: O109 — Eliminate dead stores
 
 > **Audience:** User
-> **Type:** Functionality
+> **Type:** Optimisation
 
 ## Applies to
 

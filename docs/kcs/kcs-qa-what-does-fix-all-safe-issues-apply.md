@@ -28,11 +28,9 @@ The four classes are:
 | **Style-only** | Changes only the spelling a person reads. | No |
 | **Requires review** | A suggestion whose correctness depends on something the analyser could not check. | No |
 
-The command used to work from a list of diagnostic codes — `W100`, `W110`,
-and a few others — and applied their first fix without checking anything.
-That promised a guarantee it did not deliver, because the same code produces
-an equivalent rewrite in one place and a behaviour-changing one in the next.
-Under real Tcl 9:
+The class is decided per occurrence rather than per diagnostic code, because
+the same code produces an equivalent rewrite in one place and a
+behaviour-changing one in the next. Under real Tcl 9:
 
 ```tcl
 set a {$x}
