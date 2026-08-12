@@ -60,7 +60,14 @@
 //! ## Corpus
 //!
 //! `samples/` is the in-repo corpus: 81 `.tcl` files and 15 `.irul` iRules. A
-//! pack takes the corpus files that textually mention one of its commands. For
+//! pack takes the corpus files that mention one of its commands — a
+//! **word-boundary text match**, not resolution, so a vendor pack owning a
+//! short generic name (`eda_mentor`'s `run`, `add`) picks up sample files that
+//! merely contain the word. That over-selects rather than under-selects, which
+//! is the safe direction for a harness whose job is to run the analyser over
+//! more code, not less; the `corpus` column is therefore an upper bound on
+//! genuinely relevant files, and the per-pack list below the table names every
+//! one so the claim can be checked. For
 //! a pack whose commands appear nowhere — every EDA vendor pack, and every
 //! external draft — the harness **synthesises** an exercising call per command
 //! from that command's own arity and argument roles, and the report says how
@@ -299,19 +306,13 @@ fn mentions(text: &str, name: &str) -> bool {
         return false;
     }
     let bytes = text.as_bytes();
+    // `::` is part of a command name, so `struct::tree` must not be found
+    // inside `struct::treeql`; `_` and alphanumerics are the rest of a name.
     let boundary = |byte: u8| !(byte.is_ascii_alphanumeric() || byte == b'_' || byte == b':');
-    let mut from = 0usize;
-    while let Some(offset) = text[from..].find(name) {
-        let start = from + offset;
-        let end = start + name.len();
-        let before_ok = start == 0 || boundary(bytes[start - 1]);
-        let after_ok = end == bytes.len() || boundary(bytes[end]);
-        if before_ok && after_ok {
-            return true;
-        }
-        from = start + 1;
-    }
-    false
+    text.match_indices(name).any(|(start, matched)| {
+        let end = start + matched.len();
+        (start == 0 || boundary(bytes[start - 1])) && (end == bytes.len() || boundary(bytes[end]))
+    })
 }
 
 // ---------------------------------------------------------------------------
@@ -865,7 +866,8 @@ const BASELINE_HEADER: &str = "\
 #
 #     <pack file>\\t<severity>\\t<context>\\t<message>
 #
-# tab-separated, sorted, one line per occurrence. `tests/spec_corpus.rs`
+# tab-separated, sorted, one line per occurrence — 49 of them today, in four
+# groups. `tests/spec_corpus.rs`
 # compares the notices of every pack against this file as a multiset and fails
 # on any difference in either direction, so a notice that gets fixed must also
 # be deleted from here — the baseline cannot silently rot into a wildcard.
@@ -877,7 +879,7 @@ const BASELINE_HEADER: &str = "\
 # `docs/design/spec-dsl-examples/`, and each is a known, named gap rather than
 # a defect:
 #
-#   `unknown property `object_class` dropped` (11 lines, all four external
+#   `unknown property `object_class` dropped` (13 lines, all four external
 #       drafts) — a REAL LOADER GAP, and the most useful thing this baseline
 #       records. `object_class NAME ?-superclass {…}? ?-allow-unknown?
 #       { method … }` is ratified vocabulary: it is in the frozen syntax
@@ -896,7 +898,7 @@ const BASELINE_HEADER: &str = "\
 #       A marked invention, dropped exactly as the compatibility policy
 #       promises.
 #
-#   `names a lowering hook` / `names a codegen hook` (5, the `foreach`, `if`,
+#   `names a lowering hook` / `names a codegen hook` (6, the `foreach`, `if`,
 #       `return`, `switch` and `upvar` ports) — deliberate. A pack naming a
 #       *native* lowering or codegen hook changes how the compiler translates a
 #       command, so the loader warns and installs it anyway. These five ports
@@ -904,7 +906,7 @@ const BASELINE_HEADER: &str = "\
 #       private pack getting the same warning is being told something true.
 #
 #   ``state_transitions` row … is not yet loadable` /
-#   ``world_effects` row … is not yet loadable` (24, the `oo-class` and `upvar`
+#   ``world_effects` row … is not yet loadable` (27, the `oo-class` and `upvar`
 #       ports) — the loader's own words. Those two descriptor families are the
 #       named, still-unimplemented tail of the schema; the ports transcribe
 #       them because the ports were written against the *design*, and the

@@ -385,8 +385,9 @@ Two things it found on its first run, both now true rather than claimed:
   `tcl-spectcl/src/loader.rs` — so all four external drafts lose their
   handle-returning factories' method tables at load, with a notice each.
   Nothing under `specs/` uses the statement, which is how the gap survived
-  the EDA migration. It is the largest remaining loader gap and is recorded,
-  with its eleven notices, in the harness's baseline.
+  the EDA migration. Its thirteen notices are recorded in the harness's
+  baseline, alongside the twenty-seven for the `state_transitions` /
+  `world_effects` rows the loader already says are "not yet loadable".
 - **A pack could abort the analyser through declarative data alone.**
   `command_table_effect CreatesAliases` describes `interp alias`'s word
   grammar and the shipped registry stamps it on that subcommand; the tcllib
