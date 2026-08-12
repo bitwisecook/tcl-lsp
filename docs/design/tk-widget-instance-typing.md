@@ -372,13 +372,13 @@ following are explicit non-goals, not accidental gaps:
 
 ## Consumer summary
 
-| Consumer | Bareword | `$var` (constructor return) | Registry-class rendering |
+| Consumer | Bareword (`ttk::treeview .t` → `.t instate`) | `$var` (constructor return) | Registry-class rendering |
 |---|---|---|---|
-| go-to-definition / references | already worked (existing `receiver_instance_class`) | already worked (`registry_factory_class_from_subst` was already generic) | n/a (jumps to registry doc, not source) |
-| hover | already resolved the receiver; needed a registry fallback (item 5) | same | item 5 |
-| semantic tokens | new bareword arm (item 4) | already worked via `object_types.rs`'s existing generic `creates_instance_at` read | already worked (`registry.instance_method`) |
-| completion | new (item 6) | new (item 6) | new (item 6) |
-| diagnostics (W001/E002/E003) | new (item 7), whole-file + collision-safe (item 8) | new (item 7), same | new (item 7) |
+| go-to-definition / references | `receiver_instance_class` | `registry_factory_class_from_subst` | n/a — jumps to the registry doc, not to source |
+| hover | `receiver_instance_class`, then `obj_method_hover_text` | same | `registry.instance_method` fallback (item 5) |
+| semantic tokens | `TokenType::Esc` arm of `insert_object_method_overrides` (item 4) | `object_types.rs`'s generic `creates_instance_at` read | `registry.instance_method` |
+| completion | `receiver_instance_class_at` → `method_completions` (item 6) | same | `registry_method_items` fallback inside `method_items` |
+| diagnostics (W001/E002/E003) | `widget_command.rs`, whole-file + collision-safe (items 7–8) | same | same |
 
 ## Testing
 
@@ -395,13 +395,13 @@ following are explicit non-goals, not accidental gaps:
   (highlight-only map); `bareword_widget_constructor_binds_instance_class` /
   `var_captured_widget_constructor_binds_instance_class` /
   `simple_widget_without_subcommands_still_binds_instance_class`
-  (`instance_classes`/`created_instance_commands`) — all pass with zero
-  production-code changes beyond the registry data, proving item 3 above.
-- **Semantic tokens** (`tcl-lsp-core/src/semantic_tokens.rs`): two new rows
-  (`widget_bareword`, `widget_var_captured`) in the shared
-  `TCLOO_DISPATCH_CASES` golden fixture table, run by the existing
-  `tcloo_dispatch_pattern_fixture` test alongside every prior TclOO/snit/itcl
-  case (unchanged pass/abstain verdicts).
+  (`instance_classes` / `created_instance_commands`). These hold with no
+  widget-specific production code in either file, which is what item 3 above
+  asserts.
+- **Semantic tokens** (`tcl-lsp-core/src/semantic_tokens.rs`): the
+  `widget_bareword` and `widget_var_captured` rows in the shared
+  `TCLOO_DISPATCH_CASES` golden fixture table, run by
+  `tcloo_dispatch_pattern_fixture` alongside every TclOO / snit / itcl case.
 - **Hover** (`hover.rs`): `obj_method_hover_fires_for_bareword_widget`,
   `obj_method_hover_fires_for_var_captured_widget`,
   `obj_method_hover_none_for_widget_without_registry` (no panic without a
@@ -412,12 +412,11 @@ following are explicit non-goals, not accidental gaps:
   soundness proof `bareword_completion_does_not_leak_unrelated_variable_class`
   (an unrelated `set b [Bar new]` must not make bareword `b` complete as
   `Bar`).
-- **`tk_checks.rs`**: all 9 pre-existing TK1001/TK1002/TK1003 tests stay
-  green unchanged, plus two new ones —
-  `tk1002_fires_for_ttk_and_listbox_constructors` (coverage beyond the one
-  widget the old suite happened to test) and
+- **`tk_checks.rs`**: the TK1001/TK1002/TK1003 suite, including
+  `tk1002_fires_for_ttk_and_listbox_constructors` (coverage across widget
+  families, not one widget) and
   `unknown_command_is_never_treated_as_a_widget_constructor` (the
-  registry-driven query cannot drift the way the old hardcoded list did).
+  registry-driven query cannot drift the way a hardcoded list would).
 - **Widget diagnostics** (`analyser/diagnostics/widget_command.rs`, 11
   tests): positive W001/E002/E003 firing for both bareword and `$var`
   receivers; silence for a known subcommand and for `configure`/`cget`;
@@ -428,12 +427,8 @@ following are explicit non-goals, not accidental gaps:
   two-phase design is load-bearing, not stylistic, by constructing exactly
   the "proc defined before, called after" case a naive single pass would
   get wrong; `{*}`-expansion abstention; and
-  `tcloo_dispatch_is_unaffected` — a plain `$obj method` dispatch keeps
-  firing `var_command.rs`'s W308, never this module's W001.
-- **Regression baseline**: the full existing `cargo test -p tcl-compiler
-  --lib` suite (4133 tests after the additions above, 0 failures) and
-  `cargo test -p tcl-registry` (320 tests, 0 failures) both stay green,
-  plus a clean `cargo check --workspace` across all ~40 crates.
+  `tcloo_dispatch_is_unaffected` — a plain `$obj method` dispatch fires
+  `var_command.rs`'s W308, never this module's W001.
 - **Interpreter domains** (issue #1141), `tk_checks.rs`'s
   `tests::interp_domains` module — 19 cases covering TP/FP/TN/FN in both
   directions: the false TK1001 across isolated interpreters and the true

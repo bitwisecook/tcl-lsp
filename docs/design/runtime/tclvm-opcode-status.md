@@ -6,17 +6,24 @@ opcode set** as the C Tcl 9.0 bytecode engine
 matching operands, stack effect, and error behaviour. This is the inventory of
 where each of the 191 instructions currently stands.
 
-Coverage: **98 executed · 39 enum-only · 54 absent · 191 total**. It is
+Coverage: **145 executed · 7 enum-only · 39 absent · 191 total**. It is
 maintained by hand — adding an opcode means updating its row and the count in
-the same change.
+the same change. The rows are checked against the `Op` enum in
+`rust/tcl-bytecode/src/lib.rs` and the dispatch arms in
+`rust/tcl-vm/src/exec.rs`.
 
 ## Legend
 
-- `[x]` — executed by `tcl-vm` (`exec.rs`).
+- `[x]` — executed by `tcl-vm` (`exec.rs` has a dispatch arm for it).
 - `[~]` — present in the `tcl-bytecode` `Op` enum, so codegen can emit it, but
   **not executed** by the VM.
 - `[ ]` — **not in** the `Op` enum; it has to be added to `tcl-bytecode` first,
   matching the C Tcl mnemonic and operands.
+
+Two `[x]` rows deserve their caveat up front: `beginCatch4` and `endCatch`
+share the no-op arm with `nop` and `startCommand`. They dispatch without
+error, but the VM does not drive `catch` through an exception-range stack the
+way C's engine does, so an emitter cannot rely on them to establish one.
 
 ## Instructions (C Tcl 9.0 `InstructionDesc` order)
 
@@ -28,7 +35,7 @@ the same change.
 - [x] `strcat`
 - [x] `invokeStk1`
 - [x] `invokeStk4`
-- [~] `evalStk`
+- [x] `evalStk`
 - [x] `exprStk`
 - [x] `loadScalar1`
 - [x] `loadScalar4`
@@ -83,9 +90,9 @@ the same change.
 - [x] `tryCvtToNumeric`
 - [x] `break`
 - [x] `continue`
-- [~] `beginCatch4`
-- [~] `endCatch`
-- [~] `pushResult`
+- [x] `beginCatch4`
+- [x] `endCatch`
+- [x] `pushResult`
 - [~] `pushReturnCode`
 - [x] `streq`
 - [x] `strneq`
@@ -96,65 +103,65 @@ the same change.
 - [x] `list`
 - [x] `listIndex`
 - [x] `listLength`
-- [~] `appendScalar1`
-- [ ] `appendScalar4`
-- [ ] `appendArray1`
-- [ ] `appendArray4`
+- [x] `appendScalar1`
+- [x] `appendScalar4`
+- [x] `appendArray1`
+- [x] `appendArray4`
 - [ ] `appendArrayStk`
 - [~] `appendStk`
-- [~] `lappendScalar1`
-- [ ] `lappendScalar4`
-- [ ] `lappendArray1`
-- [ ] `lappendArray4`
+- [x] `lappendScalar1`
+- [x] `lappendScalar4`
+- [x] `lappendArray1`
+- [x] `lappendArray4`
 - [ ] `lappendArrayStk`
 - [~] `lappendStk`
-- [~] `lindexMulti`
+- [x] `lindexMulti`
 - [x] `over`
-- [~] `lsetList`
-- [~] `lsetFlat`
+- [x] `lsetList`
+- [x] `lsetFlat`
 - [x] `returnImm`
 - [x] `expon`
-- [~] `expandStart`
-- [~] `expandStkTop`
-- [~] `invokeExpanded`
+- [x] `expandStart`
+- [x] `expandStkTop`
+- [x] `invokeExpanded`
 - [x] `listIndexImm`
 - [x] `listRangeImm`
 - [x] `startCommand`
 - [x] `listIn`
 - [x] `listNotIn`
-- [~] `pushReturnOpts`
+- [x] `pushReturnOpts`
 - [x] `returnStk`
-- [~] `dictGet`
-- [~] `dictSet`
-- [~] `dictUnset`
-- [~] `dictIncrImm`
-- [~] `dictAppend`
-- [~] `dictLappend`
-- [ ] `dictFirst`
-- [ ] `dictNext`
-- [ ] `dictUpdateStart`
-- [ ] `dictUpdateEnd`
+- [x] `dictGet`
+- [x] `dictSet`
+- [x] `dictUnset`
+- [x] `dictIncrImm`
+- [x] `dictAppend`
+- [x] `dictLappend`
+- [x] `dictFirst`
+- [x] `dictNext`
+- [x] `dictUpdateStart`
+- [x] `dictUpdateEnd`
 - [x] `jumpTable`
-- [~] `upvar`
-- [~] `nsupvar`
+- [x] `upvar`
+- [x] `nsupvar`
 - [ ] `variable`
-- [~] `syntax`
-- [~] `reverse`
-- [~] `regexp`
+- [x] `syntax`
+- [x] `reverse`
+- [x] `regexp`
 - [x] `existScalar`
 - [ ] `existArray`
 - [ ] `existArrayStk`
 - [x] `existStk`
 - [x] `nop`
 - [ ] `returnCodeBranch`
-- [ ] `unsetScalar`
-- [ ] `unsetArray`
+- [x] `unsetScalar`
+- [x] `unsetArray`
 - [ ] `unsetArrayStk`
 - [x] `unsetStk`
-- [ ] `dictExpand`
+- [x] `dictExpand`
 - [ ] `dictRecombineStk`
-- [ ] `dictRecombineImm`
-- [~] `dictExists`
+- [x] `dictRecombineImm`
+- [x] `dictExists`
 - [x] `verifyDict`
 - [~] `strmap`
 - [x] `strfind`
@@ -163,7 +170,7 @@ the same change.
 - [x] `strrange`
 - [ ] `yield`
 - [ ] `coroName`
-- [~] `tailcall`
+- [x] `tailcall`
 - [ ] `currentNamespace`
 - [ ] `infoLevelNumber`
 - [ ] `infoLevelArgs`
@@ -176,29 +183,29 @@ the same change.
 - [x] `arrayExistsImm`
 - [ ] `arrayMakeStk`
 - [ ] `arrayMakeImm`
-- [~] `invokeReplace`
+- [x] `invokeReplace`
 - [x] `listConcat`
 - [ ] `expandDrop`
 - [x] `foreach_start`
 - [x] `foreach_step`
 - [x] `foreach_end`
-- [ ] `lmap_collect`
+- [x] `lmap_collect`
 - [x] `strtrim`
 - [x] `strtrimLeft`
 - [x] `strtrimRight`
-- [~] `concatStk`
+- [x] `concatStk`
 - [x] `strcaseUpper`
 - [x] `strcaseLower`
 - [x] `strcaseTitle`
-- [~] `strreplace`
+- [x] `strreplace`
 - [ ] `originCmd`
 - [ ] `tclooNext`
 - [ ] `tclooNextClass`
 - [ ] `yieldToInvoke`
-- [~] `numericType`
+- [x] `numericType`
 - [x] `tryCvtToBoolean`
-- [~] `strclass`
-- [~] `lappendList`
+- [x] `strclass`
+- [x] `lappendList`
 - [~] `lappendListArray`
 - [~] `lappendListArrayStk`
 - [~] `lappendListStk`
